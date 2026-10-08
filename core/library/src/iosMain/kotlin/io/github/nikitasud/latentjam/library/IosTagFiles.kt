@@ -219,7 +219,20 @@ internal class IosRecoveryDirectory(private val root: String) : RecoveryDirector
         syncDirectory(root)
     }
 
-    override fun freeBytes(): Long = freeBytesAt(root) ?: freeBytesAt(root.substringBeforeLast('/')) ?: 0L
+    /**
+     * Free space on the store's volume, with the same contract as the Android twin: an unknown
+     * volume is not an empty one. `NSFileManager` answers nil both for a file system whose
+     * attributes cannot be read and for a path it cannot see, and `DurableWriter` compares this
+     * number with what a save needs — a nil read as 0 would refuse every save as
+     * `NotEnoughSpace` on a disk that has room. A volume with nothing left still reports a real
+     * zero, which is not unknown and does refuse the save before it writes anything; if the space
+     * runs out only later, the failing write is a [StorageFullException] and the track stays whole.
+     *
+     * The parent directory answers when the store itself is not there yet: it is on the store's
+     * volume, so its free space is the store's.
+     */
+    override fun freeBytes(): Long =
+        freeBytesAt(root) ?: freeBytesAt(root.substringBeforeLast('/')) ?: Long.MAX_VALUE
 }
 
 /**
