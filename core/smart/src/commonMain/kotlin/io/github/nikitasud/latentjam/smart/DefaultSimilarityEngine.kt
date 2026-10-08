@@ -798,6 +798,8 @@ internal class DefaultSimilarityEngine(
         val walk: ChainWalk,
         val order: List<TrackId>,
         val companionGroups: List<Set<TrackId>>,
+        /** Index in [order] of the track this plan was planned from: where its own rows begin. */
+        val plannedAt: Int,
     )
 
     /** A cached walk as it stood at a top-up's seed, and its tracks up to and including that seed. */
@@ -816,9 +818,15 @@ internal class DefaultSimilarityEngine(
         // track before its first retained pick: a queue cut back to that pick still finds this walk,
         // not an older one that never saw this plan. Even a one-pick plan keeps its seed, so its
         // predecessor is checked; the walk's intent may be older, so it never stands in for the seed.
-        val order = (through + ids).takeLast(ChainWalk.WINDOW + 1)
+        val all = through + ids
+        val order = all.takeLast(ChainWalk.WINDOW + 1)
         walks.remove(lastTrack)
-        walks[lastTrack] = CachedWalk(walk, order, companionGroups)
+        walks[lastTrack] = CachedWalk(
+            walk,
+            order,
+            companionGroups,
+            plannedAt = (through.size - 1 - (all.size - order.size)).coerceAtLeast(0),
+        )
         while (walks.size > WALKS_KEPT) walks.remove(walks.keys.first())
     }
 
@@ -827,9 +835,13 @@ internal class DefaultSimilarityEngine(
      * still holds before it (continuesSmartPlan). [seed] usually ended that walk's plan. It is an
      * earlier track when the listener removed or moved the queue's last rows, or the app discarded the
      * queue's future to replan it: the walk goes on as it stood at [seed] (ChainWalk.resumedAt), and
-     * its picks after [seed] are free again. A track the listener removed stays out all the same,
-     * because playback no longer offers it. An older walk never saw a newer one's picks, so the newer
-     * walk wins.
+     * its picks after [seed] stay spent as picks the listener never heard. A track the listener
+     * removed stays out all the same, now from the walk's own memory as well. An older walk never saw
+     * a newer one's picks, so the newer walk wins.
+     *
+     * Only the plan's OWN rows identify it: the track it was planned from and the picks it made. The
+     * walk's older picks belong to earlier plans, and a queue that merely holds the old intent — one
+     * track from before the plan's seed — is not the queue this plan was made for.
      *
      * When [seed] is in a marked playlist the walk was not planned with (the listener just marked it,
      * or added [seed] to it), the walk's reference moves to [seed]: the points that keep a marked
@@ -842,7 +854,8 @@ internal class DefaultSimilarityEngine(
     ): ResumedWalk? {
         val cached = walks.values.lastOrNull { cached ->
             val at = cached.order.indexOf(seed)
-            at > 0 && continuesSmartPlan(cached.order.subList(0, at), precedingTrackIds)
+            at > cached.plannedAt &&
+                continuesSmartPlan(cached.order.subList(cached.plannedAt, at), precedingTrackIds)
         } ?: return null
         val walk = cached.walk.resumedAt(seed)
         val marked = joinsMarkedPlaylist(seed, before = cached.companionGroups, after = companionGroups)
