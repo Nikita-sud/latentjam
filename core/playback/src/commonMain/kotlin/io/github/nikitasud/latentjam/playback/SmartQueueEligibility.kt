@@ -29,14 +29,17 @@ internal fun smartTopUpCandidates(
 ): List<TrackDescriptor> = universe.filter { it.id !in queuedIds && it.id !in removedIds }
 
 /**
- * Books the listener's removal of a [trackId] row. In SMART the track then stays out of the rest of
- * this queue: the engine replans from where the queue now ends, and that plan, or a new walk from the
- * same tracks, would otherwise bring it straight back. Only the controllers can tell a removal from
- * the app discarding the future to replan it, which leaves those tracks free. A new queue forgets
- * the removals, and so does queueing the track by hand ([releaseSmartProvenance]).
+ * Books the listener's removal of a [trackId] row, whatever the shuffle mode. The track then stays
+ * out of SMART's top-ups for the rest of this queue: the engine replans from where the queue now
+ * ends, and that plan, or the walk it resumes, would otherwise bring it straight back — the walk
+ * releases the picks a top-up offers again, because only the controllers can tell a removal from the
+ * app discarding the future to replan it. A queue played in order or shuffled counts too: switched to
+ * SMART, it resumes the walk it came from (a For You journey, an earlier SMART plan), which may hold
+ * the removed track. A new queue forgets the removals, and so does queueing the track by hand
+ * ([releaseSmartProvenance]).
  */
-internal fun recordSmartRemoval(removedIds: MutableSet<TrackId>, mode: ShuffleMode, trackId: TrackId) {
-    if (mode == ShuffleMode.SMART) removedIds += trackId
+internal fun recordSmartRemoval(removedIds: MutableSet<TrackId>, trackId: TrackId) {
+    removedIds += trackId
 }
 
 /** Keeps playback history/current intent, but removes ineligible items from the generated tail. */

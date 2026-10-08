@@ -60,14 +60,18 @@ internal class SmartQueueEligibilityTest {
     }
 
     @Test
-    fun `a removal is booked in SMART only`() {
+    fun `a removal made before SMART was switched on stays out of its top-ups`() {
+        // Removed while the queue played in order; the controllers book it without asking the mode.
         val removedIds = mutableSetOf<TrackId>()
-        recordSmartRemoval(removedIds, ShuffleMode.OFF, a.id)
-        recordSmartRemoval(removedIds, ShuffleMode.ON, b.id)
-        assertEquals(emptySet<TrackId>(), removedIds)
-
-        recordSmartRemoval(removedIds, ShuffleMode.SMART, c.id)
-        assertEquals(setOf(c.id), removedIds)
+        recordSmartRemoval(removedIds, b.id)
+        assertEquals(
+            listOf(c),
+            smartTopUpCandidates(
+                universe = listOf(a, b, c),
+                queuedIds = setOf(a.id),
+                removedIds = removedIds,
+            ),
+        )
     }
 
     @Test
@@ -85,9 +89,9 @@ internal class SmartQueueEligibilityTest {
     @Test
     fun `repeated removals accumulate without duplicates and all of them stay out`() {
         val removedIds = mutableSetOf<TrackId>()
-        recordSmartRemoval(removedIds, ShuffleMode.SMART, a.id)
-        recordSmartRemoval(removedIds, ShuffleMode.SMART, b.id)
-        recordSmartRemoval(removedIds, ShuffleMode.SMART, a.id)
+        recordSmartRemoval(removedIds, a.id)
+        recordSmartRemoval(removedIds, b.id)
+        recordSmartRemoval(removedIds, a.id)
         assertEquals(setOf(a.id, b.id), removedIds)
 
         assertEquals(

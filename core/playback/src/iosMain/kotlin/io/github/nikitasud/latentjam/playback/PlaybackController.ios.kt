@@ -178,8 +178,8 @@ internal class IosPlaybackController(
     private val planPositionSnapshot = PlaybackPlanPositionSnapshot()
 
     /**
-     * Tracks the listener removed from this SMART queue, which its top-ups no longer offer (see
-     * [recordSmartRemoval]). Not rows, so not pruned with the queue: cleared with the labels above
+     * Tracks the listener removed from this queue, in any mode, which SMART's top-ups no longer offer
+     * (see [recordSmartRemoval]). Not rows, so not pruned with the queue: cleared with the labels above
      * when a new queue replaces this one.
      */
     private val smartRemovedIds = mutableSetOf<TrackId>()
@@ -661,7 +661,7 @@ internal class IosPlaybackController(
         val wasPlaying = playing
         queue = queue.toMutableList().apply { removeAt(index) }
         queueGeneration++
-        recordSmartRemoval(smartRemovedIds, mode, removed.id)
+        recordSmartRemoval(smartRemovedIds, removed.id)
         if (queue.none { it.id == removed.id }) {
             pool = pool.filter { it.id != removed.id }
         }

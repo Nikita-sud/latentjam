@@ -131,8 +131,8 @@ internal class AndroidPlaybackController(
     private val smartPlanPositions = mutableMapOf<TrackId, Int>()
 
     /**
-     * Tracks the listener removed from this SMART queue, which its top-ups no longer offer (see
-     * [recordSmartRemoval]). Not rows, so not pruned with the queue: cleared with the labels above
+     * Tracks the listener removed from this queue, in any mode, which SMART's top-ups no longer offer
+     * (see [recordSmartRemoval]). Not rows, so not pruned with the queue: cleared with the labels above
      * when a new queue replaces this one — including one installed from outside the app, which
      * only the service sees arrive (see [AndroidPlaybackStarts.externalQueues]).
      */
@@ -912,7 +912,7 @@ internal class AndroidPlaybackController(
         if (mediaItemIndex !in 0 until player.mediaItemCount) return@withContext
         val removedId = player.getMediaItemAt(mediaItemIndex).mediaId
         queueGeneration++
-        recordSmartRemoval(smartRemovedIds, mode, TrackId(removedId))
+        recordSmartRemoval(smartRemovedIds, TrackId(removedId))
         // Media3 treats removing the current item as that item ending: playback advances alone.
         player.removeMediaItem(mediaItemIndex)
         val stillQueued = (0 until player.mediaItemCount).any {
