@@ -200,6 +200,18 @@ internal fun currentRailBucketIndex(
     return (low - 1).coerceAtLeast(0)
 }
 
+/**
+ * Whether a measured list is worth a rail. Before the first measure there is nothing to
+ * navigate yet, and a list that fits its viewport would get a pill that cannot move anything —
+ * together with the gutter that shortens every row beside it. Callers keep their own enabling
+ * rule (sort, index preference, bucket count) in front of this measurement.
+ */
+internal fun railHasScrollableContent(
+    totalItemsCount: Int,
+    canScrollForward: Boolean,
+    canScrollBackward: Boolean,
+): Boolean = totalItemsCount > 0 && (canScrollForward || canScrollBackward)
+
 /** Convenience adapter for a one-item-per-name alphabetic group list. */
 @Composable
 internal fun GroupListWithRail(
@@ -258,9 +270,11 @@ internal fun ListWithRail(
     val railCandidate = indexEnabled && rail.buckets.size > 1
     val showRail by remember(railCandidate, listState) {
         derivedStateOf {
-            railCandidate &&
-                listState.layoutInfo.totalItemsCount > 0 &&
-                (listState.canScrollForward || listState.canScrollBackward)
+            railCandidate && railHasScrollableContent(
+                totalItemsCount = listState.layoutInfo.totalItemsCount,
+                canScrollForward = listState.canScrollForward,
+                canScrollBackward = listState.canScrollBackward,
+            )
         }
     }
     val previewListState = rememberLazyListState()
@@ -399,9 +413,11 @@ internal fun GridListWithRail(
     val railCandidate = rail.buckets.size > 1
     val showRail by remember(railCandidate, gridState) {
         derivedStateOf {
-            railCandidate &&
-                gridState.layoutInfo.totalItemsCount > 0 &&
-                (gridState.canScrollForward || gridState.canScrollBackward)
+            railCandidate && railHasScrollableContent(
+                totalItemsCount = gridState.layoutInfo.totalItemsCount,
+                canScrollForward = gridState.canScrollForward,
+                canScrollBackward = gridState.canScrollBackward,
+            )
         }
     }
     val previewGridState = rememberLazyGridState()
@@ -820,6 +836,8 @@ private fun AlphabetRail(
                     steps = (buckets.size - 2).coerceAtLeast(0),
                 )
                 setProgress { target ->
+                    // The framework's target is arbitrary here: roundToInt() throws on NaN.
+                    if (!target.isFinite()) return@setProgress false
                     val index = target.roundToInt().coerceIn(0, buckets.lastIndex)
                     if (index != activeIndex) {
                         haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)

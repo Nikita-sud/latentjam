@@ -25,6 +25,15 @@ class ForYouBuilderTest {
 
     private val now = 1_000_000_000_000L
     private val day = 24L * 60 * 60 * 1000
+    private val hour = 60L * 60 * 1000
+
+    /**
+     * The page's day boundary, pinned to the UTC midnight the fixtures below are built around.
+     * Production keys every rotation to the device's LOCAL day (see `localDayOf` on
+     * [ForYouBuilder.build]), and a fixture that left it to the default would silently move to
+     * another day with the runner's timezone.
+     */
+    private val utcDay: (Long) -> Long = { at -> at / day }
 
     private fun track(id: String, artist: String = "A", added: Long = 0) =
         TrackDescriptor(id = TrackId(id), title = "T$id", artist = artist, addedAtMs = added)
@@ -42,14 +51,21 @@ class ForYouBuilderTest {
         library: List<TrackDescriptor>,
         stats: Map<TrackId, TrackStats> = emptyMap(),
         events: List<ListenEvent> = emptyList(),
-    ) = ForYouBuilder.build(library, stats, events, now).sections
+    ) = ForYouBuilder.build(library, stats, events, now, localDayOf = utcDay).sections
 
     private fun page(
         library: List<TrackDescriptor>,
         stats: Map<TrackId, TrackStats> = emptyMap(),
         events: List<ListenEvent> = emptyList(),
         playlists: List<Playlist> = emptyList(),
-    ) = ForYouBuilder.build(library, stats, events, now, playlists = playlists)
+    ) = ForYouBuilder.build(
+        library,
+        stats,
+        events,
+        now,
+        playlists = playlists,
+        localDayOf = utcDay,
+    )
 
     private fun track(id: String, artist: String, album: String) =
         TrackDescriptor(id = TrackId(id), title = "T$id", artist = artist, album = album)
@@ -620,12 +636,54 @@ class ForYouBuilderTest {
     @Test
     fun `the page rotates across days but holds still within one`() {
         val tracks = (1..30).map { track("$it", artist = "Artist$it", added = it.toLong()) }
-        val sameDay = ForYouBuilder.build(tracks, emptyMap(), emptyList(), now + 60 * 60 * 1000L)
-        val today = ForYouBuilder.build(tracks, emptyMap(), emptyList(), now)
+        val sameDay = ForYouBuilder.build(
+            tracks, emptyMap(), emptyList(), now + hour, localDayOf = utcDay,
+        )
+        val today = ForYouBuilder.build(tracks, emptyMap(), emptyList(), now, localDayOf = utcDay)
         assertEquals(today, sameDay, "two openings on one day must agree")
 
-        val tomorrow = ForYouBuilder.build(tracks, emptyMap(), emptyList(), now + day)
+        val tomorrow = ForYouBuilder.build(
+            tracks, emptyMap(), emptyList(), now + day, localDayOf = utcDay,
+        )
         assertTrue(today != tomorrow, "consecutive days must not show an identical page")
+    }
+
+    @Test
+    fun `the daily rotation turns over on the local day rather than the UTC day`() {
+        val tracks = (1..30).map { track("$it", artist = "Artist$it", added = it.toLong()) }
+        // A fixed UTC+13 zone — far enough east for its calendar day to disagree with UTC's for
+        // eleven hours out of twenty-four. Local midnight there falls at 11:00 UTC.
+        val offset = 13 * hour
+        fun localDay(at: Long): Long = (at + offset) / day
+        fun pageAt(at: Long) = ForYouBuilder.build(
+            library = tracks,
+            stats = emptyMap(),
+            recentEvents = emptyList(),
+            nowMs = at,
+            localDayOf = ::localDay,
+        )
+
+        // Two instants inside ONE UTC day, on either side of the listener's own midnight.
+        val dayStart = now - now % day
+        val beforeLocalMidnight = dayStart + 10 * hour + 30 * 60_000L
+        val afterLocalMidnight = dayStart + 11 * hour + 30 * 60_000L
+        assertEquals(beforeLocalMidnight / day, afterLocalMidnight / day)
+        assertEquals(localDay(beforeLocalMidnight) + 1, localDay(afterLocalMidnight))
+        assertTrue(
+            pageAt(beforeLocalMidnight) != pageAt(afterLocalMidnight),
+            "the listener's own day turned over; the page must not keep yesterday's rotation",
+        )
+
+        // And two instants inside ONE local day while UTC midnight passes between them.
+        val beforeUtcMidnight = dayStart + 23 * hour + 30 * 60_000L
+        val afterUtcMidnight = dayStart + 24 * hour + 30 * 60_000L
+        assertEquals(beforeUtcMidnight / day + 1, afterUtcMidnight / day)
+        assertEquals(localDay(beforeUtcMidnight), localDay(afterUtcMidnight))
+        assertEquals(
+            pageAt(beforeUtcMidnight),
+            pageAt(afterUtcMidnight),
+            "UTC midnight is not this listener's midnight",
+        )
     }
 
     @Test
@@ -730,6 +788,7 @@ class ForYouBuilderTest {
             ),
             nowMs = now,
             journeys = journeys,
+            localDayOf = utcDay,
         )
         val card = result.sections.single { it.kind == ForYouSectionKind.JOURNEY }.cards.single()
         assertEquals(spare.first().id, card.track.id)
@@ -758,5 +817,120 @@ class ForYouBuilderTest {
         // pool cut short by the abandoned track that leads the ranking.
         assertEquals(listOf(loved[0].id, loved[1].id, loved[2].id), anchors)
         assertEquals(ForYouRhythm.JOURNEY_POOL, anchors.size)
+    }
+
+    @Test
+    fun `never played walks its strangers before the cooling tail`() {
+        val strangers = (1..8).map { track("new$it", artist = "New$it", added = 500) }
+        val cooledTracks = (1..8).map { track("cooled$it", artist = "Cooled$it", added = 900) }
+        val cooled = cooledTracks.mapTo(HashSet()) { it.id }
+        val result = ForYouBuilder.build(
+            library = strangers + cooledTracks,
+            stats = emptyMap(),
+            recentEvents = emptyList(),
+            nowMs = now,
+            cooledDiscoveries = cooled,
+            // Day fourteen lands on the last slot of the fifteen-track pool the row walks — the
+            // first slot of the cooled tail — so the walk used to open on yesterday's repeat
+            // while eight strangers sat at the front of the same list.
+            localDayOf = { 14L },
+        )
+
+        val shown = result.sections
+            .single { it.kind == ForYouSectionKind.NEVER_PLAYED }
+            .cards.map { it.track.id }
+        val strangerCount = shown.count { it !in cooled }
+        val firstCooled = shown.indexOfFirst { it in cooled }
+        assertTrue(strangerCount > 0, "the row offered nobody new: ${shown.map { it.value }}")
+        assertTrue(
+            firstCooled == -1 || firstCooled == strangerCount,
+            "a cooled repeat was shown ahead of a stranger: ${shown.map { it.value }}",
+        )
+    }
+
+    @Test
+    fun `a fresh daypart slot rotates strangers ahead of the cooling tail`() {
+        val proven = (1..3).map { track("proven$it", artist = "Proven$it") }
+        val cooled = track("cooled", artist = "Cooled")
+        val strangers = (1..5).map { track("new$it", artist = "New$it") }
+        val members = proven + listOf(cooled) + strangers
+        val stats = proven.associate { it.id to stats(plays = 5, last = now - day) }
+        val affinity = proven.associate {
+            it.id to ForYouRhythm.DaypartAffinity(weight = 4, plays = 4)
+        }
+
+        // The cooled track is the last entry of the pool, and this day index opened the walk
+        // exactly there — yesterday's repeat took the first fresh slot.
+        val row = ForYouRhythm.daypartRow(
+            affinity = affinity,
+            byId = members.associateBy { it.id },
+            worlds = listOf(LibraryWorld("Region", members)),
+            stats = stats,
+            used = emptySet(),
+            dayIndex = members.size - 1,
+            cooled = setOf(cooled.id),
+        )
+        val fresh = row.filter { (stats[it.id]?.plays ?: 0) == 0 }
+        assertEquals(ForYouRhythm.DAYPART_FRESH_SLOTS, fresh.size)
+        assertTrue(
+            fresh.none { it.id == cooled.id },
+            "a cooled repeat took a fresh slot: ${fresh.map { it.id.value }}",
+        )
+
+        // With fewer strangers than slots the tail still fills the row, and the stranger goes
+        // first: an empty slot helps nobody.
+        val thin = proven + listOf(cooled) + strangers.take(1)
+        val thinFresh = ForYouRhythm.daypartRow(
+            affinity = affinity,
+            byId = thin.associateBy { it.id },
+            worlds = listOf(LibraryWorld("Region", thin)),
+            stats = stats,
+            used = emptySet(),
+            dayIndex = 0,
+            cooled = setOf(cooled.id),
+        ).filter { (stats[it.id]?.plays ?: 0) == 0 }
+        assertEquals(listOf(strangers.first().id, cooled.id), thinFresh.map { it.id })
+    }
+
+    @Test
+    fun `the wildcard slot prefers a stranger to a repeat`() {
+        val anchor = track("anchor", artist = "Anchor")
+        val cooled = track("cooled", artist = "Cooled")
+        val strangers = (1..4).map { track("new$it", artist = "New$it") }
+        val world = LibraryWorld("Dormant", listOf(anchor, cooled) + strangers)
+        val stats = mapOf(anchor.id to stats(plays = 9, last = now - 30 * day))
+
+        // The cooled track sits last in the candidate pool, and this day index opened the walk
+        // exactly there — the serendipity slot went to a repeat.
+        val pick = ForYouRhythm.wildcard(
+            worlds = listOf(world),
+            stats = stats,
+            nowMs = now,
+            used = emptySet(),
+            dayIndex = 4,
+            cooled = setOf(cooled.id),
+        )
+        assertEquals(strangers.first().id, pick?.pick?.id)
+    }
+
+    @Test
+    fun `the hero yields to a stranger once its whole unheard pool has been offered`() {
+        val offered = (1..5).map { track("offered$it", artist = "Offered$it", added = 900L - it) }
+        val stranger = track("stranger", artist = "Stranger", added = 1)
+        val page = ForYouBuilder.build(
+            library = offered + stranger,
+            stats = emptyMap(),
+            recentEvents = emptyList(),
+            nowMs = now,
+            cooledDiscoveries = offered.mapTo(HashSet()) { it.id },
+            localDayOf = utcDay,
+        )
+
+        // The hero is the page's one unheard card and its show is written to the impression
+        // journal like any other, so the newest-unheard pool is the wrong pool when all of it is
+        // cooling: the card used to be the same handful of tracks day after day, each show
+        // recorded as if it were a new offer.
+        assertEquals(stranger.id, page.hero?.track?.id)
+        assertEquals(ForYouKicker.NeverPlayed, page.hero?.kicker)
     }
 }

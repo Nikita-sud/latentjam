@@ -15,13 +15,14 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 /**
  * The shipped music encoder through every kernel path of LatentJam's 4-bit operator (libljq4): the CPU's
  * own (i8mm where present), dotprod (weights repacked at first use) and the portable loop. All three
- * accumulate the same integers, so their embeddings must agree; the portable loop is the plain reference.
- * Reads the installed app's assets, like [SmartInferenceDeviceTest].
+ * accumulate the same integers, so their embeddings must agree exactly; the portable loop is the plain
+ * reference. Reads the installed app's assets, like [SmartInferenceDeviceTest].
  */
 class OrtOperatorsDeviceTest {
 
@@ -49,7 +50,18 @@ class OrtOperatorsDeviceTest {
         for ((path, embedding) in embeddings) {
             val cosine = detected.indices.sumOf { detected[it].toDouble() * embedding[it] }
             println("LJQ4_PATHS path=${path ?: "detected"} cosine_to_detected=$cosine")
-            assertTrue("path $path: cosine $cosine", cosine > 0.9999)
+            // Parity is exact, not approximate: one requantization step moves a component by roughly
+            // 0.004, which a cosine threshold cannot see. ljq4_test.cc pins the same byte-exact
+            // agreement between the paths on the host (CheckPathsAgree).
+            val mismatch = detected.indices.firstOrNull {
+                detected[it].toRawBits() != embedding[it].toRawBits()
+            }
+            if (mismatch != null) {
+                fail(
+                    "path $path: component $mismatch is ${embedding[mismatch]} against " +
+                        "${detected[mismatch]} (cosine $cosine)",
+                )
+            }
         }
     }
 

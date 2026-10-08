@@ -6,10 +6,12 @@ package io.github.nikitasud.latentjam.history
 
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /** Tracks and artists the listener keeps in the library but does not want SMART to suggest. */
 public data class SmartExclusionState(
@@ -91,7 +93,13 @@ public class SmartExclusions(
         val next = transform(previous)
         if (next == previous) return@withLock
         try {
-            store.write(serialize(next))
+            // The durable write and the state that mirrors it must not be split by a cancellation.
+            // A suspension point can deliver one after the record has already reached the store, and
+            // rolling back then would leave the exclusions in memory disagreeing with the ones on
+            // disk until some later write happens to overwrite them. Finishing the write is what
+            // [NonCancellable] buys; the cancellation still reaches the caller at its next suspension
+            // point. A genuine failure of the store is unchanged: it rolls back and rethrows.
+            withContext(NonCancellable) { store.write(serialize(next)) }
             mutableState.value = next
         } catch (failure: Throwable) {
             mutableState.value = previous

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+-->
+<resources>
+    <string name="media_session_shuffle_on">Ativar a ordem aleatória</string>
+    <string name="media_session_shuffle_smart_on">Ativar a ordem aleatória SMART</string>
+    <string name="media_session_shuffle_off">Desativar a ordem aleatória</string>
+    <string name="media_session_repeat_all">Repetir a fila</string>
+    <string name="media_session_repeat_one">Repetir uma música</string>
+    <string name="media_session_repeat_off">Desativar a repetição</string>
+</resources>

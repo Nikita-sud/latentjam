@@ -380,6 +380,7 @@ import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
@@ -3007,8 +3008,9 @@ private fun BackupSettings(
             smartExclusions = AppGraph.smartExclusions,
         )
     }
-    // Export/restore jobs are composition-scoped. A recreated screen must never inherit a busy
-    // flag from work that was cancelled with the old screen.
+    // The export job is composition-scoped, and a recreated screen must never inherit a busy flag
+    // from work that was cancelled with the old screen. A restore outlives the screen it started
+    // from (see restore) and the service serializes restores, so this flag may safely start clear.
     var busy by remember { mutableStateOf(false) }
     var pendingImport by remember { mutableStateOf<String?>(null) }
     var selectedSections by remember { mutableStateOf(LocalBackupSections()) }
@@ -3052,30 +3054,36 @@ private fun BackupSettings(
         confirmReplace = false
         busy = true
         scope.launch {
-            try {
-                val report = service.importEncoded(encoded, mode, selectedSections)
-                onBackupRestored()
-                val message = if (report.unresolvedTrackReferences == 0) {
-                    importSuccess
-                } else {
-                    org.jetbrains.compose.resources.getString(
-                        Res.string.backup_import_success_unmatched,
-                        report.unresolvedTrackReferences,
+            // This scope dies with the screen, and a restore cancelled after it applied some
+            // sections would leave them applied with no outcome message: the listener would never
+            // learn that playlists or history were rewritten. A restore is one durable operation,
+            // so it and its report run to completion even when Back or a dismiss closes the screen.
+            withContext(NonCancellable) {
+                try {
+                    val report = service.importEncoded(encoded, mode, selectedSections)
+                    onBackupRestored()
+                    val message = if (report.unresolvedTrackReferences == 0) {
+                        importSuccess
+                    } else {
+                        org.jetbrains.compose.resources.getString(
+                            Res.string.backup_import_success_unmatched,
+                            report.unresolvedTrackReferences,
+                        )
+                    }
+                    snackbarHostState.showSnackbar(message)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (failure: LocalBackupFormatException) {
+                    snackbarHostState.showSnackbar(invalidMessage)
+                } catch (failure: LocalBackupRestoreException) {
+                    snackbarHostState.showSnackbar(
+                        if (failure.completedSections.isEmpty()) failedMessage else partialMessage,
                     )
+                } catch (_: Throwable) {
+                    snackbarHostState.showSnackbar(failedMessage)
+                } finally {
+                    busy = false
                 }
-                snackbarHostState.showSnackbar(message)
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: LocalBackupFormatException) {
-                snackbarHostState.showSnackbar(invalidMessage)
-            } catch (failure: LocalBackupRestoreException) {
-                snackbarHostState.showSnackbar(
-                    if (failure.completedSections.isEmpty()) failedMessage else partialMessage,
-                )
-            } catch (_: Throwable) {
-                snackbarHostState.showSnackbar(failedMessage)
-            } finally {
-                busy = false
             }
         }
     }
@@ -3251,6 +3259,10 @@ private fun PrivacySettings(
     val scope = rememberCoroutineScope()
     val saveListeningHistory by settings.saveListeningHistory.collectAsState()
     val rememberSearches by settings.rememberSearches.collectAsState()
+    // The playback recorder advances this revision as soon as a finished session reaches the log.
+    // Settings are an overlay over a queue that keeps playing, so without it the counters below
+    // would only ever show what the log held when the screen opened.
+    val historyRevision by AppGraph.historyRevision.collectAsState()
     var listens by remember { mutableStateOf<Int?>(null) }
     var searches by remember { mutableStateOf<Int?>(null) }
     var changingHistory by remember { mutableStateOf(false) }
@@ -3263,7 +3275,7 @@ private fun PrivacySettings(
     val settingSaveFailed = stringResource(Res.string.privacy_setting_save_failed)
     val dataClearFailed = stringResource(Res.string.privacy_data_clear_failed)
 
-    LaunchedEffect(history, recentSearches) {
+    LaunchedEffect(history, recentSearches, historyRevision) {
         val loadedListens = try {
             history.stats().values.sumOf { it.plays }
         } catch (cancelled: CancellationException) {
@@ -3857,7 +3869,6 @@ private fun EngineError.toUserMessage(): String = when (this) {
     is EngineError.BackendFailure -> stringResource(Res.string.engine_error_backend)
 }
 
-private const val MAX_VISIBLE_FAILURES = 5
 private const val ROUTE_SEPARATOR = "|"
 private const val IOS_MUSIC_LIBRARY_SOURCE_ID = "ios:music"
 private const val RESTORE_ALL_OPERATION_ID = "restore-all"

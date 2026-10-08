@@ -24,7 +24,12 @@ public data class AlbumGroup(
     public val tracks: List<TrackDescriptor>,
 )
 
-/** An artist as grouped from track metadata (single-string artist for now). */
+/**
+ * An artist as grouped from track metadata (single-string artist for now).
+ *
+ * @property albumCount How many of the catalog's albums hold at least one of [tracks], which is
+ *   what the artist's page lays out as its album sections.
+ */
 public data class ArtistGroup(
     public val name: String?,
     public val tracks: List<TrackDescriptor>,
@@ -98,9 +103,14 @@ public data class LibraryCatalog(
                 .sortedWith(compareBy({ it.second }, { it.third }))
                 .map { it.first }
 
-            val albumCountByArtist = albums
-                .groupingBy { it.artist }
-                .eachCount()
+            // The album each track landed in, so an artist's album count is the albums of that
+            // artist's own tracks — the same set the artist's page lays out by album. It used to be
+            // looked up by the raw album-artist string, which missed "the beatles" beside
+            // "The Beatles" and gave a featured artist 0 for every album they appear on.
+            val albumKeysByTrack = HashMap<TrackId, String>(tracks.size)
+            for (album in albums) {
+                for (track in album.tracks) albumKeysByTrack[track.id] = album.key
+            }
 
             // A collaboration belongs to EVERY credited artist: the tags' ARTISTS list is
             // authoritative when read. Otherwise the display credit is split where an artist
@@ -127,10 +137,11 @@ public data class LibraryCatalog(
                 .groupBy { (name, _) -> name?.lowercase() }
                 .map { (_, entries) ->
                     val name = entries.first().first
+                    val artistTracks = entries.map { it.second }.distinct()
                     ArtistGroup(
                         name = name,
-                        tracks = entries.map { it.second }.distinct().byTitle(),
-                        albumCount = albumCountByArtist[name] ?: 0,
+                        tracks = artistTracks.byTitle(),
+                        albumCount = artistTracks.mapNotNull { albumKeysByTrack[it.id] }.distinct().size,
                     )
                 }
                 .sortedByKey { SongSorting.sortKey(it.name) }

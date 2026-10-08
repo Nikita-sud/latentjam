@@ -78,7 +78,7 @@ internal fun encodeM3u(
 }
 
 /** The `#PLAYLIST:` name, when the file carries one. */
-internal fun parseM3uName(text: String): String? = text.lineSequence()
+internal fun parseM3uName(text: String): String? = text.withoutBom().lineSequence()
     .map { it.trim() }
     .firstOrNull { it.startsWith("#PLAYLIST:", ignoreCase = true) }
     ?.substringAfter(':')
@@ -92,7 +92,7 @@ internal fun parseM3u(text: String): List<M3uEntry> {
     var pendingTitle: String? = null
     var pendingDuration: Int? = null
     var pendingLocalTrackIdHint: TrackId? = null
-    for (raw in text.lineSequence()) {
+    for (raw in text.withoutBom().lineSequence()) {
         val line = raw.trim()
         when {
             line.isEmpty() -> Unit
@@ -242,6 +242,17 @@ internal fun matchM3uEntries(
 private fun String.encodeHex(): String = encodeToByteArray().joinToString("") { byte ->
     (byte.toInt() and 0xff).toString(16).padStart(2, '0')
 }
+
+/**
+ * Drops the UTF-8 byte order mark (U+FEFF) from the head of the text.
+ *
+ * The mark is not whitespace on any platform this ships on, so `trim()` keeps it and the first
+ * line stops looking like what it is: `#EXTM3U` behind a BOM is not read as a comment but as a
+ * locator, which turned a real header into a phantom entry, and a plain M3U lost its first track
+ * to a path that matches nothing. Editors on Windows write the mark, and by definition it can only
+ * stand at the head of the text, so that is where it is removed.
+ */
+private fun String.withoutBom(): String = trimStart('\uFEFF')
 
 private fun String.isM3uLineSafe(): Boolean =
     isNotBlank() && '\n' !in this && '\r' !in this && !trimStart().startsWith('#')

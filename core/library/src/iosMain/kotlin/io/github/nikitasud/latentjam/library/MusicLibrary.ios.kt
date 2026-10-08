@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.library
 
+import io.github.nikitasud.latentjam.library.tags.TagCodecs
 import io.github.nikitasud.latentjam.library.tags.TextRepair
 import io.github.nikitasud.latentjam.library.tags.cleanGenre
 import io.github.nikitasud.latentjam.library.tags.parseYear
@@ -88,6 +89,14 @@ internal class IosMusicLibrary : MusicLibrary {
     /** Relative path → last scan result, reused while size and mtime agree. */
     private val cache = mutableMapOf<String, CachedTrack>()
 
+    /**
+     * The Music.app half of the last scan and the library revision it was read at.
+     *
+     * Main-thread confined, exactly like the query that fills it — see [cachedDeviceLibrary].
+     */
+    private var deviceCache: List<TrackDescriptor> = emptyList()
+    private var deviceCacheRevision: Double? = null
+
     private data class CachedTrack(
         val modifiedAtMs: Long,
         val sizeBytes: Long,
@@ -152,7 +161,7 @@ internal class IosMusicLibrary : MusicLibrary {
         val device = if (canReadDeviceLibrary) {
             // MediaPlayer's controller is explicitly main-thread-only. Keeping its query here as
             // well avoids relying on undocumented cross-thread behavior of the returned items.
-            withContext(Dispatchers.Main) { scanDeviceLibrary() }
+            withContext(Dispatchers.Main) { cachedDeviceLibrary() }
         } else {
             emptyList()
         }
@@ -377,6 +386,33 @@ internal class IosMusicLibrary : MusicLibrary {
         MPMediaLibrary.authorizationStatus() == MPMediaLibraryAuthorizationStatusAuthorized
     }
 
+    /**
+     * The Music.app half of the library, re-read only when Music.app says the library changed.
+     *
+     * `MPMediaQuery` is main-thread-only, and a songs query over a synced library hands back one
+     * item per song whose properties are then read one by one — the most expensive part of a scan,
+     * paid again on every scan and every return to the foreground. The descriptors are therefore
+     * kept and reused while `MPMediaLibrary.lastModifiedDate` — the same revision the playback
+     * controller resolves its cached items by — is unchanged. The query itself stays on the main
+     * thread: MediaPlayer documents that for its controller, and the returned items are not touched
+     * off it either.
+     *
+     * Only a nonempty answer becomes a cache entry. An empty one is the ambiguous state
+     * [snapshotIsComplete] already refuses to trust — Music.app answers with an empty list for a
+     * moment after the grant, before its query has loaded, and `lastModifiedDate` does not change
+     * when the songs arrive — so it is asked again instead of being cached and hiding the library.
+     */
+    private fun cachedDeviceLibrary(): List<TrackDescriptor> {
+        val revision = MPMediaLibrary.defaultMediaLibrary().lastModifiedDate.timeIntervalSince1970
+        if (deviceCache.isNotEmpty() && deviceCacheRevision == revision) return deviceCache
+        val scanned = scanDeviceLibrary()
+        if (scanned.isNotEmpty()) {
+            deviceCache = scanned
+            deviceCacheRevision = revision
+        }
+        return scanned
+    }
+
     /** Converts the Music.app library into the same descriptors used by app-owned files. */
     @OptIn(ExperimentalForeignApi::class)
     private fun scanDeviceLibrary(): List<TrackDescriptor> {
@@ -389,7 +425,11 @@ internal class IosMusicLibrary : MusicLibrary {
                 val persistentId = item.persistentID.toString()
                 TrackDescriptor(
                     id = TrackId("$MEDIA_ID_PREFIX$persistentId"),
-                    title = item.title.knownOrNull() ?: "Unknown title",
+                    // An untitled Music.app item stays null rather than becoming an English literal
+                    // here: the library has no locale, so the UI draws its own localized fallback
+                    // (`track_untitled`), exactly as it already does for a null title from anywhere
+                    // else. The tag readers' own fallback for imported files is their file name.
+                    title = item.title.knownOrNull(),
                     artist = item.artist.knownOrNull(),
                     album = item.albumTitle.knownOrNull(),
                     genre = item.genre.knownOrNull()?.let(::cleanGenre),
@@ -521,7 +561,11 @@ internal class IosMusicLibrary : MusicLibrary {
             audioUri = url.absoluteString,
             artworkUri = artwork?.let(::cacheArtwork),
             addedAtMs = addedAtMs,
-            folderPath = relativePath.substringBeforeLast('/', "").ifBlank { "Imported" },
+            // A file dropped straight into Documents has no folder of its own, so it stays one:
+            // "Imported" here would merge it into the real Documents/Imported folder — a single
+            // source with a single switch covering two unrelated sets of files. Android's path
+            // projection returns null for a file in the mount root for the same reason.
+            folderPath = relativePath.substringBeforeLast('/', "").takeIf(String::isNotBlank),
             year = (asset.firstString(YEAR_IDENTIFIERS) ?: asset.rawString("DATE", "YEAR") ?: created)
                 ?.let(::parseYear),
             sizeBytes = sizeBytes.takeIf { it > 0 },
@@ -597,8 +641,14 @@ internal class IosMusicLibrary : MusicLibrary {
      * album normally embed the same image; sharing one cache URI lets the
      * common catalogue recognize that album and avoids dozens of duplicate
      * cache files. A changed cover naturally gets a different key.
+     *
+     * A payload larger than [TagCodecs.MAX_COVER_BYTES] is refused instead of hashed and copied:
+     * that is the same ceiling the tag readers apply to a cover, and without it this path would
+     * duplicate whatever a malformed file claims to embed — in memory for the hash and again on
+     * disk for the cache — for a cover no screen can show.
      */
     private fun cacheArtwork(data: NSData): String? {
+        if (data.length > TagCodecs.MAX_COVER_BYTES.toULong()) return null
         val caches = IosPaths.caches() ?: return null
         var hash = 0xcbf29ce484222325uL
         data.toByteArray().forEach { byte ->

@@ -167,15 +167,16 @@ data class ForYouHero(
     val resumeAtMs: Long? = null,
 )
 
-/** The page: one hero, then rows. */
+/**
+ * The page: one hero, then rows.
+ *
+ * The page carries no list of "offers" for the caller to record. Building a page offers nothing —
+ * the rows compose only what fits the viewport — so the unit of an impression is a card reaching
+ * the screen, and it is the surface that knows it (see ForYouTab's shown-card reporting).
+ */
 data class ForYouPage(
     val hero: ForYouHero? = null,
     val sections: List<ForYouSection> = emptyList(),
-    /**
-     * The unheard tracks this page actually offered, with the section that offered them —
-     * the caller records these as impressions so tomorrow's page can retire ignored offers.
-     */
-    val discoveryOffers: List<Pair<TrackId, String>> = emptyList(),
 ) {
     val isEmpty: Boolean get() = hero == null && sections.isEmpty()
 }
@@ -211,9 +212,6 @@ object ForYouBuilder {
 
     /** Below a week, "gone quiet" is indistinguishable from "listened on Tuesday". */
     const val MIN_QUIET_MS = 7L * 24 * 60 * 60 * 1000
-
-    /** The day key for deterministic rotation: stable within a day, different across days. */
-    private const val DAY_MS = 24L * 60 * 60 * 1000
 
     /**
      * Ranked slots the worlds row always keeps at the front; the rest of the row rotates daily.
@@ -304,6 +302,15 @@ object ForYouBuilder {
         /** Local wall-clock hour for an instant; injectable so replays can pin a timezone. */
         localHourOf: (Long) -> Int = { localTimePoint(it).hourOfDay },
         /**
+         * Local calendar day for an instant — the same epoch day the impression store records
+         * (`localTimePoint(...).epochDay`). Every rotation below turns over at LOCAL midnight,
+         * exactly where the cool-off window and the impression journal already turn over: keyed to
+         * the UTC day instead, the page rotated at an hour belonging to the listener's previous or
+         * next day, so a "fresh" slot could hand back what the cooldown had just retired while the
+         * listener's own day had not started yet. Injectable so tests and replays can pin it.
+         */
+        localDayOf: (Long) -> Long = { localTimePoint(it).epochDay },
+        /**
          * Unheard tracks offered on recent PRIOR days and still not played — they yield their
          * discovery slots to strangers that have not had a turn yet. Same-day offers are never
          * in this set, so the page stays stable within its day.
@@ -323,15 +330,23 @@ object ForYouBuilder {
         val used = HashSet<TrackId>(excluded)
 
         val quietMs = adaptiveQuietMs(stats, nowMs)
-        val hero = hero(byId, stats, recentEvents, nowMs, quietMs, excluded)
+        // One day key for the whole page, taken from the listener's own calendar day rather than
+        // from elapsed UTC time: the cool-off window above and the impression journal both count
+        // local days, and a page whose rotation disagreed with them by a timezone offset either
+        // re-offered what had just cooled or stood still after its own day had ended.
+        val dayIndex = localDayOf(nowMs).toInt()
+        val hero = hero(
+            byId, stats, recentEvents, nowMs, quietMs, excluded, cooledDiscoveries, dayIndex,
+        )
         hero?.let { used.add(it.track.id) }
 
         val sections = mutableListOf<ForYouSection>()
         continueListening(byId, recentEvents, used)?.let(sections::add)
         // Directly under the resume row: timing is the cheapest magic there is, and this is the
         // one section whose claim is about RIGHT NOW.
-        daypartSection(byId, recentEvents, worlds, stats, nowMs, used, localHourOf, cooledDiscoveries)
-            ?.let(sections::add)
+        daypartSection(
+            byId, recentEvents, worlds, stats, nowMs, used, localHourOf, cooledDiscoveries, dayIndex,
+        )?.let(sections::add)
         worthRevisiting(byId, stats, nowMs, quietMs, used, playlists)?.let(sections::add)
         onARoll(library, byId, recentEvents, stats, worlds, nowMs, used)?.let(sections::add)
         // Above "never played" and below the history rows on purpose. With nothing logged the rows
@@ -348,25 +363,14 @@ object ForYouBuilder {
             discoveryMixLabel = discoveryMixLabel,
             includeNoveltyMixes = includeNoveltyMixes,
             semanticMixLabels = semanticMixLabels,
+            dayIndex = dayIndex,
         )?.let(sections::add)
-        journeySection(journeys, byId, nowMs, used, excluded, journeyTitlePattern)?.let(sections::add)
-        wildcardSection(worlds, stats, nowMs, used, cooledDiscoveries)?.let(sections::add)
-        neverPlayed(library, stats, nowMs, used, cooledDiscoveries)?.let(sections::add)
+        journeySection(journeys, byId, used, excluded, journeyTitlePattern, dayIndex)
+            ?.let(sections::add)
+        wildcardSection(worlds, stats, nowMs, used, cooledDiscoveries, dayIndex)?.let(sections::add)
+        neverPlayed(library, stats, used, cooledDiscoveries, dayIndex)?.let(sections::add)
 
-        // A DAYPART card without a caption is by construction an unheard fresh pick — proven
-        // cards always carry their in-phase play count.
-        val discoveryOffers = sections.flatMap { section ->
-            when (section.kind) {
-                ForYouSectionKind.DAYPART ->
-                    section.cards.filter { it.caption == null }.map { it.track.id to "daypart" }
-                ForYouSectionKind.WILDCARD ->
-                    section.cards.map { it.track.id to "wildcard" }
-                ForYouSectionKind.NEVER_PLAYED ->
-                    section.cards.map { it.track.id to "never-played" }
-                else -> emptyList()
-            }
-        }
-        return ForYouPage(hero, sections, discoveryOffers)
+        return ForYouPage(hero, sections)
     }
 
     /**
@@ -374,7 +378,13 @@ object ForYouBuilder {
      * something interrupted, then a proven favourite gone quiet, then something owned and unheard.
      *
      * Falling through rather than insisting on one signal is what lets the card exist on day one and
-     * still be the best available answer in month six.
+     * still be the best available answer in month six. The unheard fallback skips
+     * [cooledDiscoveries] — the hero's own card is written to the impression journal like any other
+     * (see ForYouTab's shown-card reporting), so it has to answer that journal too; a hero that
+     * ignored it cycled the same handful of tracks for as long as the library stayed quiet. When
+     * every unheard track is cooling the fallback yields no hero for that day and the rows below
+     * carry the page — a card the listener has already scrolled past three days running is the
+     * weaker offer of the two.
      */
     private fun hero(
         byId: Map<TrackId, TrackDescriptor>,
@@ -383,13 +393,14 @@ object ForYouBuilder {
         nowMs: Long,
         quietMs: Long,
         excluded: Set<TrackId>,
+        cooledDiscoveries: Set<TrackId>,
+        dayIndex: Int,
     ): ForYouHero? {
         interrupted(byId, recentEvents, excluded)?.let { (track, at) ->
             return ForYouHero(track, ForYouKicker.Resume, at)
         }
         // Rotated among the strongest few rather than pinned to the single maximum: without
         // interruptions the hero otherwise shows the same card every day of the week.
-        val dayIndex = (nowMs / DAY_MS).toInt()
         val revisit = stats.entries
             .filter { (id, stat) ->
                 id !in excluded &&
@@ -406,7 +417,7 @@ object ForYouBuilder {
         }
         val unheard = byId.values
             .filter { (stats[it.id]?.plays ?: 0) == 0 }
-            .filter { it.id !in excluded }
+            .filter { it.id !in excluded && it.id !in cooledDiscoveries }
             .sortedByDescending { it.addedAtMs ?: Long.MIN_VALUE }
             .take(HERO_ROTATION_POOL)
         if (unheard.isEmpty()) return null
@@ -585,6 +596,7 @@ object ForYouBuilder {
         discoveryMixLabel: String,
         includeNoveltyMixes: Boolean,
         semanticMixLabels: Map<LibraryWorldSemanticTitle, String>,
+        dayIndex: Int,
     ): ForYouSection? {
         if (worlds.isEmpty()) return null
         val visibleWorlds = worlds.filter { world ->
@@ -606,7 +618,6 @@ object ForYouBuilder {
         // best exploration candidates, then a daily rotation through everything else — so the
         // page always contains "you", always offers something new, and changes across days
         // while staying stable within one.
-        val dayIndex = (nowMs / DAY_MS).toInt()
         val affinity = visibleWorlds
             .map { world ->
                 // The strongest few members, not a sum over all: summing lets a large world with
@@ -720,6 +731,7 @@ object ForYouBuilder {
         used: MutableSet<TrackId>,
         localHourOf: (Long) -> Int,
         cooledDiscoveries: Set<TrackId>,
+        dayIndex: Int,
     ): ForYouSection? {
         val daypart = ForYouRhythm.daypartOf(localHourOf(nowMs))
         val inPhase = ForYouRhythm.daypartEventCount(recentEvents, daypart, localHourOf)
@@ -731,7 +743,7 @@ object ForYouBuilder {
             worlds = worlds,
             stats = stats,
             used = used,
-            dayIndex = (nowMs / DAY_MS).toInt(),
+            dayIndex = dayIndex,
             cooled = cooledDiscoveries,
         )
         if (row.size < COLLAPSE_MIN) return null
@@ -805,13 +817,12 @@ object ForYouBuilder {
     private fun journeySection(
         journeys: List<List<TrackId>>,
         byId: Map<TrackId, TrackDescriptor>,
-        nowMs: Long,
         used: MutableSet<TrackId>,
         excluded: Set<TrackId>,
         titlePattern: String,
+        dayIndex: Int,
     ): ForYouSection? {
         if (journeys.isEmpty()) return null
-        val dayIndex = (nowMs / DAY_MS).toInt()
         var found: List<TrackDescriptor>? = null
         for (offset in journeys.indices) {
             val candidate = journeys[(dayIndex + offset).mod(journeys.size)]
@@ -847,13 +858,14 @@ object ForYouBuilder {
         nowMs: Long,
         used: MutableSet<TrackId>,
         cooledDiscoveries: Set<TrackId>,
+        dayIndex: Int,
     ): ForYouSection? {
         val wildcard = ForYouRhythm.wildcard(
             worlds = worlds,
             stats = stats,
             nowMs = nowMs,
             used = used,
-            dayIndex = (nowMs / DAY_MS).toInt(),
+            dayIndex = dayIndex,
             cooled = cooledDiscoveries,
         ) ?: return null
         val anchorName = wildcard.anchor.title ?: wildcard.anchor.artist
@@ -875,12 +887,13 @@ object ForYouBuilder {
     private fun neverPlayed(
         library: List<TrackDescriptor>,
         stats: Map<TrackId, TrackStats>,
-        nowMs: Long,
         used: MutableSet<TrackId>,
         cooledDiscoveries: Set<TrackId>,
+        dayIndex: Int,
     ): ForYouSection? {
-        // Offers ignored on recent days step aside before the window is cut, so the rotation
-        // reaches strangers that have not had a turn instead of re-offering the ignored ones.
+        // Offers ignored on recent days step aside before the window is cut, and the day's rotation
+        // then turns among the strangers that remain (see [ForYouRhythm.freshRotationOrder]): a
+        // repeat may fill a leftover slot, but it never leads the row.
         val fresh = library
             .filter { it.id !in used && (stats[it.id]?.plays ?: 0) == 0 }
             .sortedWith(
@@ -888,9 +901,8 @@ object ForYouBuilder {
                     .thenByDescending { it.addedAtMs ?: 0L },
             )
             .take(NEVER_PLAYED_WINDOW)
-        val dayIndex = (nowMs / DAY_MS).toInt()
         val picked = capPerArtist(
-            if (fresh.isEmpty()) fresh else List(fresh.size) { fresh[(it + dayIndex).mod(fresh.size)] },
+            ForYouRhythm.freshRotationOrder(fresh, cooledDiscoveries, dayIndex),
         )
         if (picked.isEmpty()) return null
         return ForYouSection(

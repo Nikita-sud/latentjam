@@ -36,10 +36,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.QueueMusic
@@ -62,6 +62,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -76,6 +77,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.zIndex
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
@@ -153,7 +155,12 @@ internal fun PlaylistsTabContent(
     // the top on every return "so the auto playlists stay visible", and the losing side of
     // that trade was every listener who had scrolled somewhere on purpose. The way back up is
     // the fast-travel button instead of a forced teleport.
-    val listState = remember { LazyListState() }
+    //
+    // A plain remember() did not hold that promise: the tabs live in a pager that keeps no page
+    // beyond the viewport (App.kt, beyondViewportPageCount = 0), so the offset died with the
+    // page it was remembered in. rememberLazyListState saves it inside the page's
+    // SaveableStateProvider and hands it back on return — the way the other tabs keep theirs.
+    val listState = rememberLazyListState()
     val haptics = LocalHapticFeedback.current
     val reduceMotion = rememberReduceMotion()
     val featuredPlaylists = remember(autoPlaylists) {
@@ -403,7 +410,11 @@ private fun AutoPlaylistCard(
     Column(
         modifier = Modifier.width(150.dp)
             .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
-            .clickable(onClick = onClick),
+            // A shelf that is still empty keeps its slot (see featuredPlaylists) but does not
+            // open: the collection page would have no rows and nothing on it to explain them.
+            // Favourites, Most Played and Recently Played all start out this way, and the card
+            // starts responding as soon as hearting or listening puts a first row in it.
+            .clickable(enabled = auto.tracks.isNotEmpty(), onClick = onClick),
     ) {
         Artwork(uri = artworkUri, size = 150.dp, cornerRadius = 18.dp, modifier = artworkModifier)
         Text(
@@ -711,13 +722,30 @@ internal fun AddToPlaylistSheet(
     busy: Boolean = false,
     errorMessage: String? = null,
 ) {
-    val sheetState = rememberModalBottomSheetState()
+    // While the add is in flight the sheet refuses to hide. Material3 hides the sheet itself
+    // before Back or a scrim tap reaches onDismissRequest, so a dismissal refused after the fact
+    // left the sheet composed but invisible — swallowing every touch — and the message of a
+    // failing add landed in a sheet nobody could see. The veto reads the current flag through
+    // rememberUpdatedState, because the sheet state keeps the callback from its first composition.
+    val busyNow by rememberUpdatedState(busy)
+    val vetoHide = remember {
+        { value: SheetValue -> value != SheetValue.Hidden || !busyNow }
+    }
+    val sheetState = rememberModalBottomSheetState(confirmValueChange = vetoHide)
     val scope = rememberCoroutineScope()
     val reduceMotion = rememberReduceMotion()
     var dismissalInFlight by remember { mutableStateOf(false) }
 
     fun dismissThen(action: () -> Unit) {
-        if (dismissalInFlight || busy) return
+        if (busy) {
+            // Back arrives here after Material3 tried to hide the sheet; the veto above kept it on
+            // screen, so there is nothing to clean up. Should the sheet ever be hidden while the
+            // add runs — another dismissal path, another Material3 — the owner still has to hear
+            // about it: a hidden sheet left composed swallows every touch until the process dies.
+            if (!sheetState.isVisible) onDismiss()
+            return
+        }
+        if (dismissalInFlight) return
         dismissalInFlight = true
         if (reduceMotion) {
             // Nothing animates, so there is no window in which the choice could be withdrawn.

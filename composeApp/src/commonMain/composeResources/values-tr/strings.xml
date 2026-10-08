@@ -464,7 +464,7 @@
     <string name="settings_licenses">Açık kaynak lisansları</string>
     <string name="settings_licenses_body">LatentJam, paketli modeller ve üçüncü taraf yazılımlara ait bildirimler</string>
     <string name="settings_license_models">Ses ve SMART modelleri</string>
-    <string name="settings_license_models_body">LatentJam’in ürettiği MobileNetV4 ses ve SMART tahmin ağırlıkları Apache-2.0 lisanslıdır. Öğrenci model timm (Apache-2.0) kullanır ve EfficientAT’den damıtılmıştır (MIT, telif hakkı © 2022 Florian Schmid).</string>
+    <string name="settings_license_models_body">LatentJam’in ürettiği MobileNetV4 ses ve SMART tahmin ağırlıkları Apache-2.0 lisanslıdır. Öğrenci model timm (Apache-2.0) kullanır ve EfficientAT’den damıtılmıştır (MIT, telif hakkı © 2022 Florian Schmid). Beş grafiğin üçü ve dördüncünün bir kolu, herkese açık sürüm için gereken hak incelemesinden geçmedi; birlikte gelen LICENSE-MODEL.txt her durumu ayrıntılı olarak açıklar.</string>
     <string name="settings_license_text_model">Metin modeli</string>
     <string name="settings_license_text_model_body">Paketli metin kodlayıcı ve sözlüğü, LatentJam tarafından sentence-transformers/all-MiniLM-L6-v2 (Apache-2.0) modelini yeniden üretecek şekilde eğitildi ve Apache-2.0 lisanslıdır.</string>
     <string name="settings_license_runtime">ONNX Runtime</string>

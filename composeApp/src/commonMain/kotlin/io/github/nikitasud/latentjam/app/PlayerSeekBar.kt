@@ -63,6 +63,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
+import kotlin.math.abs
 import kotlin.math.roundToLong
 
 /**
@@ -75,7 +76,9 @@ import kotlin.math.roundToLong
  * right-hand time toggles between the total and the remaining time. Right-to-left languages do
  * not mirror it: it shows time.
  *
- * This is the only expanded-player subtree that observes the coarse position ticker.
+ * This is the only expanded-player subtree that observes the coarse position ticker, which reports
+ * every 500 ms: after a release the handle holds the seek target for up to 700 ms, until the
+ * playhead reports it, so the ticker cannot snap the handle back to the pre-seek position.
  */
 @Composable
 internal fun PlayerSeekBar(
@@ -104,7 +107,15 @@ internal fun PlayerSeekBar(
     var fine by remember(playback, trackId, queueIndex) { mutableIntStateOf(1) }
     var showRemaining by remember { mutableStateOf(false) }
     var bandWidth by remember { mutableIntStateOf(0) }
-    val shownMs = (overrideMs ?: positionMs).coerceIn(0L, duration)
+    // While the finger is down its target is the truth. After the release the seek travels
+    // asynchronously, so the target stands in for the playhead — but it is a stand-in, not a
+    // claim: as soon as the playhead reports that same moment (within a tick's rounding) the real
+    // position wins, so the handle can never keep showing a time the transport is not at. A seek
+    // that never lands holds it only as long as the settle window below.
+    val standInMs = overrideMs?.takeUnless { held ->
+        !scrubbing && abs(positionMs - held) <= SEEK_LANDED_TOLERANCE_MS
+    }
+    val shownMs = (standInMs ?: positionMs).coerceIn(0L, duration)
     LaunchedEffect(overrideMs, scrubbing) {
         val held = overrideMs ?: return@LaunchedEffect
         if (scrubbing) return@LaunchedEffect
@@ -323,7 +334,7 @@ private fun ScrubBubble(
         contentColor = MaterialTheme.colorScheme.inverseOnSurface,
         shadowElevation = 6.dp,
         modifier = Modifier.layout { measurable, constraints ->
-            // The bubble floats outside the 40 dp touch band. Only its width is constrained
+            // The bubble floats outside the 44 dp touch band. Only its width is constrained
             // by that band; measuring its height there clips lyrics and enlarged text.
             val placeable = measurable.measure(
                 constraints.copy(minWidth = 0, minHeight = 0, maxHeight = Constraints.Infinity),
@@ -371,11 +382,14 @@ private fun ScrubBubble(
     }
 }
 
-// The band is the touch target; the line sits below its middle so the labels can tuck in
-// under the handle (17 dp half-height while scrubbing) without the transport drifting away.
-// Line to play button and play button to next-up row then come out equal on the player.
-private val BAND_HEIGHT: Dp = 40.dp
-private val LINE_FROM_TOP: Dp = 22.dp
+// The band is the touch target, 44 dp as the player plan specifies: it is the only place a scrub
+// can start. The line sits below its middle (26 of the 44) so the labels can tuck in under the
+// handle (17 dp half-height while scrubbing) without the transport drifting away, and it keeps the
+// 18 dp it had in the 40 dp band — the added 4 dp go above the line, so the spacing below it, tuned
+// on a phone, is untouched. Line to play button and play button to next-up row then come out equal
+// on the player.
+private val BAND_HEIGHT: Dp = 44.dp
+private val LINE_FROM_TOP: Dp = 26.dp
 private val LINE_RESTING: Dp = 4.dp
 private val LINE_SCRUBBING: Dp = 6.dp
 private val HANDLE_RESTING: Dp = 26.dp
@@ -388,3 +402,8 @@ private val BUBBLE_GAP: Dp = 8.dp
 private val LYRIC_MAX_WIDTH: Dp = 230.dp
 private const val REMAINING_ALPHA = 0.22f
 private const val SEEK_SETTLE_MS = 700L
+
+// A playhead this close to the target is the seek that landed: the ticker reports in ticks of
+// 500 ms, so an exact match is not to be expected, and half a second is under a pixel of travel
+// on a normal track. A report further away means the seek is still on its way.
+private const val SEEK_LANDED_TOLERANCE_MS = 500L

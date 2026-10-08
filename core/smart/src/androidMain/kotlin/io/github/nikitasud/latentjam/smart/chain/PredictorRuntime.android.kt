@@ -64,20 +64,22 @@ internal class OnnxPredictorRuntime(
         val token = PredictorRuntime.TOKEN_DIM.toLong()
         val dim = PredictorRuntime.EMBEDDING_DIM.toLong()
 
-        val small = tensor(environment, historySmall, 1, k, token)
-        val medium = tensor(environment, historyMedium, 1, dim)
-        val large = tensor(environment, historyLarge, 1, dim)
-        val time = tensor(environment, timeFeatures, 1, timeFeatures.size.toLong())
-        val session5 = tensor(environment, sessionFeatures, 1, sessionFeatures.size.toLong())
-
+        // Every tensor is created inside the try: a failure half-way through the list must not leave the
+        // ones already created to the garbage collector's mercy.
+        val created = ArrayList<OnnxTensor>(5)
         return try {
+            created += tensor(environment, historySmall, 1, k, token)
+            created += tensor(environment, historyMedium, 1, dim)
+            created += tensor(environment, historyLarge, 1, dim)
+            created += tensor(environment, timeFeatures, 1, timeFeatures.size.toLong())
+            created += tensor(environment, sessionFeatures, 1, sessionFeatures.size.toLong())
             session.run(
                 mapOf(
-                    "history_small" to small,
-                    "history_medium" to medium,
-                    "history_large" to large,
-                    "time_features" to time,
-                    "session_features" to session5,
+                    "history_small" to created[0],
+                    "history_medium" to created[1],
+                    "history_large" to created[2],
+                    "time_features" to created[3],
+                    "session_features" to created[4],
                 ),
             ).use { result ->
                 @Suppress("UNCHECKED_CAST")
@@ -86,7 +88,7 @@ internal class OnnxPredictorRuntime(
                     ?: throw SmartEngineException(EngineError.ModelUnavailable)
             }
         } finally {
-            small.close(); medium.close(); large.close(); time.close(); session5.close()
+            for (tensor in created) tensor.close()
         }
     }
 
@@ -96,16 +98,17 @@ internal class OnnxPredictorRuntime(
     ): FloatArray {
         val scorer = scorerSession ?: throw SmartEngineException(EngineError.ModelUnavailable)
         val environment = OrtEnvironment.getEnvironment()
-        val stateTensor = tensor(environment, state, 1, PredictorRuntime.SCORER_INPUT_DIM.toLong())
-        val candidateTensor = tensor(
-            environment, candidates,
-            1, PredictorRuntime.POOL_SIZE.toLong(), PredictorRuntime.SCORER_INPUT_DIM.toLong(),
-        )
+        val created = ArrayList<OnnxTensor>(2)
         return try {
+            created += tensor(environment, state, 1, PredictorRuntime.SCORER_INPUT_DIM.toLong())
+            created += tensor(
+                environment, candidates,
+                1, PredictorRuntime.POOL_SIZE.toLong(), PredictorRuntime.SCORER_INPUT_DIM.toLong(),
+            )
             scorer.run(
                 mapOf(
-                    "state" to stateTensor,
-                    "candidates" to candidateTensor,
+                    "state" to created[0],
+                    "candidates" to created[1],
                 ),
             ).use { result ->
                 @Suppress("UNCHECKED_CAST")
@@ -114,7 +117,7 @@ internal class OnnxPredictorRuntime(
                     ?: throw SmartEngineException(EngineError.ModelUnavailable)
             }
         } finally {
-            stateTensor.close(); candidateTensor.close()
+            for (tensor in created) tensor.close()
         }
     }
 

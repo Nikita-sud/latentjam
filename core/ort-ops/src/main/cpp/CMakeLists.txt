@@ -6,8 +6,10 @@
 # build runs it through Gradle (../../../build.gradle.kts); a host build (macOS, for the model tools and the
 # reduced runtime's model conversion) is plain CMake:
 #   cmake -S core/ort-ops/src/main/cpp -B /tmp/ljq4-host -DCMAKE_BUILD_TYPE=Release && cmake --build /tmp/ljq4-host
-# -DLJQ4_TESTS=ON adds ljq4_test (../../test/cpp), the operator's arithmetic on every path the host CPU has;
-# on an Apple silicon Mac, -DCMAKE_OSX_ARCHITECTURES=x86_64 builds the SSSE3 path to run under Rosetta.
+# -DLJQ4_TESTS=ON adds the two host tests (../../test/cpp): ljq4_test, the operator's arithmetic on every
+# path the host CPU has, and ljdots_test, LjBatchDots against a portable reference — the latter exits 77
+# ("skipped") on a CPU where LjBatchDots has no kernel, rather than reporting a pass that verified nothing.
+# On an Apple silicon Mac, -DCMAKE_OSX_ARCHITECTURES=x86_64 builds the SSSE3 path to run under Rosetta.
 cmake_minimum_required(VERSION 3.22.1)
 project(ljq4 C CXX ASM)
 set(CMAKE_CXX_STANDARD 17)

@@ -31,6 +31,7 @@ import platform.AVFAudio.AVAudioSessionInterruptionOptionKey
 import platform.AVFAudio.AVAudioSessionInterruptionOptionShouldResume
 import platform.AVFAudio.AVAudioSessionInterruptionTypeBegan
 import platform.AVFAudio.AVAudioSessionInterruptionTypeKey
+import platform.AVFAudio.AVAudioSessionMediaServicesWereResetNotification
 import platform.AVFAudio.AVAudioSessionRouteChangeNotification
 import platform.AVFAudio.AVAudioSessionRouteChangeReasonKey
 import platform.AVFAudio.AVAudioSessionRouteChangeReasonOldDeviceUnavailable
@@ -1187,6 +1188,50 @@ internal class IosPlaybackController(
             null,
             NSOperationQueue.mainQueue,
         ) { note -> onAudioRouteChange(note) }
+        center.addObserverForName(
+            AVAudioSessionMediaServicesWereResetNotification,
+            null,
+            NSOperationQueue.mainQueue,
+        ) { _ -> onMediaServicesReset() }
+    }
+
+    /**
+     * Rebuilds playback after the system reset the media services behind the audio session.
+     *
+     * A reset is rare but total: every audio object the app holds — the engine, its nodes, and the
+     * session itself — becomes invalid without reporting an error, so the transport keeps its state
+     * over a graph that renders silence and nothing short of recreating the objects brings the sound
+     * back. Apple's Audio Session Programming Guide ("Handling a Media Services Reset") asks for
+     * exactly that: dispose of the old objects, build new ones, reactivate the session.
+     *
+     * [IosAudioEngine.rebuildAfterMediaServicesReset] rebuilds the graph and re-cues the file, and
+     * the playhead comes from the position last published to the UI, because a dead player node
+     * cannot report one. MediaPlayer-backed items own their pipeline and only need the session flags
+     * dropped, so the next activation re-applies the category.
+     */
+    private fun onMediaServicesReset() {
+        mainScope.launch {
+            audioSessionConfigured = false
+            audioSessionActive = false
+            if (activeBackend != PlaybackBackend.FILE) return@launch
+            val wasPlaying = playing
+            val recued = audioEngine.rebuildAfterMediaServicesReset(mutableState.value.positionMs)
+            if (!recued) {
+                // Nothing was cued, so nothing can be sounding now: report the silence instead of
+                // leaving a pause button over a graph that has no segment at all.
+                if (wasPlaying) pauseFromSystem(deactivateSession = false)
+                return@launch
+            }
+            if (wasPlaying) {
+                playing = playActiveBackend()
+                if (!playing) deactivateAudioSession()
+            }
+            // The playhead the user resumes from changed even when the sound did not: a paused
+            // transport must show the frame its re-cued segment starts at, not the pre-reset one.
+            updateTicker()
+            invalidateNowPlayingInfo()
+            pushState()
+        }
     }
 
     private fun onAudioInterruption(note: NSNotification?) {

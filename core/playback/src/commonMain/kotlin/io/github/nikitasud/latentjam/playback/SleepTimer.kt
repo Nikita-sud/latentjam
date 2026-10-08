@@ -66,6 +66,10 @@ public class SleepTimerController(
      * same entry and must not stop playback. An entry is only followed by position when its track
      * id is ambiguous — when the queue holds the same track twice, index is the only identity the
      * snapshot exposes (same rule as the UI's `queueLazyItemKey`).
+     *
+     * Neither is moving the playhead inside the row an end of it: a manual seek back, Previous
+     * restarting the track, or tapping the row again all land at the start of a row that never
+     * finished, and only a repeat-one wrap means the track was played out — see the wrap check.
      */
     public fun startAtEndOfTrack() {
         val initial = playback.state.value
@@ -79,6 +83,7 @@ public class SleepTimerController(
             var hasPlayed = initial.isPlaying
             var previousPositionMs = initial.positionMs
             var previousDurationMs = initial.durationMs
+            var previousStart = initial.playbackStart
             playback.state.first { snapshot ->
                 if (snapshot.isPlaying) hasPlayed = true
                 val movedAway = snapshot.track?.id != trackId ||
@@ -89,15 +94,21 @@ public class SleepTimerController(
                     snapshot.positionMs >= (snapshot.durationMs - END_TOLERANCE_MS).coerceAtLeast(0L)
                 // Repeat-one can jump directly from the end back to zero without ever publishing
                 // a paused state or changing queue identity. Remember the previous ticker sample
-                // so "end of track" still means one play, not an infinite loop.
-                val repeatedFromEnd = hasPlayed &&
-                    snapshot.repeatMode == RepeatMode.ONE &&
+                // so "end of track" still means one play, not an infinite loop. That jump is also
+                // what a manual seek back or a Previous restart inside the last seconds looks
+                // like, so the wrap counts only when it is a repeat of the row and not the same
+                // instance being scrubbed — see [isRepeatOfRow].
+                val wrappedToStart = snapshot.repeatMode == RepeatMode.ONE &&
+                    snapshot.positionMs <= END_TOLERANCE_MS &&
                     previousDurationMs > 0L &&
                     previousPositionMs >=
                     (previousDurationMs - END_TOLERANCE_MS).coerceAtLeast(0L) &&
                     snapshot.positionMs + END_TOLERANCE_MS < previousPositionMs
+                val repeatedFromEnd = hasPlayed && wrappedToStart &&
+                    isRepeatOfRow(previousStart, snapshot.playbackStart)
                 previousPositionMs = snapshot.positionMs
                 previousDurationMs = snapshot.durationMs
+                previousStart = snapshot.playbackStart
                 movedAway || naturallyEnded || repeatedFromEnd
             }
             playback.pause()
@@ -109,6 +120,22 @@ public class SleepTimerController(
         job?.cancel()
         job = null
         mutableState.value = SleepTimerState.Off
+    }
+
+    /**
+     * Whether [current] is the row playing out again rather than the same instance being moved.
+     *
+     * Repeat-one begins a new playback instance of the row and the controller books it as
+     * [StartCause.REPEAT]; a seek back or a Previous restart only moves the playhead inside the
+     * instance that is already playing and books nothing, and tapping the row again books
+     * [StartCause.USER_PICK]. An instance that already repeated once keeps that cause, which is why
+     * the [PlaybackStart.sequence] has to have grown as well. A state that publishes no start at all
+     * (no ledger behind it) leaves the position wrap as the only signal there is.
+     */
+    private fun isRepeatOfRow(previous: PlaybackStart?, current: PlaybackStart?): Boolean = when {
+        current == null -> true
+        current.cause != StartCause.REPEAT -> false
+        else -> current.sequence != previous?.sequence
     }
 
     private fun replace(block: suspend () -> Unit) {

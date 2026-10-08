@@ -32,6 +32,7 @@ developer or with any third party.
 | Permission | Why |
 | --- | --- |
 | Read audio files (Android), Media Library (iOS) | To find and play your music |
+| Write audio files (Android 9 and older) | To save edited tags or delete a file when you ask; older Android has no per-file consent |
 | Notifications | Playback controls in the notification shade |
 | Foreground service | To keep playing with the screen off and to index files in the background |
 | Modify audio settings | Equaliser and volume normalisation |

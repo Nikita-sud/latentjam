@@ -523,6 +523,8 @@ private fun DailyBars(days: List<DailyListening>, accentInk: Color) {
                 selectedIndex.toFloat(), 0f..days.lastIndex.toFloat(), (days.size - 2).coerceAtLeast(0),
             )
             setProgress { index ->
+                // The framework's target is arbitrary here: roundToInt() throws on NaN.
+                if (!index.isFinite()) return@setProgress false
                 selectedDay = days[index.roundToInt().coerceIn(0, days.lastIndex)].epochDay
                 true
             }

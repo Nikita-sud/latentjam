@@ -460,7 +460,7 @@
     <string name="settings_licenses">Lisensi sumber terbuka</string>
     <string name="settings_licenses_body">Pemberitahuan untuk LatentJam, model bawaan, dan perangkat lunak pihak ketiga</string>
     <string name="settings_license_models">Model audio dan SMART</string>
-    <string name="settings_license_models_body">Bobot audio MobileNetV4 dan prediktor SMART buatan LatentJam berlisensi Apache-2.0. Model student memakai timm (Apache-2.0) dan didistilasi dari EfficientAT (MIT, hak cipta © 2022 Florian Schmid).</string>
+    <string name="settings_license_models_body">Bobot audio MobileNetV4 dan prediktor SMART buatan LatentJam berlisensi Apache-2.0. Model student memakai timm (Apache-2.0) dan didistilasi dari EfficientAT (MIT, hak cipta © 2022 Florian Schmid). Tiga dari lima graf, dan satu cabang dari graf keempat, belum lulus tinjauan hak yang diwajibkan untuk rilis publik; LICENSE-MODEL.txt yang disertakan merinci setiap kasus.</string>
     <string name="settings_license_text_model">Model teks</string>
     <string name="settings_license_text_model_body">Enkoder teks bawaan dan kosakatanya dilatih oleh LatentJam untuk meniru sentence-transformers/all-MiniLM-L6-v2 (Apache-2.0) dan berlisensi Apache-2.0.</string>
     <string name="settings_license_runtime">ONNX Runtime</string>

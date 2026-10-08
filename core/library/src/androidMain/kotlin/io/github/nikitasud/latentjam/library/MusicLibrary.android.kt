@@ -487,7 +487,10 @@ internal fun mediaStoreFolderPath(rawPath: String?, relativePath: Boolean): Stri
     if (relativePath) return normalized
 
     val parent = normalized.substringBeforeLast('/', "")
-    if (parent.isBlank()) return null
+    // A file at the root of a volume is in no folder at all: without this the generic cases below
+    // turned the mount path into one, and such a file was listed under a folder named "sdcard", or
+    // "0" for /storage/emulated/0.
+    if (parent.isBlank() || isVolumeRoot(parent)) return null
     val relative = when {
         parent.startsWith("/storage/emulated/0/") -> parent.removePrefix("/storage/emulated/0/")
         parent.startsWith("/sdcard/") -> parent.removePrefix("/sdcard/")
@@ -498,6 +501,17 @@ internal fun mediaStoreFolderPath(rawPath: String?, relativePath: Boolean): Stri
         else -> parent
     }
     return relative.trim('/').takeIf(String::isNotBlank)
+}
+
+/**
+ * True for a path that is a storage volume's own mount root rather than a folder inside it:
+ * `/storage/<volume>` (removable media, and `/storage/emulated/0`), plus the legacy `/sdcard` and
+ * `/mnt/sdcard` aliases that older `DATA` values hold.
+ */
+private fun isVolumeRoot(parent: String): Boolean = when {
+    parent == "/sdcard" || parent == "/mnt/sdcard" || parent == "/storage/emulated/0" -> true
+    parent.startsWith("/storage/") -> !parent.removePrefix("/storage/").contains('/')
+    else -> false
 }
 
 /** Versioned and delimiter-safe because every component is a nullable decimal integer. */

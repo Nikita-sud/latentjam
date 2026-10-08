@@ -9,7 +9,10 @@
   Apostrophes and quotation marks are written RAW: Compose Multiplatform only
   unescapes \uXXXX, \n, \t and \\, so a backslash would reach the UI.
   "LatentJam" and "SMART" are names and stay untranslated, in Latin script.
-  No bidi control characters here: the framework mirrors the layout.
+  Compose picks a paragraph's direction from its first strong character, so a
+  sentence never OPENS with a Latin name (that would lay it out left to right).
+  The only control characters are the two U+200F marks inside the model-licence
+  line, where a Latin name would otherwise pull the bracket after it.
 -->
 <resources>
 
@@ -146,7 +149,7 @@
     <string name="map_region_unplayed">لم تُشغّل هنا: %1$d</string>
     <string name="map_action_play_unheard">تشغيل غير المسموع</string>
     <string name="map_action_play_region">تشغيل المنطقة</string>
-    <string name="map_action_smart_here">SMART من هنا</string>
+    <string name="map_action_smart_here">ابدأ SMART من هنا</string>
     <string name="map_empty_indexing">ما زلنا نقرأ مكتبتك. ستظهر الخريطة عند انتهاء الفهرسة.</string>
     <string name="map_empty_building">نحسب شكل مكتبتك على الخريطة. قد يستغرق ذلك بعض الوقت إذا كانت مكتبتك كبيرة.</string>
     <string name="map_empty_too_large">تحتوي مكتبتك على %1$s — أكثر من %2$s التي يمكن للخريطة عرضها حاليًا.</string>
@@ -312,7 +315,7 @@
     <string name="settings_intelligence">محرك SMART</string>
     <string name="settings_smart_engine">محرك SMART</string>
     <string name="settings_smart_engine_subtitle">ما يعرفه النموذج العامل على الجهاز عن مكتبتك</string>
-    <string name="settings_about_body">LatentJam — مشغّل موسيقى محلي مزوّد بمحرك توصيات يعمل على الجهاز. لا تغادر أي معلومات عن استماعك هذا الجهاز.</string>
+    <string name="settings_about_body">مشغّل موسيقى محلي من LatentJam مزوّد بمحرك توصيات يعمل على الجهاز. لا تغادر أي معلومات عن استماعك هذا الجهاز.</string>
 
     <!-- ========================================================== equalizer -->
     <string name="state_on">مفعّل</string>
@@ -440,7 +443,7 @@
     <string name="privacy_clear_searches_body">إزالة العبارات التي تظهر عندما يكون البحث فارغًا.</string>
     <string name="privacy_clear_searches_confirm">هل تريد مسح كل عمليات البحث الأخيرة؟</string>
     <string name="settings_license">الترخيص</string>
-    <string name="settings_license_body">LatentJam برنامج حر مرخّص بموجب ترخيص Apache 2.0.</string>
+    <string name="settings_license_body">برنامج LatentJam حر مرخّص بموجب ترخيص Apache 2.0.</string>
     <string name="settings_open_source">رمز المصدر</string>
     <string name="settings_open_source_body">عرض المشروع على GitHub</string>
     <string name="settings_report_issue">الإبلاغ عن مشكلة</string>
@@ -509,7 +512,7 @@
     <string name="settings_licenses">تراخيص المصادر المفتوحة</string>
     <string name="settings_licenses_body">إشعارات LatentJam والنماذج المضمّنة وبرامج الجهات الخارجية</string>
     <string name="settings_license_models">نماذج الصوت وSMART</string>
-    <string name="settings_license_models_body">أوزان الصوت MobileNetV4 ومتنبئ SMART التي أنتجها LatentJam مرخّصة وفق Apache-2.0. يستخدم النموذج الطالب timm ‏(Apache-2.0) وقد دُرّب بالتقطير من EfficientAT ‏(MIT، حقوق النشر © 2022 Florian Schmid).</string>
+    <string name="settings_license_models_body">أوزان الصوت MobileNetV4 ومتنبئ SMART التي أنتجها LatentJam مرخّصة وفق Apache-2.0. يستخدم النموذج الطالب timm ‏(Apache-2.0) وقد دُرّب بالتقطير من EfficientAT ‏(MIT، حقوق النشر © 2022 Florian Schmid). لم يجتز ثلاثة من المخططات الخمسة، وفرع واحد من مخطط رابع، مراجعة الحقوق التي يتطلبها الإصدار العام؛ ويوضّح الملف LICENSE-MODEL.txt كل حالة بالتفصيل.</string>
     <string name="settings_license_text_model">نموذج النص</string>
     <string name="settings_license_text_model_body">مُرمِّز النص المضمّن ومفرداته درّبهما LatentJam لمحاكاة sentence-transformers/all-MiniLM-L6-v2 (Apache-2.0)، وهما مرخّصان وفق Apache-2.0.</string>
     <string name="settings_license_runtime">ONNX Runtime</string>
@@ -522,7 +525,11 @@
     <string name="sleep_timer">مؤقت النوم</string>
     <string name="sleep_timer_off">متوقف</string>
     <plurals name="sleep_timer_minutes">
+        <item quantity="zero">%1$d دقيقة</item>
         <item quantity="one">%1$d دقيقة</item>
+        <item quantity="two">%1$d دقيقتان</item>
+        <item quantity="few">%1$d دقائق</item>
+        <item quantity="many">%1$d دقيقةً</item>
         <item quantity="other">%1$d دقيقة</item>
     </plurals>
     <string name="sleep_timer_end_of_track">نهاية المقطع الحالي</string>

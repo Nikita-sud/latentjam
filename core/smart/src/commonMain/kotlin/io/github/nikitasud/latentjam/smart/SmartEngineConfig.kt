@@ -14,8 +14,11 @@ package io.github.nikitasud.latentjam.smart
  *
  * @property embeddingDim Dimensionality of the track embeddings. Must match
  *   the output of the similarity model (960 for the production MNv4 encoder;
- *   the app graph configures this). The engine validates every
- *   backend-produced vector against this value.
+ *   the app graph configures this) and the chain's own hard 960: its snapshot admits
+ *   rows of exactly that width, so any other value leaves the audio index out of every
+ *   queue, silently. 960 is the shipped default; lower it only for a model whose head
+ *   really is narrower. The engine validates every backend-produced vector against this
+ *   value.
  * @property modelLocator Platform-interpreted hint for where the model lives
  *   (an Android asset path, an iOS bundle resource name, an absolute file
  *   path, …). `null` lets the platform backend fall back to its built-in
@@ -48,7 +51,7 @@ package io.github.nikitasud.latentjam.smart
  *   (ChainTuning.artistRunPenalty) until [SimilarityEngine.setArtistRunPenalty] changes it; 0 is off.
  */
 public data class SmartEngineConfig(
-    public val embeddingDim: Int = 512,
+    public val embeddingDim: Int = 960,
     public val modelLocator: String? = null,
     public val modelVersion: String = "unversioned",
     public val typicalityWeight: Float = 0f,

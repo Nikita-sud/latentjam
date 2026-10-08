@@ -166,12 +166,8 @@ internal object ForYouRhythm {
                     it.id !in used && it.id !in freshSeen &&
                         (stats[it.id]?.plays ?: 0) == 0 && byId.containsKey(it.id)
                 }
-                // Recently offered and ignored goes to the back; strangers get their turn.
-                .sortedBy { it.id in cooled }
             if (unheard.isEmpty()) continue
-            val start = dayIndex.mod(unheard.size)
-            for (offset in unheard.indices) {
-                val candidate = unheard[(start + offset).mod(unheard.size)]
+            for (candidate in freshRotationOrder(unheard, cooled, dayIndex)) {
                 fresh.add(candidate)
                 freshSeen.add(candidate.id)
                 if (fresh.size >= DAYPART_FRESH_SLOTS) break@outer
@@ -180,6 +176,29 @@ internal object ForYouRhythm {
 
         val provenTracks = window.mapNotNull(byId::get)
         return familiaritySandwich(provenTracks + fresh, stats)
+    }
+
+    /**
+     * Orders one day's pool of unheard tracks: strangers first, rotated among themselves by
+     * [dayIndex], with the cooled repeats after them.
+     *
+     * Sorting the cooled tracks to the back is not enough on its own. The walk starts at an
+     * arbitrary offset and wraps, so it could open INSIDE that tail and spend every fresh slot on
+     * yesterday's repeats while tracks that had never been offered waited a full lap — with a long
+     * tail, some of them never got a turn at all. The rotation exists to vary the order of the
+     * newcomers, so it turns within them and reaches the tail only once they run out: a repeat
+     * still beats an empty slot, but never a stranger.
+     */
+    internal fun freshRotationOrder(
+        pool: List<TrackDescriptor>,
+        cooled: Set<TrackId>,
+        dayIndex: Int,
+    ): List<TrackDescriptor> {
+        val newcomers = pool.filterNot { it.id in cooled }
+        if (newcomers.isEmpty()) return pool
+        val start = dayIndex.mod(newcomers.size)
+        return List(newcomers.size) { newcomers[(start + it).mod(newcomers.size)] } +
+            pool.filter { it.id in cooled }
     }
 
     // ------------------------------------------------------------------ binge
@@ -372,7 +391,6 @@ internal object ForYouRhythm {
             if (lastPlayed > nowMs - WILDCARD_MIN_DORMANT_MS) return@mapNotNull null
             val unheard = world.tracks
                 .filter { it.id !in used && (stats[it.id]?.plays ?: 0) == 0 }
-                .sortedBy { it.id in cooled }
             if (unheard.isEmpty()) return@mapNotNull null
             Candidate(anchor, unheard, lastPlayed)
         }
@@ -388,7 +406,9 @@ internal object ForYouRhythm {
         }
         val candidate = pool[dayIndex.mod(pool.size)]
         return Wildcard(
-            pick = candidate.unheard[dayIndex.mod(candidate.unheard.size)],
+            // Strangers lead the slot for the same reason they lead the daypart fresh slots: a
+            // repeat may fill it, but only when this world has nobody new to offer.
+            pick = freshRotationOrder(candidate.unheard, cooled, dayIndex).first(),
             anchor = candidate.anchor,
         )
     }

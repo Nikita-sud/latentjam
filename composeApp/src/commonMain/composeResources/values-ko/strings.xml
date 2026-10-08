@@ -454,7 +454,7 @@
     <string name="settings_licenses">오픈 소스 라이선스</string>
     <string name="settings_licenses_body">LatentJam, 번들 모델 및 타사 소프트웨어 고지</string>
     <string name="settings_license_models">오디오 및 SMART 모델</string>
-    <string name="settings_license_models_body">LatentJam이 만든 MobileNetV4 오디오 및 SMART 예측기 가중치는 Apache-2.0입니다. 학생 모델은 timm(Apache-2.0)을 사용하며 EfficientAT에서 증류되었습니다(MIT, 저작권 © 2022 Florian Schmid).</string>
+    <string name="settings_license_models_body">LatentJam이 만든 MobileNetV4 오디오 및 SMART 예측기 가중치는 Apache-2.0입니다. 학생 모델은 timm(Apache-2.0)을 사용하며 EfficientAT에서 증류되었습니다(MIT, 저작권 © 2022 Florian Schmid). 그래프 다섯 개 중 세 개와 네 번째 그래프의 분기 하나가 공개 릴리스에 필요한 권리 검토를 통과하지 못했습니다. 동봉된 LICENSE-MODEL.txt에 각 사례가 자세히 나와 있습니다.</string>
     <string name="settings_license_text_model">텍스트 모델</string>
     <string name="settings_license_text_model_body">번들 텍스트 인코더와 어휘는 sentence-transformers/all-MiniLM-L6-v2 (Apache-2.0)를 재현하도록 LatentJam이 학습시켰으며 Apache-2.0입니다.</string>
     <string name="settings_license_runtime">ONNX Runtime</string>

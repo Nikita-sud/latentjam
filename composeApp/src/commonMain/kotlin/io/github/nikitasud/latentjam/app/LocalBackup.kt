@@ -12,13 +12,19 @@ import io.github.nikitasud.latentjam.history.RecentSearches
 import io.github.nikitasud.latentjam.history.SmartExclusionState
 import io.github.nikitasud.latentjam.history.SmartExclusions
 import io.github.nikitasud.latentjam.history.epochMillis
+import io.github.nikitasud.latentjam.library.AlbumSort
 import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.library.Playlists
+import io.github.nikitasud.latentjam.library.SongSort
 import io.github.nikitasud.latentjam.playback.MAX_CROSSFADE_SECONDS
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /** File extension offered by the future platform document picker. The payload is always local. */
 internal const val LOCAL_BACKUP_FILE_EXTENSION: String = "ljbackup"
@@ -53,6 +59,16 @@ internal data class LocalBackupSettings(
     val pageLayout: PageLayout = PageLayout(),
     /** Added in backup v6; older snapshots restore the default. */
     val artistVariety: Int = DEFAULT_ARTIST_VARIETY,
+    /**
+     * The Tracks tab's order, added in backup v7. Travels as its own record, so a v6 file written
+     * before that record existed — like every older format — restores the default; the interim v6
+     * files that already carry it keep their orders.
+     */
+    val songSort: SortChoice<SongSort> = DEFAULT_SONG_SORT,
+    /** The Albums tab's order; see [songSort]. */
+    val albumSort: SortChoice<AlbumSort> = DEFAULT_ALBUM_SORT,
+    /** An artist's page order; see [songSort]. */
+    val artistAlbumSort: SortChoice<AlbumSort> = DEFAULT_ARTIST_ALBUM_SORT,
 )
 
 /**
@@ -157,7 +173,13 @@ internal class LocalBackupFormatException(message: String) : IllegalArgumentExce
  * validation make an arbitrary document-picker input safe to reject before any app state changes.
  */
 internal object LocalBackupCodec {
-    const val FORMAT_VERSION: Int = 6
+    /**
+     * The version every export writes. A record arrives together with the version number that
+     * carries it — "L" with v4, "V" with v6, "O" with v7 — so a build that knows only an older
+     * version refuses such a file with "Unsupported backup version" instead of tripping over a
+     * record it does not know ("Unknown backup record at line N").
+     */
+    const val FORMAT_VERSION: Int = 7
     private const val LEGACY_FORMAT_VERSION: Int = 1
     private const val HEADER = "LATENTJAM-LOCAL-BACKUP"
     private const val MAX_TEXT_CHARS = 64 * 1024 * 1024
@@ -169,6 +191,15 @@ internal object LocalBackupCodec {
     private const val MAX_ARTIST_EXCLUSIONS = 100_000
     private const val MAX_ENCODED_FIELD_CHARS = 2 * 1024 * 1024 + 1
     private const val MAX_RECORD_CHARS = 16 * 1024 * 1024
+
+    /**
+     * The per-query bounds the recent-search store enforces when it writes its own file
+     * (`RecentSearchFileCodec.MAX_QUERY_BYTES` applies to the character count and to the UTF-8 byte
+     * count alike). A snapshot past either bound would decode cleanly here and then fail that write,
+     * after the sections before it had already been applied.
+     */
+    private const val MAX_RECENT_SEARCH_QUERY_CHARS = 16 * 1024
+    private const val MAX_RECENT_SEARCH_QUERY_BYTES = 16 * 1024
 
     fun encode(snapshot: LocalBackupSnapshot): String {
         validate(snapshot)
@@ -196,6 +227,18 @@ internal object LocalBackupCodec {
                 )
                 if (snapshot.formatVersion >= 4) appendRecord("L", encodePageLayout(pageLayout))
                 if (snapshot.formatVersion >= 6) appendRecord("V", artistVariety.toString())
+                if (snapshot.formatVersion >= 6) {
+                    // The list orders, introduced by v7. Written for a v6 snapshot as well: builds
+                    // between the v6 and v7 bumps wrote this record into v6 files, decode() reads
+                    // that shape, and validate() accepts it in v6 — so a writer that skipped it for
+                    // v6 would drop a choice this codec accepts. Every export the app makes is v7.
+                    appendRecord(
+                        "O",
+                        encodeSortChoice(songSort),
+                        encodeSortChoice(albumSort),
+                        encodeSortChoice(artistAlbumSort),
+                    )
+                }
             }
             snapshot.tracks.sortedBy(LocalBackupTrackReference::originalId).forEach { track ->
                 appendRecord(
@@ -269,6 +312,7 @@ internal object LocalBackupCodec {
         var settings: LocalBackupSettings? = null
         var pageLayout: PageLayout? = null
         var artistVariety: Int? = null
+        var sortOrders: SortOrders? = null
         val tracks = mutableListOf<LocalBackupTrackReference>()
         val playlists = mutableListOf<LocalBackupPlaylist>()
         val history = mutableListOf<LocalBackupListenEvent>()
@@ -336,6 +380,27 @@ internal object LocalBackupCodec {
                     if (version < 6) formatError("Older backups cannot encode artist variety")
                     if (artistVariety != null) formatError("Duplicate artist variety record")
                     artistVariety = record.nextField().parseInt("artist variety")
+                }
+                "O" -> {
+                    record.requireFieldCount(4)
+                    // v6 as well as v7: the record arrived with the v7 bump, but a v6 file written
+                    // by a build between the two bumps already carries it and keeps its orders.
+                    if (version < 6) formatError("Older backups cannot encode sort orders")
+                    if (sortOrders != null) formatError("Duplicate sort order record")
+                    sortOrders = SortOrders(
+                        song = record.nextField().decodeSortChoice(
+                            "song sort",
+                            ::songSortFromPersisted,
+                        ),
+                        album = record.nextField().decodeSortChoice(
+                            "album sort",
+                            ::albumSortFromPersisted,
+                        ),
+                        artistAlbum = record.nextField().decodeSortChoice(
+                            "artist album sort",
+                            ::artistAlbumSortFromPersisted,
+                        ),
+                    )
                 }
                 "T" -> {
                     record.requireFieldCount(6)
@@ -433,7 +498,13 @@ internal object LocalBackupCodec {
             formatVersion = version,
             createdAtMs = createdAtMs ?: formatError("Missing creation record"),
             settings = (settings ?: formatError("Missing settings record"))
-                .copy(pageLayout = pageLayout ?: PageLayout(), artistVariety = artistVariety ?: DEFAULT_ARTIST_VARIETY),
+                .copy(
+                    pageLayout = pageLayout ?: PageLayout(),
+                    artistVariety = artistVariety ?: DEFAULT_ARTIST_VARIETY,
+                    songSort = sortOrders?.song ?: DEFAULT_SONG_SORT,
+                    albumSort = sortOrders?.album ?: DEFAULT_ALBUM_SORT,
+                    artistAlbumSort = sortOrders?.artistAlbum ?: DEFAULT_ARTIST_ALBUM_SORT,
+                ),
             tracks = tracks,
             playlists = playlists,
             listeningHistory = history,
@@ -462,6 +533,20 @@ internal object LocalBackupCodec {
         }
         if (snapshot.formatVersion < 6 && snapshot.settings.artistVariety != DEFAULT_ARTIST_VARIETY) {
             formatError("Older backups cannot encode artist variety")
+        }
+        // An artist's page only offers these fields; anything else would be dropped by the setter.
+        if (snapshot.settings.artistAlbumSort.sort !in ARTIST_ALBUM_SORTS) {
+            formatError("Unsupported artist album sort")
+        }
+        // v6, not v7, is the floor although the record arrived with v7: decode() accepts a v6 file
+        // that already carries it, so validate() must accept what decode() produces, and the encoder
+        // writes the record for v6 too rather than dropping a choice validate() has allowed.
+        if (snapshot.formatVersion < 6 &&
+            (snapshot.settings.songSort != DEFAULT_SONG_SORT ||
+                snapshot.settings.albumSort != DEFAULT_ALBUM_SORT ||
+                snapshot.settings.artistAlbumSort != DEFAULT_ARTIST_ALBUM_SORT)
+        ) {
+            formatError("Older backups cannot encode sort orders")
         }
         if (snapshot.settings.pageLayout != snapshot.settings.pageLayout.normalized()) {
             formatError("Invalid page layout")
@@ -524,13 +609,45 @@ internal object LocalBackupCodec {
         if (snapshot.formatVersion < 5 && snapshot.listeningHistory.any { it.origin != null }) {
             formatError("Legacy backups cannot encode listening origins")
         }
-        if (snapshot.recentSearches.any(String::isBlank)) formatError("Recent searches cannot be blank")
+        snapshot.recentSearches.forEach { search ->
+            // The store refuses a query past these bounds, so a foreign document must be refused
+            // here, before any section is applied, rather than mid-restore.
+            if (search.isBlank() ||
+                search.length > MAX_RECENT_SEARCH_QUERY_CHARS ||
+                search.encodeToByteArray().size > MAX_RECENT_SEARCH_QUERY_BYTES
+            ) {
+                formatError("Invalid recent search")
+            }
+        }
         if (snapshot.hiddenTrackReferenceIds.any { it !in knownTracks } ||
             snapshot.smartExcludedTrackReferenceIds.any { it !in knownTracks }
         ) {
             formatError("Unknown track reference")
         }
         if (snapshot.smartExcludedArtists.any(String::isBlank)) formatError("Excluded artists cannot be blank")
+    }
+
+    /**
+     * The three list orders of one "O" record, introduced by v7. A file without that record — every
+     * v6 file written before it existed — restores the defaults; an interim v6 file that carries it
+     * keeps its orders.
+     */
+    private data class SortOrders(
+        val song: SortChoice<SongSort>,
+        val album: SortChoice<AlbumSort>,
+        val artistAlbum: SortChoice<AlbumSort>,
+    )
+
+    /**
+     * Reads one `field:direction` sort order, the form [encodeSortChoice] writes. The app decoder
+     * repairs an unknown field or a missing direction instead of failing, so anything it had to
+     * repair is not a value this format wrote and the record is rejected.
+     */
+    private fun <S : Enum<S>> String.decodeSortChoice(
+        label: String,
+        fromPersisted: (String?) -> SortChoice<S>,
+    ): SortChoice<S> = fromPersisted(this).also {
+        if (encodeSortChoice(it) != this) formatError("Unknown $label")
     }
 
     private fun StringBuilder.appendRecord(vararg fields: String) = appendRecord(fields.asList())
@@ -692,13 +809,29 @@ internal class LocalBackupService(
     private val library: MusicLibrary,
     private val smartExclusions: SmartExclusions,
 ) {
-    suspend fun exportEncoded(): String = LocalBackupCodec.encode(capture())
+    /**
+     * Builds the document for the picker. Encoding up to 64 Mi characters, and folding the library
+     * and the listening log into the snapshot it encodes, is CPU work: the settings screen calls
+     * this from its main-thread scope, so it runs on the default dispatcher. Every store read inside
+     * moves to the store's own IO dispatcher.
+     */
+    suspend fun exportEncoded(): String = withContext(Dispatchers.Default) {
+        LocalBackupCodec.encode(capture())
+    }
 
+    /**
+     * Applies a picked document. Decoding up to 64 Mi characters, resolving its references against
+     * the whole device library, and folding its sections is CPU work, so it runs on the default
+     * dispatcher instead of the caller's main thread. The stores written here move to their own IO
+     * dispatchers internally.
+     */
     suspend fun importEncoded(
         encoded: String,
         mode: LocalBackupRestoreMode,
         sections: LocalBackupSections = LocalBackupSections(),
-    ): LocalBackupRestoreReport = restore(LocalBackupCodec.decode(encoded), mode, sections)
+    ): LocalBackupRestoreReport = withContext(Dispatchers.Default) {
+        restore(LocalBackupCodec.decode(encoded), mode, sections)
+    }
 
     suspend fun capture(): LocalBackupSnapshot {
         val storedPlaylists = playlists.all()
@@ -738,6 +871,9 @@ internal class LocalBackupService(
                 crossfadeSeconds = settings.crossfadeSeconds.value,
                 pageLayout = settings.pageLayout.value,
                 artistVariety = settings.artistVariety.value,
+                songSort = settings.songSort.value,
+                albumSort = settings.albumSort.value,
+                artistAlbumSort = settings.artistAlbumSort.value,
             ),
             tracks = references,
             playlists = storedPlaylists.map { playlist ->
@@ -761,6 +897,12 @@ internal class LocalBackupService(
         snapshot: LocalBackupSnapshot,
         mode: LocalBackupRestoreMode,
         sections: LocalBackupSections = LocalBackupSections(),
+    ): LocalBackupRestoreReport = restoreMutex.withLock { restoreLocked(snapshot, mode, sections) }
+
+    private suspend fun restoreLocked(
+        snapshot: LocalBackupSnapshot,
+        mode: LocalBackupRestoreMode,
+        sections: LocalBackupSections,
     ): LocalBackupRestoreReport {
         LocalBackupCodec.validate(snapshot)
         val currentTracks = library.allKnownTracks().distinctBy { it.id }
@@ -821,13 +963,7 @@ internal class LocalBackupService(
                 }
                 val target = when (mode) {
                     LocalBackupRestoreMode.REPLACE -> imported
-                    LocalBackupRestoreMode.MERGE -> {
-                        val existing = history.recentEvents(MAX_CAPTURE_HISTORY + 1).asReversed()
-                        require(existing.size <= MAX_CAPTURE_HISTORY) { "Listening history is too large to merge" }
-                        (existing + imported).distinct().sortedBy(ListenEvent::startedAtMs).also {
-                            require(it.size <= MAX_CAPTURE_HISTORY) { "Merged listening history is too large" }
-                        }
-                    }
+                    LocalBackupRestoreMode.MERGE -> mergeListeningHistory(imported)
                 }
                 history.replace(target)
                 historyApplied = imported.size
@@ -887,6 +1023,9 @@ internal class LocalBackupService(
                 settings.setNormalizeVolume(snapshot.settings.normalizeVolume)
                 settings.setCrossfadeSeconds(snapshot.settings.crossfadeSeconds)
                 settings.setArtistVariety(snapshot.settings.artistVariety)
+                settings.setSongSort(snapshot.settings.songSort)
+                settings.setAlbumSort(snapshot.settings.albumSort)
+                settings.setArtistAlbumSort(snapshot.settings.artistAlbumSort)
                 completed += LocalBackupSection.SETTINGS
             }
         } catch (failure: Throwable) {
@@ -1060,6 +1199,40 @@ internal class LocalBackupService(
         }
     }
 
+    /**
+     * Folds [imported] into the stored log without dropping a session the recorder wrote meanwhile.
+     *
+     * [ListeningHistory] locks [ListeningHistory.recentEvents] and [ListeningHistory.replace]
+     * separately, so a plain read-modify-write overwrites whatever the playback recorder appended
+     * between the two calls — a restore runs while music keeps playing behind the settings overlay,
+     * so that window is real. Every round re-reads the log and compares its newest session and
+     * length against the previous read: an unchanged log means the target built from that read is
+     * still the whole log, and the replace can follow it directly. A log that grew in between is
+     * folded in again from the newer read.
+     */
+    private suspend fun mergeListeningHistory(imported: List<ListenEvent>): List<ListenEvent> {
+        var target: List<ListenEvent>? = null
+        var observedSize = -1
+        var observedNewest: ListenEvent? = null
+        repeat(MAX_HISTORY_MERGE_ROUNDS) {
+            val existing = history.recentEvents(MAX_CAPTURE_HISTORY + 1).asReversed()
+            require(existing.size <= MAX_CAPTURE_HISTORY) { "Listening history is too large to merge" }
+            val previous = target
+            if (previous != null &&
+                existing.size == observedSize &&
+                existing.lastOrNull() == observedNewest
+            ) {
+                return previous
+            }
+            observedSize = existing.size
+            observedNewest = existing.lastOrNull()
+            target = (existing + imported).distinct().sortedBy(ListenEvent::startedAtMs).also {
+                require(it.size <= MAX_CAPTURE_HISTORY) { "Merged listening history is too large" }
+            }
+        }
+        return checkNotNull(target) { "Listening history merge did not read the log" }
+    }
+
     private fun mergePlaylists(existing: List<Playlist>, imported: List<Playlist>): List<Playlist> {
         val result = existing.toMutableList()
         imported.forEachIndexed { index, playlist ->
@@ -1116,6 +1289,21 @@ internal class LocalBackupService(
 
     private companion object {
         const val MAX_CAPTURE_HISTORY = 500_000
+
+        /**
+         * A merge normally stabilizes on its second read. The bound only stops a log that keeps
+         * growing from looping forever; the last round still writes a target built from the read
+         * that immediately preceded it.
+         */
+        const val MAX_HISTORY_MERGE_ROUNDS = 4
+
+        /**
+         * One restore at a time across the process. A restore now survives the screen that started
+         * it, so the next screen can begin another while the first still applies sections; two
+         * merges interleaving their read-modify-write passes would drop each other's sections. The
+         * lock is per process, not per instance: every screen builds its own [LocalBackupService].
+         */
+        val restoreMutex = Mutex()
     }
 }
 

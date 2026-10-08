@@ -26,6 +26,10 @@ internal object Id3TagCodec : TagCodec {
     private fun head(source: RandomAccessSource): Head? {
         val header = source.read(0, minOf(source.length, Id3Tags.HEADER_SIZE.toLong()).toInt()) ?: return null
         val tagLength = Id3Tags.tagLength(header) ?: return Head(header, -1)
+        // A tag that claims more bytes than the file holds is damaged, and reading it whole would
+        // allocate its declared size — up to 256 MiB at the syncsafe maximum — to learn that. The
+        // header alone answers it: no parse of the prefix can succeed past the end of the file.
+        if (tagLength.toLong() > source.length) return Head(header, -1)
         val wanted = minOf(source.length, tagLength.toLong() + AFTER_TAG).toInt()
         return Head(source.read(0, wanted) ?: return null, tagLength)
     }

@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.ui.text.intl.Locale
 import io.github.nikitasud.latentjam.history.Favorites
 import io.github.nikitasud.latentjam.history.TrackStats
 import io.github.nikitasud.latentjam.library.Playlists
@@ -429,10 +430,37 @@ internal suspend fun mergeDuplicateGroup(
     losers.forEach { onHideTrack(it) }
 }
 
-/** "34.2" for 34_200_000 bytes; whole numbers from 100 MB up, where a decimal is noise. */
-internal fun megabytesLabel(bytes: Long): String {
+/**
+ * "34.2" for 34_200_000 bytes; whole numbers from 100 MB up, where a decimal is noise. The
+ * separator is the one the app's language writes: the label is dropped into a translated sentence
+ * ("34,2 МБ"), so a hard-coded full stop reads wrong in most of the languages this app ships in.
+ */
+internal fun megabytesLabel(
+    bytes: Long,
+    separator: Char = decimalSeparatorFor(appLanguage()),
+): String {
     val megabytes = bytes / 1_000_000.0
     if (megabytes >= 100.0) return megabytes.roundToInt().toString()
     val tenths = (megabytes * 10).roundToInt()
-    return "${tenths / 10}.${tenths % 10}"
+    return "${tenths / 10}$separator${tenths % 10}"
 }
+
+/**
+ * The decimal separator CLDR gives an ISO 639 language code: a comma in the European languages, in
+ * Indonesian and in Turkish, the Arabic decimal separator U+066B in Arabic (what CLDR puts into a
+ * number even when it is written with Western digits), a full stop everywhere else. `in` is the
+ * code Android reports for Indonesian up to API 34 and `id` from API 35; both folders ship, so both
+ * codes are listed.
+ */
+internal fun decimalSeparatorFor(language: String): Char = when (language.lowercase()) {
+    "ar" -> '\u066B' // ARABIC DECIMAL SEPARATOR
+    "de", "es", "fr", "id", "in", "it", "pl", "pt", "ro", "ru", "tr", "uk" -> ','
+    else -> '.'
+}
+
+/**
+ * The language Compose lays the UI out in: the per-app language where the system has one, the
+ * system language otherwise. A lookup that cannot answer — host tests run against a stubbed
+ * android.jar — falls back to English, which is also the resources' own fallback.
+ */
+private fun appLanguage(): String = runCatching { Locale.current.language }.getOrDefault("en")
