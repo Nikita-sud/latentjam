@@ -129,7 +129,10 @@ class MainActivityManifestTest {
     fun theManifestNeverRequestsInternetAccess() {
         val names = permissionNames()
         assertTrue(FOREGROUND_SERVICE in names, "the manifest parsed no known permission: $names")
-        assertTrue(INTERNET !in names, "the app must not be able to reach the network: $names")
+        // A tools:node="remove" line names the permission only to strip it from a library's
+        // manifest: it is the answer this test asks for, not a request.
+        val requested = permissions().filter { it.removal != "remove" }.map { it.name }.toSet()
+        assertTrue(INTERNET !in requested, "the app must not be able to reach the network: $requested")
     }
 
     /**
