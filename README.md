@@ -330,4 +330,11 @@ LatentJam builds on:
 Bundled models under `androidApp/src/main/assets/ml/` (mirrored in `iosApp/iosApp/ml/`) are covered
 by permissive licences documented in [LICENSE-MODEL.txt](androidApp/src/main/assets/ml/LICENSE-MODEL.txt).
 
+**One caveat, from that same file:** three of its sections record that the rights review a public
+release requires has not been passed — `mnv4_audio.onnx` (the audio encoder's distillation data),
+`predictor_state.onnx` and `predictor_scorer_n100.onnx` (the recordings their quantization was
+distilled on) and the FMA-derived branch of `universal_semantic_head.onnx` (its source audio). The
+Apache-2.0 grant in that file stands, but anyone repackaging the bundle should read it first: it
+states each case in full, with the required third-party attributions.
+
 <p align="center"><sub>Everything runs on your device. Your taste stays there.</sub></p>
