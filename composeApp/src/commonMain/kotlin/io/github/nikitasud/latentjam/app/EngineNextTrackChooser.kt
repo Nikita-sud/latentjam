@@ -103,9 +103,13 @@ class EngineNextTrackChooser(
                 current, candidates, CHAIN_LENGTH, events, groups, precedingTrackIds = recentIds,
             )
             planned = ArrayDeque(plan.withIndex().toList())
+            // Diagnostics stay aggregate on purpose: no title, artist or track id goes to the
+            // system log. On Android that log is plain logcat, which other apps could read on
+            // older releases, and the app promises that nothing about what is played leaves it.
             println(
-                "SMART: planned ${planned.size} tracks from " +
-                    "${current.title ?: current.id.value} in ${started.elapsedNow().inWholeMilliseconds} ms",
+                "SMART: planned ${planned.size} of $CHAIN_LENGTH slots from " +
+                    "${candidates.size} candidates in " +
+                    "${started.elapsedNow().inWholeMilliseconds} ms",
             )
         }
 
