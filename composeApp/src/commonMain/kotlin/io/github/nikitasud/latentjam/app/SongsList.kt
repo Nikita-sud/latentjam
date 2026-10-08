@@ -101,7 +101,20 @@ internal fun SectionedSongsList(
     }
     val displayOrder = remember(sections) { sections.flatMap { it.tracks } }
     val indexed = remember(sections) { indexSections(sections) }
-    val showIndex = sort != SongSort.RECENT && sections.size > 1
+    // Headers and the emitted-item anchors of indexSections() belong to the sort, not to the
+    // viewport: they keep their place even on a list too short to scroll.
+    val indexEnabled = sort != SongSort.RECENT && sections.size > 1
+    // The pill and its gutter, unlike the headers, are only useful beside a list they can move.
+    // Same measured rule as the album, artist and playlist rails in ListWithRail.
+    val showRail by remember(indexEnabled, listState) {
+        derivedStateOf {
+            indexEnabled && railHasScrollableContent(
+                totalItemsCount = listState.layoutInfo.totalItemsCount,
+                canScrollForward = listState.canScrollForward,
+                canScrollBackward = listState.canScrollBackward,
+            )
+        }
+    }
     val sectionStarts = remember(indexed) { indexed.map(IndexedSection::emitStartIndex) }
     val sectionBuckets = remember(indexed) { indexed.map(IndexedSection::bucket) }
     val activeBucket by remember(indexed, listState) {
@@ -146,11 +159,12 @@ internal fun SectionedSongsList(
             state = listState,
             userScrollEnabled = !previewRequested,
             // Keeps row content — especially the overflow buttons — clear of
-            // the rail so neither is hard to hit. Keep the inset inside the
+            // the rail so neither is hard to hit. Only a rail that is on screen
+            // reserves this gutter. Keep the inset inside the
             // scrolling content: outer padding exposed the page background as
             // a full-width strip directly above the mini-player on Tracks only.
             contentPadding = PaddingValues(
-                end = if (showIndex) RailWidth + RailGap else 0.dp,
+                end = if (showRail) RailWidth + RailGap else 0.dp,
                 bottom = contentPadding.calculateBottomPadding() + 12.dp,
             ),
             modifier = Modifier
@@ -160,7 +174,7 @@ internal fun SectionedSongsList(
                 .inactiveForMotion(previewRequested),
         ) {
             indexed.forEach { section ->
-                if (showIndex) {
+                if (indexEnabled) {
                     item(key = "header-${section.bucket}", contentType = "header") {
                         SectionHeader(section.bucket)
                     }
@@ -237,7 +251,7 @@ internal fun SectionedSongsList(
             bottomPadding = contentPadding.calculateBottomPadding() + 12.dp,
         )
 
-        if (showIndex) {
+        if (showRail) {
             AlphabetRailOverlay(
                 buckets = sectionBuckets,
                 catalogKey = railCatalogKey,
