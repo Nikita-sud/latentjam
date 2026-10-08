@@ -11,11 +11,26 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import io.github.nikitasud.latentjam.library.tags.TagCodecs
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.IntVar
 import kotlinx.cinterop.addressOf
+import kotlinx.cinterop.alloc
+import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.ptr
+import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.usePinned
+import kotlinx.cinterop.value
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import platform.CoreFoundation.CFDictionaryCreateMutable
+import platform.CoreFoundation.CFDictionarySetValue
+import platform.CoreFoundation.CFNumberCreate
+import platform.CoreFoundation.CFRelease
+import platform.CoreFoundation.kCFBooleanTrue
+import platform.CoreFoundation.kCFNumberIntType
+import platform.CoreFoundation.kCFTypeDictionaryKeyCallBacks
+import platform.CoreFoundation.kCFTypeDictionaryValueCallBacks
 import platform.CoreGraphics.CGBitmapContextCreate
 import platform.CoreGraphics.CGColorSpaceCreateDeviceRGB
 import platform.CoreGraphics.CGColorSpaceRelease
@@ -23,11 +38,18 @@ import platform.CoreGraphics.CGContextDrawImage
 import platform.CoreGraphics.CGContextRelease
 import platform.CoreGraphics.CGImageAlphaInfo
 import platform.CoreGraphics.CGImageRef
+import platform.CoreGraphics.CGImageRelease
 import platform.CoreGraphics.CGRectMake
-import platform.Foundation.NSData
+import platform.Foundation.CFBridgingRetain
+import platform.Foundation.NSFileManager
+import platform.Foundation.NSFileSize
+import platform.Foundation.NSNumber
 import platform.Foundation.NSURL
-import platform.Foundation.dataWithContentsOfURL
-import platform.UIKit.UIImage
+import platform.ImageIO.CGImageSourceCreateThumbnailAtIndex
+import platform.ImageIO.CGImageSourceCreateWithURL
+import platform.ImageIO.kCGImageSourceCreateThumbnailFromImageAlways
+import platform.ImageIO.kCGImageSourceCreateThumbnailWithTransform
+import platform.ImageIO.kCGImageSourceThumbnailMaxPixelSize
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.time.Duration.Companion.seconds
@@ -70,16 +92,81 @@ actual fun rememberArtworkColor(uri: String?): ArtworkColorState {
 
 @OptIn(ExperimentalForeignApi::class)
 private fun sampleArtwork(uri: String): Color? = runCatching {
-    val url = NSURL.URLWithString(uri) ?: return null
-    val data = NSData.dataWithContentsOfURL(url) ?: return null
-    val image = UIImage.imageWithData(data) ?: return null
-    val cgImage = image.CGImage ?: return null
-    dominantAccent(cgImage)
+    // Every iOS artwork URI is a cached file written by the library's `cacheArtwork`, so a
+    // non-file URL is not a cover: fall back to the identity colour rather than fetching it.
+    val url = NSURL.URLWithString(uri)?.takeIf { it.isFileURL() } ?: return null
+    if (!artworkWithinLimit(url)) return null
+    val image = decodeThumbnail(url, ARTWORK_SAMPLE_SIDE) ?: return null
+    try {
+        dominantAccent(image)
+    } finally {
+        CGImageRelease(image)
+    }
 }.getOrNull()
+
+/**
+ * Whether the cached cover is small enough to sample.
+ *
+ * The library refuses to write a cover over [TagCodecs.MAX_COVER_BYTES], so this only turns away
+ * files a previous version cached and anything that has since gone missing — before ImageIO opens
+ * them, because a colour histogram is never worth a multi-gigabyte read.
+ */
+@OptIn(ExperimentalForeignApi::class)
+private fun artworkWithinLimit(url: NSURL): Boolean {
+    val path = url.path ?: return false
+    val bytes = (NSFileManager.defaultManager.attributesOfItemAtPath(path, null)
+        ?.get(NSFileSize) as? NSNumber)?.unsignedLongLongValue ?: return false
+    return bytes in 1uL..TagCodecs.MAX_COVER_BYTES.toULong()
+}
+
+/**
+ * Decodes the image at [url] with its longest side capped at [maxPixelSize].
+ *
+ * The histogram needs exactly [ARTWORK_SAMPLE_SIDE] pixels, but a cached cover can be a
+ * multi-megapixel scan: `UIImage(data:)` would decode all of it — tens of megabytes of pixels for
+ * one accent colour. ImageIO builds the thumbnail while decoding, so the full bitmap never exists.
+ *
+ * @return an image the caller owns and must release with `CGImageRelease`, or null when the file is
+ *   unreadable or not an image.
+ */
+@OptIn(ExperimentalForeignApi::class)
+private fun decodeThumbnail(url: NSURL, maxPixelSize: Int): CGImageRef? {
+    val retainedUrl = CFBridgingRetain(url) ?: return null
+    val options = CFDictionaryCreateMutable(
+        null,
+        0,
+        kCFTypeDictionaryKeyCallBacks.ptr,
+        kCFTypeDictionaryValueCallBacks.ptr,
+    ) ?: run {
+        CFRelease(retainedUrl)
+        return null
+    }
+    try {
+        CFDictionarySetValue(options, kCGImageSourceCreateThumbnailFromImageAlways, kCFBooleanTrue)
+        // Rotation from EXIF is irrelevant to a histogram, but applying it keeps the sampled frame
+        // the same one the player shows.
+        CFDictionarySetValue(options, kCGImageSourceCreateThumbnailWithTransform, kCFBooleanTrue)
+        val dimension = memScoped {
+            val value = alloc<IntVar> { this.value = maxPixelSize }
+            CFNumberCreate(null, kCFNumberIntType, value.ptr)
+        } ?: return null
+        CFDictionarySetValue(options, kCGImageSourceThumbnailMaxPixelSize, dimension)
+        CFRelease(dimension)
+        val source = CGImageSourceCreateWithURL(retainedUrl.reinterpret(), null) ?: return null
+        try {
+            return CGImageSourceCreateThumbnailAtIndex(source, 0u, options)
+        } finally {
+            CFRelease(source)
+        }
+    } finally {
+        CFRelease(options)
+        CFRelease(retainedUrl)
+    }
+}
 
 @OptIn(ExperimentalForeignApi::class)
 private fun dominantAccent(image: CGImageRef): Color? {
-    val side = 64
+    val side = ARTWORK_SAMPLE_SIDE
     val bytesPerPixel = 4
     val bytesPerRow = side * bytesPerPixel
     val pixels = ByteArray(bytesPerRow * side)
@@ -140,4 +227,7 @@ private data class CachedArtworkColor(val value: Color?, val storedAt: TimeMark)
 
 private val artworkColorCache = LinkedHashMap<String, CachedArtworkColor>()
 private const val ARTWORK_COLOR_CACHE_SIZE = 64
+
+/** The one frame the histogram needs; the cover itself is never decoded at full size. */
+private const val ARTWORK_SAMPLE_SIDE = 64
 private val NEGATIVE_CACHE_TTL = 30.seconds
