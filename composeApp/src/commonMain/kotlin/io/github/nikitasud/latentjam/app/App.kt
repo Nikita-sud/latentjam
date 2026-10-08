@@ -1148,8 +1148,17 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 // here just as the writes start, and a reload that already sees a written file's new
                 // revision, before the save's SMART carry-over exists, discards its audio analysis.
                 // The save reloads the library itself once it has finished.
-                if (tagAccess?.coordinator?.active?.value != true) scanLibrary()
-                hasHiddenTracks = library.hasHiddenTracks()
+                //
+                // Guarded for the same reason as the launch scan: a media-store failure on return
+                // must leave the current library in place, not kill the process from this scope.
+                try {
+                    if (tagAccess?.coordinator?.active?.value != true) scanLibrary()
+                    hasHiddenTracks = library.hasHiddenTracks()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (failure: Throwable) {
+                    println("Library: could not rescan on return: $failure")
+                }
             }
         }
         // Whenever the library changes, drop queue entries for tracks that no longer EXIST.
