@@ -55,7 +55,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -1638,9 +1637,6 @@ private fun QueueSheetContent(
     SideEffect { previouslyHadDuplicateIds = hasDuplicateIds }
     // Reordering floats the pressed row and commits ONE move on drop. Mutating the list mid-drag
     // would still replace the model under the finger and kill the gesture.
-    var draggingIndex by remember { mutableStateOf<Int?>(null) }
-    var dragOffsetY by remember { mutableStateOf(0f) }
-    var dragTargetIndex by remember { mutableStateOf<Int?>(null) }
     Column(modifier = Modifier.fillMaxWidth()) {
         val expandLabel = stringResource(Res.string.queue_title)
         Box(
@@ -1703,6 +1699,23 @@ private fun QueueSheetContent(
                 }
             }
         }
+        QueueReorderList(
+            identity = queueIdentity,
+            canReorder = canReorder,
+            listState = listState,
+            onMove = onMove,
+            draggedItem = { index, modifier ->
+                val track = queue[index]
+                QueueRow(
+                    accent = accent, track = track, isCurrent = index == currentIndex,
+                    isPlayed = index < currentIndex, isPlaying = isPlaying,
+                    isContinuation = track.id in continuationIds,
+                    onClick = {}, onMenu = {},
+                    modifier = modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .padding(horizontal = 8.dp),
+                )
+            },
+        ) { draggingIndex ->
         FadingLazyColumn(state = listState) {
             // Stable IDs preserve row identity across ordinary reorders. Duplicate IDs cannot do
             // that safely, so those queues use positional keys and disable item animations.
@@ -1742,55 +1755,7 @@ private fun QueueSheetContent(
                                 if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS,
                             ),
                         )
-                        .then(
-                            if (draggingIndex == index) {
-                                Modifier
-                                    .zIndex(1f)
-                                    .graphicsLayer { translationY = dragOffsetY }
-                            } else {
-                                Modifier
-                            },
-                        )
-                        .pointerInput(canReorder, index, queue.size) {
-                            if (!canReorder) return@pointerInput
-                            detectDragGesturesAfterLongPress(
-                                onDragStart = {
-                                    haptics.play(PlayerHaptic.HOLD)
-                                    draggingIndex = index
-                                    dragTargetIndex = index
-                                    dragOffsetY = 0f
-                                },
-                                onDrag = { change, dragAmount ->
-                                    change.consume()
-                                    dragOffsetY += dragAmount.y
-                                    val rowHeight = listState.layoutInfo.visibleItemsInfo
-                                        .firstOrNull { it.index == index }
-                                        ?.size
-                                        ?.takeIf { it > 0 }
-                                    if (rowHeight != null) {
-                                        val shift = (dragOffsetY / rowHeight).roundToInt()
-                                        dragTargetIndex =
-                                            (index + shift).coerceIn(0, queue.lastIndex)
-                                    }
-                                },
-                                onDragEnd = {
-                                    val from = draggingIndex
-                                    val to = dragTargetIndex
-                                    draggingIndex = null
-                                    dragTargetIndex = null
-                                    dragOffsetY = 0f
-                                    if (from != null && to != null && from != to) {
-                                        onMove(from, to)
-                                        haptics.play(PlayerHaptic.SUCCESS)
-                                    }
-                                },
-                                onDragCancel = {
-                                    draggingIndex = null
-                                    dragTargetIndex = null
-                                    dragOffsetY = 0f
-                                },
-                            )
-                        },
+                        .graphicsLayer { alpha = if (draggingIndex == index) 0f else 1f },
                 ) {
                     SwipeToDismissBox(
                         state = dismissState,
@@ -1851,6 +1816,7 @@ private fun QueueSheetContent(
                 }
                 }
             }
+        }
         }
     }
 }
