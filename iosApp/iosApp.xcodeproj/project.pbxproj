@@ -125,6 +125,7 @@
 				ko,
 				pl,
 				"pt-BR",
+				"pt-PT",
 				ro,
 				ru,
 				tr,
