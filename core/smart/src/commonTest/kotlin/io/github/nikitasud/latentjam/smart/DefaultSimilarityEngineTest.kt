@@ -1136,6 +1136,148 @@ internal class DefaultSimilarityEngineTest {
         }
     }
 
+    /**
+     * Stands in for the file-backed stores' 64 MiB envelope: a snapshot over [maxRows] rows is
+     * refused with the [IllegalArgumentException] a `require` raises — before anything is written —
+     * and a snapshot inside the envelope is stored through the [FakeIndexStore] backing.
+     */
+    private class EnvelopeLimitedIndexStore(
+        private val maxRows: Int,
+        private val backing: FakeIndexStore = FakeIndexStore(),
+    ) : IndexStore by backing {
+        /** Every saveSnapshot call, refused or accepted. */
+        var saveAttempts = 0
+            private set
+
+        /** Snapshots actually written. */
+        val writes: Int get() = backing.saveCalls
+
+        val snapshots: Map<String, Map<TrackId, FloatArray>> get() = backing.snapshots
+
+        override suspend fun saveSnapshot(modelVersion: String, snapshot: StoredIndexSnapshot) {
+            saveAttempts++
+            require(snapshot.entries.size <= maxRows) {
+                "Index snapshot is too large: ${snapshot.entries.size} rows (limit $maxRows)"
+            }
+            backing.saveSnapshot(modelVersion, snapshot)
+        }
+    }
+
+    @Test
+    fun `snapshot envelope refusal keeps the analysis pass running on the in-memory index`() = runTest {
+        val extra = TrackDescriptor(id = TrackId("extra"), audioUri = "test://extra")
+        val store = EnvelopeLimitedIndexStore(maxRows = 2)
+        val engine = engine(
+            backend = FakeEmbeddingBackend(
+                mutableMapOf(
+                    seed.id to floatArrayOf(1f, 0f, 0f),
+                    near.id to floatArrayOf(0.9f, 0.1f, 0f),
+                    far.id to floatArrayOf(0f, 1f, 0f),
+                    extra.id to floatArrayOf(0f, 0f, 1f),
+                ),
+            ),
+            store = store,
+        )
+        engine.initialize()
+
+        // The pass stages batch by batch and checkpoints with persistPendingAnalysis; AppGraph
+        // reads any throw from that checkpoint as an interrupted analysis.
+        engine.stageLibraryIndex(listOf(seed, near))
+        engine.persistPendingAnalysis()
+        assertEquals(setOf(seed.id, near.id), store.snapshots["test-model"]?.keys)
+        assertEquals(1, store.writes)
+
+        // The next batch pushes the snapshot past the store envelope. The refusal must end neither
+        // the pass nor the checkpoint that is already durable.
+        engine.stageLibraryIndex(listOf(far))
+        engine.persistPendingAnalysis()
+        engine.stageLibraryIndex(listOf(extra))
+        engine.persistPendingAnalysis()
+
+        assertEquals(EngineState.Ready(indexedCount = 4), engine.state.value)
+        assertNotNull(engine.embedding(seed.id))
+        assertNotNull(engine.embedding(far.id))
+        assertNotNull(engine.embedding(extra.id))
+        assertEquals(setOf(seed.id, near.id), store.snapshots["test-model"]?.keys)
+        // Attempted once, then remembered: the once-per-episode report is not a per-batch alarm,
+        // and a growing library does not rebuild the whole snapshot at every checkpoint.
+        assertEquals(2, store.saveAttempts)
+        assertEquals(1, store.writes)
+    }
+
+    @Test
+    fun `an index that shrinks under the envelope retries the refused checkpoint`() = runTest {
+        val store = EnvelopeLimitedIndexStore(maxRows = 2)
+        val engine = engine(
+            backend = FakeEmbeddingBackend(
+                mutableMapOf(
+                    seed.id to floatArrayOf(1f, 0f, 0f),
+                    near.id to floatArrayOf(0.9f, 0.1f, 0f),
+                    far.id to floatArrayOf(0f, 1f, 0f),
+                ),
+            ),
+            store = store,
+        )
+        engine.initialize()
+        engine.stageLibraryIndex(listOf(seed, near, far))
+        engine.persistPendingAnalysis()
+
+        assertEquals(1, store.saveAttempts)
+        assertEquals(0, store.writes, "an oversized snapshot is never written")
+
+        // Reconciliation prunes one row. The dirty flag survived the refusal, so the smaller
+        // snapshot is written instead of the analysis silently losing its durable cache.
+        engine.synchronizeLibrary(listOf(seed, near), pruneMissing = true)
+
+        assertEquals(2, store.saveAttempts)
+        assertEquals(1, store.writes)
+        assertEquals(setOf(seed.id, near.id), store.snapshots["test-model"]?.keys)
+        assertEquals(EngineState.Ready(indexedCount = 2), engine.state.value)
+    }
+
+    @Test
+    fun `a real checkpoint write failure stays visible and is retried`() = runTest {
+        val store = FakeIndexStore().apply { saveFailuresRemaining = 1 }
+        val engine = engine(
+            backend = FakeEmbeddingBackend(
+                mutableMapOf(
+                    seed.id to floatArrayOf(1f, 0f, 0f),
+                    near.id to floatArrayOf(0.9f, 0.1f, 0f),
+                ),
+            ),
+            store = store,
+        )
+        engine.initialize()
+        engine.stageLibraryIndex(listOf(seed, near))
+
+        // The checkpoint the indexing pass uses must not hide a genuine write failure, and the
+        // dirty flag has to survive it so the retry persists the vectors already in memory.
+        assertFailsWith<IllegalStateException> { engine.persistPendingAnalysis() }
+        assertTrue(store.snapshots.isEmpty())
+
+        engine.persistPendingAnalysis()
+
+        assertEquals(2, store.saveCalls)
+        assertEquals(setOf(seed.id, near.id), store.snapshots["test-model"]?.keys)
+    }
+
+    @Test
+    fun `a cancelled checkpoint still propagates through the refusal handling`() = runTest {
+        val store = object : IndexStore by FakeIndexStore() {
+            override suspend fun saveSnapshot(modelVersion: String, snapshot: StoredIndexSnapshot) {
+                throw CancellationException("cancelled checkpoint")
+            }
+        }
+        val engine = engine(
+            backend = FakeEmbeddingBackend(mutableMapOf(seed.id to floatArrayOf(1f, 0f, 0f))),
+            store = store,
+        )
+        engine.initialize()
+        engine.stageLibraryIndex(listOf(seed))
+
+        assertFailsWith<CancellationException> { engine.persistPendingAnalysis() }
+    }
+
     @Test
     fun `staged audio and metadata become restart durable at explicit checkpoint`() = runTest {
         val audioStore = FakeIndexStore()
