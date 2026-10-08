@@ -155,8 +155,7 @@ internal class PlaybackStartsTest {
 
         assertEquals(setOf(b), continuations)
         assertEquals(mapOf(b to 4), positions)
-        val noRemovals = emptySet<TrackId>()
-        assertEquals(noRemovals, removals)
+        assertEquals(emptySet(), removals)
     }
 
     @Test

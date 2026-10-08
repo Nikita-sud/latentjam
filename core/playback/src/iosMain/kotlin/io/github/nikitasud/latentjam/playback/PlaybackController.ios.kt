@@ -640,6 +640,7 @@ internal class IosPlaybackController(
         val wasPlaying = playing
         queue = queue.toMutableList().apply { removeAt(index) }
         queueGeneration++
+        recordSmartRemoval(smartRemovedIds, mode, removed.id)
         if (queue.none { it.id == removed.id }) {
             pool = pool.filter { it.id != removed.id }
         }
@@ -831,13 +832,18 @@ internal class IosPlaybackController(
                 .map { queue[it].id }
             // Everything already queued is off the table, not just the recent window:
             // a track appended twice would play twice in one sitting, and the queue
-            // would show two rows claiming the same identity.
+            // would show two rows claiming the same identity. So is every track the
+            // listener removed from this queue.
             val queued = queue.mapTo(HashSet()) { it.id }
-            val candidates = smartCandidatePool(
-                eligibleLibrary = smartLibrary,
-                fallbackPool = pool,
-                eligibleLibrarySupplied = smartLibrarySupplied,
-            ).filter { it.id !in queued }
+            val candidates = smartTopUpCandidates(
+                universe = smartCandidatePool(
+                    eligibleLibrary = smartLibrary,
+                    fallbackPool = pool,
+                    eligibleLibrarySupplied = smartLibrarySupplied,
+                ),
+                queuedIds = queued,
+                removedIds = smartRemovedIds,
+            )
             if (candidates.isEmpty()) break
 
             val recommended = awaitPlaybackRecommendation { chooser.choose(seed, recentIds, candidates) }
