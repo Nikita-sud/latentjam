@@ -1163,7 +1163,8 @@ internal class SmartChain(
      */
     /**
      * @param among when given, the only rows that may enter the pool: scores are computed for these
-     *   alone, and the pool is exactly the one [excluded] = every other row would give.
+     *   alone, and the pool is exactly the one [excluded] = every other row would give. The companion
+     *   tail obeys the same bound, so a hard neighbourhood stays hard.
      * @param ranking [seedRow]'s reference-only rankings, when the caller keeps them between pools;
      *   used only without [among] and computed here when missing. The pool is the same either way.
      */
@@ -1217,8 +1218,9 @@ internal class SmartChain(
         // A companion the bonus never sees is a companion the bonus cannot keep: members of the
         // seed's marked groups that the three rankings left out are injected over the pool's
         // tail (best-sounding first, bounded), so "keep together" reaches tracks the retrieval
-        // channels alone would never surface. No marked groups — untouched pool, which is what
-        // the parity fixtures pin.
+        // channels alone would never surface. Under a hard neighbourhood (among) the tail is drawn
+        // from that set alone, so the one promise buildPool makes about it still holds. No marked
+        // groups — untouched pool, which is what the parity fixtures pin.
         val seedGroups = companions.quotaGroupsOf(seedRow)
         if (seedGroups.isNotEmpty()) {
             // Allocate the bounded companion tail round-robin across the seed's groups. Filling it
@@ -1228,7 +1230,8 @@ internal class SmartChain(
                 companions.rowsOf(group)
                     .asSequence()
                     .filter { row ->
-                        row != seedRow && eligibleRows[row] && row !in excluded && row !in seen
+                        row != seedRow && eligibleRows[row] && row !in excluded && row !in seen &&
+                            (among == null || row in among)
                     }
                     .sortedByDescending { anchorScores[it] }
                     .toList()
