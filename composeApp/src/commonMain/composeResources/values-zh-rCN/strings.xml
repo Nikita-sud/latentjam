@@ -454,7 +454,7 @@
     <string name="settings_licenses">开源许可证</string>
     <string name="settings_licenses_body">LatentJam、内置模型和第三方软件声明</string>
     <string name="settings_license_models">音频和 SMART 模型</string>
-    <string name="settings_license_models_body">LatentJam 生成的 MobileNetV4 音频和 SMART 预测器权重采用 Apache-2.0。学生模型使用 timm（Apache-2.0），并从 EfficientAT 蒸馏而来（MIT，版权所有 © 2022 Florian Schmid）。</string>
+    <string name="settings_license_models_body">LatentJam 生成的 MobileNetV4 音频和 SMART 预测器权重采用 Apache-2.0。学生模型使用 timm（Apache-2.0），并从 EfficientAT 蒸馏而来（MIT，版权所有 © 2022 Florian Schmid）。五个图中有三个以及第四个图的一个分支尚未通过公开发布所需的权利审查；随附的 LICENSE-MODEL.txt 详细说明了每种情况。</string>
     <string name="settings_license_text_model">文本模型</string>
     <string name="settings_license_text_model_body">内置的文本编码器及其词表由 LatentJam 训练以复现 sentence-transformers/all-MiniLM-L6-v2（Apache-2.0），采用 Apache-2.0。</string>
     <string name="settings_license_runtime">ONNX Runtime</string>

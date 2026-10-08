@@ -465,7 +465,7 @@
     <string name="settings_licenses">Licențe open-source</string>
     <string name="settings_licenses_body">Notificări pentru LatentJam, modelele incluse și software-ul terț</string>
     <string name="settings_license_models">Modele audio și SMART</string>
-    <string name="settings_license_models_body">Ponderile audio MobileNetV4 și ale predictorilor SMART produse de LatentJam sunt Apache-2.0. Modelul student folosește timm (Apache-2.0) și a fost distilat din EfficientAT (MIT, copyright © 2022 Florian Schmid).</string>
+    <string name="settings_license_models_body">Ponderile audio MobileNetV4 și ale predictorilor SMART produse de LatentJam sunt Apache-2.0. Modelul student folosește timm (Apache-2.0) și a fost distilat din EfficientAT (MIT, copyright © 2022 Florian Schmid). Trei dintre cele cinci grafuri, și o ramură a unui al patrulea, nu au trecut de verificarea drepturilor cerută pentru o lansare publică; LICENSE-MODEL.txt inclus detaliază fiecare caz.</string>
     <string name="settings_license_text_model">Model text</string>
     <string name="settings_license_text_model_body">Codificatorul de text inclus și vocabularul său au fost antrenate de LatentJam să reproducă sentence-transformers/all-MiniLM-L6-v2 (Apache-2.0) și sunt Apache-2.0.</string>
     <string name="settings_license_runtime">ONNX Runtime</string>

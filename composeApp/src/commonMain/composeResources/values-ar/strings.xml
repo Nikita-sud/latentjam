@@ -512,7 +512,7 @@
     <string name="settings_licenses">تراخيص المصادر المفتوحة</string>
     <string name="settings_licenses_body">إشعارات LatentJam والنماذج المضمّنة وبرامج الجهات الخارجية</string>
     <string name="settings_license_models">نماذج الصوت وSMART</string>
-    <string name="settings_license_models_body">أوزان الصوت MobileNetV4 ومتنبئ SMART التي أنتجها LatentJam مرخّصة وفق Apache-2.0. يستخدم النموذج الطالب timm ‏(Apache-2.0) وقد دُرّب بالتقطير من EfficientAT ‏(MIT، حقوق النشر © 2022 Florian Schmid).</string>
+    <string name="settings_license_models_body">أوزان الصوت MobileNetV4 ومتنبئ SMART التي أنتجها LatentJam مرخّصة وفق Apache-2.0. يستخدم النموذج الطالب timm ‏(Apache-2.0) وقد دُرّب بالتقطير من EfficientAT ‏(MIT، حقوق النشر © 2022 Florian Schmid). لم يجتز ثلاثة من المخططات الخمسة، وفرع واحد من مخطط رابع، مراجعة الحقوق التي يتطلبها الإصدار العام؛ ويوضّح الملف LICENSE-MODEL.txt كل حالة بالتفصيل.</string>
     <string name="settings_license_text_model">نموذج النص</string>
     <string name="settings_license_text_model_body">مُرمِّز النص المضمّن ومفرداته درّبهما LatentJam لمحاكاة sentence-transformers/all-MiniLM-L6-v2 (Apache-2.0)، وهما مرخّصان وفق Apache-2.0.</string>
     <string name="settings_license_runtime">ONNX Runtime</string>

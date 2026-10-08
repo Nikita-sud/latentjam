@@ -464,7 +464,7 @@
     <string name="settings_licenses">ओपन-सोर्स लाइसेंस</string>
     <string name="settings_licenses_body">LatentJam, साथ दिए गए मॉडल और तीसरे पक्ष के सॉफ़्टवेयर की सूचनाएँ</string>
     <string name="settings_license_models">ऑडियो और SMART मॉडल</string>
-    <string name="settings_license_models_body">LatentJam के बनाए MobileNetV4 ऑडियो और SMART प्रेडिक्टर वेट Apache-2.0 के अंतर्गत हैं। स्टूडेंट मॉडल timm (Apache-2.0) का उपयोग करता है और इसे EfficientAT (MIT, कॉपीराइट © 2022 Florian Schmid) से डिस्टिल किया गया है।</string>
+    <string name="settings_license_models_body">LatentJam के बनाए MobileNetV4 ऑडियो और SMART प्रेडिक्टर वेट Apache-2.0 के अंतर्गत हैं। स्टूडेंट मॉडल timm (Apache-2.0) का उपयोग करता है और इसे EfficientAT (MIT, कॉपीराइट © 2022 Florian Schmid) से डिस्टिल किया गया है। पाँच में से तीन ग्राफ़ और चौथे ग्राफ़ की एक शाखा सार्वजनिक रिलीज़ के लिए ज़रूरी अधिकार-समीक्षा में पास नहीं हुए हैं; साथ दिया गया LICENSE-MODEL.txt हर मामला विस्तार से बताता है।</string>
     <string name="settings_license_text_model">टेक्स्ट मॉडल</string>
     <string name="settings_license_text_model_body">साथ दिया गया टेक्स्ट एन्कोडर और उसकी शब्दावली LatentJam ने sentence-transformers/all-MiniLM-L6-v2 (Apache-2.0) की नकल करने के लिए प्रशिक्षित की हैं और ये Apache-2.0 के अंतर्गत हैं।</string>
     <string name="settings_license_runtime">ONNX Runtime</string>

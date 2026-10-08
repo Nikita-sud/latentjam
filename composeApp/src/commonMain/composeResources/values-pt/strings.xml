@@ -484,7 +484,7 @@
     <string name="settings_licenses">Licenças de código aberto</string>
     <string name="settings_licenses_body">Avisos do LatentJam, modelos incluídos e software de terceiros</string>
     <string name="settings_license_models">Modelos de áudio e SMART</string>
-    <string name="settings_license_models_body">Os pesos de áudio MobileNetV4 e dos preditores SMART produzidos pelo LatentJam usam Apache-2.0. O modelo estudante usa timm (Apache-2.0) e foi destilado do EfficientAT (MIT, copyright © 2022 Florian Schmid).</string>
+    <string name="settings_license_models_body">Os pesos de áudio MobileNetV4 e dos preditores SMART produzidos pelo LatentJam usam Apache-2.0. O modelo estudante usa timm (Apache-2.0) e foi destilado do EfficientAT (MIT, copyright © 2022 Florian Schmid). Três dos cinco grafos, e um ramo de um quarto, não passaram pela revisão de direitos exigida para um lançamento público; o ficheiro LICENSE-MODEL.txt incluído detalha cada caso.</string>
     <string name="settings_license_text_model">Modelo de texto</string>
     <string name="settings_license_text_model_body">O codificador de texto incluído e o seu vocabulário foram treinados pelo LatentJam para reproduzir sentence-transformers/all-MiniLM-L6-v2 (Apache-2.0) e usam Apache-2.0.</string>
     <string name="settings_license_runtime">ONNX Runtime</string>
