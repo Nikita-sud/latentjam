@@ -59,10 +59,13 @@ internal data class LocalBackupSettings(
  * A portable identity hint, never an audio locator.
  *
  * The original id makes same-device restores exact. A reference captured without a single field (the
- * library was unavailable at export time) is that id alone, so it is matched while the device still
- * confirms the references that do carry fields. Metadata permits a conservative unique match after
- * MediaStore or imported-file ids change. Audio paths, artwork paths, and model embeddings are
- * deliberately absent from backups.
+ * library was unavailable at export time) is that id alone, so it is matched only while the id space
+ * is confirmed: every described reference in the same snapshot still fits the track that holds its
+ * id. One described reference that lost its track, or found a different one under the same id, means
+ * the ids were reassigned, and the bare ids of that snapshot stay unresolved. A snapshot with no
+ * described reference at all carries no evidence against its ids, so those bare ids are matched.
+ * Metadata permits a conservative unique match after MediaStore or imported-file ids change. Audio
+ * paths, artwork paths, and model embeddings are deliberately absent from backups.
  */
 internal data class LocalBackupTrackReference(
     val originalId: String,
@@ -921,13 +924,16 @@ internal class LocalBackupService(
             .associateBy { it.track.id.value }
 
         /**
-         * True while every described reference still fits the track that holds its id. A single
-         * mismatch means the media database was rebuilt, an id was reused, or the track under it was
-         * replaced, and a reference captured without any field then has nothing left to confirm it.
+         * True while the id space is confirmed: every described reference still fits the track that
+         * holds its id. One described reference whose track is gone, or whose id now names a
+         * different track, means the media database was rebuilt or an id was reused, and a reference
+         * captured without any field then has nothing left to confirm it. A snapshot that describes
+         * no reference at all has no evidence against its ids, so its bare ids are accepted.
          */
         private val idsPreserved: Boolean = normalizedById.all { (id, reference) ->
-            val candidate = exactById[id]
-            !reference.hasIdentity || candidate == null || reference.isCompatibleWith(candidate)
+            if (!reference.hasIdentity) return@all true
+            val candidate = exactById[id] ?: return@all false
+            reference.isCompatibleWith(candidate)
         }
         private val metadataByKey: Map<MetadataKey, MetadataCandidates> = buildMap {
             val builders = mutableMapOf<MetadataKey, MutableList<IndexedTrack>>()
@@ -954,8 +960,8 @@ internal class LocalBackupService(
             exactById[reference.originalId]?.let { exact ->
                 // A described reference must fit the track that holds its id. A reference captured
                 // without a single field is that id alone, and the backup promises the original id
-                // for same-device restores, so it is accepted while the device still confirms the
-                // ids of the references that do carry fields.
+                // for same-device restores, so it is accepted only while every described reference
+                // confirms that the device still holds the ids the export saw.
                 val matches = if (normalized.hasIdentity) {
                     normalized.isCompatibleWith(exact)
                 } else {

@@ -688,6 +688,45 @@ internal class LocalBackupTest {
     }
 
     @Test
+    fun anIdOnlyReferenceStaysUnresolvedWhenADescribedReferenceLostItsTrack() = runTest {
+        // A described reference has no track under its id at all, so this snapshot's ids are not
+        // confirmed: the bare id must not claim whatever unrelated track the device keeps under it.
+        val snapshot = emptySnapshot().copy(
+            tracks = listOf(
+                LocalBackupTrackReference("gone", "Old title", "Artist", "Album", 100_000),
+                LocalBackupTrackReference("bare", null, null, null, null),
+            ),
+        )
+        val destination = fixture(listOf(track("bare", "Something else", "Other", "Other", 100_000)))
+
+        val report = destination.service.restore(snapshot, LocalBackupRestoreMode.REPLACE, noSections())
+
+        assertEquals(0, report.resolvedTrackReferences)
+        assertEquals(2, report.unresolvedTrackReferences)
+    }
+
+    @Test
+    fun idOnlySnapshotWithoutAnyDescribedReferenceRestoresOnTheSameDevice() = runTest {
+        // An export taken while the library was unavailable describes no reference at all, so there
+        // is no evidence against its ids and the same device must still bring the bare ids back.
+        val snapshot = emptySnapshot().copy(
+            tracks = listOf(LocalBackupTrackReference("bare", null, null, null, null)),
+            playlists = listOf(LocalBackupPlaylist("mix", "Mix", 1, listOf("bare"))),
+        )
+        val destination = fixture(listOf(track("bare", "Title", "Artist", "Album", 120_000)))
+
+        val report = destination.service.restore(
+            snapshot,
+            LocalBackupRestoreMode.REPLACE,
+            noSections().copy(playlists = true),
+        )
+
+        assertEquals(1, report.resolvedTrackReferences)
+        assertEquals(0, report.unresolvedTrackReferences)
+        assertContentEquals(listOf("bare"), destination.playlists.all().single().trackIds)
+    }
+
+    @Test
     fun replaceRestoreIsRefusedWhileTheDeviceLibraryReportsNoTracks() = runTest {
         val song = track("song", "Song", "Artist", "Album", 120_000)
         val source = fixture(listOf(song))
