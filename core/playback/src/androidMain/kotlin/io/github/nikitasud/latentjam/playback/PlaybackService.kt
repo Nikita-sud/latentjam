@@ -731,6 +731,10 @@ public class PlaybackService : MediaLibraryService() {
         appLaunchPendingIntent()?.let(sessionBuilder::setSessionActivity)
         mediaSession = sessionBuilder.build()
         player.addListener(playerListener)
+        // The listener's persisted repeat choice belongs to the transport this service is about to
+        // host: the widget and the player screen show it again as soon as the app connects (see
+        // [initialPlaybackModes]), and until now only the shuffle half reached a player.
+        applyPersistedRepeatMode(player)
         // If Android recreated the service after an unclean process death, the persisted timing
         // anchor must no longer claim that progress is live while Media3 restores the queue.
         PlaybackWidgetStateStore.markPaused(this)
@@ -804,6 +808,22 @@ public class PlaybackService : MediaLibraryService() {
                 capturedBootCount = PlaybackWidgetStateStore.currentBootCount(this),
             ),
         )
+    }
+
+    /**
+     * Puts the listener's persisted repeat choice onto the freshly built player.
+     *
+     * The widget snapshot survives process death and is what the app reads to restore both
+     * transport modes before a command reaches an empty service (see [initialPlaybackModes]) — but
+     * only [AndroidShuffleModeRegistry] carried its half all the way to the player, so the restored
+     * repeat was shown by the player screen and the widget while the new player repeated nothing and
+     * stopped at the end of the queue. A snapshot with no track is a player that never played
+     * anything, so there is no choice to carry over.
+     */
+    private fun applyPersistedRepeatMode(player: Player) {
+        val persisted = PlaybackWidgetStateStore.read(this)
+        if (persisted.mediaId.isBlank()) return
+        player.repeatMode = persisted.repeatMode.toNativeRepeatMode()
     }
 
     /**
@@ -911,6 +931,12 @@ public class PlaybackService : MediaLibraryService() {
         Player.REPEAT_MODE_ALL -> RepeatMode.ALL
         Player.REPEAT_MODE_ONE -> RepeatMode.ONE
         else -> RepeatMode.OFF
+    }
+
+    private fun RepeatMode.toNativeRepeatMode(): Int = when (this) {
+        RepeatMode.ALL -> Player.REPEAT_MODE_ALL
+        RepeatMode.ONE -> Player.REPEAT_MODE_ONE
+        RepeatMode.OFF -> Player.REPEAT_MODE_OFF
     }
 
     private fun Player.Events.containsAnyWidgetStateEvent(): Boolean =
