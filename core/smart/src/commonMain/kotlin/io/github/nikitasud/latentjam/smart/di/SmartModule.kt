@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.smart.di
 
+import io.github.nikitasud.latentjam.smart.chain.BatchDotProducts
 import io.github.nikitasud.latentjam.smart.DefaultSimilarityEngine
 import io.github.nikitasud.latentjam.smart.InMemoryVectorIndex
 import io.github.nikitasud.latentjam.smart.chain.PredictorRuntime
@@ -125,6 +126,7 @@ public val smartEngineModule: Module = module {
             textIndex = get<VectorIndex>(smartTextIndexQualifier),
             textStore = get<IndexStore>(smartTextIndexQualifier),
             clock = getOrNull<SmartClock>() ?: SmartClock,
+            batchDotProducts = getOrNull<BatchDotProducts>() ?: BatchDotProducts.Portable,
         )
     }
 }

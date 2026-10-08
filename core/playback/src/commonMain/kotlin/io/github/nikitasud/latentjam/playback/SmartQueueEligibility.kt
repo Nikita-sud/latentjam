@@ -18,6 +18,27 @@ internal fun smartCandidatePool(
     eligibleLibrarySupplied: Boolean,
 ): List<TrackDescriptor> = if (eligibleLibrarySupplied) eligibleLibrary else fallbackPool
 
+/**
+ * What one SMART top-up may append: [universe] ([smartCandidatePool]) less every queued track, which
+ * would play twice, and every track the listener removed from this queue ([recordSmartRemoval]).
+ */
+internal fun smartTopUpCandidates(
+    universe: List<TrackDescriptor>,
+    queuedIds: Set<TrackId>,
+    removedIds: Set<TrackId>,
+): List<TrackDescriptor> = universe.filter { it.id !in queuedIds && it.id !in removedIds }
+
+/**
+ * Books the listener's removal of a [trackId] row. In SMART the track then stays out of the rest of
+ * this queue: the engine replans from where the queue now ends, and that plan, or a new walk from the
+ * same tracks, would otherwise bring it straight back. Only the controllers can tell a removal from
+ * the app discarding the future to replan it, which leaves those tracks free. A new queue forgets
+ * the removals, and so does queueing the track by hand ([releaseSmartProvenance]).
+ */
+internal fun recordSmartRemoval(removedIds: MutableSet<TrackId>, mode: ShuffleMode, trackId: TrackId) {
+    if (mode == ShuffleMode.SMART) removedIds += trackId
+}
+
 /** Keeps playback history/current intent, but removes ineligible items from the generated tail. */
 internal fun retainEligibleSmartTail(
     queue: List<TrackDescriptor>,

@@ -66,6 +66,17 @@ public interface IosInferenceProvider {
         candidates: FloatArray,
     ): FloatArray?
 
+    /**
+     * Optional exact-order dot kernel. Addresses borrow pinned Kotlin arrays only for this synchronous
+     * call: matrix is row-major, query starts at its supplied address, rows indexes output slots.
+     * The host must never retain the addresses or dispatch this work asynchronously. False must leave
+     * output untouched. The caller validates all lengths and indices before crossing this boundary.
+     */
+    public fun batchDots(
+        matrixAddress: Long, dim: Int, queryAddress: Long,
+        rowsAddress: Long, count: Int, outputAddress: Long,
+    ): Boolean = false
+
     public fun close()
 }
 

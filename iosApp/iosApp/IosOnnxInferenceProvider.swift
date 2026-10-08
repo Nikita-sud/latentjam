@@ -282,6 +282,17 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
         } catch { return nil }
     }
 
+    func batchDots(
+        matrixAddress: Int64, dim: Int32, queryAddress: Int64,
+        rowsAddress: Int64, count: Int32, outputAddress: Int64
+    ) -> Bool {
+        guard let matrix = UnsafePointer<Float>(bitPattern: Int(matrixAddress)),
+              let query = UnsafePointer<Float>(bitPattern: Int(queryAddress)),
+              let rows = UnsafePointer<Int32>(bitPattern: Int(rowsAddress)),
+              let output = UnsafeMutablePointer<Float>(bitPattern: Int(outputAddress)) else { return false }
+        return LjBatchDots(matrix, dim, query, rows, count, output) != 0
+    }
+
     func close() {
         audio = nil
         semantic = nil
@@ -292,6 +303,10 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
 
     /// Opt-in end-to-end graph check used by simulator validation. Normal app launches do no work.
     func runSmokeIfRequested() {
+        if ProcessInfo.processInfo.environment["LATENTJAM_BATCH_DOTS_BENCHMARK"] == "1" {
+            // Run before the UI starts indexing so the opt-in timing has no competing app work.
+            print(IosInferenceBridgeKt.runIosBatchDotsDiagnostics())
+        }
         guard ProcessInfo.processInfo.environment["LATENTJAM_SMART_SMOKE"] == "1" else { return }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }

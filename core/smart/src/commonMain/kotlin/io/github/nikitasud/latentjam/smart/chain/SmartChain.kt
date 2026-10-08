@@ -4,7 +4,6 @@
  */
 package io.github.nikitasud.latentjam.smart.chain
 
-import io.github.nikitasud.latentjam.smart.Genres
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.SmartHistoryEvent
 import kotlin.math.abs
@@ -170,10 +169,11 @@ internal data class PickTrace(
  * neighbourhood of [intent] instead of starting a new one around that last track.
  *
  * @param intent the track whose neighbourhood the walk is spending
- * @param picks the walk's latest picks in the order they were chosen, at most [WINDOW]: they keep
+ * @param picks the latest picks, in selection order until [followingOrder] saves playback order, at most [WINDOW]: they keep
  *   the artist cap, the repeated-title check, the artist repeat penalty and the genre-family count
  *   running as they do inside one chain of the longest queue the app plans
- * @param picksUnderIntent how many of the latest [picks] were chosen with [intent] as the reference
+ * @param picksUnderIntent how many retained [picks] were chosen with [intent] as the reference
+ * @param intentPicks those identities explicitly: journey ordering can move them across the old suffix boundary
  * @param ring the closeness threshold the walk had widened to around [intent]
  */
 internal data class ChainWalk(
@@ -182,7 +182,46 @@ internal data class ChainWalk(
     val picksUnderIntent: Int,
     /** The ring the walk had widened to around [intent] ([ChainTuning.ringStep]). */
     val ring: Float = Reanchor.NICHE_COS,
+    val intentPicks: Set<TrackId> = picks.takeLast(picksUnderIntent.coerceIn(0, picks.size)).toSet(),
 ) {
+    /**
+     * Remember the order handed to playback, including the artist run at its tail. The sequencer
+     * permutes this plan only; older carried picks retain their order. Keep intent membership by
+     * identity because the reordered tail need not be the suffix selected under the final intent.
+     */
+    fun followingOrder(orderedPicks: List<TrackId>): ChainWalk {
+        if (orderedPicks.isEmpty()) return this
+        val currentPlan = orderedPicks.toHashSet()
+        val retained = (picks.filterNot { it in currentPlan } + orderedPicks).takeLast(WINDOW)
+        val retainedIntent = intentPicks.intersect(retained.toSet())
+        return copy(picks = retained, picksUnderIntent = retainedIntent.size, intentPicks = retainedIntent)
+    }
+
+    /**
+     * The walk as it stood when [seed] played, for a plan that goes on from [seed]. Usually [seed] is
+     * the last pick and nothing changes. After the listener removed or moved the queue's last rows,
+     * or the app discarded the queue's future to replan it, [seed] is an earlier pick: the picks
+     * after it never played, so they are dropped, not spent. One the listener removed stays out
+     * because playback no longer offers it; one the app discarded may be planned again. If [intent]
+     * was among them the walk re-anchors at [seed], as it does when a neighbourhood runs out, and a
+     * widened [ring] narrows again (the walk widens it again if it must).
+     */
+    fun resumedAt(seed: TrackId): ChainWalk {
+        val at = picks.lastIndexOf(seed)
+        if (at < 0 || at == picks.lastIndex) return this
+        val kept = picks.subList(0, at + 1).toList()
+        if (intent in picks.subList(at + 1, picks.size)) return copy(picks = kept).reanchoredAt(seed)
+        val keptIntent = intentPicks.intersect(kept.toSet())
+        return copy(picks = kept, picksUnderIntent = keptIntent.size, ring = Reanchor.NICHE_COS, intentPicks = keptIntent)
+    }
+
+    /**
+     * The walk with [seed], its last pick, as its reference, as when a neighbourhood runs out: the
+     * next plan spends the seed's neighbourhood, nothing picked under it yet.
+     */
+    fun reanchoredAt(seed: TrackId): ChainWalk =
+        copy(intent = seed, picksUnderIntent = 0, ring = Reanchor.NICHE_COS, intentPicks = emptySet())
+
     companion object {
         /** The longest queue the app plans in one chain (the SMART queue length setting's maximum). */
         const val WINDOW = 40
@@ -241,7 +280,8 @@ internal class SmartChain(
      * @param length how many tracks to queue after the seed
      * @param timeFeatures from [PredictorRuntime.timeFeatures] on the real clock
      * @param resume the walk the previous plan ended with, when this plan continues it from that
-     *   plan's last track; ignored outside the continuation mode
+     *   plan's last track, or from an earlier pick, where it goes on as it stood then
+     *   ([ChainWalk.resumedAt]); ignored outside the continuation mode
      * @param trace receives one [PickTrace] per pick, for offline diagnosis; it never changes a pick
      */
     fun build(
@@ -344,7 +384,7 @@ internal class SmartChain(
         var intentRow = seedRow
         val consideredRows = LinkedHashSet<Int>()
         if (!continueAfterExhaustion) consideredRows.addAll(pool)
-        var seedGenres = Genres.families(snapshot.tracks[seedRow].meta.genre)
+        var seedGenres = snapshot.tracks[seedRow].meta.genreFamilies
         var seedGenreSupport = MetadataRerank.seedGenreSupport(
             seedGenres,
             pool.asSequence().map { snapshot.tracks[it].meta }.asIterable(),
@@ -378,24 +418,23 @@ internal class SmartChain(
         var runArtist = snapshot.tracks[seedRow].meta.artistKey
         var runLength = if (runArtist.isEmpty()) 0 else 1
         // A resumed walk: its reference and its latest picks carry over, as if this plan were the
-        // next stretch of the same chain. The picks are queued already and stay unavailable.
-        var picksUnderIntent = 0
-        val carried = if (continueAfterExhaustion && resume != null) {
-            resume.picks.map(snapshot::rowOf).filter { it >= 0 }
-        } else {
-            emptyList()
-        }
-        if (continueAfterExhaustion && resume != null) {
-            val resumedIntent = snapshot.rowOf(resume.intent)
+        // next stretch of the same chain. The picks are queued already and stay unavailable. The
+        // plan's seed is the walk's last pick, or an earlier one after the queue's last rows were
+        // removed, moved or replanned: the walk then goes on as it stood at the seed.
+        val resumed = if (continueAfterExhaustion) resume?.resumedAt(seedId) else null
+        val intentPicks = HashSet<TrackId>()
+        val carried = resumed?.picks?.map(snapshot::rowOf)?.filter { it >= 0 }.orEmpty()
+        if (resumed != null) {
+            val resumedIntent = snapshot.rowOf(resumed.intent)
             if (resumedIntent >= 0) {
                 intentRow = resumedIntent
-                ring = resume.ring
+                ring = resumed.ring
                 snapshot.tracks[intentRow].meta.titleArtistKey?.let(seenTitles::add)
-                seedGenres = Genres.families(snapshot.tracks[intentRow].meta.genre)
-                val underIntent = carried.takeLast(resume.picksUnderIntent.coerceIn(0, carried.size))
-                picksUnderIntent = underIntent.size
+                seedGenres = snapshot.tracks[intentRow].meta.genreFamilies
+                val underIntent = carried.filter { snapshot.tracks[it].id in resumed.intentPicks }
+                underIntent.mapTo(intentPicks) { snapshot.tracks[it].id }
                 seedFamilyPicks = underIntent.count { row ->
-                    Genres.families(snapshot.tracks[row].meta.genre).any { it in seedGenres }
+                    snapshot.tracks[row].meta.genreFamilies.any { it in seedGenres }
                 }
             }
             for (row in carried) {
@@ -406,7 +445,7 @@ internal class SmartChain(
                 recentArtists.addLast(meta.artistKey)
                 while (recentArtists.size > ChainConfig.CHAIN_ARTIST_SPACING) recentArtists.removeFirst()
             }
-            // The plan's seed is the walk's last pick; the run it ends counts back through the walk.
+            // The plan's seed ends the walk; the run it ends counts back through the walk.
             if (carried.isNotEmpty()) {
                 runArtist = snapshot.tracks[carried.last()].meta.artistKey
                 runLength = if (runArtist.isEmpty()) 0 else {
@@ -416,7 +455,7 @@ internal class SmartChain(
         }
 
         // The reference is a member of its own playlists; a resumed walk counts its picks since then.
-        if (points != null) comebackFrom(intentRow, carried.takeLast(picksUnderIntent))
+        if (points != null) comebackFrom(intentRow, carried.filter { snapshot.tracks[it].id in intentPicks })
 
         // Semantic reference for the active intent: fixed at the original pick by default,
         // recomputed after each pool refill in continuation mode.
@@ -473,9 +512,9 @@ internal class SmartChain(
                     intentMovedThisHop = true
                     intentRow = anchorRow
                     ring = Reanchor.NICHE_COS
-                    seedGenres = Genres.families(snapshot.tracks[intentRow].meta.genre)
+                    seedGenres = snapshot.tracks[intentRow].meta.genreFamilies
                     seedFamilyPicks = 0
-                    picksUnderIntent = 0
+                    intentPicks.clear()
                     if (points != null) comebackFrom(intentRow, emptyList())
                     nearby = closeRows(intentRow)
                 }
@@ -578,8 +617,16 @@ internal class SmartChain(
                 return style == null || style >= tuning.styleGate
             }
             val styleGated = tuning.styleGate.isFinite() && pool.indices.any { isEligible(it) && inStyle(it) }
+            // The sound-floor probe, gate and score all ask for the same dot product. Compute it
+            // once per pool position; the scalar accumulation and every comparison stay unchanged.
+            val previousAudio = if (tuning.soundFloor.isFinite()) FloatArray(pool.size) { Float.NaN } else null
+            fun anchorCosine(i: Int): Float {
+                val cached = previousAudio?.get(i)
+                if (cached != null && !cached.isNaN()) return cached
+                return snapshot.centeredCosine(anchorRow, pool[i]).also { previousAudio?.set(i, it) }
+            }
             // Sound floor: the same, on the audio cosine to the previous pick.
-            fun inSound(i: Int): Boolean = snapshot.centeredCosine(anchorRow, pool[i]) >= tuning.soundFloor
+            fun inSound(i: Int): Boolean = anchorCosine(i) >= tuning.soundFloor
             val soundGated = tuning.soundFloor.isFinite() && pool.indices.any { isEligible(it) && inSound(it) }
 
             var bestIndex = -1
@@ -607,7 +654,7 @@ internal class SmartChain(
 
                 val scorerTerm = ChainConfig.SCORER_SQUASH * tanh(logits[i] / ChainConfig.SCORER_TEMP)
                 var score = scorerTerm
-                val anchorCos = snapshot.centeredCosine(anchorRow, row)
+                val anchorCos = anchorCosine(i)
                 score += ChainConfig.COSINE_BLEND_WEIGHT * anchorCos
                 // Seed gravity toward the user's actual pick — or, on an exhausted tail hop, toward
                 // the re-anchored effective seed (effSeed).
@@ -796,7 +843,7 @@ internal class SmartChain(
             chain.add(pickedRow)
             used.add(pickedRow)
             val pickedMeta = snapshot.tracks[pickedRow].meta
-            if (Genres.families(pickedMeta.genre).any { it in seedGenres }) seedFamilyPicks++
+            if (pickedMeta.genreFamilies.any { it in seedGenres }) seedFamilyPicks++
             pickedMeta.titleArtistKey?.let(seenTitles::add)
             artistPlays[pickedMeta.artistKey] = (artistPlays[pickedMeta.artistKey] ?: 0) + 1
             recentArtists.addLast(pickedMeta.artistKey)
@@ -808,7 +855,7 @@ internal class SmartChain(
                 runLength = if (runArtist.isEmpty()) 0 else 1
             }
             anchorRow = pickedRow
-            picksUnderIntent++
+            intentPicks.add(snapshot.tracks[pickedRow].id)
             for (g in comebackGroups.indices) {
                 comebackMisses[g] = if (companions.contains(comebackGroups[g], pickedRow)) 0 else comebackMisses[g] + 1
             }
@@ -831,12 +878,15 @@ internal class SmartChain(
                 .getOrDefault(state)
         }
         val walk = if (continueAfterExhaustion) {
-            val picks = (carried + chain).takeLast(ChainWalk.WINDOW)
+            val picks = (carried + chain).takeLast(ChainWalk.WINDOW).map { snapshot.tracks[it].id }
             ChainWalk(
                 intent = snapshot.tracks[intentRow].id,
-                picks = picks.map { snapshot.tracks[it].id },
-                picksUnderIntent = picksUnderIntent.coerceAtMost(picks.size),
+                picks = picks,
+                picksUnderIntent = picks.count { it in intentPicks },
                 ring = ring,
+                // Keep the whole plan's membership until followingOrder clips its actual playback
+                // tail: a plan longer than WINDOW can move an earlier pick into the retained tail.
+                intentPicks = intentPicks,
             )
         } else {
             null
@@ -1247,7 +1297,7 @@ internal class SmartChain(
             var count = 0
             for (row in rows) if (hasText[row]) withText[count++] = row
             val textDim = SmartSnapshot.TEXT_DIM
-            batchDots(rawText, textDim, rawText, reference * textDim, withText, count, textScores)
+            snapshot.batchDots(rawText, textDim, rawText, reference * textDim, withText, count, textScores)
         }
         // Rows without a descriptor never enter this channel, as in descriptorOrder.
         val descriptorScores = FloatArray(n) { cosines.descriptor(it) ?: Float.NEGATIVE_INFINITY }
@@ -1288,7 +1338,7 @@ internal class SmartChain(
             if (row != ranking.reference && eligibleRows[row] && !blocked[row]) candidates[count++] = row
         }
         val stateScores = FloatArray(n)
-        batchDots(snapshot.rawAudio, dim, normalized(state, dim), 0, candidates, count, stateScores)
+        snapshot.batchDots(snapshot.rawAudio, dim, normalized(state, dim), 0, candidates, count, stateScores)
         return PoolChannels(
             anchorScores = ranking.anchorScores,
             anchor = anchor,

@@ -160,6 +160,13 @@ internal class IosPlaybackController(
     private val planPositionSnapshot = PlaybackPlanPositionSnapshot()
 
     /**
+     * Tracks the listener removed from this SMART queue, which its top-ups no longer offer (see
+     * [recordSmartRemoval]). Not rows, so not pruned with the queue: cleared with the labels above
+     * when a new queue replaces this one.
+     */
+    private val smartRemovedIds = mutableSetOf<TrackId>()
+
+    /**
      * How the instance at the playhead began. Every load is made here, so each caller states its
      * cause directly through [beginStart]; nothing needs announcing ahead of an asynchronous player.
      */
@@ -275,6 +282,7 @@ internal class IosPlaybackController(
             val previousQueue = queue
             val previousContinuations = smartContinuationIds.toSet()
             val previousPlanPositions = this@IosPlaybackController.smartPlanPositions.toMap()
+            val previousRemovals = smartRemovedIds.toSet()
             val previousPool = pool
             val previousIndex = queueIndex
             val previousPositionMs = positionMs()
@@ -287,6 +295,7 @@ internal class IosPlaybackController(
                 clear()
                 putAll(smartPlanPositions)
             }
+            smartRemovedIds.clear()
 
             when (mode) {
                 // SMART owns its queue: begin with the tapped track alone and let
@@ -329,6 +338,7 @@ internal class IosPlaybackController(
                     clear()
                     putAll(previousPlanPositions)
                 }
+                smartRemovedIds.addAll(previousRemovals)
                 pool = previousPool
                 queueGeneration++
                 loaded = restorePreviousPlayback(

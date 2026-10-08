@@ -59,8 +59,20 @@ internal class SmartSnapshot private constructor(
      * the learned scorer receives it as optional conditioning.
      */
     val rawText: FloatArray?,
+    private val batchDotProducts: BatchDotProducts,
 ) {
     val size: Int get() = tracks.size
+
+    /** Optional exact-order acceleration for large batches; no matrix copies or retained scratch. */
+    fun batchDots(
+        matrix: FloatArray, dim: Int, query: FloatArray, offset: Int,
+        rows: IntArray, count: Int, out: FloatArray,
+    ) {
+        if (count >= 2_048 && dim >= 16 &&
+            batchDotProducts.compute(matrix, dim, query, offset, rows, count, out)
+        ) return
+        BatchDotProducts.Portable.compute(matrix, dim, query, offset, rows, count, out)
+    }
 
     private val rowById: Map<TrackId, Int> =
         tracks.withIndex().associate { (index, track) -> track.id to index }
@@ -144,7 +156,7 @@ internal class SmartSnapshot private constructor(
         /** CSLS neighbourhood size for the hub penalty. */
         const val HUB_TOPK = 10
 
-        fun build(tracks: List<SmartTrack>): SmartSnapshot? {
+        fun build(tracks: List<SmartTrack>, batchDotProducts: BatchDotProducts = BatchDotProducts.Portable): SmartSnapshot? {
             val usable = tracks.filter { it.audio.size == AUDIO_DIM && norm(it.audio) >= DEGENERATE_NORM_EPS }
             val n = usable.size
             if (n == 0) return null
@@ -197,6 +209,7 @@ internal class SmartSnapshot private constructor(
 
             return SmartSnapshot(
                 tracks = usable,
+                batchDotProducts = batchDotProducts,
                 rawAudio = raw,
                 centeredAudio = centered,
                 hubPenalty = computeHubPenalty(centered, n),
@@ -431,5 +444,20 @@ internal fun batchDots(
         for (d in 0 until dim) dot += matrix[base + d] * query[offset + d]
         out[rows[index]] = dot
         index++
+    }
+}
+
+/** Optional platform kernel. False leaves [out] untouched and requests the portable implementation. */
+internal fun interface BatchDotProducts {
+    fun compute(
+        matrix: FloatArray, dim: Int, query: FloatArray, offset: Int,
+        rows: IntArray, count: Int, out: FloatArray,
+    ): Boolean
+
+    companion object {
+        val Portable = BatchDotProducts { matrix, dim, query, offset, rows, count, out ->
+            batchDots(matrix, dim, query, offset, rows, count, out)
+            true
+        }
     }
 }

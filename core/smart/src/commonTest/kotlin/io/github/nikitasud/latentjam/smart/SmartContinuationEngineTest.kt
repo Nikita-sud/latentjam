@@ -20,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -49,7 +50,7 @@ internal class SmartContinuationEngineTest {
         val fresh = journey(rest, tail, continuation = true)
         assertTrue(fresh.any { it in satellites }, "the fixture must reproduce the departure")
 
-        val second = engine.smartQueue(tail, rest, 3)
+        val second = engine.continueSmartQueue(tail, rest, 3, precedingTrackIds = first.dropLast(1))
         assertEquals(3, second.size)
         assertTrue(second.all { it in neighbours && it !in queued }, "second plan left early: $second")
 
@@ -61,7 +62,7 @@ internal class SmartContinuationEngineTest {
             .build(tracks.first().id, 3, FloatArray(5))
         assertEquals(JourneySequencer.order(snapshot, firstChain.rows).map { snapshot.tracks[it].id }, first)
         val resumed = SmartChain(snapshot, null, eligible(snapshot, rest), tuning = on)
-            .build(tail.id, 3, FloatArray(5), resume = firstChain.walk)
+            .build(tail.id, 3, FloatArray(5), resume = firstChain.walk?.followingOrder(first))
         assertEquals(
             JourneySequencer.order(snapshot, resumed.rows, from = snapshot.rowOf(tail.id)).map { snapshot.tracks[it].id },
             second,
@@ -69,13 +70,186 @@ internal class SmartContinuationEngineTest {
     }
 
     @Test
-    fun `a request that does not continue a plan starts afresh`() = runTest {
+    fun `a fresh start at a former plan tail keeps the full library available`() = runTest {
+        // These 20 tracks are only planned, never played. Starting from the old tail is a new
+        // request, so it must not inherit their exclusions and collapse to the seven other rows.
+        for (judged in listOf(false, true)) {
+            val engine = engine(continuation = true, judged = judged, runPenalty = 0.5f)
+            val first = engine.smartQueue(tracks.first(), tracks, 20)
+            assertEquals(20, first.size)
+            val tail = tracks.first { it.id == first.last() }
+            val expected = engine(continuation = true, judged = judged, runPenalty = 0.5f)
+                .smartQueue(tail, tracks, 20)
+            val restarted = engine.smartQueue(tail, tracks, 20)
+
+            assertEquals(20, restarted.size, "judged=$judged")
+            assertEquals(expected, restarted, "a fresh request must ignore earlier plans")
+            assertTrue(restarted.any { it in first }, "unplayed planned tracks must remain available")
+        }
+    }
+
+    @Test
+    fun `an old plan tail without matching queued predecessors starts afresh`() = runTest {
+        for (preceding in listOf(emptyList(), listOf(tracks.last().id))) {
+            val engine = engine(continuation = true)
+            val first = engine.smartQueue(tracks.first(), tracks.drop(1), 3)
+            val tail = tracks.first { it.id == first.last() }
+            val rest = tracks.filter { it.id !in first.toSet() + tracks.first().id }
+            val expected = journey(rest, tail, continuation = true)
+            assertTrue(expected.any { it in satellites }, "the fixture must distinguish a fresh seed")
+
+            assertEquals(
+                expected,
+                engine.continueSmartQueue(tail, rest, 3, precedingTrackIds = preceding),
+                "a stale tail is not enough to identify the playing queue",
+            )
+        }
+    }
+
+    @Test
+    fun `a one-pick cached plan also requires its preceding planning seed`() = runTest {
+        for (preceding in listOf(emptyList(), listOf(tracks.last().id))) {
+            val engine = engine(continuation = true)
+            val first = engine.smartQueue(tracks.first(), tracks, 1).single()
+            val tail = tracks.first { it.id == first }
+            val expected = engine(continuation = true).smartQueue(tail, tracks, 3)
+            assertTrue(tracks.first().id in expected, "a fresh seed may recommend the original intent again")
+
+            assertEquals(expected, engine.continueSmartQueue(tail, tracks, 3, precedingTrackIds = preceding))
+        }
+    }
+
+    @Test
+    fun `single-track topups validate the planning seed rather than the older walk intent`() = runTest {
+        val engine = engine(continuation = true)
+        val firstId = engine.smartQueue(tracks.first(), tracks, 1).single()
+        val firstTail = tracks.first { it.id == firstId }
+        val secondId = engine.continueSmartQueue(
+            firstTail, tracks, 1, precedingTrackIds = listOf(tracks.first().id),
+        ).single()
+        val secondTail = tracks.first { it.id == secondId }
+        // The walk still follows the original intent, but the second plan followed firstTail.
+        val continued = engine.continueSmartQueue(
+            secondTail, tracks, 3, precedingTrackIds = listOf(firstTail.id),
+        )
+        assertEquals(3, continued.size)
+        assertTrue(continued.all { it in neighbours })
+        assertTrue(tracks.first().id !in continued, "the original intent remains excluded in this walk")
+
+        val fresh = engine(continuation = true).smartQueue(secondTail, tracks, 3)
+        assertTrue(tracks.first().id in fresh)
+        assertEquals(
+            fresh,
+            engine.continueSmartQueue(secondTail, tracks, 3, precedingTrackIds = listOf(tracks.first().id)),
+            "matching the old intent alone cannot resume the later one-pick plan",
+        )
+    }
+
+    @Test
+    fun `a continuation request without a matching plan starts afresh`() = runTest {
         val engine = engine(continuation = true)
         val first = engine.smartQueue(tracks.first(), tracks.drop(1), 3)
         // Seeded with a queued track that is not the plan's last: the listener went elsewhere.
         val elsewhere = tracks.first { it.id == first.first() }
         val rest = tracks.filter { it.id !in first.toSet() + tracks.first().id }
-        assertEquals(journey(rest, elsewhere, continuation = true), engine.smartQueue(elsewhere, rest, 3))
+        assertEquals(journey(rest, elsewhere, continuation = true), engine.continueSmartQueue(elsewhere, rest, 3))
+    }
+
+    @Test
+    fun `removing an upcoming track keeps the walk`() = runTest {
+        assertTopUpResumes { queue, plan -> queue.remove(plan[1]) }
+    }
+
+    @Test
+    fun `moving an upcoming track keeps the walk`() = runTest {
+        assertTopUpResumes { queue, plan ->
+            queue.remove(plan[2])
+            queue.add(1, plan[2])
+        }
+    }
+
+    @Test
+    fun `a Play next row inside the queue's window keeps the walk`() = runTest {
+        // Play next lands right after the playing seed; a queue of ten keeps that row in the window.
+        assertTopUpResumes { queue, _ -> queue.add(1, tracks.last().id) }
+    }
+
+    @Test
+    fun `a planned slot skipped as ineligible keeps the walk`() = runTest {
+        // The app's chooser passes over a planned track that left the eligible library meanwhile.
+        assertTopUpResumes(ineligible = { plan -> setOf(plan[1]) }) { queue, plan -> queue.remove(plan[1]) }
+    }
+
+    @Test
+    fun `removing the plan's last track resumes the walk at the track before it`() = runTest {
+        assertTailEditResumes { queue -> queue.removeAt(queue.lastIndex) }
+    }
+
+    @Test
+    fun `moving the plan's last track up resumes the walk at the track before it`() = runTest {
+        assertTailEditResumes { queue -> queue.add(1, queue.removeAt(queue.lastIndex)) }
+    }
+
+    @Test
+    fun `removing the plan's last two tracks resumes the walk at the track before them`() = runTest {
+        assertTailEditResumes { queue -> repeat(2) { queue.removeAt(queue.lastIndex) } }
+    }
+
+    @Test
+    fun `a track removed from the end of a plan stays out of the walk's later plans`() = runTest {
+        val engine = engine(continuation = true)
+        val first = engine.smartQueue(tracks.first(), tracks.drop(1), 4)
+        val queue = (listOf(tracks.first().id) + first).dropLast(1).toMutableList()
+        // Two top-ups of three spend the seed's other neighbours; the removed one is never among them.
+        repeat(2) { topUp ->
+            val tail = tracks.first { it.id == queue.last() }
+            val rest = tracks.filter { it.id !in queue }
+            val next = engine.continueSmartQueue(tail, rest, 3, precedingTrackIds = queue.dropLast(1).takeLast(10))
+            assertEquals(3, next.size, "top-up ${topUp + 1}")
+            assertTrue(first.last() !in next, "top-up ${topUp + 1} brought the removed track back: $next")
+            queue += next
+        }
+        assertEquals(neighbours - first.last(), queue.filter { it in neighbours }.toSet())
+    }
+
+    @Test
+    fun `a new SMART start at an earlier track of a plan still starts afresh`() = runTest {
+        // Nothing before it is a new start, which leaves the track alone in a new queue; other
+        // tracks before it are another queue.
+        for (preceding in listOf(emptyList(), listOf(tracks.last().id))) {
+            val engine = engine(continuation = true)
+            val first = engine.smartQueue(tracks.first(), tracks.drop(1), 4)
+            val tail = tracks.first { it.id == first[2] }
+            val rest = tracks.filter { it.id != tail.id && it.id !in preceding }
+            val fresh = journey(rest, tail, continuation = true)
+            assertTrue(fresh != resumedJourney(first, rest, tail), "the fixture must tell a new walk from the old one")
+            assertEquals(fresh, engine.continueSmartQueue(tail, rest, 3, precedingTrackIds = preceding))
+        }
+    }
+
+    @Test
+    fun `a new SMART start at a former plan tail still starts afresh`() = runTest {
+        val engine = engine(continuation = true)
+        val first = engine.smartQueue(tracks.first(), tracks.drop(1), 4)
+        val tail = tracks.first { it.id == first.last() }
+        // Playing a track in SMART leaves it alone in a new queue: nothing precedes it.
+        val rest = tracks.filter { it.id != tail.id }
+        val fresh = journey(rest, tail, continuation = true)
+        assertTrue(fresh != resumedJourney(first, rest, tail), "the fixture must tell a new walk from the old one")
+        assertEquals(fresh, engine.continueSmartQueue(tail, rest, 3, precedingTrackIds = emptyList()))
+    }
+
+    @Test
+    fun `a queue continues a plan while it holds any track that preceded the plan's tail`() {
+        val (seed, a, b, c) = listOf("seed", "a", "b", "c").map(::TrackId)
+        val planned = listOf(seed, a, b, c)
+        assertTrue(continuesSmartPlan(planned, listOf(seed, a, c)), "removed")
+        assertTrue(continuesSmartPlan(planned, listOf(seed, c, a, b)), "moved")
+        assertTrue(continuesSmartPlan(planned, listOf(TrackId("next"), a, b, c)), "inserted")
+        assertTrue(continuesSmartPlan(planned, listOf(TrackId("older"), c)), "mostly removed")
+        assertFalse(continuesSmartPlan(planned, emptyList()), "a new start has nothing before its seed")
+        assertFalse(continuesSmartPlan(planned, listOf(TrackId("elsewhere"))), "another queue")
+        assertFalse(continuesSmartPlan(emptyList(), planned), "nothing was planned")
     }
 
     @Test
@@ -84,7 +258,7 @@ internal class SmartContinuationEngineTest {
         val first = engine.smartQueue(tracks.first(), tracks.drop(1), 3)
         val tail = tracks.first { it.id == first.last() }
         val rest = tracks.filter { it.id !in first.toSet() + tracks.first().id }
-        assertEquals(journey(rest, tail, continuation = false), engine.smartQueue(tail, rest, 3))
+        assertEquals(journey(rest, tail, continuation = false), engine.continueSmartQueue(tail, rest, 3))
     }
 
     @Test
@@ -108,14 +282,16 @@ internal class SmartContinuationEngineTest {
         assertEquals(ChainConfig.CHAIN_ARTIST_QUEUE_CAP, first.size)
         var queued = first.toSet() + band.first().id
         var tail = band.first { it.id == first.last() }
+        var lastPlan = first
         // Each top-up is seeded with the queue's last track, as the app asks; each must still be a chain plan.
         repeat(2) { topUp ->
             val rest = band.filter { it.id !in queued }
-            val next = engine.smartQueue(tail, rest, 12)
+            val next = engine.continueSmartQueue(tail, rest, 12, precedingTrackIds = lastPlan.dropLast(1))
             assertEquals(freshPlan(snapshot(band, indexed), rest, tail, 12), next, "top-up ${topUp + 1}")
             assertEquals(ChainConfig.CHAIN_ARTIST_QUEUE_CAP, next.size, "top-up ${topUp + 1}")
             queued = queued + next
             tail = band.first { it.id == next.last() }
+            lastPlan = next
         }
     }
 
@@ -166,6 +342,70 @@ internal class SmartContinuationEngineTest {
             snapshot, rows, sameArtistCost = runPenalty, companions = companions,
             togetherCost = if (companions == null) 0f else Rerank.COMPANION_POINTS.together,
         ).map { snapshot.tracks[it].id }
+    }
+
+    /**
+     * Plans four tracks from the seed, lets [edit] change that queue the way a listener can without
+     * touching its last row, then tops it up from that row as the app asks: the ten rows before it,
+     * nothing queued or [ineligible] available. The first plan's walk must carry on there, exactly
+     * as an unedited queue continues it, instead of a new walk starting around the tail.
+     */
+    private suspend fun assertTopUpResumes(
+        ineligible: (List<TrackId>) -> Set<TrackId> = { emptySet() },
+        edit: (MutableList<TrackId>, List<TrackId>) -> Unit,
+    ) {
+        val engine = engine(continuation = true)
+        val first = engine.smartQueue(tracks.first(), tracks.drop(1), 4)
+        val queue = (listOf(tracks.first().id) + first).toMutableList()
+        edit(queue, first)
+        assertEquals(first.last(), queue.last(), "the edit must leave the tail in place")
+        val tail = tracks.first { it.id == first.last() }
+        val unavailable = queue.toSet() + ineligible(first)
+        val rest = tracks.filter { it.id !in unavailable }
+        val continued = resumedJourney(first, rest, tail)
+        assertTrue(continued.all { it in neighbours }, "a resumed walk keeps to the seed's neighbourhood: $continued")
+        assertTrue(journey(rest, tail, continuation = true).any { it in satellites }, "a new walk would leave it")
+
+        assertEquals(
+            continued,
+            engine.continueSmartQueue(tail, rest, 3, precedingTrackIds = queue.dropLast(1).takeLast(10)),
+        )
+    }
+
+    /**
+     * Plans four tracks from the seed, lets [edit] remove or move the queue's last rows, then tops it
+     * up from its new last row as the app asks. The first plan's walk must resume at that row, with
+     * every track it put after the row still spent, instead of a new walk starting around it.
+     */
+    private suspend fun assertTailEditResumes(edit: (MutableList<TrackId>) -> Unit) {
+        val engine = engine(continuation = true)
+        val first = engine.smartQueue(tracks.first(), tracks.drop(1), 4)
+        val queue = (listOf(tracks.first().id) + first).toMutableList()
+        edit(queue)
+        val tail = tracks.first { it.id == queue.last() }
+        assertTrue(tail.id in first.dropLast(1), "the edit must end the queue inside the plan")
+        val rest = tracks.filter { it.id !in queue }
+        val continued = resumedJourney(first, rest, tail)
+        assertTrue(continued.all { it in neighbours }, "a resumed walk keeps to the seed's neighbourhood: $continued")
+        assertTrue(continued.none { it in first }, "a removed track must not come straight back: $continued")
+        assertTrue(journey(rest, tail, continuation = true).any { it in satellites }, "a new walk would leave")
+
+        assertEquals(
+            continued,
+            engine.continueSmartQueue(tail, rest, 3, precedingTrackIds = queue.dropLast(1).takeLast(10)),
+        )
+    }
+
+    /** The engine's continuation path: the walk of [plan], planned from the seed, resumed and ordered from [tail]. */
+    private fun resumedJourney(plan: List<TrackId>, library: List<TrackDescriptor>, tail: TrackDescriptor): List<TrackId> {
+        val snapshot = snapshot()
+        val on = ChainTuning(continueAfterExhaustion = true)
+        val planned = SmartChain(snapshot, null, eligible(snapshot, tracks.drop(1)), tuning = on)
+            .build(tracks.first().id, plan.size, FloatArray(5))
+        assertEquals(plan, JourneySequencer.order(snapshot, planned.rows).map { snapshot.tracks[it].id })
+        val resumed = SmartChain(snapshot, null, eligible(snapshot, library), tuning = on)
+            .build(tail.id, 3, FloatArray(5), resume = planned.walk?.followingOrder(plan))
+        return JourneySequencer.order(snapshot, resumed.rows, from = snapshot.rowOf(tail.id)).map { snapshot.tracks[it].id }
     }
 
     /** A walk started afresh from [seed], [library] still eligible: the engine's path without a carried walk. */

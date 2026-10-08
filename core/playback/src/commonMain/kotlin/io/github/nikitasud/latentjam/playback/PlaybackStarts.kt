@@ -105,15 +105,18 @@ internal fun recordSmartPlanPosition(
  * would reach the listening log as SMART's recommendation. A SMART row of the same track still
  * waiting in the queue loses its position too, because the listener chose that track as well.
  * Continuation labels are kept per track the same way, so the track stops wearing the badge of the
- * filler SMART fell back to, and stops counting against SMART's continuation budget.
+ * filler SMART fell back to, and stops counting against SMART's continuation budget. An earlier
+ * removal of the track from this queue ([recordSmartRemoval]) is withdrawn: the listener wants it now.
  */
 internal fun releaseSmartProvenance(
     positions: MutableMap<TrackId, Int>,
     continuationIds: MutableSet<TrackId>,
+    removedIds: MutableSet<TrackId>,
     trackId: TrackId,
 ) {
     positions.remove(trackId)
     continuationIds.remove(trackId)
+    removedIds.remove(trackId)
 }
 
 /**

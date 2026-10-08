@@ -118,8 +118,8 @@ internal object MetadataRerank {
             // confidence signal improves the first hop without turning SMART into "play artist".
             multiplier *= SAME_ARTIST_BONUS
         }
-        val anchorGenres = Genres.families(anchor.genre)
-        val candidateGenres = Genres.families(candidate.genre)
+        val anchorGenres = anchor.genreFamilies
+        val candidateGenres = candidate.genreFamilies
         if (anchorGenres.isNotEmpty() && candidateGenres.isNotEmpty()) {
             // Any shared family counts: a "Trip Hop; Rock" track walking to a "Rock" track is a
             // same-genre step. Single-genre tags reduce this to the old equality exactly.
@@ -139,7 +139,7 @@ internal object MetadataRerank {
     fun seedGenreSupport(seedGenres: Set<String>, candidates: Iterable<TrackMeta>): Int {
         if (seedGenres.isEmpty()) return 0
         return candidates.count { candidate ->
-            Genres.families(candidate.genre).any { it in seedGenres }
+            candidate.genreFamilies.any { it in seedGenres }
         }
     }
 
@@ -154,7 +154,7 @@ internal object MetadataRerank {
     ): Float {
         if (seedGenres.isEmpty() || poolSupport < SEED_GENRE_MIN_POOL_SUPPORT) return 1f
         if (seedFamilyPicks >= SEED_GENRE_PREFIX_TARGET) return 1f
-        val candidateGenres = Genres.families(candidate.genre)
+        val candidateGenres = candidate.genreFamilies
         if (candidateGenres.isEmpty()) return 1f
         return if (candidateGenres.any { it in seedGenres }) 1f else SEED_CROSS_GENRE_PENALTY
     }
@@ -181,6 +181,8 @@ internal data class TrackMeta(
     val language: String = MetadataRerank.detectLanguage(title, artist)
     val normalizedTitle: String = MetadataRerank.normalizeTitle(title)
     val isHub: Boolean = MetadataRerank.isHubGenre(genre)
+    /** Immutable metadata is normalized once instead of reparsed for every candidate at every hop. */
+    val genreFamilies: Set<String> = Genres.families(genre)
 
     /**
      * Artist under the chain's spacing and cap rules. An empty key supplies no artist identity

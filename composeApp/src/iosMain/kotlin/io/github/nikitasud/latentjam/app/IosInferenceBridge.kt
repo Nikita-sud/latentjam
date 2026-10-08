@@ -10,3 +10,7 @@ import io.github.nikitasud.latentjam.smart.IosInferenceRegistry
 /** Exports the SMART native-inference protocol and installer through the ComposeApp framework. */
 public fun installIosInferenceProvider(provider: IosInferenceProvider): Unit =
     IosInferenceRegistry.install(provider)
+
+/** Opt-in simulator/device verification, invoked by LATENTJAM_BATCH_DOTS_BENCHMARK in the Swift shell. */
+public fun runIosBatchDotsDiagnostics(): String =
+    io.github.nikitasud.latentjam.smart.runIosBatchDotsDiagnostics()

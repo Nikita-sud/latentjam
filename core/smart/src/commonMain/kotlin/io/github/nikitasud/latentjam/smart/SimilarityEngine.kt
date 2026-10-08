@@ -246,7 +246,9 @@ public interface SimilarityEngine {
     public suspend fun semanticSearch(query: String, limit: Int = 50): List<ScoredTrack>
 
     /**
-     * Builds a SMART queue: a coherent walk of up to [length] tracks starting from [seed].
+     * Starts a new SMART queue: a coherent walk of up to [length] tracks from [seed].
+     * A previous plan ending at this track never changes the new queue's intent or exclusions.
+     * Automatic queue top-ups use [continueSmartQueue] to carry the preceding plan's walk.
      *
      * This is not [nextTrack] repeated. The walk carries state — how far it has drifted from the
      * seed, which artists and titles it has already used, how much the energy jumped last hop — and
@@ -271,6 +273,29 @@ public interface SimilarityEngine {
     ): List<TrackId>
 
     /**
+     * Extends a SMART queue from its last planned track [seed]. When a matching walk is still
+     * available, it carries the preceding plan's intent and recent picks into this plan; otherwise
+     * it starts from [seed]. [precedingTrackIds] are the queue's recent tracks immediately before
+     * [seed], oldest first, so a stale plan cannot be resumed merely by choosing its last track
+     * ([continuesSmartPlan] decides, and lets the listener's queue edits through). After the listener
+     * removed or moved the queue's last rows, or the app discarded the queue's future to replan it,
+     * [seed] is an earlier track of the walk: it resumes as it stood there, and the tracks it picked
+     * after [seed] may be planned again. [library] contains only tracks available to append to the
+     * queue, so the caller keeps out what is queued and what the listener removed from this queue.
+     *
+     * User-initiated starts use [smartQueue], even if their seed ended a previous plan. The default
+     * delegates there so engines without continuation support retain their existing behavior.
+     */
+    public suspend fun continueSmartQueue(
+        seed: TrackDescriptor,
+        library: List<TrackDescriptor>,
+        length: Int,
+        history: List<SmartHistoryEvent> = emptyList(),
+        companionGroups: List<Set<TrackId>> = emptyList(),
+        precedingTrackIds: List<TrackId> = emptyList(),
+    ): List<TrackId> = smartQueue(seed, library, length, history, companionGroups)
+
+    /**
      * How strongly SMART avoids several tracks in a row by one artist, for plans requested from now on (the
      * listener's setting; see SmartEngineConfig.artistRunPenalty). Engines without SMART ignore it.
      */
@@ -288,4 +313,25 @@ public interface SimilarityEngine {
      * afterwards. Safe to call in any state.
      */
     public suspend fun release()
+}
+
+/**
+ * Whether a queue that still ends at the track a SMART plan expected is the queue that plan was made
+ * for, not a new start that happens to end there. [plannedBefore] are the tracks that preceded that
+ * track when it was planned or served, [queuedBefore] the queue's tracks before it now, oldest first
+ * (the `precedingTrackIds` of [SimilarityEngine.continueSmartQueue]). The engine resumes a walk by
+ * this rule, and the app's queue top-up keeps its own cached plan by the same one.
+ *
+ * One track in both is enough, wherever it sits now. Between top-ups the listener removes and moves
+ * upcoming tracks, Play next inserts one right after the playing track (inside a short queue's
+ * window), and a planned slot that was no longer eligible never reached the queue: none of that is a
+ * new queue, yet each shifts the window. Order is ignored on purpose: a move reorders the shared
+ * tracks, while one coincidentally shared track is always in order, so an order check would refuse
+ * real edits without telling a coincidence apart. A new start has nothing before its seed (SMART
+ * playback starts from the picked track alone), so an empty window never continues a plan.
+ */
+public fun continuesSmartPlan(plannedBefore: List<TrackId>, queuedBefore: List<TrackId>): Boolean {
+    if (plannedBefore.isEmpty() || queuedBefore.isEmpty()) return false
+    val planned = plannedBefore.toHashSet()
+    return queuedBefore.any { it in planned }
 }

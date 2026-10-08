@@ -43,7 +43,12 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64" AND NOT CMAKE_OSX_ARCHITECTURE
   endforeach()
 endif()
 
-add_library(ljq4 SHARED ljq4.cc ${KAI_SOURCES})
+add_library(ljq4 SHARED ljq4.cc ljdots.cc ${KAI_SOURCES})
+# Score ties depend on separate rounding in dimension order, including on non-Clang hosts.
+set_source_files_properties(ljdots.cc PROPERTIES COMPILE_OPTIONS "-ffp-contract=off;-fno-fast-math")
+if(ANDROID)
+  target_sources(ljq4 PRIVATE ljdots_jni.cc)
+endif()
 target_include_directories(ljq4 PRIVATE vendor/onnxruntime ${KAI} ${PACK} ${BLOCKS} ${CHANNELS})
 target_compile_options(ljq4 PRIVATE -O3 -fvisibility=hidden $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
 if(ANDROID)
@@ -51,6 +56,9 @@ if(ANDROID)
 endif()
 
 if(LJQ4_TESTS)
+  add_executable(ljdots_test ../../test/cpp/ljdots_test.cc ljdots.cc)
+  target_include_directories(ljdots_test PRIVATE .)
+  target_compile_options(ljdots_test PRIVATE -O2 -ffp-contract=off)
   add_executable(ljq4_test ../../test/cpp/ljq4_test.cc ${KAI_SOURCES})
   target_include_directories(ljq4_test PRIVATE . vendor/onnxruntime ${KAI} ${PACK} ${BLOCKS} ${CHANNELS})
   target_compile_options(ljq4_test PRIVATE -O2 $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)

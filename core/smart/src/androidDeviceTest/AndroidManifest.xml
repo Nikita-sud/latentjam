@@ -4,6 +4,8 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The opt-in 10k planning benchmark retains all three synthetic vector spaces. Test APK only. -->
+    <application android:largeHeap="true" />
     <!-- AudioDecodeBenchmarkDeviceTest decodes the device's own music; granted by hand with pm grant. -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />

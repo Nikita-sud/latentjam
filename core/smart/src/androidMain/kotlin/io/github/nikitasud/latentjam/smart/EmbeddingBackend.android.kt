@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.smart
 
+import io.github.nikitasud.latentjam.smart.chain.AndroidBatchDotProducts
+import io.github.nikitasud.latentjam.smart.chain.BatchDotProducts
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
@@ -434,6 +436,7 @@ internal fun zeroSuccessfulAudioWindowsError(
 }
 
 public actual fun smartEngineBackendModule(): Module = module {
+    single<BatchDotProducts> { AndroidBatchDotProducts }
     single<EmbeddingBackend> { OnnxEmbeddingBackend(context = get(), config = get()) }
     // Overrides the common NoopIndexStore (this module is listed after
     // smartEngineModule; Koin last-definition-wins).

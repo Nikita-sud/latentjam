@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.smart
 
+import io.github.nikitasud.latentjam.smart.chain.IosBatchDotProducts
+import io.github.nikitasud.latentjam.smart.chain.BatchDotProducts
 import io.github.nikitasud.latentjam.smart.di.smartLayoutQualifier
 import io.github.nikitasud.latentjam.smart.di.smartTextIndexQualifier
 import org.koin.core.module.Module
@@ -135,6 +137,7 @@ internal class IosEmbeddingBackend(
 }
 
 public actual fun smartEngineBackendModule(): Module = module {
+    single<BatchDotProducts> { IosBatchDotProducts }
     single<EmbeddingBackend> { IosEmbeddingBackend(config = get()) }
     single<IndexStore> { IosFileIndexStore(fileName = "smart_index.bin") }
     single<IndexStore>(smartTextIndexQualifier) {

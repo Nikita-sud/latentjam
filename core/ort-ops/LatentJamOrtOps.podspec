@@ -27,12 +27,12 @@ Pod::Spec.new do |s|
   s.default_subspecs = 'Core', 'I8mm', 'Dotprod'
 
   s.subspec 'Core' do |core|
-    core.source_files = "#{cpp}/ljq4.{h,cc}", "#{kai}/kai/kai_common.h",
+    core.source_files = "#{cpp}/ljq4.{h,cc}", "#{cpp}/ljdots.{h,cc}", "#{kai}/kai/kai_common.h",
                         "#{pack}/kai_rhs_pack_nxk_qsi4c32p_qsu4c32s1s0.{h,c}", "#{pack}/kai_rhs_pack_nxk_qsi4cxp_qs4cxs1s0.{h,c}",
                         "#{blocks}/kai_matmul_clamp_f32_qai8dxp4x8_qsi4c32p8x8_4x8x32_neon_i8mm{.h,.c,_asm.S}",
                         "#{blocks}/kai_matmul_clamp_f32_qai8dxp4x4_qsi4c32p8x4_4x8_neon_dotprod{.h,.c,_asm.S}",
                         "#{cpp}/vendor/onnxruntime/*.h"
-    core.public_header_files = "#{cpp}/ljq4.h"
+    core.public_header_files = "#{cpp}/ljq4.h", "#{cpp}/ljdots.h"
   end
   # The per-channel kernels keep their assembly inline and need the extension enabled to compile; each runs
   # only after the CPU reported it (ljq4.cc).

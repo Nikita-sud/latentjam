@@ -12,6 +12,7 @@ import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.SmartHistoryEvent
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import io.github.nikitasud.latentjam.smart.continuesSmartPlan
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -46,6 +47,10 @@ class EngineNextTrackChooser(
     /** The unserved rest of the current plan, each id with its index in that plan. */
     private var planned = ArrayDeque<IndexedValue<TrackId>>()
     private var expectedNext: TrackId? = null
+    /** The queue's last track when [expectedNext] was served: where the queue ends if that row goes. */
+    private var servedAfter: TrackId? = null
+    /** The queued prefix distinguishes a continuation from a new start at the same track. */
+    private var expectedPrecedingIds: List<TrackId> = emptyList()
     private var plannedWithGroups: List<Set<TrackId>> = emptyList()
 
     /** Artists of the last few continuations, so a run of them cannot become an album dump. */
@@ -56,8 +61,13 @@ class EngineNextTrackChooser(
         recentIds: List<TrackId>,
         candidates: List<TrackDescriptor>,
     ): SmartChoice? = mutex.withLock {
-        if (expectedNext != null && expectedNext != current.id) {
-            // Playback went somewhere the plan did not predict; the current track is the new intent.
+        val sameQueue = continuesSmartPlan(expectedPrecedingIds, recentIds)
+        // Removing the row served last, or moving it up, ends the queue where that row was served
+        // from. The rest of the plan still follows there, and a removed row is not served again.
+        val onPlan = current.id == expectedNext || current.id == servedAfter
+        if (expectedNext != null && (!onPlan || !sameQueue)) {
+            // A new queue can start at the expected track too; its preceding tracks identify it,
+            // and they survive the listener's edits to the upcoming tracks (continuesSmartPlan).
             planned.clear()
         }
         // Marking or unmarking a playlist takes effect on the NEXT hop, not after the previous
@@ -72,6 +82,8 @@ class EngineNextTrackChooser(
                 val (index, id) = planned.removeFirst()
                 val chosen = candidates.firstOrNull { it.id == id } ?: continue
                 expectedNext = chosen.id
+                servedAfter = current.id
+                expectedPrecedingIds = (recentIds + current.id).takeLast(CHAIN_LENGTH)
                 // A slot skipped as ineligible still counts: the position says how far from its
                 // seed the plan put this track, which is what drift along a plan is measured by.
                 return SmartChoice(chosen, planPosition = index + 1)
@@ -83,15 +95,14 @@ class EngineNextTrackChooser(
         nextPlanned()?.let { return@withLock it }
         if (candidates.isNotEmpty()) {
             val started = TimeSource.Monotonic.markNow()
-            planned = ArrayDeque(
-                engine.smartQueue(
-                    current,
-                    candidates,
-                    CHAIN_LENGTH,
-                    smartHistoryFor(history, current),
-                    groups,
-                ).withIndex().toList(),
+            val events = smartHistoryFor(history, current)
+            // A top-up can extend this chooser's plan or one the UI requested directly, even
+            // after replacing the previous queue. The engine checks the preceding queued tracks
+            // before carrying a walk; an unrelated seed starts fresh there.
+            val plan = engine.continueSmartQueue(
+                current, candidates, CHAIN_LENGTH, events, groups, precedingTrackIds = recentIds,
             )
+            planned = ArrayDeque(plan.withIndex().toList())
             println(
                 "SMART: planned ${planned.size} tracks from " +
                     "${current.title ?: current.id.value} in ${started.elapsedNow().inWholeMilliseconds} ms",
@@ -101,6 +112,8 @@ class EngineNextTrackChooser(
         // At most one new plan per call, including when the engine itself returns no usable ids.
         nextPlanned()?.let { return@withLock it }
         expectedNext = null
+        servedAfter = null
+        expectedPrecedingIds = emptyList()
         println("SMART: no eligible local plan candidates=${candidates.size}")
         null
     }

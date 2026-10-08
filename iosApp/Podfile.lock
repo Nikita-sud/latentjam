@@ -21,7 +21,7 @@ EXTERNAL SOURCES:
     :path: "../core/ort-ops"
 
 SPEC CHECKSUMS:
-  LatentJamOrtOps: ed6f77bef2d4c23f0a6f5d073c2bd5cd95cc5063
+  LatentJamOrtOps: 35f22e5a3954aebe09da191990fefea49b2de66f
   onnxruntime-c: e6e9272f5996fed3ea3ca3c9bc843478b2ecbc73
 
 PODFILE CHECKSUM: 213b954945807df08e0b09fc29f351936f667219

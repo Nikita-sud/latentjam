@@ -129,6 +129,13 @@ internal class AndroidPlaybackController(
      */
     private val smartPlanPositions = mutableMapOf<TrackId, Int>()
 
+    /**
+     * Tracks the listener removed from this SMART queue, which its top-ups no longer offer (see
+     * [recordSmartRemoval]). Not rows, so not pruned with the queue: cleared with the labels above
+     * when a new queue replaces this one.
+     */
+    private val smartRemovedIds = mutableSetOf<TrackId>()
+
     private var poolById: Map<String, TrackDescriptor> = emptyMap()
     private var smartById: Map<String, TrackDescriptor> = emptyMap()
     private var mode: ShuffleMode = ShuffleMode.OFF
@@ -584,6 +591,7 @@ internal class AndroidPlaybackController(
                     clear()
                     putAll(smartPlanPositions)
                 }
+                smartRemovedIds.clear()
                 anticipatedResumption = null
                 AndroidPlaybackStarts.announce(StartCause.USER_PICK, TrackId(prepared.selectedItem.mediaId))
                 if (currentMode == ShuffleMode.SMART) {
@@ -827,7 +835,7 @@ internal class AndroidPlaybackController(
             insertion = SourceQueueInsertion.PLAY_NEXT,
         )
         poolById = poolById + (track.id.value to track)
-        releaseSmartProvenance(smartPlanPositions, smartContinuationIds, track.id)
+        releaseSmartProvenance(smartPlanPositions, smartContinuationIds, smartRemovedIds, track.id)
         val item = track.toMediaItem()
         if (player.mediaItemCount == 0) {
             // Queue actions are allowed before the first play. Cue the first item paused, matching
@@ -855,7 +863,7 @@ internal class AndroidPlaybackController(
             insertion = SourceQueueInsertion.APPEND,
         )
         poolById = poolById + (track.id.value to track)
-        releaseSmartProvenance(smartPlanPositions, smartContinuationIds, track.id)
+        releaseSmartProvenance(smartPlanPositions, smartContinuationIds, smartRemovedIds, track.id)
         if (player.mediaItemCount == 0) {
             player.pause()
             player.setMediaItem(track.toMediaItem())
@@ -896,6 +904,7 @@ internal class AndroidPlaybackController(
         if (mediaItemIndex !in 0 until player.mediaItemCount) return@withContext
         val removedId = player.getMediaItemAt(mediaItemIndex).mediaId
         queueGeneration++
+        recordSmartRemoval(smartRemovedIds, mode, TrackId(removedId))
         // Media3 treats removing the current item as that item ending: playback advances alone.
         player.removeMediaItem(mediaItemIndex)
         val stillQueued = (0 until player.mediaItemCount).any {
@@ -973,6 +982,7 @@ internal class AndroidPlaybackController(
                 clear()
                 putAll(prepared.second.smartPlanPositions)
             }
+            smartRemovedIds.clear()
             anticipatedResumption = null
             val startPositionMs = positionMs.coerceAtLeast(0L)
             player.setMediaItems(live.fullQueue!!, live.startIndex, startPositionMs)
@@ -1259,14 +1269,18 @@ internal class AndroidPlaybackController(
                 .map { index -> TrackId(player.getMediaItemAt(index).mediaId) }
             // Everything ALREADY in the queue is off the table, not just the recent window: a track
             // appended twice would play twice in one sitting, and the queue list would hold two rows
-            // claiming the same identity.
+            // claiming the same identity. So is every track the listener removed from this queue.
             val queued = (0 until player.mediaItemCount)
                 .mapTo(HashSet()) { index -> TrackId(player.getMediaItemAt(index).mediaId) }
-            val candidates = smartCandidatePool(
-                eligibleLibrary = smartLibrary,
-                fallbackPool = pool,
-                eligibleLibrarySupplied = smartLibrarySupplied,
-            ).filter { it.id !in queued }
+            val candidates = smartTopUpCandidates(
+                universe = smartCandidatePool(
+                    eligibleLibrary = smartLibrary,
+                    fallbackPool = pool,
+                    eligibleLibrarySupplied = smartLibrarySupplied,
+                ),
+                queuedIds = queued,
+                removedIds = smartRemovedIds,
+            )
             if (candidates.isEmpty()) break
 
             val recommended = awaitPlaybackRecommendation { chooser.choose(seed, recentIds, candidates) }
@@ -1396,6 +1410,7 @@ internal class AndroidPlaybackController(
         smartContinuationIds.addAll(resume.smartContinuationIds.intersect(resumedIds))
         smartPlanPositions.clear()
         smartPlanPositions.putAll(resume.smartPlanPositions.filterKeys { it in resumedIds })
+        smartRemovedIds.clear()
         anticipatedResumption = resume.takeIf { actualIds.isEmpty() }
         // Ownership has moved into this controller's pool/pending state; release the global URI
         // graph even when Media3 has not installed the timeline yet.

@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.smart
 
 import io.github.nikitasud.latentjam.smart.chain.ChainTuning
 import io.github.nikitasud.latentjam.smart.chain.Rerank
+import io.github.nikitasud.latentjam.smart.chain.BatchDotProducts
 import io.github.nikitasud.latentjam.smart.chain.ChainWalk
 import io.github.nikitasud.latentjam.smart.chain.CompanionMembership
 import io.github.nikitasud.latentjam.smart.chain.JourneySequencer
@@ -65,6 +66,7 @@ internal class DefaultSimilarityEngine(
     private val textIndex: VectorIndex? = null,
     private val textStore: IndexStore? = null,
     private val clock: SmartClock = SmartClock.Unknown,
+    private val batchDotProducts: BatchDotProducts = BatchDotProducts.Portable,
 ) : SimilarityEngine {
 
     private val mutex = Mutex()
@@ -594,6 +596,27 @@ internal class DefaultSimilarityEngine(
         length: Int,
         history: List<SmartHistoryEvent>,
         companionGroups: List<Set<TrackId>>,
+    ): List<TrackId> = planQueue(seed, library, length, history, companionGroups, continueWalk = false)
+
+    override suspend fun continueSmartQueue(
+        seed: TrackDescriptor,
+        library: List<TrackDescriptor>,
+        length: Int,
+        history: List<SmartHistoryEvent>,
+        companionGroups: List<Set<TrackId>>,
+        precedingTrackIds: List<TrackId>,
+    ): List<TrackId> = planQueue(
+        seed, library, length, history, companionGroups, continueWalk = true, precedingTrackIds = precedingTrackIds,
+    )
+
+    private suspend fun planQueue(
+        seed: TrackDescriptor,
+        library: List<TrackDescriptor>,
+        length: Int,
+        history: List<SmartHistoryEvent>,
+        companionGroups: List<Set<TrackId>>,
+        continueWalk: Boolean,
+        precedingTrackIds: List<TrackId> = emptyList(),
     ): List<TrackId> = withContext(dispatcher) {
         mutex.withLock {
             if (mutableState.value !is EngineState.Ready) return@withLock emptyList()
@@ -678,10 +701,13 @@ internal class DefaultSimilarityEngine(
             )
             // The judged scoring takes marked playlists as points; the shipped chain keeps its quota for them.
             val judged = config.judgedScoring && config.continueAfterExhaustion
-            // A request seeded with the last track of a plan this engine answered continues that
-            // walk (the app tops the queue up this way); any other seed starts a new one.
-            val resume = if (config.continueAfterExhaustion && (companionGroups.isEmpty() || judged)) {
-                walks[seed.id]
+            // Only an explicit queue top-up may resume a saved walk. A new start can happen to
+            // choose an earlier plan's last track without inheriting that plan's intent or picks.
+            // Its preceding queued tracks must also match, edits allowed (continuesSmartPlan); a first
+            // chooser call has no local plan identity and can otherwise mistake a manually selected
+            // old tail for a continuation. The seed may also be an earlier track of the walk.
+            val resume = if (continueWalk && config.continueAfterExhaustion && (companionGroups.isEmpty() || judged)) {
+                continuedWalk(seed.id, precedingTrackIds, companionGroups)
             } else {
                 null
             }
@@ -715,7 +741,7 @@ internal class DefaultSimilarityEngine(
                 resume = walk,
             )
             var continued = resume
-            var chain = plan(resume)
+            var chain = plan(resume?.walk)
             // The carried picks keep the artist cap running, so in a library of a few artists they can
             // hold every artist at the cap and end the walk before its first pick. That plan starts a
             // new walk from its seed, as every plan did before the continuation mode, rather than
@@ -740,8 +766,11 @@ internal class DefaultSimilarityEngine(
                 chain.rows
             }
             val ids = rows.map { snapshot.tracks[it].id }
-            val walk = chain.walk
-            if (walk != null && ids.isNotEmpty()) rememberWalk(ids.last(), walk)
+            val walk = chain.walk?.followingOrder(ids)
+            // A continued walk's tracks run on from the seed; a new one starts at the seed.
+            if (walk != null && ids.isNotEmpty()) {
+                rememberWalk(continued?.through ?: listOf(seed.id), ids, walk, companionGroups)
+            }
             ids.ifEmpty {
                 metadataFallback(seed, library, length, history, companionGroups)
             }
@@ -749,17 +778,80 @@ internal class DefaultSimilarityEngine(
     }
 
     /**
-     * Continuation-mode walks by the last track of the plan that ended them, newest last. A few
-     * entries, so an unrelated request in between (a diagnostic seed, a second queue) does not
-     * break the walk a playing queue is following. In memory only: after a restart the next plan
-     * starts a new walk.
+     * Continuation-mode walks by the last track of the plan that ended them, newest last. Each keeps
+     * its tracks in the order the queue plays them, after the track that came right before the first
+     * of them (a new walk's seed), and the marked playlists it was planned with. A few entries, so an
+     * unrelated request in between (a diagnostic seed, a second queue) does not break the walk a
+     * playing queue is following. Only [continueSmartQueue] reads them; an explicit [smartQueue] start
+     * always builds a new walk. In memory only: after a restart the next plan starts a new walk.
      */
-    private val walks = LinkedHashMap<TrackId, ChainWalk>()
+    private data class CachedWalk(
+        val walk: ChainWalk,
+        val order: List<TrackId>,
+        val companionGroups: List<Set<TrackId>>,
+    )
 
-    private fun rememberWalk(lastTrack: TrackId, walk: ChainWalk) {
+    /** A cached walk as it stood at a top-up's seed, and its tracks up to and including that seed. */
+    private class ResumedWalk(val walk: ChainWalk, val through: List<TrackId>)
+
+    private val walks = LinkedHashMap<TrackId, CachedWalk>()
+
+    private fun rememberWalk(
+        through: List<TrackId>,
+        ids: List<TrackId>,
+        walk: ChainWalk,
+        companionGroups: List<Set<TrackId>>,
+    ) {
+        val lastTrack = ids.last()
+        // The plan follows [through], so the walk's tracks are those and then the plan, back to the
+        // track before its first retained pick: a queue cut back to that pick still finds this walk,
+        // not an older one that never saw this plan. Even a one-pick plan keeps its seed, so its
+        // predecessor is checked; the walk's intent may be older, so it never stands in for the seed.
+        val order = (through + ids).takeLast(ChainWalk.WINDOW + 1)
         walks.remove(lastTrack)
-        walks[lastTrack] = walk
+        walks[lastTrack] = CachedWalk(walk, order, companionGroups)
         while (walks.size > WALKS_KEPT) walks.remove(walks.keys.first())
+    }
+
+    /**
+     * The walk a top-up from [seed] carries on: the newest that played [seed] after a track the queue
+     * still holds before it (continuesSmartPlan). [seed] usually ended that walk's plan. It is an
+     * earlier track when the listener removed or moved the queue's last rows, or the app discarded the
+     * queue's future to replan it: the walk goes on as it stood at [seed] (ChainWalk.resumedAt), and
+     * its picks after [seed] are free again. A track the listener removed stays out all the same,
+     * because playback no longer offers it. An older walk never saw a newer one's picks, so the newer
+     * walk wins.
+     *
+     * When [seed] is in a marked playlist the walk was not planned with (the listener just marked it,
+     * or added [seed] to it), the walk's reference moves to [seed]: the points that keep a marked
+     * playlist together follow the reference, and the mark is about the track playing before this plan.
+     */
+    private fun continuedWalk(
+        seed: TrackId,
+        precedingTrackIds: List<TrackId>,
+        companionGroups: List<Set<TrackId>>,
+    ): ResumedWalk? {
+        val cached = walks.values.lastOrNull { cached ->
+            val at = cached.order.indexOf(seed)
+            at > 0 && continuesSmartPlan(cached.order.subList(0, at), precedingTrackIds)
+        } ?: return null
+        val walk = cached.walk.resumedAt(seed)
+        val marked = joinsMarkedPlaylist(seed, before = cached.companionGroups, after = companionGroups)
+        return ResumedWalk(
+            walk = if (marked) walk.reanchoredAt(seed) else walk,
+            through = cached.order.subList(0, cached.order.indexOf(seed) + 1).toList(),
+        )
+    }
+
+    /** Whether [track] is in a marked playlist of [after] it was not in under [before]. */
+    private fun joinsMarkedPlaylist(
+        track: TrackId,
+        before: List<Set<TrackId>>,
+        after: List<Set<TrackId>>,
+    ): Boolean {
+        if (before == after) return false
+        val held = before.filterTo(HashSet()) { track in it }
+        return after.any { track in it && it !in held }
     }
 
     override suspend fun clearAnalysis() {
@@ -1074,7 +1166,7 @@ internal class DefaultSimilarityEngine(
                 meta = TrackMeta(null, null, null, null, null),
             )
         }
-        val snapshot = SmartSnapshot.build(withEnergy(rows)) ?: return null
+        val snapshot = SmartSnapshot.build(withEnergy(rows), batchDotProducts) ?: return null
         snapshotCache = SnapshotCache(indexRevision, semanticCache.size, snapshot)
         return snapshot
     }

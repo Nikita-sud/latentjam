@@ -12,6 +12,16 @@ import kotlin.test.assertTrue
 class MetadataRerankTest {
 
     @Test
+    fun `a copied track recomputes its genre families from the edited tag`() {
+        val original = meta(genre = "Trip Hop; Rock / House")
+        val edited = original.copy(genre = "Classical; Orchestral")
+        assertEquals(Genres.families(original.genre), original.genreFamilies)
+        assertEquals(setOf("classical"), edited.genreFamilies)
+        assertEquals(setOf("trip hop", "rock", "dance"), original.genreFamilies)
+        assertEquals(emptySet(), original.copy(genre = null).genreFamilies)
+    }
+
+    @Test
     fun `versions of one song share a title and a movement keeps its own`() {
         for (version in listOf(
             "Moves Like Jagger - Studio Recording From The Voice Performance", "Moves Like Jagger - Remix",

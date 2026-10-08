@@ -10,10 +10,11 @@ queued and hands the chain the observed history plus the track it continues from
 
 Variants: `off` is the shipped chain; `continue` is ChainTuning.continueAfterExhaustion with every plan
 starting afresh (the listening build before 2026-10-06's fix); `carry` also resumes the walk the previous
-plan ended with (ChainWalk); `join` also orders each resumed plan from the track it continues
-(JourneySequencer `from`), which is what DefaultSimilarityEngine does in the continuation mode;
-`cfg:mode=..,b=..,s=..,w=..` sets ChainTuning.neighbourhoodBonus, semanticWeight and
-neighbourhoodDescriptorWeight on one of those variants.
+plan ended with (ChainWalk), that plan's picks in the order they play (ChainWalk.followingOrder, as the
+engine remembers them; earlier runs of this harness resumed them in selection order); `join` also orders
+each resumed plan from the track it continues (JourneySequencer `from`), which is what
+DefaultSimilarityEngine does in the continuation mode; `cfg:mode=..,b=..,s=..,w=..` sets
+ChainTuning.neighbourhoodBonus, semanticWeight and neighbourhoodDescriptorWeight on one of those variants.
 
 Output per variant, one line per seed: key, played track ids (journey order, all plans), plan boundaries,
 each plan's walk intent, a 0/1 flag per played track for "close to the original pick" by the chain's own
@@ -174,7 +175,8 @@ PLAN_LOOP = """                val failures0 = runtime.failures
                     queued += ordered
                     bounds += played.size
                     intents += result.walk?.intent?.value ?: "-"
-                    walk = result.walk
+                    // DefaultSimilarityEngine remembers the walk with this plan's picks in playback order.
+                    walk = result.walk?.followingOrder(ordered.map { snapshot.tracks[it].id })
                     tail = snapshot.tracks[ordered.last()].id
                 }
                 val failures = runtime.failures - failures0
