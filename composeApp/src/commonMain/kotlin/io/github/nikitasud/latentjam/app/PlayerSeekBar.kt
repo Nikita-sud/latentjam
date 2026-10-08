@@ -54,6 +54,8 @@ import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.cd_seek_position
 import io.github.nikitasud.latentjam.app.generated.resources.cd_time_toggle
+import io.github.nikitasud.latentjam.app.generated.resources.seek_fine_half
+import io.github.nikitasud.latentjam.app.generated.resources.seek_fine_quarter
 import io.github.nikitasud.latentjam.library.tags.Lyrics
 import io.github.nikitasud.latentjam.playback.PlaybackController
 import kotlinx.coroutines.delay
@@ -68,9 +70,10 @@ import kotlin.math.roundToLong
  *
  * Touching the band puts the handle there; dragging moves it, and sliding the finger below the
  * band slows the scrub to half and then a quarter speed for landing on a moment. A bubble above
- * the handle shows the time being scrubbed to, and the lyric line at that time when the song
- * carries timed lyrics that are already loaded. The right-hand time toggles between the total
- * and the remaining time. Right-to-left languages do not mirror it: it shows time.
+ * the handle shows the time being scrubbed to together with the caption of that fine speed, and
+ * the lyric line at that time when the song carries timed lyrics that are already loaded. The
+ * right-hand time toggles between the total and the remaining time. Right-to-left languages do
+ * not mirror it: it shows time.
  *
  * This is the only expanded-player subtree that observes the coarse position ticker.
  */
@@ -96,6 +99,9 @@ internal fun PlayerSeekBar(
     // ticker cannot snap the handle back to where it was before the seek landed.
     var overrideMs by remember(playback, trackId, queueIndex) { mutableStateOf<Long?>(null) }
     var scrubbing by remember(playback, trackId, queueIndex) { mutableStateOf(false) }
+    // Slowing the scrub below the band is invisible on its own: without the caption the handle
+    // just reads as lagging behind the finger. Set from scrubFineFactor while dragging.
+    var fine by remember(playback, trackId, queueIndex) { mutableIntStateOf(1) }
     var showRemaining by remember { mutableStateOf(false) }
     var bandWidth by remember { mutableIntStateOf(0) }
     val shownMs = (overrideMs ?: positionMs).coerceIn(0L, duration)
@@ -172,6 +178,7 @@ internal fun PlayerSeekBar(
                                 .roundToLong()
                             haptics.play(PlayerHaptic.TAP)
                             scrubbing = true
+                            fine = 1
                             overrideMs = target
                             var lastX = down.position.x
                             var dragged = false
@@ -193,6 +200,7 @@ internal fun PlayerSeekBar(
                                         halfAt = halfAt,
                                         quarterAt = quarterAt,
                                     )
+                                    fine = factor
                                     target = (target + scrubDeltaMs(dx, width, duration, factor))
                                         .coerceIn(0L, duration)
                                     if (!change.changedToUpIgnoreConsumed()) {
@@ -260,6 +268,11 @@ internal fun PlayerSeekBar(
                     }
                     ScrubBubble(
                         time = formatDuration(shownMs),
+                        fineLabel = when (fine) {
+                            2 -> stringResource(Res.string.seek_fine_half)
+                            4 -> stringResource(Res.string.seek_fine_quarter)
+                            else -> null
+                        },
                         lyric = lyricAtHandle,
                         handleCentreX = handleCentre,
                     )
@@ -299,6 +312,8 @@ internal fun PlayerSeekBar(
 @Composable
 private fun ScrubBubble(
     time: String,
+    /** "½ speed" or "¼ speed" while the finger is below the band; null at full speed. */
+    fineLabel: String?,
     lyric: String?,
     handleCentreX: Float,
 ) {
@@ -326,7 +341,21 @@ private fun ScrubBubble(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Text(text = time, style = MaterialTheme.typography.titleSmall, maxLines = 1)
+            Row(
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(text = time, style = MaterialTheme.typography.titleSmall, maxLines = 1)
+                if (fineLabel != null) {
+                    // A translated UI string, so it keeps the layout's own direction.
+                    Text(
+                        text = fineLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        modifier = Modifier.padding(bottom = 1.dp),
+                    )
+                }
+            }
             if (lyric != null) {
                 Text(
                     text = lyric,
