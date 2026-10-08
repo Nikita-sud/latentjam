@@ -40,6 +40,13 @@ enum class ForYouSectionKind {
     /**
      * One artist suddenly dominating the week — a phase, detected while it is happening — and
      * that artist's unheard tracks, closest-in-sound first. The row only exists mid-phase.
+     *
+     * The phase names the artist; the cards are that artist's UNHEARD catalogue by construction
+     * (see [ForYouRhythm.bingeDeepCuts]), and every one of them is an offer whose show is written
+     * to the impression journal — which is what keeps the row a discovery instead of a replay of
+     * the listener's week. A cut offered on a recent day and still unplayed therefore steps behind
+     * one the listener has not been shown, so the phase keeps introducing the catalogue rather
+     * than re-offering the same handful.
      */
     ON_A_ROLL,
 
@@ -348,7 +355,8 @@ object ForYouBuilder {
             byId, recentEvents, worlds, stats, nowMs, used, localHourOf, cooledDiscoveries, dayIndex,
         )?.let(sections::add)
         worthRevisiting(byId, stats, nowMs, quietMs, used, playlists)?.let(sections::add)
-        onARoll(library, byId, recentEvents, stats, worlds, nowMs, used)?.let(sections::add)
+        onARoll(library, byId, recentEvents, stats, worlds, nowMs, used, cooledDiscoveries)
+            ?.let(sections::add)
         // Above "never played" and below the history rows on purpose. With nothing logged the rows
         // above are all empty and this becomes the first thing on the page — which is what it is
         // for. Once there IS history, rows built from it have the better claim on the top of a
@@ -359,6 +367,7 @@ object ForYouBuilder {
             nowMs = nowMs,
             quietMs = quietMs,
             used = used,
+            cooledDiscoveries = cooledDiscoveries,
             excluded = excluded,
             discoveryMixLabel = discoveryMixLabel,
             includeNoveltyMixes = includeNoveltyMixes,
@@ -584,7 +593,9 @@ object ForYouBuilder {
      * Unlike every other row here, a world does NOT consume its members. Its pool is the entire
      * library, so retiring several hundred tracks from the rows below it would starve them for the
      * sake of a rule meant to stop the same album appearing three times. Only the cover is claimed,
-     * because two identical covers on one page is exactly what that rule is about.
+     * because two identical covers on one page is exactly what that rule is about. That cover is
+     * also the one track id this card writes to the impression journal, so it answers
+     * [cooledDiscoveries] the way any other offer does: see the cover selection below.
      */
     private fun worlds(
         worlds: List<LibraryWorld>,
@@ -592,6 +603,7 @@ object ForYouBuilder {
         nowMs: Long,
         quietMs: Long,
         used: MutableSet<TrackId>,
+        cooledDiscoveries: Set<TrackId>,
         excluded: Set<TrackId>,
         discoveryMixLabel: String,
         includeNoveltyMixes: Boolean,
@@ -667,8 +679,19 @@ object ForYouBuilder {
                 val anchorIds = anchors.mapTo(HashSet()) { it.id }
                 // Keep the generated claim and its art in agreement. For a genre/decade mix, for
                 // example, a fresh cover from another family is not a valid substitute.
-                val cover = ordered.firstOrNull { it.id !in used && world.supportsName(it) }
-                    ?: ordered.firstOrNull { it.id !in used }
+                //
+                // The cover is the offer this card journals, so it also answers the page's cooling
+                // rule: a member already offered on a recent day steps behind everyone the listener
+                // has not been shown — a played member included, since a familiar cover was never
+                // an impression that could cool — and returns only when nothing else can front the
+                // card. Name support still orders the candidates inside each of those two groups.
+                // [cooledDiscoveries] holds unheard ids only, so this demotes discoveries alone.
+                val eligibleCovers = ordered.filterNot { it.id in used }
+                val cover = eligibleCovers
+                    .firstOrNull { it.id !in cooledDiscoveries && world.supportsName(it) }
+                    ?: eligibleCovers.firstOrNull { it.id !in cooledDiscoveries }
+                    ?: eligibleCovers.firstOrNull { world.supportsName(it) }
+                    ?: eligibleCovers.firstOrNull()
                     ?: return@mapNotNull null
                 val ranked = listOf(cover) +
                     (anchors + ordered.filterNot { it.id in anchorIds })
@@ -765,7 +788,9 @@ object ForYouBuilder {
     /**
      * The phase the listener is in RIGHT NOW, answered with the binged artist's unheard tracks.
      * The row's existence is the recommendation: it appears mid-phase, names the artist in its
-     * header, and disappears when the phase does.
+     * header, and disappears when the phase does. [cooledDiscoveries] is handed to the rhythm
+     * layer so a deep cut already offered on a recent day yields its slot to one of this artist's
+     * tracks the listener has never been shown (see [ForYouRhythm.bingeDeepCuts]).
      */
     private fun onARoll(
         library: List<TrackDescriptor>,
@@ -775,6 +800,7 @@ object ForYouBuilder {
         worlds: List<LibraryWorld>,
         nowMs: Long,
         used: MutableSet<TrackId>,
+        cooledDiscoveries: Set<TrackId>,
     ): ForYouSection? {
         val binge = ForYouRhythm.currentBinge(
             events = recentEvents,
@@ -790,6 +816,7 @@ object ForYouBuilder {
             worlds = worlds,
             nowMs = nowMs,
             used = used,
+            cooled = cooledDiscoveries,
             artistKeyOf = ::primaryArtistKey,
         ).take(ROW_LIMIT)
         // A one-card "phase" row over-claims; with nothing unheard left the phase needs no help.

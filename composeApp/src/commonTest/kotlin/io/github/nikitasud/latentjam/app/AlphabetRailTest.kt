@@ -79,6 +79,54 @@ internal class AlphabetRailTest {
     }
 
     @Test
+    fun aListThatFitsItsViewportHasNoScrollableRail() {
+        // Nothing to navigate to: the pill and its gutter would only shorten every row.
+        assertFalse(
+            railHasScrollableContent(
+                totalItemsCount = 8,
+                canScrollForward = false,
+                canScrollBackward = false,
+            ),
+        )
+    }
+
+    @Test
+    fun aListThatCanScrollForwardHasARail() {
+        assertTrue(
+            railHasScrollableContent(
+                totalItemsCount = 8,
+                canScrollForward = true,
+                canScrollBackward = false,
+            ),
+        )
+    }
+
+    @Test
+    fun aListThatCanScrollBackwardHasARail() {
+        // A partially scrolled list cannot move further down but still has letters to return to.
+        assertTrue(
+            railHasScrollableContent(
+                totalItemsCount = 8,
+                canScrollForward = false,
+                canScrollBackward = true,
+            ),
+        )
+    }
+
+    @Test
+    fun anEmptyListHasNoRailEvenWhileItReportsScrollRange() {
+        // The item count is the authority: with nothing in the list there is nothing to
+        // navigate to, whatever the scroll flags of a not-yet-measured list happen to say.
+        assertFalse(
+            railHasScrollableContent(
+                totalItemsCount = 0,
+                canScrollForward = true,
+                canScrollBackward = true,
+            ),
+        )
+    }
+
+    @Test
     fun firstLetterTicksButHoldingAndReleasingTheSameLetterDoNot() {
         val feedback = RailHapticState()
         assertTrue(feedback.select(5, 100L))

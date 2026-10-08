@@ -5,13 +5,19 @@
 package io.github.nikitasud.latentjam.history
 
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
+@OptIn(ExperimentalCoroutinesApi::class)
 internal class ListeningHistoryTest {
 
     private class FakeStore(initial: List<String> = emptyList()) : HistoryStore {
@@ -239,6 +245,140 @@ internal class ListeningHistoryTest {
         assertEquals(setOf(TrackId("new")), history.stats().keys)
         assertEquals(2, history.stats().getValue(TrackId("new")).plays)
         assertEquals(30_000, history.stats().getValue(TrackId("new")).totalPlayedMs)
+    }
+
+    /** The transformation the app's local backup MERGE uses: union without duplicates, oldest first. */
+    private fun mergeChronologically(
+        existing: List<ListenEvent>,
+        imported: List<ListenEvent>,
+    ): List<ListenEvent> = (existing + imported).distinct().sortedBy(ListenEvent::startedAtMs)
+
+    @Test
+    fun mergeFoldsImportedEventsInAndPersistsTheWholeLog() = runTest {
+        val store = FakeStore(initial = listOf(event("existing", startedAt = 100).serialize()))
+        val history = DefaultListeningHistory(store)
+
+        val held = history.merge(
+            imported = listOf(event("early", startedAt = 50), event("middle", startedAt = 200)),
+            maxEvents = 10,
+            combine = ::mergeChronologically,
+        )
+
+        assertEquals(3, held, "the merge reports the log it wrote")
+        assertEquals(
+            listOf("early", "existing", "middle"),
+            history.allEvents().map { it.trackId.value },
+            "an imported listen older than the stored ones still lands in chronological position",
+        )
+        // The merged log is what a restart reads back, not only what this process remembers.
+        assertEquals(
+            listOf("early", "existing", "middle"),
+            DefaultListeningHistory(store).allEvents().map { it.trackId.value },
+        )
+    }
+
+    @Test
+    fun mergeRefusesToExceedTheEventLimitAndLeavesTheLogAlone() = runTest {
+        val existing = event("existing", startedAt = 100)
+        val store = FakeStore(initial = listOf(existing.serialize()))
+        val history = DefaultListeningHistory(store)
+
+        assertFailsWith<IllegalArgumentException> {
+            history.merge(
+                imported = listOf(event("imported", startedAt = 200)),
+                maxEvents = 1,
+                combine = ::mergeChronologically,
+            )
+        }
+
+        assertEquals(listOf(existing), history.allEvents(), "a refused merge publishes nothing")
+        assertEquals(listOf(existing.serialize()), store.lines, "a refused merge writes nothing")
+    }
+
+    /**
+     * The window a read-then-replace pair leaves open: a listen recorded after the log was read and
+     * before the replacement is written used to be overwritten by the snapshot built from that
+     * earlier read. The store below suspends inside the merge's write, where the recorder now waits
+     * for the same lock instead of slipping between the two calls.
+     */
+    @Test
+    fun aListenRecordedWhileAMergeWritesIsNotLost() = runTest {
+        val existing = event("existing", startedAt = 100)
+        val imported = event("imported", startedAt = 200)
+        val late = event("late", startedAt = 300)
+        val writing = CompletableDeferred<Unit>()
+        val store = object : HistoryStore {
+            val lines = mutableListOf(existing.serialize())
+            private var held = false
+            override suspend fun append(line: String) { lines += line }
+            override suspend fun readAll(): List<String> = lines.toList()
+            override suspend fun replaceAll(lines: List<String>) {
+                this.lines.clear()
+                this.lines += lines
+                if (!held) {
+                    held = true
+                    writing.await()
+                }
+            }
+            override suspend fun clear() { lines.clear() }
+        }
+        val history = DefaultListeningHistory(store)
+        // Load the log first: an unloaded one would parse on Dispatchers.Default, and the merge
+        // below has to reach its store write on the first dispatch for this test to be repeatable.
+        assertEquals(listOf(existing), history.allEvents())
+
+        val merging = launch { history.merge(listOf(imported), 10, ::mergeChronologically) }
+        val recording = launch { history.record(late) }
+        runCurrent()
+        writing.complete(Unit)
+        merging.join()
+        recording.join()
+
+        assertEquals(
+            listOf(existing, imported, late),
+            history.allEvents(),
+            "the listen recorded while the merge held the lock must survive it",
+        )
+        assertEquals(
+            history.allEvents().map(ListenEvent::serialize),
+            store.lines,
+            "the written log and the in-memory log describe the same history",
+        )
+    }
+
+    @Test
+    fun aMergeCancelledWhileWritingLeavesOneCoherentLog() = runTest {
+        val existing = event("existing", startedAt = 100)
+        val imported = event("imported", startedAt = 200)
+        val writing = CompletableDeferred<Unit>()
+        val store = object : HistoryStore {
+            val lines = mutableListOf(existing.serialize())
+            override suspend fun append(line: String) { lines += line }
+            override suspend fun readAll(): List<String> = lines.toList()
+            override suspend fun replaceAll(lines: List<String>) {
+                this.lines.clear()
+                this.lines += lines
+                writing.await()
+            }
+            override suspend fun clear() { lines.clear() }
+        }
+        val history = DefaultListeningHistory(store)
+        // Load the log first, so the merge is already inside its store write after runCurrent().
+        assertEquals(listOf(existing), history.allEvents())
+
+        val merging = launch { history.merge(listOf(imported), 10, ::mergeChronologically) }
+        runCurrent()
+        merging.cancel() // The user leaves the restore screen while the section is being written.
+        writing.complete(Unit)
+        merging.join()
+
+        assertTrue(merging.isCancelled, "the caller still learns that the merge was cancelled")
+        assertEquals(
+            listOf(existing, imported),
+            history.allEvents(),
+            "the persisted log and the in-memory log agree after a cancelled write",
+        )
+        assertEquals(history.allEvents().map(ListenEvent::serialize), store.lines)
     }
 
     @Test

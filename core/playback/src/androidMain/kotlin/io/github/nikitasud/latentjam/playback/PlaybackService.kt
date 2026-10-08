@@ -1026,7 +1026,7 @@ public class PlaybackService : MediaLibraryService() {
  * suppressed count with it — an evicted source is one that has not written anything for longer than
  * [MAX_SOURCES] other sources, so the line the count would have annotated is long gone.
  */
-private class TransportEventThrottle(
+internal class TransportEventThrottle(
     private val burstLines: Double = BURST_LINES,
     private val refillMs: Long = REFILL_MS,
 ) {

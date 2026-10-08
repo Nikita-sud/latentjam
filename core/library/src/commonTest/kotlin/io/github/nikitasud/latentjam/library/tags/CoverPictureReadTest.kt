@@ -109,6 +109,35 @@ internal class CoverPictureReadTest {
     }
 
     @Test
+    fun mp4FirstCovrOverTheLimitIsTheSamePictureReadDescribes() {
+        // The first covr is over the caller's ceiling: readCover hands out no bytes there, while
+        // read() still names that picture — it returns a type, size and checksum, never the bytes, so
+        // no size is too big for it. Both readers agree on which picture is the cover; the sizes are
+        // set here so the ceiling can be probed from either side (the extra picture is far smaller).
+        val cover = TestImages.jpeg(300, 300, filler = 256)
+        val extra = TestImages.png(40, 40, filler = 16)
+        val file = Mp4Fixtures.file(
+            listOf(Mp4Fixtures.text("©nam", "t"), Mp4Fixtures.covers(13 to cover, 14 to extra)),
+        )
+        val snapshot = assertNotNull(TagCodecs.read(ByteArraySource(file)))
+        val described = assertNotNull(snapshot.cover)
+        assertEquals(cover.size, described.size)
+        assertEquals(Crc32.of(cover), described.crc32)
+        // The smaller second covr is an extra picture, not a fallback for a cover over the ceiling.
+        assertEquals(1, snapshot.otherPictures)
+
+        assertNull(TagCodecs.readCover(ByteArraySource(file), maxBytes = cover.size - 1))
+        // A limit that would fit only the extra picture buys no substitution either.
+        assertNull(TagCodecs.readCover(ByteArraySource(file), maxBytes = extra.size))
+
+        val picture = assertNotNull(TagCodecs.readCover(ByteArraySource(file), maxBytes = cover.size))
+        assertContentEquals(cover, picture.bytes)
+        assertEquals(described.mime, picture.mime)
+        // The default ceiling is MAX_COVER_BYTES, above this picture: the plain call agrees as well.
+        assertContentEquals(cover, assertNotNull(TagCodecs.readCover(ByteArraySource(file))).bytes)
+    }
+
+    @Test
     fun aPictureOverTheLimitIsNotRead() {
         val file = FlacFixtures.file(FlacFixtures.PICTURE to FlacFixtures.picture(3, front, mime = "image/jpeg"))
         assertNull(TagCodecs.readCover(ByteArraySource(file), maxBytes = front.size - 1))

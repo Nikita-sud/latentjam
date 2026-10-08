@@ -289,6 +289,17 @@ internal object ForYouRhythm {
      * The binged artist's unheard tracks, most-likely-to-fit first: tracks sharing a world with
      * what the phase actually played come before the rest of the catalogue — the clustering
      * already knows which side of a composer's output this phase is about.
+     *
+     * Every cut here is unheard by construction, and each one is a card whose show is written to
+     * the impression journal like any other offer, so this row answers the same cooling rule as
+     * the daypart and wildcard slots: [cooled] — this artist's tracks offered on a recent day and
+     * still unplayed — step behind the ones the listener has never been shown, and keep their fit
+     * order only inside their own group. A repeat returns once the strangers run out, because an
+     * empty slot helps nobody. The row is a ranked shortlist rather than a window that rotates, so
+     * it needs no daily walk of its own: cooling alone keeps the phase introducing the catalogue
+     * instead of re-offering the same handful of deep cuts.
+     *
+     * @param cooled ids of this artist's unheard tracks already offered on a recent prior day.
      */
     fun bingeDeepCuts(
         binge: Binge,
@@ -298,6 +309,7 @@ internal object ForYouRhythm {
         worlds: List<LibraryWorld>,
         nowMs: Long,
         used: Set<TrackId>,
+        cooled: Set<TrackId> = emptySet(),
         artistKeyOf: (String) -> String,
     ): List<TrackDescriptor> {
         val cutoff = nowMs - BINGE_WINDOW_MS
@@ -315,7 +327,8 @@ internal object ForYouRhythm {
                     artistKeyOf(track.artist!!) == binge.artistKey
             }
             .sortedWith(
-                compareByDescending<TrackDescriptor> { it.id in phaseWorlds }
+                compareBy<TrackDescriptor> { it.id in cooled }
+                    .thenByDescending { it.id in phaseWorlds }
                     .thenBy { it.album ?: "" }
                     .thenBy { it.id.value },
             )

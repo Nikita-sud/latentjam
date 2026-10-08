@@ -961,12 +961,20 @@ internal class LocalBackupService(
                 val imported = snapshot.listeningHistory.mapNotNull { event ->
                     resolved[event.trackReferenceId]?.let { trackId -> event.toListenEvent(trackId) }
                 }
-                val target = when (mode) {
-                    LocalBackupRestoreMode.REPLACE -> imported
-                    LocalBackupRestoreMode.MERGE -> mergeListeningHistory(imported)
+                historyApplied = when (mode) {
+                    LocalBackupRestoreMode.REPLACE -> {
+                        history.replace(imported)
+                        imported.size
+                    }
+                    // One locked read-fold-write: music keeps playing behind the settings screen, and
+                    // a listen recorded while this restore runs is part of the log the merge writes.
+                    // Like recentSearchesApplied below, the count describes the log that was written.
+                    LocalBackupRestoreMode.MERGE -> history.merge(
+                        imported = imported,
+                        maxEvents = MAX_CAPTURE_HISTORY,
+                        combine = ::mergeHistoryLog,
+                    )
                 }
-                history.replace(target)
-                historyApplied = imported.size
                 completed += LocalBackupSection.LISTENING_HISTORY
             }
 
@@ -1200,38 +1208,19 @@ internal class LocalBackupService(
     }
 
     /**
-     * Folds [imported] into the stored log without dropping a session the recorder wrote meanwhile.
+     * The union of the stored log and the imported one, oldest first.
      *
-     * [ListeningHistory] locks [ListeningHistory.recentEvents] and [ListeningHistory.replace]
-     * separately, so a plain read-modify-write overwrites whatever the playback recorder appended
-     * between the two calls — a restore runs while music keeps playing behind the settings overlay,
-     * so that window is real. Every round re-reads the log and compares its newest session and
-     * length against the previous read: an unchanged log means the target built from that read is
-     * still the whole log, and the replace can follow it directly. A log that grew in between is
-     * folded in again from the newer read.
+     * A backup carries no sequence numbers, so a listen is identified by its own record
+     * ([ListenEvent] equality) and re-importing a snapshot this device exported collapses every
+     * duplicate instead of doubling that part of the history. [ListeningHistory.merge] hands over
+     * the current log under its lock and enforces the size bound before anything is written, so
+     * this function only has to keep the log ordered: a stable sort leaves listens recorded in the
+     * same millisecond in local-before-imported order.
      */
-    private suspend fun mergeListeningHistory(imported: List<ListenEvent>): List<ListenEvent> {
-        var target: List<ListenEvent>? = null
-        var observedSize = -1
-        var observedNewest: ListenEvent? = null
-        repeat(MAX_HISTORY_MERGE_ROUNDS) {
-            val existing = history.recentEvents(MAX_CAPTURE_HISTORY + 1).asReversed()
-            require(existing.size <= MAX_CAPTURE_HISTORY) { "Listening history is too large to merge" }
-            val previous = target
-            if (previous != null &&
-                existing.size == observedSize &&
-                existing.lastOrNull() == observedNewest
-            ) {
-                return previous
-            }
-            observedSize = existing.size
-            observedNewest = existing.lastOrNull()
-            target = (existing + imported).distinct().sortedBy(ListenEvent::startedAtMs).also {
-                require(it.size <= MAX_CAPTURE_HISTORY) { "Merged listening history is too large" }
-            }
-        }
-        return checkNotNull(target) { "Listening history merge did not read the log" }
-    }
+    private fun mergeHistoryLog(
+        existing: List<ListenEvent>,
+        imported: List<ListenEvent>,
+    ): List<ListenEvent> = (existing + imported).distinct().sortedBy(ListenEvent::startedAtMs)
 
     private fun mergePlaylists(existing: List<Playlist>, imported: List<Playlist>): List<Playlist> {
         val result = existing.toMutableList()
@@ -1289,13 +1278,6 @@ internal class LocalBackupService(
 
     private companion object {
         const val MAX_CAPTURE_HISTORY = 500_000
-
-        /**
-         * A merge normally stabilizes on its second read. The bound only stops a log that keeps
-         * growing from looping forever; the last round still writes a target built from the read
-         * that immediately preceded it.
-         */
-        const val MAX_HISTORY_MERGE_ROUNDS = 4
 
         /**
          * One restore at a time across the process. A restore now survives the screen that started

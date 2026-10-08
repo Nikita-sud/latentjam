@@ -48,8 +48,9 @@ internal object MediaBlackBox {
      *
      * Written to a staging file and moved over the original: a crash midway leaves either the whole
      * old log or the whole trimmed one, never a truncated file. The newest line survives a trim
-     * whenever the file is large enough to hold one, and a file too small to hold half a line is
-     * dropped outright — there is no history in it for a report to lose.
+     * whenever the file is large enough to hold one. When the newest half holds no line boundary
+     * at all — one unfinished or oversized line — its tail is kept just as it stands, because the
+     * newest bytes are the history a report is about even where they are not a whole line.
      */
     private fun trimToNewestHalf(file: File) {
         val bytes = file.readBytes()
