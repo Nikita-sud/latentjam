@@ -89,10 +89,10 @@ announce new versions: watch this repository for releases (Watch → Custom → 
 They are signed with different keys and can't update each other. Export your data (Settings → Local
 backup), uninstall, install the other one, then restore. The backup carries your playlists
 (including *Keep together in SMART*), listening history, recent searches, hidden tracks, the tracks
-and artists you told SMART not to recommend, and your settings. It does **not** carry two things:
-your **favourites** and the duplicate finder's decisions ("keep both", "these are different
-recordings") are not part of the file, so re-mark them after the switch. The song analysis isn't
-included either and runs again.
+and artists you told SMART not to recommend, and your settings. It does not carry everything,
+though: your **favourites** and the duplicate finder's decisions ("keep both", "these are different
+recordings") are not part of the file, so re-mark them after the switch. Your current queue and the
+equaliser are missing from it as well. The song analysis isn't included either and runs again.
 
 </details>
 
