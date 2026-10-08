@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+-->
+<resources>
+    <string name="media_session_shuffle_on">تفعيل التشغيل العشوائي</string>
+    <string name="media_session_shuffle_smart_on">تفعيل تشغيل SMART العشوائي</string>
+    <string name="media_session_shuffle_off">إيقاف التشغيل العشوائي</string>
+    <string name="media_session_repeat_all">تكرار قائمة الانتظار</string>
+    <string name="media_session_repeat_one">تكرار مقطع واحد</string>
+    <string name="media_session_repeat_off">إيقاف التكرار</string>
+</resources>

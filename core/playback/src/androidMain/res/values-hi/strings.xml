@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+-->
+<resources>
+    <string name="media_session_shuffle_on">शफ़ल चालू करें</string>
+    <string name="media_session_shuffle_smart_on">SMART शफ़ल चालू करें</string>
+    <string name="media_session_shuffle_off">शफ़ल बंद करें</string>
+    <string name="media_session_repeat_all">पूरा क्यू दोहराएँ</string>
+    <string name="media_session_repeat_one">एक गाना दोहराएँ</string>
+    <string name="media_session_repeat_off">दोहराना बंद करें</string>
+</resources>

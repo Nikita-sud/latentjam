@@ -868,11 +868,16 @@ public class PlaybackService : MediaLibraryService() {
         ShuffleMode.SMART -> CommandButton.ICON_UNDEFINED
     }
 
-    private fun shuffleActionName(mode: ShuffleMode): String = when (mode) {
-        ShuffleMode.OFF -> "Turn shuffle on"
-        ShuffleMode.ON -> "Turn SMART shuffle on"
-        ShuffleMode.SMART -> "Turn shuffle off"
-    }
+    // Media3 takes CommandButton.displayName as plain text and does not localize it, while the
+    // notification, Android Auto/head units and accessibility services all read it aloud or show
+    // it, so the labels live in res/values and its translations rather than here.
+    private fun shuffleActionName(mode: ShuffleMode): String = getString(
+        when (mode) {
+            ShuffleMode.OFF -> R.string.media_session_shuffle_on
+            ShuffleMode.ON -> R.string.media_session_shuffle_smart_on
+            ShuffleMode.SMART -> R.string.media_session_shuffle_off
+        },
+    )
 
     private fun repeatIcon(repeatMode: Int): Int = when (repeatMode) {
         Player.REPEAT_MODE_ALL -> CommandButton.ICON_REPEAT_ALL
@@ -880,11 +885,13 @@ public class PlaybackService : MediaLibraryService() {
         else -> CommandButton.ICON_REPEAT_OFF
     }
 
-    private fun repeatActionName(repeatMode: Int): String = when (repeatMode) {
-        Player.REPEAT_MODE_OFF -> "Repeat all"
-        Player.REPEAT_MODE_ALL -> "Repeat this track"
-        else -> "Turn repeat off"
-    }
+    private fun repeatActionName(repeatMode: Int): String = getString(
+        when (repeatMode) {
+            Player.REPEAT_MODE_OFF -> R.string.media_session_repeat_all
+            Player.REPEAT_MODE_ALL -> R.string.media_session_repeat_one
+            else -> R.string.media_session_repeat_off
+        },
+    )
 
     private fun nextRepeatMode(repeatMode: Int): Int = when (repeatMode) {
         Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL

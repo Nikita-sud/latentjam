@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+-->
+<resources>
+    <string name="media_session_shuffle_on">Karışık çalmayı aç</string>
+    <string name="media_session_shuffle_smart_on">SMART karışık çalmayı aç</string>
+    <string name="media_session_shuffle_off">Karışık çalmayı kapat</string>
+    <string name="media_session_repeat_all">Sırayı tekrarla</string>
+    <string name="media_session_repeat_one">Tek parçayı tekrarla</string>
+    <string name="media_session_repeat_off">Tekrarı kapat</string>
+</resources>

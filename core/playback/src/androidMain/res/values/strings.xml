@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+
+  Media3 command labels: the repeat and shuffle media-button preferences. Media3 does not
+  localize CommandButton.displayName itself, and the words are shown by the notification,
+  Android Auto/head units and accessibility services, so they live in resources here.
+-->
+<resources>
+    <string name="media_session_shuffle_on">Turn shuffle on</string>
+    <string name="media_session_shuffle_smart_on">Turn SMART shuffle on</string>
+    <string name="media_session_shuffle_off">Turn shuffle off</string>
+    <string name="media_session_repeat_all">Repeat all</string>
+    <string name="media_session_repeat_one">Repeat this track</string>
+    <string name="media_session_repeat_off">Turn repeat off</string>
+</resources>

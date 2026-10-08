@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+-->
+<resources>
+    <string name="media_session_shuffle_on">Activează redarea aleatorie</string>
+    <string name="media_session_shuffle_smart_on">Activează redarea aleatorie SMART</string>
+    <string name="media_session_shuffle_off">Dezactivează redarea aleatorie</string>
+    <string name="media_session_repeat_all">Repetă coada</string>
+    <string name="media_session_repeat_one">Repetă o singură piesă</string>
+    <string name="media_session_repeat_off">Dezactivează repetarea</string>
+</resources>
