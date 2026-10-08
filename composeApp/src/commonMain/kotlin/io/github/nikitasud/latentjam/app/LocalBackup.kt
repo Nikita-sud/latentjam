@@ -170,6 +170,15 @@ internal object LocalBackupCodec {
     private const val MAX_ENCODED_FIELD_CHARS = 2 * 1024 * 1024 + 1
     private const val MAX_RECORD_CHARS = 16 * 1024 * 1024
 
+    /**
+     * The per-query bounds the recent-search store enforces when it writes its own file
+     * (`RecentSearchFileCodec.MAX_QUERY_BYTES` applies to the character count and to the UTF-8 byte
+     * count alike). A snapshot past either bound would decode cleanly here and then fail that write,
+     * after the sections before it had already been applied.
+     */
+    private const val MAX_RECENT_SEARCH_QUERY_CHARS = 16 * 1024
+    private const val MAX_RECENT_SEARCH_QUERY_BYTES = 16 * 1024
+
     fun encode(snapshot: LocalBackupSnapshot): String {
         validate(snapshot)
         return buildString {
@@ -524,7 +533,16 @@ internal object LocalBackupCodec {
         if (snapshot.formatVersion < 5 && snapshot.listeningHistory.any { it.origin != null }) {
             formatError("Legacy backups cannot encode listening origins")
         }
-        if (snapshot.recentSearches.any(String::isBlank)) formatError("Recent searches cannot be blank")
+        snapshot.recentSearches.forEach { search ->
+            // The store refuses a query past these bounds, so a foreign document must be refused
+            // here, before any section is applied, rather than mid-restore.
+            if (search.isBlank() ||
+                search.length > MAX_RECENT_SEARCH_QUERY_CHARS ||
+                search.encodeToByteArray().size > MAX_RECENT_SEARCH_QUERY_BYTES
+            ) {
+                formatError("Invalid recent search")
+            }
+        }
         if (snapshot.hiddenTrackReferenceIds.any { it !in knownTracks } ||
             snapshot.smartExcludedTrackReferenceIds.any { it !in knownTracks }
         ) {
