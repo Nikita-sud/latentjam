@@ -98,8 +98,9 @@ internal class IosMusicLibrary : MusicLibrary {
         val documents: List<TrackDescriptor>,
         val device: List<TrackDescriptor>,
         // False when Documents could not be enumerated at all, which is also the source of the
-        // app-owned half of the library.
-        val documentsReadable: Boolean = true,
+        // app-owned half of the library. Deliberately has no default: readability is a fact the
+        // scan has to establish, and a snapshot that silently assumed it would authorize pruning.
+        val documentsReadable: Boolean,
     )
 
     /**
@@ -107,7 +108,9 @@ internal class IosMusicLibrary : MusicLibrary {
      * encodes "could not ask" as an empty list: Music.app returns no songs while the query is
      * still loading after a grant, and `enumeratorAtPath` returns null on a broken sandbox. An
      * empty result in that state is not evidence that previously indexed tracks were deleted, so
-     * pruning must not treat it as a complete library.
+     * pruning must not treat it as a complete library. An enabled Music.app source that returned
+     * zero songs is incomplete on its own — a library that never held imports offers nothing to
+     * contrast the empty query with, which is exactly the case pruning used to erase.
      */
     override suspend fun scan(): LibraryScan {
         val hidden = hiddenTrackIdValues()
@@ -153,7 +156,10 @@ internal class IosMusicLibrary : MusicLibrary {
         } else {
             emptyList()
         }
-        var readable = true
+        // Pessimistic until an enumeration actually opens: Documents that cannot even be located
+        // (`IosPaths.documents` returns null for a malformed sandbox) were not checked either, so
+        // they count as unreadable exactly like a root whose enumerator refuses to open.
+        var readable = false
         val documents = withContext(Dispatchers.Default) {
             scanMutex.withLock {
                 IosPaths.documents()?.let { root ->
@@ -170,7 +176,6 @@ internal class IosMusicLibrary : MusicLibrary {
             documentsReadable = snapshot.documentsReadable,
             device = snapshot.device,
             deviceSourceEnabled = DEVICE_MUSIC_SOURCE_ID !in excludedSources,
-            hasDocuments = snapshot.documents.isNotEmpty(),
         )
 
     override suspend fun hide(trackId: TrackId): Unit = withContext(Dispatchers.Default) {
@@ -686,21 +691,28 @@ internal class IosMusicLibrary : MusicLibrary {
 /**
  * Whether one iOS scan saw every source that was supposed to answer.
  *
- * An empty list from MediaPlayer means "no songs" only when the device half is genuinely empty:
- * before the grant, and right after it while the query is still loading, the same empty list means
- * "could not ask". App-owned files are the evidence that separates the two — a library that holds
- * imported tracks while Music.app reports nothing is the transient case, not a deleted library.
- * Documents that cannot be enumerated at all are incomplete for the same reason.
+ * An empty list from MediaPlayer is not evidence of a deleted library: before the grant, and for a
+ * moment after it while the query is still loading, `MPMediaQuery` returns the same empty list it
+ * returns for a device that genuinely holds no songs, and the app cannot tell those apart. Only a
+ * nonempty device result proves the query answered, so an enabled device source with zero tracks
+ * leaves the scan incomplete regardless of what Documents holds: imports cannot vouch for the
+ * device half, and an empty Documents folder is precisely the case where a stale snapshot would
+ * otherwise look like confirmation that the whole library disappeared. Documents that cannot be
+ * enumerated at all are incomplete for the same reason.
+ *
+ * The one deliberate exception is a device source the user switched off: it was never expected to
+ * answer, so its silence cannot make the scan partial. The cost is that a device library which is
+ * genuinely empty never authorizes pruning; the same source switch that hides its rows is also the
+ * way to make the app-owned half authoritative.
  */
 internal fun snapshotIsComplete(
     documentsReadable: Boolean,
     device: List<TrackDescriptor>,
     deviceSourceEnabled: Boolean,
-    hasDocuments: Boolean,
 ): Boolean {
     if (!documentsReadable) return false
     if (!deviceSourceEnabled) return true
-    return device.isNotEmpty() || !hasDocuments
+    return device.isNotEmpty()
 }
 
 /** Newline-safe storage for arbitrary relative paths and MediaPlayer IDs. */
