@@ -1,6 +1,6 @@
 # LatentJam privacy policy
 
-Effective 24 September 2026. Applies to the LatentJam app for Android and iOS, whether
+Effective 8 October 2026. Applies to the LatentJam app for Android and iOS, whether
 installed from Google Play, the App Store, or a build downloaded from this repository.
 
 ## The short version
