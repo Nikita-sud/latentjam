@@ -894,8 +894,9 @@ object ForYouBuilder {
         cooledDiscoveries: Set<TrackId>,
         dayIndex: Int,
     ): ForYouSection? {
-        // Offers ignored on recent days step aside before the window is cut, so the rotation
-        // reaches strangers that have not had a turn instead of re-offering the ignored ones.
+        // Offers ignored on recent days step aside before the window is cut, and the day's rotation
+        // then turns among the strangers that remain (see [ForYouRhythm.freshRotationOrder]): a
+        // repeat may fill a leftover slot, but it never leads the row.
         val fresh = library
             .filter { it.id !in used && (stats[it.id]?.plays ?: 0) == 0 }
             .sortedWith(
@@ -904,7 +905,7 @@ object ForYouBuilder {
             )
             .take(NEVER_PLAYED_WINDOW)
         val picked = capPerArtist(
-            if (fresh.isEmpty()) fresh else List(fresh.size) { fresh[(it + dayIndex).mod(fresh.size)] },
+            ForYouRhythm.freshRotationOrder(fresh, cooledDiscoveries, dayIndex),
         )
         if (picked.isEmpty()) return null
         return ForYouSection(

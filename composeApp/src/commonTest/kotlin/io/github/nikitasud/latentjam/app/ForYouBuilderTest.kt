@@ -818,4 +818,98 @@ class ForYouBuilderTest {
         assertEquals(listOf(loved[0].id, loved[1].id, loved[2].id), anchors)
         assertEquals(ForYouRhythm.JOURNEY_POOL, anchors.size)
     }
+
+    @Test
+    fun `never played walks its strangers before the cooling tail`() {
+        val strangers = (1..8).map { track("new$it", artist = "New$it", added = 500) }
+        val cooledTracks = (1..8).map { track("cooled$it", artist = "Cooled$it", added = 900) }
+        val cooled = cooledTracks.mapTo(HashSet()) { it.id }
+        val result = ForYouBuilder.build(
+            library = strangers + cooledTracks,
+            stats = emptyMap(),
+            recentEvents = emptyList(),
+            nowMs = now,
+            cooledDiscoveries = cooled,
+            // Day fourteen lands on the last slot of the fifteen-track pool the row walks — the
+            // first slot of the cooled tail — so the walk used to open on yesterday's repeat
+            // while eight strangers sat at the front of the same list.
+            localDayOf = { 14L },
+        )
+
+        val shown = result.sections
+            .single { it.kind == ForYouSectionKind.NEVER_PLAYED }
+            .cards.map { it.track.id }
+        val strangerCount = shown.count { it !in cooled }
+        val firstCooled = shown.indexOfFirst { it in cooled }
+        assertTrue(strangerCount > 0, "the row offered nobody new: ${shown.map { it.value }}")
+        assertTrue(
+            firstCooled == -1 || firstCooled == strangerCount,
+            "a cooled repeat was shown ahead of a stranger: ${shown.map { it.value }}",
+        )
+    }
+
+    @Test
+    fun `a fresh daypart slot rotates strangers ahead of the cooling tail`() {
+        val proven = (1..3).map { track("proven$it", artist = "Proven$it") }
+        val cooled = track("cooled", artist = "Cooled")
+        val strangers = (1..5).map { track("new$it", artist = "New$it") }
+        val members = proven + listOf(cooled) + strangers
+        val stats = proven.associate { it.id to stats(plays = 5, last = now - day) }
+        val affinity = proven.associate {
+            it.id to ForYouRhythm.DaypartAffinity(weight = 4, plays = 4)
+        }
+
+        // The cooled track is the last entry of the pool, and this day index opened the walk
+        // exactly there — yesterday's repeat took the first fresh slot.
+        val row = ForYouRhythm.daypartRow(
+            affinity = affinity,
+            byId = members.associateBy { it.id },
+            worlds = listOf(LibraryWorld("Region", members)),
+            stats = stats,
+            used = emptySet(),
+            dayIndex = members.size - 1,
+            cooled = setOf(cooled.id),
+        )
+        val fresh = row.filter { (stats[it.id]?.plays ?: 0) == 0 }
+        assertEquals(ForYouRhythm.DAYPART_FRESH_SLOTS, fresh.size)
+        assertTrue(
+            fresh.none { it.id == cooled.id },
+            "a cooled repeat took a fresh slot: ${fresh.map { it.id.value }}",
+        )
+
+        // With fewer strangers than slots the tail still fills the row, and the stranger goes
+        // first: an empty slot helps nobody.
+        val thin = proven + listOf(cooled) + strangers.take(1)
+        val thinFresh = ForYouRhythm.daypartRow(
+            affinity = affinity,
+            byId = thin.associateBy { it.id },
+            worlds = listOf(LibraryWorld("Region", thin)),
+            stats = stats,
+            used = emptySet(),
+            dayIndex = 0,
+            cooled = setOf(cooled.id),
+        ).filter { (stats[it.id]?.plays ?: 0) == 0 }
+        assertEquals(listOf(strangers.first().id, cooled.id), thinFresh.map { it.id })
+    }
+
+    @Test
+    fun `the wildcard slot prefers a stranger to a repeat`() {
+        val anchor = track("anchor", artist = "Anchor")
+        val cooled = track("cooled", artist = "Cooled")
+        val strangers = (1..4).map { track("new$it", artist = "New$it") }
+        val world = LibraryWorld("Dormant", listOf(anchor, cooled) + strangers)
+        val stats = mapOf(anchor.id to stats(plays = 9, last = now - 30 * day))
+
+        // The cooled track sits last in the candidate pool, and this day index opened the walk
+        // exactly there — the serendipity slot went to a repeat.
+        val pick = ForYouRhythm.wildcard(
+            worlds = listOf(world),
+            stats = stats,
+            nowMs = now,
+            used = emptySet(),
+            dayIndex = 4,
+            cooled = setOf(cooled.id),
+        )
+        assertEquals(strangers.first().id, pick?.pick?.id)
+    }
 }
