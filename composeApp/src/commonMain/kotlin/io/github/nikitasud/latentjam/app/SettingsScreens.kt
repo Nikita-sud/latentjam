@@ -3869,7 +3869,6 @@ private fun EngineError.toUserMessage(): String = when (this) {
     is EngineError.BackendFailure -> stringResource(Res.string.engine_error_backend)
 }
 
-private const val MAX_VISIBLE_FAILURES = 5
 private const val ROUTE_SEPARATOR = "|"
 private const val IOS_MUSIC_LIBRARY_SOURCE_ID = "ios:music"
 private const val RESTORE_ALL_OPERATION_ID = "restore-all"
