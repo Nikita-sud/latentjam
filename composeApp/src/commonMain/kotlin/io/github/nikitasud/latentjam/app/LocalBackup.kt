@@ -19,6 +19,8 @@ import io.github.nikitasud.latentjam.playback.MAX_CROSSFADE_SECONDS
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /** File extension offered by the future platform document picker. The payload is always local. */
 internal const val LOCAL_BACKUP_FILE_EXTENSION: String = "ljbackup"
@@ -710,13 +712,29 @@ internal class LocalBackupService(
     private val library: MusicLibrary,
     private val smartExclusions: SmartExclusions,
 ) {
-    suspend fun exportEncoded(): String = LocalBackupCodec.encode(capture())
+    /**
+     * Builds the document for the picker. Encoding up to 64 Mi characters, and folding the library
+     * and the listening log into the snapshot it encodes, is CPU work: the settings screen calls
+     * this from its main-thread scope, so it runs on the default dispatcher. Every store read inside
+     * moves to the store's own IO dispatcher.
+     */
+    suspend fun exportEncoded(): String = withContext(Dispatchers.Default) {
+        LocalBackupCodec.encode(capture())
+    }
 
+    /**
+     * Applies a picked document. Decoding up to 64 Mi characters, resolving its references against
+     * the whole device library, and folding its sections is CPU work, so it runs on the default
+     * dispatcher instead of the caller's main thread. The stores written here move to their own IO
+     * dispatchers internally.
+     */
     suspend fun importEncoded(
         encoded: String,
         mode: LocalBackupRestoreMode,
         sections: LocalBackupSections = LocalBackupSections(),
-    ): LocalBackupRestoreReport = restore(LocalBackupCodec.decode(encoded), mode, sections)
+    ): LocalBackupRestoreReport = withContext(Dispatchers.Default) {
+        restore(LocalBackupCodec.decode(encoded), mode, sections)
+    }
 
     suspend fun capture(): LocalBackupSnapshot {
         val storedPlaylists = playlists.all()
