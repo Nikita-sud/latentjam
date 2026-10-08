@@ -7,16 +7,45 @@ import ComposeApp
 import Foundation
 
 /// Runs every SMART graph in-process. No audio, tags, or embeddings leave the device.
+///
+/// The host always constructs this object, so a failed ONNX Runtime initialization is stored and
+/// reported through the same returning error contract as a failed model load: the app starts
+/// without SMART instead of terminating.
 final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
-    private let runtime = OrtRuntime()
+    /// Null when ONNX Runtime itself failed to initialize; every entry point then reports
+    /// `runtimeError` before touching a session.
+    private let runtime: OrtRuntime?
+    /// Non-null exactly when `runtime` is null.
+    private let runtimeError: String?
     private var audio: OrtModel?
     private var semantic: OrtModel?
     private var text: OrtModel?
     private var state: OrtModel?
     private var scorer: OrtModel?
 
+    override init() {
+        do {
+            self.runtime = try OrtRuntime.create()
+            self.runtimeError = nil
+        } catch {
+            self.runtime = nil
+            self.runtimeError = error.localizedDescription
+        }
+        super.init()
+    }
+
+    /// Returns the shared runtime or throws the stored initialization failure, keeping a
+    /// process-wide ORT failure retryable for the caller instead of fatal for the process.
+    private func loadedRuntime() throws -> OrtRuntime {
+        guard let runtime else {
+            throw OrtError.message(runtimeError ?? "ONNX Runtime is unavailable")
+        }
+        return runtime
+    }
+
     func loadAudio() -> String? {
         do {
+            let runtime = try loadedRuntime()
             if audio == nil { audio = try runtime.loadModel(named: "mnv4_audio") }
             return nil
         } catch { return error.localizedDescription }
@@ -168,6 +197,7 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
 
     func loadSemantic() -> String? {
         do {
+            let runtime = try loadedRuntime()
             if semantic == nil {
                 semantic = try runtime.loadModel(named: "universal_semantic_head")
             }
@@ -203,6 +233,7 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
 
     func loadText() -> String? {
         do {
+            let runtime = try loadedRuntime()
             if text == nil { text = try runtime.loadModel(named: "text_encoder") }
             return nil
         } catch { return error.localizedDescription }
@@ -238,6 +269,7 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
 
     func loadPredictor() -> String? {
         do {
+            let runtime = try loadedRuntime()
             if state == nil { state = try runtime.loadModel(named: "predictor_state") }
             if scorer == nil { scorer = try runtime.loadModel(named: "predictor_scorer_n100") }
             return nil
@@ -487,22 +519,42 @@ private final class OrtRuntime {
     let environment: OpaquePointer
     let memoryInfo: OpaquePointer
 
-    init() {
-        api = OrtGetApiBase()!.pointee.GetApi(UInt32(ORT_API_VERSION))!
+    private init(
+        api: UnsafePointer<OrtApi>, environment: OpaquePointer, memoryInfo: OpaquePointer
+    ) {
+        self.api = api
+        self.environment = environment
+        self.memoryInfo = memoryInfo
+    }
+
+    /// Builds the shared environment without trapping: a missing API table or any CreateEnv /
+    /// CreateCpuMemoryInfo status is thrown as an `OrtError`, which the provider stores as its
+    /// initialization failure.
+    static func create() throws -> OrtRuntime {
+        guard let base = OrtGetApiBase(),
+              let api = base.pointee.GetApi(UInt32(ORT_API_VERSION)) else {
+            throw OrtError.message("ONNX Runtime API version \(ORT_API_VERSION) is unavailable")
+        }
         var environment: OpaquePointer?
         var memoryInfo: OpaquePointer?
         do {
-            try OrtRuntime.check(api, api.pointee.CreateEnv(
+            try Self.check(api, api.pointee.CreateEnv(
                 ORT_LOGGING_LEVEL_WARNING, "LatentJam", &environment
             ))
-            try OrtRuntime.check(api, api.pointee.CreateCpuMemoryInfo(
+            try Self.check(api, api.pointee.CreateCpuMemoryInfo(
                 OrtArenaAllocator, OrtMemTypeDefault, &memoryInfo
             ))
         } catch {
-            fatalError("ONNX Runtime initialization failed: \(error)")
+            // No instance is created, so `deinit` never runs for this attempt: release whatever
+            // the successful half of the sequence allocated.
+            if let environment { api.pointee.ReleaseEnv(environment) }
+            if let memoryInfo { api.pointee.ReleaseMemoryInfo(memoryInfo) }
+            throw OrtError.message("ONNX Runtime initialization failed: \(error.localizedDescription)")
         }
-        self.environment = environment!
-        self.memoryInfo = memoryInfo!
+        guard let environment, let memoryInfo else {
+            throw OrtError.message("ONNX Runtime initialization returned no state")
+        }
+        return OrtRuntime(api: api, environment: environment, memoryInfo: memoryInfo)
     }
 
     deinit {
@@ -532,7 +584,8 @@ private final class OrtRuntime {
         try path.withCString {
             try Self.check(api, api.pointee.CreateSession(environment, $0, options, &session))
         }
-        return OrtModel(runtime: self, session: session!)
+        guard let session else { throw OrtError.message("ONNX Runtime created no session") }
+        return OrtModel(runtime: self, session: session)
     }
 
     static func check(_ api: UnsafePointer<OrtApi>, _ status: OpaquePointer?) throws {
