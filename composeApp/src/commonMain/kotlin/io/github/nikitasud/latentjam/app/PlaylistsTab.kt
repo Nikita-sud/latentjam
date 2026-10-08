@@ -36,10 +36,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.QueueMusic
@@ -153,7 +153,12 @@ internal fun PlaylistsTabContent(
     // the top on every return "so the auto playlists stay visible", and the losing side of
     // that trade was every listener who had scrolled somewhere on purpose. The way back up is
     // the fast-travel button instead of a forced teleport.
-    val listState = remember { LazyListState() }
+    //
+    // A plain remember() did not hold that promise: the tabs live in a pager that keeps no page
+    // beyond the viewport (App.kt, beyondViewportPageCount = 0), so the offset died with the
+    // page it was remembered in. rememberLazyListState saves it inside the page's
+    // SaveableStateProvider and hands it back on return — the way the other tabs keep theirs.
+    val listState = rememberLazyListState()
     val haptics = LocalHapticFeedback.current
     val reduceMotion = rememberReduceMotion()
     val featuredPlaylists = remember(autoPlaylists) {
