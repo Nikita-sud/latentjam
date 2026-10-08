@@ -214,7 +214,16 @@ internal fun SearchScreen(
             val nowMs = epochMillis()
             val calculated = withContext(Dispatchers.Default) {
                 val context = currentCoroutineContext()
-                val snippets = searchLyrics(lyricDocuments, needle) { context.ensureActive() }
+                // A year or decade in the query is a filter, not lyric text: "серебро 1985" must
+                // find the line "серебро" and keep it to 1985, so the texts are searched for the
+                // cleaned phrase the year branch recurses on. hybridSearch asks the tier for
+                // whatever phrase its level searches, so the map below answers both it and the
+                // snippet shown beside a result.
+                val snippetsByPhrase = mutableMapOf<String, Map<TrackId, String>>()
+                fun snippetsFor(phrase: String): Map<TrackId, String> = snippetsByPhrase.getOrPut(phrase) {
+                    searchLyrics(lyricDocuments, phrase) { context.ensureActive() }
+                }
+                val snippets = snippetsFor(lyricSearchPhrase(needle))
                 val tracks = hybridSearch(
                     index = index,
                     query = needle,
@@ -222,7 +231,7 @@ internal fun SearchScreen(
                     aliasMatches = entityResolver::matches,
                     stats = trackStats,
                     nowMs = nowMs,
-                    lyricMatches = snippets.keys,
+                    lyrics = LyricHits { phrase -> snippetsFor(phrase).keys },
                 ) {
                     context.ensureActive()
                 }
@@ -698,7 +707,32 @@ private fun SearchLoading() {
     }
 }
 
-/** Exact search stays authoritative; cosine hits only expand it when the model is confident. */
+/**
+ * The lyric tier of one search level: the tracks whose lyrics contain the phrase that level is
+ * looking for. A lookup rather than a set, because a year or decade in a query is a filter and not
+ * lyric text: the year branch recurses on the cleaned subject, and the texts must be searched for
+ * that subject, with its hits passing the same year filter as every other candidate.
+ */
+internal fun interface LyricHits {
+    fun matching(phrase: String): Set<TrackId>
+}
+
+/**
+ * The phrase whose lyrics answer [query]: a year or decade in the query is a filter, not lyric
+ * text, so "серебро 1985" searches the texts for "серебро" — the subject [hybridSearch]'s year
+ * branch itself recurses on — and then keeps those hits to 1985. A time-only query ("80s") keeps
+ * the query as written: it has no words to look for, and the year branch is what answers it.
+ */
+internal fun lyricSearchPhrase(query: String): String =
+    SearchYears.parse(query)?.subject?.takeIf { it.isNotBlank() } ?: query
+
+/**
+ * Exact search stays authoritative; cosine hits only expand it when the model is confident.
+ *
+ * [lyricMatches] answers for the query as written, which is all a caller holding one pre-matched
+ * phrase can say; pass [lyrics] instead when the texts can be looked up again, so a query naming a
+ * year or decade has its cleaned subject searched.
+ */
 internal fun hybridSearch(
     songs: List<TrackDescriptor>,
     query: String,
@@ -707,6 +741,7 @@ internal fun hybridSearch(
     stats: Map<TrackId, TrackStats> = emptyMap(),
     nowMs: Long = 0L,
     lyricMatches: Set<TrackId> = emptySet(),
+    lyrics: LyricHits? = null,
 ): List<TrackDescriptor> = hybridSearch(
     index = SearchIndex.build(songs),
     query = query,
@@ -714,7 +749,7 @@ internal fun hybridSearch(
     aliasMatches = aliasMatches,
     stats = stats,
     nowMs = nowMs,
-    lyricMatches = lyricMatches,
+    lyrics = lyrics ?: LyricHits { lyricMatches },
 )
 
 private fun hybridSearch(
@@ -724,7 +759,7 @@ private fun hybridSearch(
     aliasMatches: (String, String?) -> Boolean,
     stats: Map<TrackId, TrackStats> = emptyMap(),
     nowMs: Long = 0L,
-    lyricMatches: Set<TrackId> = emptySet(),
+    lyrics: LyricHits = LyricHits { emptySet() },
     readYears: Boolean = true,
     yearFilter: SearchYears? = null,
     checkCancelled: () -> Unit = {},
@@ -751,8 +786,10 @@ private fun hybridSearch(
                 )
                 .toList()
         } else {
+            // The recursion searches the cleaned subject and asks the lyric tier for that same
+            // subject, so "серебро 1985" looks for "серебро" instead of the whole phrase.
             hybridSearch(
-                index, years.subject, semantic, aliasMatches, stats, nowMs, lyricMatches, readYears = false,
+                index, years.subject, semantic, aliasMatches, stats, nowMs, lyrics, readYears = false,
                 yearFilter = years,
                 checkCancelled = checkCancelled,
             )
@@ -792,6 +829,10 @@ private fun hybridSearch(
         .mapNotNull { index.byId[it.trackId] }
         .take(SEMANTIC_RESULT_LIMIT)
 
+    // The lyric tier answers for this level's own phrase: under a year query that is the cleaned
+    // subject, and its hits pass the year filter below like any other candidate.
+    val lyricHits = lyrics.matching(needle)
+
     // An alias hit is knowledge, not chance: "tsoi" resolving to Кино through the MusicBrainz
     // member index is an exact identification and belongs above typo-family and bare-substring
     // guesses — the reported failure had every Кино track buried under "Can\u2019t Stop"-grade
@@ -799,7 +840,7 @@ private fun hybridSearch(
     return (
         strong.asSequence().map { it.track } +
             (if (namesRecording) emptySequence() else entities) +
-            index.songs.asSequence().filter { it.id in lyricMatches } +
+            index.songs.asSequence().filter { it.id in lyricHits } +
             (if (namesRecording) emptySequence() else weak.asSequence().map { it.track }) +
             expanded
         )

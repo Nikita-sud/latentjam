@@ -26,6 +26,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.random.Random
 import kotlin.time.TimeSource
 
@@ -80,6 +81,16 @@ internal interface TagWriteBackend<C> {
      */
     suspend fun look(keys: List<String>, paths: Map<String, String>): Map<String, FileLook>? = null
     suspend fun open(key: String): WriteOpen<C>
+
+    /**
+     * Tells the platform's media index that [keys]' bytes changed, so a library reload after the
+     * request is reported reads the new tags. Called once per finished request, with every one of its
+     * files already closed and recorded in the journal. The coordinator starts it on the scope its
+     * owner keeps and gives it only a short grace before reporting (see [TagWriteCoordinator]), so an
+     * implementation must issue its work before it starts waiting: whatever the grace does not cover
+     * goes on in the background, and the report, the queue and the editor's sheet are never held for
+     * a whole batch's reindex. A scan cut short costs the index, never a file.
+     */
     suspend fun rescan(keys: List<String>)
 
     /**
@@ -807,18 +818,33 @@ internal class TagWriteCoordinator<C>(
         val changed = current.results
             .filter { it.status in CHANGED || (current.interrupted && it.status == FileWriteStatus.UNCHANGED) }
             .map { it.key }
-        if (changed.isNotEmpty()) {
-            try {
-                backend.rescan(changed)
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                // The files are saved; the index catches up at its next scan.
-            }
-        }
+        // Started on the scope its owner keeps, which outlives the editor, and only then waited for,
+        // so no grace expiring can keep the scan from being issued. A whole batch's reindex is not
+        // what the report waits for: the scanner takes about 50 ms per file, so a request naming
+        // thousands of them used to hold the report, the queue and the sheet for minutes.
+        val scan = if (changed.isEmpty()) null else scope.launch { rescan(changed) }
+        // What the scan of a small batch does fit in: the library reload the report starts then
+        // already reads the new tags, which on Android only the scanner puts into the index. A scan
+        // that does not finish by then goes on in the background: the report is published without it,
+        // and this request's files were closed and journalled before any of this ran.
+        if (scan != null) withTimeoutOrNull(RESCAN_GRACE_MS) { scan.join() }
         update(requests.first().copy(stage = TagWriteStage.COMPLETE, batch = emptyList()))
         mutableProgress.value = null
         mutableCompleted.value = requests.first()
+    }
+
+    /**
+     * The reindex [complete] started. A backend that fails must not fail the finished request it
+     * follows, and neither must a failure reach the owner's scope as an uncaught one.
+     */
+    private suspend fun rescan(keys: List<String>) {
+        try {
+            backend.rescan(keys)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // The files are saved; the index catches up at its next scan.
+        }
     }
 
     private sealed interface Attempt<out C> {
@@ -890,6 +916,16 @@ internal class TagWriteCoordinator<C>(
 
     private companion object {
         const val CONSENT_LIMIT = 2_000
+
+        /**
+         * The most a finished request waits for the index to catch up with its files: enough for the
+         * scan of a small batch, so the library reload that follows the report reads the new tags,
+         * and fixed rather than growing with the batch, so a request naming thousands of files is
+         * never held back by the scanner. Whatever is left of the scan when this expires goes on in
+         * the coordinator's scope: see `complete()`.
+         */
+        const val RESCAN_GRACE_MS = 1_500L
+
         val WAITING = setOf(TagWriteStage.WAIT_PERMISSION, TagWriteStage.WAIT_FILE, TagWriteStage.WAIT_BATCH)
         val OFFERING = setOf(TagWriteStage.OFFER_PERMISSION, TagWriteStage.OFFER_FILE, TagWriteStage.OFFER_BATCH)
         val RUNNABLE = setOf(TagWriteStage.READY, TagWriteStage.WRITING)

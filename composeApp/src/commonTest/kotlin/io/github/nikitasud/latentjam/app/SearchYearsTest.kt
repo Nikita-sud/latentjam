@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -11,6 +13,12 @@ import kotlin.test.assertNull
 class SearchYearsTest {
 
     private fun years(first: Int, last: Int = first, subject: String = "") = SearchYears(first, last, subject)
+
+    private fun track(id: String, title: String, year: Int) = TrackDescriptor(
+        id = TrackId(id),
+        title = title,
+        year = year,
+    )
 
     @Test
     fun `a year reads the same in any of the ways people type it`() {
@@ -49,5 +57,58 @@ class SearchYearsTest {
     fun `numbers that are names are not years`() {
         listOf("50 Cent", "Adele 21", "blink-182", "10cc", "20th Century Fox", "99 Luftballons", "1985s", "3000", "80")
             .forEach { assertNull(SearchYears.parse(it), it) }
+    }
+
+    @Test
+    fun `lyrics answer the cleaned phrase rather than the year`() {
+        assertEquals("silver", lyricSearchPhrase("silver 1985"))
+        assertEquals("silver", lyricSearchPhrase("silver 80s"))
+        assertEquals("кино", lyricSearchPhrase("кино 80-х"))
+        assertEquals("Modern Talking", lyricSearchPhrase("Modern Talking 80s"))
+        // A time-only query has no words to look for: the year branch enumerates the library.
+        assertEquals("1985", lyricSearchPhrase("1985"))
+        assertEquals("песни 80-х", lyricSearchPhrase("песни 80-х"))
+        // Without a year the query itself is the phrase.
+        assertEquals("silver moon", lyricSearchPhrase("silver moon"))
+    }
+
+    /**
+     * The lyric tier is asked for the phrase of the level that is running: the year branch recurses
+     * on the cleaned subject, so its hits are found by "silver" and then kept to those years by the
+     * same filter every other candidate passes. Searching the texts for the whole "silver 1985"
+     * phrase finds nothing at all.
+     */
+    @Test
+    fun `a year query finds lyric hits by the subject and keeps them in that year`() {
+        val eighties = track("eighties", "Eighties", 1985)
+        val modern = track("modern", "Modern", 2015)
+        val documents = mapOf(
+            eighties.id to LyricSearchDocument.build("a distant silver moon")!!,
+            modern.id to LyricSearchDocument.build("a distant silver moon")!!,
+        )
+        val lyrics = LyricHits { phrase -> searchLyrics(documents, phrase).keys }
+
+        for (query in listOf("silver 1985", "silver 80s", "silver 80-х")) {
+            assertEquals(
+                listOf(eighties.id),
+                hybridSearch(listOf(modern, eighties), query, emptyList(), lyrics = lyrics).map { it.id },
+                query,
+            )
+        }
+    }
+
+    @Test
+    fun `a lyric hit from another year does not answer a year query`() {
+        val modern = track("modern", "Modern", 2015)
+        val documents = mapOf(modern.id to LyricSearchDocument.build("a distant silver moon")!!)
+        val lyrics = LyricHits { phrase -> searchLyrics(documents, phrase).keys }
+
+        // Nothing is from 1985, so the year branch returns nothing and the search falls back to
+        // reading the number as a name ("Taylor Swift 1989"): the phrase is then the whole
+        // "silver 1985", which no text holds — a 2015 song must not answer just for saying "silver".
+        assertEquals(
+            emptyList(),
+            hybridSearch(listOf(modern), "silver 1985", emptyList(), lyrics = lyrics).map { it.id },
+        )
     }
 }

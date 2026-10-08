@@ -377,7 +377,13 @@ private class AndroidTagWriteBackend(private val context: Context) : TagWriteBac
         null
     }
 
-    /** One scan for the whole batch, waited for so a library refresh after it reads the new tags. */
+    /**
+     * One scan for the whole batch, issued before anything is waited for. The coordinator starts this
+     * on the scope its owner keeps and gives it a short grace, so a batch is not held back by its
+     * whole reindex (see [TagWriteBackend.rescan]): paths are resolved off the main thread, the scan
+     * is handed to the platform in one call, and the wait below only bounds this call — a scanner
+     * that goes quiet leaves a coroutine waiting, not the report, the queue or the editor's sheet.
+     */
     override suspend fun rescan(keys: List<String>) {
         val paths = withContext(Dispatchers.IO) { keys.mapNotNull { filePathOf(context, Uri.parse(it)) } }
         if (paths.isEmpty()) return
@@ -561,4 +567,11 @@ internal fun filePathOf(context: Context, uri: Uri): String? = runCatching {
         ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
 }.getOrNull()
 
+/**
+ * How long [AndroidTagWriteBackend.rescan] waits for a batch's scanner callbacks: at least this, and
+ * about 50 ms per file for a bigger batch. The scan is already with the platform by then and the
+ * report no longer waits for it (see the coordinator's grace), so this bounds one background
+ * coroutine, not the user: a callback that never arrives is waited out here, and the index catches
+ * up at the file's next scan.
+ */
 private const val SCAN_TIMEOUT_MS = 10_000L
