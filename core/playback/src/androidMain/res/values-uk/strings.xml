@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+-->
+<resources>
+    <string name="media_session_shuffle_on">Увімкнути перемішування</string>
+    <string name="media_session_shuffle_smart_on">Увімкнути перемішування SMART</string>
+    <string name="media_session_shuffle_off">Вимкнути перемішування</string>
+    <string name="media_session_repeat_all">Повторювати чергу</string>
+    <string name="media_session_repeat_one">Повторювати один трек</string>
+    <string name="media_session_repeat_off">Вимкнути повтор</string>
+</resources>

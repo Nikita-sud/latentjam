@@ -124,6 +124,23 @@ internal class IosPlaybackController(
     private var mediaItemStarted: Boolean = false
 
     /**
+     * Uptime of the MediaPlayer start that was requested and not yet confirmed, or null once the
+     * Playing notification arrives (or the request is called off).
+     *
+     * `play()` only asks Apple's player to start: an item that cannot be fetched stays Stopped and
+     * never posts Playing at all, so this is what [reconcileMediaPlayerStart] measures its patience
+     * against instead of leaving [playing] true over silence.
+     */
+    private var mediaPlayerStartRequestedAt: Double? = null
+
+    /**
+     * Rows whose MediaPlayer start was never confirmed, tried once each like the Android
+     * controller's failed-recovery chain: without it Repeat all would retry an unplayable queue
+     * forever. Cleared when a start is confirmed or a new queue is installed.
+     */
+    private val mediaStartRefusedIds = mutableSetOf<TrackId>()
+
+    /**
      * Identifies the native item currently owned by the controller.
      *
      * Both native backends can report completion after a replacement has already been queued.
@@ -296,6 +313,9 @@ internal class IosPlaybackController(
                 putAll(smartPlanPositions)
             }
             smartRemovedIds.clear()
+            // A new queue is a new request: rows that refused to start under the old one get their
+            // chance again instead of being skipped by the recovery chain.
+            mediaStartRefusedIds.clear()
 
             when (mode) {
                 // SMART owns its queue: begin with the tapped track alone and let
@@ -731,6 +751,8 @@ internal class IosPlaybackController(
         // A resume installs a new queue, so the removals booked against the old one go with it —
         // exactly as Android's restoreQueue does. Restored rows were never removed from this queue.
         smartRemovedIds.clear()
+        // Same for the rows whose start failed: none of them is this queue's row.
+        mediaStartRefusedIds.clear()
         queueIndex = restorePlan.currentIndex
         queueGeneration++
         val refillAfterPendingInvalidation = mode == ShuffleMode.SMART &&
@@ -959,6 +981,7 @@ internal class IosPlaybackController(
     private fun loadFileItem(url: NSURL, autoPlay: Boolean): Boolean {
         val itemGeneration = ++playbackItemGeneration
         mediaItemStarted = false
+        mediaPlayerStartRequestedAt = null
         // Ignore the stop notification from the backend we are replacing.
         activeBackend = PlaybackBackend.FILE
         mediaPlayer.stop()
@@ -987,6 +1010,7 @@ internal class IosPlaybackController(
         audioEngine.stop()
         audioEngine.setOutputSupportsEqualizer(false)
         mediaItemStarted = false
+        mediaPlayerStartRequestedAt = null
         mediaPlayer.stop()
         // A one-item native queue is an implementation detail. Never let Music.app's remembered
         // repeat preference consume its end event before the shared queue controller sees it.
@@ -998,6 +1022,10 @@ internal class IosPlaybackController(
             // The Playing notification, not this request, proves the new native item started.
             // Keeping this false closes the window in which a delayed Stopped notification from
             // the queue we just replaced could be mistaken for completion of the new item.
+            //
+            // The stamp is what reconcileMediaPlayerStart waits out: an item Apple cannot fetch
+            // never confirms, and the optimistic flag below would otherwise outlive the sound.
+            mediaPlayerStartRequestedAt = uptimeSeconds()
             mediaPlayer.play()
             playing = true
         } else {
@@ -1051,6 +1079,7 @@ internal class IosPlaybackController(
         pendingAdvance.invalidate()
         ++playbackItemGeneration
         mediaItemStarted = false
+        mediaPlayerStartRequestedAt = null
         // Set first so the MediaPlayer stop notification cannot advance the queue being repaired.
         activeBackend = PlaybackBackend.FILE
         audioEngine.stop()
@@ -1240,10 +1269,19 @@ internal class IosPlaybackController(
             if (activeBackend == PlaybackBackend.MEDIA_LIBRARY) {
                 when (mediaPlayer.playbackState) {
                     MPMusicPlaybackState.MPMusicPlaybackStatePlaying -> {
-                        mediaItemStarted = true
-                        playing = true
-                        updateTicker()
-                        pushState()
+                        // A Playing state that arrives after the start was called off belongs to the
+                        // row we gave up on, not to the replacement (see
+                        // reconcileMediaPlayerStart), so it only counts while one is awaited.
+                        if (mediaPlayerStartRequestedAt != null || mediaItemStarted) {
+                            mediaItemStarted = true
+                            // A start that did happen ends the failed-recovery chain: a row that
+                            // refused earlier gets its chance again in a later pass.
+                            mediaStartRefusedIds.clear()
+                            mediaPlayerStartRequestedAt = null
+                            playing = true
+                            updateTicker()
+                            pushState()
+                        }
                     }
                     MPMusicPlaybackState.MPMusicPlaybackStatePaused,
                     -> {
@@ -1296,7 +1334,9 @@ internal class IosPlaybackController(
             PlaybackBackend.FILE -> audioEngine.play()
             PlaybackBackend.MEDIA_LIBRARY -> {
                 // Confirmed by wireMediaPlayer's Playing state. Setting it before `play()` would
-                // let a queued stop from the previous item advance this replacement prematurely.
+                // let a queued stop from the previous item advance this replacement prematurely;
+                // the stamp is what reconcileMediaPlayerStart waits out if no Playing follows.
+                mediaPlayerStartRequestedAt = uptimeSeconds()
                 mediaPlayer.play()
                 true
             }
@@ -1440,7 +1480,9 @@ internal class IosPlaybackController(
      *
      * Only `Paused` counts: `WaitingToPlayAtSpecifiedRate` is a normal step on
      * the way into playback, and treating it as stopped would flicker the
-     * button on every track change.
+     * button on every track change. `Stopped` is a start that never happened rather
+     * than a system pause, so it is settled by [reconcileMediaPlayerStart] after a grace
+     * window instead of here.
      */
     private fun reconcilePlayingState() {
         val backendPaused = when (activeBackend) {
@@ -1460,7 +1502,59 @@ internal class IosPlaybackController(
             // The ticker stops here, so this is the last chance to tell the lock
             // screen the rate is now zero.
             invalidateNowPlayingInfo()
+            return
         }
+        if (activeBackend == PlaybackBackend.MEDIA_LIBRARY) reconcileMediaPlayerStart()
+    }
+
+    /**
+     * Gives up on a MediaPlayer start that never happened.
+     *
+     * `mediaPlayer.play()` only asks: an item Apple cannot fetch (an undownloaded or protected
+     * Music-library item) leaves the backend Stopped and never posts the Playing notification that
+     * proves a start, while [playing] was already set optimistically — so without this the
+     * transport shows Pause over silence and the queue never advances by itself. This is the iOS
+     * counterpart of the Android controller's onPlayerError recovery. Once the grace window since
+     * the request has passed, the row is dropped and the queue moves on to the next one that has
+     * not refused yet; when none is left, playback parks in an honest paused state rather than
+     * looping over a queue nothing in it can play.
+     */
+    private fun reconcileMediaPlayerStart() {
+        val requestedAt = mediaPlayerStartRequestedAt ?: return
+        if (!playing || mediaItemStarted) return
+        // A Stopped state alone is not proof: the stop of the item we replaced arrives here too,
+        // which is why the wait is measured rather than reacted to.
+        if (mediaPlayer.playbackState != MPMusicPlaybackState.MPMusicPlaybackStateStopped) return
+        if (uptimeSeconds() - requestedAt < MEDIA_PLAYER_START_GRACE_S) return
+
+        queue.getOrNull(queueIndex)?.let { mediaStartRefusedIds += it.id }
+        pendingAdvance.invalidate()
+        // Nothing this row reports later can belong to the attempt that just ended.
+        ++playbackItemGeneration
+        mediaPlayerStartRequestedAt = null
+        invalidateNowPlayingInfo()
+        val wrap = repeat == RepeatMode.ALL
+        val recoverable = playbackQueueTraversal(
+            queueSize = queue.size,
+            startIndex = queueIndex + 1,
+            direction = 1,
+            wrap = wrap,
+        ).any { index -> queue.getOrNull(index)?.id?.let { it !in mediaStartRefusedIds } == true }
+        if (!recoverable) {
+            // Every reachable row refused once: park on the silent row with honest state, as the
+            // Android chain does when its candidates run out, and leave the user a Play that may
+            // retry it. The native player is parked too, so an item Apple starts late cannot sound
+            // under a paused transport.
+            pauseActiveBackend()
+            playing = false
+            deactivateAudioSession()
+            updateTicker()
+            pushState()
+            return
+        }
+        // Keep the intent: a row that cannot play is skipped, not turned into a stop. `playing`
+        // stays true across the advance, so the replacement starts playing as well.
+        advance(StartCause.AUTO_ADVANCE)
     }
 
     /** Forces the next [pushState] to re-publish lock-screen metadata. */
@@ -1682,6 +1776,13 @@ internal class IosPlaybackController(
 
         /** Seek-bar refresh cadence while playing. */
         const val TICKER_INTERVAL_MS = 500L
+
+        /**
+         * How long the MediaPlayer backend may stay Stopped after `play()` before the start counts
+         * as refused: long enough for a cloud item to begin, short enough not to sit in silence
+         * with a Pause button on screen.
+         */
+        const val MEDIA_PLAYER_START_GRACE_S = 5.0
 
         /** Fine enough for a 160 ms fade to sound like one movement, not steps. */
         const val TRANSPORT_FADE_TICK_MS = 20L

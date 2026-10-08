@@ -372,10 +372,12 @@ struct Kernel {
   std::vector<int32_t> sums;       // other CPUs, per channel: each channel's sum of weights
   std::vector<float> blockSums;    // other CPUs, blocks: the zero-point sums the model carries
   size_t stride = 0;
+  size_t cachedK = 0;              // the K values/repacked were built for: WeightBytes cannot tell 48 from 64
 
   void Unpack(const uint8_t* w, size_t k) {
     if (block == 0) UnpackChannels(w, n, k, values, scales, bias);
     else UnpackBlocks(w, n, k, values, scales, bias, blockSums);
+    cachedK = k;
   }
   void Decode(const uint8_t* w, size_t k);
   void Multiply(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz, const uint8_t* w, float ys, int32_t yz,
@@ -397,21 +399,22 @@ void Kernel::Decode(const uint8_t* w, size_t k) {
       sums[o] += q[o * k + c];
     }
   }
+  cachedK = k;
 }
 
 void Kernel::Multiply(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz, const uint8_t* w, float ys,
                       int32_t yz, uint8_t* y) {
   if (path == Path::kPortable && block == 0) {
-    if (values.empty()) Decode(w, k);
+    if (cachedK != k) Decode(w, k);
     return Channels(x, m, k, xs, xz, 1.0f / ys, yz, y);
   }
   if (path == Path::kPortable) {
-    if (values.empty()) Unpack(w, k);
+    if (cachedK != k) Unpack(w, k);
     return Blocks(x, m, k, xs, xz, 1.0f / ys, yz, y);
   }
 #if defined(__aarch64__)
   const bool i8mm = path == Path::kI8mm;
-  if (!i8mm && repacked.empty()) {
+  if (!i8mm && cachedK != k) {
     Unpack(w, k);
     repacked.resize(WeightBytes(n, k, block));
     PackWeights(n, k, block, kDotKr, values.data(), scales.data(), bias.data(), repacked.data());
@@ -455,6 +458,9 @@ void Kernel::Multiply(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz
 void Kernel::Channels(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz, float inverse, int32_t yz,
                       uint8_t* y) {
   const int32_t offset = static_cast<int32_t>(kCenter) - static_cast<int32_t>(xz);
+  // Each row holds `stride` inputs and the cache is keyed on K, so a stale decode is impossible; the clamp
+  // is the guard that would keep one from writing past the scratch vector if it ever came back.
+  const size_t covered = std::min(k, stride);
   if (scratch.rows.size() < kChunk * stride) scratch.rows.resize(kChunk * stride);
   if (scratch.results.size() < kChunk * n) scratch.results.resize(kChunk * n);
   uint8_t* rows = scratch.rows.data();
@@ -466,7 +472,7 @@ void Kernel::Channels(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz
     for (size_t r = 0; r < count; ++r) {
       const uint8_t* src = x + (m0 + r) * k;
       uint8_t* dst = rows + r * stride;
-      for (size_t c = 0; c < k; ++c) dst[c] = static_cast<uint8_t>(src[c] ^ kCenter);
+      for (size_t c = 0; c < covered; ++c) dst[c] = static_cast<uint8_t>(src[c] ^ kCenter);
     }
     for (size_t o0 = 0; o0 < n; o0 += kTileChannels) {
       const int8_t* weights = values.data() + o0 * stride;

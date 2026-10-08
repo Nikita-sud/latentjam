@@ -514,6 +514,24 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
 private typealias FloatInput = (name: String, values: [Float], shape: [Int64])
 private typealias Int64Input = (name: String, values: [Int64], shape: [Int64])
 
+/// One input exactly as the session declares it; shape entries below zero are dynamic dimensions.
+private struct OrtInputSignature {
+    let elementType: ONNXTensorElementDataType
+    let shape: [Int64]
+}
+
+/// Names the element types this file builds tensors with, for refusal messages.
+private func ortElementTypeName(_ type: ONNXTensorElementDataType) -> String {
+    if type.rawValue == ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT.rawValue { return "float32" }
+    if type.rawValue == ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64.rawValue { return "int64" }
+    return "element type \(type.rawValue)"
+}
+
+/// "[1, 4, 961]" for refusal messages; an empty shape is the scalar "[]".
+private func ortShapeText(_ shape: [Int64]) -> String {
+    "[" + shape.map { String($0) }.joined(separator: ", ") + "]"
+}
+
 private final class OrtRuntime {
     let api: UnsafePointer<OrtApi>
     let environment: OpaquePointer
@@ -585,7 +603,10 @@ private final class OrtRuntime {
             try Self.check(api, api.pointee.CreateSession(environment, $0, options, &session))
         }
         guard let session else { throw OrtError.message("ONNX Runtime created no session") }
-        return OrtModel(runtime: self, session: session)
+        let model = OrtModel(runtime: self, session: session)
+        // A session whose declared inputs cannot be read cannot be run safely either.
+        try model.captureInputs()
+        return model
     }
 
     static func check(_ api: UnsafePointer<OrtApi>, _ status: OpaquePointer?) throws {
@@ -600,6 +621,8 @@ private final class OrtRuntime {
 private final class OrtModel {
     private unowned let runtime: OrtRuntime
     private let session: OpaquePointer
+    /// Inputs the graph declares, by name; captured once so every run can check what it feeds.
+    private var inputs: [String: OrtInputSignature] = [:]
 
     init(runtime: OrtRuntime, session: OpaquePointer) {
         self.runtime = runtime
@@ -608,6 +631,48 @@ private final class OrtModel {
 
     deinit { runtime.api.pointee.ReleaseSession(session) }
 
+    /// Records the declared input names, element types, and shapes.
+    ///
+    /// These are read from the graph instead of being assumed from the constants on either side of
+    /// the Kotlin/Swift bridge, so a model that does not match them is refused before a single
+    /// tensor is built. `fileprivate` because `OrtRuntime.loadModel` performs the capture.
+    fileprivate func captureInputs() throws {
+        let api = runtime.api
+        var inputCount = 0
+        try OrtRuntime.check(api, api.pointee.SessionGetInputCount(session, &inputCount))
+        var allocator: UnsafeMutablePointer<OrtAllocator>?
+        try OrtRuntime.check(api, api.pointee.GetAllocatorWithDefaultOptions(&allocator))
+        guard let allocator else { throw OrtError.message("ONNX Runtime returned no allocator") }
+        var signatures: [String: OrtInputSignature] = [:]
+        for index in 0..<inputCount {
+            var name: UnsafeMutablePointer<CChar>?
+            try OrtRuntime.check(
+                api, api.pointee.SessionGetInputName(session, index, allocator, &name)
+            )
+            guard let name else {
+                throw OrtError.message("ONNX Runtime returned no name for input \(index)")
+            }
+            defer { _ = api.pointee.AllocatorFree(allocator, UnsafeMutableRawPointer(name)) }
+            var typeInfo: OpaquePointer?
+            try OrtRuntime.check(api, api.pointee.SessionGetInputTypeInfo(session, index, &typeInfo))
+            guard let typeInfo else {
+                throw OrtError.message("ONNX Runtime returned no type for input \(index)")
+            }
+            defer { api.pointee.ReleaseTypeInfo(typeInfo) }
+            var tensorInfo: OpaquePointer?
+            try OrtRuntime.check(api, api.pointee.CastTypeInfoToTensorInfo(typeInfo, &tensorInfo))
+            let inputName = String(cString: name)
+            guard let tensorInfo else {
+                throw OrtError.message("Model input '\(inputName)' is not a tensor")
+            }
+            signatures[inputName] = OrtInputSignature(
+                elementType: try Self.tensorElementType(api, info: tensorInfo),
+                shape: try Self.tensorDimensions(api, info: tensorInfo)
+            )
+        }
+        inputs = signatures
+    }
+
     func run(
         floats: [FloatInput],
         int64s: [Int64Input],
@@ -615,6 +680,18 @@ private final class OrtModel {
         outputCount: Int
     ) throws -> [Float] {
         let api = runtime.api
+        for input in floats {
+            try checkInput(
+                name: input.name, shape: input.shape,
+                elementType: ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT
+            )
+        }
+        for input in int64s {
+            try checkInput(
+                name: input.name, shape: input.shape,
+                elementType: ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64
+            )
+        }
         var values: [OpaquePointer?] = []
         var allocations: [UnsafeMutableRawPointer] = []
         defer {
@@ -686,12 +763,110 @@ private final class OrtModel {
         }
         guard let outputValue else { throw OrtError.message("Model returned no output") }
         defer { api.pointee.ReleaseValue(outputValue) }
+        // The caller's constant says how many floats it expects; the graph says how many exist.
+        // Read the graph's answer first, and never hand back a buffer sized by the constant alone.
+        let elementCount = try Self.checkedElementCount(
+            api, value: outputValue, name: output, expected: outputCount
+        )
         var raw: UnsafeMutableRawPointer?
         try OrtRuntime.check(api, api.pointee.GetTensorMutableData(outputValue, &raw))
         guard let floats = raw?.assumingMemoryBound(to: Float.self) else {
-            throw OrtError.message("Model output was not float32")
+            throw OrtError.message("Model output '\(output)' was not float32")
         }
-        return Array(UnsafeBufferPointer(start: floats, count: outputCount))
+        return Array(UnsafeBufferPointer(start: floats, count: elementCount))
+    }
+
+    /// Verifies one tensor against the graph's declared input: a type or shape that drifted from
+    /// the bundled model has to fail here, named, rather than inside ONNX Runtime.
+    private func checkInput(
+        name: String, shape: [Int64], elementType: ONNXTensorElementDataType
+    ) throws {
+        guard let declared = inputs[name] else {
+            throw OrtError.message("Model has no input named '\(name)'")
+        }
+        guard declared.elementType.rawValue == elementType.rawValue else {
+            throw OrtError.message(
+                "Model input '\(name)' is \(ortElementTypeName(declared.elementType)), " +
+                    "expected \(ortElementTypeName(elementType))"
+            )
+        }
+        guard declared.shape.count == shape.count else {
+            throw OrtError.message(
+                "Model input '\(name)' has rank \(declared.shape.count) " +
+                    "\(ortShapeText(declared.shape)), given rank \(shape.count) \(ortShapeText(shape))"
+            )
+        }
+        for index in shape.indices where declared.shape[index] >= 0 && declared.shape[index] != shape[index] {
+            throw OrtError.message(
+                "Model input '\(name)' expects shape \(ortShapeText(declared.shape)), " +
+                    "given \(ortShapeText(shape))"
+            )
+        }
+    }
+
+    /// Returns the element count the output tensor really has, after checking its element type and
+    /// shape against the constants the caller built its request from. Android refuses a model whose
+    /// embedding size differs with a typed backend failure; the error thrown here reaches the same
+    /// place, and no memory outside the tensor is ever read.
+    private static func checkedElementCount(
+        _ api: UnsafePointer<OrtApi>, value: OpaquePointer, name: String, expected: Int
+    ) throws -> Int {
+        var info: OpaquePointer?
+        try OrtRuntime.check(api, api.pointee.GetTensorTypeAndShape(value, &info))
+        guard let info else {
+            throw OrtError.message("Model returned no shape for output '\(name)'")
+        }
+        defer { api.pointee.ReleaseTensorTypeAndShapeInfo(info) }
+        let elementType = try tensorElementType(api, info: info)
+        guard elementType.rawValue == ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT.rawValue else {
+            throw OrtError.message(
+                "Model output '\(name)' is \(ortElementTypeName(elementType)), expected float32"
+            )
+        }
+        let shape = try tensorDimensions(api, info: info)
+        var count = 1
+        for dimension in shape {
+            guard dimension >= 0 else {
+                throw OrtError.message(
+                    "Model output '\(name)' kept an unresolved dimension \(ortShapeText(shape))"
+                )
+            }
+            let (product, overflow) = count.multipliedReportingOverflow(by: Int(dimension))
+            guard !overflow else {
+                throw OrtError.message("Model output '\(name)' is too large: \(ortShapeText(shape))")
+            }
+            count = product
+        }
+        guard count == expected else {
+            throw OrtError.message(
+                "Model output '\(name)' has \(count) elements \(ortShapeText(shape)), " +
+                    "expected \(expected)"
+            )
+        }
+        return count
+    }
+
+    private static func tensorElementType(
+        _ api: UnsafePointer<OrtApi>, info: OpaquePointer
+    ) throws -> ONNXTensorElementDataType {
+        var elementType = ONNX_TENSOR_ELEMENT_DATA_TYPE_UNDEFINED
+        try OrtRuntime.check(api, api.pointee.GetTensorElementType(info, &elementType))
+        return elementType
+    }
+
+    private static func tensorDimensions(
+        _ api: UnsafePointer<OrtApi>, info: OpaquePointer
+    ) throws -> [Int64] {
+        var dimensionCount = 0
+        try OrtRuntime.check(api, api.pointee.GetDimensionsCount(info, &dimensionCount))
+        guard dimensionCount > 0 else { return [] }
+        var dimensions = [Int64](repeating: 0, count: dimensionCount)
+        try dimensions.withUnsafeMutableBufferPointer { buffer in
+            try OrtRuntime.check(
+                api, api.pointee.GetDimensions(info, buffer.baseAddress, dimensionCount)
+            )
+        }
+        return dimensions
     }
 }
 

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_app_label">LatentJam</string>
+    <string name="widget_description">בקרות השמעה</string>
+    <string name="widget_name_pulse">LatentJam · פס הדופק</string>
+    <string name="widget_name_portal">LatentJam · פורטל העטיפה</string>
+    <string name="widget_name_deck">LatentJam · לוח SMART</string>
+    <string name="widget_description_pulse">עטיפה, שיר ובקרות בפס קומפקטי</string>
+    <string name="widget_description_portal">נגן סוחף שמתמקד בעטיפה</string>
+    <string name="widget_description_deck">נגן מפורט עם זמן, השיר הבא ובקרות SMART</string>
+    <string name="widget_ready">הקשה לבחירת המוזיקה שלך</string>
+    <string name="widget_no_track">אין עדיין דבר בתור</string>
+    <string name="widget_play">הפעלה</string>
+    <string name="widget_pause">השהיה</string>
+    <string name="widget_repeat">שינוי מצב החזרה</string>
+    <string name="widget_shuffle">שינוי מצב ההשמעה</string>
+    <string name="widget_next_up">הבא</string>
+    <string name="widget_mode_off">כבוי</string>
+    <string name="widget_mode_shuffle">ערבוב</string>
+    <string name="widget_repeat_all">הכול</string>
+    <string name="widget_repeat_one">אחד</string>
+    <string name="widget_previous">השיר הקודם</string>
+    <string name="widget_play_pause">הפעלה או השהיה</string>
+    <string name="widget_next">השיר הבא</string>
+    <string name="browse_playlists">פלייליסטים</string>
+    <string name="browse_tracks">שירים</string>
+    <string name="widget_mode_in_order">לפי הסדר</string>
+</resources>

@@ -19,24 +19,28 @@ Full methods, counterfactuals, limitations, teacher research, and mobile results
 
 ## Shipped bundle
 
-Updated 2026-09-24. The two-stage residual chosen on 2026-07-20 was superseded in August by a
+Updated 2026-10-06. The two-stage residual chosen on 2026-07-20 was superseded in August by a
 single scorer that reads audio and text per candidate (the semtext-1344 contract, byte-identical
 across the Kotlin port and the offline harness). In September the artist knowledge pack joined it,
-and every file was made smaller without changing what SMART picks; this is the shipped state.
+and every file was made smaller without changing what SMART picks. The October model diet
+(28d3c2ea, 76b16b50) pruned the audio encoder and moved the SMART graphs, the semantic head and the
+adapter to 4-bit blocks; the table and the hashes below are the bytes in
+`androidApp/src/main/assets/ml/` (the iOS bundle is identical file for file), and this is the
+shipped state.
 
 | File | Contract | Bytes |
 |---|---:|---:|
-| `mnv4_audio.onnx` | 10 s mono 32 kHz → 960-d (four-step FFT front end, INT8) | 10,746,975 |
-| `text_encoder.onnx` | tokens → 384-d in MiniLM's space (three-layer student, INT8) | 5,190,836 |
+| `mnv4_audio.onnx` | 10 s mono 32 kHz → 960-d (four-step FFT front end; 4-bit pointwise convolutions, INT8 elsewhere) | 3,331,384 |
+| `text_encoder.onnx` | tokens → 384-d in MiniLM's space (three-layer student; 4-bit word embeddings, INT8 elsewhere) | 3,939,067 |
 | `text_vocab.txt` | the student's WordPiece vocabulary | 61,317 |
-| `predictor_state.onnx` | recent 960-d history → 960-d state (dynamic INT8) | 4,223,128 |
-| `predictor_scorer_n100.onnx` | state 960 ⊕ 384 text centroid + 100 × (960 audio ⊕ 384 text) → logits (FP16 weights) | 6,059,712 |
-| `universal_semantic_head.onnx` | 960-d audio → 27 genre-family scores | 2,678,194 |
-| `music_entities_250k.bin` | artist names, aliases, members → entity ids (LJENT2, 48-bit keys) | 11,918,291 |
-| `artist_knowledge.bin` | entity → PQ-16 descriptor, language, decade, confidence (version 2) | 7,896,585 |
-| `artist_adapter.bin` | 384-d text → descriptor guess for artists outside the pack | 1,181,968 |
+| `predictor_state.onnx` | recent 960-d history → 960-d state (MatMulNBits 4-bit blocks, FP16 GRU) | 2,334,180 |
+| `predictor_scorer_n100.onnx` | state 960 ⊕ 384 text centroid + 100 × (960 audio ⊕ 384 text) → logits (MatMulNBits 4-bit blocks) | 1,782,479 |
+| `universal_semantic_head.onnx` | 960-d audio → 27 genre-family scores (largest matrices 4-bit) | 824,543 |
+| `music_entities_250k.bin` | artist names, aliases, members → entity ids (LJENT3, 40-bit keys) | 8,399,563 |
+| `artist_knowledge.bin` | entity → PQ-16 descriptor, language, decade (knowledge v3, confident entities only) | 4,036,501 |
+| `artist_adapter.bin` | 384-d text → descriptor guess for artists outside the pack (4-bit codes) | 334,164 |
 
-Total: **49,957,006 bytes (47.6 MiB)** per platform, against 86,761,581 bytes (82.7 MiB) in v0.5.1,
+Total: **25,043,198 bytes (23.9 MiB)** per platform, against 86,761,581 bytes (82.7 MiB) in v0.5.1,
 which had neither the pack nor the adapter. Audio and text graphs run while tracks are indexed.
 Queue construction runs the state graph and the scorer; a candidate without a text vector gets a
 zero text block, the trained text-dropout path, so missing metadata degrades to audio-only scoring
@@ -49,8 +53,9 @@ asset URL are indexed through the same trusted metadata encoder and played by
 explicit capability mask, not an empty-library or random-fallback path.
 
 How each file was made smaller, and what it cost: `docs/smart-minimal-stack.md` ("The compact
-build"). MiniLM itself stays in `tools/research/minilm` as the teacher for the pack, the adapter
-and the text student.
+build") for the September shrink, and `docs/model-diet-plan.md` with
+`docs/model-diet-fixes-2026-10-06.md` for the October one. MiniLM itself stays in
+`tools/research/minilm` as the teacher for the pack, the adapter and the text student.
 
 ## Metadata contract
 
@@ -128,12 +133,13 @@ References checked on 2026-07-20:
 ## Asset hashes
 
 ```text
-4eb333e1109a148e8f53c00f5a2ea28513e67bc02f8adac1f0b99e3fe6b513d3  mnv4_audio.onnx
-6437af63f36e8a84a3088d4df70fe2bbad453e6677632e00819088cb25dd5732  text_encoder.onnx
-ee9eb9187486a0398dff497468e37f4179da1fd513a591a91bba74be6b92bfc3  predictor_state.onnx
-7b84f932820802d52129a11cbb0b216e9f621457037022eabf8c5bf6d417dbc9  predictor_scorer_n100.onnx
-5002b2b116621e35265caaf63147c3c0c2877add77ec0d0cc5dcb45ad02cd503  universal_semantic_head.onnx
-89fc881bced7164413953dc3d63627255973cb8fd9f3fac9313e6f09e75d1111  music_entities_250k.bin
-191ee2ad2d0f7521b7720b99f487ca801389292ac32eaa40b8980ee53fc0687f  artist_knowledge.bin
-8cfe1f444d8d91e230bdf10ed54413ca8c5af1aa7bb97e7726bfe9ec6f03e9a9  artist_adapter.bin
+80591ad57ba6de99597173185820d6f68b45f9ffd8e4eef7ecbb38d195a53606  mnv4_audio.onnx
+81386311c03711bc040b429c7cec4438b4a70bfd57c0df9b6f62652d1f36acaa  text_encoder.onnx
+c6882cc7a96e96d9f4fb30be1214a1dc5b3bf040fa014b7f55b864c3acb61811  text_vocab.txt
+9532d2cef5e5dcfde8ca8a3955303174fcd07917440e8dbeb9b97bebe0f70889  predictor_state.onnx
+a6ff9c4d5c99be911be30bcff9f304024c38f387490f3a8b1ea18fba8fd8b438  predictor_scorer_n100.onnx
+3f248153d0f2edfa2e6c1e8d1c61942b14624769906c59094bbd2b9738d3c34a  universal_semantic_head.onnx
+7fd1c5b62b00da4dfc51a99d0aeffc6f229744d825ba80382beb357489e0563f  music_entities_250k.bin
+f73ab5358fad4265469e18022b7af5435392958407b5febab9ba58632a4b0306  artist_knowledge.bin
+6a5bae99ace29492a11c423ed32d96b725d65ef2ab16f13cbb126fb30bb84422  artist_adapter.bin
 ```

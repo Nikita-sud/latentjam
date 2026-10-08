@@ -87,9 +87,12 @@ announce new versions: watch this repository for releases (Watch → Custom → 
 <summary>Switching between F-Droid and the GitHub APKs</summary>
 
 They are signed with different keys and can't update each other. Export your data (Settings → Local
-backup), uninstall, install the other one, then restore. The backup keeps playlists, history,
-settings, hidden tracks and the tracks or artists you told SMART not to recommend; the song analysis
-isn't included and runs again after the switch.
+backup), uninstall, install the other one, then restore. The backup carries your playlists
+(including *Keep together in SMART*), listening history, recent searches, hidden tracks, the tracks
+and artists you told SMART not to recommend, and your settings. It does **not** carry two things:
+your **favourites** and the duplicate finder's decisions ("keep both", "these are different
+recordings") are not part of the file, so re-mark them after the switch. The song analysis isn't
+included either and runs again.
 
 </details>
 
@@ -326,5 +329,12 @@ LatentJam builds on:
 
 Bundled models under `androidApp/src/main/assets/ml/` (mirrored in `iosApp/iosApp/ml/`) are covered
 by permissive licences documented in [LICENSE-MODEL.txt](androidApp/src/main/assets/ml/LICENSE-MODEL.txt).
+
+**One caveat, from that same file:** three of its sections record that the rights review a public
+release requires has not been passed — `mnv4_audio.onnx` (the audio encoder's distillation data),
+`predictor_state.onnx` and `predictor_scorer_n100.onnx` (the recordings their quantization was
+distilled on) and the FMA-derived branch of `universal_semantic_head.onnx` (its source audio). The
+Apache-2.0 grant in that file stands, but anyone repackaging the bundle should read it first: it
+states each case in full, with the required third-party attributions.
 
 <p align="center"><sub>Everything runs on your device. Your taste stays there.</sub></p>

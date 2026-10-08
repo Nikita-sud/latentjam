@@ -309,7 +309,11 @@ object ForYouBuilder {
          * in this set, so the page stays stable within its day.
          */
         cooledDiscoveries: Set<TrackId> = emptySet(),
-        /** Precomputed journey paths (see [ForYouRhythm.sonicJourneys]); one shows per day. */
+        /**
+         * Precomputed journey paths (see [ForYouRhythm.sonicJourneys]); one shows per day.
+         * Plotted over the whole library, so the section drops [excluded] tracks from the path
+         * itself and skips a path whose cover another row already claimed.
+         */
         journeys: List<List<TrackId>> = emptyList(),
         /** Localized "%1${'$'}s to %2${'$'}s" pattern for the journey card's title. */
         journeyTitlePattern: String = "%1${'$'}s → %2${'$'}s",
@@ -345,7 +349,7 @@ object ForYouBuilder {
             includeNoveltyMixes = includeNoveltyMixes,
             semanticMixLabels = semanticMixLabels,
         )?.let(sections::add)
-        journeySection(journeys, byId, nowMs, used, journeyTitlePattern)?.let(sections::add)
+        journeySection(journeys, byId, nowMs, used, excluded, journeyTitlePattern)?.let(sections::add)
         wildcardSection(worlds, stats, nowMs, used, cooledDiscoveries)?.let(sections::add)
         neverPlayed(library, stats, nowMs, used, cooledDiscoveries)?.let(sections::add)
 
@@ -789,18 +793,36 @@ object ForYouBuilder {
      * One journey per day, rotated through the precomputed pool. Tracks deleted since plotting
      * fall out of the path; a path that shrinks below a real trip declines the card rather than
      * over-promising travel.
+     *
+     * The pool is plotted over the whole library (see [ForYouRhythm.sonicJourneys]), so this is
+     * where the page's rules are applied to it. [excluded] — SMART exclusions and the track
+     * already playing — is dropped from the path rather than voiding the journey: the trip still
+     * starts where it says it does, and the listener does not meet that track on the way. A
+     * journey whose cover another row already claimed ([used]) steps aside for the next one in
+     * the rotation, because two identical covers on one page is exactly what that rule is about;
+     * when no candidate survives, the row declines.
      */
     private fun journeySection(
         journeys: List<List<TrackId>>,
         byId: Map<TrackId, TrackDescriptor>,
         nowMs: Long,
         used: MutableSet<TrackId>,
+        excluded: Set<TrackId>,
         titlePattern: String,
     ): ForYouSection? {
         if (journeys.isEmpty()) return null
         val dayIndex = (nowMs / DAY_MS).toInt()
-        val path = journeys[dayIndex.mod(journeys.size)].mapNotNull(byId::get)
-        if (path.size < 5) return null
+        var found: List<TrackDescriptor>? = null
+        for (offset in journeys.indices) {
+            val candidate = journeys[(dayIndex + offset).mod(journeys.size)]
+                .filterNot { it in excluded }
+                .mapNotNull(byId::get)
+            if (candidate.size < 5) continue
+            if (candidate.first().id in used) continue
+            found = candidate
+            break
+        }
+        val path = found ?: return null
         val from = path.first()
         val to = path.last()
         val title = titlePattern

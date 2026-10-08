@@ -107,7 +107,8 @@ Clusters of the library in the on-device metadata-embedding space — the one se
 day-one personalized surface.
 
 The number of mixes adapts to library size (roughly one per 60 tracks, bounded to 8–16), while each
-surfaced mix is capped at 50 tracks. Names are generated locally from evidence the contents support:
+surfaced mix is capped at 30 tracks (`ForYouSections.MIX_TRACK_LIMIT`). Names are generated locally
+from evidence the contents support:
 genre and decade, dominant artist, or a localized neutral "Discovery mix" label. Track titles and
 filenames never vote as genres or become the theme of a heterogeneous mix. Covers and the start of
 each mix prefer unheard or long-quiet tracks without discarding cluster centrality.

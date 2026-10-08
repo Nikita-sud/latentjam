@@ -286,6 +286,51 @@ internal class OggTagCodecTest {
     }
 
     @Test
+    fun aCommentPacketAcrossTwoHundredPagesReadsLikeOnePage() {
+        // The comment is only complete on the last page, so every page read before it asks for the packets
+        // so far; the accumulation must carry them over instead of rebuilding them.
+        val head = OggFixtures.opusHead()
+        val packet = OggFixtures.opusTags("TITLE" to "Spread", "ARTIST" to "Band", tail = ByteArray(200 * 255))
+        val laid = assertNotNull(OggPages.layout(listOf(packet), 200), "the packet must fill 200 pages")
+        var file = OggPages.serialize(0x02, 0, OggFixtures.SERIAL, 0, OggPages.lacingOf(head.size), head)
+        var sequence = 1
+        for (page in laid) {
+            file += OggPages.serialize(
+                if (page.continues) 1 else 0,
+                if (page.completesPacket) 0L else -1L,
+                OggFixtures.SERIAL,
+                sequence++,
+                page.lacing,
+                page.payload,
+            )
+        }
+        assertEquals(201, sequence, "200 laced pages after the identification page")
+        assertEquals(
+            codec.read(ByteArraySource(OggFixtures.opus("TITLE" to "Spread", "ARTIST" to "Band"))),
+            codec.read(ByteArraySource(file)),
+        )
+    }
+
+    @Test
+    fun anEmptyHeaderPageIsSkippedWhileTheCommentIsSought() {
+        val head = OggFixtures.opusHead()
+        val comment = OggFixtures.opusTags("TITLE" to "Spread")
+        val file = OggPages.serialize(0x02, 0, OggFixtures.SERIAL, 0, OggPages.lacingOf(head.size), head) +
+            OggPages.serialize(0, -1L, OggFixtures.SERIAL, 1, IntArray(0), ByteArray(0)) +
+            OggPages.serialize(0, 0L, OggFixtures.SERIAL, 2, OggPages.lacingOf(comment.size), comment)
+        assertEquals(codec.read(ByteArraySource(OggFixtures.opus("TITLE" to "Spread"))), codec.read(ByteArraySource(file)))
+    }
+
+    @Test
+    fun aHeaderPageThatContinuesNothingIsRefused() {
+        val head = OggFixtures.opusHead()
+        val comment = OggFixtures.opusTags("TITLE" to "Spread")
+        val file = OggPages.serialize(0x02, 0, OggFixtures.SERIAL, 0, OggPages.lacingOf(head.size), head) +
+            OggPages.serialize(1, 0L, OggFixtures.SERIAL, 1, OggPages.lacingOf(comment.size), comment)
+        assertEquals(TagRefusal.OGG_MALFORMED_PAGES, codec.read(ByteArraySource(file)).refusal)
+    }
+
+    @Test
     fun bytesAfterTheLastPageAreDigestedNotIgnored() {
         val trailer = "TAG".encodeToByteArray() + ByteArray(125) { 'x'.code.toByte() }
         val file = OggFixtures.opus("TITLE" to "t") + trailer

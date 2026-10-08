@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+-->
+<resources>
+    <string name="media_session_shuffle_on">シャッフルをオン</string>
+    <string name="media_session_shuffle_smart_on">SMARTシャッフルをオン</string>
+    <string name="media_session_shuffle_off">シャッフルをオフ</string>
+    <string name="media_session_repeat_all">キューをリピート</string>
+    <string name="media_session_repeat_one">1曲をリピート</string>
+    <string name="media_session_repeat_off">リピートをオフ</string>
+</resources>

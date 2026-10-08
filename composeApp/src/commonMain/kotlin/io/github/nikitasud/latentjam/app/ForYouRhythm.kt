@@ -408,10 +408,46 @@ internal object ForYouRhythm {
     const val JOURNEY_POOL = 3
 
     /**
+     * The anchors the journey pool starts from: the listener's most-played-back tracks, one per
+     * primary artist, ranked by completions * 10 + plays.
+     *
+     * A track with plays but no completions can outrank finished tracks on that score, and it is
+     * still not an anchor: it was started and abandoned, so it keeps its place in the order but
+     * must not END the search — the completed tracks it outranks are exactly what the pool is for,
+     * and stopping at it left the pool empty and the JOURNEY row missing for the whole session.
+     *
+     * Separate from [sonicJourneys] because only the plotting needs vector geometry.
+     */
+    internal fun journeyAnchors(
+        library: List<TrackDescriptor>,
+        stats: Map<TrackId, TrackStats>,
+        artistKeyOf: (String?) -> String,
+    ): List<TrackId> {
+        val byId = library.associateBy { it.id }
+        val anchors = ArrayList<TrackId>(JOURNEY_POOL)
+        val usedArtists = HashSet<String>()
+        for (
+            (id, stat) in stats.entries
+                .sortedWith(
+                    compareByDescending<Map.Entry<TrackId, TrackStats>> {
+                        it.value.completions * 10 + it.value.plays
+                    }.thenBy { it.key.value },
+                )
+        ) {
+            val track = byId[id] ?: continue
+            if (stat.completions == 0) continue
+            if (!usedArtists.add(artistKeyOf(track.artist))) continue
+            anchors.add(id)
+            if (anchors.size >= JOURNEY_POOL) break
+        }
+        return anchors
+    }
+
+    /**
      * Plots the journey pool: each starts at one of the listener's most-loved tracks (distinct
      * primary artists, so three journeys are three different stories) and travels to the unheard
-     * track farthest from it — the most travel the library can offer. Selection lives here;
-     * geometry lives in [SonicJourney].
+     * track farthest from it — the most travel the library can offer. Selection lives in
+     * [journeyAnchors]; geometry lives in [SonicJourney].
      */
     fun sonicJourneys(
         session: SonicJourney,
@@ -422,22 +458,7 @@ internal object ForYouRhythm {
         val byId = library.associateBy { it.id }
         val unheard = library.filter { (stats[it.id]?.plays ?: 0) == 0 }.map { it.id }
         if (unheard.isEmpty()) return emptyList()
-        val anchors = ArrayList<TrackId>(JOURNEY_POOL)
-        val usedArtists = HashSet<String>()
-        for (
-            (id, _) in stats.entries
-                .sortedWith(
-                    compareByDescending<Map.Entry<TrackId, TrackStats>> {
-                        it.value.completions * 10 + it.value.plays
-                    }.thenBy { it.key.value },
-                )
-        ) {
-            val track = byId[id] ?: continue
-            if ((stats[id]?.completions ?: 0) == 0) break
-            if (!usedArtists.add(artistKeyOf(track.artist))) continue
-            anchors.add(id)
-            if (anchors.size >= JOURNEY_POOL) break
-        }
+        val anchors = journeyAnchors(library, stats, artistKeyOf)
         return anchors.mapNotNull { anchor ->
             val destination = session.farthestFrom(anchor, unheard) ?: return@mapNotNull null
             session.plot(

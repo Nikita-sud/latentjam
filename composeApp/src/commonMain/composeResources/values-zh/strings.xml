@@ -1,0 +1,711 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+
+  Simplified Chinese (zh). Keys and ordering follow values/strings.xml.
+
+  Simplified Chinese is written the same in CN, SG and MY, so this folder is a
+  faithful copy of values-zh-rCN: Compose Multiplatform matches language AND
+  region, and without a region-less folder a zh-SG or zh-MY device would fall
+  back to English.
+
+  Apostrophes and quotation marks are RAW; only \uXXXX \n \t \\ are unescaped.
+  "LatentJam" and "SMART" are names — never translated.
+-->
+<resources>
+
+    <!-- ============================================================ actions -->
+    <string name="action_play">播放</string>
+    <string name="action_pause">暂停</string>
+    <string name="action_next">下一首</string>
+    <string name="action_previous">上一首</string>
+    <string name="action_shuffle">随机播放</string>
+    <string name="action_close">关闭</string>
+    <string name="action_back">返回</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_delete">删除</string>
+    <string name="action_rename">重命名</string>
+    <string name="action_clear">清除</string>
+    <string name="action_track_options">歌曲选项</string>
+    <string name="action_create">创建</string>
+    <string name="action_play_all">播放全部</string>
+    <string name="action_shuffle_all">随机播放全部</string>
+    <string name="action_share">分享</string>
+    <string name="action_select_all">全选</string>
+    <string name="action_deselect_all">取消全选</string>
+    <string name="selection_count">已选曲目：%1$d</string>
+    <string name="action_add">添加</string>
+    <string name="cd_more_options">更多选项</string>
+    <string name="cd_search_library">搜索音乐库</string>
+    <string name="cd_alphabet_index">字母索引</string>
+
+    <!-- ======================================================= track labels -->
+    <string name="label_track">歌曲</string>
+    <string name="track_untitled">未命名</string>
+    <string name="track_unknown_artist">未知艺人</string>
+    <string name="track_unknown_album">未知专辑</string>
+    <string name="track_unknown_genre">未知流派</string>
+    <!-- Chinese has no grammatical plural: "other" only. -->
+    <plurals name="count_tracks">
+        <item quantity="other">%1$d 首歌曲</item>
+    </plurals>
+    <!-- %1$s is a track title -->
+    <string name="cd_track_options_for">%1$s 的更多选项</string>
+    <string name="cd_track_options_generic">此歌曲的更多选项</string>
+
+    <plurals name="count_albums">
+        <item quantity="other">%1$d 张专辑</item>
+    </plurals>
+
+    <!-- ======================================================= browse tabs -->
+    <string name="tab_for_you">为你推荐</string>
+    <string name="tab_playlists">播放列表</string>
+    <string name="tab_tracks">歌曲</string>
+    <string name="tab_albums">专辑</string>
+    <string name="tab_artists">艺人</string>
+    <string name="tab_genres">流派</string>
+    <string name="tab_map">地图</string>
+
+    <!-- ===================================================== library shell -->
+    <string name="library_empty">此设备上未找到音乐。</string>
+    <string name="action_rescan_library">刷新音乐库</string>
+    <string name="sort_recently_added">最近添加</string>
+    <string name="sort_direction_ascending">升序</string>
+    <string name="sort_direction_descending">降序</string>
+    <string name="snack_track_deleted">已删除歌曲</string>
+    <string name="snack_track_delete_denied">删除这些曲目需要文件访问权限。</string>
+    <string name="snack_track_delete_failed">无法删除该文件</string>
+    <string name="snack_track_delete_summary">已删除：%1$d。访问被拒绝：%2$d。失败：%3$d。已取消：%4$d。</string>
+
+    <!-- =========================================================== for you -->
+    <string name="foryou_empty">先听几首歌，这里就会出现值得再听的内容。</string>
+    <string name="foryou_section_continue">还没听完</string>
+    <string name="foryou_section_worth_revisiting">很久没听</string>
+    <string name="foryou_section_worlds">你的混合歌单</string>
+    <string name="foryou_mix_discovery">探索混合歌单</string>
+    <string name="foryou_section_never_played">从未播放</string>
+    <!-- 对一个世界能做的两件事，交给用户选择而不是替他决定。 -->
+    <string name="foryou_world_open">显示曲目</string>
+    <string name="foryou_world_smart">从这里开始 SMART</string>
+    <string name="foryou_kicker_resume">从上次的位置继续</string>
+    <plurals name="foryou_kicker_played_times">
+        <item quantity="other">你听过 %1$d 次</item>
+    </plurals>
+    <string name="foryou_kicker_never_played">从未播放</string>
+    <plurals name="foryou_caption_played_before">
+        <item quantity="other">此前 %1$d 次</item>
+    </plurals>
+
+    <!-- =============================================================== map -->
+    <string name="map_lens_worlds">世界</string>
+    <string name="map_lens_plays">播放量</string>
+    <string name="map_lens_never_played">从未播放</string>
+    <string name="map_lens_skips">跳过</string>
+
+    <plurals name="count_regions">
+        <item quantity="other">%1$d 个区域</item>
+    </plurals>
+
+    <string name="map_headline_worlds">%1$s聚成 %2$s。点按其中一个，听听里面有什么。</string>
+    <string name="map_headline_worlds_partial">%2$s里有 %1$d 首聚成 %3$s。点按其中一个，听听里面有什么。</string>
+    <string name="map_headline_plays">地图区域内，一半的播放来自 %1$s，占区域内曲目的 %2$d\u0025。</string>
+    <string name="map_headline_never_played">地图区域内的%2$s中，有 %1$d 首从未播放。“%3$s”有 %4$d\u0025 尚未播放。</string>
+    <string name="map_headline_skips">你在“%1$s”里放弃得最多——%2$d\u0025 的播放都没听完。</string>
+
+    <string name="map_headline_unplayed_total">地图区域内：%2$s · 无播放记录：%1$d。</string>
+    <string name="map_select_region">选择区域</string>
+    <string name="map_fullscreen">全屏打开地图</string>
+    <string name="map_exit_fullscreen">退出全屏地图</string>
+    <string name="map_gesture_hint">用双指移动或缩放地图。</string>
+    <string name="map_reset_view">重置地图视图</string>
+    <string name="map_region_unplayed">尚未在此播放：%1$d</string>
+    <string name="map_action_play_unheard">播放未听过的曲目</string>
+    <string name="map_action_play_region">播放该区域</string>
+    <string name="map_action_smart_here">从这里开始 SMART</string>
+    <string name="map_empty_indexing">仍在读取你的音乐库。索引完成后地图就会出现。</string>
+    <string name="map_empty_building">正在为你的音乐库生成地图。如果音乐库较大，这可能需要一点时间。</string>
+    <string name="map_empty_too_large">你的音乐库有 %1$s——比地图目前能显示的 %2$s 还多。</string>
+
+    <string name="map_legend_selected">选中的区域</string>
+    <string name="map_legend_rest">音乐库的其余部分</string>
+    <string name="map_legend_never">从未播放</string>
+    <string name="map_legend_played">至少播放过一次</string>
+    <string name="map_legend_never_skips">从未跳过</string>
+    <string name="map_legend_always_skips">总是跳过</string>
+
+    <!-- ================================================== now playing/queue -->
+    <string name="now_playing_nothing">暂无播放内容</string>
+    <string name="now_playing_source">播放来源：%1$s</string>
+    <string name="cd_now_playing">正在播放</string>
+    <string name="queue_title">播放队列</string>
+    <!-- %1$d is how many tracks are in the queue -->
+    <string name="queue_title_count">播放队列 · %1$d</string>
+    <string name="queue_row_continuation">不是推荐 — 只是让音乐继续播放</string>
+    <string name="cd_repeat_off">循环播放已关闭。点按可循环播放整个队列。</string>
+    <string name="cd_repeat_all">正在循环播放整个队列。点按可切换为单曲循环。</string>
+    <string name="cd_repeat_one">正在单曲循环。点按可关闭循环播放。</string>
+    <string name="cd_shuffle_off">随机播放已关闭。点按可切换。</string>
+    <string name="cd_shuffle_on">随机播放已开启。点按可切换。</string>
+    <string name="cd_shuffle_smart">SMART 随机播放已开启。点按可切换。</string>
+
+    <!-- ============================================================= search -->
+    <string name="search_placeholder">歌曲、歌手或歌词</string>
+    <string name="cd_close_search">关闭搜索</string>
+    <string name="cd_clear_query">清除搜索内容</string>
+    <!-- %1$s is what the user typed -->
+    <string name="search_no_matches">未找到与“%1$s”匹配的内容。</string>
+    <!-- %1$d is the size of the library -->
+    <plurals name="search_hint_count">
+        <item quantity="other">在你的 %1$d 首歌曲中搜索。</item>
+    </plurals>
+    <string name="search_recent_title">最近搜索</string>
+    <!-- %1$s is a past search term being removed from history -->
+    <string name="cd_forget_search">删除搜索记录“%1$s”</string>
+
+    <!-- ========================================================== playlists -->
+    <string name="playlists_empty">还没有播放列表，点按 + 新建一个。</string>
+    <string name="playlist_name_placeholder">播放列表名称</string>
+    <string name="playlist_new">新建播放列表</string>
+    <!-- %1$s is a playlist name -->
+    <string name="cd_playlist_options">%1$s 的选项</string>
+    <!-- Sheet header. %1$s is a track title; the generic form is used when the
+         track has no title at all. -->
+    <string name="playlist_add_to_title">将“%1$s”添加到</string>
+    <string name="playlist_add_to_title_generic">将歌曲添加到</string>
+    <string name="playlist_rename_title">重命名播放列表</string>
+    <string name="action_change_playlist_cover">更换封面</string>
+    <string name="action_reset_playlist_cover">使用自动封面</string>
+    <string name="playlist_cover_error">无法更换播放列表封面。请尝试其他图片。</string>
+    <string name="snack_playlist_created">已创建“%1$s”</string>
+    <string name="snack_playlist_deleted">已删除“%1$s”</string>
+    <string name="snack_added_to_playlist">已添加到“%1$s”</string>
+    <string name="auto_playlist_favorites">收藏</string>
+    <string name="auto_playlist_recently_added">最近添加</string>
+    <string name="auto_playlist_most_played">最常播放</string>
+    <string name="auto_playlist_recently_played">最近播放</string>
+    <string name="auto_playlist_never_played">从未播放</string>
+    <string name="auto_playlist_rediscover">重新发现</string>
+
+    <!-- ============================================== track actions + sheet -->
+    <string name="action_play_next">下一首播放</string>
+    <string name="action_add_to_queue">添加到播放队列</string>
+    <string name="action_add_to_playlist">添加到播放列表</string>
+    <string name="action_add_favorite">添加到收藏</string>
+    <string name="action_remove_favorite">从收藏中移除</string>
+    <string name="action_remove_from_playlist">从此播放列表中移除</string>
+    <string name="snack_playlist_track_removed">已从"%1$s"中移除</string>
+    <string name="action_go_to_album">转到专辑</string>
+    <string name="action_go_to_artist">转到艺人</string>
+    <string name="action_show_on_map">在地图中显示</string>
+    <string name="action_export_m3u">导出为 M3U</string>
+    <string name="action_smart_keep_together">在 SMART 中保持在一起</string>
+    <string name="action_import_m3u">导入 M3U</string>
+    <string name="snack_m3u_imported">已导入 %2$d 首中的 %1$d 首</string>
+    <string name="snack_m3u_import_failed">无法导入播放列表</string>
+    <string name="playlist_imported_name">导入的播放列表</string>
+    <string name="action_information">详细信息</string>
+    <string name="action_delete_from_device">从设备中删除</string>
+    <string name="dialog_delete_tracks_message">将从此设备删除所选的 %1$d 首歌曲。此操作无法撤销。</string>
+    <string name="dialog_delete_track_title">要删除这首歌曲吗？</string>
+    <plurals name="dialog_delete_tracks_title">
+        <item quantity="other">要删除 %1$d 首歌曲吗？</item>
+    </plurals>
+    <!-- %1$s is a track title -->
+    <string name="dialog_delete_track_message">“%1$s”将从这台设备上移除，此操作无法撤销。</string>
+    <string name="dialog_delete_track_message_generic">这首歌曲将从这台设备上移除，此操作无法撤销。</string>
+
+    <!-- ======================================================== track info -->
+    <string name="info_title">标题</string>
+    <string name="info_artist">艺人</string>
+    <string name="info_album">专辑</string>
+    <string name="info_genre">流派</string>
+    <string name="info_year">年份</string>
+    <string name="info_duration">时长</string>
+    <string name="info_location">文件位置</string>
+    <string name="info_not_set">未设置</string>
+    <string name="info_edit">编辑标签</string>
+    <string name="info_save">保存</string>
+    <string name="info_cancel">取消</string>
+    <string name="editor_discard_title">要舍弃更改吗？</string>
+    <string name="editor_discard">舍弃</string>
+    <string name="editor_keep_editing">继续编辑</string>
+    <string name="info_saving">正在保存…</string>
+    <string name="info_edit_note">直接写入文件本身，因此所有应用都能看到更正。系统可能会请求修改文件的权限。</string>
+    <string name="info_edit_refused">此文件的标签采用了无法安全重写的形式，因此未做任何更改。</string>
+    <string name="info_edit_failed">无法写入此文件。文件保持原样。</string>
+    <string name="info_edit_no_space">可用空间不足，无法安全保存这些标签。未做任何更改。</string>
+    <string name="info_edit_recovery_pending">保存已中断。下次获准写入该文件时，LatentJam 将完成或撤销保存。</string>
+    <string name="tag_recovery_title">完成标签保存</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="other">LatentJam 在向 %1$d 个文件保存标签时被中断。现在可以完成更改，对无法完成的文件则可撤销。</item>
+    </plurals>
+    <string name="tag_recovery_finish">完成</string>
+    <string name="tag_recovery_later">稍后</string>
+    <string name="tag_problem_unsupported_format">LatentJam 无法编辑这种类型的文件。</string>
+    <string name="tag_problem_damaged">此文件似乎已损坏，因此保持原样。</string>
+    <string name="tag_problem_protected">此文件受复制保护，无法更改。</string>
+    <string name="tag_problem_tags_too_large">标签对此文件来说会太大。</string>
+    <string name="tag_problem_bad_number">曲目编号和碟片编号必须是 1 到 999 之间的整数。</string>
+    <string name="tag_problem_number_unreadable">文件本身的曲目编号或碟片编号不是普通数字，因此无法单独更改其总数。</string>
+    <string name="tag_problem_bad_image">该图片不是 JPEG 或 PNG 图像。</string>
+    <string name="tag_problem_read_only_storage">此文件所在的存储空间无法写入。</string>
+    <string name="tag_problem_music_library">音乐资料库中的歌曲无法编辑，只有导入 LatentJam 的歌曲可以编辑。</string>
+    <string name="tag_problem_unreadable">无法读取此文件。</string>
+    <string name="tag_problem_not_allowed">未获得更改该文件的权限。</string>
+    <string name="tag_problem_missing">文件已不存在。</string>
+    <string name="tag_problem_stopped">已在处理此文件之前停止。</string>
+    <string name="tag_problem_cancelled">权限请求已关闭。</string>
+    <string name="tag_problem_undone">中断的保存已被撤销：文件已恢复原状。</string>
+    <string name="tag_problem_changed_elsewhere">保存中断后，另一个应用更改了该文件，因此保持原样。</string>
+    <string name="tag_problem_lost">LatentJam 无法确定此次保存的结果。请检查文件的标签。</string>
+
+    <!-- =========================================================== settings -->
+    <string name="settings_title">设置</string>
+    <string name="settings_section_appearance">外观</string>
+    <string name="settings_theme">主题</string>
+    <string name="theme_system">跟随系统</string>
+    <string name="theme_light">浅色</string>
+    <string name="theme_dark">深色</string>
+    <string name="settings_section_playback">播放</string>
+    <string name="settings_equalizer">均衡器</string>
+    <string name="settings_equalizer_subtitle">调节这台设备音频输出的音色</string>
+    <string name="settings_intelligence">SMART 引擎</string>
+    <string name="settings_smart_engine">SMART 引擎</string>
+    <string name="settings_smart_engine_subtitle">设备端模型对你音乐库的了解</string>
+    <string name="settings_about_body">LatentJam 是一款内置设备端推荐引擎的本地音乐播放器。你的收听记录不会离开这台设备。</string>
+
+    <!-- ========================================================== equalizer -->
+    <string name="state_on">开</string>
+    <string name="state_off">关</string>
+    <string name="equalizer_presets">预设</string>
+    <string name="equalizer_bands">频段</string>
+    <string name="equalizer_bass_boost">低音增强</string>
+    <string name="equalizer_reset">重置为平直</string>
+
+    <!-- ======================================================= intelligence -->
+    <string name="intelligence_section_status">状态</string>
+    <string name="intelligence_engine">引擎</string>
+    <string name="intelligence_library">音乐库</string>
+    <string name="intelligence_fingerprints">声音指纹</string>
+    <!-- %1$d tracks analysed out of %2$d in the library -->
+    <string name="intelligence_indexed_of">%2$d 首中的 %1$d 首</string>
+    <string name="engine_state_not_started">未启动</string>
+    <string name="engine_state_starting">正在启动…</string>
+    <string name="engine_state_ready">已就绪</string>
+    <!-- %1$s is a technical failure reason reported by the engine -->
+    <string name="engine_state_unavailable">不可用：%1$s</string>
+
+    <!-- ========================================================= permission -->
+    <string name="permission_audio_rationale">LatentJam 需要访问你的音乐才能扫描音乐库。</string>
+    <string name="permission_grant">授予访问权限</string>
+    <string name="permission_audio_settings_rationale">音乐访问权限已被阻止。请打开系统设置，允许 LatentJam 访问音乐和音频文件。</string>
+    <string name="permission_open_settings">打开设置</string>
+    <string name="permission_notifications_title">显示分析进度？</string>
+    <string name="permission_notifications_rationale">SMART 会在此设备上分析你的音乐库。允许通知即可查看进度，并在分析时返回 LatentJam。选择“暂不”后分析仍会继续。</string>
+    <string name="permission_not_now">暂不</string>
+    <string name="permission_continue">继续</string>
+
+
+    <string name="engine_error_model_unavailable">SMART 无法加载内置模型。请重试设置；若问题持续，请重新安装应用或报告问题。</string>
+    <string name="engine_error_not_indexed">音乐库尚未索引。</string>
+    <string name="engine_error_audio_unavailable">无法读取或解码此曲目。请确认文件仍可用，然后重试。</string>
+    <string name="engine_error_backend">SMART 遇到内部错误。请重试设置；若问题持续，请报告问题。</string>
+
+    <string name="indexing_notification_title">正在分析你的音乐</string>
+    <string name="indexing_notification_progress">%1$d / %2$d</string>
+    <string name="indexing_notification_progress_eta">%1$d / %2$d · 约剩 %3$d 分钟</string>
+    <!-- =================================================== expanded settings -->
+    <string name="settings_appearance">外观</string>
+    <string name="settings_appearance_subtitle">主题、播放器颜色和语言</string>
+    <string name="settings_library">音乐库</string>
+    <string name="settings_library_subtitle">刷新、导入和管理隐藏歌曲</string>
+    <string name="settings_playback">播放</string>
+    <string name="settings_playback_subtitle">均衡器和音频控制</string>
+    <string name="settings_privacy">隐私与数据</string>
+    <string name="settings_privacy_subtitle">收听历史和最近搜索</string>
+    <string name="settings_about">关于 LatentJam</string>
+    <string name="settings_about_subtitle">许可证、源代码和支持</string>
+    <string name="settings_section_library">音乐库</string>
+    <string name="settings_section_navigation">导航</string>
+    <string name="settings_section_privacy">设备上的数据</string>
+    <string name="settings_track_colors">播放器颜色</string>
+    <string name="settings_color_dynamic">封面</string>
+    <string name="settings_color_dynamic_body">使用从封面提取的颜色，无法提取时使用 SMART 颜色。</string>
+    <string name="settings_color_smart">SMART</string>
+    <string name="settings_color_smart_body">使用由每首歌曲的声音指纹生成的颜色。</string>
+    <string name="settings_color_theme">主题</string>
+    <string name="settings_color_theme_body">使用应用主题，而不是每首歌曲的专属颜色。</string>
+    <string name="settings_start_page">启动页面</string>
+    <string name="settings_start_page_body">下次打开 LatentJam 时生效。</string>
+    <string name="settings_library_count">音乐库中的歌曲</string>
+    <string name="settings_library_refresh">刷新音乐库</string>
+    <string name="settings_library_refresh_body">查找新添加的音乐，并移除已无法使用的文件条目。</string>
+    <string name="settings_library_import">导入音乐</string>
+    <string name="settings_library_import_body">选择要复制到 LatentJam 的音频文件。</string>
+    <string name="settings_library_restore">恢复隐藏歌曲</string>
+    <string name="settings_library_restore_body">将从 LatentJam 移除的所有歌曲重新显示在音乐库中。设备上的文件不会改变。</string>
+    <string name="settings_equalizer_unavailable">此音频输出不支持均衡器</string>
+    <string name="equalizer_unavailable_body">当前音频输出未向 LatentJam 提供均衡器。请尝试其他输出。音乐仍可正常播放。</string>
+    <string name="equalizer_bass_value">%1$d\u0025</string>
+    <string name="equalizer_preset_flat">平直</string>
+    <string name="equalizer_preset_bass">低音</string>
+    <string name="equalizer_preset_treble">高音</string>
+    <string name="equalizer_preset_vocal">人声</string>
+    <string name="equalizer_preset_electronic">电子乐</string>
+    <string name="intelligence_syncing">正在同步音乐库…</string>
+    <string name="intelligence_analysis_progress">已分析 %2$d 首中的 %1$d 首</string>
+    <string name="intelligence_analysis_failed">无法分析：%1$d</string>
+    <string name="intelligence_failures_more">另有 %1$d 首</string>
+    <string name="intelligence_retry">重试 SMART 设置</string>
+    <string name="intelligence_section_recommendations">推荐</string>
+    <string name="intelligence_queue_length">SMART 队列长度</string>
+    <string name="intelligence_queue_length_body">选择 SMART 创建队列时添加的歌曲数量。</string>
+    <string name="intelligence_artist_variety">艺人多样性</string>
+    <string name="intelligence_artist_variety_body">SMART 将同一艺人的歌曲分散开的程度。明显更合适的歌曲仍会播放，即使紧接在同一艺人之后。</string>
+    <string name="intelligence_artist_variety_free">关闭</string>
+    <string name="intelligence_artist_variety_low">低</string>
+    <string name="intelligence_artist_variety_balanced">均衡</string>
+    <string name="intelligence_artist_variety_high">高</string>
+    <string name="intelligence_artist_variety_max">最高</string>
+    <string name="intelligence_include_novelty_mixes">包含趣味混合歌单</string>
+    <string name="intelligence_include_novelty_mixes_body">在“为你推荐”中单独显示表情包梗、网络爆款和音效混合歌单。</string>
+    <string name="foryou_mix_meme_viral">梗与网络爆款音频</string>
+    <string name="foryou_mix_sound_effects">音效</string>
+    <string name="foryou_mix_spoken_audio">语音内容</string>
+    <string name="foryou_mix_instrumental">纯音乐</string>
+    <string name="intelligence_how_it_works">SMART 会在本设备上比较声音指纹，再将音乐相似度与收听历史相结合。无需账号或互联网连接。</string>
+    <string name="privacy_local_body">您的音乐库、收听历史和 SMART 数据都保留在本设备上。LatentJam 无需账号，也不会将这些数据发送到服务器。</string>
+    <string name="privacy_save_history_body">在此设备上保存播放和跳过记录，用于“为你推荐”和 SMART 推荐。</string>
+    <string name="privacy_remember_searches_body">在此设备上保存搜索记录，以便在搜索框为空时显示。</string>
+    <string name="privacy_disable_history_body">停止保存新的收听活动。如何处理此设备上已有的历史记录？</string>
+    <string name="privacy_disable_searches_body">停止保存新的搜索。如何处理此设备上已有的搜索记录？</string>
+    <string name="privacy_keep_existing">保留现有数据</string>
+    <string name="privacy_delete_existing">删除现有数据</string>
+    <string name="privacy_setting_save_failed">无法保存此隐私设置。请重试。</string>
+    <string name="privacy_data_clear_failed">无法清除此设备上的数据。请重试。</string>
+    <string name="privacy_clear_history">清除收听历史</string>
+    <string name="privacy_clear_history_body">删除用于个性化推荐的播放和跳过数据。</string>
+    <string name="privacy_clear_history_confirm">清除全部收听历史？推荐将重新学习您的喜好。</string>
+    <string name="privacy_history_empty">暂无收听历史</string>
+    <plurals name="privacy_history_listens">
+        <item quantity="other">收听 %1$d 次</item>
+    </plurals>
+    <string name="privacy_recent_searches">最近搜索</string>
+    <string name="privacy_clear_searches">清除最近搜索</string>
+    <string name="privacy_clear_searches_body">删除搜索框为空时显示的查询。</string>
+    <string name="privacy_clear_searches_confirm">清除全部最近搜索？</string>
+    <string name="settings_license">许可证</string>
+    <string name="settings_license_body">LatentJam 是采用 Apache License 2.0 的自由软件。</string>
+    <string name="settings_open_source">源代码</string>
+    <string name="settings_open_source_body">在 GitHub 上查看项目</string>
+    <string name="settings_report_issue">报告问题</string>
+    <string name="settings_section_preferences">偏好设置</string>
+    <string name="settings_section_music">音乐</string>
+    <string name="settings_section_data_support">数据与支持</string>
+    <string name="privacy_listening_history">收听历史</string>
+    <string name="settings_version">版本</string>
+    <string name="settings_library_loading">正在加载音乐库…</string>
+    <string name="settings_library_refreshing">正在刷新…</string>
+    <string name="snack_library_refreshed">音乐库已刷新</string>
+    <string name="action_exclude_track_from_smart">不再推荐此曲目</string>
+    <string name="action_exclude_artist_from_smart">不再推荐此艺人</string>
+    <string name="action_include_track_in_smart">重新推荐此曲目</string>
+    <string name="action_include_artist_in_smart">重新推荐此艺人</string>
+    <string name="snack_track_excluded_from_smart">已从 SMART 推荐中移除此曲目</string>
+    <string name="snack_artist_excluded_from_smart">已从 SMART 推荐中移除此艺人</string>
+    <string name="snack_track_included_in_smart">已将此曲目恢复到 SMART 推荐</string>
+    <string name="snack_artist_included_in_smart">已将此艺人恢复到 SMART 推荐</string>
+    <string name="snack_smart_exclusion_failed">无法更新 SMART 推荐。请重试。</string>
+    <string name="action_retry">重试</string>
+
+    <string name="settings_language">语言</string>
+    <string name="settings_language_body">在系统设置中更改语言。</string>
+    <string name="settings_audio_access">音乐访问权限</string>
+    <string name="settings_audio_access_allowed">已允许</string>
+    <string name="settings_audio_access_blocked">已阻止</string>
+    <string name="settings_audio_access_not_requested">未请求</string>
+    <string name="settings_audio_access_not_required">无需授权</string>
+    <string name="settings_sources">音乐来源</string>
+    <string name="settings_sources_body">选择在 LatentJam 中显示的文件夹或设备音乐集合。设备上的文件不会更改。</string>
+    <string name="settings_sources_empty">未找到可管理的音乐来源。</string>
+    <string name="settings_source_unnamed">设备音乐</string>
+    <string name="settings_source_music_library">音乐资料库</string>
+    <string name="settings_hidden_tracks">隐藏的曲目</string>
+    <string name="settings_hidden_tracks_body">仅在 LatentJam 中隐藏的曲目。恢复曲目不会更改其文件。</string>
+    <string name="settings_hidden_tracks_empty">LatentJam 中没有隐藏的曲目。</string>
+    <string name="settings_interrupted_saves">中断的保存</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="other">向 %1$d 个文件保存标签时被中断。获准写入文件后，LatentJam 将完成或撤销保存。</item>
+    </plurals>
+    <string name="settings_interrupted_finish">立即完成</string>
+    <string name="settings_interrupted_being_repaired">修复中：完成前不会播放</string>
+    <string name="settings_interrupted_forget">忘记</string>
+    <string name="settings_interrupted_forget_title">忘记此保存？</string>
+    <string name="settings_interrupted_forget_body">文件将保持现状，LatentJam 不再尝试完成或撤销该保存。此操作无法撤销。</string>
+    <string name="settings_interrupted_forget_damaged_body">此次保存在中途停止。文件可能已损坏且无法播放；忘记它会删除 LatentJam 可用来修复它的副本。此操作无法撤销。</string>
+    <string name="settings_duplicates">音频重复</string>
+    <string name="settings_duplicates_body">按声音查找同一录音的副本，与标签无关</string>
+    <string name="settings_duplicates_scanning">正在比较所有曲目…</string>
+    <string name="settings_duplicates_empty">没有重复 — 每首曲目都独一无二</string>
+    <string name="settings_restore">恢复</string>
+    <string name="settings_restore_all">全部恢复</string>
+    <string name="settings_library_manage_failed">无法更新音乐库。请重试。</string>
+    <string name="settings_lyrics_folders">含 .lrc 文件的文件夹</string>
+    <string name="settings_lyrics_folders_body">Android 会询问要允许哪个文件夹。之后与歌曲同名的 .lrc 文件会用作其歌词。</string>
+    <string name="settings_lyrics_folders_add">添加文件夹</string>
+    <string name="settings_lyrics_folders_remove">移除</string>
+    <string name="settings_lyrics_folders_failed">无法使用此文件夹。请选择此设备存储空间中的文件夹。</string>
+
+    <string name="settings_licenses">开源许可证</string>
+    <string name="settings_licenses_body">LatentJam、内置模型和第三方软件声明</string>
+    <string name="settings_license_models">音频和 SMART 模型</string>
+    <string name="settings_license_models_body">LatentJam 生成的 MobileNetV4 音频和 SMART 预测器权重采用 Apache-2.0。学生模型使用 timm（Apache-2.0），并从 EfficientAT 蒸馏而来（MIT，版权所有 © 2022 Florian Schmid）。</string>
+    <string name="settings_license_text_model">文本模型</string>
+    <string name="settings_license_text_model_body">内置的文本编码器及其词表由 LatentJam 训练以复现 sentence-transformers/all-MiniLM-L6-v2（Apache-2.0），采用 Apache-2.0。</string>
+    <string name="settings_license_runtime">ONNX Runtime</string>
+    <string name="settings_license_runtime_body">设备端模型推理使用采用 MIT 许可证的 Microsoft ONNX Runtime。版权所有 © Microsoft Corporation。</string>
+    <string name="settings_license_aliases">MusicBrainz 和 Wikidata</string>
+    <string name="settings_license_aliases_body">内置的艺人别名搜索数据源自 MusicBrainz 和 Wikidata，并以 CC0 提供。</string>
+    <string name="settings_license_libraries">第三方库</string>
+    <string name="settings_license_libraries_body">LatentJam 使用 Kotlin、coroutines、Compose Multiplatform、AndroidX Media3、Koin 和 Coil，均采用宽松的 Apache-2.0 或 MIT 许可证。完整声明随源代码分发。</string>
+
+    <string name="sleep_timer">睡眠定时器</string>
+    <string name="sleep_timer_off">关闭</string>
+    <plurals name="sleep_timer_minutes">
+        <item quantity="one">%1$d 分钟</item>
+        <item quantity="other">%1$d 分钟</item>
+    </plurals>
+    <string name="sleep_timer_end_of_track">当前曲目结束时</string>
+    <string name="sleep_timer_active_minutes">剩余 %1$d 分钟</string>
+    <string name="sleep_timer_active_end_of_track">播完此曲后停止</string>
+
+    <string name="intelligence_problems">分析问题</string>
+    <string name="intelligence_problems_body">SMART 无法分析的曲目。音乐仍可正常播放。</string>
+    <string name="intelligence_no_problems">没有分析问题</string>
+    <string name="intelligence_manage_exclusions">推荐排除项</string>
+    <string name="intelligence_manage_exclusions_body">SMART 永不推荐的曲目和艺人</string>
+    <string name="intelligence_exclusions_empty">没有推荐排除项</string>
+    <string name="intelligence_excluded_tracks">已排除的曲目</string>
+    <string name="intelligence_excluded_artists">已排除的艺人</string>
+    <string name="intelligence_rebuild">重建 SMART 分析</string>
+    <string name="intelligence_rebuild_body">删除本地指纹并重新分析可见音乐库。</string>
+    <string name="intelligence_rebuild_confirm">重建全部 SMART 分析？音乐文件、播放列表和收听历史不会更改。</string>
+    <string name="intelligence_how_title">SMART 的工作方式</string>
+    <string name="intelligence_notifications">分析通知</string>
+    <string name="intelligence_notifications_body">在 LatentJam 外显示索引进度</string>
+    <string name="intelligence_exclusions_clear">清除所有排除项</string>
+
+    <string name="settings_backup">本地备份</string>
+    <string name="settings_backup_body">导出或恢复播放列表、偏好设置、历史、隐藏曲目和 SMART 排除项。不包含音乐文件和模型数据。</string>
+    <string name="backup_export">导出备份</string>
+    <string name="backup_import">导入备份</string>
+    <string name="backup_import_title">恢复本地备份</string>
+    <string name="backup_import_body">选择如何将导入的数据与本设备现有数据合并。</string>
+    <string name="backup_merge">合并</string>
+    <string name="backup_replace">替换</string>
+    <string name="backup_replace_warning">用此备份替换所选应用数据？音乐文件绝不会更改。</string>
+    <string name="backup_export_success">备份已导出</string>
+    <string name="backup_import_success">备份已恢复</string>
+    <string name="backup_import_success_unmatched">备份已恢复；有 %1$d 个曲目引用无法在此设备上匹配。</string>
+    <string name="backup_import_partial">发生错误前已恢复部分数据。</string>
+    <string name="backup_failed">无法完成备份操作。</string>
+    <string name="backup_invalid">这不是有效的 LatentJam 备份。</string>
+    <string name="backup_destination_warning">备份包含私密应用数据。在系统选择器中选取的云端或第三方位置可能会同步这些数据。</string>
+    <string name="settings_stats">统计</string>
+    <string name="settings_stats_subtitle">用数字看你的收听</string>
+    <string name="stats_period_week">7 天</string>
+    <string name="stats_period_month">30 天</string>
+    <string name="stats_period_all">全部时间</string>
+    <string name="stats_time_listened">收听时长</string>
+    <string name="stats_plays">播放次数</string>
+    <string name="stats_distinct_tracks">曲目数</string>
+    <string name="stats_streak_current">连续天数</string>
+    <string name="stats_streak_longest">最长纪录</string>
+    <string name="stats_days_short">天</string>
+    <string name="stats_hours_short">小时</string>
+    <string name="stats_minutes_short">分钟</string>
+    <string name="stats_finished_share">完整播放</string>
+    <string name="stats_skipped_share">跳过</string>
+    <string name="stats_by_hour">按时段</string>
+    <string name="stats_top_artists">最常听的艺术家</string>
+    <string name="stats_top_tracks">最常听的曲目</string>
+    <string name="stats_empty">此时段还没有播放记录。</string>
+    <string name="stats_load_failed">无法加载收听统计信息。</string>
+    <string name="settings_normalize_volume">音量均衡</string>
+    <string name="settings_normalize_volume_subtitle">将响亮的曲目降低到更一致的音量</string>
+    <string name="settings_crossfade">平滑过渡</string>
+    <string name="settings_crossfade_subtitle">在曲目边界淡入淡出音量</string>
+    <string name="settings_crossfade_value">%1$d 秒</string>
+    <string name="duplicates_keep_this">保留此曲</string>
+    <string name="snack_duplicates_merged">已合并重复项：播放列表现在指向保留的副本</string>
+    <string name="info_lyrics">歌词</string>
+    <string name="info_album_artist">专辑艺人</string>
+    <string name="info_track_number">曲目编号</string>
+    <string name="info_track_total">曲目总数</string>
+    <string name="info_disc_number">碟片编号</string>
+    <string name="info_disc_total">碟片总数</string>
+    <string name="info_cover">封面</string>
+    <string name="info_cover_replace">替换</string>
+    <string name="info_cover_remove">移除</string>
+    <string name="info_cover_keep">保留当前封面</string>
+    <string name="info_cover_new">新封面</string>
+    <string name="info_cover_removed">封面将被移除。</string>
+    <plurals name="info_cover_more">
+        <item quantity="other">文件中另有 %1$d 张图片，将予保留</item>
+    </plurals>
+    <string name="info_reading_file">正在读取文件…</string>
+    <string name="action_edit_album">编辑专辑</string>
+    <string name="action_edit_artist">编辑艺人</string>
+    <string name="action_edit_short">编辑</string>
+    <plurals name="count_files">
+        <item quantity="other">%1$d 个文件</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="other">%1$d 项</item>
+    </plurals>
+    <string name="bulk_save">更改 %2$s中的 %1$s</string>
+    <string name="bulk_reading">正在读取（%1$d/%2$d）…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="other">%1$d 个文件无法编辑，将保持原样：</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="other">另有 %1$d 个</item>
+    </plurals>
+    <string name="bulk_nothing_editable">这些文件都无法编辑。</string>
+    <string name="bulk_different">多个值</string>
+    <plurals name="bulk_removed">
+        <item quantity="other">从全部 %1$d 个文件中移除</item>
+    </plurals>
+    <string name="bulk_remove_field">从所有文件中移除</string>
+    <string name="bulk_keep_field">保持原样</string>
+    <string name="bulk_kept">保持原样：%1$s</string>
+    <string name="bulk_saving">已保存 %1$d 个，共 %2$d 个</string>
+    <string name="bulk_stop">停止</string>
+    <string name="bulk_result">已保存 %1$d 个，共 %2$d 个。</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="other">%1$d 个文件未更改：</item>
+    </plurals>
+    <string name="bulk_done">完成</string>
+    <string name="bulk_file_reason">%1$s：%2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="other">已在 %1$d 个文件中保存标签</item>
+    </plurals>
+    <string name="tags_saved_partly">已为 %1$d 个文件保存标签（共 %2$d 个）</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="other">已完成 %1$d 个文件的保存</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="other">已撤销 %1$d 次中断的保存；文件已恢复原状</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="other">%1$d 个文件已被其他应用更改，因此保持原样</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="other">%1$d 个文件暂时无法完成保存。请参阅“设置 → 音乐库”。</item>
+    </plurals>
+    <string name="lyrics_not_found">未找到此曲目的歌词。</string>
+    <string name="cd_scroll_to_top">回到顶部</string>
+    <string name="foryou_section_daypart_morning">你的早晨</string>
+    <string name="foryou_section_daypart_day">你的午后</string>
+    <string name="foryou_section_daypart_evening">你的夜晚</string>
+    <string name="foryou_section_daypart_night">你的深夜</string>
+    <string name="foryou_section_on_a_roll">你的%1$s时期</string>
+    <string name="foryou_section_wildcard">意外之选</string>
+    <string name="foryou_caption_left_turn">从《%1$s》拐个弯</string>
+    <string name="foryou_section_journey">声音之旅</string>
+    <string name="foryou_journey_title">从《%1$s》到《%2$s》</string>
+    <string name="settings_pages">页面</string>
+    <string name="settings_pages_subtitle">显示状态、顺序和启动页面</string>
+    <string name="settings_pages_body">拖动以调整顺序。关闭不使用的页面。</string>
+    <string name="settings_pages_last_visible">请至少保留一个开启的页面。</string>
+    <string name="settings_page_position">第 %1$d 位，共 %2$d 个</string>
+    <string name="settings_page_move_up">上移%1$s</string>
+    <string name="settings_page_move_down">下移%1$s</string>
+    <string name="settings_pages_reset">重置页面</string>
+    <string name="settings_pages_reset_body">恢复默认顺序、显示的页面和启动页面。</string>
+    <string name="stats_dashboard_title">你的聆听</string>
+    <string name="stats_recording_off">聆听历史记录已暂停。已保存的统计信息仍然保留；在隐私设置中启用历史记录后，新的聆听记录才会加入统计。</string>
+    <string name="stats_comparison_more">比上一时段的 %2$d 天多 %1$s</string>
+    <string name="stats_comparison_less">比上一时段的 %2$d 天少 %1$s</string>
+    <string name="stats_comparison_same">与上一时段的 %1$d 天聆听时长相同</string>
+    <string name="stats_comparison_first">上一时段的 %1$d 天没有聆听记录</string>
+    <string name="stats_under_minute">不足 1 分钟</string>
+    <string name="stats_activity">你的每日节奏</string>
+    <string name="stats_calendar_days">最近 %1$d 个自然日 · 聆听时长</string>
+    <string name="stats_today">今天</string>
+    <string name="stats_yesterday">昨天</string>
+    <string name="stats_days_ago">%1$d 天前</string>
+    <string name="stats_habits">聆听习惯</string>
+    <string name="stats_active_days">聆听天数</string>
+    <string name="stats_new_tracks">初次聆听</string>
+    <string name="stats_habits_note">新曲目指在已保存的历史记录中首次聆听的曲目。连续聆听天数按全部历史记录计算。</string>
+    <string name="stats_repeat_share">重复播放</string>
+    <string name="stats_coverage">探索你的音乐库</string>
+    <string name="stats_coverage_detail">本时段已播放 %2$s 中的 %1$d 首</string>
+    <string name="stats_smart_share">SMART 模式</string>
+    <string name="stats_smart_detail">开启 SMART 随机播放时开始的播放次数占比</string>
+    <string name="stats_listening_style">你的聆听方式</string>
+    <string name="stats_peak_hour">%1$s 左右播放次数最多</string>
+    <string name="stats_average_active_day">每个聆听日</string>
+    <string name="stats_recent_empty">这些自然日内还没有聆听记录。</string>
+    <string name="stats_history_note">基于已保存的历史记录，在曲目结束或切换时更新。排行仅包含音乐库中可用的曲目。</string>
+    <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+
+    <!-- Duplicate finder -->
+    <string name="duplicates_summary">分组：%1$d · 多余副本：%2$d · 可释放：%3$s</string>
+    <string name="duplicates_keep_recommended">保留推荐的副本</string>
+    <string name="duplicates_keep_selected">保留所选副本</string>
+    <string name="duplicates_not_duplicates">不是重复</string>
+    <string name="duplicates_recommended">推荐</string>
+    <string name="duplicates_hide_copy">隐藏此副本</string>
+    <string name="duplicates_hide_files">隐藏其他副本，文件保留在设备上</string>
+    <string name="duplicates_delete_files">从设备删除其他文件</string>
+    <string name="duplicates_merge_all_confirm">将在全部 %1$d 个分组中保留推荐的副本。</string>
+    <string name="duplicates_merge_confirm_body">播放列表和收藏将指向保留的副本。其他 %1$d 个副本：</string>
+    <string name="duplicates_reclaimable">可释放 %1$s</string>
+    <string name="duplicates_kbps">%1$d kbps</string>
+    <string name="unit_megabytes">%1$s MB</string>
+    <string name="snack_duplicates_dismissed">已标记为不同的录音</string>
+    <string name="cd_player_artwork">封面。点按查看曲目详情，长按打开操作，向两侧滑动切换曲目，向下拖动关闭。</string>
+    <string name="details_title">曲目详情</string>
+    <string name="details_language">语言</string>
+    <string name="details_format">格式</string>
+    <string name="details_file">文件</string>
+    <string name="details_plays">播放次数</string>
+    <string name="details_plays_none">尚未播放</string>
+    <string name="details_original_year">首次发行</string>
+    <string name="cd_details_close">返回封面</string>
+    <string name="player_mode_title">播放模式</string>
+    <string name="player_mode_off">按顺序</string>
+    <string name="player_mode_shuffle">随机播放</string>
+    <string name="player_mode_smart">SMART</string>
+    <string name="cd_mode_button">播放模式：%1$s。点按可切换，长按可选择。</string>
+    <string name="cd_seek_position">播放位置</string>
+    <string name="cd_time_toggle">在剩余时间和总时长之间切换</string>
+    <string name="seek_fine_half">½ 速</string>
+    <string name="seek_fine_quarter">¼ 速</string>
+    <string name="cd_skip_next_hold">下一曲。长按快进。</string>
+    <string name="cd_skip_previous_hold">上一曲。长按快退。</string>
+    <string name="output_phone_speaker">手机扬声器</string>
+    <string name="output_headphones">耳机</string>
+    <string name="output_bluetooth">Bluetooth</string>
+    <string name="cd_output_route">正在通过 %1$s 播放。点按选择播放设备。</string>
+    <string name="now_playing_next">下一首：%1$s</string>
+    <string name="output_title">音频输出</string>
+    <string name="output_current">当前输出</string>
+    <string name="output_connect_device">连接设备</string>
+    <string name="output_selection_failed">设备不可用。请检查连接。</string>
+    <string name="queue_reorder">调整曲目顺序</string>
+    <string name="playlists_yours">你的播放列表</string>
+    <string name="playlists_empty_body">创建播放列表或导入 M3U 文件，将音乐整理在一起。</string>
+    <string name="playlists_automatic">自动</string>
+    <string name="settings_pages_order">顺序</string>
+    <string name="settings_opens_on_launch">启动时打开</string>
+    <string name="settings_reorder_page">调整%1$s的顺序</string>
+    <string name="settings_backup_subtitle">导出或恢复</string>
+    <string name="duplicates_groups">分组</string>
+    <string name="duplicates_summary_title">分组：%1$d · %2$s</string>
+    <string name="duplicates_summary_extra">多余副本：%1$d</string>
+    <string name="duplicates_copy_count">副本：%1$d</string>
+</resources>

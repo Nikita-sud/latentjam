@@ -9,6 +9,7 @@ import android.os.Handler
 import android.os.Looper
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
+import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
@@ -25,16 +26,30 @@ public class PlaybackTileService : TileService() {
     private var pending: ListenableFuture<MediaController>? = null
 
     override fun onStartListening() {
-        withController { controller -> updateTile(controller.isPlaying) }
+        withController { controller -> updateTile(transportIsPlaying(controller)) }
     }
 
     override fun onClick() {
         withController { controller ->
-            val shouldPlay = !controller.playWhenReady
-            if (shouldPlay) controller.play() else controller.pause()
+            val shouldPlay = !showPauseButton(
+                playWhenReady = controller.playWhenReady,
+                playbackState = controller.playbackState,
+                pausePending = false,
+            )
+            if (shouldPlay) {
+                // `play()` alone is a no-op once the final item reached STATE_ENDED, where a tap on
+                // the tile is the most common way back. Restart that item, exactly like the in-app
+                // button (PlaybackController.android.kt togglePlayPause) and Media3's own
+                // Util.handlePlayButtonAction.
+                if (controller.playbackState == Player.STATE_ENDED) controller.seekToDefaultPosition()
+                if (controller.playbackState == Player.STATE_IDLE) controller.prepare()
+                controller.play()
+            } else {
+                controller.pause()
+            }
             // MediaController commands are asynchronous. Reflect the requested state now; the
             // next listening callback reconciles it with the session's authoritative state.
-            updateTile(shouldPlay)
+            updateTile(shouldPlay && transportIsPlaying(controller))
         }
     }
 
@@ -54,6 +69,21 @@ public class PlaybackTileService : TileService() {
         tile.state = if (playing) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
         tile.updateTile()
     }
+
+    /**
+     * Whether the session is playing, by the same rule the app's transport uses
+     * ([showPauseButton]): playback intent plus a state that can actually produce audio.
+     *
+     * [MediaController.isPlaying] alone cannot be trusted here — the shade may hold a stale
+     * controller, and an ended or idle queue must not be drawn as playing. A paused-but-fading
+     * session still counts as playing: the fade is part of a pause request, and the icon flips
+     * when the request settles.
+     */
+    private fun transportIsPlaying(controller: MediaController): Boolean = showPauseButton(
+        playWhenReady = controller.playWhenReady,
+        playbackState = controller.playbackState,
+        pausePending = false,
+    )
 
     private fun withController(block: (MediaController) -> Unit) {
         pending?.cancel(true)

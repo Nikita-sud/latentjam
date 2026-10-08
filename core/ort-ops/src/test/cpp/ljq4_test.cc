@@ -78,32 +78,52 @@ std::vector<uint8_t> Run(Kernel& kernel, const Layer& layer) {
   return y;
 }
 
-// One layer through one path, twice (the second call reuses decoded or repacked weights). An output may
-// miss the exact value by one step only where the exact value sits at half a step.
+// One call through a kernel: the outputs against the exact values. An output may miss the exact value by one
+// step only where the exact value sits at half a step.
+void CheckCall(Kernel& kernel, const Layer& layer, const char* what, bool report = false) {
+  const std::vector<uint8_t> y = Run(kernel, layer);
+  size_t steps = 0, wrong = 0;
+  for (size_t i = 0; i < layer.m * layer.n; ++i) {
+    const double unrounded = layer.exact[i] / layer.ys + layer.yz;
+    const int expected = static_cast<int>(std::min(255.0, std::max(0.0, std::nearbyint(unrounded))));
+    const int difference = std::abs(static_cast<int>(y[i]) - expected);
+    if (difference == 0) continue;
+    const bool half = std::fabs(unrounded - std::floor(unrounded) - 0.5) < 2e-3;
+    if (difference == 1 && half) ++steps;
+    else ++wrong;
+  }
+  char message[200];
+  snprintf(message, sizeof(message), "%s: %zu wrong, %zu half-step", what, wrong, steps);
+  if (report) printf("%s\n", message);
+  Expect(wrong == 0, message);
+}
+
+// One layer through one path, twice (the second call reuses decoded or repacked weights).
 void CheckLayer(Path path, size_t block, size_t m, size_t k, size_t n, std::mt19937& rng) {
   const Layer layer = RandomLayer(block, m, k, n, rng);
-  const std::vector<double>& exact = layer.exact;
-  const float ys = layer.ys;
-  const int32_t yz = layer.yz;
   Kernel kernel{n, block, path};
   for (int call = 0; call < 2; ++call) {
-    const std::vector<uint8_t> y = Run(kernel, layer);
-    size_t steps = 0, wrong = 0;
-    for (size_t i = 0; i < m * n; ++i) {
-      const double unrounded = exact[i] / ys + yz;
-      const int expected = static_cast<int>(std::min(255.0, std::max(0.0, std::nearbyint(unrounded))));
-      const int difference = std::abs(static_cast<int>(y[i]) - expected);
-      if (difference == 0) continue;
-      const bool half = std::fabs(unrounded - std::floor(unrounded) - 0.5) < 2e-3;
-      if (difference == 1 && half) ++steps;
-      else ++wrong;
-    }
     char what[160];
-    snprintf(what, sizeof(what), "%-8s block %2zu M=%4zu K=%4zu N=%4zu call %d: %zu wrong, %zu half-step", Name(path),
-             block, m, k, n, call, wrong, steps);
-    if (call == 0) printf("%s\n", what);
-    Expect(wrong == 0, what);
+    snprintf(what, sizeof(what), "%-8s block %2zu M=%4zu K=%4zu N=%4zu call %d", Name(path), block, m, k, n, call);
+    CheckCall(kernel, layer, what, call == 0);
   }
+}
+
+// A kernel keeps the K it was first called with only for that K: a node of a graph whose channel axis moves
+// can see K=48 and then K=64, and at N=64 both pack to 2816 bytes (WeightBytes rounds K up to the 32-input
+// block), so the size check in Compute passes while the decoded rows are still 48 wide.
+void CheckCacheIsKeyedOnK(Path path, size_t block, std::mt19937& rng) {
+  const Layer narrow = RandomLayer(block, 64, 48, 64, rng);
+  const Layer wide = RandomLayer(block, 64, 64, 64, rng);
+  Expect(narrow.w.size() == wide.w.size(), "K 48 and K 64 must pack to the same size for this case");
+  Kernel kernel{64, block, path};
+  char what[160];
+  snprintf(what, sizeof(what), "%-8s block %2zu M=64 N=64 K 48 then 64, first", Name(path), block);
+  CheckCall(kernel, narrow, what, true);
+  snprintf(what, sizeof(what), "%-8s block %2zu M=64 N=64 K 64 after 48", Name(path), block);
+  CheckCall(kernel, wide, what);
+  snprintf(what, sizeof(what), "%-8s block %2zu M=64 N=64 K 48 again", Name(path), block);
+  CheckCall(kernel, narrow, what);
 }
 
 // Every path this CPU has writes the same bytes as the first, values that sit half a step between two outputs
@@ -198,6 +218,10 @@ int main() {
     for (size_t block : {0, 32}) {
       for (const Shape& shape : shapes) CheckLayer(path, block, shape.m, shape.k, shape.n, rng);
     }
+  }
+  // A node called with two Ks whose packed weights are the same size: the decoded rows must follow K.
+  for (Path path : paths) {
+    for (size_t block : {0, 32}) CheckCacheIsKeyedOnK(path, block, rng);
   }
   if (paths.size() > 1) {
     const Shape layers[] = {{2016, 80, 240}, {2016, 240, 80}, {504, 160, 480}, {126, 512, 160}};

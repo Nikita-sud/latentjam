@@ -98,6 +98,81 @@ class SleepTimerTest {
         assertEquals(1, playback.pauseCalls)
         assertEquals(SleepTimerState.Off, timer.state.value)
     }
+
+    @Test
+    fun `end of track survives a queue edit that only shifts the current row`() = runTest {
+        val first = TrackDescriptor(TrackId("one"))
+        val second = TrackDescriptor(TrackId("two"))
+        val third = TrackDescriptor(TrackId("three"))
+        val playback = FakePlayback(
+            initial = NowPlaying(
+                track = third,
+                isPlaying = true,
+                queue = listOf(first, second, third),
+                queueIndex = 2,
+            ),
+        )
+        val timer = SleepTimerController(playback, backgroundScope) { testScheduler.currentTime }
+
+        timer.startAtEndOfTrack()
+        runCurrent()
+        // The row above the playhead is removed: the same entry keeps playing at a new index.
+        playback.mutableState.value = playback.mutableState.value.copy(
+            queue = listOf(first, third),
+            queueIndex = 1,
+        )
+        runCurrent()
+
+        assertEquals(0, playback.pauseCalls)
+        assertEquals(SleepTimerState.EndOfTrack, timer.state.value)
+
+        // A shuffle reorder around the playhead is not a skip either.
+        playback.mutableState.value = playback.mutableState.value.copy(
+            queue = listOf(third, first),
+            queueIndex = 0,
+        )
+        runCurrent()
+        assertEquals(0, playback.pauseCalls)
+        assertEquals(SleepTimerState.EndOfTrack, timer.state.value)
+
+        // The track really playing out still ends the timer.
+        playback.mutableState.value = playback.mutableState.value.copy(
+            isPlaying = false,
+            positionMs = 120_000,
+            durationMs = 120_000,
+        )
+        runCurrent()
+        assertEquals(1, playback.pauseCalls)
+        assertEquals(SleepTimerState.Off, timer.state.value)
+    }
+
+    @Test
+    fun `end of track still stops on a skip to another row of the same track`() = runTest {
+        val track = TrackDescriptor(TrackId("dup"))
+        val other = TrackDescriptor(TrackId("other"))
+        val playback = FakePlayback(
+            initial = NowPlaying(
+                track = track,
+                isPlaying = true,
+                queue = listOf(track, other, track),
+                queueIndex = 2,
+            ),
+        )
+        val timer = SleepTimerController(playback, backgroundScope) { testScheduler.currentTime }
+
+        timer.startAtEndOfTrack()
+        runCurrent()
+        // With the id in the queue twice, position is the only identity left, so a jump to the
+        // other row of the same track counts as leaving the entry.
+        playback.mutableState.value = playback.mutableState.value.copy(
+            queue = listOf(track, track, other),
+            queueIndex = 1,
+        )
+        runCurrent()
+
+        assertEquals(1, playback.pauseCalls)
+        assertEquals(SleepTimerState.Off, timer.state.value)
+    }
 }
 
 private class FakePlayback(initial: NowPlaying = NowPlaying()) : PlaybackController {

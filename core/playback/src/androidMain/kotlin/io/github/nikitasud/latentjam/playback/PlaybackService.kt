@@ -38,6 +38,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Background playback host: one ExoPlayer inside a Media3 [MediaSessionService].
@@ -405,7 +406,17 @@ public class PlaybackService : MediaLibraryService() {
         startIndex: Int? = null,
         startPositionMs: Long? = null,
     ): PlayableRequest<MediaItem> {
-        val catalog = MediaBrowseRegistry.catalog?.invoke()
+        // The catalog is what lets a row with no URI be resolved by id or search query, so only a
+        // request carrying such a row needs it at all: the in-app path sends complete items and
+        // stays untouched. Building it scans the whole library and its playlists, and the service
+        // callbacks run on Dispatchers.Main.immediate, so it is deferred until an unresolved row is
+        // actually seen and then built off the main thread — otherwise every set from the app waits
+        // for that scan before Media3 installs the queue.
+        val catalog = if (mediaItems.any { it.localConfiguration == null }) {
+            withContext(Dispatchers.IO) { MediaBrowseRegistry.catalog?.invoke() }
+        } else {
+            null
+        }
         val rows = mediaItems.map { item ->
             if (item.localConfiguration != null) {
                 item
@@ -857,11 +868,16 @@ public class PlaybackService : MediaLibraryService() {
         ShuffleMode.SMART -> CommandButton.ICON_UNDEFINED
     }
 
-    private fun shuffleActionName(mode: ShuffleMode): String = when (mode) {
-        ShuffleMode.OFF -> "Turn shuffle on"
-        ShuffleMode.ON -> "Turn SMART shuffle on"
-        ShuffleMode.SMART -> "Turn shuffle off"
-    }
+    // Media3 takes CommandButton.displayName as plain text and does not localize it, while the
+    // notification, Android Auto/head units and accessibility services all read it aloud or show
+    // it, so the labels live in res/values and its translations rather than here.
+    private fun shuffleActionName(mode: ShuffleMode): String = getString(
+        when (mode) {
+            ShuffleMode.OFF -> R.string.media_session_shuffle_on
+            ShuffleMode.ON -> R.string.media_session_shuffle_smart_on
+            ShuffleMode.SMART -> R.string.media_session_shuffle_off
+        },
+    )
 
     private fun repeatIcon(repeatMode: Int): Int = when (repeatMode) {
         Player.REPEAT_MODE_ALL -> CommandButton.ICON_REPEAT_ALL
@@ -869,11 +885,13 @@ public class PlaybackService : MediaLibraryService() {
         else -> CommandButton.ICON_REPEAT_OFF
     }
 
-    private fun repeatActionName(repeatMode: Int): String = when (repeatMode) {
-        Player.REPEAT_MODE_OFF -> "Repeat all"
-        Player.REPEAT_MODE_ALL -> "Repeat this track"
-        else -> "Turn repeat off"
-    }
+    private fun repeatActionName(repeatMode: Int): String = getString(
+        when (repeatMode) {
+            Player.REPEAT_MODE_OFF -> R.string.media_session_repeat_all
+            Player.REPEAT_MODE_ALL -> R.string.media_session_repeat_one
+            else -> R.string.media_session_repeat_off
+        },
+    )
 
     private fun nextRepeatMode(repeatMode: Int): Int = when (repeatMode) {
         Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL

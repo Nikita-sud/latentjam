@@ -157,7 +157,7 @@ internal fun PlaylistsTabContent(
     val haptics = LocalHapticFeedback.current
     val reduceMotion = rememberReduceMotion()
     val featuredPlaylists = remember(autoPlaylists) {
-        listOf(
+        val pinned = listOf(
             AutoPlaylistKind.FAVORITES,
             AutoPlaylistKind.RECENTLY_ADDED,
             AutoPlaylistKind.MOST_PLAYED,
@@ -165,6 +165,13 @@ internal fun PlaylistsTabContent(
         ).map { kind ->
             autoPlaylists.firstOrNull { it.kind == kind } ?: AutoPlaylist(kind, emptyList())
         }
+        // Never Played and Rediscover are derived from listening history, so AutoPlaylists.build
+        // hands them over only once they have rows. They join the rail exactly then: unlike the
+        // four kinds above they have no stable slot to hold on day one, and a 0-track card here
+        // would open an empty page. Their titles are localized like the rest (titleRes()).
+        val derived = listOf(AutoPlaylistKind.NEVER_PLAYED, AutoPlaylistKind.REDISCOVER)
+            .mapNotNull { kind -> autoPlaylists.firstOrNull { it.kind == kind } }
+        pinned + derived
     }
     // Same float-and-drop contract as the player's queue: the pressed row floats, ONE move
     // commits on release — mutating mid-drag would re-key the row under the finger.
