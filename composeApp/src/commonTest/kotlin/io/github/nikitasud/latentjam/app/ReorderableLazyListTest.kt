@@ -51,4 +51,42 @@ class ReorderableLazyListTest {
         assertEquals(0f, reorderEdgeScrollSpeed(Float.NaN, 0, 400, 56f, 720f))
         assertEquals(0f, reorderEdgeScrollSpeed(1f, 0, 0, 56f, 720f))
     }
+
+    @Test fun previewStaysBetweenPlaylistHeadersAndLastRowInAShortList() {
+        val rows = listOf(ReorderableRow(0, 240, 60), ReorderableRow(1, 300, 60))
+        val bounds = reorderBounds(rows, 600)!!
+        assertEquals(ReorderBounds(240f, 360f), bounds)
+        assertEquals(240f, bounds.rowTop(-500f, 60))
+        assertEquals(300f, bounds.rowTop(900f, 60))
+        assertEquals(265f, bounds.rowTop(265f, 60))
+        assertEquals(0f, reorderScrollDelta(-50f, rows, 2, 600))
+        assertEquals(0f, reorderScrollDelta(50f, rows, 2, 600))
+    }
+
+    @Test fun previewStopsAtViewportEdgesWhileThePointerKeepsScrolling() {
+        val rows = listOf(ReorderableRow(20, -30, 160), ReorderableRow(21, 130, 160), ReorderableRow(22, 290, 160))
+        val bounds = reorderBounds(rows, 400)!!
+        assertEquals(ReorderBounds(0f, 400f), bounds)
+        assertEquals(0f, bounds.rowTop(-500f, 160))
+        assertEquals(240f, bounds.rowTop(900f, 160))
+        assertEquals(-36f, reorderScrollDelta(-36f, rows, 60, 400))
+        assertEquals(36f, reorderScrollDelta(36f, rows, 60, 400))
+    }
+
+    @Test fun scrollStopsExactlyAtFirstAndLastSlotsWithoutRevealingHeadersOrFooter() {
+        val rows = listOf(ReorderableRow(0, -15, 240), ReorderableRow(1, 225, 200))
+        assertEquals(-15f, reorderScrollDelta(-50f, rows, 2, 400))
+        assertEquals(25f, reorderScrollDelta(50f, rows, 2, 400))
+    }
+
+    @Test fun oversizedRowsAndEmptyViewportsHaveSafePreviewBounds() {
+        val rows = listOf(ReorderableRow(0, 20, 500))
+        val bounds = reorderBounds(rows, 300)!!
+        assertEquals(ReorderBounds(20f, 300f), bounds)
+        assertEquals(20f, bounds.rowTop(900f, 500))
+        assertNull(reorderBounds(rows, 0))
+        assertNull(reorderBounds(emptyList(), 300))
+        assertEquals(0f, reorderScrollDelta(50f, emptyList(), 0, 300))
+    }
+
 }
