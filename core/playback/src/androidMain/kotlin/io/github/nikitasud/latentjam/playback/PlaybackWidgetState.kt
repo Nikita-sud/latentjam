@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.SystemClock
 import android.provider.Settings
+import kotlin.random.Random
 
 /**
  * Small, process-independent view of the media session for home-screen widgets.
@@ -21,6 +22,11 @@ import android.provider.Settings
  *   after a seek still counts as playing, exactly as the in-app player's `showPauseButton` treats it,
  *   so the widget does not flip to Play and freeze its clock mid-seek. The projection anchors below
  *   hang off this flag, so the same rule decides whether progress is live.
+ * @property capturedProcessToken Identity of the process that wrote this snapshot. Playback dies with
+ *   its process, so [PlaybackWidgetStateStore.publish] stamps the current process here and
+ *   [PlaybackWidgetStateStore.read] drops the live flag of a snapshot an earlier process left behind;
+ *   the boot count cannot see that case, because a killed process leaves neither the monotonic clock
+ *   nor the boot generation changed.
  */
 public data class PlaybackWidgetSnapshot(
     public val revision: Long = 0,
@@ -38,6 +44,7 @@ public data class PlaybackWidgetSnapshot(
     public val nextTitle: String? = null,
     public val capturedElapsedRealtimeMs: Long = 0,
     public val capturedBootCount: Int = UNKNOWN_BOOT_COUNT,
+    public val capturedProcessToken: Long = UNKNOWN_PROCESS_TOKEN,
 ) {
     /** True only while the persisted play anchor is valid for this device boot. */
     public fun isLivePlaying(
@@ -86,6 +93,9 @@ public data class PlaybackWidgetSnapshot(
     public companion object {
         /** Sentinel used when Android cannot expose the current boot generation. */
         public const val UNKNOWN_BOOT_COUNT: Int = -1
+
+        /** Sentinel for a snapshot carrying no process identity (none, or written before it existed). */
+        public const val UNKNOWN_PROCESS_TOKEN: Long = 0L
     }
 }
 
@@ -115,13 +125,21 @@ internal fun initialPlaybackModes(
 
 /** Persistent bridge between the Media3 service and app-widget receivers. */
 public object PlaybackWidgetStateStore {
-    /** Reads the last complete snapshot, returning an empty paused value before first playback. */
+    /**
+     * Reads the last complete snapshot, returning an empty paused value before first playback.
+     *
+     * A snapshot another process wrote is returned with [PlaybackWidgetSnapshot.isPlaying] cleared:
+     * nothing can be playing here, because the player that was playing died with that process. The
+     * stored position is kept, so the widget freezes at the last known playhead instead of counting
+     * on from a track that is no longer running — and instead of claiming live progress until the
+     * duration runs out.
+     */
     public fun read(context: Context): PlaybackWidgetSnapshot {
         val preferences = context.applicationContext.getSharedPreferences(
             PREFERENCES_FILE,
             Context.MODE_PRIVATE,
         )
-        return PlaybackWidgetSnapshot(
+        val persisted = PlaybackWidgetSnapshot(
             revision = preferences.safeLong(KEY_REVISION, 0),
             mediaId = preferences.safeString(KEY_MEDIA_ID).orEmpty(),
             title = preferences.safeString(KEY_TITLE).orEmpty(),
@@ -141,7 +159,16 @@ public object PlaybackWidgetStateStore {
                 KEY_CAPTURED_BOOT_COUNT,
                 PlaybackWidgetSnapshot.UNKNOWN_BOOT_COUNT,
             ),
+            capturedProcessToken = preferences.safeLong(
+                KEY_CAPTURED_PROCESS_TOKEN,
+                PlaybackWidgetSnapshot.UNKNOWN_PROCESS_TOKEN,
+            ),
         )
+        return if (persisted.capturedProcessToken == processToken) {
+            persisted
+        } else {
+            persisted.copy(isPlaying = false)
+        }
     }
 
     /** Action emitted after the complete preference transaction has become visible in-process. */
@@ -156,7 +183,12 @@ public object PlaybackWidgetStateStore {
         val appContext = context.applicationContext
         val nextRevision = read(appContext).revision
             .let { revision -> if (revision == Long.MAX_VALUE) Long.MAX_VALUE else revision + 1 }
-        val persisted = snapshot.copy(revision = nextRevision)
+        val persisted = snapshot.copy(
+            revision = nextRevision,
+            // Stamped here rather than taken from the caller: every writer goes through this store,
+            // and the token is what tells a later process that the anchor it finds is not its own.
+            capturedProcessToken = processToken,
+        )
         appContext.getSharedPreferences(PREFERENCES_FILE, Context.MODE_PRIVATE)
             .edit()
             .putLong(KEY_REVISION, persisted.revision)
@@ -177,6 +209,7 @@ public object PlaybackWidgetStateStore {
                 persisted.capturedElapsedRealtimeMs.coerceAtLeast(0),
             )
             .putInt(KEY_CAPTURED_BOOT_COUNT, persisted.capturedBootCount)
+            .putLong(KEY_CAPTURED_PROCESS_TOKEN, persisted.capturedProcessToken)
             .apply()
         appContext.sendBroadcast(
             Intent(stateChangedAction(appContext)).setPackage(appContext.packageName),
@@ -224,6 +257,13 @@ public object PlaybackWidgetStateStore {
     private const val KEY_NEXT_TITLE = "next_title"
     private const val KEY_CAPTURED_ELAPSED_MS = "captured_elapsed_realtime_ms"
     private const val KEY_CAPTURED_BOOT_COUNT = "captured_boot_count"
+    private const val KEY_CAPTURED_PROCESS_TOKEN = "captured_process_token"
+
+    /**
+     * Identity of this process, drawn once per process start. Never persisted: a new process must
+     * not be able to present itself as the one that wrote an older snapshot.
+     */
+    private val processToken: Long = Random.nextLong(1L, Long.MAX_VALUE)
 
     private val writeLock: Any = Any()
 }
