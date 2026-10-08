@@ -231,8 +231,18 @@ internal fun estimatedBitrateKbps(sizeBytes: Long?, durationMs: Long?): Int? {
     return (sizeBytes * 8.0 / durationMs).roundToInt()
 }
 
-/** `FLAC · 1 010 kbps · 34.2 MB`, or as much of that as the facts allow; null without an extension. */
-internal fun fileFormatLabel(fileName: String?, sizeBytes: Long?, durationMs: Long?): String? {
+/**
+ * `FLAC · 1 010 kbps · 34.2 MB`, or as much of that as the facts allow; null without an extension.
+ * The size is written with [currentDecimalSeparator] — the same rule [megabytesLabel] follows — so
+ * this label reads "34,2 MB" in the languages that put a comma there. [separator] is a parameter so
+ * a caller that knows its own separator can pin it.
+ */
+internal fun fileFormatLabel(
+    fileName: String?,
+    sizeBytes: Long?,
+    durationMs: Long?,
+    separator: Char = currentDecimalSeparator(),
+): String? {
     val extension = fileName
         ?.substringAfterLast('.', missingDelimiterValue = "")
         ?.takeIf { it.isNotBlank() && it.length <= MAX_EXTENSION_LENGTH }
@@ -241,7 +251,7 @@ internal fun fileFormatLabel(fileName: String?, sizeBytes: Long?, durationMs: Lo
     estimatedBitrateKbps(sizeBytes, durationMs)?.let { parts += "${groupThousands(it)} kbps" }
     sizeBytes?.takeIf { it > 0L }?.let { bytes ->
         val tenthsOfMegabyte = (bytes / 100_000.0).roundToLong()
-        parts += "${tenthsOfMegabyte / 10}.${tenthsOfMegabyte % 10} MB"
+        parts += "${tenthsOfMegabyte / 10}$separator${tenthsOfMegabyte % 10} MB"
     }
     return parts.joinToString(" · ")
 }

@@ -432,12 +432,13 @@ internal suspend fun mergeDuplicateGroup(
 
 /**
  * "34.2" for 34_200_000 bytes; whole numbers from 100 MB up, where a decimal is noise. The
- * separator is the one the app's language writes: the label is dropped into a translated sentence
+ * separator is [currentDecimalSeparator]: the label is dropped into a translated sentence
  * ("34,2 МБ"), so a hard-coded full stop reads wrong in most of the languages this app ships in.
+ * It stays a parameter so a caller that knows its own separator — a test, a report — can pin it.
  */
 internal fun megabytesLabel(
     bytes: Long,
-    separator: Char = decimalSeparatorFor(appLanguage()),
+    separator: Char = currentDecimalSeparator(),
 ): String {
     val megabytes = bytes / 1_000_000.0
     if (megabytes >= 100.0) return megabytes.roundToInt().toString()
@@ -457,6 +458,14 @@ internal fun decimalSeparatorFor(language: String): Char = when (language.lowerc
     "de", "es", "fr", "id", "in", "it", "pl", "pt", "ro", "ru", "tr", "uk" -> ','
     else -> '.'
 }
+
+/**
+ * The decimal separator for the language the UI is being written in right now — the one rule behind
+ * every size label the app prints, so the duplicate finder's "34,2" and the track details'
+ * "34,2 MB" can never disagree. [Locale.current] answers with the per-app language on Android 13+
+ * and with the system language everywhere else.
+ */
+internal fun currentDecimalSeparator(): Char = decimalSeparatorFor(appLanguage())
 
 /**
  * The language Compose lays the UI out in: the per-app language where the system has one, the
