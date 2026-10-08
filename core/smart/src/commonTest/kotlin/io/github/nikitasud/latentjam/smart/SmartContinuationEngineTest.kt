@@ -201,15 +201,57 @@ internal class SmartContinuationEngineTest {
         val first = engine.smartQueue(tracks.first(), tracks.drop(1), 4)
         val queue = (listOf(tracks.first().id) + first).dropLast(1).toMutableList()
         // Two top-ups of three spend the seed's other neighbours; the removed one is never among them.
+        // The controllers keep a removed track out of the candidates (recordSmartRemoval and
+        // smartTopUpCandidates, see SmartQueueEligibilityTest), so the walk only has to carry on.
         repeat(2) { topUp ->
             val tail = tracks.first { it.id == queue.last() }
-            val rest = tracks.filter { it.id !in queue }
+            val rest = tracks.filter { it.id !in queue && it.id != first.last() }
             val next = engine.continueSmartQueue(tail, rest, 3, precedingTrackIds = queue.dropLast(1).takeLast(10))
             assertEquals(3, next.size, "top-up ${topUp + 1}")
             assertTrue(first.last() !in next, "top-up ${topUp + 1} brought the removed track back: $next")
             queue += next
         }
         assertEquals(neighbours - first.last(), queue.filter { it in neighbours }.toSet())
+    }
+
+    @Test
+    fun `a future the app discarded to replan is free for the replan`() = runTest {
+        // The listener changed the artist variety or marked a playlist while the third track played:
+        // the app cut the queue back to it and tops it up again. The two tracks it discarded were
+        // never removed, so the replan may take them, and the walk spends its neighbourhood on them.
+        val engine = engine(continuation = true)
+        val first = engine.smartQueue(tracks.first(), tracks.drop(1), 4)
+        val queue = (listOf(tracks.first().id) + first).dropLast(2)
+        val tail = tracks.first { it.id == queue.last() }
+        val rest = tracks.filter { it.id !in queue }
+        val replan = engine.continueSmartQueue(
+            tail, rest, neighbours.size + 1 - queue.size, precedingTrackIds = queue.dropLast(1),
+        )
+        assertTrue(replan.containsAll(first.takeLast(2)), "the discarded tracks stayed spent: $replan")
+        assertEquals(neighbours, (queue + replan).filter { it in neighbours }.toSet())
+    }
+
+    @Test
+    fun `a planned track moved above the last queued track still counts as played`() = runTest {
+        // One band, so the artist cap counts exactly the tracks the walk takes as played.
+        val band = tracks.map { it.copy(artist = "The Band") }
+        suspend fun topUp(edit: (List<TrackId>) -> List<TrackId>): List<TrackId> {
+            val engine = engine(continuation = true, library = band)
+            val first = engine.smartQueue(band.first(), band.drop(1), 4)
+            val queue = edit(listOf(band.first().id) + first)
+            // As the controllers pass them: nothing queued, nothing the listener removed.
+            val removed = first.filter { it !in queue }.toSet()
+            val rest = band.filter { it.id !in queue && it.id !in removed }
+            val tail = band.first { it.id == queue.last() }
+            return engine.continueSmartQueue(tail, rest, 3, precedingTrackIds = queue.dropLast(1))
+        }
+        // Dragged above the track before it, the plan's last track still plays before the top-up:
+        // the walk counts four of its picks as played, and the cap leaves room for two more.
+        val moved = topUp { queue -> queue.dropLast(2) + queue.last() + queue[queue.lastIndex - 1] }
+        assertEquals(ChainConfig.CHAIN_ARTIST_QUEUE_CAP - 4, moved.size, "moved: $moved")
+        // Removed instead, it never plays: the walk counts three, and the top-up fills all three slots.
+        val removed = topUp { queue -> queue.dropLast(1) }
+        assertEquals(3, removed.size, "removed: $removed")
     }
 
     @Test
@@ -384,27 +426,36 @@ internal class SmartContinuationEngineTest {
         edit(queue)
         val tail = tracks.first { it.id == queue.last() }
         assertTrue(tail.id in first.dropLast(1), "the edit must end the queue inside the plan")
-        val rest = tracks.filter { it.id !in queue }
-        val continued = resumedJourney(first, rest, tail)
+        // The controllers leave out what is queued and what the listener removed.
+        val removed = first.filter { it !in queue }.toSet()
+        val rest = tracks.filter { it.id !in queue && it.id !in removed }
+        val preceding = queue.dropLast(1).takeLast(10)
+        val continued = resumedJourney(first, rest, tail, queuedBefore = preceding)
         assertTrue(continued.all { it in neighbours }, "a resumed walk keeps to the seed's neighbourhood: $continued")
         assertTrue(continued.none { it in first }, "a removed track must not come straight back: $continued")
         assertTrue(journey(rest, tail, continuation = true).any { it in satellites }, "a new walk would leave")
 
-        assertEquals(
-            continued,
-            engine.continueSmartQueue(tail, rest, 3, precedingTrackIds = queue.dropLast(1).takeLast(10)),
-        )
+        assertEquals(continued, engine.continueSmartQueue(tail, rest, 3, precedingTrackIds = preceding))
     }
 
-    /** The engine's continuation path: the walk of [plan], planned from the seed, resumed and ordered from [tail]. */
-    private fun resumedJourney(plan: List<TrackId>, library: List<TrackDescriptor>, tail: TrackDescriptor): List<TrackId> {
+    /**
+     * The engine's continuation path: the walk of [plan], planned from the seed, resumed at [tail] with
+     * [queuedBefore] before it, and ordered from [tail].
+     */
+    private fun resumedJourney(
+        plan: List<TrackId>,
+        library: List<TrackDescriptor>,
+        tail: TrackDescriptor,
+        queuedBefore: List<TrackId> = emptyList(),
+    ): List<TrackId> {
         val snapshot = snapshot()
         val on = ChainTuning(continueAfterExhaustion = true)
         val planned = SmartChain(snapshot, null, eligible(snapshot, tracks.drop(1)), tuning = on)
             .build(tracks.first().id, plan.size, FloatArray(5))
         assertEquals(plan, JourneySequencer.order(snapshot, planned.rows).map { snapshot.tracks[it].id })
+        val walk = planned.walk?.followingOrder(plan)?.resumedAt(tail.id, queuedBefore)
         val resumed = SmartChain(snapshot, null, eligible(snapshot, library), tuning = on)
-            .build(tail.id, 3, FloatArray(5), resume = planned.walk?.followingOrder(plan))
+            .build(tail.id, 3, FloatArray(5), resume = walk)
         return JourneySequencer.order(snapshot, resumed.rows, from = snapshot.rowOf(tail.id)).map { snapshot.tracks[it].id }
     }
 

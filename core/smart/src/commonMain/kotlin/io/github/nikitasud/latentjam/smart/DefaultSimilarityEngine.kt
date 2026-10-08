@@ -841,10 +841,11 @@ internal class DefaultSimilarityEngine(
      * The walk a top-up from [seed] carries on: the newest that played [seed] after a track the queue
      * still holds before it (continuesSmartPlan). [seed] usually ended that walk's plan. It is an
      * earlier track when the listener removed or moved the queue's last rows, or the app discarded the
-     * queue's future to replan it: the walk goes on as it stood at [seed] (ChainWalk.resumedAt), and
-     * its picks after [seed] stay spent as picks the listener never heard. A track the listener
-     * removed stays out all the same, now from the walk's own memory as well. An older walk never saw
-     * a newer one's picks, so the newer walk wins.
+     * queue's future to replan it: the walk goes on as it stood at [seed] (ChainWalk.resumedAt). Its
+     * picks after [seed] that [precedingTrackIds] still holds count as played; the rest are released
+     * and may be planned again, so a discarded future is not lost to the replan. A track the listener
+     * removed stays out all the same: the controllers leave it out of the candidates they pass in.
+     * An older walk never saw a newer one's picks, so the newer walk wins.
      *
      * Only the plan's OWN rows identify it: the track it was planned from and the picks it made. The
      * walk's older picks belong to earlier plans, and a queue that merely holds the old intent — one
@@ -864,7 +865,7 @@ internal class DefaultSimilarityEngine(
             at > cached.plannedAt &&
                 continuesSmartPlan(cached.order.subList(cached.plannedAt, at), precedingTrackIds)
         } ?: return null
-        val walk = cached.walk.resumedAt(seed)
+        val walk = cached.walk.resumedAt(seed, precedingTrackIds)
         val marked = joinsMarkedPlaylist(seed, before = cached.companionGroups, after = companionGroups)
         return ResumedWalk(
             walk = if (marked) walk.reanchoredAt(seed) else walk,

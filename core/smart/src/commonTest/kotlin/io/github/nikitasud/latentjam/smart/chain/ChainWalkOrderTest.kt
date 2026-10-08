@@ -141,7 +141,8 @@ internal class ChainWalkOrderTest {
     @Test
     fun `a walk resumed at an earlier pick plays on as if its plan had ended there`() {
         // The listener removed the plan's last row, row 4: the queue ends at row 3, which closes a
-        // run of A with row 2. The removed row must neither break that run nor count as played.
+        // run of A with row 2. The removed row must neither break that run nor count as played; the
+        // controller keeps it out of the candidates, as row 4 is here.
         val snapshot = circle(setOf(2, 3, 13))
         val picks = listOf(1, 2, 3, 4).map { TrackId(it.toString()) }
         val eligible = BooleanArray(snapshot.size) { it > 4 }
@@ -166,8 +167,52 @@ internal class ChainWalkOrderTest {
         assertEquals(endedPick.row, cutPick.row)
         kotlin.test.assertContentEquals(endedPick.terms, cutPick.terms)
         kotlin.test.assertContentEquals(endedPick.candidates, cutPick.candidates)
-        // The removed row stays spent in the walk, where the plan had put it.
-        assertEquals(picks + TrackId("13"), cut.walk?.picks)
+        // The removed row leaves the walk: nothing remembers a track the queue no longer holds.
+        assertEquals(picks.dropLast(1) + TrackId("13"), cut.walk?.picks)
+    }
+
+    @Test
+    fun `a pick moved above the seed still counts as played in queue order`() {
+        // The plan served rows 1-4; the listener dragged row 4 above row 3, so the queue now ends at
+        // row 3 with row 4 right before it, and the next top-up is seeded with row 3.
+        val ids = { rows: List<Int> -> rows.map { TrackId(it.toString()) } }
+        val queuedBefore = ids(listOf(0, 1, 2, 4))
+        val moved = ChainWalk(TrackId("0"), ids(listOf(1, 2, 3, 4)), 4).resumedAt(TrackId("3"), queuedBefore)
+        assertEquals(ChainWalk(TrackId("0"), ids(listOf(1, 2, 4, 3)), 4), moved)
+
+        // Its song stays heard: row 13, another release of row 4, is not planned, though the
+        // listener's taste would put it first. Released instead, row 4 would let it straight in.
+        val snapshot = circle(setOf(3, 4), sameSong = mapOf(13 to 4))
+        val tuning = ChainTuning(
+            continueAfterExhaustion = true,
+            neighbourhoodBonus = 0f,
+            personalAffinity = { row -> if (row == 13) 1f else 0f },
+            personalWeight = 100f,
+        )
+        // As the controllers do, nothing queued is a candidate.
+        val eligible = BooleanArray(snapshot.size) { it > 4 }
+        fun firstPick(walk: ChainWalk): Int = SmartChain(snapshot, null, eligible, tuning = tuning)
+            .build(TrackId("3"), 1, FloatArray(5), resume = walk).rows.single()
+        assertNotEquals(13, firstPick(moved))
+        assertEquals(13, firstPick(ChainWalk(TrackId("0"), ids(listOf(1, 2, 3)), 3)))
+    }
+
+    @Test
+    fun `a pick the queue no longer holds is released and may be planned again`() {
+        // The walk spends row 2's neighbourhood. The app discarded the queue's future after row 2 to
+        // replan it (a new artist variety, a newly marked playlist): rows 3 and 4 were never removed.
+        val ids = { rows: List<Int> -> rows.map { TrackId(it.toString()) } }
+        val replanned = ChainWalk(TrackId("2"), ids(listOf(1, 2, 3, 4)), 2)
+            .resumedAt(TrackId("2"), ids(listOf(0, 1)))
+        assertEquals(ChainWalk(TrackId("2"), ids(listOf(1, 2)), 0), replanned)
+
+        // Released, they are the closest tracks to row 2 again, and the replan takes them.
+        val snapshot = circle(emptySet())
+        val eligible = BooleanArray(snapshot.size) { it > 2 }
+        val plan = SmartChain(
+            snapshot, null, eligible, tuning = ChainTuning(continueAfterExhaustion = true, neighbourhoodBonus = 0f),
+        ).build(TrackId("2"), 2, FloatArray(5), resume = replanned)
+        assertEquals(setOf(3, 4), plan.rows.toSet())
     }
 
     private fun artistRun(snapshot: SmartSnapshot, walk: ChainWalk): Int {
@@ -175,17 +220,20 @@ internal class ChainWalkOrderTest {
         return artists.asReversed().takeWhile { it == artists.last() }.size
     }
 
-    private fun circle(sameArtist: Set<Int>): SmartSnapshot = requireNotNull(SmartSnapshot.build(
-        (0 until 24).map { row ->
-            val angle = 2 * PI * row / 24
-            SmartTrack(
-                TrackId(row.toString()),
-                FloatArray(SmartSnapshot.AUDIO_DIM).also {
-                    it[0] = cos(angle).toFloat()
-                    it[1] = sin(angle).toFloat()
-                },
-                meta = TrackMeta("Song $row", if (row in sameArtist) "A" else "Artist $row", null, null, null),
-            )
-        },
-    ))
+    /** Rows on a circle; [sameSong] makes a row another release of a row's song (same title and artist). */
+    private fun circle(sameArtist: Set<Int>, sameSong: Map<Int, Int> = emptyMap()): SmartSnapshot =
+        requireNotNull(SmartSnapshot.build(
+            (0 until 24).map { row ->
+                val angle = 2 * PI * row / 24
+                val song = sameSong[row] ?: row
+                SmartTrack(
+                    TrackId(row.toString()),
+                    FloatArray(SmartSnapshot.AUDIO_DIM).also {
+                        it[0] = cos(angle).toFloat()
+                        it[1] = sin(angle).toFloat()
+                    },
+                    meta = TrackMeta("Song $song", if (song in sameArtist) "A" else "Artist $song", null, null, null),
+                )
+            },
+        ))
 }

@@ -171,15 +171,11 @@ internal data class PickTrace(
  * @param intent the track whose neighbourhood the walk is spending
  * @param picks the latest picks, in selection order until [followingOrder] saves playback order, at most [WINDOW]: they keep
  *   the artist cap, the repeated-title check, the artist repeat penalty and the genre-family count
- *   running as they do inside one chain of the longest queue the app plans. A resume keeps the picks
- *   it dropped right here, so they stay spent; [unplayedPicks] marks the ones that never played
+ *   running as they do inside one chain of the longest queue the app plans. Every pick is spent and
+ *   counts as played; a resume releases the picks the queue no longer holds ([resumedAt])
  * @param picksUnderIntent how many retained [picks] were chosen with [intent] as the reference
  * @param intentPicks those identities explicitly: journey ordering can move them across the old suffix boundary
  * @param ring the closeness threshold the walk had widened to around [intent]
- * @param unplayedPicks the spent [picks] that never played, because the queue's last rows were
- *   removed or discarded before playback reached them. They keep their place in [picks], so no later
- *   plan offers them again, but no play follows from them: the artist cap, the repeated-title check,
- *   the artist repeat penalty and the artist run all skip a track the listener never heard
  */
 internal data class ChainWalk(
     val intent: TrackId,
@@ -188,7 +184,6 @@ internal data class ChainWalk(
     /** The ring the walk had widened to around [intent] ([ChainTuning.ringStep]). */
     val ring: Float = Reanchor.NICHE_COS,
     val intentPicks: Set<TrackId> = picks.takeLast(picksUnderIntent.coerceIn(0, picks.size)).toSet(),
-    val unplayedPicks: Set<TrackId> = emptySet(),
 ) {
     /**
      * Remember the order handed to playback, including the artist run at its tail. The sequencer
@@ -205,36 +200,45 @@ internal data class ChainWalk(
             picks = retained,
             picksUnderIntent = retainedIntent.size,
             intentPicks = retainedIntent,
-            // A spent pick that never played keeps that mark while it stays in the window.
-            unplayedPicks = unplayedPicks.intersect(retained.toSet()),
         )
     }
 
     /**
      * The walk as it stood when [seed] played, for a plan that goes on from [seed]. Usually [seed] is
      * the last pick and nothing changes. After the listener removed or moved the queue's last rows,
-     * or the app discarded the queue's future to replan it, [seed] is an earlier pick: the picks
-     * after it never played. They stay in [picks] and spent — a later plan must not offer a removed
-     * track straight back — and move to [unplayedPicks], so nothing about them counts as a play and
-     * the plan that resumes here scores and runs exactly as if the plan had ended at [seed]. The
-     * engine cannot tell a removal from a discarded future, and keeping both spent is the answer
-     * that never repeats a removed row. If [intent] was among them the walk re-anchors at [seed], as
-     * it does when a neighbourhood runs out, and a widened [ring] narrows again (the walk widens it
-     * again if it must).
+     * or the app discarded the queue's future to replan it, [seed] is an earlier pick, and
+     * [queuedBefore] — the queue's tracks before [seed], oldest first — tells what became of the
+     * picks after it:
+     * - one the queue still holds before [seed] (moved up, or put next) plays before this plan. It
+     *   stays spent and counts as played — its title, its artist, its place in the artist run — in
+     *   the order the queue plays it, and the walk ends at [seed] as the queue does.
+     * - one the queue no longer holds is released: it leaves the walk and counts for nothing, and a
+     *   later plan may offer it again. That is what a future the app discarded to replan (a new
+     *   artist variety, a newly marked playlist) needs, or the new plan would lose the closest tracks
+     *   and the marked playlist's own. A track the listener removed stays out all the same: the
+     *   controllers keep those out of every top-up's candidates (recordSmartRemoval), the one place
+     *   a removal can be told from a discarded future.
+     *
+     * If [intent] was released the walk re-anchors at [seed], as it does when a neighbourhood runs
+     * out, and a widened [ring] narrows again (the walk widens it again if it must).
      */
-    fun resumedAt(seed: TrackId): ChainWalk {
+    fun resumedAt(seed: TrackId, queuedBefore: List<TrackId>): ChainWalk {
         val at = picks.lastIndexOf(seed)
         if (at < 0 || at == picks.lastIndex) return this
+        val queuePosition = HashMap<TrackId, Int>()
+        queuedBefore.forEachIndexed { position, id -> queuePosition[id] = position }
         val dropped = picks.subList(at + 1, picks.size)
-        val unplayed = unplayedPicks + dropped
-        if (intent in dropped) return copy(unplayedPicks = unplayed).reanchoredAt(seed)
-        val played = picks.take(at + 1).filterNot { it in unplayed }
+        val released = dropped.filterNot { it in queuePosition }.toSet()
+        // The queue's order where it shows the pick; older picks out of its sight go first, as they were.
+        val played = (picks.subList(0, at) + dropped.filter { it in queuePosition })
+            .sortedBy { queuePosition[it] ?: -1 } + seed
+        if (intent in released) return copy(picks = played).reanchoredAt(seed)
         val keptIntent = intentPicks.intersect(played.toSet())
         return copy(
+            picks = played,
             picksUnderIntent = keptIntent.size,
             ring = Reanchor.NICHE_COS,
             intentPicks = keptIntent,
-            unplayedPicks = unplayed,
         )
     }
 
@@ -304,7 +308,9 @@ internal class SmartChain(
      * @param timeFeatures from [PredictorRuntime.timeFeatures] on the real clock
      * @param resume the walk the previous plan ended with, when this plan continues it from that
      *   plan's last track, or from an earlier pick, where it goes on as it stood then
-     *   ([ChainWalk.resumedAt]); ignored outside the continuation mode
+     *   ([ChainWalk.resumedAt]). The engine resumes it with the queue in hand, so [seedId] is already
+     *   its last pick; a walk still ending past [seedId] is resumed here with nothing queued, which
+     *   releases every pick after the seed. Ignored outside the continuation mode
      * @param trace receives one [PickTrace] per pick, for offline diagnosis; it never changes a pick
      */
     fun build(
@@ -442,15 +448,15 @@ internal class SmartChain(
         var runLength = if (runArtist.isEmpty()) 0 else 1
         // A resumed walk: its reference and its latest picks carry over, as if this plan were the
         // next stretch of the same chain. The picks are queued already and stay unavailable. The
-        // plan's seed is the walk's last pick, or an earlier one after the queue's last rows were
-        // removed, moved or replanned: the walk then goes on as it stood at the seed, and the picks
-        // it dropped there stay spent without counting as plays.
-        val resumed = if (continueAfterExhaustion) resume?.resumedAt(seedId) else null
+        // plan's seed is the walk's last pick (ChainWalk.resumedAt released what the queue no
+        // longer holds after it), so every carried pick played before this plan.
+        val resumed = if (continueAfterExhaustion) {
+            resume?.resumedAt(seedId, queuedBefore = emptyList())
+        } else {
+            null
+        }
         val intentPicks = HashSet<TrackId>()
-        val carriedIds = resumed?.picks.orEmpty()
-        val unplayedIds = resumed?.unplayedPicks.orEmpty()
-        val carried = carriedIds.map(snapshot::rowOf).filter { it >= 0 }
-        val played = carriedIds.filterNot { it in unplayedIds }.map(snapshot::rowOf).filter { it >= 0 }
+        val played = resumed?.picks.orEmpty().map(snapshot::rowOf).filter { it >= 0 }
         if (resumed != null) {
             val resumedIntent = snapshot.rowOf(resumed.intent)
             if (resumedIntent >= 0) {
@@ -464,9 +470,9 @@ internal class SmartChain(
                     snapshot.tracks[row].meta.genreFamilies.any { it in seedGenres }
                 }
             }
-            // Everything the walk spent stays unavailable — a removed row must not come straight
-            // back — but only what played shapes this plan: its titles, artists, recency and run.
-            used.addAll(carried)
+            // Everything the walk spent stays unavailable and shapes this plan: its titles,
+            // artists, recency and run.
+            used.addAll(played)
             for (row in played) {
                 val meta = snapshot.tracks[row].meta
                 meta.titleArtistKey?.let(seenTitles::add)
@@ -907,7 +913,7 @@ internal class SmartChain(
                 .getOrDefault(state)
         }
         val walk = if (continueAfterExhaustion) {
-            val picks = (carried + chain).takeLast(ChainWalk.WINDOW).map { snapshot.tracks[it].id }
+            val picks = (played + chain).takeLast(ChainWalk.WINDOW).map { snapshot.tracks[it].id }
             ChainWalk(
                 intent = snapshot.tracks[intentRow].id,
                 picks = picks,
@@ -916,8 +922,6 @@ internal class SmartChain(
                 // Keep the whole plan's membership until followingOrder clips its actual playback
                 // tail: a plan longer than WINDOW can move an earlier pick into the retained tail.
                 intentPicks = intentPicks,
-                // The picks this plan never reached stay spent in `picks`, marked as never played.
-                unplayedPicks = unplayedIds.intersect(picks.toSet()),
             )
         } else {
             null
