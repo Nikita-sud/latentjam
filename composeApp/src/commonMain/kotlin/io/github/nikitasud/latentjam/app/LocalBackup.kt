@@ -22,6 +22,8 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /** File extension offered by the future platform document picker. The payload is always local. */
@@ -877,6 +879,12 @@ internal class LocalBackupService(
         snapshot: LocalBackupSnapshot,
         mode: LocalBackupRestoreMode,
         sections: LocalBackupSections = LocalBackupSections(),
+    ): LocalBackupRestoreReport = restoreMutex.withLock { restoreLocked(snapshot, mode, sections) }
+
+    private suspend fun restoreLocked(
+        snapshot: LocalBackupSnapshot,
+        mode: LocalBackupRestoreMode,
+        sections: LocalBackupSections,
     ): LocalBackupRestoreReport {
         LocalBackupCodec.validate(snapshot)
         val currentTracks = library.allKnownTracks().distinctBy { it.id }
@@ -1270,6 +1278,14 @@ internal class LocalBackupService(
          * that immediately preceded it.
          */
         const val MAX_HISTORY_MERGE_ROUNDS = 4
+
+        /**
+         * One restore at a time across the process. A restore now survives the screen that started
+         * it, so the next screen can begin another while the first still applies sections; two
+         * merges interleaving their read-modify-write passes would drop each other's sections. The
+         * lock is per process, not per instance: every screen builds its own [LocalBackupService].
+         */
+        val restoreMutex = Mutex()
     }
 }
 
