@@ -92,6 +92,13 @@ internal class DefaultSimilarityEngine(
      */
     private var audioIndexDirty = false
     private var textIndexDirty = false
+    /**
+     * Envelope refusals remembered per store, so a pass that outgrew a durable snapshot envelope
+     * stops rebuilding (and re-reporting) the same unstorable snapshot at every checkpoint — see
+     * [EnvelopeRefusal].
+     */
+    private val audioEnvelopeRefusal = EnvelopeRefusal()
+    private val textEnvelopeRefusal = EnvelopeRefusal()
     private var indexRevision = 0L
     private var snapshotCache: SnapshotCache? = null
     private var mixCoverageCache: MixCoverageCache? = null
@@ -922,6 +929,8 @@ internal class DefaultSimilarityEngine(
                 textVectorIdentities.clear()
                 audioIndexDirty = false
                 textIndexDirty = false
+                audioEnvelopeRefusal.reset()
+                textEnvelopeRefusal.reset()
                 semanticCache.clear()
                 mixCoverageCache = null
                 snapshotCache = null
@@ -948,6 +957,8 @@ internal class DefaultSimilarityEngine(
                 textVectorIdentities.clear()
                 audioIndexDirty = false
                 textIndexDirty = false
+                audioEnvelopeRefusal.reset()
+                textEnvelopeRefusal.reset()
                 semanticCache.clear()
                 mixCoverageCache = null
                 snapshotCache = null
@@ -1126,8 +1137,19 @@ internal class DefaultSimilarityEngine(
 
     private suspend fun persistAudioIndex() {
         if (!audioIndexDirty) return
-        store.saveSnapshot(config.modelVersion, currentAudioSnapshot())
+        val rows = index.size
+        if (audioEnvelopeRefusal.covers(rows)) return
+        // Only the store call is guarded: a refusal is the store's answer about this snapshot,
+        // while building it is engine-local work that must not be mistaken for one.
+        val snapshot = currentAudioSnapshot()
+        try {
+            store.saveSnapshot(config.modelVersion, snapshot)
+        } catch (refusal: IllegalArgumentException) {
+            noteRefusedSnapshot("audio", rows, refusal, audioEnvelopeRefusal)
+            return
+        }
         audioIndexDirty = false
+        audioEnvelopeRefusal.reset()
     }
 
     private suspend fun persistTextIndex() {
@@ -1138,8 +1160,80 @@ internal class DefaultSimilarityEngine(
             textIndexDirty = false
             return
         }
-        targetStore.saveSnapshot(TEXT_INDEX_VERSION, currentTextSnapshot())
+        val rows = textIndex?.size ?: 0
+        if (textEnvelopeRefusal.covers(rows)) return
+        val snapshot = currentTextSnapshot()
+        try {
+            targetStore.saveSnapshot(TEXT_INDEX_VERSION, snapshot)
+        } catch (refusal: IllegalArgumentException) {
+            noteRefusedSnapshot("metadata", rows, refusal, textEnvelopeRefusal)
+            return
+        }
         textIndexDirty = false
+        textEnvelopeRefusal.reset()
+    }
+
+    /**
+     * Handles a store refusing a complete snapshot as unstorable — the [IllegalArgumentException] a
+     * bounded [IndexStore] raises from its own bounds checks (snapshot envelope, entry count,
+     * dimension, vector contents) before it touches the durable file.
+     *
+     * That is an answer about the snapshot, not a failed analysis pass: the in-memory index stays
+     * complete, the pass keeps analysing, an already written snapshot stays exactly as it was, and
+     * the dirty flag stays set, so a later shrink of the index — or a store with a wider envelope —
+     * still writes the checkpoint. The refusal is reported once per episode instead of at every
+     * checkpoint, and [memory] then lets later checkpoints of this only-growing index skip the
+     * expensive snapshot rebuild.
+     *
+     * Only [IllegalArgumentException] is treated this way. Real write failures stay visible: the
+     * file-backed stores report a failed write/rename/delete as [IllegalStateException] or an I/O
+     * error, and cancellation is an [IllegalStateException] too — never an
+     * [IllegalArgumentException] — so [CancellationException] keeps reaching the indexing caller.
+     */
+    private fun noteRefusedSnapshot(
+        label: String,
+        rows: Int,
+        refusal: IllegalArgumentException,
+        memory: EnvelopeRefusal,
+    ) {
+        if (memory.record(rows)) {
+            println(
+                "SMART: $label index is too large to checkpoint at $rows rows " +
+                    "(${refusal.message}); analysis continues without a new snapshot",
+            )
+        }
+    }
+
+    /**
+     * Remembers the row count at which a store refused a snapshot as unstorable.
+     *
+     * A refusal is a property of the snapshot content, so it cannot become storable while the same
+     * index only grows — and rebuilding it is not free: building an audio snapshot deep-copies
+     * every vector, which in a library large enough to hit a 64 MiB envelope means tens of megabytes
+     * per attempt. Later checkpoints are therefore skipped while the index holds at least as many rows
+     * as the refused snapshot; once the index shrinks below that mark the engine tries again, and a
+     * successful save ends the episode. An empty snapshot is always attempted: building it costs
+     * nothing, and a store that refuses even that must not silence persistence forever.
+     */
+    private class EnvelopeRefusal {
+        /** Rows of the last refused snapshot, or `null` while no refusal is outstanding. */
+        private var refusedRows: Int? = null
+
+        /** Whether a snapshot of [currentRows] rows is already known to be unstorable. */
+        fun covers(currentRows: Int): Boolean =
+            currentRows > 0 && refusedRows?.let { currentRows >= it } == true
+
+        /** Records a refusal at [currentRows]; `true` when this is the episode's first one. */
+        fun record(currentRows: Int): Boolean {
+            val first = refusedRows == null
+            refusedRows = currentRows
+            return first
+        }
+
+        /** A successful save ends the episode. */
+        fun reset() {
+            refusedRows = null
+        }
     }
 
     /** Query checkpoint failures must not turn a usable in-memory index into silence. */

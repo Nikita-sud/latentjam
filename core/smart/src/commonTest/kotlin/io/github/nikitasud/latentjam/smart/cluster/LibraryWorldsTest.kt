@@ -14,6 +14,7 @@ import kotlin.math.sin
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -787,5 +788,45 @@ class LibraryWorldsTest {
         assertTrue(LibraryWorlds.discover(emptyList(), emptyMap(), dim).isEmpty())
         val library = corpus { repeat(6) { add("t$it", angle = 0.3, genre = "Disco") } }
         assertTrue(LibraryWorlds.discover(library.tracks, emptyMap(), dim).isEmpty())
+    }
+
+    @Test
+    fun `a non-positive minimum size is rejected rather than reaching k-means`() {
+        val library = corpus { repeat(6) { add("t$it", angle = 0.3, genre = "Disco") } }
+        val ids = library.tracks.map { it.id }
+
+        // Zero is a floor, not "no floor": it used to return one-track regions instead of failing.
+        assertFailsWith<IllegalArgumentException> {
+            TrackClustering.cluster(ids, library.vectors, dim, k = 2, minSize = 0)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            TrackClustering.cluster(ids, library.vectors, dim, k = 2, minSize = -1)
+        }
+
+        // With nothing usable the old `n < minSize` guard no longer held and seeding drew from
+        // Random.nextInt(0). The message pins the refusal to the parameter check rather than to the
+        // Random failure that used to stand in for it.
+        val unusable = assertFailsWith<IllegalArgumentException> {
+            TrackClustering.cluster(ids, emptyMap(), dim, minSize = 0)
+        }
+        assertTrue(
+            unusable.message?.contains("Minimum cluster size must be positive") == true,
+            "an empty usable set was not refused by the parameter check: ${unusable.message}",
+        )
+
+        // The fused-matrix overload takes the same floor and feeds the same seeding.
+        val space = LibraryVectorSpace(
+            trackIds = ids,
+            rows = FloatArray(ids.size * dim) { 1f },
+            dim = dim,
+            source = LibraryVectorSource.AUDIO,
+        )
+        assertFailsWith<IllegalArgumentException> {
+            TrackClustering.cluster(space, k = 2, minSize = 0)
+        }
+
+        // The public world builder forwards the same floor to clustering.
+        assertFailsWith<IllegalArgumentException> { library.discover(k = 2, minSize = 0) }
+        assertFailsWith<IllegalArgumentException> { library.discover(k = 2, minSize = -1) }
     }
 }

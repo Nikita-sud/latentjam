@@ -61,22 +61,25 @@ internal class OnnxTextEncoder(
         val environment = OrtEnvironment.getEnvironment()
         val shape = longArrayOf(1L, ids.size.toLong())
 
-        val idTensor = OnnxTensor.createTensor(
-            environment, LongBuffer.wrap(LongArray(ids.size) { ids[it].toLong() }), shape,
-        )
-        // Batch of one, no padding, so every token attends and every segment is 0.
-        val maskTensor = OnnxTensor.createTensor(
-            environment, LongBuffer.wrap(LongArray(ids.size) { 1L }), shape,
-        )
-        val typeTensor = OnnxTensor.createTensor(
-            environment, LongBuffer.wrap(LongArray(ids.size) { 0L }), shape,
-        )
+        // Every tensor is created inside the try: a failure half-way through the list must not leave the
+        // ones already created to the garbage collector's mercy.
+        val created = ArrayList<OnnxTensor>(3)
         return try {
+            created += OnnxTensor.createTensor(
+                environment, LongBuffer.wrap(LongArray(ids.size) { ids[it].toLong() }), shape,
+            )
+            // Batch of one, no padding, so every token attends and every segment is 0.
+            created += OnnxTensor.createTensor(
+                environment, LongBuffer.wrap(LongArray(ids.size) { 1L }), shape,
+            )
+            created += OnnxTensor.createTensor(
+                environment, LongBuffer.wrap(LongArray(ids.size) { 0L }), shape,
+            )
             activeSession.run(
                 mapOf(
-                    "input_ids" to idTensor,
-                    "attention_mask" to maskTensor,
-                    "token_type_ids" to typeTensor,
+                    "input_ids" to created[0],
+                    "attention_mask" to created[1],
+                    "token_type_ids" to created[2],
                 ),
             ).use { result ->
                 @Suppress("UNCHECKED_CAST")
@@ -85,7 +88,7 @@ internal class OnnxTextEncoder(
         } catch (t: Throwable) {
             null
         } finally {
-            idTensor.close(); maskTensor.close(); typeTensor.close()
+            for (tensor in created) tensor.close()
         }
     }
 

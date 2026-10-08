@@ -13,8 +13,9 @@ import org.koin.core.module.Module
  *
  * ### Contract
  * - [embed] returns a vector of exactly [SmartEngineConfig.embeddingDim]
- *   floats (512 in production). The engine validates this and rejects
- *   misbehaving backends with [EngineError.BackendFailure].
+ *   floats (960 in production, the chain's own hard audio width). The engine
+ *   validates this and rejects misbehaving backends with
+ *   [EngineError.BackendFailure].
  * - Failures are RETURNED, not thrown: wrap the typed reason as
  *   `Result.failure(SmartEngineException(error))`. Only cancellation is
  *   allowed to propagate as an exception.
