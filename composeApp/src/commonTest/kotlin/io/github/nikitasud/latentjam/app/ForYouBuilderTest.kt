@@ -738,4 +738,25 @@ class ForYouBuilderTest {
             listOfNotNull(result.hero?.track?.id)
         assertEquals(covers.size, covers.distinct().size, "a cover repeated on the page: $covers")
     }
+
+    @Test
+    fun `journey anchors walk past a track that was never finished`() {
+        // The anchor score is completions * 10 + plays, so a track started forty times and finished
+        // zero times outranks every finished track below it. The search must step over it instead
+        // of ending on it: stopping there left the pool empty and the JOURNEY row missing for the
+        // whole session.
+        val abandoned = track("abandoned", artist = "Abandoned")
+        val loved = (1..4).map { track("loved$it", artist = "Loved$it") }
+        val anchors = ForYouRhythm.journeyAnchors(
+            library = listOf(abandoned) + loved,
+            stats = mapOf(abandoned.id to stats(plays = 40, completions = 0, last = now - day)) +
+                loved.associate { it.id to stats(plays = 3, last = now - day) },
+            artistKeyOf = { it?.lowercase().orEmpty() },
+        )
+
+        // Three finished tracks, one per artist, in the order the score puts them — not an empty
+        // pool cut short by the abandoned track that leads the ranking.
+        assertEquals(listOf(loved[0].id, loved[1].id, loved[2].id), anchors)
+        assertEquals(ForYouRhythm.JOURNEY_POOL, anchors.size)
+    }
 }
