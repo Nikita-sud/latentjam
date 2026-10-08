@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.library
 
+import io.github.nikitasud.latentjam.library.tags.TagCodecs
 import io.github.nikitasud.latentjam.library.tags.TextRepair
 import io.github.nikitasud.latentjam.library.tags.cleanGenre
 import io.github.nikitasud.latentjam.library.tags.parseYear
@@ -632,8 +633,14 @@ internal class IosMusicLibrary : MusicLibrary {
      * album normally embed the same image; sharing one cache URI lets the
      * common catalogue recognize that album and avoids dozens of duplicate
      * cache files. A changed cover naturally gets a different key.
+     *
+     * A payload larger than [TagCodecs.MAX_COVER_BYTES] is refused instead of hashed and copied:
+     * that is the same ceiling the tag readers apply to a cover, and without it this path would
+     * duplicate whatever a malformed file claims to embed — in memory for the hash and again on
+     * disk for the cache — for a cover no screen can show.
      */
     private fun cacheArtwork(data: NSData): String? {
+        if (data.length > TagCodecs.MAX_COVER_BYTES.toULong()) return null
         val caches = IosPaths.caches() ?: return null
         var hash = 0xcbf29ce484222325uL
         data.toByteArray().forEach { byte ->
