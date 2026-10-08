@@ -992,15 +992,19 @@ public class PlaybackService : MediaLibraryService() {
  *
  * The transport surface is open by design — headphone dispatchers, OEM stacks and other media apps
  * must be able to command the session — and every command used to buy a line in [MediaBlackBox],
- * whose retention drops the whole file once it passes its size bound. A source stuck in a loop could
- * therefore erase the very history a report is about.
+ * whose retention keeps only the newest half once it passes its size bound. A source stuck in a loop
+ * could therefore still shorten the very history a report is about.
  *
  * A real fault is a burst, not a stream: a Bluetooth tap arrives as a connect line, a key line and
  * the resulting state change within a second, so every source may spend [BURST_LINES] at once and
  * then earns [REFILL_MS] per further line. What a burst loses is not lost from the report: the
  * suppressed lines are counted and summarised by the next admitted one, so a flood still reads as a
  * flood. The bucket table is bounded too — a source that exists only to flood the log must not be
- * able to grow the map without limit.
+ * able to grow the map without limit. When the table is full the least recently seen source is
+ * evicted, and only that one: a persistent flooder keeps whatever it has already spent, so a caller
+ * cannot buy itself a fresh burst by walking enough names past the table. Evicting a source drops its
+ * suppressed count with it — an evicted source is one that has not written anything for longer than
+ * [MAX_SOURCES] other sources, so the line the count would have annotated is long gone.
  */
 private class TransportEventThrottle(
     private val burstLines: Double = BURST_LINES,
@@ -1010,11 +1014,12 @@ private class TransportEventThrottle(
 
     /** A line to write for [source], or null while that source's bucket is empty. */
     fun admit(source: String, what: String, nowMs: Long): String? {
-        if (source !in buckets && buckets.size >= MAX_SOURCES) buckets.clear()
+        if (source !in buckets && buckets.size >= MAX_SOURCES) evictLeastRecentlySeen()
         val bucket = buckets.getOrPut(source) { Bucket(tokens = burstLines, lastRefillMs = nowMs) }
         val elapsedMs = (nowMs - bucket.lastRefillMs).coerceAtLeast(0L)
         bucket.tokens = minOf(burstLines, bucket.tokens + elapsedMs.toDouble() / refillMs)
         bucket.lastRefillMs = nowMs
+        bucket.lastSeenMs = nowMs
         if (bucket.tokens < 1.0) {
             bucket.suppressed++
             return null
@@ -1025,10 +1030,22 @@ private class TransportEventThrottle(
         return if (suppressed == 0) what else "$what (+$suppressed suppressed)"
     }
 
+    /**
+     * Makes room for one new source by dropping the one that has gone longest without a line.
+     *
+     * Preferring the least recently seen bucket over the oldest-created one is what keeps a flooder
+     * honest: the source currently spending its tokens stays in the table, while idle names age out.
+     */
+    private fun evictLeastRecentlySeen() {
+        val stalest = buckets.minByOrNull { (_, bucket) -> bucket.lastSeenMs }?.key ?: return
+        buckets.remove(stalest)
+    }
+
     private class Bucket(
         var tokens: Double,
         var lastRefillMs: Long,
         var suppressed: Int = 0,
+        var lastSeenMs: Long = lastRefillMs,
     )
 
     private companion object {
