@@ -8,4 +8,5 @@
     android:widgetCategory="home_screen"
     android:initialLayout="@layout/widget_playback_portal"
     android:previewLayout="@layout/widget_playback_portal"
+    android:updatePeriodMillis="1800000"
     android:description="@string/widget_description_portal" />
