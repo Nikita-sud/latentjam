@@ -3259,6 +3259,10 @@ private fun PrivacySettings(
     val scope = rememberCoroutineScope()
     val saveListeningHistory by settings.saveListeningHistory.collectAsState()
     val rememberSearches by settings.rememberSearches.collectAsState()
+    // The playback recorder advances this revision as soon as a finished session reaches the log.
+    // Settings are an overlay over a queue that keeps playing, so without it the counters below
+    // would only ever show what the log held when the screen opened.
+    val historyRevision by AppGraph.historyRevision.collectAsState()
     var listens by remember { mutableStateOf<Int?>(null) }
     var searches by remember { mutableStateOf<Int?>(null) }
     var changingHistory by remember { mutableStateOf(false) }
@@ -3271,7 +3275,7 @@ private fun PrivacySettings(
     val settingSaveFailed = stringResource(Res.string.privacy_setting_save_failed)
     val dataClearFailed = stringResource(Res.string.privacy_data_clear_failed)
 
-    LaunchedEffect(history, recentSearches) {
+    LaunchedEffect(history, recentSearches, historyRevision) {
         val loadedListens = try {
             history.stats().values.sumOf { it.plays }
         } catch (cancelled: CancellationException) {
