@@ -713,15 +713,13 @@ internal fun AddToPlaylistSheet(
         if (dismissalInFlight || busy) return
         dismissalInFlight = true
         if (reduceMotion) {
+            // Nothing animates, so there is no window in which the choice could be withdrawn.
             onDismiss()
             action()
         } else {
-            // Back or a scrim tap during the animation cancels this hide; the owner is told and the
-            // action the tap chose still runs, exactly once.
-            scope.hideSheetThen(sheetState::hide) {
-                onDismiss()
-                action()
-            }
+            // Back or a scrim tap during the animation cancels this hide and takes the choice with
+            // it: the sheet leaves either way, only an uninterrupted hide means "yes".
+            scope.hideSheetThenConfirmed(sheetState::hide, onDismiss = onDismiss, action = action)
         }
     }
 

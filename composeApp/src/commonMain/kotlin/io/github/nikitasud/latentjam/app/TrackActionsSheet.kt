@@ -100,8 +100,34 @@ import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artis
 import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
 import io.github.nikitasud.latentjam.playback.SleepTimerState
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import kotlinx.coroutines.CoroutineScope
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.pluralStringResource
+
+/**
+ * Closes a sheet whose dismissal carries a choice, then reports the outcome to the sheet's owner:
+ * [onDismiss] always runs, [action] only when the hide ran to its end.
+ *
+ * Back or a scrim tap during the closing animation makes Material3 start a hide of its own, which
+ * cancels this one. The owner has to hear about that anyway — a hidden sheet left composed swallows
+ * every touch until the process dies — but the same gesture is the listener withdrawing the choice,
+ * so the action it was carrying is dropped. ArtistChooserSheet reads Back the same way, and the
+ * sheets that close themselves after a tap (the track menu, a world, add-to-playlist, a multi-
+ * selection) all close through here.
+ *
+ * Actions that are the tap's own effect rather than a handoff — transport, favourites, local state
+ * — close through `dismissWhile` instead: they are confirmed by the tap alone.
+ */
+internal fun CoroutineScope.hideSheetThenConfirmed(
+    hide: suspend () -> Unit,
+    onDismiss: () -> Unit,
+    action: () -> Unit,
+) {
+    hideSheetThen(hide) { completed ->
+        onDismiss()
+        if (completed) action()
+    }
+}
 
 /**
  * Track actions, raised from the bottom rather than dropped from the row —
@@ -148,15 +174,13 @@ internal fun TrackActionsSheet(
         if (dismissalInFlight) return
         dismissalInFlight = true
         if (reduceMotion) {
+            // Nothing animates, so there is no window in which the choice could be withdrawn.
             onDismiss()
             action()
         } else {
-            // Back or a scrim tap during the animation cancels this hide; the owner is told and the
-            // action the tap chose still runs, exactly once.
-            scope.hideSheetThen(sheetState::hide) {
-                onDismiss()
-                action()
-            }
+            // Back or a scrim tap during the animation cancels this hide and takes the choice with
+            // it: the sheet leaves either way, only an uninterrupted hide means "yes".
+            scope.hideSheetThenConfirmed(sheetState::hide, onDismiss = onDismiss, action = action)
         }
     }
 
@@ -408,15 +432,13 @@ internal fun SelectionRemovalSheet(
         if (dismissalInFlight) return
         dismissalInFlight = true
         if (reduceMotion) {
+            // Nothing animates, so there is no window in which the choice could be withdrawn.
             onDismiss()
             action()
         } else {
-            // Back or a scrim tap during the animation cancels this hide; the owner is told and the
-            // action the tap chose still runs, exactly once.
-            scope.hideSheetThen(sheetState::hide) {
-                onDismiss()
-                action()
-            }
+            // Back or a scrim tap during the animation cancels this hide and takes the choice with
+            // it: the sheet leaves either way, only an uninterrupted hide means "yes".
+            scope.hideSheetThenConfirmed(sheetState::hide, onDismiss = onDismiss, action = action)
         }
     }
 

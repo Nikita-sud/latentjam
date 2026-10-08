@@ -34,19 +34,46 @@ internal class SheetDismissalTest {
     }
 
     @Test
-    fun aSheetThatClosesItselfStillDismissesAndActsOnceWhenTheHideIsInterrupted() = runTest {
+    fun aCompletedHideDismissesAndRunsTheChosenActionExactlyOnce() = runTest {
         val reported = mutableListOf<String>()
-        // The sheets that close themselves after a tap (the track menu, a world, add-to-playlist)
-        // hand hideSheetThen the owner's cleanup and then the action the tap chose. Back or a scrim
-        // tap during the animation cancels the hide; neither may be dropped or run twice.
-        hideSheetThen(
-            hide = { throw CancellationException("another hide took over") },
-            onHidden = {
-                reported += "dismissed"
-                reported += "action"
-            },
+        // The sheets whose close carries a choice (the track menu, a world, add-to-playlist, a
+        // multi-selection) hand the owner's cleanup and that choice to hideSheetThenConfirmed.
+        hideSheetThenConfirmed(
+            hide = { delay(150) },
+            onDismiss = { reported += "dismissed" },
+            action = { reported += "action" },
         )
         advanceUntilIdle()
         assertEquals(listOf("dismissed", "action"), reported)
+    }
+
+    @Test
+    fun anInterruptedHideDismissesButDropsTheChosenAction() = runTest {
+        val reported = mutableListOf<String>()
+        // Back or a scrim tap mid-animation cancels the hide. The sheet must still leave the
+        // composition — a hidden sheet left composed swallows every touch — but that gesture
+        // withdraws the choice, so it may not be carried out behind the listener's back.
+        hideSheetThenConfirmed(
+            hide = { throw CancellationException("another hide took over") },
+            onDismiss = { reported += "dismissed" },
+            action = { reported += "action" },
+        )
+        advanceUntilIdle()
+        assertEquals(listOf("dismissed"), reported)
+    }
+
+    @Test
+    fun anActionThatIsTheTapsOwnEffectSurvivesAnInterruptedHide() = runTest {
+        val reported = mutableListOf<String>()
+        // dismissWhile (play, queue, favourite, hide-from-library) runs its action before the hide
+        // starts: it is the tap's own effect rather than a handoff, so the animation cannot retract
+        // it, while the owner is still told exactly once that the sheet is gone.
+        reported += "action"
+        hideSheetThen(
+            hide = { throw CancellationException("another hide took over") },
+            onHidden = { reported += "dismissed" },
+        )
+        advanceUntilIdle()
+        assertEquals(listOf("action", "dismissed"), reported)
     }
 }
