@@ -675,4 +675,67 @@ class ForYouBuilderTest {
             "a demonstrably loved member fell out of its own region's mix",
         )
     }
+
+    @Test
+    fun `a journey never carries a track the listener excluded`() {
+        // Journeys are plotted over the whole library, so SMART exclusions have to be applied where
+        // the path is shown; otherwise the card both pictures and plays back a track the listener
+        // asked to keep out of recommendations.
+        val path = (1..7).map { track("j$it", artist = "Journey$it") }
+        val blocked = setOf(path.first().id, path[4].id)
+        val result = ForYouBuilder.build(
+            library = path,
+            // Played, so no history row competes with the journey for the cover.
+            stats = path.associate { it.id to stats(plays = 1, last = now - day) },
+            recentEvents = emptyList(),
+            nowMs = now,
+            excluded = blocked,
+            journeys = listOf(path.map { it.id }),
+        )
+        val card = result.sections.single { it.kind == ForYouSectionKind.JOURNEY }.cards.single()
+        val shown = card.collection?.tracks.orEmpty()
+        assertEquals(5, shown.size)
+        assertTrue(shown.none { it.id in blocked }, "an excluded track stayed in the journey: $shown")
+        assertEquals(path[1].id, card.track.id)
+        // The title names the path that is actually offered, not the one that was plotted.
+        assertEquals("Tj2 → Tj7", card.collection?.title)
+    }
+
+    @Test
+    fun `a journey whose cover is already on the page steps aside for the next one`() {
+        val hero = track("hero", artist = "Hero")
+        val lead = (1..5).map { track("lead$it", artist = "Lead$it") }
+        val spare = (1..6).map { track("spare$it", artist = "Spare$it") }
+        val heroLed = listOf(hero.id) + lead.map { it.id }
+        val spareLed = spare.map { it.id }
+        // Today's rotation leads with the hero's own journey; the row has to fall through to the
+        // next path rather than show the hero's cover on a second card.
+        val journeys = if ((now / day).toInt().mod(2) == 0) {
+            listOf(heroLed, spareLed)
+        } else {
+            listOf(spareLed, heroLed)
+        }
+        val result = ForYouBuilder.build(
+            library = listOf(hero) + lead + spare,
+            stats = (lead + spare).associate { it.id to stats(plays = 1, last = now - day) },
+            recentEvents = listOf(
+                ListenEvent(
+                    trackId = hero.id,
+                    startedAtMs = now - day,
+                    playedMs = 90_000,
+                    trackDurationMs = 900_000,
+                    completed = false,
+                    skipped = false,
+                ),
+            ),
+            nowMs = now,
+            journeys = journeys,
+        )
+        val card = result.sections.single { it.kind == ForYouSectionKind.JOURNEY }.cards.single()
+        assertEquals(spare.first().id, card.track.id)
+
+        val covers = result.sections.flatMap { section -> section.cards.map { it.track.id } } +
+            listOfNotNull(result.hero?.track?.id)
+        assertEquals(covers.size, covers.distinct().size, "a cover repeated on the page: $covers")
+    }
 }
