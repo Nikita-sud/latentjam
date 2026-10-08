@@ -19,6 +19,7 @@ import io.github.nikitasud.latentjam.library.LibrarySource
 import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.library.PlaylistStore
 import io.github.nikitasud.latentjam.library.SongSort
+import io.github.nikitasud.latentjam.library.SongSortDirection
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -53,6 +54,9 @@ internal class LocalBackupTest {
                     .withPageEnabled(StartPage.GENRES, false)
                     .movePage(StartPage.ALBUMS, -4),
                 artistVariety = 4,
+                songSort = SortChoice(SongSort.RECENT, SongSortDirection.ASCENDING),
+                albumSort = SortChoice(AlbumSort.ARTIST, SongSortDirection.DESCENDING),
+                artistAlbumSort = SortChoice(AlbumSort.TITLE, SongSortDirection.DESCENDING),
             ),
             tracks = listOf(
                 LocalBackupTrackReference(
@@ -93,7 +97,7 @@ internal class LocalBackupTest {
         val encoded = LocalBackupCodec.encode(snapshot)
 
         assertEquals(snapshot, LocalBackupCodec.decode(encoded))
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t6\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t7\n"))
         assertFalse(encoded.contains("Группа крови"), "User strings must be safely encoded")
     }
 
@@ -153,6 +157,105 @@ internal class LocalBackupTest {
     }
 
     @Test
+    fun sortOrdersArrivedWithTheV7BumpWhileAnInterimV6FileStillReads() {
+        val v5 =
+            "LATENTJAM-LOCAL-BACKUP\t5\n" +
+                "C\t1\n" +
+                "S\tSYSTEM\ttracks\tdynamic\t20\t1\t1\t0\t0\t0\n"
+        val sorts = "O\ttitle:ascending\trecent:descending\tyear:ascending\n"
+
+        // The record belongs to v7: a v5 file cannot carry it, and neither can a v5 snapshot.
+        assertFailsWith<LocalBackupFormatException> { LocalBackupCodec.decode(v5 + sorts) }
+        val base = emptySnapshot()
+        assertFailsWith<LocalBackupFormatException> {
+            LocalBackupCodec.validate(
+                base.copy(
+                    formatVersion = 5,
+                    settings = base.settings.copy(
+                        songSort = SortChoice(SongSort.RECENT, SongSortDirection.ASCENDING),
+                    ),
+                ),
+            )
+        }
+
+        // A v6 file without the record — the shape every build before the sort fix wrote — restores
+        // the defaults, and one an interim branch build already wrote the record into keeps its
+        // orders: the bump changes what new exports declare, not what those v6 files mean.
+        val v6 = v5.replaceFirst("\t5\n", "\t6\n")
+        assertEquals(DEFAULT_SONG_SORT, LocalBackupCodec.decode(v6).settings.songSort)
+        val interim = LocalBackupCodec.decode(v6 + sorts)
+        assertEquals(SortChoice(SongSort.TITLE, SongSortDirection.ASCENDING), interim.settings.songSort)
+        assertEquals(SortChoice(AlbumSort.RECENT, SongSortDirection.DESCENDING), interim.settings.albumSort)
+        assertEquals(SortChoice(AlbumSort.YEAR, SongSortDirection.ASCENDING), interim.settings.artistAlbumSort)
+
+        // A v7 file reads the same record, while a value the app decoder would have "repaired" is
+        // refused: a repaired order is not one this format wrote. The artist page sorts by year or
+        // title only, so its ARTIST field is repaired away and refused as well.
+        val v7 = v5.replaceFirst("\t5\n", "\t7\n")
+        assertEquals(interim.settings, LocalBackupCodec.decode(v7 + sorts).settings)
+        for (malformed in listOf(
+            "O\ttitle\trecent:descending\tyear:ascending\n",
+            "O\tbpm:descending\trecent:descending\tyear:ascending\n",
+            "O\ttitle:sideways\trecent:descending\tyear:ascending\n",
+            "O\ttitle:ascending\trecent:descending\tartist:descending\n",
+            "O\ttitle:ascending\trecent:descending\tyear:ascending\n" +
+                "O\ttitle:ascending\trecent:descending\tyear:ascending\n",
+        )) {
+            assertFailsWith<LocalBackupFormatException>(malformed) {
+                LocalBackupCodec.decode(v7 + malformed)
+            }
+        }
+    }
+
+    @Test
+    fun codecReadsAFrozenHistoricalV6FixtureWithAndWithoutTheSortRecord() {
+        // A literal v6 file with its frozen header: artist variety without list orders. Both shapes
+        // of that version must keep reading — the one above, and the interim one carrying "O".
+        val fixture =
+            "LATENTJAM-LOCAL-BACKUP\t6\n" +
+                "C\t17\n" +
+                "S\tDARK\tmap\tsmart\t40\t1\t1\t1\t0\t5\n" +
+                "L\tLJPL1|map,tracks,albums,artists,genres,folders,playlists,for_you|genres\n" +
+                "V\t3\n"
+
+        val withoutSortRecord = LocalBackupCodec.decode(fixture)
+
+        assertEquals(6, withoutSortRecord.formatVersion)
+        assertEquals(17L, withoutSortRecord.createdAtMs)
+        assertEquals(3, withoutSortRecord.settings.artistVariety)
+        assertEquals(DEFAULT_SONG_SORT, withoutSortRecord.settings.songSort)
+        assertEquals(DEFAULT_ALBUM_SORT, withoutSortRecord.settings.albumSort)
+        assertEquals(DEFAULT_ARTIST_ALBUM_SORT, withoutSortRecord.settings.artistAlbumSort)
+
+        val interim = LocalBackupCodec.decode(
+            fixture + "O\ttitle:ascending\trecent:descending\tyear:ascending\n",
+        )
+
+        assertEquals(SortChoice(SongSort.TITLE, SongSortDirection.ASCENDING), interim.settings.songSort)
+        assertEquals(SortChoice(AlbumSort.RECENT, SongSortDirection.DESCENDING), interim.settings.albumSort)
+        assertEquals(SortChoice(AlbumSort.YEAR, SongSortDirection.ASCENDING), interim.settings.artistAlbumSort)
+    }
+
+    @Test
+    fun aVersionSixSnapshotKeepsItsSortOrdersOnARoundTrip() {
+        // decode() reads the record in v6 and validate() accepts it there, so a pinned-version write
+        // must keep it instead of dropping the choice; every export the app makes is v7, which older
+        // builds refuse with "Unsupported backup version".
+        val pinned = emptySnapshot().copy(
+            formatVersion = 6,
+            settings = emptySnapshot().settings.copy(
+                songSort = SortChoice(SongSort.RECENT, SongSortDirection.ASCENDING),
+            ),
+        )
+
+        val encoded = LocalBackupCodec.encode(pinned)
+
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t6\n"))
+        assertContains(encoded, "O\trecent:ascending\ttitle:ascending\tyear:descending\n")
+        assertEquals(pinned, LocalBackupCodec.decode(encoded))
+    }
+
+    @Test
     fun codecReadsAFrozenHistoricalV2FixtureWithNewSettingsDisabled() {
         val fixture =
                 "LATENTJAM-LOCAL-BACKUP\t2\n" +
@@ -198,7 +301,7 @@ internal class LocalBackupTest {
         val encoded = LocalBackupCodec.encode(snapshot)
 
         assertEquals(snapshot, LocalBackupCodec.decode(encoded))
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t6\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t7\n"))
     }
 
     @Test
@@ -249,8 +352,10 @@ internal class LocalBackupTest {
     @Test
     fun codecRejectsFutureVersionsCorruptionAndDanglingReferences() {
         val valid = LocalBackupCodec.encode(emptySnapshot())
+        // One version past the current format: a file from a newer build is refused whole, before
+        // any record of it is read.
         assertFailsWith<LocalBackupFormatException> {
-            LocalBackupCodec.decode(valid.replaceFirst("LOCAL-BACKUP\t6", "LOCAL-BACKUP\t9"))
+            LocalBackupCodec.decode(valid.replaceFirst("LOCAL-BACKUP\t7", "LOCAL-BACKUP\t8"))
         }
         assertFailsWith<LocalBackupFormatException> {
             LocalBackupCodec.decode(valid + "Q\tnot-hex\n")
@@ -345,7 +450,7 @@ internal class LocalBackupTest {
         val encoded = source.service.exportEncoded()
         destination.service.importEncoded(encoded, LocalBackupRestoreMode.REPLACE)
 
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t6\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t7\n"))
         assertEquals(layout, destination.settings.pageLayout.value)
         assertEquals(StartPage.STATISTICS, destination.settings.startPage.value)
     }
@@ -421,6 +526,9 @@ internal class LocalBackupTest {
         source.settings.setNormalizeVolume(true)
         source.settings.setCrossfadeSeconds(9)
         source.settings.setArtistVariety(0)
+        source.settings.setSongSort(SortChoice(SongSort.RECENT, SongSortDirection.DESCENDING))
+        source.settings.setAlbumSort(SortChoice(AlbumSort.ARTIST, SongSortDirection.ASCENDING))
+        source.settings.setArtistAlbumSort(SortChoice(AlbumSort.YEAR, SongSortDirection.ASCENDING))
         source.settings.setSaveListeningHistory(false).getOrThrow()
 
         val encoded = source.service.exportEncoded()
@@ -466,6 +574,18 @@ internal class LocalBackupTest {
         assertTrue(destination.settings.normalizeVolume.value)
         assertEquals(9, destination.settings.crossfadeSeconds.value)
         assertEquals(0, destination.settings.artistVariety.value)
+        assertEquals(
+            SortChoice(SongSort.RECENT, SongSortDirection.DESCENDING),
+            destination.settings.songSort.value,
+        )
+        assertEquals(
+            SortChoice(AlbumSort.ARTIST, SongSortDirection.ASCENDING),
+            destination.settings.albumSort.value,
+        )
+        assertEquals(
+            SortChoice(AlbumSort.YEAR, SongSortDirection.ASCENDING),
+            destination.settings.artistAlbumSort.value,
+        )
         assertFalse(destination.settings.saveListeningHistory.value)
     }
 

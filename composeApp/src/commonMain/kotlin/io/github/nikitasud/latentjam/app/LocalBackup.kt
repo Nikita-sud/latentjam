@@ -60,8 +60,9 @@ internal data class LocalBackupSettings(
     /** Added in backup v6; older snapshots restore the default. */
     val artistVariety: Int = DEFAULT_ARTIST_VARIETY,
     /**
-     * The Tracks tab's order. Travels as its own optional v6 record, so a v6 file written before
-     * that record existed — like every older format — restores the default.
+     * The Tracks tab's order, added in backup v7. Travels as its own record, so a v6 file written
+     * before that record existed — like every older format — restores the default; the interim v6
+     * files that already carry it keep their orders.
      */
     val songSort: SortChoice<SongSort> = DEFAULT_SONG_SORT,
     /** The Albums tab's order; see [songSort]. */
@@ -172,7 +173,13 @@ internal class LocalBackupFormatException(message: String) : IllegalArgumentExce
  * validation make an arbitrary document-picker input safe to reject before any app state changes.
  */
 internal object LocalBackupCodec {
-    const val FORMAT_VERSION: Int = 6
+    /**
+     * The version every export writes. A record arrives together with the version number that
+     * carries it — "L" with v4, "V" with v6, "O" with v7 — so a build that knows only an older
+     * version refuses such a file with "Unsupported backup version" instead of tripping over a
+     * record it does not know ("Unknown backup record at line N").
+     */
+    const val FORMAT_VERSION: Int = 7
     private const val LEGACY_FORMAT_VERSION: Int = 1
     private const val HEADER = "LATENTJAM-LOCAL-BACKUP"
     private const val MAX_TEXT_CHARS = 64 * 1024 * 1024
@@ -221,8 +228,10 @@ internal object LocalBackupCodec {
                 if (snapshot.formatVersion >= 4) appendRecord("L", encodePageLayout(pageLayout))
                 if (snapshot.formatVersion >= 6) appendRecord("V", artistVariety.toString())
                 if (snapshot.formatVersion >= 6) {
-                    // The list orders. The record is optional within v6: a file written before it
-                    // existed has no such line and restores the defaults.
+                    // The list orders, introduced by v7. Written for a v6 snapshot as well: builds
+                    // between the v6 and v7 bumps wrote this record into v6 files, decode() reads
+                    // that shape, and validate() accepts it in v6 — so a writer that skipped it for
+                    // v6 would drop a choice this codec accepts. Every export the app makes is v7.
                     appendRecord(
                         "O",
                         encodeSortChoice(songSort),
@@ -374,6 +383,8 @@ internal object LocalBackupCodec {
                 }
                 "O" -> {
                     record.requireFieldCount(4)
+                    // v6 as well as v7: the record arrived with the v7 bump, but a v6 file written
+                    // by a build between the two bumps already carries it and keeps its orders.
                     if (version < 6) formatError("Older backups cannot encode sort orders")
                     if (sortOrders != null) formatError("Duplicate sort order record")
                     sortOrders = SortOrders(
@@ -527,6 +538,9 @@ internal object LocalBackupCodec {
         if (snapshot.settings.artistAlbumSort.sort !in ARTIST_ALBUM_SORTS) {
             formatError("Unsupported artist album sort")
         }
+        // v6, not v7, is the floor although the record arrived with v7: decode() accepts a v6 file
+        // that already carries it, so validate() must accept what decode() produces, and the encoder
+        // writes the record for v6 too rather than dropping a choice validate() has allowed.
         if (snapshot.formatVersion < 6 &&
             (snapshot.settings.songSort != DEFAULT_SONG_SORT ||
                 snapshot.settings.albumSort != DEFAULT_ALBUM_SORT ||
@@ -613,7 +627,11 @@ internal object LocalBackupCodec {
         if (snapshot.smartExcludedArtists.any(String::isBlank)) formatError("Excluded artists cannot be blank")
     }
 
-    /** The three list orders of one "O" record; a v6 file without that record restores defaults. */
+    /**
+     * The three list orders of one "O" record, introduced by v7. A file without that record — every
+     * v6 file written before it existed — restores the defaults; an interim v6 file that carries it
+     * keeps its orders.
+     */
     private data class SortOrders(
         val song: SortChoice<SongSort>,
         val album: SortChoice<AlbumSort>,
