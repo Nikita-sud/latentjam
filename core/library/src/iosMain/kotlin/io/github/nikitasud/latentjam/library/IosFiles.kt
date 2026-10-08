@@ -5,27 +5,18 @@
 package io.github.nikitasud.latentjam.library
 
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.ObjCObjectVar
 import kotlinx.cinterop.addressOf
-import kotlinx.cinterop.alloc
-import kotlinx.cinterop.memScoped
-import kotlinx.cinterop.ptr
 import kotlinx.cinterop.usePinned
-import kotlinx.cinterop.value
 import platform.Foundation.NSApplicationSupportDirectory
 import platform.Foundation.NSCachesDirectory
 import platform.Foundation.NSData
 import platform.Foundation.NSDocumentDirectory
-import platform.Foundation.NSError
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
-import platform.Foundation.NSString
 import platform.Foundation.NSURL
 import platform.Foundation.NSURLIsExcludedFromBackupKey
-import platform.Foundation.NSUTF8StringEncoding
 import platform.Foundation.NSUserDomainMask
 import platform.Foundation.dataWithBytes
-import platform.Foundation.stringWithContentsOfFile
 import platform.Foundation.writeToFile
 import platform.posix.memcpy
 
@@ -99,7 +90,13 @@ internal object IosPaths {
 }
 
 /**
- * Reads a small UTF-8 text file, or `null` when it does not exist.
+ * Reads a small UTF-8 text file, or `emptyList()` when it does not exist.
+ *
+ * Bytes that are not valid UTF-8 are not a read failure: malformed bytes are decoded leniently
+ * (each becomes U+FFFD), so one damaged record in playlists, hidden tracks or excluded sources
+ * costs that record rather than the whole file, and the intact lines around it stay usable. Only a
+ * file that exists but cannot be read at all is an error, which keeps "missing" and a real I/O
+ * failure apart.
  *
  * Returns lines rather than the raw text because every caller here stores a
  * line-per-record log.
@@ -107,12 +104,10 @@ internal object IosPaths {
 @OptIn(ExperimentalForeignApi::class)
 internal fun readLinesOrEmpty(path: String): List<String> {
     if (!NSFileManager.defaultManager.fileExistsAtPath(path)) return emptyList()
-    val text = memScoped {
-        val error = alloc<ObjCObjectVar<NSError?>>()
-        NSString.stringWithContentsOfFile(path, NSUTF8StringEncoding, error.ptr)
-    } ?: error("Could not read private library data")
+    val bytes = NSFileManager.defaultManager.contentsAtPath(path)?.toByteArray()
+        ?: error("Could not read private library data")
     // A trailing newline would otherwise yield a phantom empty final record.
-    return text.split("\n").dropLastWhile { it.isEmpty() }
+    return bytes.decodeToString().split("\n").dropLastWhile { it.isEmpty() }
 }
 
 /**
