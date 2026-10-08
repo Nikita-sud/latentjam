@@ -173,6 +173,73 @@ class SleepTimerTest {
         assertEquals(1, playback.pauseCalls)
         assertEquals(SleepTimerState.Off, timer.state.value)
     }
+
+    @Test
+    fun `end of track stops when playback moves on to a copy queued after the timer was set`() =
+        runTest {
+            val track = TrackDescriptor(TrackId("again"))
+            val other = TrackDescriptor(TrackId("other"))
+            val playback = FakePlayback(
+                initial = NowPlaying(
+                    track = track,
+                    isPlaying = true,
+                    queue = listOf(track, other),
+                    queueIndex = 0,
+                ),
+            )
+            val timer = SleepTimerController(playback, backgroundScope) { testScheduler.currentTime }
+
+            timer.startAtEndOfTrack()
+            runCurrent()
+            // Play next on the playing track: the same id now sits right behind it.
+            playback.mutableState.value = playback.mutableState.value.copy(
+                queue = listOf(track, track, other),
+            )
+            runCurrent()
+            assertEquals(0, playback.pauseCalls)
+            assertEquals(SleepTimerState.EndOfTrack, timer.state.value)
+
+            // The row plays out and the queue advances to the copy.
+            playback.mutableState.value = playback.mutableState.value.copy(queueIndex = 1)
+            runCurrent()
+            assertEquals(1, playback.pauseCalls)
+            assertEquals(SleepTimerState.Off, timer.state.value)
+        }
+
+    @Test
+    fun `end of track compares a later copy against where the row is now`() = runTest {
+        val first = TrackDescriptor(TrackId("one"))
+        val track = TrackDescriptor(TrackId("again"))
+        val playback = FakePlayback(
+            initial = NowPlaying(
+                track = track,
+                isPlaying = true,
+                queue = listOf(first, track),
+                queueIndex = 1,
+            ),
+        )
+        val timer = SleepTimerController(playback, backgroundScope) { testScheduler.currentTime }
+
+        timer.startAtEndOfTrack()
+        runCurrent()
+        // The row above is removed, then the playing track is queued again behind itself.
+        playback.mutableState.value = playback.mutableState.value.copy(
+            queue = listOf(track),
+            queueIndex = 0,
+        )
+        runCurrent()
+        playback.mutableState.value = playback.mutableState.value.copy(
+            queue = listOf(track, track),
+        )
+        runCurrent()
+        assertEquals(0, playback.pauseCalls)
+        assertEquals(SleepTimerState.EndOfTrack, timer.state.value)
+
+        playback.mutableState.value = playback.mutableState.value.copy(queueIndex = 1)
+        runCurrent()
+        assertEquals(1, playback.pauseCalls)
+        assertEquals(SleepTimerState.Off, timer.state.value)
+    }
 }
 
 private class FakePlayback(initial: NowPlaying = NowPlaying()) : PlaybackController {

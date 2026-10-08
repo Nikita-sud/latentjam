@@ -65,7 +65,11 @@ public class SleepTimerController(
      * or moving a row above the playhead) or changing the shuffle order leaves the listener on the
      * same entry and must not stop playback. An entry is only followed by position when its track
      * id is ambiguous — when the queue holds the same track twice, index is the only identity the
-     * snapshot exposes (same rule as the UI's `queueLazyItemKey`).
+     * snapshot exposes (same rule as the UI's `queueLazyItemKey`). Ambiguity is read from every
+     * state rather than once: Play next on the playing track queues it again after the timer was
+     * set, and the playhead moving on to that copy is still the end of this row. While the id is
+     * unique, the row's position simply follows the edits, so a copy queued later is compared
+     * against where the row is now rather than where it was when the timer was set.
      *
      * Neither is moving the playhead inside the row an end of it: a manual seek back, Previous
      * restarting the track, or tapping the row again all land at the start of a row that never
@@ -74,20 +78,22 @@ public class SleepTimerController(
     public fun startAtEndOfTrack() {
         val initial = playback.state.value
         val trackId = initial.track?.id ?: return
-        val queueIndex = initial.queueIndex
-        // Only a duplicated id needs the position to tell the two rows apart; everywhere else the
-        // id is the row's identity, so a queue edit above the playhead cannot look like a skip.
-        val ambiguousRow = initial.queue.count { it.id == trackId } > 1
         replace {
             mutableState.value = SleepTimerState.EndOfTrack
+            var rowIndex = initial.queueIndex
             var hasPlayed = initial.isPlaying
             var previousPositionMs = initial.positionMs
             var previousDurationMs = initial.durationMs
             var previousStart = initial.playbackStart
             playback.state.first { snapshot ->
                 if (snapshot.isPlaying) hasPlayed = true
+                // Only a duplicated id needs the position to tell the two rows apart; everywhere
+                // else the id is the row's identity, so a queue edit above the playhead cannot
+                // look like a skip, and the position it leaves the row at is the one to remember.
+                val ambiguousRow = snapshot.queue.count { it.id == trackId } > 1
                 val movedAway = snapshot.track?.id != trackId ||
-                    (ambiguousRow && snapshot.queueIndex != queueIndex)
+                    (ambiguousRow && snapshot.queueIndex != rowIndex)
+                if (!ambiguousRow) rowIndex = snapshot.queueIndex
                 val naturallyEnded = hasPlayed &&
                     !snapshot.isPlaying &&
                     snapshot.durationMs > 0L &&
