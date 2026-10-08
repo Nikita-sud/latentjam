@@ -88,6 +88,14 @@ internal class IosMusicLibrary : MusicLibrary {
     /** Relative path → last scan result, reused while size and mtime agree. */
     private val cache = mutableMapOf<String, CachedTrack>()
 
+    /**
+     * The Music.app half of the last scan and the library revision it was read at.
+     *
+     * Main-thread confined, exactly like the query that fills it — see [cachedDeviceLibrary].
+     */
+    private var deviceCache: List<TrackDescriptor> = emptyList()
+    private var deviceCacheRevision: Double? = null
+
     private data class CachedTrack(
         val modifiedAtMs: Long,
         val sizeBytes: Long,
@@ -152,7 +160,7 @@ internal class IosMusicLibrary : MusicLibrary {
         val device = if (canReadDeviceLibrary) {
             // MediaPlayer's controller is explicitly main-thread-only. Keeping its query here as
             // well avoids relying on undocumented cross-thread behavior of the returned items.
-            withContext(Dispatchers.Main) { scanDeviceLibrary() }
+            withContext(Dispatchers.Main) { cachedDeviceLibrary() }
         } else {
             emptyList()
         }
@@ -375,6 +383,33 @@ internal class IosMusicLibrary : MusicLibrary {
 
     private suspend fun mediaLibraryAuthorizedWithoutPrompt(): Boolean = withContext(Dispatchers.Main) {
         MPMediaLibrary.authorizationStatus() == MPMediaLibraryAuthorizationStatusAuthorized
+    }
+
+    /**
+     * The Music.app half of the library, re-read only when Music.app says the library changed.
+     *
+     * `MPMediaQuery` is main-thread-only, and a songs query over a synced library hands back one
+     * item per song whose properties are then read one by one — the most expensive part of a scan,
+     * paid again on every scan and every return to the foreground. The descriptors are therefore
+     * kept and reused while `MPMediaLibrary.lastModifiedDate` — the same revision the playback
+     * controller resolves its cached items by — is unchanged. The query itself stays on the main
+     * thread: MediaPlayer documents that for its controller, and the returned items are not touched
+     * off it either.
+     *
+     * Only a nonempty answer becomes a cache entry. An empty one is the ambiguous state
+     * [snapshotIsComplete] already refuses to trust — Music.app answers with an empty list for a
+     * moment after the grant, before its query has loaded, and `lastModifiedDate` does not change
+     * when the songs arrive — so it is asked again instead of being cached and hiding the library.
+     */
+    private fun cachedDeviceLibrary(): List<TrackDescriptor> {
+        val revision = MPMediaLibrary.defaultMediaLibrary().lastModifiedDate.timeIntervalSince1970
+        if (deviceCache.isNotEmpty() && deviceCacheRevision == revision) return deviceCache
+        val scanned = scanDeviceLibrary()
+        if (scanned.isNotEmpty()) {
+            deviceCache = scanned
+            deviceCacheRevision = revision
+        }
+        return scanned
     }
 
     /** Converts the Music.app library into the same descriptors used by app-owned files. */
