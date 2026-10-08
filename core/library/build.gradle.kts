@@ -32,5 +32,10 @@ kotlin {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
         }
+        // The iOS suite runs the platform actuals (file stores, scan completeness) on a
+        // simulator; it needs the same assertions the JVM tests use.
+        iosTest.dependencies {
+            implementation(libs.kotlin.test)
+        }
     }
 }
