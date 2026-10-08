@@ -133,7 +133,8 @@ internal class AndroidPlaybackController(
     /**
      * Tracks the listener removed from this SMART queue, which its top-ups no longer offer (see
      * [recordSmartRemoval]). Not rows, so not pruned with the queue: cleared with the labels above
-     * when a new queue replaces this one.
+     * when a new queue replaces this one — including one installed from outside the app, which
+     * only the service sees arrive (see [AndroidPlaybackStarts.externalQueues]).
      */
     private val smartRemovedIds = mutableSetOf<TrackId>()
 
@@ -183,6 +184,12 @@ internal class AndroidPlaybackController(
         // track (its masked guess comes first); publish the record as soon as it lands.
         mainScope.launch {
             AndroidPlaybackStarts.current.collect { pushState() }
+        }
+        // Android Auto, a voice request or another app replaced the queue without passing through
+        // play() or restoreQueue(): its SMART top-ups must not keep skipping what the listener
+        // removed from the queue before it. The first, replayed value finds nothing to forget.
+        mainScope.launch {
+            AndroidPlaybackStarts.externalQueues.collect { smartRemovedIds.clear() }
         }
     }
 

@@ -56,6 +56,18 @@ internal class AndroidPlaybackStartsTest {
     }
 
     @Test
+    fun aQueueSetFromOutsideTheAppIsAlsoToldToTheAppsOwnController() {
+        // The controller forgets SMART's removed tracks on this signal; the app module's callback is
+        // a separate listener and need not be set for it to arrive, nor need a start be named.
+        val before = AndroidPlaybackStarts.externalQueues.value
+        val rows = listOf("car-a", "car-b").map { MediaItem.Builder().setMediaId(it).build() }
+
+        AndroidPlaybackStarts.announceExternalQueue(rows, C.INDEX_UNSET, shuffled = true)
+
+        assertEquals(before + 1, AndroidPlaybackStarts.externalQueues.value)
+    }
+
+    @Test
     fun tappingThePlayingRowRecordsItsReplayWithoutAMediaItemTransition() {
         val item = MediaItem.Builder().setMediaId("replayed-queue-row").build()
         AndroidPlaybackStarts.onMediaItemTransition(untouchedPlayer, item, Player.MEDIA_ITEM_TRANSITION_REASON_AUTO)

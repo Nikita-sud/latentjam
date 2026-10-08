@@ -35,6 +35,16 @@ internal object AndroidPlaybackStarts {
     /** See [NowPlaying.playbackStart]. */
     val current: StateFlow<PlaybackStart?> = mutableCurrent.asStateFlow()
 
+    private val mutableExternalQueues = MutableStateFlow(0L)
+
+    /**
+     * How many queues a controller outside the app has installed, for the app's own controller.
+     * What it remembers about the queue it built — the tracks the listener removed from SMART — does
+     * not hold for a queue it did not build. [MediaBrowseRegistry.onExternalQueue] belongs to the app
+     * module, so the controller in this module listens here instead of taking that callback over.
+     */
+    val externalQueues: StateFlow<Long> = mutableExternalQueues.asStateFlow()
+
     /** The command about to run will make [target] current because of [cause]. */
     fun announce(cause: StartCause, target: TrackId) {
         ledger.announce(cause, target)
@@ -49,6 +59,7 @@ internal object AndroidPlaybackStarts {
     fun announceExternalQueue(mediaItems: List<MediaItem>, startIndex: Int, shuffled: Boolean) {
         // Even when no start can be named, the queue now belongs to whoever sent it.
         MediaBrowseRegistry.onExternalQueue?.invoke()
+        mutableExternalQueues.value++
         val start = externalQueueStart(
             mediaItems,
             startIndex.takeUnless { it == C.INDEX_UNSET },
