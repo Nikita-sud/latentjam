@@ -92,7 +92,8 @@ public class MusicEntityIndex private constructor(
      * LJENT3: a linear walk through the hash's bucket, a dozen keys on average. The walk checks every
      * read against the bucket's end, the entity count and the sort order, and answers nothing for a
      * key it cannot read cleanly, so a damaged file fails closed one lookup at a time instead of costing
-     * a full decode of nine million bytes at every start.
+     * a full decode of nine million bytes at every start. An id count must fit both bounds as well: the
+     * varint alone would allow an IntArray of a gigabyte for a bucket that holds a few bytes.
      */
     private fun resolveCompact(hash: ULong): IntArray {
         val bucket = (hash shr 32).toInt()
@@ -108,6 +109,10 @@ public class MusicEntityIndex private constructor(
             previousHash = found
             val count = reader.nextChecked(end) ?: return IntArray(0)
             if (count == 0) return IntArray(0)
+            // Every id costs at least one byte of the bucket and stays below the entity count, so a count
+            // that cannot satisfy both is damage. Checked before the allocation: the varint reads 28 bits,
+            // so IntArray(count) would otherwise reserve up to a gigabyte for a corrupt asset.
+            if (count.toLong() > entityCount || count > end - reader.position) return IntArray(0)
             if (found == target) {
                 val ids = IntArray(count)
                 for (index in 0 until count) {
