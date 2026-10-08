@@ -760,6 +760,26 @@ public class PlaybackService : MediaLibraryService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? =
         mediaSession
 
+    /**
+     * Freezes the widget clock on the way out of the task, not only on the way out of the process.
+     *
+     * A snapshot whose anchor says "playing" outlives the process that could correct it: the launcher
+     * keeps the Chronometer ticking until some later render replaces it, and after a crash or a
+     * force-stop until the periodic widget update arrives. Publishing the paused snapshot here — and
+     * from [onDestroy], which covers every other teardown — turns normal completion into an immediate
+     * correction, leaving only the crash case to the update period.
+     *
+     * Playback that survives the swipe keeps the live snapshot: until the transport itself leaves the
+     * playing state, `playWhenReady` still describes the truth the widget shows, and [onDestroy]
+     * freezes it when the service finally stops. Overriding this does not change what the service
+     * does — `MediaLibraryService.onTaskRemoved` still decides whether a swipe stops playback or
+     * leaves it running, and it is still called.
+     */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        if (playbackPlayer?.playWhenReady != true) PlaybackWidgetStateStore.markPaused(this)
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onDestroy() {
         PlaybackWidgetStateStore.markPaused(this)
         AudioSessionRegistry.publish(null)
