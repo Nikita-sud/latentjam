@@ -71,7 +71,13 @@
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 
-	<!-- Device-only access: enumerate and play the user's existing Music library. -->
+	<!--
+	  Device-only access: enumerate and play the user's existing Music library.
+	  This is the development-language value and the fallback for every language
+	  without a translation; the localized copies sit next to the app sources in
+	  iosApp/iosApp/<language>.lproj/InfoPlist.strings, one per language declared
+	  in CFBundleLocalizations above, and must be kept in sync with this string.
+	-->
 	<key>NSAppleMusicUsageDescription</key>
 	<string>LatentJam uses your on-device music library to organize tracks and make private recommendations locally.</string>
 

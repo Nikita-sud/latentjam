@@ -1,0 +1,6 @@
+/* LatentJam system-prompt localization. */
+/* The Music library grant is the one permission iOS asks for, so its usage
+   description is the only key here; it must stay in sync with
+   NSAppleMusicUsageDescription in iosApp/Info.plist, which is the fallback. */
+
+"NSAppleMusicUsageDescription" = "LatentJam은 기기 내 음악 보관함을 사용해 곡을 정리하고 비공개 추천을 기기에서 만듭니다.";
