@@ -32,4 +32,21 @@ internal class SheetDismissalTest {
         advanceUntilIdle()
         assertEquals(listOf(false), reported)
     }
+
+    @Test
+    fun aSheetThatClosesItselfStillDismissesAndActsOnceWhenTheHideIsInterrupted() = runTest {
+        val reported = mutableListOf<String>()
+        // The sheets that close themselves after a tap (the track menu, a world, add-to-playlist)
+        // hand hideSheetThen the owner's cleanup and then the action the tap chose. Back or a scrim
+        // tap during the animation cancels the hide; neither may be dropped or run twice.
+        hideSheetThen(
+            hide = { throw CancellationException("another hide took over") },
+            onHidden = {
+                reported += "dismissed"
+                reported += "action"
+            },
+        )
+        advanceUntilIdle()
+        assertEquals(listOf("dismissed", "action"), reported)
+    }
 }

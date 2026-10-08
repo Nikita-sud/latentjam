@@ -80,7 +80,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.foryou_world_smart
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
-import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -291,8 +290,9 @@ internal fun WorldActionsSheet(
             onDismiss()
             action()
         } else {
-            scope.launch {
-                sheetState.hide()
+            // Back or a scrim tap during the animation cancels this hide; the owner is told and the
+            // action the tap chose still runs, exactly once.
+            scope.hideSheetThen(sheetState::hide) {
                 onDismiss()
                 action()
             }
@@ -306,10 +306,7 @@ internal fun WorldActionsSheet(
         if (reduceMotion) {
             onDismiss()
         } else {
-            scope.launch {
-                sheetState.hide()
-                onDismiss()
-            }
+            scope.hideSheetThen(sheetState::hide) { onDismiss() }
         }
     }
 

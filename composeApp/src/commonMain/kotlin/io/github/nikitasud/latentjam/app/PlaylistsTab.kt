@@ -118,7 +118,6 @@ import io.github.nikitasud.latentjam.library.AutoPlaylistKind
 import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlin.math.roundToInt
-import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
@@ -717,8 +716,9 @@ internal fun AddToPlaylistSheet(
             onDismiss()
             action()
         } else {
-            scope.launch {
-                sheetState.hide()
+            // Back or a scrim tap during the animation cancels this hide; the owner is told and the
+            // action the tap chose still runs, exactly once.
+            scope.hideSheetThen(sheetState::hide) {
                 onDismiss()
                 action()
             }

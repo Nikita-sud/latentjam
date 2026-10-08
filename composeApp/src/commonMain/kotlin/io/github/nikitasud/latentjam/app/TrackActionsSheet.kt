@@ -100,7 +100,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artis
 import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
 import io.github.nikitasud.latentjam.playback.SleepTimerState
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
-import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.pluralStringResource
 
@@ -152,8 +151,9 @@ internal fun TrackActionsSheet(
             onDismiss()
             action()
         } else {
-            scope.launch {
-                sheetState.hide()
+            // Back or a scrim tap during the animation cancels this hide; the owner is told and the
+            // action the tap chose still runs, exactly once.
+            scope.hideSheetThen(sheetState::hide) {
                 onDismiss()
                 action()
             }
@@ -169,10 +169,7 @@ internal fun TrackActionsSheet(
         if (reduceMotion) {
             onDismiss()
         } else {
-            scope.launch {
-                sheetState.hide()
-                onDismiss()
-            }
+            scope.hideSheetThen(sheetState::hide) { onDismiss() }
         }
     }
 
@@ -414,8 +411,9 @@ internal fun SelectionRemovalSheet(
             onDismiss()
             action()
         } else {
-            scope.launch {
-                sheetState.hide()
+            // Back or a scrim tap during the animation cancels this hide; the owner is told and the
+            // action the tap chose still runs, exactly once.
+            scope.hideSheetThen(sheetState::hide) {
                 onDismiss()
                 action()
             }
@@ -429,10 +427,7 @@ internal fun SelectionRemovalSheet(
         if (reduceMotion) {
             onDismiss()
         } else {
-            scope.launch {
-                sheetState.hide()
-                onDismiss()
-            }
+            scope.hideSheetThen(sheetState::hide) { onDismiss() }
         }
     }
 
