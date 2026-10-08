@@ -220,9 +220,15 @@ class PlayerFeelTest {
         assertEquals(320, estimatedBitrateKbps(sizeBytes = 9_600_000L, durationMs = 240_000L))
         assertNull(estimatedBitrateKbps(sizeBytes = null, durationMs = 240_000L))
         assertNull(estimatedBitrateKbps(sizeBytes = 9_600_000L, durationMs = 0L))
+        // The separator follows the language, so the assertion names it instead of relying on
+        // the locale of the machine that runs the tests.
         assertEquals(
             "FLAC · 1 010 kbps · 34.2 MB",
-            fileFormatLabel("01 - Blue Hour.flac", 34_200_000L, 270_890L),
+            fileFormatLabel("01 - Blue Hour.flac", 34_200_000L, 270_890L, separator = '.'),
+        )
+        assertEquals(
+            "FLAC · 1 010 kbps · 34,2 MB",
+            fileFormatLabel("01 - Blue Hour.flac", 34_200_000L, 270_890L, separator = ','),
         )
         assertEquals("MP3", fileFormatLabel("song.mp3", null, null))
         assertNull(fileFormatLabel("noextension", 1L, 1L))
