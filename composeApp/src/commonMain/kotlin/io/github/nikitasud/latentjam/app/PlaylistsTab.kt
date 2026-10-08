@@ -403,7 +403,11 @@ private fun AutoPlaylistCard(
     Column(
         modifier = Modifier.width(150.dp)
             .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
-            .clickable(onClick = onClick),
+            // A shelf that is still empty keeps its slot (see featuredPlaylists) but does not
+            // open: the collection page would have no rows and nothing on it to explain them.
+            // Favourites, Most Played and Recently Played all start out this way, and the card
+            // starts responding as soon as hearting or listening puts a first row in it.
+            .clickable(enabled = auto.tracks.isNotEmpty(), onClick = onClick),
     ) {
         Artwork(uri = artworkUri, size = 150.dp, cornerRadius = 18.dp, modifier = artworkModifier)
         Text(
