@@ -123,6 +123,13 @@ internal object Mp4TagCodec : TagCodec {
 
     private fun dataBoxes(item: Mp4Box): List<Mp4Box> = item.children.orEmpty().filter { it.type == "data" }
 
+    /**
+     * True when a `data` box carries image bytes: its header is eight bytes, so a shorter payload
+     * is a header with no value. [read] counts only these as pictures, and [setCover] edits only
+     * these — a stub box counted as the cover made the two disagree about which box an edit removes.
+     */
+    private fun holdsImage(data: Mp4Box): Boolean = data.payload.size >= 8
+
     private fun value(data: Mp4Box): ByteArray? = data.payload.takeIf { it.size >= 8 }?.copyOfRange(8, data.payload.size)
 
     private fun code(data: Mp4Box): Int = if (data.payload.size >= 4) Mp4Boxes.be24(data.payload, 1) else -1
@@ -184,7 +191,8 @@ internal object Mp4TagCodec : TagCodec {
         }
         val items = findTags(layout.moov)?.ilst?.children.orEmpty()
         // Every image of every covr item, in order: the first is the cover, the rest are kept.
-        val covers = items.filter { it.type == "covr" }.flatMap(::dataBoxes)
+        val covers = items.filter { it.type == "covr" }.flatMap(::dataBoxes).filter(::holdsImage)
+            .mapNotNull(::coverInfo)
         val (trackNumber, trackTotal) = pair(items, "trkn")
         val (discNumber, discTotal) = pair(items, "disk")
         return TagSnapshot(
@@ -201,10 +209,10 @@ internal object Mp4TagCodec : TagCodec {
             discNumber = discNumber,
             discTotal = discTotal,
             lyrics = text(items, "©lyr")?.trim()?.ifEmpty { null },
-            cover = covers.firstOrNull()?.let(::coverInfo),
+            cover = covers.firstOrNull(),
             otherPictures = maxOf(0, covers.size - 1),
-            nextCover = covers.getOrNull(1)?.let(::coverInfo),
-            pictures = covers.mapNotNull { value(it)?.let { bytes -> Crc32.of(bytes) } }.sorted(),
+            nextCover = covers.getOrNull(1),
+            pictures = covers.map { it.crc32 }.sorted(),
             artists = items.filter(::isArtists)
                 .flatMap { dataBoxes(it) }
                 .mapNotNull { value(it)?.decodeToString() }
@@ -481,12 +489,13 @@ internal object Mp4TagCodec : TagCodec {
     private fun setCover(items: MutableList<Mp4Box>, edit: CoverEdit) {
         if (edit == CoverEdit.Keep) return
         // The cover is the first image of the first covr item that holds one (see read()).
-        val withImage = items.indexOfFirst { it.type == "covr" && dataBoxes(it).isNotEmpty() }
+        val withImage = items.indexOfFirst { it.type == "covr" && dataBoxes(it).any(::holdsImage) }
         val covrIndex = if (withImage >= 0) withImage else items.indexOfFirst { it.type == "covr" }
         val covr = items.getOrNull(covrIndex)
         // A new covr box, never the old one changed in place: plan() compares the new items with the old.
         val children = covr?.children.orEmpty().toMutableList()
-        val first = children.indexOfFirst { it.type == "data" }
+        // The same data box read() shows as the cover, so an edit lands on what the user saw.
+        val first = children.indexOfFirst { it.type == "data" && holdsImage(it) }
         when (edit) {
             CoverEdit.Keep -> Unit
             CoverEdit.Remove -> {
@@ -500,7 +509,8 @@ internal object Mp4TagCodec : TagCodec {
             }
             is CoverEdit.Replace -> {
                 val data = dataBox(if (edit.mime == ImageProbe.PNG) PNG else JPEG, edit.bytes)
-                if (first >= 0) children[first] = data else children.add(0, data)
+                val target = if (first >= 0) first else children.indexOfFirst { it.type == "data" }
+                if (target >= 0) children[target] = data else children.add(0, data)
                 val rebuilt = Mp4Box.container("covr", children)
                 if (covr == null) items += rebuilt else items[covrIndex] = rebuilt
             }
