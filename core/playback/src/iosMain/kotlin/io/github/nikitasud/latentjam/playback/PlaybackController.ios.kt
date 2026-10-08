@@ -1201,9 +1201,9 @@ internal class IosPlaybackController(
      * Reopening a local file preserves its playhead. As required by AVAudioSession's reset
      * contract, playback waits for a new user action instead of restarting automatically.
      *
-     * A cued file that cannot be reopened — deleted or moved while paused — gives way to the next
-     * playable row, still paused, the way an unreadable saved row does on resume. Kept current, the
-     * row would have no file behind it, and Play would do nothing until the listener skipped.
+     * A cued file that cannot be reopened — deleted or moved while paused — gives way to another
+     * playable row, still paused ([recoverUnreadableRow]). Kept current, the row would have no file
+     * behind it, and Play would do nothing until the listener skipped.
      */
     private fun onMediaServicesReset() {
         mainScope.launch {
@@ -1219,27 +1219,49 @@ internal class IosPlaybackController(
             mediaPlayerStartRequestedAt = null
             mediaItemStarted = false
             playing = false
-            val unreadableIndex = queueIndex
-            if (localPosition != null && !recued && unreadableIndex in queue.indices) {
-                val loaded = loadPlayableFrom(
-                    startIndex = unreadableIndex,
-                    direction = 1,
-                    autoPlay = false,
-                    wrap = false,
-                )
-                // The same row reopening after all keeps its playhead; any other row is new.
-                if (loaded) {
-                    if (queueIndex != unreadableIndex) {
-                        beginStart(cause = null)
-                    } else if (localPosition > 0L) {
-                        seekActiveBackend(localPosition)
-                    }
-                }
-            }
             updateTicker()
             invalidateNowPlayingInfo()
             pushState()
+            if (localPosition != null && !recued) recoverUnreadableRow(localPosition)
         }
+    }
+
+    /**
+     * Moves the playhead off a file row a media services reset could not reopen, staying paused:
+     * forward the way [advance] goes, around the queue under repeat all, then back the way
+     * [removeQueueItem] falls back, so the queue keeps a current row while any row of it plays. SMART
+     * tops its queue up first, as a resume does after replanning, so a queue that ended at the
+     * unreadable row has somewhere to go. The same row reopening after all keeps [positionMs].
+     */
+    private suspend fun recoverUnreadableRow(positionMs: Long) {
+        val itemGeneration = playbackItemGeneration
+        if (mode == ShuffleMode.SMART) appendSmartNextIfNeeded()
+        // Planning suspends; a track the listener started meanwhile is theirs to keep.
+        if (playbackItemGeneration != itemGeneration) return
+        val unreadableIndex = queueIndex
+        if (unreadableIndex !in queue.indices) return
+        val wrap = repeat == RepeatMode.ALL
+        var loaded = loadPlayableFrom(
+            startIndex = unreadableIndex,
+            direction = 1,
+            autoPlay = false,
+            wrap = wrap,
+        )
+        if (!loaded && !wrap && unreadableIndex > 0) {
+            loaded = loadPlayableFrom(
+                startIndex = unreadableIndex - 1,
+                direction = -1,
+                autoPlay = false,
+                wrap = false,
+            )
+        }
+        if (loaded && queueIndex != unreadableIndex) {
+            beginStart(cause = null)
+        } else if (loaded && positionMs > 0L) {
+            seekActiveBackend(positionMs)
+            invalidateNowPlayingInfo()
+        }
+        pushState()
     }
 
     private fun onAudioInterruption(note: NSNotification?) {
