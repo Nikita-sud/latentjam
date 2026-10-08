@@ -58,11 +58,22 @@ public class SleepTimerController(
         }
     }
 
-    /** Stops when the currently selected queue entry finishes or is skipped. */
+    /**
+     * Stops when the currently selected queue entry finishes or is skipped.
+     *
+     * The timer follows the queue *row*, not its position: editing the queue elsewhere (removing
+     * or moving a row above the playhead) or changing the shuffle order leaves the listener on the
+     * same entry and must not stop playback. An entry is only followed by position when its track
+     * id is ambiguous — when the queue holds the same track twice, index is the only identity the
+     * snapshot exposes (same rule as the UI's `queueLazyItemKey`).
+     */
     public fun startAtEndOfTrack() {
         val initial = playback.state.value
         val trackId = initial.track?.id ?: return
         val queueIndex = initial.queueIndex
+        // Only a duplicated id needs the position to tell the two rows apart; everywhere else the
+        // id is the row's identity, so a queue edit above the playhead cannot look like a skip.
+        val ambiguousRow = initial.queue.count { it.id == trackId } > 1
         replace {
             mutableState.value = SleepTimerState.EndOfTrack
             var hasPlayed = initial.isPlaying
@@ -70,7 +81,8 @@ public class SleepTimerController(
             var previousDurationMs = initial.durationMs
             playback.state.first { snapshot ->
                 if (snapshot.isPlaying) hasPlayed = true
-                val movedAway = snapshot.track?.id != trackId || snapshot.queueIndex != queueIndex
+                val movedAway = snapshot.track?.id != trackId ||
+                    (ambiguousRow && snapshot.queueIndex != queueIndex)
                 val naturallyEnded = hasPlayed &&
                     !snapshot.isPlaying &&
                     snapshot.durationMs > 0L &&
