@@ -161,17 +161,6 @@ internal class FileIndexStore private constructor(
     }
 }
 
-/** Strict bounded decoder shared with Android host corruption tests. */
-internal fun decodeIndexSnapshot(
-    input: DataInputStream,
-    expectedModelVersion: String,
-    encodedSizeBytes: Long = input.available().toLong(),
-): Map<TrackId, FloatArray>? = decodeStoredIndexSnapshot(
-    input = input,
-    expectedModelVersion = expectedModelVersion,
-    encodedSizeBytes = encodedSizeBytes,
-)?.entries
-
 /** Versioned decoder; v1 has vectors only, v2 adds identities, and v3 adds failure identities. */
 internal fun decodeStoredIndexSnapshot(
     input: DataInputStream,
