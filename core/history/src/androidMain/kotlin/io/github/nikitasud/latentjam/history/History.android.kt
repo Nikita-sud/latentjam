@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.history
 
 import android.content.Context
 import java.io.File
+import java.io.RandomAccessFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.koin.core.module.Module
@@ -21,7 +22,12 @@ internal class FileHistoryStore(context: Context) : HistoryStore {
     private val file = File(context.filesDir, FILE_NAME)
 
     override suspend fun append(line: String): Unit = withContext(Dispatchers.IO) {
-        file.durableAppendText(line + "\n")
+        // A crash mid-append leaves a torn tail with no line feed. Appending straight after it
+        // glues the next listening to that fragment, and the parser skips the whole glued record —
+        // losing the new event along with the fragment. Terminating the fragment first keeps the
+        // damage to the fragment itself.
+        val separator = if (file.endsInsideALine()) "\n" else ""
+        file.durableAppendText(separator + line + "\n")
     }
 
     override suspend fun readAll(): List<String> = withContext(Dispatchers.IO) {
@@ -40,6 +46,20 @@ internal class FileHistoryStore(context: Context) : HistoryStore {
 
     private companion object {
         const val FILE_NAME = "listening_history.log"
+    }
+}
+
+/**
+ * True when the file ends inside a line: its last byte is not a line feed.
+ *
+ * A missing or empty file ends on a line boundary by definition, and so does a file whose last
+ * append completed — only a write interrupted by a crash leaves a partial record behind.
+ */
+private fun File.endsInsideALine(): Boolean {
+    if (!exists() || length() == 0L) return false
+    return RandomAccessFile(this, "r").use { file ->
+        file.seek(length() - 1)
+        file.read() != '\n'.code
     }
 }
 
