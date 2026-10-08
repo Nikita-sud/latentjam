@@ -17,7 +17,8 @@ import java.io.InputStream
  * is the cover of one file of that album. Songs with no album tag (MediaStore files them under
  * their folder's name) and same-titled albums of different artists in one folder therefore all
  * showed one song's cover (issue #12). `…/audio/media/<song>/albumart` is the song's own cover on
- * Android 10 and later; older releases answer it with the album's, as before.
+ * Android 10 and later; older releases answer it with the album's cached cover, or with nothing
+ * before one is cached, so the library asks for it from Android 10 on only.
  *
  * A song with no cover of its own has nothing there, while its album may well have one (a rip
  * that embeds the cover in its first file only), so the locator names its album too, and every
@@ -62,19 +63,28 @@ public object MediaStoreArtwork {
 
     /** Opens [uri]'s cover, or its album's when the song has none of its own. */
     public fun open(resolver: ContentResolver, uri: Uri): InputStream? =
-        withFallback(uri) { resolver.openInputStream(it) }
+        openWithFallback(uri.toString()) { resolver.openInputStream(Uri.parse(it)) }
 
     /** [open] as a descriptor, for readers that need the cover's length. */
     public fun openDescriptor(resolver: ContentResolver, uri: Uri): AssetFileDescriptor? =
-        withFallback(uri) { resolver.openAssetFileDescriptor(it, "r") }
+        openWithFallback(uri.toString()) { resolver.openAssetFileDescriptor(Uri.parse(it), "r") }
 
-    // MediaProvider answers a song without a cover of its own with FileNotFoundException; any
-    // other failure (a revoked permission, a volume that went away) is not a missing cover.
-    private inline fun <T> withFallback(uri: Uri, open: (Uri) -> T): T = try {
-        open(uri)
-    } catch (missing: FileNotFoundException) {
-        val fallback = albumFallback(uri.toString()) ?: throw missing
-        open(Uri.parse(fallback))
+    /**
+     * [open]s [uri], or the album cover it falls back to when the song has none of its own.
+     *
+     * MediaProvider answers a song without a cover with FileNotFoundException, and a provider may
+     * answer with no file at all; both fall back. Any other failure (a revoked permission, a volume
+     * that went away) is not a missing cover and propagates.
+     */
+    internal fun <T : Any> openWithFallback(uri: String, open: (String) -> T?): T? {
+        val missing = try {
+            open(uri)?.let { return it }
+            null
+        } catch (notFound: FileNotFoundException) {
+            notFound
+        }
+        val fallback = albumFallback(uri) ?: missing?.let { throw it } ?: return null
+        return open(fallback)
     }
 
     private fun String.isDecimal(): Boolean = isNotEmpty() && all { it in '0'..'9' }

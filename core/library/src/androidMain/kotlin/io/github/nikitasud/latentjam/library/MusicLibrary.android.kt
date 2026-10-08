@@ -169,6 +169,10 @@ internal class MediaStoreMusicLibrary(
             }
             val genreColumn = if (genreSupported) cursor.getColumnIndex(MediaStore.Audio.Media.GENRE) else -1
             val albumArtistIndex = cursor.getColumnIndex(ALBUM_ARTIST)
+            // MediaProvider makes a song's own cover from Android 10 on. Older releases answer it with
+            // the album's cached cover, or with nothing before one is cached, so there a song keeps
+            // its album's, exactly as before.
+            val ownCovers = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
                 val albumId = cursor.getLong(albumIdColumn)
@@ -189,8 +193,10 @@ internal class MediaStoreMusicLibrary(
                         .withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
                         .toString(),
                     // The song's own cover; its album's, which grouping compares, is the fallback.
-                    artworkUri = albumId.takeIf { it > 0 }?.let { album -> MediaStoreArtwork.trackCover(id, album) },
-                    albumArtworkUri = albumId.takeIf { it > 0 }?.let(MediaStoreArtwork::albumCover),
+                    artworkUri = albumId.takeIf { it > 0 }?.let { album ->
+                        if (ownCovers) MediaStoreArtwork.trackCover(id, album) else MediaStoreArtwork.albumCover(album)
+                    },
+                    albumArtworkUri = albumId.takeIf { it > 0 && ownCovers }?.let(MediaStoreArtwork::albumCover),
                     // MediaStore stores DATE_ADDED in epoch seconds.
                     addedAtMs = cursor.getLong(addedColumn).takeIf { it > 0 }?.times(1000),
                     folderPath = mediaStoreFolderPath(

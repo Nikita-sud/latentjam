@@ -746,8 +746,15 @@ public class PlaybackService : MediaLibraryService() {
             .setMediaButtonPreferences(
                 mediaButtonPreferences(player, AndroidShuffleModeRegistry.mode.value),
             )
-            // Media3 still sizes and caches covers around this, as it does around its own loader.
-            .setBitmapLoader(TrackCoverBitmapLoader(DataSourceBitmapLoader.Builder(this).build()))
+            // Decoded at the session's size limit, as Media3's own loader is; Media3 still caches
+            // around it. A full-size decode of a 3000 px cover costs ~36 MB on a small phone.
+            .setBitmapLoader(
+                TrackCoverBitmapLoader(
+                    DataSourceBitmapLoader.Builder(this)
+                        .setMaximumOutputDimension(MediaSession.getBitmapDimensionLimit(this))
+                        .build(),
+                ),
+            )
         appLaunchPendingIntent()?.let(sessionBuilder::setSessionActivity)
         mediaSession = sessionBuilder.build()
         player.addListener(playerListener)

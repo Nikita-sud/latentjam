@@ -91,9 +91,9 @@ public data class TrackDescriptor(
      */
     public val albumArtist: String? = null,
     /**
-     * The album's cover locator when [artworkUri] is this track's own instead: on Android every
-     * song's locator is its own cover (see MediaStoreArtwork), or the one LatentJam saved into it,
-     * while MediaStore keeps one cover per album. Album grouping compares this, so songs with
+     * The album's cover locator when [artworkUri] is this track's own instead: on Android 10+ every
+     * song's locator is its own cover (see MediaStoreArtwork), and on any release the one LatentJam
+     * saved into it, while MediaStore keeps one cover per album. Album grouping compares this, so songs with
      * covers of their own still make one album. Null when [artworkUri] already is the album's.
      */
     public val albumArtworkUri: String? = null,

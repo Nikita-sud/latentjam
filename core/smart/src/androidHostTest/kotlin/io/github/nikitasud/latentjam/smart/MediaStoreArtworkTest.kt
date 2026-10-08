@@ -4,8 +4,10 @@
  */
 package io.github.nikitasud.latentjam.smart
 
+import java.io.FileNotFoundException
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 
 internal class MediaStoreArtworkTest {
@@ -60,5 +62,48 @@ internal class MediaStoreArtworkTest {
             "content://media/external/audio/media/42/albumart?album=7&v=2",
             MediaStoreArtwork.versioned(MediaStoreArtwork.trackCover(42, 7), "2"),
         )
+    }
+
+    private val song = "content://media/external/audio/media/42/albumart?album=7&v=1f"
+    private val album = "content://media/external/audio/albumart/7?v=1f"
+
+    @Test
+    fun aSongWithItsOwnCoverNeverOpensItsAlbums() {
+        val opened = ArrayList<String>()
+        assertEquals("own", MediaStoreArtwork.openWithFallback(song) { opened += it; "own" })
+        assertEquals(listOf(song), opened)
+    }
+
+    @Test
+    fun aMissingOwnCoverOpensTheAlbums() {
+        val opened = ArrayList<String>()
+        val cover = MediaStoreArtwork.openWithFallback(song) { uri ->
+            opened += uri
+            if (uri == song) throw FileNotFoundException("No album art found") else "album"
+        }
+        assertEquals("album", cover)
+        assertEquals(listOf(song, album), opened)
+    }
+
+    @Test
+    fun noFileAtAllOpensTheAlbumsToo() {
+        assertEquals("album", MediaStoreArtwork.openWithFallback(song) { uri -> if (uri == song) null else "album" })
+    }
+
+    @Test
+    fun aCoverWithNothingToFallBackToStaysMissing() {
+        assertNull(MediaStoreArtwork.openWithFallback<String>(album) { null })
+        assertFailsWith<FileNotFoundException> {
+            MediaStoreArtwork.openWithFallback<String>(album) { throw FileNotFoundException(it) }
+        }
+    }
+
+    @Test
+    fun anyOtherFailureIsNotAMissingCover() {
+        val opened = ArrayList<String>()
+        assertFailsWith<SecurityException> {
+            MediaStoreArtwork.openWithFallback<String>(song) { opened += it; throw SecurityException("revoked") }
+        }
+        assertEquals(listOf(song), opened)
     }
 }
