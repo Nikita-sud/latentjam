@@ -525,7 +525,11 @@
     <string name="sleep_timer">مؤقت النوم</string>
     <string name="sleep_timer_off">متوقف</string>
     <plurals name="sleep_timer_minutes">
+        <item quantity="zero">%1$d دقيقة</item>
         <item quantity="one">%1$d دقيقة</item>
+        <item quantity="two">%1$d دقيقتان</item>
+        <item quantity="few">%1$d دقائق</item>
+        <item quantity="many">%1$d دقيقةً</item>
         <item quantity="other">%1$d دقيقة</item>
     </plurals>
     <string name="sleep_timer_end_of_track">نهاية المقطع الحالي</string>
