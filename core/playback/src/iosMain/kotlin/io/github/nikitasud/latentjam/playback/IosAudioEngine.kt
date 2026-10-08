@@ -91,13 +91,14 @@ internal class IosAudioEngine : EqualizerController {
      * bands, and the cued file is scheduled again. The new position comes from the caller because a
      * dead player node cannot report one.
      *
-     * @param resumePositionMs last published playhead of the cued file.
+     * @param resumePositionMs last published playhead of the cued file, or null when the file
+     *   backend was idle. The graph is recreated in both cases.
      * @return true when a file is cued again, so the caller can restart the player — this method
      *   never starts its own render loop, because the audio session the reset also invalidated has
      *   to be reconfigured first.
      */
-    fun rebuildAfterMediaServicesReset(resumePositionMs: Long): Boolean {
-        val file = currentFile
+    fun rebuildAfterMediaServicesReset(resumePositionMs: Long?): Boolean {
+        val fileUrl = currentFile?.url
         val onEnded = completion
         engine.stop()
         // Drop every reference to the invalidated graph before the new one is built, so a throw
@@ -113,7 +114,11 @@ internal class IosAudioEngine : EqualizerController {
         buildGraph()
         restoreCurve()
         publishEqualizerState()
-        if (file == null || file.length <= 0L) return false
+        if (resumePositionMs == null || fileUrl == null) return false
+        // AVAudioFile belongs to the old audio services too. Keep only its URL and reopen it;
+        // a file removed in the meantime must not leave a stale handle in the new graph.
+        val file = runCatching { AVAudioFile(forReading = fileUrl, error = null) }.getOrNull()
+            ?.takeIf { it.length > 0L } ?: return false
         currentFile = file
         completion = onEnded
         val lastFrame = (file.length - 1L).coerceAtLeast(0L)
