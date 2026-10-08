@@ -421,6 +421,9 @@ interface AppSettings {
     fun setAlbumSort(choice: SortChoice<AlbumSort>)
 
     /** How an artist's page orders their albums; one choice for every artist. */
+    val groupSortOrders: StateFlow<GroupSortOrders>
+    fun setGroupSortOrders(orders: GroupSortOrders)
+
     val artistAlbumSort: StateFlow<SortChoice<AlbumSort>>
 
     /** Ignores a field outside [ARTIST_ALBUM_SORTS]. */

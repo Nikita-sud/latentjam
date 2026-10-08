@@ -57,6 +57,7 @@ internal class LocalBackupTest {
                 songSort = SortChoice(SongSort.RECENT, SongSortDirection.ASCENDING),
                 albumSort = SortChoice(AlbumSort.ARTIST, SongSortDirection.DESCENDING),
                 artistAlbumSort = SortChoice(AlbumSort.TITLE, SongSortDirection.DESCENDING),
+                groupSortOrders = GroupSortOrders(genres = SongSortDirection.DESCENDING),
             ),
             tracks = listOf(
                 LocalBackupTrackReference(
@@ -97,8 +98,41 @@ internal class LocalBackupTest {
         val encoded = LocalBackupCodec.encode(snapshot)
 
         assertEquals(snapshot, LocalBackupCodec.decode(encoded))
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t7\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t8\n"))
         assertFalse(encoded.contains("Группа крови"), "User strings must be safely encoded")
+    }
+
+    @Test
+    fun groupOrderSurvivesBackupRestoreAndVersionSevenDefaultsToAscending() = runTest {
+        val source = fixture(emptyList())
+        val orders = GroupSortOrders(SongSortDirection.DESCENDING, SongSortDirection.DESCENDING)
+        source.settings.setGroupSortOrders(orders)
+        val destination = fixture(emptyList())
+        destination.service.importEncoded(source.service.exportEncoded(), LocalBackupRestoreMode.REPLACE)
+        assertEquals(orders, destination.settings.groupSortOrders.value)
+
+        val legacy = emptySnapshot().copy(formatVersion = 7)
+        val encoded = LocalBackupCodec.encode(legacy)
+        assertFalse(encoded.lineSequence().any { it.startsWith("G\t") })
+        destination.service.importEncoded(encoded, LocalBackupRestoreMode.REPLACE)
+        assertEquals(GroupSortOrders(), destination.settings.groupSortOrders.value)
+        assertFailsWith<LocalBackupFormatException> {
+            LocalBackupCodec.encode(legacy.copy(settings = legacy.settings.copy(groupSortOrders = orders)))
+        }
+    }
+
+    @Test
+    fun groupOrderRejectsInvalidDuplicateAndPrematureRecords() {
+        val encoded = LocalBackupCodec.encode(emptySnapshot())
+        val record = "G\tASCENDING,ASCENDING,ASCENDING"
+        for (bad in listOf("G\tASCENDING", "G\tDESCENDING,unknown,ASCENDING", "$record\n$record")) {
+            assertFailsWith<LocalBackupFormatException> {
+                LocalBackupCodec.decode(encoded.replace(record, bad))
+            }
+        }
+        assertFailsWith<LocalBackupFormatException> {
+            LocalBackupCodec.decode(encoded.replaceFirst("LOCAL-BACKUP\t8", "LOCAL-BACKUP\t7"))
+        }
     }
 
     @Test
@@ -301,7 +335,7 @@ internal class LocalBackupTest {
         val encoded = LocalBackupCodec.encode(snapshot)
 
         assertEquals(snapshot, LocalBackupCodec.decode(encoded))
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t7\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t8\n"))
     }
 
     @Test
@@ -355,7 +389,7 @@ internal class LocalBackupTest {
         // One version past the current format: a file from a newer build is refused whole, before
         // any record of it is read.
         assertFailsWith<LocalBackupFormatException> {
-            LocalBackupCodec.decode(valid.replaceFirst("LOCAL-BACKUP\t7", "LOCAL-BACKUP\t8"))
+            LocalBackupCodec.decode(valid.replaceFirst("LOCAL-BACKUP\t8", "LOCAL-BACKUP\t9"))
         }
         assertFailsWith<LocalBackupFormatException> {
             LocalBackupCodec.decode(valid + "Q\tnot-hex\n")
@@ -450,7 +484,7 @@ internal class LocalBackupTest {
         val encoded = source.service.exportEncoded()
         destination.service.importEncoded(encoded, LocalBackupRestoreMode.REPLACE)
 
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t7\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t8\n"))
         assertEquals(layout, destination.settings.pageLayout.value)
         assertEquals(StartPage.STATISTICS, destination.settings.startPage.value)
     }
@@ -1102,6 +1136,8 @@ internal class LocalBackupTest {
         override fun setAlbumSort(choice: SortChoice<AlbumSort>) { albumSort.value = choice }
         override val artistAlbumSort: MutableStateFlow<SortChoice<AlbumSort>> =
             MutableStateFlow(DEFAULT_ARTIST_ALBUM_SORT)
+        override val groupSortOrders = MutableStateFlow(GroupSortOrders())
+        override fun setGroupSortOrders(orders: GroupSortOrders) { groupSortOrders.value = orders }
         override fun setArtistAlbumSort(choice: SortChoice<AlbumSort>) { artistAlbumSort.value = choice }
         private var trackLoudnessPayload: String? = null
         private var trackGenresPayload: String? = null

@@ -857,6 +857,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         val songSort = songSortChoice.sort
         val songSortDirection = songSortChoice.direction
         val albumSortChoice by settings.albumSort.collectAsState()
+        val groupSortOrders by settings.groupSortOrders.collectAsState()
         val artistAlbumSortChoice by settings.artistAlbumSort.collectAsState()
         var showSettings by rememberSaveable { mutableStateOf(false) }
         var infoTargetId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -1932,9 +1933,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             if (shown != null && shown.catalog === current && shown.choice == albumSortChoice) return@LaunchedEffect
             albumBrowse = withContext(Dispatchers.Default) { AlbumBrowseDerivation.of(current, albumSortChoice) }
         }
+        val groupOrderedCatalog = remember(catalog, groupSortOrders) { catalog?.inGroupOrder(groupSortOrders) }
         val tracksById = remember(catalog) { catalog?.songs?.associateBy { it.id }.orEmpty() }
         val selectedTracks = remember(
-            catalog, albumTabTracks, songSort, songSortDirection, selectedTrackIds,
+            catalog, groupSortOrders, albumTabTracks, songSort, songSortDirection, selectedTrackIds,
             selectedCollection, selectedTab,
         ) {
             // Selection is empty during ordinary browsing. Avoid duplicating the Songs list's
@@ -1948,9 +1950,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 ?.tracks
                 ?: when (selectedTab) {
                     StartPage.ALBUMS -> albumTabTracks
-                    StartPage.ARTISTS -> catalog?.artists?.flatMap { it.tracks }
-                    StartPage.GENRES -> catalog?.genres?.flatMap { it.tracks }
-                    StartPage.FOLDERS -> catalog?.folders?.flatMap { it.tracks }
+                    StartPage.ARTISTS -> groupOrderedCatalog?.artists?.flatMap { it.tracks }
+                    StartPage.GENRES -> groupOrderedCatalog?.genres?.flatMap { it.tracks }
+                    StartPage.FOLDERS -> groupOrderedCatalog?.folders?.flatMap { it.tracks }
                     else -> null
                 }
             groupOrderedSource?.filter { it.id in selectedTrackIds }
@@ -2771,7 +2773,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         // Snapshot the asynchronously-built catalog once for this
                         // composition. Delegated state cannot be smart-cast after a
                         // null check because it may change between reads.
-                        val visibleCatalog = catalog
+                        val visibleCatalog = groupOrderedCatalog
                         // One full-bleed surface: it runs to the bottom edge so the
                         // mini-player floats ON the content rather than sitting on a
                         // separate band of background.
@@ -3361,7 +3363,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             }
                                         }
 
-                                        StartPage.ARTISTS -> SectionedGroupListWithRail(
+                                        StartPage.ARTISTS -> Column {
+                                            GroupOrderHeader(
+                                                title = stringResource(StartPage.ARTISTS.titleResource()),
+                                                direction = groupSortOrders.artists,
+                                                enabled = !selectionMode,
+                                                onChange = { settings.setGroupSortOrders(groupSortOrders.copy(artists = it)) },
+                                            )
+                                            SectionedGroupListWithRail(
                                             onScrubbingChange = { railScrubbing = it },
                                             names = remember(visibleCatalog.artists) {
                                                 visibleCatalog.artists.map { it.name }
@@ -3383,6 +3392,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             },
                                             contentPadding = listPadding,
                                         ) { railPadding, listState, artworkReporter, headers ->
+                                            var previousOrder by remember { mutableStateOf(groupSortOrders.artists) }
+                                            LaunchedEffect(groupSortOrders.artists) {
+                                                if (previousOrder != groupSortOrders.artists) listState.scrollToItem(0)
+                                                previousOrder = groupSortOrders.artists
+                                            }
                                             LazyColumn(
                                             state = listState,
                                             modifier = Modifier.fillMaxSize(),
@@ -3447,8 +3461,16 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             }
                                         }
                                         }
+                                        }
 
-                                        StartPage.GENRES -> SectionedGroupListWithRail(
+                                        StartPage.GENRES -> Column {
+                                            GroupOrderHeader(
+                                                title = stringResource(StartPage.GENRES.titleResource()),
+                                                direction = groupSortOrders.genres,
+                                                enabled = !selectionMode,
+                                                onChange = { settings.setGroupSortOrders(groupSortOrders.copy(genres = it)) },
+                                            )
+                                            SectionedGroupListWithRail(
                                             onScrubbingChange = { railScrubbing = it },
                                             names = remember(visibleCatalog.genres) {
                                                 visibleCatalog.genres.map { it.name }
@@ -3470,6 +3492,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             },
                                             contentPadding = listPadding,
                                         ) { railPadding, listState, artworkReporter, headers ->
+                                            var previousOrder by remember { mutableStateOf(groupSortOrders.genres) }
+                                            LaunchedEffect(groupSortOrders.genres) {
+                                                if (previousOrder != groupSortOrders.genres) listState.scrollToItem(0)
+                                                previousOrder = groupSortOrders.genres
+                                            }
                                             LazyColumn(
                                             state = listState,
                                             modifier = Modifier.fillMaxSize(),
@@ -3535,14 +3562,27 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             }
                                         }
                                         }
+                                        }
 
-                                        StartPage.FOLDERS -> GroupListWithRail(
+                                        StartPage.FOLDERS -> Column {
+                                            GroupOrderHeader(
+                                                title = stringResource(StartPage.FOLDERS.titleResource()),
+                                                direction = groupSortOrders.folders,
+                                                enabled = !selectionMode,
+                                                onChange = { settings.setGroupSortOrders(groupSortOrders.copy(folders = it)) },
+                                            )
+                                            GroupListWithRail(
                                             onScrubbingChange = { railScrubbing = it },
                                             names = remember(visibleCatalog.folders) {
                                                 visibleCatalog.folders.map { it.name }
                                             },
                                             contentPadding = listPadding,
                                         ) { railPadding, listState, _ ->
+                                            var previousOrder by remember { mutableStateOf(groupSortOrders.folders) }
+                                            LaunchedEffect(groupSortOrders.folders) {
+                                                if (previousOrder != groupSortOrders.folders) listState.scrollToItem(0)
+                                                previousOrder = groupSortOrders.folders
+                                            }
                                             LazyColumn(
                                             state = listState,
                                             modifier = Modifier.fillMaxSize(),
@@ -3580,6 +3620,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             }
                                         }
                                         }
+                                        }
+
                                         }
                                         } // page rail provider
                                     } // pager

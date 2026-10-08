@@ -56,6 +56,8 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
     override val songSort: StateFlow<SortChoice<SongSort>> = mutableSongSort.asStateFlow()
     private val mutableAlbumSort = MutableStateFlow(albumSortFromPersisted(readString(KEY_ALBUM_SORT)))
     override val albumSort: StateFlow<SortChoice<AlbumSort>> = mutableAlbumSort.asStateFlow()
+    private val mutableGroupSortOrders = MutableStateFlow(groupSortOrdersFromPersisted(readString(KEY_GROUP_SORT)))
+    override val groupSortOrders: StateFlow<GroupSortOrders> = mutableGroupSortOrders.asStateFlow()
     private val mutableArtistAlbumSort = MutableStateFlow(
         artistAlbumSortFromPersisted(readString(KEY_ARTIST_ALBUM_SORT)),
     )
@@ -130,6 +132,11 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
     override fun setAlbumSort(choice: SortChoice<AlbumSort>) {
         preferences.edit().putString(KEY_ALBUM_SORT, encodeSortChoice(choice)).apply()
         mutableAlbumSort.value = choice
+    }
+
+    override fun setGroupSortOrders(orders: GroupSortOrders) {
+        preferences.edit().putString(KEY_GROUP_SORT, encodeGroupSortOrders(orders)).apply()
+        mutableGroupSortOrders.value = orders
     }
 
     override fun setArtistAlbumSort(choice: SortChoice<AlbumSort>) {
@@ -317,6 +324,7 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         const val KEY_ARTIST_VARIETY = "artist_variety"
         const val KEY_SONG_SORT = "song_sort"
         const val KEY_ALBUM_SORT = "album_sort"
+        const val KEY_GROUP_SORT = "group_sort_orders"
         const val KEY_ARTIST_ALBUM_SORT = "artist_album_sort"
         const val KEY_TRACK_LOUDNESS = "track_loudness_v1"
         const val KEY_TRACK_GENRES = "track_genres_v1"

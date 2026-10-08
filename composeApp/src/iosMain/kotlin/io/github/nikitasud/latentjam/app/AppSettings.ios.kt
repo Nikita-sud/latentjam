@@ -66,6 +66,8 @@ internal class IosAppSettings : AppSettings {
         albumSortFromPersisted(defaults.objectForKey(KEY_ALBUM_SORT) as? String),
     )
     override val albumSort: StateFlow<SortChoice<AlbumSort>> = mutableAlbumSort.asStateFlow()
+    private val mutableGroupSortOrders = MutableStateFlow(groupSortOrdersFromPersisted(defaults.objectForKey(KEY_GROUP_SORT) as? String))
+    override val groupSortOrders: StateFlow<GroupSortOrders> = mutableGroupSortOrders.asStateFlow()
     private val mutableArtistAlbumSort = MutableStateFlow(
         artistAlbumSortFromPersisted(defaults.objectForKey(KEY_ARTIST_ALBUM_SORT) as? String),
     )
@@ -138,6 +140,11 @@ internal class IosAppSettings : AppSettings {
     override fun setAlbumSort(choice: SortChoice<AlbumSort>) {
         defaults.setObject(encodeSortChoice(choice), KEY_ALBUM_SORT)
         mutableAlbumSort.value = choice
+    }
+
+    override fun setGroupSortOrders(orders: GroupSortOrders) {
+        defaults.setObject(encodeGroupSortOrders(orders), KEY_GROUP_SORT)
+        mutableGroupSortOrders.value = orders
     }
 
     override fun setArtistAlbumSort(choice: SortChoice<AlbumSort>) {
@@ -324,6 +331,7 @@ internal class IosAppSettings : AppSettings {
         const val KEY_ARTIST_VARIETY = "artist_variety"
         const val KEY_SONG_SORT = "song_sort"
         const val KEY_ALBUM_SORT = "album_sort"
+        const val KEY_GROUP_SORT = "group_sort_orders"
         const val KEY_ARTIST_ALBUM_SORT = "artist_album_sort"
         const val KEY_TRACK_LOUDNESS = "track_loudness_v1"
         const val KEY_TRACK_GENRES = "track_genres_v1"

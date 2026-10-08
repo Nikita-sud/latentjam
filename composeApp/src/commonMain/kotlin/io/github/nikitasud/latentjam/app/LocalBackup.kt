@@ -69,6 +69,7 @@ internal data class LocalBackupSettings(
     val albumSort: SortChoice<AlbumSort> = DEFAULT_ALBUM_SORT,
     /** An artist's page order; see [songSort]. */
     val artistAlbumSort: SortChoice<AlbumSort> = DEFAULT_ARTIST_ALBUM_SORT,
+    val groupSortOrders: GroupSortOrders = GroupSortOrders(),
 )
 
 /**
@@ -175,11 +176,11 @@ internal class LocalBackupFormatException(message: String) : IllegalArgumentExce
 internal object LocalBackupCodec {
     /**
      * The version every export writes. A record arrives together with the version number that
-     * carries it — "L" with v4, "V" with v6, "O" with v7 — so a build that knows only an older
+     * carries it — "L" with v4, "V" with v6, "O" with v7, "G" with v8 — so a build that knows only an older
      * version refuses such a file with "Unsupported backup version" instead of tripping over a
      * record it does not know ("Unknown backup record at line N").
      */
-    const val FORMAT_VERSION: Int = 7
+    const val FORMAT_VERSION: Int = 8
     private const val LEGACY_FORMAT_VERSION: Int = 1
     private const val HEADER = "LATENTJAM-LOCAL-BACKUP"
     private const val MAX_TEXT_CHARS = 64 * 1024 * 1024
@@ -225,13 +226,14 @@ internal object LocalBackupCodec {
                         emptyArray()
                     },
                 )
+                if (snapshot.formatVersion >= 8) appendRecord("G", encodeGroupSortOrders(groupSortOrders))
                 if (snapshot.formatVersion >= 4) appendRecord("L", encodePageLayout(pageLayout))
                 if (snapshot.formatVersion >= 6) appendRecord("V", artistVariety.toString())
                 if (snapshot.formatVersion >= 6) {
                     // The list orders, introduced by v7. Written for a v6 snapshot as well: builds
                     // between the v6 and v7 bumps wrote this record into v6 files, decode() reads
                     // that shape, and validate() accepts it in v6 — so a writer that skipped it for
-                    // v6 would drop a choice this codec accepts. Every export the app makes is v7.
+                    // v6 would drop a choice this codec accepts. Every export the app makes is v8.
                     appendRecord(
                         "O",
                         encodeSortChoice(songSort),
@@ -313,6 +315,7 @@ internal object LocalBackupCodec {
         var pageLayout: PageLayout? = null
         var artistVariety: Int? = null
         var sortOrders: SortOrders? = null
+        var groupSortOrders: GroupSortOrders? = null
         val tracks = mutableListOf<LocalBackupTrackReference>()
         val playlists = mutableListOf<LocalBackupPlaylist>()
         val history = mutableListOf<LocalBackupListenEvent>()
@@ -380,6 +383,14 @@ internal object LocalBackupCodec {
                     if (version < 6) formatError("Older backups cannot encode artist variety")
                     if (artistVariety != null) formatError("Duplicate artist variety record")
                     artistVariety = record.nextField().parseInt("artist variety")
+                }
+                "G" -> {
+                    record.requireFieldCount(2)
+                    if (version < 8) formatError("Older backups cannot encode group sort orders")
+                    if (groupSortOrders != null) formatError("Duplicate group sort orders")
+                    val encoded = record.nextField()
+                    groupSortOrders = groupSortOrdersFromPersisted(encoded)
+                    if (encodeGroupSortOrders(groupSortOrders) != encoded) formatError("Unknown group sort orders")
                 }
                 "O" -> {
                     record.requireFieldCount(4)
@@ -504,6 +515,7 @@ internal object LocalBackupCodec {
                     songSort = sortOrders?.song ?: DEFAULT_SONG_SORT,
                     albumSort = sortOrders?.album ?: DEFAULT_ALBUM_SORT,
                     artistAlbumSort = sortOrders?.artistAlbum ?: DEFAULT_ARTIST_ALBUM_SORT,
+                    groupSortOrders = groupSortOrders ?: GroupSortOrders(),
                 ),
             tracks = tracks,
             playlists = playlists,
@@ -535,6 +547,9 @@ internal object LocalBackupCodec {
             formatError("Older backups cannot encode artist variety")
         }
         // An artist's page only offers these fields; anything else would be dropped by the setter.
+        if (snapshot.formatVersion < 8 && snapshot.settings.groupSortOrders != GroupSortOrders()) {
+            formatError("Older backups cannot encode group sort orders")
+        }
         if (snapshot.settings.artistAlbumSort.sort !in ARTIST_ALBUM_SORTS) {
             formatError("Unsupported artist album sort")
         }
@@ -874,6 +889,7 @@ internal class LocalBackupService(
                 songSort = settings.songSort.value,
                 albumSort = settings.albumSort.value,
                 artistAlbumSort = settings.artistAlbumSort.value,
+                groupSortOrders = settings.groupSortOrders.value,
             ),
             tracks = references,
             playlists = storedPlaylists.map { playlist ->
@@ -1034,6 +1050,7 @@ internal class LocalBackupService(
                 settings.setSongSort(snapshot.settings.songSort)
                 settings.setAlbumSort(snapshot.settings.albumSort)
                 settings.setArtistAlbumSort(snapshot.settings.artistAlbumSort)
+                settings.setGroupSortOrders(snapshot.settings.groupSortOrders)
                 completed += LocalBackupSection.SETTINGS
             }
         } catch (failure: Throwable) {

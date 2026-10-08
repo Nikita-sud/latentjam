@@ -160,3 +160,16 @@ internal fun AlbumSort.label(): String = stringResource(
         AlbumSort.RECENT -> Res.string.sort_recently_added
     },
 )
+
+/** Name order for artist, genre and folder overviews; uses the same direction icon as other lists. */
+@Composable
+internal fun GroupOrderHeader(title: String, direction: SongSortDirection, enabled: Boolean, onChange: (SongSortDirection) -> Unit) {
+    Row(Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) {
+        TextButton(onClick = { onChange(direction.toggled()) }, enabled = enabled,
+            modifier = Modifier.heightIn(min = 48.dp)) {
+            Icon(Icons.AutoMirrored.Rounded.Sort, null, modifier = Modifier.size(16.dp))
+            Text(title, modifier = Modifier.padding(horizontal = 8.dp))
+            SortDirectionIcon(direction)
+        }
+    }
+}
