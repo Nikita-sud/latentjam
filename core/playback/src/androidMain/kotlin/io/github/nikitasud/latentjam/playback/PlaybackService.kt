@@ -613,7 +613,12 @@ public class PlaybackService : MediaLibraryService() {
         override fun onRepeatModeChanged(repeatMode: Int) = refreshMediaButtons()
 
         override fun onEvents(player: Player, events: Player.Events) {
-            if (events.containsAnyWidgetStateEvent()) publishWidgetSnapshot(player)
+            val publishes = publishesWidgetSnapshot(
+                widgetStateChanged = events.containsAnyWidgetStateEvent(),
+                hasCurrentItem = player.currentMediaItem != null,
+                timelineChanged = events.contains(Player.EVENT_TIMELINE_CHANGED),
+            )
+            if (publishes) publishWidgetSnapshot(player)
         }
     }
 
@@ -712,6 +717,11 @@ public class PlaybackService : MediaLibraryService() {
             .setMaxSeekToPreviousPositionMs(PREVIOUS_RESTART_THRESHOLD_MS)
             .build()
             .apply { setAudioSessionId(audioSessionId) }
+        // The listener's persisted repeat choice belongs to the transport this service is about to
+        // host: the widget and the player screen show it again as soon as the app connects (see
+        // [initialPlaybackModes]), and until now only the shuffle half reached a player. Applied
+        // before the session and the listener exist — see [applyPersistedRepeatMode] for why.
+        applyPersistedRepeatMode(player)
         playbackPlayer = player
         // Announced rather than injected: this service is built by the system and cannot see
         // the app's scoped Koin graph. Whoever owns the equalizer picks the session up from here.
@@ -741,10 +751,6 @@ public class PlaybackService : MediaLibraryService() {
         appLaunchPendingIntent()?.let(sessionBuilder::setSessionActivity)
         mediaSession = sessionBuilder.build()
         player.addListener(playerListener)
-        // The listener's persisted repeat choice belongs to the transport this service is about to
-        // host: the widget and the player screen show it again as soon as the app connects (see
-        // [initialPlaybackModes]), and until now only the shuffle half reached a player.
-        applyPersistedRepeatMode(player)
         // If Android recreated the service after an unclean process death, the persisted timing
         // anchor must no longer claim that progress is live while Media3 restores the queue.
         PlaybackWidgetStateStore.markPaused(this)
@@ -848,7 +854,13 @@ public class PlaybackService : MediaLibraryService() {
      * only [AndroidShuffleModeRegistry] carried its half all the way to the player, so the restored
      * repeat was shown by the player screen and the widget while the new player repeated nothing and
      * stopped at the end of the queue. A snapshot with no track is a player that never played
-     * anything, so there is no choice to carry over.
+     * anything, or a queue the listener emptied, so there is no choice to carry over — the same rule
+     * [initialPlaybackModes] follows.
+     *
+     * It runs on the bare player, before the media session is built and before [playerListener] is
+     * attached. The session then starts with the right repeat button, and the repeat change this
+     * raises on a still-empty player reaches no listener: published, it replaced the widget's last
+     * track with a blank snapshot, so the next cold start found no track and restored no repeat.
      */
     private fun applyPersistedRepeatMode(player: Player) {
         val persisted = PlaybackWidgetStateStore.read(this)

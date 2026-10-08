@@ -123,6 +123,22 @@ internal fun initialPlaybackModes(
     return nativeRepeatMode to shuffleMode
 }
 
+/**
+ * Decides whether one batch of player events may overwrite the persisted widget snapshot.
+ *
+ * A player with no media item is not always an emptied queue. A service Android creates cold — for
+ * the Quick Settings tile, System UI's media resumption, a Bluetooth button, Android Auto — starts
+ * empty, and whatever it hears before the queue comes back (a controller setting shuffle, a play
+ * press) would replace the last track with a blank snapshot: the widget loses its track, and the
+ * next cold start finds no track to restore repeat from. Only a timeline change empties the queue
+ * itself, so an empty player publishes only with one, and a cleared queue still reaches the widget.
+ */
+internal fun publishesWidgetSnapshot(
+    widgetStateChanged: Boolean,
+    hasCurrentItem: Boolean,
+    timelineChanged: Boolean,
+): Boolean = widgetStateChanged && (hasCurrentItem || timelineChanged)
+
 /** Persistent bridge between the Media3 service and app-widget receivers. */
 public object PlaybackWidgetStateStore {
     /**

@@ -115,6 +115,47 @@ internal class PlaybackWidgetSnapshotTest {
         assertEquals(RepeatMode.OFF to ShuffleMode.ON, modes)
     }
 
+    @Test
+    fun coldEmptyPlayerKeepsTheLastTrackSnapshot() {
+        // A controller setting repeat or shuffle, or a play press, on a service created cold.
+        assertFalse(
+            publishesWidgetSnapshot(
+                widgetStateChanged = true,
+                hasCurrentItem = false,
+                timelineChanged = false,
+            ),
+        )
+    }
+
+    @Test
+    fun emptiedQueueStillPublishesItsEmptyState() {
+        assertTrue(
+            publishesWidgetSnapshot(
+                widgetStateChanged = true,
+                hasCurrentItem = false,
+                timelineChanged = true,
+            ),
+        )
+    }
+
+    @Test
+    fun playerWithATrackPublishesEveryWidgetStateEvent() {
+        assertTrue(
+            publishesWidgetSnapshot(
+                widgetStateChanged = true,
+                hasCurrentItem = true,
+                timelineChanged = false,
+            ),
+        )
+        assertFalse(
+            publishesWidgetSnapshot(
+                widgetStateChanged = false,
+                hasCurrentItem = true,
+                timelineChanged = false,
+            ),
+        )
+    }
+
     private fun snapshot(
         positionMs: Long,
         durationMs: Long,
