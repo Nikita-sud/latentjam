@@ -248,7 +248,6 @@ internal class IosAudioEngine : EqualizerController {
             band.gain = clamped / 100f
             preferences.setInteger(clamped.toLong(), bandKey(bandIndex))
             preferences.setInteger(NO_PRESET.toLong(), KEY_PRESET)
-            preferences.setInteger(0L, KEY_BASS_BOOST)
             publishEqualizerState()
         }
 
@@ -260,7 +259,6 @@ internal class IosAudioEngine : EqualizerController {
             preferences.setInteger(level.toLong(), bandKey(index))
         }
         preferences.setInteger(presetIndex.toLong(), KEY_PRESET)
-        preferences.setInteger(0L, KEY_BASS_BOOST)
         publishEqualizerState()
     }
 
@@ -277,7 +275,6 @@ internal class IosAudioEngine : EqualizerController {
             band.gain = level / 100f
             preferences.setInteger(level.toLong(), bandKey(index))
         }
-        preferences.setInteger(clamped.toLong(), KEY_BASS_BOOST)
         preferences.setInteger(NO_PRESET.toLong(), KEY_PRESET)
         publishEqualizerState()
     }
@@ -288,7 +285,6 @@ internal class IosAudioEngine : EqualizerController {
             preferences.setInteger(0L, bandKey(index))
         }
         preferences.setInteger(NO_PRESET.toLong(), KEY_PRESET)
-        preferences.setInteger(0L, KEY_BASS_BOOST)
         publishEqualizerState()
     }
 
@@ -316,10 +312,28 @@ internal class IosAudioEngine : EqualizerController {
             activePreset = activePreset,
             minLevelMillibels = MIN_LEVEL_MB,
             maxLevelMillibels = MAX_LEVEL_MB,
-            bassBoostStrength = preferences.integerForKey(KEY_BASS_BOOST).toInt()
-                .coerceIn(0, 1000),
+            bassBoostStrength = bassBoostStrength(),
             bassBoostSupported = true,
         )
+    }
+
+    /**
+     * The bass-boost slider's position, read back from the bands themselves.
+     *
+     * iOS has no separate bass-boost effect: [setBassBoost] is a macro over the four lowest bands,
+     * so their gains are the only honest report of how much boost is actually in the graph. A stored
+     * strength beside them drifts the moment a preset or a hand-moved band rewrites the curve — the
+     * slider then claims 0% bass boost while the low bands are still lifted — and it is what the
+     * engine would restore from disk after a restart, when the curve is the part that is restored.
+     */
+    private fun bassBoostStrength(): Int {
+        val strongest = parameters.firstOrNull() ?: return 0
+        val level = (strongest.gain * 100f).toInt()
+        if (level <= 0) return 0
+        // Inverse of the slider's own `strength * MAX_LEVEL_MB / 1000`: rounding that division
+        // drifts a unit off for 244 of the 1001 slider positions, so take the largest strength
+        // that reproduces exactly this gain.
+        return (((level + 1L) * 1000L - 1L) / MAX_LEVEL_MB).toInt().coerceIn(0, 1000)
     }
 
     private companion object {
@@ -328,7 +342,6 @@ internal class IosAudioEngine : EqualizerController {
         const val NO_PRESET = -1
         const val KEY_ENABLED = "ios_equalizer_enabled"
         const val KEY_PRESET = "ios_equalizer_preset"
-        const val KEY_BASS_BOOST = "ios_equalizer_bass_boost"
 
         val FREQUENCIES = intArrayOf(31, 62, 125, 250, 500, 1_000, 2_000, 4_000, 8_000, 16_000)
         val PRESET_NAMES = listOf("Flat", "Bass", "Treble", "Vocal", "Electronic")
