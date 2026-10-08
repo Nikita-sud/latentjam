@@ -70,6 +70,33 @@ internal class CoverPictureReadTest {
     }
 
     @Test
+    fun mp4TakesTheFirstReadableCovrBoxOverAStubOne() {
+        // Payload under the eight-byte data header is a header with no value: the cover is the first
+        // box read() shows, whether the stub is its own covr item or precedes the picture inside one.
+        val stub = Mp4Fixtures.leaf("data", ByteArray(4))
+        for (file in listOf(
+            Mp4Fixtures.file(
+                listOf(Mp4Fixtures.text("©nam", "t"), Mp4Fixtures.box("covr", stub), Mp4Fixtures.covers(13 to front)),
+            ),
+            Mp4Fixtures.file(
+                listOf(Mp4Fixtures.text("©nam", "t"), Mp4Fixtures.box("covr", stub, Mp4Fixtures.data(13, front))),
+            ),
+        )) {
+            assertCover(file, front, "image/jpeg")
+        }
+    }
+
+    @Test
+    fun mp4WithOnlyAStubCovrBoxHasNoCover() {
+        val file = Mp4Fixtures.file(
+            listOf(Mp4Fixtures.text("©nam", "t"), Mp4Fixtures.box("covr", Mp4Fixtures.leaf("data", ByteArray(4)))),
+        )
+        assertNull(TagCodecs.readCover(ByteArraySource(file)))
+        // read() agrees: neither path counts a box shorter than its own header as a picture.
+        assertNull(TagCodecs.read(ByteArraySource(file))?.cover)
+    }
+
+    @Test
     fun aFileWithoutAPictureHasNoCover() {
         for (file in listOf(
             Id3TestTags.build(3, listOf(TestFrame("TIT2", latin1Body("t")))) + mp3Payload(),

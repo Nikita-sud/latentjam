@@ -245,9 +245,35 @@ internal class TrackDuplicatesTest {
         assertNull(copyFormat(TrackDescriptor(id = TrackId("3"), audioUri = "content://media/3")))
         assertNull(copyFormat(TrackDescriptor(id = TrackId("4"), fileName = "no-extension")))
         assertNull(estimatedBitrateKbps(TrackDescriptor(id = TrackId("5"), sizeBytes = 10)))
-        assertEquals("34.2", megabytesLabel(34_200_000))
+        // A one-argument call follows the language of whatever machine runs the suite, so the
+        // expectation is built from the same rule instead of freezing a full stop a comma locale
+        // would contradict.
+        val separator = currentDecimalSeparator()
+        assertEquals("34${separator}2", megabytesLabel(34_200_000))
         assertEquals("120", megabytesLabel(120_400_000))
-        assertEquals("0.0", megabytesLabel(0))
+        assertEquals("0${separator}0", megabytesLabel(0))
+    }
+
+    @Test
+    fun sizeLabelsWriteTheDecimalSeparatorOfTheirLanguage() {
+        // The label is dropped into a translated sentence ("34,2 МБ"), so the separator has to be
+        // the language's own: a full stop there is simply the wrong number.
+        assertEquals("34,2", megabytesLabel(34_200_000, separator = decimalSeparatorFor("ru")))
+        assertEquals("0,0", megabytesLabel(0, separator = decimalSeparatorFor("ru")))
+        assertEquals("34.2", megabytesLabel(34_200_000, separator = decimalSeparatorFor("en")))
+        assertEquals(',', decimalSeparatorFor("DE"))
+        assertEquals('\u066B', decimalSeparatorFor("ar"))
+
+        // Both size labels in the app are driven by that one rule: the explicit separator wins, and
+        // the default is the one the current language writes.
+        assertEquals(
+            "FLAC · 1 010 kbps · 34,2 MB",
+            fileFormatLabel("01 - Blue Hour.flac", 34_200_000L, 270_890L, separator = ','),
+        )
+        assertEquals(
+            "FLAC · 1 010 kbps · 34${currentDecimalSeparator()}2 MB",
+            fileFormatLabel("01 - Blue Hour.flac", 34_200_000L, 270_890L),
+        )
     }
 
     @Test

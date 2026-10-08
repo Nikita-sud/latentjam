@@ -125,10 +125,19 @@ internal object Mp4TagCodec : TagCodec {
 
     /**
      * True when a `data` box carries image bytes: its header is eight bytes, so a shorter payload
-     * is a header with no value. [read] counts only these as pictures, and [setCover] edits only
-     * these — a stub box counted as the cover made the two disagree about which box an edit removes.
+     * is a header with no value. [read], [readCover] and [setCover] count only these as pictures — a
+     * stub box counted as the cover made them disagree about which box is the cover and which an
+     * edit removes.
      */
     private fun holdsImage(data: Mp4Box): Boolean = data.payload.size >= 8
+
+    /**
+     * Every readable image of every `covr` item, in file order. The one selection rule behind
+     * [read] (all of them) and [readCover] (the first), so a stub box cannot be skipped by one and
+     * handed out by the other.
+     */
+    private fun coverImages(items: List<Mp4Box>): List<Mp4Box> =
+        items.filter { it.type == "covr" }.flatMap(::dataBoxes).filter(::holdsImage)
 
     private fun value(data: Mp4Box): ByteArray? = data.payload.takeIf { it.size >= 8 }?.copyOfRange(8, data.payload.size)
 
@@ -191,8 +200,7 @@ internal object Mp4TagCodec : TagCodec {
         }
         val items = findTags(layout.moov)?.ilst?.children.orEmpty()
         // Every image of every covr item, in order: the first is the cover, the rest are kept.
-        val covers = items.filter { it.type == "covr" }.flatMap(::dataBoxes).filter(::holdsImage)
-            .mapNotNull(::coverInfo)
+        val covers = coverImages(items).mapNotNull(::coverInfo)
         val (trackNumber, trackTotal) = pair(items, "trkn")
         val (discNumber, discTotal) = pair(items, "disk")
         return TagSnapshot(
@@ -224,7 +232,8 @@ internal object Mp4TagCodec : TagCodec {
     override fun readCover(source: RandomAccessSource): CoverPicture? {
         val layout = (parse(source) as? Parsed.Ok)?.layout ?: return null
         val items = findTags(layout.moov)?.ilst?.children.orEmpty()
-        return items.filter { it.type == "covr" }.flatMap(::dataBoxes).firstOrNull()?.let(::coverPicture)
+        // The first box read() would show as the cover; a stub box is no picture, so none is returned.
+        return coverImages(items).firstOrNull()?.let(::coverPicture)
     }
 
     /** iTunes' old `gnre`: an ID3v1 genre index plus one. */
