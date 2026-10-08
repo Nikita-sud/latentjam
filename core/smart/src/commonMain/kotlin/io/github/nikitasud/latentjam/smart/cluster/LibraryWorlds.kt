@@ -248,7 +248,12 @@ public object LibraryWorlds {
         minSize = TrackClustering.MIN_CLUSTER_SIZE,
     )
 
-    /** Explicit-k overload for experiments and deterministic fixtures. */
+    /**
+     * Explicit-k overload for experiments and deterministic fixtures.
+     *
+     * [minSize] must be positive: at zero or less a world with no tracks passes the floor, and
+     * TrackClustering can reach k-means with nothing usable.
+     */
     public fun discover(
         library: List<TrackDescriptor>,
         vectors: Map<TrackId, FloatArray>,
@@ -257,6 +262,7 @@ public object LibraryWorlds {
         minSize: Int = TrackClustering.MIN_CLUSTER_SIZE,
         semantics: Map<TrackId, TrackSemantics> = emptyMap(),
     ): List<LibraryWorld> {
+        require(minSize > 0) { "Minimum world size must be positive, got $minSize" }
         if (library.isEmpty() || vectors.isEmpty()) return emptyList()
         return worlds(
             library = library,
@@ -288,7 +294,11 @@ public object LibraryWorlds {
         minSize = TrackClustering.MIN_CLUSTER_SIZE,
     )
 
-    /** Explicit-k overload for fused-space fixtures and experiments. */
+    /**
+     * Explicit-k overload for fused-space fixtures and experiments.
+     *
+     * [minSize] must be positive, as in the map-based overload.
+     */
     public fun discover(
         library: List<TrackDescriptor>,
         vectorSpace: LibraryVectorSpace,
@@ -296,6 +306,7 @@ public object LibraryWorlds {
         minSize: Int = TrackClustering.MIN_CLUSTER_SIZE,
         semantics: Map<TrackId, TrackSemantics> = emptyMap(),
     ): List<LibraryWorld> {
+        require(minSize > 0) { "Minimum world size must be positive, got $minSize" }
         if (library.isEmpty() || vectorSpace.size == 0) return emptyList()
         return worlds(
             library = library,
