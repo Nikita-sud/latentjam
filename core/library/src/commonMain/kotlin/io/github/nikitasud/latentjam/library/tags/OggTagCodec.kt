@@ -49,6 +49,45 @@ internal object OggTagCodec : TagCodec {
     /** The decoded comment packet: the block, and what follows it. */
     private class Comment(val block: VorbisComments, val tail: ByteArray, val tailIsPadding: Boolean)
 
+    /**
+     * The complete packets of the header pages read so far, accumulated one page at a time.
+     *
+     * [OggPages.packets] rebuilds every packet from every page it is handed, so asking it after each page
+     * — which the reader must do to see when the comment packet ends — copies the whole packet once per
+     * page and costs O(bytes²/page). Carrying the state instead appends only what the new page adds:
+     * [add] is the per-page step of [OggPages.packets] and refuses exactly where it returns null, and
+     * [count] and [closed] are its two results.
+     */
+    private class HeaderPackets {
+        private val packets = ArrayList<ByteArray>()
+        private val current = ByteArraySink()
+        private var open = false
+
+        val count: Int get() = packets.size
+        val closed: Boolean get() = !open
+
+        operator fun get(index: Int): ByteArray = packets[index]
+
+        fun getOrNull(index: Int): ByteArray? = packets.getOrNull(index)
+
+        /** Appends [page]; false when its continuation flag disagrees with the packets so far. */
+        fun add(page: OggPage): Boolean {
+            if (page.continues != open) return false
+            var position = 0
+            for (value in page.lacing) {
+                current.write(page.payload, position, value)
+                position += value
+                open = true
+                if (value < 255) {
+                    packets += current.toByteArray()
+                    current.reset()
+                    open = false
+                }
+            }
+            return true
+        }
+    }
+
     override fun recognizes(head: ByteArray): Boolean =
         head.size >= 4 && MAGIC.indices.all { head[it] == MAGIC[it] }
 
@@ -67,6 +106,7 @@ internal object OggTagCodec : TagCodec {
             else -> return Parsed.Bad(TagRefusal.OGG_UNKNOWN_CODEC)
         }
         val pages = ArrayList<OggPage>()
+        val header = HeaderPackets()
         var offset = first.size.toLong()
         while (true) {
             val page = OggPages.readAt(source, offset)
@@ -80,16 +120,16 @@ internal object OggTagCodec : TagCodec {
             if (!page.crcValid) return Parsed.Bad(TagRefusal.OGG_BAD_PAGE_CRC)
             pages += page
             offset += page.size
-            val (packets, pagesClosed) = OggPages.packets(pages) ?: return Parsed.Bad(TagRefusal.OGG_MALFORMED_PAGES)
-            if (packets.size > kind.headerPackets) return Parsed.Bad(TagRefusal.OGG_MALFORMED_PAGES)
-            if (packets.size == kind.headerPackets) {
+            if (!header.add(page)) return Parsed.Bad(TagRefusal.OGG_MALFORMED_PAGES)
+            if (header.count > kind.headerPackets) return Parsed.Bad(TagRefusal.OGG_MALFORMED_PAGES)
+            if (header.count == kind.headerPackets) {
                 // Audio must start on a fresh page; a header page that runs into audio is malformed.
-                if (!pagesClosed) return Parsed.Bad(TagRefusal.OGG_MALFORMED_PAGES)
+                if (!header.closed) return Parsed.Bad(TagRefusal.OGG_MALFORMED_PAGES)
                 // A rewrite numbers header pages on from the first one; a gap among them would move.
                 if (pages.zipWithNext().any { (a, b) -> b.sequence != a.sequence + 1 }) {
                     return Parsed.Bad(TagRefusal.OGG_MALFORMED_PAGES)
                 }
-                return Parsed.Ok(Layout(kind, first, pages, packets[0], packets.getOrNull(1), offset))
+                return Parsed.Ok(Layout(kind, first, pages, header[0], header.getOrNull(1), offset))
             }
             if (pages.size > MAX_HEADER_PAGES || offset > MAX_HEADER_BYTES) {
                 return Parsed.Bad(TagRefusal.OGG_MALFORMED_PAGES)
