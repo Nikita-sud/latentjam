@@ -557,7 +557,11 @@ internal class IosMusicLibrary : MusicLibrary {
             audioUri = url.absoluteString,
             artworkUri = artwork?.let(::cacheArtwork),
             addedAtMs = addedAtMs,
-            folderPath = relativePath.substringBeforeLast('/', "").ifBlank { "Imported" },
+            // A file dropped straight into Documents has no folder of its own, so it stays one:
+            // "Imported" here would merge it into the real Documents/Imported folder — a single
+            // source with a single switch covering two unrelated sets of files. Android's path
+            // projection returns null for a file in the mount root for the same reason.
+            folderPath = relativePath.substringBeforeLast('/', "").takeIf(String::isNotBlank),
             year = (asset.firstString(YEAR_IDENTIFIERS) ?: asset.rawString("DATE", "YEAR") ?: created)
                 ?.let(::parseYear),
             sizeBytes = sizeBytes.takeIf { it > 0 },
