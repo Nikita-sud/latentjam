@@ -11,8 +11,7 @@ SMART picks better, and the app gets smaller: smoother transitions and fewer jum
 - Dragging a queue entry, a playlist or a page in Settings → Pages to either edge scrolls the list while you hold it there, so it can be moved beyond the visible rows.
 - iPhone import preserves existing shorter or different files with the same name and safely gives the new copy another name.
 - After a large tag edit, the library and queue refresh again when Android finishes indexing the changed files.
-- A remix, radio edit, remaster or live take of a song you just heard no longer comes up again in SMART as if it were another song (in 0.7.1 it happened in about one queue in twelve)
-
+- A remix, radio edit, remaster or live take of a song you just heard no longer comes up again in SMART as if it were another song (in 0.7.1 it happened in about one queue in twelve).
 - Removing a song from the SMART queue keeps it out of the rest of the queue, on Android and iPhone alike (on iPhone it came back at the next top-up).
 - The interface no longer freezes if you press Back or tap outside a sheet while it closes, and dismissing a sheet no longer performs the action you were about to pick.
 - Restoring a local backup can no longer overwrite your playlists and listening history with empty ones when the library has not been read yet, and a reference that carries only a track id is restored again.
@@ -22,8 +21,7 @@ SMART picks better, and the app gets smaller: smoother transitions and fewer jum
 - iPhone: artist names with superscripts (Girls², H₂O, 8½ Souvenirs) resolve to the right artist again, and ONNX Runtime failing to start no longer kills the app at launch — SMART turns off and the player keeps working.
 - Analysis no longer latches an empty index after a cancelled library scan, and cancelling "Rebuild analysis" reports a cancellation instead of a failure.
 - This build also carries the fixes from an independent code audit; the traceable list — finding, commit, verification — is in `docs/audit-fixes-2026-10-08.md`.
-
-- Local backups carry sorting preferences. The equaliser and queue are not included; the backup screen lists what travels, and a damaged or foreign backup file is refused before anything is applied.
+- The equaliser and queue are not included in local backups; the backup screen lists what travels, and a damaged or foreign backup file is refused before anything is applied.
 - A backup file written by this version carries format 8: older builds refuse it whole instead of failing halfway, and a restore that is interrupted by leaving the screen now finishes instead of applying half of its sections.
 - Editing the queue, seeking back or changing shuffle no longer stops playback while the sleep timer waits for the end of a track, and the quick-settings tile starts the queue again after it has finished.
 - The widget shows the right transport while a track is buffering, the restored repeat mode is actually applied to the player, and the "playing" state no longer survives the death of the process.
@@ -31,11 +29,10 @@ SMART picks better, and the app gets smaller: smoother transitions and fewer jum
 - Playlists keep their scroll position, an empty auto-playlist card no longer opens a page with nothing on it, and an M3U file with a byte-order mark no longer adds a phantom track.
 - iPhone: the Music library is no longer walked from scratch on every return to the foreground, the bass boost slider shows the real amount of boost, the audio engine is rebuilt after the system resets its audio services and waits for you to press Play, the media-library prompt is localized, and a large embedded cover no longer costs full-size decoding.
 - On the player, the swipe preview no longer promises a track the gesture will not reach, the seek bar takes the position back from your finger as soon as the player confirms it, and the touch band is the promised 44 dp.
-- Translations: European Portuguese and Chinese outside mainland China are covered, Hebrew reached the widget, tile and Android Auto strings, Indonesian reached the notification commands, and the Arabic sleep-timer labels have every plural form.
-
-- Restoring a backup merges your listening history under one lock, so a track that finishes while the restore runs is no longer dropped, and a damaged history file on iPhone can be cleared again.
+- Translations: European Portuguese is covered, Hebrew reached the widget, tile and Android Auto strings, Indonesian reached the notification commands, and the Arabic sleep-timer labels have every plural form. Simplified Chinese now also reaches Chinese devices outside mainland China (Singapore, Malaysia); devices set to Traditional Chinese show the Simplified translation, with some system notification labels still in English, until a Traditional translation exists.
+- Restoring a backup merges your listening history under one lock, so a track that finishes while the restore runs is no longer dropped.
 - All three home-screen widgets follow playback state now, including the artwork widget, and the elapsed time stops soon after the app is gone instead of ticking in the launcher.
-- Removed songs stay removed even in the "on a roll" row and in the cover of a world card, and a search for a year reaches lyric matches again.
+- Removed songs stay removed even in the "on a roll" row and in the cover of a world card.
 - The genre tags of a file are capped like everywhere else in the app, and a broken ID3 size or a stub MP4 cover can no longer send a reader down the wrong path.
 
 ### Install (Android)
