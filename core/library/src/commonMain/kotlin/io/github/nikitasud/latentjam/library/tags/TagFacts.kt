@@ -7,7 +7,8 @@ package io.github.nikitasud.latentjam.library.tags
 /**
  * The tag facts the system scanner loses, read in ONE pass over a file's metadata.
  *
- * - [genres]: every genre the file carries (see [GenreTags] for the container rules).
+ * - [genres]: every genre the file carries (see [GenreTags] for the container rules and the cap
+ *   every genre reader applies).
  * - [artists]: the credited individuals, from the Picard `ARTISTS` convention — Vorbis
  *   `ARTISTS` fields, an ID3 `TXXX:ARTISTS` frame, or a genuinely multi-valued `TPE1`. The
  *   DISPLAY credit ("Gorillaz feat. Bootie Brown") is a different field and stays untouched;
@@ -48,6 +49,12 @@ public object TagFacts {
     private val YEAR_RANGE = 1000..2999
 
     private const val MAX_ARTISTS = 10
+
+    /**
+     * The same cap the genre readers apply (see [GenreTags]): more values than this in one file is
+     * tag spam, not curation, and the list is carried into the library as one joined string.
+     */
+    private const val MAX_GENRES = 8
 
     /** A language field is a code or a name; anything longer is a comment that lost its way. */
     private const val MAX_LANGUAGE_CHARS = 32
@@ -93,7 +100,7 @@ public object TagFacts {
             else -> emptyList()
         }
         return EmbeddedTagFacts(
-            genres = genres.flatMap { GenreTags.split(it) }.distinctBy { it.lowercase() },
+            genres = genres.flatMap { GenreTags.split(it) }.distinctBy { it.lowercase() }.take(MAX_GENRES),
             artists = artists
                 .map { it.trim() }
                 .filter { it.isNotEmpty() }
