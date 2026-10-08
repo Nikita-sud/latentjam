@@ -115,6 +115,14 @@ class StringResourceParityTest {
     }
 
     @Test
+    fun `values-zh is a faithful duplicate of values-zh-rCN`() {
+        // Simplified Chinese is the same in CN, SG and MY, but Compose MP matches the region
+        // too: without a region-less folder a zh-SG or zh-MY device falls back to English.
+        // The two folders hold one language, so they must not drift apart.
+        assertFaithfulDuplicate(original = "values-zh-rCN", copy = "values-zh")
+    }
+
+    @Test
     fun `no translation is left in English`() {
         // A string copied from values/ and never translated passes every other check here: the
         // key exists, the placeholders match. Flag any value that equals the English source,
@@ -201,8 +209,8 @@ class StringResourceParityTest {
         const val SOURCE = "values"
 
         val LOCALES = listOf(
-            "values-ru", "values-ro", "values-es", "values-pt-rBR", "values-de", "values-fr",
-            "values-it", "values-zh-rCN", "values-ja", "values-ko", "values-tr", "values-uk",
+            "values-ru", "values-ro", "values-es", "values-pt-rBR", "values-pt", "values-de", "values-fr",
+            "values-it", "values-zh-rCN", "values-zh", "values-ja", "values-ko", "values-tr", "values-uk",
             "values-pl", "values-id", "values-in", "values-ar", "values-hi", "values-he", "values-iw",
         )
 
@@ -258,12 +266,16 @@ class StringResourceParityTest {
                 "values-pt-rBR" to kbpsAndMegabytes + latinTimeUnits + setOf(
                     "equalizer_preset_vocal", "intelligence_section_status", "tab_playlists", "stats_days_short",
                 ),
+                "values-pt" to kbpsAndMegabytes + latinTimeUnits + setOf(
+                    "equalizer_preset_vocal", "intelligence_section_status", "tab_playlists", "stats_days_short",
+                ),
                 "values-ro" to kbpsAndMegabytes + latinTimeUnits + setOf(
                     "count_albums", "details_format", "equalizer_preset_electronic", "info_album", "info_artist",
                     "sleep_timer_minutes", "stats_streak_longest",
                 ),
                 "values-tr" to setOf("unit_megabytes"),
                 "values-zh-rCN" to kbpsAndMegabytes,
+                "values-zh" to kbpsAndMegabytes,
             )
         }
 

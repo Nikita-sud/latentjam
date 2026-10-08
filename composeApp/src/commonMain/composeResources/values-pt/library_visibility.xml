@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_remove_from_latentjam">Remover do LatentJam</string>
+    <string name="action_undo">Desfazer</string>
+    <string name="action_restore_hidden_tracks">Restaurar músicas ocultas</string>
+    <string name="snack_removed_from_latentjam">Removida do LatentJam. O ficheiro no telemóvel foi mantido.</string>
+    <string name="snack_hidden_tracks_restored">As músicas ocultas estão visíveis de novo.</string>
+</resources>
