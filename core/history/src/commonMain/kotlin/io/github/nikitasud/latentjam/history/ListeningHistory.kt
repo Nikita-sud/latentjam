@@ -5,7 +5,10 @@
 package io.github.nikitasud.latentjam.history
 
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -45,6 +48,50 @@ public interface ListeningHistory {
      * one coherent snapshot instead of exposing a half-restored history after a failed append.
      */
     public suspend fun replace(events: List<ListenEvent>)
+
+    /**
+     * Folds [imported] into the log and persists the result as one indivisible update.
+     *
+     * A merge is a read-modify-write, and a pair of [recentEvents]/[allEvents] followed by a later
+     * [replace] cannot make it safe: a listen recorded between that read and that write is
+     * overwritten by the replacement built from the older read. Local backup restore runs while
+     * playback keeps recording behind the settings screen, so the window is real. Here [combine] is
+     * handed the log as it is at that moment, and the list it returns is written back before any
+     * other [record] can run.
+     *
+     * [combine] receives the current log and [imported], both ordered oldest first, and returns the
+     * replacement log in that same order. Implementations call it while holding their own lock, so
+     * it has to be a pure, quick transformation: it must not suspend, and it must not call back into
+     * this history (a mutex-backed implementation would deadlock).
+     *
+     * The replacement must not exceed [maxEvents]. An implementation rejects a larger result with
+     * [IllegalArgumentException] before touching the store, so the log keeps its previous content
+     * rather than silently losing its oldest part.
+     *
+     * Cancellation is never turned into a merge result. A merge that is already cancelled when it
+     * starts changes nothing, and an implementation that owns its store finishes persisting and
+     * republishing as one step, so a cancellation arriving during the write still raises
+     * `CancellationException` to its caller — once the store and the in-memory log hold the same,
+     * fully merged list again.
+     *
+     * The default implementation delegates to [allEvents] and [replace] and therefore cannot make
+     * the read and the write indivisible; it exists so third-party and test implementations stay
+     * source-compatible, while [DefaultListeningHistory] overrides it with a single locked update.
+     *
+     * @return the number of events the log holds after the merge.
+     */
+    public suspend fun merge(
+        imported: List<ListenEvent>,
+        maxEvents: Int,
+        combine: (existing: List<ListenEvent>, imported: List<ListenEvent>) -> List<ListenEvent>,
+    ): Int {
+        val merged = combine(allEvents(), imported).toList()
+        require(merged.size <= maxEvents) {
+            "Merged listening history holds ${merged.size} events, more than the $maxEvents allowed"
+        }
+        replace(merged)
+        return merged.size
+    }
 
     /** Removes the complete local listening history. */
     public suspend fun clear()
@@ -110,12 +157,37 @@ public class DefaultListeningHistory(
 
     override suspend fun replace(events: List<ListenEvent>): Unit = mutex.withLock {
         ensureLoaded()
-        val replacement = events.toList()
-        store.replaceAll(replacement.map(ListenEvent::serialize))
-        this.events.clear()
-        this.events += replacement
-        aggregates.clear()
-        replacement.forEach(::aggregate)
+        writeAll(events.toList())
+    }
+
+    override suspend fun merge(
+        imported: List<ListenEvent>,
+        maxEvents: Int,
+        combine: (existing: List<ListenEvent>, imported: List<ListenEvent>) -> List<ListenEvent>,
+    ): Int {
+        // Read here rather than inside the locked section: cancellation has to be observable there
+        // without a suspension point, because an already loaded log has none before the write.
+        val caller = coroutineContext
+        return mutex.withLock {
+            // A cancelled caller must not commit anything.
+            caller.ensureActive()
+            ensureLoaded()
+            // combine runs here, while the lock is held, so the log it reads is the log writeAll
+            // persists: a record() issued meanwhile waits for the lock instead of being overwritten
+            // by a replacement computed from a log that no longer exists.
+            val merged = combine(events.toList(), imported).toList()
+            require(merged.size <= maxEvents) {
+                "Merged listening history holds ${merged.size} events, more than the $maxEvents allowed"
+            }
+            // Persisting and republishing are one step. A cancellation arriving in the middle must
+            // not leave the store merged while this process keeps serving the previous log — the
+            // next merge would fold from that stale list and drop what the store already holds. The
+            // write is therefore not abandoned half-way; ensureActive below still reports the
+            // cancellation once the log is coherent again.
+            withContext(NonCancellable) { writeAll(merged) }
+            caller.ensureActive()
+            merged.size
+        }
     }
 
     override suspend fun clear(): Unit = mutex.withLock {
@@ -123,6 +195,19 @@ public class DefaultListeningHistory(
         store.clear()
         events.clear()
         aggregates.clear()
+    }
+
+    /**
+     * Publishes [replacement] to the store and then to memory. Called with [mutex] held, and it
+     * touches memory only after the store accepted the whole replacement: a failed write leaves the
+     * previous log readable rather than a half-restored one.
+     */
+    private suspend fun writeAll(replacement: List<ListenEvent>) {
+        store.replaceAll(replacement.map(ListenEvent::serialize))
+        events.clear()
+        events += replacement
+        aggregates.clear()
+        replacement.forEach(::aggregate)
     }
 
     private suspend fun ensureLoaded() {
