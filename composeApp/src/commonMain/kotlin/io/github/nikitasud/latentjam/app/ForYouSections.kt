@@ -367,7 +367,6 @@ object ForYouBuilder {
             nowMs = nowMs,
             quietMs = quietMs,
             used = used,
-            cooledDiscoveries = cooledDiscoveries,
             excluded = excluded,
             discoveryMixLabel = discoveryMixLabel,
             includeNoveltyMixes = includeNoveltyMixes,
@@ -593,9 +592,7 @@ object ForYouBuilder {
      * Unlike every other row here, a world does NOT consume its members. Its pool is the entire
      * library, so retiring several hundred tracks from the rows below it would starve them for the
      * sake of a rule meant to stop the same album appearing three times. Only the cover is claimed,
-     * because two identical covers on one page is exactly what that rule is about. That cover is
-     * also the one track id this card writes to the impression journal, so it answers
-     * [cooledDiscoveries] the way any other offer does: see the cover selection below.
+     * because two identical covers on one page is exactly what that rule is about.
      */
     private fun worlds(
         worlds: List<LibraryWorld>,
@@ -603,7 +600,6 @@ object ForYouBuilder {
         nowMs: Long,
         quietMs: Long,
         used: MutableSet<TrackId>,
-        cooledDiscoveries: Set<TrackId>,
         excluded: Set<TrackId>,
         discoveryMixLabel: String,
         includeNoveltyMixes: Boolean,
@@ -679,19 +675,8 @@ object ForYouBuilder {
                 val anchorIds = anchors.mapTo(HashSet()) { it.id }
                 // Keep the generated claim and its art in agreement. For a genre/decade mix, for
                 // example, a fresh cover from another family is not a valid substitute.
-                //
-                // The cover is the offer this card journals, so it also answers the page's cooling
-                // rule: a member already offered on a recent day steps behind everyone the listener
-                // has not been shown — a played member included, since a familiar cover was never
-                // an impression that could cool — and returns only when nothing else can front the
-                // card. Name support still orders the candidates inside each of those two groups.
-                // [cooledDiscoveries] holds unheard ids only, so this demotes discoveries alone.
-                val eligibleCovers = ordered.filterNot { it.id in used }
-                val cover = eligibleCovers
-                    .firstOrNull { it.id !in cooledDiscoveries && world.supportsName(it) }
-                    ?: eligibleCovers.firstOrNull { it.id !in cooledDiscoveries }
-                    ?: eligibleCovers.firstOrNull { world.supportsName(it) }
-                    ?: eligibleCovers.firstOrNull()
+                val cover = ordered.firstOrNull { it.id !in used && world.supportsName(it) }
+                    ?: ordered.firstOrNull { it.id !in used }
                     ?: return@mapNotNull null
                 val ranked = listOf(cover) +
                     (anchors + ordered.filterNot { it.id in anchorIds })
