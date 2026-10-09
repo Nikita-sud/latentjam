@@ -17,13 +17,14 @@
   <img alt="Platforms" src="https://img.shields.io/badge/platform-Android%207%2B%20%7C%20iOS%2015.1%2B-1450A8?style=flat-square">
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-8E24AA.svg?style=flat-square"></a>
   <img alt="Status: beta" src="https://img.shields.io/badge/status-beta-F9A825?style=flat-square">
+  <a href="https://github.com/sponsors/Nikita-sud"><img alt="Sponsor" src="https://img.shields.io/badge/sponsor-%E2%9D%A4-EA4AAA?style=flat-square&logo=githubsponsors&logoColor=white"></a>
 </p>
 
 <p align="center">
   <b><a href="https://github.com/Nikita-sud/latentjam/releases/latest">Android APK</a></b> ·
   <b><a href="https://f-droid.org/packages/io.github.nikitasud.latentjam.kmp/">F-Droid</a></b> ·
   <b><a href="#install">iPhone (sideload, not on the App Store)</a></b><br>
-  <sub>No account · no analytics · no ads · no internet permission on Android · <a href="PRIVACY.md">Privacy</a> · <a href="#install">Install guide</a></sub>
+  <sub>No account · no analytics · no ads · no internet permission on Android · <a href="#support">Support</a> · <a href="PRIVACY.md">Privacy</a> · <a href="#install">Install guide</a></sub>
 </p>
 
 ---
@@ -312,6 +313,18 @@ Gradle doesn't track these variables, so add `--rerun` to the test task, e.g.
 `TAG_REAL_FILES=~/Music TAG_REAL_FILES_OUT=/tmp/lj-tags ./gradlew :core:library:testAndroidHostTest --rerun`.
 
 </details>
+
+## Support
+
+LatentJam is free and has no paid tier: no account, no ads, no analytics. If it earns its place in
+your library, you can fund its next release through
+**[GitHub Sponsors](https://github.com/sponsors/Nikita-sud)** — monthly or one-off, and you can stop
+whenever you like.
+
+Sponsorship goes towards the maintainer's time on the parts nobody sees: the offline training data
+and the devices behind each release, and the release work that keeps F-Droid, the APKs and the
+iPhone build in step. Stars, issues and pull requests help just as much — see
+[Contributing](#contributing).
 
 ## Credits
 

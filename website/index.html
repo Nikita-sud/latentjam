@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0b0b">
+  <link rel="canonical" href="https://latentjam.com/">
+  <meta name="description" content="Rediscover the music you own. LatentJam is an open-source music player with on-device smart shuffle, personal mixes and a map of your library. For Android and iOS.">
+  <title>LatentJam — Find your next favourite. In your own library.</title>
+  <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
+  <link rel="stylesheet" href="styles.css">
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="header wrap">
+    <a class="brand" href="#" aria-label="LatentJam home"><img src="assets/logo.svg" width="36" height="36" alt=""><span>LatentJam</span></a>
+    <nav aria-label="Main navigation">
+      <a href="#experience">Experience</a>
+      <a href="#how-it-works">How it works</a>
+      <a class="nav-download" href="#download">Get the app</a>
+    </nav>
+  </header>
+  <main id="main">
+    <section class="hero wrap" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow">A little closer to your music</p>
+        <h1 id="hero-title">Your library.<br>A whole new<br><span>way to listen.</span></h1>
+        <p class="hero-description">The songs you love. The ones you forgot.<br class="desktop-break"> A music player that finds the thread between them, right on your device.</p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="#download"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M5 16v4h14v-4"/></svg>Get LatentJam</a>
+          <a class="button button-quiet demo-trigger" href="assets/player-demo.mp4"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="fill" d="m9 5 11 7-11 7z"/></svg>See it in motion <span class="duration">0:25</span></a>
+        </div>
+        <p class="hero-note">Free & open source <span>·</span> Android & iOS</p>
+      </div>
+      <div class="hero-stage">
+        <div class="ambient" aria-hidden="true"></div>
+        <figure class="hero-phone">
+          <img src="assets/player.png" width="1080" height="2340" alt="LatentJam playing Blue Hour, with blue artwork-colored light, a simple playback bar and SMART shuffle." fetchpriority="high">
+        </figure>
+        <div class="stage-note"><svg class="smart-icon" viewBox="16.67 19.17 66.67 66.67" aria-hidden="true"><path d="M30 30v45h15" stroke-width="6" opacity=".4"/><path d="M30 30c20 0 20 20 40 20M70 50c0 20-10 25-25 25" stroke-width="7"/><circle cx="30" cy="30" r="9"/><circle cx="70" cy="50" r="9"/><circle cx="45" cy="75" r="9"/></svg><div><strong>Let one good song lead to another.</strong><span>Meet SMART shuffle.</span></div></div>
+      </div>
+    </section>
+    <div class="principles wrap" aria-label="The essentials">
+      <p><span>01</span> Your music, on your device</p>
+      <p><span>02</span> No accounts. No ads.</p>
+      <p><span>03</span> Free & open source</p>
+    </div>
+    <section class="section wrap" id="experience" aria-labelledby="experience-title">
+      <p class="eyebrow">More than pressing play</p>
+      <h2 id="experience-title">There’s more in<br>your music collection.</h2>
+      <p class="section-lead">Find a forgotten favourite. Follow a sound. Stay for the next song.</p>
+      <div class="feature-layout">
+        <div class="feature-menu" role="tablist" aria-label="Explore the app" aria-orientation="vertical">
+          <button class="feature-tab" id="tab-discover" role="tab" aria-selected="true" aria-controls="panel-discover" type="button"><span class="feature-number">01</span><span><strong>Old favourites. New connections.</strong><span>For You brings back the records you haven’t played in a while, the albums still waiting, and the songs worth another listen.</span><em>For You</em></span></button>
+          <button class="feature-tab" id="tab-smart" role="tab" aria-selected="false" aria-controls="panel-smart" tabindex="-1" type="button"><span class="feature-number">02</span><span><strong>Shuffle with a sense of direction.</strong><span>Pick a song. SMART follows its sound through your collection, balancing familiar territory with something unexpected.</span><em class="smart-label">SMART shuffle</em></span></button>
+          <button class="feature-tab" id="tab-lyrics" role="tab" aria-selected="false" aria-controls="panel-lyrics" tabindex="-1" type="button"><span class="feature-number">03</span><span><strong>Stay with every word.</strong><span>Lyrics move with the song. Tap a line to jump to that moment. Read straight from the lyrics in your files.</span><em>Synchronized lyrics</em></span></button>
+          <button class="feature-tab" id="tab-map" role="tab" aria-selected="false" aria-controls="panel-map" tabindex="-1" type="button"><span class="feature-number">04</span><span><strong>See where your music takes you.</strong><span>Explore your library as a map of sound. Find its neighbourhoods and the tracks that connect them.</span><em>Library map</em></span></button>
+        </div>
+        <div class="feature-display">
+          <div class="feature-panel" id="panel-discover" role="tabpanel" aria-labelledby="tab-discover" tabindex="0"><img src="assets/for-you.png" width="1080" height="2340" alt="For You shows a personal listening suggestion and rows of albums and tracks from the local library." loading="lazy"><p>Something good you already own.</p></div>
+          <div class="feature-panel" id="panel-smart" role="tabpanel" aria-labelledby="tab-smart" tabindex="0" hidden><img src="assets/player.png" width="1080" height="2340" alt="The player with the cyan SMART shuffle control enabled beside the playback buttons." loading="lazy"><p>Start with a song. Follow the feeling.</p></div>
+          <div class="feature-panel" id="panel-lyrics" role="tabpanel" aria-labelledby="tab-lyrics" tabindex="0" hidden><img src="assets/lyrics.png" width="1080" height="2340" alt="Expanded synchronized lyrics in the player, with the current line highlighted." loading="lazy"><p>Your favourite line, right on time.</p></div>
+          <div class="feature-panel feature-panel-map" id="panel-map" role="tabpanel" aria-labelledby="tab-map" tabindex="0" hidden><img src="assets/map-landscape.png" width="2340" height="1080" alt="Landscape view of the library map, with tracks arranged into groups and colored by listening activity." loading="lazy"><p>A different view of your collection.<br>Enable Map in Settings → Pages.</p></div>
+        </div>
+      </div>
+      <p class="media-note">Real Android app screens, shown with a fictional demo library.</p>
+      <div class="small-features"><p><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h12M4 11h9M4 16h7m6-5v8m-4-4 4 4 4-4"/></svg>Playlists & an editable queue</p><p><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg>Search across your collection</p><p><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19v-5m7 5V5m7 14v-9"/></svg>Private listening statistics</p></div>
+    </section>
+    <section class="section wrap" id="how-it-works" aria-labelledby="how-title">
+      <p class="eyebrow">Made for your own collection</p>
+      <h2 id="how-title">A little intelligence.<br>All on your device.</h2>
+      <p class="section-lead">LatentJam listens to the sound of your tracks and reads their tags to find connections. Your files and listening history stay with you.</p>
+      <ol class="steps"><li><span class="step-number">01 / BRING</span><h3>Your music comes first.</h3><p>Add the music on your phone. Your files, your albums, your carefully collected favourites.</p></li><li><span class="step-number">02 / CONNECT</span><h3>Let it get to know the sound.</h3><p>Small models analyse your collection in the background, on your device. The first analysis takes a little time.</p></li><li><span class="step-number">03 / LISTEN</span><h3>Press play. Keep exploring.</h3><p>Start SMART from a track you love, or let For You bring something back into rotation.</p></li></ol>
+      <div class="privacy-strip"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2"/></svg><div><h3>It’s personal. It stays that way.</h3><p>The app has no account, ads, analytics, or cloud server. Your music doesn’t need to leave your phone.</p></div><a href="https://github.com/Nikita-sud/latentjam/blob/main/PRIVACY.md">Read the app privacy policy</a></div>
+    </section>
+    <section class="section download wrap" id="download" aria-labelledby="download-title">
+      <p class="eyebrow">Your next listen starts here</p>
+      <h2 id="download-title">Bring your music.<br>Find your flow.</h2>
+      <p class="section-lead">Free, open source, and made for the music you already own.</p>
+      <div class="install-options"><article><div class="install-heading"><h3>Android</h3><span>7.0 and later</span></div><p>Install with F-Droid for managed updates, or choose an APK from GitHub Releases.</p><a class="button button-primary" href="https://f-droid.org/packages/io.github.nikitasud.latentjam.kmp/">Get it on F-Droid</a><a class="text-link" href="https://github.com/Nikita-sud/latentjam/releases/latest">Download APK from GitHub</a></article><article><div class="install-heading"><h3>iOS</h3><span>15.1 and later</span></div><p>Available as an unsigned IPA for sideloading with a tool such as AltStore or Sideloadly.</p><a class="button button-outline" href="https://github.com/Nikita-sud/latentjam/releases/latest">Get the iOS build</a><span class="install-note">Requires signing with your Apple ID</span></article></div>
+      <p class="release-note">LatentJam is experimental and actively evolving. <a href="https://github.com/Nikita-sud/latentjam/issues">Feedback is welcome.</a></p>
+      <div class="faq"><h3>A few things to know</h3><div class="faq-items"><details><summary>Do I need a subscription or an account?</summary><p>No. LatentJam is free and open source under Apache 2.0. There’s no account to create and no subscription to start.</p></details><details><summary>Where does the music come from?</summary><p>From your own collection. LatentJam plays local music files; it doesn’t provide a streaming catalogue or download songs. On iOS you can import files or use the accessible music library.</p></details><details><summary>When is SMART ready?</summary><p>The app analyses your library in the background on first launch. SMART becomes useful as tracks finish indexing, so give the initial analysis some time. Playback of your local music is available while that work runs.</p></details><details><summary>Can I switch between F-Droid and the GitHub APK?</summary><p>They use different signing keys and cannot update one another. First export your data in Settings → Local backup, then uninstall the old build, install the new one and restore your backup.</p></details><details><summary>Where can I see the source or report a problem?</summary><p>The code and development notes are on <a href="https://github.com/Nikita-sud/latentjam">GitHub</a>. You can report a bug or suggest an improvement in the <a href="https://github.com/Nikita-sud/latentjam/issues">issue tracker</a>.</p></details></div></div>
+    </section>
+  </main>
+  <footer class="footer wrap"><a class="brand" href="#"><img src="assets/logo.svg" width="28" height="28" alt=""><span>LatentJam</span></a><p>Your collection. Your connection.</p><div><a href="mailto:founder@latentjam.com">Contact</a><a href="https://github.com/Nikita-sud/latentjam">GitHub</a><a href="https://github.com/Nikita-sud/latentjam/blob/main/PRIVACY.md">App privacy</a><a href="https://github.com/Nikita-sud/latentjam/blob/main/LICENSE">Apache 2.0</a></div></footer>
+  <dialog class="demo-dialog" aria-labelledby="demo-title">
+    <div class="dialog-heading"><h2 id="demo-title">A moment with LatentJam</h2><button class="icon-button close-demo" type="button" aria-label="Close video"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+    <video controls playsinline muted preload="none" poster="assets/player.png" aria-label="Silent 25-second recording showing playback and synchronized lyrics"><source src="assets/player-demo.mp4" type="video/mp4"><a href="assets/player-demo.mp4">Download the demo video</a></video>
+    <p>Actual app recording · 25 seconds · No audio</p>
+  </dialog>
+</body>
+</html>
