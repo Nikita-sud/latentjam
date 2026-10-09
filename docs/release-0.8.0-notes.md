@@ -28,13 +28,13 @@ SMART picks better, and the app gets smaller: smoother transitions and fewer jum
 - Editing the queue, seeking back or changing shuffle no longer stops playback while the sleep timer waits for the end of a track, and the quick-settings tile starts the queue again after it has finished.
 - The widget shows the right transport while a track is buffering, the restored repeat mode is actually applied to the player, and the "playing" state no longer survives the death of the process.
 - Search highlights "ph" the way the search index folds it, an empty song list no longer wipes the lyrics cache, and a search with a year reaches lyric matches again.
-- Playlists keep their scroll position, an empty auto-playlist card no longer opens a page with nothing on it, and an M3U file with a byte-order mark no longer adds a phantom track.
+- Playlists keep their scroll position, and an M3U file with a byte-order mark no longer adds a phantom track.
 - iPhone: the Music library is no longer walked from scratch on every return to the foreground, the bass boost slider shows the real amount of boost, the audio engine is rebuilt after the system resets its audio services and waits for you to press Play, the media-library prompt is localized, and a large embedded cover no longer costs full-size decoding.
-- On the player, the swipe preview no longer promises a track the gesture will not reach, the seek bar takes the position back from your finger as soon as the player confirms it, and the touch band is the promised 44 dp.
+- On the player, the swipe preview no longer promises a track the gesture will not reach.
 - Translations: European Portuguese is covered, Hebrew reached the widget, tile and Android Auto strings, Indonesian reached the notification commands, the widget and Android Auto, and the Arabic sleep-timer labels have every plural form. Simplified Chinese now also reaches Chinese devices outside mainland China (Singapore, Malaysia); devices set to Traditional Chinese show the Simplified translation, with some system notification labels still in English, until a Traditional translation exists.
 - Restoring a backup merges your listening history under one lock, so a track that finishes while the restore runs is no longer dropped.
-- All three home-screen widgets follow playback state now, including the artwork widget, and the elapsed time stops soon after the app is gone instead of ticking in the launcher.
-- Removed songs stay removed even in the "on a roll" row and in the cover of a world card.
+- The elapsed time on the home-screen widgets stops soon after the app is gone instead of ticking in the launcher, and the artwork widget refreshes on the same schedule as the other two.
+- Removed songs stay removed even in the "on a roll" row.
 - The genre tags of a file are capped like everywhere else in the app, and a broken ID3 size or a stub MP4 cover can no longer send a reader down the wrong path.
 
 ### Install (Android)
