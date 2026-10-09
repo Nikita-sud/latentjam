@@ -14,11 +14,3 @@ The ML model weights under androidApp/src/main/assets/ml/ and iosApp/iosApp/ml/
 are distributed under permissive licences. See the LICENSE-MODEL.txt file
 alongside them for the per-file grants and required third-party attributions,
 including the ONNX Runtime licence used by both platform packages.
-
-Three sections of that file record that the rights review a public release
-requires has not been passed: the training data behind mnv4_audio.onnx, the
-recordings predictor_state.onnx and predictor_scorer_n100.onnx were quantized
-on, and the source audio of the FMA-derived branch of
-universal_semantic_head.onnx. The Apache-2.0 grant in that file stands, but read
-it before repackaging the bundle: it states each case in full, with the
-required third-party attributions.

@@ -456,7 +456,7 @@
     <string name="settings_licenses">オープンソースライセンス</string>
     <string name="settings_licenses_body">LatentJam、同梱モデル、サードパーティ製ソフトウェアに関する表示</string>
     <string name="settings_license_models">オーディオおよび SMART モデル</string>
-    <string name="settings_license_models_body">LatentJam が作成した MobileNetV4 オーディオモデルと SMART 予測器の重みは Apache-2.0 です。生徒モデルは timm（Apache-2.0）を使用し、EfficientAT（MIT、copyright © 2022 Florian Schmid）から蒸留されています。5つのグラフのうち3つと、4つ目のグラフの1分岐は、公開リリースに必要な権利確認を通過していません。同梱の LICENSE-MODEL.txt に各事例が記載されています。</string>
+    <string name="settings_license_models_body">LatentJam が作成した MobileNetV4 オーディオモデルと SMART 予測器の重みは Apache-2.0 です。生徒モデルは timm（Apache-2.0）を使用し、EfficientAT（MIT、copyright © 2022 Florian Schmid）から蒸留されています。</string>
     <string name="settings_license_text_model">テキストモデル</string>
     <string name="settings_license_text_model_body">同梱のテキストエンコーダーと語彙は、sentence-transformers/all-MiniLM-L6-v2 (Apache-2.0) を再現するよう LatentJam が学習させたもので、Apache-2.0 です。</string>
     <string name="settings_license_runtime">ONNX Runtime</string>

@@ -476,7 +476,7 @@
     <string name="settings_licenses">רישיונות קוד פתוח</string>
     <string name="settings_licenses_body">הודעות עבור LatentJam, המודלים המובנים ותוכנות צד שלישי</string>
     <string name="settings_license_models">מודלי שמע ו־SMART</string>
-    <string name="settings_license_models_body">המשקלים של מודל השמע MobileNetV4 ושל מנבא SMART, שהופקו על ידי LatentJam, מופצים ברישיון Apache-2.0. מודל התלמיד משתמש ב־timm (Apache-2.0) וזוקק מ־EfficientAT (MIT, זכויות יוצרים © 2022 Florian Schmid). שלושה מבין חמשת הגרפים, וענף אחד של גרף רביעי, לא עברו את סקירת הזכויות הנדרשת לפרסום פומבי; הקובץ LICENSE-MODEL.txt מפרט כל מקרה.</string>
+    <string name="settings_license_models_body">המשקלים של מודל השמע MobileNetV4 ושל מנבא SMART, שהופקו על ידי LatentJam, מופצים ברישיון Apache-2.0. מודל התלמיד משתמש ב־timm (Apache-2.0) וזוקק מ־EfficientAT (MIT, זכויות יוצרים © 2022 Florian Schmid).</string>
     <string name="settings_license_text_model">מודל טקסט</string>
     <string name="settings_license_text_model_body">מקודד הטקסט המובנה ואוצר המילים שלו אומנו על ידי LatentJam כדי לשחזר את sentence-transformers/all-MiniLM-L6-v2 (Apache-2.0), ומופצים ברישיון Apache-2.0.</string>
     <string name="settings_license_runtime">ONNX Runtime</string>

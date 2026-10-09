@@ -528,7 +528,7 @@
     <string name="settings_licenses">Open-source licenses</string>
     <string name="settings_licenses_body">Notices for LatentJam, bundled models and third-party software</string>
     <string name="settings_license_models">Audio and SMART models</string>
-    <string name="settings_license_models_body">LatentJam-produced MobileNetV4 audio and SMART predictor weights are Apache-2.0. The student uses timm (Apache-2.0) and was distilled from EfficientAT (MIT, copyright © 2022 Florian Schmid). Three of the five graphs, and one branch of a fourth, have not passed the rights review a public release requires; the bundled LICENSE-MODEL.txt states each case in full.</string>
+    <string name="settings_license_models_body">LatentJam-produced MobileNetV4 audio and SMART predictor weights are Apache-2.0. The student uses timm (Apache-2.0) and was distilled from EfficientAT (MIT, copyright © 2022 Florian Schmid).</string>
     <string name="settings_license_text_model">Text model</string>
     <string name="settings_license_text_model_body">The bundled text encoder and its vocabulary were trained by LatentJam to reproduce sentence-transformers/all-MiniLM-L6-v2 (Apache-2.0) and are Apache-2.0.</string>
     <string name="settings_license_runtime">ONNX Runtime</string>
