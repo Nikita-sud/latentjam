@@ -17,11 +17,24 @@ internal sealed interface LocalBackupFileResult<out T> {
 }
 
 internal data class LocalBackupFileExchange(
-    val export: (encoded: String, suggestedName: String) -> Unit,
+    /**
+     * Lets the listener pick a destination and writes the payload [encode] returns for it.
+     *
+     * [encode] runs off the main thread with the folder the document was created in, as an
+     * absolute path, or null when the platform cannot tell (a cloud provider, a Downloads entry
+     * without a path). Android calls it once the picker has returned, so a payload that names
+     * other files can point at them from where it lands; iOS calls it with null before its picker
+     * opens, because that picker exports a finished file. A failure in [encode] is reported like a
+     * failed write.
+     */
+    val exportTo: (encode: (destinationDirectory: String?) -> String, suggestedName: String) -> Unit,
     val import: () -> Unit,
     /** Includes a platform picker or retained document IO after a configuration change. */
     val inProgress: Boolean = false,
-)
+) {
+    /** Exports a payload that reads the same wherever it is saved, such as a local backup. */
+    fun export(encoded: String, suggestedName: String) = exportTo({ encoded }, suggestedName)
+}
 
 /**
  * Remembers launchers for the platform's local Files/Documents UI.

@@ -51,7 +51,7 @@ internal actual fun rememberLocalBackupFileExchange(
 ): LocalBackupFileExchange {
     val activity = LocalActivity.current as? ComponentActivity
         ?: return LocalBackupFileExchange(
-            export = { _, _ -> onExportResult(LocalBackupFileResult.Failure("Document picker unavailable")) },
+            exportTo = { _, _ -> onExportResult(LocalBackupFileResult.Failure("Document picker unavailable")) },
             import = { onImportResult(LocalBackupFileResult.Failure("Document picker unavailable")) },
         )
     // Backup and playlist exchange can coexist. Only this small owner key enters saved state;
@@ -63,15 +63,16 @@ internal actual fun rememberLocalBackupFileExchange(
             initializer {
                 LocalBackupExchangeModel(
                     handle = createSavedStateHandle(),
-                    writeDocument = { encoded, destination ->
+                    writeDocument = { payload, destination ->
                         writeDocument(
                             resolver,
                             Uri.parse(destination),
-                            encoded,
+                            payload,
                             activity.applicationContext.cacheDir,
                         )
                     },
                     readDocument = { source -> readDocument(resolver, Uri.parse(source)) },
+                    documentDirectory = { destination -> createdDocumentDirectory(Uri.parse(destination)) },
                 )
             }
         }
@@ -113,8 +114,8 @@ internal actual fun rememberLocalBackupFileExchange(
     }
     return remember(model, createDocument, openDocument, importMimeTypes, inProgress) {
         LocalBackupFileExchange(
-            export = { encoded, suggestedName ->
-                if (model.beginExport(encoded)) {
+            exportTo = { encode, suggestedName ->
+                if (model.beginExport(encode)) {
                     try {
                         createDocument.launch(normalizedBackupFileName(suggestedName))
                     } catch (failure: Exception) {
@@ -144,12 +145,15 @@ internal sealed interface LocalBackupExchangeResult {
 /** Retains picker input, IO and undelivered results across configuration changes. */
 internal class LocalBackupExchangeModel(
     private val handle: SavedStateHandle,
-    private val writeDocument: suspend (encoded: String, destination: String) -> Unit,
+    /** Encodes the payload by calling it, off the main thread, then writes it to the destination. */
+    private val writeDocument: suspend (payload: () -> String, destination: String) -> Unit,
     private val readDocument: suspend (source: String) -> String,
+    /** The folder a created destination sits in, as an absolute path; null when unknown. */
+    private val documentDirectory: (destination: String) -> String? = { null },
 ) : ViewModel() {
     private var operation: String? = handle["operation"]
     private var picking = false
-    private var pendingExport: String? = null
+    private var pendingExport: ((destinationDirectory: String?) -> String)? = null
     private var work: Job? = null
     private var generation = 0L
     // Process death cannot retain the payload or a running IO job. Cancel once and allow retry;
@@ -163,9 +167,12 @@ internal class LocalBackupExchangeModel(
     )
     val inProgress = MutableStateFlow(operation != null)
 
-    fun beginExport(encoded: String): Boolean {
+    fun beginExport(encoded: String): Boolean = beginExport { encoded }
+
+    /** [encode] waits for the destination: what it writes can depend on where that is. */
+    fun beginExport(encode: (destinationDirectory: String?) -> String): Boolean {
         if (!begin("export")) return false
-        pendingExport = encoded
+        pendingExport = encode
         return true
     }
 
@@ -196,16 +203,18 @@ internal class LocalBackupExchangeModel(
     fun exportDestination(destination: String?) {
         if (!picking || operation != "export") return
         picking = false
-        val encoded = pendingExport
+        val encode = pendingExport
         pendingExport = null
-        if (destination == null || encoded == null) {
+        if (destination == null || encode == null) {
             complete(LocalBackupExchangeResult.Export(LocalBackupFileResult.Cancelled))
             return
         }
         val request = generation
         work = viewModelScope.launch {
             val result = try {
-                writeDocument(encoded, destination)
+                // Encoding happens inside the write's IO pass, so a throwing encoder is one more
+                // failed export and the destination is never opened for it.
+                writeDocument({ encode(documentDirectory(destination)) }, destination)
                 LocalBackupFileResult.Success(Unit)
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -266,7 +275,7 @@ internal class LocalBackupExchangeModel(
 
 /**
  * Fills the picked document from a complete copy of the payload, never while it is still
- * arriving.
+ * arriving. The payload is encoded first, on the IO dispatcher, before anything is staged.
  *
  * This job is cancelled when the Backup screen leaves (see [LocalBackupExchangeModel.abandon]),
  * and the format carries neither a trailer nor a checksum, so a half-written `.ljbackup` still
@@ -278,10 +287,10 @@ internal class LocalBackupExchangeModel(
 private suspend fun writeDocument(
     resolver: ContentResolver,
     uri: Uri,
-    encoded: String,
+    payload: () -> String,
     scratchDir: File,
 ) = withContext(Dispatchers.IO) {
-    val staged = stageDocument(encoded, scratchDir)
+    val staged = stageDocument(payload(), scratchDir)
     try {
         // An abandoned export stops here: the destination is still untouched, so there is
         // nothing truncated to clean up and nothing misleading in the user's folder.

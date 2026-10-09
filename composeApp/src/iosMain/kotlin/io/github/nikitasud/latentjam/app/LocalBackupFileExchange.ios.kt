@@ -79,12 +79,14 @@ internal actual fun rememberLocalBackupFileExchange(
 
     return remember(delegate) {
         LocalBackupFileExchange(
-            export = { encoded, suggestedName ->
+            exportTo = { encode, suggestedName ->
                 if (!delegate.begin(PickerPurpose.EXPORT)) {
                     currentExportResult.value(LocalBackupFileResult.Failure("Another document picker is open"))
                 } else scope.launch {
                     val prepared = withContext(Dispatchers.Default) {
-                        prepareExport(encoded, normalizedBackupFileName(suggestedName))
+                        // The export picker copies a finished file and never says where to, and
+                        // tracks from the Music library have no file path to point at anyway.
+                        prepareExport({ encode(null) }, normalizedBackupFileName(suggestedName))
                     }
                     when (prepared) {
                         is LocalBackupFileResult.Failure -> {
@@ -187,11 +189,12 @@ private class BackupDocumentDelegate(
 
 @OptIn(ExperimentalForeignApi::class)
 private fun prepareExport(
-    encoded: String,
+    payload: () -> String,
     fileName: String,
 ): LocalBackupFileResult<NSURL> {
     val path = NSTemporaryDirectory().trimEnd('/') + "/" + fileName
     return runCatching {
+        val encoded = payload()
         check(encoded.length <= MAX_LOCAL_BACKUP_DOCUMENT_CHARS) { "Backup exceeds the supported size" }
         check(encoded.encodeToByteArray().toNSData().writeToFile(path, true)) {
             "Could not prepare backup document"

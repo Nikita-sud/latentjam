@@ -43,10 +43,15 @@ internal class LocalBackupExchangeModelTest {
         val handle = SavedStateHandle()
         val text = "large backup ".repeat(100_000)
         var written: String? = null
-        val exchange = model(handle, write = { encoded, destination ->
-            assertEquals("chosen-document", destination)
-            written = encoded
-        })
+        val exchange = model(
+            handle,
+            write = { payload, destination ->
+                assertEquals("chosen-document", destination)
+                written = payload()
+            },
+            // A backup reads the same wherever it lands, even where the folder is known.
+            directory = { "/storage/emulated/0/Download" },
+        )
 
         assertTrue(exchange.beginExport(text))
         assertFalse(exchange.beginExport("must not replace the retained payload"))
@@ -157,9 +162,80 @@ internal class LocalBackupExchangeModelTest {
         )
     }
 
+    @Test
+    fun aDestinationAwarePayloadIsEncodedForTheFolderItLandsIn() = runTest {
+        val folders = mutableListOf<String?>()
+        var written: String? = null
+        val exchange = model(
+            write = { payload, _ -> written = payload() },
+            directory = { destination ->
+                assertEquals("content://chosen-document", destination)
+                "/storage/emulated/0/Music/Playlists"
+            },
+        )
+
+        assertTrue(exchange.beginExport { folder -> folders += folder; "encoded for $folder" })
+        assertEquals(emptyList(), folders, "Nothing is encoded before a destination is chosen")
+        exchange.exportDestination("content://chosen-document")
+        runCurrent()
+
+        assertEquals(listOf<String?>("/storage/emulated/0/Music/Playlists"), folders)
+        assertEquals("encoded for /storage/emulated/0/Music/Playlists", written)
+        assertEquals(
+            LocalBackupExchangeResult.Export(LocalBackupFileResult.Success(Unit)),
+            exchange.completed.value,
+        )
+    }
+
+    @Test
+    fun aDestinationWithoutAKnownFolderIsEncodedWithNone() = runTest {
+        val folders = mutableListOf<String?>()
+        val exchange = model(write = { payload, _ -> payload() })
+
+        assertTrue(exchange.beginExport { folder -> folders += folder; "payload" })
+        exchange.exportDestination("content://cloud-document")
+        runCurrent()
+
+        assertEquals(listOf<String?>(null), folders)
+    }
+
+    @Test
+    fun aCancelledPickNeverRunsTheEncoder() = runTest {
+        val exchange = model(write = { payload, _ -> payload() })
+
+        assertTrue(exchange.beginExport { error("A cancelled export must not encode") })
+        exchange.exportDestination(null)
+        runCurrent()
+
+        assertEquals(
+            LocalBackupExchangeResult.Export(LocalBackupFileResult.Cancelled),
+            exchange.completed.value,
+        )
+    }
+
+    @Test
+    fun aFailingEncoderIsReportedAsAFailedExport() = runTest {
+        var reachedDestination = false
+        val exchange = model(write = { payload, _ ->
+            payload()
+            reachedDestination = true
+        })
+
+        assertTrue(exchange.beginExport { error("Could not encode the playlist") })
+        exchange.exportDestination("content://chosen-document")
+        runCurrent()
+
+        val failure = assertIs<LocalBackupExchangeResult.Export>(exchange.completed.value)
+        assertEquals(LocalBackupFileResult.Failure("Could not encode the playlist"), failure.result)
+        assertFalse(reachedDestination)
+        exchange.acknowledge()
+        assertFalse(exchange.inProgress.value)
+    }
+
     private fun model(
         handle: SavedStateHandle = SavedStateHandle(),
-        write: suspend (String, String) -> Unit = { _, _ -> },
+        write: suspend (() -> String, String) -> Unit = { _, _ -> },
         read: suspend (String) -> String = { "document" },
-    ) = LocalBackupExchangeModel(handle, write, read).also(models::add)
+        directory: (String) -> String? = { null },
+    ) = LocalBackupExchangeModel(handle, write, read, directory).also(models::add)
 }
