@@ -143,8 +143,6 @@
             android:label="@string/widget_name_portal">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <!-- The transport icon must follow playback state like the other two widgets. -->
-                <action android:name="${applicationId}.action.PLAYBACK_WIDGET_STATE_CHANGED" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
