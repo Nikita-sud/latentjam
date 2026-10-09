@@ -22,7 +22,7 @@ SMART picks better, and the app gets smaller: smoother transitions and fewer jum
 - iPhone: a tap on a lyric line or a drag of the seek bar to the very end of a file no longer risks a crash; a damaged listening-history file no longer blocks new plays, clearing or restoring; an unreadable Music library no longer looks like an empty one, which could make the app forget your music.
 - iPhone: artist names with superscripts (Girls², H₂O, 8½ Souvenirs) resolve to the right artist again, and ONNX Runtime failing to start no longer kills the app at launch — SMART turns off and the player keeps working.
 - Analysis no longer latches an empty index after a cancelled library scan, and cancelling "Rebuild analysis" reports a cancellation instead of a failure.
-- This build also carries the fixes from an independent code audit of this release; the ones you can notice are listed here.
+- Many of these fixes came from a code audit of the whole app before this release.
 - The equaliser and queue are not included in local backups; the backup screen lists what travels, and a damaged or foreign backup file is refused before anything is applied.
 - A backup file written by this version carries format 8: older builds refuse it whole instead of failing halfway, and a restore that is interrupted by leaving the screen now finishes instead of applying half of its sections.
 - Editing the queue, seeking back or changing shuffle no longer stops playback while the sleep timer waits for the end of a track, and the quick-settings tile starts the queue again after it has finished.
