@@ -532,25 +532,18 @@ public class PlaybackService : MediaLibraryService() {
         .build()
 
 
-    /** Bounds how often one source may write into [MediaBlackBox]; see [recordExternalMediaEvent]. */
-    private val transportEvents = TransportEventThrottle()
-
     /**
      * Durable black box for the transport surface no test bench can reach: headphone taps,
      * OEM Bluetooth stacks, System UI. One line per EXTERNAL command with the source package,
      * what arrived, and whether audio was actually playing at that instant — so "my headphones
      * did not pause it" becomes attributable days later instead of folklore. Bounded on disk
      * and best-effort by design — see [MediaBlackBox], which SMART's abstentions share.
-     *
-     * Who may write is not something this surface can choose — any app on the session's transport
-     * surface may command it — so how *often* one source may write is: see
-     * [TransportEventThrottle]. Without it a source stuck in a loop bought a line per command and
-     * could push the bounded log past its size, dropping the history it exists to keep.
      */
     private fun recordExternalMediaEvent(source: String?, what: String) {
-        val name = source ?: UNKNOWN_EVENT_SOURCE
-        val admitted = transportEvents.admit(name, what, SystemClock.elapsedRealtime()) ?: return
-        MediaBlackBox.record(filesDir, "$name $admitted playing=${playbackPlayer?.isPlaying}")
+        MediaBlackBox.record(
+            filesDir,
+            "${source ?: "?"} $what playing=${playbackPlayer?.isPlaying}",
+        )
     }
 
     /** Keeps stateful notification icons in step with changes from either the app or System UI. */
@@ -1023,76 +1016,5 @@ public class PlaybackService : MediaLibraryService() {
         const val BROWSE_TRACKS_ID = "browse-tracks"
 
         const val MEDIA_NOTIFICATION_REQUEST_CODE = 4202
-
-        /** Source name used when the caller's package is unknown (a system key event). */
-        const val UNKNOWN_EVENT_SOURCE = "?"
-    }
-}
-
-/**
- * Token bucket that bounds how much one source can write into the durable black box.
- *
- * The transport surface is open by design — headphone dispatchers, OEM stacks and other media apps
- * must be able to command the session — and every command used to buy a line in [MediaBlackBox],
- * whose retention keeps only the newest half once it passes its size bound. A source stuck in a loop
- * could therefore still shorten the very history a report is about.
- *
- * A real fault is a burst, not a stream: a Bluetooth tap arrives as a connect line, a key line and
- * the resulting state change within a second, so every source may spend [BURST_LINES] at once and
- * then earns [REFILL_MS] per further line. What a burst loses is not lost from the report: the
- * suppressed lines are counted and summarised by the next admitted one, so a flood still reads as a
- * flood. The bucket table is bounded too — a source that exists only to flood the log must not be
- * able to grow the map without limit. When the table is full the least recently seen source is
- * evicted, and only that one: a persistent flooder keeps whatever it has already spent, so a caller
- * cannot buy itself a fresh burst by walking enough names past the table. Evicting a source drops its
- * suppressed count with it — an evicted source is one that has not written anything for longer than
- * [MAX_SOURCES] other sources, so the line the count would have annotated is long gone.
- */
-internal class TransportEventThrottle(
-    private val burstLines: Double = BURST_LINES,
-    private val refillMs: Long = REFILL_MS,
-) {
-    private val buckets = mutableMapOf<String, Bucket>()
-
-    /** A line to write for [source], or null while that source's bucket is empty. */
-    fun admit(source: String, what: String, nowMs: Long): String? {
-        if (source !in buckets && buckets.size >= MAX_SOURCES) evictLeastRecentlySeen()
-        val bucket = buckets.getOrPut(source) { Bucket(tokens = burstLines, lastRefillMs = nowMs) }
-        val elapsedMs = (nowMs - bucket.lastRefillMs).coerceAtLeast(0L)
-        bucket.tokens = minOf(burstLines, bucket.tokens + elapsedMs.toDouble() / refillMs)
-        bucket.lastRefillMs = nowMs
-        bucket.lastSeenMs = nowMs
-        if (bucket.tokens < 1.0) {
-            bucket.suppressed++
-            return null
-        }
-        bucket.tokens -= 1.0
-        val suppressed = bucket.suppressed
-        bucket.suppressed = 0
-        return if (suppressed == 0) what else "$what (+$suppressed suppressed)"
-    }
-
-    /**
-     * Makes room for one new source by dropping the one that has gone longest without a line.
-     *
-     * Preferring the least recently seen bucket over the oldest-created one is what keeps a flooder
-     * honest: the source currently spending its tokens stays in the table, while idle names age out.
-     */
-    private fun evictLeastRecentlySeen() {
-        val stalest = buckets.minByOrNull { (_, bucket) -> bucket.lastSeenMs }?.key ?: return
-        buckets.remove(stalest)
-    }
-
-    private class Bucket(
-        var tokens: Double,
-        var lastRefillMs: Long,
-        var suppressed: Int = 0,
-        var lastSeenMs: Long = lastRefillMs,
-    )
-
-    private companion object {
-        const val BURST_LINES = 4.0
-        const val REFILL_MS = 1_000L
-        const val MAX_SOURCES = 32
     }
 }
