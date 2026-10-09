@@ -42,11 +42,16 @@ internal data class M3uEntry(
  * Encodes a playlist as extended M3U (`#EXTM3U`), UTF-8 by contract of the `.m3u8` extension.
  * Tracks with a known absolute path (Android's MediaStore keeps one) export portably. Otherwise a
  * playable URI, `folder/title`, or a private lossless id locator keeps every entry representable.
+ *
+ * With [relativeTo] — the folder the playlist file is saved in — a real path is written from
+ * that folder instead (`../Unsorted/track.mp3`), so a computer that mounts the same music under
+ * another root still finds it. A path [relativeM3uPath] cannot express that way stays absolute.
  */
 internal fun encodeM3u(
     name: String,
     tracks: List<TrackDescriptor>,
     paths: Map<TrackId, String>,
+    relativeTo: String? = null,
 ): String = buildString {
     append("#EXTM3U\n")
     append("#PLAYLIST:").append(name.toM3uLine()).append('\n')
@@ -59,7 +64,9 @@ internal fun encodeM3u(
         val metadataLocator = title?.let {
             listOfNotNull(track.folderPath?.takeIf(String::isM3uLineSafe), title).joinToString("/")
         }
-        val realPath = paths[track.id]?.takeIf(String::isM3uLineSafe)
+        val realPath = paths[track.id]?.takeIf(String::isM3uLineSafe)?.let { path ->
+            relativeTo?.let { relativeM3uPath(it, path) }?.anchoredM3uLine() ?: path
+        }
         // A real path is the most useful M3U locator for other players, but LatentJam descriptors
         // intentionally do not expose those paths during matching. Without a safe title there is
         // therefore no metadata fallback that can recover this row on re-import. Preserve an
@@ -75,6 +82,45 @@ internal fun encodeM3u(
             ?: LATENTJAM_TRACK_ID_PREFIX + track.id.value.encodeHex()
         append(locator).append('\n')
     }
+}
+
+/**
+ * Two paths that share fewer leading folders than this are on different volumes as far as a
+ * playlist is concerned: `/storage/emulated/0/…` against an SD card's `/storage/1A2B-3C4D/…`.
+ */
+private const val MIN_SHARED_PATH_SEGMENTS = 2
+
+/**
+ * [target] as seen from [playlistDirectory] — `../Unsorted/track.mp3` from `Music/Playlists`,
+ * `track.mp3` from the track's own folder — or null when the caller should keep the absolute
+ * path. Both must be absolute POSIX paths; repeated slashes, `.` and `..` are resolved first.
+ *
+ * Paths on different volumes get null rather than a `../../..` climb over the volume root: that
+ * climb only resolves on this phone, and other devices are the reason for a relative playlist.
+ * Names are kept raw, as the absolute rows are; an M3U line is not a URL.
+ */
+internal fun relativeM3uPath(playlistDirectory: String, target: String): String? {
+    val directory = playlistDirectory.absolutePathSegments() ?: return null
+    val file = target.absolutePathSegments() ?: return null
+    val shared = directory.zip(file).takeWhile { (inDirectory, inFile) -> inDirectory == inFile }.size
+    // A target that is the folder itself, or one of its parents, names no file below it.
+    if (shared < MIN_SHARED_PATH_SEGMENTS || shared == file.size) return null
+    return (List(directory.size - shared) { ".." } + file.drop(shared)).joinToString("/")
+}
+
+/** The `.` and `..` resolved names of an absolute path, or null for a relative one. */
+private fun String.absolutePathSegments(): List<String>? {
+    if (!startsWith('/')) return null
+    val segments = mutableListOf<String>()
+    for (segment in split('/')) {
+        when (segment) {
+            "", "." -> Unit
+            // `/..` is the root itself, so a climb past it stays there.
+            ".." -> segments.removeLastOrNull()
+            else -> segments += segment
+        }
+    }
+    return segments
 }
 
 /** The `#PLAYLIST:` name, when the file carries one. */
@@ -258,6 +304,13 @@ private fun String.isM3uLineSafe(): Boolean =
     isNotBlank() && '\n' !in this && '\r' !in this && !trimStart().startsWith('#')
 
 private fun String.toM3uLine(): String = replace('\r', ' ').replace('\n', ' ')
+
+/**
+ * Lines are read back trimmed, and one that opens with `#` is a comment, so a relative path whose
+ * first name starts with either is anchored as `./#1 Hit.mp3`. Absolute paths open with `/`.
+ */
+private fun String.anchoredM3uLine(): String =
+    if (first().isWhitespace() || first() == '#') "./$this" else this
 
 private fun String.decodeHex(): String? {
     if (length % 2 != 0) return null

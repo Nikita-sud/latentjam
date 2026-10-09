@@ -302,4 +302,161 @@ internal class PlaylistM3uTest {
         assertEquals(4, encoded.trim().lines().size)
         assertEquals(local.id, matchM3uEntries(parseM3u(encoded), listOf(local)).single()?.id)
     }
+
+    @Test
+    fun relativePathClimbsFromThePlaylistFolderToASiblingFolder() {
+        assertEquals(
+            "../Unsorted/track.mp3",
+            relativeM3uPath(
+                playlistDirectory = "/storage/emulated/0/Music/Playlists",
+                target = "/storage/emulated/0/Music/Unsorted/track.mp3",
+            ),
+        )
+    }
+
+    @Test
+    fun relativePathInThePlaylistsOwnFolderIsTheFileName() {
+        assertEquals(
+            "track.mp3",
+            relativeM3uPath("/storage/emulated/0/Music", "/storage/emulated/0/Music/track.mp3"),
+        )
+        assertEquals(
+            "Album/track.mp3",
+            relativeM3uPath("/storage/emulated/0/Music", "/storage/emulated/0/Music/Album/track.mp3"),
+        )
+    }
+
+    @Test
+    fun relativePathClimbsAsManyFoldersAsThePlaylistIsDeep() {
+        assertEquals(
+            "../Music/a/b.flac",
+            relativeM3uPath("/storage/emulated/0/Download", "/storage/emulated/0/Music/a/b.flac"),
+        )
+        assertEquals(
+            "../../../Music/b.flac",
+            relativeM3uPath("/storage/emulated/0/Documents/x/y", "/storage/emulated/0/Music/b.flac"),
+        )
+    }
+
+    @Test
+    fun pathsOnDifferentVolumesKeepTheirAbsolutePath() {
+        assertNull(
+            relativeM3uPath("/storage/emulated/0/Music/Playlists", "/storage/1234-ABCD/Music/track.mp3"),
+        )
+        assertNull(relativeM3uPath("/sdcard/Playlists", "/storage/emulated/0/Music/track.mp3"))
+        assertNull(relativeM3uPath("/", "/storage/emulated/0/Music/track.mp3"))
+    }
+
+    @Test
+    fun onlyTwoAbsolutePathsHaveARelativePath() {
+        assertNull(relativeM3uPath("storage/emulated/0/Music", "/storage/emulated/0/Music/track.mp3"))
+        assertNull(relativeM3uPath("/storage/emulated/0/Music", "Music/track.mp3"))
+        assertNull(relativeM3uPath("", "/storage/emulated/0/Music/track.mp3"))
+        assertNull(relativeM3uPath("/storage/emulated/0/Music", ""))
+    }
+
+    @Test
+    fun dotSegmentsAndRepeatedSlashesAreResolvedFirst() {
+        assertEquals(
+            "../Unsorted/track.mp3",
+            relativeM3uPath(
+                playlistDirectory = "/storage/emulated/0/Music/./Playlists//",
+                target = "/storage//emulated/0/Music/Rock/../Unsorted/./track.mp3",
+            ),
+        )
+        assertEquals(
+            "track.mp3",
+            relativeM3uPath("/storage/emulated/0/Music/Playlists/..", "/../storage/emulated/0/Music/track.mp3"),
+        )
+    }
+
+    @Test
+    fun aTrailingSlashOnTheFolderChangesNothing() {
+        assertEquals(
+            relativeM3uPath("/storage/emulated/0/Music/Playlists", "/storage/emulated/0/Music/Unsorted/track.mp3"),
+            relativeM3uPath("/storage/emulated/0/Music/Playlists/", "/storage/emulated/0/Music/Unsorted/track.mp3"),
+        )
+    }
+
+    @Test
+    fun theFolderItselfOrOneAboveItIsNoFileToPointAt() {
+        assertNull(relativeM3uPath("/storage/emulated/0/Music", "/storage/emulated/0/Music"))
+        assertNull(relativeM3uPath("/storage/emulated/0/Music/Playlists", "/storage/emulated/0/Music"))
+    }
+
+    @Test
+    fun encodeWritesRelativePathsWhereItCanAndKeepsEveryOtherRowAsBefore() {
+        val onSdCard = TrackDescriptor(id = TrackId("2"), title = "Elsewhere", artist = "Someone")
+        val pathless = TrackDescriptor(id = TrackId("3"), title = "Imported", folderPath = "Inbox")
+        val text = encodeM3u(
+            name = "Party",
+            tracks = listOf(track, onSdCard, pathless),
+            paths = mapOf(
+                track.id to "/storage/emulated/0/Music/Unsorted/Freestyler.mp3",
+                onSdCard.id to "/storage/1234-ABCD/Music/Elsewhere.mp3",
+            ),
+            relativeTo = "/storage/emulated/0/Music/Playlists",
+        )
+        assertEquals(
+            listOf(
+                "#EXTM3U",
+                "#PLAYLIST:Party",
+                "#EXTINF:306,Bomfunk MC's - Freestyler",
+                "../Unsorted/Freestyler.mp3",
+                "#EXTINF:-1,Someone - Elsewhere",
+                "/storage/1234-ABCD/Music/Elsewhere.mp3",
+                "#EXTINF:-1,Imported",
+                "Inbox/Imported",
+            ),
+            text.trim().lines(),
+        )
+    }
+
+    @Test
+    fun encodeWithoutAPlaylistFolderWritesTheSameAbsolutePathsAsBefore() {
+        val paths = mapOf(track.id to "/storage/emulated/0/Music/Freestyler.mp3")
+        assertEquals(
+            encodeM3u("Party", listOf(track), paths),
+            encodeM3u("Party", listOf(track), paths, relativeTo = null),
+        )
+    }
+
+    @Test
+    fun aRelativeNameThatWouldReadAsACommentIsAnchoredToItsFolder() {
+        val hit = TrackDescriptor(id = TrackId("hit"), title = "Number One", artist = "Band")
+        val encoded = encodeM3u(
+            name = "Charts",
+            tracks = listOf(hit),
+            paths = mapOf(hit.id to "/storage/emulated/0/Music/#1 Hit.mp3"),
+            relativeTo = "/storage/emulated/0/Music",
+        )
+
+        assertEquals("./#1 Hit.mp3", encoded.trim().lines().last())
+        assertEquals("./#1 Hit.mp3", parseM3u(encoded).single().path)
+    }
+
+    @Test
+    fun relativeRowsComeBackOnImport() {
+        val untitled = TrackDescriptor(
+            id = TrackId("untitled"),
+            audioUri = "content://media/external/audio/media/7",
+        )
+        val encoded = encodeM3u(
+            name = "Party",
+            tracks = listOf(track, untitled),
+            paths = mapOf(
+                track.id to "/storage/emulated/0/Music/Unsorted/Freestyler.mp3",
+                untitled.id to "/storage/emulated/0/Music/Unsorted/unknown-file.bin",
+            ),
+            relativeTo = "/storage/emulated/0/Music/Playlists",
+        )
+
+        val lines = encoded.trim().lines()
+        assertEquals("../Unsorted/unknown-file.bin", lines.last())
+        assertTrue(lines[lines.lastIndex - 1].startsWith("#LATENTJAM-TRACK-ID:"))
+        assertEquals(
+            listOf(track.id, untitled.id),
+            matchM3uEntries(parseM3u(encoded), listOf(untitled, track)).map { it?.id },
+        )
+    }
 }
