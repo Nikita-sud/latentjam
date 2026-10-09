@@ -345,6 +345,8 @@
     <string name="settings_library_import_body">Pilih file audio untuk disalin ke LatentJam.</string>
     <string name="settings_library_restore">Pulihkan lagu tersembunyi</string>
     <string name="settings_library_restore_body">Kembalikan semua lagu yang dihapus dari LatentJam ke pustaka. File di perangkat tidak berubah.</string>
+    <string name="settings_playlist_relative_paths">Jalur relatif di playlist yang diekspor</string>
+    <string name="settings_playlist_relative_paths_body">Menulis jalur setiap lagu relatif terhadap folder playlist (../Music/…) agar playlist juga bisa dipakai di perangkat lain. Jika disimpan di tempat tanpa jalur folder, jalur lengkap tetap dipakai.</string>
     <string name="settings_equalizer_unavailable">Tidak tersedia untuk keluaran audio ini</string>
     <string name="equalizer_unavailable_body">Keluaran audio saat ini tidak memberikan akses ekualiser kepada LatentJam. Coba keluaran lain. Pemutaran tetap berfungsi seperti biasa.</string>
     <string name="equalizer_bass_value">%1$d\u0025</string>

@@ -357,6 +357,8 @@
     <string name="settings_library_import_body">Audiodateien auswählen und nach LatentJam kopieren.</string>
     <string name="settings_library_restore">Ausgeblendete Titel wiederherstellen</string>
     <string name="settings_library_restore_body">Alle aus LatentJam entfernten Titel wieder in der Bibliothek anzeigen. Die Dateien auf dem Gerät bleiben unverändert.</string>
+    <string name="settings_playlist_relative_paths">Relative Pfade in exportierten Playlists</string>
+    <string name="settings_playlist_relative_paths_body">Schreibt jeden Titelpfad relativ zum Ordner der Playlist (../Music/…), damit sie auch auf anderen Geräten funktioniert. An Orten ohne Ordnerpfad bleiben die Pfade vollständig.</string>
     <string name="settings_equalizer_unavailable">Für diese Audioausgabe nicht verfügbar</string>
     <string name="equalizer_unavailable_body">Die aktuelle Audioausgabe stellt LatentJam keinen Equalizer bereit. Probiere eine andere Ausgabe aus. Die Wiedergabe funktioniert weiterhin normal.</string>
     <string name="equalizer_bass_value">%1$d\u0025</string>

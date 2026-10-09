@@ -8,6 +8,9 @@ import android.net.Uri
 import android.os.Environment
 import android.provider.DocumentsContract
 
+/** MediaStore keeps each track's path, and [createdDocumentDirectory] reads the export's folder. */
+internal actual val relativePlaylistPathsAvailable: Boolean = true
+
 /** The Downloads provider. Only its `raw:` document ids spell out a file path. */
 internal const val DOWNLOADS_AUTHORITY = "com.android.providers.downloads.documents"
 

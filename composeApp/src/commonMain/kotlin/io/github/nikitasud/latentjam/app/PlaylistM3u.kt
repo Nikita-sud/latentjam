@@ -27,6 +27,12 @@ private const val LATENTJAM_TRACK_ID_HINT_PREFIX = "#LATENTJAM-TRACK-ID:"
 internal const val MAX_M3U_ENTRIES: Int = 100_000
 
 /**
+ * Whether an exported playlist can name its tracks relative to its own folder: the platform has
+ * to know both the tracks' file paths and the folder the export picker saved to.
+ */
+internal expect val relativePlaylistPathsAvailable: Boolean
+
+/**
  * One line-pair of a parsed M3U: the path plus whatever the optional EXTINF row carried.
  * Everything is best-effort — the format has no guarantees, only conventions.
  */

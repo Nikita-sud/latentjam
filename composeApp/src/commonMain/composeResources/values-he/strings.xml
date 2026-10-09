@@ -365,6 +365,8 @@
     <string name="settings_library_import_body">בחירת קובצי שמע להעתקה אל LatentJam.</string>
     <string name="settings_library_restore">שחזור שירים מוסתרים</string>
     <string name="settings_library_restore_body">החזרת כל השירים שהוסרו מ־LatentJam אל הספרייה. הקבצים במכשיר לא משתנים.</string>
+    <string name="settings_playlist_relative_paths">נתיבים יחסיים בפלייליסטים מיוצאים</string>
+    <string name="settings_playlist_relative_paths_body">כתיבת הנתיב של כל שיר ביחס לתיקיית הפלייליסט, כדי שהפלייליסט יעבוד גם במכשירים אחרים. בשמירה במיקום ללא נתיב תיקייה, הנתיבים נשארים מלאים.</string>
 
     <string name="settings_equalizer_unavailable">לא זמין ביציאת השמע הזו</string>
     <string name="equalizer_unavailable_body">יציאת השמע הנוכחית לא מספקת אקולייזר ל־LatentJam. אפשר לנסות יציאה אחרת. ההשמעה ממשיכה לפעול כרגיל.</string>

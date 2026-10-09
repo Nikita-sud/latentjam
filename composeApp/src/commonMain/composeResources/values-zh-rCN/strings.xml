@@ -339,6 +339,8 @@
     <string name="settings_library_import_body">选择要复制到 LatentJam 的音频文件。</string>
     <string name="settings_library_restore">恢复隐藏歌曲</string>
     <string name="settings_library_restore_body">将从 LatentJam 移除的所有歌曲重新显示在音乐库中。设备上的文件不会改变。</string>
+    <string name="settings_playlist_relative_paths">导出的播放列表使用相对路径</string>
+    <string name="settings_playlist_relative_paths_body">以播放列表所在的文件夹为起点写入每首曲目的路径（../Music/…），让播放列表在其他设备上也能使用。保存到没有文件夹路径的位置时，仍写入完整路径。</string>
     <string name="settings_equalizer_unavailable">此音频输出不支持均衡器</string>
     <string name="equalizer_unavailable_body">当前音频输出未向 LatentJam 提供均衡器。请尝试其他输出。音乐仍可正常播放。</string>
     <string name="equalizer_bass_value">%1$d\u0025</string>

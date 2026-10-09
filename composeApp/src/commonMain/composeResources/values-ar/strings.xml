@@ -387,6 +387,8 @@
     <string name="settings_library_import_body">اختيار ملفات صوتية لنسخها إلى LatentJam.</string>
     <string name="settings_library_restore">استعادة المقاطع المخفية</string>
     <string name="settings_library_restore_body">إعادة كل المقاطع التي أُزيلت من LatentJam إلى المكتبة. لن تتغير الملفات على الجهاز.</string>
+    <string name="settings_playlist_relative_paths">مسارات نسبية في قوائم التشغيل المصدَّرة</string>
+    <string name="settings_playlist_relative_paths_body">كتابة مسار كل مقطع نسبةً إلى مجلد قائمة التشغيل، لكي تعمل القائمة على الأجهزة الأخرى أيضًا. عند الحفظ في مكان بلا مسار مجلد، تبقى المسارات كاملة.</string>
     <string name="settings_equalizer_unavailable">غير متاح لمخرج الصوت الحالي</string>
     <string name="equalizer_unavailable_body">لا يوفّر مخرج الصوت الحالي لـ LatentJam إمكانية الوصول إلى معادل الصوت. جرّب مخرجًا آخر. سيستمر التشغيل بشكل طبيعي.</string>
     <string name="equalizer_bass_value">%1$d\u0025</string>

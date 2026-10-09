@@ -354,6 +354,8 @@
     <string name="settings_library_import_body">Выбрать аудиофайлы и скопировать их в LatentJam.</string>
     <string name="settings_library_restore">Восстановить скрытые треки</string>
     <string name="settings_library_restore_body">Снова показать в медиатеке все треки, удалённые из LatentJam. Файлы на устройстве не изменятся.</string>
+    <string name="settings_playlist_relative_paths">Относительные пути в экспортированных плейлистах</string>
+    <string name="settings_playlist_relative_paths_body">Записывать путь к каждому треку от папки плейлиста (../Music/…), чтобы плейлист работал и на других устройствах. При сохранении в место без пути к папке записываются полные пути.</string>
 
     <string name="settings_equalizer_unavailable">Недоступен для текущего аудиовыхода</string>
     <string name="equalizer_unavailable_body">Текущий аудиовыход не предоставляет LatentJam доступ к эквалайзеру. Попробуйте выбрать другой выход. Музыка продолжит воспроизводиться как обычно.</string>

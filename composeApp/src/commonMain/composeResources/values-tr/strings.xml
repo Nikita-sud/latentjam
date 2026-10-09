@@ -347,6 +347,8 @@
     <string name="settings_library_import_body">LatentJam’e kopyalanacak ses dosyalarını seç.</string>
     <string name="settings_library_restore">Gizli parçaları geri getir</string>
     <string name="settings_library_restore_body">LatentJam’den kaldırılan tüm parçaları kitaplığa geri getir. Cihazdaki dosyalar değişmez.</string>
+    <string name="settings_playlist_relative_paths">Dışa aktarılan çalma listelerinde göreli yollar</string>
+    <string name="settings_playlist_relative_paths_body">Her parçanın yolunu çalma listesinin klasörüne göre yazar (../Music/…), böylece liste başka cihazlarda da çalışır. Klasör yolu olmayan bir yere kaydedildiğinde tam yollar korunur.</string>
     <string name="settings_equalizer_unavailable">Bu ses çıkışı için kullanılamıyor</string>
     <string name="equalizer_unavailable_body">Geçerli ses çıkışı LatentJam’e bir ekolayzır sunmuyor. Başka bir çıkış deneyin. Oynatma normal şekilde çalışmaya devam eder.</string>
     <string name="equalizer_bass_value">%1$d\u0025</string>

@@ -359,6 +359,8 @@
     <string name="settings_library_import_body">Choisir des fichiers audio à copier dans LatentJam.</string>
     <string name="settings_library_restore">Restaurer les morceaux masqués</string>
     <string name="settings_library_restore_body">Réafficher dans la bibliothèque tous les morceaux retirés de LatentJam. Les fichiers de l’appareil restent inchangés.</string>
+    <string name="settings_playlist_relative_paths">Chemins relatifs dans les playlists exportées</string>
+    <string name="settings_playlist_relative_paths_body">Écrit le chemin de chaque morceau à partir du dossier de la playlist (../Music/…), pour qu’elle fonctionne aussi sur d’autres appareils. Enregistrée à un emplacement sans chemin de dossier, elle garde des chemins complets.</string>
     <string name="settings_equalizer_unavailable">Indisponible pour cette sortie audio</string>
     <string name="equalizer_unavailable_body">La sortie audio actuelle ne permet pas à LatentJam d’accéder à un égaliseur. Essayez une autre sortie. La lecture continue de fonctionner normalement.</string>
     <string name="equalizer_bass_value">%1$d\u0025</string>

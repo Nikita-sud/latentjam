@@ -414,6 +414,8 @@
     <string name="settings_library_import_body">Choose audio files to copy into LatentJam.</string>
     <string name="settings_library_restore">Restore hidden tracks</string>
     <string name="settings_library_restore_body">Return every track removed from LatentJam to the library. Files on the device are unchanged.</string>
+    <string name="settings_playlist_relative_paths">Relative paths in exported playlists</string>
+    <string name="settings_playlist_relative_paths_body">Write each track’s path from the playlist’s folder (../Music/…), so the playlist also works on other devices. Saving somewhere without a folder path keeps full paths.</string>
 
     <string name="settings_equalizer_unavailable">Unavailable for this audio output</string>
     <string name="equalizer_unavailable_body">The current audio output does not expose an equalizer to LatentJam. Try another output. Playback still works normally.</string>

@@ -347,6 +347,8 @@
     <string name="settings_library_import_body">LatentJam में कॉपी करने के लिए ऑडियो फ़ाइलें चुनें।</string>
     <string name="settings_library_restore">छिपे गाने वापस लाएँ</string>
     <string name="settings_library_restore_body">LatentJam से हटाए गए सभी गाने फिर लाइब्रेरी में दिखाएँ। डिवाइस की फ़ाइलें नहीं बदलेंगी।</string>
+    <string name="settings_playlist_relative_paths">निर्यात की गई प्लेलिस्ट में सापेक्ष पथ</string>
+    <string name="settings_playlist_relative_paths_body">हर ट्रैक का पथ प्लेलिस्ट के फ़ोल्डर के सापेक्ष लिखता है (../Music/…), ताकि प्लेलिस्ट दूसरे डिवाइस पर भी काम करे। बिना फ़ोल्डर पथ वाली जगह पर सहेजने से पूरे पथ बने रहते हैं।</string>
     <string name="settings_equalizer_unavailable">इस ऑडियो आउटपुट के लिए उपलब्ध नहीं</string>
     <string name="equalizer_unavailable_body">मौजूदा ऑडियो आउटपुट LatentJam को इक्वलाइज़र उपलब्ध नहीं कराता। कोई दूसरा आउटपुट आज़माएँ। प्लेबैक सामान्य रूप से चलता रहेगा।</string>
     <string name="equalizer_bass_value">%1$d\u0025</string>

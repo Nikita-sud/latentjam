@@ -2264,10 +2264,20 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     .replace('\\', '-')
                     .take(120)
                     .ifEmpty { "playlist" }
-                val encoded = withContext(Dispatchers.Default) {
-                    encodeM3u(playlist.name, resolved, paths)
-                }
-                m3uExchange.export(encoded, "$safeName.m3u8")
+                val relative = relativePlaylistPathsAvailable && settings.relativePlaylistPaths.value
+                // Encoded once the picker has said where the file goes, off the main thread: a
+                // relative path is only meaningful from the folder the playlist ends up in.
+                m3uExchange.exportTo(
+                    { destinationDirectory ->
+                        encodeM3u(
+                            name = playlist.name,
+                            tracks = resolved,
+                            paths = paths,
+                            relativeTo = destinationDirectory.takeIf { relative },
+                        )
+                    },
+                    "$safeName.m3u8",
+                )
             }
         }
 

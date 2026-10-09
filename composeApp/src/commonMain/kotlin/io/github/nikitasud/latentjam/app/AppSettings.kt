@@ -198,6 +198,9 @@ internal fun noveltyMixPreferenceFromPersisted(value: Boolean?): Boolean = value
 /** Volume normalization audibly changes playback, so it too is an explicit opt-in. */
 internal fun normalizeVolumePreferenceFromPersisted(value: Boolean?): Boolean = value ?: false
 
+/** Exported playlists keep the absolute paths they always had unless the listener asks. */
+internal fun relativePlaylistPathsPreferenceFromPersisted(value: Boolean?): Boolean = value ?: false
+
 /** Live SMART queue plus its independent canonical source, persisted as one atomic value. */
 internal data class ResumeQueueState(
     val queueTrackIds: List<String>,
@@ -411,6 +414,14 @@ interface AppSettings {
     /** Seconds of amplitude fade at each track boundary; 0 (the default) keeps hard cuts. */
     val crossfadeSeconds: StateFlow<Int>
     fun setCrossfadeSeconds(seconds: Int)
+
+    /**
+     * Whether an M3U export writes each path from the playlist's own folder (`../Music/…`), for
+     * players on other devices, instead of this device's absolute path. Off by default; only
+     * offered where [relativePlaylistPathsAvailable].
+     */
+    val relativePlaylistPaths: StateFlow<Boolean>
+    fun setRelativePlaylistPaths(enabled: Boolean)
 
     /** The Tracks tab's order. */
     val songSort: StateFlow<SortChoice<SongSort>>

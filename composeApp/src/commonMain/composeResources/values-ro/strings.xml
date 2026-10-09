@@ -346,6 +346,8 @@
     <string name="settings_library_import_body">Alege fișiere audio pentru a le copia în LatentJam.</string>
     <string name="settings_library_restore">Restaurează piesele ascunse</string>
     <string name="settings_library_restore_body">Readu în bibliotecă toate piesele eliminate din LatentJam. Fișierele de pe dispozitiv rămân neschimbate.</string>
+    <string name="settings_playlist_relative_paths">Căi relative în playlisturile exportate</string>
+    <string name="settings_playlist_relative_paths_body">Scrie calea fiecărei piese pornind de la dosarul playlistului (../Music/…), ca playlistul să funcționeze și pe alte dispozitive. Dacă salvezi într-un loc fără cale de dosar, căile rămân complete.</string>
     <string name="settings_equalizer_unavailable">Indisponibil pentru această ieșire audio</string>
     <string name="equalizer_unavailable_body">Ieșirea audio actuală nu oferă aplicației LatentJam acces la un egalizator. Încearcă altă ieșire. Redarea funcționează în continuare normal.</string>
     <string name="equalizer_bass_value">%1$d\u0025</string>

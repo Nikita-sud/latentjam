@@ -339,6 +339,8 @@
     <string name="settings_library_import_body">LatentJam にコピーするオーディオファイルを選びます。</string>
     <string name="settings_library_restore">非表示の曲を復元</string>
     <string name="settings_library_restore_body">LatentJam から取り除いた曲をすべてライブラリに戻します。端末上のファイルは変更されません。</string>
+    <string name="settings_playlist_relative_paths">書き出すプレイリストで相対パスを使う</string>
+    <string name="settings_playlist_relative_paths_body">各曲のパスをプレイリストのあるフォルダからの相対パス（../Music/…）で書き込み、ほかの端末でも使えるようにします。フォルダのパスがない場所に保存したときは、フルパスのままです。</string>
     <string name="settings_equalizer_unavailable">このオーディオ出力では利用できません</string>
     <string name="equalizer_unavailable_body">現在のオーディオ出力では LatentJam からイコライザーを利用できません。別の出力をお試しください。再生は通常どおり行えます。</string>
     <string name="equalizer_bass_value">%1$d\u0025</string>

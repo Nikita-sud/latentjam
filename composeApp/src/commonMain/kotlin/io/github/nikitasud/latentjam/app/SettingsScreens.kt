@@ -316,6 +316,8 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_duplicates
 import io.github.nikitasud.latentjam.app.generated.resources.settings_duplicates_scanning
 import io.github.nikitasud.latentjam.app.generated.resources.settings_hidden_tracks_empty
 import io.github.nikitasud.latentjam.app.generated.resources.settings_library_manage_failed
+import io.github.nikitasud.latentjam.app.generated.resources.settings_playlist_relative_paths
+import io.github.nikitasud.latentjam.app.generated.resources.settings_playlist_relative_paths_body
 import io.github.nikitasud.latentjam.app.generated.resources.settings_restore
 import io.github.nikitasud.latentjam.app.generated.resources.settings_restore_all
 import io.github.nikitasud.latentjam.app.generated.resources.settings_source_unnamed
@@ -569,6 +571,7 @@ internal fun SettingsScreen(
                     SettingsPage.PAGES -> PagesSettings(settings)
                     SettingsPage.LIBRARY -> LibrarySettings(
                         listState = libraryListState,
+                        settings = settings,
                         trackCount = tracks.size,
                         loading = libraryLoading,
                         refreshing = libraryRefreshing,
@@ -1081,6 +1084,7 @@ private fun <T> ChoiceChips(
 @Composable
 private fun LibrarySettings(
     listState: LazyListState,
+    settings: AppSettings,
     trackCount: Int,
     loading: Boolean,
     refreshing: Boolean,
@@ -1095,6 +1099,7 @@ private fun LibrarySettings(
     onOpen: (SettingsPage) -> Unit,
 ) {
     val audioAccess by permissions.audioLibraryStatus.collectAsState()
+    val relativePlaylistPaths by settings.relativePlaylistPaths.collectAsState()
     var forgetTarget by remember { mutableStateOf<InterruptedSave?>(null) }
     LaunchedEffect(permissions) { permissions.refresh() }
 
@@ -1234,6 +1239,21 @@ private fun LibrarySettings(
                     subtitle = stringResource(Res.string.settings_duplicates_body),
                     onClick = { onOpen(SettingsPage.DUPLICATES) },
                 )
+            }
+        }
+        if (relativePlaylistPathsAvailable) {
+            // Export and import live on each playlist; how an export names its tracks is a
+            // standing choice, so it sits here beside the rest of the library's file handling.
+            item {
+                SettingsSection(stringResource(Res.string.tab_playlists)) {
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_playlist_relative_paths),
+                        subtitle = stringResource(Res.string.settings_playlist_relative_paths_body),
+                        checked = relativePlaylistPaths,
+                        enabled = true,
+                        onCheckedChange = settings::setRelativePlaylistPaths,
+                    )
+                }
             }
         }
     }

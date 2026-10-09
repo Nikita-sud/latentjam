@@ -131,6 +131,13 @@ class AppSettingsTest {
     }
 
     @Test
+    fun `exported playlists keep absolute paths until the listener opts in`() {
+        assertEquals(false, relativePlaylistPathsPreferenceFromPersisted(null))
+        assertEquals(true, relativePlaylistPathsPreferenceFromPersisted(true))
+        assertEquals(false, relativePlaylistPathsPreferenceFromPersisted(false))
+    }
+
+    @Test
     fun `resume queue codec round trips opaque live and source ids atomically`() {
         val state = ResumeQueueState(
             queueTrackIds = listOf("plain", "imported,file|with:delimiters", "音楽/曲"),

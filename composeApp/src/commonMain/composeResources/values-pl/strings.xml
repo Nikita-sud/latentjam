@@ -367,6 +367,8 @@
     <string name="settings_library_import_body">Wybierz pliki audio do skopiowania do LatentJam.</string>
     <string name="settings_library_restore">Przywróć ukryte utwory</string>
     <string name="settings_library_restore_body">Przywróć do biblioteki wszystkie utwory usunięte z LatentJam. Pliki na urządzeniu pozostaną bez zmian.</string>
+    <string name="settings_playlist_relative_paths">Ścieżki względne w eksportowanych playlistach</string>
+    <string name="settings_playlist_relative_paths_body">Zapisuje ścieżkę każdego utworu względem folderu playlisty (../Music/…), aby działała ona także na innych urządzeniach. W miejscach bez ścieżki folderu zapisywane są pełne ścieżki.</string>
     <string name="settings_equalizer_unavailable">Niedostępny dla tego wyjścia audio</string>
     <string name="equalizer_unavailable_body">Bieżące wyjście audio nie udostępnia korektora aplikacji LatentJam. Spróbuj innego wyjścia. Odtwarzanie nadal działa normalnie.</string>
     <string name="equalizer_bass_value">%1$d\u0025</string>
