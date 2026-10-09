@@ -334,7 +334,7 @@ private fun ScrubBubble(
         contentColor = MaterialTheme.colorScheme.inverseOnSurface,
         shadowElevation = 6.dp,
         modifier = Modifier.layout { measurable, constraints ->
-            // The bubble floats outside the 44 dp touch band. Only its width is constrained
+            // The bubble floats outside the 40 dp touch band. Only its width is constrained
             // by that band; measuring its height there clips lyrics and enlarged text.
             val placeable = measurable.measure(
                 constraints.copy(minWidth = 0, minHeight = 0, maxHeight = Constraints.Infinity),
@@ -382,14 +382,11 @@ private fun ScrubBubble(
     }
 }
 
-// The band is the touch target, 44 dp as the player plan specifies: it is the only place a scrub
-// can start. The line sits below its middle (26 of the 44) so the labels can tuck in under the
-// handle (17 dp half-height while scrubbing) without the transport drifting away, and it keeps the
-// 18 dp it had in the 40 dp band — the added 4 dp go above the line, so the spacing below it, tuned
-// on a phone, is untouched. Line to play button and play button to next-up row then come out equal
-// on the player.
-private val BAND_HEIGHT: Dp = 44.dp
-private val LINE_FROM_TOP: Dp = 26.dp
+// The band is the touch target; the line sits below its middle so the labels can tuck in
+// under the handle (17 dp half-height while scrubbing) without the transport drifting away.
+// Line to play button and play button to next-up row then come out equal on the player.
+private val BAND_HEIGHT: Dp = 40.dp
+private val LINE_FROM_TOP: Dp = 22.dp
 private val LINE_RESTING: Dp = 4.dp
 private val LINE_SCRUBBING: Dp = 6.dp
 private val HANDLE_RESTING: Dp = 26.dp

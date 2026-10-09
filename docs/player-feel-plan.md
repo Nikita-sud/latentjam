@@ -446,7 +446,7 @@ internal fun PlayerSeekBar(playback: PlaybackController, durationMs: Long, lyric
 ```
 - Only this composable observes `positionMs` (as `PlaybackSeekBar` does today).
 - Drawn with `Canvas`: 4.dp remaining line at 22 % of `onSurface`, played line in `onSurface`, a 4×26.dp bar handle; while dragging the lines are 6.dp and the handle 34.dp (`animateDpAsState`, `Motion.QUICK_MS`).
-- Touch: pointer down anywhere in the 44.dp band puts the handle there (TAP haptic) and starts a drag; per move `scrubDeltaMs(dx, width, duration, scrubFineFactor(dyBelowBar, 40.dp, 90.dp))`; EDGE haptic once per edge reached; release seeks (`playback.seekTo`) with RELEASE haptic.
+- Touch: pointer down anywhere in the 40.dp band puts the handle there (TAP haptic) and starts a drag; per move `scrubDeltaMs(dx, width, duration, scrubFineFactor(dyBelowBar, 40.dp, 90.dp))`; EDGE haptic once per edge reached; release seeks (`playback.seekTo`) with RELEASE haptic.
 - Bubble above the handle while dragging: time, `seek_fine_half`/`seek_fine_quarter` when fine > 1, and the lyric line at that time when `lyrics?.synced == true` (`LyricsTimeline` from `LyricsFollowing.kt`).
 - Times row: elapsed on the left; the right label is a `TextButton`-less clickable text toggling between total and `−remaining` (`cd_time_toggle`, TAP haptic).
 - Semantics: `progressBarRangeInfo` + `cd_seek_position`, `setProgress` action seeks.
