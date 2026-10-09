@@ -22,7 +22,7 @@ SMART picks better, and the app gets smaller: smoother transitions and fewer jum
 - iPhone: a tap on a lyric line or a drag of the seek bar to the very end of a file no longer risks a crash; a damaged listening-history file no longer blocks new plays, clearing or restoring; an unreadable Music library no longer looks like an empty one, which could make the app forget your music.
 - iPhone: artist names with superscripts (Girls², H₂O, 8½ Souvenirs) resolve to the right artist again, and ONNX Runtime failing to start no longer kills the app at launch — SMART turns off and the player keeps working.
 - Analysis no longer latches an empty index after a cancelled library scan, and cancelling "Rebuild analysis" reports a cancellation instead of a failure.
-- This build also carries the fixes from an independent code audit; the traceable list — finding, commit, verification — is in `docs/audit-fixes-2026-10-08.md`.
+- This build also carries the fixes from an independent code audit of this release; the ones you can notice are listed here.
 - The equaliser and queue are not included in local backups; the backup screen lists what travels, and a damaged or foreign backup file is refused before anything is applied.
 - A backup file written by this version carries format 8: older builds refuse it whole instead of failing halfway, and a restore that is interrupted by leaving the screen now finishes instead of applying half of its sections.
 - Editing the queue, seeking back or changing shuffle no longer stops playback while the sleep timer waits for the end of a track, and the quick-settings tile starts the queue again after it has finished.
@@ -34,7 +34,7 @@ SMART picks better, and the app gets smaller: smoother transitions and fewer jum
 - Translations: European Portuguese is covered, Hebrew reached the widget, tile and Android Auto strings, Indonesian reached the notification commands, the widget and Android Auto, and the Arabic sleep-timer labels have every plural form. Simplified Chinese now also reaches Chinese devices outside mainland China (Singapore, Malaysia); devices set to Traditional Chinese show the Simplified translation, with some system notification labels still in English, until a Traditional translation exists.
 - Restoring a backup merges your listening history under one lock, so a track that finishes while the restore runs is no longer dropped.
 - The elapsed time on the home-screen widgets stops soon after the app is gone instead of ticking in the launcher, and the artwork widget refreshes on the same schedule as the other two.
-- Removed songs stay removed even in the "on a roll" row.
+- The "on a roll" row puts tracks it showed you recently, and you did not play, behind ones you have not seen yet.
 - The genre tags of a file are capped like everywhere else in the app, and a broken ID3 size or a stub MP4 cover can no longer send a reader down the wrong path.
 
 ### Install (Android)
