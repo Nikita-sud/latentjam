@@ -214,10 +214,10 @@ public object LibraryWorlds {
     public const val MIN_SHARE: Float = 0.6f
 
     /**
-     * A style needs this share of a region to appear in a descriptive [LibraryWorldNameSource.MAJOR_FAMILIES]
-     * name, and the two named styles together must cover [MAJOR_FAMILIES_COVERAGE] of it.
+     * Each side of a descriptive [LibraryWorldNameSource.MAJOR_FAMILIES] name needs this share of
+     * the region to itself, and the two named styles together must cover [MAJOR_FAMILIES_COVERAGE].
      */
-    public const val MAJOR_FAMILY_SHARE: Float = 0.15f
+    public const val MAJOR_FAMILY_SIDE_SHARE: Float = 0.1f
 
     /** Union coverage the two descriptive styles need before they are worth naming. */
     public const val MAJOR_FAMILIES_COVERAGE: Float = 0.5f
@@ -665,22 +665,40 @@ public object LibraryWorlds {
             )
         }
 
-        // No single style and no well-covered pair: name the region after its two largest
+        // No single style and no well-covered pair: still name the region after its two largest
         // followings rather than calling it nothing at all. A "+" name is descriptive, so it
-        // removes no member, and a region whose styles are all marginal keeps the honest fallback.
-        val majorFamilies = familyVotes.entries
-            .filter { it.value >= minSize && it.value >= facts.size * MAJOR_FAMILY_SHARE }
+        // removes no member — but it must not dress up evidence the blend gate already rejected:
+        // each side needs its OWN members (a track tagged with both styles votes for both but
+        // belongs to neither side alone), each side needs a real following, and the two together
+        // must cover most of the region. Otherwise the honest placeholder stays.
+        val majorCandidates = familyVotes.entries
+            .filter { it.value >= minSize }
             .sortedByDescending { it.value }
             .take(2)
-        val majorCoverage = majorFamilies.sumOf { candidate ->
-            facts.count { fact -> candidate.key in fact.families }
-        }
-        if (majorFamilies.isNotEmpty() && majorCoverage >= facts.size * MAJOR_FAMILIES_COVERAGE) {
-            return WorldName(
-                text = majorFamilies.joinToString(" + ") { displayFamily(it.key) },
-                source = LibraryWorldNameSource.MAJOR_FAMILIES,
-                tracks = tracks,
-            )
+        if (majorCandidates.size == 2) {
+            val first = majorCandidates[0].key
+            val second = majorCandidates[1].key
+            var firstOnly = 0
+            var secondOnly = 0
+            var covered = 0
+            for (fact in facts) {
+                val inFirst = first in fact.families
+                val inSecond = second in fact.families
+                if (inFirst || inSecond) covered++
+                if (inFirst && !inSecond) firstOnly++
+                if (inSecond && !inFirst) secondOnly++
+            }
+            val side = (facts.size * MAJOR_FAMILY_SIDE_SHARE).toInt()
+            if (firstOnly >= minSize && secondOnly >= minSize &&
+                firstOnly >= side && secondOnly >= side &&
+                covered >= facts.size * MAJOR_FAMILIES_COVERAGE
+            ) {
+                return WorldName(
+                    text = listOf(first, second).joinToString(" + ") { displayFamily(it) },
+                    source = LibraryWorldNameSource.MAJOR_FAMILIES,
+                    tracks = tracks,
+                )
+            }
         }
 
         return WorldName(
