@@ -1675,6 +1675,82 @@ internal class DefaultSimilarityEngineTest {
         assertEquals(0, harness.engine.missingFromIndex(emptyList()))
     }
 
+    // ---------------------------------------------------------------- memory
+
+    /** A real index that counts the calls copying every vector it holds, and the rows handed over to it. */
+    private class CopyCountingIndex(private val inner: InMemoryVectorIndex) : VectorIndex by inner {
+        var wholeIndexCopies = 0
+            private set
+        var adopted = 0
+            private set
+
+        override fun entries(): Map<TrackId, FloatArray> {
+            wholeIndexCopies++
+            return inner.entries()
+        }
+
+        override fun adopt(id: TrackId, vector: FloatArray) {
+            adopted++
+            inner.adopt(id, vector)
+        }
+    }
+
+    @Test
+    fun `a launch restores and reconciles and checkpoints without copying either index`() = runTest {
+        val audioStore = FakeIndexStore()
+        val textStore = FakeIndexStore()
+        val rock = seed.copy(genre = "Rock")
+        val dance = near.copy(genre = "Dance")
+        val jazz = far.copy(genre = "Jazz")
+        val first = engine(
+            backend = FakeEmbeddingBackend(
+                mutableMapOf(
+                    seed.id to floatArrayOf(1f, 0f, 0f),
+                    near.id to floatArrayOf(0.9f, 0.1f, 0f),
+                    far.id to floatArrayOf(0f, 1f, 0f),
+                ),
+            ),
+            store = audioStore,
+            textEncoder = FakeTextEncoder(),
+            textIndex = InMemoryVectorIndex(TextEncoder.TEXT_DIM),
+            textStore = textStore,
+        )
+        first.initialize()
+        assertEquals(3, first.indexLibrary(listOf(rock, dance, jazz)).indexed)
+
+        // The next launch, as the app runs it: restore, reconcile against a library that lost a
+        // track, encode what is new, checkpoint.
+        val audio = CopyCountingIndex(InMemoryVectorIndex(dim = 3))
+        val text = CopyCountingIndex(InMemoryVectorIndex(TextEncoder.TEXT_DIM))
+        val launch = DefaultSimilarityEngine(
+            backend = FakeEmbeddingBackend(),
+            index = audio,
+            store = audioStore,
+            config = SmartEngineConfig(embeddingDim = 3, modelVersion = "test-model"),
+            dispatcher = Dispatchers.Default.limitedParallelism(1, "launch-smart-engine"),
+            textEncoder = FakeTextEncoder(),
+            textIndex = text,
+            textStore = textStore,
+        )
+        launch.initialize()
+        assertEquals(1, launch.synchronizeLibrary(listOf(rock, dance), pruneMissing = true))
+        val added = TrackDescriptor(TrackId("added"), genre = "Rock")
+        assertEquals(1, launch.stageMetadataVectors(listOf(rock, dance, added)))
+        launch.persistPendingAnalysis()
+
+        assertEquals(0, audio.wholeIndexCopies, "an audio vector copy per track is a second audio index")
+        assertEquals(0, text.wholeIndexCopies, "a text vector copy per track is a second text index")
+        assertEquals(3, audio.adopted, "restored audio rows are handed over, not copied")
+        assertEquals(3, text.adopted, "restored text rows are handed over, not copied")
+        // …and nothing about the result changed: the checkpoints hold exactly the reconciled indexes.
+        assertEquals(listOf(seed.id, near.id), assertNotNull(audioStore.snapshots["test-model"]).keys.toList())
+        assertEquals(
+            listOf(seed.id, near.id, added.id),
+            assertNotNull(textStore.snapshots[TEXT_INDEX_VERSION]).keys.toList(),
+        )
+        assertTrue(launch.semanticSearch("guitars", 2).map { it.trackId }.containsAll(listOf(seed.id, added.id)))
+    }
+
     // ---------------------------------------------------------------- tag-edit carry-over
 
     private val edited = TrackId("edited")

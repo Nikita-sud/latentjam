@@ -37,6 +37,16 @@ public interface VectorIndex {
     public fun upsert(id: TrackId, vector: FloatArray)
 
     /**
+     * [upsert] for a [vector] the caller hands over and never touches again — a row just decoded
+     * from a snapshot — so an implementation may keep that array instead of a copy. What is stored
+     * is exactly what [upsert] would store. Restoring a library this way holds one copy of its
+     * vectors rather than two at the peak.
+     *
+     * @throws IllegalArgumentException if the vector has the wrong dimension.
+     */
+    public fun adopt(id: TrackId, vector: FloatArray): Unit = upsert(id, vector)
+
+    /**
      * Returns a copy of the stored vector for [id], or `null` if absent.
      * Note: implementations may store vectors normalized; the returned array
      * is whatever [nearest] would compare against.
@@ -47,10 +57,20 @@ public interface VectorIndex {
     public operator fun contains(id: TrackId): Boolean
 
     /**
-     * Snapshot of all stored entries (defensive copies), for persistence.
+     * Snapshot of all stored entries (defensive copies) — a second copy of the whole index.
      * Vectors are in stored (normalized) form.
      */
     public fun entries(): Map<TrackId, FloatArray>
+
+    /** The ids of every stored vector, copying none of the vectors. */
+    public fun ids(): Set<TrackId> = entries().keys
+
+    /**
+     * Every stored entry in stored form, for a caller that only reads it before the index next
+     * changes — writing a checkpoint under the engine's lock. An implementation may hand out its
+     * own arrays and map instead of [entries]' copies: never modify them, or keep them.
+     */
+    public fun storedEntries(): Map<TrackId, FloatArray> = entries()
 
     /** Removes [id], returning true only when a vector was present. */
     public fun remove(id: TrackId): Boolean

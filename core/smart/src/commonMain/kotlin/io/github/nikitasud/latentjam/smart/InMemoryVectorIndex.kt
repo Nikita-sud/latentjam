@@ -38,13 +38,14 @@ public class InMemoryVectorIndex(
         get() = vectors.size
 
     override fun upsert(id: TrackId, vector: FloatArray) {
-        require(vector.size == dim) {
-            "Vector for ${id.value} has dimension ${vector.size}, expected $dim"
-        }
-        require(vector.all(Float::isFinite)) {
-            "Vector for ${id.value} contains a non-finite component"
-        }
+        validate(id, vector)
         vectors[id] = l2Normalized(vector)
+    }
+
+    /** Normalizes the handed-over array in place, with exactly [upsert]'s arithmetic, and keeps it. */
+    override fun adopt(id: TrackId, vector: FloatArray) {
+        validate(id, vector)
+        vectors[id] = normalizeInPlace(vector)
     }
 
     override fun vector(id: TrackId): FloatArray? = vectors[id]?.copyOf()
@@ -53,6 +54,10 @@ public class InMemoryVectorIndex(
 
     override fun entries(): Map<TrackId, FloatArray> =
         vectors.entries.associate { (id, vector) -> id to vector.copyOf() }
+
+    override fun ids(): Set<TrackId> = vectors.keys.toSet()
+
+    override fun storedEntries(): Map<TrackId, FloatArray> = vectors
 
     override fun remove(id: TrackId): Boolean = vectors.remove(id) != null
 
@@ -75,15 +80,26 @@ public class InMemoryVectorIndex(
         vectors.clear()
     }
 
+    private fun validate(id: TrackId, vector: FloatArray) {
+        require(vector.size == dim) {
+            "Vector for ${id.value} has dimension ${vector.size}, expected $dim"
+        }
+        require(vector.all(Float::isFinite)) {
+            "Vector for ${id.value} contains a non-finite component"
+        }
+    }
+
     /** Returns a fresh unit-length copy of [vector]; zero vectors pass through unchanged. */
-    private fun l2Normalized(vector: FloatArray): FloatArray {
+    private fun l2Normalized(vector: FloatArray): FloatArray = normalizeInPlace(vector.copyOf())
+
+    /** Scales [vector] itself to unit length and returns it; a zero vector stays as it is. */
+    private fun normalizeInPlace(vector: FloatArray): FloatArray {
         var sumOfSquares = 0f
         for (component in vector) sumOfSquares += component * component
         val norm = sqrt(sumOfSquares)
-        val copy = vector.copyOf()
-        if (norm == 0f) return copy
-        for (i in copy.indices) copy[i] /= norm
-        return copy
+        if (norm == 0f) return vector
+        for (i in vector.indices) vector[i] /= norm
+        return vector
     }
 
     private fun dot(a: FloatArray, b: FloatArray): Float {

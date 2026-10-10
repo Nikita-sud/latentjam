@@ -35,6 +35,11 @@ public data class StoredIndexSnapshot(
  *
  * Called only from the engine's confined dispatcher; implementations need no
  * additional synchronization.
+ *
+ * Neither direction copies a library of vectors on the engine's behalf: a snapshot passed to
+ * [saveSnapshot] may share the engine's live arrays, so a store serializes it before returning and
+ * never keeps or modifies it; and the arrays a load returns belong to the caller, which adopts them
+ * into its index ([VectorIndex.adopt]), so a store hands out fresh ones every time.
  */
 public interface IndexStore {
 

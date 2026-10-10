@@ -137,7 +137,7 @@ internal class DefaultSimilarityEngine(
                 persistedText
                     ?.let { persisted ->
                         for ((id, vector) in persisted.entries) {
-                            runCatching { textIndex.upsert(id, vector) }
+                            runCatching { textIndex.adopt(id, vector) }
                                 .onSuccess {
                                     persisted.identities[id]?.let { identity ->
                                         textVectorIdentities[id] = identity
@@ -341,13 +341,15 @@ internal class DefaultSimilarityEngine(
             mutex.withLock {
                 if (mutableState.value !is EngineState.Ready) return@withLock 0
                 val liveIds = library.mapTo(HashSet(library.size)) { it.id }
+                // ids(), not entries(): a copy of every vector only to read its key would be a
+                // second index at every launch.
                 val staleAudio = if (pruneMissing) {
-                    index.entries().keys.filterNot(liveIds::contains)
+                    index.ids().filterNot(liveIds::contains)
                 } else {
                     emptyList()
                 }
                 val staleText = if (pruneMissing) {
-                    textIndex?.entries()?.keys?.filterNot(liveIds::contains).orEmpty()
+                    textIndex?.ids()?.filterNot(liveIds::contains).orEmpty()
                 } else {
                     emptyList()
                 }
@@ -993,8 +995,9 @@ internal class DefaultSimilarityEngine(
         } catch (_: Throwable) {
             null
         } ?: return
+        // Adopted, not copied: the decoded rows are this index's only copy of the library.
         for ((id, vector) in persisted.entries) {
-            runCatching { index.upsert(id, vector) }
+            runCatching { index.adopt(id, vector) }
                 .onSuccess {
                     persisted.identities[id]?.let { identity ->
                         audioVectorIdentities[id] = identity
@@ -1212,12 +1215,13 @@ internal class DefaultSimilarityEngine(
      * Remembers the row count at which a store refused a snapshot as unstorable.
      *
      * A refusal is a property of the snapshot content, so it cannot become storable while the same
-     * index only grows — and rebuilding it is not free: building an audio snapshot deep-copies
-     * every vector, which in a library large enough to hit a 64 MiB envelope means tens of megabytes
-     * per attempt. Later checkpoints are therefore skipped while the index holds at least as many rows
-     * as the refused snapshot; once the index shrinks below that mark the engine tries again, and a
-     * successful save ends the episode. An empty snapshot is always attempted: building it costs
-     * nothing, and a store that refuses even that must not silence persistence forever.
+     * index only grows — and attempting it again is not free: the store measures every row, encoding
+     * each id and identity, before it can refuse, which in a library large enough to hit a 64 MiB
+     * envelope means tens of thousands of rows per attempt. Later checkpoints are therefore skipped
+     * while the index holds at least as many rows as the refused snapshot; once the index shrinks
+     * below that mark the engine tries again, and a successful save ends the episode. An empty
+     * snapshot is always attempted: building it costs nothing, and a store that refuses even that
+     * must not silence persistence forever.
      */
     private class EnvelopeRefusal {
         /** Rows of the last refused snapshot, or `null` while no refusal is outstanding. */
@@ -1251,8 +1255,13 @@ internal class DefaultSimilarityEngine(
         }
     }
 
+    /**
+     * The stored vectors themselves, not copies: a checkpoint is written under [mutex] and the store
+     * serializes it before returning (see [IndexStore.saveSnapshot]), so a copy would only be a
+     * second index at the moment the library is largest.
+     */
     private fun currentAudioSnapshot(): StoredIndexSnapshot {
-        val entries = index.entries()
+        val entries = index.storedEntries()
         return StoredIndexSnapshot(
             entries = entries,
             identities = audioVectorIdentities.filterKeys(entries::containsKey),
@@ -1260,8 +1269,9 @@ internal class DefaultSimilarityEngine(
         )
     }
 
+    /** Shares the stored vectors like [currentAudioSnapshot]. */
     private fun currentTextSnapshot(): StoredIndexSnapshot {
-        val entries = textIndex?.entries().orEmpty()
+        val entries = textIndex?.storedEntries().orEmpty()
         return StoredIndexSnapshot(
             entries = entries,
             identities = textVectorIdentities.filterKeys(entries::containsKey),

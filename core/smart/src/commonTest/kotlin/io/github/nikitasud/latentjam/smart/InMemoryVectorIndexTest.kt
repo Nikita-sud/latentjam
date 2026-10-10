@@ -9,7 +9,9 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
+import kotlin.test.assertNotSame
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 internal class InMemoryVectorIndexTest {
@@ -117,5 +119,53 @@ internal class InMemoryVectorIndexTest {
         index.clear()
         assertEquals(0, index.size)
         assertTrue(index.nearest(floatArrayOf(1f, 0f, 0f), k = 3).isEmpty())
+    }
+
+    @Test
+    fun idsListTheStoredTracksAndOutliveLaterRemovals() {
+        val index = indexWithTriangle()
+        val ids = index.ids()
+        assertEquals(listOf(a, b, c), ids.toList())
+        index.remove(b)
+        assertEquals(listOf(a, b, c), ids.toList())
+        assertEquals(listOf(a, c), index.ids().toList())
+    }
+
+    @Test
+    fun storedEntriesShareTheStoredVectorsInsteadOfCopyingThem() {
+        val index = indexWithTriangle()
+        val stored = index.storedEntries()
+        assertEquals(index.entries().keys, stored.keys)
+        for ((id, vector) in index.entries()) assertContentEquals(vector, stored[id])
+        // The whole point: a checkpoint reads the same arrays every time instead of a second index.
+        assertSame(stored[a], index.storedEntries()[a])
+        assertNotSame(index.entries()[a], index.entries()[a])
+    }
+
+    @Test
+    fun adoptStoresExactlyWhatUpsertStoresWithoutACopy() {
+        val rows = listOf(
+            floatArrayOf(0.9f, 0.1f, 0f),
+            floatArrayOf(0.3f, -0.7f, 0.2f),
+            floatArrayOf(0.57735026f, 0.57735026f, 0.57735026f), // already unit length, as restored rows are
+            floatArrayOf(0f, 0f, 0f),
+        )
+        for (row in rows) {
+            val upserted = InMemoryVectorIndex(dim = 3).apply { upsert(a, row.copyOf()) }
+            val handedOver = row.copyOf()
+            val adopted = InMemoryVectorIndex(dim = 3).apply { adopt(a, handedOver) }
+            val expected = assertNotNull(upserted.vector(a))
+            val actual = assertNotNull(adopted.vector(a))
+            for (i in expected.indices) assertEquals(expected[i].toRawBits(), actual[i].toRawBits())
+            assertSame(handedOver, adopted.storedEntries()[a])
+        }
+    }
+
+    @Test
+    fun adoptRejectsWhatUpsertRejects() {
+        val index = InMemoryVectorIndex(dim = 3)
+        assertFailsWith<IllegalArgumentException> { index.adopt(a, floatArrayOf(1f, 0f)) }
+        assertFailsWith<IllegalArgumentException> { index.adopt(a, floatArrayOf(1f, Float.NaN, 0f)) }
+        assertEquals(0, index.size)
     }
 }

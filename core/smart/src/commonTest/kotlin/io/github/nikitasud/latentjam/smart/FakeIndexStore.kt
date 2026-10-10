@@ -8,6 +8,9 @@ package io.github.nikitasud.latentjam.smart
  * In-memory [IndexStore] for tests: remembers the last [save] per model
  * version and serves it back from [load], with call counters for interaction
  * asserts.
+ *
+ * Like the file-backed stores it keeps its own copy of what is saved and hands out fresh arrays on
+ * every load: the engine saves its live vectors and adopts what it loads (see [IndexStore]).
  */
 internal class FakeIndexStore : IndexStore {
 
@@ -23,14 +26,14 @@ internal class FakeIndexStore : IndexStore {
 
     override suspend fun load(modelVersion: String): Map<TrackId, FloatArray>? {
         loadCalls++
-        return snapshots[modelVersion]
+        return snapshots[modelVersion]?.deepCopy()
     }
 
     override suspend fun loadSnapshot(modelVersion: String): StoredIndexSnapshot? {
         loadCalls++
         return snapshots[modelVersion]?.let { entries ->
             StoredIndexSnapshot(
-                entries = entries,
+                entries = entries.deepCopy(),
                 identities = identitySnapshots[modelVersion].orEmpty(),
                 failedIdentities = failureSnapshots[modelVersion].orEmpty(),
             )
@@ -40,7 +43,7 @@ internal class FakeIndexStore : IndexStore {
     override suspend fun save(modelVersion: String, entries: Map<TrackId, FloatArray>) {
         saveCalls++
         failNextSaveIfConfigured()
-        snapshots[modelVersion] = entries
+        snapshots[modelVersion] = entries.deepCopy()
         identitySnapshots.remove(modelVersion)
         failureSnapshots.remove(modelVersion)
     }
@@ -48,9 +51,9 @@ internal class FakeIndexStore : IndexStore {
     override suspend fun saveSnapshot(modelVersion: String, snapshot: StoredIndexSnapshot) {
         saveCalls++
         failNextSaveIfConfigured()
-        snapshots[modelVersion] = snapshot.entries
-        identitySnapshots[modelVersion] = snapshot.identities
-        failureSnapshots[modelVersion] = snapshot.failedIdentities
+        snapshots[modelVersion] = snapshot.entries.deepCopy()
+        identitySnapshots[modelVersion] = snapshot.identities.toMap()
+        failureSnapshots[modelVersion] = snapshot.failedIdentities.toMap()
     }
 
     override suspend fun clear() {
@@ -74,4 +77,6 @@ internal class FakeIndexStore : IndexStore {
             error("configured save failure")
         }
     }
+
+    private fun Map<TrackId, FloatArray>.deepCopy(): Map<TrackId, FloatArray> = mapValues { it.value.copyOf() }
 }
