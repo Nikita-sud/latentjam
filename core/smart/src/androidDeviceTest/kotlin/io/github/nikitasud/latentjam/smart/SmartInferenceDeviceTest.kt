@@ -11,6 +11,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.github.nikitasud.latentjam.smart.text.OnnxTextEncoder
 import io.github.nikitasud.latentjam.smart.text.ArtistKnowledge
 import io.github.nikitasud.latentjam.smart.text.MusicEntityResolver
+import io.github.nikitasud.latentjam.smart.text.assetBytes
 import java.io.DataOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -90,8 +91,8 @@ class SmartInferenceDeviceTest {
         }
         fun asset(name: String) = context.assets.open("ml/$name.bin").use { it.readBytes() }
         val knowledge = ArtistKnowledge(
-            MusicEntityResolver { asset("music_entities_250k") },
-            loadPack = { asset("artist_knowledge") },
+            MusicEntityResolver { context.assets.assetBytes("ml/music_entities_250k.bin") },
+            loadPack = { context.assets.assetBytes("ml/artist_knowledge.bin") },
             loadAdapter = { asset("artist_adapter") },
         )
         listOf("The Beatles", "LatentJam nonexistent smoke artist 91d02").forEach { artist ->

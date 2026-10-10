@@ -94,6 +94,14 @@ android {
         jniLibs.useLegacyPackaging = fdroidBuild
     }
 
+    // The artist knowledge pack and the entity index are read in place, a few bytes per lookup, so
+    // the app maps them from the APK instead of copying 12 MB onto a Java heap that is 48 MB in all
+    // on the smallest devices (core/smart's assetBytes). Only an uncompressed entry can be mapped;
+    // storing these two costs the APK about 1.1 MB.
+    androidResources {
+        noCompress += listOf("music_entities_250k.bin", "artist_knowledge.bin")
+    }
+
     splits {
         abi {
             isEnable = !playSigningRequested && !fdroidBuild

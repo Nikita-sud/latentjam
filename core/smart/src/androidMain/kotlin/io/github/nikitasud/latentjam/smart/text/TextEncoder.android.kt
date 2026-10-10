@@ -125,19 +125,23 @@ internal class OnnxTextEncoder(
 
 public actual fun smartTextEncoderModule(): Module = module {
     single<TextEncoder> { OnnxTextEncoder(get<Context>()) }
+    // The two packs are mapped from the APK, not copied onto the heap (see assetBytes).
     single {
         val context = get<Context>()
-        MusicEntityResolver {
-            runCatching { context.assets.open(MUSIC_ENTITY_ASSET).use { it.readBytes() } }.getOrNull()
-        }
+        MusicEntityResolver { context.assets.assetBytes(MUSIC_ENTITY_ASSET) }
     }
     single {
         val context = get<Context>()
-        fun asset(name: String) = runCatching { context.assets.open(name).use { it.readBytes() } }.getOrNull()
-        ArtistKnowledge(get(), loadPack = { asset(ARTIST_KNOWLEDGE_ASSET) }, loadAdapter = { asset(ARTIST_ADAPTER_ASSET) })
+        ArtistKnowledge(
+            get(),
+            loadPack = { context.assets.assetBytes(ARTIST_KNOWLEDGE_ASSET) },
+            loadAdapter = {
+                runCatching { context.assets.open(ARTIST_ADAPTER_ASSET).use { it.readBytes() } }.getOrNull()
+            },
+        )
     }
 }
 
-private const val MUSIC_ENTITY_ASSET = "ml/music_entities_250k.bin"
-private const val ARTIST_KNOWLEDGE_ASSET = "ml/artist_knowledge.bin"
-private const val ARTIST_ADAPTER_ASSET = "ml/artist_adapter.bin"
+internal const val MUSIC_ENTITY_ASSET = "ml/music_entities_250k.bin"
+internal const val ARTIST_KNOWLEDGE_ASSET = "ml/artist_knowledge.bin"
+internal const val ARTIST_ADAPTER_ASSET = "ml/artist_adapter.bin"

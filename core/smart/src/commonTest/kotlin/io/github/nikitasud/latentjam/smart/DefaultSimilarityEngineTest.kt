@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.smart
 
 import io.github.nikitasud.latentjam.smart.chain.PredictorRuntime
 import io.github.nikitasud.latentjam.smart.text.ArtistKnowledge
+import io.github.nikitasud.latentjam.smart.text.AssetBytes
 import io.github.nikitasud.latentjam.smart.text.EntityIndexBytes
 import io.github.nikitasud.latentjam.smart.text.KnowledgePackBytes
 import io.github.nikitasud.latentjam.smart.text.MusicEntityResolver
@@ -1035,8 +1036,8 @@ internal class DefaultSimilarityEngineTest {
     fun `the pack's language and decade enter the string and only a changed string re-encodes`() = runTest {
         val audioStore = FakeIndexStore()
         val textStore = FakeIndexStore()
-        val knowledge = ArtistKnowledge(MusicEntityResolver { EntityIndexBytes.of("alpha" to intArrayOf(0)) }) {
-            KnowledgePackBytes.tiny()
+        val knowledge = ArtistKnowledge(MusicEntityResolver { AssetBytes.of(EntityIndexBytes.of("alpha" to intArrayOf(0))) }) {
+            AssetBytes.of(KnowledgePackBytes.tiny())
         }
         val track = TrackDescriptor(TrackId("pack|id"), genre = "Pop", artist = "Alpha")
         fun restart(knowledge: ArtistKnowledge?, encoder: FakeTextEncoder) = engine(

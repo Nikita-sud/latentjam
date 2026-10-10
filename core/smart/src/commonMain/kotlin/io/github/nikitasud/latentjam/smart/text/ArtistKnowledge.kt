@@ -16,7 +16,7 @@ package io.github.nikitasud.latentjam.smart.text
 public class ArtistKnowledge(
     private val entities: MusicEntityResolver,
     loadAdapter: () -> ByteArray? = { null },
-    loadPack: () -> ByteArray?,
+    loadPack: () -> AssetBytes?,
 ) {
     private val pack: ArtistKnowledgePack? by lazy {
         runCatching { loadPack()?.let(ArtistKnowledgePack::parse) }.getOrNull()

@@ -28,7 +28,7 @@ import kotlin.math.sqrt
  * version-2 pack it was cut from.
  */
 public class ArtistKnowledgePack private constructor(
-    private val bytes: ByteArray,
+    private val bytes: AssetBytes,
     public val dimension: Int,
     private val subspaces: Int,
     private val centroids: Int,
@@ -145,8 +145,14 @@ public class ArtistKnowledgePack private constructor(
         internal fun fingerprint(artist: String): Int =
             (MusicEntityIndex.fnv1a64(MusicEntityIndex.normalize(artist).encodeToByteArray()) and 0xffffuL).toInt()
 
-        /** Returns null for a missing, corrupt or newer-format asset, so SMART runs without knowledge. */
-        public fun parse(bytes: ByteArray): ArtistKnowledgePack? {
+        /** [parse] over bytes already in memory. */
+        public fun parse(bytes: ByteArray): ArtistKnowledgePack? = parse(AssetBytes.of(bytes))
+
+        /**
+         * Returns null for a missing, corrupt or newer-format asset, so SMART runs without knowledge. The pack
+         * reads its records from [bytes] in place for as long as it lives; only the codebooks are decoded.
+         */
+        public fun parse(bytes: AssetBytes): ArtistKnowledgePack? {
             if (bytes.size < HEADER_SIZE || !MAGIC.indices.all { bytes[it] == MAGIC[it] }) return null
             fun u8(offset: Int): Int = bytes[offset].toInt() and 0xff
             fun u16(offset: Int): Int = u8(offset) or (u8(offset + 1) shl 8)
@@ -179,7 +185,7 @@ public class ArtistKnowledgePack private constructor(
 
         /** Version 3: the presence words and running counts must agree with each other and the file size. */
         private fun parseCompact(
-            bytes: ByteArray,
+            bytes: AssetBytes,
             dimension: Int,
             subspaces: Int,
             centroids: Int,
@@ -223,7 +229,7 @@ public class ArtistKnowledgePack private constructor(
             )
         }
 
-        private fun le32(bytes: ByteArray, at: Int): Int =
+        private fun le32(bytes: AssetBytes, at: Int): Int =
             (bytes[at].toInt() and 0xff) or ((bytes[at + 1].toInt() and 0xff) shl 8) or
                 ((bytes[at + 2].toInt() and 0xff) shl 16) or (bytes[at + 3].toInt() shl 24)
 

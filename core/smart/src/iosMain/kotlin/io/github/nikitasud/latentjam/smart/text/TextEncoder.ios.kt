@@ -105,7 +105,7 @@ public actual fun smartTextEncoderModule(): Module = module {
             )
             val data = path?.let { NSFileManager.defaultManager.contentsAtPath(it) }
             val pointer = data?.bytes?.reinterpret<ByteVar>()
-            if (pointer == null) null else pointer.readBytes(data.length.toInt())
+            if (pointer == null) null else AssetBytes.of(pointer.readBytes(data.length.toInt()))
         }
     }
     single {
@@ -118,7 +118,7 @@ public actual fun smartTextEncoderModule(): Module = module {
         }
         ArtistKnowledge(
             get(),
-            loadPack = { resource("artist_knowledge") },
+            loadPack = { resource("artist_knowledge")?.let(AssetBytes::of) },
             loadAdapter = { resource("artist_adapter") },
         )
     }

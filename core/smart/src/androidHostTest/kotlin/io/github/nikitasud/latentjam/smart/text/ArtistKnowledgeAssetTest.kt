@@ -22,7 +22,7 @@ class ArtistKnowledgeAssetTest {
         val index = asset("music_entities_250k.bin")
         val pack = asset("artist_knowledge.bin")
         assertNotNull(ArtistKnowledgePack.parse(pack), "the shipped pack must parse")
-        ArtistKnowledge(MusicEntityResolver { index }) { pack }
+        ArtistKnowledge(MusicEntityResolver { AssetBytes.of(index) }) { AssetBytes.of(pack) }
     }
 
     @Test

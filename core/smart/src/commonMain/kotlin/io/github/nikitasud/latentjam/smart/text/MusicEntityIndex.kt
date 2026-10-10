@@ -34,7 +34,7 @@ package io.github.nikitasud.latentjam.smart.text
  * checked as lookups read them, not all at once when the file is parsed.
  */
 public class MusicEntityIndex private constructor(
-    private val bytes: ByteArray,
+    private val bytes: AssetBytes,
     private val keyCount: Int,
     private val valueCount: Int,
     private val compact: Boolean = false,
@@ -137,8 +137,14 @@ public class MusicEntityIndex private constructor(
         private val MAGIC = "LJENT2\u0000\u0000".encodeToByteArray()
         private val MAGIC_COMPACT = "LJENT3\u0000\u0000".encodeToByteArray()
 
-        /** Returns null for a missing, corrupt or other-format asset so ordinary metadata search remains available. */
-        public fun parse(bytes: ByteArray): MusicEntityIndex? {
+        /** [parse] over bytes already in memory. */
+        public fun parse(bytes: ByteArray): MusicEntityIndex? = parse(AssetBytes.of(bytes))
+
+        /**
+         * Returns null for a missing, corrupt or other-format asset so ordinary metadata search remains available.
+         * The index reads [bytes] in place for as long as it lives; it never copies them.
+         */
+        public fun parse(bytes: AssetBytes): MusicEntityIndex? {
             if (bytes.size >= KEYS_OFFSET && MAGIC_COMPACT.indices.all { bytes[it] == MAGIC_COMPACT[it] }) {
                 return parseCompact(bytes)
             }
@@ -188,7 +194,7 @@ public class MusicEntityIndex private constructor(
          * LJENT3: the header and the bucket directory are checked here (in order, within the stream,
          * ending exactly at the file's end); each key's own bytes are checked when a lookup reads them.
          */
-        private fun parseCompact(bytes: ByteArray): MusicEntityIndex? {
+        private fun parseCompact(bytes: AssetBytes): MusicEntityIndex? {
             val keyCount = u32(bytes, 8)
             val valueCount = u32(bytes, 12)
             val entityCount = u32(bytes, 16)
@@ -206,12 +212,12 @@ public class MusicEntityIndex private constructor(
 
         private const val U24_LIMIT = 1L shl 24
 
-        private fun u24(bytes: ByteArray, offset: Int): Int =
+        private fun u24(bytes: AssetBytes, offset: Int): Int =
             (bytes[offset].toInt() and 0xff) or
                 ((bytes[offset + 1].toInt() and 0xff) shl 8) or
                 ((bytes[offset + 2].toInt() and 0xff) shl 16)
 
-        private fun u32(bytes: ByteArray, offset: Int): Long =
+        private fun u32(bytes: AssetBytes, offset: Int): Long =
             u24(bytes, offset).toLong() or ((bytes[offset + 3].toLong() and 0xff) shl 24)
 
         /**
@@ -367,7 +373,7 @@ public class MusicEntityIndex private constructor(
 
 /** Lazily loads the pack off the launch path and fails closed when the optional asset is absent. */
 public class MusicEntityResolver(
-    loadBytes: () -> ByteArray?,
+    loadBytes: () -> AssetBytes?,
 ) {
     private val index: MusicEntityIndex? by lazy {
         runCatching { loadBytes()?.let(MusicEntityIndex::parse) }.getOrNull()
@@ -392,7 +398,7 @@ public class MusicEntityResolver(
 }
 
 /** Unsigned LEB128 varints, as tools/research/compact_music_entities.py writes them. */
-private class VarintReader(private val bytes: ByteArray, var position: Int) {
+private class VarintReader(private val bytes: AssetBytes, var position: Int) {
     /** The next varint, or null when it would run past [end] or past 28 bits. */
     fun nextChecked(end: Int): Int? {
         var result = 0

@@ -13,25 +13,25 @@ import kotlin.test.assertNull
 class ArtistKnowledgeTest {
 
     private val half = 1f / sqrt(2f)
-    private val entities = MusicEntityResolver { entityIndex("alpha" to 0, "beta" to 1, "gamma" to 2) }
+    private val entities = MusicEntityResolver { AssetBytes.of(entityIndex("alpha" to 0, "beta" to 1, "gamma" to 2)) }
 
     @Test
     fun `a known artist gets its entity's descriptor`() {
-        val knowledge = ArtistKnowledge(entities) { KnowledgePackBytes.tiny() }
+        val knowledge = ArtistKnowledge(entities) { AssetBytes.of(KnowledgePackBytes.tiny()) }
 
         assertVector(floatArrayOf(0f, half, half, 0f), knowledge.descriptor("Beta"))
     }
 
     @Test
     fun `a collaboration tag falls back to its first credited artist`() {
-        val knowledge = ArtistKnowledge(entities) { KnowledgePackBytes.tiny() }
+        val knowledge = ArtistKnowledge(entities) { AssetBytes.of(KnowledgePackBytes.tiny()) }
 
         assertVector(floatArrayOf(half, 0f, 0f, half), knowledge.descriptor("Alpha & Beta", primaryArtist = "Alpha"))
     }
 
     @Test
     fun `an artist the pack misses gets the adapter's guess from the track's text vector`() {
-        val knowledge = ArtistKnowledge(entities, loadPack = { KnowledgePackBytes.tiny() }, loadAdapter = { identityAdapter() })
+        val knowledge = ArtistKnowledge(entities, loadPack = { AssetBytes.of(KnowledgePackBytes.tiny()) }, loadAdapter = { identityAdapter() })
         val guess = assertNotNull(knowledge.descriptor("Nobody", text = floatArrayOf(1f, 0f, 0f, 0f)))
 
         assertEquals(1f, guess[0], 1e-4f)
@@ -57,7 +57,7 @@ class ArtistKnowledgeTest {
 
     @Test
     fun `unknown or unconfident or blank or pack-less lookups have no descriptor`() {
-        val knowledge = ArtistKnowledge(entities) { KnowledgePackBytes.tiny() }
+        val knowledge = ArtistKnowledge(entities) { AssetBytes.of(KnowledgePackBytes.tiny()) }
 
         assertNull(knowledge.descriptor("Nobody"))
         assertNull(knowledge.descriptor("Gamma"))
@@ -68,7 +68,7 @@ class ArtistKnowledgeTest {
 
     @Test
     fun `facts follow the same names the descriptor does`() {
-        val knowledge = ArtistKnowledge(entities) { KnowledgePackBytes.tiny() }
+        val knowledge = ArtistKnowledge(entities) { AssetBytes.of(KnowledgePackBytes.tiny()) }
 
         assertEquals(ArtistFacts("en", null), knowledge.facts("Beta"))
         assertEquals(ArtistFacts("ro", 1980), knowledge.facts("Alpha & Beta", primaryArtist = "Alpha"))
