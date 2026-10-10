@@ -4,15 +4,74 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.library.PlaylistTrackChange
 import io.github.nikitasud.latentjam.library.Playlists
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlinx.coroutines.CancellationException
 
 /** The entries of playlist [playlistId] that are not on this device, as last asked. */
 internal data class UnavailablePlaylistEntries(
     val playlistId: String,
     val ids: Set<TrackId>,
 )
+
+/** What the open playlist's page says about its entries that are not on this device. */
+@Stable
+internal class OpenPlaylistAvailability {
+    /** The open playlist's entries that are not on this device, as last asked; null when none is asked about. */
+    var unavailable by mutableStateOf<UnavailablePlaylistEntries?>(null)
+
+    /** A removal of the shown entries is running; the page offers no second one meanwhile. */
+    var removalInFlight by mutableStateOf(false)
+
+    /** Drops what was shown about playlist [playlistId]; what is shown about another stays. */
+    fun dismiss(playlistId: String) {
+        if (unavailable?.playlistId == playlistId) unavailable = null
+    }
+}
+
+/**
+ * The entries of the open playlist ([openPlaylistId], one of [playlists]) that are not on this
+ * device. Asked again whenever its membership or the library changes; while the library cannot
+ * vouch for itself (a partial scan, no grant, a card that is out) there are none, so nothing is
+ * offered for removal. [library] and [missing] are as for [unavailablePlaylistEntries].
+ */
+@Composable
+internal fun rememberOpenPlaylistAvailability(
+    openPlaylistId: String?,
+    playlists: List<Playlist>,
+    library: AutomaticIndexingRequest?,
+    missing: suspend (Collection<TrackId>) -> Set<TrackId>,
+): OpenPlaylistAvailability {
+    val availability = remember { OpenPlaylistAvailability() }
+    val openPlaylistMembers = remember(openPlaylistId, playlists) {
+        playlists.firstOrNull { it.id == openPlaylistId }?.trackIds
+    }
+    LaunchedEffect(openPlaylistId, openPlaylistMembers, library) {
+        if (openPlaylistId == null || openPlaylistMembers == null || library == null) {
+            availability.unavailable = null
+            return@LaunchedEffect
+        }
+        val unavailable = try {
+            unavailablePlaylistEntries(openPlaylistMembers, library, missing)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Throwable) {
+            println("Playlists: could not check for missing tracks: $failure")
+            emptySet()
+        }
+        availability.unavailable = UnavailablePlaylistEntries(openPlaylistId, unavailable)
+    }
+    return availability
+}
 
 /**
  * The entries of a playlist ([members], its stored ids) that are not on this device.

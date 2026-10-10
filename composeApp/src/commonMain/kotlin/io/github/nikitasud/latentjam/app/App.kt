@@ -131,6 +131,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -552,6 +553,133 @@ private class LastMiniPresentation(
     var isPlaying: Boolean,
 )
 
+// The state holders below keep groups of App's state in one remembered object each instead of one
+// local per field. App's theme content compiles to a single method in which every value kept alive
+// takes a register. At 261 registers (the 0.8.1 candidate fe24e12c) R8 9.2.14 wrote v260 into an
+// 8-bit operand as v4, and Android's verifier rejected the class at every release launch.
+// tools/release/check-dex-registers.py fails a release build that has a method over 255 registers.
+
+/**
+ * The worlds the library falls into, the sonic journeys built over the same vectors, and what each
+ * was last built from. The two readiness flags say which vector tiers have covered the library.
+ */
+@Stable
+private class LibraryWorldsState {
+    var worlds by mutableStateOf<List<LibraryWorld>>(emptyList())
+    var worldLibraryIds by mutableStateOf<List<TrackId>>(emptyList())
+    var builtWorldsKey by mutableStateOf<LibraryWorldsKey?>(null)
+    var builtWorldNoveltyPreference by mutableStateOf<Boolean?>(null)
+    var builtWorldReadiness by mutableStateOf<Pair<Boolean, Boolean>?>(null)
+    var builtWorldDiscoveryKey by mutableStateOf<LibraryWorldDiscoveryKey?>(null)
+    var builtDiscoveredWorlds by mutableStateOf<List<LibraryWorld>?>(null)
+
+    // Precomputed sonic journeys, keyed like discovery: they need the raw vector rows, which
+    // exist only in this effect and only until clustering's one-shot handoff.
+    var journeys by mutableStateOf<List<List<TrackId>>>(emptyList())
+    var builtJourneysKey by mutableStateOf<LibraryWorldDiscoveryKey?>(null)
+    var metadataVectorsReady by mutableStateOf(false)
+    var audioVectorsReady by mutableStateOf(false)
+}
+
+/** The For You page as last built, the inputs it was built from, and what it has had on screen. */
+@Stable
+private class ForYouPageState {
+    var forYou by mutableStateOf(ForYouPage())
+
+    // What For You has already had on screen today, one entry per (card, section, day) — the
+    // impression's own identity. The page rebuilds on every history change and the tab is left
+    // and re-entered, so without it the same visible card would be written again on each of
+    // those. The day in the key is what lets tomorrow's offer of the same card through.
+    var forYouCardsShown by mutableStateOf(emptySet<ForYouImpression>())
+    var builtForYouJourneys by mutableStateOf<List<List<TrackId>>?>(null)
+    var builtForYouJourneyTitle by mutableStateOf<String?>(null)
+    var builtWorlds by mutableStateOf<List<LibraryWorld>?>(null)
+    var builtForYouLibraryIds by mutableStateOf<List<TrackId>?>(null)
+    var builtForYouPlaylistIdentity by mutableStateOf<List<PlaylistPresentationIdentity>?>(null)
+    var builtForYouExclusions by mutableStateOf<SmartExclusionState?>(null)
+    var builtIncludeNoveltyMixes by mutableStateOf<Boolean?>(null)
+    var personalizationRevision by mutableStateOf(0)
+    var builtPersonalizationRevision by mutableStateOf(-1)
+    var builtHistoryRevision by mutableStateOf(-1L)
+    var forYouRefreshing by mutableStateOf(false)
+}
+
+/** The library as scanned and what Settings says about it. */
+@Stable
+private class LibraryScanState {
+    // The library as scanned, files under repair included: Settings names them from it.
+    var scannedTracks by mutableStateOf<List<TrackDescriptor>>(emptyList())
+
+    // The files under repair the published library was last filtered with.
+    var shownRepairingKeys by mutableStateOf(emptySet<String>())
+    var hasHiddenTracks by mutableStateOf(false)
+    var libraryRefreshing by mutableStateOf(false)
+}
+
+/**
+ * Where the root pager is going: the page set its position was last committed with, a page it was
+ * sent to and has not settled on yet, and the navigation under way. [rootTabNavigationRevision]
+ * moves with every navigation, so a snapshot taken before one can tell it is stale.
+ */
+@Stable
+private class RootTabNavigation(initialPages: List<StartPage>) {
+    var appliedPages by mutableStateOf(initialPages)
+    var pendingPage by mutableStateOf<StartPage?>(null)
+    var rootTabNavigationRevision by mutableLongStateOf(0L)
+    var rootTabNavigationJob by mutableStateOf<Job?>(null)
+}
+
+/** The playlists as stored, whether they have loaded, and the listening facts auto playlists derive from. */
+@Stable
+private class PlaylistsState {
+    var playlists by mutableStateOf<List<Playlist>>(emptyList())
+    var playlistsLoaded by mutableStateOf(false)
+    var playlistsAvailableForSourceRestore by mutableStateOf(false)
+    var companionGroupsInitialized by mutableStateOf(false)
+    var playCounts by mutableStateOf<Map<TrackId, Int>>(emptyMap())
+    var lastPlayedAt by mutableStateOf<Map<TrackId, Long>>(emptyMap())
+
+    // Rediscover is time-derived even when the library and history are unchanged. Refresh the
+    // clock when the listener revisits Playlists or returns to the foreground so a track that
+    // crossed the rest threshold while the app was idle appears without a process restart.
+    var autoPlaylistClockMs by mutableLongStateOf(epochMillis())
+    var autoPlaylists by mutableStateOf<List<AutoPlaylist>>(emptyList())
+}
+
+/** The Map page as shown, the regions behind it, and the track a "Show on the Map" carries to it. */
+@Stable
+private class MapPageModel {
+    var mapState by mutableStateOf<MapPageState>(MapPageState.Indexing)
+
+    // "Show on the Map" carries a track from any list to its dot; cleared by the next request.
+    var mapFocusTrackId by mutableStateOf<TrackId?>(null)
+
+    // The regions actually behind the currently shown MapPage. Not always `worlds` itself --
+    // spec section 8's smallest-library fallback (mapFallbackRegions) can stand in for it -- so
+    // the "Play region"/"SMART from here" callbacks read this, not `worlds` directly, or they
+    // would silently no-op whenever the Map is showing that fallback.
+    var mapRegions by mutableStateOf<List<LibraryWorld>>(emptyList())
+}
+
+/**
+ * The sheets and dialogs raised over the shell, and the requests the full player takes. None of
+ * them survives recreation; the saveable ones (tag editors, playlist naming) stay in App.
+ */
+@Stable
+private class ShellSheets {
+    var addToPlaylistSelection by mutableStateOf<List<TrackDescriptor>?>(null)
+    var artistChoices by mutableStateOf<List<ArtistGroup>>(emptyList())
+    var playerDetailsRequest by mutableStateOf(0)
+    var playerSleepTimerRequest by mutableStateOf(0)
+    var playlistMutationInProgress by mutableStateOf(false)
+    var playlistMutationFailed by mutableStateOf(false)
+    var trackMenuRequest by mutableStateOf<TrackMenuRequest?>(null)
+    var deleteTarget by mutableStateOf<TrackDescriptor?>(null)
+    var deleteSelection by mutableStateOf<List<TrackDescriptor>?>(null)
+    var showSelectionRemoval by mutableStateOf(false)
+    var worldTarget by mutableStateOf<ForYouCard?>(null)
+}
+
 /** Map positions are a derived cache: storage trouble must never make the app or Map unusable. */
 private suspend fun IndexStore.loadMapLayoutOrEmpty(): StoredLibraryLayout = try {
     loadStoredLayout()
@@ -637,8 +765,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         }
         val snackbar = remember { SnackbarHostState() }
         var tracks by remember { mutableStateOf<List<TrackDescriptor>?>(null) }
-        // The library as scanned, files under repair included: Settings names them from it.
-        var scannedTracks by remember { mutableStateOf<List<TrackDescriptor>>(emptyList()) }
+        val libraryScan = remember { LibraryScanState() }
         // SMART reconciliation needs more than the rows: an unavailable media permission is
         // represented by an empty/partial list, which must not be mistaken for deletion. Keep the
         // authority bit bound to the scan that produced these exact rows so a later permission
@@ -655,13 +782,12 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         val currentRepairingKeys = rememberUpdatedState(repairingKeys)
         val couldNotFinish = tagAccess?.coordinator?.couldNotFinish?.collectAsState()?.value.orEmpty()
         val missingAtFinish = tagAccess?.coordinator?.missingAtFinish?.collectAsState()?.value.orEmpty()
+        val scannedTracks = libraryScan.scannedTracks
         val interruptedSaveRows = remember(interruptedSaves, scannedTracks, tagAccess, couldNotFinish, missingAtFinish) {
             tagAccess?.let { access ->
                 interruptedSavesOf(interruptedSaves, scannedTracks, couldNotFinish, missingAtFinish, access::keyOf)
             }.orEmpty()
         }
-        // The files under repair the published library was last filtered with.
-        var shownRepairingKeys by remember { mutableStateOf(emptySet<String>()) }
         fun publishLibraryTracks(
             value: List<TrackDescriptor>,
             authoritative: Boolean,
@@ -680,8 +806,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // A file mid-replace is neither its old bytes nor its new ones: not offered until recovered.
             val repairing = currentRepairingKeys.value
             val playable = withoutFilesUnderRepair(enriched, repairing) { tagAccess?.keyOf(it) }
-            shownRepairingKeys = repairing
-            scannedTracks = enriched
+            libraryScan.shownRepairingKeys = repairing
+            libraryScan.scannedTracks = enriched
             publishLibraryTracks(
                 value = playable,
                 authoritative = authoritativeLibrarySnapshot(
@@ -695,7 +821,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // on the first load too: the journal is read in the background and can land before it.
         val libraryLoaded = tracks != null
         LaunchedEffect(repairingKeys, libraryLoaded) {
-            if (libraryLoaded && repairingKeys != shownRepairingKeys) scanLibrary()
+            if (libraryLoaded && repairingKeys != libraryScan.shownRepairingKeys) scanLibrary()
         }
         suspend fun buildCatalog(from: List<TrackDescriptor>): LibraryCatalog = withContext(Dispatchers.Default) {
             // Collaborations split only where the MusicBrainz list can tell a band named
@@ -731,33 +857,30 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // All pager readers must observe one list, including lambdas retained by those layers.
         val pagerPages = rememberUpdatedState(visiblePages)
         val pagerState = rememberPagerState(initialPage = visiblePages.indexOf(activePage)) { pagerPages.value.size }
-        var appliedPages by remember { mutableStateOf(visiblePages) }
-        var pendingPage by remember { mutableStateOf<StartPage?>(null) }
-        val pageLayoutChanged = appliedPages != visiblePages
-        val pendingDestination = if (pageLayoutChanged) activePage else pendingPage
+        val tabNavigation = remember { RootTabNavigation(visiblePages) }
+        val pageLayoutChanged = tabNavigation.appliedPages != visiblePages
+        val pendingDestination = if (pageLayoutChanged) activePage else tabNavigation.pendingPage
         val selectedTab = pendingDestination ?: run {
             visiblePages.getOrElse(pagerState.currentPage) { activePage }
         }
         val settledTab = pendingDestination ?: run {
             visiblePages.getOrElse(pagerState.settledPage) { activePage }
         }
-        var rootTabNavigationRevision by remember { mutableLongStateOf(0L) }
-        var rootTabNavigationJob by remember { mutableStateOf<Job?>(null) }
         SideEffect {
             if (pageLayoutChanged) {
                 // Commit the new position with the data-set update at the next measurement.
                 // Replacing PagerState independently can pair an old provider count with new
                 // keys; replacing the whole pager discards the current page's scroll position.
-                rootTabNavigationJob?.cancel()
-                pendingPage = activePage
+                tabNavigation.rootTabNavigationJob?.cancel()
+                tabNavigation.pendingPage = activePage
                 pagerState.requestScrollToPage(visiblePages.indexOf(activePage))
-                appliedPages = visiblePages
-                rootTabNavigationRevision++
+                tabNavigation.appliedPages = visiblePages
+                tabNavigation.rootTabNavigationRevision++
             }
             savedActivePage = selectedTab.name
         }
-        LaunchedEffect(pendingPage, visiblePages) {
-            val target = pendingPage ?: return@LaunchedEffect
+        LaunchedEffect(tabNavigation.pendingPage, visiblePages) {
+            val target = tabNavigation.pendingPage ?: return@LaunchedEffect
             val targetIndex = visiblePages.indexOf(target)
             if (targetIndex < 0) return@LaunchedEffect
             snapshotFlow {
@@ -765,7 +888,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     pagerState.currentPage == targetIndex && pagerState.settledPage == targetIndex &&
                     pagerState.currentPageOffsetFraction == 0f
             }.first { it }
-            pendingPage = null
+            tabNavigation.pendingPage = null
         }
         // These two local functions travel into memoized callbacks (the carousel's onSelect, the
         // track sheet's "show on map", hide-undo snapshots) that outlive the composition which
@@ -777,14 +900,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         fun rootTabSnapshot(): RootTabSnapshot {
             val pages = pagerPages.value
             val fallback = currentActivePage.value
-            val settling = appliedPages != pages
+            val settling = tabNavigation.appliedPages != pages
             return RootTabSnapshot(
-                navigationRevision = rootTabNavigationRevision,
+                navigationRevision = tabNavigation.rootTabNavigationRevision,
                 currentTab = if (settling) fallback.ordinal else {
-                    (pendingPage ?: pages.getOrElse(pagerState.currentPage) { fallback }).ordinal
+                    (tabNavigation.pendingPage ?: pages.getOrElse(pagerState.currentPage) { fallback }).ordinal
                 },
                 settledTab = if (settling) fallback.ordinal else {
-                    (pendingPage ?: pages.getOrElse(pagerState.settledPage) { fallback }).ordinal
+                    (tabNavigation.pendingPage ?: pages.getOrElse(pagerState.settledPage) { fallback }).ordinal
                 },
             )
         }
@@ -792,14 +915,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             val index = pagerPages.value.indexOf(tab)
             if (index < 0) return
             if (index == pagerState.currentPage && index == pagerState.settledPage &&
-                !pagerState.isScrollInProgress && rootTabNavigationJob?.isActive != true &&
+                !pagerState.isScrollInProgress && tabNavigation.rootTabNavigationJob?.isActive != true &&
                 pagerState.currentPageOffsetFraction == 0f
             ) return
             // Invalidate immediately so a racing Undo cannot restore the old page's detail.
-            rootTabNavigationRevision++
-            pendingPage = null
-            rootTabNavigationJob?.cancel()
-            rootTabNavigationJob = scope.launch {
+            tabNavigation.rootTabNavigationRevision++
+            tabNavigation.pendingPage = null
+            tabNavigation.rootTabNavigationJob?.cancel()
+            tabNavigation.rootTabNavigationJob = scope.launch {
                 if (currentReduceMotion.value) {
                     pagerState.scrollToPage(index)
                 } else {
@@ -817,35 +940,26 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 .collect { settledIndex ->
                     if (settledIndex != previousSettledTab) {
                         previousSettledTab = settledIndex
-                        rootTabNavigationRevision++
+                        tabNavigation.rootTabNavigationRevision++
                     }
                 }
         }
-        var playlists by remember { mutableStateOf<List<Playlist>>(emptyList()) }
-        var playlistsLoaded by remember { mutableStateOf(false) }
-        var playlistsAvailableForSourceRestore by remember { mutableStateOf(false) }
-        var companionGroupsInitialized by remember { mutableStateOf(false) }
+        val playlistsState = remember { PlaylistsState() }
         fun publishPlaylists(value: List<Playlist>) {
             // On first hydration, publish the planning policy before allowing queue resume. A
             // short saved SMART queue may top itself up immediately; letting restore win this race
             // would generate that future with an empty policy and then preserve it as “initial”.
-            if (!playlistsLoaded) {
+            if (!playlistsState.playlistsLoaded) {
                 AppGraph.smartCompanionGroups.value = value.smartCompanionMemberships()
-                companionGroupsInitialized = true
+                playlistsState.companionGroupsInitialized = true
             }
-            playlists = value
-            playlistsLoaded = true
-            playlistsAvailableForSourceRestore = true
+            playlistsState.playlists = value
+            playlistsState.playlistsLoaded = true
+            playlistsState.playlistsAvailableForSourceRestore = true
         }
-        var playCounts by remember { mutableStateOf<Map<TrackId, Int>>(emptyMap()) }
-        var lastPlayedAt by remember { mutableStateOf<Map<TrackId, Long>>(emptyMap()) }
-        // Rediscover is time-derived even when the library and history are unchanged. Refresh the
-        // clock when the listener revisits Playlists or returns to the foreground so a track that
-        // crossed the rest threshold while the app was idle appears without a process restart.
-        var autoPlaylistClockMs by remember { mutableLongStateOf(epochMillis()) }
         var showCreatePlaylist by rememberSaveable { mutableStateOf(false) }
         var renameTargetId by rememberSaveable { mutableStateOf<String?>(null) }
-        var addToPlaylistSelection by remember { mutableStateOf<List<TrackDescriptor>?>(null) }
+        val sheets = remember { ShellSheets() }
         // Store only identities across recreation; a playlist draft must retain its selected
         // tracks without putting the whole library's metadata in saved instance state.
         var pendingPlaylistTrackIds by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
@@ -873,9 +987,6 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             infoStartsEditing = editing
             infoTargetId = id.value
         }
-        var artistChoices by remember { mutableStateOf<List<ArtistGroup>>(emptyList()) }
-        var playerDetailsRequest by remember { mutableStateOf(0) }
-        var playerSleepTimerRequest by remember { mutableStateOf(0) }
         var showNowPlaying by rememberSaveable { mutableStateOf(false) }
         var showSearch by remember { mutableStateOf(false) }
         var selectedCollection by remember { mutableStateOf<CollectionSelection?>(null) }
@@ -1033,14 +1144,6 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 }
             }
         }
-        var playlistMutationInProgress by remember { mutableStateOf(false) }
-        var playlistMutationFailed by remember { mutableStateOf(false) }
-        var trackMenuRequest by remember { mutableStateOf<TrackMenuRequest?>(null) }
-        var deleteTarget by remember { mutableStateOf<TrackDescriptor?>(null) }
-        var deleteSelection by remember { mutableStateOf<List<TrackDescriptor>?>(null) }
-        var showSelectionRemoval by remember { mutableStateOf(false) }
-        var hasHiddenTracks by remember { mutableStateOf(false) }
-        var libraryRefreshing by remember { mutableStateOf(false) }
         // The player emits position twice per second. The browse shell only needs to know when the
         // TRACK changes; collecting the complete snapshot here used to invalidate this entire
         // pager and every visible list for each seek-bar tick.
@@ -1157,7 +1260,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         LaunchedEffect(Unit) {
             try {
                 scanLibrary()
-                hasHiddenTracks = library.hasHiddenTracks()
+                libraryScan.hasHiddenTracks = library.hasHiddenTracks()
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Throwable) {
@@ -1178,11 +1281,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 // Playlist storage is optional to transport restore. Mark an empty policy ready so
                 // a read failure cannot suppress the saved player for the whole session; if a
                 // later retry succeeds, the initialized-policy effect prunes/refills SMART once.
-                if (!playlistsLoaded) {
+                if (!playlistsState.playlistsLoaded) {
                     AppGraph.smartCompanionGroups.value = emptyList()
-                    companionGroupsInitialized = true
-                    playlistsLoaded = true
-                    playlistsAvailableForSourceRestore = false
+                    playlistsState.companionGroupsInitialized = true
+                    playlistsState.playlistsLoaded = true
+                    playlistsState.playlistsAvailableForSourceRestore = false
                 }
             }
         }
@@ -1196,7 +1299,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             onLeave = { AppGraph.flushListeningSession() },
         ) {
             scope.launch {
-                if (selectedTab == StartPage.PLAYLISTS) autoPlaylistClockMs = epochMillis()
+                if (selectedTab == StartPage.PLAYLISTS) playlistsState.autoPlaylistClockMs = epochMillis()
                 // Not while a tag save is queued or running. The return from its consent dialog lands
                 // here just as the writes start, and a reload that already sees a written file's new
                 // revision, before the save's SMART carry-over exists, discards its audio analysis.
@@ -1206,7 +1309,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 // must leave the current library in place, not kill the process from this scope.
                 try {
                     if (tagAccess?.coordinator?.active?.value != true) scanLibrary()
-                    hasHiddenTracks = library.hasHiddenTracks()
+                    libraryScan.hasHiddenTracks = library.hasHiddenTracks()
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (failure: Throwable) {
@@ -1259,7 +1362,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             tracks.orEmpty().filterNot { smartExclusionState.excludes(it) }
         }
 
-        LaunchedEffect(rootTabNavigationRevision, showSearch, showSettings, showNowPlaying) {
+        LaunchedEffect(tabNavigation.rootTabNavigationRevision, showSearch, showSettings, showNowPlaying) {
             // A pending background sort belongs to the page/overlay route that launched it.
             // Navigating elsewhere must not install that old collection underneath the new route.
             collectionOpenJob?.cancel()
@@ -1282,39 +1385,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // and backfill genuinely new/changed rows. The audio model remains lazy when everything is
         // already indexed or remembered as an unchanged decode failure, so a permanently bad file
         // cannot wake tens of MB of model state on every launch.
-        var forYou by remember { mutableStateOf(ForYouPage()) }
-        // What For You has already had on screen today, one entry per (card, section, day) — the
-        // impression's own identity. The page rebuilds on every history change and the tab is left
-        // and re-entered, so without it the same visible card would be written again on each of
-        // those. The day in the key is what lets tomorrow's offer of the same card through.
-        var forYouCardsShown by remember { mutableStateOf(emptySet<ForYouImpression>()) }
-        var worlds by remember { mutableStateOf<List<LibraryWorld>>(emptyList()) }
-        var worldLibraryIds by remember { mutableStateOf<List<TrackId>>(emptyList()) }
-        var builtWorldsKey by remember { mutableStateOf<LibraryWorldsKey?>(null) }
-        var builtWorldNoveltyPreference by remember { mutableStateOf<Boolean?>(null) }
-        var builtWorldReadiness by remember { mutableStateOf<Pair<Boolean, Boolean>?>(null) }
-        var builtWorldDiscoveryKey by remember { mutableStateOf<LibraryWorldDiscoveryKey?>(null) }
-        var builtDiscoveredWorlds by remember { mutableStateOf<List<LibraryWorld>?>(null) }
-        // Precomputed sonic journeys, keyed like discovery: they need the raw vector rows, which
-        // exist only in this effect and only until clustering's one-shot handoff.
-        var journeys by remember { mutableStateOf<List<List<TrackId>>>(emptyList()) }
-        var builtJourneysKey by remember { mutableStateOf<LibraryWorldDiscoveryKey?>(null) }
-        var builtForYouJourneys by remember { mutableStateOf<List<List<TrackId>>?>(null) }
-        var builtForYouJourneyTitle by remember { mutableStateOf<String?>(null) }
-        var builtWorlds by remember { mutableStateOf<List<LibraryWorld>?>(null) }
-        var builtForYouLibraryIds by remember { mutableStateOf<List<TrackId>?>(null) }
-        var builtForYouPlaylistIdentity by remember {
-            mutableStateOf<List<PlaylistPresentationIdentity>?>(null)
-        }
-        var builtForYouExclusions by remember { mutableStateOf<SmartExclusionState?>(null) }
-        var builtIncludeNoveltyMixes by remember { mutableStateOf<Boolean?>(null) }
-        var personalizationRevision by remember { mutableStateOf(0) }
-        var builtPersonalizationRevision by remember { mutableStateOf(-1) }
-        var builtHistoryRevision by remember { mutableStateOf(-1L) }
-        var forYouRefreshing by remember { mutableStateOf(false) }
-        var metadataVectorsReady by remember { mutableStateOf(false) }
-        var audioVectorsReady by remember { mutableStateOf(false) }
-        var worldTarget by remember { mutableStateOf<ForYouCard?>(null) }
+        val forYouPage = remember { ForYouPageState() }
+        val libraryWorlds = remember { LibraryWorldsState() }
         val discoveryMixLabel = stringResource(Res.string.foryou_mix_discovery)
         val journeyTitlePattern = stringResource(Res.string.foryou_journey_title)
         val memeViralMixLabel = stringResource(Res.string.foryou_mix_meme_viral)
@@ -1334,7 +1406,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 LibraryWorldSemanticTitle.INSTRUMENTAL to instrumentalMixLabel,
             )
         }
-        val playlistPresentationIdentity = remember(playlists) { playlists.presentationIdentity() }
+        val playlistPresentationIdentity = remember(playlistsState.playlists) {
+            playlistsState.playlists.presentationIdentity()
+        }
 
         val browsePageVisible = !showSettings && !showSearch && !showNowPlaying && selectedCollection == null
         val forYouPageActive = browsePageVisible && settledTab == StartPage.FOR_YOU
@@ -1343,14 +1417,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         LaunchedEffect(
             tracks,
             forYouPageActive,
-            journeys,
+            libraryWorlds.journeys,
             journeyTitlePattern,
-            worlds,
-            worldLibraryIds,
+            libraryWorlds.worlds,
+            libraryWorlds.worldLibraryIds,
             discoveryMixLabel,
             semanticMixLabels,
             includeNoveltyMixes,
-            personalizationRevision,
+            forYouPage.personalizationRevision,
             historyRevision,
             smartExclusionState,
             playlistPresentationIdentity,
@@ -1358,24 +1432,24 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             val loaded = tracks ?: return@LaunchedEffect
             if (!forYouPageActive) return@LaunchedEffect
             val loadedIds = loaded.map(TrackDescriptor::id)
-            val requestedWorlds = if (worldLibraryIds == loadedIds) worlds else emptyList()
+            val requestedWorlds = if (libraryWorlds.worldLibraryIds == loadedIds) libraryWorlds.worlds else emptyList()
             // Built once, and again only when the worlds arrive — the text index fills in the
             // background, so on a cold library they are simply not ready at first visit. Never
             // rebuilt on a mere return to the tab: a page that regroups itself while being read is
             // indistinguishable from a broken one.
             if (
-                !forYou.isEmpty &&
-                builtWorlds == requestedWorlds &&
-                builtForYouJourneys == journeys &&
-                builtForYouJourneyTitle == journeyTitlePattern &&
-                builtForYouLibraryIds == loadedIds &&
-                builtForYouPlaylistIdentity == playlistPresentationIdentity &&
-                builtForYouExclusions == smartExclusionState &&
-                builtIncludeNoveltyMixes == includeNoveltyMixes &&
-                builtPersonalizationRevision == personalizationRevision &&
-                builtHistoryRevision == historyRevision
+                !forYouPage.forYou.isEmpty &&
+                forYouPage.builtWorlds == requestedWorlds &&
+                forYouPage.builtForYouJourneys == libraryWorlds.journeys &&
+                forYouPage.builtForYouJourneyTitle == journeyTitlePattern &&
+                forYouPage.builtForYouLibraryIds == loadedIds &&
+                forYouPage.builtForYouPlaylistIdentity == playlistPresentationIdentity &&
+                forYouPage.builtForYouExclusions == smartExclusionState &&
+                forYouPage.builtIncludeNoveltyMixes == includeNoveltyMixes &&
+                forYouPage.builtPersonalizationRevision == forYouPage.personalizationRevision &&
+                forYouPage.builtHistoryRevision == historyRevision
             ) {
-                forYouRefreshing = false
+                forYouPage.forYouRefreshing = false
                 return@LaunchedEffect
             }
             val historySnapshot = try {
@@ -1388,7 +1462,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 // read as empty history would silently replace personalized cards with cold-start
                 // recommendations and mark that false page as successfully built.
                 println("For You: could not load listening history: $failure")
-                forYouRefreshing = false
+                forYouPage.forYouRefreshing = false
                 snackbar.showSnackbar(getString(Res.string.settings_library_manage_failed))
                 return@LaunchedEffect
             }
@@ -1422,33 +1496,33 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     recentEvents = recentEvents,
                     nowMs = nowForPage,
                     excluded = excluded,
-                    playlists = playlists,
+                    playlists = playlistsState.playlists,
                     worlds = requestedWorlds,
                     discoveryMixLabel = discoveryMixLabel,
                     includeNoveltyMixes = includeNoveltyMixes,
                     semanticMixLabels = semanticMixLabels,
                     cooledDiscoveries = cooled,
-                    journeys = journeys,
+                    journeys = libraryWorlds.journeys,
                     journeyTitlePattern = journeyTitlePattern,
                 )
             }
             // Commit the page and its input key together. If this effect is cancelled while the
             // background build runs, neither value advances and the next visit retries normally.
-            forYou = rebuiltPage
+            forYouPage.forYou = rebuiltPage
             // No impression is written here. Building a page offers nothing: the rows below compose
             // only the couple of cards a phone fits, and the hero is not part of
             // discoveryOffers at all. The tab reports what actually reached the viewport instead
             // (see ForYouTab's onCardShown), which is the only honest unit of "shown".
-            builtWorlds = requestedWorlds
-            builtForYouJourneys = journeys
-            builtForYouJourneyTitle = journeyTitlePattern
-            builtForYouLibraryIds = loadedIds
-            builtForYouPlaylistIdentity = playlistPresentationIdentity
-            builtForYouExclusions = smartExclusionState
-            builtIncludeNoveltyMixes = includeNoveltyMixes
-            builtPersonalizationRevision = personalizationRevision
-            builtHistoryRevision = historyRevision
-            forYouRefreshing = false
+            forYouPage.builtWorlds = requestedWorlds
+            forYouPage.builtForYouJourneys = libraryWorlds.journeys
+            forYouPage.builtForYouJourneyTitle = journeyTitlePattern
+            forYouPage.builtForYouLibraryIds = loadedIds
+            forYouPage.builtForYouPlaylistIdentity = playlistPresentationIdentity
+            forYouPage.builtForYouExclusions = smartExclusionState
+            forYouPage.builtIncludeNoveltyMixes = includeNoveltyMixes
+            forYouPage.builtPersonalizationRevision = forYouPage.personalizationRevision
+            forYouPage.builtHistoryRevision = historyRevision
+            forYouPage.forYouRefreshing = false
         }
 
         LaunchedEffect(libraryIndexingRequest, smartEligibleTracks) {
@@ -1459,9 +1533,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // whichever small list happened to contain the track the listener tapped.
             playback.setSmartLibrary(smartEligibleTracks)
             val indexing = AppGraph.automaticIndexing.value
-            metadataVectorsReady =
+            libraryWorlds.metadataVectorsReady =
                 indexing.trackIds == loaded.map(TrackDescriptor::id) && indexing.metadataReady
-            audioVectorsReady =
+            libraryWorlds.audioVectorsReady =
                 indexing.trackIds == loaded.map(TrackDescriptor::id) && indexing.complete
             val notificationTitle = getString(Res.string.indexing_notification_title)
             AppGraph.ensureAutomaticIndexing(
@@ -1490,11 +1564,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             val trackIds = loaded.map(TrackDescriptor::id)
             AppGraph.automaticIndexing.collect { indexing ->
                 if (indexing.trackIds != trackIds) return@collect
-                if (metadataVectorsReady != indexing.metadataReady) {
-                    metadataVectorsReady = indexing.metadataReady
+                if (libraryWorlds.metadataVectorsReady != indexing.metadataReady) {
+                    libraryWorlds.metadataVectorsReady = indexing.metadataReady
                 }
-                if (audioVectorsReady != indexing.complete) {
-                    audioVectorsReady = indexing.complete
+                if (libraryWorlds.audioVectorsReady != indexing.complete) {
+                    libraryWorlds.audioVectorsReady = indexing.complete
                 }
                 // Failure formatting and the opt-in quality audit are only useful once the run is
                 // complete. Keeping per-batch progress out of Compose avoids a second source of
@@ -1547,12 +1621,12 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // process: a restore that raced a user tap must not fire again later and yank the queue
         // out from under whatever the user chose instead.
         var resumeAttempted by remember { mutableStateOf(false) }
-        LaunchedEffect(tracks, playlistsLoaded) {
+        LaunchedEffect(tracks, playlistsState.playlistsLoaded) {
             if (resumeAttempted) return@LaunchedEffect
             val loaded = tracks ?: return@LaunchedEffect
             // Restore may asynchronously top up a short SMART future. Wait until its marked
             // playlist policy has been hydrated so those new rows honor the saved preference.
-            if (!playlistsLoaded) return@LaunchedEffect
+            if (!playlistsState.playlistsLoaded) return@LaunchedEffect
             // An empty snapshot is the pre-permission state, not a library: consuming the one
             // restore attempt on it would silently skip the restore the first REAL load earns.
             if (loaded.isEmpty()) return@LaunchedEffect
@@ -1587,8 +1661,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             val savedSourceQueue = resolveResumeSourceQueue(
                 saved = saved,
                 library = loaded,
-                playlists = playlists,
-                playlistsAvailable = playlistsAvailableForSourceRestore,
+                playlists = playlistsState.playlists,
+                playlistsAvailable = playlistsState.playlistsAvailableForSourceRestore,
             )
             if (savedQueueIndex >= 0) {
                 playback.restoreQueue(
@@ -1634,7 +1708,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // Observe the readiness tier, not a boolean OR. Metadata becomes ready first; when
             // audio later completes, `true || true` is still true and used to suppress the fused
             // rebuild forever.
-            snapshotFlow { metadataVectorsReady to audioVectorsReady }
+            snapshotFlow { libraryWorlds.metadataVectorsReady to libraryWorlds.audioVectorsReady }
                 .distinctUntilChanged()
                 .collect { (metadataReady, audioReady) ->
                     if (!metadataReady && !audioReady) return@collect
@@ -1644,17 +1718,17 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         // still invalidates discovery, even if the library population is unchanged.
                         val coverage = engine.libraryMixCoverage(loadedIds) ?: return@collect
                         val descriptorIdentity = loaded.map(TrackDescriptor::worldIdentity)
-                        val cachedKey = builtWorldsKey
+                        val cachedKey = libraryWorlds.builtWorldsKey
                         if (
                             cachedKey != null &&
-                            builtWorldNoveltyPreference == includeNoveltyMixes &&
-                            builtWorldReadiness == (metadataReady to audioReady) &&
+                            libraryWorlds.builtWorldNoveltyPreference == includeNoveltyMixes &&
+                            libraryWorlds.builtWorldReadiness == (metadataReady to audioReady) &&
                             cachedKey.playlistIdentity == playlistPresentationIdentity &&
                             cachedKey.discovery.trackIds == loadedIds &&
                             cachedKey.discovery.source == coverage.source &&
                             cachedKey.discovery.vectorFingerprint == coverage.fingerprint &&
                             cachedKey.discovery.descriptorIdentity == descriptorIdentity &&
-                            (!forYouPageActive || builtJourneysKey == cachedKey.discovery)
+                            (!forYouPageActive || libraryWorlds.builtJourneysKey == cachedKey.discovery)
                         ) return@collect
                         val features = engine.libraryMixFeatures(
                             ids = loadedIds,
@@ -1674,24 +1748,27 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             discovery = discoveryKey,
                             playlistIdentity = playlistPresentationIdentity,
                         )
-                        if (worldsKey == builtWorldsKey && (!forYouPageActive || builtJourneysKey == discoveryKey)) {
-                            builtWorldNoveltyPreference = includeNoveltyMixes
-                            builtWorldReadiness = metadataReady to audioReady
+                        if (
+                            worldsKey == libraryWorlds.builtWorldsKey &&
+                            (!forYouPageActive || libraryWorlds.builtJourneysKey == discoveryKey)
+                        ) {
+                            libraryWorlds.builtWorldNoveltyPreference = includeNoveltyMixes
+                            libraryWorlds.builtWorldReadiness = metadataReady to audioReady
                             return@collect
                         }
                         // Snapshot for the background pass; a world mostly inside one named group
                         // takes that group's name. Playlists come first — the listener's own word
                         // outranks the artist's on a tie — then real (multi-track, one artist's)
                         // albums, whose titles are the artist's own curation.
-                        val playlistGroups = playlists.map { playlist ->
+                        val playlistGroups = playlistsState.playlists.map { playlist ->
                             playlist.name to playlist.trackIds.map(::TrackId)
                         }
-                        val cachedDiscovery = builtDiscoveredWorlds
-                            ?.takeIf { builtWorldDiscoveryKey == discoveryKey }
+                        val cachedDiscovery = libraryWorlds.builtDiscoveredWorlds
+                            ?.takeIf { libraryWorlds.builtWorldDiscoveryKey == discoveryKey }
                         // Journeys interpolate over the raw rows, so the session must be built
                         // BEFORE clustering's one-shot handoff. The session copies what it needs;
                         // plotting itself can then run on the low-priority lane.
-                        if (forYouPageActive && builtJourneysKey != discoveryKey) {
+                        if (forYouPageActive && libraryWorlds.builtJourneysKey != discoveryKey) {
                             val session = runCatching { SonicJourney.session(features.vectorSpace) }
                                 .getOrNull()
                             if (session != null) {
@@ -1703,8 +1780,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         artistKeyOf = { it?.trim()?.lowercase().orEmpty() },
                                     )
                                 }
-                                journeys = plotted
-                                builtJourneysKey = discoveryKey
+                                libraryWorlds.journeys = plotted
+                                libraryWorlds.builtJourneysKey = discoveryKey
                             }
                         }
                         // Discovery is derived library work, not an interaction prerequisite. Keep it
@@ -1737,13 +1814,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             )
                             LibraryWorlds.namedAfterGroups(discovered, naming)
                         }
-                        worldLibraryIds = loadedIds
-                        worlds = namedWorlds
-                        builtWorldDiscoveryKey = discoveryKey
-                        builtDiscoveredWorlds = discovered
-                        builtWorldsKey = worldsKey
-                        builtWorldNoveltyPreference = includeNoveltyMixes
-                        builtWorldReadiness = metadataReady to audioReady
+                        libraryWorlds.worldLibraryIds = loadedIds
+                        libraryWorlds.worlds = namedWorlds
+                        libraryWorlds.builtWorldDiscoveryKey = discoveryKey
+                        libraryWorlds.builtDiscoveredWorlds = discovered
+                        libraryWorlds.builtWorldsKey = worldsKey
+                        libraryWorlds.builtWorldNoveltyPreference = includeNoveltyMixes
+                        libraryWorlds.builtWorldReadiness = metadataReady to audioReady
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (failure: Exception) {
@@ -1757,23 +1834,16 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // Geometry is cached on disk and in memory. Listening facts refresh independently;
         // MapTab keeps its lens, selection and viewport when those facts change.
         val mapPageCache = remember { MapPageCache() }
-        var mapState by remember { mutableStateOf<MapPageState>(MapPageState.Indexing) }
-        // "Show on the Map" carries a track from any list to its dot; cleared by the next request.
-        var mapFocusTrackId by remember { mutableStateOf<TrackId?>(null) }
-        // The regions actually behind the currently shown MapPage. Not always `worlds` itself --
-        // spec section 8's smallest-library fallback (mapFallbackRegions) can stand in for it -- so
-        // the "Play region"/"SMART from here" callbacks below read this, not `worlds` directly, or
-        // they would silently no-op whenever the Map is showing that fallback.
-        var mapRegions by remember { mutableStateOf<List<LibraryWorld>>(emptyList()) }
+        val mapPage = remember { MapPageModel() }
         // Keyed on the region labels too, exactly as the For You effect above is: they are
         // stringResource reads, so a locale change produces new ones and the page they name has to be
         // rebuilt to pick them up. Cheap when that is all that changed -- LibraryLayout.covers finds
         // the stored layout still valid, so no PCA/t-SNE runs.
         LaunchedEffect(
             tracks,
-            worlds,
-            worldLibraryIds,
-            builtWorldsKey,
+            libraryWorlds.worlds,
+            libraryWorlds.worldLibraryIds,
+            libraryWorlds.builtWorldsKey,
             mapPageActive,
             historyRevision,
             discoveryMixLabel,
@@ -1782,7 +1852,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // A previous keyed run may have been cancelled after publishing its transient build
             // state. Normalize before any precondition can return, so neither the first-build
             // placeholder nor a warm-page spinner can survive an interrupted transaction.
-            mapState = mapState.afterInterruptedMapBuild()
+            mapPage.mapState = mapPage.mapState.afterInterruptedMapBuild()
             if (!mapPageActive) return@LaunchedEffect
             val loaded = tracks ?: return@LaunchedEffect
             val loadedIds = loaded.map(TrackDescriptor::id)
@@ -1798,7 +1868,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // truncated map that looks complete -- see LibraryLayout.MAX_TRACKS's doc for why this
             // number and what it costs at it.
             if (coverage.size > LibraryLayout.MAX_TRACKS) {
-                mapState = MapPageState.TooLarge(
+                mapPage.mapState = MapPageState.TooLarge(
                     trackCount = coverage.size,
                     limit = LibraryLayout.MAX_TRACKS,
                 )
@@ -1817,15 +1887,15 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // Worlds are a snapshot with their own library key. A non-empty result for yesterday's
             // library is no safer than an empty one: it can name deleted tracks and route region
             // actions into a stale queue. Wait until discovery reports on this exact population.
-            val currentWorlds = worlds.takeIf { worldLibraryIds == loadedIds }.orEmpty()
-            val regions = if (mapFallbackShouldApply(currentWorlds, worldLibraryIds, loadedIds)) {
+            val currentWorlds = libraryWorlds.worlds.takeIf { libraryWorlds.worldLibraryIds == loadedIds }.orEmpty()
+            val regions = if (mapFallbackShouldApply(currentWorlds, libraryWorlds.worldLibraryIds, loadedIds)) {
                 mapFallbackRegions(loaded, coverage.trackIds)
             } else {
                 currentWorlds
             }
             if (regions.isEmpty()) {
-                mapRegions = emptyList()
-                mapState = MapPageState.Indexing
+                mapPage.mapRegions = emptyList()
+                mapPage.mapState = MapPageState.Indexing
                 return@LaunchedEffect
             }
 
@@ -1837,7 +1907,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 }
             }
 
-            val stableStateBeforeBuild = mapState
+            val stableStateBeforeBuild = mapPage.mapState
             var transientBuildState: MapPageState? = null
             val built = try {
                 withContext(AppGraph.mapLayoutDispatcher) {
@@ -1848,7 +1918,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         compute = { previous ->
                             withContext(Dispatchers.Main) {
                                 transientBuildState = stableStateBeforeBuild.duringMapBuild()
-                                mapState = transientBuildState!!
+                                mapPage.mapState = transientBuildState!!
                             }
                             val space = engine.libraryMixVectors(loadedIds)
                             if (space == null || space.fingerprint != coverage.fingerprint) {
@@ -1888,9 +1958,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 if (
                     isActive &&
                     transientBuildState != null &&
-                    mapState === transientBuildState
+                    mapPage.mapState === transientBuildState
                 ) {
-                    mapState = stableStateBeforeBuild
+                    mapPage.mapState = stableStateBeforeBuild
                 }
                 return@LaunchedEffect
             }
@@ -1902,8 +1972,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // Guarded here, at the one place Ready is ever constructed, so MapTab.kt never has to
             // decide what to tell a reader about a Ready state that -- by definition -- means
             // indexing already finished; it keeps whatever state was already showing instead.
-            mapRegions = regions
-            mapState = MapPageState.Ready(built)
+            mapPage.mapRegions = regions
+            mapPage.mapState = MapPageState.Ready(built)
         }
 
         var catalog by remember { mutableStateOf<LibraryCatalog?>(null) }
@@ -1978,8 +2048,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
 
         suspend fun refreshPlaylistStats() {
             val stats = AppGraph.history.stats()
-            playCounts = stats.mapValues { it.value.plays }
-            lastPlayedAt = stats.mapValues { it.value.lastPlayedAtMs }
+            playlistsState.playCounts = stats.mapValues { it.value.plays }
+            playlistsState.lastPlayedAt = stats.mapValues { it.value.lastPlayedAtMs }
         }
 
         suspend fun refreshPlaylistStatsBestEffort() {
@@ -2047,7 +2117,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // the user comes back to the tab rather than only at startup.
         LaunchedEffect(selectedTab) {
             if (selectedTab == StartPage.PLAYLISTS) {
-                autoPlaylistClockMs = epochMillis()
+                playlistsState.autoPlaylistClockMs = epochMillis()
                 refreshPlaylistsWithFeedback()
             }
         }
@@ -2059,19 +2129,19 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
 
         // Every SMART planner (in-app and the playback chooser) reads the marked playlists from
         // this flow; kept in lockstep with the playlists state.
-        LaunchedEffect(playlistsLoaded, playlists) {
+        LaunchedEffect(playlistsState.playlistsLoaded, playlistsState.playlists) {
             // The first successful read reconstructs the policy that produced a persisted SMART
             // future. Treat it as launch state, not as a user edit: pruning the saved lookahead at
             // this point would defeat exact resume and could load the lazy model for no reason.
-            if (!playlistsLoaded) return@LaunchedEffect
-            val groups = playlists.smartCompanionMemberships()
+            if (!playlistsState.playlistsLoaded) return@LaunchedEffect
+            val groups = playlistsState.playlists.smartCompanionMemberships()
             val changed = groups != AppGraph.smartCompanionGroups.value
             val shouldInvalidateFuture = shouldInvalidateSmartFuture(
-                policyInitialized = companionGroupsInitialized,
+                policyInitialized = playlistsState.companionGroupsInitialized,
                 previous = AppGraph.smartCompanionGroups.value,
                 updated = groups,
             )
-            companionGroupsInitialized = true
+            playlistsState.companionGroupsInitialized = true
             if (changed) {
                 AppGraph.smartCompanionGroups.value = groups
             }
@@ -2082,19 +2152,24 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 playback.invalidateSmartFuture()
             }
         }
-        var autoPlaylists by remember { mutableStateOf<List<AutoPlaylist>>(emptyList()) }
-        LaunchedEffect(catalog, playCounts, lastPlayedAt, favoriteIds, autoPlaylistClockMs) {
+        LaunchedEffect(
+            catalog,
+            playlistsState.playCounts,
+            playlistsState.lastPlayedAt,
+            favoriteIds,
+            playlistsState.autoPlaylistClockMs,
+        ) {
             val songs = catalog?.songs
-            autoPlaylists = if (songs == null) {
+            playlistsState.autoPlaylists = if (songs == null) {
                 emptyList()
             } else {
                 withContext(Dispatchers.Default) {
                     AutoPlaylists.build(
                         songs,
-                        playCounts,
-                        lastPlayedAt,
+                        playlistsState.playCounts,
+                        playlistsState.lastPlayedAt,
                         favoriteIds,
-                        autoPlaylistClockMs,
+                        playlistsState.autoPlaylistClockMs,
                     )
                 }
             }
@@ -2103,8 +2178,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         fun tracksOf(playlist: Playlist): List<TrackDescriptor> =
             playlist.trackIds.mapNotNull { tracksById[TrackId(it)] }
 
-        val playlistArtworkUris = remember(playlists) {
-            playlists.mapNotNull { playlist ->
+        val playlistArtworkUris = remember(playlistsState.playlists) {
+            playlistsState.playlists.mapNotNull { playlist ->
                 playlistCoverUri(playlist.customArtworkRef)?.let { playlist.id to it }
             }.toMap()
         }
@@ -2287,39 +2362,19 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             }
         }
 
-        // The open playlist's entries that are not on this device. Asked again whenever its
-        // membership or the library changes; while the library cannot vouch for itself (a partial
-        // scan, no grant, a card that is out) there are none, so nothing is offered for removal.
-        var openPlaylistUnavailable by remember { mutableStateOf<UnavailablePlaylistEntries?>(null) }
-        var unavailableRemovalInFlight by remember { mutableStateOf(false) }
-        val openPlaylistId = selectedCollection?.playlistId
-        val openPlaylistMembers = remember(openPlaylistId, playlists) {
-            playlists.firstOrNull { it.id == openPlaylistId }?.trackIds
-        }
-        LaunchedEffect(openPlaylistId, openPlaylistMembers, libraryIndexingRequest) {
-            val playlistId = openPlaylistId
-            val members = openPlaylistMembers
-            val request = libraryIndexingRequest
-            if (playlistId == null || members == null || request == null) {
-                openPlaylistUnavailable = null
-                return@LaunchedEffect
-            }
-            val unavailable = try {
-                unavailablePlaylistEntries(members, request, library::missingTrackIds)
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Throwable) {
-                println("Playlists: could not check for missing tracks: $failure")
-                emptySet()
-            }
-            openPlaylistUnavailable = UnavailablePlaylistEntries(playlistId, unavailable)
-        }
+        // The open playlist's entries that are not on this device.
+        val playlistAvailability = rememberOpenPlaylistAvailability(
+            openPlaylistId = selectedCollection?.playlistId,
+            playlists = playlistsState.playlists,
+            library = libraryIndexingRequest,
+            missing = library::missingTrackIds,
+        )
 
         fun removeUnavailablePlaylistTracks(playlistId: String, title: String) {
             val request = libraryIndexingRequest ?: return
-            val shown = openPlaylistUnavailable?.takeIf { it.playlistId == playlistId }?.ids.orEmpty()
-            if (unavailableRemovalInFlight || shown.isEmpty()) return
-            unavailableRemovalInFlight = true
+            val shown = playlistAvailability.unavailable?.takeIf { it.playlistId == playlistId }?.ids.orEmpty()
+            if (playlistAvailability.removalInFlight || shown.isEmpty()) return
+            playlistAvailability.removalInFlight = true
             scope.launch {
                 val removal = try {
                     Result.success(
@@ -2332,7 +2387,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 } catch (failure: Throwable) {
                     Result.failure(failure)
                 } finally {
-                    unavailableRemovalInFlight = false
+                    playlistAvailability.removalInFlight = false
                 }
                 if (removal.isFailure) {
                     snackbar.showSnackbar(getString(Res.string.settings_library_manage_failed))
@@ -2341,13 +2396,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 // Null: every entry came back since the notice was drawn. The list already shows
                 // them; only the notice is out of date.
                 val change = removal.getOrNull() ?: run {
-                    if (openPlaylistUnavailable?.playlistId == playlistId) openPlaylistUnavailable = null
+                    playlistAvailability.dismiss(playlistId)
                     return@launch
                 }
                 // The rows were never shown, so the open page keeps its list as it is. The notice
                 // goes at once; the membership change below asks the device again.
-                if (openPlaylistUnavailable?.playlistId == playlistId) openPlaylistUnavailable = null
-                playlists = playlists.map { stored ->
+                playlistAvailability.dismiss(playlistId)
+                playlistsState.playlists = playlistsState.playlists.map { stored ->
                     if (stored.id == playlistId) stored.copy(trackIds = change.after.map(TrackId::value)) else stored
                 }
                 val result = snackbar.showSnackbar(
@@ -2374,7 +2429,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     snackbar.showSnackbar(getString(Res.string.settings_library_manage_failed))
                     return@launch
                 }
-                playlists = playlists.map { stored ->
+                playlistsState.playlists = playlistsState.playlists.map { stored ->
                     if (stored.id == playlistId) stored.copy(trackIds = change.before.map(TrackId::value)) else stored
                 }
             }
@@ -2431,7 +2486,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // The page assembles on arrival at the tab, and MapTab's focus effect fires as soon as
         // it is ready — so the action works even before the first Map visit.
         fun showTrackOnMap(track: TrackDescriptor) {
-            mapFocusTrackId = track.id
+            mapPage.mapFocusTrackId = track.id
             updateTrackSelection(emptySet())
             updateSelectedCollection(null)
             showSearch = false
@@ -2468,7 +2523,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     val build: suspend () -> CollectionSelection = when (source.kind) {
                         QueueSourceKind.COLLECTION -> {
                             val playlist = source.reference?.let { id ->
-                                playlists.firstOrNull { it.id == id }
+                                playlistsState.playlists.firstOrNull { it.id == id }
                             } ?: return false
                             {
                                 val resolved = tracksOf(playlist)
@@ -2487,7 +2542,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             // An auto playlist is rebuilt from its kind, exactly as the Playlists
                             // tab opens it; its tracks are the current ones, not a stale copy.
                             val auto = source.autoPlaylistKind()
-                                ?.let { kind -> autoPlaylists.firstOrNull { it.kind == kind } }
+                                ?.let { kind -> playlistsState.autoPlaylists.firstOrNull { it.kind == kind } }
                             if (auto != null) {
                                 {
                                     CollectionSelection(
@@ -2552,7 +2607,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             if (artists.size == 1) {
                 showArtist(artists.single())
             } else if (artists.isNotEmpty()) {
-                artistChoices = artists
+                sheets.artistChoices = artists
             }
         }
 
@@ -2560,12 +2615,12 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // The exclusion store publishes only after its durable write succeeds. Clearing these
             // keys at that point removes stale cards immediately, while the state-keyed effect
             // above rebuilds the page from the latest rules even when a change came from elsewhere.
-            forYou = ForYouPage()
-            builtWorlds = null
-            builtForYouLibraryIds = null
-            builtForYouPlaylistIdentity = null
-            builtForYouExclusions = null
-            forYouRefreshing = selectedTab == StartPage.FOR_YOU
+            forYouPage.forYou = ForYouPage()
+            forYouPage.builtWorlds = null
+            forYouPage.builtForYouLibraryIds = null
+            forYouPage.builtForYouPlaylistIdentity = null
+            forYouPage.builtForYouExclusions = null
+            forYouPage.forYouRefreshing = selectedTab == StartPage.FOR_YOU
         }
 
         suspend fun applySmartExclusion(change: suspend () -> Unit): Boolean {
@@ -2968,7 +3023,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         }
 
                                         StartPage.FOR_YOU -> AnimatedContent(
-                                            targetState = forYou,
+                                            targetState = forYouPage.forYou,
                                             contentKey = { if (it.isEmpty) "empty" else "content" },
                                             transitionSpec = { motionFadeThrough(reduceMotion) },
                                             modifier = Modifier.fillMaxSize(),
@@ -2978,7 +3033,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             modifier = Modifier
                                                 .fillMaxSize()
                                                 .inactiveDuringTransition(
-                                                    shownForYou.isEmpty != forYou.isEmpty,
+                                                    shownForYou.isEmpty != forYouPage.forYou.isEmpty,
                                                 ),
                                         ) {
                                         ForYouTab(
@@ -2986,7 +3041,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             accent = accent,
                                             page = shownForYou,
                                             contentPadding = listPadding,
-                                            isRefreshing = forYouRefreshing,
+                                            isRefreshing = forYouPage.forYouRefreshing,
                                             // An offer is recorded when its card is on screen, not
                                             // when the page is assembled: LazyRow composes what
                                             // fits, and the builder's own discoveryOffers — which
@@ -2997,10 +3052,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             onCardShown = { impression ->
                                                 val fresh = unrecordedForYouCardsShown(
                                                     listOf(impression),
-                                                    forYouCardsShown,
+                                                    forYouPage.forYouCardsShown,
                                                 )
                                                 if (fresh.isNotEmpty()) {
-                                                    forYouCardsShown = forYouCardsShown + fresh
+                                                    forYouPage.forYouCardsShown = forYouPage.forYouCardsShown + fresh
                                                     scope.launch {
                                                         runCatching {
                                                             AppGraph.forYouImpressions.record(fresh)
@@ -3010,9 +3065,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             },
                                             epochDay = { localTimePoint(epochMillis()).epochDay },
                                             onRefresh = {
-                                                if (!forYouRefreshing) {
-                                                    forYouRefreshing = true
-                                                    personalizationRevision += 1
+                                                if (!forYouPage.forYouRefreshing) {
+                                                    forYouPage.forYouRefreshing = true
+                                                    forYouPage.personalizationRevision += 1
                                                 }
                                             },
                                             onPlay = { list, index ->
@@ -3043,10 +3098,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                     hero.resumeAtMs?.let { playback.seekTo(it) }
                                                 }
                                             },
-                                            onTrackMenu = { trackMenuRequest = TrackMenuRequest(it) },
+                                            onTrackMenu = { sheets.trackMenuRequest = TrackMenuRequest(it) },
                                             onOpenCollection = { collection ->
                                                 openCollection(build = {
-                                                    val playlist = playlists.firstOrNull { it.id == collection.playlistId }
+                                                    val playlist = playlistsState.playlists
+                                                        .firstOrNull { it.id == collection.playlistId }
                                                     val resolved = playlist?.let(::tracksOf) ?: collection.tracks
                                                     CollectionSelection(
                                                         title = playlist?.name ?: collection.title,
@@ -3059,13 +3115,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                     )
                                                 })
                                             },
-                                            onOpenWorld = { worldTarget = it },
+                                            onOpenWorld = { sheets.worldTarget = it },
                                         )
                                         }
                                         }
 
                                         StartPage.MAP -> AnimatedContent(
-                                            targetState = mapState,
+                                            targetState = mapPage.mapState,
                                             contentKey = { state: MapPageState ->
                                                 state.presentationKey()
                                             },
@@ -3080,16 +3136,16 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                 .fillMaxSize()
                                                 .inactiveDuringTransition(
                                                     shownMapState.presentationKey() !=
-                                                        mapState.presentationKey(),
+                                                        mapPage.mapState.presentationKey(),
                                                 ),
                                         ) {
                                         MapTab(
                                             currentAccent = browseAccentInk(accent),
                                             state = shownMapState,
                                             contentPadding = listPadding,
-                                            focusTrackId = mapFocusTrackId,
+                                            focusTrackId = mapPage.mapFocusTrackId,
                                             onPlayRegion = { region ->
-                                                mapRegions.getOrNull(region)?.let { world ->
+                                                mapPage.mapRegions.getOrNull(region)?.let { world ->
                                                     val members = world.tracks.mapNotNull { tracksById[it.id] }
                                                     if (members.isNotEmpty()) {
                                                         AppGraph.queueSource.value = QueueSource(
@@ -3101,7 +3157,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                 }
                                             },
                                             onPlayUnheardRegion = { region ->
-                                                mapRegions.getOrNull(region)?.let { world ->
+                                                mapPage.mapRegions.getOrNull(region)?.let { world ->
                                                     scope.launch {
                                                         val stats = AppGraph.history.stats()
                                                         val unheard = world.tracks
@@ -3118,7 +3174,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                 }
                                             },
                                             onOpenRegion = { region ->
-                                                mapRegions.getOrNull(region)?.let { world ->
+                                                mapPage.mapRegions.getOrNull(region)?.let { world ->
                                                     scope.launch {
                                                         val members = world.tracks.mapNotNull { tracksById[it.id] }
                                                         updateTrackSelection(emptySet())
@@ -3134,7 +3190,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                 }
                                             },
                                             onSmartFromRegion = { region ->
-                                                mapRegions.getOrNull(region)?.let { world ->
+                                                mapPage.mapRegions.getOrNull(region)?.let { world ->
                                                     scope.launch {
                                                         val seed = tracksById[world.representative.id] ?: return@launch
                                                         val queue = engine.smartQueue(
@@ -3159,7 +3215,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             },
                                             onOpenTrack = { id ->
                                                 tracksById[id]?.let {
-                                                    trackMenuRequest = TrackMenuRequest(it)
+                                                    sheets.trackMenuRequest = TrackMenuRequest(it)
                                                 }
                                             },
                                         )
@@ -3170,8 +3226,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             currentAccent = browseAccentInk(accent),
                                             onCreate = { showCreatePlaylist = true },
                                             onImport = { m3uExchange.import() },
-                                            autoPlaylists = autoPlaylists,
-                                            playlists = playlists,
+                                            autoPlaylists = playlistsState.autoPlaylists,
+                                            playlists = playlistsState.playlists,
                                             artworkModifier = { routeId ->
                                                 if (reduceMotion || selectedTab != StartPage.PLAYLISTS) {
                                                     Modifier
@@ -3226,11 +3282,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             onExport = ::exportPlaylistAsM3u,
                                             onToggleSmart = ::togglePlaylistSmart,
                                             onMove = { from, to ->
-                                                val moving = playlists.getOrNull(from)
+                                                val moving = playlistsState.playlists.getOrNull(from)
                                                 if (moving != null) {
                                                     // Optimistic: the row lands where it was
                                                     // dropped; a failed write restores truth.
-                                                    playlists = playlists.toMutableList()
+                                                    playlistsState.playlists = playlistsState.playlists.toMutableList()
                                                         .apply { add(to, removeAt(from)) }
                                                     scope.launch {
                                                         if (!runPlaylistMutation {
@@ -3255,7 +3311,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                             AppGraph.playlists.delete(playlist.id)
                                                         }
                                                     ) return@launch
-                                                    playlists = playlists.filterNot {
+                                                    playlistsState.playlists = playlistsState.playlists.filterNot {
                                                         it.id == playlist.id
                                                     }
                                                     discardUnusedPlaylistCover(playlist.customArtworkRef)
@@ -3317,7 +3373,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                     scope.launch { playback.play(queue, index) }
                                                 },
                                                 onTrackMenu = {
-                                                    trackMenuRequest = TrackMenuRequest(it)
+                                                    sheets.trackMenuRequest = TrackMenuRequest(it)
                                                 },
                                             )
                                         }
@@ -3812,7 +3868,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             ),
                     ) {
                     animatedSelection?.let { selection ->
-                        val editablePlaylist = playlists.firstOrNull { it.id == selection.playlistId }
+                        val editablePlaylist = playlistsState.playlists.firstOrNull { it.id == selection.playlistId }
                         CollectionDetailScreen(
                             artworkModifier = if (
                                 reduceMotion || selectedTab != StartPage.PLAYLISTS ||
@@ -3844,13 +3900,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 else -> null
                             },
                             includeInSmart = editablePlaylist?.includeInSmart == true,
-                            unavailableCount = openPlaylistUnavailable
+                            unavailableCount = playlistAvailability.unavailable
                                 ?.takeIf { editablePlaylist != null && it.playlistId == editablePlaylist.id }
                                 ?.ids?.size ?: 0,
                             onRemoveUnavailable = editablePlaylist?.let { playlist ->
                                 { removeUnavailablePlaylistTracks(playlist.id, playlist.name) }
                             },
-                            unavailableRemovalBusy = unavailableRemovalInFlight,
+                            unavailableRemovalBusy = playlistAvailability.removalInFlight,
                             onChangeCover = editablePlaylist?.let { playlist ->
                                 { changePlaylistCover(playlist) }
                             },
@@ -3915,7 +3971,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 }
                             },
                             onTrackMenu = { track ->
-                                trackMenuRequest = TrackMenuRequest(
+                                sheets.trackMenuRequest = TrackMenuRequest(
                                     track = track,
                                     sourcePlaylistId = selection.playlistId,
                                     sourcePlaylistTitle = selection.title
@@ -3977,7 +4033,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             },
                             onClearSelection = { updateTrackSelection(emptySet()) },
                             onPlay = { queue, index -> scope.launch { playback.play(queue, index) } },
-                            onTrackMenu = { trackMenuRequest = TrackMenuRequest(it) },
+                            onTrackMenu = { sheets.trackMenuRequest = TrackMenuRequest(it) },
                             // A selection made among search results has no surface to live on once
                             // the results are gone.
                             onClose = {
@@ -4034,7 +4090,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 scope.launch { playback.play(selection, 0) }
                             },
                             onAdd = {
-                                addToPlaylistSelection = selectedTracks
+                                sheets.addToPlaylistSelection = selectedTracks
                             },
                             onShare = {
                                 shareTracks(selectedTracks)
@@ -4097,7 +4153,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             updateTrackSelection(selectedTrackIds - removedIds)
                                         }
                                         val change = checkNotNull(membershipChange)
-                                        playlists = playlists.map { stored ->
+                                        playlistsState.playlists = playlistsState.playlists.map { stored ->
                                             if (stored.id == playlistId) {
                                                 stored.copy(
                                                     trackIds = change.after.map(TrackId::value),
@@ -4139,7 +4195,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                 )
                                                 return@launch
                                             }
-                                            playlists = playlists.map { stored ->
+                                            playlistsState.playlists = playlistsState.playlists.map { stored ->
                                                 if (stored.id == playlistId) {
                                                     stored.copy(
                                                         trackIds = change.before.map(TrackId::value),
@@ -4163,7 +4219,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         }
                                     }
                                 } else {
-                                    showSelectionRemoval = true
+                                    sheets.showSelectionRemoval = true
                                 }
                             },
                             modifier = Modifier,
@@ -4280,11 +4336,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         onSleepAtEndOfTrack = sleepTimer::startAtEndOfTrack,
                         onCancelSleepTimer = sleepTimer::cancel,
                         onTrackMenu = { track ->
-                            trackMenuRequest = TrackMenuRequest(track, fromPlayer = true)
+                            sheets.trackMenuRequest = TrackMenuRequest(track, fromPlayer = true)
                         },
-                        onQueueTrackMenu = { track -> trackMenuRequest = TrackMenuRequest(track) },
-                        detailsRequest = playerDetailsRequest,
-                        sleepTimerRequest = playerSleepTimerRequest,
+                        onQueueTrackMenu = { track -> sheets.trackMenuRequest = TrackMenuRequest(track) },
+                        detailsRequest = sheets.playerDetailsRequest,
+                        sleepTimerRequest = sheets.playerSleepTimerRequest,
                         // Both close the player themselves once the collection is built; closing
                         // it first would change the root the open is guarded against mid-flight.
                         onGoToAlbum = { track -> showAlbumOf(track) },
@@ -4299,7 +4355,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         onAddQueueToPlaylist = {
                             playback.state.value.queue
                                 .takeIf { it.isNotEmpty() }
-                                ?.let { addToPlaylistSelection = it }
+                                ?.let { sheets.addToPlaylistSelection = it }
                         },
                         isFavorite = currentTrack?.id?.let { it in favoriteIds } == true,
                         onToggleFavorite = { currentTrack?.id?.let(::toggleFavorite) },
@@ -4333,15 +4389,15 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             )
         }
 
-        if (artistChoices.isNotEmpty()) {
+        if (sheets.artistChoices.isNotEmpty()) {
             ArtistChooserSheet(
-                artists = artistChoices,
+                artists = sheets.artistChoices,
                 onSelect = { showArtist(it) },
-                onDismiss = { artistChoices = emptyList() },
+                onDismiss = { sheets.artistChoices = emptyList() },
             )
         }
 
-        trackMenuRequest?.let { request ->
+        sheets.trackMenuRequest?.let { request ->
             val target = request.track
             val trackExcluded = target.id in smartExclusionState.trackIds
             val artist = target.artist?.trim()?.takeIf(String::isNotEmpty)
@@ -4373,7 +4429,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 onShowOnMap = if (StartPage.MAP in visiblePages) {
                     { showTrackOnMap(target) }
                 } else null,
-                onAddToPlaylist = { addToPlaylistSelection = listOf(target) },
+                onAddToPlaylist = { sheets.addToPlaylistSelection = listOf(target) },
                 // Only from inside a user playlist whose list actually holds this track. The
                 // sheet can be raised over a playlist from other surfaces (the queue sheet, For
                 // You); removal must never appear there and silently edit an unrelated playlist.
@@ -4412,7 +4468,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 updateTrackSelection(selectedTrackIds - target.id)
                             }
                             val change = checkNotNull(membershipChange)
-                            playlists = playlists.map { stored ->
+                            playlistsState.playlists = playlistsState.playlists.map { stored ->
                                 if (stored.id == playlistId) {
                                     stored.copy(trackIds = change.after.map(TrackId::value))
                                 } else {
@@ -4450,7 +4506,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                     )
                                     return@launch
                                 }
-                                playlists = playlists.map { stored ->
+                                playlistsState.playlists = playlistsState.playlists.map { stored ->
                                     if (stored.id == playlistId) {
                                         stored.copy(
                                             trackIds = change.before.map(TrackId::value),
@@ -4481,13 +4537,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 },
                 onInfo = {
                     if (request.fromPlayer && target.id == playback.state.value.track?.id) {
-                        playerDetailsRequest++
+                        sheets.playerDetailsRequest++
                     } else showTrackInfo(target.id, editing = false)
                 },
                 // The sleep timer belongs to the player's own sheet; other surfaces keep the
                 // shorter list they always had.
                 onSleepTimer = if (request.fromPlayer) {
-                    { playerSleepTimerRequest++ }
+                    { sheets.playerSleepTimerRequest++ }
                 } else null,
                 sleepTimerState = sleepTimerState,
                 isTrackExcludedFromSmart = trackExcluded,
@@ -4549,7 +4605,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 libraryIndexingRequest?.librarySnapshotAuthoritative ?: false,
                             )
                         }
-                        hasHiddenTracks = true
+                        libraryScan.hasHiddenTracks = true
                         val collectionAfterHide = collectionBeforeHide?.let { selection ->
                             selection.filterTracksForCollection { it.id != target.id }
                                 ?.let { remaining ->
@@ -4574,7 +4630,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             val restored = try {
                                 library.unhide(target.id)
                                 scanLibrary()
-                                hasHiddenTracks = library.hasHiddenTracks()
+                                libraryScan.hasHiddenTracks = library.hasHiddenTracks()
                                 true
                             } catch (cancelled: CancellationException) {
                                 throw cancelled
@@ -4603,12 +4659,12 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     }
                 },
                 canDelete = canDeleteTrack(target),
-                onDelete = { deleteTarget = target },
-                onDismiss = { trackMenuRequest = null },
+                onDelete = { sheets.deleteTarget = target },
+                onDismiss = { sheets.trackMenuRequest = null },
             )
         }
 
-        if (showSelectionRemoval) {
+        if (sheets.showSelectionRemoval) {
             val selection = selectedTracks
             SelectionRemovalSheet(
                 count = selection.size,
@@ -4650,7 +4706,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 libraryIndexingRequest?.librarySnapshotAuthoritative ?: false,
                             )
                         }
-                        hasHiddenTracks = true
+                        libraryScan.hasHiddenTracks = true
                         val collectionAfterHide = collectionBeforeHide?.let { collection ->
                             collection.filterTracksForCollection { it.id !in hiddenIds }
                                 ?.let { remaining ->
@@ -4675,7 +4731,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             val restored = try {
                                 library.unhide(ids)
                                 scanLibrary()
-                                hasHiddenTracks = library.hasHiddenTracks()
+                                libraryScan.hasHiddenTracks = library.hasHiddenTracks()
                                 true
                             } catch (cancelled: CancellationException) {
                                 throw cancelled
@@ -4700,12 +4756,12 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         }
                     }
                 },
-                onDeleteFromDevice = { deleteSelection = selection },
-                onDismiss = { showSelectionRemoval = false },
+                onDeleteFromDevice = { sheets.deleteSelection = selection },
+                onDismiss = { sheets.showSelectionRemoval = false },
             )
         }
 
-        worldTarget?.let { target ->
+        sheets.worldTarget?.let { target ->
             val world = target.collection
             WorldActionsSheet(
                 card = target,
@@ -4741,29 +4797,29 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         )
                     }
                 },
-                onDismiss = { worldTarget = null },
+                onDismiss = { sheets.worldTarget = null },
             )
         }
 
-        val playlistMutationErrorMessage = if (playlistMutationFailed) {
+        val playlistMutationErrorMessage = if (sheets.playlistMutationFailed) {
             stringResource(Res.string.settings_library_manage_failed)
         } else {
             null
         }
 
-        addToPlaylistSelection?.let { selection ->
+        sheets.addToPlaylistSelection?.let { selection ->
             AddToPlaylistSheet(
                 tracks = selection,
-                playlists = playlists,
+                playlists = playlistsState.playlists,
                 resolvedSize = { tracksOf(it).size },
                 onAddTo = { playlist ->
-                    if (playlistMutationInProgress) return@AddToPlaylistSheet
+                    if (sheets.playlistMutationInProgress) return@AddToPlaylistSheet
                     val selectedBefore = selectedTrackIds
                     val sourceCollectionRevision = collectionRevision
                     updateTrackSelection(emptySet())
                     val commandSelectionRevision = selectionRevision
-                    playlistMutationInProgress = true
-                    playlistMutationFailed = false
+                    sheets.playlistMutationInProgress = true
+                    sheets.playlistMutationFailed = false
                     scope.launch {
                         val added = try {
                             runPlaylistMutation(showFailureSnackbar = false) {
@@ -4775,10 +4831,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         } finally {
                             // Also runs for CancellationException; a cancelled child must never
                             // leave every playlist dialog disabled in a still-live composition.
-                            playlistMutationInProgress = false
+                            sheets.playlistMutationInProgress = false
                         }
                         if (!added) {
-                            playlistMutationFailed = true
+                            sheets.playlistMutationFailed = true
                             if (
                                 selectionRevision == commandSelectionRevision &&
                                 collectionRevision == sourceCollectionRevision
@@ -4787,8 +4843,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             }
                             return@launch
                         }
-                        playlistMutationFailed = false
-                        addToPlaylistSelection = null
+                        sheets.playlistMutationFailed = false
+                        sheets.addToPlaylistSelection = null
                         refreshPlaylistMembershipsBestEffort()
                         snackbar.showSnackbar(
                             getString(Res.string.snack_added_to_playlist, bidiWrap(playlist.name, layoutDirection)),
@@ -4798,14 +4854,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 onCreateNew = {
                     // Remember the selection so the new playlist starts with every chosen track.
                     pendingPlaylistTrackIds = selection.map { it.id.value }
-                    playlistMutationFailed = false
+                    sheets.playlistMutationFailed = false
                     showCreatePlaylist = true
                 },
                 onDismiss = {
-                    addToPlaylistSelection = null
-                    playlistMutationFailed = false
+                    sheets.addToPlaylistSelection = null
+                    sheets.playlistMutationFailed = false
                 },
-                busy = playlistMutationInProgress,
+                busy = sheets.playlistMutationInProgress,
                 errorMessage = playlistMutationErrorMessage,
             )
         }
@@ -4816,13 +4872,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 title = stringResource(Res.string.playlist_new),
                 confirmLabel = stringResource(Res.string.action_create),
                 onConfirm = { name ->
-                    if (playlistMutationInProgress) return@PlaylistNameDialog
+                    if (sheets.playlistMutationInProgress) return@PlaylistNameDialog
                     val selectedBefore = selectedTrackIds
                     val sourceCollectionRevision = collectionRevision
                     updateTrackSelection(emptySet())
                     val commandSelectionRevision = selectionRevision
-                    playlistMutationInProgress = true
-                    playlistMutationFailed = false
+                    sheets.playlistMutationInProgress = true
+                    sheets.playlistMutationFailed = false
                     scope.launch {
                         var created: Playlist? = null
                         val saved = try {
@@ -4833,10 +4889,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 )
                             }
                         } finally {
-                            playlistMutationInProgress = false
+                            sheets.playlistMutationInProgress = false
                         }
                         if (!saved) {
-                            playlistMutationFailed = true
+                            sheets.playlistMutationFailed = true
                             if (
                                 selectionRevision == commandSelectionRevision &&
                                 collectionRevision == sourceCollectionRevision
@@ -4845,9 +4901,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             }
                             return@launch
                         }
-                        playlistMutationFailed = false
+                        sheets.playlistMutationFailed = false
                         val persisted = checkNotNull(created)
-                        playlists = listOf(persisted) + playlists.filterNot {
+                        playlistsState.playlists = listOf(persisted) + playlistsState.playlists.filterNot {
                             it.id == persisted.id
                         }
                         showCreatePlaylist = false
@@ -4860,37 +4916,37 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 onDismiss = {
                     showCreatePlaylist = false
                     pendingPlaylistTrackIds = emptyList()
-                    playlistMutationFailed = false
+                    sheets.playlistMutationFailed = false
                 },
-                busy = playlistMutationInProgress,
+                busy = sheets.playlistMutationInProgress,
                 errorMessage = playlistMutationErrorMessage,
             )
         }
 
-        playlists.firstOrNull { it.id == renameTargetId }?.let { target ->
+        playlistsState.playlists.firstOrNull { it.id == renameTargetId }?.let { target ->
             PlaylistNameDialog(
                 title = stringResource(Res.string.playlist_rename_title),
                 initialName = target.name,
                 confirmLabel = stringResource(Res.string.action_rename),
                 onConfirm = { name ->
-                    if (playlistMutationInProgress) return@PlaylistNameDialog
-                    playlistMutationInProgress = true
-                    playlistMutationFailed = false
+                    if (sheets.playlistMutationInProgress) return@PlaylistNameDialog
+                    sheets.playlistMutationInProgress = true
+                    sheets.playlistMutationFailed = false
                     scope.launch {
                         val renamed = try {
                             runPlaylistMutation(showFailureSnackbar = false) {
                                 AppGraph.playlists.rename(target.id, name)
                             }
                         } finally {
-                            playlistMutationInProgress = false
+                            sheets.playlistMutationInProgress = false
                         }
                         if (!renamed) {
-                            playlistMutationFailed = true
+                            sheets.playlistMutationFailed = true
                             return@launch
                         }
-                        playlistMutationFailed = false
+                        sheets.playlistMutationFailed = false
                         val normalizedName = name.trim().ifEmpty { "Untitled playlist" }
-                        playlists = playlists.map { playlist ->
+                        playlistsState.playlists = playlistsState.playlists.map { playlist ->
                             if (playlist.id == target.id) {
                                 playlist.copy(name = normalizedName)
                             } else {
@@ -4902,9 +4958,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 },
                 onDismiss = {
                     renameTargetId = null
-                    playlistMutationFailed = false
+                    sheets.playlistMutationFailed = false
                 },
-                busy = playlistMutationInProgress,
+                busy = sheets.playlistMutationInProgress,
                 errorMessage = playlistMutationErrorMessage,
             )
         }
@@ -4912,27 +4968,27 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // Once, always composed: it launches the tag-save prompts every editor's saves wait on.
         TagWriteHost()
 
-        deleteTarget?.let { target ->
+        sheets.deleteTarget?.let { target ->
             DeleteTrackDialog(
                 track = target,
                 onConfirm = {
-                    deleteTarget = null
+                    sheets.deleteTarget = null
                     deleteTrack(listOf(target))
                 },
-                onDismiss = { deleteTarget = null },
+                onDismiss = { sheets.deleteTarget = null },
             )
         }
 
 
-        deleteSelection?.let { selection ->
+        sheets.deleteSelection?.let { selection ->
             DeleteTracksDialog(
                 count = selection.size,
                 onConfirm = {
-                    deleteSelection = null
+                    sheets.deleteSelection = null
                     updateTrackSelection(emptySet())
                     deleteTrack(selection)
                 },
-                onDismiss = { deleteSelection = null },
+                onDismiss = { sheets.deleteSelection = null },
             )
         }
 
@@ -5045,22 +5101,22 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     }
                 },
                 libraryLoading = tracks == null,
-                libraryRefreshing = libraryRefreshing,
-                hasHiddenTracks = hasHiddenTracks,
+                libraryRefreshing = libraryScan.libraryRefreshing,
+                hasHiddenTracks = libraryScan.hasHiddenTracks,
                 canImportAudio = audioImportAvailable,
                 onRefreshLibrary = {
-                    if (!libraryRefreshing) {
-                        libraryRefreshing = true
+                    if (!libraryScan.libraryRefreshing) {
+                        libraryScan.libraryRefreshing = true
                         scope.launch {
                             try {
                                 // Music copied in without the system being told is in no index yet
                                 // (#8): the system indexes it first, then the scan below sees it.
                                 library.indexNewFiles()
                                 scanLibrary()
-                                hasHiddenTracks = library.hasHiddenTracks()
+                                libraryScan.hasHiddenTracks = library.hasHiddenTracks()
                                 snackbar.showSnackbar(getString(Res.string.snack_library_refreshed))
                             } finally {
-                                libraryRefreshing = false
+                                libraryScan.libraryRefreshing = false
                             }
                         }
                     }
@@ -5069,13 +5125,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 onRetryIndexing = ::retryAutomaticIndexing,
                 onRebuildAnalysis = {
                     engine.clearAnalysis()
-                    metadataVectorsReady = false
-                    audioVectorsReady = false
-                    worlds = emptyList()
-                    worldLibraryIds = emptyList()
+                    libraryWorlds.metadataVectorsReady = false
+                    libraryWorlds.audioVectorsReady = false
+                    libraryWorlds.worlds = emptyList()
+                    libraryWorlds.worldLibraryIds = emptyList()
                     // The key is the cache of the very thing being invalidated: leaving it set
                     // lets a same-inputs rebuild short-circuit, and worlds would stay empty.
-                    builtWorldsKey = null
+                    libraryWorlds.builtWorldsKey = null
                     invalidateSmartRecommendationCaches()
                     retryAutomaticIndexing()
                 },
@@ -5083,7 +5139,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     hideTracksAndRefresh(
                         hide = { library.hide(target.id) },
                         refresh = {
-                            hasHiddenTracks = true
+                            libraryScan.hasHiddenTracks = true
                             scanLibrary()
                             updateSelectedCollection(selectedCollection?.let { selection ->
                                 selection.filterTracksForCollection { it.id != target.id }
@@ -5104,7 +5160,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     hideTracksAndRefresh(
                         hide = { library.hide(ids) },
                         refresh = {
-                            hasHiddenTracks = true
+                            libraryScan.hasHiddenTracks = true
                             scanLibrary()
                             updateSelectedCollection(selectedCollection?.let { selection ->
                                 selection.filterTracksForCollection { it.id !in ids }
@@ -5125,15 +5181,15 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 },
                 onBackupRestored = {
                     scanLibrary()
-                    hasHiddenTracks = library.hasHiddenTracks()
+                    libraryScan.hasHiddenTracks = library.hasHiddenTracks()
                     updateTrackSelection(emptySet())
                     updateSelectedCollection(null)
-                    metadataVectorsReady = false
-                    audioVectorsReady = false
-                    worlds = emptyList()
-                    worldLibraryIds = emptyList()
-                    builtWorldsKey = null
-                    personalizationRevision += 1
+                    libraryWorlds.metadataVectorsReady = false
+                    libraryWorlds.audioVectorsReady = false
+                    libraryWorlds.worlds = emptyList()
+                    libraryWorlds.worldLibraryIds = emptyList()
+                    libraryWorlds.builtWorldsKey = null
+                    forYouPage.personalizationRevision += 1
                     // The restored log replaces the old one without recording a listen, so the
                     // recorder's revision cannot report it: advance the replacement epoch.
                     replacedHistoryEpoch += 1
@@ -5142,11 +5198,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 },
                 onClearListeningHistory = {
                     AppGraph.history.clear()
-                    forYou = ForYouPage()
-                    builtWorlds = null
-                    builtForYouLibraryIds = null
-                    builtForYouPlaylistIdentity = null
-                    personalizationRevision += 1
+                    forYouPage.forYou = ForYouPage()
+                    forYouPage.builtWorlds = null
+                    forYouPage.builtForYouLibraryIds = null
+                    forYouPage.builtForYouPlaylistIdentity = null
+                    forYouPage.personalizationRevision += 1
                     // Emptied log, same problem: the caches keyed on history must not survive it.
                     replacedHistoryEpoch += 1
                     refreshPlaylistsWithFeedback()
