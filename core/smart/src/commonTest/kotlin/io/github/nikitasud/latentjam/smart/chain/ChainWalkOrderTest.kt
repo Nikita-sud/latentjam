@@ -61,7 +61,7 @@ internal class ChainWalkOrderTest {
 
     @Test
     fun `reordering across an intent boundary preserves the seed genre prefix guard`() {
-        val snapshot = requireNotNull(SmartSnapshot.build(circle(emptySet()).tracks.mapIndexed { row, track ->
+        val snapshot = requireNotNull(SmartSnapshot.build(circleTracks(emptySet()).mapIndexed { row, track ->
             track.copy(meta = track.meta.copy(genre = if (row in 10..13) "House" else "Rock"))
         }))
         val selected = (1..12).map { TrackId(it.toString()) }
@@ -252,18 +252,19 @@ internal class ChainWalkOrderTest {
 
     /** Rows on a circle; [sameSong] makes a row another release of a row's song (same title and artist). */
     private fun circle(sameArtist: Set<Int>, sameSong: Map<Int, Int> = emptyMap()): SmartSnapshot =
-        requireNotNull(SmartSnapshot.build(
-            (0 until 24).map { row ->
-                val angle = 2 * PI * row / 24
-                val song = sameSong[row] ?: row
-                SmartTrack(
-                    TrackId(row.toString()),
-                    FloatArray(SmartSnapshot.AUDIO_DIM).also {
-                        it[0] = cos(angle).toFloat()
-                        it[1] = sin(angle).toFloat()
-                    },
-                    meta = TrackMeta("Song $song", if (song in sameArtist) "A" else "Artist $song", null, null, null),
-                )
-            },
-        ))
+        requireNotNull(SmartSnapshot.build(circleTracks(sameArtist, sameSong)))
+
+    private fun circleTracks(sameArtist: Set<Int>, sameSong: Map<Int, Int> = emptyMap()): List<SmartTrack> =
+        (0 until 24).map { row ->
+            val angle = 2 * PI * row / 24
+            val song = sameSong[row] ?: row
+            SmartTrack(
+                TrackId(row.toString()),
+                FloatArray(SmartSnapshot.AUDIO_DIM).also {
+                    it[0] = cos(angle).toFloat()
+                    it[1] = sin(angle).toFloat()
+                },
+                meta = TrackMeta("Song $song", if (song in sameArtist) "A" else "Artist $song", null, null, null),
+            )
+        }
 }

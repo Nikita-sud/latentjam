@@ -649,7 +649,7 @@ internal class DefaultSimilarityEngine(
 
             // First-launch indexing is progressive. Whichever track the listener actually picked
             // must still be a valid anchor even when its background batch has not reached it yet.
-            if (index.vector(seed.id) == null) {
+            if (seed.id !in index) {
                 if (hasRememberedAudioFailure(seed)) {
                     return@withLock metadataFallback(
                         seed, library, length, history, companionGroups,
@@ -1314,23 +1314,34 @@ internal class DefaultSimilarityEngine(
     private suspend fun snapshotFor(history: List<SmartHistoryEvent>): SmartSnapshot? {
         snapshotCache?.takeIf { it.revision == indexRevision && it.semanticCount == semanticCache.size }
             ?.let { return it.snapshot }
+        // A stale snapshot goes before its replacement is built: holding both would double the peak.
+        snapshotCache = null
 
+        // The rows read the stored vectors in place, as a checkpoint does (see [VectorIndex.storedEntries]):
+        // copies would be a second copy of both indexes for as long as the build runs. Nothing here
+        // writes to them, and the snapshot keeps none of them.
+        val audio = index.storedEntries()
+        val text = textIndex?.storedEntries()
         val rows = knownTracks.values.mapNotNull { track ->
-            val audio = index.vector(track.id) ?: return@mapNotNull null
-            track.toSmartTrack(audio)
+            track.toSmartTrack(audio = audio[track.id] ?: return@mapNotNull null, text = text?.get(track.id))
         }.toMutableList()
         val knownIds = rows.mapTo(HashSet()) { it.id }
         for (id in history.asSequence().map { it.trackId }.distinct()) {
             if (id in knownIds) continue
-            val audio = index.vector(id) ?: continue
             rows += SmartTrack(
                 id = id,
-                audio = audio,
-                text = textIndex?.vector(id),
+                audio = audio[id] ?: continue,
+                text = text?.get(id),
                 meta = TrackMeta(null, null, null, null, null),
             )
         }
-        val snapshot = SmartSnapshot.build(withEnergy(rows), batchDotProducts) ?: return null
+        // Descriptors are decoded inside the build, one row at a time, rather than all held in the rows
+        // until it ends. A history row the library no longer lists has no tags to look one up by.
+        val snapshot = SmartSnapshot.build(withEnergy(rows), batchDotProducts) { row ->
+            knownTracks[row.id]?.let { track ->
+                artistKnowledge?.descriptor(track.artist, track.artists.firstOrNull(), row.text)
+            }
+        } ?: return null
         snapshotCache = SnapshotCache(indexRevision, semanticCache.size, snapshot)
         return snapshot
     }
@@ -1363,11 +1374,10 @@ internal class DefaultSimilarityEngine(
         }
     }
 
-    private fun TrackDescriptor.toSmartTrack(audio: FloatArray): SmartTrack = SmartTrack(
+    private fun TrackDescriptor.toSmartTrack(audio: FloatArray, text: FloatArray?): SmartTrack = SmartTrack(
         id = id,
         audio = audio,
-        text = textIndex?.vector(id),
-        descriptor = artistKnowledge?.descriptor(artist, artists.firstOrNull(), textIndex?.vector(id)),
+        text = text,
         energy = energy ?: Float.NaN,
         meta = TrackMeta(
             title, artist, album, genre, year, durationMs,

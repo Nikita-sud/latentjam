@@ -65,12 +65,46 @@ internal class SmartPressFootprintTest {
         assertEquals(RECORDED_QUEUES, queues)
     }
 
+    /** A real index that counts the calls that copy a stored vector: [VectorIndex.vector] and [VectorIndex.entries]. */
+    private class CopyCountingIndex(private val inner: InMemoryVectorIndex) : VectorIndex by inner {
+        var copiedVectors = 0
+
+        override fun vector(id: TrackId): FloatArray? = inner.vector(id).also { if (it != null) copiedVectors++ }
+
+        override fun entries(): Map<TrackId, FloatArray> = inner.entries().also { copiedVectors += it.size }
+    }
+
+    @Test
+    fun `a SMART press reads the stored vectors without copying them`() = runTest {
+        val audio = CopyCountingIndex(InMemoryVectorIndex(SmartSnapshot.AUDIO_DIM))
+        val text = CopyCountingIndex(InMemoryVectorIndex(TextEncoder.TEXT_DIM))
+        val engine = engine(FakeIndexStore(), FakeIndexStore(), audio = audio, text = text)
+        engine.initialize()
+        engine.indexLibrary(library)
+        engine.ensureMetadataVectors(library)
+        audio.copiedVectors = 0
+        text.copiedVectors = 0
+
+        assertEquals(12, engine.smartQueue(library[3], library, 12, history).size)
+
+        // Before, every row was copied out of the audio index and twice out of the text index (its
+        // text vector, and the input of its descriptor): 1,101 and 2,112 copies for this library.
+        assertEquals(0, audio.copiedVectors, "audio vectors copied by one press")
+        assertEquals(0, text.copiedVectors, "text vectors copied by one press")
+    }
+
     // ---------------------------------------------------------------- fixture
 
-    private fun engine(audioStore: IndexStore, textStore: IndexStore, judged: Boolean = false) =
+    private fun engine(
+        audioStore: IndexStore,
+        textStore: IndexStore,
+        judged: Boolean = false,
+        audio: VectorIndex = InMemoryVectorIndex(SmartSnapshot.AUDIO_DIM),
+        text: VectorIndex = InMemoryVectorIndex(TextEncoder.TEXT_DIM),
+    ) =
         DefaultSimilarityEngine(
             backend = FakeEmbeddingBackend(audioVectors),
-            index = InMemoryVectorIndex(SmartSnapshot.AUDIO_DIM),
+            index = audio,
             store = audioStore,
             config = SmartEngineConfig(
                 embeddingDim = SmartSnapshot.AUDIO_DIM, modelVersion = "footprint",
@@ -78,7 +112,7 @@ internal class SmartPressFootprintTest {
             ),
             dispatcher = Dispatchers.Default.limitedParallelism(1, "footprint"),
             textEncoder = FixtureTextEncoder,
-            textIndex = InMemoryVectorIndex(TextEncoder.TEXT_DIM),
+            textIndex = text,
             textStore = textStore,
             artistKnowledge = knowledge,
         )

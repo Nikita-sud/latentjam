@@ -67,8 +67,9 @@ public interface VectorIndex {
 
     /**
      * Every stored entry in stored form, for a caller that only reads it before the index next
-     * changes — writing a checkpoint under the engine's lock. An implementation may hand out its
-     * own arrays and map instead of [entries]' copies: never modify them, or keep them.
+     * changes — writing a checkpoint or building a SMART snapshot under the engine's lock. An
+     * implementation may hand out its own arrays and map instead of [entries]' copies: never modify
+     * them, or keep them.
      */
     public fun storedEntries(): Map<TrackId, FloatArray> = entries()
 

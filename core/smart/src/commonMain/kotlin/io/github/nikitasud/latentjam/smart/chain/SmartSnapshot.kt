@@ -23,6 +23,20 @@ internal data class SmartTrack(
 }
 
 /**
+ * A snapshot row: the [SmartTrack] without its vectors, which the snapshot's matrices hold. A snapshot
+ * lives as long as the engine's cache, so keeping the input arrays as well would hold the library's
+ * vectors once more for that long.
+ */
+internal class SnapshotTrack(
+    val id: TrackId,
+    val energy: Float,
+    val meta: TrackMeta,
+) {
+    override fun equals(other: Any?): Boolean = other is SnapshotTrack && other.id == id
+    override fun hashCode(): Int = id.hashCode()
+}
+
+/**
  * The library prepared for chain building: centered spaces, hub penalties and availability masks,
  * all computed once per SMART activation.
  *
@@ -31,7 +45,7 @@ internal data class SmartTrack(
  * renormalising is what turns cosine into a usable ranking signal.
  */
 internal class SmartSnapshot private constructor(
-    val tracks: List<SmartTrack>,
+    val tracks: List<SnapshotTrack>,
     /** Raw audio rows, N × [AUDIO_DIM], as the scorer consumes them. */
     val rawAudio: FloatArray,
     /** Centered, renormalised audio rows — the space all chain cosines are measured in. */
@@ -156,7 +170,16 @@ internal class SmartSnapshot private constructor(
         /** CSLS neighbourhood size for the hub penalty. */
         const val HUB_TOPK = 10
 
-        fun build(tracks: List<SmartTrack>, batchDotProducts: BatchDotProducts = BatchDotProducts.Portable): SmartSnapshot? {
+        /**
+         * [descriptorOf] reads a row's descriptor; the engine decodes it there, so that one row's decoded
+         * descriptor is alive at a time instead of the whole library's. It is called at most twice per
+         * row and must return the same values each time.
+         */
+        fun build(
+            tracks: List<SmartTrack>,
+            batchDotProducts: BatchDotProducts = BatchDotProducts.Portable,
+            descriptorOf: (SmartTrack) -> FloatArray? = SmartTrack::descriptor,
+        ): SmartSnapshot? {
             val usable = tracks.filter { it.audio.size == AUDIO_DIM && norm(it.audio) >= DEGENERATE_NORM_EPS }
             val n = usable.size
             if (n == 0) return null
@@ -196,9 +219,9 @@ internal class SmartSnapshot private constructor(
             // One width per snapshot: the first usable descriptor sets it, and rows of another width
             // count as absent rather than being truncated.
             val descriptorDim = usable.firstNotNullOfOrNull { track ->
-                track.descriptor?.takeIf { it.isNotEmpty() && norm(it) > 1e-9f }?.size
+                descriptorOf(track)?.takeIf { it.isNotEmpty() && norm(it) > 1e-9f }?.size
             } ?: DESCRIPTOR_DIM
-            val (descriptor, hasDescriptor) = centeredMasked(usable, descriptorDim) { it.descriptor }
+            val (descriptor, hasDescriptor) = centeredMasked(usable, descriptorDim, descriptorOf)
             val rawText = if (hasText == null) null else FloatArray(n * TEXT_DIM).also { out ->
                 for (i in 0 until n) if (hasText[i]) {
                     val v = usable[i].text!!
@@ -208,7 +231,7 @@ internal class SmartSnapshot private constructor(
             }
 
             return SmartSnapshot(
-                tracks = usable,
+                tracks = usable.map { SnapshotTrack(it.id, it.energy, it.meta) },
                 batchDotProducts = batchDotProducts,
                 rawAudio = raw,
                 centeredAudio = centered,
@@ -342,7 +365,8 @@ internal class SmartSnapshot private constructor(
 
         /**
          * Centered + renormalised copy of an optional space, computed over the rows that HAVE a
-         * vector (so absent rows don't drag the mean) and zeroed elsewhere.
+         * vector (so absent rows don't drag the mean) and zeroed elsewhere. Each row is read once,
+         * straight into the matrix, which exists only once some row has a vector.
          */
         private inline fun centeredMasked(
             tracks: List<SmartTrack>,
@@ -352,22 +376,21 @@ internal class SmartSnapshot private constructor(
             val n = tracks.size
             val has = BooleanArray(n)
             var present = 0
+            var allocated: FloatArray? = null
             for (i in 0 until n) {
                 val v = select(tracks[i])
-                if (v != null && v.size == dim && norm(v) > 1e-9f) {
-                    has[i] = true
-                    present++
-                }
-            }
-            if (present == 0) return null to null
-
-            val matrix = FloatArray(n * dim)
-            for (i in 0 until n) if (has[i]) {
-                val v = select(tracks[i])!!
-                val scale = 1f / norm(v).coerceAtLeast(1e-12f)
+                if (v == null || v.size != dim) continue
+                val length = norm(v)
+                if (!(length > 1e-9f)) continue
+                val rows = allocated ?: FloatArray(n * dim).also { allocated = it }
+                has[i] = true
+                present++
+                val scale = 1f / length.coerceAtLeast(1e-12f)
                 val base = i * dim
-                for (d in 0 until dim) matrix[base + d] = v[d] * scale
+                for (d in 0 until dim) rows[base + d] = v[d] * scale
             }
+            val matrix = allocated ?: return null to null
+
             val mean = FloatArray(dim)
             for (i in 0 until n) if (has[i]) {
                 val base = i * dim
@@ -375,11 +398,8 @@ internal class SmartSnapshot private constructor(
             }
             for (d in 0 until dim) mean[d] /= present
             for (i in 0 until n) {
+                if (!has[i]) continue
                 val base = i * dim
-                if (!has[i]) {
-                    for (d in 0 until dim) matrix[base + d] = 0f
-                    continue
-                }
                 var sumSq = 0.0
                 for (d in 0 until dim) {
                     val v = matrix[base + d] - mean[d]
