@@ -123,10 +123,11 @@ class MapDiagnosticsReplay {
                 (playlists + albumGroups).forEach { (groupName, members) ->
                     val inside = world.tracks.count { it.id in members }
                     val containment = inside.toDouble() / world.tracks.size
-                    if (containment >= 0.4) {
+                    if (containment >= 0.3) {
                         println(
-                            "DIAG   '${groupName.take(34)}' группа=${members.size} внутри=$inside " +
-                                "containment=${f(containment)} specificity=${f(inside.toDouble() / members.size)}" +
+                            "DIAG   '${groupName.take(40)}' группа=${members.size} внутри=$inside " +
+                                "containment=${f(containment)} specificity=${f(inside.toDouble() / members.size)} " +
+                                "jaccard=${f(inside.toDouble() / (world.tracks.size + members.size - inside))}" +
                                 if (groupName.equals(world.name, ignoreCase = true)) "  <-- ВЫИГРАЛА" else "",
                         )
                     }
