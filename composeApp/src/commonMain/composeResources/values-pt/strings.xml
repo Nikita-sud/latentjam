@@ -216,6 +216,10 @@
     <string name="action_remove_favorite">Remover das favoritas</string>
     <string name="action_remove_from_playlist">Remover desta playlist</string>
     <string name="snack_playlist_track_removed">Removido de "%1$s"</string>
+    <plurals name="playlist_unavailable_tracks">
+        <item quantity="one">%1$d música desta playlist não está neste dispositivo.</item>
+        <item quantity="other">%1$d músicas desta playlist não estão neste dispositivo.</item>
+    </plurals>
     <string name="action_go_to_album">Ir para o álbum</string>
     <string name="action_go_to_artist">Ir para o artista</string>
     <string name="action_show_on_map">Mostrar no mapa</string>

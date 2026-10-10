@@ -203,6 +203,11 @@
     <string name="action_remove_favorite">הסרה מהמועדפים</string>
     <string name="action_remove_from_playlist">הסרה מהפלייליסט הזה</string>
     <string name="snack_playlist_track_removed">הוסר מהפלייליסט "%1$s"</string>
+    <plurals name="playlist_unavailable_tracks">
+        <item quantity="one">%1$d שיר בפלייליסט הזה לא נמצא במכשיר הזה.</item>
+        <item quantity="two">%1$d שירים בפלייליסט הזה לא נמצאים במכשיר הזה.</item>
+        <item quantity="other">%1$d שירים בפלייליסט הזה לא נמצאים במכשיר הזה.</item>
+    </plurals>
     <string name="action_go_to_album">מעבר לאלבום</string>
     <string name="action_go_to_artist">מעבר לאמן</string>
     <string name="action_show_on_map">הצגה במפה</string>

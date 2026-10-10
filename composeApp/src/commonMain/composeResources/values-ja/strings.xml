@@ -190,6 +190,9 @@
     <string name="action_remove_favorite">お気に入りから削除</string>
     <string name="action_remove_from_playlist">このプレイリストから削除</string>
     <string name="snack_playlist_track_removed">"%1$s"から削除しました</string>
+    <plurals name="playlist_unavailable_tracks">
+        <item quantity="other">このプレイリストの%1$d曲がこの端末にありません。</item>
+    </plurals>
     <string name="action_go_to_album">アルバムを表示</string>
     <string name="action_go_to_artist">アーティストを表示</string>
     <string name="action_show_on_map">マップに表示</string>

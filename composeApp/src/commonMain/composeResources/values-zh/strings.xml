@@ -196,6 +196,9 @@
     <string name="action_remove_favorite">从收藏中移除</string>
     <string name="action_remove_from_playlist">从此播放列表中移除</string>
     <string name="snack_playlist_track_removed">已从"%1$s"中移除</string>
+    <plurals name="playlist_unavailable_tracks">
+        <item quantity="other">此播放列表中有 %1$d 首歌曲不在此设备上。</item>
+    </plurals>
     <string name="action_go_to_album">转到专辑</string>
     <string name="action_go_to_artist">转到艺人</string>
     <string name="action_show_on_map">在地图中显示</string>

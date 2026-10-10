@@ -196,6 +196,10 @@
     <string name="action_remove_favorite">पसंदीदा से हटाएँ</string>
     <string name="action_remove_from_playlist">इस प्लेलिस्ट से हटाएँ</string>
     <string name="snack_playlist_track_removed">"%1$s" से हटाया गया</string>
+    <plurals name="playlist_unavailable_tracks">
+        <item quantity="one">इस प्लेलिस्ट का %1$d गाना इस डिवाइस पर नहीं है।</item>
+        <item quantity="other">इस प्लेलिस्ट के %1$d गाने इस डिवाइस पर नहीं हैं।</item>
+    </plurals>
     <string name="action_go_to_album">एल्बम पर जाएं</string>
     <string name="action_go_to_artist">कलाकार पर जाएं</string>
     <string name="action_show_on_map">मानचित्र पर दिखाएँ</string>

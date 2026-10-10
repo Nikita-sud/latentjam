@@ -212,6 +212,12 @@
     <string name="action_remove_favorite">Usuń z ulubionych</string>
     <string name="action_remove_from_playlist">Usuń z tej playlisty</string>
     <string name="snack_playlist_track_removed">Usunięto z "%1$s"</string>
+    <plurals name="playlist_unavailable_tracks">
+        <item quantity="one">%1$d utwór z tej playlisty nie znajduje się na tym urządzeniu.</item>
+        <item quantity="few">%1$d utwory z tej playlisty nie znajdują się na tym urządzeniu.</item>
+        <item quantity="many">%1$d utworów z tej playlisty nie znajduje się na tym urządzeniu.</item>
+        <item quantity="other">%1$d utworu z tej playlisty nie znajduje się na tym urządzeniu.</item>
+    </plurals>
     <string name="action_go_to_album">Przejdź do albumu</string>
     <string name="action_go_to_artist">Przejdź do wykonawcy</string>
     <string name="action_show_on_map">Pokaż na mapie</string>

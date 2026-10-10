@@ -190,6 +190,9 @@
     <string name="action_remove_favorite">즐겨찾기에서 제거</string>
     <string name="action_remove_from_playlist">이 재생목록에서 제거</string>
     <string name="snack_playlist_track_removed">"%1$s"에서 제거됨</string>
+    <plurals name="playlist_unavailable_tracks">
+        <item quantity="other">이 재생목록의 %1$d곡이 이 기기에 없습니다.</item>
+    </plurals>
     <string name="action_go_to_album">앨범으로 이동</string>
     <string name="action_go_to_artist">아티스트로 이동</string>
     <string name="action_show_on_map">지도에서 보기</string>

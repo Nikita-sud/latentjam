@@ -203,6 +203,10 @@
     <string name="action_remove_favorite">Quitar de favoritos</string>
     <string name="action_remove_from_playlist">Quitar de esta lista</string>
     <string name="snack_playlist_track_removed">Quitado de "%1$s"</string>
+    <plurals name="playlist_unavailable_tracks">
+        <item quantity="one">%1$d canción de esta lista no está en este dispositivo.</item>
+        <item quantity="other">%1$d canciones de esta lista no están en este dispositivo.</item>
+    </plurals>
     <string name="action_go_to_album">Ir al álbum</string>
     <string name="action_go_to_artist">Ir al artista</string>
     <string name="action_show_on_map">Mostrar en el mapa</string>

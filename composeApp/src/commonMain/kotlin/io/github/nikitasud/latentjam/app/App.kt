@@ -2287,6 +2287,99 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             }
         }
 
+        // The open playlist's entries that are not on this device. Asked again whenever its
+        // membership or the library changes; while the library cannot vouch for itself (a partial
+        // scan, no grant, a card that is out) there are none, so nothing is offered for removal.
+        var openPlaylistUnavailable by remember { mutableStateOf<UnavailablePlaylistEntries?>(null) }
+        var unavailableRemovalInFlight by remember { mutableStateOf(false) }
+        val openPlaylistId = selectedCollection?.playlistId
+        val openPlaylistMembers = remember(openPlaylistId, playlists) {
+            playlists.firstOrNull { it.id == openPlaylistId }?.trackIds
+        }
+        LaunchedEffect(openPlaylistId, openPlaylistMembers, libraryIndexingRequest) {
+            val playlistId = openPlaylistId
+            val members = openPlaylistMembers
+            val request = libraryIndexingRequest
+            if (playlistId == null || members == null || request == null) {
+                openPlaylistUnavailable = null
+                return@LaunchedEffect
+            }
+            val unavailable = try {
+                unavailablePlaylistEntries(members, request, library::missingTrackIds)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                println("Playlists: could not check for missing tracks: $failure")
+                emptySet()
+            }
+            openPlaylistUnavailable = UnavailablePlaylistEntries(playlistId, unavailable)
+        }
+
+        fun removeUnavailablePlaylistTracks(playlistId: String, title: String) {
+            val request = libraryIndexingRequest ?: return
+            val shown = openPlaylistUnavailable?.takeIf { it.playlistId == playlistId }?.ids.orEmpty()
+            if (unavailableRemovalInFlight || shown.isEmpty()) return
+            unavailableRemovalInFlight = true
+            scope.launch {
+                val removal = try {
+                    Result.success(
+                        removeUnavailablePlaylistEntries(
+                            AppGraph.playlists, playlistId, shown, request, library::missingTrackIds,
+                        ),
+                    )
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (failure: Throwable) {
+                    Result.failure(failure)
+                } finally {
+                    unavailableRemovalInFlight = false
+                }
+                if (removal.isFailure) {
+                    snackbar.showSnackbar(getString(Res.string.settings_library_manage_failed))
+                    return@launch
+                }
+                // Null: every entry came back since the notice was drawn. The list already shows
+                // them; only the notice is out of date.
+                val change = removal.getOrNull() ?: run {
+                    if (openPlaylistUnavailable?.playlistId == playlistId) openPlaylistUnavailable = null
+                    return@launch
+                }
+                // The rows were never shown, so the open page keeps its list as it is. The notice
+                // goes at once; the membership change below asks the device again.
+                if (openPlaylistUnavailable?.playlistId == playlistId) openPlaylistUnavailable = null
+                playlists = playlists.map { stored ->
+                    if (stored.id == playlistId) stored.copy(trackIds = change.after.map(TrackId::value)) else stored
+                }
+                val result = snackbar.showSnackbar(
+                    message = getString(
+                        Res.string.snack_playlist_track_removed,
+                        bidiWrap(title, layoutDirection),
+                    ),
+                    actionLabel = getString(Res.string.action_undo),
+                    withDismissAction = true,
+                )
+                if (result != SnackbarResult.ActionPerformed) return@launch
+                val restored = try {
+                    AppGraph.playlists.replaceTracksIfUnchanged(
+                        playlistId,
+                        expected = change.after,
+                        replacement = change.before,
+                    )
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Throwable) {
+                    false
+                }
+                if (!restored) {
+                    snackbar.showSnackbar(getString(Res.string.settings_library_manage_failed))
+                    return@launch
+                }
+                playlists = playlists.map { stored ->
+                    if (stored.id == playlistId) stored.copy(trackIds = change.before.map(TrackId::value)) else stored
+                }
+            }
+        }
+
         val deleteTrack = rememberTrackDeleter { report ->
             scope.launch {
                 if (report.deleted > 0) {
@@ -3751,6 +3844,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 else -> null
                             },
                             includeInSmart = editablePlaylist?.includeInSmart == true,
+                            unavailableCount = openPlaylistUnavailable
+                                ?.takeIf { editablePlaylist != null && it.playlistId == editablePlaylist.id }
+                                ?.ids?.size ?: 0,
+                            onRemoveUnavailable = editablePlaylist?.let { playlist ->
+                                { removeUnavailablePlaylistTracks(playlist.id, playlist.name) }
+                            },
+                            unavailableRemovalBusy = unavailableRemovalInFlight,
                             onChangeCover = editablePlaylist?.let { playlist ->
                                 { changePlaylistCover(playlist) }
                             },

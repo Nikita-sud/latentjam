@@ -668,8 +668,11 @@ internal fun PlaylistNameDialog(
 internal fun AddToPlaylistSheet(
     tracks: List<TrackDescriptor>,
     playlists: List<Playlist>,
-    /** Resolved (playable) track count per playlist; stored ids may include deleted files. */
-    resolvedSize: (Playlist) -> Int = { it.trackIds.size },
+    /**
+     * Resolved (playable) track count per playlist; stored ids may include deleted files. No
+     * default: the stored count would show entries the playlist page never lists.
+     */
+    resolvedSize: (Playlist) -> Int,
     onAddTo: (Playlist) -> Unit,
     onCreateNew: () -> Unit,
     onDismiss: () -> Unit,

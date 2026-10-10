@@ -45,6 +45,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -79,11 +80,13 @@ import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.action_back
 import io.github.nikitasud.latentjam.app.generated.resources.action_change_playlist_cover
+import io.github.nikitasud.latentjam.app.generated.resources.action_remove_from_playlist
 import io.github.nikitasud.latentjam.app.generated.resources.action_reset_playlist_cover
 import io.github.nikitasud.latentjam.app.generated.resources.action_smart_keep_together
 import io.github.nikitasud.latentjam.app.generated.resources.cd_more_options
 import io.github.nikitasud.latentjam.app.generated.resources.map_action_smart_here
 import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
+import io.github.nikitasud.latentjam.app.generated.resources.playlist_unavailable_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.info_edit
 import io.github.nikitasud.latentjam.app.generated.resources.action_close
 import io.github.nikitasud.latentjam.app.generated.resources.action_edit_album
@@ -294,6 +297,11 @@ fun CollectionDetailScreen(
     onToggleSmart: (() -> Unit)? = null,
     onEditTags: (() -> Unit)? = null,
     includeInSmart: Boolean = false,
+    /** Entries of this playlist that are not on the device; they are never in [selection]. */
+    unavailableCount: Int = 0,
+    /** Forgets those entries; null where there is nothing the listener could remove. */
+    onRemoveUnavailable: (() -> Unit)? = null,
+    unavailableRemovalBusy: Boolean = false,
     active: Boolean = true,
     /** Includes the shared cover transition, which can outlive the page's own entrance. */
     entrySettled: Boolean = true,
@@ -502,6 +510,9 @@ fun CollectionDetailScreen(
                             onTrackMenu = onTrackMenu,
                             albumSort = albumSort,
                             onAlbumSortChange = onAlbumSortChange,
+                            unavailableCount = unavailableCount,
+                            onRemoveUnavailable = onRemoveUnavailable,
+                            unavailableRemovalBusy = unavailableRemovalBusy,
                         )
                     }
                 } else {
@@ -528,6 +539,9 @@ fun CollectionDetailScreen(
                         onTrackMenu = onTrackMenu,
                         albumSort = albumSort,
                         onAlbumSortChange = onAlbumSortChange,
+                        unavailableCount = unavailableCount,
+                        onRemoveUnavailable = onRemoveUnavailable,
+                        unavailableRemovalBusy = unavailableRemovalBusy,
                     )
                 }
                 ScrollToTopButton(
@@ -550,6 +564,8 @@ private fun CollectionHero(
     onChangeCover: (() -> Unit)?,
     albumSort: SortChoice<AlbumSort>?,
     onAlbumSortChange: (SortChoice<AlbumSort>) -> Unit,
+    unavailableCount: Int = 0,
+    onRemoveUnavailable: (() -> Unit)? = null,
 ) {
     val albumYear = remember(selection.tracks) { albumYearLabel(selection.tracks) }
     val metadata = if (selection.routeId.startsWith("album:")) {
@@ -649,6 +665,13 @@ private fun CollectionHero(
                 Icon(LatentJamMark, stringResource(Res.string.map_action_smart_here), modifier = Modifier.size(24.dp))
             }
         }
+        // Inside the hero, not a row of its own: the list's item indices stay those of its tracks.
+        if (unavailableCount > 0) {
+            UnavailableEntriesNotice(
+                count = unavailableCount,
+                onRemove = onRemoveUnavailable?.takeIf { enabled },
+            )
+        }
         // Start-aligned with the album headers it orders, the way the Tracks tab's pill heads its list.
         if (albumSort != null) {
             SortPill(
@@ -661,6 +684,29 @@ private fun CollectionHero(
                 modifier = Modifier.align(Alignment.Start).padding(top = 18.dp)
                     .graphicsLayer { alpha = if (enabled) 1f else 0.38f },
             )
+        }
+    }
+}
+
+/**
+ * Says how many of a playlist's songs are not on this device: the list and its count show only the
+ * songs present, and without this the rest would vanish without a word. Removal is the listener's
+ * choice, with Undo; [onRemove] is null while it cannot be offered.
+ */
+@Composable
+private fun UnavailableEntriesNotice(count: Int, onRemove: (() -> Unit)?) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = pluralStringResource(Res.plurals.playlist_unavailable_tracks, count, count),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        TextButton(onClick = { onRemove?.invoke() }, enabled = onRemove != null) {
+            Text(stringResource(Res.string.action_remove_from_playlist))
         }
     }
 }
@@ -689,6 +735,9 @@ private fun CollectionTrackLazyColumn(
     onChangeCover: (() -> Unit)? = null,
     albumSort: SortChoice<AlbumSort>? = null,
     onAlbumSortChange: (SortChoice<AlbumSort>) -> Unit = {},
+    unavailableCount: Int = 0,
+    onRemoveUnavailable: (() -> Unit)? = null,
+    unavailableRemovalBusy: Boolean = false,
 ) {
     val reduceMotion = rememberReduceMotion()
     val unknownTitle = stringResource(Res.string.track_untitled)
@@ -705,6 +754,8 @@ private fun CollectionTrackLazyColumn(
                 onStartSmart = onStartSmart,
                 albumSort = albumSort,
                 onAlbumSortChange = onAlbumSortChange,
+                unavailableCount = unavailableCount,
+                onRemoveUnavailable = onRemoveUnavailable?.takeIf { !unavailableRemovalBusy },
             )
         }
         val sections = selection.sections

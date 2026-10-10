@@ -228,6 +228,14 @@
     <string name="action_remove_favorite">إزالة من المفضلة</string>
     <string name="action_remove_from_playlist">إزالة من قائمة التشغيل هذه</string>
     <string name="snack_playlist_track_removed">تمت الإزالة من "%1$s"</string>
+    <plurals name="playlist_unavailable_tracks">
+        <item quantity="zero">%1$d مقطع صوتي في قائمة التشغيل هذه غير موجود على هذا الجهاز.</item>
+        <item quantity="one">%1$d مقطع صوتي في قائمة التشغيل هذه غير موجود على هذا الجهاز.</item>
+        <item quantity="two">%1$d مقطعان صوتيان في قائمة التشغيل هذه غير موجودين على هذا الجهاز.</item>
+        <item quantity="few">%1$d مقاطع صوتية في قائمة التشغيل هذه غير موجودة على هذا الجهاز.</item>
+        <item quantity="many">%1$d مقطعًا صوتيًا في قائمة التشغيل هذه غير موجودة على هذا الجهاز.</item>
+        <item quantity="other">%1$d مقطع صوتي في قائمة التشغيل هذه غير موجودة على هذا الجهاز.</item>
+    </plurals>
     <string name="action_go_to_album">الانتقال إلى الألبوم</string>
     <string name="action_go_to_artist">الانتقال إلى الفنان</string>
     <string name="action_show_on_map">عرض على الخريطة</string>

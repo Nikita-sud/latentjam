@@ -196,6 +196,10 @@
     <string name="action_remove_favorite">Favorilerden çıkar</string>
     <string name="action_remove_from_playlist">Bu çalma listesinden kaldır</string>
     <string name="snack_playlist_track_removed">"%1$s" listesinden kaldırıldı</string>
+    <plurals name="playlist_unavailable_tracks">
+        <item quantity="one">Bu çalma listesindeki %1$d parça bu cihazda yok.</item>
+        <item quantity="other">Bu çalma listesindeki %1$d parça bu cihazda yok.</item>
+    </plurals>
     <string name="action_go_to_album">Albüme git</string>
     <string name="action_go_to_artist">Sanatçıya git</string>
     <string name="action_show_on_map">Haritada göster</string>

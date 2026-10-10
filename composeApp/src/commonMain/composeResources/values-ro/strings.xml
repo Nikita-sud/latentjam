@@ -196,6 +196,11 @@
     <string name="action_remove_favorite">Elimină din favorite</string>
     <string name="action_remove_from_playlist">Elimină din acest playlist</string>
     <string name="snack_playlist_track_removed">Eliminat din "%1$s"</string>
+    <plurals name="playlist_unavailable_tracks">
+        <item quantity="one">%1$d piesă din acest playlist nu este pe acest dispozitiv.</item>
+        <item quantity="few">%1$d piese din acest playlist nu sunt pe acest dispozitiv.</item>
+        <item quantity="other">%1$d de piese din acest playlist nu sunt pe acest dispozitiv.</item>
+    </plurals>
     <string name="action_go_to_album">Mergi la album</string>
     <string name="action_go_to_artist">Mergi la artist</string>
     <string name="action_show_on_map">Arată pe hartă</string>

@@ -199,6 +199,12 @@
     <string name="action_remove_favorite">Убрать из любимых</string>
     <string name="action_remove_from_playlist">Убрать из этого плейлиста</string>
     <string name="snack_playlist_track_removed">Убрано из "%1$s"</string>
+    <plurals name="playlist_unavailable_tracks">
+        <item quantity="one">%1$d трек из этого плейлиста отсутствует на этом устройстве.</item>
+        <item quantity="few">%1$d трека из этого плейлиста отсутствуют на этом устройстве.</item>
+        <item quantity="many">%1$d треков из этого плейлиста отсутствуют на этом устройстве.</item>
+        <item quantity="other">%1$d трека из этого плейлиста отсутствуют на этом устройстве.</item>
+    </plurals>
     <string name="action_go_to_album">Перейти к альбому</string>
     <string name="action_go_to_artist">Перейти к исполнителю</string>
     <string name="action_show_on_map">Показать на карте</string>
