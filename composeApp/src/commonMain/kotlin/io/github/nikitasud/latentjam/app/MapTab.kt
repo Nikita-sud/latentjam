@@ -646,7 +646,14 @@ fun MapTab(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
         )
-        StableMapLegend(MapLenses.legend(lens), neutral, accent, coolRamp, warmRamp)
+        StableMapLegend(
+            legend = MapLenses.legend(lens),
+            neutral = neutral,
+            accent = accent,
+            coolRamp = coolRamp,
+            warmRamp = warmRamp,
+            outsideRegions = page.dots.count { !it.claimed },
+        )
 
         val region = page.listening.regions.firstOrNull { it.region == selectedRegion }
         var regionMenuOpen by remember { mutableStateOf(false) }
@@ -799,7 +806,14 @@ fun MapTab(
             Column(Modifier.fillMaxSize()) {
                 header()
                 plot(Modifier.weight(1f).fillMaxWidth(), true)
-                StableMapLegend(MapLenses.legend(lens), neutral, accent, coolRamp, warmRamp)
+                StableMapLegend(
+            legend = MapLenses.legend(lens),
+            neutral = neutral,
+            accent = accent,
+            coolRamp = coolRamp,
+            warmRamp = warmRamp,
+            outsideRegions = page.dots.count { !it.claimed },
+        )
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -855,6 +869,7 @@ private fun StableMapLegend(
     accent: Color,
     coolRamp: List<Color>,
     warmRamp: List<Color>,
+    outsideRegions: Int,
 ) {
     Box(Modifier.fillMaxWidth()) {
         for (candidate in MapLegend.entries) {
@@ -864,7 +879,7 @@ private fun StableMapLegend(
                     if (candidate == legend) placeable.placeRelative(0, 0)
                 }
             }) {
-                MapLegendRow(candidate, neutral, accent, coolRamp, warmRamp)
+                MapLegendRow(candidate, neutral, accent, coolRamp, warmRamp, outsideRegions)
             }
         }
     }
@@ -885,6 +900,7 @@ private fun MapLegendRow(
     accent: Color,
     coolRamp: List<Color>,
     warmRamp: List<Color>,
+    outsideRegions: Int,
 ) {
     FlowRow(
         Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
@@ -894,7 +910,11 @@ private fun MapLegendRow(
         when (legend) {
             MapLegend.REGION_SELECTION -> {
                 LegendKey(accent, stringResource(Res.string.map_legend_selected))
-                LegendKey(neutral, stringResource(Res.string.map_legend_rest))
+                // The neutral key is a real part of the library, and how large a part it is is the
+                // question this map raises first. The count rides along with the localized label
+                // rather than needing a sentence of its own in nineteen catalogs.
+                val rest = stringResource(Res.string.map_legend_rest)
+                LegendKey(neutral, if (outsideRegions > 0) "$rest · $outsideRegions" else rest)
             }
             MapLegend.NEVER_PLAYED_KEY -> {
                 LegendKey(accent, stringResource(Res.string.map_legend_never))
