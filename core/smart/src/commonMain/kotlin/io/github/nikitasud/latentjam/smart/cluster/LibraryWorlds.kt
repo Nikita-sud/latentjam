@@ -52,6 +52,7 @@ public data class LibraryWorld(
         LibraryWorldNameSource.SEMANTIC -> true
         LibraryWorldNameSource.GENERIC -> true
         LibraryWorldNameSource.PLAYLIST -> true
+        LibraryWorldNameSource.MAJOR_FAMILIES -> true
     }
 }
 
@@ -70,6 +71,13 @@ public enum class LibraryWorldNameSource {
 
     /** Two substantial styles jointly describe at least two thirds of the coherent region. */
     GENRE_BLEND,
+
+    /**
+     * The two largest followings, joined with "+", in a region no single style or well-covered pair
+     * could name. Descriptive only: it claims nothing about coverage, so no member is removed for
+     * the sake of the title, and "Discovery mix" stays for regions whose styles are all marginal.
+     */
+    MAJOR_FAMILIES,
 }
 
 private fun TrackDescriptor.worldDecade(): Int? =
@@ -204,6 +212,15 @@ public object LibraryWorlds {
      * quarters of an acoustic region identically. A 35% plurality still cannot name anything.
      */
     public const val MIN_SHARE: Float = 0.6f
+
+    /**
+     * A style needs this share of a region to appear in a descriptive [LibraryWorldNameSource.MAJOR_FAMILIES]
+     * name, and the two named styles together must cover [MAJOR_FAMILIES_COVERAGE] of it.
+     */
+    public const val MAJOR_FAMILY_SHARE: Float = 0.15f
+
+    /** Union coverage the two descriptive styles need before they are worth naming. */
+    public const val MAJOR_FAMILIES_COVERAGE: Float = 0.5f
 
     /**
      * A member this close to a rival centroid sits on an arbitrary k-means boundary rather than
@@ -645,6 +662,24 @@ public object LibraryWorlds {
                 source = LibraryWorldNameSource.GENRE_BLEND,
                 tracks = listOf(representative) + tracks.filter { it.id != representative.id },
                 blendFamilies = families,
+            )
+        }
+
+        // No single style and no well-covered pair: name the region after its two largest
+        // followings rather than calling it nothing at all. A "+" name is descriptive, so it
+        // removes no member, and a region whose styles are all marginal keeps the honest fallback.
+        val majorFamilies = familyVotes.entries
+            .filter { it.value >= minSize && it.value >= facts.size * MAJOR_FAMILY_SHARE }
+            .sortedByDescending { it.value }
+            .take(2)
+        val majorCoverage = majorFamilies.sumOf { candidate ->
+            facts.count { fact -> candidate.key in fact.families }
+        }
+        if (majorFamilies.isNotEmpty() && majorCoverage >= facts.size * MAJOR_FAMILIES_COVERAGE) {
+            return WorldName(
+                text = majorFamilies.joinToString(" + ") { displayFamily(it.key) },
+                source = LibraryWorldNameSource.MAJOR_FAMILIES,
+                tracks = tracks,
             )
         }
 

@@ -213,6 +213,43 @@ class LibraryWorldsTest {
     }
 
     @Test
+    fun `a region no single style or pair can name takes its two largest followings`() {
+        val library = corpus {
+            // Four real followings, none near MIN_SHARE and no pair covering two thirds: before
+            // this, the region fell back to the localized "Discovery mix" placeholder.
+            repeat(9) { add("rock$it", angle = 0.3, spread = 0.0, genre = "Hard Rock", artist = "R$it") }
+            repeat(8) { add("pop$it", angle = 0.3, spread = 0.0, genre = "Pop", artist = "P$it") }
+            repeat(7) { add("jazz$it", angle = 0.3, spread = 0.0, genre = "Jazz", artist = "J$it") }
+            repeat(6) { add("folk$it", angle = 0.3, spread = 0.0, genre = "Folk", artist = "F$it") }
+        }
+
+        val world = library.discover(k = 1).single()
+
+        assertEquals("Rock + Pop", world.name)
+        assertEquals(LibraryWorldNameSource.MAJOR_FAMILIES, world.nameSource)
+        // A descriptive name claims nothing about coverage, so nobody is dropped for its sake.
+        assertEquals(30, world.tracks.size)
+    }
+
+    @Test
+    fun `marginal styles keep the honest placeholder instead of an arbitrary pair`() {
+        val library = corpus {
+            // Five equal followings: any "two largest" here would be a coin toss, so the region
+            // keeps the placeholder it can defend.
+            repeat(6) { add("a$it", angle = 0.3, spread = 0.0, genre = "Ambient", artist = "A$it") }
+            repeat(6) { add("b$it", angle = 0.3, spread = 0.0, genre = "Blues", artist = "B$it") }
+            repeat(6) { add("c$it", angle = 0.3, spread = 0.0, genre = "Country", artist = "C$it") }
+            repeat(6) { add("d$it", angle = 0.3, spread = 0.0, genre = "Reggae", artist = "D$it") }
+            repeat(6) { add("e$it", angle = 0.3, spread = 0.0, genre = "Techno", artist = "E$it") }
+        }
+
+        val world = library.discover(k = 1).single()
+
+        assertEquals(LibraryWorldNameSource.GENERIC, world.nameSource)
+        assertEquals(30, world.tracks.size)
+    }
+
+    @Test
     fun `a supported genre replaces a contradictory medoid with the nearest truthful cover`() {
         val library = corpus {
             // One track sits exactly at the centre and will be the medoid; it is tagged unlike the
