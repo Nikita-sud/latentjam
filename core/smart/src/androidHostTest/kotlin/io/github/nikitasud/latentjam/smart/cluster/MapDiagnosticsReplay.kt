@@ -71,6 +71,21 @@ class MapDiagnosticsReplay {
             vectorsByMode[label] = vectors
             report(label, space, vectors, library)
         }
+        // Every region with its final name, so a naming change can be read off a single run.
+        run {
+            val space = modes.first().second ?: return@run
+            val vectors = vectorsByMode.getValue("fused(0.75 metadata)")
+            val worlds = LibraryWorlds.discover(library, vectors, space.dim)
+            val albumGroups = library.filter { !it.album.isNullOrBlank() }.groupBy { it.album.orEmpty() }
+                .filterValues { it.size > 1 }
+                .map { (album, tracks) -> album to tracks.mapTo(HashSet()) { it.id } }
+            val named = LibraryWorlds.namedAfterGroups(worlds, readPlaylists(File(dir, "playlists.tsv")) + albumGroups)
+            println("DIAG имена регионов (плейлисты+альбомы):")
+            named.forEachIndexed { index, world ->
+                println("DIAG   регион[$index] size=${world.tracks.size} name='${world.name}' source=${world.nameSource}")
+            }
+        }
+
         System.getenv("MAP_DIAG_FOCUS")?.let { needle ->
             val space = modes.first().second ?: return@let
             val vectors = vectorsByMode.getValue("fused(0.75 metadata)")
@@ -115,41 +130,6 @@ class MapDiagnosticsReplay {
                                 "containment=${f(containment)} specificity=${f(inside.toDouble() / members.size)}" +
                                 if (groupName.equals(world.name, ignoreCase = true)) "  <-- ВЫИГРАЛА" else "",
                         )
-                    }
-                }
-            }
-
-            // What the names would be if the tighter claim won instead of the broadest one. Nothing
-            // here changes the product; it only shows the owner what the alternative rule reads like.
-            run {
-                data class AltClaim(val world: Int, val name: String, val f1: Double)
-                val claims = ArrayList<AltClaim>()
-                named.forEachIndexed { index, world ->
-                    (playlists + albumGroups).forEach { (groupName, members) ->
-                        if (groupName.isBlank() || members.isEmpty()) return@forEach
-                        val inside = world.tracks.count { it.id in members }
-                        val containment = inside.toDouble() / world.tracks.size
-                        val specificity = inside.toDouble() / members.size
-                        if (containment >= 0.45 && inside > 0) {
-                            claims += AltClaim(index, groupName, 2 * containment * specificity / (containment + specificity))
-                        }
-                    }
-                }
-                val takenWorlds = HashSet<Int>()
-                val takenNames = HashSet<String>()
-                val alt = HashMap<Int, String>()
-                for (claim in claims.sortedByDescending { it.f1 }) {
-                    if (claim.world in takenWorlds || claim.name.lowercase() in takenNames) continue
-                    takenWorlds += claim.world
-                    takenNames += claim.name.lowercase()
-                    alt[claim.world] = claim.name
-                }
-                println("DIAG имена: сейчас / если побеждает точная заявка (F1):")
-                named.indices.forEach { index ->
-                    val now = named[index].name
-                    val alternative = alt[index] ?: "(без имени группы)"
-                    if (now != alternative) {
-                        println("DIAG   регион[$index] size=${named[index].tracks.size}: '$now' -> '$alternative'")
                     }
                 }
             }
