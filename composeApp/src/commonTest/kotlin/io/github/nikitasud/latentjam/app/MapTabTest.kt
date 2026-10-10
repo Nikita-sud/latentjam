@@ -346,6 +346,21 @@ class MapTabTest {
     }
 
     @Test
+    fun `an unclaimed dot selects the region it is nearest to on the map`() {
+        val dot = MapDot(TrackId("loose"), x = 0.1f, y = 0.9f, region = MapDot.NO_REGION, plays = 0, skipRate = 0f)
+        val centroids = listOf(0 to Offset(0f, 0f), 1 to Offset(0.2f, 0.95f), 2 to Offset(1f, 1f))
+
+        assertEquals(1, nearestRegionTo(dot, centroids))
+    }
+
+    @Test
+    fun `an unclaimed dot with no regions to point at selects nothing`() {
+        val dot = MapDot(TrackId("loose"), x = 0.5f, y = 0.5f, region = MapDot.NO_REGION, plays = 0, skipRate = 0f)
+
+        assertNull(nearestRegionTo(dot, emptyList()))
+    }
+
+    @Test
     fun `largestRegionCentroids orders by region size and truncates to the limit`() {
         val dots = listOf(
             dot("a1", region = 0), dot("a2", region = 0), dot("a3", region = 0),

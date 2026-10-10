@@ -547,7 +547,9 @@ fun MapTab(
                             val dotRegion = if (labelRegion == null) nearest(
                                 page.dots, offset, size.width, size.height, zoom, panX * size.width, panY * size.height,
                                 HIT_RADIUS_DP.toPx(),
-                            )?.takeIf(MapDot::claimed)?.region else null
+                            )?.let { dot ->
+                                if (dot.claimed) dot.region else nearestRegionTo(dot, page.centroids)
+                            } else null
                             (labelRegion ?: dotRegion)?.let { currentSelectRegion(it) }
                         },
                         onLongPress = { offset ->
@@ -962,6 +964,24 @@ private fun LegendLabel(text: String) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
+
+/**
+ * The region an unclaimed dot sits closest to, for selection only.
+ *
+ * Roughly a tenth of a real library is outside every region — trimmed by confidence or by a name
+ * its tracks do not support — and those dots are drawn deliberately. A dot that ignores a tap
+ * reads as a rendering bug, so a tap on one selects the region it is nearest to on the picture the
+ * listener is looking at. Membership is untouched: [MapPage.dots], the region counts, "Play
+ * region" and every SMART mix still see the track as outside that region.
+ *
+ * Pure and Compose-free (it only reads [MapDot] and [Offset] arithmetic), so `MapTabTest` covers it.
+ */
+internal fun nearestRegionTo(dot: MapDot, centroids: List<Pair<Int, Offset>>): Int? =
+    centroids.minByOrNull { (_, offset) ->
+        val dx = dot.x - offset.x
+        val dy = dot.y - offset.y
+        dx * dx + dy * dy
+    }?.first
 
 /**
  * Centre of each of the [limit] largest regions, for the on-map labels.
