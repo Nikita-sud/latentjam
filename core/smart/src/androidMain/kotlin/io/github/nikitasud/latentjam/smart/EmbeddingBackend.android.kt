@@ -15,6 +15,7 @@ import android.net.Uri
 import android.os.Process
 import io.github.nikitasud.latentjam.smart.di.smartLayoutQualifier
 import io.github.nikitasud.latentjam.smart.di.smartTextIndexQualifier
+import io.github.nikitasud.latentjam.smart.text.readExactly
 import java.nio.FloatBuffer
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -84,7 +85,8 @@ internal class OnnxEmbeddingBackend(
         if (session != null) return Result.success(Unit)
         return try {
             val assetPath = config.modelLocator ?: DEFAULT_ASSET_PATH
-            val modelBytes = context.assets.open(assetPath).use { it.readBytes() }
+            // One copy of the model on the heap, not readBytes()' two (see readExactly).
+            val modelBytes = context.assets.open(assetPath).use { it.readExactly() }
             // The shipped encoder runs its pointwise convolutions on LatentJam's own 4-bit operator.
             session = createOrtSession(modelBytes, operators = true)
             Result.success(Unit)
@@ -100,7 +102,7 @@ internal class OnnxEmbeddingBackend(
     override suspend fun loadSemanticModel(): Result<Unit> {
         if (semanticSession != null) return Result.success(Unit)
         return try {
-            val semanticBytes = context.assets.open(SEMANTIC_ASSET_PATH).use { it.readBytes() }
+            val semanticBytes = context.assets.open(SEMANTIC_ASSET_PATH).use { it.readExactly() }
             semanticSession = createOrtSession(semanticBytes)
             Result.success(Unit)
         } catch (failure: Throwable) {

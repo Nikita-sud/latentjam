@@ -42,7 +42,8 @@ internal class OnnxTextEncoder(
             tokenizer = openVocab().bufferedReader(Charsets.UTF_8).useLines {
                 BertWordPieceTokenizer(BertWordPieceTokenizer.parseVocab(it), maxLen = TextEncoder.MAX_TOKENS)
             }
-            session = createOrtSession(openModel().use { it.readBytes() })
+            // Loaded at every launch beside the restored indexes: one copy of the model, not two.
+            session = createOrtSession(openModel().use { it.readExactly() })
             Result.success(Unit)
         } catch (t: Throwable) {
             close()
