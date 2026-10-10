@@ -6,7 +6,10 @@ package io.github.nikitasud.latentjam.library
 
 import android.content.ContentUris
 import android.content.Context
+import android.media.MediaScannerConnection
 import android.net.Uri
+import android.os.Environment
+import android.os.storage.StorageManager
 import android.provider.MediaStore
 import io.github.nikitasud.latentjam.library.tags.CoverEdit
 import io.github.nikitasud.latentjam.library.tags.CoverPicture
@@ -18,14 +21,18 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.core.module.Module
 import org.koin.dsl.module
 import java.io.FileInputStream
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.coroutines.resume
 
 /**
  * [MusicLibrary] backed by Android's [MediaStore].
@@ -100,6 +107,75 @@ internal class MediaStoreMusicLibrary(
                 track.id.value in hidden || sourceId(track.folderPath) in excludedSources
             },
         )
+    }
+
+    override suspend fun indexNewFiles(): Unit = withContext(Dispatchers.IO) {
+        try {
+            val roots = storageRoots()
+            if (roots.isEmpty()) return@withContext
+            // From Android 10 the scanner walks a folder it is given, skips unchanged files and honours
+            // .nomedia itself, so each volume's root is enough. It must be: from Android 11 an app
+            // cannot even list a file MediaStore does not know, the storage layer hides it. Before 10
+            // the scanner takes single files only, and an app sees every file, so LatentJam hands it
+            // exactly the ones it is missing.
+            val paths = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                roots.map(java.io.File::getPath)
+            } else {
+                unindexedAudioFiles(roots, knownAudioPaths())
+            }
+            if (paths.isEmpty()) return@withContext
+            // A scanner that goes quiet must not hold the Refresh forever. It keeps indexing in the
+            // background, and the next scan the app makes shows what it has added since.
+            withTimeoutOrNull(INDEXING_WAIT_MS) { scanFiles(paths) }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            // The Refresh still re-reads what MediaStore has; only the new files wait for the system.
+            println("Library: could not ask the media scanner to index new files: $failure")
+        }
+    }
+
+    /** Hands [paths] to the media scanner in one call and returns after its last callback. */
+    private suspend fun scanFiles(paths: List<String>): Unit = suspendCancellableCoroutine { continuation ->
+        val remaining = AtomicInteger(paths.size)
+        MediaScannerConnection.scanFile(context, paths.toTypedArray(), null) { _, _ ->
+            if (remaining.decrementAndGet() == 0 && continuation.isActive) continuation.resume(Unit)
+        }
+    }
+
+    /** The root of every mounted storage volume: the device's own and any SD card or USB drive. */
+    private fun storageRoots(): List<java.io.File> {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            val volumes = context.getSystemService(StorageManager::class.java)?.storageVolumes.orEmpty()
+            return volumes
+                .filter { it.state == Environment.MEDIA_MOUNTED || it.state == Environment.MEDIA_MOUNTED_READ_ONLY }
+                .mapNotNull { it.directory }
+        }
+        // Before Android 11 a volume does not name its directory; each app-specific one sits inside it.
+        return context.getExternalFilesDirs(null).filterNotNull()
+            .mapNotNull { storageVolumeRoot(it.path) }
+            .distinct()
+            .map { java.io.File(it) }
+    }
+
+    /**
+     * Every audio-named path MediaStore has a row for, filed as audio or not: a file the scanner
+     * has seen and filed as something else (an Opus file on Android 7) is not handed to it again.
+     */
+    private fun knownAudioPaths(): Set<String> {
+        @Suppress("DEPRECATION") val data = MediaStore.Files.FileColumns.DATA
+        val (selection, arguments) = audioPathSelection(data)
+        return context.contentResolver.query(
+            MediaStore.Files.getContentUri("external"),
+            arrayOf(data),
+            selection,
+            arguments,
+            null,
+        )?.use { cursor ->
+            buildSet(cursor.count) {
+                while (cursor.moveToNext()) cursor.getString(0)?.let(::add)
+            }
+        } ?: throw IllegalStateException("MediaStore gave no cursor")
     }
 
     override suspend fun tracks(): List<TrackDescriptor> = scan().tracks
@@ -450,6 +526,9 @@ internal class MediaStoreMusicLibrary(
         const val EXCLUDED_SOURCES_FILE_NAME = "excluded_music_sources.txt"
         const val SOURCE_PREFIX = "folder:"
         const val TRACK_COVERS_DIRECTORY = "track-covers"
+
+        /** How long a Refresh waits for the media scanner: 3,000 new songs took 6-22 s on emulators. */
+        const val INDEXING_WAIT_MS = 120_000L
     }
 }
 

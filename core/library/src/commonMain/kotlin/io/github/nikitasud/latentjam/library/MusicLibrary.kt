@@ -56,6 +56,16 @@ public interface MusicLibrary {
     public suspend fun scan(): LibraryScan = LibraryScan(tracks = tracks(), complete = true)
 
     /**
+     * Asks the platform's media index to take in music it has not indexed yet, and returns once it
+     * has finished, so a [scan] right after sees it. Files can reach a device without the index
+     * being told (a copy made as root, or by a tool that writes past the system's media layer),
+     * and on Android they stay invisible to [scan] until something asks the system to index them,
+     * which is what the user's Refresh means. The default does nothing, for platforms whose [scan]
+     * reads the files themselves.
+     */
+    public suspend fun indexNewFiles() {}
+
+    /**
      * Snapshot of all music tracks currently visible to the app, in stable
      * (title-sorted) order. Main-safe: implementations do their I/O on a
      * background dispatcher.

@@ -4953,6 +4953,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         libraryRefreshing = true
                         scope.launch {
                             try {
+                                // Music copied in without the system being told is in no index yet
+                                // (#8): the system indexes it first, then the scan below sees it.
+                                library.indexNewFiles()
                                 scanLibrary()
                                 hasHiddenTracks = library.hasHiddenTracks()
                                 snackbar.showSnackbar(getString(Res.string.snack_library_refreshed))
