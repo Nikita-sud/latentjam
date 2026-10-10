@@ -94,6 +94,66 @@ class MapDiagnosticsReplay {
                     )
                 }
             }
+            // Every claim on the region that holds the focused tracks: who wanted the name and who won.
+            val focusWorld = named.indices.maxByOrNull { index ->
+                named[index].tracks.count { track ->
+                    val facts = library.firstOrNull { it.id == track.id }
+                    facts?.album.orEmpty().contains(needle, ignoreCase = true) ||
+                        facts?.genre.orEmpty().contains(needle, ignoreCase = true) ||
+                        facts?.title.orEmpty().contains(needle, ignoreCase = true)
+                }
+            }
+            if (focusWorld != null) {
+                val world = named[focusWorld]
+                println("DIAG регион[$focusWorld] '${world.name}' — все заявки (containment=доля региона, specificity=доля группы):")
+                (playlists + albumGroups).forEach { (groupName, members) ->
+                    val inside = world.tracks.count { it.id in members }
+                    val containment = inside.toDouble() / world.tracks.size
+                    if (containment >= 0.4) {
+                        println(
+                            "DIAG   '${groupName.take(34)}' группа=${members.size} внутри=$inside " +
+                                "containment=${f(containment)} specificity=${f(inside.toDouble() / members.size)}" +
+                                if (groupName.equals(world.name, ignoreCase = true)) "  <-- ВЫИГРАЛА" else "",
+                        )
+                    }
+                }
+            }
+
+            // What the names would be if the tighter claim won instead of the broadest one. Nothing
+            // here changes the product; it only shows the owner what the alternative rule reads like.
+            run {
+                data class AltClaim(val world: Int, val name: String, val f1: Double)
+                val claims = ArrayList<AltClaim>()
+                named.forEachIndexed { index, world ->
+                    (playlists + albumGroups).forEach { (groupName, members) ->
+                        if (groupName.isBlank() || members.isEmpty()) return@forEach
+                        val inside = world.tracks.count { it.id in members }
+                        val containment = inside.toDouble() / world.tracks.size
+                        val specificity = inside.toDouble() / members.size
+                        if (containment >= 0.45 && inside > 0) {
+                            claims += AltClaim(index, groupName, 2 * containment * specificity / (containment + specificity))
+                        }
+                    }
+                }
+                val takenWorlds = HashSet<Int>()
+                val takenNames = HashSet<String>()
+                val alt = HashMap<Int, String>()
+                for (claim in claims.sortedByDescending { it.f1 }) {
+                    if (claim.world in takenWorlds || claim.name.lowercase() in takenNames) continue
+                    takenWorlds += claim.world
+                    takenNames += claim.name.lowercase()
+                    alt[claim.world] = claim.name
+                }
+                println("DIAG имена: сейчас / если побеждает точная заявка (F1):")
+                named.indices.forEach { index ->
+                    val now = named[index].name
+                    val alternative = alt[index] ?: "(без имени группы)"
+                    if (now != alternative) {
+                        println("DIAG   регион[$index] size=${named[index].tracks.size}: '$now' -> '$alternative'")
+                    }
+                }
+            }
+
             val matching = library.filter { track ->
                 track.album.orEmpty().contains(needle, ignoreCase = true) ||
                     track.genre.orEmpty().contains(needle, ignoreCase = true) ||
