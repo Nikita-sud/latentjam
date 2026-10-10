@@ -120,6 +120,23 @@ internal class LibraryWorldNamingTest {
     }
 
     @Test
+    fun aPlaylistOverTheWholeRegionOutranksAnAlbumOverHalfOfIt() {
+        // The case that separates Jaccard from "the tighter group wins": the album lies wholly
+        // inside the region (specificity 1.0) but covers only half of it, while a playlist barely
+        // larger than the region covers all of it. Jaccard 0.83 against 0.50: the playlist names it.
+        val region = (1..50).map { "t$it" }
+        val album = region.take(25)
+        val playlist = region + (1..10).map { "p$it" }
+
+        val renamed = LibraryWorlds.namedAfterGroups(
+            worlds = listOf(world("Rock", region)),
+            groups = listOf(group("The Album", *album.toTypedArray()), group("Road Trip", *playlist.toTypedArray())),
+        )
+
+        assertEquals("Road Trip", renamed.single().name)
+    }
+
+    @Test
     fun aNestedPlaylistNamesItsWorldBeforeTheBroaderPlaylistDoes() {
         // JoJo is wholly inside Anime; Jaccard favours the nested claim even where containment
         // cannot separate them, and the broad name stays free for the broader world.
