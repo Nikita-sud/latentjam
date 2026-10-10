@@ -15,6 +15,7 @@ import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -247,6 +248,71 @@ class LibraryWorldsTest {
 
         assertEquals(LibraryWorldNameSource.GENERIC, world.nameSource)
         assertEquals(30, world.tracks.size)
+    }
+
+    @Test
+    fun `one style over half of a region names it on its own`() {
+        val library = corpus {
+            // From a real library: 19 of 32 tracks tagged Anime OST — short of MIN_SHARE, with no
+            // second style to pair it with — stayed "Discovery mix", while two styles that split
+            // half of another region between them got an "A + B" name.
+            add("centre", angle = 0.3, spread = 0.0, genre = "Ambient", artist = "Alone")
+            repeat(19) { add("ost$it", angle = 0.3, spread = 0.0, genre = "Anime OST", artist = "C$it") }
+            repeat(3) { add("rock$it", angle = 0.3, spread = 0.0, genre = "Rock", artist = "R$it") }
+            repeat(3) { add("pop$it", angle = 0.3, spread = 0.0, genre = "Pop", artist = "P$it") }
+            repeat(6) { add("untagged$it", angle = 0.3, spread = 0.0, artist = "U$it") }
+        }
+
+        val world = library.discover(k = 1).single()
+
+        // The tag's own spelling, not the lowercased family key.
+        assertEquals("Anime OST", world.name)
+        assertEquals(LibraryWorldNameSource.LEADING_STYLE, world.nameSource)
+        // Descriptive: nobody is removed for the title, but a member of the style leads.
+        assertEquals(32, world.tracks.size)
+        assertEquals("Anime OST", world.representative.genre)
+        assertTrue(world.supportsName(TrackDescriptor(TrackId("ost-cover"), genre = "Anime OST")))
+        assertFalse(world.supportsName(TrackDescriptor(TrackId("rock-cover"), genre = "Rock")))
+    }
+
+    @Test
+    fun `half of a region is the bar for a leading style`() {
+        fun region(tagged: Int) = corpus {
+            repeat(tagged) { add("ost$it", angle = 0.3, spread = 0.0, genre = "Anime OST", artist = "C$it") }
+            repeat(32 - tagged) { add("untagged$it", angle = 0.3, spread = 0.0, artist = "U$it") }
+        }.discover(k = 1).single()
+
+        assertEquals(LibraryWorldNameSource.LEADING_STYLE, region(16).nameSource)
+        assertEquals(LibraryWorldNameSource.GENERIC, region(15).nameSource)
+    }
+
+    @Test
+    fun `a leading style split across subtypes is named by its family`() {
+        val library = corpus {
+            repeat(10) { add("film$it", angle = 0.3, spread = 0.0, genre = "Film Score", artist = "F$it") }
+            repeat(8) { add("anime$it", angle = 0.3, spread = 0.0, genre = "Anime Soundtrack", artist = "A$it") }
+            repeat(14) { add("untagged$it", angle = 0.3, spread = 0.0, artist = "U$it") }
+        }
+
+        val world = library.discover(k = 1).single()
+
+        assertEquals("Soundtrack", world.name)
+        assertEquals(LibraryWorldNameSource.LEADING_STYLE, world.nameSource)
+    }
+
+    @Test
+    fun `a leading style with a real second following keeps the pair name`() {
+        val library = corpus {
+            // Rap leads with 17 of 32; Dance has a following of its own. The pair says more.
+            repeat(17) { add("rap$it", angle = 0.3, spread = 0.0, genre = "Rap", artist = "R$it") }
+            repeat(4) { add("dance$it", angle = 0.3, spread = 0.0, genre = "Dance", artist = "D$it") }
+            repeat(11) { add("untagged$it", angle = 0.3, spread = 0.0, artist = "U$it") }
+        }
+
+        val world = library.discover(k = 1).single()
+
+        assertEquals("Rap + Dance", world.name)
+        assertEquals(LibraryWorldNameSource.MAJOR_FAMILIES, world.nameSource)
     }
 
     @Test

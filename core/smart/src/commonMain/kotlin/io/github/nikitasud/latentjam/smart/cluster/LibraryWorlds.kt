@@ -14,9 +14,10 @@ import io.github.nikitasud.latentjam.smart.TrackSemantics
  * A region of the library, with something to call it.
  *
  * @property name generated locally from evidence in the members — a genre (optionally sharpened
- *   by a shared decade), a supported two-style blend, an artist, a shared decade, or a neutral
- *   discovery label — or the listener's playlist or an album that holds most of it. No filename
- *   text is treated as a genre and no network model is involved.
+ *   by a shared decade), a supported two-style blend, an artist, a shared decade, the one or two
+ *   styles leading the region, or a neutral discovery label — or the listener's playlist or an
+ *   album that holds most of it. No filename text is treated as a genre and no network model is
+ *   involved.
  * @property tracks members, ordered by centrality with the nearest member supporting the name first.
  */
 public data class LibraryWorld(
@@ -25,7 +26,10 @@ public data class LibraryWorld(
     public val nameSource: LibraryWorldNameSource = LibraryWorldNameSource.GENRE,
     public val content: LibraryWorldContent = LibraryWorldContent.UNKNOWN,
     public val semanticTitle: LibraryWorldSemanticTitle? = null,
-    /** The two supported style families in a blend; other coherent members may still be present. */
+    /**
+     * The style families the name claims: the two of a blend, or the one of a
+     * [LibraryWorldNameSource.LEADING_STYLE] name. Other coherent members may still be present.
+     */
     public val blendFamilies: Set<String> = emptySet(),
 ) {
     init {
@@ -46,8 +50,9 @@ public data class LibraryWorld(
         }
         LibraryWorldNameSource.ARTIST ->
             track.worldArtistKey() != null && track.worldArtistKey() == representative.worldArtistKey()
-        LibraryWorldNameSource.GENRE_BLEND ->
-            Genres.families(track.genre).any { it in blendFamilies }
+        LibraryWorldNameSource.GENRE_BLEND,
+        LibraryWorldNameSource.LEADING_STYLE,
+        -> Genres.families(track.genre).any { it in blendFamilies }
         LibraryWorldNameSource.DECADE ->
             track.worldDecade() != null && track.worldDecade() == representative.worldDecade()
         LibraryWorldNameSource.SEMANTIC -> true
@@ -83,6 +88,14 @@ public enum class LibraryWorldNameSource {
      * the sake of the title, and "Discovery mix" stays for regions whose styles are all marginal.
      */
     MAJOR_FAMILIES,
+
+    /**
+     * One style followed by at least half of the region — the coverage a [MAJOR_FAMILIES] pair
+     * needs together — yet short of the share a [GENRE] name needs, with no second style to pair it
+     * with. Descriptive like the pair: no member is removed for the title, but the region leads
+     * with a member of that style.
+     */
+    LEADING_STYLE,
 }
 
 private fun TrackDescriptor.worldDecade(): Int? =
@@ -259,7 +272,10 @@ public object LibraryWorlds {
      */
     public const val MAJOR_FAMILY_SIDE_SHARE: Float = 0.1f
 
-    /** Union coverage the two descriptive styles need before they are worth naming. */
+    /**
+     * Union coverage the two descriptive styles need before they are worth naming — and so the
+     * coverage one style needs to name a region alone ([LibraryWorldNameSource.LEADING_STYLE]).
+     */
     public const val MAJOR_FAMILIES_COVERAGE: Float = 0.5f
 
     /**
@@ -740,6 +756,39 @@ public object LibraryWorlds {
                 )
             }
         }
+
+        // One style that alone covers what the pair above needs together. Without this a region
+        // with 19 of 32 tracks tagged one style stayed "Discovery mix" while two styles splitting
+        // half of a region between them got "A + B". Descriptive like the pair: nobody is removed,
+        // but the nearest member of the style leads, so the cover agrees with the title.
+        familyVotes.entries
+            .filter { it.value >= minSize && it.value >= facts.size * MAJOR_FAMILIES_COVERAGE }
+            .maxByOrNull { it.value }
+            ?.key
+            ?.let { leading ->
+                val members = facts.filter { leading in it.families }
+                val rawVotes = LinkedHashMap<String, Int>()
+                for (fact in members) {
+                    for ((key, genre) in fact.rawGenres) {
+                        if (genre.family == leading) rawVotes[key] = (rawVotes[key] ?: 0) + 1
+                    }
+                }
+                // The tag's own spelling ("Anime OST") when one subtype carries the style alone,
+                // the family otherwise — the same choice a pure genre name makes.
+                val exact = rawVotes.entries
+                    .filter { it.value >= minSize && it.value >= facts.size * MAJOR_FAMILIES_COVERAGE }
+                    .maxByOrNull { it.value }
+                    ?.key
+                val text = exact?.let { key -> members.first { key in it.rawGenres }.rawGenres.getValue(key).display }
+                    ?: displayFamily(leading)
+                val representative = members.first().track
+                return WorldName(
+                    text = text,
+                    source = LibraryWorldNameSource.LEADING_STYLE,
+                    tracks = listOf(representative) + tracks.filter { it.id != representative.id },
+                    blendFamilies = setOf(leading),
+                )
+            }
 
         return WorldName(
             text = "Discovery mix",

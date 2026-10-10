@@ -40,14 +40,18 @@ class GenreBlendWorldsTest {
 
     @Test
     fun `overlapping genre votes do not count the same tracks twice`() {
-        val world = world(List(15) { "Pop; Rock" } + List(15) { null })
+        // Just under half: at half, either style alone would name the region (LEADING_STYLE).
+        val world = world(List(15) { "Pop; Rock" } + List(16) { null })
         assertEquals(LibraryWorldNameSource.GENERIC, world.nameSource)
     }
 
     @Test
     fun `the two genres need their own substantial groups`() {
         val world = world(List(45) { "Pop; Rock" } + List(9) { "Pop" } + List(13) { "Rock" } + List(33) { null })
-        assertEquals(LibraryWorldNameSource.GENERIC, world.nameSource)
+        // No pair: Pop has 9 tracks of its own in 100. Rock alone covers 58, which is enough to
+        // lead, so the region is named after it rather than after a pair it cannot support.
+        assertEquals(LibraryWorldNameSource.LEADING_STYLE, world.nameSource)
+        assertEquals("Rock", world.name)
     }
 
     @Test
@@ -59,7 +63,10 @@ class GenreBlendWorldsTest {
     @Test
     fun `a small secondary style cannot dress up a weak majority`() {
         val world = world(List(51) { "Rap" } + List(2) { "Folk" } + List(47) { null })
-        assertEquals(LibraryWorldNameSource.GENERIC, world.nameSource)
+        // The majority names the region on its own; two Folk tracks do not get into the title.
+        assertEquals(LibraryWorldNameSource.LEADING_STYLE, world.nameSource)
+        assertEquals("Rap", world.name)
+        assertEquals(100, world.tracks.size)
     }
 
     @Test
