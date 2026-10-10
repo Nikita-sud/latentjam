@@ -133,11 +133,19 @@ public object LibraryWorlds {
 
     /**
      * Renames worlds after the listener's own vocabulary: a world whose tracks lie mostly
-     * inside one named group (a playlist) takes that group's name. Containment rather than
-     * Jaccard — a large playlist may legitimately name a small cluster carved out of it.
+     * inside one named group (a playlist) takes that group's name.
+     *
+     * Admission stays by containment — a large playlist may legitimately name a small cluster
+     * carved out of it — but the winner among the admitted claims is the largest Jaccard overlap
+     * `|group ∩ world| / |group ∪ world|`, then specificity, then the caller's order. Ranking by
+     * containment alone let a broad playlist take the name of a region its own tight playlist
+     * covers almost exactly: on a real library a 459-track "Anime" playlist (95.8% of a 48-track
+     * region, 10% of itself) beat a 36-track "GTO" playlist (72.9% of the region, 97% of itself),
+     * so the region a listener knows as GTO could not be found under that name.
+     *
      * Applied AFTER discovery, so clustering itself stays blind to curation. Each group names
-     * at most its best-contained world, and each world takes at most one name: two cards with
-     * the same title would be indistinguishable.
+     * at most its best world, and each world takes at most one name: two cards with the same
+     * title would be indistinguishable.
      */
     public fun namedAfterGroups(
         worlds: List<LibraryWorld>,
@@ -150,6 +158,7 @@ public object LibraryWorlds {
             val groupName: String,
             val normalizedName: String,
             val containment: Double,
+            val jaccard: Double,
             val specificity: Double,
             val inputOrder: Int,
         )
@@ -164,11 +173,13 @@ public object LibraryWorlds {
                 val inside = world.tracks.count { it.id in members }
                 val containment = inside.toDouble() / world.tracks.size
                 if (containment >= minContainment) {
+                    val union = world.tracks.size + members.size - inside
                     claims += Claim(
                         worldIndex = worldIndex,
                         groupName = displayName,
                         normalizedName = normalizedName,
                         containment = containment,
+                        jaccard = inside.toDouble() / union,
                         specificity = inside.toDouble() / members.size,
                         inputOrder = inputOrder,
                     )
@@ -179,12 +190,14 @@ public object LibraryWorlds {
         val renamed = worlds.toMutableList()
         val takenWorlds = HashSet<Int>()
         val takenNames = HashSet<String>()
-        // Containment first; at a tie, SPECIFICITY — the share of the group taken up by this
-        // world. Nested curation makes exact ties routine (a JoJo playlist inside an Anime
-        // playlist: a world of JoJo soundtracks is 100% inside both), and the tighter group is
-        // strictly the more informative name. It also frees the broad name for a broader world.
+        // Jaccard first: how much of the two sets is actually shared, so a broad playlist cannot
+        // take a region its own tight playlist covers almost exactly. At a tie, SPECIFICITY — the
+        // share of the group taken up by this world. Nested curation makes ties routine (a JoJo
+        // playlist inside an Anime playlist: a world of JoJo soundtracks is wholly inside both),
+        // and the tighter group is strictly the more informative name. It also frees the broad
+        // name for a broader world.
         for (claim in claims.sortedWith(
-            compareByDescending<Claim> { it.containment }
+            compareByDescending<Claim> { it.jaccard }
                 .thenByDescending { it.specificity }
                 .thenBy { it.inputOrder },
         )) {

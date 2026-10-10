@@ -86,6 +86,58 @@ internal class LibraryWorldNamingTest {
     }
 
     @Test
+    fun aTightPlaylistOutranksABroadOneThatCoversTheRegionMoreFully() {
+        // From a real library: the broad playlist covers 46 of the region's 48 tracks (95.8%) but
+        // only a tenth of itself, while the tight one covers 35 (72.9%) and all but one of its own.
+        // Ranking by containment alone named the region after the broad playlist, so the region a
+        // listener knows by the tight playlist's name could not be found under it.
+        val region = (1..48).map { "t$it" }
+        val broad = region.take(46) + (1..400).map { "a$it" }
+        val tight = region.take(35) + listOf("g1")
+
+        val renamed = LibraryWorlds.namedAfterGroups(
+            worlds = listOf(world("Anime", region)),
+            groups = listOf(group("Anime", *broad.toTypedArray()), group("GTO", *tight.toTypedArray())),
+        )
+
+        assertEquals("GTO", renamed.single().name)
+    }
+
+    @Test
+    fun anAlbumOverHalfTheRegionOutranksAPlaylistOverAllOfIt() {
+        // Equal admission (both clear GROUP_NAME_CONTAINMENT), so the ranking decides: half the
+        // region shared exactly beats the whole region shared with a much larger playlist.
+        val region = (1..40).map { "t$it" }
+        val album = region.take(20)
+        val playlist = region + (1..160).map { "p$it" }
+
+        val renamed = LibraryWorlds.namedAfterGroups(
+            worlds = listOf(world("Rock", region)),
+            groups = listOf(group("Everyday", *playlist.toTypedArray()), group("The Album", *album.toTypedArray())),
+        )
+
+        assertEquals("The Album", renamed.single().name)
+    }
+
+    @Test
+    fun aNestedPlaylistNamesItsWorldBeforeTheBroaderPlaylistDoes() {
+        // JoJo is wholly inside Anime; Jaccard favours the nested claim even where containment
+        // cannot separate them, and the broad name stays free for the broader world.
+        val renamed = LibraryWorlds.namedAfterGroups(
+            worlds = listOf(
+                world("Mix 1", (1..20).map { "j$it" }),
+                world("Mix 2", (1..20).map { "a$it" }),
+            ),
+            groups = listOf(
+                group("Anime", *((1..20).map { "j$it" } + (1..20).map { "a$it" }).toTypedArray()),
+                group("JoJo", *(1..20).map { "j$it" }.toTypedArray()),
+            ),
+        )
+
+        assertEquals(listOf("JoJo", "Anime"), renamed.map { it.name })
+    }
+
+    @Test
     fun theMostSpecificPlaylistNamesANestedWorld() {
         // Nested curation: every JoJo track also lives in the broader Anime playlist, so a
         // world of JoJo soundtracks is 100% contained in both. The tighter claim is the more
