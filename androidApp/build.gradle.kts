@@ -3,7 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import com.android.build.api.artifact.SingleArtifact
+import java.io.ByteArrayOutputStream
 import java.util.Properties
+import javax.inject.Inject
+import org.gradle.process.ExecOperations
 import org.gradle.work.DisableCachingByDefault
 
 plugins {
@@ -128,6 +131,79 @@ androidComponents {
         if (!deviceAbiOnly) {
             tasks.named { it == "assemble$variantName" || it == "bundle$variantName" }
                 .configureEach { dependsOn(verify) }
+        }
+        // R8 mis-encodes a method that needs more than 256 registers, and the verifier then rejects
+        // its class at launch: the 0.8.1 candidate fe24e12c crashed on start in every release build.
+        // F-Droid's build is left alone, so that it never depends on python3 or the SDK's build-tools.
+        if (variant.buildType == "release") {
+            val registers = tasks.register<CheckDexRegisters>("check${variantName}DexRegisters") {
+                group = LifecycleBasePlugin.VERIFICATION_GROUP
+                description = "Fails when a method of this build's APKs needs more than 255 registers."
+                apks.set(variant.artifacts.get(SingleArtifact.APK))
+                mapping.set(variant.artifacts.get(SingleArtifact.OBFUSCATION_MAPPING_FILE))
+                script.set(rootProject.layout.projectDirectory.file("tools/release/check-dex-registers.py"))
+                report.set(layout.buildDirectory.file("reports/dex-registers/${variant.name}.txt"))
+            }
+            if (!fdroidBuild && !deviceAbiOnly) {
+                tasks.named { it == "assemble$variantName" }.configureEach { dependsOn(registers) }
+            }
+        }
+    }
+}
+
+/**
+ * Runs tools/release/check-dex-registers.py over the APKs in [apks]: fails when a method needs more
+ * than 255 registers, and only warns when the script cannot run (no python3, no SDK dexdump).
+ */
+@DisableCachingByDefault(because = "Reading the DEX again is as quick as a cache lookup")
+abstract class CheckDexRegisters : DefaultTask() {
+
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.NAME_ONLY)
+    abstract val apks: DirectoryProperty
+
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val mapping: RegularFileProperty
+
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val script: RegularFileProperty
+
+    @get:OutputFile
+    abstract val report: RegularFileProperty
+
+    @get:Inject
+    abstract val execOperations: ExecOperations
+
+    @TaskAction
+    fun check() {
+        val files = apks.get().asFile.listFiles().orEmpty().filter { it.name.endsWith(".apk") }.sortedBy { it.name }
+        val output = ByteArrayOutputStream()
+        val exitValue = try {
+            execOperations.exec {
+                commandLine(
+                    listOf("python3", script.get().asFile.path, "--mapping", mapping.get().asFile.path) +
+                        files.map { it.path },
+                )
+                standardOutput = output
+                errorOutput = output
+                isIgnoreExitValue = true
+            }.exitValue
+        } catch (failure: GradleException) {
+            output.write("${failure.message}\n".toByteArray())
+            2
+        }
+        val text = output.toString(Charsets.UTF_8)
+        report.get().asFile.writeText(text)
+        when (exitValue) {
+            0 -> logger.info(text)
+            1 -> throw GradleException("A method needs more than 255 registers; R8 mis-encodes it:\n$text")
+            else -> {
+                // No report: the next build checks again, once the tools are there.
+                report.get().asFile.delete()
+                logger.warn("Could not check the DEX register counts:\n$text")
+            }
         }
     }
 }

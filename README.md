@@ -250,6 +250,9 @@ xcodebuild -workspace iosApp.xcworkspace -scheme iosApp -sdk iphonesimulator bui
 - The Gradle daemon is disabled in `gradle.properties`, so every run starts cold.
 - iOS brings ONNX Runtime in through CocoaPods (`onnxruntime-c`) and reaches it from Kotlin through
   the Swift host.
+- A release build fails when a method of its DEX needs more than 255 registers: R8 mis-encodes such
+  a method and the app would not start. It needs python3 and the SDK's `dexdump`; see
+  [tools/README.md](tools/README.md).
 
 The published arm64 APK swaps in a reduced ONNX Runtime (identical results, smaller download); see
 [tools/runtime/README.md](tools/runtime/README.md). Without it the build uses the stock runtime.
