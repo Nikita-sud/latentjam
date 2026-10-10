@@ -74,6 +74,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
@@ -294,6 +295,14 @@ fun MapTab(
         page.dots.firstOrNull { it.trackId.value == selectionAnchor && it.claimed }?.region
             ?: savedRegion.takeIf { id -> page.listening.regions.any { it.region == id } }
             ?: largestRegion(page)
+    }
+    // Hull of the selected region, recomputed only when the page or the selection changes: the
+    // layout is fixed for a page, so this never runs per frame.
+    val selectedOutline = remember(page, selectedRegion) {
+        regionOutline(
+            page.dots.filter { it.claimed && it.region == selectedRegion }
+                .map { Offset(it.x, it.y) },
+        )
     }
     val selectRegion: (Int) -> Unit = { region ->
         savedRegion = region
@@ -566,6 +575,24 @@ fun MapTab(
             val frameZoom = zoom
             val framePanX = panX * size.width
             val framePanY = panY * size.height
+            // Under the dots, so the region reads as ground rather than as a shape pasted on top.
+            if (selectedOutline.size >= 3) {
+                val outlinePath = Path()
+                selectedOutline.forEachIndexed { index, point ->
+                    val screen = screenPoint(
+                        point.x, point.y, size.width, size.height, frameZoom, framePanX, framePanY,
+                    )
+                    if (index == 0) outlinePath.moveTo(screen.x, screen.y)
+                    else outlinePath.lineTo(screen.x, screen.y)
+                }
+                outlinePath.close()
+                drawPath(outlinePath, color = accent.copy(alpha = OUTLINE_FILL_ALPHA))
+                drawPath(
+                    path = outlinePath,
+                    color = accent.copy(alpha = OUTLINE_STROKE_ALPHA),
+                    style = Stroke(width = OUTLINE_STROKE_DP.dp.toPx()),
+                )
+            }
             for (index in dotIndex.visibleIndices(
                 size.width, size.height, frameZoom, framePanX, framePanY, dotVisuals.maxRadiusPx,
             )) {
@@ -966,6 +993,43 @@ private fun LegendLabel(text: String) {
 }
 
 /**
+ * Convex hull of one region's dots, in page coordinates, for the outline the map draws around the
+ * selected region.
+ *
+ * A region is a claim about a set of tracks, and until now the only thing saying so was a colour on
+ * the dots and a label somewhere among them — a listener looking at two interleaved regions had no
+ * way to see where one ended. The hull is the cheapest honest answer: it needs no new clustering, it
+ * cannot claim a track the region does not hold, and it is stable for a fixed layout.
+ *
+ * Monotonic chain, lower hull then upper. Fewer than three distinct points, or points on one line,
+ * have no area to draw and return empty rather than a degenerate sliver.
+ *
+ * Pure and Compose-free (it only reads [Offset] arithmetic), so `MapTabTest` covers it.
+ */
+internal fun regionOutline(points: List<Offset>): List<Offset> {
+    val sorted = points.distinct().sortedWith(compareBy({ it.x }, { it.y }))
+    if (sorted.size < 3) return emptyList()
+    fun cross(origin: Offset, a: Offset, b: Offset): Float =
+        (a.x - origin.x) * (b.y - origin.y) - (a.y - origin.y) * (b.x - origin.x)
+    val lower = ArrayList<Offset>()
+    for (point in sorted) {
+        while (lower.size >= 2 && cross(lower[lower.size - 2], lower[lower.size - 1], point) <= 0f) {
+            lower.removeAt(lower.size - 1)
+        }
+        lower += point
+    }
+    val upper = ArrayList<Offset>()
+    for (point in sorted.asReversed()) {
+        while (upper.size >= 2 && cross(upper[upper.size - 2], upper[upper.size - 1], point) <= 0f) {
+            upper.removeAt(upper.size - 1)
+        }
+        upper += point
+    }
+    val hull = lower.dropLast(1) + upper.dropLast(1)
+    return if (hull.size < 3) emptyList() else hull
+}
+
+/**
  * The region an unclaimed dot sits closest to, for selection only.
  *
  * Roughly a tenth of a real library is outside every region — trimmed by confidence or by a name
@@ -1081,6 +1145,14 @@ private fun rememberWarmRamp(): List<Color> {
 
 /** Reset control and rebuild indicator share a constant slot to keep the plot height stable. */
 private val MAP_HEADER_CONTROL_DP = 96.dp
+
+/**
+ * The selected region's outline: a faint fill so the dots inside stay readable, and a crisper edge
+ * so the claim itself is visible where two regions interleave.
+ */
+private const val OUTLINE_FILL_ALPHA = 0.10f
+private const val OUTLINE_STROKE_ALPHA = 0.55f
+private const val OUTLINE_STROKE_DP = 1.5f
 
 /** [MapLenses.RAMP_STEPS] alphas, evenly spaced from [RAMP_FLOOR_ALPHA] to fully opaque. */
 private fun rampAlphas(): List<Float> {
