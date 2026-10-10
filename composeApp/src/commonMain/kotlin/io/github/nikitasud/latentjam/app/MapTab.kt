@@ -104,6 +104,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.map_exit_fullscreen
 import io.github.nikitasud.latentjam.app.generated.resources.map_reset_view
 import io.github.nikitasud.latentjam.app.generated.resources.map_region_unplayed
 import io.github.nikitasud.latentjam.app.generated.resources.map_action_smart_here
+import io.github.nikitasud.latentjam.app.generated.resources.map_dot_outside_hint
 import io.github.nikitasud.latentjam.app.generated.resources.map_empty_building
 import io.github.nikitasud.latentjam.app.generated.resources.map_empty_indexing
 import io.github.nikitasud.latentjam.app.generated.resources.map_empty_too_large
@@ -286,6 +287,10 @@ fun MapTab(
     val rebuilding = state.rebuilding
     val reduceMotion = rememberReduceMotion()
 
+    // Which region a tap on a track outside every region pointed at, so the panel can say why a
+    // grey dot selected something. Cleared by every other way of choosing a region.
+    var outsideHintRegion by remember { mutableStateOf<Int?>(null) }
+
     val lenses = remember(page.listening) { MapLenses.availableLenses(page.listening) }
     var savedLens by rememberSaveable { mutableStateOf(MapLens.WORLDS.name) }
     val lens = MapLens.entries.firstOrNull { it.name == savedLens && it in lenses } ?: MapLens.WORLDS
@@ -381,7 +386,10 @@ fun MapTab(
         onOpenTrack(id)
     }
     val regionActions = remember(page.regionNames, page.listening.regions) {
-        regionAccessibilityActions(page) { region -> currentSelectRegion(region) }
+        regionAccessibilityActions(page) { region ->
+            outsideHintRegion = null
+            currentSelectRegion(region)
+        }
     }
 
     // Saved in the pager's state holder; returning from tracks/settings keeps the chosen lens
@@ -553,12 +561,14 @@ fun MapTab(
                                 labelAnchors, size.width.toFloat(), size.height.toFloat(),
                                 zoom, panX * size.width, panY * size.height, LABEL_EDGE_MARGIN_DP.toPx(),
                             ).firstOrNull { it.bounds.contains(offset) }?.region
-                            val dotRegion = if (labelRegion == null) nearest(
+                            val tappedDot = if (labelRegion == null) nearest(
                                 page.dots, offset, size.width, size.height, zoom, panX * size.width, panY * size.height,
                                 HIT_RADIUS_DP.toPx(),
-                            )?.let { dot ->
+                            ) else null
+                            val dotRegion = tappedDot?.let { dot ->
                                 if (dot.claimed) dot.region else nearestRegionTo(dot, page.centroids)
-                            } else null
+                            }
+                            outsideHintRegion = dotRegion?.takeIf { tappedDot?.claimed == false }
                             (labelRegion ?: dotRegion)?.let { currentSelectRegion(it) }
                         },
                         onLongPress = { offset ->
@@ -731,6 +741,7 @@ fun MapTab(
                                     }
                                 },
                                 onClick = {
+                                    outsideHintRegion = null
                                     selectRegion(candidate.region)
                                     regionMenuOpen = false
                                 },
@@ -738,6 +749,17 @@ fun MapTab(
                         }
                     }
                 }
+            }
+            if (outsideHintRegion == selectedRegion) {
+                Text(
+                    text = stringResource(
+                        Res.string.map_dot_outside_hint,
+                        page.regionNames.getOrElse(selectedRegion) { "" },
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
             }
             if (region != null) {
                 Text(

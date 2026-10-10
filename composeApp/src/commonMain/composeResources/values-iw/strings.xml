@@ -135,6 +135,7 @@
 
     <string name="map_legend_selected">האזור שנבחר</string>
     <string name="map_legend_rest">שאר הספרייה</string>
+    <string name="map_dot_outside_hint">האזור הקרוב ביותר: %1$s</string>
     <string name="map_legend_never">לא הושמע אף פעם</string>
     <string name="map_legend_played">הושמע לפחות פעם אחת</string>
     <string name="map_legend_never_skips">אף פעם לא דולג</string>

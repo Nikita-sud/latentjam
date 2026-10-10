@@ -176,6 +176,7 @@
          ramp rather than standing on their own. -->
     <string name="map_legend_selected">selected region</string>
     <string name="map_legend_rest">rest of the library</string>
+    <string name="map_dot_outside_hint">Closest region: %1$s</string>
     <string name="map_legend_never">never played</string>
     <string name="map_legend_played">played at least once</string>
     <string name="map_legend_never_skips">never skipped</string>

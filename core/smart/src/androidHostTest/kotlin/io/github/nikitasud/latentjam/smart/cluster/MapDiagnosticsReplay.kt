@@ -71,6 +71,60 @@ class MapDiagnosticsReplay {
             vectorsByMode[label] = vectors
             report(label, space, vectors, library)
         }
+        System.getenv("MAP_DIAG_FOCUS")?.let { needle ->
+            val space = modes.first().second ?: return@let
+            val vectors = vectorsByMode.getValue("fused(0.75 metadata)")
+            val worlds = LibraryWorlds.discover(library, vectors, space.dim)
+            val albumGroups = library.filter { !it.album.isNullOrBlank() }.groupBy { it.album.orEmpty() }
+                .filterValues { it.size > 1 }
+                .map { (album, tracks) -> album to tracks.mapTo(HashSet()) { it.id } }
+            val playlists = readPlaylists(File(dir, "playlists.tsv"))
+            val named = LibraryWorlds.namedAfterGroups(worlds, playlists + albumGroups)
+            println("DIAG именование: плейлистов=${playlists.size} альбомов=${albumGroups.size}")
+            playlists.forEach { (name, members) ->
+                val best = named.indices.maxByOrNull { index ->
+                    named[index].tracks.count { it.id in members }.toDouble() / named[index].tracks.size.coerceAtLeast(1)
+                } ?: return@forEach
+                val containment = named[best].tracks.count { it.id in members }.toDouble() / named[best].tracks.size
+                val specificity = named[best].tracks.count { it.id in members }.toDouble() / members.size
+                if (containment >= 0.3) {
+                    println(
+                        "DIAG   плейлист \"${name.take(20)}\" (${members.size}) лучший регион[$best] " +
+                            "name=${named[best].name.take(28)} containment=${f(containment)} specificity=${f(specificity)}",
+                    )
+                }
+            }
+            val matching = library.filter { track ->
+                track.album.orEmpty().contains(needle, ignoreCase = true) ||
+                    track.genre.orEmpty().contains(needle, ignoreCase = true) ||
+                    track.title.orEmpty().contains(needle, ignoreCase = true)
+            }
+            println("DIAG focus '$needle': ${matching.size} треков")
+            val byRegion = matching.groupBy { track -> named.indexOfFirst { world -> world.tracks.any { it.id == track.id } } }
+            byRegion.entries.sortedByDescending { it.value.size }.forEach { (index, tracks) ->
+                val world = named.getOrNull(index)
+                println(
+                    "DIAG   -> регион[$index] name=${world?.name?.take(34)} size=${world?.tracks?.size} " +
+                        "из них совпало=${tracks.size} жанры=${
+                            tracks.map { it.genre.orEmpty() }.groupingBy { it }.eachCount().entries
+                                .sortedByDescending { it.value }.take(3)
+                        }",
+                )
+            }
+            named.forEachIndexed { index, world ->
+                val anime = world.tracks.count { track ->
+                    val genre = library.firstOrNull { it.id == track.id }?.genre.orEmpty()
+                    genre.contains("anime", ignoreCase = true) || genre.contains("soundtrack", ignoreCase = true)
+                }
+                if (anime > 0) {
+                    println(
+                        "DIAG   регион[$index] name=${world.name.take(34)} size=${world.tracks.size} " +
+                            "аниме/саундтрек-тегов=$anime",
+                    )
+                }
+            }
+        }
+
         val stored = readStoredLayout(File(dir, "map_layout.tsv"))
         if (stored.isNotEmpty()) {
             val space = modes.first().second ?: return
@@ -392,6 +446,17 @@ class MapDiagnosticsReplay {
             )
         }
         return out
+    }
+
+    /** `name<TAB>id,id,id`, the device's own playlists, so naming can be reproduced as the app does it. */
+    private fun readPlaylists(file: File): List<Pair<String, Set<TrackId>>> {
+        if (!file.isFile) return emptyList()
+        return file.readLines().mapNotNull { line ->
+            val cells = line.split("\t")
+            if (cells.size < 2) return@mapNotNull null
+            val ids = cells[1].split(",").filter { it.isNotBlank() }.mapTo(HashSet()) { TrackId(it) }
+            if (ids.isEmpty()) null else cells[0] to ids
+        }
     }
 
     private fun readStoredLayout(file: File): Map<TrackId, FloatArray> {

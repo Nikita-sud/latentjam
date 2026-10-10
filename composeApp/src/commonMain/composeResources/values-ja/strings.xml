@@ -123,6 +123,7 @@
 
     <string name="map_legend_selected">選択中の地域</string>
     <string name="map_legend_rest">ライブラリの残り</string>
+    <string name="map_dot_outside_hint">最も近い領域: %1$s</string>
     <string name="map_legend_never">未再生</string>
     <string name="map_legend_played">1回以上再生</string>
     <string name="map_legend_never_skips">スキップなし</string>

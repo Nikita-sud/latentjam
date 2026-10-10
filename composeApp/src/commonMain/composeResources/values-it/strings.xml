@@ -135,6 +135,7 @@
 
     <string name="map_legend_selected">regione selezionata</string>
     <string name="map_legend_rest">resto della libreria</string>
+    <string name="map_dot_outside_hint">Regione più vicina: %1$s</string>
     <string name="map_legend_never">mai ascoltati</string>
     <string name="map_legend_played">ascoltati almeno una volta</string>
     <string name="map_legend_never_skips">mai saltati</string>

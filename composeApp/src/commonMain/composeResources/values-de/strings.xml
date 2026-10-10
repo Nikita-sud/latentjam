@@ -138,6 +138,7 @@
 
     <string name="map_legend_selected">ausgewählte Region</string>
     <string name="map_legend_rest">restliche Bibliothek</string>
+    <string name="map_dot_outside_hint">Nächste Region: %1$s</string>
     <string name="map_legend_never">nie gehört</string>
     <string name="map_legend_played">mindestens einmal gehört</string>
     <string name="map_legend_never_skips">nie übersprungen</string>

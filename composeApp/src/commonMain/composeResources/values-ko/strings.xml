@@ -123,6 +123,7 @@
 
     <string name="map_legend_selected">선택한 지역</string>
     <string name="map_legend_rest">나머지 라이브러리</string>
+    <string name="map_dot_outside_hint">가장 가까운 영역: %1$s</string>
     <string name="map_legend_never">한 번도 안 들음</string>
     <string name="map_legend_played">한 번 이상 들음</string>
     <string name="map_legend_never_skips">건너뛴 적 없음</string>

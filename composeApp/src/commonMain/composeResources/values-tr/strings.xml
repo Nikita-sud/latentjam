@@ -128,6 +128,7 @@
 
     <string name="map_legend_selected">seçili bölge</string>
     <string name="map_legend_rest">kitaplığın geri kalanı</string>
+    <string name="map_dot_outside_hint">En yakın bölge: %1$s</string>
     <string name="map_legend_never">hiç çalınmadı</string>
     <string name="map_legend_played">en az bir kez çalındı</string>
     <string name="map_legend_never_skips">hiç atlanmadı</string>

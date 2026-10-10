@@ -123,6 +123,7 @@
 
     <string name="map_legend_selected">选中的区域</string>
     <string name="map_legend_rest">音乐库的其余部分</string>
+    <string name="map_dot_outside_hint">最近的区域：%1$s</string>
     <string name="map_legend_never">从未播放</string>
     <string name="map_legend_played">至少播放过一次</string>
     <string name="map_legend_never_skips">从未跳过</string>

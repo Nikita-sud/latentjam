@@ -134,6 +134,7 @@
 
     <string name="map_legend_selected">regiunea selectată</string>
     <string name="map_legend_rest">restul bibliotecii</string>
+    <string name="map_dot_outside_hint">Cea mai apropiată regiune: %1$s</string>
     <string name="map_legend_never">neascultate</string>
     <string name="map_legend_played">ascultate cel puțin o dată</string>
     <string name="map_legend_never_skips">niciodată omise</string>

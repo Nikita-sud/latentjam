@@ -140,6 +140,7 @@
 
     <string name="map_legend_selected">région sélectionnée</string>
     <string name="map_legend_rest">reste de la bibliothèque</string>
+    <string name="map_dot_outside_hint">Région la plus proche : %1$s</string>
     <string name="map_legend_never">jamais écoutés</string>
     <string name="map_legend_played">écoutés au moins une fois</string>
     <string name="map_legend_never_skips">jamais passés</string>

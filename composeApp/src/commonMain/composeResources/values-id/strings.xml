@@ -129,6 +129,7 @@
 
     <string name="map_legend_selected">wilayah terpilih</string>
     <string name="map_legend_rest">sisa pustaka</string>
+    <string name="map_dot_outside_hint">Wilayah terdekat: %1$s</string>
     <string name="map_legend_never">belum pernah diputar</string>
     <string name="map_legend_played">pernah diputar setidaknya sekali</string>
     <string name="map_legend_never_skips">tidak pernah dilompati</string>
