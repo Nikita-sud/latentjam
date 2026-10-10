@@ -519,6 +519,9 @@ private data class WorldTrackIdentity(
     val genre: String?,
     val year: Int?,
     val originalYear: Int?,
+    // Whether an album may name a region reads its credits (WorldNamingGroups.looksLikeAlbum).
+    val albumArtist: String?,
+    val artists: List<String>,
 )
 
 private fun TrackDescriptor.worldIdentity() = WorldTrackIdentity(
@@ -529,6 +532,8 @@ private fun TrackDescriptor.worldIdentity() = WorldTrackIdentity(
     genre = genre,
     year = year,
     originalYear = originalYear,
+    albumArtist = albumArtist,
+    artists = artists,
 )
 
 /** The exact surface that raised a track menu; hidden screens never lend it their actions. */
@@ -1676,7 +1681,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         }
                         // Snapshot for the background pass; a world mostly inside one named group
                         // takes that group's name. Playlists come first — the listener's own word
-                        // outranks the artist's on a containment tie — then real (multi-track)
+                        // outranks the artist's on a tie — then real (multi-track, one artist's)
                         // albums, whose titles are the artist's own curation.
                         val playlistGroups = playlists.map { playlist ->
                             playlist.name to playlist.trackIds.map(::TrackId)
@@ -1722,8 +1727,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             }
                         }
                         val namedWorlds = withContext(AppGraph.mapLayoutDispatcher) {
-                            // Counted over the tracks that exist: a playlist keeps the ids of
-                            // deleted files. The map replay builds the same groups the same way.
+                            // Counted over the tracks that exist (a playlist keeps the ids of
+                            // deleted files) and over real albums only; the map replay builds the
+                            // same groups the same way.
                             val naming = WorldNamingGroups.of(
                                 library = loadedIds.toHashSet(),
                                 playlists = playlistGroups,

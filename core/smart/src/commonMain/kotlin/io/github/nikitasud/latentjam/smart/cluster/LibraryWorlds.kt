@@ -14,8 +14,9 @@ import io.github.nikitasud.latentjam.smart.TrackSemantics
  * A region of the library, with something to call it.
  *
  * @property name generated locally from evidence in the members — a genre (optionally sharpened
- *   by a shared decade), a supported two-style blend, an artist, a shared decade, or a neutral discovery label. No filename text is treated
- *   as a genre and no network model is involved.
+ *   by a shared decade), a supported two-style blend, an artist, a shared decade, or a neutral
+ *   discovery label — or the listener's playlist or an album that holds most of it. No filename
+ *   text is treated as a genre and no network model is involved.
  * @property tracks members, ordered by centrality with the nearest member supporting the name first.
  */
 public data class LibraryWorld(
@@ -52,6 +53,7 @@ public data class LibraryWorld(
         LibraryWorldNameSource.SEMANTIC -> true
         LibraryWorldNameSource.GENERIC -> true
         LibraryWorldNameSource.PLAYLIST -> true
+        LibraryWorldNameSource.ALBUM -> true
         LibraryWorldNameSource.MAJOR_FAMILIES -> true
     }
 }
@@ -65,6 +67,9 @@ public enum class LibraryWorldNameSource {
 
     /** Named after the listener's own playlist that contains most of this world. */
     PLAYLIST,
+
+    /** Named after an album (one artist's release, see [WorldNamingGroups]) holding most of it. */
+    ALBUM,
 
     /** A shared, tagged first-release decade; edition year is used only when it is all we have. */
     DECADE,
@@ -146,27 +151,36 @@ public object LibraryWorlds {
      * Applied AFTER discovery, so clustering itself stays blind to curation. Each group names
      * at most its best world, and each world takes at most one name: two cards with the same
      * title would be indistinguishable.
+     *
+     * @param groups the listener's playlists, preferred in this order on a tie.
+     * @param albums albums, ranked by the same rule but after every playlist on a tie: the
+     *   listener's own word outranks the artist's. They name with [LibraryWorldNameSource.ALBUM].
      */
     public fun namedAfterGroups(
         worlds: List<LibraryWorld>,
         groups: List<Pair<String, Set<TrackId>>>,
         minContainment: Double = GROUP_NAME_CONTAINMENT,
+        albums: List<Pair<String, Set<TrackId>>> = emptyList(),
     ): List<LibraryWorld> {
-        if (worlds.isEmpty() || groups.isEmpty()) return worlds
+        if (worlds.isEmpty() || groups.isEmpty() && albums.isEmpty()) return worlds
         data class Claim(
             val worldIndex: Int,
             val groupName: String,
             val normalizedName: String,
+            val source: LibraryWorldNameSource,
             val containment: Double,
             val jaccard: Double,
             val specificity: Double,
             val inputOrder: Int,
         )
 
+        val named = groups.map { it to LibraryWorldNameSource.PLAYLIST } +
+            albums.map { it to LibraryWorldNameSource.ALBUM }
         val claims = mutableListOf<Claim>()
         var inputOrder = 0
         worlds.forEachIndexed { worldIndex, world ->
-            for ((groupName, members) in groups) {
+            for ((group, source) in named) {
+                val (groupName, members) = group
                 val displayName = groupName.trim()
                 val normalizedName = displayName.lowercase()
                 if (displayName.isEmpty() || members.isEmpty()) continue
@@ -178,6 +192,7 @@ public object LibraryWorlds {
                         worldIndex = worldIndex,
                         groupName = displayName,
                         normalizedName = normalizedName,
+                        source = source,
                         containment = containment,
                         jaccard = inside.toDouble() / union,
                         specificity = inside.toDouble() / members.size,
@@ -206,7 +221,7 @@ public object LibraryWorlds {
             takenNames += claim.normalizedName
             renamed[claim.worldIndex] = renamed[claim.worldIndex].copy(
                 name = claim.groupName,
-                nameSource = LibraryWorldNameSource.PLAYLIST,
+                nameSource = claim.source,
                 semanticTitle = null,
                 blendFamilies = emptySet(),
             )
@@ -214,12 +229,17 @@ public object LibraryWorlds {
         return renamed
     }
 
-    /** [namedAfterGroups] over [groups] as the app builds them: members the library still holds. */
+    /** [namedAfterGroups] over [groups] as the app builds them: live members, real albums only. */
     public fun namedAfterGroups(
         worlds: List<LibraryWorld>,
         groups: WorldNamingGroups,
         minContainment: Double = GROUP_NAME_CONTAINMENT,
-    ): List<LibraryWorld> = namedAfterGroups(worlds, groups.playlists + groups.albums, minContainment)
+    ): List<LibraryWorld> = namedAfterGroups(
+        worlds = worlds,
+        groups = groups.playlists,
+        minContainment = minContainment,
+        albums = groups.albums,
+    )
 
     /**
      * How much of a cluster a genre, subtype, decade, or artist must cover before the mix may claim
