@@ -21,12 +21,17 @@ scorer produced them does not affect whether parity is reachable — the same nu
 both sides. `--scorer` only decides which behaviour the fixture pins:
   * twostage  (default) — the stack shipped until 2026-07-24: frozen acoustic scorer
                (predictor_scorer_n100, state 960 / candidates 100x960) + the text residual
-               (predictor_text_residual_n100_960). This repo's assets no longer carry either
-               graph, so this mode does not run here.
-  * semtext1344         — the 1344-d semtext scorer the app ships (app assets
-               predictor_scorer_n100.onnx: state 1344 / candidates 100x1344). The recorded
+               (predictor_text_residual_n100_960). This repo no longer carries either graph,
+               so this mode does not run here.
+  * semtext1344         — the 1344-d semtext scorer the app shipped until 0.8.0
+               (predictor_scorer_n100.onnx: state 1344 / candidates 100x1344). The recorded
                fixture uses this mode.
   * none                — zero logits (pure geometry + metadata + semantic-z + reanchor).
+
+Graphs. Every mode loads predictor_state.onnx, and the scorer modes their scorer, from --ml
+(default: the app's assets). Since 0.8.1 the app ships neither net, so pass a directory holding
+the 0.8.0 files, e.g. `git show v0.8.0:androidApp/src/main/assets/ml/predictor_state.onnx`
+and the same for predictor_scorer_n100.onnx.
 
 Cold contract. On the cold-start path both slow-taste encoder inputs (history_medium,
 history_large) are the seed's audio and stay FIXED across hops — the app re-encodes only
@@ -277,9 +282,12 @@ class Library:
         if joined:
             raise NotImplementedError(f"multi-genre tags unused by this fixture: {joined[:3]}")
 
-        # ONNX — all graphs come from this repo's own assets; the state and scorer files are
-        # byte-identical to the ones the legacy checkout ships, so nothing points across.
+        # ONNX — the graphs come from --ml (by default this repo's own assets, which no longer
+        # carry the state and scorer nets since 0.8.1; see the module docstring).
         state_asset = f"{ML}/predictor_state.onnx"
+        if not os.path.isfile(state_asset):
+            sys.exit(f"{state_asset} is missing: the app stopped shipping the SMART nets in "
+                     "0.8.1; pass --ml with a directory holding the 0.8.0 graphs")
         self.se = ort.InferenceSession(state_asset)
         self.scorer_mode = scorer_mode
         if scorer_mode == "twostage":
@@ -670,13 +678,17 @@ def w_i32(path, arr):
 
 
 def main():
+    global ML
     ap = argparse.ArgumentParser()
     ap.add_argument("--out",
                     default=f"{REPO}/tools/research/output/parity-fixture")
     ap.add_argument("--scorer", choices=["twostage", "semtext1344", "none"],
                     default="twostage")
     ap.add_argument("--length", type=int, default=20)
+    ap.add_argument("--ml", default=ML,
+                    help="directory with predictor_state.onnx and the scorer graph")
     args = ap.parse_args()
+    ML = args.ml
 
     os.makedirs(args.out, exist_ok=True)
     lib = Library(args.scorer)

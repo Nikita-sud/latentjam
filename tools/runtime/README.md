@@ -72,12 +72,11 @@ python tools/runtime/prepare_parity_fixtures.py \
   --audio /path/to/track.mp3
 ```
 
-`--listener-vectors` is optional; it expects `audio.f32` (960 columns) and
-`text.f32` (384 columns). Without it, normalized synthetic vectors are used.
-Repeat `--audio` to add real ten-second excerpts; these require `ffmpeg` and
-at least 30 seconds of audio. Synthetic cases cover three semantic batch sizes,
-text lengths 3/12/32/48, cold and partial histories, padded candidate pools,
-text dropout, and three waveforms. All fixture hashes are recorded.
+`--listener-vectors` is optional; it expects `audio.f32` (960 columns).
+Without it, normalized synthetic vectors are used. Repeat `--audio` to add
+real ten-second excerpts; these require `ffmpeg` and at least 30 seconds of
+audio. Synthetic cases cover three semantic batch sizes, text lengths
+3/12/32/48 and three waveforms. All fixture hashes are recorded.
 
 Compile `OrtParity.java` against the generated `classes.jar`, convert both to
 one DEX jar with Android `d8`, copy the arm64 `libljq4.so` that Gradle builds for
@@ -139,3 +138,11 @@ After the music encoder was replaced by the activation-trained p50 graph, the re
 config was identical, so the 2026-10-05 candidate AAR stays valid; only the manifest's model hash
 changed. Emulator parity with real excerpts from three FMA tracks: 21 cases, 47,047 output floats,
 bitwise identical to the stock runtime; both error cases and the recovery passed.
+
+## 2026-10-10: 0.8.1 drops the SMART nets
+
+The app stopped shipping `predictor_state.onnx` and `predictor_scorer_n100.onnx`. The 2026-10-06
+candidate stays valid: the three graphs left are byte-identical to their manifest entries and were
+part of its parity run, and the nets' operators stay in the runtime unused. The fixture script no
+longer builds cases for the nets, so a new parity run has 13 cases with three real excerpts
+instead of 21.

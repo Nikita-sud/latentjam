@@ -22,9 +22,11 @@ import kotlin.test.assertTrue
  * skip/exclude rules and the selection loop — from the two graphs, which are the same files on both
  * sides. A drift of one constant or one filter shows up as a different chain.
  *
- * The fixture is ~8 MB of float matrices and is not committed. Regenerate it against the scorer
- * the app ships with `python3 tools/export_parity_fixture.py --scorer semtext1344` (the default
- * `twostage` mode needs graphs this repo no longer carries), then run
+ * The app has planned without these graphs since 0.8.1; this pins the chain's model path, which
+ * the tests and offline harnesses still drive. The fixture is ~8 MB of float matrices and is not
+ * committed. Regenerate it against the scorer the app shipped until 0.8.0 with
+ * `python3 tools/export_parity_fixture.py --scorer semtext1344 --ml <dir with the 0.8.0 graphs>`
+ * (the default `twostage` mode needs graphs this repo no longer carries), then run
  * `SMART_PARITY_FIXTURE=$PWD/tools/research/output/parity-fixture ./gradlew --no-daemon
  * :core:smart:testAndroidHostTest --tests '*SmartChainParityTest*' --rerun`. Keep `--rerun`:
  * neither the fixture nor the variable is a task input, so without it Gradle reports the previous

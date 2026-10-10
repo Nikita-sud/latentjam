@@ -41,11 +41,9 @@ def case(name, model, inputs, source):
 library = args.listener_vectors
 if library:
     audio = np.fromfile(library/'audio.f32', dtype='<f4').reshape(-1,960)
-    text = np.fromfile(library/'text.f32', dtype='<f4').reshape(-1,384)
     vector_source = 'Provided library embeddings'
 else:
     audio = unit(rng.standard_normal((128,960)))
-    text = unit(rng.standard_normal((128,384)))
     vector_source = 'Synthetic normalized embeddings'
 for i, n in enumerate([1,4,16]):
     case(f'semantic{i}', 'universal_semantic_head', {'embedding': audio[rng.choice(len(audio),n,False)]}, vector_source)
@@ -54,18 +52,6 @@ for i, seq in enumerate([3,12,32,48]):
     mask = np.ones_like(ids)
     if i>1: mask[0,-seq//4:]=0;ids[0,-seq//4:]=0
     case(f'text{i}', 'text_encoder', {'input_ids':ids,'attention_mask':mask,'token_type_ids':np.zeros_like(ids)}, 'Synthetic valid vocabulary IDs, variable length and padding')
-for i in range(4):
-    rows = rng.choice(len(audio),4,False)
-    small=np.concatenate([audio[rows],np.ones((4,1),np.float32)],axis=1)[None]
-    if i==0:small[:]=0
-    if i==1:small[0,:2]=0
-    case(f'state{i}', 'predictor_state', {'history_small':small,'history_medium':unit(audio[rows].mean(axis=0)[None]),'history_large':unit(audio[rng.choice(len(audio),20)].mean(axis=0)[None]),'time_features':rng.random((1,5),dtype=np.float32),'session_features':rng.random((1,5),dtype=np.float32)}, vector_source + ', cold/partial/full context')
-    rows=rng.choice(len(audio),101,False)
-    packed=np.concatenate([audio[rows],text[rows]],axis=1)
-    if i==0:packed[:,960:]=0
-    candidates=packed[1:][None].copy()
-    if i==1:candidates[:,30:]=0
-    case(f'scorer{i}', 'predictor_scorer_n100', {'state':packed[:1],'candidates':candidates}, vector_source + ', text dropout and padded pool')
 for i in range(3):
     t=np.arange(320000,dtype=np.float32)/32000
     wave=(.2*np.sin(2*np.pi*(110+220*i)*t)+.05*rng.standard_normal(len(t))).astype(np.float32)

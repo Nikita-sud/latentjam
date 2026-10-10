@@ -5,8 +5,6 @@ The LatentJam-produced weights below are licensed under the Apache License,
 Version 2.0, included in the repository root:
 
   mnv4_audio.onnx
-  predictor_state.onnx
-  predictor_scorer_n100.onnx
   artist_knowledge.bin
   artist_adapter.bin
   text_encoder.onnx
@@ -47,17 +45,6 @@ Archive tracks under CC BY, CC BY-SA, CC0 or public domain; no audio is stored
 in the model. Its track embeddings sit at a mean cosine of 0.992 to the
 unpruned float encoder's, against 0.997 for the previous, unpruned 4-bit
 graph.
-predictor_state.onnx and predictor_scorer_n100.onnx store their matrix
-weights as 4-bit blocks (ONNX Runtime's MatMulNBits: 32 weights per block,
-each with an FP16 scale and a 4-bit zero point; the state net's GRU stays
-FP16). They were fine-tuned from the FP32 weights by quantization-aware
-distillation on inputs recorded from LatentJam's queue builder running over
-libraries assembled from Million Playlist Dataset playlists and their preview
-audio: with every music vector in those inputs replaced by the pruned
-encoder's vector of the same track, they learned to reproduce the FP32 nets'
-outputs on the original recordings (tools/research/model_diet). Those
-recordings, like the music encoder's training data, have not passed the
-rights review required for a public release.
 universal_semantic_head.onnx is a compact 27-label routing head over those
 960-dimensional embeddings. It preserves the calibrated FMA genre branch and
 the EfficientAT MN10 hidden projection while pruning the AudioSet teacher from
@@ -66,9 +53,11 @@ sound effects, novelty-proxy, and instrumental scores. Its FMA-derived branch
 has not passed the source-audio rights review required for public
 redistribution. The novelty output is only a weak acoustic proxy and the app
 requires metadata corroboration before naming a meme/viral mix. Its two
-largest matrices are 4-bit blocks (MatMulNBits), fine-tuned to reproduce the
-FP16 head's outputs on audio vectors of the same playlist libraries and of
-Free Music Archive tracks.
+largest matrices are 4-bit blocks (ONNX Runtime's MatMulNBits), fine-tuned to
+reproduce the FP16 head's outputs on audio vectors of libraries assembled from
+Million Playlist Dataset playlists and their preview audio, and of Free Music
+Archive tracks. That preview audio, like the music encoder's training data,
+has not passed the rights review required for a public release.
 universal_semantic_head.onnx combines parameters trained by LatentJam, licensed
 Apache-2.0, with parameters copied from the EfficientAT MN10 checkpoint, licensed
 MIT as reproduced below.
