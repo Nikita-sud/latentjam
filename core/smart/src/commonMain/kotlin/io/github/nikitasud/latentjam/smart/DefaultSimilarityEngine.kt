@@ -1316,6 +1316,10 @@ internal class DefaultSimilarityEngine(
             ?.let { return it.snapshot }
         // A stale snapshot goes before its replacement is built: holding both would double the peak.
         snapshotCache = null
+        // The artist adapter loads on its first descriptor, and a load that runs out of memory leaves
+        // it absent for the life of the process. Descriptors are decoded inside the build, after the
+        // big matrices, so it is loaded here first, as it was when the rows decoded them up front.
+        artistKnowledge?.preload()
 
         // The rows read the stored vectors in place (see [VectorIndex.storedEntries]): copies would be
         // a second copy of both indexes. Nothing here writes to them. The snapshot keeps them as its
