@@ -136,7 +136,7 @@
 
     <string name="map_legend_selected">выбранная область</string>
     <string name="map_legend_rest">остальная медиатека</string>
-    <string name="map_dot_outside_hint">Ближайший регион: %1$s</string>
+    <string name="map_dot_outside_hint">Ближайшая область: %1$s</string>
     <string name="map_legend_never">ни разу не слушали</string>
     <string name="map_legend_played">слушали хотя бы раз</string>
     <string name="map_legend_never_skips">никогда не пропускали</string>

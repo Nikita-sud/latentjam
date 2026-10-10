@@ -142,7 +142,7 @@
 
     <string name="map_legend_selected">вибрана область</string>
     <string name="map_legend_rest">решта бібліотеки</string>
-    <string name="map_dot_outside_hint">Найближчий регіон: %1$s</string>
+    <string name="map_dot_outside_hint">Найближча область: %1$s</string>
     <string name="map_legend_never">жодного разу не слухали</string>
     <string name="map_legend_played">слухали принаймні раз</string>
     <string name="map_legend_never_skips">ніколи не пропускали</string>

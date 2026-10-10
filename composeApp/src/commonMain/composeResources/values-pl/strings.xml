@@ -142,7 +142,7 @@
 
     <string name="map_legend_selected">wybrany obszar</string>
     <string name="map_legend_rest">reszta biblioteki</string>
-    <string name="map_dot_outside_hint">Najbliższy region: %1$s</string>
+    <string name="map_dot_outside_hint">Najbliższy obszar: %1$s</string>
     <string name="map_legend_never">nigdy nieodtwarzane</string>
     <string name="map_legend_played">odtworzone co najmniej raz</string>
     <string name="map_legend_never_skips">nigdy niepomijane</string>
