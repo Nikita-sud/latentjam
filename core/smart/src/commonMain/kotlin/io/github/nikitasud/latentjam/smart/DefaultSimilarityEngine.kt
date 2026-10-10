@@ -1307,6 +1307,10 @@ internal class DefaultSimilarityEngine(
         throw failure
     }
 
+    /** The snapshot a SMART plan with [history] reads, for tests that pin its exact contents. */
+    internal suspend fun smartSnapshot(history: List<SmartHistoryEvent>): SmartSnapshot? =
+        withContext(dispatcher) { mutex.withLock { snapshotFor(history) } }
+
     private suspend fun snapshotFor(history: List<SmartHistoryEvent>): SmartSnapshot? {
         snapshotCache?.takeIf { it.revision == indexRevision && it.semanticCount == semanticCache.size }
             ?.let { return it.snapshot }
