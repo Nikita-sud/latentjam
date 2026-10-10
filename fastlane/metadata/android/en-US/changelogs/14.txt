@@ -1,0 +1,1 @@
+SMART no longer uses its two learned queue models: it picks from the sound, the tags and what is known about each artist. In blind comparisons on public libraries its queues were as good as 0.8.0's, plans are built several times faster, and the download is about 4 MB smaller. Your library is not analysed again after the update.
