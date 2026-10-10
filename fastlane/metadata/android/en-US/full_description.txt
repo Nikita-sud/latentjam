@@ -1,7 +1,7 @@
-LatentJam is a music player for the files on your phone that understands what your library sounds like. A small neural model runs on the device, listens to your tracks in the background and learns what follows what, so SMART mode can queue the next song from your own collection. There is no account, no catalogue and no network permission: nothing about your listening leaves the phone.
+LatentJam is a music player for the files on your phone that understands what your library sounds like. A small neural model runs on the device and listens to your tracks in the background, so SMART mode can queue the next song from your own collection. There is no account, no catalogue and no network permission: nothing about your listening leaves the phone.
 
 <ul>
-<li><b>SMART queue</b>: the next track picked from your library by sound, by how you actually listen and by what a compact offline pack knows about 350,000 artists — their language, era and style. The queue avoids big jumps in energy.</li>
+<li><b>SMART queue</b>: the next track picked from your library by sound, by its tags and by what a compact offline pack knows about 350,000 artists — their language, era and style. The queue avoids big jumps in energy.</li>
 <li><b>For You</b>: rows for this time of day, the phase you are in, one wildcard, and a sonic journey across the library.</li>
 <li><b>Search that ranks like you expect</b>: title, artist, album and genre first, then the lyrics in your files, then meaning, in any of twenty languages. A year or decade in the query ("80s", "1985") keeps results to those years.</li>
 <li><b>A map of your library</b>: clusters are your genres as the model hears them.</li>

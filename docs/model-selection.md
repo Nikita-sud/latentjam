@@ -19,32 +19,32 @@ Full methods, counterfactuals, limitations, teacher research, and mobile results
 
 ## Shipped bundle
 
-Updated 2026-10-06. The two-stage residual chosen on 2026-07-20 was superseded in August by a
+Updated 2026-10-10. The two-stage residual chosen on 2026-07-20 was superseded in August by a
 single scorer that reads audio and text per candidate (the semtext-1344 contract, byte-identical
 across the Kotlin port and the offline harness). In September the artist knowledge pack joined it,
 and every file was made smaller without changing what SMART picks. The October model diet
 (28d3c2ea, 76b16b50) pruned the audio encoder and moved the SMART graphs, the semantic head and the
-adapter to 4-bit blocks; the table and the hashes below are the bytes in
-`androidApp/src/main/assets/ml/` (the iOS bundle is identical file for file), and this is the
-shipped state.
+adapter to 4-bit blocks. 0.8.1 then dropped the two SMART graphs, `predictor_state.onnx` and
+`predictor_scorer_n100.onnx`: their training data has not passed a rights review, and in blind
+comparisons on public libraries (cold seeds and warm sessions) queues planned without them were as
+good, with plans several times faster. The table and the hashes below are the bytes in
+`androidApp/src/main/assets/ml/` (the iOS bundle is identical file for file, which a host test
+checks), and this is the shipped state.
 
 | File | Contract | Bytes |
 |---|---:|---:|
 | `mnv4_audio.onnx` | 10 s mono 32 kHz → 960-d (four-step FFT front end; 4-bit pointwise convolutions, INT8 elsewhere) | 3,331,384 |
 | `text_encoder.onnx` | tokens → 384-d in MiniLM's space (three-layer student; 4-bit word embeddings, INT8 elsewhere) | 3,939,067 |
 | `text_vocab.txt` | the student's WordPiece vocabulary | 61,317 |
-| `predictor_state.onnx` | recent 960-d history → 960-d state (MatMulNBits 4-bit blocks, FP16 GRU) | 2,334,180 |
-| `predictor_scorer_n100.onnx` | state 960 ⊕ 384 text centroid + 100 × (960 audio ⊕ 384 text) → logits (MatMulNBits 4-bit blocks) | 1,782,479 |
 | `universal_semantic_head.onnx` | 960-d audio → 27 genre-family scores (largest matrices 4-bit) | 824,543 |
 | `music_entities_250k.bin` | artist names, aliases, members → entity ids (LJENT3, 40-bit keys) | 8,399,563 |
 | `artist_knowledge.bin` | entity → PQ-16 descriptor, language, decade (knowledge v3, confident entities only) | 4,036,501 |
 | `artist_adapter.bin` | 384-d text → descriptor guess for artists outside the pack (4-bit codes) | 334,164 |
 
-Total: **25,043,198 bytes (23.9 MiB)** per platform, against 86,761,581 bytes (82.7 MiB) in v0.5.1,
-which had neither the pack nor the adapter. Audio and text graphs run while tracks are indexed.
-Queue construction runs the state graph and the scorer; a candidate without a text vector gets a
-zero text block, the trained text-dropout path, so missing metadata degrades to audio-only scoring
-rather than to noise. The app progressively builds the local index on first launch, embeds the
+Total: **20,926,539 bytes (20.0 MiB)** per platform, against 25,043,198 bytes (23.9 MiB) in 0.8.0
+and 86,761,581 bytes (82.7 MiB) in v0.5.1, which had neither the pack nor the adapter. Audio and
+text graphs run while tracks are indexed. Queue construction runs no graph: the chain ranks the pool
+on its own terms (audio and semantic closeness, metadata rules and the learned correction). The app progressively builds the local index on first launch, embeds the
 selected seed on demand, and keeps playback's metadata-only cold-start queue until audio
 candidates are ready. All inference, history, and stored embeddings remain on the device; iOS and
 Android both persist private history across launches. On iOS, Music-library items without a raw
@@ -136,8 +136,6 @@ References checked on 2026-07-20:
 80591ad57ba6de99597173185820d6f68b45f9ffd8e4eef7ecbb38d195a53606  mnv4_audio.onnx
 81386311c03711bc040b429c7cec4438b4a70bfd57c0df9b6f62652d1f36acaa  text_encoder.onnx
 c6882cc7a96e96d9f4fb30be1214a1dc5b3bf040fa014b7f55b864c3acb61811  text_vocab.txt
-9532d2cef5e5dcfde8ca8a3955303174fcd07917440e8dbeb9b97bebe0f70889  predictor_state.onnx
-a6ff9c4d5c99be911be30bcff9f304024c38f387490f3a8b1ea18fba8fd8b438  predictor_scorer_n100.onnx
 3f248153d0f2edfa2e6c1e8d1c61942b14624769906c59094bbd2b9738d3c34a  universal_semantic_head.onnx
 7fd1c5b62b00da4dfc51a99d0aeffc6f229744d825ba80382beb357489e0563f  music_entities_250k.bin
 f73ab5358fad4265469e18022b7af5435392958407b5febab9ba58632a4b0306  artist_knowledge.bin

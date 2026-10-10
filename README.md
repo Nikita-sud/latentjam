@@ -62,13 +62,13 @@ download. Use F-Droid if you already do (it updates the app for you), but it can
 behind, so the newest features may not have arrived there yet. On iPhone, sideload the IPA.
 
 - **Android APK** — from the [Releases page](https://github.com/Nikita-sud/latentjam/releases/latest),
-  download `LatentJam-vX.Y.Z-arm64.apk` (about 38 MB; fits almost any phone from the last decade).
-  Old 32-bit phones need the `armv7` APK (about 46 MB). Open it on the phone, allow installing
+  download `LatentJam-vX.Y.Z-arm64.apk` (about 35 MB; fits almost any phone from the last decade).
+  Old 32-bit phones need the `armv7` APK (about 42 MB). Open it on the phone, allow installing
   unknown apps and tap through Play Protect's warning. Requires **Android 7.0+**.
 - **[F-Droid](https://f-droid.org/packages/io.github.nikitasud.latentjam.kmp/)** builds LatentJam
   from this source on its own schedule, so it can trail the newest release here; it ships one larger
-  APK for every processor type (66 MiB).
-- **iPhone IPA** — not on the App Store or TestFlight. The IPA (about 44 MB) is **unsigned**: install
+  APK for every processor type (63 MiB).
+- **iPhone IPA** — not on the App Store or TestFlight. The IPA (about 40 MB) is **unsigned**: install
   it with AltStore or Sideloadly from a Mac or PC, which re-sign it with your Apple ID; with a free
   Apple ID the install must be refreshed every 7 days. Requires **iOS 15.1+**. Music comes from files
   you import through the Files app and from songs downloaded to your Music library. Protected Apple
@@ -158,8 +158,8 @@ iOS has everything above except the Android extras, smooth transitions and volum
 ## How SMART works
 
 Every track is described by its sound, its tags and what is known about its artist. SMART picks the
-next song by asking a small model which candidate fits what you have just played. All of it is
-computed on the device:
+next song by weighing those against what you have just played and the track you started from. All of
+it is computed on the device:
 
 | Signal | Dimensions | Where it comes from |
 |---|---:|---|
@@ -167,52 +167,48 @@ computed on the device:
 | **Metadata embedding** | 384 | A 4 MB text encoder trained to reproduce MiniLM's sentence vectors (with search phrases in twenty languages), over trusted `genre; artist; original year; language` tags |
 | **Artist knowledge** | 384 | What an offline teacher wrote about the 350k MusicBrainz and Wikidata artists the name index knows (its 190k confident answers are kept, about 20 bytes each); a small adapter guesses it for the rest |
 
-**Retrieval.** Three rankings are interleaved into one 100-track candidate pool: audio close to the
-track you picked, audio close to the session, and what is known about the seed's artist (from the
-knowledge pack, or guessed from its tags by the adapter when the pack doesn't know them), falling
-back to the seed's tag text when neither exists. No hand-tuned weight sits between them. Songs from
-a playlist you marked *Keep together in SMART* are added if retrieval missed them.
+**Retrieval.** Two rankings are interleaved into one 100-track candidate pool: audio close to the
+track you picked, and what is known about the seed's artist (from the knowledge pack, or guessed
+from its tags by the adapter when the pack doesn't know them). No hand-tuned weight sits between
+them. Songs from a playlist you marked *Keep together in SMART* are added if retrieval missed them.
 
-**Scoring.** A 960-d GRU state encoder reads your last four plays, completion and skip signals,
-long-term taste (centroids with 30- and 365-day half-lives) and the time of day and week, and feeds
-a frozen scorer over the pool. The scorer sees each candidate's audio embedding next to its metadata
-vector, with the session's metadata centroid on the state side. It was trained with text dropout, so
-a track without usable tags is scored on audio alone.
+**No scoring network.** Until 0.8.0 a learned state encoder read your recent plays and a frozen
+scorer network voted on the pool. 0.8.1 dropped both: in blind comparisons on public libraries the
+queues without them were as good, and plans are built several times faster.
 
-**The queue.** A scoring chain balances the model's vote against local coherence, keeps pulling back
-toward the track you chose, and uses pool-relative semantic scores so niche corners of a library
-stay intact. On top sits a small correction learned from a blind judge's rankings of real playlists
-(public MPD data): it passes over a candidate that would change the sound abruptly while a closer one
-is left, and the walk carries on across top-ups. Metadata rules nudge repeated artists down instead
-of banning them (each further song by one artist in a row must fit better by more; Settings → SMART
-engine → Artist variety), suppress duplicate titles, other versions of a song included, and keep one
-very dense cluster (cinematic and anime soundtracks) from crowding the queue. Playlists marked *Keep
-together in SMART* earn points, not reserved slots. The finished queue is ordered into gentle
-transitions.
+**The queue.** A scoring chain balances local coherence (closeness to the previous pick) against a
+steady pull back toward the track you chose, and uses pool-relative semantic scores so niche corners
+of a library stay intact. On top sits a small correction learned from a blind judge's rankings of
+real playlists (public MPD data): it passes over a candidate that would change the sound abruptly
+while a closer one is left, and the walk carries on across top-ups. Metadata rules nudge repeated
+artists down instead of banning them (each further song by one artist in a row must fit better by
+more; Settings → SMART engine → Artist variety), suppress duplicate titles, other versions of a song
+included, and keep one very dense cluster (cinematic and anime soundtracks) from crowding the queue.
+Playlists marked *Keep together in SMART* earn points, not reserved slots. The finished queue is
+ordered into gentle transitions.
 
 **Messy tags.** Track *titles* are excluded from the embedding, so a filename like `Hard Techno Mix`
 can't inject a genre claim. The language word comes from the file's tag, then from the language the
 artist pack says they sing in, then from the script of the title, never from its words. A track with
 no year carries its artist's decade.
 
-**Tuning.** The scorer's weights are frozen and *objective*: SMART ranks by what the music is, not by
-who is listening. Listening history is used as runtime context, **never trained on and never
-uploaded**. The constants around the scorer (chain weights, the learned correction, spacing) are
-chosen by replaying recorded model outputs and simulated listeners through the full chain and by blind
-judges on public playlists, not by hand.
+**Tuning.** Every model SMART uses is frozen and *objective*: SMART ranks by what the music is, not
+by who is listening. Listening history is used as runtime context, **never trained on and never
+uploaded**. The chain's constants (its weights, the learned correction, spacing) are chosen by
+replaying simulated listeners through the full chain and by blind judges on public playlists, not by
+hand.
 
 **Cold start.** The audio index builds in small persisted batches spread over the whole library.
 Until it covers enough of the library, SMART builds the queue from the trusted metadata vectors
 (genre, artist, year) rather than the audio ones — a real local ranking, never a random shuffle. It
-abstains only when there is no trustworthy metadata to rank at all. A listener with no history gets
-a state trained for exactly that case, so the first queue is still meaningful.
+abstains only when there is no trustworthy metadata to rank at all.
 
-**What ships.** Five ONNX graphs ship in-tree: the audio encoder runs once per track while indexing;
-the metadata encoder runs at indexing and for search queries; the state encoder and the scorer run
-while a queue is built; a small semantic head turns audio embeddings into the genre-family scores the
-map and the mixes use. The model bundle (graphs, vocabulary, the artist index and the knowledge pack)
-is about 24 MB on both Android and iOS. There is no precomputed per-track catalogue: an imported
-track takes exactly the same local path as everything else.
+**What ships.** Three ONNX graphs ship in-tree: the audio encoder runs once per track while
+indexing; the metadata encoder runs at indexing and for search queries; a small semantic head turns
+audio embeddings into the genre-family scores the map and the mixes use. The model bundle (graphs,
+vocabulary, the artist index and the knowledge pack) is about 20 MB on both Android and iOS. There
+is no precomputed per-track catalogue: an imported track takes exactly the same local path as
+everything else.
 
 **Further reading:** [docs/model-selection.md](docs/model-selection.md) (architecture choice,
 benchmarks, rejected candidates) and [docs/for-you-ux.md](docs/for-you-ux.md) (the research behind
@@ -299,7 +295,7 @@ Each skips unless its fixture is present, so the default run stays fast and offl
 - **SMART parity** replays the reference implementation's own recorded model outputs through this
   port and asserts the resulting queues match *exactly*. Point `SMART_PARITY_FIXTURE` at a fixture
   made by `tools/export_parity_fixture.py --scorer semtext1344` (generating one needs the
-  maintainer's offline data).
+  maintainer's offline data and the 0.8.0 state and scorer nets, which the app no longer ships).
 - **Chain and For You simulations** replay recorded outputs and synthetic listeners through the full
   chain; they are how the recommender's constants are chosen and defended. They need
   `SMART_PARITY_FIXTURE` and `SMART_SIM_INPUT`.
@@ -345,11 +341,10 @@ LatentJam builds on:
 Bundled models under `androidApp/src/main/assets/ml/` (mirrored in `iosApp/iosApp/ml/`) are covered
 by permissive licences documented in [LICENSE-MODEL.txt](androidApp/src/main/assets/ml/LICENSE-MODEL.txt).
 
-**One caveat, from that same file:** three of its sections record that the rights review a public
-release requires has not been passed — `mnv4_audio.onnx` (the audio encoder's distillation data),
-`predictor_state.onnx` and `predictor_scorer_n100.onnx` (the recordings their quantization was
-distilled on) and the FMA-derived branch of `universal_semantic_head.onnx` (its source audio). The
-Apache-2.0 grant in that file stands, but anyone repackaging the bundle should read it first: it
+**One caveat, from that same file:** two of its sections record that the rights review a public
+release requires has not been passed — `mnv4_audio.onnx` (the audio encoder's distillation data) and
+`universal_semantic_head.onnx` (the source audio of its FMA-derived branch and of the playlist
+libraries its 4-bit matrices were fine-tuned on). The Apache-2.0 grant in that file stands, but anyone repackaging the bundle should read it first: it
 states each case in full, with the required third-party attributions.
 
 <p align="center"><sub>Everything runs on your device. Your taste stays there.</sub></p>
