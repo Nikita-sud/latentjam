@@ -66,6 +66,30 @@ public object ScorerPacking {
         }
     }
 
+    /** [packCandidates] reading the snapshot's rows where they are kept: the same floats in the same places. */
+    internal fun packCandidates(
+        audio: ScaledRows,
+        text: ScaledRows?,
+        hasText: BooleanArray,
+        poolRows: IntArray,
+        scorerN: Int,
+        out: FloatArray,
+    ) {
+        require(out.size == scorerN * INPUT_DIM) {
+            "candidate block must be scorerN×INPUT_DIM, got ${out.size}"
+        }
+        require(poolRows.size <= scorerN) {
+            "poolRows (${poolRows.size}) may not exceed scorerN ($scorerN)"
+        }
+        out.fill(0f)
+        for (i in poolRows.indices) {
+            val row = poolRows[i]
+            val dst = i * INPUT_DIM
+            audio.copyInto(row, out, dst)
+            if (text != null && hasText[row]) text.copyInto(row, out, dst + AUDIO_DIM)
+        }
+    }
+
     /**
      * Unit-normalized mean of the text vectors of the context tracks in [rows] — the session-text
      * centroid concatenated onto the state. Rows are de-duplicated (a repeated context track counts
@@ -73,16 +97,21 @@ public object ScorerPacking {
      * and rows without a current text vector are dropped. Returns a 384-d zero vector when
      * [textFlat] is null or no context row has text (the trained empty-context path).
      */
-    public fun textCentroid(textFlat: FloatArray?, hasText: BooleanArray, rows: IntArray): FloatArray {
+    public fun textCentroid(textFlat: FloatArray?, hasText: BooleanArray, rows: IntArray): FloatArray =
+        if (textFlat == null) FloatArray(TEXT_DIM) else textCentroid(hasText, rows) { r, d -> textFlat[r * TEXT_DIM + d] }
+
+    /** [textCentroid] reading the snapshot's text rows where they are kept: the same floats. */
+    internal fun textCentroid(text: ScaledRows, hasText: BooleanArray, rows: IntArray): FloatArray =
+        textCentroid(hasText, rows) { r, d -> text[r, d] }
+
+    private inline fun textCentroid(hasText: BooleanArray, rows: IntArray, value: (row: Int, d: Int) -> Float): FloatArray {
         val out = FloatArray(TEXT_DIM)
-        if (textFlat == null) return out
         val seen = LinkedHashSet<Int>()
         var count = 0
         for (r in rows) {
             if (r < 0 || !hasText[r]) continue
             if (!seen.add(r)) continue
-            val base = r * TEXT_DIM
-            for (d in 0 until TEXT_DIM) out[d] += textFlat[base + d]
+            for (d in 0 until TEXT_DIM) out[d] += value(r, d)
             count++
         }
         if (count == 0) return out

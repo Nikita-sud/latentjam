@@ -19,6 +19,9 @@ import kotlin.math.sqrt
  * stored as-is and simply score `0` against everything rather than crashing
  * on division by zero.
  *
+ * A stored array is never written again: [upsert] stores a fresh copy and [adopt] normalises the
+ * handed-over array before storing it, so the arrays [storedEntries] hands out stay as they are.
+ *
  * Not thread-safe by design; see [VectorIndex] for the serialization contract.
  *
  * @param dim Required dimensionality of every stored and queried vector.

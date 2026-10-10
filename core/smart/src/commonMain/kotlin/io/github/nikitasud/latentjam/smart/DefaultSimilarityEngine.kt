@@ -1317,9 +1317,10 @@ internal class DefaultSimilarityEngine(
         // A stale snapshot goes before its replacement is built: holding both would double the peak.
         snapshotCache = null
 
-        // The rows read the stored vectors in place, as a checkpoint does (see [VectorIndex.storedEntries]):
-        // copies would be a second copy of both indexes for as long as the build runs. Nothing here
-        // writes to them, and the snapshot keeps none of them.
+        // The rows read the stored vectors in place (see [VectorIndex.storedEntries]): copies would be
+        // a second copy of both indexes. Nothing here writes to them. The snapshot keeps them as its
+        // raw rows (see ScaledRows), which is safe because every change to either index drops the
+        // cached snapshot, so it never reads a vector the index has since replaced.
         val audio = index.storedEntries()
         val text = textIndex?.storedEntries()
         val rows = knownTracks.values.mapNotNull { track ->

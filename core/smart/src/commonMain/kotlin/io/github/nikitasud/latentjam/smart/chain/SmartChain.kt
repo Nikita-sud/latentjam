@@ -388,8 +388,8 @@ internal class SmartChain(
         val hasText = snapshot.hasText ?: BooleanArray(snapshot.size)
         val candidates = FloatArray(PredictorRuntime.POOL_SIZE * PredictorRuntime.SCORER_INPUT_DIM)
         ScorerPacking.packCandidates(
-            audioFlat = snapshot.rawAudio,
-            textFlat = snapshot.rawText,
+            audio = snapshot.rawAudio,
+            text = snapshot.rawText,
             hasText = hasText,
             poolRows = poolRows,
             scorerN = PredictorRuntime.POOL_SIZE,
@@ -399,7 +399,7 @@ internal class SmartChain(
         // Session-text-centroid: unit-norm, de-duplicated mean of the context tracks' text vectors
         // (A HEAD `_text_centroid` semantics), recomputed each hop as the context window advances.
         val textHistory = context.textRows
-        var centroid = ScorerPacking.textCentroid(snapshot.rawText, hasText, textHistory)
+        var centroid = textCentroid(hasText, textHistory)
         val noLogits = FloatArray(PredictorRuntime.POOL_SIZE)
 
         val chain = ArrayList<Int>(length)
@@ -909,11 +909,11 @@ internal class SmartChain(
 
             history.copyInto(history, 0, tokenDim, PredictorRuntime.CONTEXT_K * tokenDim)
             val offset = (PredictorRuntime.CONTEXT_K - 1) * tokenDim
-            snapshot.rawAudio.copyInto(history, offset, pickedRow * dim, (pickedRow + 1) * dim)
+            snapshot.rawAudio.copyInto(pickedRow, history, offset)
             history[offset + dim] = 1f
             textHistory.copyInto(textHistory, 0, 1, PredictorRuntime.CONTEXT_K)
             textHistory[PredictorRuntime.CONTEXT_K - 1] = pickedRow
-            centroid = ScorerPacking.textCentroid(snapshot.rawText, hasText, textHistory)
+            centroid = textCentroid(hasText, textHistory)
             state = runCatching {
                 encode(history, medium, large, timeFeatures, liveSessionFeatures)
             }
@@ -1005,12 +1005,7 @@ internal class SmartChain(
         val textRows = IntArray(PredictorRuntime.CONTEXT_K)
         for (i in padded.indices) {
             val event = padded[i]
-            snapshot.rawAudio.copyInto(
-                history,
-                i * PredictorRuntime.TOKEN_DIM,
-                event.row * PredictorRuntime.EMBEDDING_DIM,
-                (event.row + 1) * PredictorRuntime.EMBEDDING_DIM,
-            )
+            snapshot.rawAudio.copyInto(event.row, history, i * PredictorRuntime.TOKEN_DIM)
             history[i * PredictorRuntime.TOKEN_DIM + PredictorRuntime.EMBEDDING_DIM] = event.played
             textRows[i] = event.row
         }
@@ -1093,22 +1088,18 @@ internal class SmartChain(
         return excluded
     }
 
+    /** The session-text centroid of [rows]: zeros when the snapshot has no text space. */
+    private fun textCentroid(hasText: BooleanArray, rows: IntArray): FloatArray =
+        snapshot.rawText?.let { ScorerPacking.textCentroid(it, hasText, rows) } ?: FloatArray(ScorerPacking.TEXT_DIM)
+
     private fun coldContext(seedRow: Int, session: FloatArray): PreparedContext {
         val history = FloatArray(PredictorRuntime.CONTEXT_K * PredictorRuntime.TOKEN_DIM)
         for (k in 0 until PredictorRuntime.CONTEXT_K) {
             val offset = k * PredictorRuntime.TOKEN_DIM
-            snapshot.rawAudio.copyInto(
-                history,
-                offset,
-                seedRow * PredictorRuntime.EMBEDDING_DIM,
-                (seedRow + 1) * PredictorRuntime.EMBEDDING_DIM,
-            )
+            snapshot.rawAudio.copyInto(seedRow, history, offset)
             history[offset + PredictorRuntime.EMBEDDING_DIM] = 1f
         }
-        val seed = snapshot.rawAudio.copyOfRange(
-            seedRow * PredictorRuntime.EMBEDDING_DIM,
-            (seedRow + 1) * PredictorRuntime.EMBEDDING_DIM,
-        )
+        val seed = snapshot.rawAudio.row(seedRow)
         return PreparedContext(
             history = history,
             medium = seed.copyOf(),
@@ -1132,15 +1123,11 @@ internal class SmartChain(
             if (reward <= 0f) continue
             val ageDays = (newest - event.timestamp).coerceAtLeast(0L) / MILLIS_PER_DAY
             val weight = reward * exp(-ageDays * LN_2 / halfLifeDays)
-            val base = event.row * PredictorRuntime.EMBEDDING_DIM
-            for (d in centroid.indices) centroid[d] += snapshot.rawAudio[base + d] * weight.toFloat()
+            for (d in centroid.indices) centroid[d] += snapshot.rawAudio[event.row, d] * weight.toFloat()
             totalWeight += weight
         }
         if (totalWeight <= 1e-9) {
-            return snapshot.rawAudio.copyOfRange(
-                seedRow * PredictorRuntime.EMBEDDING_DIM,
-                (seedRow + 1) * PredictorRuntime.EMBEDDING_DIM,
-            )
+            return snapshot.rawAudio.row(seedRow)
         }
         return normalized(centroid, PredictorRuntime.EMBEDDING_DIM)
     }
@@ -1342,8 +1329,7 @@ internal class SmartChain(
             val withText = IntArray(n)
             var count = 0
             for (row in rows) if (hasText[row]) withText[count++] = row
-            val textDim = SmartSnapshot.TEXT_DIM
-            snapshot.batchDots(rawText, textDim, rawText, reference * textDim, withText, count, textScores)
+            rawText.dots(rawText.row(reference), 0, withText, count, textScores)
         }
         // Rows without a descriptor never enter this channel, as in descriptorOrder.
         val descriptorScores = FloatArray(n) { cosines.descriptor(it) ?: Float.NEGATIVE_INFINITY }
@@ -1384,7 +1370,7 @@ internal class SmartChain(
             if (row != ranking.reference && eligibleRows[row] && !blocked[row]) candidates[count++] = row
         }
         val stateScores = FloatArray(n)
-        snapshot.batchDots(snapshot.rawAudio, dim, normalized(state, dim), 0, candidates, count, stateScores)
+        snapshot.rawAudio.dots(normalized(state, dim), 0, candidates, count, stateScores)
         return PoolChannels(
             anchorScores = ranking.anchorScores,
             anchor = anchor,
@@ -1409,23 +1395,16 @@ internal class SmartChain(
         val textScores = FloatArray(n) { Float.NEGATIVE_INFINITY }
         if (state.size >= dim) {
             val query = normalized(state, dim)
-            val textDim = SmartSnapshot.TEXT_DIM
             val rawText = snapshot.rawText
             val seedText = if (rawText != null && snapshot.hasText?.get(seedRow) == true) {
-                rawText.copyOfRange(seedRow * textDim, (seedRow + 1) * textDim)
+                rawText.row(seedRow)
             } else {
                 null
             }
             for (row in rows) {
-                var audio = 0f
-                val base = row * dim
-                for (d in 0 until dim) audio += snapshot.rawAudio[base + d] * query[d]
-                stateScores[row] = audio
+                stateScores[row] = snapshot.rawAudio.dot(row, query)
                 if (seedText != null && snapshot.hasText?.get(row) == true) {
-                    var text = 0f
-                    val textBase = row * textDim
-                    for (d in 0 until textDim) text += rawText!![textBase + d] * seedText[d]
-                    textScores[row] = text
+                    textScores[row] = rawText!!.dot(row, seedText)
                 }
             }
         } else {

@@ -66,10 +66,11 @@ public interface VectorIndex {
     public fun ids(): Set<TrackId> = entries().keys
 
     /**
-     * Every stored entry in stored form, for a caller that only reads it before the index next
-     * changes — writing a checkpoint or building a SMART snapshot under the engine's lock. An
-     * implementation may hand out its own arrays and map instead of [entries]' copies: never modify
-     * them, or keep them.
+     * Every stored entry in stored form, for a caller that only reads it — writing a checkpoint or
+     * building a SMART snapshot under the engine's lock. An implementation may hand out its own
+     * arrays and map instead of [entries]' copies: never modify them. It never writes into an array
+     * once stored, so a caller may keep the arrays (not the map) until the index next changes; past
+     * that, it would be holding vectors the index has dropped or replaced.
      */
     public fun storedEntries(): Map<TrackId, FloatArray> = entries()
 

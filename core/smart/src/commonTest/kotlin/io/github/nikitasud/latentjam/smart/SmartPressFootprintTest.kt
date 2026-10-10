@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.smart
 
+import io.github.nikitasud.latentjam.smart.chain.ScaledRows
 import io.github.nikitasud.latentjam.smart.chain.SmartSnapshot
 import io.github.nikitasud.latentjam.smart.text.ArtistKnowledge
 import io.github.nikitasud.latentjam.smart.text.ArtistKnowledgePack
@@ -252,13 +253,13 @@ internal class SmartPressFootprintTest {
             "size=$size",
             "ids=" + fnv { tracks.forEach { track -> track.id.value.encodeToByteArray().forEach(::byte) } },
             "energy=" + fnv { tracks.forEach { floatBits(it.energy) } },
-            "rawAudio=" + floats(rawAudio),
+            "rawAudio=" + rows(rawAudio),
             "centeredAudio=" + floats(centeredAudio),
             "hubPenalty=" + floats(hubPenalty),
             "typicality=" + floats(typicality),
             "centeredText=" + floats(centeredText),
             "hasText=" + booleans(hasText),
-            "rawText=" + floats(rawText),
+            "rawText=" + rows(rawText),
             "descriptorDim=$descriptorDim",
             "centeredDescriptor=" + floats(centeredDescriptor),
             "hasDescriptor=" + booleans(hasDescriptor),
@@ -280,6 +281,12 @@ internal class SmartPressFootprintTest {
 
     private fun floats(values: FloatArray?): String =
         if (values == null) "null" else "${values.size}:" + fnv { values.forEach(::floatBits) }
+
+    /** As [floats] over the rows laid end to end: the digest a matrix of them would have. */
+    private fun rows(values: ScaledRows?): String =
+        if (values == null) "null" else "${values.size * values.dim}:" + fnv {
+            for (row in 0 until values.size) for (d in 0 until values.dim) floatBits(values[row, d])
+        }
 
     private fun booleans(values: BooleanArray?): String =
         if (values == null) "null" else "${values.count { it }}/${values.size}:" + fnv { values.forEach { byte(if (it) 1 else 0) } }
