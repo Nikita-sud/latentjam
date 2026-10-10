@@ -7,7 +7,6 @@ package io.github.nikitasud.latentjam.smart.di
 import io.github.nikitasud.latentjam.smart.chain.BatchDotProducts
 import io.github.nikitasud.latentjam.smart.DefaultSimilarityEngine
 import io.github.nikitasud.latentjam.smart.InMemoryVectorIndex
-import io.github.nikitasud.latentjam.smart.chain.PredictorRuntime
 import io.github.nikitasud.latentjam.smart.IndexStore
 import io.github.nikitasud.latentjam.smart.NoopIndexStore
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
@@ -120,7 +119,6 @@ public val smartEngineModule: Module = module {
             store = get(),
             config = get(),
             dispatcher = get(smartEngineDispatcherQualifier),
-            predictor = getOrNull<PredictorRuntime>(),
             textEncoder = getOrNull<TextEncoder>(),
             artistKnowledge = getOrNull<ArtistKnowledge>(),
             textIndex = get<VectorIndex>(smartTextIndexQualifier),

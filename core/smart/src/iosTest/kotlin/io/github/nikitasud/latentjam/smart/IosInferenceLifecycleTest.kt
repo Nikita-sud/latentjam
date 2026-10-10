@@ -4,7 +4,6 @@
  */
 package io.github.nikitasud.latentjam.smart
 
-import io.github.nikitasud.latentjam.smart.chain.IosPredictorRuntime
 import kotlinx.coroutines.runBlocking
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -42,21 +41,23 @@ class IosInferenceLifecycleTest {
     }
 
     @Test
-    fun `backend and predictor share provider until both close`() = runBlocking {
+    fun `two subsystems share provider until both close`() = runBlocking {
         val provider = SpyProvider()
         IosInferenceRegistry.install(provider)
         val backend = IosEmbeddingBackend(SmartEngineConfig(embeddingDim = 3))
-        val predictor = IosPredictorRuntime()
+        // A second lease holder; in the app it is the text encoder, which also needs the bundle's
+        // vocabulary and so cannot load in a unit test.
+        val other = IosEmbeddingBackend(SmartEngineConfig(embeddingDim = 3))
 
         assertTrue(backend.loadModel().isSuccess)
-        assertTrue(predictor.load().isSuccess)
+        assertTrue(other.loadSemanticModel().isSuccess)
         assertEquals(1, provider.audioLoads)
-        assertEquals(1, provider.predictorLoads)
+        assertEquals(1, provider.semanticLoads)
 
         backend.close()
         backend.close()
         assertEquals(0, provider.closeCalls)
-        predictor.close()
+        other.close()
         assertEquals(1, provider.closeCalls)
 
         assertTrue(backend.loadModel().isSuccess)
@@ -134,7 +135,7 @@ class IosInferenceLifecycleTest {
 
     private class SpyProvider : IosInferenceProvider {
         var audioLoads: Int = 0
-        var predictorLoads: Int = 0
+        var semanticLoads: Int = 0
         var closeCalls: Int = 0
         var audioResult: IosAudioEmbeddingResult = IosAudioEmbeddingResult(
             status = IosAudioEmbeddingStatus.INVALID_AUDIO,
@@ -152,7 +153,10 @@ class IosInferenceLifecycleTest {
             outputDim: Int,
         ): IosAudioEmbeddingResult = audioResult
 
-        override fun loadSemantic(): String? = null
+        override fun loadSemantic(): String? {
+            semanticLoads++
+            return null
+        }
 
         override fun classifySemantics(
             embeddings: FloatArray,
@@ -164,21 +168,6 @@ class IosInferenceLifecycleTest {
         override fun loadText(): String? = null
 
         override fun encodeText(inputIds: LongArray): FloatArray? = null
-
-        override fun loadPredictor(): String? {
-            predictorLoads++
-            return null
-        }
-
-        override fun encodeState(
-            historySmall: FloatArray,
-            historyMedium: FloatArray,
-            historyLarge: FloatArray,
-            timeFeatures: FloatArray,
-            sessionFeatures: FloatArray,
-        ): FloatArray? = null
-
-        override fun score(state: FloatArray, candidates: FloatArray): FloatArray? = null
 
         override fun close(): Unit {
             closeCalls++

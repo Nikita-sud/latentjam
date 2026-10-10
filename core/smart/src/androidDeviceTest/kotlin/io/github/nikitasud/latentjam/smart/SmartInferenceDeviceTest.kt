@@ -8,9 +8,6 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.net.Uri
 import androidx.test.platform.app.InstrumentationRegistry
-import io.github.nikitasud.latentjam.smart.chain.OnnxPredictorRuntime
-import io.github.nikitasud.latentjam.smart.chain.PredictorRuntime
-import io.github.nikitasud.latentjam.smart.chain.ScorerPacking
 import io.github.nikitasud.latentjam.smart.text.OnnxTextEncoder
 import io.github.nikitasud.latentjam.smart.text.ArtistKnowledge
 import io.github.nikitasud.latentjam.smart.text.MusicEntityResolver
@@ -104,62 +101,16 @@ class SmartInferenceDeviceTest {
             assertTrue(norm(descriptor) in 0.99f..1.01f)
         }
 
-        val predictor = OnnxPredictorRuntime(context)
-        val predictorLoadStarted = System.nanoTime()
-        predictor.load().getOrThrow()
-        val predictorLoadMs = elapsedMs(predictorLoadStarted)
-        val stateScoreStarted = System.nanoTime()
-        val state = predictor.encodeState(
-            historySmall = FloatArray(4 * 961),
-            historyMedium = FloatArray(960),
-            historyLarge = FloatArray(960),
-            timeFeatures = FloatArray(5),
-            sessionFeatures = FloatArray(5),
-        )
-        assertEquals(960, state.size)
-        assertTrue(state.all(Float::isFinite))
-
-        // Fused scorer: state = [960 encoder ⊕ 384 text-centroid], candidates = [100 × 1344]. An
-        // all-zero text half exercises the trained text-dropout path (graceful degradation).
-        val scorerInput = PredictorRuntime.SCORER_INPUT_DIM
-        val missing = predictor.score(
-            state = ScorerPacking.packState(state, FloatArray(384)),
-            candidates = FloatArray(100 * scorerInput),
-        )
-        val stateScoreMs = elapsedMs(stateScoreStarted)
-        assertEquals(100, missing.size)
-        assertTrue(missing.all(Float::isFinite))
-
         val elapsedMs = (System.nanoTime() - started) / 1_000_000
-        val warmStarted = System.nanoTime()
-        repeat(WARM_STATE_SCORE_REPEATS) {
-            val warmState = predictor.encodeState(
-                historySmall = FloatArray(4 * 961),
-                historyMedium = FloatArray(960),
-                historyLarge = FloatArray(960),
-                timeFeatures = FloatArray(5),
-                sessionFeatures = FloatArray(5),
-            )
-            val warmScores = predictor.score(
-                state = ScorerPacking.packState(warmState, FloatArray(384)),
-                candidates = FloatArray(100 * scorerInput),
-            )
-            assertTrue(warmScores.all(Float::isFinite))
-        }
-        val warmStateScoreUs = (System.nanoTime() - warmStarted) /
-            WARM_STATE_SCORE_REPEATS / 1_000
         println(
-            "SMART_DEVICE_SMOKE ok audio=960 text=384 state=960 scores=100 " +
+            "SMART_DEVICE_SMOKE ok audio=960 text=384 " +
                 "semantics=${TrackSemantics.OUTPUT_SIZE} knowledge=384 multilingual=true " +
-                "missing_text_finite=true elapsed_ms=$elapsedMs",
+                "elapsed_ms=$elapsedMs",
         )
         println(
             "SMART_DEVICE_TIMING audio_load_ms=$audioLoadMs audio_embed_ms=$audioEmbedMs " +
-                "text_load_ms=$textLoadMs text_embed_ms=$textEmbedMs " +
-                "predictor_load_ms=$predictorLoadMs first_state_score_ms=$stateScoreMs " +
-                "warm_state_score_us=$warmStateScoreUs repeats=$WARM_STATE_SCORE_REPEATS",
+                "text_load_ms=$textLoadMs text_embed_ms=$textEmbedMs",
         )
-        predictor.close()
         text.close()
         audio.close()
     }
@@ -208,6 +159,5 @@ class SmartInferenceDeviceTest {
 
     private companion object {
         const val APP_PACKAGE = "io.github.nikitasud.latentjam.kmp"
-        const val WARM_STATE_SCORE_REPEATS = 5
     }
 }

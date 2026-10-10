@@ -20,8 +20,6 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
     private var audio: OrtModel?
     private var semantic: OrtModel?
     private var text: OrtModel?
-    private var state: OrtModel?
-    private var scorer: OrtModel?
 
     override init() {
         do {
@@ -267,53 +265,6 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
         } catch { return nil }
     }
 
-    func loadPredictor() -> String? {
-        do {
-            let runtime = try loadedRuntime()
-            if state == nil { state = try runtime.loadModel(named: "predictor_state") }
-            if scorer == nil { scorer = try runtime.loadModel(named: "predictor_scorer_n100") }
-            return nil
-        } catch { return error.localizedDescription }
-    }
-
-    func encodeState(
-        historySmall: KotlinFloatArray,
-        historyMedium: KotlinFloatArray,
-        historyLarge: KotlinFloatArray,
-        timeFeatures: KotlinFloatArray,
-        sessionFeatures: KotlinFloatArray
-    ) -> KotlinFloatArray? {
-        guard loadPredictor() == nil, let state else { return nil }
-        do {
-            return KotlinFloatArray(try state.run(
-                floats: [
-                    ("history_small", historySmall.swiftArray, [1, 4, 961]),
-                    ("history_medium", historyMedium.swiftArray, [1, 960]),
-                    ("history_large", historyLarge.swiftArray, [1, 960]),
-                    ("time_features", timeFeatures.swiftArray, [1, 5]),
-                    ("session_features", sessionFeatures.swiftArray, [1, 5]),
-                ], int64s: [], output: "state", outputCount: 960
-            ))
-        } catch { return nil }
-    }
-
-    func score(
-        state: KotlinFloatArray,
-        candidates: KotlinFloatArray
-    ) -> KotlinFloatArray? {
-        guard loadPredictor() == nil, let scorer else { return nil }
-        do {
-            // Fused scorer: state = [960 audio ⊕ 384 text-centroid] = 1344,
-            // candidates = [100 × 1344]. See ScorerPacking on the Kotlin side.
-            return KotlinFloatArray(try scorer.run(
-                floats: [
-                    ("state", state.swiftArray, [1, 1344]),
-                    ("candidates", candidates.swiftArray, [1, 100, 1344]),
-                ], int64s: [], output: "scores", outputCount: 100
-            ))
-        } catch { return nil }
-    }
-
     func batchDots(
         matrixAddress: Int64, dim: Int32, queryAddress: Int64,
         rowsAddress: Int64, count: Int32, outputAddress: Int64
@@ -329,8 +280,6 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
         audio = nil
         semantic = nil
         text = nil
-        state = nil
-        scorer = nil
     }
 
     /// Opt-in end-to-end graph check used by simulator validation. Normal app launches do no work.
@@ -346,9 +295,7 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
             do {
                 if let error = self.loadAudio() { throw OrtError.message(error) }
                 if let error = self.loadText() { throw OrtError.message(error) }
-                if let error = self.loadPredictor() { throw OrtError.message(error) }
-                guard let audio = self.audio, let text = self.text,
-                      let state = self.state, let scorer = self.scorer else {
+                guard let audio = self.audio, let text = self.text else {
                     throw OrtError.message("One or more SMART sessions did not load")
                 }
                 let audioEmbedding = try audio.run(
@@ -362,25 +309,6 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
                         ("token_type_ids", [0, 0], [1, 2]),
                     ], output: "last_hidden_state", outputCount: 2 * 384
                 )
-                let sessionState = try state.run(
-                    floats: [
-                        ("history_small", [Float](repeating: 0, count: 4 * 961), [1, 4, 961]),
-                        ("history_medium", [Float](repeating: 0, count: 960), [1, 960]),
-                        ("history_large", [Float](repeating: 0, count: 960), [1, 960]),
-                        ("time_features", [Float](repeating: 0, count: 5), [1, 5]),
-                        ("session_features", [Float](repeating: 0, count: 5), [1, 5]),
-                    ], int64s: [], output: "state", outputCount: 960
-                )
-                // Fused scorer: state = [960 ⊕ 384] = 1344, candidates = [100 × 1344]. An all-zero
-                // text half exercises the trained text-dropout path (graceful degradation).
-                let fusedState = [Float](repeating: 0, count: 1344)
-                let candidates = [Float](repeating: 0, count: 100 * 1344)
-                let scores = try scorer.run(
-                    floats: [
-                        ("state", fusedState, [1, 1344]),
-                        ("candidates", candidates, [1, 100, 1344]),
-                    ], int64s: [], output: "scores", outputCount: 100
-                )
                 // The genre / mood / energy head, over a unit vector and the window's own embedding.
                 if let error = self.loadSemantic() { throw OrtError.message(error) }
                 guard let semantic = self.semantic else { throw OrtError.message("The semantic head did not load") }
@@ -392,12 +320,11 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
                 )
                 guard audioEmbedding.allSatisfy(\.isFinite),
                       textTokens.allSatisfy(\.isFinite),
-                      sessionState.allSatisfy(\.isFinite), scores.allSatisfy(\.isFinite),
                       semanticScores.allSatisfy({ $0.isFinite && $0 >= 0 && $0 <= 1 }) else {
                     throw OrtError.message("A SMART graph failed finiteness checks")
                 }
                 let elapsed = Int((CFAbsoluteTimeGetCurrent() - started) * 1_000)
-                print("[SMART_SMOKE] ok audio=960 text=384 state=1344 scores=100 semantics=27 elapsed_ms=\(elapsed)")
+                print("[SMART_SMOKE] ok audio=960 text=384 semantics=27 elapsed_ms=\(elapsed)")
             } catch {
                 print("[SMART_SMOKE] failed: \(error.localizedDescription)")
             }
@@ -593,8 +520,8 @@ private final class OrtRuntime {
         try Self.check(api, api.pointee.SetIntraOpNumThreads(options, 1))
         try Self.check(api, api.pointee.SetInterOpNumThreads(options, 1))
         // No CPU memory arena: it keeps every activation buffer a graph has ever needed for the
-        // session's lifetime (about 80 MiB for an idle music encoder, 18 MiB for the scorer,
-        // measured on Android); without it outputs are identical and warm runs as fast.
+        // session's lifetime (about 80 MiB for an idle music encoder, measured on Android);
+        // without it outputs are identical and warm runs as fast.
         try Self.check(api, api.pointee.DisableCpuMemArena(options))
         // LatentJam's own operators: the music encoder's 4-bit pointwise convolutions (core/ort-ops).
         try Self.check(api, LjRegisterOrtOps(options, OrtGetApiBase()))

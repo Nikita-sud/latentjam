@@ -272,7 +272,7 @@ internal data class ChainWalk(
  * scorer conditioning; it is not added again through a hand-tuned score weight.
  *
  * The runtime is optional: without it the chain still walks on its geometric terms alone, which is
- * how iOS and any pre-download state behave.
+ * how the app plans since 0.8.1 (it binds no runtime).
  */
 internal class SmartChain(
     private val snapshot: SmartSnapshot,

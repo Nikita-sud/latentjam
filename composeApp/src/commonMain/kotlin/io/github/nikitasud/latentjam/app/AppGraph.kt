@@ -29,7 +29,6 @@ import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.di.smartEngineModule
 import io.github.nikitasud.latentjam.smart.di.smartLayoutQualifier
 import io.github.nikitasud.latentjam.smart.di.smartMapLayoutDispatcherQualifier
-import io.github.nikitasud.latentjam.smart.chain.smartPredictorModule
 import io.github.nikitasud.latentjam.smart.smartChainInputsModule
 import io.github.nikitasud.latentjam.smart.smartEngineBackendModule
 import io.github.nikitasud.latentjam.smart.text.smartTextEncoderModule
@@ -120,9 +119,10 @@ object AppGraph {
                     platformModule,
                     smartEngineModule,
                     smartEngineBackendModule(),
-                    // The SMART chain's models and inputs. Bound separately from the embedding
-                    // backend because a platform can have one without the other.
-                    smartPredictorModule(),
+                    // The SMART chain's text model and inputs. Bound separately from the embedding
+                    // backend because a platform can have one without the other. No learned
+                    // predictor is bound: the chain plans on its own terms (0.8.1 dropped the
+                    // state and scorer nets).
                     smartTextEncoderModule(),
                     smartChainInputsModule(),
                     musicLibraryModule(),
@@ -134,8 +134,8 @@ object AppGraph {
                     loudnessMeterModule(),
                     listeningHistoryModule(),
                     module {
-                        // Retrieval-distilled MNv4 audio (pruned, 4-bit) + 960-d SMART
-                        // state/acoustic scorer plus learned optional text, fully local.
+                        // Retrieval-distilled MNv4 audio (pruned, 4-bit) + learned optional
+                        // text, fully local.
                         single {
                             SmartEngineConfig(
                                 embeddingDim = 960,

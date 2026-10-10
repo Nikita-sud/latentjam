@@ -57,8 +57,8 @@ internal class DefaultSimilarityEngine(
     private val store: IndexStore,
     private val config: SmartEngineConfig,
     private val dispatcher: CoroutineDispatcher,
-    // The chain's inputs. All optional: without them SMART degrades to single
-    // nearest-neighbour picks rather than failing, which is how iOS behaves today.
+    // The chain's inputs. All optional: a missing one costs queue quality rather than failing.
+    // The app binds no predictor since 0.8.1; tests pass one in to exercise the chain's model path.
     private val predictor: PredictorRuntime? = null,
     private val textEncoder: TextEncoder? = null,
     /** Teacher knowledge about artists for the chain's descriptor space; absent, the space stays empty. */

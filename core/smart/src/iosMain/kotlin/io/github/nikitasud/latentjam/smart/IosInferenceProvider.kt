@@ -46,26 +46,6 @@ public interface IosInferenceProvider {
     /** Text-encoder token states, mean-pooled and L2-normalized by the native host. */
     public fun encodeText(inputIds: LongArray): FloatArray?
 
-    /** Returns null on success, otherwise a human-readable local error. */
-    public fun loadPredictor(): String?
-
-    public fun encodeState(
-        historySmall: FloatArray,
-        historyMedium: FloatArray,
-        historyLarge: FloatArray,
-        timeFeatures: FloatArray,
-        sessionFeatures: FloatArray,
-    ): FloatArray?
-
-    /**
-     * Fused scorer: [state] is `[SCORER_INPUT_DIM]` (`960 audio ⊕ 384 text-centroid`) and
-     * [candidates] is `[POOL_SIZE × SCORER_INPUT_DIM]` flattened (see `ScorerPacking`).
-     */
-    public fun score(
-        state: FloatArray,
-        candidates: FloatArray,
-    ): FloatArray?
-
     /**
      * Optional exact-order dot kernel. Addresses borrow pinned Kotlin arrays only for this synchronous
      * call: matrix is row-major, query starts at its supplied address, rows indexes output slots.

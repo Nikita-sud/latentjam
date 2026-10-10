@@ -8,14 +8,19 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.ln
 import kotlin.math.sin
-import org.koin.core.module.Module
 
 /**
- * The two-stage learned model behind the SMART chain.
+ * The two-stage learned model the SMART chain can consult.
  *
  * Stage one encodes recent listening into a state vector; stage two scores a fixed block of
  * candidates against it. Splitting them is what makes the chain affordable: the state is re-encoded
  * once per hop, but scoring a hundred candidates is a single batched call rather than a hundred.
+ *
+ * The app binds no implementation and ships neither graph since 0.8.1 (their training data has not
+ * passed a rights review, and blind comparisons on public libraries found queues planned without
+ * them as good), so [SmartChain] plans on its own terms (`runtime = null`). The interface and its
+ * tensor contract stay for the tests and the offline harnesses that replay recorded model outputs
+ * through the chain.
  *
  * ### Tensor contract (fixed by the research-side export; do not drift)
  * State encoder:
@@ -119,27 +124,3 @@ public interface PredictorRuntime {
         }
     }
 }
-
-/**
- * Applies the fixed predictor tensor contract before model output reaches queue arithmetic.
- *
- * A backend can successfully execute while still returning a malformed tensor (for example after
- * a mismatched asset update). Treat that exactly like an unavailable model: the chain already has
- * a deterministic geometry-only fallback, while a short or non-finite array would either crash in
- * the scoring loop or poison every candidate score with `NaN`.
- */
-internal fun validatedPredictorOutput(
-    output: FloatArray?,
-    expectedSize: Int,
-): FloatArray? {
-    require(expectedSize >= 0) { "Expected output size must not be negative" }
-    return output?.takeIf { values ->
-        values.size == expectedSize && values.all(Float::isFinite)
-    }
-}
-
-/**
- * Koin bindings for this platform's [PredictorRuntime]. Android resolves an
- * `android.content.Context` from the graph for asset access; iOS has no extra requirements.
- */
-public expect fun smartPredictorModule(): Module
