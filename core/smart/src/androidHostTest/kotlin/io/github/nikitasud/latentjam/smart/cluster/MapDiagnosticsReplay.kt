@@ -76,13 +76,13 @@ class MapDiagnosticsReplay {
             val space = modes.first().second ?: return@run
             val vectors = vectorsByMode.getValue("fused(0.75 metadata)")
             val worlds = LibraryWorlds.discover(library, vectors, space.dim)
-            val albumGroups = library.filter { !it.album.isNullOrBlank() }.groupBy { it.album.orEmpty() }
-                .filterValues { it.size > 1 }
-                .map { (album, tracks) -> album to tracks.mapTo(HashSet()) { it.id } }
-            val named = LibraryWorlds.namedAfterGroups(worlds, readPlaylists(File(dir, "playlists.tsv")) + albumGroups)
+            val named = LibraryWorlds.namedAfterGroups(worlds, namingGroups(dir, library))
             println("DIAG имена регионов (плейлисты+альбомы):")
             named.forEachIndexed { index, world ->
-                println("DIAG   регион[$index] size=${world.tracks.size} name='${world.name}' source=${world.nameSource}")
+                println(
+                    "DIAG   регион[$index] size=${world.tracks.size} name='${world.name}' source=${world.nameSource} " +
+                        "discovered='${worlds[index].name}'/${worlds[index].nameSource}",
+                )
             }
         }
 
@@ -90,11 +90,10 @@ class MapDiagnosticsReplay {
             val space = modes.first().second ?: return@let
             val vectors = vectorsByMode.getValue("fused(0.75 metadata)")
             val worlds = LibraryWorlds.discover(library, vectors, space.dim)
-            val albumGroups = library.filter { !it.album.isNullOrBlank() }.groupBy { it.album.orEmpty() }
-                .filterValues { it.size > 1 }
-                .map { (album, tracks) -> album to tracks.mapTo(HashSet()) { it.id } }
-            val playlists = readPlaylists(File(dir, "playlists.tsv"))
-            val named = LibraryWorlds.namedAfterGroups(worlds, playlists + albumGroups)
+            val naming = namingGroups(dir, library)
+            val playlists = naming.playlists
+            val albumGroups = naming.albums
+            val named = LibraryWorlds.namedAfterGroups(worlds, naming)
             println("DIAG именование: плейлистов=${playlists.size} альбомов=${albumGroups.size}")
             playlists.forEach { (name, members) ->
                 val best = named.indices.maxByOrNull { index ->
@@ -251,9 +250,7 @@ class MapDiagnosticsReplay {
         }
         val named = LibraryWorlds.namedAfterGroups(
             worlds,
-            library.filter { !it.album.isNullOrBlank() }.groupBy { it.album.orEmpty() }
-                .filterValues { it.size > 1 }
-                .map { (album, tracks) -> album to tracks.mapTo(HashSet()) { it.id } },
+            WorldNamingGroups.of(library.mapTo(HashSet()) { it.id }, emptyList(), albumsOf(library)),
         )
         named.forEachIndexed { index, world ->
             val facts = world.tracks.take(1).mapNotNull { t -> library.firstOrNull { it.id == t.id } }
@@ -487,6 +484,20 @@ class MapDiagnosticsReplay {
         }
         return out
     }
+
+    /**
+     * Playlists and albums exactly as the app hands them to naming. A dump has no album artist or
+     * artwork, so albums group by title — as the device's shared MediaStore album id groups them.
+     */
+    private fun namingGroups(dir: String, library: List<TrackDescriptor>): WorldNamingGroups =
+        WorldNamingGroups.of(
+            library = library.mapTo(HashSet()) { it.id },
+            playlists = readPlaylists(File(dir, "playlists.tsv")),
+            albums = albumsOf(library),
+        )
+
+    private fun albumsOf(library: List<TrackDescriptor>): List<Pair<String?, List<TrackDescriptor>>> =
+        library.filter { !it.album.isNullOrBlank() }.groupBy { it.album }.toList()
 
     /** `name<TAB>id,id,id`, the device's own playlists, so naming can be reproduced as the app does it. */
     private fun readPlaylists(file: File): List<Pair<String, Set<TrackId>>> {

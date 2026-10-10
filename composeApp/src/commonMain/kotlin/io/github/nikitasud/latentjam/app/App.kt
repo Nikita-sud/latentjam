@@ -288,6 +288,7 @@ import io.github.nikitasud.latentjam.smart.cluster.LibraryWorldSemanticTitle
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorlds
 import io.github.nikitasud.latentjam.smart.cluster.LayoutPoint
 import io.github.nikitasud.latentjam.smart.cluster.StoredLibraryLayout
+import io.github.nikitasud.latentjam.smart.cluster.WorldNamingGroups
 import io.github.nikitasud.latentjam.smart.cluster.loadStoredLayout
 import io.github.nikitasud.latentjam.smart.cluster.saveLayout
 import kotlin.math.roundToInt
@@ -1678,7 +1679,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         // outranks the artist's on a containment tie — then real (multi-track)
                         // albums, whose titles are the artist's own curation.
                         val playlistGroups = playlists.map { playlist ->
-                            playlist.name to playlist.trackIds.mapTo(HashSet()) { TrackId(it) }
+                            playlist.name to playlist.trackIds.map(::TrackId)
                         }
                         val cachedDiscovery = builtDiscoveredWorlds
                             ?.takeIf { builtWorldDiscoveryKey == discoveryKey }
@@ -1721,15 +1722,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             }
                         }
                         val namedWorlds = withContext(AppGraph.mapLayoutDispatcher) {
-                            val albumGroups = LibraryCatalog.build(loaded).albums
-                                .filter { it.tracks.size > 1 && !it.title.isNullOrBlank() }
-                                .map { album ->
-                                    album.title.orEmpty() to album.tracks.mapTo(HashSet()) { it.id }
-                                }
-                            LibraryWorlds.namedAfterGroups(
-                                discovered,
-                                playlistGroups + albumGroups,
+                            // Counted over the tracks that exist: a playlist keeps the ids of
+                            // deleted files. The map replay builds the same groups the same way.
+                            val naming = WorldNamingGroups.of(
+                                library = loadedIds.toHashSet(),
+                                playlists = playlistGroups,
+                                albums = LibraryCatalog.build(loaded).albums.map { it.title to it.tracks },
                             )
+                            LibraryWorlds.namedAfterGroups(discovered, naming)
                         }
                         worldLibraryIds = loadedIds
                         worlds = namedWorlds

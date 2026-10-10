@@ -214,6 +214,13 @@ public object LibraryWorlds {
         return renamed
     }
 
+    /** [namedAfterGroups] over [groups] as the app builds them: members the library still holds. */
+    public fun namedAfterGroups(
+        worlds: List<LibraryWorld>,
+        groups: WorldNamingGroups,
+        minContainment: Double = GROUP_NAME_CONTAINMENT,
+    ): List<LibraryWorld> = namedAfterGroups(worlds, groups.playlists + groups.albums, minContainment)
+
     /**
      * How much of a cluster a genre, subtype, decade, or artist must cover before the mix may claim
      * it in the title.
