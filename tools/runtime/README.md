@@ -105,11 +105,13 @@ After Android parity passes, build with the optional init script:
   -Platentjam.reducedOrtRepo=/tmp/latentjam-reduced-ort/maven
 ```
 
-The init script rejects changed model hashes, mismatched runtime versions, or
-a modified candidate AAR. An ordinary Gradle invocation still uses the official
-full runtime. If a model changes, regenerate the operator config, rebuild, and
-repeat Android parity before using the reduced build. Custom `modelLocator`
-assets with other operators are outside this candidate's validated contract.
+The init script rejects a shipped graph that is new or whose hash changed,
+mismatched runtime versions, or a modified candidate AAR. A graph the app no
+longer ships may stay in the manifest: its operators remain in the runtime,
+unused. An ordinary Gradle invocation still uses the official full runtime. If
+a model changes, regenerate the operator config, rebuild, and repeat Android
+parity before using the reduced build. Custom `modelLocator` assets with other
+operators are outside this candidate's validated contract.
 
 ## 2026-10-01 result
 
