@@ -332,6 +332,20 @@ class MapTabTest {
     }
 
     @Test
+    fun `largestRegionCentroids ignores a straggler that would drag a mean off the region`() {
+        // Three members sit at the origin and one is far away: the mean lands at 0.25 and would
+        // label empty space, while the median stays on the bulk of the region.
+        val dots = listOf(
+            dot("a1", x = 0f, y = 0f, region = 0),
+            dot("a2", x = 0f, y = 0f, region = 0),
+            dot("a3", x = 0f, y = 0f, region = 0),
+            dot("a4", x = 1f, y = 1f, region = 0),
+        )
+        val centroid = largestRegionCentroids(page(dots), limit = 5).single().second
+        assertEquals(Offset(0f, 0f), centroid)
+    }
+
+    @Test
     fun `largestRegionCentroids orders by region size and truncates to the limit`() {
         val dots = listOf(
             dot("a1", region = 0), dot("a2", region = 0), dot("a3", region = 0),
@@ -342,10 +356,10 @@ class MapTabTest {
         assertEquals(listOf(0, 2), top.map { it.first })
     }
 
-    // Deliberately picks coordinates exact in binary floating point (0, 1, 0.25, 0.75) so the mean
-    // compares with assertEquals rather than needing a tolerance.
+    // Deliberately picks coordinates exact in binary floating point (0, 1, 0.25, 0.75) so the
+    // median compares with assertEquals rather than needing a tolerance.
     @Test
-    fun `largestRegionCentroids centres a region at the mean of its members`() {
+    fun `largestRegionCentroids centres a region between its two middle members`() {
         val dots = listOf(
             dot("a1", x = 0f, y = 0.25f, region = 0),
             dot("a2", x = 1f, y = 0.75f, region = 0),
