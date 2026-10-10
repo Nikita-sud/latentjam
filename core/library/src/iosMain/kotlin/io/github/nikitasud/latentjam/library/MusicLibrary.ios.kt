@@ -152,6 +152,24 @@ internal class IosMusicLibrary : MusicLibrary {
             .sortedBy { it.title?.lowercase() ?: "" }
     }
 
+    /**
+     * Each half vouches only for its own ids. Music.app's songs are certain only after it answered
+     * with songs (the same rule as [snapshotIsComplete]); an import, only after Documents could be
+     * listed. Both halves are read unmerged: an import that shadows the same Music.app song keeps
+     * that song on the device.
+     */
+    override suspend fun missingTrackIds(ids: Collection<TrackId>): Set<TrackId> {
+        if (ids.isEmpty()) return emptySet()
+        val snapshot = sourceSnapshot()
+        val present = HashSet<TrackId>(snapshot.documents.size + snapshot.device.size)
+        snapshot.documents.mapTo(present) { it.id }
+        snapshot.device.mapTo(present) { it.id }
+        val deviceAnswered = snapshot.device.isNotEmpty()
+        return provablyMissing(ids, present) { id ->
+            if (id.value.startsWith(MEDIA_ID_PREFIX)) deviceAnswered else snapshot.documentsReadable
+        }
+    }
+
     private suspend fun sourceSnapshot(prompt: Boolean = false): SourceSnapshot {
         val canReadDeviceLibrary = if (prompt) {
             mediaLibraryAuthorized()

@@ -183,6 +183,58 @@ internal class MediaStoreMusicLibrary(
     override suspend fun allKnownTracks(): List<TrackDescriptor> =
         withContext(Dispatchers.IO) { queryTracks().tracks }
 
+    override suspend fun missingTrackIds(ids: Collection<TrackId>): Set<TrackId> =
+        withContext(Dispatchers.IO) {
+            if (ids.isEmpty()) return@withContext emptySet()
+            // MediaStore answers for mounted volumes only. A card that is out keeps its rows, and
+            // its songs come back under the same ids when it returns: nothing is certain until then.
+            if (storageMayBeMissing(recentVolumeStates())) return@withContext emptySet()
+            val present = audioRowIds() ?: return@withContext emptySet()
+            provablyMissing(ids, present) { true }
+        }
+
+    /**
+     * Every audio row MediaStore holds, music or not, in the trash or still being written: a row in
+     * any of those states is a file on the device. Null when the provider could not be asked.
+     */
+    private fun audioRowIds(): Set<TrackId>? = try {
+        val projection = arrayOf(MediaStore.Audio.Media._ID)
+        val cursor = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            val arguments = android.os.Bundle().apply {
+                putInt(MediaStore.QUERY_ARG_MATCH_TRASHED, MediaStore.MATCH_INCLUDE)
+                putInt(MediaStore.QUERY_ARG_MATCH_PENDING, MediaStore.MATCH_INCLUDE)
+            }
+            context.contentResolver.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, arguments, null)
+        } else {
+            context.contentResolver.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, null, null, null)
+        }
+        cursor?.use {
+            val idColumn = it.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+            HashSet<TrackId>(it.count).apply {
+                while (it.moveToNext()) add(TrackId(it.getLong(idColumn).toString()))
+            }
+        }
+    } catch (_: Exception) {
+        null
+    }
+
+    /**
+     * The state of every storage volume the system knows of now, and from Android 11 of every one
+     * it saw within the last week too (a card taken out stays listed, unmounted). Before Android 11
+     * a card that is physically out is not listed at all; that case cannot be seen from here.
+     */
+    private fun recentVolumeStates(): List<String?> = try {
+        val storage = context.getSystemService(android.os.storage.StorageManager::class.java)
+        when {
+            storage == null -> listOf(null)
+            android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R ->
+                storage.recentStorageVolumes.map { it.state }
+            else -> storage.storageVolumes.map { it.state }
+        }
+    } catch (_: Exception) {
+        listOf(null)
+    }
+
     private fun queryTracks(): LibraryScan = mediaStoreLibraryScan {
         val tracks = mutableListOf<TrackDescriptor>()
         // GENRE joined into the audio table only since API 30.
@@ -562,6 +614,16 @@ internal fun mediaStoreLibraryScan(
 } catch (_: SecurityException) {
     LibraryScan(tracks = emptyList(), complete = false)
 }
+
+/**
+ * Whether storage that may hold songs is not readable now: a volume the system lists that is not
+ * mounted, whether taken out, being checked after it came back, ejected or unreadable. A state the
+ * system did not give counts too, so a device that cannot say is never taken for a complete one.
+ */
+internal fun storageMayBeMissing(volumeStates: List<String?>): Boolean =
+    volumeStates.any { state ->
+        state != android.os.Environment.MEDIA_MOUNTED && state != android.os.Environment.MEDIA_MOUNTED_READ_ONLY
+    }
 
 /** Pure MediaStore path projection, shared with host regressions for removable-volume paths. */
 internal fun mediaStoreFolderPath(rawPath: String?, relativePath: Boolean): String? {

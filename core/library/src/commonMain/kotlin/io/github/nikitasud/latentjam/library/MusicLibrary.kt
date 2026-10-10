@@ -86,6 +86,19 @@ public interface MusicLibrary {
         (tracks() + hiddenTracks()).distinctBy { it.id }
 
     /**
+     * Which of [ids] are certainly not on this device: no source holds them, and the source that
+     * would hold each one answered in full. Hidden tracks and tracks of a disabled source are on
+     * the device, so they are never reported.
+     *
+     * Everything that only makes a track look gone counts as "not certain": a missing media
+     * grant, a failed query, an empty answer, storage that held music recently but is not mounted
+     * now (an SD card taken out, which brings its songs back under the same ids when it returns).
+     * Callers may offer to forget what this reports, so it errs towards reporting nothing. The
+     * default knows of no source it can vouch for and reports nothing.
+     */
+    public suspend fun missingTrackIds(ids: Collection<TrackId>): Set<TrackId> = emptySet()
+
+    /**
      * Absolute file paths for [ids], for open-format export (M3U). Best-effort by contract:
      * platforms without stable user-visible file paths return an empty map and callers fall
      * back to metadata-only entries.
@@ -155,6 +168,21 @@ public interface MusicLibrary {
      * the one it remembers. The default does nothing.
      */
     public suspend fun coverKept(saved: Collection<TrackDescriptor>) {}
+}
+
+/**
+ * The [MusicLibrary.missingTrackIds] rule, apart from how a platform asks: an id is missing when
+ * no source holds it ([present]) and the source that would hold it answered in full ([answered]).
+ * Nothing is missing when no source answered with a single track, as an empty answer is also what
+ * a provider gives without a grant or while it is still loading.
+ */
+internal fun provablyMissing(
+    ids: Collection<TrackId>,
+    present: Set<TrackId>,
+    answered: (TrackId) -> Boolean,
+): Set<TrackId> {
+    if (present.isEmpty()) return emptySet()
+    return ids.filterTo(LinkedHashSet()) { id -> id !in present && answered(id) }
 }
 
 /**
