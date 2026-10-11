@@ -56,6 +56,16 @@
         <item quantity="few">%1$d albume</item>
         <item quantity="other">%1$d de albume</item>
     </plurals>
+    <plurals name="count_artists">
+        <item quantity="one">%1$d artist</item>
+        <item quantity="few">%1$d artiști</item>
+        <item quantity="other">%1$d de artiști</item>
+    </plurals>
+    <plurals name="count_genres">
+        <item quantity="one">%1$d gen</item>
+        <item quantity="few">%1$d genuri</item>
+        <item quantity="other">%1$d de genuri</item>
+    </plurals>
 
     <!-- ======================================================= browse tabs -->
     <string name="tab_for_you">Pentru tine</string>
@@ -71,6 +81,7 @@
     <string name="action_rescan_library">Actualizează biblioteca</string>
     <string name="sort_recently_added">Adăugate recent</string>
     <string name="sort_custom_order">Ordine personalizată</string>
+    <string name="sort_name">Nume</string>
     <string name="sort_direction_ascending">Crescător</string>
     <string name="sort_direction_descending">Descrescător</string>
     <string name="snack_track_deleted">Piesă ștearsă</string>

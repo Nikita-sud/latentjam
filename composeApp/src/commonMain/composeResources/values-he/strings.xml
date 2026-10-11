@@ -63,6 +63,16 @@
         <item quantity="two">%1$d אלבומים</item>
         <item quantity="other">%1$d אלבומים</item>
     </plurals>
+    <plurals name="count_artists">
+        <item quantity="one">%1$d אמן</item>
+        <item quantity="two">%1$d אמנים</item>
+        <item quantity="other">%1$d אמנים</item>
+    </plurals>
+    <plurals name="count_genres">
+        <item quantity="one">%1$d ז׳אנר</item>
+        <item quantity="two">%1$d ז׳אנרים</item>
+        <item quantity="other">%1$d ז׳אנרים</item>
+    </plurals>
 
     <!-- ======================================================= browse tabs -->
     <string name="tab_for_you">בשבילך</string>
@@ -78,6 +88,7 @@
     <string name="action_rescan_library">רענון הספרייה</string>
     <string name="sort_recently_added">תאריך הוספה</string>
     <string name="sort_custom_order">סדר מותאם אישית</string>
+    <string name="sort_name">שם</string>
     <string name="sort_direction_ascending">סדר עולה</string>
     <string name="sort_direction_descending">סדר יורד</string>
     <string name="snack_track_deleted">השיר נמחק</string>

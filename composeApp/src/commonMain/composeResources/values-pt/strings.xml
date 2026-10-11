@@ -73,6 +73,14 @@
         <item quantity="one">%1$d álbum</item>
         <item quantity="other">%1$d álbuns</item>
     </plurals>
+    <plurals name="count_artists">
+        <item quantity="one">%1$d artista</item>
+        <item quantity="other">%1$d artistas</item>
+    </plurals>
+    <plurals name="count_genres">
+        <item quantity="one">%1$d género</item>
+        <item quantity="other">%1$d géneros</item>
+    </plurals>
 
     <!-- ======================================================= browse tabs -->
     <string name="tab_for_you">Para ti</string>
@@ -88,6 +96,7 @@
     <string name="action_rescan_library">Atualizar biblioteca</string>
     <string name="sort_recently_added">Adicionadas recentemente</string>
     <string name="sort_custom_order">Ordem personalizada</string>
+    <string name="sort_name">Nome</string>
     <string name="sort_direction_ascending">Crescente</string>
     <string name="sort_direction_descending">Decrescente</string>
     <string name="snack_track_deleted">Música eliminada</string>

@@ -53,6 +53,14 @@
         <item quantity="one">%1$d albüm</item>
         <item quantity="other">%1$d albüm</item>
     </plurals>
+    <plurals name="count_artists">
+        <item quantity="one">%1$d sanatçı</item>
+        <item quantity="other">%1$d sanatçı</item>
+    </plurals>
+    <plurals name="count_genres">
+        <item quantity="one">%1$d tür</item>
+        <item quantity="other">%1$d tür</item>
+    </plurals>
 
     <!-- ======================================================= browse tabs -->
     <string name="tab_for_you">Sana özel</string>
@@ -68,6 +76,7 @@
     <string name="action_rescan_library">Kitaplığı yenile</string>
     <string name="sort_recently_added">Son eklenenler</string>
     <string name="sort_custom_order">Özel sıralama</string>
+    <string name="sort_name">Ad</string>
     <string name="sort_direction_ascending">Artan</string>
     <string name="sort_direction_descending">Azalan</string>
     <string name="snack_track_deleted">Parça silindi</string>

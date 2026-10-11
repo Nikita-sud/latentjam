@@ -55,6 +55,18 @@
         <item quantity="many">%1$d альбомов</item>
         <item quantity="other">%1$d альбома</item>
     </plurals>
+    <plurals name="count_artists">
+        <item quantity="one">%1$d исполнитель</item>
+        <item quantity="few">%1$d исполнителя</item>
+        <item quantity="many">%1$d исполнителей</item>
+        <item quantity="other">%1$d исполнителя</item>
+    </plurals>
+    <plurals name="count_genres">
+        <item quantity="one">%1$d жанр</item>
+        <item quantity="few">%1$d жанра</item>
+        <item quantity="many">%1$d жанров</item>
+        <item quantity="other">%1$d жанра</item>
+    </plurals>
 
     <!-- ======================================================= browse tabs -->
     <string name="tab_for_you">Для вас</string>
@@ -70,6 +82,7 @@
     <string name="action_rescan_library">Обновить медиатеку</string>
     <string name="sort_recently_added">Недавно добавленные</string>
     <string name="sort_custom_order">Свой порядок</string>
+    <string name="sort_name">Имя</string>
     <string name="sort_direction_ascending">По возрастанию</string>
     <string name="sort_direction_descending">По убыванию</string>
     <string name="snack_track_deleted">Трек удалён</string>

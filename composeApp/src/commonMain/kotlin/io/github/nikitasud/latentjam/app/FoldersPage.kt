@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -154,6 +153,12 @@ internal fun folderTabSelectionOrder(
 }
 
 /**
+ * The count beside the Folders tab's sort pill: the folders that hold tracks, one per path, which is
+ * what the list view shows. The tree shows the same number, so switching views does not change it.
+ */
+internal fun folderTabCount(catalog: LibraryCatalog): Int = catalog.folders.size
+
+/**
  * The Folders tab: the folder tree a file explorer would show (the default), or every folder in one
  * list as before. The tree walks down one folder at a time, its subfolders first and then the
  * tracks directly in it; Back and the breadcrumb walk up. Playing a folder plays everything below it.
@@ -184,17 +189,13 @@ internal fun FoldersPage(
     // The tree's place, kept while the list is up and saved like the list's scroll position.
     var treeKey by rememberSaveable { mutableStateOf<String?>(null) }
     Column {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(end = 20.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        NameSortHeader(
+            direction = orders.folders,
+            count = folderTabCount(catalog),
+            countPlural = Res.plurals.count_folders,
+            enabled = !selectionMode,
+            onDirectionChange = { settings.setGroupSortOrders(orders.copy(folders = it)) },
         ) {
-            GroupOrderHeader(
-                title = stringResource(Res.string.tab_folders),
-                direction = orders.folders,
-                enabled = !selectionMode,
-                onChange = { settings.setGroupSortOrders(orders.copy(folders = it)) },
-            )
-            Spacer(Modifier.weight(1f))
             FolderViewToggle(view = view, enabled = !selectionMode, onChange = settings::setFolderView)
         }
         AnimatedContent(
@@ -235,7 +236,7 @@ internal fun FoldersPage(
     }
 }
 
-/** Tree or list, as two segments of one outlined pill beside the name order. */
+/** Tree or list, as two segments of one outlined pill at the end of the sort row. */
 @Composable
 private fun FolderViewToggle(view: FolderView, enabled: Boolean, onChange: (FolderView) -> Unit) {
     Row(

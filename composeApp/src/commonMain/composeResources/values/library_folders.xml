@@ -10,7 +10,8 @@
          card the system gives no name of its own. -->
     <string name="folder_root_internal_storage">Internal storage</string>
     <string name="folder_root_sd_card">SD card</string>
-    <!-- How many folders are directly inside a folder, beside its count_tracks fragment. -->
+    <!-- How many folders: directly inside a folder, beside its count_tracks fragment, and on
+         the Folders tab, beside its sort pill. -->
     <plurals name="count_folders">
         <item quantity="one">%1$d folder</item>
         <item quantity="other">%1$d folders</item>

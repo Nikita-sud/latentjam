@@ -61,6 +61,18 @@
         <item quantity="many">%1$d albumów</item>
         <item quantity="other">%1$d albumu</item>
     </plurals>
+    <plurals name="count_artists">
+        <item quantity="one">%1$d wykonawca</item>
+        <item quantity="few">%1$d wykonawców</item>
+        <item quantity="many">%1$d wykonawców</item>
+        <item quantity="other">%1$d wykonawcy</item>
+    </plurals>
+    <plurals name="count_genres">
+        <item quantity="one">%1$d gatunek</item>
+        <item quantity="few">%1$d gatunki</item>
+        <item quantity="many">%1$d gatunków</item>
+        <item quantity="other">%1$d gatunku</item>
+    </plurals>
 
     <!-- ======================================================= browse tabs -->
     <string name="tab_for_you">Dla Ciebie</string>
@@ -76,6 +88,7 @@
     <string name="action_rescan_library">Odśwież bibliotekę</string>
     <string name="sort_recently_added">Ostatnio dodane</string>
     <string name="sort_custom_order">Własna kolejność</string>
+    <string name="sort_name">Nazwa</string>
     <string name="sort_direction_ascending">Rosnąco</string>
     <string name="sort_direction_descending">Malejąco</string>
     <string name="snack_track_deleted">Utwór usunięty</string>

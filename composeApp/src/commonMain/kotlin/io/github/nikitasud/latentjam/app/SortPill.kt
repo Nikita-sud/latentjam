@@ -9,6 +9,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -34,6 +36,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.info_album
@@ -44,17 +48,20 @@ import io.github.nikitasud.latentjam.app.generated.resources.info_year
 import io.github.nikitasud.latentjam.app.generated.resources.sort_direction_ascending
 import io.github.nikitasud.latentjam.app.generated.resources.sort_direction_descending
 import io.github.nikitasud.latentjam.app.generated.resources.sort_custom_order
+import io.github.nikitasud.latentjam.app.generated.resources.sort_name
 import io.github.nikitasud.latentjam.app.generated.resources.sort_recently_added
 import io.github.nikitasud.latentjam.library.AlbumSort
 import io.github.nikitasud.latentjam.library.PlaylistSort
 import io.github.nikitasud.latentjam.library.SongSort
 import io.github.nikitasud.latentjam.library.SongSortDirection
+import org.jetbrains.compose.resources.PluralStringResource
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
 /**
  * The sort control every sortable list shares: the active field in an outlined pill that opens a
  * menu of [options], and a direction arrow beside it. One component, so the Tracks tab, the Albums
- * tab and an artist's page all sort by the same gesture.
+ * tab and an artist's page all sort by the same gesture. A list with one field uses [NameSortPill].
  */
 @Composable
 internal fun <S : Enum<S>> SortPill(
@@ -70,29 +77,14 @@ internal fun <S : Enum<S>> SortPill(
     hasDirection: (S) -> Boolean = { true },
 ) {
     var menuOpen by remember { mutableStateOf(false) }
-    Box(modifier) {
-        Row(
-            modifier = Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TextButton(onClick = { menuOpen = true }, enabled = enabled,
-                contentPadding = PaddingValues(start = 14.dp, end = 12.dp),
-                modifier = Modifier.heightIn(min = 48.dp),
-            ) {
-                Icon(Icons.AutoMirrored.Rounded.Sort, null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
-                Text(label(choice.sort), style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(start = 8.dp))
-            }
-            if (hasDirection(choice.sort)) {
-                Box(Modifier.width(1.dp).height(20.dp).background(MaterialTheme.colorScheme.outlineVariant))
-                IconButton(
-                    onClick = { onChoiceChange(choice.copy(direction = choice.direction.toggled())) },
-                    enabled = enabled,
-                ) { SortDirectionIcon(choice.direction) }
-            }
-        }
+    SortPillFrame(
+        label = label(choice.sort),
+        direction = choice.direction.takeIf { hasDirection(choice.sort) },
+        enabled = enabled,
+        onLabelClick = { menuOpen = true },
+        onDirectionClick = { onChoiceChange(choice.copy(direction = choice.direction.toggled())) },
+        modifier = modifier,
+    ) {
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             options.forEach { option ->
                 DropdownMenuItem(
@@ -109,6 +101,150 @@ internal fun <S : Enum<S>> SortPill(
                 )
             }
         }
+    }
+}
+
+/**
+ * [SortPill] for a list that sorts by name only (artists, genres, folders). With one field there is
+ * no menu to open: tapping the label is a second tap on the active option, which reverses the order
+ * ([afterSingleFieldTap]), and the arrow reverses it too.
+ */
+@Composable
+internal fun NameSortPill(
+    direction: SongSortDirection,
+    enabled: Boolean,
+    onDirectionChange: (SongSortDirection) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SortPillFrame(
+        label = stringResource(Res.string.sort_name),
+        direction = direction,
+        enabled = enabled,
+        onLabelClick = { onDirectionChange(direction.afterSingleFieldTap()) },
+        onDirectionClick = { onDirectionChange(direction.toggled()) },
+        modifier = modifier,
+    )
+}
+
+/**
+ * The pill both [SortPill] and [NameSortPill] draw, so the two cannot drift apart: the field's
+ * [label] behind a sort icon, then a divider and the arrow when the field has a [direction].
+ * [menu] is anchored to the pill.
+ */
+@Composable
+private fun SortPillFrame(
+    label: String,
+    /** Null for a field that runs one way only: no divider and no arrow. */
+    direction: SongSortDirection?,
+    enabled: Boolean,
+    onLabelClick: () -> Unit,
+    onDirectionClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    menu: @Composable () -> Unit = {},
+) {
+    Box(modifier) {
+        Row(
+            modifier = Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = onLabelClick, enabled = enabled,
+                contentPadding = PaddingValues(start = 14.dp, end = 12.dp),
+                modifier = Modifier.heightIn(min = 48.dp),
+            ) {
+                Icon(Icons.AutoMirrored.Rounded.Sort, null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+                Text(label, style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(start = 8.dp))
+            }
+            if (direction != null) {
+                Box(Modifier.width(1.dp).height(20.dp).background(MaterialTheme.colorScheme.outlineVariant))
+                IconButton(onClick = onDirectionClick, enabled = enabled) { SortDirectionIcon(direction) }
+            }
+        }
+        menu()
+    }
+}
+
+/**
+ * The row above a browse list: its sort pill at the start, its item count at the far end, then any
+ * [trailing] control (the Folders tab's tree/list toggle). The count gives way first: on a narrow
+ * screen it ellipsizes rather than push [trailing] off the row.
+ */
+@Composable
+private fun SortHeaderRow(
+    count: Int,
+    countPlural: PluralStringResource,
+    enabled: Boolean,
+    trailing: (@Composable () -> Unit)?,
+    pill: @Composable () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 20.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // [trailing] dims itself while disabled, so only the pill and the count are dimmed here.
+        Row(
+            modifier = Modifier.weight(1f).graphicsLayer { alpha = if (enabled) 1f else 0.38f },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            pill()
+            // The rest of the row, with the count at its end at its own width.
+            Box(Modifier.weight(1f).padding(start = 12.dp), contentAlignment = Alignment.CenterEnd) {
+                Text(pluralStringResource(countPlural, count, count),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        if (trailing != null) {
+            Spacer(Modifier.width(12.dp))
+            trailing()
+        }
+    }
+}
+
+/** A list's [SortPill], with its item count at the far end: above the Tracks and Albums tabs. */
+@Composable
+internal fun <S : Enum<S>> SortHeader(
+    options: List<S>,
+    choice: SortChoice<S>,
+    label: @Composable (S) -> String,
+    defaultDirection: (S) -> SongSortDirection,
+    /** How many items the list shows, worded by [countPlural]. */
+    count: Int,
+    countPlural: PluralStringResource,
+    enabled: Boolean = true,
+    onChoiceChange: (SortChoice<S>) -> Unit,
+) {
+    SortHeaderRow(count = count, countPlural = countPlural, enabled = enabled, trailing = null) {
+        SortPill(
+            options = options,
+            choice = choice,
+            label = label,
+            defaultDirection = defaultDirection,
+            enabled = enabled,
+            onChoiceChange = onChoiceChange,
+        )
+    }
+}
+
+/**
+ * [SortHeader] for a list that sorts by name only, with a [NameSortPill]: above the Artists, Genres
+ * and Folders tabs. [trailing] sits after the count.
+ */
+@Composable
+internal fun NameSortHeader(
+    direction: SongSortDirection,
+    /** How many items the list shows, worded by [countPlural]. */
+    count: Int,
+    countPlural: PluralStringResource,
+    enabled: Boolean,
+    onDirectionChange: (SongSortDirection) -> Unit,
+    trailing: (@Composable () -> Unit)? = null,
+) {
+    SortHeaderRow(count = count, countPlural = countPlural, enabled = enabled, trailing = trailing) {
+        NameSortPill(direction = direction, enabled = enabled, onDirectionChange = onDirectionChange)
     }
 }
 
@@ -145,6 +281,13 @@ internal fun <S> directionAfterSortSelection(
 } else {
     selectedDefault
 }
+
+/**
+ * The direction after tapping the label of a list that sorts by one field. That label is the only
+ * option, so every tap is a second tap on the active one: [directionAfterSortSelection] reverses it.
+ */
+internal fun SongSortDirection.afterSingleFieldTap(): SongSortDirection =
+    directionAfterSortSelection(currentSort = Unit, currentDirection = this, selectedSort = Unit, selectedDefault = this)
 
 /**
  * The choice after tapping [selected] in the menu; see [directionAfterSortSelection]. A field without
@@ -193,16 +336,3 @@ internal fun AlbumSort.label(): String = stringResource(
         AlbumSort.RECENT -> Res.string.sort_recently_added
     },
 )
-
-/** Name order for artist, genre and folder overviews; uses the same direction icon as other lists. */
-@Composable
-internal fun GroupOrderHeader(title: String, direction: SongSortDirection, enabled: Boolean, onChange: (SongSortDirection) -> Unit) {
-    Row(Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) {
-        TextButton(onClick = { onChange(direction.toggled()) }, enabled = enabled,
-            modifier = Modifier.heightIn(min = 48.dp)) {
-            Icon(Icons.AutoMirrored.Rounded.Sort, null, modifier = Modifier.size(16.dp))
-            Text(title, modifier = Modifier.padding(horizontal = 8.dp))
-            SortDirectionIcon(direction)
-        }
-    }
-}

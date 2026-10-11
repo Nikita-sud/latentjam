@@ -191,6 +191,8 @@ import io.github.nikitasud.latentjam.app.generated.resources.action_undo
 import io.github.nikitasud.latentjam.app.generated.resources.action_shuffle_all
 import io.github.nikitasud.latentjam.app.generated.resources.cd_more_options
 import io.github.nikitasud.latentjam.app.generated.resources.count_albums
+import io.github.nikitasud.latentjam.app.generated.resources.count_artists
+import io.github.nikitasud.latentjam.app.generated.resources.count_genres
 import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_progress
 import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_progress_eta
@@ -3551,11 +3553,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                 choice = songSortChoice,
                                                 label = { it.label() },
                                                 defaultDirection = { it.defaultDirection },
-                                                countText = pluralStringResource(
-                                                    Res.plurals.count_tracks,
-                                                    visibleCatalog.songs.size,
-                                                    visibleCatalog.songs.size,
-                                                ),
+                                                count = visibleCatalog.songs.size,
+                                                countPlural = Res.plurals.count_tracks,
                                                 enabled = !selectionMode,
                                                 onChoiceChange = { choice ->
                                                     scrollSongsToTopOnSort(choice)
@@ -3605,11 +3604,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                 choice = albumSortChoice,
                                                 label = { it.label() },
                                                 defaultDirection = { it.defaultDirection },
-                                                countText = pluralStringResource(
-                                                    Res.plurals.count_albums,
-                                                    visibleCatalog.albums.size,
-                                                    visibleCatalog.albums.size,
-                                                ),
+                                                count = visibleCatalog.albums.size,
+                                                countPlural = Res.plurals.count_albums,
                                                 enabled = !selectionMode,
                                                 onChoiceChange = { choice ->
                                                     scrollAlbumsToTopOnSort(choice)
@@ -3745,11 +3741,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         }
 
                                         StartPage.ARTISTS -> Column {
-                                            GroupOrderHeader(
-                                                title = stringResource(StartPage.ARTISTS.titleResource()),
+                                            NameSortHeader(
                                                 direction = groupSortOrders.artists,
+                                                count = visibleCatalog.artists.size,
+                                                countPlural = Res.plurals.count_artists,
                                                 enabled = !selectionMode,
-                                                onChange = { settings.setGroupSortOrders(groupSortOrders.copy(artists = it)) },
+                                                onDirectionChange = {
+                                                    settings.setGroupSortOrders(groupSortOrders.copy(artists = it))
+                                                },
                                             )
                                             SectionedGroupListWithRail(
                                             onScrubbingChange = { railScrubbing = it },
@@ -3845,11 +3844,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         }
 
                                         StartPage.GENRES -> Column {
-                                            GroupOrderHeader(
-                                                title = stringResource(StartPage.GENRES.titleResource()),
+                                            NameSortHeader(
                                                 direction = groupSortOrders.genres,
+                                                count = visibleCatalog.genres.size,
+                                                countPlural = Res.plurals.count_genres,
                                                 enabled = !selectionMode,
-                                                onChange = { settings.setGroupSortOrders(groupSortOrders.copy(genres = it)) },
+                                                onDirectionChange = {
+                                                    settings.setGroupSortOrders(groupSortOrders.copy(genres = it))
+                                                },
                                             )
                                             SectionedGroupListWithRail(
                                             onScrubbingChange = { railScrubbing = it },
@@ -5799,40 +5801,6 @@ private fun SharedSettingsButton(
             imageVector = Icons.Rounded.Settings,
             contentDescription = stringResource(Res.string.settings_title),
         )
-    }
-}
-
-/** A list's sort pill, with its item count at the far end — above the songs and albums lists. */
-@Composable
-private fun <S : Enum<S>> SortHeader(
-    options: List<S>,
-    choice: SortChoice<S>,
-    label: @Composable (S) -> String,
-    defaultDirection: (S) -> SongSortDirection,
-    countText: String,
-    enabled: Boolean = true,
-    onChoiceChange: (SortChoice<S>) -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
-            .padding(horizontal = 20.dp)
-            .graphicsLayer { alpha = if (enabled) 1f else 0.38f },
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        SortPill(
-            options = options,
-            choice = choice,
-            label = label,
-            defaultDirection = defaultDirection,
-            enabled = enabled,
-            onChoiceChange = onChoiceChange,
-        )
-        Spacer(Modifier.weight(1f))
-        Text(countText,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 12.dp))
     }
 }
 

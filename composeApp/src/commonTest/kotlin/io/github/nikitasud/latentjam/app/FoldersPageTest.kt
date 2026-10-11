@@ -37,6 +37,15 @@ internal class FoldersPageTest {
     }
 
     @Test
+    fun `the Folders tab counts the folders that hold tracks as the list shows them`() {
+        // Music Rock holds no tracks of its own, so the list has no row for it and the count skips it.
+        assertEquals(catalog.folders.size, folderTabCount(catalog))
+        assertEquals(4, folderTabCount(catalog))
+        // The two volumes' Music folders are one row of the list: Music, Music Live and the card root.
+        assertEquals(3, folderTabCount(LibraryCatalog.build(twoVolumes)))
+    }
+
+    @Test
     fun `a selection in the tree plays by path and one in the list folder by folder`() {
         val everything = library.mapTo(LinkedHashSet()) { it.id }
 

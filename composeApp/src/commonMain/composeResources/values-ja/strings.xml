@@ -51,6 +51,12 @@
     <plurals name="count_albums">
         <item quantity="other">%1$d枚のアルバム</item>
     </plurals>
+    <plurals name="count_artists">
+        <item quantity="other">%1$d人のアーティスト</item>
+    </plurals>
+    <plurals name="count_genres">
+        <item quantity="other">%1$d個のジャンル</item>
+    </plurals>
 
     <!-- ======================================================= browse tabs -->
     <string name="tab_for_you">あなたへ</string>
@@ -66,6 +72,7 @@
     <string name="action_rescan_library">ライブラリを更新</string>
     <string name="sort_recently_added">最近追加した順</string>
     <string name="sort_custom_order">カスタム順</string>
+    <string name="sort_name">名前</string>
     <string name="sort_direction_ascending">昇順</string>
     <string name="sort_direction_descending">降順</string>
     <string name="snack_track_deleted">曲を削除しました</string>

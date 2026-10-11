@@ -51,6 +51,12 @@
     <plurals name="count_albums">
         <item quantity="other">%1$d 张专辑</item>
     </plurals>
+    <plurals name="count_artists">
+        <item quantity="other">%1$d 位艺人</item>
+    </plurals>
+    <plurals name="count_genres">
+        <item quantity="other">%1$d 个流派</item>
+    </plurals>
 
     <!-- ======================================================= browse tabs -->
     <string name="tab_for_you">为你推荐</string>
@@ -66,6 +72,7 @@
     <string name="action_rescan_library">刷新音乐库</string>
     <string name="sort_recently_added">最近添加</string>
     <string name="sort_custom_order">自定义顺序</string>
+    <string name="sort_name">名称</string>
     <string name="sort_direction_ascending">升序</string>
     <string name="sort_direction_descending">降序</string>
     <string name="snack_track_deleted">已删除歌曲</string>

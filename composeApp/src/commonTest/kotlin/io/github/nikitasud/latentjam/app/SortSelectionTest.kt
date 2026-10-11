@@ -58,6 +58,15 @@ internal class SortSelectionTest {
     }
 
     @Test
+    fun aListWithOneSortFieldReversesOnEveryTapOfItsLabel() {
+        // Artists, genres and folders sort by name only: the label is the active option, so each
+        // tap is the second tap that reverses it, the same as the arrow beside it.
+        assertEquals(SongSortDirection.DESCENDING, SongSortDirection.ASCENDING.afterSingleFieldTap())
+        assertEquals(SongSortDirection.ASCENDING, SongSortDirection.DESCENDING.afterSingleFieldTap())
+        SongSortDirection.entries.forEach { assertEquals(it.toggled(), it.afterSingleFieldTap()) }
+    }
+
+    @Test
     fun albumSortsFollowTheSameRule() {
         val newestFirst = SortChoice(AlbumSort.YEAR, SongSortDirection.DESCENDING)
         // Tapping the active year reverses it; tapping title starts A–Z; tapping year again
