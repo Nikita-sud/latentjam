@@ -636,10 +636,19 @@ private class RootTabNavigation(initialPages: List<StartPage>) {
 
 /** The playlists as stored, whether they have loaded, and the listening facts auto playlists derive from. */
 @Stable
-private class PlaylistsState {
+internal class PlaylistsState {
     var playlists by mutableStateOf<List<Playlist>>(emptyList())
+
+    /**
+     * Whether launch is done with the playlists: read, or failed to read and shown as none. The
+     * saved player waits for this and only this, so a failed read never holds it back.
+     */
     var playlistsLoaded by mutableStateOf(false)
+        private set
+
+    /** Whether a read of the store has succeeded, so [playlists] began as its complete list. */
     var playlistsAvailableForSourceRestore by mutableStateOf(false)
+        private set
     var companionGroupsInitialized by mutableStateOf(false)
     var playCounts by mutableStateOf<Map<TrackId, Int>>(emptyMap())
     var lastPlayedAt by mutableStateOf<Map<TrackId, Long>>(emptyMap())
@@ -649,6 +658,27 @@ private class PlaylistsState {
     // crossed the rest threshold while the app was idle appears without a process restart.
     var autoPlaylistClockMs by mutableLongStateOf(epochMillis())
     var autoPlaylists by mutableStateOf<List<AutoPlaylist>>(emptyList())
+
+    /**
+     * [playlists] when it is the store's whole list, else null. What is kept per playlist (its sort
+     * order) may be forgotten for a playlist missing from it, never from the empty list a failed read
+     * leaves behind.
+     */
+    val completePlaylists: List<Playlist>?
+        get() = playlists.takeIf { playlistsAvailableForSourceRestore }
+
+    /** The store's whole list, read. */
+    fun published(value: List<Playlist>) {
+        playlists = value
+        playlistsLoaded = true
+        playlistsAvailableForSourceRestore = true
+    }
+
+    /** The launch read failed: no playlists to show, and none known to the store. */
+    fun launchReadFailed() {
+        playlistsLoaded = true
+        playlistsAvailableForSourceRestore = false
+    }
 }
 
 /** The Map page as shown, the regions behind it, and the track a "Show on the Map" carries to it. */
@@ -961,9 +991,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 AppGraph.smartCompanionGroups.value = value.smartCompanionMemberships()
                 playlistsState.companionGroupsInitialized = true
             }
-            playlistsState.playlists = value
-            playlistsState.playlistsLoaded = true
-            playlistsState.playlistsAvailableForSourceRestore = true
+            playlistsState.published(value)
         }
         var showCreatePlaylist by rememberSaveable { mutableStateOf(false) }
         var renameTargetId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -1311,8 +1339,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 if (!playlistsState.playlistsLoaded) {
                     AppGraph.smartCompanionGroups.value = emptyList()
                     playlistsState.companionGroupsInitialized = true
-                    playlistsState.playlistsLoaded = true
-                    playlistsState.playlistsAvailableForSourceRestore = false
+                    playlistsState.launchReadFailed()
                 }
             }
         }
@@ -2163,12 +2190,17 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
 
         // Every SMART planner (in-app and the playback chooser) reads the marked playlists from
         // this flow; kept in lockstep with the playlists state.
-        LaunchedEffect(playlistsState.playlistsLoaded, playlistsState.playlists) {
+        LaunchedEffect(
+            playlistsState.playlistsLoaded,
+            playlistsState.playlists,
+            playlistsState.playlistsAvailableForSourceRestore,
+        ) {
             // The first successful read reconstructs the policy that produced a persisted SMART
             // future. Treat it as launch state, not as a user edit: pruning the saved lookahead at
             // this point would defeat exact resume and could load the lazy model for no reason.
             if (!playlistsState.playlistsLoaded) return@LaunchedEffect
-            AppGraph.settings.forgetDeletedPlaylistOrders(playlistsState.playlists)
+            // Not against the empty list a failed launch read leaves: that would forget every order.
+            AppGraph.settings.forgetDeletedPlaylistOrders(playlistsState.completePlaylists)
             val groups = playlistsState.playlists.smartCompanionMemberships()
             val changed = groups != AppGraph.smartCompanionGroups.value
             val shouldInvalidateFuture = shouldInvalidateSmartFuture(

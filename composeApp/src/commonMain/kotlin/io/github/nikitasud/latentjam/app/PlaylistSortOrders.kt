@@ -210,10 +210,17 @@ internal fun AppSettings.chooseTrackSort(selection: CollectionSelection, choice:
     return true
 }
 
-/** Drops the orders of deleted playlists. Call only with the complete, loaded playlist list. */
-internal fun AppSettings.forgetDeletedPlaylistOrders(playlists: List<Playlist>) {
+/**
+ * These orders without those of playlists missing from [complete], the store's whole list. Null, a
+ * list not known to be whole (a read failed), keeps every order: the same instance comes back.
+ */
+internal fun PlaylistSortOrders.forgettingDeletedPlaylists(complete: List<Playlist>?): PlaylistSortOrders =
+    if (complete == null) this else retainingPlaylists(complete.map(Playlist::id))
+
+/** Drops the orders of deleted playlists; see [forgettingDeletedPlaylists]. */
+internal fun AppSettings.forgetDeletedPlaylistOrders(complete: List<Playlist>?) {
     val current = playlistSortOrders.value
-    val retained = current.retainingPlaylists(playlists.map(Playlist::id))
+    val retained = current.forgettingDeletedPlaylists(complete)
     if (retained !== current) setPlaylistSortOrders(retained)
 }
 

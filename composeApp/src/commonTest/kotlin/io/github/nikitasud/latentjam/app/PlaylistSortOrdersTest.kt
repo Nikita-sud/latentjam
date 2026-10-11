@@ -17,6 +17,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 internal class PlaylistSortOrdersTest {
 
@@ -270,5 +271,35 @@ internal class PlaylistSortOrdersTest {
         assertSame(retained, retained.retainingPlaylists(listOf("kept")))
         // An order left by a deleted playlist could only ever be ignored: no page asks for it.
         assertEquals(DEFAULT_PLAYLIST_TRACK_SORT, retained.forPlaylist("deleted"))
+    }
+
+    @Test
+    fun aFailedPlaylistReadKeepsEveryOrderAndALaterReadForgetsOnlyDeletedPlaylists() {
+        val byTitle = SortChoice(PlaylistSort.TITLE, SongSortDirection.ASCENDING)
+        val byArtist = SortChoice(PlaylistSort.ARTIST, SongSortDirection.DESCENDING)
+        val orders = PlaylistSortOrders()
+            .withPlaylist("kept", byTitle)
+            .withPlaylist("deleted", byArtist)
+        val state = PlaylistsState()
+
+        // The launch read failed: the tab shows no playlists and the saved player may restore,
+        // but that empty list is not the store's, and no order may be forgotten against it.
+        state.launchReadFailed()
+        assertTrue(state.playlistsLoaded)
+        assertNull(state.completePlaylists)
+        assertSame(orders, orders.forgettingDeletedPlaylists(state.completePlaylists))
+
+        // A playlist made on the tab meanwhile does not make the list complete either.
+        state.playlists = listOf(Playlist(id = "made-meanwhile", name = "New", trackIds = emptyList()))
+        assertSame(orders, orders.forgettingDeletedPlaylists(state.completePlaylists))
+
+        // A later read succeeds: only the playlist really gone loses its order.
+        state.published(
+            listOf(
+                Playlist(id = "kept", name = "Kept", trackIds = emptyList()),
+                Playlist(id = "made-meanwhile", name = "New", trackIds = emptyList()),
+            ),
+        )
+        assertEquals(mapOf("kept" to byTitle), orders.forgettingDeletedPlaylists(state.completePlaylists).playlists)
     }
 }
