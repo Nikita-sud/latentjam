@@ -2605,6 +2605,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 is QueueSourceGroup.FolderBranch -> {
                                     { target.node.toTreeSelection(settings.groupSortOrders.value.folders) }
                                 }
+                                is QueueSourceGroup.FolderTracks -> { { target.node.toTracksSelection() } }
                                 null -> return false
                             }
                         }

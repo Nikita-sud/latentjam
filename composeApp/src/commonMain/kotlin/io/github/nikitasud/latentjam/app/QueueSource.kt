@@ -61,13 +61,14 @@ internal fun CollectionSelection.queueSource(): QueueSource = when {
     else -> QueueSource(QueueSourceKind.COLLECTION, title)
 }
 
-private val LIBRARY_GROUP_PREFIXES = setOf("album", "artist", "genre", "folder", "foldertree", "auto")
+private val LIBRARY_GROUP_PREFIXES = setOf("album", "artist", "genre", "folder", "foldertree", "foldertracks", "auto")
 
 /**
  * The listening log's id for the collection a queue was started from: `playlist:<id>` for a user
  * playlist, the kind-qualified route (`album:<key>`, `folder:<path>`, `foldertree:<volume>:<path>`,
- * `auto:<KIND>`, …) for a library group. Titles are never used — they are localized and collide — so
- * a source with no durable identity (a journey, a map region, search, the whole library) has no parent.
+ * `foldertracks:<volume>:<path>`, `auto:<KIND>`, …) for a library group. Titles are never used —
+ * they are localized and collide — so a source with no durable identity (a journey, a map region,
+ * search, the whole library) has no parent.
  */
 internal fun QueueSource.parentCollectionId(): String? {
     val id = reference?.takeIf(String::isNotBlank) ?: return null
@@ -95,6 +96,9 @@ internal sealed interface QueueSourceGroup {
 
     /** A folder with everything below it, as the folder tree plays it. */
     data class FolderBranch(val node: FolderNode) : QueueSourceGroup
+
+    /** One folder of the tree, on its own volume, with only its own tracks: a tapped track's neighbours. */
+    data class FolderTracks(val node: FolderNode) : QueueSourceGroup
 }
 
 /** Missing and legacy identities fall back to the queue, never to a similarly named place. */
@@ -108,11 +112,17 @@ internal fun QueueSource.resolveGroup(catalog: LibraryCatalog?): QueueSourceGrou
             ?.let(QueueSourceGroup::Artist)
         "genre" -> catalog.genres.firstOrNull { "genre:${it.name.orEmpty()}" == route }
             ?.let(QueueSourceGroup::Genre)
+        // The folder list's folder, every volume's at that path; what a tapped track in the tree
+        // left as its source before that source named its volume, so a saved queue may hold it.
         "folder" -> catalog.folders.firstOrNull { "folder:${it.path}" == route }
             ?.let(QueueSourceGroup::Folder)
         "foldertree" -> FolderTree.build(catalog.songs)
             .node(route.removePrefix(FOLDER_TREE_ROUTE_PREFIX))
             ?.let(QueueSourceGroup::FolderBranch)
+        "foldertracks" -> FolderTree.build(catalog.songs)
+            .node(route.removePrefix(FOLDER_TRACKS_ROUTE_PREFIX))
+            ?.takeIf { it.tracks.isNotEmpty() }
+            ?.let(QueueSourceGroup::FolderTracks)
         else -> null
     }
 }

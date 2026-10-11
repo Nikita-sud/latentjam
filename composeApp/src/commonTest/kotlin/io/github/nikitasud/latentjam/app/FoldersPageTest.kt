@@ -72,6 +72,64 @@ internal class FoldersPageTest {
         assertEquals(source.copy(name = "Music"), page.queueSource())
     }
 
+    private val sdCard = "1a2b-3c4d"
+
+    /** Internal storage and an SD card both hold a Music folder; the card has a track at its root too. */
+    private val twoVolumes = listOf(
+        track("int-1", "Music"),
+        track("sd-2", "Music", sdCard),
+        track("int-2", "Music"),
+        track("sd-1", "Music", sdCard),
+        track("sd-live", "Music/Live", sdCard),
+        track("sd-root", "", sdCard),
+    )
+
+    /** The tracks "Playing from" opens for a resolved source. */
+    private fun QueueSourceGroup.tracks(): List<TrackDescriptor>? = when (this) {
+        is QueueSourceGroup.Folder -> group.tracks
+        is QueueSourceGroup.FolderBranch -> node.allTracks()
+        is QueueSourceGroup.FolderTracks -> node.tracks
+        else -> null
+    }
+
+    @Test
+    fun `a track played in a folder of the tree reopens that folder on its own volume and only its own tracks`() {
+        val catalog = LibraryCatalog.build(twoVolumes)
+        val sdMusic = FolderTree.build(twoVolumes).node(FolderTree.keyOf(sdCard, "Music"))!!
+
+        val source = folderTrackSource(sdMusic, "Music")
+
+        // Not the internal storage's Music beside it, and not the Live folder below it.
+        assertEquals(listOf("sd-1", "sd-2"), source.resolveGroup(catalog)?.tracks()?.ids())
+        // The page that source opens plays from the same source again.
+        val page = CollectionSelection("Music", null, null, emptyList(), routeId = source.reference!!)
+        assertEquals(source, page.queueSource())
+        // Once the folder holds no tracks of its own, the source falls back to the queue.
+        val emptied = twoVolumes.filterNot { it.id.value == "sd-1" || it.id.value == "sd-2" }
+        assertNull(source.resolveGroup(LibraryCatalog.build(emptied)))
+    }
+
+    @Test
+    fun `a track played at the root of a volume has a source`() {
+        val sdRoot = FolderTree.build(twoVolumes).node(FolderTree.keyOf(sdCard, ""))!!
+
+        val source = folderTrackSource(sdRoot, "SD card")
+
+        assertEquals(listOf("sd-root"), source.resolveGroup(LibraryCatalog.build(twoVolumes))?.tracks()?.ids())
+    }
+
+    @Test
+    fun `a folder source saved by an earlier build still opens the folder list's folder`() {
+        val catalog = LibraryCatalog.build(twoVolumes)
+        val saved = QueueSource(QueueSourceKind.LIBRARY_GROUP, "Music", "folder:Music")
+
+        val resolved = saved.resolveGroup(catalog)
+
+        assertEquals("Music", (resolved as QueueSourceGroup.Folder).group.path)
+        assertEquals(listOf("int-1", "int-2", "sd-1", "sd-2"), resolved.tracks()?.ids())
+        assertEquals("folder:Music", saved.parentCollectionId())
+    }
+
     @Test
     fun `a folder page has a section per folder that holds tracks in play order`() {
         val music = FolderTree.build(library).node(FolderTree.keyOf(FolderTree.PRIMARY_VOLUME, "Music"))!!

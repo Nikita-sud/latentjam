@@ -118,9 +118,26 @@ internal val DEFAULT_FOLDER_VIEW: StateFlow<FolderView> = MutableStateFlow(Folde
 
 /**
  * Route of a folder with everything below it, as a queue source and as the page that source opens
- * (`foldertree:<FolderNode.key>`). A plain `folder:<path>` is one folder's own tracks.
+ * (`foldertree:<FolderNode.key>`). See [FOLDER_TRACKS_ROUTE_PREFIX] for a folder's own tracks.
  */
 internal const val FOLDER_TREE_ROUTE_PREFIX = "foldertree:"
+
+/**
+ * Route of one folder's own tracks, without its subfolders', on its own storage volume, as a queue
+ * source and as the page that source opens (`foldertracks:<FolderNode.key>`). The folder list's
+ * `folder:<path>` names no volume, so it stands for every volume's folder at that path at once.
+ */
+internal const val FOLDER_TRACKS_ROUTE_PREFIX = "foldertracks:"
+
+/**
+ * What a track tapped in [node] of the tree leaves as the queue's source: [node]'s own tracks, the
+ * ones played beside it, on [node]'s volume. A volume's root is a folder like any other here.
+ */
+internal fun folderTrackSource(node: FolderNode, label: String): QueueSource = QueueSource(
+    kind = QueueSourceKind.LIBRARY_GROUP,
+    name = label,
+    reference = FOLDER_TRACKS_ROUTE_PREFIX + node.key,
+)
 
 /**
  * The tracks a selection on the Folders tab plays, in the order the tab shows them: in the tree,
@@ -411,11 +428,7 @@ private fun FolderTreeBrowser(
                     onPlayTrack = { index ->
                         // A tapped track plays the tracks beside it, as the folder's own page does,
                         // and keeps the shuffle mode the listener chose.
-                        AppGraph.queueSource.value = QueueSource(
-                            kind = QueueSourceKind.LIBRARY_GROUP,
-                            name = labels.of(node),
-                            reference = node.path.takeIf(String::isNotEmpty)?.let { "folder:$it" },
-                        )
+                        AppGraph.queueSource.value = folderTrackSource(node, labels.of(node))
                         scope.launch { playback.play(node.tracks, index) }
                     },
                     onTrackMenu = onTrackMenu,
@@ -839,15 +852,7 @@ private fun FolderTreeRow(
  * its tracks in the order the folder played them, a section for each folder that holds some.
  */
 internal suspend fun FolderNode.toTreeSelection(direction: SongSortDirection): CollectionSelection {
-    val title = when {
-        isLibraryRoot -> getString(Res.string.tab_folders)
-        isVolumeRoot -> when (volume) {
-            null -> getString(Res.string.tab_folders)
-            FolderTree.PRIMARY_VOLUME -> getString(Res.string.folder_root_internal_storage)
-            else -> AppGraph.library.storageVolumeNames()[volume] ?: getString(Res.string.folder_root_sd_card)
-        }
-        else -> name
-    }
+    val title = pageTitle()
     val sections = withContext(Dispatchers.Default) { folderBranchSections(this@toTreeSelection, direction, title) }
     val ordered = sections.flatMap { it.tracks }
     return CollectionSelection(
@@ -863,6 +868,35 @@ internal suspend fun FolderNode.toTreeSelection(direction: SongSortDirection): C
         allowsTrackSelection = true,
         routeId = FOLDER_TREE_ROUTE_PREFIX + key,
     )
+}
+
+/**
+ * A folder's own tracks as a page, for the queue source a track tapped in it leaves behind: the
+ * tracks played beside that track, in the order they played ([FolderNode.tracks], folder order).
+ */
+internal suspend fun FolderNode.toTracksSelection(): CollectionSelection =
+    CollectionSelection(
+        title = pageTitle(),
+        subtitle = listOfNotNull(
+            path.takeIf(String::isNotEmpty),
+            getPluralString(Res.plurals.count_tracks, tracks.size, tracks.size),
+        ).joinToString(FOLDER_SUMMARY_SEPARATOR),
+        artworkUri = tracks.firstNotNullOfOrNull { it.artworkUri },
+        tracks = tracks,
+        railMode = trackRailModeFor(tracks),
+        allowsTrackSelection = true,
+        routeId = FOLDER_TRACKS_ROUTE_PREFIX + key,
+    )
+
+/** A folder page's title: the folder's name, or the name of the storage volume whose root it is. */
+private suspend fun FolderNode.pageTitle(): String = when {
+    isLibraryRoot -> getString(Res.string.tab_folders)
+    isVolumeRoot -> when (volume) {
+        null -> getString(Res.string.tab_folders)
+        FolderTree.PRIMARY_VOLUME -> getString(Res.string.folder_root_internal_storage)
+        else -> AppGraph.library.storageVolumeNames()[volume] ?: getString(Res.string.folder_root_sd_card)
+    }
+    else -> name
 }
 
 /**
