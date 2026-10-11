@@ -211,6 +211,19 @@
     <string name="action_add_to_playlist">Dodaj do playlisty</string>
     <string name="action_add_favorite">Dodaj do ulubionych</string>
     <string name="action_remove_favorite">Usuń z ulubionych</string>
+    <string name="action_add_all_favorites">Dodaj wszystkie do ulubionych</string>
+    <plurals name="snack_favorites_added">
+        <item quantity="one">Dodano %1$d utwór do ulubionych</item>
+        <item quantity="few">Dodano %1$d utwory do ulubionych</item>
+        <item quantity="many">Dodano %1$d utworów do ulubionych</item>
+        <item quantity="other">Dodano %1$d utworu do ulubionych</item>
+    </plurals>
+    <plurals name="snack_favorites_removed">
+        <item quantity="one">Usunięto %1$d utwór z ulubionych</item>
+        <item quantity="few">Usunięto %1$d utwory z ulubionych</item>
+        <item quantity="many">Usunięto %1$d utworów z ulubionych</item>
+        <item quantity="other">Usunięto %1$d utworu z ulubionych</item>
+    </plurals>
     <string name="action_remove_from_playlist">Usuń z tej playlisty</string>
     <string name="snack_playlist_track_removed">Usunięto z "%1$s"</string>
     <plurals name="playlist_unavailable_tracks">
@@ -612,6 +625,8 @@
     <string name="action_edit_album">Edytuj album</string>
     <string name="action_edit_artist">Edytuj wykonawcę</string>
     <string name="action_edit_short">Edytuj</string>
+    <string name="action_favorite_short">Do ulubionych</string>
+    <string name="action_unfavorite_short">Z ulubionych</string>
     <plurals name="count_files">
         <item quantity="one">%1$d plik</item>
         <item quantity="few">%1$d pliki</item>

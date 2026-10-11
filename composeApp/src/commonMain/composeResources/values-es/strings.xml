@@ -202,6 +202,15 @@
     <string name="action_add_to_playlist">Añadir a una lista de reproducción</string>
     <string name="action_add_favorite">Añadir a favoritos</string>
     <string name="action_remove_favorite">Quitar de favoritos</string>
+    <string name="action_add_all_favorites">Añadir todas a favoritos</string>
+    <plurals name="snack_favorites_added">
+        <item quantity="one">%1$d canción añadida a favoritos</item>
+        <item quantity="other">%1$d canciones añadidas a favoritos</item>
+    </plurals>
+    <plurals name="snack_favorites_removed">
+        <item quantity="one">%1$d canción quitada de favoritos</item>
+        <item quantity="other">%1$d canciones quitadas de favoritos</item>
+    </plurals>
     <string name="action_remove_from_playlist">Quitar de esta lista</string>
     <string name="snack_playlist_track_removed">Quitado de "%1$s"</string>
     <plurals name="playlist_unavailable_tracks">
@@ -585,6 +594,8 @@
     <string name="action_edit_album">Editar álbum</string>
     <string name="action_edit_artist">Editar artista</string>
     <string name="action_edit_short">Editar</string>
+    <string name="action_favorite_short">Favorito</string>
+    <string name="action_unfavorite_short">Quitar favorito</string>
     <plurals name="count_files">
         <item quantity="one">%1$d archivo</item>
         <item quantity="other">%1$d archivos</item>

@@ -189,6 +189,13 @@
     <string name="action_add_to_playlist">添加到播放列表</string>
     <string name="action_add_favorite">添加到收藏</string>
     <string name="action_remove_favorite">从收藏中移除</string>
+    <string name="action_add_all_favorites">全部添加到收藏</string>
+    <plurals name="snack_favorites_added">
+        <item quantity="other">已将 %1$d 首歌曲添加到收藏</item>
+    </plurals>
+    <plurals name="snack_favorites_removed">
+        <item quantity="other">已从收藏中移除 %1$d 首歌曲</item>
+    </plurals>
     <string name="action_remove_from_playlist">从此播放列表中移除</string>
     <string name="snack_playlist_track_removed">已从"%1$s"中移除</string>
     <plurals name="playlist_unavailable_tracks">
@@ -564,6 +571,8 @@
     <string name="action_edit_album">编辑专辑</string>
     <string name="action_edit_artist">编辑艺人</string>
     <string name="action_edit_short">编辑</string>
+    <string name="action_favorite_short">收藏</string>
+    <string name="action_unfavorite_short">取消收藏</string>
     <plurals name="count_files">
         <item quantity="other">%1$d 个文件</item>
     </plurals>

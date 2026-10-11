@@ -189,6 +189,13 @@
     <string name="action_add_to_playlist">플레이리스트에 추가</string>
     <string name="action_add_favorite">즐겨찾기에 추가</string>
     <string name="action_remove_favorite">즐겨찾기에서 제거</string>
+    <string name="action_add_all_favorites">모두 즐겨찾기에 추가</string>
+    <plurals name="snack_favorites_added">
+        <item quantity="other">%1$d곡을 즐겨찾기에 추가했습니다</item>
+    </plurals>
+    <plurals name="snack_favorites_removed">
+        <item quantity="other">%1$d곡을 즐겨찾기에서 제거했습니다</item>
+    </plurals>
     <string name="action_remove_from_playlist">이 재생목록에서 제거</string>
     <string name="snack_playlist_track_removed">"%1$s"에서 제거됨</string>
     <plurals name="playlist_unavailable_tracks">
@@ -564,6 +571,8 @@
     <string name="action_edit_album">앨범 편집</string>
     <string name="action_edit_artist">아티스트 편집</string>
     <string name="action_edit_short">편집</string>
+    <string name="action_favorite_short">즐겨찾기</string>
+    <string name="action_unfavorite_short">즐겨찾기 해제</string>
     <plurals name="count_files">
         <item quantity="other">파일 %1$d개</item>
     </plurals>

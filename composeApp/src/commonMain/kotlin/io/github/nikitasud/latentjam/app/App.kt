@@ -83,6 +83,8 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.FileOpen
 import androidx.compose.material.icons.rounded.Edit
@@ -190,6 +192,8 @@ import io.github.nikitasud.latentjam.app.generated.resources.action_previous
 import io.github.nikitasud.latentjam.app.generated.resources.action_remove_from_playlist
 import io.github.nikitasud.latentjam.app.generated.resources.action_rename
 import io.github.nikitasud.latentjam.app.generated.resources.action_import_m3u
+import io.github.nikitasud.latentjam.app.generated.resources.action_favorite_short
+import io.github.nikitasud.latentjam.app.generated.resources.action_unfavorite_short
 import io.github.nikitasud.latentjam.app.generated.resources.action_undo
 import io.github.nikitasud.latentjam.app.generated.resources.action_shuffle_all
 import io.github.nikitasud.latentjam.app.generated.resources.action_share
@@ -259,6 +263,7 @@ import io.github.nikitasud.latentjam.library.AlbumSort
 import io.github.nikitasud.latentjam.library.AlbumSorting
 import io.github.nikitasud.latentjam.library.ArtistGroup
 import io.github.nikitasud.latentjam.library.AutoPlaylist
+import io.github.nikitasud.latentjam.library.AutoPlaylistKind
 import io.github.nikitasud.latentjam.library.AutoPlaylists
 import io.github.nikitasud.latentjam.library.FolderGroup
 import io.github.nikitasud.latentjam.library.GenreGroup
@@ -1263,6 +1268,19 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 }
             }
         }
+        // Many hearts at once (a selection, a playlist, an imported file): one write, then a
+        // snackbar with Undo. [onFailure] runs when nothing could be written.
+        fun editFavorites(
+            action: SelectionFavoriteAction,
+            ids: List<TrackId>,
+            onFailure: () -> Unit = {},
+        ) {
+            scope.launch {
+                if (!runBulkFavoriteEdit(AppGraph.favorites, action, ids, snackbar) { favoriteIds = it }) {
+                    onFailure()
+                }
+            }
+        }
         LaunchedEffect(Unit) {
             try {
                 scanLibrary()
@@ -2186,6 +2204,18 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         playlistsState.autoPlaylistClockMs,
                     )
                 }
+            }
+            // An open Favorites page lists the hearts, so it follows them; a library still loading
+            // has no tracks to show them with.
+            val openPage = selectedCollection?.takeIf { songs != null } ?: return@LaunchedEffect
+            val hearted = playlistsState.autoPlaylists
+                .firstOrNull { it.kind == AutoPlaylistKind.FAVORITES }?.tracks.orEmpty()
+            val followed = openPage.followingFavorites(hearted) ?: return@LaunchedEffect
+            val subtitle = trackCountLabel(hearted.size)
+            if (selectedCollection === openPage) {
+                applySelectedCollection(followed.copy(subtitle = subtitle))
+                val shown = hearted.mapTo(HashSet()) { it.id }
+                updateTrackSelection(selectedTrackIds.filterTo(HashSet()) { it in shown })
             }
         }
 
@@ -3282,6 +3312,15 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                 }
                                             },
                                             onExport = ::exportPlaylistAsM3u,
+                                            onAddToFavorites = { playlist ->
+                                                editFavorites(
+                                                    SelectionFavoriteAction.ADD,
+                                                    tracksOf(playlist).map(TrackDescriptor::id),
+                                                )
+                                            },
+                                            canAddToFavorites = { playlist ->
+                                                anyNotFavorite(tracksOf(playlist), favoriteIds)
+                                            },
                                             onToggleSmart = ::togglePlaylistSmart,
                                             onMove = { from, to ->
                                                 val moving = playlistsState.playlists.getOrNull(from)
@@ -3852,6 +3891,15 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             onToggleSmart = editablePlaylist?.let { playlist ->
                                 { togglePlaylistSmart(playlist) }
                             },
+                            onAddAllToFavorites = editablePlaylist?.let {
+                                {
+                                    editFavorites(
+                                        SelectionFavoriteAction.ADD,
+                                        selection.tracks.map(TrackDescriptor::id),
+                                    )
+                                }
+                            },
+                            canAddAllToFavorites = { anyNotFavorite(selection.tracks, favoriteIds) },
                             onEditTags = when {
                                 selection.routeId.startsWith("album:") -> {
                                     { openTagEditor(selection.tracks, BulkEditScope.ALBUM) }
@@ -4045,6 +4093,20 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             canShare = selectedTracks.isNotEmpty() &&
                                 selectedTracks.all { it.audioUri != null },
                             removeFromPlaylist = selectedCollection?.playlistId != null,
+                            favoriteAction = selectionFavoriteAction(selectedTracks, favoriteIds),
+                            onFavorite = { action ->
+                                val ids = selectedTracks.map(TrackDescriptor::id)
+                                val selectedBefore = selectedTrackIds
+                                updateTrackSelection(emptySet())
+                                val commandSelectionRevision = selectionRevision
+                                editFavorites(action, ids) {
+                                    // Nothing was written: give the selection back, unless the
+                                    // listener has already made another one.
+                                    if (selectionRevision == commandSelectionRevision) {
+                                        updateTrackSelection(selectedBefore)
+                                    }
+                                }
+                            },
                             onPlay = {
                                 val selection = selectedTracks
                                 // The surface the selection was made on: a hand-picked set from
@@ -5562,6 +5624,8 @@ private fun SelectionActionBar(
     includeNavigationPadding: Boolean = true,
     canShare: Boolean = canAct,
     removeFromPlaylist: Boolean = false,
+    favoriteAction: SelectionFavoriteAction = SelectionFavoriteAction.ADD,
+    onFavorite: (SelectionFavoriteAction) -> Unit = {},
     onPlay: () -> Unit,
     onAdd: () -> Unit,
     onShare: () -> Unit,
@@ -5593,6 +5657,16 @@ private fun SelectionActionBar(
             label = stringResource(Res.string.action_add),
             enabled = canAct,
             onClick = onAdd,
+            modifier = Modifier.weight(1f),
+        )
+        val removesFavorites = favoriteAction == SelectionFavoriteAction.REMOVE
+        SelectionAction(
+            icon = if (removesFavorites) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+            label = stringResource(
+                if (removesFavorites) Res.string.action_unfavorite_short else Res.string.action_favorite_short,
+            ),
+            enabled = canAct,
+            onClick = { onFavorite(favoriteAction) },
             modifier = Modifier.weight(1f),
         )
         SelectionAction(

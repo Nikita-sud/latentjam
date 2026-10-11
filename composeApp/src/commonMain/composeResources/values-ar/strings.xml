@@ -227,6 +227,23 @@
     <string name="action_add_to_playlist">إضافة إلى قائمة تشغيل</string>
     <string name="action_add_favorite">إضافة إلى المفضلة</string>
     <string name="action_remove_favorite">إزالة من المفضلة</string>
+    <string name="action_add_all_favorites">إضافة الكل إلى المفضلة</string>
+    <plurals name="snack_favorites_added">
+        <item quantity="zero">تمت إضافة %1$d مقطع صوتي إلى المفضلة</item>
+        <item quantity="one">تمت إضافة %1$d مقطع صوتي إلى المفضلة</item>
+        <item quantity="two">تمت إضافة %1$d مقطعين صوتيين إلى المفضلة</item>
+        <item quantity="few">تمت إضافة %1$d مقاطع صوتية إلى المفضلة</item>
+        <item quantity="many">تمت إضافة %1$d مقطعًا صوتيًا إلى المفضلة</item>
+        <item quantity="other">تمت إضافة %1$d مقطع صوتي إلى المفضلة</item>
+    </plurals>
+    <plurals name="snack_favorites_removed">
+        <item quantity="zero">تمت إزالة %1$d مقطع صوتي من المفضلة</item>
+        <item quantity="one">تمت إزالة %1$d مقطع صوتي من المفضلة</item>
+        <item quantity="two">تمت إزالة %1$d مقطعين صوتيين من المفضلة</item>
+        <item quantity="few">تمت إزالة %1$d مقاطع صوتية من المفضلة</item>
+        <item quantity="many">تمت إزالة %1$d مقطعًا صوتيًا من المفضلة</item>
+        <item quantity="other">تمت إزالة %1$d مقطع صوتي من المفضلة</item>
+    </plurals>
     <string name="action_remove_from_playlist">إزالة من قائمة التشغيل هذه</string>
     <string name="snack_playlist_track_removed">تمت الإزالة من "%1$s"</string>
     <plurals name="playlist_unavailable_tracks">
@@ -646,6 +663,8 @@
     <string name="action_edit_album">تعديل الألبوم</string>
     <string name="action_edit_artist">تعديل الفنان</string>
     <string name="action_edit_short">تعديل</string>
+    <string name="action_favorite_short">تفضيل</string>
+    <string name="action_unfavorite_short">إلغاء التفضيل</string>
     <plurals name="count_files">
         <item quantity="zero">%1$d ملف</item>
         <item quantity="one">%1$d ملف</item>

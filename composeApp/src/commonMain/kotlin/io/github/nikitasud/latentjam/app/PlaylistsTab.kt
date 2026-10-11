@@ -47,6 +47,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.DriveFileRenameOutline
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Restore
@@ -89,6 +90,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.action_cancel
 import io.github.nikitasud.latentjam.app.generated.resources.action_add_to_playlist
 import io.github.nikitasud.latentjam.app.generated.resources.action_delete
 import io.github.nikitasud.latentjam.app.generated.resources.action_export_m3u
+import io.github.nikitasud.latentjam.app.generated.resources.action_add_all_favorites
 import io.github.nikitasud.latentjam.app.generated.resources.action_import_m3u
 import io.github.nikitasud.latentjam.app.generated.resources.action_smart_keep_together
 import io.github.nikitasud.latentjam.app.generated.resources.action_rename
@@ -136,6 +138,10 @@ internal fun PlaylistsTabContent(
     onResetCover: (Playlist) -> Unit,
     coverEditBusy: Boolean = false,
     onExport: (Playlist) -> Unit = {},
+    /** Hearts every track of the playlist. */
+    onAddToFavorites: (Playlist) -> Unit = {},
+    /** Read only while a playlist's menu is open: whether any of its tracks is not a favourite yet. */
+    canAddToFavorites: (Playlist) -> Boolean = { true },
     onToggleSmart: (Playlist) -> Unit = {},
     onDelete: (Playlist) -> Unit,
     /** Commits a long-press drag: the playlist at [from] drops at [to], both list positions. */
@@ -186,6 +192,8 @@ internal fun PlaylistsTabContent(
             onResetCover = { onResetCover(playlist) },
             coverEditBusy = coverEditBusy,
             onExport = { onExport(playlist) },
+            onAddToFavorites = { onAddToFavorites(playlist) },
+            canAddToFavorites = { canAddToFavorites(playlist) },
             onToggleSmart = { onToggleSmart(playlist) },
             onDelete = { onDelete(playlist) },
             onMoveUp = if (index > 0) ({ onMove(index, index - 1) }) else null,
@@ -398,6 +406,8 @@ private fun PlaylistRow(
     onResetCover: () -> Unit,
     coverEditBusy: Boolean,
     onExport: () -> Unit,
+    onAddToFavorites: () -> Unit,
+    canAddToFavorites: () -> Boolean,
     onToggleSmart: () -> Unit,
     onDelete: () -> Unit,
     onMoveUp: (() -> Unit)?,
@@ -521,6 +531,21 @@ private fun PlaylistRow(
                         },
                     )
                 }
+                DropdownMenuItem(
+                    text = {
+                        Text(stringResource(Res.string.action_add_all_favorites),
+                            style = MaterialTheme.typography.bodyMedium)
+                    },
+                    leadingIcon = {
+                        Icon(Icons.Outlined.FavoriteBorder, contentDescription = null,
+                            modifier = iconModifier, tint = iconTint)
+                    },
+                    enabled = canAddToFavorites(),
+                    onClick = {
+                        menuOpen = false
+                        onAddToFavorites()
+                    },
+                )
                 DropdownMenuItem(
                     text = {
                         Text(stringResource(Res.string.action_export_m3u),

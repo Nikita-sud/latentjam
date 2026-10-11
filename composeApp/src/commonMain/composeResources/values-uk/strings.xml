@@ -211,6 +211,19 @@
     <string name="action_add_to_playlist">Додати до плейлиста</string>
     <string name="action_add_favorite">До улюблених</string>
     <string name="action_remove_favorite">Прибрати з улюблених</string>
+    <string name="action_add_all_favorites">Додати всі до улюблених</string>
+    <plurals name="snack_favorites_added">
+        <item quantity="one">До улюблених додано %1$d трек</item>
+        <item quantity="few">До улюблених додано %1$d треки</item>
+        <item quantity="many">До улюблених додано %1$d треків</item>
+        <item quantity="other">До улюблених додано %1$d трека</item>
+    </plurals>
+    <plurals name="snack_favorites_removed">
+        <item quantity="one">З улюблених прибрано %1$d трек</item>
+        <item quantity="few">З улюблених прибрано %1$d треки</item>
+        <item quantity="many">З улюблених прибрано %1$d треків</item>
+        <item quantity="other">З улюблених прибрано %1$d трека</item>
+    </plurals>
     <string name="action_remove_from_playlist">Прибрати з цього плейлиста</string>
     <string name="snack_playlist_track_removed">Прибрано з "%1$s"</string>
     <plurals name="playlist_unavailable_tracks">
@@ -612,6 +625,8 @@
     <string name="action_edit_album">Змінити альбом</string>
     <string name="action_edit_artist">Змінити виконавця</string>
     <string name="action_edit_short">Змінити</string>
+    <string name="action_favorite_short">До улюблених</string>
+    <string name="action_unfavorite_short">З улюблених</string>
     <plurals name="count_files">
         <item quantity="one">%1$d файл</item>
         <item quantity="few">%1$d файли</item>

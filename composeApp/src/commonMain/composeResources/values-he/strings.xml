@@ -202,6 +202,17 @@
     <string name="action_add_to_playlist">הוספה לפלייליסט</string>
     <string name="action_add_favorite">הוספה למועדפים</string>
     <string name="action_remove_favorite">הסרה מהמועדפים</string>
+    <string name="action_add_all_favorites">הוספת הכול למועדפים</string>
+    <plurals name="snack_favorites_added">
+        <item quantity="one">%1$d שיר נוסף למועדפים</item>
+        <item quantity="two">%1$d שירים נוספו למועדפים</item>
+        <item quantity="other">%1$d שירים נוספו למועדפים</item>
+    </plurals>
+    <plurals name="snack_favorites_removed">
+        <item quantity="one">%1$d שיר הוסר מהמועדפים</item>
+        <item quantity="two">%1$d שירים הוסרו מהמועדפים</item>
+        <item quantity="other">%1$d שירים הוסרו מהמועדפים</item>
+    </plurals>
     <string name="action_remove_from_playlist">הסרה מהפלייליסט הזה</string>
     <string name="snack_playlist_track_removed">הוסר מהפלייליסט "%1$s"</string>
     <plurals name="playlist_unavailable_tracks">
@@ -598,6 +609,8 @@
     <string name="action_edit_album">עריכת האלבום</string>
     <string name="action_edit_artist">עריכת האמן</string>
     <string name="action_edit_short">עריכה</string>
+    <string name="action_favorite_short">למועדפים</string>
+    <string name="action_unfavorite_short">הסרת מועדף</string>
     <plurals name="count_files">
         <item quantity="one">%1$d קובץ</item>
         <item quantity="two">%1$d קבצים</item>

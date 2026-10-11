@@ -195,6 +195,15 @@
     <string name="action_add_to_playlist">प्लेलिस्ट में जोड़ें</string>
     <string name="action_add_favorite">पसंदीदा में जोड़ें</string>
     <string name="action_remove_favorite">पसंदीदा से हटाएँ</string>
+    <string name="action_add_all_favorites">सभी को पसंदीदा में जोड़ें</string>
+    <plurals name="snack_favorites_added">
+        <item quantity="one">%1$d गाना पसंदीदा में जोड़ा गया</item>
+        <item quantity="other">%1$d गाने पसंदीदा में जोड़े गए</item>
+    </plurals>
+    <plurals name="snack_favorites_removed">
+        <item quantity="one">%1$d गाना पसंदीदा से हटाया गया</item>
+        <item quantity="other">%1$d गाने पसंदीदा से हटाए गए</item>
+    </plurals>
     <string name="action_remove_from_playlist">इस प्लेलिस्ट से हटाएँ</string>
     <string name="snack_playlist_track_removed">"%1$s" से हटाया गया</string>
     <plurals name="playlist_unavailable_tracks">
@@ -578,6 +587,8 @@
     <string name="action_edit_album">एल्बम संपादित करें</string>
     <string name="action_edit_artist">कलाकार संपादित करें</string>
     <string name="action_edit_short">संपादित करें</string>
+    <string name="action_favorite_short">पसंदीदा</string>
+    <string name="action_unfavorite_short">पसंदीदा हटाएँ</string>
     <plurals name="count_files">
         <item quantity="one">%1$d फ़ाइल</item>
         <item quantity="other">%1$d फ़ाइलें</item>

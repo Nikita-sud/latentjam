@@ -195,6 +195,15 @@
     <string name="action_add_to_playlist">Çalma listesine ekle</string>
     <string name="action_add_favorite">Favorilere ekle</string>
     <string name="action_remove_favorite">Favorilerden çıkar</string>
+    <string name="action_add_all_favorites">Tümünü favorilere ekle</string>
+    <plurals name="snack_favorites_added">
+        <item quantity="one">%1$d parça favorilere eklendi</item>
+        <item quantity="other">%1$d parça favorilere eklendi</item>
+    </plurals>
+    <plurals name="snack_favorites_removed">
+        <item quantity="one">%1$d parça favorilerden çıkarıldı</item>
+        <item quantity="other">%1$d parça favorilerden çıkarıldı</item>
+    </plurals>
     <string name="action_remove_from_playlist">Bu çalma listesinden kaldır</string>
     <string name="snack_playlist_track_removed">"%1$s" listesinden kaldırıldı</string>
     <plurals name="playlist_unavailable_tracks">
@@ -578,6 +587,8 @@
     <string name="action_edit_album">Albümü düzenle</string>
     <string name="action_edit_artist">Sanatçıyı düzenle</string>
     <string name="action_edit_short">Düzenle</string>
+    <string name="action_favorite_short">Favorile</string>
+    <string name="action_unfavorite_short">Favoriden çıkar</string>
     <plurals name="count_files">
         <item quantity="one">%1$d dosya</item>
         <item quantity="other">%1$d dosya</item>

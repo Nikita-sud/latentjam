@@ -195,6 +195,13 @@
     <string name="action_add_to_playlist">Tambahkan ke playlist</string>
     <string name="action_add_favorite">Tambahkan ke favorit</string>
     <string name="action_remove_favorite">Hapus dari favorit</string>
+    <string name="action_add_all_favorites">Tambahkan semua ke favorit</string>
+    <plurals name="snack_favorites_added">
+        <item quantity="other">%1$d lagu ditambahkan ke favorit</item>
+    </plurals>
+    <plurals name="snack_favorites_removed">
+        <item quantity="other">%1$d lagu dihapus dari favorit</item>
+    </plurals>
     <string name="action_remove_from_playlist">Hapus dari playlist ini</string>
     <string name="snack_playlist_track_removed">Dihapus dari "%1$s"</string>
     <plurals name="playlist_unavailable_tracks">
@@ -570,6 +577,8 @@
     <string name="action_edit_album">Edit album</string>
     <string name="action_edit_artist">Edit artis</string>
     <string name="action_edit_short">Edit</string>
+    <string name="action_favorite_short">Favoritkan</string>
+    <string name="action_unfavorite_short">Batal favorit</string>
     <plurals name="count_files">
         <item quantity="other">%1$d file</item>
     </plurals>

@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Restore
 import androidx.compose.material.icons.outlined.PlayArrow
@@ -80,6 +81,7 @@ import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.action_back
 import io.github.nikitasud.latentjam.app.generated.resources.action_change_playlist_cover
+import io.github.nikitasud.latentjam.app.generated.resources.action_add_all_favorites
 import io.github.nikitasud.latentjam.app.generated.resources.action_remove_from_playlist
 import io.github.nikitasud.latentjam.app.generated.resources.action_reset_playlist_cover
 import io.github.nikitasud.latentjam.app.generated.resources.action_smart_keep_together
@@ -302,6 +304,10 @@ fun CollectionDetailScreen(
     onResetCover: (() -> Unit)? = null,
     coverEditBusy: Boolean = false,
     onToggleSmart: (() -> Unit)? = null,
+    /** Hearts every track of this playlist; null where the page offers no such action. */
+    onAddAllToFavorites: (() -> Unit)? = null,
+    /** Read only while the menu is open: whether any track of the page is not a favourite yet. */
+    canAddAllToFavorites: () -> Boolean = { true },
     onEditTags: (() -> Unit)? = null,
     includeInSmart: Boolean = false,
     /** Entries of this playlist that are not on the device; they are never in [selection]. */
@@ -428,6 +434,16 @@ fun CollectionDetailScreen(
                                             { Icon(Icons.Outlined.Check, null, Modifier.size(20.dp)) }
                                         } else null,
                                         onClick = { optionsOpen = false; toggleSmart() },
+                                    )
+                                }
+                                onAddAllToFavorites?.let { addAll ->
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(Res.string.action_add_all_favorites)) },
+                                        leadingIcon = {
+                                            Icon(Icons.Outlined.FavoriteBorder, null, Modifier.size(20.dp))
+                                        },
+                                        enabled = canAddAllToFavorites(),
+                                        onClick = { optionsOpen = false; addAll() },
                                     )
                                 }
                                 onEditTags?.let { editTags ->

@@ -189,6 +189,13 @@
     <string name="action_add_to_playlist">プレイリストに追加</string>
     <string name="action_add_favorite">お気に入りに追加</string>
     <string name="action_remove_favorite">お気に入りから削除</string>
+    <string name="action_add_all_favorites">すべてお気に入りに追加</string>
+    <plurals name="snack_favorites_added">
+        <item quantity="other">%1$d曲をお気に入りに追加しました</item>
+    </plurals>
+    <plurals name="snack_favorites_removed">
+        <item quantity="other">%1$d曲をお気に入りから削除しました</item>
+    </plurals>
     <string name="action_remove_from_playlist">このプレイリストから削除</string>
     <string name="snack_playlist_track_removed">"%1$s"から削除しました</string>
     <plurals name="playlist_unavailable_tracks">
@@ -564,6 +571,8 @@
     <string name="action_edit_album">アルバムを編集</string>
     <string name="action_edit_artist">アーティストを編集</string>
     <string name="action_edit_short">編集</string>
+    <string name="action_favorite_short">お気に入り</string>
+    <string name="action_unfavorite_short">お気に入り解除</string>
     <plurals name="count_files">
         <item quantity="other">%1$d件のファイル</item>
     </plurals>

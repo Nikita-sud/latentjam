@@ -247,6 +247,17 @@
     <string name="action_add_to_playlist">Add to playlist</string>
     <string name="action_add_favorite">Add to favorites</string>
     <string name="action_remove_favorite">Remove from favorites</string>
+    <!-- A user playlist's menu: hearts every track of the playlist. -->
+    <string name="action_add_all_favorites">Add all to favorites</string>
+    <!-- After hearting (or un-hearting) many tracks at once; %1$d is how many changed. -->
+    <plurals name="snack_favorites_added">
+        <item quantity="one">Added %1$d track to favorites</item>
+        <item quantity="other">Added %1$d tracks to favorites</item>
+    </plurals>
+    <plurals name="snack_favorites_removed">
+        <item quantity="one">Removed %1$d track from favorites</item>
+        <item quantity="other">Removed %1$d tracks from favorites</item>
+    </plurals>
     <string name="action_remove_from_playlist">Remove from this playlist</string>
     <string name="snack_playlist_track_removed">Removed from "%1$s"</string>
     <!-- On a playlist's page, under its buttons: %1$d of its tracks are not on this device (deleted, or
@@ -643,6 +654,10 @@
     <string name="action_edit_artist">Edit artist</string>
     <!-- The selection bar's Edit tags button: it shares the bar with four others, so one short word. -->
     <string name="action_edit_short">Edit</string>
+    <!-- The selection bar's heart, one short word like Edit. Favorite hearts the selected tracks
+         that are not favorites yet; Unfavorite takes its place when every one already is. -->
+    <string name="action_favorite_short">Favorite</string>
+    <string name="action_unfavorite_short">Unfavorite</string>
     <plurals name="count_files">
         <item quantity="one">%1$d file</item>
         <item quantity="other">%1$d files</item>

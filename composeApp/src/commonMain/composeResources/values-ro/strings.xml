@@ -195,6 +195,17 @@
     <string name="action_add_to_playlist">Adaugă în playlist</string>
     <string name="action_add_favorite">Adaugă la favorite</string>
     <string name="action_remove_favorite">Elimină din favorite</string>
+    <string name="action_add_all_favorites">Adaugă toate la favorite</string>
+    <plurals name="snack_favorites_added">
+        <item quantity="one">%1$d piesă adăugată la favorite</item>
+        <item quantity="few">%1$d piese adăugate la favorite</item>
+        <item quantity="other">%1$d de piese adăugate la favorite</item>
+    </plurals>
+    <plurals name="snack_favorites_removed">
+        <item quantity="one">%1$d piesă eliminată din favorite</item>
+        <item quantity="few">%1$d piese eliminate din favorite</item>
+        <item quantity="other">%1$d de piese eliminate din favorite</item>
+    </plurals>
     <string name="action_remove_from_playlist">Elimină din acest playlist</string>
     <string name="snack_playlist_track_removed">Eliminat din "%1$s"</string>
     <plurals name="playlist_unavailable_tracks">
@@ -584,6 +595,8 @@
     <string name="action_edit_album">Editează albumul</string>
     <string name="action_edit_artist">Editează artistul</string>
     <string name="action_edit_short">Editează</string>
+    <string name="action_favorite_short">La favorite</string>
+    <string name="action_unfavorite_short">Scoate din favorite</string>
     <plurals name="count_files">
         <item quantity="one">%1$d fișier</item>
         <item quantity="few">%1$d fișiere</item>
