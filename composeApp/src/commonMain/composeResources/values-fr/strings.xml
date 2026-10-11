@@ -553,6 +553,10 @@
     <string name="backup_export_success">Sauvegarde exportée</string>
     <string name="backup_import_success">Sauvegarde restaurée</string>
     <string name="backup_import_success_unmatched">Sauvegarde restaurée ; %1$d références de morceaux n’ont pas pu être associées sur cet appareil.</string>
+    <plurals name="backup_import_decisions_not_kept">
+        <item quantity="one">%1$d décision de la recherche de doublons n’a pas pu être conservée sur cet appareil.</item>
+        <item quantity="other">%1$d décisions de la recherche de doublons n’ont pas pu être conservées sur cet appareil.</item>
+    </plurals>
     <string name="backup_import_partial">Certaines données ont été restaurées avant qu’une erreur ne survienne.</string>
     <string name="backup_failed">Impossible de terminer l’opération de sauvegarde.</string>
     <string name="backup_invalid">Ce fichier n’est pas une sauvegarde LatentJam valide.</string>

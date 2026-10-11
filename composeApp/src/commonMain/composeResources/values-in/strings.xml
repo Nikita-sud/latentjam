@@ -531,6 +531,9 @@
     <string name="backup_export_success">Cadangan diekspor</string>
     <string name="backup_import_success">Cadangan dipulihkan</string>
     <string name="backup_import_success_unmatched">Cadangan dipulihkan; %1$d referensi trek tidak dapat dicocokkan di perangkat ini.</string>
+    <plurals name="backup_import_decisions_not_kept">
+        <item quantity="other">%1$d keputusan pencari duplikat tidak dapat disimpan di perangkat ini.</item>
+    </plurals>
     <string name="backup_import_partial">Sebagian data dipulihkan sebelum terjadi kesalahan.</string>
     <string name="backup_failed">Tidak dapat menyelesaikan operasi pencadangan.</string>
     <string name="backup_invalid">Ini bukan cadangan LatentJam yang valid.</string>

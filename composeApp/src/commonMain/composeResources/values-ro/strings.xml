@@ -549,6 +549,11 @@
     <string name="backup_export_success">Copia a fost exportată</string>
     <string name="backup_import_success">Copia a fost restabilită</string>
     <string name="backup_import_success_unmatched">Copia a fost restabilită; %1$d referințe de piese nu au putut fi asociate pe acest dispozitiv.</string>
+    <plurals name="backup_import_decisions_not_kept">
+        <item quantity="one">%1$d decizie a căutării de dubluri nu a putut fi păstrată pe acest dispozitiv.</item>
+        <item quantity="few">%1$d decizii ale căutării de dubluri nu au putut fi păstrate pe acest dispozitiv.</item>
+        <item quantity="other">%1$d de decizii ale căutării de dubluri nu au putut fi păstrate pe acest dispozitiv.</item>
+    </plurals>
     <string name="backup_import_partial">Unele date au fost restabilite înainte de apariția unei erori.</string>
     <string name="backup_failed">Operațiunea de backup nu a putut fi finalizată.</string>
     <string name="backup_invalid">Aceasta nu este o copie LatentJam validă.</string>

@@ -151,6 +151,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.backup_destination_
 import io.github.nikitasud.latentjam.app.generated.resources.backup_failed
 import io.github.nikitasud.latentjam.app.generated.resources.backup_import
 import io.github.nikitasud.latentjam.app.generated.resources.backup_import_body
+import io.github.nikitasud.latentjam.app.generated.resources.backup_import_decisions_not_kept
 import io.github.nikitasud.latentjam.app.generated.resources.backup_import_partial
 import io.github.nikitasud.latentjam.app.generated.resources.backup_import_success
 import io.github.nikitasud.latentjam.app.generated.resources.backup_import_success_unmatched
@@ -3092,7 +3093,18 @@ private fun BackupSettings(
                         LocalBackupRestoreMessage.FAILED -> failedMessage
                         LocalBackupRestoreMessage.INVALID -> invalidMessage
                     }
-                    snackbarHostState.showSnackbar(message)
+                    val notKept = outcome.duplicateDecisionsNotKept
+                    snackbarHostState.showSnackbar(
+                        if (notKept == 0) {
+                            message
+                        } else {
+                            message + "\n" + org.jetbrains.compose.resources.getPluralString(
+                                Res.plurals.backup_import_decisions_not_kept,
+                                notKept,
+                                notKept,
+                            )
+                        },
+                    )
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Throwable) {

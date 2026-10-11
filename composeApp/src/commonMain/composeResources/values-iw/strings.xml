@@ -558,6 +558,11 @@
     <string name="backup_export_success">הגיבוי יוצא</string>
     <string name="backup_import_success">הגיבוי שוחזר</string>
     <string name="backup_import_success_unmatched">הגיבוי שוחזר; לא נמצאה התאמה במכשיר הזה ל־%1$d הפניות לשירים.</string>
+    <plurals name="backup_import_decisions_not_kept">
+        <item quantity="one">לא ניתן היה לשמור במכשיר הזה %1$d החלטה של מאתר הכפילויות.</item>
+        <item quantity="two">לא ניתן היה לשמור במכשיר הזה %1$d החלטות של מאתר הכפילויות.</item>
+        <item quantity="other">לא ניתן היה לשמור במכשיר הזה %1$d החלטות של מאתר הכפילויות.</item>
+    </plurals>
     <string name="backup_import_partial">חלק מהנתונים שוחזרו לפני שאירעה שגיאה.</string>
     <string name="backup_failed">לא ניתן להשלים את פעולת הגיבוי.</string>
     <string name="backup_invalid">זה לא גיבוי תקין של LatentJam.</string>

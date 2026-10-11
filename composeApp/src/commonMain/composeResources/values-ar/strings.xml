@@ -617,6 +617,14 @@
     <string name="backup_export_success">تم تصدير النسخة الاحتياطية</string>
     <string name="backup_import_success">تمت استعادة النسخة الاحتياطية</string>
     <string name="backup_import_success_unmatched">تمت استعادة النسخة الاحتياطية؛ تعذرت مطابقة %1$d من مراجع المقاطع على هذا الجهاز.</string>
+    <plurals name="backup_import_decisions_not_kept">
+        <item quantity="zero">تعذر الاحتفاظ بـ%1$d من قرارات أداة البحث عن التكرارات على هذا الجهاز.</item>
+        <item quantity="one">تعذر الاحتفاظ بـ%1$d من قرارات أداة البحث عن التكرارات على هذا الجهاز.</item>
+        <item quantity="two">تعذر الاحتفاظ بـ%1$d من قرارات أداة البحث عن التكرارات على هذا الجهاز.</item>
+        <item quantity="few">تعذر الاحتفاظ بـ%1$d من قرارات أداة البحث عن التكرارات على هذا الجهاز.</item>
+        <item quantity="many">تعذر الاحتفاظ بـ%1$d من قرارات أداة البحث عن التكرارات على هذا الجهاز.</item>
+        <item quantity="other">تعذر الاحتفاظ بـ%1$d من قرارات أداة البحث عن التكرارات على هذا الجهاز.</item>
+    </plurals>
     <string name="backup_import_partial">تمت استعادة بعض البيانات قبل حدوث خطأ.</string>
     <string name="backup_failed">تعذر إكمال عملية النسخ الاحتياطي.</string>
     <string name="backup_invalid">هذه ليست نسخة احتياطية صالحة من LatentJam.</string>

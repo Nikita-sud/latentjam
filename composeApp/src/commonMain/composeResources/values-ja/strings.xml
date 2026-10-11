@@ -525,6 +525,9 @@
     <string name="backup_export_success">バックアップをエクスポートしました</string>
     <string name="backup_import_success">バックアップを復元しました</string>
     <string name="backup_import_success_unmatched">バックアップを復元しましたが、このデバイスで %1$d 件の曲参照を照合できませんでした。</string>
+    <plurals name="backup_import_decisions_not_kept">
+        <item quantity="other">このデバイスに重複検出の判断 %1$d 件を保存できませんでした。</item>
+    </plurals>
     <string name="backup_import_partial">エラーが発生する前に一部のデータが復元されました。</string>
     <string name="backup_failed">バックアップ操作を完了できませんでした。</string>
     <string name="backup_invalid">有効な LatentJam バックアップではありません。</string>

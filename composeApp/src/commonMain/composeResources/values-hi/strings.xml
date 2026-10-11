@@ -541,6 +541,10 @@
     <string name="backup_export_success">बैकअप निर्यात हो गया</string>
     <string name="backup_import_success">बैकअप पुनर्स्थापित हो गया</string>
     <string name="backup_import_success_unmatched">बैकअप पुनर्स्थापित हो गया; इस डिवाइस पर %1$d ट्रैक संदर्भों का मिलान नहीं हो सका।</string>
+    <plurals name="backup_import_decisions_not_kept">
+        <item quantity="one">डुप्लिकेट खोजक का %1$d निर्णय इस डिवाइस पर सहेजा नहीं जा सका।</item>
+        <item quantity="other">डुप्लिकेट खोजक के %1$d निर्णय इस डिवाइस पर सहेजे नहीं जा सके।</item>
+    </plurals>
     <string name="backup_import_partial">त्रुटि आने से पहले कुछ डेटा पुनर्स्थापित हो गया था।</string>
     <string name="backup_failed">बैकअप प्रक्रिया पूरी नहीं की जा सकी।</string>
     <string name="backup_invalid">यह मान्य LatentJam बैकअप नहीं है।</string>

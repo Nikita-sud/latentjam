@@ -1318,6 +1318,65 @@ internal class LocalBackupTest {
     }
 
     @Test
+    fun aDecisionThatOutgrowsTheStoreUnderThisDevicesIdsIsReportedNotClaimed() = runTest {
+        // One verdict on 1,000 tracks, written where their ids are short (Android's numeric ones)...
+        val tracks = (1..1_000).map { track("$it", "Song $it", "Artist", "Album", 100_000L + it) }
+        val source = fixture(tracks)
+        DuplicateDismissals.rememberIn(source.settings, tracks.map { it.id })
+        val encoded = source.service.exportEncoded()
+        // ...restored where the same songs have ids of about 150 characters (iOS keeps an imported
+        // file's relative path as its id): the record, twice that in hex, no longer fits the store.
+        val folder = "Imported/A rather long artist name/An album title (Remastered Deluxe Edition)/"
+        val longIds = tracks.map { it.copy(id = TrackId(folder.padEnd(140, '_') + it.id.value + ".flac")) }
+
+        for (mode in LocalBackupRestoreMode.entries) {
+            val destination = fixture(longIds)
+            val report = destination.service.importEncoded(
+                encoded,
+                mode,
+                noSections().copy(duplicateDecisions = true),
+            )
+
+            assertEquals(
+                emptyList(),
+                DuplicateDismissals.verdicts(destination.settings.readDuplicateDismissalsPayload()),
+                "$mode",
+            )
+            assertEquals(0, report.unresolvedTrackReferences, "$mode: every track matched")
+            assertEquals(0, report.duplicateDecisionsApplied, "$mode: nothing was stored")
+            assertEquals(1, report.duplicateDecisionsNotKept, "$mode")
+            // The listener is told, instead of reading that the backup was restored in full.
+            assertEquals(
+                LocalBackupRestoreOutcome(
+                    reloadApp = true,
+                    message = LocalBackupRestoreMessage.RESTORED,
+                    duplicateDecisionsNotKept = 1,
+                ),
+                localBackupRestoreOutcome(Result.success(report)),
+                "$mode",
+            )
+        }
+    }
+
+    @Test
+    fun aMergeIntoAFullStoreCountsTheRestoredDecisionsItLeftOut() = runTest {
+        val settings = FakeSettings()
+        val mine = (1..DuplicateDismissals.MAX_VERDICTS).map { listOf(TrackId("m$it"), TrackId("n$it")) }
+        DuplicateDismissals.restore(settings, mine, replace = true)
+        val restored = listOf(
+            listOf(TrackId("r1"), TrackId("r2")),
+            // Already said by a stored verdict: kept, though nothing new is written for it.
+            listOf(TrackId("n7"), TrackId("m7")),
+        )
+
+        // The store keeps the newest verdicts, and a restored one counts as older than every verdict
+        // made on this device, so a full store leaves the new one out.
+        assertEquals(1, DuplicateDismissals.restore(settings, restored, replace = false))
+        assertEquals(mine, DuplicateDismissals.verdicts(settings.readDuplicateDismissalsPayload()))
+        assertEquals(2, DuplicateDismissals.restore(settings, restored, replace = true))
+    }
+
+    @Test
     fun aRestoreThatStopsAfterTheFavouritesStillReloadsTheAppAndSaysItStopped() = runTest {
         val tracks = listOf("a", "b").map { track(it, "Song $it", "Artist", "Album", 100_000) }
         val (a, b) = tracks

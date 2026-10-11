@@ -525,6 +525,9 @@
     <string name="backup_export_success">백업을 내보냈습니다</string>
     <string name="backup_import_success">백업을 복원했습니다</string>
     <string name="backup_import_success_unmatched">백업을 복원했지만 이 기기에서 트랙 참조 %1$d개를 일치시키지 못했습니다.</string>
+    <plurals name="backup_import_decisions_not_kept">
+        <item quantity="other">이 기기에 중복 찾기 결정 %1$d개를 저장하지 못했습니다.</item>
+    </plurals>
     <string name="backup_import_partial">오류가 발생하기 전에 일부 데이터를 복원했습니다.</string>
     <string name="backup_failed">백업 작업을 완료하지 못했습니다.</string>
     <string name="backup_invalid">유효한 LatentJam 백업이 아닙니다.</string>

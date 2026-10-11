@@ -548,6 +548,10 @@
     <string name="backup_export_success">Backup esportato</string>
     <string name="backup_import_success">Backup ripristinato</string>
     <string name="backup_import_success_unmatched">Backup ripristinato; non è stato possibile associare %1$d riferimenti a brani su questo dispositivo.</string>
+    <plurals name="backup_import_decisions_not_kept">
+        <item quantity="one">Non è stato possibile conservare %1$d decisione della ricerca duplicati su questo dispositivo.</item>
+        <item quantity="other">Non è stato possibile conservare %1$d decisioni della ricerca duplicati su questo dispositivo.</item>
+    </plurals>
     <string name="backup_import_partial">Alcuni dati sono stati ripristinati prima che si verificasse un errore.</string>
     <string name="backup_failed">Impossibile completare l’operazione di backup.</string>
     <string name="backup_invalid">Questo non è un backup LatentJam valido.</string>

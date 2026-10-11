@@ -525,6 +525,9 @@
     <string name="backup_export_success">备份已导出</string>
     <string name="backup_import_success">备份已恢复</string>
     <string name="backup_import_success_unmatched">备份已恢复；有 %1$d 个曲目引用无法在此设备上匹配。</string>
+    <plurals name="backup_import_decisions_not_kept">
+        <item quantity="other">有 %1$d 条重复查找的判定无法在此设备上保存。</item>
+    </plurals>
     <string name="backup_import_partial">发生错误前已恢复部分数据。</string>
     <string name="backup_failed">无法完成备份操作。</string>
     <string name="backup_invalid">这不是有效的 LatentJam 备份。</string>

@@ -541,6 +541,10 @@
     <string name="backup_export_success">Yedek dışa aktarıldı</string>
     <string name="backup_import_success">Yedek geri yüklendi</string>
     <string name="backup_import_success_unmatched">Yedek geri yüklendi; bu cihazda %1$d parça başvurusu eşleştirilemedi.</string>
+    <plurals name="backup_import_decisions_not_kept">
+        <item quantity="one">%1$d kopya bulucu kararı bu cihazda saklanamadı.</item>
+        <item quantity="other">%1$d kopya bulucu kararı bu cihazda saklanamadı.</item>
+    </plurals>
     <string name="backup_import_partial">Hata oluşmadan önce bazı veriler geri yüklendi.</string>
     <string name="backup_failed">Yedekleme işlemi tamamlanamadı.</string>
     <string name="backup_invalid">Bu geçerli bir LatentJam yedeği değil.</string>

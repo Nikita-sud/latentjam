@@ -548,6 +548,10 @@
     <string name="backup_export_success">Backup exportado</string>
     <string name="backup_import_success">Backup restaurado</string>
     <string name="backup_import_success_unmatched">Backup restaurado; não foi possível associar %1$d referências de faixas neste dispositivo.</string>
+    <plurals name="backup_import_decisions_not_kept">
+        <item quantity="one">Não foi possível salvar %1$d decisão do localizador de duplicatas neste dispositivo.</item>
+        <item quantity="other">Não foi possível salvar %1$d decisões do localizador de duplicatas neste dispositivo.</item>
+    </plurals>
     <string name="backup_import_partial">Alguns dados foram restaurados antes de ocorrer um erro.</string>
     <string name="backup_failed">Não foi possível concluir a operação de backup.</string>
     <string name="backup_invalid">Este não é um backup válido do LatentJam.</string>

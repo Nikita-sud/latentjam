@@ -570,6 +570,12 @@
     <string name="backup_export_success">Резервная копия экспортирована</string>
     <string name="backup_import_success">Резервная копия восстановлена</string>
     <string name="backup_import_success_unmatched">Резервная копия восстановлена; %1$d ссылок на треки не удалось сопоставить на этом устройстве.</string>
+    <plurals name="backup_import_decisions_not_kept">
+        <item quantity="one">%1$d решение поиска дубликатов не удалось сохранить на этом устройстве.</item>
+        <item quantity="few">%1$d решения поиска дубликатов не удалось сохранить на этом устройстве.</item>
+        <item quantity="many">%1$d решений поиска дубликатов не удалось сохранить на этом устройстве.</item>
+        <item quantity="other">%1$d решения поиска дубликатов не удалось сохранить на этом устройстве.</item>
+    </plurals>
     <string name="backup_import_partial">Часть данных была восстановлена до возникновения ошибки.</string>
     <string name="backup_failed">Не удалось завершить операцию с резервной копией.</string>
     <string name="backup_invalid">Это не резервная копия LatentJam.</string>

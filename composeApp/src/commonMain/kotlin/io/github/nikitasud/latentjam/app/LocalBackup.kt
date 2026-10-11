@@ -177,8 +177,13 @@ internal data class LocalBackupRestoreReport(
     val smartArtistExclusionsApplied: Int,
     /** Restored hearts that matched a track on this device; 0 for a file older than v9. */
     val favoritesApplied: Int = 0,
-    /** Restored verdicts with at least two matched tracks; 0 for a file older than v9. */
+    /** Restored verdicts the store keeps, each with at least two matched tracks; 0 before v9. */
     val duplicateDecisionsApplied: Int = 0,
+    /**
+     * Restored verdicts with at least two matched tracks that the store could not keep: under this
+     * device's ids the record outgrew the store's bound, or a merge found the store full.
+     */
+    val duplicateDecisionsNotKept: Int = 0,
 )
 
 /** A restore stopped after [completedSections] had already been durably requested. */
@@ -201,6 +206,8 @@ internal data class LocalBackupRestoreOutcome(
     val reloadApp: Boolean,
     val message: LocalBackupRestoreMessage,
     val unmatchedTrackReferences: Int = 0,
+    /** Restored duplicate finder decisions this device could not keep; said beside [message]. */
+    val duplicateDecisionsNotKept: Int = 0,
 )
 
 internal fun localBackupRestoreOutcome(result: Result<LocalBackupRestoreReport>): LocalBackupRestoreOutcome {
@@ -213,15 +220,16 @@ internal fun localBackupRestoreOutcome(result: Result<LocalBackupRestoreReport>)
             else -> LocalBackupRestoreOutcome(reloadApp = false, message = LocalBackupRestoreMessage.FAILED)
         }
     }
-    return if (report.unresolvedTrackReferences == 0) {
-        LocalBackupRestoreOutcome(reloadApp = true, message = LocalBackupRestoreMessage.RESTORED)
-    } else {
-        LocalBackupRestoreOutcome(
-            reloadApp = true,
-            message = LocalBackupRestoreMessage.RESTORED_UNMATCHED,
-            unmatchedTrackReferences = report.unresolvedTrackReferences,
-        )
-    }
+    return LocalBackupRestoreOutcome(
+        reloadApp = true,
+        message = if (report.unresolvedTrackReferences == 0) {
+            LocalBackupRestoreMessage.RESTORED
+        } else {
+            LocalBackupRestoreMessage.RESTORED_UNMATCHED
+        },
+        unmatchedTrackReferences = report.unresolvedTrackReferences,
+        duplicateDecisionsNotKept = report.duplicateDecisionsNotKept,
+    )
 }
 
 /**
@@ -1091,6 +1099,7 @@ internal class LocalBackupService(
         var smartArtistsApplied = 0
         var favoritesApplied = 0
         var duplicateDecisionsApplied = 0
+        var duplicateDecisionsNotKept = 0
 
         try {
             if (sections.playlists) {
@@ -1191,12 +1200,12 @@ internal class LocalBackupService(
                 val imported = snapshot.duplicateVerdicts.mapNotNull { verdict ->
                     verdict.mapNotNull { resolved[it] }.distinct().takeIf { it.size >= 2 }
                 }
-                DuplicateDismissals.restore(
+                duplicateDecisionsApplied = DuplicateDismissals.restore(
                     settings = settings,
                     imported = imported,
                     replace = mode == LocalBackupRestoreMode.REPLACE,
                 )
-                duplicateDecisionsApplied = imported.size
+                duplicateDecisionsNotKept = imported.size - duplicateDecisionsApplied
                 completed += LocalBackupSection.DUPLICATE_DECISIONS
             }
 
@@ -1236,6 +1245,7 @@ internal class LocalBackupService(
             smartArtistExclusionsApplied = smartArtistsApplied,
             favoritesApplied = favoritesApplied,
             duplicateDecisionsApplied = duplicateDecisionsApplied,
+            duplicateDecisionsNotKept = duplicateDecisionsNotKept,
         )
     }
 

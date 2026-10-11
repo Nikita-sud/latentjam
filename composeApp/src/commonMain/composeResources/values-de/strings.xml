@@ -551,6 +551,10 @@
     <string name="backup_export_success">Backup exportiert</string>
     <string name="backup_import_success">Backup wiederhergestellt</string>
     <string name="backup_import_success_unmatched">Backup wiederhergestellt; %1$d Titelverweise konnten auf diesem Gerät nicht zugeordnet werden.</string>
+    <plurals name="backup_import_decisions_not_kept">
+        <item quantity="one">%1$d Entscheidung der Duplikatsuche konnte auf diesem Gerät nicht gespeichert werden.</item>
+        <item quantity="other">%1$d Entscheidungen der Duplikatsuche konnten auf diesem Gerät nicht gespeichert werden.</item>
+    </plurals>
     <string name="backup_import_partial">Einige Daten wurden wiederhergestellt, bevor ein Fehler auftrat.</string>
     <string name="backup_failed">Der Backup-Vorgang konnte nicht abgeschlossen werden.</string>
     <string name="backup_invalid">Dies ist kein gültiges LatentJam-Backup.</string>

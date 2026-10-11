@@ -346,18 +346,22 @@ internal object DuplicateDismissals {
     /**
      * Writes the verdicts a backup restore resolved on this device: they become the stored ones
      * when [replace], and are merged into them otherwise ([merged] says how).
+     *
+     * @return how many of [imported] the store keeps after the write, written or already said by a
+     *   stored verdict. The others did not fit: a verdict whose record outgrows the store's bound
+     *   under this device's ids (on iOS an imported file's id is its path, far longer than Android's
+     *   numeric ids, so a verdict that fitted where the backup was made may not fit here), or one a
+     *   merge left out of a full store.
      */
     suspend fun restore(
         settings: AppSettings,
         imported: List<List<TrackId>>,
         replace: Boolean,
-    ): Unit = updateLock.withLock {
-        val payload = if (replace) {
-            encodeRecords(imported.mapNotNull(::storableVerdict).distinct())
-        } else {
-            merged(settings.readDuplicateDismissalsPayload(), imported)
-        }
-        settings.writeDuplicateDismissalsPayload(payload)
+    ): Int = updateLock.withLock {
+        val stored = if (replace) emptyList() else readRecords(settings.readDuplicateDismissalsPayload())
+        val restored = restored(stored, imported)
+        settings.writeDuplicateDismissalsPayload(restored.payload)
+        restored.kept
     }
 
     /**
@@ -373,13 +377,27 @@ internal object DuplicateDismissals {
      *   are placed before the stored ones, as older: a large backup can never push out a verdict
      *   this device made. If the bound is reached, it is the restored ones that are left out.
      */
-    fun merged(payload: String?, imported: List<List<TrackId>>): String {
-        val stored = readRecords(payload)
+    fun merged(payload: String?, imported: List<List<TrackId>>): String =
+        restored(readRecords(payload), imported).payload
+
+    /** A restore's payload, and how many of the verdicts it was given that payload keeps. */
+    private class Restored(val payload: String, val kept: Int)
+
+    /** [imported] merged into [stored] as [merged] describes; an empty [stored] is a replace. */
+    private fun restored(stored: List<List<TrackId>>, imported: List<List<TrackId>>): Restored {
         val known = DuplicateExclusions(stored)
-        val added = imported.mapNotNull(::storableVerdict)
-            .distinct()
-            .filterNot(known::excludesAll)
-        return encodeRecords(added + stored)
+        val verdicts = imported.map(::storableVerdict)
+        val alreadySaid = HashSet<List<TrackId>>()
+        val added = LinkedHashSet<List<TrackId>>()
+        for (verdict in verdicts) {
+            if (verdict == null || verdict in alreadySaid || verdict in added) continue
+            if (known.excludesAll(verdict)) alreadySaid += verdict else added += verdict
+        }
+        val payload = encodeRecords(added.toList() + stored)
+        // Counted from what the payload decodes to, so every bound the encoder applies is included.
+        val written = readRecords(payload).toHashSet()
+        val kept = verdicts.count { verdict -> verdict != null && (verdict in alreadySaid || verdict in written) }
+        return Restored(payload, kept)
     }
 
     /** [verdict] as the store keeps it, or null where it cannot be one. */

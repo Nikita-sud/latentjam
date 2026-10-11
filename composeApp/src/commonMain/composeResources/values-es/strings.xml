@@ -548,6 +548,10 @@
     <string name="backup_export_success">Copia exportada</string>
     <string name="backup_import_success">Copia restaurada</string>
     <string name="backup_import_success_unmatched">Copia restaurada; no se pudieron asociar %1$d referencias de canciones en este dispositivo.</string>
+    <plurals name="backup_import_decisions_not_kept">
+        <item quantity="one">No se pudo conservar %1$d decisión del buscador de duplicados en este dispositivo.</item>
+        <item quantity="other">No se pudieron conservar %1$d decisiones del buscador de duplicados en este dispositivo.</item>
+    </plurals>
     <string name="backup_import_partial">Se restauraron algunos datos antes de que ocurriera un error.</string>
     <string name="backup_failed">No se pudo completar la operación de copia de seguridad.</string>
     <string name="backup_invalid">Esta no es una copia de seguridad válida de LatentJam.</string>

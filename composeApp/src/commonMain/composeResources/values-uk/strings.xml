@@ -579,6 +579,12 @@
     <string name="backup_export_success">Резервну копію експортовано</string>
     <string name="backup_import_success">Резервну копію відновлено</string>
     <string name="backup_import_success_unmatched">Резервну копію відновлено; %1$d посилань на треки не вдалося зіставити на цьому пристрої.</string>
+    <plurals name="backup_import_decisions_not_kept">
+        <item quantity="one">%1$d рішення пошуку дублікатів не вдалося зберегти на цьому пристрої.</item>
+        <item quantity="few">%1$d рішення пошуку дублікатів не вдалося зберегти на цьому пристрої.</item>
+        <item quantity="many">%1$d рішень пошуку дублікатів не вдалося зберегти на цьому пристрої.</item>
+        <item quantity="other">%1$d рішення пошуку дублікатів не вдалося зберегти на цьому пристрої.</item>
+    </plurals>
     <string name="backup_import_partial">Частину даних було відновлено до виникнення помилки.</string>
     <string name="backup_failed">Не вдалося завершити операцію з резервною копією.</string>
     <string name="backup_invalid">Це не дійсна резервна копія LatentJam.</string>

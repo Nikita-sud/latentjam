@@ -609,6 +609,10 @@
     <string name="backup_export_success">Backup exported</string>
     <string name="backup_import_success">Backup restored</string>
     <string name="backup_import_success_unmatched">Backup restored; %1$d track references could not be matched on this device.</string>
+    <plurals name="backup_import_decisions_not_kept">
+        <item quantity="one">%1$d duplicate finder decision could not be kept on this device.</item>
+        <item quantity="other">%1$d duplicate finder decisions could not be kept on this device.</item>
+    </plurals>
     <string name="backup_import_partial">Some data was restored before an error occurred.</string>
     <string name="backup_failed">Could not complete the backup operation.</string>
     <string name="backup_invalid">This is not a valid LatentJam backup.</string>
