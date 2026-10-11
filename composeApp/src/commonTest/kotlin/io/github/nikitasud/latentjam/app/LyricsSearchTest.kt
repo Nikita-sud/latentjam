@@ -179,6 +179,23 @@ class LyricsSearchTest {
         assertEquals(1, reads)
     }
 
+    @Test fun aCacheWriteThatRunsOutOfMemoryKeepsSearchAndIsNotTriedAgain() = runTest {
+        val cache = LyricsSearchCache()
+        // Thrown where encoding the whole cache into one string would run out of memory.
+        val storage = MemoryStorage().apply { writeFailure = HeapExhausted() }
+        var result = emptyMap<TrackId, LyricSearchDocument>()
+        cache.load(listOf(track("one")), storage, { lyrics("silver moon") }, sourcesRevision = "") { result = it }
+        assertNotNull(result[TrackId("one")]?.snippet("silver moon"))
+        assertEquals(1, storage.writeAttempts)
+
+        // A new song leaves the cache unsaved again; this process does not try that write again.
+        storage.writeFailure = null
+        cache.load(listOf(track("one"), track("two")), storage, { lyrics("silver moon") }, sourcesRevision = "") { result = it }
+        assertEquals(setOf(TrackId("one"), TrackId("two")), result.keys)
+        assertEquals(1, storage.writeAttempts)
+        assertNull(storage.payload)
+    }
+
     @Test fun corruptedCacheIsRebuilt() = runTest {
         val storage = MemoryStorage().apply { payload = "lyrics-v1\ninvalid\t!!!\tbroken\n" }
         var result = emptyMap<TrackId, LyricSearchDocument>()
@@ -192,10 +209,17 @@ class LyricsSearchTest {
     private class MemoryStorage : LyricsSearchStorage {
         var payload: String? = null
         var failWrite = false
+        var writeFailure: Throwable? = null
+        var writeAttempts = 0
         override suspend fun read() = payload
         override suspend fun write(payload: String) {
+            writeAttempts++
+            writeFailure?.let { throw it }
             check(!failWrite)
             this.payload = payload
         }
     }
+
+    /** What OutOfMemoryError is to common code, which cannot name it: an [Error]. */
+    private class HeapExhausted : Error("test heap exhausted")
 }

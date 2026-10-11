@@ -35,6 +35,8 @@ internal class LyricsSearchCache(private val clock: TimeSource = TimeSource.Mono
     private val mutex = Mutex()
     private var entries: MutableMap<String, Entry>? = null
     private var dirty = false
+    /** False once a write ran out of memory: see [save]. */
+    private var writable = true
     private var lastSidecarPass: TimeMark? = null
 
     /**
@@ -150,7 +152,7 @@ internal class LyricsSearchCache(private val clock: TimeSource = TimeSource.Mono
     }
 
     private suspend fun save(storage: LyricsSearchStorage, cache: Map<String, Entry>) {
-        if (!dirty) return
+        if (!dirty || !writable) return
         try {
             storage.write(encode(cache))
             dirty = false
@@ -158,6 +160,13 @@ internal class LyricsSearchCache(private val clock: TimeSource = TimeSource.Mono
             throw cancelled
         } catch (_: Exception) {
             // Results remain usable; a later pass retries the derived-cache write.
+        } catch (exhausted: Error) {
+            // The payload is the whole cache in one string (over a megabyte for a few thousand
+            // songs), and a heap that cannot hold it once will not hold it at the next checkpoint
+            // either. Search keeps using the lyrics in memory; this process stops writing them, and
+            // the next launch starts from the file as it was last written.
+            writable = false
+            println("Lyrics search: cache not written, out of memory (${exhausted::class.simpleName})")
         }
     }
 
