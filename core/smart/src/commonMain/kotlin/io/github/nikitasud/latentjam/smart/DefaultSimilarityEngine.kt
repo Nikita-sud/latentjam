@@ -704,10 +704,22 @@ internal class DefaultSimilarityEngine(
             // The seed anchors every distance the walk measures, so it must be in the snapshot even
             // when the caller left it out — and callers reasonably do, since it is the one track
             // the queue must not repeat. The chain excludes it from its own output regardless.
-            val snapshot = snapshotFor(history)
-                ?: return@withLock metadataFallback(
-                    seed, library, length, history, companionGroups,
+            val snapshot = try {
+                snapshotFor(history)
+            } catch (exhausted: Error) {
+                // A heap too small for this library's snapshot (OutOfMemoryError, which common Kotlin
+                // cannot name; an Exception still reaches the caller as before). The press gets the
+                // queue a cold index gets rather than a dead app: the half-built matrices went with
+                // the build, and no cached snapshot is left to hold memory the fallback needs.
+                snapshotCache = null
+                println(
+                    "SMART: queue=metadata, the audio snapshot did not fit in memory " +
+                        "(${exhausted::class.simpleName})",
                 )
+                null
+            } ?: return@withLock metadataFallback(
+                seed, library, length, history, companionGroups,
+            )
             val eligibleRows = BooleanArray(snapshot.size) { row ->
                 snapshot.tracks[row].id in eligibleIds
             }

@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.smart
 
+import io.github.nikitasud.latentjam.smart.chain.MetadataFallbackQueue
 import io.github.nikitasud.latentjam.smart.text.TextEncoder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -124,25 +125,73 @@ internal class SmartQueueAvailabilityTest {
         assertTrue(library.first().id in backing.snapshots.getValue(TEXT_INDEX_VERSION))
     }
 
-    private data class Harness(val engine: DefaultSimilarityEngine, val textStore: FakeIndexStore)
+    @Test
+    fun `a snapshot that runs out of memory plans from metadata and the next press from audio again`() = runTest {
+        val library = tracks(64)
+        val expected = harness(library).engine.smartQueue(library.first(), library.drop(1), 12)
+        val index = FailingSnapshotIndex(InMemoryVectorIndex(960))
+        val harness = harness(library, index = index)
 
-    private suspend fun harness(library: List<TrackDescriptor>, includeText: Boolean = true): Harness {
+        index.failure = HeapExhausted()
+        val fallback = harness.engine.smartQueue(library.first(), library.drop(1), 12)
+        assertEquals(12, fallback.size)
+        assertEquals(MetadataFallbackQueue.build(library.first(), library.drop(1), 12, harness.textIndex), fallback)
+
+        // The failed build left nothing behind: with the memory back, the press is the audio plan.
+        index.failure = null
+        assertEquals(expected, harness.engine.smartQueue(library.first(), library.drop(1), 12))
+    }
+
+    @Test
+    fun `a snapshot that fails with an exception still reaches the caller`() = runTest {
+        val library = tracks(64)
+        val index = FailingSnapshotIndex(InMemoryVectorIndex(960))
+        val harness = harness(library, index = index)
+        index.failure = IllegalStateException("unreadable row")
+        assertFailsWith<IllegalStateException> { harness.engine.smartQueue(library.first(), library.drop(1), 12) }
+    }
+
+    private data class Harness(
+        val engine: DefaultSimilarityEngine,
+        val textStore: FakeIndexStore,
+        val textIndex: VectorIndex? = null,
+    )
+
+    private suspend fun harness(
+        library: List<TrackDescriptor>,
+        includeText: Boolean = true,
+        index: VectorIndex = InMemoryVectorIndex(960),
+    ): Harness {
         val audioStore = FakeIndexStore().apply {
             snapshots[MODEL] = library.mapIndexed { i, track -> track.id to vector(i) }.toMap()
         }
         val textStore = FakeIndexStore()
+        val textIndex = if (includeText) InMemoryVectorIndex(384) else null
         val engine = DefaultSimilarityEngine(
-            backend = FakeEmbeddingBackend(), index = InMemoryVectorIndex(960), store = audioStore,
+            backend = FakeEmbeddingBackend(), index = index, store = audioStore,
             config = SmartEngineConfig(embeddingDim = 960, modelVersion = MODEL), dispatcher = Dispatchers.Default,
             textEncoder = if (includeText) TestTextEncoder() else null,
-            textIndex = if (includeText) InMemoryVectorIndex(384) else null,
+            textIndex = textIndex,
             textStore = if (includeText) textStore else null,
         )
         assertTrue(engine.initialize().isSuccess)
         if (includeText) engine.ensureMetadataVectors(library)
         assertEquals(EngineState.Ready(library.size), engine.state.value)
-        return Harness(engine, textStore)
+        return Harness(engine, textStore, textIndex)
     }
+
+    /** Hands out its stored rows, the SMART snapshot's first read, only while [failure] is unset. */
+    private class FailingSnapshotIndex(private val inner: InMemoryVectorIndex) : VectorIndex by inner {
+        var failure: Throwable? = null
+
+        override fun storedEntries(): Map<TrackId, FloatArray> {
+            failure?.let { throw it }
+            return inner.storedEntries()
+        }
+    }
+
+    /** What OutOfMemoryError is to common code, which cannot name it: an [Error]. */
+    private class HeapExhausted : Error("test heap exhausted")
 
     private class TestTextEncoder : TextEncoder {
         override suspend fun load() = Result.success(Unit)
