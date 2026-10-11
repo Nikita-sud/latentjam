@@ -58,6 +58,21 @@ class MediaStorePathTest {
     }
 
     @Test
+    fun `the volume comes from VOLUME_NAME and else from the legacy path`() {
+        assertEquals("external_primary", mediaStoreStorageVolume("external_primary", null))
+        assertEquals("1a2b-3c4d", mediaStoreStorageVolume("1a2b-3c4d", null))
+        assertEquals("1a2b-3c4d", mediaStoreStorageVolume(" 1A2B-3C4D ", null))
+        assertEquals("external_primary", mediaStoreStorageVolume(null, "/storage/emulated/0/Music/song.mp3"))
+        assertEquals("external_primary", mediaStoreStorageVolume(null, "/sdcard/song.mp3"))
+        assertEquals("1a2b-3c4d", mediaStoreStorageVolume(null, "/storage/1A2B-3C4D/Music/Album/song.flac"))
+        assertEquals("1a2b-3c4d", mediaStoreStorageVolume(null, "/storage/1A2B-3C4D/song.flac"))
+        assertEquals("1a2b-3c4d", mediaStoreStorageVolume("", "/mnt/media_rw/1A2B-3C4D/Music/song.flac"))
+        // Nothing to read a volume from: the device's own storage.
+        assertEquals("external_primary", mediaStoreStorageVolume(null, "/data/media/song.mp3"))
+        assertEquals("external_primary", mediaStoreStorageVolume(null, null))
+    }
+
+    @Test
     fun `successful empty MediaStore cursor is a complete scan`() {
         val scan = mediaStoreLibraryScan { emptyList() }
 

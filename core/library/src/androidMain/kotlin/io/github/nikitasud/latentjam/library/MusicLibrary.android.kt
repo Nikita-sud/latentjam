@@ -257,6 +257,7 @@ internal class MediaStoreMusicLibrary(
             }
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
                 add(MediaStore.Audio.Media.RELATIVE_PATH)
+                add(MediaStore.Audio.Media.VOLUME_NAME)
             } else {
                 @Suppress("DEPRECATION")
                 add(MediaStore.Audio.Media.DATA)
@@ -295,6 +296,12 @@ internal class MediaStoreMusicLibrary(
                 @Suppress("DEPRECATION")
                 cursor.getColumnIndex(MediaStore.Audio.Media.DATA)
             }
+            // Before Android 10 the volume is read off the same DATA path the folder comes from.
+            val volumeColumn = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                cursor.getColumnIndex(MediaStore.Audio.Media.VOLUME_NAME)
+            } else {
+                -1
+            }
             val genreColumn = if (genreSupported) cursor.getColumnIndex(MediaStore.Audio.Media.GENRE) else -1
             val albumArtistIndex = cursor.getColumnIndex(ALBUM_ARTIST)
             // MediaProvider makes a song's own cover from Android 10 on. Older releases answer it with
@@ -330,6 +337,10 @@ internal class MediaStoreMusicLibrary(
                     folderPath = mediaStoreFolderPath(
                         cursor.getString(folderColumn),
                         relativePath = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q,
+                    ),
+                    storageVolume = mediaStoreStorageVolume(
+                        volumeName = if (volumeColumn >= 0) cursor.getString(volumeColumn) else null,
+                        dataPath = if (volumeColumn < 0) cursor.getString(folderColumn) else null,
                     ),
                     year = cursor.getInt(yearColumn).takeIf { it > 0 },
                     sizeBytes = cursor.getLong(sizeColumn).takeIf { it > 0 },
@@ -526,6 +537,27 @@ internal class MediaStoreMusicLibrary(
             )
     }
 
+    override suspend fun storageVolumeNames(): Map<String, String> = withContext(Dispatchers.IO) {
+        try {
+            val storage = context.getSystemService(StorageManager::class.java) ?: return@withContext emptyMap()
+            storage.storageVolumes.mapNotNull { volume ->
+                val id = when {
+                    volume.isPrimary -> FolderTree.PRIMARY_VOLUME
+                    android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R -> volume.mediaStoreVolumeName
+                    // MediaStore names a card by its lowercase id before Android 11 too.
+                    else -> volume.uuid?.lowercase()
+                } ?: return@mapNotNull null
+                val description = volume.getDescription(context)?.takeIf(String::isNotBlank) ?: return@mapNotNull null
+                id to description
+            }.toMap()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            println("Library: could not read the storage volumes' names: $failure")
+            emptyMap()
+        }
+    }
+
     override suspend fun setSourceEnabled(sourceId: String, enabled: Boolean): Unit =
         withContext(Dispatchers.IO) {
             visibilityMutex.withLock {
@@ -647,6 +679,19 @@ internal fun mediaStoreFolderPath(rawPath: String?, relativePath: Boolean): Stri
     }
     return relative.trim('/').takeIf(String::isNotBlank)
 }
+
+/**
+ * The storage volume a MediaStore row is on, as [TrackDescriptor.storageVolume] names it: the
+ * row's VOLUME_NAME from Android 10 on, else the volume the legacy DATA path is mounted from. A path
+ * nothing can be read from is taken to be on the device's own storage, where nearly all music is.
+ */
+internal fun mediaStoreStorageVolume(volumeName: String?, dataPath: String?): String =
+    volumeName?.trim()?.takeIf(String::isNotEmpty)?.lowercase()
+        ?: FolderTree.locate(
+            volume = null,
+            folderPath = dataPath?.replace('\\', '/')?.substringBeforeLast('/', missingDelimiterValue = ""),
+        ).volume
+        ?: FolderTree.PRIMARY_VOLUME
 
 /**
  * True for a path that is a storage volume's own mount root rather than a folder inside it:

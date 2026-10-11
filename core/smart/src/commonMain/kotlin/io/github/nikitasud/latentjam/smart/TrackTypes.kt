@@ -97,6 +97,13 @@ public data class TrackDescriptor(
      * covers of their own still make one album. Null when [artworkUri] already is the album's.
      */
     public val albumArtworkUri: String? = null,
+    /**
+     * The storage volume the file is on, as the platform names it (Android's MediaStore volume:
+     * `external_primary` for the device's own storage, a card's lowercase id such as `1a2b-3c4d`).
+     * [folderPath] is relative to it, so the folder browser can show each volume as its own root.
+     * Null where the platform has a single store (iOS). The engine ignores it.
+     */
+    public val storageVolume: String? = null,
 )
 
 /**

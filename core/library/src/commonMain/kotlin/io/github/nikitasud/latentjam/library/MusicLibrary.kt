@@ -146,6 +146,14 @@ public interface MusicLibrary {
     public suspend fun setSourceEnabled(sourceId: String, enabled: Boolean)
 
     /**
+     * What the system calls each storage volume a track can be on, by the id
+     * [TrackDescriptor.storageVolume] holds: "SanDisk SD card", "USB drive". The folder browser
+     * names a volume's root with it. Empty where the platform names no volumes, which is also the
+     * default.
+     */
+    public suspend fun storageVolumeNames(): Map<String, String> = emptyMap()
+
+    /**
      * Whether [coverSaved] keeps anything: true where covers are per album (Android's MediaStore).
      * Where it is false, a cover saved into files that already held it changes nothing a scan shows.
      */
