@@ -191,6 +191,25 @@ internal class PlaylistSortingTest {
     }
 
     @Test
+    fun albumOrderStillIgnoresALeadingArticle() {
+        // Issue #2: "The Battle of Los Angeles" files under B. Telling albums apart by their title as
+        // written must not undo that: the article still does not count for the order.
+        val stored = listOf(
+            track("collapse", album = "Collapse", artist = "Aphex Twin", number = 1),
+            track("battle", album = "The Battle of Los Angeles", artist = "Rage Against the Machine", number = 1),
+            track("animals", album = "Animals", artist = "Pink Floyd", number = 1),
+        )
+        assertEquals(
+            listOf("animals", "battle", "collapse"),
+            ids(PlaylistSorting.sort(stored, PlaylistSort.ALBUM, SongSortDirection.ASCENDING)),
+        )
+        assertEquals(
+            listOf("collapse", "battle", "animals"),
+            ids(PlaylistSorting.sort(stored, PlaylistSort.ALBUM, SongSortDirection.DESCENDING)),
+        )
+    }
+
+    @Test
     fun albumsWhoseTitlesShelveAlikeStayTheTwoAlbumsTheAlbumsTabShows() {
         // "The Wall" and "Wall" shelve under W alike, but they are two albums: the article is part
         // of the title the Albums tab tells them apart by.
