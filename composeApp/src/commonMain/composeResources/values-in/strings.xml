@@ -205,7 +205,12 @@
     <string name="action_export_m3u">Ekspor sebagai M3U</string>
     <string name="action_smart_keep_together">Jaga tetap bersama di SMART</string>
     <string name="action_import_m3u">Impor M3U</string>
-    <string name="snack_m3u_imported">%1$d dari %2$d trek diimpor</string>
+    <plurals name="snack_m3u_imported_all">
+        <item quantity="other">%1$d trek diimpor</item>
+    </plurals>
+    <plurals name="snack_m3u_imported_partial">
+        <item quantity="other">%1$d dari %2$d trek diimpor</item>
+    </plurals>
     <string name="snack_m3u_import_failed">Tidak dapat mengimpor playlist</string>
     <string name="playlist_imported_name">Playlist impor</string>
     <string name="action_information">Informasi</string>

@@ -9,6 +9,7 @@ import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlinx.coroutines.test.runTest
 
 /** Import matching by file path: playlists written by other players, phones and computers. */
 internal class PlaylistM3uPathMatchTest {
@@ -340,5 +341,38 @@ internal class PlaylistM3uPathMatchTest {
         )
         val retagged = track.copy(title = "Freestyler (Radio Edit)", artist = "Bomfunk MCs")
         assertEquals(listOf("1"), match(exported, listOf(retagged)))
+    }
+
+    @Test
+    fun importCountsRowsNotDistinctTracksAndKeepsEachTrackOnce() = runTest {
+        val m3u = """
+            #EXTM3U
+            #PLAYLIST:Road trip
+            /storage/emulated/0/Music/Test Tones/Disc One/01 Opening Tone.mp3
+            /storage/emulated/0/Music/Gone/missing.mp3
+            /storage/emulated/0/Music/Test Tones/Disc Two/Intro.flac
+            /storage/emulated/0/Music/Test Tones/Disc One/01 Opening Tone.mp3
+        """.trimIndent()
+        var asked: List<TrackId>? = null
+        val imported = importM3u(m3u, library) { ids -> asked = ids; emptyMap() }
+
+        assertEquals("Road trip", imported.name)
+        assertEquals(4, imported.entryCount)
+        assertEquals(3, imported.matchedEntryCount)
+        assertEquals(listOf("1", "4"), imported.tracks.map { it.id.value })
+        assertEquals(library.map { it.id }, asked)
+    }
+
+    @Test
+    fun importSurvivesAPathLookupThatFails() = runTest {
+        val imported = importM3u(musicoletExport, library) { error("MediaStore went away") }
+        assertEquals(8, imported.matchedEntryCount)
+    }
+
+    @Test
+    fun importOfAFileWithoutRowsNeverAsksForPaths() = runTest {
+        val imported = importM3u("#EXTM3U\n#PLAYLIST:Empty\n", library) { error("not asked") }
+        assertEquals(0, imported.entryCount)
+        assertEquals(emptyList(), imported.tracks)
     }
 }

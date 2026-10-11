@@ -199,7 +199,12 @@
     <string name="action_export_m3u">M3Uとして書き出す</string>
     <string name="action_smart_keep_together">SMARTでまとめて再生</string>
     <string name="action_import_m3u">M3Uを読み込む</string>
-    <string name="snack_m3u_imported">%2$d曲中%1$d曲を読み込みました</string>
+    <plurals name="snack_m3u_imported_all">
+        <item quantity="other">%1$d曲を読み込みました</item>
+    </plurals>
+    <plurals name="snack_m3u_imported_partial">
+        <item quantity="other">%2$d曲中%1$d曲を読み込みました</item>
+    </plurals>
     <string name="snack_m3u_import_failed">プレイリストを読み込めませんでした</string>
     <string name="playlist_imported_name">読み込んだプレイリスト</string>
     <string name="action_information">情報</string>

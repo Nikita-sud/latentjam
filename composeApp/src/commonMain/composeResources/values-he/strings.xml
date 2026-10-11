@@ -214,7 +214,16 @@
     <string name="action_export_m3u">ייצוא כ־M3U</string>
     <string name="action_smart_keep_together">שמירה יחד ב־SMART</string>
     <string name="action_import_m3u">ייבוא M3U</string>
-    <string name="snack_m3u_imported">יובאו %1$d מתוך %2$d שירים</string>
+    <plurals name="snack_m3u_imported_all">
+        <item quantity="one">יובא %1$d שיר</item>
+        <item quantity="two">יובאו %1$d שירים</item>
+        <item quantity="other">יובאו %1$d שירים</item>
+    </plurals>
+    <plurals name="snack_m3u_imported_partial">
+        <item quantity="one">יובאו %1$d מתוך %2$d שיר</item>
+        <item quantity="two">יובאו %1$d מתוך %2$d שירים</item>
+        <item quantity="other">יובאו %1$d מתוך %2$d שירים</item>
+    </plurals>
     <string name="snack_m3u_import_failed">לא ניתן לייבא את הפלייליסט</string>
     <string name="playlist_imported_name">פלייליסט מיובא</string>
     <string name="action_information">מידע</string>

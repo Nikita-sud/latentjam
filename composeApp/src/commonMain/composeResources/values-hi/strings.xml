@@ -206,7 +206,14 @@
     <string name="action_export_m3u">M3U के रूप में निर्यात करें</string>
     <string name="action_smart_keep_together">SMART में साथ रखें</string>
     <string name="action_import_m3u">M3U आयात करें</string>
-    <string name="snack_m3u_imported">%2$d में से %1$d ट्रैक आयात किए गए</string>
+    <plurals name="snack_m3u_imported_all">
+        <item quantity="one">%1$d ट्रैक आयात किया गया</item>
+        <item quantity="other">%1$d ट्रैक आयात किए गए</item>
+    </plurals>
+    <plurals name="snack_m3u_imported_partial">
+        <item quantity="one">आयात किए गए ट्रैक: %2$d में से %1$d</item>
+        <item quantity="other">आयात किए गए ट्रैक: %2$d में से %1$d</item>
+    </plurals>
     <string name="snack_m3u_import_failed">प्लेलिस्ट आयात नहीं हो सकी</string>
     <string name="playlist_imported_name">आयातित प्लेलिस्ट</string>
     <string name="action_information">जानकारी</string>

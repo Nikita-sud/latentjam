@@ -205,7 +205,12 @@
     <string name="action_export_m3u">导出为 M3U</string>
     <string name="action_smart_keep_together">在 SMART 中保持在一起</string>
     <string name="action_import_m3u">导入 M3U</string>
-    <string name="snack_m3u_imported">已导入 %2$d 首中的 %1$d 首</string>
+    <plurals name="snack_m3u_imported_all">
+        <item quantity="other">已导入 %1$d 首歌曲</item>
+    </plurals>
+    <plurals name="snack_m3u_imported_partial">
+        <item quantity="other">已导入 %2$d 首中的 %1$d 首</item>
+    </plurals>
     <string name="snack_m3u_import_failed">无法导入播放列表</string>
     <string name="playlist_imported_name">导入的播放列表</string>
     <string name="action_information">详细信息</string>

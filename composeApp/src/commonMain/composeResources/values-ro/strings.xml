@@ -207,7 +207,16 @@
     <string name="action_export_m3u">Exportă ca M3U</string>
     <string name="action_smart_keep_together">Păstrează împreună în SMART</string>
     <string name="action_import_m3u">Importă M3U</string>
-    <string name="snack_m3u_imported">S-au importat %1$d din %2$d piese</string>
+    <plurals name="snack_m3u_imported_all">
+        <item quantity="one">S-a importat %1$d piesă</item>
+        <item quantity="few">S-au importat %1$d piese</item>
+        <item quantity="other">S-au importat %1$d de piese</item>
+    </plurals>
+    <plurals name="snack_m3u_imported_partial">
+        <item quantity="one">Piese importate: %1$d din %2$d</item>
+        <item quantity="few">Piese importate: %1$d din %2$d</item>
+        <item quantity="other">Piese importate: %1$d din %2$d</item>
+    </plurals>
     <string name="snack_m3u_import_failed">Playlistul nu a putut fi importat</string>
     <string name="playlist_imported_name">Playlist importat</string>
     <string name="action_information">Informații</string>

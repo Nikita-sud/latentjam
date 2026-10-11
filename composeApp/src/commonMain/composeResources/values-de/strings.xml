@@ -216,7 +216,14 @@
     <string name="action_export_m3u">Als M3U exportieren</string>
     <string name="action_smart_keep_together">In SMART zusammenhalten</string>
     <string name="action_import_m3u">M3U importieren</string>
-    <string name="snack_m3u_imported">%1$d von %2$d Titeln importiert</string>
+    <plurals name="snack_m3u_imported_all">
+        <item quantity="one">%1$d Titel importiert</item>
+        <item quantity="other">%1$d Titel importiert</item>
+    </plurals>
+    <plurals name="snack_m3u_imported_partial">
+        <item quantity="one">%1$d von %2$d Titel importiert</item>
+        <item quantity="other">%1$d von %2$d Titeln importiert</item>
+    </plurals>
     <string name="snack_m3u_import_failed">Playlist konnte nicht importiert werden</string>
     <string name="playlist_imported_name">Importierte Playlist</string>
     <string name="action_information">Informationen</string>

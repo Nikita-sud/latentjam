@@ -216,7 +216,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.folder_content_desc
 import io.github.nikitasud.latentjam.app.generated.resources.playlist_imported_name
 import io.github.nikitasud.latentjam.app.generated.resources.playlist_new
 import io.github.nikitasud.latentjam.app.generated.resources.snack_m3u_import_failed
-import io.github.nikitasud.latentjam.app.generated.resources.snack_m3u_imported
 import io.github.nikitasud.latentjam.app.generated.resources.playlist_rename_title
 import io.github.nikitasud.latentjam.app.generated.resources.playlist_cover_error
 import io.github.nikitasud.latentjam.app.generated.resources.settings_title
@@ -2275,7 +2274,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
 
         // Playlists as an open format: export goes through the platform's document picker with
         // real file paths where the platform has them; import matches entries back against the
-        // library by what survives a device change (filenames and metadata, not paths).
+        // library by what survives a device change (the path below its root, then metadata).
         val m3uExchange = rememberLocalBackupFileExchange(
             exportMimeType = M3U_MIME_TYPE,
             importMimeTypes = listOf(
@@ -2296,35 +2295,20 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             onImportResult = { result ->
                 when (result) {
                     is LocalBackupFileResult.Success -> scope.launch {
-                        val text = result.value
-                        val librarySongs = catalog?.songs.orEmpty()
-                        val (entryCount, matched, importedName) = withContext(Dispatchers.Default) {
-                            val entries = parseM3u(text)
-                            Triple(
-                                entries.size,
-                                matchM3uEntries(entries, librarySongs).filterNotNull().distinctBy { it.id },
-                                parseM3uName(text),
-                            )
-                        }
-                        if (entryCount == 0 || matched.isEmpty()) {
+                        val imported = importM3u(result.value, catalog?.songs.orEmpty(), library::filePaths)
+                        if (imported.tracks.isEmpty()) {
                             snackbar.showSnackbar(getString(Res.string.snack_m3u_import_failed))
                             return@launch
                         }
-                        val name = importedName ?: getString(Res.string.playlist_imported_name)
+                        val name = imported.name ?: getString(Res.string.playlist_imported_name)
                         if (!runPlaylistMutation {
-                                AppGraph.playlists.create(name, matched.map { it.id })
+                                AppGraph.playlists.create(name, imported.tracks.map { it.id })
                             }
                         ) {
                             return@launch
                         }
                         refreshPlaylistMembershipsBestEffort()
-                        snackbar.showSnackbar(
-                            getString(
-                                Res.string.snack_m3u_imported,
-                                matched.size,
-                                entryCount,
-                            ),
-                        )
+                        snackbar.showSnackbar(m3uImportedMessage(imported))
                     }
                     is LocalBackupFileResult.Failure -> scope.launch {
                         snackbar.showSnackbar(getString(Res.string.snack_m3u_import_failed))
