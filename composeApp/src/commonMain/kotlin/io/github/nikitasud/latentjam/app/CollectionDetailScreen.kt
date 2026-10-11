@@ -30,6 +30,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.Restore
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Shuffle
@@ -82,6 +83,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.action_back
 import io.github.nikitasud.latentjam.app.generated.resources.action_change_playlist_cover
 import io.github.nikitasud.latentjam.app.generated.resources.action_add_all_favorites
+import io.github.nikitasud.latentjam.app.generated.resources.action_export_m3u
 import io.github.nikitasud.latentjam.app.generated.resources.action_remove_from_playlist
 import io.github.nikitasud.latentjam.app.generated.resources.action_reset_playlist_cover
 import io.github.nikitasud.latentjam.app.generated.resources.action_smart_keep_together
@@ -308,6 +310,8 @@ fun CollectionDetailScreen(
     onAddAllToFavorites: (() -> Unit)? = null,
     /** Read only while the menu is open: whether any track of the page is not a favourite yet. */
     canAddAllToFavorites: () -> Boolean = { true },
+    /** Writes the page's list as an M3U file (Favorites, newest first); null where not offered. */
+    onExportM3u: (() -> Unit)? = null,
     onEditTags: (() -> Unit)? = null,
     includeInSmart: Boolean = false,
     /** Entries of this playlist that are not on the device; they are never in [selection]. */
@@ -446,6 +450,14 @@ fun CollectionDetailScreen(
                                         onClick = { optionsOpen = false; addAll() },
                                     )
                                 }
+                                onExportM3u?.let { export ->
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(Res.string.action_export_m3u)) },
+                                        leadingIcon = { Icon(Icons.Outlined.IosShare, null, Modifier.size(20.dp)) },
+                                        enabled = selection.tracks.isNotEmpty(),
+                                        onClick = { optionsOpen = false; export() },
+                                    )
+                                }
                                 onEditTags?.let { editTags ->
                                     DropdownMenuItem(
                                         text = {
@@ -461,7 +473,7 @@ fun CollectionDetailScreen(
                                         onClick = { optionsOpen = false; editTags() },
                                     )
                                 }
-                                if (onChangeCover != null || onEditTags != null) {
+                                if (onChangeCover != null || onEditTags != null || onExportM3u != null) {
                                     HorizontalDivider(
                                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),

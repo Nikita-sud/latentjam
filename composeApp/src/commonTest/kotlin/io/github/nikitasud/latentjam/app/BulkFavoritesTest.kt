@@ -6,14 +6,18 @@ package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.history.DefaultFavorites
 import io.github.nikitasud.latentjam.history.FavoritesStore
+import io.github.nikitasud.latentjam.library.AutoPlaylist
 import io.github.nikitasud.latentjam.library.AutoPlaylistKind
 import io.github.nikitasud.latentjam.library.AutoPlaylists
+import io.github.nikitasud.latentjam.library.LibrarySource
+import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -193,5 +197,89 @@ internal class BulkFavoritesTest {
 
         assertNull(playlist.followingFavorites(listOf(b)))
         assertNull(recentlyPlayed.followingFavorites(listOf(b)))
+    }
+    /** A library that knows where each track's file is, as Android's media index does. */
+    private class PathLibrary(private val all: List<TrackDescriptor>, private val paths: Map<TrackId, String>) : MusicLibrary {
+        override suspend fun tracks(): List<TrackDescriptor> = all
+        override suspend fun filePaths(ids: List<TrackId>): Map<TrackId, String> = paths.filterKeys { it in ids }
+        override suspend fun hide(trackId: TrackId) = Unit
+        override suspend fun unhide(trackId: TrackId) = Unit
+        override suspend fun hiddenTracks(): List<TrackDescriptor> = emptyList()
+        override suspend fun hasHiddenTracks(): Boolean = false
+        override suspend fun unhideAll() = Unit
+        override suspend fun sources(): List<LibrarySource> = emptyList()
+        override suspend fun setSourceEnabled(sourceId: String, enabled: Boolean) = Unit
+    }
+
+    /** What the picker was handed: the suggested name, and the file as written into [folder]. */
+    private class CapturedExport(private val folder: String?) {
+        var name: String? = null
+        var text: String? = null
+        val exchange = LocalBackupFileExchange(
+            exportTo = { encode, suggestedName ->
+                name = suggestedName
+                text = encode(folder)
+            },
+            import = {},
+        )
+    }
+
+    @Test
+    fun favoritesExportNewestFirstAndComeBackIntoFavoritesInThatOrder() = runTest {
+        val library = listOf(a, b, c)
+        val paths = library.associate { it.id to "/storage/emulated/0/Music/Unsorted/${it.title}.mp3" }
+        // Hearted a, then b, then c: the store reads c, b, a, newest first.
+        val hearts = DefaultFavorites(FavoritesMemory())
+        library.forEach { hearts.toggle(it.id) }
+        val favoriteTracks = AutoPlaylists.build(library, emptyMap(), emptyMap(), hearts.all()).favoriteTracks()
+        assertEquals(listOf(c, b, a), favoriteTracks)
+
+        val export = CapturedExport(folder = "/storage/emulated/0/Music/Playlists")
+        exportTracksAsM3u("Favorites", favoriteTracks, PathLibrary(library, paths), relativePaths = true, export.exchange)
+
+        assertEquals("Favorites.m3u8", export.name)
+        val text = assertNotNull(export.text)
+        val rows = text.lines().filter { it.isNotBlank() && !it.startsWith("#") }
+        // The relative-paths setting applies as it does to a playlist, where the platform has it.
+        val expectedRows = if (relativePlaylistPathsAvailable) {
+            listOf("../Unsorted/Song c.mp3", "../Unsorted/Song b.mp3", "../Unsorted/Song a.mp3")
+        } else {
+            listOf(c, b, a).map { paths.getValue(it.id) }
+        }
+        assertEquals(expectedRows, rows)
+        assertEquals("Favorites", parseM3uName(text))
+
+        // Imported back into Favorites on a device with no hearts: the same list, the same order.
+        val entries = parseM3u(text)
+        val matchedRows = matchM3uEntries(entries, library)
+        val offer = M3uImportOffer(
+            M3uImport(
+                name = parseM3uName(text),
+                entryCount = entries.size,
+                matchedEntryCount = matchedRows.count { it != null },
+                tracks = matchedRows.filterNotNull().distinctBy { it.id },
+            ),
+        )
+        val restored = DefaultFavorites(FavoritesMemory())
+        restored.addAll(offer.favoriteIds)
+        assertEquals(listOf(c.id, b.id, a.id), restored.all())
+    }
+
+    @Test
+    fun withoutTheRelativeSettingFavoritesExportTheirAbsolutePaths() = runTest {
+        val paths = mapOf(a.id to "/storage/emulated/0/Music/Song a.mp3")
+        val export = CapturedExport(folder = "/storage/emulated/0/Music/Playlists")
+
+        exportTracksAsM3u("Favorites", listOf(a), PathLibrary(listOf(a), paths), relativePaths = false, export.exchange)
+
+        assertEquals(
+            listOf("/storage/emulated/0/Music/Song a.mp3"),
+            assertNotNull(export.text).lines().filter { it.isNotBlank() && !it.startsWith("#") },
+        )
+    }
+
+    @Test
+    fun theFavoritesListIsEmptyBeforeTheAutoPlaylistsExist() {
+        assertEquals(emptyList(), emptyList<AutoPlaylist>().favoriteTracks())
     }
 }

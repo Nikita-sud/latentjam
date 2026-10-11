@@ -2365,38 +2365,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             refreshPlaylistMembershipsBestEffort()
             snackbar.showSnackbar(m3uImportedMessage(offer.import))
         }
-        fun exportPlaylistAsM3u(playlist: Playlist) {
+        // A playlist, or Favorites newest first: one exporter, one relative-paths setting.
+        fun exportAsM3u(name: String, tracks: () -> List<TrackDescriptor>) {
             scope.launch {
-                val resolved = tracksOf(playlist)
-                val paths = try {
-                    library.filePaths(resolved.map { it.id })
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (_: Exception) {
-                    emptyMap()
-                }
-                val safeName = playlist.name
-                    .trim()
-                    .replace('/', '-')
-                    .replace('\\', '-')
-                    .take(120)
-                    .ifEmpty { "playlist" }
-                val relative = relativePlaylistPathsAvailable && settings.relativePlaylistPaths.value
-                // Encoded once the picker has said where the file goes, off the main thread: a
-                // relative path is only meaningful from the folder the playlist ends up in.
-                m3uExchange.exportTo(
-                    { destinationDirectory ->
-                        encodeM3u(
-                            name = playlist.name,
-                            tracks = resolved,
-                            paths = paths,
-                            relativeTo = destinationDirectory.takeIf { relative },
-                        )
-                    },
-                    "$safeName.m3u8",
-                )
+                exportTracksAsM3u(name, tracks(), library, settings.relativePlaylistPaths.value, m3uExchange)
             }
         }
+        fun exportPlaylistAsM3u(playlist: Playlist) = exportAsM3u(playlist.name) { tracksOf(playlist) }
 
         // The open playlist's entries that are not on this device.
         val playlistAvailability = rememberOpenPlaylistAvailability(
@@ -3907,6 +3882,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 }
                             },
                             canAddAllToFavorites = { anyNotFavorite(selection.tracks, favoriteIds) },
+                            onExportM3u = if (selection.routeId == FAVORITES_ROUTE_ID) {
+                                { exportAsM3u(selection.title) { playlistsState.autoPlaylists.favoriteTracks() } }
+                            } else {
+                                null
+                            },
                             onEditTags = when {
                                 selection.routeId.startsWith("album:") -> {
                                     { openTagEditor(selection.tracks, BulkEditScope.ALBUM) }

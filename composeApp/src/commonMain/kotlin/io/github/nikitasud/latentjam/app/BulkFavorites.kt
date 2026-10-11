@@ -46,6 +46,8 @@ import io.github.nikitasud.latentjam.app.generated.resources.snack_favorites_add
 import io.github.nikitasud.latentjam.app.generated.resources.snack_favorites_removed
 import io.github.nikitasud.latentjam.history.Favorites
 import io.github.nikitasud.latentjam.history.FavoritesChange
+import io.github.nikitasud.latentjam.library.AutoPlaylist
+import io.github.nikitasud.latentjam.library.AutoPlaylistKind
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.CancellationException
@@ -161,6 +163,14 @@ internal fun CollectionSelection.followingFavorites(hearted: List<TrackDescripto
         artworkUri = hearted.firstNotNullOfOrNull { it.artworkUri },
     )
 }
+
+/**
+ * The hearts as the Favorites list keeps them, newest first and each a track on this device: what
+ * "Export as M3U" writes. Read from the auto playlist rather than the open page, so the file keeps
+ * that order whatever order the page happens to show.
+ */
+internal fun List<AutoPlaylist>.favoriteTracks(): List<TrackDescriptor> =
+    firstOrNull { it.kind == AutoPlaylistKind.FAVORITES }?.tracks.orEmpty()
 
 /**
  * A playlist file, read and matched against the library, waiting for the listener to say where it

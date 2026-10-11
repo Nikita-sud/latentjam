@@ -4,9 +4,11 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.math.abs
+import kotlinx.coroutines.CancellationException
 
 internal const val M3U_MIME_TYPE: String = "audio/x-mpegurl"
 
@@ -44,6 +46,48 @@ internal data class M3uEntry(
     val durationSeconds: Int?,
     val localTrackIdHint: TrackId? = null,
 )
+
+/**
+ * "Export as M3U" for a list of tracks in the order given: a playlist, or Favorites newest first.
+ * The platform's document picker chooses where the file goes, and the file is encoded once it has:
+ * with [relativePaths] (where [relativePlaylistPathsAvailable]) a real path is written from the
+ * folder the file lands in. A library that cannot name the files leaves metadata rows instead.
+ */
+internal suspend fun exportTracksAsM3u(
+    name: String,
+    tracks: List<TrackDescriptor>,
+    library: MusicLibrary,
+    relativePaths: Boolean,
+    exchange: LocalBackupFileExchange,
+) {
+    val paths = try {
+        library.filePaths(tracks.map { it.id })
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        emptyMap()
+    }
+    val safeName = name
+        .trim()
+        .replace('/', '-')
+        .replace('\\', '-')
+        .take(120)
+        .ifEmpty { "playlist" }
+    val relative = relativePlaylistPathsAvailable && relativePaths
+    // Encoded off the main thread, once the picker has said where the file goes: a relative path
+    // is only meaningful from the folder the playlist ends up in.
+    exchange.exportTo(
+        { destinationDirectory ->
+            encodeM3u(
+                name = name,
+                tracks = tracks,
+                paths = paths,
+                relativeTo = destinationDirectory.takeIf { relative },
+            )
+        },
+        "$safeName.m3u8",
+    )
+}
 
 /**
  * Encodes a playlist as extended M3U (`#EXTM3U`), UTF-8 by contract of the `.m3u8` extension.
