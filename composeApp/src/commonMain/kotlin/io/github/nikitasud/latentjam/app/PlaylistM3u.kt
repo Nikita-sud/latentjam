@@ -253,6 +253,22 @@ internal fun parseM3u(text: String): List<M3uEntry> {
  *
  * Every step resolves duplicates by exact duration or not at all, never by library order.
  *
+ * One confidence rule holds at every step. Steps 1 and 2, and a path whose folder agrees as well as
+ * its file name, *name* a track: that is the file any player would play for the row, and the EXTINF
+ * line is only its label (stale, or written from another player's tags), so it is not consulted.
+ * Every other match is a *guess* — a file name alone, whether or not the row gives it a folder,
+ * or tags — and the row's own EXTINF can rule a guess out:
+ *
+ * - a duration more than [GUESS_DURATION_SLACK_SECONDS] seconds off the track's rules out any guess;
+ * - an artist other than the track's (case aside) rules out a guess made from tags, steps 4 and 6
+ *   (a stem read as `Artist - Title` too). A file name is no tag: the file a name points at may
+ *   well be tagged differently from the label another player wrote for it.
+ *
+ * A ruled-out track is not accepted by that step or any later one; the next step may still find
+ * another track the row agrees with. Missing evidence contradicts nothing: a row without EXTINF
+ * (or with `-1` and a bare title) matches as it always did, and so does a track without a
+ * duration or an artist.
+ *
  * [filePaths] holds the platform's absolute path per track where it has one (Android's
  * MediaStore does); without it a track's path is its [TrackDescriptor.folderPath] plus
  * [TrackDescriptor.fileName], which is relative to its storage volume.
@@ -325,21 +341,37 @@ internal fun matchM3uEntries(
         return if (best.isEmpty()) null else RankedPath(names, best, bestShared, bestExact)
     }
 
-    /** The one file [ranked] points at for [entry], or null when its best files tie. */
+    /**
+     * Whether [entry]'s own EXTINF rules [track] out as a guess: a duration off by more than the
+     * slack, or, for a guess made [fromTags], an artist other than the track's.
+     */
+    fun contradicts(entry: M3uEntry, track: TrackDescriptor, fromTags: Boolean): Boolean {
+        val listedSeconds = entry.durationSeconds
+        val trackMs = track.durationMs
+        if (listedSeconds != null && trackMs != null &&
+            abs(trackMs / 1_000L - listedSeconds) > GUESS_DURATION_SLACK_SECONDS
+        ) {
+            return true
+        }
+        if (!fromTags) return false
+        val listedArtist = norm(entry.artist) ?: return false
+        val trackArtist = norm(track.artist) ?: return false
+        return listedArtist != trackArtist
+    }
+
+    /**
+     * The one file [ranked] points at for [entry], or null when its best files tie or the row
+     * rules out a file that only shares its name.
+     */
     fun matchPath(entry: M3uEntry, ranked: RankedPath): PathMatch? {
         val track = resolve(ranked.best.map { it.track }, entry.durationSeconds) ?: return null
         val chosen = ranked.best.first { it.track.id == track.id }
+        // Only the file name agrees: a guess ("01 Intro.mp3" is in every album), which the row's
+        // duration can rule out.
+        if (ranked.shared == 1 && contradicts(entry, track, fromTags = false)) return null
         // Both sides name a folder above the file, and the folders differ: the same file name in
-        // another place is a guess ("01 Intro.mp3" is in every album), so stronger tag evidence
-        // is heard first and a contradicting duration rejects it.
+        // another place, so stronger tag evidence is heard first.
         val elsewhere = ranked.shared == 1 && ranked.names.size > 1 && chosen.names.size > 1
-        val listedSeconds = entry.durationSeconds
-        val trackMs = track.durationMs
-        if (elsewhere && listedSeconds != null && trackMs != null &&
-            abs(trackMs / 1_000L - listedSeconds) > PATH_GUESS_DURATION_SLACK_SECONDS
-        ) {
-            return null
-        }
         return PathMatch(track, elsewhere)
     }
 
@@ -384,8 +416,10 @@ internal fun matchM3uEntries(
             byArtistTitle[entryArtist to entryTitle]?.let { candidates ->
                 // Identical tags the duration cannot split: the file name may still point at
                 // one of them, but never at an unrelated track.
-                return@map resolve(candidates, entry.durationSeconds)
+                val track = resolve(candidates, entry.durationSeconds)
                     ?: pathMatch?.track?.takeIf { matched -> candidates.any { it.id == matched.id } }
+                    ?: return@map null
+                if (!contradicts(entry, track, fromTags = true)) return@map track
             }
         }
         if (pathMatch != null) return@map pathMatch.track
@@ -402,24 +436,27 @@ internal fun matchM3uEntries(
                 null
             }
         }
-        stem?.let(byTitle::get)?.let { candidates ->
-            return@map resolve(candidates, entry.durationSeconds)
-        }
-        stemPair?.let(byArtistTitle::get)?.let { candidates ->
-            return@map resolve(candidates, entry.durationSeconds)
-        }
-        entryTitle?.let(byTitle::get)?.let { candidates ->
-            return@map resolve(candidates, entry.durationSeconds)
+        val titleSteps = listOf(
+            stem?.let(byTitle::get),
+            stemPair?.let(byArtistTitle::get),
+            entryTitle?.let(byTitle::get),
+        )
+        for (candidates in titleSteps) {
+            if (candidates == null) continue
+            // A tie ends the search rather than letting a weaker step guess; a ruled-out track
+            // leaves the next step free to find another.
+            val track = resolve(candidates, entry.durationSeconds) ?: return@map null
+            if (!contradicts(entry, track, fromTags = true)) return@map track
         }
         null
     }
 }
 
 /**
- * How far apart, in whole seconds, an EXTINF duration and a track may be before a file found
- * only by its name (its folder differs) is taken for another song. Exporters round or truncate.
+ * How far apart, in whole seconds, an EXTINF duration and a track may be before a guessed track
+ * (see [matchM3uEntries]) is taken for another song. Exporters round or truncate.
  */
-private const val PATH_GUESS_DURATION_SLACK_SECONDS = 2
+private const val GUESS_DURATION_SLACK_SECONDS = 2
 
 /** A library track with the names of its file path, the last one being the file name. */
 private class LibraryPath(val track: TrackDescriptor, val names: List<String>)

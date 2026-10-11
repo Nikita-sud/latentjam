@@ -285,6 +285,54 @@ internal class PlaylistM3uPathMatchTest {
         )
     }
 
+    /** Another album's "Intro": 20 seconds, by an artist the rows below never name. */
+    private val wrongIntro = song("wrong", "Music/WrongAlbum", "Intro.mp3", "Intro", "Another Artist", 20)
+
+    @Test
+    fun aContradictedFileNameGuessIsNotTakenBackByATitleFallback() {
+        // The path stage turns the file down on its duration; the title stages used to hand the
+        // same file back, since "Intro" is its only title.
+        assertEquals(
+            listOf(null),
+            match("#EXTINF:200,Other Artist - Intro\nElsewhere/Intro.mp3", listOf(wrongIntro)),
+        )
+        assertEquals(listOf(null), match("#EXTINF:200,Intro\nElsewhere/Intro.mp3", listOf(wrongIntro)))
+    }
+
+    @Test
+    fun aBareFileNameIsAGuessThatAContradictingDurationRejects() {
+        assertEquals(
+            listOf(null, "wrong"),
+            match("#EXTINF:200,Intro\nIntro.mp3\n#EXTINF:21,Intro\nIntro.mp3", listOf(wrongIntro)),
+        )
+    }
+
+    @Test
+    fun aRowWithoutExtinfContradictsNothing() {
+        assertEquals(
+            listOf("wrong", "wrong", "wrong"),
+            match("Elsewhere/Intro.mp3\nIntro.mp3\n#EXTINF:-1,Intro\nElsewhere/Intro.mp3", listOf(wrongIntro)),
+        )
+    }
+
+    @Test
+    fun aRowThatNamesTheFileItselfIsNotOverruledByItsLabel() {
+        // Folder and file agree, or the URI is the track's own: any player plays that file, and
+        // the EXTINF line is only its label (stale, or written from other tags).
+        assertEquals(
+            listOf("wrong", "wrong"),
+            match(
+                """
+                #EXTINF:200,Other Artist - Intro
+                /storage/emulated/0/Music/WrongAlbum/Intro.mp3
+                #EXTINF:200,Other Artist - Intro
+                content://media/external/audio/media/wrong
+                """.trimIndent(),
+                listOf(wrongIntro),
+            ),
+        )
+    }
+
     @Test
     fun identicalTagsAreToldApartByTheFileNameEvenFromAnotherFolder() {
         val a = song("a", "Music/A", "live-a.mp3", "Live", "Band", 180)

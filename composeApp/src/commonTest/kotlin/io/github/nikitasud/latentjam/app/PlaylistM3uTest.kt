@@ -91,11 +91,13 @@ internal class PlaylistM3uTest {
         val other = TrackDescriptor(id = TrackId("2"), title = "Other Song", artist = "Someone")
         val library = listOf(track, other)
 
+        // The first label names no artist and agrees on the length; one saying "X - Y", 1 s would
+        // contradict the 306-second Bomfunk MC's track, and the stem would not override it.
         val matched = matchM3uEntries(
             entries = parseM3u(
                 """
                 #EXTM3U
-                #EXTINF:1,X - Y
+                #EXTINF:306,Y
                 /anywhere/freestyler.mp3
                 #EXTINF:1,Someone - Other Song
                 /renamed/file123.flac
@@ -231,6 +233,82 @@ internal class PlaylistM3uTest {
         )
 
         assertNull(matched.single())
+    }
+
+    /** 20 seconds by "Another Artist", with no file name: the iOS Music library's kind of track. */
+    private val intro = TrackDescriptor(
+        id = TrackId("intro"),
+        title = "Intro",
+        artist = "Another Artist",
+        durationMs = 20_400,
+    )
+
+    private fun matchIds(m3u: String, library: List<TrackDescriptor>): List<String?> =
+        matchM3uEntries(parseM3u(m3u), library).map { it?.id?.value }
+
+    @Test
+    fun noTagStageAcceptsATrackTheRowsDurationContradicts() {
+        assertEquals(
+            listOf(null, null, null, null),
+            matchIds(
+                """
+                #EXTINF:200,Another Artist - Intro
+                renamed-file.flac
+                #EXTINF:200,Intro
+                /x/Intro.m4a
+                #EXTINF:200,Intro
+                renamed-file.flac
+                #EXTINF:200,Something
+                /x/Another Artist - Intro.m4a
+                """.trimIndent(),
+                listOf(intro),
+            ),
+        )
+    }
+
+    @Test
+    fun aTitleMatchIsRejectedWhenTheRowNamesAnotherArtist() {
+        // -1 carries no duration, so only the artist speaks.
+        assertEquals(
+            listOf(null, null, null),
+            matchIds(
+                """
+                #EXTINF:-1,Other Artist - Intro
+                /x/Intro.m4a
+                #EXTINF:-1,Other Artist - Intro
+                renamed-file.flac
+                #EXTINF:-1,Other Artist - Something
+                /x/Another Artist - Intro.m4a
+                """.trimIndent(),
+                listOf(intro),
+            ),
+        )
+    }
+
+    @Test
+    fun aTitleMatchStandsWhenTheRowAgreesOrSaysNothing() {
+        assertEquals(
+            listOf("intro", "intro", "intro", "intro"),
+            matchIds(
+                """
+                #EXTINF:21,ANOTHER ARTIST - intro
+                /x/Intro.m4a
+                #EXTINF:-1,Intro
+                renamed-file.flac
+                /x/Intro.m4a
+                #EXTINF:18,Another Artist - Something
+                /x/Another Artist - Intro.m4a
+                """.trimIndent(),
+                listOf(intro),
+            ),
+        )
+    }
+
+    @Test
+    fun aContradictedCandidateLetsALaterStageFindTheRightTrack() {
+        val real = TrackDescriptor(id = TrackId("real"), title = "Real Song", artist = "Band", durationMs = 200_300)
+        // The file name says "Intro", but the label says "Real Song", 200 seconds.
+        assertEquals(listOf("real"), matchIds("#EXTINF:200,Real Song\n/x/Intro.m4a", listOf(intro, real)))
     }
 
     @Test
