@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.app
 import io.github.nikitasud.latentjam.history.DefaultFavorites
 import io.github.nikitasud.latentjam.history.FavoritesStore
 import io.github.nikitasud.latentjam.library.AutoPlaylistKind
+import io.github.nikitasud.latentjam.library.AutoPlaylists
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.test.runTest
@@ -103,6 +104,60 @@ internal class BulkFavoritesTest {
         assertFalse(change.changed)
         assertFalse(favorites.undoBulk(change))
         assertEquals(0, store.writes)
+    }
+
+    @Test
+    fun anImportedFileHeadsFavoritesInItsOwnOrderAndUndoRemovesIt() = runTest {
+        val library = listOf(
+            track("1", title = "Freestyler", artist = "Bomfunk MC's"),
+            track("2", title = "Sandstorm", artist = "Darude"),
+            track("3", title = "Blue", artist = "Eiffel 65"),
+            track("4", title = "Kept", artist = "Already"),
+        )
+        val text = """
+            #EXTM3U
+            #PLAYLIST:From Musicolet
+            #EXTINF:225,Darude - Sandstorm
+            /storage/emulated/0/Music/Sandstorm.mp3
+            #EXTINF:306,Bomfunk MC's - Freestyler
+            /storage/emulated/0/Music/Freestyler.mp3
+            #EXTINF:180,Nobody - Not On This Phone
+            /storage/emulated/0/Music/missing.mp3
+            #EXTINF:200,Already - Kept
+            /storage/emulated/0/Music/Kept.mp3
+            #EXTINF:225,Darude - Sandstorm
+            /storage/emulated/0/Music/Sandstorm.mp3
+        """.trimIndent()
+        // The same reading App's import does before it asks where the file goes.
+        val entries = parseM3u(text)
+        val rows = matchM3uEntries(entries, library)
+        val offer = M3uImportOffer(
+            M3uImport(
+                name = parseM3uName(text),
+                entryCount = entries.size,
+                matchedEntryCount = rows.count { it != null },
+                tracks = rows.filterNotNull().distinctBy { it.id },
+            ),
+        )
+        assertEquals("From Musicolet", offer.name)
+        assertEquals(5, offer.entryCount)
+        assertEquals(listOf(TrackId("2"), TrackId("1"), TrackId("4")), offer.favoriteIds)
+
+        val store = FavoritesMemory(listOf("4", "3"))
+        val favorites = DefaultFavorites(store)
+        val change = favorites.applyBulk(SelectionFavoriteAction.ADD, offer.favoriteIds)
+
+        // New hearts lead in the file's order; the one already hearted keeps its place.
+        assertEquals(listOf("2", "1", "4", "3"), store.ids)
+        assertEquals(2, change.addedCount)
+        assertEquals(1, store.writes)
+        // The Favorites auto playlist shows them exactly as a single heart's would be shown.
+        val shown = AutoPlaylists.build(library, emptyMap(), emptyMap(), favorites.all())
+            .single { it.kind == AutoPlaylistKind.FAVORITES }.tracks.map { it.id.value }
+        assertEquals(listOf("2", "1", "4", "3"), shown)
+
+        assertTrue(favorites.undoBulk(change))
+        assertEquals(listOf("4", "3"), store.ids)
     }
 
     @Test

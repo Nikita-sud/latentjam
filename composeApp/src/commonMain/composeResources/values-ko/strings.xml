@@ -214,6 +214,9 @@
         <item quantity="other">%2$d곡 중 %1$d곡 가져옴</item>
     </plurals>
     <string name="snack_m3u_import_failed">재생목록을 가져오지 못했습니다</string>
+    <plurals name="m3u_import_found">
+        <item quantity="other">%2$d곡 중 %1$d곡을 찾았습니다</item>
+    </plurals>
     <string name="playlist_imported_name">가져온 재생목록</string>
     <string name="action_information">정보</string>
     <string name="action_delete_from_device">기기에서 삭제</string>

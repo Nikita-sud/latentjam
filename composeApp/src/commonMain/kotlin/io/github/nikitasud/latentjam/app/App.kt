@@ -683,6 +683,9 @@ private class ShellSheets {
     var deleteSelection by mutableStateOf<List<TrackDescriptor>?>(null)
     var showSelectionRemoval by mutableStateOf(false)
     var worldTarget by mutableStateOf<ForYouCard?>(null)
+
+    // A playlist file read and matched, waiting for the listener to choose where it goes.
+    var m3uImportOffer by mutableStateOf<M3uImportOffer?>(null)
 }
 
 /** Map positions are a derived cache: storage trouble must never make the app or Map unusable. */
@@ -2341,15 +2344,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             snackbar.showSnackbar(getString(Res.string.snack_m3u_import_failed))
                             return@launch
                         }
-                        val name = imported.name ?: getString(Res.string.playlist_imported_name)
-                        if (!runPlaylistMutation {
-                                AppGraph.playlists.create(name, imported.tracks.map { it.id })
-                            }
-                        ) {
-                            return@launch
-                        }
-                        refreshPlaylistMembershipsBestEffort()
-                        snackbar.showSnackbar(m3uImportedMessage(imported))
+                        // A new playlist, or Favorites: chosen knowing how much of the file was found.
+                        sheets.m3uImportOffer = M3uImportOffer(imported)
                     }
                     is LocalBackupFileResult.Failure -> scope.launch {
                         snackbar.showSnackbar(getString(Res.string.snack_m3u_import_failed))
@@ -2358,6 +2354,17 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 }
             },
         )
+        suspend fun importM3uAsPlaylist(offer: M3uImportOffer) {
+            val name = offer.name ?: getString(Res.string.playlist_imported_name)
+            if (!runPlaylistMutation {
+                    AppGraph.playlists.create(name, offer.matched.map { it.id })
+                }
+            ) {
+                return
+            }
+            refreshPlaylistMembershipsBestEffort()
+            snackbar.showSnackbar(m3uImportedMessage(offer.import))
+        }
         fun exportPlaylistAsM3u(playlist: Playlist) {
             scope.launch {
                 val resolved = tracksOf(playlist)
@@ -4829,6 +4836,15 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     }
                 },
                 onDismiss = { sheets.worldTarget = null },
+            )
+        }
+
+        sheets.m3uImportOffer?.let { offer ->
+            M3uImportTargetSheet(
+                offer = offer,
+                onNewPlaylist = { scope.launch { importM3uAsPlaylist(offer) } },
+                onFavorites = { editFavorites(SelectionFavoriteAction.ADD, offer.favoriteIds) },
+                onDismiss = { sheets.m3uImportOffer = null },
             )
         }
 

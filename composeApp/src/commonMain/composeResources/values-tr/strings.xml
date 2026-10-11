@@ -225,6 +225,10 @@
         <item quantity="other">%2$d parçadan %1$d içe aktarıldı</item>
     </plurals>
     <string name="snack_m3u_import_failed">Çalma listesi içe aktarılamadı</string>
+    <plurals name="m3u_import_found">
+        <item quantity="one">%2$d parçadan %1$d tanesi bulundu</item>
+        <item quantity="other">%2$d parçadan %1$d tanesi bulundu</item>
+    </plurals>
     <string name="playlist_imported_name">İçe aktarılan liste</string>
     <string name="action_information">Bilgi</string>
     <string name="action_delete_from_device">Cihazdan sil</string>

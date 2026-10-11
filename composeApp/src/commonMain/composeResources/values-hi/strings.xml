@@ -225,6 +225,10 @@
         <item quantity="other">आयात किए गए ट्रैक: %2$d में से %1$d</item>
     </plurals>
     <string name="snack_m3u_import_failed">प्लेलिस्ट आयात नहीं हो सकी</string>
+    <plurals name="m3u_import_found">
+        <item quantity="one">%2$d में से %1$d गाना मिला</item>
+        <item quantity="other">%2$d में से %1$d गाने मिले</item>
+    </plurals>
     <string name="playlist_imported_name">आयातित प्लेलिस्ट</string>
     <string name="action_information">जानकारी</string>
     <string name="action_delete_from_device">डिवाइस से मिटाएं</string>

@@ -220,6 +220,9 @@
         <item quantity="other">%1$d dari %2$d trek diimpor</item>
     </plurals>
     <string name="snack_m3u_import_failed">Tidak dapat mengimpor playlist</string>
+    <plurals name="m3u_import_found">
+        <item quantity="other">Ditemukan %1$d dari %2$d lagu</item>
+    </plurals>
     <string name="playlist_imported_name">Playlist impor</string>
     <string name="action_information">Informasi</string>
     <string name="action_delete_from_device">Hapus dari perangkat</string>

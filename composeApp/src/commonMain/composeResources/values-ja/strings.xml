@@ -214,6 +214,9 @@
         <item quantity="other">%2$d曲中%1$d曲を読み込みました</item>
     </plurals>
     <string name="snack_m3u_import_failed">プレイリストを読み込めませんでした</string>
+    <plurals name="m3u_import_found">
+        <item quantity="other">%2$d曲中%1$d曲が見つかりました</item>
+    </plurals>
     <string name="playlist_imported_name">読み込んだプレイリスト</string>
     <string name="action_information">情報</string>
     <string name="action_delete_from_device">デバイスから削除</string>

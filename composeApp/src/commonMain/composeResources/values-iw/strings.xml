@@ -232,6 +232,11 @@
         <item quantity="other">יובאו %1$d מתוך %2$d שירים</item>
     </plurals>
     <string name="snack_m3u_import_failed">לא ניתן לייבא את הפלייליסט</string>
+    <plurals name="m3u_import_found">
+        <item quantity="one">נמצא %1$d מתוך %2$d שיר</item>
+        <item quantity="two">נמצאו %1$d מתוך %2$d שירים</item>
+        <item quantity="other">נמצאו %1$d מתוך %2$d שירים</item>
+    </plurals>
     <string name="playlist_imported_name">פלייליסט מיובא</string>
     <string name="action_information">מידע</string>
     <string name="action_exclude_track_from_smart">לא להמליץ על השיר הזה</string>

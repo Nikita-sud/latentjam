@@ -277,6 +277,14 @@
         <item quantity="other">تم استيراد %1$d من أصل %2$d مقطع</item>
     </plurals>
     <string name="snack_m3u_import_failed">تعذّر استيراد قائمة التشغيل</string>
+    <plurals name="m3u_import_found">
+        <item quantity="zero">تم العثور على %1$d من أصل %2$d مقطع صوتي</item>
+        <item quantity="one">تم العثور على %1$d من أصل %2$d مقطع صوتي</item>
+        <item quantity="two">تم العثور على %1$d من أصل %2$d مقطعين صوتيين</item>
+        <item quantity="few">تم العثور على %1$d من أصل %2$d مقاطع صوتية</item>
+        <item quantity="many">تم العثور على %1$d من أصل %2$d مقطعًا صوتيًا</item>
+        <item quantity="other">تم العثور على %1$d من أصل %2$d مقطع صوتي</item>
+    </plurals>
     <string name="playlist_imported_name">قائمة مستوردة</string>
     <string name="action_information">معلومات</string>
     <string name="action_delete_from_device">حذف من الجهاز</string>

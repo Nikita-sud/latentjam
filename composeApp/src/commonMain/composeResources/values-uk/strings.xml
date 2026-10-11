@@ -251,6 +251,12 @@
         <item quantity="other">Імпортовано %1$d з %2$d трека</item>
     </plurals>
     <string name="snack_m3u_import_failed">Не вдалося імпортувати плейлист</string>
+    <plurals name="m3u_import_found">
+        <item quantity="one">Знайдено %1$d з %2$d трека</item>
+        <item quantity="few">Знайдено %1$d з %2$d треків</item>
+        <item quantity="many">Знайдено %1$d з %2$d треків</item>
+        <item quantity="other">Знайдено %1$d з %2$d трека</item>
+    </plurals>
     <string name="playlist_imported_name">Імпортований плейлист</string>
     <string name="action_information">Відомості</string>
     <string name="action_delete_from_device">Видалити з пристрою</string>

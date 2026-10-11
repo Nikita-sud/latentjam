@@ -251,6 +251,12 @@
         <item quantity="other">Zaimportowano %1$d z %2$d utworu</item>
     </plurals>
     <string name="snack_m3u_import_failed">Nie udało się zaimportować playlisty</string>
+    <plurals name="m3u_import_found">
+        <item quantity="one">Znaleziono %1$d z %2$d utworu</item>
+        <item quantity="few">Znaleziono %1$d z %2$d utworów</item>
+        <item quantity="many">Znaleziono %1$d z %2$d utworów</item>
+        <item quantity="other">Znaleziono %1$d z %2$d utworu</item>
+    </plurals>
     <string name="playlist_imported_name">Zaimportowana playlista</string>
     <string name="action_information">Informacje</string>
     <string name="action_delete_from_device">Usuń z urządzenia</string>

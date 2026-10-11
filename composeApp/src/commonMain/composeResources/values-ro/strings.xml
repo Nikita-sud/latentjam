@@ -230,6 +230,11 @@
         <item quantity="other">Piese importate: %1$d din %2$d</item>
     </plurals>
     <string name="snack_m3u_import_failed">Playlistul nu a putut fi importat</string>
+    <plurals name="m3u_import_found">
+        <item quantity="one">Găsită %1$d din %2$d piesă</item>
+        <item quantity="few">Găsite %1$d din %2$d piese</item>
+        <item quantity="other">Găsite %1$d din %2$d de piese</item>
+    </plurals>
     <string name="playlist_imported_name">Playlist importat</string>
     <string name="action_information">Informații</string>
     <string name="action_delete_from_device">Șterge de pe dispozitiv</string>

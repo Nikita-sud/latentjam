@@ -232,6 +232,10 @@
         <item quantity="other">Pistas importadas: %1$d de %2$d</item>
     </plurals>
     <string name="snack_m3u_import_failed">No se pudo importar la lista</string>
+    <plurals name="m3u_import_found">
+        <item quantity="one">Encontrada %1$d de %2$d canción</item>
+        <item quantity="other">Encontradas %1$d de %2$d canciones</item>
+    </plurals>
     <string name="playlist_imported_name">Lista importada</string>
     <string name="action_information">Información</string>
     <string name="action_delete_from_device">Eliminar del dispositivo</string>
