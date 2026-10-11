@@ -583,7 +583,6 @@
     <string name="info_reading_file">Membaca file…</string>
     <string name="action_edit_album">Edit album</string>
     <string name="action_edit_artist">Edit artis</string>
-    <string name="action_edit_short">Edit</string>
     <string name="action_favorite_short">Favoritkan</string>
     <string name="action_unfavorite_short">Batal favorit</string>
     <plurals name="count_files">

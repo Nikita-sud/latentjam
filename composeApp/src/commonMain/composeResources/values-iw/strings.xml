@@ -614,7 +614,6 @@
     <string name="info_reading_file">קורא את הקובץ…</string>
     <string name="action_edit_album">עריכת האלבום</string>
     <string name="action_edit_artist">עריכת האמן</string>
-    <string name="action_edit_short">עריכה</string>
     <string name="action_favorite_short">למועדפים</string>
     <string name="action_unfavorite_short">הסרת מועדף</string>
     <plurals name="count_files">

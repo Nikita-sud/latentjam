@@ -664,7 +664,6 @@
     <string name="action_edit_album">Edit album</string>
     <string name="action_edit_artist">Edit artist</string>
     <!-- The selection bar's Edit tags button: it shares the bar with four others, so one short word. -->
-    <string name="action_edit_short">Edit</string>
     <!-- The selection bar's heart, one short word like Edit. Favorite hearts the selected tracks
          that are not favorites yet; Unfavorite takes its place when every one already is. -->
     <string name="action_favorite_short">Favorite</string>

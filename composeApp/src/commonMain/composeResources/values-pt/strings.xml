@@ -615,7 +615,6 @@
     <string name="info_reading_file">A ler o ficheiro…</string>
     <string name="action_edit_album">Editar álbum</string>
     <string name="action_edit_artist">Editar artista</string>
-    <string name="action_edit_short">Editar</string>
     <string name="action_favorite_short">Às favoritas</string>
     <string name="action_unfavorite_short">Tirar das favoritas</string>
     <plurals name="count_files">

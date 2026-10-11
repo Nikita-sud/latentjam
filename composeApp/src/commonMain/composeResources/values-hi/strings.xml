@@ -595,7 +595,6 @@
     <string name="info_reading_file">फ़ाइल पढ़ी जा रही है…</string>
     <string name="action_edit_album">एल्बम संपादित करें</string>
     <string name="action_edit_artist">कलाकार संपादित करें</string>
-    <string name="action_edit_short">संपादित करें</string>
     <string name="action_favorite_short">पसंदीदा</string>
     <string name="action_unfavorite_short">पसंदीदा हटाएँ</string>
     <plurals name="count_files">

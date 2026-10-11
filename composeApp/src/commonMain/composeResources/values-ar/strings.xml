@@ -679,7 +679,6 @@
     <string name="info_reading_file">جارٍ قراءة الملف…</string>
     <string name="action_edit_album">تعديل الألبوم</string>
     <string name="action_edit_artist">تعديل الفنان</string>
-    <string name="action_edit_short">تعديل</string>
     <string name="action_favorite_short">تفضيل</string>
     <string name="action_unfavorite_short">إلغاء التفضيل</string>
     <plurals name="count_files">

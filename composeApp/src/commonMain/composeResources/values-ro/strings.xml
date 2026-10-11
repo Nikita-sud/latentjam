@@ -605,7 +605,6 @@
     <string name="info_reading_file">Se citește fișierul…</string>
     <string name="action_edit_album">Editează albumul</string>
     <string name="action_edit_artist">Editează artistul</string>
-    <string name="action_edit_short">Editează</string>
     <string name="action_favorite_short">La favorite</string>
     <string name="action_unfavorite_short">Scoate din favorite</string>
     <plurals name="count_files">

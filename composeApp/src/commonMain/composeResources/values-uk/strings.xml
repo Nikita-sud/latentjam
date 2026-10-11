@@ -637,7 +637,6 @@
     <string name="info_reading_file">Читання файлу…</string>
     <string name="action_edit_album">Змінити альбом</string>
     <string name="action_edit_artist">Змінити виконавця</string>
-    <string name="action_edit_short">Змінити</string>
     <string name="action_favorite_short">До улюблених</string>
     <string name="action_unfavorite_short">З улюблених</string>
     <plurals name="count_files">

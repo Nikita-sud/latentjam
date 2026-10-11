@@ -577,7 +577,6 @@
     <string name="info_reading_file">ファイルを読み取り中…</string>
     <string name="action_edit_album">アルバムを編集</string>
     <string name="action_edit_artist">アーティストを編集</string>
-    <string name="action_edit_short">編集</string>
     <string name="action_favorite_short">お気に入り</string>
     <string name="action_unfavorite_short">お気に入り解除</string>
     <plurals name="count_files">

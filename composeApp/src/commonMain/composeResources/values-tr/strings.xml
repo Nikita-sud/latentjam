@@ -595,7 +595,6 @@
     <string name="info_reading_file">Dosya okunuyor…</string>
     <string name="action_edit_album">Albümü düzenle</string>
     <string name="action_edit_artist">Sanatçıyı düzenle</string>
-    <string name="action_edit_short">Düzenle</string>
     <string name="action_favorite_short">Favorile</string>
     <string name="action_unfavorite_short">Favoriden çıkar</string>
     <plurals name="count_files">

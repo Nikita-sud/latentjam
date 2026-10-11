@@ -583,7 +583,6 @@
     <string name="info_reading_file">正在读取文件…</string>
     <string name="action_edit_album">编辑专辑</string>
     <string name="action_edit_artist">编辑艺人</string>
-    <string name="action_edit_short">编辑</string>
     <string name="action_favorite_short">收藏</string>
     <string name="action_unfavorite_short">取消收藏</string>
     <plurals name="count_files">

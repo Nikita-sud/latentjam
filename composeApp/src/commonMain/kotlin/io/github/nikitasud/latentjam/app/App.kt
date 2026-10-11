@@ -85,18 +85,14 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.FileOpen
-import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.LibraryAdd
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.PlaylistRemove
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.Shuffle
@@ -182,21 +178,17 @@ import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.action_add_to_playlist
 import io.github.nikitasud.latentjam.app.generated.resources.action_add
 import io.github.nikitasud.latentjam.app.generated.resources.action_create
-import io.github.nikitasud.latentjam.app.generated.resources.action_delete
-import io.github.nikitasud.latentjam.app.generated.resources.action_edit_short
 import io.github.nikitasud.latentjam.app.generated.resources.action_next
 import io.github.nikitasud.latentjam.app.generated.resources.action_pause
 import io.github.nikitasud.latentjam.app.generated.resources.action_play
 import io.github.nikitasud.latentjam.app.generated.resources.action_play_all
 import io.github.nikitasud.latentjam.app.generated.resources.action_previous
-import io.github.nikitasud.latentjam.app.generated.resources.action_remove_from_playlist
 import io.github.nikitasud.latentjam.app.generated.resources.action_rename
 import io.github.nikitasud.latentjam.app.generated.resources.action_import_m3u
 import io.github.nikitasud.latentjam.app.generated.resources.action_favorite_short
 import io.github.nikitasud.latentjam.app.generated.resources.action_unfavorite_short
 import io.github.nikitasud.latentjam.app.generated.resources.action_undo
 import io.github.nikitasud.latentjam.app.generated.resources.action_shuffle_all
-import io.github.nikitasud.latentjam.app.generated.resources.action_share
 import io.github.nikitasud.latentjam.app.generated.resources.cd_more_options
 import io.github.nikitasud.latentjam.app.generated.resources.count_albums
 import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
@@ -2853,6 +2845,172 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     val pageRailSlots = remember {
                         StartPage.entries.associateWith { PageRailSlot() }
                     }
+                    // One set of selection commands drives the bottom action bar and every contextual
+                    // top bar (the browse tabs, Search, a collection's page), so they agree on what is
+                    // enabled and on which destructive action a page offers.
+                    val selectionCommands = SelectionCommands(
+                        selected = selectedTracks,
+                        playlistId = selectedCollection?.playlistId,
+                        onPlay = {
+                            val selection = selectedTracks
+                            // The surface the selection was made on: a hand-picked set from
+                            // search or a group tab has no single honest name.
+                            AppGraph.queueSource.value = when {
+                                selectedCollection?.allowsTrackSelection == true ->
+                                    selectedCollection?.queueSource()
+                                showSearch || selectedTab in GROUP_TABS -> null
+                                else -> QueueSource(QueueSourceKind.TRACKS)
+                            }
+                            updateTrackSelection(emptySet())
+                            scope.launch { playback.play(selection, 0) }
+                        },
+                        onAdd = {
+                            sheets.addToPlaylistSelection = selectedTracks
+                        },
+                        onFavorite = { action ->
+                            val ids = selectedTracks.map(TrackDescriptor::id)
+                            val selectedBefore = selectedTrackIds
+                            updateTrackSelection(emptySet())
+                            val commandSelectionRevision = selectionRevision
+                            editFavorites(action, ids) {
+                                // Nothing was written: give the selection back, unless the
+                                // listener has already made another one.
+                                if (selectionRevision == commandSelectionRevision) {
+                                    updateTrackSelection(selectedBefore)
+                                }
+                            }
+                        },
+                        onShare = {
+                            shareTracks(selectedTracks)
+                            updateTrackSelection(emptySet())
+                        },
+                        onEditTags = {
+                            val selection = selectedTracks
+                            updateTrackSelection(emptySet())
+                            openTagEditor(selection, BulkEditScope.SELECTION)
+                        },
+                        onRemove = {
+                            val playlist = selectedCollection?.takeIf { it.playlistId != null }
+                            if (playlist != null) {
+                                val selection = selectedTracks
+                                val removedIds = selection.mapTo(LinkedHashSet()) { it.id }
+                                val playlistId = checkNotNull(playlist.playlistId)
+                                val sourceCollectionRevision = collectionRevision
+                                // Freeze the command before the first suspension. A user can
+                                // otherwise change selection while the playlist store writes,
+                                // making persistence remove A while the visible list hides B.
+                                updateTrackSelection(emptySet())
+                                val commandSelectionRevision = selectionRevision
+                                scope.launch {
+                                    var membershipChange: PlaylistTrackChange? = null
+                                    val persisted = try {
+                                        membershipChange = AppGraph.playlists.removeTracks(
+                                            playlistId,
+                                            selection.map(TrackDescriptor::id),
+                                        )
+                                        membershipChange != null
+                                    } catch (cancelled: CancellationException) {
+                                        throw cancelled
+                                    } catch (_: Throwable) {
+                                        false
+                                    }
+                                    if (!persisted) {
+                                        if (
+                                            collectionRevision == sourceCollectionRevision &&
+                                            selectionRevision == commandSelectionRevision &&
+                                            selectedCollection?.playlistId == playlistId
+                                        ) {
+                                            updateTrackSelection(removedIds)
+                                        }
+                                        snackbar.showSnackbar(
+                                            getString(Res.string.settings_library_manage_failed),
+                                        )
+                                        return@launch
+                                    }
+                                    val currentPlaylist = selectedCollection
+                                        ?.takeIf { it.playlistId == playlistId }
+                                    if (currentPlaylist != null) {
+                                        val remaining = currentPlaylist.tracks
+                                            .filterNot { it.id in removedIds }
+                                        updateSelectedCollection(currentPlaylist.copy(
+                                            subtitle = trackCountLabel(remaining.size),
+                                            tracks = remaining,
+                                        ))
+                                        // Preserve a newer selection made while the store was
+                                        // writing, but never leave it pointing at a removed row.
+                                        updateTrackSelection(selectedTrackIds - removedIds)
+                                    }
+                                    val change = checkNotNull(membershipChange)
+                                    playlistsState.playlists = playlistsState.playlists.map { stored ->
+                                        if (stored.id == playlistId) {
+                                            stored.copy(
+                                                trackIds = change.after.map(TrackId::value),
+                                            )
+                                        } else {
+                                            stored
+                                        }
+                                    }
+                                    refreshPlaylistStatsBestEffort()
+                                    val result = snackbar.showSnackbar(
+                                        message = getString(
+                                            Res.string.snack_playlist_track_removed,
+                                            bidiWrap(playlist.title, layoutDirection),
+                                        ),
+                                        actionLabel = if (change.before != change.after) {
+                                            getString(Res.string.action_undo)
+                                        } else {
+                                            null
+                                        },
+                                        withDismissAction = change.before != change.after,
+                                    )
+                                    if (result == SnackbarResult.ActionPerformed) {
+                                        val restored = try {
+                                            AppGraph.playlists.replaceTracksIfUnchanged(
+                                                playlistId,
+                                                expected = change.after,
+                                                replacement = change.before,
+                                            )
+                                        } catch (cancelled: CancellationException) {
+                                            throw cancelled
+                                        } catch (_: Throwable) {
+                                            false
+                                        }
+                                        if (!restored) {
+                                            snackbar.showSnackbar(
+                                                getString(
+                                                    Res.string.settings_library_manage_failed,
+                                                ),
+                                            )
+                                            return@launch
+                                        }
+                                        playlistsState.playlists = playlistsState.playlists.map { stored ->
+                                            if (stored.id == playlistId) {
+                                                stored.copy(
+                                                    trackIds = change.before.map(TrackId::value),
+                                                )
+                                            } else {
+                                                stored
+                                            }
+                                        }
+                                        selectedCollection
+                                            ?.takeIf { it.playlistId == playlistId }
+                                            ?.let { current ->
+                                                val restoredTracks = change.before
+                                                    .mapNotNull(tracksById::get)
+                                                updateSelectedCollection(current.copy(
+                                                    subtitle = trackCountLabel(
+                                                        restoredTracks.size,
+                                                    ),
+                                                    tracks = restoredTracks,
+                                                ))
+                                            }
+                                    }
+                                }
+                            } else {
+                                sheets.showSelectionRemoval = true
+                            }
+                        },
+                    )
                     val searchVisibilityState = remember {
                         MutableTransitionState(showSearch)
                     }
@@ -2911,6 +3069,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         count = selectedTrackIds.size,
                                         allSelected =
                                             selectedTrackIds.size == catalog?.songs?.size,
+                                        commands = selectionCommands,
                                     ),
                                     contentKey = { it.selecting },
                                     transitionSpec = { motionFadeThrough(reduceMotion) },
@@ -2929,6 +3088,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                     SelectionTopAppBar(
                                         count = bar.count,
                                         allSelected = bar.allSelected,
+                                        commands = bar.commands,
                                         onClose = { updateTrackSelection(emptySet()) },
                                         onToggleAll = {
                                             updateTrackSelection(if (
@@ -3969,6 +4129,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             currentTrackId = currentTrack?.id,
                             currentTrackPlaying = currentTrackPlaying,
                             selectedTrackIds = selectedTrackIds,
+                            selectionCommands = selectionCommands,
                             onToggleSelection = { track ->
                                 updateTrackSelection(if (track.id in selectedTrackIds) {
                                     selectedTrackIds - track.id
@@ -4058,6 +4219,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             currentTrackId = currentTrack?.id,
                             currentTrackPlaying = currentTrackPlaying,
                             selectedTrackIds = selectedTrackIds,
+                            selectionCommands = selectionCommands,
                             onToggleSelection = { track ->
                                 updateTrackSelection(if (track.id in selectedTrackIds) {
                                     selectedTrackIds - track.id
@@ -4107,173 +4269,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             modifier = Modifier.inactiveDuringTransition(!selectionMode),
                         ) {
                         SelectionActionBar(
+                            commands = selectionCommands,
+                            favoriteAction = selectionFavoriteAction(selectedTracks, favoriteIds),
                             height = selectionActionBarHeight,
                             includeNavigationPadding = currentTrack == null,
-                            canAct = selectedTracks.isNotEmpty(),
-                            canShare = selectedTracks.isNotEmpty() &&
-                                selectedTracks.all { it.audioUri != null },
-                            removeFromPlaylist = selectedCollection?.playlistId != null,
-                            favoriteAction = selectionFavoriteAction(selectedTracks, favoriteIds),
-                            onFavorite = { action ->
-                                val ids = selectedTracks.map(TrackDescriptor::id)
-                                val selectedBefore = selectedTrackIds
-                                updateTrackSelection(emptySet())
-                                val commandSelectionRevision = selectionRevision
-                                editFavorites(action, ids) {
-                                    // Nothing was written: give the selection back, unless the
-                                    // listener has already made another one.
-                                    if (selectionRevision == commandSelectionRevision) {
-                                        updateTrackSelection(selectedBefore)
-                                    }
-                                }
-                            },
-                            onPlay = {
-                                val selection = selectedTracks
-                                // The surface the selection was made on: a hand-picked set from
-                                // search or a group tab has no single honest name.
-                                AppGraph.queueSource.value = when {
-                                    selectedCollection?.allowsTrackSelection == true ->
-                                        selectedCollection?.queueSource()
-                                    showSearch || selectedTab in GROUP_TABS -> null
-                                    else -> QueueSource(QueueSourceKind.TRACKS)
-                                }
-                                updateTrackSelection(emptySet())
-                                scope.launch { playback.play(selection, 0) }
-                            },
-                            onAdd = {
-                                sheets.addToPlaylistSelection = selectedTracks
-                            },
-                            onShare = {
-                                shareTracks(selectedTracks)
-                                updateTrackSelection(emptySet())
-                            },
-                            onEditTags = {
-                                val selection = selectedTracks
-                                updateTrackSelection(emptySet())
-                                openTagEditor(selection, BulkEditScope.SELECTION)
-                            },
-                            onRemove = {
-                                val playlist = selectedCollection?.takeIf { it.playlistId != null }
-                                if (playlist != null) {
-                                    val selection = selectedTracks
-                                    val removedIds = selection.mapTo(LinkedHashSet()) { it.id }
-                                    val playlistId = checkNotNull(playlist.playlistId)
-                                    val sourceCollectionRevision = collectionRevision
-                                    // Freeze the command before the first suspension. A user can
-                                    // otherwise change selection while the playlist store writes,
-                                    // making persistence remove A while the visible list hides B.
-                                    updateTrackSelection(emptySet())
-                                    val commandSelectionRevision = selectionRevision
-                                    scope.launch {
-                                        var membershipChange: PlaylistTrackChange? = null
-                                        val persisted = try {
-                                            membershipChange = AppGraph.playlists.removeTracks(
-                                                playlistId,
-                                                selection.map(TrackDescriptor::id),
-                                            )
-                                            membershipChange != null
-                                        } catch (cancelled: CancellationException) {
-                                            throw cancelled
-                                        } catch (_: Throwable) {
-                                            false
-                                        }
-                                        if (!persisted) {
-                                            if (
-                                                collectionRevision == sourceCollectionRevision &&
-                                                selectionRevision == commandSelectionRevision &&
-                                                selectedCollection?.playlistId == playlistId
-                                            ) {
-                                                updateTrackSelection(removedIds)
-                                            }
-                                            snackbar.showSnackbar(
-                                                getString(Res.string.settings_library_manage_failed),
-                                            )
-                                            return@launch
-                                        }
-                                        val currentPlaylist = selectedCollection
-                                            ?.takeIf { it.playlistId == playlistId }
-                                        if (currentPlaylist != null) {
-                                            val remaining = currentPlaylist.tracks
-                                                .filterNot { it.id in removedIds }
-                                            updateSelectedCollection(currentPlaylist.copy(
-                                                subtitle = trackCountLabel(remaining.size),
-                                                tracks = remaining,
-                                            ))
-                                            // Preserve a newer selection made while the store was
-                                            // writing, but never leave it pointing at a removed row.
-                                            updateTrackSelection(selectedTrackIds - removedIds)
-                                        }
-                                        val change = checkNotNull(membershipChange)
-                                        playlistsState.playlists = playlistsState.playlists.map { stored ->
-                                            if (stored.id == playlistId) {
-                                                stored.copy(
-                                                    trackIds = change.after.map(TrackId::value),
-                                                )
-                                            } else {
-                                                stored
-                                            }
-                                        }
-                                        refreshPlaylistStatsBestEffort()
-                                        val result = snackbar.showSnackbar(
-                                            message = getString(
-                                                Res.string.snack_playlist_track_removed,
-                                                bidiWrap(playlist.title, layoutDirection),
-                                            ),
-                                            actionLabel = if (change.before != change.after) {
-                                                getString(Res.string.action_undo)
-                                            } else {
-                                                null
-                                            },
-                                            withDismissAction = change.before != change.after,
-                                        )
-                                        if (result == SnackbarResult.ActionPerformed) {
-                                            val restored = try {
-                                                AppGraph.playlists.replaceTracksIfUnchanged(
-                                                    playlistId,
-                                                    expected = change.after,
-                                                    replacement = change.before,
-                                                )
-                                            } catch (cancelled: CancellationException) {
-                                                throw cancelled
-                                            } catch (_: Throwable) {
-                                                false
-                                            }
-                                            if (!restored) {
-                                                snackbar.showSnackbar(
-                                                    getString(
-                                                        Res.string.settings_library_manage_failed,
-                                                    ),
-                                                )
-                                                return@launch
-                                            }
-                                            playlistsState.playlists = playlistsState.playlists.map { stored ->
-                                                if (stored.id == playlistId) {
-                                                    stored.copy(
-                                                        trackIds = change.before.map(TrackId::value),
-                                                    )
-                                                } else {
-                                                    stored
-                                                }
-                                            }
-                                            selectedCollection
-                                                ?.takeIf { it.playlistId == playlistId }
-                                                ?.let { current ->
-                                                    val restoredTracks = change.before
-                                                        .mapNotNull(tracksById::get)
-                                                    updateSelectedCollection(current.copy(
-                                                        subtitle = trackCountLabel(
-                                                            restoredTracks.size,
-                                                        ),
-                                                        tracks = restoredTracks,
-                                                    ))
-                                                }
-                                        }
-                                    }
-                                } else {
-                                    sheets.showSelectionRemoval = true
-                                }
-                            },
-                            modifier = Modifier,
                         )
                         }
                     }
@@ -5647,21 +5646,17 @@ private fun BrowseCarousel(
     }
 }
 
-/** Thumb-zone actions sit above playback while music remains loaded. */
+/**
+ * Thumb-zone actions sit above playback while music remains loaded: the three a selection is made
+ * for, with room for their full labels. Editing, sharing and the destructive action wait in the
+ * contextual top bar ([SelectionTopAppBar]), driven by the same [commands].
+ */
 @Composable
 private fun SelectionActionBar(
-    canAct: Boolean,
+    commands: SelectionCommands,
+    favoriteAction: SelectionFavoriteAction,
     height: androidx.compose.ui.unit.Dp = SELECTION_ACTION_BAR_HEIGHT,
     includeNavigationPadding: Boolean = true,
-    canShare: Boolean = canAct,
-    removeFromPlaylist: Boolean = false,
-    favoriteAction: SelectionFavoriteAction = SelectionFavoriteAction.ADD,
-    onFavorite: (SelectionFavoriteAction) -> Unit = {},
-    onPlay: () -> Unit,
-    onAdd: () -> Unit,
-    onShare: () -> Unit,
-    onEditTags: () -> Unit,
-    onRemove: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -5679,15 +5674,15 @@ private fun SelectionActionBar(
         SelectionAction(
             icon = Icons.Rounded.PlayArrow,
             label = stringResource(Res.string.action_play),
-            enabled = canAct,
-            onClick = onPlay,
+            enabled = commands.canAct,
+            onClick = commands.onPlay,
             modifier = Modifier.weight(1f),
         )
         SelectionAction(
             icon = Icons.Rounded.LibraryAdd,
             label = stringResource(Res.string.action_add),
-            enabled = canAct,
-            onClick = onAdd,
+            enabled = commands.canAct,
+            onClick = commands.onAdd,
             modifier = Modifier.weight(1f),
         )
         val removesFavorites = favoriteAction == SelectionFavoriteAction.REMOVE
@@ -5696,41 +5691,9 @@ private fun SelectionActionBar(
             label = stringResource(
                 if (removesFavorites) Res.string.action_unfavorite_short else Res.string.action_favorite_short,
             ),
-            enabled = canAct,
-            onClick = { onFavorite(favoriteAction) },
+            enabled = commands.canAct,
+            onClick = { commands.onFavorite(favoriteAction) },
             modifier = Modifier.weight(1f),
-        )
-        SelectionAction(
-            icon = Icons.Rounded.Share,
-            label = stringResource(Res.string.action_share),
-            enabled = canShare,
-            onClick = onShare,
-            modifier = Modifier.weight(1f),
-        )
-        SelectionAction(
-            icon = Icons.Rounded.Edit,
-            label = stringResource(Res.string.action_edit_short),
-            enabled = canAct,
-            onClick = onEditTags,
-            modifier = Modifier.weight(1f),
-        )
-        SelectionAction(
-            icon = if (removeFromPlaylist) {
-                Icons.Rounded.PlaylistRemove
-            } else {
-                Icons.Rounded.DeleteOutline
-            },
-            label = stringResource(
-                if (removeFromPlaylist) {
-                    Res.string.action_remove_from_playlist
-                } else {
-                    Res.string.action_delete
-                },
-            ),
-            enabled = canAct,
-            onClick = onRemove,
-            modifier = Modifier.weight(1f),
-            tint = MaterialTheme.colorScheme.error,
         )
     }
 }
@@ -5742,8 +5705,8 @@ private fun SelectionAction(
     enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    tint: Color = MaterialTheme.colorScheme.onSurface,
 ) {
+    val tint = MaterialTheme.colorScheme.onSurface
     val contentAlpha = if (enabled) 1f else 0.38f
     Column(
         modifier = modifier

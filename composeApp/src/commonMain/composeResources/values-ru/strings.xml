@@ -628,7 +628,6 @@
     <string name="info_reading_file">Чтение файла…</string>
     <string name="action_edit_album">Изменить альбом</string>
     <string name="action_edit_artist">Изменить исполнителя</string>
-    <string name="action_edit_short">Изменить</string>
     <string name="action_favorite_short">В любимые</string>
     <string name="action_unfavorite_short">Из любимых</string>
     <plurals name="count_files">

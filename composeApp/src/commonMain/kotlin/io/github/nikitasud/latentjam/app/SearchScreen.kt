@@ -118,6 +118,8 @@ internal fun SearchScreen(
     /** Whether the player is audibly running; animates the current row's badge. */
     currentTrackPlaying: Boolean = false,
     selectedTrackIds: Set<TrackId> = emptySet(),
+    /** What the selection's contextual bar offers; the same object drives the bottom action bar. */
+    selectionCommands: SelectionCommands,
     onToggleSelection: (TrackDescriptor) -> Unit = {},
     onStartSelection: (TrackDescriptor) -> Unit = {},
     onClearSelection: () -> Unit = {},
@@ -262,7 +264,8 @@ internal fun SearchScreen(
         if (!active) {
             focusManager.clearFocus(force = true)
             keyboard?.hide()
-        } else if (readyForInput && focusOnReady) {
+        } else if (readyForInput && focusOnReady && !selectionMode) {
+            // A selection's contextual bar stands in for the field, which is then not composed.
             withFrameNanos { }
             focusRequester.requestFocus()
         }
@@ -335,6 +338,34 @@ internal fun SearchScreen(
                 .navigationBarsPadding()
                 .imePadding(),
         ) {
+            // A selection swaps the field for the contextual bar the other track lists show; the
+            // query stays, and returns with the field once the selection ends.
+            AnimatedContent(
+                targetState = SelectionBarPresentation(
+                    selecting = selectionMode,
+                    count = selectedTrackIds.size,
+                    allSelected = false,
+                    commands = selectionCommands,
+                ),
+                contentKey = { it.selecting },
+                transitionSpec = { motionFadeThrough(reduceMotion) },
+                label = "search-contextual-app-bar",
+            ) { bar ->
+            Box(
+                modifier = Modifier.fillMaxWidth().inactiveForMotion(bar.selecting != selectionMode),
+            ) {
+            if (bar.selecting) {
+                SelectionTopAppBar(
+                    count = bar.count,
+                    allSelected = bar.allSelected,
+                    commands = bar.commands,
+                    onClose = onClearSelection,
+                    // Search has no "all" of its own to offer: results change with every keystroke.
+                    onToggleAll = null,
+                    // The field's 48 dp and its padding: the results stay put as the bars swap.
+                    modifier = Modifier.heightIn(min = 64.dp),
+                )
+            } else {
             SearchNavigationBar(
                 progress = openProgress,
                 origin = buttonBounds,
@@ -387,6 +418,9 @@ internal fun SearchScreen(
                             }
                         }
                     }
+            }
+            }
+            }
             }
 
             val trimmedQuery = query.trim()

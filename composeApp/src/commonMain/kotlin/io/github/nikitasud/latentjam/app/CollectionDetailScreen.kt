@@ -40,11 +40,14 @@ import androidx.compose.material.icons.automirrored.outlined.QueueMusic
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -98,6 +101,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.action_edit_artist
 import io.github.nikitasud.latentjam.app.generated.resources.action_deselect_all
 import io.github.nikitasud.latentjam.app.generated.resources.action_play
 import io.github.nikitasud.latentjam.app.generated.resources.action_select_all
+import io.github.nikitasud.latentjam.app.generated.resources.action_share
 import io.github.nikitasud.latentjam.app.generated.resources.action_shuffle
 import io.github.nikitasud.latentjam.app.generated.resources.selection_count
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
@@ -281,12 +285,14 @@ internal fun collectionRailPresentation(
  * kinds — they differ only in header data.
  */
 @Composable
-fun CollectionDetailScreen(
+internal fun CollectionDetailScreen(
     selection: CollectionSelection,
     currentTrackId: TrackId?,
     /** Whether the player is audibly running; animates the current row's badge. */
     currentTrackPlaying: Boolean = false,
     selectedTrackIds: Set<TrackId> = emptySet(),
+    /** What the selection's contextual bar offers; the same object drives the bottom action bar. */
+    selectionCommands: SelectionCommands,
     onToggleSelection: (TrackDescriptor) -> Unit = {},
     onStartSelection: (TrackDescriptor) -> Unit = {},
     onClearSelection: () -> Unit = {},
@@ -373,6 +379,7 @@ fun CollectionDetailScreen(
                     selecting = selectionMode,
                     count = selectedTrackIds.size,
                     allSelected = selection.tracks.all { it.id in selectedTrackIds },
+                    commands = selectionCommands,
                 ),
                 contentKey = { it.selecting },
                 transitionSpec = { motionFadeThrough(reduceMotion) },
@@ -387,6 +394,7 @@ fun CollectionDetailScreen(
                     SelectionTopAppBar(
                         count = bar.count,
                         allSelected = bar.allSelected,
+                        commands = bar.commands,
                         onClose = onClearSelection,
                         onToggleAll = onToggleAllSelection,
                     )
@@ -1038,24 +1046,34 @@ private fun CollectionTrackRow(
     )
 }
 
-/** Data retained with a contextual bar while it exits, avoiding a visible "0 selected" frame. */
+/**
+ * Data retained with a contextual bar while it exits, avoiding a visible "0 selected" frame — and,
+ * through [commands], a frame of greyed-out actions once the selection has emptied.
+ */
 internal data class SelectionBarPresentation(
     val selecting: Boolean,
     val count: Int,
     val allSelected: Boolean,
+    val commands: SelectionCommands,
 )
 
-/** Contextual app bar shared by the Tracks page and user-playlist multi-selection. */
+/**
+ * Contextual app bar of every multi-selection: the browse tabs, Search and a collection's page.
+ * The rarer actions live here, the destructive one behind the overflow, so the bottom bar keeps
+ * room for full labels. [onToggleAll] null leaves out the select-all toggle.
+ */
 @Composable
 internal fun SelectionTopAppBar(
     count: Int,
     allSelected: Boolean,
+    commands: SelectionCommands,
     onClose: () -> Unit,
-    onToggleAll: () -> Unit,
+    onToggleAll: (() -> Unit)?,
+    modifier: Modifier = Modifier,
 ) {
     val reduceMotion = rememberReduceMotion()
     Row(
-        modifier = Modifier.fillMaxWidth().statusBarsPadding()
+        modifier = modifier.fillMaxWidth().statusBarsPadding()
             .heightIn(min = 56.dp).padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -1087,28 +1105,82 @@ internal fun SelectionTopAppBar(
                 },
             )
         }
-        val description = stringResource(
-            if (allSelected) Res.string.action_deselect_all else Res.string.action_select_all,
-        )
-        IconButton(
-            onClick = onToggleAll,
-            modifier = Modifier.size(48.dp).semantics { contentDescription = description },
-        ) {
-            AnimatedContent(
-                targetState = allSelected,
-                transitionSpec = { motionIconTransform(reduceMotion) },
-                label = "select-all-glyph",
-            ) { selected ->
-                Icon(
-                    imageVector = if (selected) {
-                        Icons.Rounded.CheckCircle
-                    } else {
-                        Icons.Rounded.RadioButtonUnchecked
-                    },
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
+        SelectionTopActions(commands)
+        if (onToggleAll != null) {
+            val description = stringResource(
+                if (allSelected) Res.string.action_deselect_all else Res.string.action_select_all,
+            )
+            IconButton(
+                onClick = onToggleAll,
+                modifier = Modifier.size(48.dp).semantics { contentDescription = description },
+            ) {
+                AnimatedContent(
+                    targetState = allSelected,
+                    transitionSpec = { motionIconTransform(reduceMotion) },
+                    label = "select-all-glyph",
+                ) { selected ->
+                    Icon(
+                        imageVector = if (selected) {
+                            Icons.Rounded.CheckCircle
+                        } else {
+                            Icons.Rounded.RadioButtonUnchecked
+                        },
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
             }
+        }
+    }
+}
+
+/** Edit tags, Share, and the destructive action behind an overflow, in that order. */
+@Composable
+private fun SelectionTopActions(commands: SelectionCommands) {
+    // The icons take IconButton's content colour, so a disabled action greys out as in the bar.
+    IconButton(
+        onClick = commands.onEditTags,
+        enabled = commands.canAct,
+        modifier = Modifier.size(48.dp),
+    ) {
+        Icon(Icons.Rounded.Edit, contentDescription = stringResource(Res.string.info_edit))
+    }
+    IconButton(
+        onClick = commands.onShare,
+        enabled = commands.canShare,
+        modifier = Modifier.size(48.dp),
+    ) {
+        Icon(Icons.Rounded.Share, contentDescription = stringResource(Res.string.action_share))
+    }
+    var menuOpen by remember { mutableStateOf(false) }
+    Box {
+        IconButton(
+            onClick = { menuOpen = true },
+            enabled = commands.canAct,
+            modifier = Modifier.size(48.dp),
+        ) {
+            Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(Res.string.cd_more_options))
+        }
+        DropdownMenu(
+            expanded = menuOpen,
+            onDismissRequest = { menuOpen = false },
+            shape = RoundedCornerShape(20.dp),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ) {
+            val destructive = commands.destructive
+            DropdownMenuItem(
+                text = { Text(stringResource(destructive.label)) },
+                leadingIcon = { Icon(destructive.icon, null, Modifier.size(20.dp)) },
+                enabled = commands.canAct,
+                colors = MenuDefaults.itemColors(
+                    textColor = MaterialTheme.colorScheme.error,
+                    leadingIconColor = MaterialTheme.colorScheme.error,
+                ),
+                onClick = {
+                    menuOpen = false
+                    commands.onRemove()
+                },
+            )
         }
     }
 }

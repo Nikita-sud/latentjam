@@ -607,7 +607,6 @@
     <string name="info_reading_file">Lecture du fichier…</string>
     <string name="action_edit_album">Modifier l'album</string>
     <string name="action_edit_artist">Modifier l'artiste</string>
-    <string name="action_edit_short">Modifier</string>
     <string name="action_favorite_short">Aux favoris</string>
     <string name="action_unfavorite_short">Hors favoris</string>
     <plurals name="count_files">
