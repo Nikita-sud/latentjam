@@ -1823,9 +1823,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         libraryWorlds.builtWorldReadiness = metadataReady to audioReady
                     } catch (cancelled: CancellationException) {
                         throw cancelled
-                    } catch (failure: Exception) {
+                    } catch (failure: Throwable) {
                         // Derived suggestions are retryable on the next page entry. A history or
-                        // model read failure must not take down the player or erase the warm page.
+                        // model read failure must not take down the player or erase the warm page,
+                        // and neither may a heap too small for this library: the fused vector space
+                        // (tracks x 1,344 floats) or discovery's clustering can run out of memory on
+                        // a low-RAM phone. The page keeps what it had, as the Map layout below does;
+                        // whatever the failed pass allocated is unreachable once this lambda returns.
                         println("SMART: could not refresh library suggestions: $failure")
                     }
                 }
