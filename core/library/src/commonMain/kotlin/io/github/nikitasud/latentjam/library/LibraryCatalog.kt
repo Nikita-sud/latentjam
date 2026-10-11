@@ -325,6 +325,17 @@ public data class LibraryCatalog(
             return result
         }
 
+        /** Whether [track] names an album the Albums tab would file it under by title. */
+        internal fun hasAlbumTitle(track: TrackDescriptor): Boolean = track.album.normalizedKey() != null
+
+        /**
+         * [tracks] split into the albums [build] lists them as, each album's tracks in [tracks]'
+         * order, the albums in the order their titles first come. An album title is told apart as
+         * written ("The Wall" is not "Wall"), never by its shelving key ([SongSorting.sortKey]).
+         */
+        internal fun albumsOf(tracks: List<TrackDescriptor>): List<List<TrackDescriptor>> =
+            tracks.albumGroups().values.toList()
+
         /** One album title's [tracks] as the separate releases the album list shows them as. */
         public fun separateReleases(tracks: List<TrackDescriptor>): List<List<TrackDescriptor>> =
             tracks.releases()?.values?.toList() ?: listOf(tracks)

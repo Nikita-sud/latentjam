@@ -68,28 +68,19 @@ public object PlaylistSorting {
     /**
      * Albums run in [direction]; an album's own tracks always run as the album page lists them
      * ([LibraryCatalog.inAlbumOrder]: disc, then track number), the way the album plays. Albums are
-     * told apart as the Albums tab tells them apart: one title by one album artist (or, untagged, one
-     * artist) is one album, and same-named albums by different artists ("Greatest Hits") stay apart
-     * unless they share their artwork, which keeps an untagged compilation whole. Tracks without an
-     * album come last, in the stored order.
+     * told apart exactly as the Albums tab tells them apart ([LibraryCatalog.albumsOf]): one title by
+     * one album artist (or, untagged, one artist) is one album, one artist's two releases of a title
+     * part by folder or year, and same-named albums by different artists ("Greatest Hits") stay apart
+     * unless they share their artwork, which keeps an untagged compilation whole. Only their order
+     * shelves the title ("The Wall" beside "Wall"): grouping by that key would play two albums as one.
+     * Tracks without an album come last, in the stored order.
      */
     private fun byAlbum(stored: List<TrackDescriptor>, direction: SongSortDirection): List<TrackDescriptor> {
-        val (titled, untitled) = stored.partition { SongSorting.sortKey(it.album) != MISSING_TEXT }
-        val albums = titled
-            .groupBy { SongSorting.sortKey(it.album) }
-            .flatMap { (title, sameTitle) ->
-                val owners = sameTitle.map { it.albumOwnerKey() }.filter { it != MISSING_TEXT }.toSet()
-                val artwork = sameTitle.mapNotNull { it.albumArtwork() }.toSet()
-                val parts = when {
-                    // One artist's two releases of one title (two "Greatest Hits") part as the tab parts them.
-                    owners.size <= 1 -> LibraryCatalog.separateReleases(sameTitle)
-                    artwork.size == 1 -> listOf(sameTitle)
-                    else -> sameTitle.groupBy { it.albumArtwork() ?: "\u0000" + it.albumOwnerKey() }.values
-                }
-                parts.map { tracks ->
-                    val owner = tracks.map { it.albumOwnerKey() }.firstOrNull { it != MISSING_TEXT } ?: MISSING_TEXT
-                    KeyedAlbum(title, owner, tracks)
-                }
+        val (titled, untitled) = stored.partition(LibraryCatalog::hasAlbumTitle)
+        val albums = LibraryCatalog.albumsOf(titled)
+            .map { tracks ->
+                val owner = tracks.map { it.albumOwnerKey() }.firstOrNull { it != MISSING_TEXT } ?: MISSING_TEXT
+                KeyedAlbum(SongSorting.sortKey(tracks.first().album), owner, tracks)
             }
             .sortedWith { left, right ->
                 compareText(left.title, right.title, direction).takeIf { it != 0 }
@@ -108,9 +99,6 @@ public object PlaylistSorting {
     /** Whose album a track is on, as the catalog reads it: the album artist, else the artist. */
     private fun TrackDescriptor.albumOwnerKey(): String =
         SongSorting.sortKey(albumArtist?.takeIf { it.isNotBlank() } ?: artist)
-
-    /** The album's cover rather than a song's own, as the catalog compares them. */
-    private fun TrackDescriptor.albumArtwork(): String? = albumArtworkUri ?: artworkUri
 
     private fun compareText(left: String, right: String, direction: SongSortDirection): Int {
         val leftMissing = left == MISSING_TEXT

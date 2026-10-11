@@ -191,6 +191,51 @@ internal class PlaylistSortingTest {
     }
 
     @Test
+    fun albumsWhoseTitlesShelveAlikeStayTheTwoAlbumsTheAlbumsTabShows() {
+        // "The Wall" and "Wall" shelve under W alike, but they are two albums: the article is part
+        // of the title the Albums tab tells them apart by.
+        val stored = listOf(
+            track("the-wall-1", album = "The Wall", artist = "Pink Floyd", number = 1),
+            track("wall-2", album = "Wall", artist = "Pink Floyd", number = 2),
+            track("the-wall-3", album = "The Wall", artist = "Pink Floyd", number = 3),
+        )
+        assertEquals(2, LibraryCatalog.build(stored).albums.size)
+        for (direction in SongSortDirection.entries) {
+            assertEquals(
+                listOf("the-wall-1", "the-wall-3", "wall-2"),
+                ids(PlaylistSorting.sort(stored, PlaylistSort.ALBUM, direction)),
+                "$direction",
+            )
+        }
+    }
+
+    @Test
+    fun albumOrderGroupsTracksExactlyAsTheAlbumsTabDoes() {
+        val stored = listOf(
+            track("wall-1", album = "The Wall", artist = "Pink Floyd", number = 1),
+            track("animals-1", album = "Animals", albumArtist = "The Beatles", number = 1),
+            track("wall-b", album = "Wall", artist = "Pink Floyd", number = 1),
+            track("animals-2", album = "Animals", albumArtist = "Beatles", number = 2),
+            track("wall-2", album = "the  wall", artist = "pink floyd", number = 2),
+            track("loose", album = "  "),
+        )
+        val tabAlbums = LibraryCatalog.build(stored).albums.map { album -> album.tracks.map { it.id.value }.toSet() }
+        val played = PlaylistSorting.sort(stored, PlaylistSort.ALBUM)
+        // Each album the tab shows plays as one unbroken run.
+        val runs = played.filter { it.id.value != "loose" }.fold(mutableListOf<MutableSet<String>>()) { runs, track ->
+            val album = tabAlbums.single { track.id.value in it }
+            if (runs.lastOrNull()?.let { run -> run.first() in album } == true) {
+                runs.last() += track.id.value
+            } else {
+                runs += mutableSetOf(track.id.value)
+            }
+            runs
+        }
+        assertEquals(tabAlbums.filter { "loose" !in it }.toSet(), runs.toSet())
+        assertEquals("loose", played.last().id.value)
+    }
+
+    @Test
     fun durationRunsShortestFirstAndUnknownLengthsStayLast() {
         val stored = listOf(
             track("long", durationMs = 400_000),
