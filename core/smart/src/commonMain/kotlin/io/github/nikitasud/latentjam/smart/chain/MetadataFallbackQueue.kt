@@ -29,7 +29,11 @@ internal object MetadataFallbackQueue {
         companionGroups: List<Set<TrackId>> = emptyList(),
     ): List<TrackId> {
         if (length <= 0 || textIndex == null) return emptyList()
-        val seedVector = textIndex.vector(seed.id) ?: return emptyList()
+        // Only read, under the engine's lock, so the stored vectors serve as they are: copies would
+        // be a second text index, and this is also the queue a press gets when the audio snapshot
+        // has just run out of memory.
+        val stored = textIndex.storedEntries()
+        val seedVector = stored[seed.id] ?: return emptyList()
         val candidateTracks = library.distinctBy { it.id }.filterNot { it.id == seed.id }
         val companions = CompanionMembership.build(
             rowIds = listOf(seed.id) + candidateTracks.map { it.id },
@@ -37,7 +41,7 @@ internal object MetadataFallbackQueue {
         )
         val seedRow = 0
         val candidates = candidateTracks.mapIndexedNotNull { candidateIndex, track ->
-            textIndex.vector(track.id)?.let { vector ->
+            stored[track.id]?.let { vector ->
                 Candidate(track, vector, companionRow = candidateIndex + 1)
             }
         }
