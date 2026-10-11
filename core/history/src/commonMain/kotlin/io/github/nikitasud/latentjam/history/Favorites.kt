@@ -5,8 +5,12 @@
 package io.github.nikitasud.latentjam.history
 
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /**
  * Tracks the listener marked as favourites, newest first.
@@ -96,9 +100,7 @@ public class DefaultFavorites(
         } else {
             listOf(id) + ids
         }
-        store.write(replacement.map { it.value })
-        ids.clear()
-        ids += replacement
+        publish(replacement)
         id in ids
     }
 
@@ -126,19 +128,28 @@ public class DefaultFavorites(
         FavoritesChange(before, after)
     }
 
-    /** Writes [replacement] first, so a failed write leaves memory exactly as it was. */
+    /**
+     * Called with the mutex held: commits [replacement] to the store and to memory as one step.
+     *
+     * A caller already cancelled writes nothing. Once the write has started, a cancellation can no
+     * longer split it from the list in memory: the platform stores write on another dispatcher, and
+     * the hop back would otherwise deliver the cancellation after the list had reached the disk but
+     * before memory learned of it, so the next edit, built from the stale list, would overwrite it.
+     * The cancellation still reaches the caller at its next suspension point. A failed write leaves
+     * memory exactly as it was.
+     */
     private suspend fun publish(replacement: List<TrackId>) {
-        store.write(replacement.map { it.value })
-        ids.clear()
-        ids += replacement
+        currentCoroutineContext().ensureActive()
+        withContext(NonCancellable) {
+            store.write(replacement.map { it.value })
+            ids.clear()
+            ids += replacement
+        }
     }
 
     override suspend fun replace(ids: List<TrackId>): Unit = mutex.withLock {
         ensureLoaded()
-        val replacement = ids.distinct()
-        store.write(replacement.map { it.value })
-        this.ids.clear()
-        this.ids += replacement
+        publish(ids.distinct())
     }
 
     override suspend fun replaceIfUnchanged(
@@ -148,11 +159,7 @@ public class DefaultFavorites(
         ensureLoaded()
         if (ids != expected) return@withLock false
         val normalized = replacement.distinct()
-        if (normalized != ids) {
-            store.write(normalized.map { it.value })
-            ids.clear()
-            ids += normalized
-        }
+        if (normalized != ids) publish(normalized)
         true
     }
 
