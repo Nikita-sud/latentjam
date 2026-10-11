@@ -2,4 +2,16 @@
 <resources>
     <string name="tab_folders">المجلدات</string>
     <string name="folder_content_description">مجلد موسيقى</string>
+    <string name="folder_view_tree">شجرة</string>
+    <string name="folder_view_list">قائمة</string>
+    <string name="folder_root_internal_storage">وحدة التخزين الداخلية</string>
+    <string name="folder_root_sd_card">بطاقة SD</string>
+    <plurals name="count_folders">
+        <item quantity="zero">%1$d مجلد</item>
+        <item quantity="one">%1$d مجلد</item>
+        <item quantity="two">%1$d مجلدان</item>
+        <item quantity="few">%1$d مجلدات</item>
+        <item quantity="many">%1$d مجلدًا</item>
+        <item quantity="other">%1$d مجلد</item>
+    </plurals>
 </resources>

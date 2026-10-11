@@ -2,4 +2,14 @@
 <resources>
     <string name="tab_folders">Папки</string>
     <string name="folder_content_description">Папка с музыкой</string>
+    <string name="folder_view_tree">Дерево</string>
+    <string name="folder_view_list">Список</string>
+    <string name="folder_root_internal_storage">Внутренняя память</string>
+    <string name="folder_root_sd_card">SD-карта</string>
+    <plurals name="count_folders">
+        <item quantity="one">%1$d папка</item>
+        <item quantity="few">%1$d папки</item>
+        <item quantity="many">%1$d папок</item>
+        <item quantity="other">%1$d папки</item>
+    </plurals>
 </resources>

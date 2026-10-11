@@ -2,4 +2,14 @@
 <resources>
     <string name="tab_folders">Foldery</string>
     <string name="folder_content_description">Folder z muzyką</string>
+    <string name="folder_view_tree">Drzewo</string>
+    <string name="folder_view_list">Lista</string>
+    <string name="folder_root_internal_storage">Pamięć wewnętrzna</string>
+    <string name="folder_root_sd_card">Karta SD</string>
+    <plurals name="count_folders">
+        <item quantity="one">%1$d folder</item>
+        <item quantity="few">%1$d foldery</item>
+        <item quantity="many">%1$d folderów</item>
+        <item quantity="other">%1$d folderu</item>
+    </plurals>
 </resources>

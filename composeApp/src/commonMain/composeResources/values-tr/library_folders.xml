@@ -2,4 +2,12 @@
 <resources>
     <string name="tab_folders">Klasörler</string>
     <string name="folder_content_description">Müzik klasörü</string>
+    <string name="folder_view_tree">Ağaç</string>
+    <string name="folder_view_list">Liste</string>
+    <string name="folder_root_internal_storage">Dahili depolama</string>
+    <string name="folder_root_sd_card">SD kart</string>
+    <plurals name="count_folders">
+        <item quantity="one">%1$d klasör</item>
+        <item quantity="other">%1$d klasör</item>
+    </plurals>
 </resources>

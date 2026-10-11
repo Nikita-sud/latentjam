@@ -2,4 +2,12 @@
 <resources>
     <string name="tab_folders">Cartelle</string>
     <string name="folder_content_description">Cartella musicale</string>
+    <string name="folder_view_tree">Albero</string>
+    <string name="folder_view_list">Elenco</string>
+    <string name="folder_root_internal_storage">Memoria interna</string>
+    <string name="folder_root_sd_card">Scheda SD</string>
+    <plurals name="count_folders">
+        <item quantity="one">%1$d cartella</item>
+        <item quantity="other">%1$d cartelle</item>
+    </plurals>
 </resources>

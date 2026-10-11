@@ -2,4 +2,17 @@
 <resources>
     <string name="tab_folders">Folders</string>
     <string name="folder_content_description">Music folder</string>
+    <!-- The Folders tab's two views: folders nested as they are on the device, or every
+         folder in one list. Short: they name the buttons that switch between them. -->
+    <string name="folder_view_tree">Tree</string>
+    <string name="folder_view_list">List</string>
+    <!-- The top of the folder tree for the device's own storage, and the name of a memory
+         card the system gives no name of its own. -->
+    <string name="folder_root_internal_storage">Internal storage</string>
+    <string name="folder_root_sd_card">SD card</string>
+    <!-- How many folders are directly inside a folder, beside its count_tracks fragment. -->
+    <plurals name="count_folders">
+        <item quantity="one">%1$d folder</item>
+        <item quantity="other">%1$d folders</item>
+    </plurals>
 </resources>

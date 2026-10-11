@@ -254,7 +254,7 @@ class StringResourceParityTest {
                 "settings_crossfade_value", "stats_hours_short", "stats_minutes_short", "stats_under_minute",
             )
             val indonesian = kbpsAndMegabytes + setOf(
-                "action_edit_album", "action_edit_short", "count_albums", "count_files", "details_file",
+                "action_edit_album", "action_edit_short", "count_albums", "count_files", "count_folders", "details_file",
                 "details_format", "equalizer_preset_treble", "info_album", "info_genre",
                 "intelligence_section_status",
             )
@@ -282,7 +282,7 @@ class StringResourceParityTest {
                 "values-ja" to kbpsAndMegabytes,
                 "values-ko" to kbpsAndMegabytes,
                 "values-pl" to setOf(
-                    "count_albums", "details_format", "info_album", "unit_megabytes", "settings_crossfade_value",
+                    "count_albums", "count_folders", "details_format", "info_album", "unit_megabytes", "settings_crossfade_value",
                     "stats_minutes_short", "stats_under_minute",
                 ),
                 "values-pt-rBR" to kbpsAndMegabytes + latinTimeUnits + setOf(

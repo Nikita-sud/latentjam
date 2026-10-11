@@ -2,4 +2,13 @@
 <resources>
     <string name="tab_folders">Dosare</string>
     <string name="folder_content_description">Dosar cu muzică</string>
+    <string name="folder_view_tree">Arbore</string>
+    <string name="folder_view_list">Listă</string>
+    <string name="folder_root_internal_storage">Memorie internă</string>
+    <string name="folder_root_sd_card">Card SD</string>
+    <plurals name="count_folders">
+        <item quantity="one">%1$d dosar</item>
+        <item quantity="few">%1$d dosare</item>
+        <item quantity="other">%1$d de dosare</item>
+    </plurals>
 </resources>

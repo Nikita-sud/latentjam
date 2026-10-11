@@ -2,4 +2,11 @@
 <resources>
     <string name="tab_folders">Folder</string>
     <string name="folder_content_description">Folder musik</string>
+    <string name="folder_view_tree">Pohon</string>
+    <string name="folder_view_list">Daftar</string>
+    <string name="folder_root_internal_storage">Penyimpanan internal</string>
+    <string name="folder_root_sd_card">Kartu SD</string>
+    <plurals name="count_folders">
+        <item quantity="other">%1$d folder</item>
+    </plurals>
 </resources>

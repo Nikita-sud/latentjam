@@ -2,4 +2,12 @@
 <resources>
     <string name="tab_folders">Carpetas</string>
     <string name="folder_content_description">Carpeta de música</string>
+    <string name="folder_view_tree">Árbol</string>
+    <string name="folder_view_list">Lista</string>
+    <string name="folder_root_internal_storage">Almacenamiento interno</string>
+    <string name="folder_root_sd_card">Tarjeta SD</string>
+    <plurals name="count_folders">
+        <item quantity="one">%1$d carpeta</item>
+        <item quantity="other">%1$d carpetas</item>
+    </plurals>
 </resources>

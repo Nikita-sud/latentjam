@@ -440,6 +440,13 @@ interface AppSettings {
     /** Ignores a field outside [ARTIST_ALBUM_SORTS]. */
     fun setArtistAlbumSort(choice: SortChoice<AlbumSort>)
 
+    /**
+     * How the Folders tab shows the library: the folder tree (the default) or every folder in one
+     * list. The platforms persist it; the defaults here only serve settings that never store it.
+     */
+    val folderView: StateFlow<FolderView> get() = DEFAULT_FOLDER_VIEW
+    fun setFolderView(view: FolderView) {}
+
     /** Raw persisted loudness measurements (see [encodeTrackLoudness]); null when none exist. */
     fun readTrackLoudnessPayload(): String?
     fun writeTrackLoudnessPayload(payload: String)

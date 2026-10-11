@@ -2,4 +2,11 @@
 <resources>
     <string name="tab_folders">フォルダ</string>
     <string name="folder_content_description">音楽フォルダ</string>
+    <string name="folder_view_tree">ツリー</string>
+    <string name="folder_view_list">リスト</string>
+    <string name="folder_root_internal_storage">内部ストレージ</string>
+    <string name="folder_root_sd_card">SDカード</string>
+    <plurals name="count_folders">
+        <item quantity="other">%1$d個のフォルダ</item>
+    </plurals>
 </resources>

@@ -2,4 +2,12 @@
 <resources>
     <string name="tab_folders">Ordner</string>
     <string name="folder_content_description">Musikordner</string>
+    <string name="folder_view_tree">Baum</string>
+    <string name="folder_view_list">Liste</string>
+    <string name="folder_root_internal_storage">Interner Speicher</string>
+    <string name="folder_root_sd_card">SD-Karte</string>
+    <plurals name="count_folders">
+        <item quantity="one">%1$d Ordner</item>
+        <item quantity="other">%1$d Ordner</item>
+    </plurals>
 </resources>

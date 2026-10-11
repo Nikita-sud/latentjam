@@ -86,7 +86,6 @@ import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.FileOpen
 import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.LibraryAdd
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MusicNote
@@ -212,7 +211,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.library_import_hint
 import io.github.nikitasud.latentjam.app.generated.resources.library_import_none
 import io.github.nikitasud.latentjam.app.generated.resources.library_import_partial
 import io.github.nikitasud.latentjam.app.generated.resources.library_imported
-import io.github.nikitasud.latentjam.app.generated.resources.folder_content_description
 import io.github.nikitasud.latentjam.app.generated.resources.playlist_imported_name
 import io.github.nikitasud.latentjam.app.generated.resources.playlist_new
 import io.github.nikitasud.latentjam.app.generated.resources.snack_m3u_import_failed
@@ -2031,7 +2029,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     StartPage.ALBUMS -> albumTabTracks
                     StartPage.ARTISTS -> groupOrderedCatalog?.artists?.flatMap { it.tracks }
                     StartPage.GENRES -> groupOrderedCatalog?.genres?.flatMap { it.tracks }
-                    StartPage.FOLDERS -> groupOrderedCatalog?.folders?.flatMap { it.tracks }
+                    StartPage.FOLDERS -> groupOrderedCatalog?.let { shown ->
+                        folderTabSelectionOrder(shown, groupSortOrders.folders, selectedTrackIds, settings.folderView.value)
+                    }
                     else -> null
                 }
             groupOrderedSource?.filter { it.id in selectedTrackIds }
@@ -2547,6 +2547,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 is QueueSourceGroup.Artist -> { { target.group.toSelection(settings.artistAlbumSort.value) } }
                                 is QueueSourceGroup.Genre -> { { target.group.toSelection() } }
                                 is QueueSourceGroup.Folder -> { { target.group.toSelection() } }
+                                is QueueSourceGroup.FolderBranch -> {
+                                    { target.node.toTreeSelection(settings.groupSortOrders.value.folders) }
+                                }
                                 null -> return false
                             }
                         }
@@ -3717,63 +3720,23 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         }
                                         }
 
-                                        StartPage.FOLDERS -> Column {
-                                            GroupOrderHeader(
-                                                title = stringResource(StartPage.FOLDERS.titleResource()),
-                                                direction = groupSortOrders.folders,
-                                                enabled = !selectionMode,
-                                                onChange = { settings.setGroupSortOrders(groupSortOrders.copy(folders = it)) },
-                                            )
-                                            GroupListWithRail(
-                                            onScrubbingChange = { railScrubbing = it },
-                                            names = remember(visibleCatalog.folders) {
-                                                visibleCatalog.folders.map { it.name }
+                                        StartPage.FOLDERS -> FoldersPage(
+                                            catalog = visibleCatalog,
+                                            playback = playback,
+                                            active = browsePageVisible && settledTab == StartPage.FOLDERS,
+                                            selectionMode = selectionMode,
+                                            selectedTrackIds = selectedTrackIds,
+                                            onSelectionChange = { updateTrackSelection(it) },
+                                            onOpenFolder = { folder ->
+                                                openCollection(build = { folder.toSelection() })
                                             },
+                                            onTrackMenu = { sheets.trackMenuRequest = TrackMenuRequest(it) },
+                                            currentTrackId = currentTrack?.id,
+                                            currentTrackPlaying = currentTrackPlaying,
+                                            currentAccent = browseAccentInk(accent),
                                             contentPadding = listPadding,
-                                        ) { railPadding, listState, _ ->
-                                            var previousOrder by remember { mutableStateOf(groupSortOrders.folders) }
-                                            LaunchedEffect(groupSortOrders.folders) {
-                                                if (previousOrder != groupSortOrders.folders) listState.scrollToItem(0)
-                                                previousOrder = groupSortOrders.folders
-                                            }
-                                            LazyColumn(
-                                            state = listState,
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentPadding = railPadding,
-                                        ) {
-                                            items(visibleCatalog.folders, key = { it.path }) { folder ->
-                                                FolderRow(
-                                                    folder = folder,
-                                                    subtitle = pluralStringResource(
-                                                        Res.plurals.count_tracks,
-                                                        folder.tracks.size,
-                                                        folder.tracks.size,
-                                                    ),
-                                                    onLongClick = {
-                                                        updateTrackSelection(
-                                                            selectedTrackIds.toggleTracks(folder.tracks),
-                                                        )
-                                                    },
-                                                    selectionState = if (selectionMode) {
-                                                        selectedTrackIds.selectsAllOf(folder.tracks)
-                                                    } else {
-                                                        null
-                                                    },
-                                                ) {
-                                                    if (selectionMode) {
-                                                        updateTrackSelection(
-                                                            selectedTrackIds.toggleTracks(folder.tracks),
-                                                        )
-                                                    } else {
-                                                        openCollection(
-                                                            build = { folder.toSelection() },
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        }
-                                        }
+                                            onRailScrubbingChange = { railScrubbing = it },
+                                        )
 
                                         }
                                         } // page rail provider
@@ -5790,7 +5753,7 @@ private fun <S : Enum<S>> SortHeader(
 /** The shared browse-group gesture: tap, plus [TrackRow]'s long-press haptic when selectable. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun Modifier.groupClickable(onClick: () -> Unit, onLongClick: (() -> Unit)?): Modifier {
+internal fun Modifier.groupClickable(onClick: () -> Unit, onLongClick: (() -> Unit)?): Modifier {
     return combinedClickable(
         onClick = onClick,
         // combinedClickable provides the long-press haptic once the hold is recognized.
@@ -5800,7 +5763,7 @@ private fun Modifier.groupClickable(onClick: () -> Unit, onLongClick: (() -> Uni
 
 /** The leading check ring group rows share with [TrackRow]; absent outside selection mode. */
 @Composable
-private fun GroupSelectionMark(selectionState: Boolean?) {
+internal fun GroupSelectionMark(selectionState: Boolean?) {
     if (selectionState == null) return
     Icon(
         imageVector = if (selectionState) {
@@ -6082,71 +6045,6 @@ private fun GroupRow(
                 modifier = Modifier.size(20.dp),
             )
         }
-    }
-}
-
-/** Folder rows use a stable folder glyph; an arbitrary first cover would misrepresent the source. */
-@Composable
-private fun FolderRow(
-    folder: FolderGroup,
-    subtitle: String,
-    onLongClick: (() -> Unit)? = null,
-    /** `null` outside selection mode; otherwise whether every track of this folder is selected. */
-    selectionState: Boolean? = null,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(
-                if (selectionState != null) {
-                    Modifier.semantics {
-                        selected = selectionState
-                        role = Role.Checkbox
-                    }
-                } else {
-                    Modifier
-                },
-            )
-            .groupClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 20.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        GroupSelectionMark(selectionState)
-        Box(
-            modifier = Modifier
-                .size(56.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainer),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Folder,
-                contentDescription = stringResource(Res.string.folder_content_description),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = folder.name,
-                style = MaterialTheme.typography.bodyLarge.metadata(),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = folder.path,
-                style = MaterialTheme.typography.bodySmall.metadata(),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Text(
-            text = subtitle,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 

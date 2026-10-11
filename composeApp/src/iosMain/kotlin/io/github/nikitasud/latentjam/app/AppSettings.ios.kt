@@ -78,6 +78,10 @@ internal class IosAppSettings : AppSettings {
         artistAlbumSortFromPersisted(defaults.objectForKey(KEY_ARTIST_ALBUM_SORT) as? String),
     )
     override val artistAlbumSort: StateFlow<SortChoice<AlbumSort>> = mutableArtistAlbumSort.asStateFlow()
+    private val mutableFolderView = MutableStateFlow(
+        folderViewFromPersisted(defaults.objectForKey(KEY_FOLDER_VIEW) as? String),
+    )
+    override val folderView: StateFlow<FolderView> = mutableFolderView.asStateFlow()
     private val mutableSaveListeningHistory = MutableStateFlow(readRecordingPreference(KEY_SAVE_HISTORY))
     override val saveListeningHistory: StateFlow<Boolean> = mutableSaveListeningHistory.asStateFlow()
     private val mutableRememberSearches = MutableStateFlow(readRecordingPreference(KEY_REMEMBER_SEARCHES))
@@ -162,6 +166,11 @@ internal class IosAppSettings : AppSettings {
         if (choice.sort !in ARTIST_ALBUM_SORTS) return
         defaults.setObject(encodeSortChoice(choice), KEY_ARTIST_ALBUM_SORT)
         mutableArtistAlbumSort.value = choice
+    }
+
+    override fun setFolderView(view: FolderView) {
+        defaults.setObject(view.name, KEY_FOLDER_VIEW)
+        mutableFolderView.value = view
     }
 
     override fun readTrackLoudnessPayload(): String? =
@@ -345,6 +354,7 @@ internal class IosAppSettings : AppSettings {
         const val KEY_ALBUM_SORT = "album_sort"
         const val KEY_GROUP_SORT = "group_sort_orders"
         const val KEY_ARTIST_ALBUM_SORT = "artist_album_sort"
+        const val KEY_FOLDER_VIEW = "folder_view"
         const val KEY_TRACK_LOUDNESS = "track_loudness_v1"
         const val KEY_TRACK_GENRES = "track_genres_v1"
         const val KEY_AUDIO_CARRY_OVERS = "audio_carry_overs"

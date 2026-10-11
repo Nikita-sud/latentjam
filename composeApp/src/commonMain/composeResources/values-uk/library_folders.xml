@@ -2,4 +2,14 @@
 <resources>
     <string name="tab_folders">Теки</string>
     <string name="folder_content_description">Тека з музикою</string>
+    <string name="folder_view_tree">Дерево</string>
+    <string name="folder_view_list">Список</string>
+    <string name="folder_root_internal_storage">Внутрішня пам’ять</string>
+    <string name="folder_root_sd_card">SD-карта</string>
+    <plurals name="count_folders">
+        <item quantity="one">%1$d тека</item>
+        <item quantity="few">%1$d теки</item>
+        <item quantity="many">%1$d тек</item>
+        <item quantity="other">%1$d теки</item>
+    </plurals>
 </resources>

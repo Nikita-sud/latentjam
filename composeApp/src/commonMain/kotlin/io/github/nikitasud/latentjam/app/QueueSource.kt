@@ -12,6 +12,8 @@ import io.github.nikitasud.latentjam.library.AlbumGroup
 import io.github.nikitasud.latentjam.library.ArtistGroup
 import io.github.nikitasud.latentjam.library.AutoPlaylistKind
 import io.github.nikitasud.latentjam.library.FolderGroup
+import io.github.nikitasud.latentjam.library.FolderNode
+import io.github.nikitasud.latentjam.library.FolderTree
 import io.github.nikitasud.latentjam.library.GenreGroup
 import io.github.nikitasud.latentjam.library.LibraryCatalog
 import org.jetbrains.compose.resources.StringResource
@@ -59,13 +61,13 @@ internal fun CollectionSelection.queueSource(): QueueSource = when {
     else -> QueueSource(QueueSourceKind.COLLECTION, title)
 }
 
-private val LIBRARY_GROUP_PREFIXES = setOf("album", "artist", "genre", "folder", "auto")
+private val LIBRARY_GROUP_PREFIXES = setOf("album", "artist", "genre", "folder", "foldertree", "auto")
 
 /**
  * The listening log's id for the collection a queue was started from: `playlist:<id>` for a user
- * playlist, the kind-qualified route (`album:<key>`, `folder:<path>`, `auto:<KIND>`, …) for a
- * library group. Titles are never used — they are localized and collide — so a source with no
- * durable identity (a journey, a map region, search, the whole library) has no parent.
+ * playlist, the kind-qualified route (`album:<key>`, `folder:<path>`, `foldertree:<volume>:<path>`,
+ * `auto:<KIND>`, …) for a library group. Titles are never used — they are localized and collide — so
+ * a source with no durable identity (a journey, a map region, search, the whole library) has no parent.
  */
 internal fun QueueSource.parentCollectionId(): String? {
     val id = reference?.takeIf(String::isNotBlank) ?: return null
@@ -90,6 +92,9 @@ internal sealed interface QueueSourceGroup {
     data class Artist(val group: ArtistGroup) : QueueSourceGroup
     data class Genre(val group: GenreGroup) : QueueSourceGroup
     data class Folder(val group: FolderGroup) : QueueSourceGroup
+
+    /** A folder with everything below it, as the folder tree plays it. */
+    data class FolderBranch(val node: FolderNode) : QueueSourceGroup
 }
 
 /** Missing and legacy identities fall back to the queue, never to a similarly named place. */
@@ -105,6 +110,9 @@ internal fun QueueSource.resolveGroup(catalog: LibraryCatalog?): QueueSourceGrou
             ?.let(QueueSourceGroup::Genre)
         "folder" -> catalog.folders.firstOrNull { "folder:${it.path}" == route }
             ?.let(QueueSourceGroup::Folder)
+        "foldertree" -> FolderTree.build(catalog.songs)
+            .node(route.removePrefix(FOLDER_TREE_ROUTE_PREFIX))
+            ?.let(QueueSourceGroup::FolderBranch)
         else -> null
     }
 }

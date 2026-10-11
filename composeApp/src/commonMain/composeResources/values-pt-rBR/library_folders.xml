@@ -2,4 +2,12 @@
 <resources>
     <string name="tab_folders">Pastas</string>
     <string name="folder_content_description">Pasta de músicas</string>
+    <string name="folder_view_tree">Árvore</string>
+    <string name="folder_view_list">Lista</string>
+    <string name="folder_root_internal_storage">Armazenamento interno</string>
+    <string name="folder_root_sd_card">Cartão SD</string>
+    <plurals name="count_folders">
+        <item quantity="one">%1$d pasta</item>
+        <item quantity="other">%1$d pastas</item>
+    </plurals>
 </resources>

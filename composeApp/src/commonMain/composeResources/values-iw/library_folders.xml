@@ -2,4 +2,13 @@
 <resources>
     <string name="tab_folders">תיקיות</string>
     <string name="folder_content_description">תיקיית מוזיקה</string>
+    <string name="folder_view_tree">עץ</string>
+    <string name="folder_view_list">רשימה</string>
+    <string name="folder_root_internal_storage">אחסון פנימי</string>
+    <string name="folder_root_sd_card">כרטיס SD</string>
+    <plurals name="count_folders">
+        <item quantity="one">%1$d תיקייה</item>
+        <item quantity="two">%1$d תיקיות</item>
+        <item quantity="other">%1$d תיקיות</item>
+    </plurals>
 </resources>

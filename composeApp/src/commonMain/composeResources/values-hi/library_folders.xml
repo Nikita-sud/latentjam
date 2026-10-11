@@ -2,4 +2,12 @@
 <resources>
     <string name="tab_folders">फ़ोल्डर</string>
     <string name="folder_content_description">संगीत फ़ोल्डर</string>
+    <string name="folder_view_tree">ट्री</string>
+    <string name="folder_view_list">सूची</string>
+    <string name="folder_root_internal_storage">आंतरिक स्टोरेज</string>
+    <string name="folder_root_sd_card">SD कार्ड</string>
+    <plurals name="count_folders">
+        <item quantity="one">%1$d फ़ोल्डर</item>
+        <item quantity="other">%1$d फ़ोल्डर</item>
+    </plurals>
 </resources>

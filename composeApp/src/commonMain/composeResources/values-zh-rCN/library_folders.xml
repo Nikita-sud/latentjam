@@ -2,4 +2,11 @@
 <resources>
     <string name="tab_folders">文件夹</string>
     <string name="folder_content_description">音乐文件夹</string>
+    <string name="folder_view_tree">树状</string>
+    <string name="folder_view_list">列表</string>
+    <string name="folder_root_internal_storage">内部存储</string>
+    <string name="folder_root_sd_card">SD 卡</string>
+    <plurals name="count_folders">
+        <item quantity="other">%1$d 个文件夹</item>
+    </plurals>
 </resources>
