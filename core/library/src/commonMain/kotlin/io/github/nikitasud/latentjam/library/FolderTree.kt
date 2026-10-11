@@ -26,7 +26,8 @@ public data class FolderPlace(
  * @property path The folder's path under the volume, "" for a volume's root and for the library root.
  *   For any other folder it is the [TrackDescriptor.folderPath] its tracks carry.
  * @property folders Subfolders in ascending name order; see [folders] for the other direction.
- * @property tracks The tracks in this folder itself, by title as a folder's page lists them.
+ * @property tracks The tracks in this folder itself, in folder order as a folder's page lists them
+ *   ([LibraryCatalog.inFolderOrder]: disc, track number, then file name in natural order).
  * @property isLibraryRoot True only for the root that lists storage volumes rather than folders.
  */
 public class FolderNode internal constructor(
@@ -56,7 +57,7 @@ public class FolderNode internal constructor(
     /**
      * Every track in this folder and below it, in the order a folder plays: by path, a folder's own
      * tracks before its subfolders' and the subfolders in [direction], then each folder's tracks in
-     * title order. [FolderTree.inPlayOrder] puts any set of tracks in this same order.
+     * folder order ([LibraryCatalog.inFolderOrder]). [FolderTree.inPlayOrder] puts any set of tracks in this same order.
      */
     public fun allTracks(direction: SongSortDirection = SongSortDirection.ASCENDING): List<TrackDescriptor> {
         val result = ArrayList<TrackDescriptor>(trackCount)
@@ -82,7 +83,8 @@ public class FolderNode internal constructor(
  * `/mnt/media_rw/…`) is placed under that volume instead of under folders named `storage` and `0`.
  *
  * Folders are ordered by name as the flat folder list orders them (leading punctuation and English
- * articles aside, see [SongSorting.sortKey]); tracks within a folder by title, as a folder's page
+ * articles aside, see [SongSorting.sortKey]); tracks within a folder in folder order (disc, track
+ * number, then file name in natural order, see [LibraryCatalog.inFolderOrder]), as a folder's page
  * lists them. Tracks the library does not show (hidden ones, those of a disabled folder) are simply
  * not in the input, so a folder holding nothing else disappears and its parent's counts drop them.
  */
@@ -173,7 +175,7 @@ public class FolderTree private constructor(
         /**
          * [tracks] in the order their folders play them ([FolderNode.allTracks]): by volume, then
          * by folder path with a folder's own tracks before its subfolders' and folder names in
-         * [direction], then by title within a folder. A selection made in the tree plays this way.
+         * [direction], then in folder order within a folder. A selection made in the tree plays this way.
          */
         public fun inPlayOrder(
             tracks: List<TrackDescriptor>,
@@ -188,7 +190,6 @@ public class FolderTree private constructor(
                     volumeRank = volumeRank(place.volume),
                     volume = place.volume.orEmpty(),
                     segments = if (place.path.isEmpty()) emptyList() else place.path.split('/').map(::nameKey),
-                    title = SongSorting.sortKey(track.title),
                 )
             }
             val folderOrder = Comparator<PlayPlace> { left, right ->
@@ -197,7 +198,7 @@ public class FolderTree private constructor(
                     ?: compareSegments(left.segments, right.segments, direction)
             }
             return keyed
-                .sortedWith(folderOrder.thenBy { it.title })
+                .sortedWith(folderOrder.then { left, right -> LibraryCatalog.FOLDER_TRACK_ORDER.compare(left.track, right.track) })
                 .map { it.track }
         }
 
@@ -277,7 +278,7 @@ public class FolderTree private constructor(
                     volume = volume,
                     path = path,
                     folders = subfolders,
-                    tracks = if (own.isEmpty()) emptyList() else SongSorting.sort(own, SongSort.TITLE, SongSortDirection.ASCENDING),
+                    tracks = if (own.isEmpty()) emptyList() else LibraryCatalog.inFolderOrder(own),
                 ).also { nodes[it.key] = it }
             }
             return node("")
@@ -314,5 +315,4 @@ private class PlayPlace(
     val volumeRank: Int,
     val volume: String,
     val segments: List<FolderNameKey>,
-    val title: String,
 )

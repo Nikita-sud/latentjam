@@ -54,8 +54,8 @@ public data class FolderGroup(
  * track list — no platform types, trivially testable.
  *
  * Sorting: albums by title, artists/genres/folders by name (case-insensitive),
- * unknown (null) buckets last; an album's tracks in release order (see [inAlbumOrder]),
- * every other group's tracks by title.
+ * unknown (null) buckets last; an album's tracks in release order (see [inAlbumOrder]), a
+ * folder's tracks in folder order (see [inFolderOrder]), every other group's tracks by title.
  */
 public data class LibraryCatalog(
     public val songs: List<TrackDescriptor>,
@@ -173,7 +173,7 @@ public data class LibraryCatalog(
                     FolderGroup(
                         path = path,
                         name = path.substringAfterLast('/'),
-                        tracks = grouped.byTitle(),
+                        tracks = inFolderOrder(grouped),
                     )
                 }
                 .map {
@@ -216,6 +216,25 @@ public data class LibraryCatalog(
                 }
                 .sortedWith(ALBUM_PLACE_ORDER)
                 .map { it.track }
+
+        /**
+         * Folder order: disc, then track number, as the tags state them (numbered tracks first, a
+         * missing disc number counting as 1, as in [inAlbumOrder]), then the file name in natural
+         * order ("2 …" before "10 …"), then the title. An album folder plays as the album does; a
+         * folder of untagged files lists as a file explorer would.
+         */
+        public fun inFolderOrder(tracks: List<TrackDescriptor>): List<TrackDescriptor> =
+            tracks.sortedWith(FOLDER_TRACK_ORDER)
+
+        /** [inFolderOrder] as a comparator, for callers that order tracks of several folders. */
+        public val FOLDER_TRACK_ORDER: Comparator<TrackDescriptor> = Comparator { left, right ->
+            compareValues(left.trackNumber == null, right.trackNumber == null).takeIf { it != 0 }
+                ?: compareValues(left.discNumber ?: 1, right.discNumber ?: 1).takeIf { it != 0 }
+                ?: compareValues(left.trackNumber ?: 0, right.trackNumber ?: 0).takeIf { it != 0 }
+                ?: compareNatural(left.fileName.orEmpty(), right.fileName.orEmpty()).takeIf { it != 0 }
+                ?: SongSorting.sortKey(left.title).compareTo(SongSorting.sortKey(right.title)).takeIf { it != 0 }
+                ?: left.id.value.compareTo(right.id.value)
+        }
 
         /**
          * The year an album came out: the year most of its [tracks] state, the earliest on a tie,
