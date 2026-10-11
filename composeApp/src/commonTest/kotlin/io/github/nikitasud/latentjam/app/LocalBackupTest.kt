@@ -11,6 +11,7 @@ import io.github.nikitasud.latentjam.history.FavoritesStore
 import io.github.nikitasud.latentjam.history.DefaultRecentSearches
 import io.github.nikitasud.latentjam.history.HistoryStore
 import io.github.nikitasud.latentjam.history.ListenEvent
+import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.history.ListenOrigin
 import io.github.nikitasud.latentjam.history.ListenStart
 import io.github.nikitasud.latentjam.history.RecentSearchStore
@@ -1315,6 +1316,108 @@ internal class LocalBackupTest {
         DuplicateDismissals.restore(settings, listOf(listOf(TrackId("f"), TrackId("e"))), replace = true)
         assertEquals(listOf(listOf(TrackId("e"), TrackId("f"))), DuplicateDismissals.verdicts(settings.readDuplicateDismissalsPayload()))
     }
+
+    @Test
+    fun aRestoreThatStopsAfterTheFavouritesStillReloadsTheAppAndSaysItStopped() = runTest {
+        val tracks = listOf("a", "b").map { track(it, "Song $it", "Artist", "Album", 100_000) }
+        val (a, b) = tracks
+        val source = fixture(tracks)
+        source.favorites.replace(listOf(b.id, a.id))
+        source.history.record(event(a.id, 100))
+        val encoded = source.service.exportEncoded()
+
+        val destination = fixture(tracks)
+        // Favourites are applied before the listening history, which fails to write here.
+        val failingHistory = object : ListeningHistory by destination.history {
+            override suspend fun merge(
+                imported: List<ListenEvent>,
+                maxEvents: Int,
+                combine: (existing: List<ListenEvent>, imported: List<ListenEvent>) -> List<ListenEvent>,
+            ): Int = error("disk full")
+        }
+        val service = LocalBackupService(
+            destination.settings,
+            destination.playlists,
+            failingHistory,
+            destination.searches,
+            destination.library,
+            destination.exclusions,
+            destination.favorites,
+        )
+
+        val failure = assertFailsWith<LocalBackupRestoreException> {
+            service.importEncoded(encoded, LocalBackupRestoreMode.MERGE)
+        }
+        assertTrue(LocalBackupSection.FAVORITES in failure.completedSections)
+        assertEquals(listOf(b.id, a.id), destination.favorites.all(), "the hearts are already restored")
+
+        // So the app re-reads them (and every other section that landed), and the listener still
+        // learns that the restore stopped.
+        assertEquals(
+            LocalBackupRestoreOutcome(reloadApp = true, message = LocalBackupRestoreMessage.PARTIAL),
+            localBackupRestoreOutcome(Result.failure(failure)),
+        )
+    }
+
+    @Test
+    fun theAppReloadsAfterEveryRestoreThatWroteASectionAndOnlyThen() {
+        for (section in LocalBackupSection.entries) {
+            assertEquals(
+                LocalBackupRestoreOutcome(reloadApp = true, message = LocalBackupRestoreMessage.PARTIAL),
+                localBackupRestoreOutcome(
+                    Result.failure(LocalBackupRestoreException(setOf(section), IllegalStateException("disk full"))),
+                ),
+                "$section alone",
+            )
+        }
+        assertEquals(
+            LocalBackupRestoreOutcome(reloadApp = true, message = LocalBackupRestoreMessage.PARTIAL),
+            localBackupRestoreOutcome(
+                Result.failure(LocalBackupRestoreException(LocalBackupSection.entries.toSet(), IllegalStateException())),
+            ),
+        )
+        // Refused before any section was applied: there is nothing new to show.
+        assertEquals(
+            LocalBackupRestoreOutcome(reloadApp = false, message = LocalBackupRestoreMessage.FAILED),
+            localBackupRestoreOutcome(
+                Result.failure(
+                    LocalBackupRestoreException(emptySet(), LocalBackupLibraryUnavailableException("no tracks")),
+                ),
+            ),
+        )
+        assertEquals(
+            LocalBackupRestoreOutcome(reloadApp = false, message = LocalBackupRestoreMessage.INVALID),
+            localBackupRestoreOutcome(Result.failure(LocalBackupFormatException("Unsupported backup version"))),
+        )
+        assertEquals(
+            LocalBackupRestoreOutcome(reloadApp = false, message = LocalBackupRestoreMessage.FAILED),
+            localBackupRestoreOutcome(Result.failure(IllegalStateException("library unavailable"))),
+        )
+        assertEquals(
+            LocalBackupRestoreOutcome(reloadApp = true, message = LocalBackupRestoreMessage.RESTORED),
+            localBackupRestoreOutcome(Result.success(restoreReport(unresolvedTrackReferences = 0))),
+        )
+        assertEquals(
+            LocalBackupRestoreOutcome(
+                reloadApp = true,
+                message = LocalBackupRestoreMessage.RESTORED_UNMATCHED,
+                unmatchedTrackReferences = 3,
+            ),
+            localBackupRestoreOutcome(Result.success(restoreReport(unresolvedTrackReferences = 3))),
+        )
+    }
+
+    private fun restoreReport(unresolvedTrackReferences: Int) = LocalBackupRestoreReport(
+        completedSections = LocalBackupSection.entries.toSet(),
+        resolvedTrackReferences = 10,
+        unresolvedTrackReferences = unresolvedTrackReferences,
+        playlistsApplied = 1,
+        listeningEventsApplied = 1,
+        recentSearchesApplied = 0,
+        hiddenTracksApplied = 0,
+        smartTrackExclusionsApplied = 0,
+        smartArtistExclusionsApplied = 0,
+    )
 
     private fun emptySnapshot() = LocalBackupSnapshot(
         createdAtMs = 1,

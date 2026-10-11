@@ -3070,25 +3070,31 @@ private fun BackupSettings(
             // so it and its report run to completion even when Back or a dismiss closes the screen.
             withContext(NonCancellable) {
                 try {
-                    val report = service.importEncoded(encoded, mode, selectedSections)
-                    onBackupRestored()
-                    val message = if (report.unresolvedTrackReferences == 0) {
-                        importSuccess
-                    } else {
-                        org.jetbrains.compose.resources.getString(
+                    val outcome = localBackupRestoreOutcome(
+                        try {
+                            Result.success(service.importEncoded(encoded, mode, selectedSections))
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (failure: Throwable) {
+                            Result.failure(failure)
+                        },
+                    )
+                    // A restore that stopped part-way still wrote the sections before the failure;
+                    // the app shows them as after a complete one, and the message says it stopped.
+                    if (outcome.reloadApp) onBackupRestored()
+                    val message = when (outcome.message) {
+                        LocalBackupRestoreMessage.RESTORED -> importSuccess
+                        LocalBackupRestoreMessage.RESTORED_UNMATCHED -> org.jetbrains.compose.resources.getString(
                             Res.string.backup_import_success_unmatched,
-                            report.unresolvedTrackReferences,
+                            outcome.unmatchedTrackReferences,
                         )
+                        LocalBackupRestoreMessage.PARTIAL -> partialMessage
+                        LocalBackupRestoreMessage.FAILED -> failedMessage
+                        LocalBackupRestoreMessage.INVALID -> invalidMessage
                     }
                     snackbarHostState.showSnackbar(message)
                 } catch (cancelled: CancellationException) {
                     throw cancelled
-                } catch (failure: LocalBackupFormatException) {
-                    snackbarHostState.showSnackbar(invalidMessage)
-                } catch (failure: LocalBackupRestoreException) {
-                    snackbarHostState.showSnackbar(
-                        if (failure.completedSections.isEmpty()) failedMessage else partialMessage,
-                    )
                 } catch (_: Throwable) {
                     snackbarHostState.showSnackbar(failedMessage)
                 } finally {

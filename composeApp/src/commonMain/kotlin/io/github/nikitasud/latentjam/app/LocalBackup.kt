@@ -187,6 +187,43 @@ internal class LocalBackupRestoreException(
     cause: Throwable,
 ) : IllegalStateException("Local backup restore stopped after ${completedSections.size} sections", cause)
 
+/** What the listener is told once a restore attempt ends. */
+internal enum class LocalBackupRestoreMessage { RESTORED, RESTORED_UNMATCHED, PARTIAL, FAILED, INVALID }
+
+/**
+ * How Settings closes a restore attempt. [reloadApp] says whether the app has to re-read what the
+ * restore wrote. It does after a complete restore, and just as much after one that stopped part-way:
+ * the sections applied before the failure are already in their stores, and favourites, playlists,
+ * history and the rest would otherwise keep showing their old state until the next restart. Only an
+ * attempt that wrote nothing leaves the app as it was.
+ */
+internal data class LocalBackupRestoreOutcome(
+    val reloadApp: Boolean,
+    val message: LocalBackupRestoreMessage,
+    val unmatchedTrackReferences: Int = 0,
+)
+
+internal fun localBackupRestoreOutcome(result: Result<LocalBackupRestoreReport>): LocalBackupRestoreOutcome {
+    val report = result.getOrElse { failure ->
+        return when {
+            failure is LocalBackupFormatException ->
+                LocalBackupRestoreOutcome(reloadApp = false, message = LocalBackupRestoreMessage.INVALID)
+            failure is LocalBackupRestoreException && failure.completedSections.isNotEmpty() ->
+                LocalBackupRestoreOutcome(reloadApp = true, message = LocalBackupRestoreMessage.PARTIAL)
+            else -> LocalBackupRestoreOutcome(reloadApp = false, message = LocalBackupRestoreMessage.FAILED)
+        }
+    }
+    return if (report.unresolvedTrackReferences == 0) {
+        LocalBackupRestoreOutcome(reloadApp = true, message = LocalBackupRestoreMessage.RESTORED)
+    } else {
+        LocalBackupRestoreOutcome(
+            reloadApp = true,
+            message = LocalBackupRestoreMessage.RESTORED_UNMATCHED,
+            unmatchedTrackReferences = report.unresolvedTrackReferences,
+        )
+    }
+}
+
 /**
  * The device library matched none of the snapshot track references while the snapshot carries some.
  * A scan without matches is not proof that the tracks are gone, so a replace restore that would drop
