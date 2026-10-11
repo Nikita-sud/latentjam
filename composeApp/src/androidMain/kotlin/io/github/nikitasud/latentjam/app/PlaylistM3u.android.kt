@@ -7,9 +7,13 @@ package io.github.nikitasud.latentjam.app
 import android.net.Uri
 import android.os.Environment
 import android.provider.DocumentsContract
+import java.text.Normalizer
 
 /** MediaStore keeps each track's path, and [createdDocumentDirectory] reads the export's folder. */
 internal actual val relativePlaylistPathsAvailable: Boolean = true
+
+internal actual fun nfcNormalized(text: String): String =
+    Normalizer.normalize(text, Normalizer.Form.NFC)
 
 /** The Downloads provider. Only its `raw:` document ids spell out a file path. */
 internal const val DOWNLOADS_AUTHORITY = "com.android.providers.downloads.documents"

@@ -36,6 +36,19 @@ internal const val MAX_M3U_ENTRIES: Int = 100_000
 internal expect val relativePlaylistPathsAvailable: Boolean
 
 /**
+ * [text] in Unicode canonical composition (NFC). macOS hands out file names decomposed (NFD: `é`
+ * as `e` + U+0301), while Android's MediaStore and most tag editors keep them composed (U+00E9):
+ * the same name, spelled with other code points.
+ */
+internal expect fun nfcNormalized(text: String): String
+
+/**
+ * This text composed, as [nfcNormalized] does it. Text made only of code units below U+0300, the
+ * first combining mark, is composed already, so ASCII and Latin-1 skip the platform call.
+ */
+private fun String.composed(): String = if (all { it < '\u0300' }) this else nfcNormalized(this)
+
+/**
  * One line-pair of a parsed M3U: the path plus whatever the optional EXTINF row carried.
  * Everything is best-effort — the format has no guarantees, only conventions.
  */
@@ -269,6 +282,9 @@ internal fun parseM3u(text: String): List<M3uEntry> {
  * (or with `-1` and a bare title) matches as it always did, and so does a track without a
  * duration or an artist.
  *
+ * File and folder names, titles and artists are compared composed ([nfcNormalized]) on both
+ * sides, so a playlist written on a Mac finds the files a phone indexed, and the other way round.
+ *
  * [filePaths] holds the platform's absolute path per track where it has one (Android's
  * MediaStore does); without it a track's path is its [TrackDescriptor.folderPath] plus
  * [TrackDescriptor.fileName], which is relative to its storage volume.
@@ -280,6 +296,7 @@ internal fun matchM3uEntries(
 ): List<TrackDescriptor?> {
     fun norm(value: String?): String? = value
         ?.trim()
+        ?.composed()
         ?.lowercase()
         ?.takeIf { it.isNotEmpty() }
 
@@ -485,7 +502,8 @@ private class PathMatch(val track: TrackDescriptor, val elsewhere: Boolean)
  * separators, `.` is dropped, `..` climbs where it can and is ignored where the path starts with
  * it (the playlist's own folder is unknown here), and the legacy aliases of the phone's own
  * storage read as `/storage/emulated/0`. A `file:` URI is percent-decoded, being a URI; [decode]
- * decodes a plain path too, and a malformed escape then means null rather than a guess.
+ * decodes a plain path too, and a malformed escape then means null rather than a guess. A name a
+ * Mac wrote decomposed comes back composed ([nfcNormalized]), as library names are compared.
  */
 internal fun m3uPathNames(line: String, decode: Boolean = false): List<String>? {
     var path = line.trim()
@@ -526,10 +544,13 @@ private fun libraryPathNames(track: TrackDescriptor, absolutePath: String?): Lis
     return track.folderPath?.let(::filePathNames).orEmpty() + fileName
 }
 
-/** The names of a slash- or backslash-separated path with `.` and `..` resolved; null if none. */
+/**
+ * The names of a slash- or backslash-separated path with `.` and `..` resolved, composed
+ * ([nfcNormalized]) whichever way the path spelled them; null if none.
+ */
 private fun filePathNames(path: String): List<String>? {
     val names = mutableListOf<String>()
-    for (name in path.replace('\\', '/').split('/')) {
+    for (name in path.replace('\\', '/').composed().split('/')) {
         when (name) {
             "", "." -> Unit
             ".." -> names.removeLastOrNull()

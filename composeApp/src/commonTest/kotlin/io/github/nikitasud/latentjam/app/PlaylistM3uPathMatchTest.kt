@@ -333,6 +333,36 @@ internal class PlaylistM3uPathMatchTest {
         )
     }
 
+    // Escapes on purpose: "e\u0301" is decomposed (NFD, how macOS hands out file names), "\u00e9"
+    // composed (NFC, how Android's MediaStore keeps them). The tags say nothing about the names.
+
+    @Test
+    fun aPlaylistWrittenOnAMacFindsComposedNamesFolderAndFile() {
+        val accented = song("accented", "Music/Caf\u00e9", "R\u00eave.mp3", "Track 1", null, 200)
+        val plain = song("plain", "Music/Cafe", "R\u00eave.mp3", "Track 1", null, 200)
+        assertEquals(
+            listOf("accented", "plain"),
+            match(
+                "/Users/me/Music/Cafe\u0301/Re\u0302ve.mp3\n/Users/me/Music/Cafe/Re\u0302ve.mp3",
+                listOf(plain, accented),
+            ),
+        )
+    }
+
+    @Test
+    fun decomposedLibraryNamesMatchAComposedPlaylist() {
+        // A drive filled from a Mac keeps the decomposed names it was given.
+        val decomposed = song("nfd", "Music/Bjo\u0308rk", "Jo\u0301ga.flac", "Track 3", null, 305)
+        val elsewhere = song("other", "Music/Other", "Jo\u0301ga.flac", "Track 3", null, 305)
+        assertEquals(
+            listOf("nfd", "nfd"),
+            match(
+                "D:\\Music\\Bj\u00f6rk\\J\u00f3ga.flac\nfile:///sdcard/Music/Bj%C3%B6rk/J%C3%B3ga.flac",
+                listOf(elsewhere, decomposed),
+            ),
+        )
+    }
+
     @Test
     fun identicalTagsAreToldApartByTheFileNameEvenFromAnotherFolder() {
         val a = song("a", "Music/A", "live-a.mp3", "Live", "Band", 180)

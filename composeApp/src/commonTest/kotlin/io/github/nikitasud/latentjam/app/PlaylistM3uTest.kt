@@ -312,6 +312,55 @@ internal class PlaylistM3uTest {
     }
 
     @Test
+    fun decomposedRowsMatchComposedTagsAndTheArtistCheckAgrees() {
+        // "o\u0301" is decomposed (NFD, a file name from a Mac), "\u00f3" composed (NFC).
+        val joga = TrackDescriptor(
+            id = TrackId("joga"),
+            title = "J\u00f3ga",
+            artist = "Bj\u00f6rk",
+            durationMs = 305_000,
+        )
+        assertEquals(
+            listOf("joga", "joga", "joga", "joga"),
+            matchIds(
+                "#EXTINF:305,Bjo\u0308rk - Jo\u0301ga\nrenamed-file.flac\n" +
+                    "/Users/me/Music/Jo\u0301ga.m4a\n" +
+                    "#EXTINF:-1,Bjo\u0308rk - Something\n/Users/me/Music/Jo\u0301ga.m4a\n" +
+                    "#EXTINF:-1,Jo\u0301ga\nrenamed-file.flac",
+                listOf(joga),
+            ),
+        )
+    }
+
+    @Test
+    fun theNormaliserComposesWhatIsDecomposedAndKeepsTheRest() {
+        assertEquals("\u00e9", nfcNormalized("e\u0301"))
+        assertEquals("\uac00", nfcNormalized("\u1100\u1161"))
+        assertEquals(
+            "Bj\u00f6rk \u2013 J\u00f3ga \uD83C\uDFA7",
+            nfcNormalized("Bjo\u0308rk \u2013 Jo\u0301ga \uD83C\uDFA7"),
+        )
+        assertEquals("plain ascii", nfcNormalized("plain ascii"))
+    }
+
+    @Test
+    fun composedRowsMatchDecomposedTags() {
+        val hoppipolla = TrackDescriptor(
+            id = TrackId("hoppipolla"),
+            title = "Hoppi\u0301polla",
+            artist = "Sigur Ro\u0301s",
+            durationMs = 268_000,
+        )
+        assertEquals(
+            listOf("hoppipolla", "hoppipolla"),
+            matchIds(
+                "#EXTINF:268,Sigur R\u00f3s - Hopp\u00edpolla\nrenamed-file.flac\n/x/Hopp\u00edpolla.mp3",
+                listOf(hoppipolla),
+            ),
+        )
+    }
+
+    @Test
     fun metadataLessTrackUsesItsPlayableUriAndRoundTrips() {
         val local = TrackDescriptor(
             id = TrackId("local"),
