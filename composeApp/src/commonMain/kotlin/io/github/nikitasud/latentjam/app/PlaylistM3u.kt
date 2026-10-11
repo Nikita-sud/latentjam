@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlin.math.abs
 
 internal const val M3U_MIME_TYPE: String = "audio/x-mpegurl"
 
@@ -73,10 +74,10 @@ internal fun encodeM3u(
         val realPath = paths[track.id]?.takeIf(String::isM3uLineSafe)?.let { path ->
             relativeTo?.let { relativeM3uPath(it, path) }?.anchoredM3uLine() ?: path
         }
-        // A real path is the most useful M3U locator for other players, but LatentJam descriptors
-        // intentionally do not expose those paths during matching. Without a safe title there is
-        // therefore no metadata fallback that can recover this row on re-import. Preserve an
-        // exact same-device identity as an ignorable comment while leaving the real path intact.
+        // A real path is the most useful M3U locator for other players, and import finds it again
+        // while the file keeps its name. Without a safe title there is no metadata fallback once
+        // it does not (renamed, or a track whose file name the library never learned). Preserve
+        // an exact same-device identity as an ignorable comment while leaving the real path intact.
         if (realPath != null && title == null) {
             append(LATENTJAM_TRACK_ID_HINT_PREFIX)
                 .append(track.id.value.encodeHex())
@@ -195,12 +196,27 @@ internal fun parseM3u(text: String): List<M3uEntry> {
 
 /**
  * Resolves parsed entries against the library, one result per entry (null = no confident
- * match). File paths from another device rarely survive verbatim, so matching first honours exact
- * local identity/URI and EXTINF artist+title, then falls back to unique filename/title matches.
+ * match). The order, strongest evidence first:
+ *
+ * 1. exact local identity: a `#LATENTJAM-TRACK-ID` hint or a `latentjam:track-id:` locator;
+ * 2. an exact media URI;
+ * 3. the file path, matched by the longest run of trailing names (see [m3uPathNames]): another
+ *    device, another app or a computer names the same file under its own root, so the root is
+ *    never compared, but the file name always is;
+ * 4. EXTINF artist + title;
+ * 5. a file name whose folder disagrees with the playlist's (the row's own folder is elsewhere);
+ * 6. the file name stem, then EXTINF title, against tag titles.
+ *
+ * Every step resolves duplicates by exact duration or not at all, never by library order.
+ *
+ * [filePaths] holds the platform's absolute path per track where it has one (Android's
+ * MediaStore does); without it a track's path is its [TrackDescriptor.folderPath] plus
+ * [TrackDescriptor.fileName], which is relative to its storage volume.
  */
 internal fun matchM3uEntries(
     entries: List<M3uEntry>,
     library: List<TrackDescriptor>,
+    filePaths: Map<TrackId, String> = emptyMap(),
 ): List<TrackDescriptor?> {
     fun norm(value: String?): String? = value
         ?.trim()
@@ -220,6 +236,11 @@ internal fun matchM3uEntries(
         val title = norm(track.title) ?: return@mapNotNull null
         (artist to title) to track
     }.groupBy(keySelector = { it.first }) { it.second }
+    val byFileName = HashMap<String, MutableList<LibraryPath>>()
+    for (track in library) {
+        val names = libraryPathNames(track, filePaths[track.id]) ?: continue
+        byFileName.getOrPut(names.last().lowercase()) { mutableListOf() } += LibraryPath(track, names)
+    }
 
     /**
      * Never pick whichever duplicate happened to arrive first. A unique identity wins directly;
@@ -232,6 +253,50 @@ internal fun matchM3uEntries(
         return distinct.filter { candidate ->
             candidate.durationMs?.div(1_000L)?.toInt() == durationSeconds
         }.singleOrNull()
+    }
+
+    /**
+     * The library files sharing the most names with [names] counted from the file upwards, or
+     * null when no file has its name. Names compare ignoring case (SD cards and computers do);
+     * exact case only breaks a tie.
+     */
+    fun rankPath(names: List<String>): RankedPath? {
+        val candidates = byFileName[names.last().lowercase()] ?: return null
+        var bestShared = 0
+        var bestExact = -1
+        val best = mutableListOf<LibraryPath>()
+        for (candidate in candidates) {
+            val shared = sharedTrailingNames(names, candidate.names, ignoreCase = true)
+            // Case folding can disagree with lowercase() on a few letters; such a file shares
+            // nothing, not even its name.
+            if (shared == 0) continue
+            val exact = sharedTrailingNames(names, candidate.names, ignoreCase = false)
+            if (shared > bestShared || (shared == bestShared && exact > bestExact)) {
+                best.clear()
+                bestShared = shared
+                bestExact = exact
+            }
+            if (shared == bestShared && exact == bestExact) best += candidate
+        }
+        return if (best.isEmpty()) null else RankedPath(names, best, bestShared, bestExact)
+    }
+
+    /** The one file [ranked] points at for [entry], or null when its best files tie. */
+    fun matchPath(entry: M3uEntry, ranked: RankedPath): PathMatch? {
+        val track = resolve(ranked.best.map { it.track }, entry.durationSeconds) ?: return null
+        val chosen = ranked.best.first { it.track.id == track.id }
+        // Both sides name a folder above the file, and the folders differ: the same file name in
+        // another place is a guess ("01 Intro.mp3" is in every album), so stronger tag evidence
+        // is heard first and a contradicting duration rejects it.
+        val elsewhere = ranked.shared == 1 && ranked.names.size > 1 && chosen.names.size > 1
+        val listedSeconds = entry.durationSeconds
+        val trackMs = track.durationMs
+        if (elsewhere && listedSeconds != null && trackMs != null &&
+            abs(trackMs / 1_000L - listedSeconds) > PATH_GUESS_DURATION_SLACK_SECONDS
+        ) {
+            return null
+        }
+        return PathMatch(track, elsewhere)
     }
 
     return entries.map { entry ->
@@ -254,20 +319,35 @@ internal fun matchM3uEntries(
             return@map resolve(candidates, entry.durationSeconds)
         }
 
+        // The path as written, or percent-decoded where that fits a library file better: some
+        // exporters escape plain paths as if they were URIs ("Test%20Tones/Song.mp3"). A tie
+        // keeps the name as written, which is how a file can really be called "a%20b.mp3".
+        val pathNames = m3uPathNames(entry.path)
+        val pathMatch = listOfNotNull(
+            pathNames,
+            m3uPathNames(entry.path, decode = true)?.takeIf { it != pathNames },
+        )
+            .mapNotNull(::rankPath)
+            .maxWithOrNull(compareBy<RankedPath> { it.shared }.thenBy { it.exact })
+            ?.let { matchPath(entry, it) }
+        if (pathMatch != null && !pathMatch.elsewhere) return@map pathMatch.track
+
         // EXTINF supplied both fields explicitly. Honour that exact pair before considering the
         // filename: a library can legitimately contain many songs called "Intro".
         val entryArtist = norm(entry.artist)
         val entryTitle = norm(entry.title)
         if (entryArtist != null && entryTitle != null) {
             byArtistTitle[entryArtist to entryTitle]?.let { candidates ->
+                // Identical tags the duration cannot split: the file name may still point at
+                // one of them, but never at an unrelated track.
                 return@map resolve(candidates, entry.durationSeconds)
+                    ?: pathMatch?.track?.takeIf { matched -> candidates.any { it.id == matched.id } }
             }
         }
+        if (pathMatch != null) return@map pathMatch.track
 
         val stem = norm(
-            entry.path
-                .substringAfterLast('/')
-                .substringAfterLast('\\')
+            (pathNames?.last() ?: entry.path.substringAfterLast('/').substringAfterLast('\\'))
                 .substringBeforeLast('.'),
         )
         val stemPair = stem?.let { value ->
@@ -289,6 +369,162 @@ internal fun matchM3uEntries(
         }
         null
     }
+}
+
+/**
+ * How far apart, in whole seconds, an EXTINF duration and a track may be before a file found
+ * only by its name (its folder differs) is taken for another song. Exporters round or truncate.
+ */
+private const val PATH_GUESS_DURATION_SLACK_SECONDS = 2
+
+/** A library track with the names of its file path, the last one being the file name. */
+private class LibraryPath(val track: TrackDescriptor, val names: List<String>)
+
+/** The library files that share the most trailing [names] with one M3U row: [shared] of them. */
+private class RankedPath(
+    val names: List<String>,
+    val best: List<LibraryPath>,
+    val shared: Int,
+    /** How many of the [shared] names agree in case too; a tie on [shared] goes to more. */
+    val exact: Int,
+)
+
+/** [track] found by its file path; [elsewhere] when only the file name agreed, not its folder. */
+private class PathMatch(val track: TrackDescriptor, val elsewhere: Boolean)
+
+/**
+ * The names of an M3U row's file path, from its first folder down to the file, or null when the
+ * row names no file: a `content://` or web URI, or nothing but slashes and dots.
+ *
+ * Exporters write one file many ways: `/storage/emulated/0/Music/A/Song.mp3` on the phone itself,
+ * `/storage/1A2B-3C4D/Music/A/Song.mp3` on an SD card, `/sdcard/Music/A/Song.mp3` in older apps,
+ * `D:\Music\A\Song.mp3` on Windows, `../A/./Song.mp3` relative to the playlist, and
+ * `file:///storage/emulated/0/Music/A/My%20Song.mp3` as a URI. Matching compares names from the
+ * file upwards, so every one of them comes down to `[…, Music, A, Song.mp3]`: backslashes are
+ * separators, `.` is dropped, `..` climbs where it can and is ignored where the path starts with
+ * it (the playlist's own folder is unknown here), and the legacy aliases of the phone's own
+ * storage read as `/storage/emulated/0`. A `file:` URI is percent-decoded, being a URI; [decode]
+ * decodes a plain path too, and a malformed escape then means null rather than a guess.
+ */
+internal fun m3uPathNames(line: String, decode: Boolean = false): List<String>? {
+    var path = line.trim()
+    val scheme = URI_SCHEME.find(path)?.value
+    if (scheme != null && scheme.equals("file:", ignoreCase = true)) {
+        path = path.drop(scheme.length)
+        // file:///p and file://localhost/p name the same local file as file:/p; any other
+        // authority is another machine.
+        if (path.startsWith("//")) {
+            val authorityEnd = path.indexOf('/', startIndex = 2)
+            if (authorityEnd < 0) return null
+            val authority = path.substring(2, authorityEnd)
+            if (authority.isNotEmpty() && !authority.equals("localhost", ignoreCase = true)) return null
+            path = path.substring(authorityEnd)
+        }
+        path = path.percentDecoded() ?: path
+    } else if (scheme != null && path.startsWith("//", startIndex = scheme.length)) {
+        // content://, http://, …: a locator, not a file path.
+        return null
+    } else if (decode) {
+        path = path.percentDecoded() ?: return null
+    }
+    val names = filePathNames(path) ?: return null
+    return if (path.startsWith('/') || path.startsWith('\\')) names.withCanonicalStorageRoot() else names
+}
+
+/**
+ * [track]'s file path as names: its platform's [absolutePath] when known, otherwise its folder
+ * (relative to its storage volume) and file name. Null for a track with no file name, like a
+ * song of the iOS Music library.
+ */
+private fun libraryPathNames(track: TrackDescriptor, absolutePath: String?): List<String>? {
+    absolutePath
+        ?.takeIf { it.startsWith('/') }
+        ?.let(::filePathNames)
+        ?.let { return it.withCanonicalStorageRoot() }
+    val fileName = track.fileName?.let(::filePathNames)?.singleOrNull() ?: return null
+    return track.folderPath?.let(::filePathNames).orEmpty() + fileName
+}
+
+/** The names of a slash- or backslash-separated path with `.` and `..` resolved; null if none. */
+private fun filePathNames(path: String): List<String>? {
+    val names = mutableListOf<String>()
+    for (name in path.replace('\\', '/').split('/')) {
+        when (name) {
+            "", "." -> Unit
+            ".." -> names.removeLastOrNull()
+            else -> names += name
+        }
+    }
+    return names.takeIf { it.isNotEmpty() }
+}
+
+/**
+ * The phone's own shared storage under the one name MediaStore reports today. `/sdcard`,
+ * `/mnt/sdcard`, `/storage/self/primary` and `/storage/emulated/legacy` all point there, and a
+ * playlist written with one of them should not lose to a same-named copy on an SD card.
+ */
+private fun List<String>.withCanonicalStorageRoot(): List<String> {
+    val aliasLength = when {
+        startsWith("sdcard") -> 1
+        startsWith("mnt", "sdcard") -> 2
+        startsWith("storage", "self", "primary") -> 3
+        startsWith("storage", "emulated", "legacy") -> 3
+        else -> return this
+    }
+    return listOf("storage", "emulated", "0") + drop(aliasLength)
+}
+
+private fun List<String>.startsWith(vararg prefix: String): Boolean =
+    size > prefix.size && prefix.indices.all { this[it] == prefix[it] }
+
+/** How many names [a] and [b] share counting from their ends. */
+private fun sharedTrailingNames(a: List<String>, b: List<String>, ignoreCase: Boolean): Int {
+    var shared = 0
+    while (shared < a.size && shared < b.size &&
+        a[a.lastIndex - shared].equals(b[b.lastIndex - shared], ignoreCase = ignoreCase)
+    ) {
+        shared++
+    }
+    return shared
+}
+
+/** `scheme:` at the head of a URI. Two characters at least: `C:` is a Windows drive. */
+private val URI_SCHEME = Regex("^[A-Za-z][A-Za-z0-9+.-]+:")
+
+/**
+ * `%XX` escapes decoded as UTF-8, or null when an escape is malformed or the bytes are not
+ * UTF-8. `+` stays a plus: it means a space only in form data, never in a path.
+ */
+private fun String.percentDecoded(): String? {
+    if ('%' !in this) return this
+    val source = encodeToByteArray()
+    val decoded = ByteArray(source.size)
+    var size = 0
+    var index = 0
+    while (index < source.size) {
+        val byte = source[index]
+        if (byte == '%'.code.toByte()) {
+            if (index + 2 >= source.size) return null
+            val high = hexDigit(source[index + 1])
+            val low = hexDigit(source[index + 2])
+            if (high < 0 || low < 0) return null
+            decoded[size++] = (high * 16 + low).toByte()
+            index += 3
+        } else {
+            decoded[size++] = byte
+            index++
+        }
+    }
+    return runCatching {
+        decoded.decodeToString(0, size, throwOnInvalidSequence = true)
+    }.getOrNull()
+}
+
+private fun hexDigit(byte: Byte): Int = when (val char = byte.toInt().toChar()) {
+    in '0'..'9' -> char - '0'
+    in 'a'..'f' -> char - 'a' + 10
+    in 'A'..'F' -> char - 'A' + 10
+    else -> -1
 }
 
 private fun String.encodeHex(): String = encodeToByteArray().joinToString("") { byte ->
