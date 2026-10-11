@@ -5228,6 +5228,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 },
                 onBackupRestored = {
                     scanLibrary()
+                    // A restore can bring hearts back; the shell's copy follows the store.
+                    favoriteIds = AppGraph.favorites.all()
                     libraryScan.hasHiddenTracks = library.hasHiddenTracks()
                     updateTrackSelection(emptySet())
                     updateSelectedCollection(null)

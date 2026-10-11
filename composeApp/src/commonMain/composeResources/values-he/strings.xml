@@ -551,11 +551,12 @@
     <string name="intelligence_exclusions_clear">ניקוי כל ההחרגות</string>
 
     <string name="settings_backup">גיבוי מקומי</string>
-    <string name="settings_backup_body">ייצוא או שחזור של פלייליסטים, העדפות, היסטוריה, שירים מוסתרים והחרגות SMART. קובצי המוזיקה ונתוני המודלים לא נכללים.</string>
+    <string name="settings_backup_body">ייצוא או שחזור של פלייליסטים, מועדפים, העדפות, היסטוריה, שירים מוסתרים, החרגות SMART והחלטות מאתר הכפילויות. קובצי המוזיקה ונתוני המודלים לא נכללים.</string>
     <string name="backup_export">ייצוא גיבוי</string>
     <string name="backup_import">ייבוא גיבוי</string>
     <string name="backup_import_title">שחזור גיבוי מקומי</string>
     <string name="backup_import_body">איך לשלב את הנתונים המיובאים עם הנתונים שכבר נמצאים במכשיר?</string>
+    <string name="backup_section_duplicate_decisions">החלטות מאתר הכפילויות</string>
     <string name="backup_merge">מיזוג</string>
     <string name="backup_replace">החלפה</string>
     <string name="backup_replace_warning">להחליף את נתוני האפליקציה שנבחרו בגיבוי הזה? קובצי המוזיקה אף פעם לא משתנים.</string>

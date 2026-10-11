@@ -558,11 +558,12 @@
     <string name="intelligence_exclusions_clear">Очистить все исключения</string>
 
     <string name="settings_backup">Локальная резервная копия</string>
-    <string name="settings_backup_body">Экспортируйте или восстанавливайте плейлисты, настройки, историю, скрытые треки и исключения SMART. Музыкальные файлы и данные моделей не включаются.</string>
+    <string name="settings_backup_body">Экспортируйте или восстанавливайте плейлисты, любимые треки, настройки, историю, скрытые треки, исключения SMART и решения поиска дубликатов. Музыкальные файлы и данные моделей не включаются.</string>
     <string name="backup_export">Экспортировать копию</string>
     <string name="backup_import">Импортировать копию</string>
     <string name="backup_import_title">Восстановить локальную копию</string>
     <string name="backup_import_body">Выберите, как объединить импортированные данные с данными на этом устройстве.</string>
+    <string name="backup_section_duplicate_decisions">Решения поиска дубликатов</string>
     <string name="backup_merge">Объединить</string>
     <string name="backup_replace">Заменить</string>
     <string name="backup_replace_warning">Заменить выбранные данные приложения этой копией? Музыкальные файлы никогда не изменяются.</string>

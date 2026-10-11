@@ -537,11 +537,12 @@
     <string name="intelligence_exclusions_clear">Șterge toate excluderile</string>
 
     <string name="settings_backup">Copie de rezervă locală</string>
-    <string name="settings_backup_body">Exportă sau restabilește playlisturi, preferințe, istoric, piese ascunse și excluderi SMART. Fișierele muzicale și datele modelelor nu sunt incluse.</string>
+    <string name="settings_backup_body">Exportă sau restabilește playlisturi, favorite, preferințe, istoric, piese ascunse, excluderi SMART și deciziile căutării de dubluri. Fișierele muzicale și datele modelelor nu sunt incluse.</string>
     <string name="backup_export">Exportă copia</string>
     <string name="backup_import">Importă copia</string>
     <string name="backup_import_title">Restabilește copia locală</string>
     <string name="backup_import_body">Alege cum se combină datele importate cu cele aflate deja pe acest dispozitiv.</string>
+    <string name="backup_section_duplicate_decisions">Deciziile căutării de dubluri</string>
     <string name="backup_merge">Combină</string>
     <string name="backup_replace">Înlocuiește</string>
     <string name="backup_replace_warning">Înlocuiești datele selectate ale aplicației cu această copie? Fișierele muzicale nu sunt modificate niciodată.</string>

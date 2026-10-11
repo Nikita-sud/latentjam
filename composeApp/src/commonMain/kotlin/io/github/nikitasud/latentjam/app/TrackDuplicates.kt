@@ -10,6 +10,8 @@ import io.github.nikitasud.latentjam.history.TrackStats
 import io.github.nikitasud.latentjam.library.Playlists
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -305,6 +307,10 @@ internal class DuplicateExclusions internal constructor(records: List<List<Track
         val right = membership[b] ?: return false
         return if (left.size <= right.size) left.any { it in right } else right.any { it in left }
     }
+
+    /** Whether every pair of [ids] is already kept apart: a verdict on them would add nothing. */
+    fun excludesAll(ids: List<TrackId>): Boolean =
+        ids.indices.all { first -> (first + 1 until ids.size).all { excludes(ids[first], ids[it]) } }
 }
 
 /**
@@ -315,10 +321,73 @@ internal class DuplicateExclusions internal constructor(records: List<List<Track
 internal object DuplicateDismissals {
     private const val LEGACY_PREFIX = "v1|"
     private const val PREFIX = "v2|"
-    private const val MAX_VERDICTS = 2_000
+
+    /** The most verdicts kept; past it the oldest leave first. A local backup carries no more. */
+    const val MAX_VERDICTS = 2_000
     private const val MAX_PAYLOAD_CHARS = 262_144
 
+    /**
+     * Every verdict is written by reading the whole payload, changing it and writing it back: the
+     * finder's "Not duplicates" and a backup restore both do. A restore outlives its screen, so the
+     * two can overlap, and two interleaved passes would each drop the other's verdicts.
+     */
+    private val updateLock = Mutex()
+
     fun decode(payload: String?): DuplicateExclusions = DuplicateExclusions(readRecords(payload))
+
+    /** The stored verdicts, oldest first, each its tracks once and in id order. */
+    fun verdicts(payload: String?): List<List<TrackId>> = readRecords(payload)
+
+    /** Stores the finder's verdict on [group]; see [remember]. */
+    suspend fun rememberIn(settings: AppSettings, group: List<TrackId>): Unit = updateLock.withLock {
+        settings.writeDuplicateDismissalsPayload(remember(settings.readDuplicateDismissalsPayload(), group))
+    }
+
+    /**
+     * Writes the verdicts a backup restore resolved on this device: they become the stored ones
+     * when [replace], and are merged into them otherwise ([merged] says how).
+     */
+    suspend fun restore(
+        settings: AppSettings,
+        imported: List<List<TrackId>>,
+        replace: Boolean,
+    ): Unit = updateLock.withLock {
+        val payload = if (replace) {
+            encodeRecords(imported.mapNotNull(::storableVerdict).distinct())
+        } else {
+            merged(settings.readDuplicateDismissalsPayload(), imported)
+        }
+        settings.writeDuplicateDismissalsPayload(payload)
+    }
+
+    /**
+     * [payload] with restored verdicts merged in, without duplicates and without overwriting
+     * anything. Every verdict says the same kind of thing — these tracks are different recordings
+     * — and the finder stores nothing else (a merge of copies travels as the playlists, favourites
+     * and hidden tracks it rewrote), so two verdicts never contradict each other: the union is
+     * the merge.
+     *
+     * - A restored verdict that is already said is not added again: one equal to a stored verdict,
+     *   one repeated in the file, or one whose every pair the stored verdicts already keep apart.
+     * - The store keeps the newest [MAX_VERDICTS] within its size bound, so the restored verdicts
+     *   are placed before the stored ones, as older: a large backup can never push out a verdict
+     *   this device made. If the bound is reached, it is the restored ones that are left out.
+     */
+    fun merged(payload: String?, imported: List<List<TrackId>>): String {
+        val stored = readRecords(payload)
+        val known = DuplicateExclusions(stored)
+        val added = imported.mapNotNull(::storableVerdict)
+            .distinct()
+            .filterNot(known::excludesAll)
+        return encodeRecords(added + stored)
+    }
+
+    /** [verdict] as the store keeps it, or null where it cannot be one. */
+    private fun storableVerdict(verdict: List<TrackId>): List<TrackId>? =
+        verdict.distinct().sortedBy(TrackId::value).takeIf { normalized ->
+            normalized.size >= 2 && normalized.none { it.value.isEmpty() } &&
+                recordLine(normalized).length <= MAX_PAYLOAD_CHARS
+        }
 
     /** Add one verdict without materializing n*(n-1)/2 pairs on the UI thread. */
     fun remember(payload: String?, group: List<TrackId>): String {

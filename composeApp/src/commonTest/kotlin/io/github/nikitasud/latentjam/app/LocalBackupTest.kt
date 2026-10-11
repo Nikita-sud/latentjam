@@ -4,7 +4,10 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.history.DefaultFavorites
 import io.github.nikitasud.latentjam.history.DefaultListeningHistory
+import io.github.nikitasud.latentjam.history.Favorites
+import io.github.nikitasud.latentjam.history.FavoritesStore
 import io.github.nikitasud.latentjam.history.DefaultRecentSearches
 import io.github.nikitasud.latentjam.history.HistoryStore
 import io.github.nikitasud.latentjam.history.ListenEvent
@@ -98,7 +101,7 @@ internal class LocalBackupTest {
         val encoded = LocalBackupCodec.encode(snapshot)
 
         assertEquals(snapshot, LocalBackupCodec.decode(encoded))
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t8\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t9\n"))
         assertFalse(encoded.contains("Группа крови"), "User strings must be safely encoded")
     }
 
@@ -131,7 +134,7 @@ internal class LocalBackupTest {
             }
         }
         assertFailsWith<LocalBackupFormatException> {
-            LocalBackupCodec.decode(encoded.replaceFirst("LOCAL-BACKUP\t8", "LOCAL-BACKUP\t7"))
+            LocalBackupCodec.decode(encoded.replaceFirst("LOCAL-BACKUP\t9", "LOCAL-BACKUP\t7"))
         }
     }
 
@@ -335,7 +338,7 @@ internal class LocalBackupTest {
         val encoded = LocalBackupCodec.encode(snapshot)
 
         assertEquals(snapshot, LocalBackupCodec.decode(encoded))
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t8\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t9\n"))
     }
 
     @Test
@@ -389,7 +392,7 @@ internal class LocalBackupTest {
         // One version past the current format: a file from a newer build is refused whole, before
         // any record of it is read.
         assertFailsWith<LocalBackupFormatException> {
-            LocalBackupCodec.decode(valid.replaceFirst("LOCAL-BACKUP\t8", "LOCAL-BACKUP\t9"))
+            LocalBackupCodec.decode(valid.replaceFirst("LOCAL-BACKUP\t9", "LOCAL-BACKUP\t10"))
         }
         assertFailsWith<LocalBackupFormatException> {
             LocalBackupCodec.decode(valid + "Q\tnot-hex\n")
@@ -484,7 +487,7 @@ internal class LocalBackupTest {
         val encoded = source.service.exportEncoded()
         destination.service.importEncoded(encoded, LocalBackupRestoreMode.REPLACE)
 
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t8\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t9\n"))
         assertEquals(layout, destination.settings.pageLayout.value)
         assertEquals(StartPage.STATISTICS, destination.settings.startPage.value)
     }
@@ -995,6 +998,324 @@ internal class LocalBackupTest {
         assertContentEquals(listOf("Виктор Цой"), destination.searches.recent(Int.MAX_VALUE))
     }
 
+    // ------------------------------------------------- v9: favourites and duplicate decisions
+
+    @Test
+    fun codecRoundTripsFavoritesNewestFirstAndDuplicateDecisionsInV9() {
+        // The codec writes track references in id order, so the snapshot lists them that way.
+        val references = listOf("b", "c", "d", "file:\nКИНО\t1").map {
+            LocalBackupTrackReference(it, "Title $it", "Artist", null, 200_000)
+        }
+        val snapshot = emptySnapshot().copy(
+            tracks = references,
+            favoriteTrackReferenceIds = listOf("c", "file:\nКИНО\t1", "b"),
+            duplicateVerdicts = listOf(listOf("b", "c"), listOf("file:\nКИНО\t1", "c", "d")),
+        )
+
+        val encoded = LocalBackupCodec.encode(snapshot)
+
+        assertEquals(snapshot, LocalBackupCodec.decode(encoded))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t9\n"))
+        // One record per heart, newest first; one per verdict, every track of it on the line.
+        assertEquals(
+            listOf("F\ts63", "F\ts${"file:\nКИНО\t1".hex()}", "F\ts62"),
+            encoded.lines().filter { it.startsWith("F\t") },
+        )
+        assertEquals(
+            listOf("N\ts62\ts63", "N\ts${"file:\nКИНО\t1".hex()}\ts63\ts64"),
+            encoded.lines().filter { it.startsWith("N\t") },
+        )
+        assertTrue(LocalBackupCodec.decode(encoded).carriesFavoritesAndDuplicateDecisions)
+    }
+
+    @Test
+    fun aFrozenV9FileReadsItsFavoritesAndDecisions() {
+        // A literal fixture: hex("a") = 61, hex("b") = 62.
+        val fixture =
+            "LATENTJAM-LOCAL-BACKUP\t9\n" +
+                "C\t5\n" +
+                "S\tSYSTEM\ttracks\tdynamic\t20\t1\t1\t0\t0\t0\n" +
+                "T\ts61\ts41\tn\tn\t1000\n" +
+                "T\ts62\ts42\tn\tn\t2000\n" +
+                "F\ts62\n" +
+                "F\ts61\n" +
+                "N\ts61\ts62\n"
+
+        val decoded = LocalBackupCodec.decode(fixture)
+
+        assertEquals(listOf("b", "a"), decoded.favoriteTrackReferenceIds)
+        assertEquals(listOf(listOf("a", "b")), decoded.duplicateVerdicts)
+    }
+
+    @Test
+    fun favoritesAndDecisionsAreV9RecordsThatEveryMalformedShapeFailsWhole() {
+        val v9 =
+            "LATENTJAM-LOCAL-BACKUP\t9\nC\t1\n" +
+                "S\tSYSTEM\ttracks\tdynamic\t20\t1\t1\t0\t0\t0\n" +
+                "T\ts61\tn\tn\tn\tn\nT\ts62\tn\tn\tn\tn\n"
+        val v8 = v9.replaceFirst("\t9\n", "\t8\n")
+        assertEquals(1, LocalBackupCodec.decode(v9 + "F\ts61\n").favoriteTrackReferenceIds.size)
+        for (malformed in listOf(
+            v8 + "F\ts61\n", // a v8 file cannot carry favourites,
+            v8 + "N\ts61\ts62\n", // nor duplicate decisions
+            v9 + "F\ts61\nF\ts61\n", // a heart repeated loses which copy is newer
+            v9 + "F\ts7a\n", // a heart without its track reference
+            v9 + "F\ts61\ts62\n", // one heart per record
+            v9 + "F\tnot-hex\n",
+            v9 + "N\ts61\n", // a verdict needs two recordings
+            v9 + "N\ts61\ts61\n",
+            v9 + "N\ts61\ts7a\n",
+        )) {
+            assertFailsWith<LocalBackupFormatException>(malformed.lines().dropLast(1).last()) {
+                LocalBackupCodec.decode(malformed)
+            }
+        }
+        val base = emptySnapshot().copy(
+            tracks = listOf("a", "b").map { LocalBackupTrackReference(it, null, null, null, null) },
+        )
+        assertFailsWith<LocalBackupFormatException> {
+            LocalBackupCodec.encode(base.copy(formatVersion = 8, favoriteTrackReferenceIds = listOf("a")))
+        }
+        assertFailsWith<LocalBackupFormatException> {
+            LocalBackupCodec.validate(base.copy(duplicateVerdicts = List(2_001) { listOf("a", "b") }))
+        }
+    }
+
+    @Test
+    fun everyOlderVersionStillReadsAndCarriesNoFavoritesOrDecisions() {
+        // The frozen shapes above, one per version, plus v7 and v8 as the last builds wrote them.
+        val settings3 = "S\tSYSTEM\ttracks\tdynamic\t20\t1\t1\t0\t0\t0\n"
+        val fixtures = mapOf(
+            1 to "C\t1\nS\tSYSTEM\ttracks\tdynamic\t20\t1\t1\nP\ts6c6567616379\ts4c6567616379206d6978\t2\n",
+            2 to "C\t1\nS\tSYSTEM\ttracks\tdynamic\t20\t1\t1\nT\ts747261636b\tn\tn\tn\tn\n" +
+                "P\ts6964\ts6d6978\t2\t1\ts747261636b\nH\ts747261636b\t10\t20\tn\t0\t0\tn\n",
+            3 to "C\t1\n$settings3",
+            4 to "C\t0\n$settings3" + "L\tLJPL1|map,tracks,albums,artists,genres,folders,playlists,for_you|genres\n" +
+                "T\ts74\tn\tn\tn\tn\nH\ts74\t10\t20\tn\t0\t0\tn\t15\n",
+            5 to "C\t1\n$settings3" + "T\ts74\tn\tn\tn\tn\n" +
+                "H\ts74\t10\t20\tn\t0\t0\tn\t15\t1\ts534b49505f4e455854\t2\ts616c62756d3a6b\n",
+            6 to "C\t17\nS\tDARK\tmap\tsmart\t40\t1\t1\t1\t0\t5\n" +
+                "L\tLJPL1|map,tracks,albums,artists,genres,folders,playlists,for_you|genres\nV\t3\n",
+            7 to "C\t1\n$settings3" + "V\t3\nO\ttitle:ascending\trecent:descending\tyear:ascending\n" +
+                "T\ts74\ts54\tn\tn\t1000\nD\ts74\nX\ts74\nA\ts56\n",
+            8 to "C\t1\n$settings3" + "G\tDESCENDING,ASCENDING,ASCENDING\nV\t3\n" +
+                "O\ttitle:ascending\trecent:descending\tyear:ascending\n" +
+                "T\ts74\ts54\tn\tn\t1000\nP\ts6964\ts6d6978\t2\t0\ts74\nQ\ts71\nD\ts74\n",
+        )
+        assertEquals((1..8).toSet(), fixtures.keys)
+        for ((version, body) in fixtures) {
+            val decoded = LocalBackupCodec.decode("LATENTJAM-LOCAL-BACKUP\t$version\n$body")
+            assertEquals(version, decoded.formatVersion)
+            assertFalse(decoded.carriesFavoritesAndDuplicateDecisions, "v$version")
+            assertTrue(decoded.favoriteTrackReferenceIds.isEmpty(), "v$version")
+            assertTrue(decoded.duplicateVerdicts.isEmpty(), "v$version")
+        }
+        val v8 = LocalBackupCodec.decode("LATENTJAM-LOCAL-BACKUP\t8\n" + fixtures.getValue(8))
+        assertEquals(GroupSortOrders(artists = SongSortDirection.DESCENDING), v8.settings.groupSortOrders)
+        assertEquals(listOf("t"), v8.playlists.single().trackReferenceIds)
+    }
+
+    @Test
+    fun restoringAnOlderFileLeavesFavoritesAndDecisionsExactlyAsTheyWere() = runTest {
+        val song = track("t", "T", "Artist", "Album", 1_000)
+        val other = track("u", "U", "Artist", "Album", 2_000)
+        val fixture = fixture(listOf(song, other))
+        fixture.favorites.replace(listOf(other.id, song.id))
+        DuplicateDismissals.rememberIn(fixture.settings, listOf(song.id, other.id))
+        val verdictsBefore = fixture.settings.readDuplicateDismissalsPayload()
+        // A v8 file that names the same track in a playlist, hidden and SMART exclusion: a REPLACE
+        // restore of it must leave the hearts and the verdicts alone, as every restore did before.
+        val v8 = "LATENTJAM-LOCAL-BACKUP\t8\nC\t1\nS\tSYSTEM\ttracks\tdynamic\t20\t1\t1\t0\t0\t0\n" +
+            "T\ts74\ts54\tn\tn\t1000\nP\ts6964\ts6d6978\t2\t0\ts74\nD\ts74\n"
+
+        for (mode in LocalBackupRestoreMode.entries) {
+            val report = fixture.service.importEncoded(v8, mode)
+
+            assertEquals(listOf(other.id, song.id), fixture.favorites.all(), "$mode")
+            assertEquals(verdictsBefore, fixture.settings.readDuplicateDismissalsPayload(), "$mode")
+            assertFalse(LocalBackupSection.FAVORITES in report.completedSections)
+            assertFalse(LocalBackupSection.DUPLICATE_DECISIONS in report.completedSections)
+            assertTrue(LocalBackupSection.PLAYLISTS in report.completedSections)
+            assertEquals(0, report.favoritesApplied)
+        }
+        assertContentEquals(listOf("t"), fixture.playlists.all().single().trackIds)
+    }
+
+    @Test
+    fun favoritesAndDecisionsTravelToAnotherDeviceInTheirOrder() = runTest {
+        val tracks = listOf("a", "b", "c", "d").map { track("old-$it", "Song $it", "Artist", "Album", 100_000) }
+        val (a, b, c, d) = tracks
+        val source = fixture(tracks)
+        listOf(a, b, c).forEach { source.favorites.toggle(it.id) } // newest first: c, b, a
+        DuplicateDismissals.rememberIn(source.settings, listOf(a.id, b.id))
+        DuplicateDismissals.rememberIn(source.settings, listOf(c.id, d.id, b.id))
+
+        val encoded = source.service.exportEncoded()
+        // Another device: the same songs under other ids, so every reference matches by its tags.
+        val destination = fixture(tracks.map { it.copy(id = TrackId(it.id.value.replace("old", "new"))) })
+        val report = destination.service.importEncoded(encoded, LocalBackupRestoreMode.MERGE)
+
+        assertEquals(listOf("new-c", "new-b", "new-a"), destination.favorites.all().map { it.value })
+        assertEquals(
+            listOf(listOf("new-a", "new-b"), listOf("new-b", "new-c", "new-d")),
+            DuplicateDismissals.verdicts(destination.settings.readDuplicateDismissalsPayload())
+                .map { verdict -> verdict.map { it.value } },
+        )
+        assertEquals(3, report.favoritesApplied)
+        assertEquals(2, report.duplicateDecisionsApplied)
+        assertEquals(0, report.unresolvedTrackReferences)
+        assertTrue(LocalBackupSection.FAVORITES in report.completedSections)
+        assertTrue(LocalBackupSection.DUPLICATE_DECISIONS in report.completedSections)
+    }
+
+    @Test
+    fun aMergeKeepsEveryCurrentHeartInPlaceAndAddsTheRestoredOnesAfterInTheirOrder() = runTest {
+        val tracks = listOf("a", "b", "c", "x").map { track(it, "Song $it", "Artist", "Album", 100_000) }
+        val (a, b, c, x) = tracks
+        val fixture = fixture(tracks)
+        fixture.favorites.replace(listOf(c.id, b.id, a.id))
+        val encoded = fixture.service.exportEncoded()
+        // Since that backup: a un-hearted, x hearted, so the device now reads x, c, b.
+        fixture.favorites.replace(listOf(x.id, c.id, b.id))
+
+        fixture.service.importEncoded(encoded, LocalBackupRestoreMode.MERGE)
+        assertEquals(listOf(x.id, c.id, b.id, a.id), fixture.favorites.all())
+
+        // The same file again changes nothing: every heart in it is already here.
+        fixture.service.importEncoded(encoded, LocalBackupRestoreMode.MERGE)
+        assertEquals(listOf(x.id, c.id, b.id, a.id), fixture.favorites.all())
+
+        assertEquals(listOf(b.id, c.id, x.id), mergedFavorites(listOf(b.id), listOf(c.id, b.id, x.id)))
+        assertEquals(listOf(c.id), mergedFavorites(emptyList(), listOf(c.id)))
+    }
+
+    @Test
+    fun aReplaceRestoreBringsBackTheBackupsHeartsExactly() = runTest {
+        val tracks = listOf("a", "b", "x").map { track(it, "Song $it", "Artist", "Album", 100_000) }
+        val (a, b, x) = tracks
+        val fixture = fixture(tracks)
+        fixture.favorites.replace(listOf(b.id, a.id))
+        DuplicateDismissals.rememberIn(fixture.settings, listOf(a.id, b.id))
+        val encoded = fixture.service.exportEncoded()
+        fixture.favorites.replace(listOf(x.id))
+        DuplicateDismissals.rememberIn(fixture.settings, listOf(a.id, x.id))
+
+        fixture.service.importEncoded(encoded, LocalBackupRestoreMode.REPLACE)
+
+        assertEquals(listOf(b.id, a.id), fixture.favorites.all())
+        assertEquals(
+            listOf(listOf(a.id, b.id)),
+            DuplicateDismissals.verdicts(fixture.settings.readDuplicateDismissalsPayload()),
+        )
+    }
+
+    @Test
+    fun heartsAndVerdictMembersThatMatchNothingAreSkippedAndCounted() = runTest {
+        val a = track("a", "Song a", "Artist", "Album", 100_000)
+        val b = track("b", "Song b", "Artist", "Album", 110_000)
+        val gone = track("gone", "Lost song", "Artist", "Album", 120_000)
+        val source = fixture(listOf(a, b, gone))
+        source.favorites.replace(listOf(gone.id, a.id))
+        DuplicateDismissals.rememberIn(source.settings, listOf(a.id, gone.id))
+        DuplicateDismissals.rememberIn(source.settings, listOf(a.id, b.id, gone.id))
+        val encoded = source.service.exportEncoded()
+
+        val destination = fixture(listOf(a, b))
+        val report = destination.service.importEncoded(encoded, LocalBackupRestoreMode.MERGE)
+
+        // One reference (the lost song) is unmatched, however many records name it.
+        assertEquals(1, report.unresolvedTrackReferences)
+        assertEquals(listOf(a.id), destination.favorites.all())
+        assertEquals(1, report.favoritesApplied)
+        // {a, gone} keeps nothing apart here; {a, b, gone} still keeps a and b apart.
+        assertEquals(
+            listOf(listOf(a.id, b.id)),
+            DuplicateDismissals.verdicts(destination.settings.readDuplicateDismissalsPayload()),
+        )
+        assertEquals(1, report.duplicateDecisionsApplied)
+    }
+
+    @Test
+    fun aRestoreNeverEmptiesFavoritesOrDecisionsWhileTheLibraryIsNotLoaded() = runTest {
+        val song = track("song", "Song", "Artist", "Album", 120_000)
+        val other = track("other", "Other", "Artist", "Album", 130_000)
+        val source = fixture(listOf(song, other))
+        source.favorites.replace(listOf(song.id))
+        DuplicateDismissals.rememberIn(source.settings, listOf(song.id, other.id))
+        val encoded = source.service.exportEncoded()
+
+        // A scan without the media permission returns nothing, which is not proof of deletion.
+        val destination = fixture(emptyList())
+        destination.favorites.replace(listOf(TrackId("kept")))
+        DuplicateDismissals.rememberIn(destination.settings, listOf(TrackId("k1"), TrackId("k2")))
+        val verdictsBefore = destination.settings.readDuplicateDismissalsPayload()
+        val onlyTheNewSections = noSections().copy(favorites = true, duplicateDecisions = true)
+
+        val failure = assertFailsWith<LocalBackupRestoreException> {
+            destination.service.importEncoded(encoded, LocalBackupRestoreMode.REPLACE, onlyTheNewSections)
+        }
+        assertTrue(failure.completedSections.isEmpty())
+        assertTrue(failure.cause is LocalBackupLibraryUnavailableException)
+        assertEquals(listOf(TrackId("kept")), destination.favorites.all())
+        assertEquals(verdictsBefore, destination.settings.readDuplicateDismissalsPayload())
+
+        // A merge adds whatever the library confirms, here nothing, and takes nothing away.
+        val report = destination.service.importEncoded(encoded, LocalBackupRestoreMode.MERGE, onlyTheNewSections)
+        assertEquals(2, report.unresolvedTrackReferences)
+        assertEquals(listOf(TrackId("kept")), destination.favorites.all())
+        assertEquals(verdictsBefore, destination.settings.readDuplicateDismissalsPayload())
+    }
+
+    @Test
+    fun aHeartChangedWhileTheMergeRunsIsKeptNotOverwritten() = runTest {
+        val tracks = listOf("a", "b", "x").map { track(it, "Song $it", "Artist", "Album", 100_000) }
+        val (a, b, x) = tracks
+        val source = fixture(tracks)
+        source.favorites.replace(listOf(b.id, a.id))
+        val encoded = source.service.exportEncoded()
+
+        val stored = DefaultFavorites(InMemoryFavoritesStore())
+        // The listener hearts x between the merge's read and its write.
+        val racing = object : Favorites by stored {
+            var raced = false
+            override suspend fun replaceIfUnchanged(expected: List<TrackId>, replacement: List<TrackId>): Boolean {
+                if (!raced) {
+                    raced = true
+                    stored.toggle(x.id)
+                }
+                return stored.replaceIfUnchanged(expected, replacement)
+            }
+        }
+        val destination = fixture(tracks)
+        val service = LocalBackupService(
+            destination.settings,
+            destination.playlists,
+            destination.history,
+            destination.searches,
+            destination.library,
+            destination.exclusions,
+            racing,
+        )
+
+        service.importEncoded(encoded, LocalBackupRestoreMode.MERGE)
+
+        assertEquals(listOf(x.id, b.id, a.id), stored.all())
+    }
+
+    @Test
+    fun theFindersVerdictAndARestoreWriteThroughTheSameStore() = runTest {
+        val settings = FakeSettings()
+        DuplicateDismissals.rememberIn(settings, listOf(TrackId("b"), TrackId("a")))
+        DuplicateDismissals.restore(settings, listOf(listOf(TrackId("c"), TrackId("d"))), replace = false)
+        assertEquals(
+            listOf(listOf(TrackId("c"), TrackId("d")), listOf(TrackId("a"), TrackId("b"))),
+            DuplicateDismissals.verdicts(settings.readDuplicateDismissalsPayload()),
+        )
+
+        DuplicateDismissals.restore(settings, listOf(listOf(TrackId("f"), TrackId("e"))), replace = true)
+        assertEquals(listOf(listOf(TrackId("e"), TrackId("f"))), DuplicateDismissals.verdicts(settings.readDuplicateDismissalsPayload()))
+    }
+
     private fun emptySnapshot() = LocalBackupSnapshot(
         createdAtMs = 1,
         settings = LocalBackupSettings(
@@ -1021,6 +1342,8 @@ internal class LocalBackupTest {
         recentSearches = false,
         hiddenTracks = false,
         smartExclusions = false,
+        favorites = false,
+        duplicateDecisions = false,
     )
 
     private fun fixture(
@@ -1033,6 +1356,7 @@ internal class LocalBackupTest {
         val searches = DefaultRecentSearches(InMemorySearchStore())
         val library = FakeLibrary(tracks, visibleTrackIds)
         val exclusions = SmartExclusions(InMemoryExclusionStore())
+        val favorites = DefaultFavorites(InMemoryFavoritesStore())
         return Fixture(
             settings,
             playlists,
@@ -1040,7 +1364,8 @@ internal class LocalBackupTest {
             searches,
             library,
             exclusions,
-            LocalBackupService(settings, playlists, history, searches, library, exclusions),
+            favorites,
+            LocalBackupService(settings, playlists, history, searches, library, exclusions, favorites),
         )
     }
 
@@ -1051,8 +1376,15 @@ internal class LocalBackupTest {
         val searches: DefaultRecentSearches,
         val library: FakeLibrary,
         val exclusions: SmartExclusions,
+        val favorites: DefaultFavorites,
         val service: LocalBackupService,
     )
+
+    private class InMemoryFavoritesStore : FavoritesStore {
+        private var ids = emptyList<String>()
+        override suspend fun read(): List<String> = ids
+        override suspend fun write(ids: List<String>) { this.ids = ids.toList() }
+    }
 
     private class InMemoryPlaylistStore : PlaylistStore {
         private var lines = emptyList<String>()
@@ -1186,6 +1518,10 @@ internal class LocalBackupTest {
         skipped = false,
         shuffleMode = "SMART",
     )
+
+    private fun String.hex(): String = encodeToByteArray().joinToString("") {
+        (it.toInt() and 0xff).toString(16).padStart(2, '0')
+    }
 
     private fun TrackDescriptor.toReference() = LocalBackupTrackReference(
         originalId = id.value,

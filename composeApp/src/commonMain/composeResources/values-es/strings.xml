@@ -536,11 +536,12 @@
     <string name="intelligence_exclusions_clear">Borrar todas las exclusiones</string>
 
     <string name="settings_backup">Copia de seguridad local</string>
-    <string name="settings_backup_body">Exporta o restaura listas, preferencias, historial, canciones ocultas y exclusiones de SMART. No se incluyen los archivos de música ni los datos de los modelos.</string>
+    <string name="settings_backup_body">Exporta o restaura listas, favoritos, preferencias, historial, canciones ocultas, exclusiones de SMART y las decisiones del buscador de duplicados. No se incluyen los archivos de música ni los datos de los modelos.</string>
     <string name="backup_export">Exportar copia</string>
     <string name="backup_import">Importar copia</string>
     <string name="backup_import_title">Restaurar copia local</string>
     <string name="backup_import_body">Elige cómo combinar los datos importados con los que ya existen en este dispositivo.</string>
+    <string name="backup_section_duplicate_decisions">Decisiones del buscador de duplicados</string>
     <string name="backup_merge">Combinar</string>
     <string name="backup_replace">Reemplazar</string>
     <string name="backup_replace_warning">¿Reemplazar los datos seleccionados de la app por esta copia? Los archivos de música nunca se modificarán.</string>

@@ -159,6 +159,8 @@ import io.github.nikitasud.latentjam.app.generated.resources.backup_invalid
 import io.github.nikitasud.latentjam.app.generated.resources.backup_merge
 import io.github.nikitasud.latentjam.app.generated.resources.backup_replace
 import io.github.nikitasud.latentjam.app.generated.resources.backup_replace_warning
+import io.github.nikitasud.latentjam.app.generated.resources.backup_section_duplicate_decisions
+import io.github.nikitasud.latentjam.app.generated.resources.auto_playlist_favorites
 import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.engine_error_backend
 import io.github.nikitasud.latentjam.app.generated.resources.engine_error_audio_unavailable
@@ -2463,12 +2465,7 @@ private fun DuplicatesSettings(
             val message = try {
                 // The verdict file is re-read and re-encoded whole; keep that off the UI thread.
                 withContext(Dispatchers.Default) {
-                    settings.writeDuplicateDismissalsPayload(
-                        DuplicateDismissals.remember(
-                            settings.readDuplicateDismissalsPayload(),
-                            group.copies.map { it.track.id },
-                        ),
-                    )
+                    DuplicateDismissals.rememberIn(settings, group.copies.map { it.track.id })
                 }
                 groups = groups.filterNot { it.key == group.key }
                 dismissedMessage
@@ -3018,6 +3015,7 @@ private fun BackupSettings(
             recentSearches = AppGraph.recentSearches,
             library = library,
             smartExclusions = AppGraph.smartExclusions,
+            favorites = AppGraph.favorites,
         )
     }
     // The export job is composition-scoped, and a recreated screen must never inherit a busy flag
@@ -3164,6 +3162,11 @@ private fun BackupSettings(
                         onCheckedChange = { selectedSections = selectedSections.copy(playlists = it) },
                     )
                     BackupSectionChoice(
+                        label = stringResource(Res.string.auto_playlist_favorites),
+                        checked = selectedSections.favorites,
+                        onCheckedChange = { selectedSections = selectedSections.copy(favorites = it) },
+                    )
+                    BackupSectionChoice(
                         label = stringResource(Res.string.privacy_listening_history),
                         checked = selectedSections.listeningHistory,
                         onCheckedChange = {
@@ -3189,6 +3192,13 @@ private fun BackupSettings(
                         checked = selectedSections.smartExclusions,
                         onCheckedChange = {
                             selectedSections = selectedSections.copy(smartExclusions = it)
+                        },
+                    )
+                    BackupSectionChoice(
+                        label = stringResource(Res.string.backup_section_duplicate_decisions),
+                        checked = selectedSections.duplicateDecisions,
+                        onCheckedChange = {
+                            selectedSections = selectedSections.copy(duplicateDecisions = it)
                         },
                     )
                 }
@@ -3253,7 +3263,8 @@ private fun BackupSectionChoice(
 }
 
 private fun LocalBackupSections.hasAnySelection(): Boolean =
-    settings || playlists || listeningHistory || recentSearches || hiddenTracks || smartExclusions
+    settings || playlists || listeningHistory || recentSearches || hiddenTracks || smartExclusions ||
+        favorites || duplicateDecisions
 
 // --------------------------------------------------------------- privacy
 

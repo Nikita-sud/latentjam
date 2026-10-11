@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.history.Favorites
 import io.github.nikitasud.latentjam.history.ListenEvent
 import io.github.nikitasud.latentjam.history.ListenOrigin
 import io.github.nikitasud.latentjam.history.ListenStart
@@ -40,6 +41,10 @@ internal data class LocalBackupSections(
     val recentSearches: Boolean = true,
     val hiddenTracks: Boolean = true,
     val smartExclusions: Boolean = true,
+    /** Added with backup v9; an older file carries no favourites, and the current ones stay. */
+    val favorites: Boolean = true,
+    /** The duplicate finder's "Not duplicates" verdicts; like [favorites], from v9 on. */
+    val duplicateDecisions: Boolean = true,
 )
 
 internal data class LocalBackupSettings(
@@ -128,7 +133,26 @@ internal data class LocalBackupSnapshot(
     val hiddenTrackReferenceIds: Set<String>,
     val smartExcludedTrackReferenceIds: Set<String>,
     val smartExcludedArtists: Set<String>,
-)
+    /**
+     * The hearts, newest first, matching [Favorites.all]. Added in backup v9: an older snapshot
+     * says nothing about favourites, so restoring it leaves the current ones exactly as they are.
+     */
+    val favoriteTrackReferenceIds: List<String> = emptyList(),
+    /**
+     * The duplicate finder's "Not duplicates" verdicts, oldest first as the finder keeps them. Each
+     * is a group of at least two references the listener said are different recordings, so the
+     * finder never offers them as copies of one another again. Added in backup v9, like
+     * [favoriteTrackReferenceIds].
+     */
+    val duplicateVerdicts: List<List<String>> = emptyList(),
+) {
+    /** Whether this snapshot speaks for favourites and duplicate decisions at all (v9 on). */
+    val carriesFavoritesAndDuplicateDecisions: Boolean
+        get() = formatVersion >= FIRST_VERSION_WITH_FAVORITES
+}
+
+/** The format version that brought the favourites ("F") and duplicate decision ("N") records. */
+private const val FIRST_VERSION_WITH_FAVORITES = 9
 
 internal enum class LocalBackupSection {
     PLAYLISTS,
@@ -136,6 +160,8 @@ internal enum class LocalBackupSection {
     RECENT_SEARCHES,
     HIDDEN_TRACKS,
     SMART_EXCLUSIONS,
+    FAVORITES,
+    DUPLICATE_DECISIONS,
     SETTINGS,
 }
 
@@ -149,6 +175,10 @@ internal data class LocalBackupRestoreReport(
     val hiddenTracksApplied: Int,
     val smartTrackExclusionsApplied: Int,
     val smartArtistExclusionsApplied: Int,
+    /** Restored hearts that matched a track on this device; 0 for a file older than v9. */
+    val favoritesApplied: Int = 0,
+    /** Restored verdicts with at least two matched tracks; 0 for a file older than v9. */
+    val duplicateDecisionsApplied: Int = 0,
 )
 
 /** A restore stopped after [completedSections] had already been durably requested. */
@@ -176,11 +206,12 @@ internal class LocalBackupFormatException(message: String) : IllegalArgumentExce
 internal object LocalBackupCodec {
     /**
      * The version every export writes. A record arrives together with the version number that
-     * carries it — "L" with v4, "V" with v6, "O" with v7, "G" with v8 — so a build that knows only an older
+     * carries it — "L" with v4, "V" with v6, "O" with v7, "G" with v8, the favourites ("F") and
+     * the duplicate finder's verdicts ("N") with v9 — so a build that knows only an older
      * version refuses such a file with "Unsupported backup version" instead of tripping over a
      * record it does not know ("Unknown backup record at line N").
      */
-    const val FORMAT_VERSION: Int = 8
+    const val FORMAT_VERSION: Int = 9
     private const val LEGACY_FORMAT_VERSION: Int = 1
     private const val HEADER = "LATENTJAM-LOCAL-BACKUP"
     private const val MAX_TEXT_CHARS = 64 * 1024 * 1024
@@ -190,6 +221,10 @@ internal object LocalBackupCodec {
     private const val MAX_HISTORY_EVENTS = 500_000
     private const val MAX_SEARCHES = 100
     private const val MAX_ARTIST_EXCLUSIONS = 100_000
+
+    /** The finder keeps no more verdicts than this, so a file with more was not written by it. */
+    private const val MAX_DUPLICATE_VERDICTS = DuplicateDismissals.MAX_VERDICTS
+    private const val MAX_DUPLICATE_VERDICT_MEMBERS = 200_000
     private const val MAX_ENCODED_FIELD_CHARS = 2 * 1024 * 1024 + 1
     private const val MAX_RECORD_CHARS = 16 * 1024 * 1024
 
@@ -294,6 +329,11 @@ internal object LocalBackupCodec {
             snapshot.smartExcludedArtists.sortedBy(String::lowercase).forEach {
                 appendRecord("A", it.encodeField())
             }
+            // Order is meaning for both: the hearts newest first, the verdicts oldest first.
+            snapshot.favoriteTrackReferenceIds.forEach { appendRecord("F", it.encodeField()) }
+            snapshot.duplicateVerdicts.forEach { verdict ->
+                appendRecord(listOf("N") + verdict.map { it.encodeField() })
+            }
         }.also { encoded ->
             if (encoded.length > MAX_TEXT_CHARS) formatError("Backup exceeds the supported size")
         }
@@ -323,6 +363,9 @@ internal object LocalBackupCodec {
         val hidden = linkedSetOf<String>()
         val excludedTracks = linkedSetOf<String>()
         val excludedArtists = linkedSetOf<String>()
+        val favorites = mutableListOf<String>()
+        val verdicts = mutableListOf<List<String>>()
+        var verdictMemberCount = 0
         var playlistTrackCount = 0
         var hiddenRecordCount = 0
         var excludedTrackRecordCount = 0
@@ -501,6 +544,28 @@ internal object LocalBackupCodec {
                     excludedArtistRecordCount++
                     excludedArtists += record.nextField().decodeField("excluded artist")
                 }
+                "F" -> {
+                    record.requireFieldCount(2)
+                    if (version < FIRST_VERSION_WITH_FAVORITES) {
+                        formatError("Older backups cannot encode favourites")
+                    }
+                    if (favorites.size >= MAX_TRACKS) formatError("Too many favourites")
+                    favorites += record.nextField().decodeField("favourite track id")
+                }
+                "N" -> {
+                    if (version < FIRST_VERSION_WITH_FAVORITES) {
+                        formatError("Older backups cannot encode duplicate decisions")
+                    }
+                    // A verdict keeps at least two recordings apart; one alone says nothing.
+                    val memberCount = record.fieldCount - 1
+                    if (memberCount < 2) record.invalid()
+                    if (verdicts.size >= MAX_DUPLICATE_VERDICTS) formatError("Too many duplicate decisions")
+                    if (memberCount > MAX_DUPLICATE_VERDICT_MEMBERS - verdictMemberCount) {
+                        formatError("Too many duplicate decision entries")
+                    }
+                    verdictMemberCount += memberCount
+                    verdicts += List(memberCount) { record.nextField().decodeField("duplicate decision track id") }
+                }
                 else -> formatError("Unknown backup record at line ${record.lineNumber}")
             }
         }
@@ -524,6 +589,8 @@ internal object LocalBackupCodec {
             hiddenTrackReferenceIds = hidden,
             smartExcludedTrackReferenceIds = excludedTracks,
             smartExcludedArtists = excludedArtists,
+            favoriteTrackReferenceIds = favorites,
+            duplicateVerdicts = verdicts,
         )
         validate(snapshot)
         return snapshot
@@ -640,6 +707,29 @@ internal object LocalBackupCodec {
             formatError("Unknown track reference")
         }
         if (snapshot.smartExcludedArtists.any(String::isBlank)) formatError("Excluded artists cannot be blank")
+        validateFavoritesAndDuplicateDecisions(snapshot, knownTracks)
+    }
+
+    private fun validateFavoritesAndDuplicateDecisions(snapshot: LocalBackupSnapshot, knownTracks: Set<String>) {
+        val favorites = snapshot.favoriteTrackReferenceIds
+        val verdicts = snapshot.duplicateVerdicts
+        if (!snapshot.carriesFavoritesAndDuplicateDecisions && (favorites.isNotEmpty() || verdicts.isNotEmpty())) {
+            formatError("Older backups cannot encode favourites or duplicate decisions")
+        }
+        if (favorites.size > MAX_TRACKS) formatError("Too many favourites")
+        // The store keeps each heart once; a repeat would mean the order no longer says which is newer.
+        if (favorites.any { it !in knownTracks } || favorites.toSet().size != favorites.size) {
+            formatError("Invalid favourite record")
+        }
+        if (verdicts.size > MAX_DUPLICATE_VERDICTS) formatError("Too many duplicate decisions")
+        if (verdicts.sumOf { it.size.toLong() } > MAX_DUPLICATE_VERDICT_MEMBERS) {
+            formatError("Too many duplicate decision entries")
+        }
+        verdicts.forEach { verdict ->
+            if (verdict.size < 2 || verdict.toSet().size != verdict.size || verdict.any { it !in knownTracks }) {
+                formatError("Invalid duplicate decision record")
+            }
+        }
     }
 
     /**
@@ -823,6 +913,7 @@ internal class LocalBackupService(
     private val recentSearches: RecentSearches,
     private val library: MusicLibrary,
     private val smartExclusions: SmartExclusions,
+    private val favorites: Favorites,
 ) {
     /**
      * Builds the document for the picker. Encoding up to 64 Mi characters, and folding the library
@@ -856,12 +947,16 @@ internal class LocalBackupService(
         val searches = recentSearches.recent(Int.MAX_VALUE)
         val hiddenIds = library.hiddenTrackIds()
         val exclusions = smartExclusions.load()
+        val hearts = favorites.all()
+        val verdicts = DuplicateDismissals.verdicts(settings.readDuplicateDismissalsPayload())
         val descriptors = library.allKnownTracks().associateBy { it.id.value }
         val referencedIds = linkedSetOf<String>().apply {
             storedPlaylists.forEach { addAll(it.trackIds) }
             chronologicalEvents.forEach { add(it.trackId.value) }
             hiddenIds.forEach { add(it.value) }
             exclusions.trackIds.forEach { add(it.value) }
+            hearts.forEach { add(it.value) }
+            verdicts.forEach { verdict -> verdict.forEach { add(it.value) } }
         }
         val references = referencedIds.map { id ->
             descriptors[id]?.toBackupReference() ?: LocalBackupTrackReference(
@@ -906,6 +1001,8 @@ internal class LocalBackupService(
             hiddenTrackReferenceIds = hiddenIds.mapTo(linkedSetOf()) { it.value },
             smartExcludedTrackReferenceIds = exclusions.trackIds.mapTo(linkedSetOf()) { it.value },
             smartExcludedArtists = exclusions.artists,
+            favoriteTrackReferenceIds = hearts.map { it.value },
+            duplicateVerdicts = verdicts.map { verdict -> verdict.map { it.value } },
         ).also(LocalBackupCodec::validate)
     }
 
@@ -931,9 +1028,12 @@ internal class LocalBackupService(
         // device scan. Replacing stored sets with what such a scan can match would drop playlists,
         // history, hidden tracks, and SMART exclusions for good, so REPLACE is refused before any
         // section is applied. An empty library is the special case in which nothing can match.
-        // MERGE still imports whatever the library can confirm.
+        // MERGE still imports whatever the library can confirm. Favourites and duplicate decisions
+        // count from v9 on; an older file leaves both alone, so it cannot empty them either.
+        val newSections = snapshot.carriesFavoritesAndDuplicateDecisions
         val replacesTrackReferences = sections.playlists || sections.listeningHistory ||
-            sections.hiddenTracks || sections.smartExclusions
+            sections.hiddenTracks || sections.smartExclusions ||
+            (newSections && (sections.favorites || sections.duplicateDecisions))
         if (mode == LocalBackupRestoreMode.REPLACE && replacesTrackReferences &&
             snapshot.tracks.isNotEmpty() && resolved.values.none { it != null }
         ) {
@@ -952,6 +1052,8 @@ internal class LocalBackupService(
         var hiddenApplied = 0
         var smartTracksApplied = 0
         var smartArtistsApplied = 0
+        var favoritesApplied = 0
+        var duplicateDecisionsApplied = 0
 
         try {
             if (sections.playlists) {
@@ -971,6 +1073,17 @@ internal class LocalBackupService(
                 playlists.replaceAll(target)
                 playlistsApplied = imported.size
                 completed += LocalBackupSection.PLAYLISTS
+            }
+
+            if (sections.favorites && newSections) {
+                // Two references can resolve to one track; the first, newer one keeps its place.
+                val imported = snapshot.favoriteTrackReferenceIds.mapNotNull { resolved[it] }.distinct()
+                when (mode) {
+                    LocalBackupRestoreMode.REPLACE -> favorites.replace(imported)
+                    LocalBackupRestoreMode.MERGE -> mergeFavorites(imported)
+                }
+                favoritesApplied = imported.size
+                completed += LocalBackupSection.FAVORITES
             }
 
             if (sections.listeningHistory) {
@@ -1035,6 +1148,21 @@ internal class LocalBackupService(
                 completed += LocalBackupSection.SMART_EXCLUSIONS
             }
 
+            if (sections.duplicateDecisions && newSections) {
+                // A verdict keeps apart the tracks it names that are on this device; one left with a
+                // single track says nothing, and its unmatched references are already counted.
+                val imported = snapshot.duplicateVerdicts.mapNotNull { verdict ->
+                    verdict.mapNotNull { resolved[it] }.distinct().takeIf { it.size >= 2 }
+                }
+                DuplicateDismissals.restore(
+                    settings = settings,
+                    imported = imported,
+                    replace = mode == LocalBackupRestoreMode.REPLACE,
+                )
+                duplicateDecisionsApplied = imported.size
+                completed += LocalBackupSection.DUPLICATE_DECISIONS
+            }
+
             if (sections.settings) {
                 settings.setSaveListeningHistory(snapshot.settings.saveListeningHistory).getOrThrow()
                 settings.setRememberSearches(snapshot.settings.rememberSearches).getOrThrow()
@@ -1069,7 +1197,23 @@ internal class LocalBackupService(
             hiddenTracksApplied = hiddenApplied,
             smartTrackExclusionsApplied = smartTracksApplied,
             smartArtistExclusionsApplied = smartArtistsApplied,
+            favoritesApplied = favoritesApplied,
+            duplicateDecisionsApplied = duplicateDecisionsApplied,
         )
+    }
+
+    /**
+     * Merges restored hearts into the current ones as one compare-and-set ([mergedFavorites] says
+     * how): a heart toggled while the restore runs is never overwritten, the merge simply starts
+     * again from the list that heart produced.
+     */
+    private suspend fun mergeFavorites(imported: List<TrackId>) {
+        repeat(MAX_FAVORITE_MERGE_ATTEMPTS) {
+            val current = favorites.all()
+            val merged = mergedFavorites(current, imported)
+            if (merged == current || favorites.replaceIfUnchanged(current, merged)) return
+        }
+        error("Favourites kept changing while a backup was restored")
     }
 
     /**
@@ -1296,6 +1440,9 @@ internal class LocalBackupService(
     private companion object {
         const val MAX_CAPTURE_HISTORY = 500_000
 
+        /** Each attempt loses only to a heart edited in between, so a few always settle. */
+        const val MAX_FAVORITE_MERGE_ATTEMPTS = 8
+
         /**
          * One restore at a time across the process. A restore now survives the screen that started
          * it, so the next screen can begin another while the first still applies sections; two
@@ -1304,6 +1451,19 @@ internal class LocalBackupService(
          */
         val restoreMutex = Mutex()
     }
+}
+
+/**
+ * The favourites a MERGE restore leaves: the union of [current] and [restored], where every current
+ * heart keeps its exact place and the restored hearts this device did not have follow them, in
+ * the backup's newest-first order. The device's own hearts lead because they are at least as recent
+ * as the file: a backup is a picture of the past, and the store keeps no heart times to interleave
+ * by. A restored heart already on the device stays where the device has it.
+ */
+internal fun mergedFavorites(current: List<TrackId>, restored: List<TrackId>): List<TrackId> {
+    val present = current.toHashSet()
+    val added = restored.filter { present.add(it) }
+    return if (added.isEmpty()) current else current + added
 }
 
 private const val LOCAL_BACKUP_DURATION_TOLERANCE_MS = 2_000L

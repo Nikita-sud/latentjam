@@ -519,11 +519,12 @@
     <string name="intelligence_exclusions_clear">Hapus semua pengecualian</string>
 
     <string name="settings_backup">Cadangan lokal</string>
-    <string name="settings_backup_body">Ekspor atau pulihkan daftar putar, preferensi, riwayat, trek tersembunyi, dan pengecualian SMART. File musik dan data model tidak disertakan.</string>
+    <string name="settings_backup_body">Ekspor atau pulihkan daftar putar, favorit, preferensi, riwayat, trek tersembunyi, pengecualian SMART, dan keputusan pencari duplikat. File musik dan data model tidak disertakan.</string>
     <string name="backup_export">Ekspor cadangan</string>
     <string name="backup_import">Impor cadangan</string>
     <string name="backup_import_title">Pulihkan cadangan lokal</string>
     <string name="backup_import_body">Pilih cara menggabungkan data yang diimpor dengan data yang sudah ada di perangkat ini.</string>
+    <string name="backup_section_duplicate_decisions">Keputusan pencari duplikat</string>
     <string name="backup_merge">Gabungkan</string>
     <string name="backup_replace">Ganti</string>
     <string name="backup_replace_warning">Ganti data aplikasi yang dipilih dengan cadangan ini? File musik tidak pernah diubah.</string>

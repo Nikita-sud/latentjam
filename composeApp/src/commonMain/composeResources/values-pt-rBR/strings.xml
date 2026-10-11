@@ -536,11 +536,12 @@
     <string name="intelligence_exclusions_clear">Limpar todas as exclusões</string>
 
     <string name="settings_backup">Backup local</string>
-    <string name="settings_backup_body">Exporte ou restaure playlists, preferências, histórico, faixas ocultas e exclusões SMART. Arquivos de música e dados de modelos não são incluídos.</string>
+    <string name="settings_backup_body">Exporte ou restaure playlists, favoritas, preferências, histórico, faixas ocultas, exclusões SMART e decisões do localizador de duplicatas. Arquivos de música e dados de modelos não são incluídos.</string>
     <string name="backup_export">Exportar backup</string>
     <string name="backup_import">Importar backup</string>
     <string name="backup_import_title">Restaurar backup local</string>
     <string name="backup_import_body">Escolha como combinar os dados importados com os que já estão neste dispositivo.</string>
+    <string name="backup_section_duplicate_decisions">Decisões do localizador de duplicatas</string>
     <string name="backup_merge">Mesclar</string>
     <string name="backup_replace">Substituir</string>
     <string name="backup_replace_warning">Substituir os dados selecionados do app por este backup? Os arquivos de música nunca são alterados.</string>

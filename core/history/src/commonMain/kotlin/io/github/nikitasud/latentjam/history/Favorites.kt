@@ -12,7 +12,7 @@ import kotlinx.coroutines.sync.withLock
  * Tracks the listener marked as favourites, newest first.
  *
  * Deliberately track-id based and device-local, like the rest of this module: hearts are strong
- * personal signal and never leave the phone.
+ * personal signal and leave the phone only in a local backup file the listener writes themselves.
  */
 public interface Favorites {
 

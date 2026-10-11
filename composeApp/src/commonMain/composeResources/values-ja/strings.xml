@@ -513,11 +513,12 @@
     <string name="intelligence_exclusions_clear">すべての除外を解除</string>
 
     <string name="settings_backup">ローカルバックアップ</string>
-    <string name="settings_backup_body">プレイリスト、設定、履歴、非表示の曲、SMART の除外をエクスポートまたは復元します。音楽ファイルとモデルデータは含まれません。</string>
+    <string name="settings_backup_body">プレイリスト、お気に入り、設定、履歴、非表示の曲、SMART の除外、重複検出の判断をエクスポートまたは復元します。音楽ファイルとモデルデータは含まれません。</string>
     <string name="backup_export">バックアップをエクスポート</string>
     <string name="backup_import">バックアップをインポート</string>
     <string name="backup_import_title">ローカルバックアップを復元</string>
     <string name="backup_import_body">インポートしたデータを、この端末にあるデータと組み合わせる方法を選びます。</string>
+    <string name="backup_section_duplicate_decisions">重複検出の判断</string>
     <string name="backup_merge">統合</string>
     <string name="backup_replace">置き換え</string>
     <string name="backup_replace_warning">選択したアプリデータをこのバックアップで置き換えますか？音楽ファイルは変更されません。</string>

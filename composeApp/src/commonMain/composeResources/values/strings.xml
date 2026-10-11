@@ -597,11 +597,12 @@
     <string name="intelligence_exclusions_clear">Clear all exclusions</string>
 
     <string name="settings_backup">Local backup</string>
-    <string name="settings_backup_body">Export or restore playlists, preferences, history, hidden tracks and SMART exclusions. Music files and model data are not included.</string>
+    <string name="settings_backup_body">Export or restore playlists, favorites, preferences, history, hidden tracks, SMART exclusions and duplicate finder decisions. Music files and model data are not included.</string>
     <string name="backup_export">Export backup</string>
     <string name="backup_import">Import backup</string>
     <string name="backup_import_title">Restore local backup</string>
     <string name="backup_import_body">Choose how imported data should be combined with data already on this device.</string>
+    <string name="backup_section_duplicate_decisions">Duplicate finder decisions</string>
     <string name="backup_merge">Merge</string>
     <string name="backup_replace">Replace</string>
     <string name="backup_replace_warning">Replace selected app data with this backup? Music files are never changed.</string>

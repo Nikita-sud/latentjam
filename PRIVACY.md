@@ -43,8 +43,8 @@ developer or with any third party.
 - **Tag editing** rewrites the tags inside your own audio files, on the device.
 - **Delete file** removes a file through the system's own confirmation dialog.
 - **Local backup** writes a backup file to the location you choose, and restores from it. The file
-  carries your playlists, listening history, recent searches, hidden tracks, SMART exclusions and
-  settings; your favourites and the duplicate finder's decisions are not part of it.
+  carries your playlists, favourites, listening history, recent searches, hidden tracks, SMART
+  exclusions, the duplicate finder's decisions and settings.
 
 ## Third parties
 

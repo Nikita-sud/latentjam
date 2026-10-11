@@ -213,6 +213,48 @@ internal class TrackDuplicatesTest {
     }
 
     @Test
+    fun restoredVerdictsMergeWithoutRepeatsAndBeforeTheDevicesOwn() {
+        fun ids(vararg values: String) = values.map(::TrackId)
+        var payload: String? = null
+        payload = DuplicateDismissals.remember(payload, ids("a", "b", "c"))
+        payload = DuplicateDismissals.remember(payload, ids("x", "y"))
+
+        val merged = DuplicateDismissals.merged(
+            payload,
+            listOf(
+                ids("y", "x"), // equal to a stored verdict
+                ids("b", "a"), // every pair already kept apart by {a, b, c}
+                ids("e", "f"),
+                ids("f", "e", "f"), // the one above again, repeated inside
+                ids("a", "d"), // new: a and d were never judged
+                ids("solo"), // keeps nothing apart
+            ),
+        )
+
+        // The restored verdicts come first, as older ones; the device's own keep their order last.
+        assertEquals(
+            listOf(ids("e", "f"), ids("a", "d"), ids("a", "b", "c"), ids("x", "y")),
+            DuplicateDismissals.verdicts(merged),
+        )
+        // Merging the same verdicts again adds nothing.
+        assertEquals(merged, DuplicateDismissals.merged(merged, listOf(ids("e", "f"), ids("d", "a"))))
+    }
+
+    @Test
+    fun aFullStoreKeepsEveryVerdictOfItsOwnAndLeavesTheRestoredOnesOut() {
+        var payload = ""
+        repeat(DuplicateDismissals.MAX_VERDICTS) { index ->
+            payload = DuplicateDismissals.remember(payload, listOf(TrackId("own-$index"), TrackId("pair-$index")))
+        }
+        val stored = DuplicateDismissals.verdicts(payload)
+        assertEquals(DuplicateDismissals.MAX_VERDICTS, stored.size)
+
+        val merged = DuplicateDismissals.merged(payload, listOf(listOf(TrackId("new-a"), TrackId("new-b"))))
+
+        assertEquals(stored, DuplicateDismissals.verdicts(merged))
+    }
+
+    @Test
     fun opaqueIdsHaveCollisionFreeGroupKeysAndAConsistentRecommendation() {
         fun group(vararg ids: String) = describeDuplicateGroup(
             ids.map { TrackDescriptor(id = TrackId(it)) }, emptyMap(), emptySet(), emptyMap(),

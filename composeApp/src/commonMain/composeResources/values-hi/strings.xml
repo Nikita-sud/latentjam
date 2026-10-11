@@ -529,11 +529,12 @@
     <string name="intelligence_exclusions_clear">सभी अपवाद साफ़ करें</string>
 
     <string name="settings_backup">स्थानीय बैकअप</string>
-    <string name="settings_backup_body">प्लेलिस्ट, पसंद, इतिहास, छिपाए गए ट्रैक और SMART अपवादों को निर्यात या पुनर्स्थापित करें। संगीत फ़ाइलें और मॉडल डेटा शामिल नहीं हैं।</string>
+    <string name="settings_backup_body">प्लेलिस्ट, पसंदीदा, प्राथमिकताएँ, इतिहास, छिपाए गए ट्रैक, SMART अपवाद और डुप्लिकेट खोजक के निर्णय निर्यात या पुनर्स्थापित करें। संगीत फ़ाइलें और मॉडल डेटा शामिल नहीं हैं।</string>
     <string name="backup_export">बैकअप निर्यात करें</string>
     <string name="backup_import">बैकअप आयात करें</string>
     <string name="backup_import_title">स्थानीय बैकअप पुनर्स्थापित करें</string>
     <string name="backup_import_body">चुनें कि आयात किए गए डेटा को इस डिवाइस के मौजूदा डेटा के साथ कैसे जोड़ा जाए।</string>
+    <string name="backup_section_duplicate_decisions">डुप्लिकेट खोजक के निर्णय</string>
     <string name="backup_merge">मिलाएँ</string>
     <string name="backup_replace">बदलें</string>
     <string name="backup_replace_warning">चुने गए ऐप डेटा को इस बैकअप से बदलें? संगीत फ़ाइलें कभी नहीं बदली जाएँगी।</string>

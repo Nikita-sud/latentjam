@@ -89,11 +89,13 @@ announce new versions: watch this repository for releases (Watch → Custom → 
 
 They are signed with different keys and can't update each other. Export your data (Settings → Local
 backup), uninstall, install the other one, then restore. The backup carries your playlists
-(including *Keep together in SMART*), listening history, recent searches, hidden tracks, the tracks
-and artists you told SMART not to recommend, and your settings. It does not carry everything,
-though: your **favourites** and the duplicate finder's decisions ("keep both", "these are different
-recordings") are not part of the file, so re-mark them after the switch. Your current queue and the
-equaliser are missing from it as well. The song analysis isn't included either and runs again.
+(including *Keep together in SMART*), your favourites in their order, listening history, recent
+searches, hidden tracks, the tracks and artists you told SMART not to recommend, the duplicate
+finder's decisions (the copies you marked *Not duplicates*), and your settings. Your current queue
+and the equaliser are not part of it, and the song analysis isn't included either and runs again.
+Restore with the same version or a newer one: an older version refuses a newer backup whole rather
+than restore half of it, so if the install you switch to is behind (F-Droid builds a release some
+days after it appears here), wait for its update first.
 
 </details>
 

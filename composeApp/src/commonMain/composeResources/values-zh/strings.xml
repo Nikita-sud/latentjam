@@ -519,11 +519,12 @@
     <string name="intelligence_exclusions_clear">清除所有排除项</string>
 
     <string name="settings_backup">本地备份</string>
-    <string name="settings_backup_body">导出或恢复播放列表、偏好设置、历史、隐藏曲目和 SMART 排除项。不包含音乐文件和模型数据。</string>
+    <string name="settings_backup_body">导出或恢复播放列表、收藏、偏好设置、历史、隐藏曲目、SMART 排除项和重复查找的判定。不包含音乐文件和模型数据。</string>
     <string name="backup_export">导出备份</string>
     <string name="backup_import">导入备份</string>
     <string name="backup_import_title">恢复本地备份</string>
     <string name="backup_import_body">选择如何将导入的数据与本设备现有数据合并。</string>
+    <string name="backup_section_duplicate_decisions">重复查找的判定</string>
     <string name="backup_merge">合并</string>
     <string name="backup_replace">替换</string>
     <string name="backup_replace_warning">用此备份替换所选应用数据？音乐文件绝不会更改。</string>

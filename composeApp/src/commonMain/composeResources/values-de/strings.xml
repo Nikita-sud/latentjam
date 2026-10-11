@@ -539,11 +539,12 @@
     <string name="intelligence_exclusions_clear">Alle Ausschlüsse löschen</string>
 
     <string name="settings_backup">Lokales Backup</string>
-    <string name="settings_backup_body">Exportiere oder stelle Playlists, Einstellungen, Verlauf, ausgeblendete Titel und SMART-Ausschlüsse wieder her. Musikdateien und Modelldaten sind nicht enthalten.</string>
+    <string name="settings_backup_body">Exportiere oder stelle Playlists, Favoriten, Einstellungen, Verlauf, ausgeblendete Titel, SMART-Ausschlüsse und die Entscheidungen der Duplikatsuche wieder her. Musikdateien und Modelldaten sind nicht enthalten.</string>
     <string name="backup_export">Backup exportieren</string>
     <string name="backup_import">Backup importieren</string>
     <string name="backup_import_title">Lokales Backup wiederherstellen</string>
     <string name="backup_import_body">Wähle aus, wie importierte Daten mit den bereits auf diesem Gerät vorhandenen Daten kombiniert werden.</string>
+    <string name="backup_section_duplicate_decisions">Entscheidungen der Duplikatsuche</string>
     <string name="backup_merge">Zusammenführen</string>
     <string name="backup_replace">Ersetzen</string>
     <string name="backup_replace_warning">Ausgewählte App-Daten durch dieses Backup ersetzen? Musikdateien werden niemals verändert.</string>

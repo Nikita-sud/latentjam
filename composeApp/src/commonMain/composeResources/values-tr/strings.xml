@@ -529,11 +529,12 @@
     <string name="intelligence_exclusions_clear">Tüm hariç tutmaları temizle</string>
 
     <string name="settings_backup">Yerel yedek</string>
-    <string name="settings_backup_body">Çalma listelerini, tercihleri, geçmişi, gizli parçaları ve SMART hariç tutmalarını dışa aktarın veya geri yükleyin. Müzik dosyaları ve model verileri dahil değildir.</string>
+    <string name="settings_backup_body">Çalma listelerini, favorileri, tercihleri, geçmişi, gizli parçaları, SMART hariç tutmalarını ve kopya bulucu kararlarını dışa aktarın veya geri yükleyin. Müzik dosyaları ve model verileri dahil değildir.</string>
     <string name="backup_export">Yedeği dışa aktar</string>
     <string name="backup_import">Yedeği içe aktar</string>
     <string name="backup_import_title">Yerel yedeği geri yükle</string>
     <string name="backup_import_body">İçe aktarılan verilerin bu cihazdaki verilerle nasıl birleştirileceğini seçin.</string>
+    <string name="backup_section_duplicate_decisions">Kopya bulucu kararları</string>
     <string name="backup_merge">Birleştir</string>
     <string name="backup_replace">Değiştir</string>
     <string name="backup_replace_warning">Seçilen uygulama verileri bu yedekle değiştirilsin mi? Müzik dosyaları hiçbir zaman değiştirilmez.</string>

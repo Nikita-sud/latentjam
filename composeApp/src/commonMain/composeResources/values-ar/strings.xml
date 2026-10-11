@@ -605,11 +605,12 @@
     <string name="intelligence_exclusions_clear">مسح كل الاستثناءات</string>
 
     <string name="settings_backup">نسخة احتياطية محلية</string>
-    <string name="settings_backup_body">صدّر أو استعد قوائم التشغيل والتفضيلات والسجل والمقاطع المخفية واستثناءات SMART. لا تتضمن النسخة ملفات الموسيقى أو بيانات النماذج.</string>
+    <string name="settings_backup_body">صدّر أو استعد قوائم التشغيل والمفضلة والتفضيلات والسجل والمقاطع المخفية واستثناءات SMART وقرارات أداة البحث عن التكرارات. لا تتضمن النسخة ملفات الموسيقى أو بيانات النماذج.</string>
     <string name="backup_export">تصدير نسخة احتياطية</string>
     <string name="backup_import">استيراد نسخة احتياطية</string>
     <string name="backup_import_title">استعادة نسخة احتياطية محلية</string>
     <string name="backup_import_body">اختر طريقة دمج البيانات المستوردة مع البيانات الموجودة على هذا الجهاز.</string>
+    <string name="backup_section_duplicate_decisions">قرارات أداة البحث عن التكرارات</string>
     <string name="backup_merge">دمج</string>
     <string name="backup_replace">استبدال</string>
     <string name="backup_replace_warning">هل تريد استبدال بيانات التطبيق المحددة بهذه النسخة الاحتياطية؟ لن تتغير ملفات الموسيقى مطلقًا.</string>

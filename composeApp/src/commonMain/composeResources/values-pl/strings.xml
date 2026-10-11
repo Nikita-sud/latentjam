@@ -567,11 +567,12 @@
     <string name="intelligence_exclusions_clear">Wyczyść wszystkie wykluczenia</string>
 
     <string name="settings_backup">Lokalna kopia zapasowa</string>
-    <string name="settings_backup_body">Eksportuj lub przywracaj playlisty, preferencje, historię, ukryte utwory i wykluczenia SMART. Pliki muzyczne i dane modeli nie są uwzględniane.</string>
+    <string name="settings_backup_body">Eksportuj lub przywracaj playlisty, ulubione, preferencje, historię, ukryte utwory, wykluczenia SMART i decyzje wyszukiwarki duplikatów. Pliki muzyczne i dane modeli nie są uwzględniane.</string>
     <string name="backup_export">Eksportuj kopię</string>
     <string name="backup_import">Importuj kopię</string>
     <string name="backup_import_title">Przywróć lokalną kopię</string>
     <string name="backup_import_body">Wybierz sposób połączenia importowanych danych z danymi już na tym urządzeniu.</string>
+    <string name="backup_section_duplicate_decisions">Decyzje wyszukiwarki duplikatów</string>
     <string name="backup_merge">Scal</string>
     <string name="backup_replace">Zastąp</string>
     <string name="backup_replace_warning">Zastąpić wybrane dane aplikacji tą kopią? Pliki muzyczne nigdy nie są zmieniane.</string>
