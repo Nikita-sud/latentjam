@@ -65,6 +65,7 @@
     <string name="library_empty">이 기기에서 음악을 찾을 수 없습니다.</string>
     <string name="action_rescan_library">라이브러리 새로고침</string>
     <string name="sort_recently_added">최근 추가순</string>
+    <string name="sort_custom_order">사용자 지정 순서</string>
     <string name="sort_direction_ascending">오름차순</string>
     <string name="sort_direction_descending">내림차순</string>
     <string name="snack_track_deleted">곡을 삭제했습니다</string>

@@ -83,6 +83,7 @@
     <string name="library_empty">لم يتم العثور على موسيقى على هذا الجهاز.</string>
     <string name="action_rescan_library">تحديث المكتبة</string>
     <string name="sort_recently_added">المضافة حديثًا</string>
+    <string name="sort_custom_order">ترتيب مخصص</string>
     <string name="sort_direction_ascending">تصاعدي</string>
     <string name="sort_direction_descending">تنازلي</string>
     <string name="snack_track_deleted">تم حذف المقطع</string>

@@ -77,6 +77,7 @@
     <string name="library_empty">No music found on this device.</string>
     <string name="action_rescan_library">Refresh library</string>
     <string name="sort_recently_added">Recently added</string>
+    <string name="sort_custom_order">Custom order</string>
     <string name="sort_direction_ascending">Ascending</string>
     <string name="sort_direction_descending">Descending</string>
     <string name="snack_track_deleted">Track deleted</string>

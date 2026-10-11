@@ -67,6 +67,7 @@
     <string name="library_empty">इस डिवाइस पर कोई संगीत नहीं मिला.</string>
     <string name="action_rescan_library">लाइब्रेरी रीफ़्रेश करें</string>
     <string name="sort_recently_added">हाल ही में जोड़े गए</string>
+    <string name="sort_custom_order">कस्टम क्रम</string>
     <string name="sort_direction_ascending">आरोही</string>
     <string name="sort_direction_descending">अवरोही</string>
     <string name="snack_track_deleted">गाना मिटाया गया</string>

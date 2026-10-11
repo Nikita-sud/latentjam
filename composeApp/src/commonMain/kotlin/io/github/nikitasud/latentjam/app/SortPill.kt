@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -35,13 +36,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
+import io.github.nikitasud.latentjam.app.generated.resources.info_album
 import io.github.nikitasud.latentjam.app.generated.resources.info_artist
+import io.github.nikitasud.latentjam.app.generated.resources.info_duration
 import io.github.nikitasud.latentjam.app.generated.resources.info_title
 import io.github.nikitasud.latentjam.app.generated.resources.info_year
 import io.github.nikitasud.latentjam.app.generated.resources.sort_direction_ascending
 import io.github.nikitasud.latentjam.app.generated.resources.sort_direction_descending
+import io.github.nikitasud.latentjam.app.generated.resources.sort_custom_order
 import io.github.nikitasud.latentjam.app.generated.resources.sort_recently_added
 import io.github.nikitasud.latentjam.library.AlbumSort
+import io.github.nikitasud.latentjam.library.PlaylistSort
 import io.github.nikitasud.latentjam.library.SongSort
 import io.github.nikitasud.latentjam.library.SongSortDirection
 import org.jetbrains.compose.resources.stringResource
@@ -61,6 +66,8 @@ internal fun <S : Enum<S>> SortPill(
     enabled: Boolean,
     onChoiceChange: (SortChoice<S>) -> Unit,
     modifier: Modifier = Modifier,
+    /** False for a field that runs one way only (a playlist's own order): no arrow is offered for it. */
+    hasDirection: (S) -> Boolean = { true },
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     Box(modifier) {
@@ -78,11 +85,13 @@ internal fun <S : Enum<S>> SortPill(
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(start = 8.dp))
             }
-            Box(Modifier.width(1.dp).height(20.dp).background(MaterialTheme.colorScheme.outlineVariant))
-            IconButton(
-                onClick = { onChoiceChange(choice.copy(direction = choice.direction.toggled())) },
-                enabled = enabled,
-            ) { SortDirectionIcon(choice.direction) }
+            if (hasDirection(choice.sort)) {
+                Box(Modifier.width(1.dp).height(20.dp).background(MaterialTheme.colorScheme.outlineVariant))
+                IconButton(
+                    onClick = { onChoiceChange(choice.copy(direction = choice.direction.toggled())) },
+                    enabled = enabled,
+                ) { SortDirectionIcon(choice.direction) }
+            }
         }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             options.forEach { option ->
@@ -90,9 +99,13 @@ internal fun <S : Enum<S>> SortPill(
                     text = { Text(label(option)) },
                     onClick = {
                         menuOpen = false
-                        onChoiceChange(choice.afterSelecting(option, defaultDirection(option)))
+                        onChoiceChange(choice.afterSelecting(option, defaultDirection(option), hasDirection(option)))
                     },
-                    trailingIcon = if (option == choice.sort) { { SortDirectionIcon(choice.direction) } } else null,
+                    trailingIcon = when {
+                        option != choice.sort -> null
+                        hasDirection(option) -> { { SortDirectionIcon(choice.direction) } }
+                        else -> { { Icon(Icons.Rounded.Check, null, Modifier.padding(start = 4.dp).size(16.dp)) } }
+                    },
                 )
             }
         }
@@ -133,13 +146,21 @@ internal fun <S> directionAfterSortSelection(
     selectedDefault
 }
 
-/** The choice after tapping [selected] in the menu; see [directionAfterSortSelection]. */
+/**
+ * The choice after tapping [selected] in the menu; see [directionAfterSortSelection]. A field without
+ * a direction ([selectedHasDirection] false) always takes its default, so a second tap changes nothing.
+ */
 internal fun <S : Enum<S>> SortChoice<S>.afterSelecting(
     selected: S,
     selectedDefault: SongSortDirection,
+    selectedHasDirection: Boolean = true,
 ): SortChoice<S> = SortChoice(
     sort = selected,
-    direction = directionAfterSortSelection(sort, direction, selected, selectedDefault),
+    direction = if (selectedHasDirection) {
+        directionAfterSortSelection(sort, direction, selected, selectedDefault)
+    } else {
+        selectedDefault
+    },
 )
 
 @Composable
@@ -148,6 +169,18 @@ internal fun SongSort.label(): String = stringResource(
         SongSort.TITLE -> Res.string.info_title
         SongSort.ARTIST -> Res.string.info_artist
         SongSort.RECENT -> Res.string.sort_recently_added
+    },
+)
+
+@Composable
+internal fun PlaylistSort.label(): String = stringResource(
+    when (this) {
+        PlaylistSort.CUSTOM -> Res.string.sort_custom_order
+        PlaylistSort.RECENT -> Res.string.sort_recently_added
+        PlaylistSort.TITLE -> Res.string.info_title
+        PlaylistSort.ARTIST -> Res.string.info_artist
+        PlaylistSort.ALBUM -> Res.string.info_album
+        PlaylistSort.DURATION -> Res.string.info_duration
     },
 )
 

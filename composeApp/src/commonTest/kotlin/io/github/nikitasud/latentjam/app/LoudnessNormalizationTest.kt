@@ -152,6 +152,8 @@ internal class LoudnessNormalizationTest {
         override val groupSortOrders = MutableStateFlow(GroupSortOrders())
         override fun setGroupSortOrders(orders: GroupSortOrders) { groupSortOrders.value = orders }
         override fun setArtistAlbumSort(choice: SortChoice<AlbumSort>) { artistAlbumSort.value = choice }
+        override val playlistSortOrders = MutableStateFlow(PlaylistSortOrders())
+        override fun setPlaylistSortOrders(orders: PlaylistSortOrders) { playlistSortOrders.value = orders }
         override fun readTrackLoudnessPayload(): String? = null
         var writeAttempts = 0
         override fun writeTrackLoudnessPayload(payload: String) {

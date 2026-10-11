@@ -74,6 +74,7 @@
     <string name="library_empty">Nenhuma música encontrada neste dispositivo.</string>
     <string name="action_rescan_library">Atualizar biblioteca</string>
     <string name="sort_recently_added">Adicionadas recentemente</string>
+    <string name="sort_custom_order">Ordem personalizada</string>
     <string name="sort_direction_ascending">Crescente</string>
     <string name="sort_direction_descending">Decrescente</string>
     <string name="snack_track_deleted">Música excluída</string>

@@ -457,6 +457,8 @@ internal fun resolveResumeSourceQueue(
     library: List<TrackDescriptor>,
     playlists: List<Playlist>,
     playlistsAvailable: Boolean = true,
+    /** A rebuilt playlist plays in the order its page shows, as it did when it was started. */
+    playlistOrders: PlaylistSortOrders = PlaylistSortOrders(),
 ): List<TrackDescriptor>? {
     val byId = library.associateBy { it.id.value }
     return when {
@@ -465,8 +467,9 @@ internal fun resolveResumeSourceQueue(
         saved.sourceKind == QueueSourceKind.COLLECTION.name &&
             saved.sourceReference != null && playlistsAvailable ->
             playlists.firstOrNull { it.id == saved.sourceReference }
-                ?.trackIds
-                ?.mapNotNull(byId::get)
+                ?.let { playlist ->
+                    playlist.tracksInChosenOrder(playlist.trackIds.mapNotNull(byId::get), playlistOrders)
+                }
                 .orEmpty()
         else -> null
     }
@@ -991,8 +994,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         var collectionRevision by remember { mutableLongStateOf(0L) }
         var collectionOpenJob by remember { mutableStateOf<Job?>(null) }
         fun applySelectedCollection(value: CollectionSelection?) {
-            if (selectedCollection !== value) {
-                selectedCollection = value
+            // However a playlist or Favorites page was built or refreshed, it shows (and so plays)
+            // the order the listener chose for it.
+            val shown = value?.inChosenOrder(
+                AppGraph.settings.playlistSortOrders.value,
+                value.storedTrackOrder(playlistsState.playlists, playlistsState.autoPlaylists),
+            )
+            if (selectedCollection !== shown) {
+                selectedCollection = shown
                 collectionRevision++
             }
         }
@@ -1660,6 +1669,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 library = loaded,
                 playlists = playlistsState.playlists,
                 playlistsAvailable = playlistsState.playlistsAvailableForSourceRestore,
+                playlistOrders = AppGraph.settings.playlistSortOrders.value,
             )
             if (savedQueueIndex >= 0) {
                 playback.restoreQueue(
@@ -2137,6 +2147,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // future. Treat it as launch state, not as a user edit: pruning the saved lookahead at
             // this point would defeat exact resume and could load the lazy model for no reason.
             if (!playlistsState.playlistsLoaded) return@LaunchedEffect
+            AppGraph.settings.forgetDeletedPlaylistOrders(playlistsState.playlists)
             val groups = playlistsState.playlists.smartCompanionMemberships()
             val changed = groups != AppGraph.smartCompanionGroups.value
             val shouldInvalidateFuture = shouldInvalidateSmartFuture(
@@ -3880,6 +3891,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 selection.routeId.startsWith("artist:") && selection.sections != null
                             },
                             onAlbumSortChange = settings::setArtistAlbumSort,
+                            onTrackSortChange = { choice ->
+                                if (AppGraph.settings.chooseTrackSort(selection, choice)) {
+                                    selectedCollection
+                                        ?.takeIf { it.routeId == selection.routeId }
+                                        ?.let { open -> applySelectedCollection(open) }
+                                }
+                            },
                             currentTrackId = currentTrack?.id,
                             currentTrackPlaying = currentTrackPlaying,
                             selectedTrackIds = selectedTrackIds,

@@ -1141,6 +1141,8 @@ internal class LocalBackupTest {
         override val groupSortOrders = MutableStateFlow(GroupSortOrders())
         override fun setGroupSortOrders(orders: GroupSortOrders) { groupSortOrders.value = orders }
         override fun setArtistAlbumSort(choice: SortChoice<AlbumSort>) { artistAlbumSort.value = choice }
+        override val playlistSortOrders = MutableStateFlow(PlaylistSortOrders())
+        override fun setPlaylistSortOrders(orders: PlaylistSortOrders) { playlistSortOrders.value = orders }
         private var trackLoudnessPayload: String? = null
         private var trackGenresPayload: String? = null
         override fun readTrackLoudnessPayload(): String? = trackLoudnessPayload

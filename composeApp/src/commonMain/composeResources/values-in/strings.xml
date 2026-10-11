@@ -71,6 +71,7 @@
     <string name="library_empty">Tidak ada musik yang ditemukan di perangkat ini.</string>
     <string name="action_rescan_library">Perbarui pustaka</string>
     <string name="sort_recently_added">Baru ditambahkan</string>
+    <string name="sort_custom_order">Urutan kustom</string>
     <string name="sort_direction_ascending">Menaik</string>
     <string name="sort_direction_descending">Menurun</string>
     <string name="snack_track_deleted">Lagu dihapus</string>

@@ -75,6 +75,7 @@
     <string name="library_empty">На цьому пристрої не знайдено музики.</string>
     <string name="action_rescan_library">Оновити бібліотеку</string>
     <string name="sort_recently_added">Нещодавно додані</string>
+    <string name="sort_custom_order">Власний порядок</string>
     <string name="sort_direction_ascending">За зростанням</string>
     <string name="sort_direction_descending">За спаданням</string>
     <string name="snack_track_deleted">Трек видалено</string>

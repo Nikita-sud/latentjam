@@ -77,6 +77,7 @@
     <string name="library_empty">לא נמצאה מוזיקה במכשיר הזה.</string>
     <string name="action_rescan_library">רענון הספרייה</string>
     <string name="sort_recently_added">תאריך הוספה</string>
+    <string name="sort_custom_order">סדר מותאם אישית</string>
     <string name="sort_direction_ascending">סדר עולה</string>
     <string name="sort_direction_descending">סדר יורד</string>
     <string name="snack_track_deleted">השיר נמחק</string>

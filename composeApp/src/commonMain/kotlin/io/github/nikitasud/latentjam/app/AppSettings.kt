@@ -167,7 +167,7 @@ internal fun encodeSortChoice(choice: SortChoice<*>): String =
  * [default] whole; a known field with an unreadable direction keeps the field and takes its own
  * natural direction. A sort order is never worth failing a launch over.
  */
-private fun <S : Enum<S>> decodeSortChoice(
+internal fun <S : Enum<S>> decodeSortChoice(
     value: String?,
     options: List<S>,
     default: SortChoice<S>,
@@ -446,6 +446,10 @@ interface AppSettings {
      */
     val folderView: StateFlow<FolderView> get() = DEFAULT_FOLDER_VIEW
     fun setFolderView(view: FolderView) {}
+
+    /** How each playlist's page and Favorites order their tracks; device-local, see [PlaylistSortOrders]. */
+    val playlistSortOrders: StateFlow<PlaylistSortOrders>
+    fun setPlaylistSortOrders(orders: PlaylistSortOrders)
 
     /** Raw persisted loudness measurements (see [encodeTrackLoudness]); null when none exist. */
     fun readTrackLoudnessPayload(): String?

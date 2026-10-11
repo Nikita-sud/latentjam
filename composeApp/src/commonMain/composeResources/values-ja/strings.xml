@@ -65,6 +65,7 @@
     <string name="library_empty">この端末に音楽が見つかりません。</string>
     <string name="action_rescan_library">ライブラリを更新</string>
     <string name="sort_recently_added">最近追加した順</string>
+    <string name="sort_custom_order">カスタム順</string>
     <string name="sort_direction_ascending">昇順</string>
     <string name="sort_direction_descending">降順</string>
     <string name="snack_track_deleted">曲を削除しました</string>

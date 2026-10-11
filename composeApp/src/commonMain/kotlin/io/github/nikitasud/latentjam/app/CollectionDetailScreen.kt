@@ -99,8 +99,10 @@ import io.github.nikitasud.latentjam.app.generated.resources.selection_count
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
 import io.github.nikitasud.latentjam.library.AlbumSort
+import io.github.nikitasud.latentjam.library.PlaylistSort
 import io.github.nikitasud.latentjam.library.SongSorting
 import io.github.nikitasud.latentjam.library.defaultDirection
+import io.github.nikitasud.latentjam.library.hasDirection
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import org.jetbrains.compose.resources.pluralStringResource
@@ -149,6 +151,11 @@ data class CollectionSelection(
      * "remove from this playlist" would be a lie the UI cannot honour.
      */
     val playlistId: String? = null,
+    /**
+     * The order [tracks] are in on a page that lets the listener choose one (a user playlist,
+     * Favorites); null elsewhere. Set by [inChosenOrder], never by a page's builder.
+     */
+    val trackSort: SortChoice<PlaylistSort>? = null,
     /**
      * Stable, kind-qualified navigation identity. A data-class [copy] retains the resolved value
      * while live edits reconcile without replaying the page transition.
@@ -309,6 +316,8 @@ fun CollectionDetailScreen(
     /** How an artist's albums are ordered; null where the page has no albums to order. */
     albumSort: SortChoice<AlbumSort>? = null,
     onAlbumSortChange: (SortChoice<AlbumSort>) -> Unit = {},
+    /** Chooses the order of a page that has one, [CollectionSelection.trackSort]. */
+    onTrackSortChange: (SortChoice<PlaylistSort>) -> Unit = {},
 ) {
     val selectionMode = selection.allowsTrackSelection && selectedTrackIds.isNotEmpty()
     val reduceMotion = rememberReduceMotion()
@@ -510,6 +519,7 @@ fun CollectionDetailScreen(
                             onTrackMenu = onTrackMenu,
                             albumSort = albumSort,
                             onAlbumSortChange = onAlbumSortChange,
+                            onTrackSortChange = onTrackSortChange,
                             unavailableCount = unavailableCount,
                             onRemoveUnavailable = onRemoveUnavailable,
                             unavailableRemovalBusy = unavailableRemovalBusy,
@@ -539,6 +549,7 @@ fun CollectionDetailScreen(
                         onTrackMenu = onTrackMenu,
                         albumSort = albumSort,
                         onAlbumSortChange = onAlbumSortChange,
+                        onTrackSortChange = onTrackSortChange,
                         unavailableCount = unavailableCount,
                         onRemoveUnavailable = onRemoveUnavailable,
                         unavailableRemovalBusy = unavailableRemovalBusy,
@@ -564,6 +575,7 @@ private fun CollectionHero(
     onChangeCover: (() -> Unit)?,
     albumSort: SortChoice<AlbumSort>?,
     onAlbumSortChange: (SortChoice<AlbumSort>) -> Unit,
+    onTrackSortChange: (SortChoice<PlaylistSort>) -> Unit,
     unavailableCount: Int = 0,
     onRemoveUnavailable: (() -> Unit)? = null,
 ) {
@@ -685,6 +697,20 @@ private fun CollectionHero(
                     .graphicsLayer { alpha = if (enabled) 1f else 0.38f },
             )
         }
+        // A playlist's and Favorites' order: shown only, the playlist keeps its own.
+        selection.trackSort?.let { trackSort ->
+            SortPill(
+                options = selection.trackSortOptions(),
+                choice = trackSort,
+                label = { it.label() },
+                defaultDirection = { it.defaultDirection },
+                hasDirection = { it.hasDirection },
+                enabled = enabled,
+                onChoiceChange = onTrackSortChange,
+                modifier = Modifier.align(Alignment.Start).padding(top = 18.dp)
+                    .graphicsLayer { alpha = if (enabled) 1f else 0.38f },
+            )
+        }
     }
 }
 
@@ -735,6 +761,7 @@ private fun CollectionTrackLazyColumn(
     onChangeCover: (() -> Unit)? = null,
     albumSort: SortChoice<AlbumSort>? = null,
     onAlbumSortChange: (SortChoice<AlbumSort>) -> Unit = {},
+    onTrackSortChange: (SortChoice<PlaylistSort>) -> Unit = {},
     unavailableCount: Int = 0,
     onRemoveUnavailable: (() -> Unit)? = null,
     unavailableRemovalBusy: Boolean = false,
@@ -754,6 +781,7 @@ private fun CollectionTrackLazyColumn(
                 onStartSmart = onStartSmart,
                 albumSort = albumSort,
                 onAlbumSortChange = onAlbumSortChange,
+                onTrackSortChange = onTrackSortChange,
                 unavailableCount = unavailableCount,
                 onRemoveUnavailable = onRemoveUnavailable?.takeIf { !unavailableRemovalBusy },
             )

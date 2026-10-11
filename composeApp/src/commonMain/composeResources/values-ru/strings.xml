@@ -69,6 +69,7 @@
     <string name="library_empty">На этом устройстве не найдено музыки.</string>
     <string name="action_rescan_library">Обновить медиатеку</string>
     <string name="sort_recently_added">Недавно добавленные</string>
+    <string name="sort_custom_order">Свой порядок</string>
     <string name="sort_direction_ascending">По возрастанию</string>
     <string name="sort_direction_descending">По убыванию</string>
     <string name="snack_track_deleted">Трек удалён</string>
