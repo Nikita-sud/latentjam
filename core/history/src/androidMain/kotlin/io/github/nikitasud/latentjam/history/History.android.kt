@@ -150,8 +150,9 @@ internal class FileForYouImpressionStore(context: Context) : ForYouImpressionSto
     }
 }
 
-internal class FileFavoritesStore(context: Context) : FavoritesStore {
-    private val file = File(context.filesDir, FILE_NAME)
+internal class FileFavoritesStore internal constructor(private val file: File) : FavoritesStore {
+
+    constructor(context: Context) : this(File(context.filesDir, FILE_NAME))
 
     override suspend fun read(): List<String> = withContext(Dispatchers.IO) {
         if (file.exists()) file.readLines() else emptyList()
