@@ -1060,6 +1060,9 @@ private fun CollectionTrackRow(
     val title = track.title ?: stringResource(Res.string.track_untitled)
     val moveUp = stringResource(Res.string.settings_page_move_up, title)
     val moveDown = stringResource(Res.string.settings_page_move_down, title)
+    // iOS retains native custom-action objects on a moved keyed lazy row. Recreate the
+    // row's semantics when its position changes so both action labels and handlers update.
+    androidx.compose.runtime.key(flatIndex) {
     TrackRow(
         modifier = modifier.semantics {
             customActions = buildList {
@@ -1109,6 +1112,7 @@ private fun CollectionTrackRow(
         },
         onMenu = if (selectionMode) null else ({ onTrackMenu(track) }),
     )
+    }
 }
 
 /**
