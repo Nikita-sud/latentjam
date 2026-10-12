@@ -802,4 +802,5 @@
     <string name="duplicates_summary_title">קבוצות: %1$d · %2$s</string>
     <string name="duplicates_summary_extra">עותקים עודפים: %1$d</string>
     <string name="duplicates_copy_count">עותקים: %1$d</string>
+    <string name="playlist_reorder_track">גרירה לשינוי הסדר של %1$s</string>
 </resources>

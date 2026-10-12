@@ -40,6 +40,24 @@ import kotlin.test.assertTrue
 internal class LocalBackupTest {
 
     @Test
+    fun backupPreservesReorderedOccurrencesAndMigratesLocalRecentPreferences() = runTest {
+        val a = TrackDescriptor(id = TrackId("a"), title = "A")
+        val b = TrackDescriptor(id = TrackId("b"), title = "B")
+        val source = fixture(listOf(a, b))
+        source.playlists.replaceAll(listOf(io.github.nikitasud.latentjam.library.Playlist("p", "Mix", listOf("a", "b", "a"))))
+        val destination = fixture(listOf(a, b))
+        destination.settings.setPlaylistSortOrders(PlaylistSortOrders(playlists = mapOf(
+            "p" to SortChoice(io.github.nikitasud.latentjam.library.PlaylistSort.RECENT, SongSortDirection.DESCENDING),
+        )))
+        destination.service.importEncoded(source.service.exportEncoded(), LocalBackupRestoreMode.REPLACE)
+        assertEquals(listOf("a", "b", "a"), destination.playlists.all().single().trackIds)
+        assertEquals(PlaylistSortOrders(), destination.settings.playlistSortOrders.value)
+        destination.service.importEncoded(source.service.exportEncoded(), LocalBackupRestoreMode.MERGE)
+        assertEquals(listOf("a", "b", "a"), destination.playlists.all().single().trackIds)
+    }
+
+
+    @Test
     fun codecRoundTripsUnicodeDelimitersAndEverySection() {
         val snapshot = LocalBackupSnapshot(
             createdAtMs = 1_234,

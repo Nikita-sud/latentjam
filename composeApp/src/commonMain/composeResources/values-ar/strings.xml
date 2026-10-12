@@ -903,4 +903,5 @@
     <string name="duplicates_summary_title">المجموعات: %1$d · %2$s</string>
     <string name="duplicates_summary_extra">النسخ الإضافية: %1$d</string>
     <string name="duplicates_copy_count">النسخ: %1$d</string>
+    <string name="playlist_reorder_track">اسحب لتغيير ترتيب %1$s</string>
 </resources>

@@ -177,7 +177,7 @@ internal class PlaylistsTest {
     }
 
     @Test
-    fun duplicateTrackIdsFromLegacyStorageAreNormalizedOnLoad() = runTest {
+    fun duplicateTrackOccurrencesFromStorageKeepTheirOrder() = runTest {
         val duplicated = Playlist(
             id = "old",
             name = "Legacy",
@@ -187,7 +187,7 @@ internal class PlaylistsTest {
         val store = FakeStore(listOf(PlaylistSerializer.serialize(duplicated)))
 
         assertContentEquals(
-            listOf("one", "two"),
+            listOf("one", "one", "two", "one"),
             DefaultPlaylists(store).all().single().trackIds,
         )
     }
@@ -221,14 +221,14 @@ internal class PlaylistsTest {
 
         assertContentEquals(listOf("duplicate", "middle"), restored.map(Playlist::id))
         assertEquals("First", restored[0].name)
-        assertContentEquals(listOf("one", "two"), restored[0].trackIds)
-        assertContentEquals(listOf("three"), restored[1].trackIds)
+        assertContentEquals(listOf("one", "one", "two", "one"), restored[0].trackIds)
+        assertContentEquals(listOf("three", "three"), restored[1].trackIds)
 
         playlists.addTracks(first.id, listOf(TrackId("five")))
         val afterMutation = DefaultPlaylists(store).all()
         assertEquals(2, afterMutation.size)
         assertEquals("First", afterMutation[0].name)
-        assertContentEquals(listOf("one", "two", "five"), afterMutation[0].trackIds)
+        assertContentEquals(listOf("one", "one", "two", "one", "five"), afterMutation[0].trackIds)
     }
 
     @Test

@@ -137,7 +137,7 @@ internal class PlaylistArtworkTest {
         )))
         val restored = DefaultPlaylists(store).all().single()
         assertEquals("cover.jpg", restored.customArtworkRef)
-        assertEquals(listOf("one"), restored.trackIds)
+        assertEquals(listOf("one", "one"), restored.trackIds)
 
         assertTrue(playlists.setArtwork(restored.id, "  "))
         assertNull(DefaultPlaylists(store).all().single().customArtworkRef)

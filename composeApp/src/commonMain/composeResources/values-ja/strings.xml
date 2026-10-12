@@ -736,4 +736,5 @@
     <string name="duplicates_summary_title">グループ数：%1$d · %2$s</string>
     <string name="duplicates_summary_extra">余分なコピー：%1$d</string>
     <string name="duplicates_copy_count">コピー数：%1$d</string>
+    <string name="playlist_reorder_track">ドラッグして%1$sの順序を変更</string>
 </resources>
