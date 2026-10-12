@@ -24,7 +24,7 @@ single scorer that reads audio and text per candidate (the semtext-1344 contract
 across the Kotlin port and the offline harness). In September the artist knowledge pack joined it,
 and every file was made smaller without changing what SMART picks. The October model diet
 (28d3c2ea, 76b16b50) pruned the audio encoder and moved the SMART graphs, the semantic head and the
-adapter to 4-bit blocks. 0.8.1 then dropped the two SMART graphs, `predictor_state.onnx` and
+adapter to 4-bit blocks. 0.9.0 then dropped the two SMART graphs, `predictor_state.onnx` and
 `predictor_scorer_n100.onnx`: their training data has not passed a rights review, and in blind
 comparisons on public libraries (cold seeds and warm sessions) queues planned without them were as
 good, with plans several times faster. The table and the hashes below are the bytes in

@@ -48,7 +48,7 @@ android {
         minSdk = 24
         targetSdk = 36
         versionCode = 14
-        versionName = "0.8.1"
+        versionName = "0.9.0"
     }
 
     if (uploadKeystore != null) {

@@ -139,7 +139,7 @@ config was identical, so the 2026-10-05 candidate AAR stays valid; only the mani
 changed. Emulator parity with real excerpts from three FMA tracks: 21 cases, 47,047 output floats,
 bitwise identical to the stock runtime; both error cases and the recovery passed.
 
-## 2026-10-10: 0.8.1 drops the SMART nets
+## 2026-10-10: 0.9.0 drops the SMART nets
 
 The app stopped shipping `predictor_state.onnx` and `predictor_scorer_n100.onnx`. The 2026-10-06
 candidate stays valid: the three graphs left are byte-identical to their manifest entries and were

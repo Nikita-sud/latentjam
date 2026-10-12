@@ -62,12 +62,12 @@ download. Use F-Droid if you already do (it updates the app for you), but it can
 behind, so the newest features may not have arrived there yet. On iPhone, sideload the IPA.
 
 - **Android APK** — from the [Releases page](https://github.com/Nikita-sud/latentjam/releases/latest),
-  download `LatentJam-vX.Y.Z-arm64.apk` (about 35 MB; fits almost any phone from the last decade).
-  Old 32-bit phones need the `armv7` APK (about 42 MB). Open it on the phone, allow installing
+  download `LatentJam-vX.Y.Z-arm64.apk` (about 36 MB; fits almost any phone from the last decade).
+  Old 32-bit phones need the `armv7` APK (about 43 MB). Open it on the phone, allow installing
   unknown apps and tap through Play Protect's warning. Requires **Android 7.0+**.
 - **[F-Droid](https://f-droid.org/packages/io.github.nikitasud.latentjam.kmp/)** builds LatentJam
   from this source on its own schedule, so it can trail the newest release here; it ships one larger
-  APK for every processor type (63 MiB).
+  APK for every processor type (64 MiB).
 - **iPhone IPA** — not on the App Store or TestFlight. The IPA (about 40 MB) is **unsigned**: install
   it with AltStore or Sideloadly from a Mac or PC, which re-sign it with your Apple ID; with a free
   Apple ID the install must be refreshed every 7 days. Requires **iOS 15.1+**. Music comes from files
@@ -77,8 +77,9 @@ behind, so the newest features may not have arrived there yet. On iPhone, sidelo
 
 **Where your music comes from on Android:** LatentJam plays what Android's own media index knows
 about; there is no manual "add folder" yet. If songs are missing, try Settings → Library → Refresh
-library, and look for a hidden `.nomedia` file in the folder, which tells Android to skip it.
-Settings → Library → Music sources picks which folders appear.
+library: it first asks Android to index music it has not indexed yet, on the phone and on SD cards.
+If songs are still missing, look for a hidden `.nomedia` file in their folder, which tells Android
+to skip it. Settings → Library → Music sources picks which folders appear.
 
 **Updating:** F-Droid updates the app for you. Otherwise install the new APK over the old one (your
 library, history and settings stay), or sideload the new IPA. The app never goes online, so it can't
@@ -138,8 +139,8 @@ a while at first.
 - 🎚️ **A real player underneath**
   - The player slides up over your library; the cover flips to show the track's details, and the
     seek bar previews the lyric line as you scrub.
-  - An editable queue that survives restarts; playlists with M3U import/export and drag-to-reorder;
-    album, artist, genre and folder browsing.
+  - An editable queue that survives restarts; playlists with M3U import/export, drag-to-reorder and
+    their own sort order; album, artist and genre browsing, and folders as a tree or a flat list.
   - Fades on pause, optional smooth transitions (a fade of up to 12 s at each track boundary),
     volume normalisation, an equaliser, a sleep timer.
   - A duplicate finder that recognises the same recording saved twice even when the tags differ,
@@ -175,7 +176,7 @@ from its tags by the adapter when the pack doesn't know them). No hand-tuned wei
 them. Songs from a playlist you marked *Keep together in SMART* are added if retrieval missed them.
 
 **No scoring network.** Until 0.8.0 a learned state encoder read your recent plays and a frozen
-scorer network voted on the pool. 0.8.1 dropped both: in blind comparisons on public libraries the
+scorer network voted on the pool. 0.9.0 dropped both: in blind comparisons on public libraries the
 queues without them were as good, and plans are built several times faster.
 
 **The queue.** A scoring chain balances local coherence (closeness to the previous pick) against a

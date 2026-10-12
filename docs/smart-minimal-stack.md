@@ -301,7 +301,7 @@ Re-measured on 2026-09-24 with the pack in its file format (`exp_nonet_pack.py`)
 **Do this step only after the pack ships.** Without the pack, the centroid state makes the current
 fallback path worse: −2.8 cold on the listener (`exp_nonet_state.py`).
 
-**Shipped in 0.8.1 (2026-10-10)** as the existing `runtime = null` path, after pre-registered cold
+**Shipped in 0.9.0 (decided 2026-10-10)** as the existing `runtime = null` path, after pre-registered cold
 and warm comparisons on public libraries found its queues as good as the nets'. The state channel
 falls back to the anchor ranking (the centroid state above was not added), and `PredictorRuntime`
 and `ScorerPacking` stay for the tests and the offline harnesses; the app binds no runtime and ships
