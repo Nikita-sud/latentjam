@@ -679,8 +679,8 @@
     <string name="settings_pages_body">Sıralamak için sürükleyin. Kullanmadığınız sayfaları kapatın.</string>
     <string name="settings_pages_last_visible">En az bir sayfayı açık tutun.</string>
     <string name="settings_page_position">%2$d sayfa içinde %1$d. sıra</string>
-    <string name="settings_page_move_up">%1$s sayfasını yukarı taşı</string>
-    <string name="settings_page_move_down">%1$s sayfasını aşağı taşı</string>
+    <string name="settings_page_move_up">Yukarı taşı: %1$s</string>
+    <string name="settings_page_move_down">Aşağı taşı: %1$s</string>
     <string name="settings_pages_reset">Sayfaları sıfırla</string>
     <string name="settings_pages_reset_body">Varsayılan sırayı, görünür sayfaları ve başlangıç sayfasını geri yükleyin.</string>
     <string name="stats_dashboard_title">Dinleme özetiniz</string>

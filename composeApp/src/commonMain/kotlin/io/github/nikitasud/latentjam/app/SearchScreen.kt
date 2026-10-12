@@ -260,12 +260,13 @@ internal fun SearchScreen(
     }
     // History IO must not decide when Android brings the editor into view. Wait for the
     // fixed-position surface to settle, including a cancelled exit/re-entry, then focus once.
-    LaunchedEffect(active, readyForInput) {
+    LaunchedEffect(active, readyForInput, selectionMode) {
         if (!active) {
             focusManager.clearFocus(force = true)
             keyboard?.hide()
         } else if (readyForInput && focusOnReady && !selectionMode) {
-            // A selection's contextual bar stands in for the field, which is then not composed.
+            // The contextual bar removes the field during selection. Refocus the new field
+            // after selection ends, once it is attached again.
             withFrameNanos { }
             focusRequester.requestFocus()
         }

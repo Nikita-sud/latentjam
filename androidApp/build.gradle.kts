@@ -153,7 +153,7 @@ androidComponents {
 
 /**
  * Runs tools/release/check-dex-registers.py over the APKs in [apks]: fails when a method needs more
- * than 255 registers, and only warns when the script cannot run (no python3, no SDK dexdump).
+ * than 255 registers or the check cannot run (for example no python3 or no SDK dexdump).
  */
 @DisableCachingByDefault(because = "Reading the DEX again is as quick as a cache lookup")
 abstract class CheckDexRegisters : DefaultTask() {
@@ -199,11 +199,11 @@ abstract class CheckDexRegisters : DefaultTask() {
         when (exitValue) {
             0 -> logger.info(text)
             1 -> throw GradleException("A method needs more than 255 registers; R8 mis-encodes it:\n$text")
-            else -> {
-                // No report: the next build checks again, once the tools are there.
-                report.get().asFile.delete()
-                logger.warn("Could not check the DEX register counts:\n$text")
-            }
+            else -> throw GradleException(
+                "Could not check the DEX register counts (exit $exitValue); " +
+                    "release verification is incomplete. Install python3 and Android SDK build-tools " +
+                    "and rerun checkReleaseDexRegisters:\n$text",
+            )
         }
     }
 }
