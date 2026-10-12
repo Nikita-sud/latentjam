@@ -62,6 +62,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -136,7 +138,11 @@ internal fun SearchScreen(
     // Search lives inside the browse stack, which leaves composition during the player morph.
     // Save the text alongside its result-list scroll position so returning never becomes a new
     // search session merely because the listener checked Now Playing.
-    var query by rememberSaveable { mutableStateOf("") }
+    // Keep the caret too: the contextual selection bar temporarily removes the editor.
+    var queryField by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue(""))
+    }
+    val query = queryField.text
     val resultsListState = rememberLazyListState()
     var resultScrollQuery by rememberSaveable { mutableStateOf<String?>(null) }
     var recent by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -373,8 +379,8 @@ internal fun SearchScreen(
                 onClose = ::closeSearch,
             ) {
                     BasicTextField(
-                        value = query,
-                        onValueChange = { query = it },
+                        value = queryField,
+                        onValueChange = { queryField = it },
                         enabled = active && readyForInput,
                         modifier = Modifier.weight(1f).padding(start = 14.dp)
                             .heightIn(min = 48.dp).focusRequester(focusRequester),
@@ -410,7 +416,7 @@ internal fun SearchScreen(
                         // Reserve the same slot in both states so the query never shifts.
                         Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
                             if (showClear) {
-                                IconButton(onClick = { query = "" }, modifier = Modifier.size(48.dp)) {
+                                IconButton(onClick = { queryField = TextFieldValue("") }, modifier = Modifier.size(48.dp)) {
                                     Icon(
                                         Icons.Rounded.Close,
                                         contentDescription = stringResource(Res.string.cd_clear_query),
@@ -571,7 +577,7 @@ internal fun SearchScreen(
                         recent = shown.recent,
                         bottomInset = bottomInset,
                         onPick = { picked ->
-                            query = picked
+                            queryField = TextFieldValue(picked, selection = TextRange(picked.length))
                             focusManager.clearFocus()
                             remember(picked)
                         },
