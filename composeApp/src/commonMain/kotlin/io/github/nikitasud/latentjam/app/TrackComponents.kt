@@ -211,6 +211,8 @@ internal fun TrackRow(
     rowEndInset: Dp = 8.dp,
     secondaryText: String? = null,
     showDuration: Boolean = true,
+    modifier: Modifier = Modifier,
+    trailingContent: (@Composable () -> Unit)? = null,
 ) {
     val reduceMotion = rememberReduceMotion()
     val accent = currentAccent ?: MaterialTheme.colorScheme.primary
@@ -227,7 +229,7 @@ internal fun TrackRow(
         selectionState?.let { lastSelectionValue = it }
     }
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(start = 8.dp, end = rowEndInset)
             .clip(RoundedCornerShape(16.dp))
@@ -367,6 +369,7 @@ internal fun TrackRow(
                 )
             }
         }
+        trailingContent?.invoke()
     }
 }
 

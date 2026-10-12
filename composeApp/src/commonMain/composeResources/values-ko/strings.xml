@@ -736,4 +736,5 @@
     <string name="duplicates_summary_title">그룹: %1$d · %2$s</string>
     <string name="duplicates_summary_extra">추가 사본: %1$d</string>
     <string name="duplicates_copy_count">사본: %1$d</string>
+    <string name="playlist_reorder_track">드래그하여 %1$s 순서 변경</string>
 </resources>

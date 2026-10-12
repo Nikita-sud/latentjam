@@ -15,8 +15,8 @@ import io.github.nikitasud.latentjam.library.hasDirection
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 
-/** A user playlist's page offers every order; Custom order, the playlist's own, is its default. */
-internal val PLAYLIST_TRACK_SORTS: List<PlaylistSort> = PlaylistSort.entries.toList()
+/** Stored positions are editable, so they no longer describe when tracks were added. */
+internal val PLAYLIST_TRACK_SORTS: List<PlaylistSort> = PlaylistSort.entries.filter { it != PlaylistSort.RECENT }
 
 /** Favorites have no order of their own beyond when each heart was given, so no Custom order. */
 internal val FAVORITES_TRACK_SORTS: List<PlaylistSort> = PlaylistSort.entries.filter { it != PlaylistSort.CUSTOM }
@@ -43,10 +43,11 @@ data class PlaylistSortOrders(
     /** Playlist id to its order. A playlist in Custom order has no entry. */
     val playlists: Map<String, SortChoice<PlaylistSort>> = emptyMap(),
 ) {
-    fun forPlaylist(id: String): SortChoice<PlaylistSort> = playlists[id] ?: DEFAULT_PLAYLIST_TRACK_SORT
+    fun forPlaylist(id: String): SortChoice<PlaylistSort> =
+        playlists[id]?.normalizedForPlaylist() ?: DEFAULT_PLAYLIST_TRACK_SORT
 
     fun withPlaylist(id: String, choice: SortChoice<PlaylistSort>): PlaylistSortOrders {
-        val normalized = choice.normalized()
+        val normalized = choice.normalizedForPlaylist()
         return copy(
             playlists = if (normalized == DEFAULT_PLAYLIST_TRACK_SORT) {
                 playlists - id
@@ -69,6 +70,15 @@ data class PlaylistSortOrders(
     }
 }
 
+/** Legacy Recently added on a playlist becomes its editable stored order. Favorites keep RECENT. */
+private fun SortChoice<PlaylistSort>.normalizedForPlaylist(): SortChoice<PlaylistSort> =
+    if (sort == PlaylistSort.RECENT) DEFAULT_PLAYLIST_TRACK_SORT else normalized()
+
+internal fun PlaylistSortOrders.migrated(): PlaylistSortOrders = copy(
+    playlists = playlists.mapValues { (_, choice) -> choice.normalizedForPlaylist() }
+        .filterValues { it != DEFAULT_PLAYLIST_TRACK_SORT },
+)
+
 /** Custom order runs one way; storing a direction for it would only make equal choices unequal. */
 private fun SortChoice<PlaylistSort>.normalized(): SortChoice<PlaylistSort> =
     if (sort.hasDirection) this else SortChoice(sort, sort.defaultDirection)
@@ -81,7 +91,7 @@ internal fun encodePlaylistSortOrders(value: PlaylistSortOrders): String = build
     append(PLAYLIST_SORT_ORDERS_PREFIX)
     append(encodeSortChoice(value.favorites))
     append('|')
-    value.playlists.entries.sortedBy { it.key }.forEach { (id, choice) ->
+    value.migrated().playlists.entries.sortedBy { it.key }.forEach { (id, choice) ->
         append(id.length)
         append(':')
         append(id)
@@ -187,9 +197,19 @@ internal fun CollectionSelection.inChosenOrder(
 /** [tracks] rearranged into [storedOrder]; a stable sort, so tracks it does not name keep their order, last. */
 private fun inStoredOrder(tracks: List<TrackDescriptor>, storedOrder: List<TrackId>?): List<TrackDescriptor> {
     if (storedOrder == null) return tracks
-    val rank = HashMap<TrackId, Int>(storedOrder.size * 2)
-    storedOrder.forEachIndexed { index, id -> if (id !in rank) rank[id] = index }
-    return tracks.sortedBy { rank[it.id] ?: Int.MAX_VALUE }
+    // Consume occurrences, not just ids: A, B, A must never turn into A, A, B.
+    val positions = tracks.withIndex().groupBy({ it.value.id }, { it.index })
+        .mapValues { (_, indices) -> ArrayDeque(indices) }
+    val used = BooleanArray(tracks.size)
+    return buildList(tracks.size) {
+        storedOrder.forEach { id ->
+            positions[id]?.removeFirstOrNull()?.let { index ->
+                add(tracks[index])
+                used[index] = true
+            }
+        }
+        tracks.forEachIndexed { index, track -> if (!used[index]) add(track) }
+    }
 }
 
 /** These orders with [choice] for the page [selection] shows; null for a page with no order to choose. */

@@ -4048,6 +4048,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     animatedSelection?.let { selection ->
                         val editablePlaylist = playlistsState.playlists.firstOrNull { it.id == selection.playlistId }
                         CollectionDetailScreen(
+                            playlist = editablePlaylist,
+                            onPlaylistOrderChanged = {
+                                refreshPlaylistMemberships()
+                                selectedCollection?.let { applySelectedCollection(it) }
+                            },
                             artworkModifier = if (
                                 reduceMotion || selectedTab != StartPage.PLAYLISTS ||
                                 !(selection.routeId.startsWith("playlist:") ||

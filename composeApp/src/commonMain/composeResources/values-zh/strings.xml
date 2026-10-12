@@ -742,4 +742,5 @@
     <string name="duplicates_summary_title">分组：%1$d · %2$s</string>
     <string name="duplicates_summary_extra">多余副本：%1$d</string>
     <string name="duplicates_copy_count">副本：%1$d</string>
+    <string name="playlist_reorder_track">拖动以调整%1$s的顺序</string>
 </resources>

@@ -837,4 +837,5 @@
     <string name="duplicates_summary_title">Групи: %1$d · %2$s</string>
     <string name="duplicates_summary_extra">Зайві копії: %1$d</string>
     <string name="duplicates_copy_count">Копії: %1$d</string>
+    <string name="playlist_reorder_track">Потягніть, щоб перемістити %1$s</string>
 </resources>

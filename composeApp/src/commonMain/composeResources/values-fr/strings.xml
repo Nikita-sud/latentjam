@@ -781,4 +781,5 @@
     <string name="duplicates_summary_title">Groupes : %1$d · %2$s</string>
     <string name="duplicates_summary_extra">Copies supplémentaires : %1$d</string>
     <string name="duplicates_copy_count">Copies : %1$d</string>
+    <string name="playlist_reorder_track">Faire glisser pour déplacer %1$s</string>
 </resources>

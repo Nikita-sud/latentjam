@@ -68,6 +68,14 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.rounded.DragHandle
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import io.github.nikitasud.latentjam.library.Playlist
+import io.github.nikitasud.latentjam.app.generated.resources.playlist_reorder_track
+import io.github.nikitasud.latentjam.app.generated.resources.settings_page_move_up
+import io.github.nikitasud.latentjam.app.generated.resources.settings_page_move_down
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Shuffle
@@ -287,6 +295,8 @@ internal fun collectionRailPresentation(
 @Composable
 internal fun CollectionDetailScreen(
     selection: CollectionSelection,
+    playlist: Playlist? = null,
+    onPlaylistOrderChanged: suspend () -> Unit = {},
     currentTrackId: TrackId?,
     /** Whether the player is audibly running; animates the current row's badge. */
     currentTrackPlaying: Boolean = false,
@@ -336,6 +346,9 @@ internal fun CollectionDetailScreen(
     onTrackSortChange: (SortChoice<PlaylistSort>) -> Unit = {},
 ) {
     val selectionMode = selection.allowsTrackSelection && selectedTrackIds.isNotEmpty()
+    val reorder = rememberPlaylistTrackReorder(playlist, selection, onPlaylistOrderChanged)
+    val canReorder = active && !selectionMode && !reorder.busy && playlist?.id == selection.playlistId &&
+        playlist != null && selection.trackSort?.sort == PlaylistSort.CUSTOM && selection.tracks.size > 1
     val reduceMotion = rememberReduceMotion()
     PlatformBackHandler(enabled = active) {
         if (selectionMode) onClearSelection() else onClose()
@@ -565,6 +578,7 @@ internal fun CollectionDetailScreen(
                     CollectionTrackLazyColumn(
                         artworkModifier = artworkModifier,
                         modifier = Modifier.fadingListTop { listState.canScrollBackward },
+                        onMoveTrack = reorder.move.takeIf { canReorder },
                         onChangeCover = if (!coverEditBusy) onChangeCover else null,
                         selection = selection,
                         listState = listState,
@@ -595,6 +609,7 @@ internal fun CollectionDetailScreen(
                     listState = listState,
                     bottomInset = bottomInset,
                 )
+                SnackbarHost(reorder.snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = bottomInset))
             }
         }
     }
@@ -794,6 +809,7 @@ private fun CollectionTrackLazyColumn(
     onStartSmart: (() -> Unit)?,
     onTrackMenu: (TrackDescriptor) -> Unit,
     modifier: Modifier = Modifier,
+    onMoveTrack: ((Int, Int) -> Unit)? = null,
     onChangeCover: (() -> Unit)? = null,
     albumSort: SortChoice<AlbumSort>? = null,
     onAlbumSortChange: (SortChoice<AlbumSort>) -> Unit = {},
@@ -805,6 +821,28 @@ private fun CollectionTrackLazyColumn(
     val reduceMotion = rememberReduceMotion()
     val unknownTitle = stringResource(Res.string.track_untitled)
     val unknownArtist = stringResource(Res.string.track_unknown_artist)
+    val identity = remember(selection.routeId, selection.tracks, selection.trackSort) { Any() }
+    val repeatedIds = remember(selection.tracks) { selection.tracks.map { it.id }.toSet().size != selection.tracks.size }
+    ReorderableLazyList(
+        identity = identity,
+        canReorder = onMoveTrack != null && !isPreview && !selectionMode,
+        listState = listState,
+        itemCount = selection.tracks.size,
+        leadingItems = 1,
+        dragHandleWidth = 56.dp,
+        onMove = { from, to -> onMoveTrack?.invoke(from, to) },
+        draggedItem = { index, floating ->
+            CollectionTrackRow(
+                track = selection.tracks[index], flatIndex = index, selection = selection,
+                selectionMode = false, selectedTrackIds = emptySet(), currentTrackId = currentTrackId,
+                currentTrackPlaying = currentTrackPlaying, currentAccent = currentAccent,
+                onArtworkLoadStateChanged = null, onToggleSelection = {}, onStartSelection = {},
+                onPlayTrack = {}, onTrackMenu = {}, onMoveTrack = { _, _ -> },
+                modifier = floating.background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                    .clearAndSetSemantics {},
+            )
+        },
+    ) { draggingIndex ->
     LazyColumn(modifier = modifier, state = listState, contentPadding = contentPadding) {
         item(key = "collection-hero", contentType = "collection-hero") {
             CollectionHero(
@@ -826,7 +864,7 @@ private fun CollectionTrackLazyColumn(
         if (sections == null) {
             itemsIndexed(
                 selection.tracks,
-                key = { _, track -> track.id.value },
+                key = { index, track -> if (repeatedIds) "track:$index:${track.id.value}" else "track:${track.id.value}" },
             ) { index, track ->
                 val artworkKey = track.artworkUri?.let { uri ->
                     ArtworkLoadKey(
@@ -835,7 +873,7 @@ private fun CollectionTrackLazyColumn(
                     )
                 }
                 Box(
-                    modifier = if (!isPreview) {
+                    modifier = (if (!isPreview && !repeatedIds) {
                         Modifier.animateItem(
                             fadeInSpec = tween(
                                 if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
@@ -851,7 +889,7 @@ private fun CollectionTrackLazyColumn(
                         )
                     } else {
                         Modifier
-                    },
+                    }).graphicsLayer { alpha = if (draggingIndex == index) 0f else 1f },
                 ) {
                     if (isPreview) {
                         Column {
@@ -874,6 +912,7 @@ private fun CollectionTrackLazyColumn(
                         CollectionTrackRow(
                             track = track,
                             flatIndex = index,
+                            onMoveTrack = onMoveTrack,
                             selection = selection,
                             selectionMode = selectionMode,
                             selectedTrackIds = selectedTrackIds,
@@ -997,6 +1036,7 @@ private fun CollectionTrackLazyColumn(
         }
     }
 }
+}
 
 /** One track row of a collection, flat or sectioned — the selection wiring is identical. */
 @Composable
@@ -1014,8 +1054,33 @@ private fun CollectionTrackRow(
     onStartSelection: (TrackDescriptor) -> Unit,
     onPlayTrack: (Int) -> Unit,
     onTrackMenu: (TrackDescriptor) -> Unit,
+    modifier: Modifier = Modifier,
+    onMoveTrack: ((Int, Int) -> Unit)? = null,
 ) {
+    val title = track.title ?: stringResource(Res.string.track_untitled)
+    val moveUp = stringResource(Res.string.settings_page_move_up, title)
+    val moveDown = stringResource(Res.string.settings_page_move_down, title)
     TrackRow(
+        modifier = modifier.semantics {
+            customActions = buildList {
+                if (onMoveTrack != null && flatIndex > 0) {
+                    add(CustomAccessibilityAction(moveUp) { onMoveTrack(flatIndex, flatIndex - 1); true })
+                }
+                if (onMoveTrack != null && flatIndex < selection.tracks.lastIndex) {
+                    add(CustomAccessibilityAction(moveDown) { onMoveTrack(flatIndex, flatIndex + 1); true })
+                }
+            }
+        },
+        trailingContent = if (onMoveTrack != null) {
+            {
+                Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Rounded.DragHandle,
+                        contentDescription = stringResource(Res.string.playlist_reorder_track, title),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(24.dp))
+                }
+            }
+        } else null,
         track = track,
         isCurrent = track.id == currentTrackId,
         isPlaying = currentTrackPlaying && track.id == currentTrackId,

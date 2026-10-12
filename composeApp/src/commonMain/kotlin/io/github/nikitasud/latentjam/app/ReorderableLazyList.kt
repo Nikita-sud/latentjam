@@ -21,6 +21,9 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import kotlin.math.abs
 
@@ -79,6 +82,10 @@ internal fun reorderEdgeScrollSpeed(y: Float, start: Int, end: Int, edge: Float,
     }
 }
 
+internal fun isReorderHandle(x: Float, width: Int, handleWidth: Float, rtl: Boolean): Boolean =
+    x >= 0f && x <= width && handleWidth > 0f &&
+        if (rtl) x <= handleWidth else x >= width - handleWidth
+
 /** The gesture and floating row outlive lazy-row disposal; the collection changes only on drop. */
 @Composable
 internal fun ReorderableLazyList(
@@ -87,6 +94,8 @@ internal fun ReorderableLazyList(
     listState: LazyListState,
     itemCount: Int,
     leadingItems: Int = 0,
+    /** Null keeps long-press anywhere; a width enables immediate dragging only at the trailing edge. */
+    dragHandleWidth: Dp? = null,
     onMove: (Int, Int) -> Unit,
     draggedItem: @Composable (Int, Modifier) -> Unit,
     content: @Composable (Int?) -> Unit,
@@ -95,6 +104,8 @@ internal fun ReorderableLazyList(
     val latestMove by rememberUpdatedState(onMove)
     val haptics = LocalHapticFeedback.current
     val density = LocalDensity.current
+    val handleWidth = dragHandleWidth?.let { with(density) { it.toPx() } }
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val edge = with(density) { 56.dp.toPx() }
     val maximum = with(density) { 720.dp.toPx() }
     fun visibleRows(): List<ReorderableRow> {
@@ -123,14 +134,23 @@ internal fun ReorderableLazyList(
             if (delta != 0f) listState.scrollBy(delta)
         }
     }
-    Box(Modifier.fillMaxWidth().pointerInput(identity, canReorder, itemCount, leadingItems) {
+    Box(Modifier.fillMaxWidth().pointerInput(identity, canReorder, itemCount, leadingItems, handleWidth, rtl) {
         if (!canReorder) return@pointerInput
         awaitEachGesture {
-            val down = awaitFirstDown(requireUnconsumed = false)
-            val held = awaitLongPressOrCancellation(down.id) ?: return@awaitEachGesture
+            val down = awaitFirstDown(
+                requireUnconsumed = false,
+                pass = if (handleWidth != null) PointerEventPass.Initial else PointerEventPass.Main,
+            )
+            val held = if (handleWidth != null) {
+                if (!isReorderHandle(down.position.x, size.width, handleWidth, rtl)) return@awaitEachGesture
+                down
+            } else {
+                awaitLongPressOrCancellation(down.id) ?: return@awaitEachGesture
+            }
             val row = visibleRows().firstOrNull {
                 held.position.y >= it.top && held.position.y < it.top + it.height
             } ?: return@awaitEachGesture
+            if (handleWidth != null) down.consume()
             drag = ListDrag(row.index, row.top.toFloat(), row.height, held.position.y)
             haptics.play(PlayerHaptic.HOLD)
             try {

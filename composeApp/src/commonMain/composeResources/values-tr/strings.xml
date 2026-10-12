@@ -767,4 +767,5 @@
     <string name="duplicates_summary_title">Gruplar: %1$d · %2$s</string>
     <string name="duplicates_summary_extra">Fazladan kopyalar: %1$d</string>
     <string name="duplicates_copy_count">Kopyalar: %1$d</string>
+    <string name="playlist_reorder_track">%1$s sırasını değiştirmek için sürükleyin</string>
 </resources>

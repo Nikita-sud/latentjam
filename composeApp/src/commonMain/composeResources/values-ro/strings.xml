@@ -792,4 +792,5 @@
     <string name="duplicates_summary_title">Grupuri: %1$d · %2$s</string>
     <string name="duplicates_summary_extra">Copii suplimentare: %1$d</string>
     <string name="duplicates_copy_count">Copii: %1$d</string>
+    <string name="playlist_reorder_track">Trage pentru a schimba ordinea piesei %1$s</string>
 </resources>

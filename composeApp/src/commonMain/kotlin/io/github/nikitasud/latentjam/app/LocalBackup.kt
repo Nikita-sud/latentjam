@@ -1108,7 +1108,7 @@ internal class LocalBackupService(
                         id = backup.id,
                         name = backup.name,
                         createdAtMs = backup.createdAtMs,
-                        trackIds = backup.trackReferenceIds.mapNotNull { resolved[it]?.value }.distinct(),
+                        trackIds = backup.trackReferenceIds.mapNotNull { resolved[it]?.value },
                         includeInSmart = backup.includeInSmart,
                     )
                 }
@@ -1117,6 +1117,7 @@ internal class LocalBackupService(
                     LocalBackupRestoreMode.MERGE -> mergePlaylists(playlists.all(), imported)
                 }
                 playlists.replaceAll(target)
+                settings.setPlaylistSortOrders(settings.playlistSortOrders.value.migrated())
                 playlistsApplied = imported.size
                 completed += LocalBackupSection.PLAYLISTS
             }
@@ -1225,6 +1226,7 @@ internal class LocalBackupService(
                 settings.setAlbumSort(snapshot.settings.albumSort)
                 settings.setArtistAlbumSort(snapshot.settings.artistAlbumSort)
                 settings.setGroupSortOrders(snapshot.settings.groupSortOrders)
+                settings.setPlaylistSortOrders(settings.playlistSortOrders.value.migrated())
                 completed += LocalBackupSection.SETTINGS
             }
         } catch (failure: Throwable) {
@@ -1437,7 +1439,7 @@ internal class LocalBackupService(
             if (sameNameIndex >= 0) {
                 val current = result[sameNameIndex]
                 result[sameNameIndex] = current.copy(
-                    trackIds = (current.trackIds + playlist.trackIds).distinct(),
+                    trackIds = mergePlaylistOccurrences(current.trackIds, playlist.trackIds),
                     includeInSmart = current.includeInSmart || playlist.includeInSmart,
                 )
             } else {

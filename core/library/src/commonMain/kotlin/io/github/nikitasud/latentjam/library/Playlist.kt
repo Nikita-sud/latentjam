@@ -56,7 +56,7 @@ public interface Playlists {
     public suspend fun removeTrack(id: String, trackId: TrackId): PlaylistTrackChange? =
         removeTracks(id, listOf(trackId))
 
-    /** Exact ordered compare-and-set, used to Undo without clobbering a newer edit. */
+    /** Exact ordered compare-and-set for Undo and reordering; preserves repeated occurrences. */
     public suspend fun replaceTracksIfUnchanged(
         id: String,
         expected: List<TrackId>,
@@ -208,7 +208,6 @@ public class DefaultPlaylists(
         val replacementValues = replacement
             .map(TrackId::value)
             .filter(String::isNotBlank)
-            .distinct()
         if (replacementValues != expectedValues) {
             val changed = playlists[index].copy(trackIds = replacementValues)
             persist(playlists.toMutableList().also { it[index] = changed })
@@ -256,7 +255,7 @@ public class DefaultPlaylists(
         require(id.isNotBlank()) { "Playlist id cannot be blank" }
         return copy(
             name = name.trim().ifEmpty { "Untitled playlist" },
-            trackIds = trackIds.filter(String::isNotBlank).distinct(),
+            trackIds = trackIds.filter(String::isNotBlank),
             customArtworkRef = customArtworkRef?.trim()?.takeIf(String::isNotEmpty),
         )
     }
