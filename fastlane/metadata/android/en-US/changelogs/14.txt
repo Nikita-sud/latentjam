@@ -1,1 +1,3 @@
-Folders open as a tree (the flat list is a toggle away) and play by disc, track number, then file name. Playlists and Favorites can be sorted. Heart a whole selection or playlist at once; an imported playlist can go into Favorites, which export as M3U and travel in backups. M3U import finds songs by their path. Refresh asks Android to index music it missed, SD cards included (#8). Playlists flag songs no longer on the device. SMART plans faster without two learned models. Uses less memory.
+Folders open as a tree and play by disc, track number, then file name. Sort playlists and Favorites.
+Drag playlist tracks into your own custom order.
+Heart a selection or playlist at once. Imported playlists can go into Favorites, which export as M3U and travel in backups. M3U import matches file paths. Refresh finds unindexed music, SD cards included (#8). Playlists flag missing songs. SMART plans faster without two learned queue models. Uses less memory.
