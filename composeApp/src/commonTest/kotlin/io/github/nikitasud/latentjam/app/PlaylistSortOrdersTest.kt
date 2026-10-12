@@ -50,7 +50,7 @@ internal class PlaylistSortOrdersTest {
     private fun ids(tracks: List<TrackDescriptor>) = tracks.map { it.id.value }
 
     private fun CollectionSelection.shownWith(orders: PlaylistSortOrders): CollectionSelection =
-        inChosenOrder(orders, storedTrackOrder(listOf(playlist), listOf(favorites)))
+        inChosenOrder(orders, listOf(playlist), listOf(favorites))
 
     @Test
     fun aPlaylistOpensInItsOwnOrderAndFavoritesNewestFirst() {
@@ -67,6 +67,8 @@ internal class PlaylistSortOrdersTest {
     fun eachOrderIsShownOnAPlaylistPage() {
         val expected = mapOf(
             SortChoice(PlaylistSort.CUSTOM, SongSortDirection.ASCENDING) to listOf("c", "a", "b"),
+            SortChoice(PlaylistSort.RECENT, SongSortDirection.DESCENDING) to listOf("b", "a", "c"),
+            SortChoice(PlaylistSort.RECENT, SongSortDirection.ASCENDING) to listOf("c", "a", "b"),
             SortChoice(PlaylistSort.TITLE, SongSortDirection.ASCENDING) to listOf("a", "b", "c"),
             SortChoice(PlaylistSort.TITLE, SongSortDirection.DESCENDING) to listOf("c", "b", "a"),
             SortChoice(PlaylistSort.ARTIST, SongSortDirection.ASCENDING) to listOf("c", "b", "a"),
@@ -81,7 +83,7 @@ internal class PlaylistSortOrdersTest {
     }
 
     @Test
-    fun customOrderReturnsAfterAnotherSortAndLegacyRecentMigrates() {
+    fun customOrderReturnsAfterAnotherSortAndRecentUsesAdditionOrder() {
         val byTitle = playlistPage.shownWith(
             PlaylistSortOrders().withPlaylist(playlist.id, SortChoice(PlaylistSort.TITLE, SongSortDirection.ASCENDING)),
         )
@@ -92,7 +94,7 @@ internal class PlaylistSortOrdersTest {
             playlist.id,
             SortChoice(PlaylistSort.RECENT, SongSortDirection.DESCENDING),
         )
-        assertEquals(listOf("c", "a", "b"), ids(byTitle.shownWith(recent).tracks))
+        assertEquals(listOf("b", "a", "c"), ids(byTitle.shownWith(recent).tracks))
 
         val favoritesByTitle = favoritesPage.shownWith(
             PlaylistSortOrders(favorites = SortChoice(PlaylistSort.TITLE, SongSortDirection.ASCENDING)),
@@ -152,6 +154,23 @@ internal class PlaylistSortOrdersTest {
     }
 
     @Test
+    fun reorderingDoesNotChangeRecentAndResumeUsesTheChosenOrder() {
+        val moved = playlist.copy(trackIds = listOf("b", "c", "a"))
+        val recent = PlaylistSortOrders().withPlaylist(playlist.id,
+            SortChoice(PlaylistSort.RECENT, SongSortDirection.DESCENDING))
+        val shown = playlistPage.inChosenOrder(recent, listOf(moved), emptyList())
+        assertEquals(listOf("b", "a", "c"), ids(shown.tracks))
+        assertEquals(listOf("b", "c", "a"), ids(shown.inChosenOrder(PlaylistSortOrders(), listOf(moved), emptyList()).tracks))
+        assertEquals(listOf("b", "a", "c"), ids(moved.tracksInChosenOrder(listOf(bravo, charlie, alpha), recent)))
+        assertEquals(listOf("b", "a", "c"), ids(checkNotNull(resolveResumeSourceQueue(
+            saved = ResumePlayback(trackId = "b", shuffleMode = "OFF", positionMs = 0,
+                sourceKind = QueueSourceKind.COLLECTION.name, sourceReference = moved.id),
+            library = listOf(alpha, bravo, charlie), playlists = listOf(moved), playlistOrders = recent,
+        ))))
+        assertEquals(recent, playlistSortOrdersFromPersisted(encodePlaylistSortOrders(recent)))
+    }
+
+    @Test
     fun aPageAlreadyInItsOrderIsReturnedAsIs() {
         val orders = PlaylistSortOrders()
         val shown = playlistPage.shownWith(orders)
@@ -188,7 +207,7 @@ internal class PlaylistSortOrdersTest {
 
     @Test
     fun favoritesOfferNoCustomOrder() {
-        assertEquals(PlaylistSort.entries.filter { it != PlaylistSort.RECENT }, playlistPage.trackSortOptions())
+        assertEquals(PlaylistSort.entries, playlistPage.trackSortOptions())
         assertEquals(PlaylistSort.entries.filter { it != PlaylistSort.CUSTOM }, favoritesPage.trackSortOptions())
         val orders = PlaylistSortOrders()
         assertSame(orders, orders.withFavorites(SortChoice(PlaylistSort.CUSTOM, SongSortDirection.ASCENDING)))

@@ -90,7 +90,7 @@ announce new versions: watch this repository for releases (Watch → Custom → 
 
 They are signed with different keys and can't update each other. Export your data (Settings → Local
 backup), uninstall, install the other one, then restore. The backup carries your playlists
-(including *Keep together in SMART*), your favourites in their order, listening history, recent
+(including manual order, addition order and *Keep together in SMART*), your favourites in their order, listening history, recent
 searches, hidden tracks, the tracks and artists you told SMART not to recommend, the duplicate
 finder's decisions (the copies you marked *Not duplicates*), and your settings. Your current queue
 and the equaliser are not part of it, and the song analysis isn't included either and runs again.

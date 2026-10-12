@@ -503,7 +503,9 @@ internal suspend fun mergeDuplicateGroup(
     for (playlist in playlists.all()) {
         val current = playlist.trackIds.map(::TrackId)
         val replacement = mergedMembership(current, duplicateIds, survivor.id) ?: continue
-        check(playlists.replaceTracksIfUnchanged(playlist.id, current, replacement)) {
+        val added = playlist.addedTrackIds.map(::TrackId)
+        val replacementAdded = mergedMembership(added, duplicateIds, survivor.id) ?: added
+        check(playlists.replaceTracksIfUnchanged(playlist.id, current, replacement, added, replacementAdded)) {
             "Playlist changed during duplicate merge"
         }
     }

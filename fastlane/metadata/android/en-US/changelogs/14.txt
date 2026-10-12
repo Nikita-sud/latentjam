@@ -1,3 +1,3 @@
 Folders open as a tree and play by disc, track number, then file name. Sort playlists and Favorites.
-Drag playlist tracks into your own custom order.
-Heart a selection or playlist at once. Imported playlists can go into Favorites, which export as M3U and travel in backups. M3U import matches file paths. Refresh finds unindexed music, SD cards included (#8). Playlists flag missing songs. SMART plans faster without two learned queue models. Uses less memory.
+Drag playlist tracks into Custom order; Recently added keeps the addition order.
+Heart a selection or playlist at once. Import to Favorites; export M3U. Backups keep both playlist orders. M3U import matches file paths. Refresh finds unindexed music, SD cards included (#8). Playlists flag missing songs. SMART plans faster without two learned queue models. Uses less memory.

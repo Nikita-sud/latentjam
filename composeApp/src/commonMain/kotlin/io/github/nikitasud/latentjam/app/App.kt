@@ -1028,7 +1028,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // the order the listener chose for it.
             val shown = value?.inChosenOrder(
                 AppGraph.settings.playlistSortOrders.value,
-                value.storedTrackOrder(playlistsState.playlists, playlistsState.autoPlaylists),
+                playlistsState.playlists, playlistsState.autoPlaylists,
             )
             if (selectedCollection !== shown) {
                 selectedCollection = shown
@@ -2440,7 +2440,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 // goes at once; the membership change below asks the device again.
                 playlistAvailability.dismiss(playlistId)
                 playlistsState.playlists = playlistsState.playlists.map { stored ->
-                    if (stored.id == playlistId) stored.copy(trackIds = change.after.map(TrackId::value)) else stored
+                    if (stored.id == playlistId) change.appliedTo(stored) else stored
                 }
                 val result = snackbar.showSnackbar(
                     message = getString(
@@ -2452,11 +2452,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 )
                 if (result != SnackbarResult.ActionPerformed) return@launch
                 val restored = try {
-                    AppGraph.playlists.replaceTracksIfUnchanged(
-                        playlistId,
-                        expected = change.after,
-                        replacement = change.before,
-                    )
+                    AppGraph.playlists.restoreTracksIfUnchanged(playlistId, change)
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Throwable) {
@@ -2467,7 +2463,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     return@launch
                 }
                 playlistsState.playlists = playlistsState.playlists.map { stored ->
-                    if (stored.id == playlistId) stored.copy(trackIds = change.before.map(TrackId::value)) else stored
+                    if (stored.id == playlistId) change.revertedIn(stored) else stored
                 }
             }
         }
@@ -2945,9 +2941,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                     val change = checkNotNull(membershipChange)
                                     playlistsState.playlists = playlistsState.playlists.map { stored ->
                                         if (stored.id == playlistId) {
-                                            stored.copy(
-                                                trackIds = change.after.map(TrackId::value),
-                                            )
+                                            change.appliedTo(stored)
                                         } else {
                                             stored
                                         }
@@ -2967,11 +2961,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                     )
                                     if (result == SnackbarResult.ActionPerformed) {
                                         val restored = try {
-                                            AppGraph.playlists.replaceTracksIfUnchanged(
-                                                playlistId,
-                                                expected = change.after,
-                                                replacement = change.before,
-                                            )
+                                            AppGraph.playlists.restoreTracksIfUnchanged(playlistId, change)
                                         } catch (cancelled: CancellationException) {
                                             throw cancelled
                                         } catch (_: Throwable) {
@@ -2987,9 +2977,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         }
                                         playlistsState.playlists = playlistsState.playlists.map { stored ->
                                             if (stored.id == playlistId) {
-                                                stored.copy(
-                                                    trackIds = change.before.map(TrackId::value),
-                                                )
+                                                change.revertedIn(stored)
                                             } else {
                                                 stored
                                             }
@@ -4527,7 +4515,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             val change = checkNotNull(membershipChange)
                             playlistsState.playlists = playlistsState.playlists.map { stored ->
                                 if (stored.id == playlistId) {
-                                    stored.copy(trackIds = change.after.map(TrackId::value))
+                                    change.appliedTo(stored)
                                 } else {
                                     stored
                                 }
@@ -4547,11 +4535,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             )
                             if (result == SnackbarResult.ActionPerformed) {
                                 val restored = try {
-                                    AppGraph.playlists.replaceTracksIfUnchanged(
-                                        playlistId,
-                                        expected = change.after,
-                                        replacement = change.before,
-                                    )
+                                    AppGraph.playlists.restoreTracksIfUnchanged(playlistId, change)
                                 } catch (cancelled: CancellationException) {
                                     throw cancelled
                                 } catch (_: Throwable) {
@@ -4565,9 +4549,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 }
                                 playlistsState.playlists = playlistsState.playlists.map { stored ->
                                     if (stored.id == playlistId) {
-                                        stored.copy(
-                                            trackIds = change.before.map(TrackId::value),
-                                        )
+                                        change.revertedIn(stored)
                                     } else {
                                         stored
                                     }

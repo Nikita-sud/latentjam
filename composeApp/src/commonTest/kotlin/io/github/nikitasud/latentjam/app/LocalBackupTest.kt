@@ -40,22 +40,60 @@ import kotlin.test.assertTrue
 internal class LocalBackupTest {
 
     @Test
-    fun backupPreservesReorderedOccurrencesAndMigratesLocalRecentPreferences() = runTest {
+    fun backupPreservesBothOrdersAndKeepsLocalRecentPreferences() = runTest {
         val a = TrackDescriptor(id = TrackId("a"), title = "A")
         val b = TrackDescriptor(id = TrackId("b"), title = "B")
         val source = fixture(listOf(a, b))
-        source.playlists.replaceAll(listOf(io.github.nikitasud.latentjam.library.Playlist("p", "Mix", listOf("a", "b", "a"))))
+        source.playlists.replaceAll(listOf(io.github.nikitasud.latentjam.library.Playlist("p", "Mix",
+            listOf("a", "b", "a"), addedTrackIds = listOf("a", "a", "b"))))
         val destination = fixture(listOf(a, b))
         destination.settings.setPlaylistSortOrders(PlaylistSortOrders(playlists = mapOf(
             "p" to SortChoice(io.github.nikitasud.latentjam.library.PlaylistSort.RECENT, SongSortDirection.DESCENDING),
         )))
         destination.service.importEncoded(source.service.exportEncoded(), LocalBackupRestoreMode.REPLACE)
         assertEquals(listOf("a", "b", "a"), destination.playlists.all().single().trackIds)
-        assertEquals(PlaylistSortOrders(), destination.settings.playlistSortOrders.value)
+        assertEquals(listOf("a", "a", "b"), destination.playlists.all().single().addedTrackIds)
+        assertEquals(io.github.nikitasud.latentjam.library.PlaylistSort.RECENT,
+            destination.settings.playlistSortOrders.value.forPlaylist("p").sort)
         destination.service.importEncoded(source.service.exportEncoded(), LocalBackupRestoreMode.MERGE)
         assertEquals(listOf("a", "b", "a"), destination.playlists.all().single().trackIds)
     }
 
+
+    @Test
+    fun backupRejectsMismatchedChronologyAndReadsLegacyPlaylistOrder() {
+        val a = TrackDescriptor(TrackId("a"), title = "A")
+        val b = TrackDescriptor(TrackId("b"), title = "B")
+        val snapshot = emptySnapshot().copy(tracks = listOf(a.toReference(), b.toReference()),
+            playlists = listOf(LocalBackupPlaylist("p", "Mix", 1, listOf("b", "a"),
+                addedTrackReferenceIds = listOf("a", "b"))))
+        assertEquals(snapshot, LocalBackupCodec.decode(LocalBackupCodec.encode(snapshot)))
+        assertFailsWith<LocalBackupFormatException> { LocalBackupCodec.encode(snapshot.copy(formatVersion = 9)) }
+        val encoded = LocalBackupCodec.encode(snapshot)
+        for (broken in listOf(
+            encoded.replace("P\ts70\ts4d6978\t1\t0\t2", "P\ts70\ts4d6978\t1\t0\t3"),
+            encoded.replace("\ts62\ts61\ts61\ts62", "\ts62\ts61\ts61\ts61"),
+        )) assertFailsWith<LocalBackupFormatException> { LocalBackupCodec.decode(broken) }
+        val legacy = snapshot.copy(formatVersion = 9,
+            playlists = listOf(LocalBackupPlaylist("p", "Mix", 1, listOf("b", "a"))))
+        assertEquals(listOf("b", "a"), LocalBackupCodec.decode(LocalBackupCodec.encode(legacy))
+            .playlists.single().addedTrackReferenceIds)
+    }
+
+    @Test
+    fun backupMergeAppendsNewAdditionsWithoutRewritingEitherExistingOrder() = runTest {
+        val tracks = listOf("a", "b", "c").map { TrackDescriptor(TrackId(it), title = it) }
+        val source = fixture(tracks)
+        val target = fixture(tracks)
+        source.playlists.replaceAll(listOf(io.github.nikitasud.latentjam.library.Playlist("source", "Mix",
+            listOf("c", "b", "a"), addedTrackIds = listOf("a", "b", "c"))))
+        target.playlists.replaceAll(listOf(io.github.nikitasud.latentjam.library.Playlist("target", "Mix",
+            listOf("b", "a"), addedTrackIds = listOf("a", "b"))))
+        repeat(2) { target.service.importEncoded(source.service.exportEncoded(), LocalBackupRestoreMode.MERGE) }
+        val merged = target.playlists.all().single()
+        assertEquals(listOf("b", "a", "c"), merged.trackIds)
+        assertEquals(listOf("a", "b", "c"), merged.addedTrackIds)
+    }
 
     @Test
     fun codecRoundTripsUnicodeDelimitersAndEverySection() {
@@ -120,7 +158,7 @@ internal class LocalBackupTest {
         val encoded = LocalBackupCodec.encode(snapshot)
 
         assertEquals(snapshot, LocalBackupCodec.decode(encoded))
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t9\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t10\n"))
         assertFalse(encoded.contains("Группа крови"), "User strings must be safely encoded")
     }
 
@@ -153,7 +191,7 @@ internal class LocalBackupTest {
             }
         }
         assertFailsWith<LocalBackupFormatException> {
-            LocalBackupCodec.decode(encoded.replaceFirst("LOCAL-BACKUP\t9", "LOCAL-BACKUP\t7"))
+            LocalBackupCodec.decode(encoded.replaceFirst("LOCAL-BACKUP\t10", "LOCAL-BACKUP\t7"))
         }
     }
 
@@ -357,7 +395,7 @@ internal class LocalBackupTest {
         val encoded = LocalBackupCodec.encode(snapshot)
 
         assertEquals(snapshot, LocalBackupCodec.decode(encoded))
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t9\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t10\n"))
     }
 
     @Test
@@ -411,7 +449,7 @@ internal class LocalBackupTest {
         // One version past the current format: a file from a newer build is refused whole, before
         // any record of it is read.
         assertFailsWith<LocalBackupFormatException> {
-            LocalBackupCodec.decode(valid.replaceFirst("LOCAL-BACKUP\t9", "LOCAL-BACKUP\t10"))
+            LocalBackupCodec.decode(valid.replaceFirst("LOCAL-BACKUP\t10", "LOCAL-BACKUP\t11"))
         }
         assertFailsWith<LocalBackupFormatException> {
             LocalBackupCodec.decode(valid + "Q\tnot-hex\n")
@@ -506,7 +544,7 @@ internal class LocalBackupTest {
         val encoded = source.service.exportEncoded()
         destination.service.importEncoded(encoded, LocalBackupRestoreMode.REPLACE)
 
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t9\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t10\n"))
         assertEquals(layout, destination.settings.pageLayout.value)
         assertEquals(StartPage.STATISTICS, destination.settings.startPage.value)
     }
@@ -1034,7 +1072,7 @@ internal class LocalBackupTest {
         val encoded = LocalBackupCodec.encode(snapshot)
 
         assertEquals(snapshot, LocalBackupCodec.decode(encoded))
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t9\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t10\n"))
         // One record per heart, newest first; one per verdict, every track of it on the line.
         assertEquals(
             listOf("F\ts63", "F\ts${"file:\nКИНО\t1".hex()}", "F\ts62"),

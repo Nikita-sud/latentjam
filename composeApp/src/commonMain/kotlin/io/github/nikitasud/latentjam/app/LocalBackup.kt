@@ -17,6 +17,7 @@ import io.github.nikitasud.latentjam.library.AlbumSort
 import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.library.Playlists
+import io.github.nikitasud.latentjam.library.reconcilePlaylistAddedOrder
 import io.github.nikitasud.latentjam.library.SongSort
 import io.github.nikitasud.latentjam.playback.MAX_CROSSFADE_SECONDS
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
@@ -103,6 +104,7 @@ internal data class LocalBackupPlaylist(
     val createdAtMs: Long,
     val trackReferenceIds: List<String>,
     val includeInSmart: Boolean = false,
+    val addedTrackReferenceIds: List<String> = trackReferenceIds,
 )
 
 internal data class LocalBackupListenEvent(
@@ -256,7 +258,7 @@ internal object LocalBackupCodec {
      * version refuses such a file with "Unsupported backup version" instead of tripping over a
      * record it does not know ("Unknown backup record at line N").
      */
-    const val FORMAT_VERSION: Int = 9
+    const val FORMAT_VERSION: Int = 10
     private const val LEGACY_FORMAT_VERSION: Int = 1
     private const val HEADER = "LATENTJAM-LOCAL-BACKUP"
     private const val MAX_TEXT_CHARS = 64 * 1024 * 1024
@@ -339,9 +341,11 @@ internal object LocalBackupCodec {
                     add(playlist.name.encodeField())
                     add(playlist.createdAtMs.toString())
                     if (snapshot.formatVersion >= 2) add(playlist.includeInSmart.toBit())
+                    if (snapshot.formatVersion >= 10) add(playlist.trackReferenceIds.size.toString())
                 }
                 appendRecord(
-                    fixedFields + playlist.trackReferenceIds.map { it.encodeField() },
+                    fixedFields + playlist.trackReferenceIds.map { it.encodeField() } +
+                        if (snapshot.formatVersion >= 10) playlist.addedTrackReferenceIds.map { it.encodeField() } else emptyList(),
                 )
             }
             snapshot.listeningHistory.forEach { event ->
@@ -513,29 +517,25 @@ internal object LocalBackupCodec {
                     )
                 }
                 "P" -> {
-                    val fixedFieldCount = if (version >= 2) 5 else 4
-                    val trackCount = record.fieldCount - fixedFieldCount
-                    if (trackCount < 0) record.invalid()
+                    val fixedFieldCount = if (version >= 10) 6 else if (version >= 2) 5 else 4
+                    val membershipFields = record.fieldCount - fixedFieldCount
+                    if (membershipFields < 0 || (version >= 10 && membershipFields % 2 != 0)) record.invalid()
+                    val trackCount = if (version >= 10) membershipFields / 2 else membershipFields
                     if (playlists.size >= MAX_PLAYLISTS) formatError("Too many playlists")
                     if (trackCount > MAX_PLAYLIST_TRACKS - playlistTrackCount) {
                         formatError("Too many playlist entries")
                     }
                     playlistTrackCount += trackCount
-                    playlists += LocalBackupPlaylist(
-                        id = record.nextField().decodeField("playlist id"),
-                        name = record.nextField().decodeField("playlist name"),
-                        createdAtMs = record.nextField().parseLong("playlist creation time"),
-                        includeInSmart = if (version >= 2) {
-                            record.nextField().parseBit("playlist SMART flag")
-                        } else {
-                            false
-                        },
-                        trackReferenceIds = buildList(trackCount) {
-                            repeat(trackCount) {
-                                add(record.nextField().decodeField("playlist track id"))
-                            }
-                        },
-                    )
+                    val id = record.nextField().decodeField("playlist id")
+                    val name = record.nextField().decodeField("playlist name")
+                    val createdAtMs = record.nextField().parseLong("playlist creation time")
+                    val includeInSmart = version >= 2 && record.nextField().parseBit("playlist SMART flag")
+                    if (version >= 10 && record.nextField().parseInt("playlist size") != trackCount) record.invalid()
+                    val manual = List(trackCount) { record.nextField().decodeField("playlist track id") }
+                    val added = if (version >= 10) {
+                        List(trackCount) { record.nextField().decodeField("playlist addition id") }
+                    } else manual
+                    playlists += LocalBackupPlaylist(id, name, createdAtMs, manual, includeInSmart, added)
                 }
                 "H" -> {
                     record.requireFieldCount(
@@ -720,6 +720,12 @@ internal object LocalBackupCodec {
         snapshot.playlists.forEach { playlist ->
             if (playlist.createdAtMs < 0 || playlist.trackReferenceIds.any { it !in knownTracks }) {
                 formatError("Invalid playlist record")
+            }
+            if (playlist.addedTrackReferenceIds.size != playlist.trackReferenceIds.size ||
+                playlist.addedTrackReferenceIds.groupingBy { it }.eachCount() != playlist.trackReferenceIds.groupingBy { it }.eachCount()
+            ) formatError("Playlist orders must contain the same occurrences")
+            if (snapshot.formatVersion < 10 && playlist.addedTrackReferenceIds != playlist.trackReferenceIds) {
+                formatError("Older backups cannot encode independent playlist orders")
             }
         }
         snapshot.listeningHistory.forEach { event ->
@@ -1039,6 +1045,7 @@ internal class LocalBackupService(
                     createdAtMs = playlist.createdAtMs,
                     trackReferenceIds = playlist.trackIds,
                     includeInSmart = playlist.includeInSmart,
+                    addedTrackReferenceIds = playlist.addedTrackIds,
                 )
             },
             listeningHistory = chronologicalEvents.map { it.toBackupEvent() },
@@ -1110,6 +1117,7 @@ internal class LocalBackupService(
                         createdAtMs = backup.createdAtMs,
                         trackIds = backup.trackReferenceIds.mapNotNull { resolved[it]?.value },
                         includeInSmart = backup.includeInSmart,
+                        addedTrackIds = backup.addedTrackReferenceIds.mapNotNull { resolved[it]?.value },
                     )
                 }
                 val target = when (mode) {
@@ -1117,7 +1125,7 @@ internal class LocalBackupService(
                     LocalBackupRestoreMode.MERGE -> mergePlaylists(playlists.all(), imported)
                 }
                 playlists.replaceAll(target)
-                settings.setPlaylistSortOrders(settings.playlistSortOrders.value.migrated())
+                settings.setPlaylistSortOrders(settings.playlistSortOrders.value.normalized())
                 playlistsApplied = imported.size
                 completed += LocalBackupSection.PLAYLISTS
             }
@@ -1226,7 +1234,7 @@ internal class LocalBackupService(
                 settings.setAlbumSort(snapshot.settings.albumSort)
                 settings.setArtistAlbumSort(snapshot.settings.artistAlbumSort)
                 settings.setGroupSortOrders(snapshot.settings.groupSortOrders)
-                settings.setPlaylistSortOrders(settings.playlistSortOrders.value.migrated())
+                settings.setPlaylistSortOrders(settings.playlistSortOrders.value.normalized())
                 completed += LocalBackupSection.SETTINGS
             }
         } catch (failure: Throwable) {
@@ -1438,8 +1446,12 @@ internal class LocalBackupService(
             val sameNameIndex = result.indexOfFirst { it.name.equals(playlist.name, ignoreCase = true) }
             if (sameNameIndex >= 0) {
                 val current = result[sameNameIndex]
+                val membership = mergePlaylistOccurrences(current.trackIds, playlist.trackIds)
                 result[sameNameIndex] = current.copy(
-                    trackIds = mergePlaylistOccurrences(current.trackIds, playlist.trackIds),
+                    trackIds = membership,
+                    addedTrackIds = reconcilePlaylistAddedOrder(
+                        mergePlaylistOccurrences(current.addedTrackIds, playlist.addedTrackIds), membership,
+                    ),
                     includeInSmart = current.includeInSmart || playlist.includeInSmart,
                 )
             } else {

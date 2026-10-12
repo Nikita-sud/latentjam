@@ -8,10 +8,10 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 
 /** How the tracks on one playlist's page, or on Favorites, are shown. Never written back to the playlist. */
 public enum class PlaylistSort {
-    /** The order the playlist keeps: the order its tracks were added in, or the imported file's. */
+    /** The playlist's editable playback order, initially the addition or imported file order. */
     CUSTOM,
 
-    /** When each track joined the playlist (or was hearted), read from the stored order: no timestamps exist. */
+    /** When each track joined the playlist (or was hearted), independent of manual reordering. */
     RECENT,
     TITLE,
     ARTIST,

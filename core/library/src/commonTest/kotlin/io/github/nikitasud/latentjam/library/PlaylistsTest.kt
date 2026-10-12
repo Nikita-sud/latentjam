@@ -131,14 +131,14 @@ internal class PlaylistsTest {
         )
 
         assertTrue(
-            playlists.replaceTracksIfUnchanged(created.id, change.after, change.before),
+            playlists.restoreTracksIfUnchanged(created.id, change),
         )
         assertContentEquals(listOf("1", "2", "3"), playlists.all().single().trackIds)
 
         playlists.removeTracks(created.id, listOf(TrackId("1"), TrackId("3")))
         playlists.addTracks(created.id, listOf(TrackId("4")))
         assertTrue(
-            !playlists.replaceTracksIfUnchanged(created.id, change.after, change.before),
+            !playlists.restoreTracksIfUnchanged(created.id, change),
         )
         assertContentEquals(listOf("2", "4"), playlists.all().single().trackIds)
     }

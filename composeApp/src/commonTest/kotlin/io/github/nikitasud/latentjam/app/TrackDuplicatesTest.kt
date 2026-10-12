@@ -417,6 +417,8 @@ internal class DuplicateMergeTest {
                 id: String,
                 expected: List<TrackId>,
                 replacement: List<TrackId>,
+                expectedAddedOrder: List<TrackId>?,
+                replacementAddedOrder: List<TrackId>?,
             ): Boolean = false
         }
         val favorites = DefaultFavorites(MemoryFavoritesStore()).also {

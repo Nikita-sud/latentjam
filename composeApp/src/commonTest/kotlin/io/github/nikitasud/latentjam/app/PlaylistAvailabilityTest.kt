@@ -105,7 +105,7 @@ class PlaylistAvailabilityTest {
         assertEquals(listOf("1", "2", "back", "3"), playlists.all().single().trackIds)
 
         val applied = checkNotNull(change)
-        assertTrue(playlists.replaceTracksIfUnchanged(playlist.id, applied.after, applied.before))
+        assertTrue(playlists.restoreTracksIfUnchanged(playlist.id, applied))
         assertEquals(listOf("1", "gone-a", "2", "back", "3"), playlists.all().single().trackIds)
     }
 
@@ -166,7 +166,7 @@ class PlaylistAvailabilityTest {
 
         playlists.addTracks(playlist.id, ids("2"))
 
-        assertFalse(playlists.replaceTracksIfUnchanged(playlist.id, change.after, change.before))
+        assertFalse(playlists.restoreTracksIfUnchanged(playlist.id, change))
         assertEquals(listOf("1", "2"), playlists.all().single().trackIds)
     }
 

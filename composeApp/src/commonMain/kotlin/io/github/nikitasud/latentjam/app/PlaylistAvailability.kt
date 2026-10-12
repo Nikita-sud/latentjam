@@ -107,7 +107,7 @@ internal suspend fun unavailablePlaylistEntries(
  * and only what is still gone at the moment of the tap is removed. Entries that appeared since are
  * left alone even if they are gone too; the listener was not told about them.
  *
- * @return the change, for Undo through [Playlists.replaceTracksIfUnchanged]; null when nothing was
+ * @return the change, for Undo through [Playlists.restoreTracksIfUnchanged]; null when nothing was
  *   removed (the playlist is gone, or every shown entry is back).
  */
 internal suspend fun removeUnavailablePlaylistEntries(

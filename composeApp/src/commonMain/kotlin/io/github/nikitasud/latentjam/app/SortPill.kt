@@ -106,8 +106,7 @@ internal fun <S : Enum<S>> SortPill(
 
 /**
  * [SortPill] for a list that sorts by name only (artists, genres, folders). With one field there is
- * no menu to open: tapping the label is a second tap on the active option, which reverses the order
- * ([afterSingleFieldTap]), and the arrow reverses it too.
+ * no menu to open: the entire pill is one target that reverses the order.
  */
 @Composable
 internal fun NameSortPill(
@@ -116,19 +115,23 @@ internal fun NameSortPill(
     onDirectionChange: (SongSortDirection) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    SortPillFrame(
-        label = stringResource(Res.string.sort_name),
-        direction = direction,
+    TextButton(
+        onClick = { onDirectionChange(direction.afterSingleFieldTap()) },
         enabled = enabled,
-        onLabelClick = { onDirectionChange(direction.afterSingleFieldTap()) },
-        onDirectionClick = { onDirectionChange(direction.toggled()) },
-        modifier = modifier,
-    )
+        contentPadding = PaddingValues(horizontal = 14.dp),
+        modifier = modifier.heightIn(min = 48.dp)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape),
+    ) {
+        Icon(Icons.AutoMirrored.Rounded.Sort, null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+        Text(stringResource(Res.string.sort_name), style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 8.dp))
+        SortDirectionIcon(direction)
+    }
 }
 
 /**
- * The pill both [SortPill] and [NameSortPill] draw, so the two cannot drift apart: the field's
- * [label] behind a sort icon, then a divider and the arrow when the field has a [direction].
+ * A multi-field sort pill: the [label] opens a menu, and the separate arrow reverses [direction].
  * [menu] is anchored to the pill.
  */
 @Composable

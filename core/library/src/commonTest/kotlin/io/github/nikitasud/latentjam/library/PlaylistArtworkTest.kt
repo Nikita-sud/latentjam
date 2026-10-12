@@ -164,10 +164,11 @@ internal class PlaylistArtworkTest {
         val original = Playlist("saved", "Mix", listOf("one"), includeInSmart = true,
             customArtworkRef = "cover.jpg")
         val serialized = PlaylistSerializer.serialize(original)
-        val damaged = serialized.replaceAfterLast('\u001f', "broken-hex")
+        val fields = serialized.split('\u001f').toMutableList()
+        val damaged = fields.also { it[6] = "broken-hex" }.joinToString("\u001f")
 
         assertEquals(original.copy(customArtworkRef = null), PlaylistSerializer.parse(damaged))
         assertEquals(original.copy(customArtworkRef = null),
-            PlaylistSerializer.parse(serialized.substringBeforeLast('\u001f')))
+            PlaylistSerializer.parse(fields.take(6).toMutableList().also { it[0] = "v4" }.joinToString("\u001f")))
     }
 }

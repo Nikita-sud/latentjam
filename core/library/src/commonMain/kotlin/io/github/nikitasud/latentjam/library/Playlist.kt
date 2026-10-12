@@ -10,7 +10,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-/** A user-made playlist: a name, ordered track ids, and an optional private cover reference. */
+/** A user-made playlist with independent manual/addition orders and an optional private cover. */
 public data class Playlist(
     public val id: String,
     public val name: String,
@@ -20,13 +20,25 @@ public data class Playlist(
     public val includeInSmart: Boolean = false,
     /** App-owned cover token, resolved by the platform; null uses artwork from the tracks. */
     public val customArtworkRef: String? = null,
+    /** Oldest addition first, independent of the editable [trackIds]; includes every occurrence. */
+    public val addedTrackIds: List<String> = trackIds,
 )
 
 /** Exact ordered membership around one durable playlist edit. */
 public data class PlaylistTrackChange(
     public val before: List<TrackId>,
     public val after: List<TrackId>,
-)
+    public val addedBefore: List<TrackId> = before,
+    public val addedAfter: List<TrackId> = after,
+) {
+    public fun appliedTo(playlist: Playlist): Playlist = playlist.copy(
+        trackIds = after.map(TrackId::value), addedTrackIds = addedAfter.map(TrackId::value),
+    )
+
+    public fun revertedIn(playlist: Playlist): Playlist = playlist.copy(
+        trackIds = before.map(TrackId::value), addedTrackIds = addedBefore.map(TrackId::value),
+    )
+}
 
 /**
  * The device's playlists. Ids rather than descriptors are stored, so a
@@ -56,12 +68,18 @@ public interface Playlists {
     public suspend fun removeTrack(id: String, trackId: TrackId): PlaylistTrackChange? =
         removeTracks(id, listOf(trackId))
 
-    /** Exact ordered compare-and-set for Undo and reordering; preserves repeated occurrences. */
+    /** Atomic edit of manual order. Optional addition-order snapshots also support Undo and identity replacement. */
     public suspend fun replaceTracksIfUnchanged(
         id: String,
         expected: List<TrackId>,
         replacement: List<TrackId>,
+        expectedAddedOrder: List<TrackId>? = null,
+        replacementAddedOrder: List<TrackId>? = null,
     ): Boolean
+
+    /** Undo restores both sequences and rejects concurrent changes to either of them. */
+    public suspend fun restoreTracksIfUnchanged(id: String, change: PlaylistTrackChange): Boolean =
+        replaceTracksIfUnchanged(id, change.after, change.before, change.addedAfter, change.addedBefore)
 
     /** Moves playlist [id] to [toIndex] in the user's ordering; out-of-range indices clamp. */
     public suspend fun move(id: String, toIndex: Int)
@@ -173,7 +191,10 @@ public class DefaultPlaylists(
         val seen = existing.toHashSet()
         val additions = trackIds.map { it.value }.filter(String::isNotBlank).filter(seen::add)
         if (additions.isNotEmpty()) {
-            val changed = playlists[index].copy(trackIds = existing + additions)
+            val changed = playlists[index].copy(
+                trackIds = existing + additions,
+                addedTrackIds = playlists[index].addedTrackIds + additions,
+            )
             persist(playlists.toMutableList().also { it[index] = changed })
         }
     }
@@ -186,30 +207,41 @@ public class DefaultPlaylists(
         val index = playlists.indexOfFirst { it.id == id }
         if (index < 0) return@withLock null
         val before = playlists[index].trackIds
+        val addedBefore = playlists[index].addedTrackIds
         val removedIds = trackIds.mapTo(HashSet(trackIds.size), TrackId::value)
         val remaining = before.filterNot(removedIds::contains)
+        val addedAfter = addedBefore.filterNot(removedIds::contains)
         if (remaining.size != before.size) {
-            val changed = playlists[index].copy(trackIds = remaining)
+            val changed = playlists[index].copy(trackIds = remaining, addedTrackIds = addedAfter)
             persist(playlists.toMutableList().also { it[index] = changed })
         }
-        PlaylistTrackChange(before.map(::TrackId), remaining.map(::TrackId))
+        PlaylistTrackChange(before.map(::TrackId), remaining.map(::TrackId), addedBefore.map(::TrackId), addedAfter.map(::TrackId))
     }
 
     override suspend fun replaceTracksIfUnchanged(
         id: String,
         expected: List<TrackId>,
         replacement: List<TrackId>,
+        expectedAddedOrder: List<TrackId>?,
+        replacementAddedOrder: List<TrackId>?,
     ): Boolean = mutex.withLock {
+        require((expectedAddedOrder == null) == (replacementAddedOrder == null))
         ensureLoaded()
         val index = playlists.indexOfFirst { it.id == id }
         if (index < 0) return@withLock false
         val expectedValues = expected.map(TrackId::value)
         if (playlists[index].trackIds != expectedValues) return@withLock false
+        if (expectedAddedOrder != null && playlists[index].addedTrackIds != expectedAddedOrder.map(TrackId::value)) {
+            return@withLock false
+        }
         val replacementValues = replacement
             .map(TrackId::value)
             .filter(String::isNotBlank)
-        if (replacementValues != expectedValues) {
-            val changed = playlists[index].copy(trackIds = replacementValues)
+        val added = replacementAddedOrder?.map(TrackId::value)?.also {
+            require(it.groupingBy { value -> value }.eachCount() == replacementValues.groupingBy { value -> value }.eachCount())
+        } ?: reconcilePlaylistAddedOrder(playlists[index].addedTrackIds, replacementValues)
+        if (replacementValues != expectedValues || added != playlists[index].addedTrackIds) {
+            val changed = playlists[index].copy(trackIds = replacementValues, addedTrackIds = added)
             persist(playlists.toMutableList().also { it[index] = changed })
         }
         true
@@ -256,9 +288,24 @@ public class DefaultPlaylists(
         return copy(
             name = name.trim().ifEmpty { "Untitled playlist" },
             trackIds = trackIds.filter(String::isNotBlank),
+            addedTrackIds = reconcilePlaylistAddedOrder(addedTrackIds, trackIds.filter(String::isNotBlank)),
             customArtworkRef = customArtworkRef?.trim()?.takeIf(String::isNotEmpty),
         )
     }
+}
+
+/** Retains addition chronology for live occurrences and appends genuinely new membership. */
+public fun reconcilePlaylistAddedOrder(added: List<String>, membership: List<String>): List<String> {
+    val remaining = membership.groupingBy { it }.eachCount().toMutableMap()
+    val retained = added.filter { id ->
+        val count = remaining[id] ?: 0
+        if (count > 0) { remaining[id] = count - 1; true } else false
+    }
+    val missing = membership.filter { id ->
+        val count = remaining[id] ?: 0
+        if (count > 0) { remaining[id] = count - 1; true } else false
+    }
+    return retained + missing
 }
 
 /**
@@ -272,25 +319,38 @@ internal object PlaylistSerializer {
     private const val FORMAT_V2 = "v2"
     private const val FORMAT_V3 = "v3"
     private const val FORMAT_V4 = "v4"
+    private const val FORMAT_V5 = "v5"
 
     fun serialize(playlist: Playlist): String = listOf(
-        FORMAT_V4,
+        FORMAT_V5,
         playlist.id.encodeHex(),
         playlist.name.encodeHex(),
         playlist.createdAtMs.toString(),
         playlist.trackIds.joinToString(TRACK.toString()) { it.encodeHex() },
         if (playlist.includeInSmart) "1" else "0",
         playlist.customArtworkRef.orEmpty().encodeHex(),
+        playlist.addedTrackIds.joinToString(TRACK.toString()) { it.encodeHex() },
     ).joinToString(FIELD.toString())
 
     fun parse(line: String): Playlist? {
         val parts = line.split(FIELD)
         return when (parts.firstOrNull()) {
+            FORMAT_V5 -> parseV5(parts)
             FORMAT_V4 -> parseV4(parts)
             FORMAT_V3 -> parseV3(parts)
             FORMAT_V2 -> parseV2(parts)
             else -> parseV1(parts)
         }
+    }
+
+    /** Legacy rows initialize chronology from their existing order; later drags leave it intact. */
+    private fun parseV5(parts: List<String>): Playlist? {
+        if (parts.size !in 7..8) return null
+        val playlist = parseV4(parts.subList(0, 7)) ?: return null
+        val added = parts.getOrNull(7)?.split(TRACK)?.filter(String::isNotEmpty)?.map { encoded ->
+            encoded.decodeHex() ?: return playlist
+        } ?: playlist.trackIds
+        return playlist.copy(addedTrackIds = reconcilePlaylistAddedOrder(added, playlist.trackIds))
     }
 
     /** Missing or damaged optional artwork falls back to automatic without losing the playlist. */

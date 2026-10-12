@@ -80,16 +80,18 @@ internal class PlaylistTrackReorderTest {
         assertEquals(listOf(a, b, a), page.inChosenOrder(PlaylistSortOrders(), ids("a", "missing", "b", "a")).tracks)
     }
 
-    @Test fun legacyRecentSettingsMigrateOnlyForPlaylists() {
+    @Test fun recentSettingsRetainBothDirectionsAndCustomRemainsDefault() {
         for (direction in listOf("ascending", "descending")) {
             val restored = playlistSortOrdersFromPersisted("LJPS1|recent:descending|1:p=recent:$direction;")
-            assertEquals(DEFAULT_PLAYLIST_TRACK_SORT, restored.forPlaylist("p"))
+            val expected = SortChoice(PlaylistSort.RECENT,
+                if (direction == "ascending") SongSortDirection.ASCENDING else SongSortDirection.DESCENDING)
+            assertEquals(expected, restored.forPlaylist("p"))
+            assertEquals(DEFAULT_PLAYLIST_TRACK_SORT, restored.forPlaylist("new"))
             assertEquals(DEFAULT_FAVORITES_TRACK_SORT, restored.favorites)
-            assertTrue(restored.playlists.isEmpty())
         }
         val old = PlaylistSortOrders(playlists = mapOf("p" to SortChoice(PlaylistSort.RECENT, SongSortDirection.DESCENDING)))
-        assertEquals(PlaylistSortOrders(), old.migrated())
-        assertEquals(PlaylistSortOrders(), playlistSortOrdersFromPersisted(encodePlaylistSortOrders(old)))
+        assertEquals(old, old.normalized())
+        assertEquals(old, playlistSortOrdersFromPersisted(encodePlaylistSortOrders(old)))
     }
 
     @Test fun handleHitAreaTracksLayoutDirectionAndDoesNotCaptureTheRowBody() {

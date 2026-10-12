@@ -15,8 +15,8 @@ import io.github.nikitasud.latentjam.library.hasDirection
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 
-/** Stored positions are editable, so they no longer describe when tracks were added. */
-internal val PLAYLIST_TRACK_SORTS: List<PlaylistSort> = PlaylistSort.entries.filter { it != PlaylistSort.RECENT }
+/** Manual order and addition chronology are stored independently. */
+internal val PLAYLIST_TRACK_SORTS: List<PlaylistSort> = PlaylistSort.entries
 
 /** Favorites have no order of their own beyond when each heart was given, so no Custom order. */
 internal val FAVORITES_TRACK_SORTS: List<PlaylistSort> = PlaylistSort.entries.filter { it != PlaylistSort.CUSTOM }
@@ -70,11 +70,9 @@ data class PlaylistSortOrders(
     }
 }
 
-/** Legacy Recently added on a playlist becomes its editable stored order. Favorites keep RECENT. */
-private fun SortChoice<PlaylistSort>.normalizedForPlaylist(): SortChoice<PlaylistSort> =
-    if (sort == PlaylistSort.RECENT) DEFAULT_PLAYLIST_TRACK_SORT else normalized()
+private fun SortChoice<PlaylistSort>.normalizedForPlaylist(): SortChoice<PlaylistSort> = normalized()
 
-internal fun PlaylistSortOrders.migrated(): PlaylistSortOrders = copy(
+internal fun PlaylistSortOrders.normalized(): PlaylistSortOrders = copy(
     playlists = playlists.mapValues { (_, choice) -> choice.normalizedForPlaylist() }
         .filterValues { it != DEFAULT_PLAYLIST_TRACK_SORT },
 )
@@ -91,7 +89,7 @@ internal fun encodePlaylistSortOrders(value: PlaylistSortOrders): String = build
     append(PLAYLIST_SORT_ORDERS_PREFIX)
     append(encodeSortChoice(value.favorites))
     append('|')
-    value.migrated().playlists.entries.sortedBy { it.key }.forEach { (id, choice) ->
+    value.normalized().playlists.entries.sortedBy { it.key }.forEach { (id, choice) ->
         append(id.length)
         append(':')
         append(id)
@@ -151,14 +149,17 @@ internal fun CollectionSelection.trackSortOptions(): List<PlaylistSort> =
     if (playlistId != null) PLAYLIST_TRACK_SORTS else FAVORITES_TRACK_SORTS
 
 /**
- * The ids of this page's tracks in the order the store keeps them: the playlist's own order, or
+ * The durable base for the chosen view: manual order, addition chronology (oldest first), or
  * Favorites newest first. Null for any other page, and while the store's order is not known.
  */
 internal fun CollectionSelection.storedTrackOrder(
     playlists: List<Playlist>,
     autoPlaylists: List<AutoPlaylist>,
+    orders: PlaylistSortOrders = PlaylistSortOrders(),
 ): List<TrackId>? = when {
-    playlistId != null -> playlists.firstOrNull { it.id == playlistId }?.trackIds?.map(::TrackId)
+    playlistId != null -> playlists.firstOrNull { it.id == playlistId }?.let { playlist ->
+        playlist.baseTrackOrder(orders.forPlaylist(playlist.id).sort).map(::TrackId)
+    }
     routeId == FAVORITES_ROUTE_ID ->
         autoPlaylists.firstOrNull { it.kind == AutoPlaylistKind.FAVORITES }?.tracks?.map(TrackDescriptor::id)
     else -> null
@@ -173,6 +174,12 @@ internal fun CollectionSelection.storedTrackOrder(
  * added are read: a page shown A–Z no longer knows it. Tracks it does not name keep their place
  * after the rest. The same instance comes back when nothing changes.
  */
+internal fun CollectionSelection.inChosenOrder(
+    orders: PlaylistSortOrders,
+    playlists: List<Playlist>,
+    autoPlaylists: List<AutoPlaylist>,
+): CollectionSelection = inChosenOrder(orders, storedTrackOrder(playlists, autoPlaylists, orders))
+
 internal fun CollectionSelection.inChosenOrder(
     orders: PlaylistSortOrders,
     storedOrder: List<TrackId>?,
@@ -250,5 +257,9 @@ internal fun Playlist.tracksInChosenOrder(
     orders: PlaylistSortOrders,
 ): List<TrackDescriptor> {
     val choice = orders.forPlaylist(id)
-    return PlaylistSorting.sort(resolved, choice.sort, choice.direction, storedNewestFirst = false)
+    val stored = inStoredOrder(resolved, baseTrackOrder(choice.sort).map(::TrackId))
+    return PlaylistSorting.sort(stored, choice.sort, choice.direction, storedNewestFirst = false)
 }
+
+private fun Playlist.baseTrackOrder(sort: PlaylistSort): List<String> =
+    if (sort == PlaylistSort.RECENT) addedTrackIds else trackIds
