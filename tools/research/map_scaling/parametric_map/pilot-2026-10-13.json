@@ -1,0 +1,721 @@
+{
+  "scope": "Primary-artist/identical-audio grouped inductive geometry pilot; no semantic supervision or release model.",
+  "rows": 1106,
+  "excluded_missing_modality": 1,
+  "splits": {
+    "train": {
+      "tracks": 676,
+      "groups": 435
+    },
+    "validation": {
+      "tracks": 118,
+      "groups": 94
+    },
+    "test": {
+      "tracks": 312,
+      "groups": 141
+    }
+  },
+  "split_seed": [
+    1729,
+    1730
+  ],
+  "model_seeds": [
+    3,
+    17,
+    41
+  ],
+  "preprocessing": "Unit modalities, sqrt(.25/.75) concat, training-only corpus mean, L2; no test-fitted preprocessing.",
+  "source_sha256": {
+    "audio.f32": "8aed2a7d34944d9c1aef7b227977417bbd752e001c70578690330a2f1c4e6c89",
+    "metadata.f32": "1ed06acbb2a022390f74b2c6e985df9a2e980828ea9518ef110765a141ccff7e",
+    "private-cooked-metadata.json": "4fe7694452f7ffffbff7bc28eef1689d1b4b352545bd9739fd0cbcd4bccbe498",
+    "private-playlists.json": "5b0932d118a3c553398cc9651fb5a44c4c220f9ebcf261d4dde19686420e8504"
+  },
+  "runtime": {
+    "torch": "2.13.0.dev20260506",
+    "numpy": "1.26.4",
+    "threads": 4,
+    "device": "CPU"
+  },
+  "production_train_projection": {
+    "rows": 676,
+    "input_dim": 1344,
+    "seconds": 0.916099
+  },
+  "baselines": {
+    "full1344_reference": {
+      "train": {
+        "neighbor_recall_at15": 1.0,
+        "cross_reference_trustworthiness_at15": 1.0,
+        "playlist_at15": 0.5867735470941884,
+        "playlist_query_memberships": 499,
+        "query_tracks": 676,
+        "candidate_tracks": 676,
+        "dimensions": 1344
+      },
+      "validation": {
+        "neighbor_recall_at15": 1.0,
+        "cross_reference_trustworthiness_at15": 1.0,
+        "playlist_at15": 0.2641025641025641,
+        "playlist_query_memberships": 26,
+        "query_tracks": 118,
+        "candidate_tracks": 676,
+        "dimensions": 1344
+      },
+      "test": {
+        "neighbor_recall_at15": 1.0,
+        "cross_reference_trustworthiness_at15": 1.0,
+        "playlist_at15": 0.5803617571059432,
+        "playlist_query_memberships": 129,
+        "query_tracks": 312,
+        "candidate_tracks": 676,
+        "dimensions": 1344
+      }
+    },
+    "pca2_train_fit": {
+      "train": {
+        "neighbor_recall_at15": 0.27564102564102566,
+        "cross_reference_trustworthiness_at15": 0.8792274164756201,
+        "playlist_at15": 0.5396125584502338,
+        "playlist_query_memberships": 499,
+        "query_tracks": 676,
+        "candidate_tracks": 676,
+        "dimensions": 2
+      },
+      "validation": {
+        "neighbor_recall_at15": 0.19322033898305085,
+        "cross_reference_trustworthiness_at15": 0.8350740337600856,
+        "playlist_at15": 0.0641025641025641,
+        "playlist_query_memberships": 26,
+        "query_tracks": 118,
+        "candidate_tracks": 676,
+        "dimensions": 2
+      },
+      "test": {
+        "neighbor_recall_at15": 0.258974358974359,
+        "cross_reference_trustworthiness_at15": 0.8747987401657127,
+        "playlist_at15": 0.2744186046511628,
+        "playlist_query_memberships": 129,
+        "query_tracks": 312,
+        "candidate_tracks": 676,
+        "dimensions": 2
+      }
+    },
+    "production_tsne_train_plus_knn5": {
+      "train": {
+        "neighbor_recall_at15": 0.5792899408284023,
+        "cross_reference_trustworthiness_at15": 0.9613061850781252,
+        "playlist_at15": 0.5684702738810955,
+        "playlist_query_memberships": 499,
+        "query_tracks": 676,
+        "candidate_tracks": 676,
+        "dimensions": 2
+      },
+      "validation": {
+        "neighbor_recall_at15": 0.4717514124293785,
+        "cross_reference_trustworthiness_at15": 0.9331717894227612,
+        "playlist_at15": 0.25384615384615383,
+        "playlist_query_memberships": 26,
+        "query_tracks": 118,
+        "candidate_tracks": 676,
+        "dimensions": 2
+      },
+      "test": {
+        "neighbor_recall_at15": 0.3388888888888889,
+        "cross_reference_trustworthiness_at15": 0.871253169188949,
+        "playlist_at15": 0.2062015503875969,
+        "playlist_query_memberships": 129,
+        "query_tracks": 312,
+        "candidate_tracks": 676,
+        "dimensions": 2
+      }
+    },
+    "ridge_to_training_tsne": {
+      "train": {
+        "neighbor_recall_at15": 0.31232741617357,
+        "cross_reference_trustworthiness_at15": 0.8987949714713763,
+        "playlist_at15": 0.501002004008016,
+        "playlist_query_memberships": 499,
+        "query_tracks": 676,
+        "candidate_tracks": 676,
+        "dimensions": 2
+      },
+      "validation": {
+        "neighbor_recall_at15": 0.1768361581920904,
+        "cross_reference_trustworthiness_at15": 0.8423253684410582,
+        "playlist_at15": 0.07948717948717948,
+        "playlist_query_memberships": 26,
+        "query_tracks": 118,
+        "candidate_tracks": 676,
+        "dimensions": 2
+      },
+      "test": {
+        "neighbor_recall_at15": 0.16132478632478633,
+        "cross_reference_trustworthiness_at15": 0.809329830889464,
+        "playlist_at15": 0.11317829457364341,
+        "playlist_query_memberships": 129,
+        "query_tracks": 312,
+        "candidate_tracks": 676,
+        "dimensions": 2
+      }
+    },
+    "pca64_train_fit_plus_tsne_knn5": {
+      "train": {
+        "neighbor_recall_at15": 0.586094674556213,
+        "cross_reference_trustworthiness_at15": 0.9661062128667266,
+        "playlist_at15": 0.5671342685370742,
+        "playlist_query_memberships": 499,
+        "query_tracks": 676,
+        "candidate_tracks": 676,
+        "dimensions": 2
+      },
+      "validation": {
+        "neighbor_recall_at15": 0.4745762711864407,
+        "cross_reference_trustworthiness_at15": 0.9408913422830388,
+        "playlist_at15": 0.24615384615384617,
+        "playlist_query_memberships": 26,
+        "query_tracks": 118,
+        "candidate_tracks": 676,
+        "dimensions": 2
+      },
+      "test": {
+        "neighbor_recall_at15": 0.39337606837606837,
+        "cross_reference_trustworthiness_at15": 0.9312099767374996,
+        "playlist_at15": 0.31627906976744186,
+        "playlist_query_memberships": 129,
+        "query_tracks": 312,
+        "candidate_tracks": 676,
+        "dimensions": 2
+      }
+    }
+  },
+  "models": [
+    {
+      "seed": 3,
+      "parameters": 172610,
+      "output_dim": 2,
+      "selected_epoch": 375,
+      "last_epoch": 575,
+      "training_wall_seconds": 3.2268777079880238,
+      "forward_all_rows_median_ms": 0.6750205066055059,
+      "checkpoint_sha256": "86ae722deeca739dd1769b9dd099b61fbca302c5a8e496196c6d16a2838161e2",
+      "objective": "Parametric t-SNE KL, train-only perplexity20 affinities",
+      "representation": {
+        "train": {
+          "neighbor_recall_at15": 0.5355029585798816,
+          "cross_reference_trustworthiness_at15": 0.9357932286427987,
+          "playlist_at15": 0.5551102204408818,
+          "playlist_query_memberships": 499,
+          "query_tracks": 676,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        },
+        "validation": {
+          "neighbor_recall_at15": 0.2457627118644068,
+          "cross_reference_trustworthiness_at15": 0.8369814613244871,
+          "playlist_at15": 0.09743589743589744,
+          "playlist_query_memberships": 26,
+          "query_tracks": 118,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        },
+        "test": {
+          "neighbor_recall_at15": 0.24017094017094018,
+          "cross_reference_trustworthiness_at15": 0.7976041584986541,
+          "playlist_at15": 0.25839793281653745,
+          "playlist_query_memberships": 129,
+          "query_tracks": 312,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        }
+      },
+      "final_2d": {
+        "train": {
+          "neighbor_recall_at15": 0.5355029585798816,
+          "cross_reference_trustworthiness_at15": 0.9357932286427987,
+          "playlist_at15": 0.5551102204408818,
+          "playlist_query_memberships": 499,
+          "query_tracks": 676,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        },
+        "validation": {
+          "neighbor_recall_at15": 0.2457627118644068,
+          "cross_reference_trustworthiness_at15": 0.8369814613244871,
+          "playlist_at15": 0.09743589743589744,
+          "playlist_query_memberships": 26,
+          "query_tracks": 118,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        },
+        "test": {
+          "neighbor_recall_at15": 0.24017094017094018,
+          "cross_reference_trustworthiness_at15": 0.7976041584986541,
+          "playlist_at15": 0.25839793281653745,
+          "playlist_query_memberships": 129,
+          "query_tracks": 312,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        }
+      }
+    },
+    {
+      "seed": 17,
+      "parameters": 172610,
+      "output_dim": 2,
+      "selected_epoch": 225,
+      "last_epoch": 425,
+      "training_wall_seconds": 2.418558374978602,
+      "forward_all_rows_median_ms": 0.8198539726436138,
+      "checkpoint_sha256": "9a5f1b2bd22a64866148527009d6b2ebff205917ee3a4da165240cdaae9be43a",
+      "objective": "Parametric t-SNE KL, train-only perplexity20 affinities",
+      "representation": {
+        "train": {
+          "neighbor_recall_at15": 0.4928994082840237,
+          "cross_reference_trustworthiness_at15": 0.9357565295661656,
+          "playlist_at15": 0.5588510354041416,
+          "playlist_query_memberships": 499,
+          "query_tracks": 676,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        },
+        "validation": {
+          "neighbor_recall_at15": 0.24067796610169492,
+          "cross_reference_trustworthiness_at15": 0.859219233227941,
+          "playlist_at15": 0.10256410256410256,
+          "playlist_query_memberships": 26,
+          "query_tracks": 118,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        },
+        "test": {
+          "neighbor_recall_at15": 0.252991452991453,
+          "cross_reference_trustworthiness_at15": 0.8565765571499515,
+          "playlist_at15": 0.2527131782945736,
+          "playlist_query_memberships": 129,
+          "query_tracks": 312,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        }
+      },
+      "final_2d": {
+        "train": {
+          "neighbor_recall_at15": 0.4928994082840237,
+          "cross_reference_trustworthiness_at15": 0.9357565295661656,
+          "playlist_at15": 0.5588510354041416,
+          "playlist_query_memberships": 499,
+          "query_tracks": 676,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        },
+        "validation": {
+          "neighbor_recall_at15": 0.24067796610169492,
+          "cross_reference_trustworthiness_at15": 0.859219233227941,
+          "playlist_at15": 0.10256410256410256,
+          "playlist_query_memberships": 26,
+          "query_tracks": 118,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        },
+        "test": {
+          "neighbor_recall_at15": 0.252991452991453,
+          "cross_reference_trustworthiness_at15": 0.8565765571499515,
+          "playlist_at15": 0.2527131782945736,
+          "playlist_query_memberships": 129,
+          "query_tracks": 312,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        }
+      }
+    },
+    {
+      "seed": 41,
+      "parameters": 172610,
+      "output_dim": 2,
+      "selected_epoch": 200,
+      "last_epoch": 400,
+      "training_wall_seconds": 2.2231192080071196,
+      "forward_all_rows_median_ms": 0.742604024708271,
+      "checkpoint_sha256": "d964328f167c5cca04ee5127713aa27c16cc251c382525f724e10b7251133f12",
+      "objective": "Parametric t-SNE KL, train-only perplexity20 affinities",
+      "representation": {
+        "train": {
+          "neighbor_recall_at15": 0.4734714003944773,
+          "cross_reference_trustworthiness_at15": 0.9245112075657488,
+          "playlist_at15": 0.5450901803607214,
+          "playlist_query_memberships": 499,
+          "query_tracks": 676,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        },
+        "validation": {
+          "neighbor_recall_at15": 0.2807909604519774,
+          "cross_reference_trustworthiness_at15": 0.8710888232346793,
+          "playlist_at15": 0.15897435897435896,
+          "playlist_query_memberships": 26,
+          "query_tracks": 118,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        },
+        "test": {
+          "neighbor_recall_at15": 0.1891025641025641,
+          "cross_reference_trustworthiness_at15": 0.8363600721398887,
+          "playlist_at15": 0.2330749354005168,
+          "playlist_query_memberships": 129,
+          "query_tracks": 312,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        }
+      },
+      "final_2d": {
+        "train": {
+          "neighbor_recall_at15": 0.4734714003944773,
+          "cross_reference_trustworthiness_at15": 0.9245112075657488,
+          "playlist_at15": 0.5450901803607214,
+          "playlist_query_memberships": 499,
+          "query_tracks": 676,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        },
+        "validation": {
+          "neighbor_recall_at15": 0.2807909604519774,
+          "cross_reference_trustworthiness_at15": 0.8710888232346793,
+          "playlist_at15": 0.15897435897435896,
+          "playlist_query_memberships": 26,
+          "query_tracks": 118,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        },
+        "test": {
+          "neighbor_recall_at15": 0.1891025641025641,
+          "cross_reference_trustworthiness_at15": 0.8363600721398887,
+          "playlist_at15": 0.2330749354005168,
+          "playlist_query_memberships": 129,
+          "query_tracks": 312,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        }
+      }
+    },
+    {
+      "seed": 3,
+      "parameters": 180608,
+      "output_dim": 64,
+      "selected_epoch": 600,
+      "last_epoch": 600,
+      "training_wall_seconds": 2.254581374931149,
+      "forward_all_rows_median_ms": 1.6482710489071906,
+      "checkpoint_sha256": "7060a059bc675e9169a11438ad5754c53f1de8e31898449ff58182479d588ba2",
+      "objective": "MSE of training fused cosine Gram matrix",
+      "representation": {
+        "train": {
+          "neighbor_recall_at15": 0.6412228796844182,
+          "cross_reference_trustworthiness_at15": 0.9847333351456334,
+          "playlist_at15": 0.5751503006012024,
+          "playlist_query_memberships": 499,
+          "query_tracks": 676,
+          "candidate_tracks": 676,
+          "dimensions": 64
+        },
+        "validation": {
+          "neighbor_recall_at15": 0.6045197740112994,
+          "cross_reference_trustworthiness_at15": 0.9800506228511204,
+          "playlist_at15": 0.21794871794871795,
+          "playlist_query_memberships": 26,
+          "query_tracks": 118,
+          "candidate_tracks": 676,
+          "dimensions": 64
+        },
+        "test": {
+          "neighbor_recall_at15": 0.630982905982906,
+          "cross_reference_trustworthiness_at15": 0.9866328837659112,
+          "playlist_at15": 0.49819121447028425,
+          "playlist_query_memberships": 129,
+          "query_tracks": 312,
+          "candidate_tracks": 676,
+          "dimensions": 64
+        }
+      },
+      "projection": {
+        "rows": 676,
+        "input_dim": 64,
+        "seconds": 0.561502
+      },
+      "final_2d": {
+        "train": {
+          "neighbor_recall_at15": 0.5128205128205128,
+          "cross_reference_trustworthiness_at15": 0.9562589293535224,
+          "playlist_at15": 0.56312625250501,
+          "playlist_query_memberships": 499,
+          "query_tracks": 676,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        },
+        "validation": {
+          "neighbor_recall_at15": 0.4096045197740113,
+          "cross_reference_trustworthiness_at15": 0.8989192971544083,
+          "playlist_at15": 0.16153846153846155,
+          "playlist_query_memberships": 26,
+          "query_tracks": 118,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        },
+        "test": {
+          "neighbor_recall_at15": 0.452991452991453,
+          "cross_reference_trustworthiness_at15": 0.9261556104446013,
+          "playlist_at15": 0.3979328165374677,
+          "playlist_query_memberships": 129,
+          "query_tracks": 312,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        }
+      }
+    },
+    {
+      "seed": 17,
+      "parameters": 180608,
+      "output_dim": 64,
+      "selected_epoch": 600,
+      "last_epoch": 600,
+      "training_wall_seconds": 2.3090760830091313,
+      "forward_all_rows_median_ms": 4.406604042742401,
+      "checkpoint_sha256": "6ad1b60a5370216282ecda92beb4dc813c91e37dd32bd991fd88c6a1bba35df9",
+      "objective": "MSE of training fused cosine Gram matrix",
+      "representation": {
+        "train": {
+          "neighbor_recall_at15": 0.6588757396449704,
+          "cross_reference_trustworthiness_at15": 0.9866789903072151,
+          "playlist_at15": 0.5776887107548431,
+          "playlist_query_memberships": 499,
+          "query_tracks": 676,
+          "candidate_tracks": 676,
+          "dimensions": 64
+        },
+        "validation": {
+          "neighbor_recall_at15": 0.6107344632768361,
+          "cross_reference_trustworthiness_at15": 0.9815563503170407,
+          "playlist_at15": 0.2128205128205128,
+          "playlist_query_memberships": 26,
+          "query_tracks": 118,
+          "candidate_tracks": 676,
+          "dimensions": 64
+        },
+        "test": {
+          "neighbor_recall_at15": 0.6401709401709401,
+          "cross_reference_trustworthiness_at15": 0.9881171750437804,
+          "playlist_at15": 0.4728682170542636,
+          "playlist_query_memberships": 129,
+          "query_tracks": 312,
+          "candidate_tracks": 676,
+          "dimensions": 64
+        }
+      },
+      "projection": {
+        "rows": 676,
+        "input_dim": 64,
+        "seconds": 0.809324
+      },
+      "final_2d": {
+        "train": {
+          "neighbor_recall_at15": 0.5270216962524655,
+          "cross_reference_trustworthiness_at15": 0.9624077614771455,
+          "playlist_at15": 0.5672678690714763,
+          "playlist_query_memberships": 499,
+          "query_tracks": 676,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        },
+        "validation": {
+          "neighbor_recall_at15": 0.4073446327683616,
+          "cross_reference_trustworthiness_at15": 0.925097185507697,
+          "playlist_at15": 0.2230769230769231,
+          "playlist_query_memberships": 26,
+          "query_tracks": 118,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        },
+        "test": {
+          "neighbor_recall_at15": 0.44188034188034186,
+          "cross_reference_trustworthiness_at15": 0.9316905826080139,
+          "playlist_at15": 0.37002583979328163,
+          "playlist_query_memberships": 129,
+          "query_tracks": 312,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        }
+      }
+    },
+    {
+      "seed": 41,
+      "parameters": 180608,
+      "output_dim": 64,
+      "selected_epoch": 600,
+      "last_epoch": 600,
+      "training_wall_seconds": 2.1957576249260455,
+      "forward_all_rows_median_ms": 1.7223545582965016,
+      "checkpoint_sha256": "b5e5573cf6e26f08d8a82daba07f891df0a0e8eec6e7d015b33db28e904c403b",
+      "objective": "MSE of training fused cosine Gram matrix",
+      "representation": {
+        "train": {
+          "neighbor_recall_at15": 0.6650887573964497,
+          "cross_reference_trustworthiness_at15": 0.9872468443324844,
+          "playlist_at15": 0.5819639278557114,
+          "playlist_query_memberships": 499,
+          "query_tracks": 676,
+          "candidate_tracks": 676,
+          "dimensions": 64
+        },
+        "validation": {
+          "neighbor_recall_at15": 0.6175141242937853,
+          "cross_reference_trustworthiness_at15": 0.9803624803469307,
+          "playlist_at15": 0.2128205128205128,
+          "playlist_query_memberships": 26,
+          "query_tracks": 118,
+          "candidate_tracks": 676,
+          "dimensions": 64
+        },
+        "test": {
+          "neighbor_recall_at15": 0.6299145299145299,
+          "cross_reference_trustworthiness_at15": 0.9878606994432682,
+          "playlist_at15": 0.5085271317829457,
+          "playlist_query_memberships": 129,
+          "query_tracks": 312,
+          "candidate_tracks": 676,
+          "dimensions": 64
+        }
+      },
+      "projection": {
+        "rows": 676,
+        "input_dim": 64,
+        "seconds": 0.797565
+      },
+      "final_2d": {
+        "train": {
+          "neighbor_recall_at15": 0.5431952662721894,
+          "cross_reference_trustworthiness_at15": 0.9652139571270211,
+          "playlist_at15": 0.5763527054108216,
+          "playlist_query_memberships": 499,
+          "query_tracks": 676,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        },
+        "validation": {
+          "neighbor_recall_at15": 0.4192090395480226,
+          "cross_reference_trustworthiness_at15": 0.9341419167573732,
+          "playlist_at15": 0.2205128205128205,
+          "playlist_query_memberships": 26,
+          "query_tracks": 118,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        },
+        "test": {
+          "neighbor_recall_at15": 0.38290598290598293,
+          "cross_reference_trustworthiness_at15": 0.8892773595755247,
+          "playlist_at15": 0.3751937984496124,
+          "playlist_query_memberships": 129,
+          "query_tracks": 312,
+          "candidate_tracks": 676,
+          "dimensions": 2
+        }
+      }
+    }
+  ],
+  "limits": [
+    "Fixed 25/75 geometry is the training target; no claim of learning better musical semantics or better modality weights.",
+    "One personal library; primary artists and exact audio duplicates grouped, but aliases and all collaboration credits are not fully resolved.",
+    "Playlist labels never enter training or checkpoint selection; playlist agreement is still a weak, overlapping proxy.",
+    "Inductive metrics query the fixed training catalogue; they are not full-library transductive scores.",
+    "Timings are host CPU only, no phone benchmark. Training and projection costs are separate from forward latency.",
+    "2D compression is for display; region membership should remain in a richer space.",
+    "Personal-library pilot checkpoints are not release assets. No ListenBrainz or MPD training was performed."
+  ],
+  "transductive_context_only": {
+    "projection": {
+      "rows": 1106,
+      "input_dim": 1344,
+      "seconds": 1.951332
+    },
+    "metrics": {
+      "neighbor_recall_at15": 0.5552742616033756,
+      "cross_reference_trustworthiness_at15": 0.9718559668102081,
+      "playlist_at15": 0.6194844910441241,
+      "playlist_query_memberships": 763,
+      "query_tracks": 1106,
+      "candidate_tracks": 1106,
+      "dimensions": 2
+    },
+    "warning": "Uses every row in fitting, unlike the held-out experiment. Do not compare directly with test-to-training recall."
+  },
+  "linear64_representation": {
+    "train": {
+      "neighbor_recall_at15": 0.8859960552268245,
+      "cross_reference_trustworthiness_at15": 0.9990876579344008,
+      "playlist_at15": 0.5839679358717434,
+      "playlist_query_memberships": 499,
+      "query_tracks": 676,
+      "candidate_tracks": 676,
+      "dimensions": 64
+    },
+    "validation": {
+      "neighbor_recall_at15": 0.8694915254237288,
+      "cross_reference_trustworthiness_at15": 0.9987422035626046,
+      "playlist_at15": 0.2641025641025641,
+      "playlist_query_memberships": 26,
+      "query_tracks": 118,
+      "candidate_tracks": 676,
+      "dimensions": 64
+    },
+    "test": {
+      "neighbor_recall_at15": 0.870940170940171,
+      "cross_reference_trustworthiness_at15": 0.9989479599571343,
+      "playlist_at15": 0.5540051679586563,
+      "playlist_query_memberships": 129,
+      "query_tracks": 312,
+      "candidate_tracks": 676,
+      "dimensions": 64
+    }
+  },
+  "verification": {
+    "training_trustworthiness_sklearn": 0.9661062128667265,
+    "training_trustworthiness_ours": 0.9661062128667266,
+    "max_difference": 1.1102230246251565e-16,
+    "note": "Linear64 comparator added after first pilot results; evaluation is exploratory, not a new untouched test."
+  },
+  "plot_model_selection": {
+    "criterion": "Highest final2d validation recall within each family",
+    "seeds": {
+      "2": 41,
+      "64": 41
+    }
+  },
+  "data_readiness": {
+    "mpd_cached_audio_rows": 18386,
+    "mpd_cached_encoder": "mnv4-conv-m-distill-mw-ep4+v3",
+    "mpd_cached_dimensions": 960,
+    "mpd_existing_local_audio_paths": 18386,
+    "mpd_cached_genre_non_null": 0,
+    "mpd_cached_year_non_null": 0,
+    "production_encoder": "mnv4-960-retrieval-distill-v1-p50q4aq",
+    "decision": "Re-extract current audio embeddings and construct current text inputs before supervised fusion training. MPD and ListenBrainz were not used in this geometry pilot."
+  },
+  "provenance": {
+    "application_git_head": "402ae389f6e4220b118dfbfba677fecef1d8c543",
+    "projection_source_sha256": {
+      "core/smart/src/commonMain/kotlin/io/github/nikitasud/latentjam/smart/cluster/Pca.kt": "3eabfb1d47861eb9d85ec764d614fd023da66ad3887506c65902bcc17f6e525d",
+      "core/smart/src/commonMain/kotlin/io/github/nikitasud/latentjam/smart/cluster/Tsne.kt": "3d3c92b84c468e3f6af807cd2e21895db06327eb219a8ae2bfef3213fad1c35f",
+      "core/smart/src/commonMain/kotlin/io/github/nikitasud/latentjam/smart/cluster/LibraryLayout.kt": "10534c999e1d9e83d05d33cef5451c6a2fe86f5696c28e6febd88839b0afb875"
+    },
+    "research_source_sha256": {
+      "parametric_map_pilot.py": "dfc9900bc443fb8b20c5918d451a1d6cb65bc273f81797d85e0491f194095b5f",
+      "verify_and_plot.py": "935ef8cc005bced509dfe4fec7ebb4815ddb2022a2dabdd1003acf7c02191410",
+      "MapProjectionProbe.java": "d102d29543a6b0dede61e490ebd55e150970ba10635f33f661896ae341a0545c"
+    },
+    "python": "3.12.2",
+    "scipy": "1.17.1",
+    "scikit_learn": "1.8.0",
+    "checkpoint_epoch_selection": "Validation neighbor recall in the model output space (2D or 64D)",
+    "illustrative_seed_selection": "Highest final-2D validation recall within each family",
+    "training_wall_seconds_includes": "Optimization, validation, checkpoint saving, output evaluation, and forward timing loop"
+  }
+}
