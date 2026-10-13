@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -74,11 +76,11 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
@@ -300,14 +302,6 @@ fun MapTab(
         page.dots.firstOrNull { it.trackId.value == selectionAnchor && it.claimed }?.region
             ?: savedRegion.takeIf { id -> page.listening.regions.any { it.region == id } }
             ?: largestRegion(page)
-    }
-    // Hull of the selected region, recomputed only when the page or the selection changes: the
-    // layout is fixed for a page, so this never runs per frame.
-    val selectedOutline = remember(page, selectedRegion) {
-        regionOutline(
-            page.dots.filter { it.claimed && it.region == selectedRegion }
-                .map { Offset(it.x, it.y) },
-        )
     }
     val selectRegion: (Int) -> Unit = { region ->
         savedRegion = region
@@ -585,24 +579,6 @@ fun MapTab(
             val frameZoom = zoom
             val framePanX = panX * size.width
             val framePanY = panY * size.height
-            // Under the dots, so the region reads as ground rather than as a shape pasted on top.
-            if (selectedOutline.size >= 3) {
-                val outlinePath = Path()
-                selectedOutline.forEachIndexed { index, point ->
-                    val screen = screenPoint(
-                        point.x, point.y, size.width, size.height, frameZoom, framePanX, framePanY,
-                    )
-                    if (index == 0) outlinePath.moveTo(screen.x, screen.y)
-                    else outlinePath.lineTo(screen.x, screen.y)
-                }
-                outlinePath.close()
-                drawPath(outlinePath, color = accent.copy(alpha = OUTLINE_FILL_ALPHA))
-                drawPath(
-                    path = outlinePath,
-                    color = accent.copy(alpha = OUTLINE_STROKE_ALPHA),
-                    style = Stroke(width = OUTLINE_STROKE_DP.dp.toPx()),
-                )
-            }
             for (index in dotIndex.visibleIndices(
                 size.width, size.height, frameZoom, framePanX, framePanY, dotVisuals.maxRadiusPx,
             )) {
@@ -831,22 +807,32 @@ fun MapTab(
         }
     }
     val content: @Composable (Boolean) -> Unit = { expanded ->
+    val layoutDirection = LocalLayoutDirection.current
+    val bottomContentPadding = if (expanded) 0.dp else contentPadding.calculateBottomPadding()
     BoxWithConstraints(
         Modifier.fillMaxSize()
-            .padding(if (expanded) PaddingValues(0.dp) else contentPadding)
+            .padding(if (expanded) PaddingValues(0.dp) else PaddingValues(
+                start = contentPadding.calculateStartPadding(layoutDirection),
+                top = contentPadding.calculateTopPadding(),
+                end = contentPadding.calculateEndPadding(layoutDirection),
+            ))
             .then(if (expanded) Modifier.safeDrawingPadding() else Modifier
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))),
     ) {
         val windowWidth = maxWidth.value
-        if (mapUsesSidePanel(windowWidth, maxHeight.value)) {
+        // Keep the same usable-height breakpoint while scrolling content continues under the
+        // floating player's existing fade. Outer bottom padding made a hard cut above that fade.
+        val usableHeight = (maxHeight - bottomContentPadding).coerceAtLeast(0.dp)
+        if (mapUsesSidePanel(windowWidth, usableHeight.value)) {
             Row(Modifier.fillMaxSize()) {
-                plot(Modifier.weight(1f).fillMaxSize(), expanded)
+                plot(Modifier.weight(1f).fillMaxSize().padding(bottom = bottomContentPadding), expanded)
                 Column(Modifier.width(mapSidePanelWidth(windowWidth, density.fontScale).dp)) {
                     if (expanded) header()
                     Column(
                         Modifier.weight(1f)
                             .fadingListTop { sideScrollState.canScrollBackward }
-                            .verticalScroll(sideScrollState),
+                            .verticalScroll(sideScrollState)
+                            .padding(bottom = bottomContentPadding),
                     ) {
                         if (!expanded) header()
                         details()
@@ -886,7 +872,14 @@ fun MapTab(
             // Short/narrow windows and enlarged text retain an accessible scrolling layout.
             Column(Modifier.fillMaxSize()) {
                 if (expanded) header()
-                Column(Modifier.weight(1f).verticalScroll(pageScrollState)) {
+                Column(
+                    Modifier.weight(1f)
+                        .fadingListTop { pageScrollState.canScrollBackward }
+                        .verticalScroll(pageScrollState)
+                        // End padding scrolls with the controls: at the end every action clears
+                        // the player, while earlier content dissolves into its dock fade.
+                        .padding(bottom = bottomContentPadding),
+                ) {
                     if (!expanded) header()
                     plot(Modifier.height(mapPortraitPlotHeight(windowWidth).dp), false)
                     details()
@@ -1167,14 +1160,6 @@ private fun rememberWarmRamp(): List<Color> {
 
 /** Reset control and rebuild indicator share a constant slot to keep the plot height stable. */
 private val MAP_HEADER_CONTROL_DP = 96.dp
-
-/**
- * The selected region's outline: a faint fill so the dots inside stay readable, and a crisper edge
- * so the claim itself is visible where two regions interleave.
- */
-private const val OUTLINE_FILL_ALPHA = 0.10f
-private const val OUTLINE_STROKE_ALPHA = 0.55f
-private const val OUTLINE_STROKE_DP = 1.5f
 
 /** [MapLenses.RAMP_STEPS] alphas, evenly spaced from [RAMP_FLOOR_ALPHA] to fully opaque. */
 private fun rampAlphas(): List<Float> {
