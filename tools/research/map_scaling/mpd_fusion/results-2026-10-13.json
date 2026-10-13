@@ -1,0 +1,931 @@
+{
+  "refresh": {
+    "rows": 18386,
+    "audio_success": 18386,
+    "audio_failures": 0,
+    "text_success": 18386,
+    "unique_text_inputs": 6130,
+    "artist_facts_rows": 17382,
+    "genre_non_null": 0,
+    "year_non_null": 0,
+    "duplicate_file_rows": 76,
+    "versions": {
+      "embedding_version.txt": "mnv4-960-retrieval-distill-v1-p50q4aq",
+      "text_encoder_version.txt": "student-s256x3m-emb4-int8-trusted-v1"
+    },
+    "asset_sha256": {
+      "mnv4_audio.onnx": "80591ad57ba6de99597173185820d6f68b45f9ffd8e4eef7ecbb38d195a53606",
+      "text_encoder.onnx": "81386311c03711bc040b429c7cec4438b4a70bfd57c0df9b6f62652d1f36acaa",
+      "text_vocab.txt": "c6882cc7a96e96d9f4fb30be1214a1dc5b3bf040fa014b7f55b864c3acb61811",
+      "music_entities_250k.bin": "7fd1c5b62b00da4dfc51a99d0aeffc6f229744d825ba80382beb357489e0563f",
+      "artist_knowledge.bin": "f73ab5358fad4265469e18022b7af5435392958407b5febab9ba58632a4b0306"
+    },
+    "custom_ops_sha256": "7a0d9bf2ea309d1d6f784679aa4c14ef0b744ac24beb605334627126bbad5381",
+    "vectors_sha256": "5ce3638d58e05d4e7d1e4ed776fccba214398bc067e0a9df3041084113af6f7e",
+    "manifest_sha256": "f6849306535afb6f9d4dc13aa4149a5cf76d72c0aa4c0dfb86addc99673ee92d",
+    "wall_seconds": 332.1713804169558,
+    "ort": "1.25.1",
+    "workers": 8,
+    "limitations": [
+      "Local MPD audio previews, generally 30 seconds; not full tracks.",
+      "Same shipped model assets and window policy; host FFmpeg decoding is not bitwise phone decoder parity.",
+      "Missing genres/years remain absent; artist facts use the shipped frozen pack."
+    ]
+  },
+  "split": {
+    "catalogue_rows": 18386,
+    "excluded_personal_artist_rows": 1133,
+    "splits": {
+      "train": {
+        "tracks": 13967,
+        "groups": 4746
+      },
+      "validation": {
+        "tracks": 1740,
+        "groups": 593
+      },
+      "test": {
+        "tracks": 1546,
+        "groups": 594
+      }
+    },
+    "source_event_rows": 2999990,
+    "unmatched_event_rows": 696386,
+    "unique_source_playlists": 117071,
+    "deduplicated_eligible_playlists": 111469,
+    "train_playlists": 88127,
+    "train_memberships": 1351959,
+    "evaluation": {
+      "validation": {
+        "playlists": 1500,
+        "query_memberships": 2399,
+        "unique_queries": 792
+      },
+      "test": {
+        "playlists": 1500,
+        "query_memberships": 2345,
+        "unique_queries": 793
+      }
+    },
+    "source_sha256": {
+      "events": "1502f0be6d7641992bba7c6ae467c1b066a7be6c06d543b965db2432867c7e6a",
+      "personal_metadata": "4fe7694452f7ffffbff7bc28eef1689d1b4b352545bd9739fd0cbcd4bccbe498",
+      "private_rows": "5979f8916b109b73f32911b294bef65b08266679e81b44a8614de856edd34291"
+    },
+    "split_sha256": "f9e71685e861e68546d74c89b1dd61bae0aba3d2a3744efaa3d382ad062507f9",
+    "protocol_sha256": "f7462f6a987fb285463e2d9873b772ce07ae8468fa817fa0555412b3667a9351"
+  },
+  "protocol": {
+    "frozen_before_training": true,
+    "seeds": [
+      20261013,
+      20261014,
+      20261015
+    ],
+    "track_split": "Approximate 80/10/10 grouped primary artist names and identical audio-file SHA-256; all groups matching personal-library primary artists excluded.",
+    "playlist_split": "Deduplicated complete available membership SHA-256, buckets 0-7 train,8 validation,9 test; disjoint.",
+    "train_signal": "Only train playlist memberships intersected with train tracks; different-artist positive pairs, uniform playlist sampling.",
+    "evaluation": "Up to 1500 held-out playlists per split; up to 2 held-out-artist queries per playlist, >=3 relevant training tracks, rank entire training catalogue. Macro-average within playlist then across playlists.",
+    "selection": "Checkpoint and family selection by validation macro nDCG@20. Test evaluated after all model fits and selection are frozen.",
+    "model_grid": {
+      "output_dimensions": [
+        64,
+        128
+      ],
+      "model_seeds": [
+        3,
+        17,
+        41
+      ],
+      "families": [
+        "two_branch_MLP",
+        "supervised_linear"
+      ],
+      "epochs": 40,
+      "steps_per_epoch": 80,
+      "batch_pairs": 128,
+      "lr": 0.001,
+      "weight_decay": 0.001,
+      "temperature": 0.12,
+      "modality_dropout_each": 0.1,
+      "early_stop_validation_checks": 4,
+      "validation_every_epochs": 5
+    },
+    "baselines": [
+      "fixed_audio25_metadata75_train_centered",
+      "PCA64_train_fit",
+      "PCA128_train_fit",
+      "training_playlist_popularity",
+      "audio_only",
+      "metadata_only"
+    ],
+    "limits": [
+      "Existing local MPD subset and preview audio, not the full million-playlist corpus.",
+      "Artist aliases and all featured credits not exhaustively resolved.",
+      "Frozen encoders have their prior training history; only the new fusion-head split is controlled here.",
+      "Playlist co-occurrence is weak supervision, not judged perceptual similarity.",
+      "Personal-library audit is previously inspected descriptive context; no model selection on it."
+    ]
+  },
+  "training": {
+    "protocol_sha256": "f7462f6a987fb285463e2d9873b772ce07ae8468fa817fa0555412b3667a9351",
+    "vectors_sha256": "5ce3638d58e05d4e7d1e4ed776fccba214398bc067e0a9df3041084113af6f7e",
+    "trainer_source_sha256": "2712114a8c2c42a6a32cefa4e74578a9ab0a418b5ba4826d553f502854eef0bd",
+    "runtime": {
+      "torch": "2.13.0.dev20260506",
+      "numpy": "1.26.4",
+      "threads": 4,
+      "device": "CPU"
+    },
+    "objective": "Symmetric multi-positive InfoNCE (temperature .12); positives share a training playlist and differ in primary-artist/audio group. Same-group candidates excluded from denominator.",
+    "validation_baselines": {
+      "current_1344": {
+        "precision_at20": 0.007683333333333334,
+        "recall_at20": 0.012489499351793887,
+        "ndcg_at20": 0.011393285313727733,
+        "playlists": 1500,
+        "unique_queries": 792
+      },
+      "audio_only": {
+        "precision_at20": 0.009966666666666665,
+        "recall_at20": 0.01308503468990214,
+        "ndcg_at20": 0.012725542210109138,
+        "playlists": 1500,
+        "unique_queries": 792
+      },
+      "metadata_only": {
+        "precision_at20": 0.005216666666666667,
+        "recall_at20": 0.009110434098001973,
+        "ndcg_at20": 0.008003544136665371,
+        "playlists": 1500,
+        "unique_queries": 792
+      },
+      "pca64": {
+        "precision_at20": 0.008483333333333334,
+        "recall_at20": 0.0130741613287788,
+        "ndcg_at20": 0.011606823477180412,
+        "playlists": 1500,
+        "unique_queries": 792
+      },
+      "pca128": {
+        "precision_at20": 0.007899999999999999,
+        "recall_at20": 0.012611705227317993,
+        "ndcg_at20": 0.011350538168025897,
+        "playlists": 1500,
+        "unique_queries": 792
+      },
+      "popularity": {
+        "precision_at20": 0.03323333333333334,
+        "recall_at20": 0.03396436467021132,
+        "ndcg_at20": 0.039687385212545064,
+        "playlists": 1500,
+        "unique_queries": 792
+      }
+    },
+    "limits": [
+      "Existing local MPD subset and preview audio, not the full million-playlist corpus.",
+      "Artist aliases and all featured credits not exhaustively resolved.",
+      "Frozen encoders have their prior training history; only the new fusion-head split is controlled here.",
+      "Playlist co-occurrence is weak supervision, not judged perceptual similarity.",
+      "Personal-library audit is previously inspected descriptive context; no model selection on it."
+    ]
+  },
+  "models": [
+    {
+      "name": "two_branch_MLP-64-seed3",
+      "family": "two_branch_MLP",
+      "dimensions": 64,
+      "seed": 3,
+      "selected_epoch": 20,
+      "last_epoch": 40,
+      "parameters": 411584,
+      "seconds": 21.0851628750097,
+      "checkpoint_sha256": "e7b059c5352c14066d21f2a7292feef2fd4c8bdf730ac23aaadb7f35d4ab03fd",
+      "validation": {
+        "precision_at20": 0.0193,
+        "recall_at20": 0.02648295030195094,
+        "ndcg_at20": 0.024999673545461756,
+        "playlists": 1500,
+        "unique_queries": 792
+      }
+    },
+    {
+      "name": "two_branch_MLP-64-seed17",
+      "family": "two_branch_MLP",
+      "dimensions": 64,
+      "seed": 17,
+      "selected_epoch": 40,
+      "last_epoch": 40,
+      "parameters": 411584,
+      "seconds": 21.42088991694618,
+      "checkpoint_sha256": "1114f4df84ff10de89bcbdda5e7c444567318380844646fe34beb30ab97cdac6",
+      "validation": {
+        "precision_at20": 0.017733333333333334,
+        "recall_at20": 0.025691919223864844,
+        "ndcg_at20": 0.024064357549188932,
+        "playlists": 1500,
+        "unique_queries": 792
+      }
+    },
+    {
+      "name": "two_branch_MLP-64-seed41",
+      "family": "two_branch_MLP",
+      "dimensions": 64,
+      "seed": 41,
+      "selected_epoch": 40,
+      "last_epoch": 40,
+      "parameters": 411584,
+      "seconds": 21.105476249940693,
+      "checkpoint_sha256": "35fc18592f0b2aaa5b7f0b9b27c5562bd47df06ec0b1b5249119cecbf1702af8",
+      "validation": {
+        "precision_at20": 0.018216666666666666,
+        "recall_at20": 0.024767717227575366,
+        "ndcg_at20": 0.023839847415835193,
+        "playlists": 1500,
+        "unique_queries": 792
+      }
+    },
+    {
+      "name": "two_branch_MLP-128-seed3",
+      "family": "two_branch_MLP",
+      "dimensions": 128,
+      "seed": 3,
+      "selected_epoch": 35,
+      "last_epoch": 40,
+      "parameters": 428032,
+      "seconds": 21.321722583961673,
+      "checkpoint_sha256": "69ec631782124b537bcde0044bf2b2406603dd87384e14999a59299cde9b4a6c",
+      "validation": {
+        "precision_at20": 0.01856666666666667,
+        "recall_at20": 0.027605745153639925,
+        "ndcg_at20": 0.024857788630293698,
+        "playlists": 1500,
+        "unique_queries": 792
+      }
+    },
+    {
+      "name": "two_branch_MLP-128-seed17",
+      "family": "two_branch_MLP",
+      "dimensions": 128,
+      "seed": 17,
+      "selected_epoch": 10,
+      "last_epoch": 30,
+      "parameters": 428032,
+      "seconds": 16.96788591600489,
+      "checkpoint_sha256": "33647c48ac6cd1790e3950c4a7ab41f757bf22fc84bdc3f52c4541644d7e2264",
+      "validation": {
+        "precision_at20": 0.017733333333333334,
+        "recall_at20": 0.02523148516476917,
+        "ndcg_at20": 0.022707126409246776,
+        "playlists": 1500,
+        "unique_queries": 792
+      }
+    },
+    {
+      "name": "two_branch_MLP-128-seed41",
+      "family": "two_branch_MLP",
+      "dimensions": 128,
+      "seed": 41,
+      "selected_epoch": 15,
+      "last_epoch": 35,
+      "parameters": 428032,
+      "seconds": 19.356188834062777,
+      "checkpoint_sha256": "53e419b7696efaee670fbdc50b979decc9e028af43aef6a1747bdaea1dbfe22d",
+      "validation": {
+        "precision_at20": 0.019483333333333335,
+        "recall_at20": 0.028456786272902025,
+        "ndcg_at20": 0.02680358439614765,
+        "playlists": 1500,
+        "unique_queries": 792
+      }
+    },
+    {
+      "name": "supervised_linear-64-seed3",
+      "family": "supervised_linear",
+      "dimensions": 64,
+      "seed": 3,
+      "selected_epoch": 40,
+      "last_epoch": 40,
+      "parameters": 86208,
+      "seconds": 14.957038915948942,
+      "checkpoint_sha256": "f47f61e5d67731fbc35becdb06e96c28b94829aff09f4c62597c8e44fc1a4321",
+      "validation": {
+        "precision_at20": 0.02395,
+        "recall_at20": 0.03155795066377349,
+        "ndcg_at20": 0.031251332200491505,
+        "playlists": 1500,
+        "unique_queries": 792
+      }
+    },
+    {
+      "name": "supervised_linear-64-seed17",
+      "family": "supervised_linear",
+      "dimensions": 64,
+      "seed": 17,
+      "selected_epoch": 35,
+      "last_epoch": 40,
+      "parameters": 86208,
+      "seconds": 14.814285208005458,
+      "checkpoint_sha256": "e69e9826813a117863a4356e6bfeafe6ad26152f0567e58cbb7a1cd86148bb22",
+      "validation": {
+        "precision_at20": 0.0239,
+        "recall_at20": 0.03273170447764822,
+        "ndcg_at20": 0.032424848503203145,
+        "playlists": 1500,
+        "unique_queries": 792
+      }
+    },
+    {
+      "name": "supervised_linear-64-seed41",
+      "family": "supervised_linear",
+      "dimensions": 64,
+      "seed": 41,
+      "selected_epoch": 35,
+      "last_epoch": 40,
+      "parameters": 86208,
+      "seconds": 15.043387749930844,
+      "checkpoint_sha256": "e4353d64f71dae8fc16defba9aa47f162136bff7ac9c62d90527b84085e7c119",
+      "validation": {
+        "precision_at20": 0.023383333333333336,
+        "recall_at20": 0.03131508577076417,
+        "ndcg_at20": 0.033406408451967344,
+        "playlists": 1500,
+        "unique_queries": 792
+      }
+    },
+    {
+      "name": "supervised_linear-128-seed3",
+      "family": "supervised_linear",
+      "dimensions": 128,
+      "seed": 3,
+      "selected_epoch": 40,
+      "last_epoch": 40,
+      "parameters": 172416,
+      "seconds": 16.050496750045568,
+      "checkpoint_sha256": "991acf762a8f29c5054051bdda892debb80fa32b0c4f964fa786a32843f69c9c",
+      "validation": {
+        "precision_at20": 0.02506666666666667,
+        "recall_at20": 0.03250699764970255,
+        "ndcg_at20": 0.03236175258889394,
+        "playlists": 1500,
+        "unique_queries": 792
+      }
+    },
+    {
+      "name": "supervised_linear-128-seed17",
+      "family": "supervised_linear",
+      "dimensions": 128,
+      "seed": 17,
+      "selected_epoch": 20,
+      "last_epoch": 40,
+      "parameters": 172416,
+      "seconds": 16.39075724990107,
+      "checkpoint_sha256": "5cd9d65cddc2b951958d48d9c8738e536fccf5f382341dfce70ef28be4b474a1",
+      "validation": {
+        "precision_at20": 0.025433333333333336,
+        "recall_at20": 0.03349801734680635,
+        "ndcg_at20": 0.03452528814497798,
+        "playlists": 1500,
+        "unique_queries": 792
+      }
+    },
+    {
+      "name": "supervised_linear-128-seed41",
+      "family": "supervised_linear",
+      "dimensions": 128,
+      "seed": 41,
+      "selected_epoch": 40,
+      "last_epoch": 40,
+      "parameters": 172416,
+      "seconds": 16.14092874992639,
+      "checkpoint_sha256": "ea178b3701b7b61e4291792a41ed642e99859ef80df785b3fe7dad2090d97b02",
+      "validation": {
+        "precision_at20": 0.024133333333333336,
+        "recall_at20": 0.032567957777661506,
+        "ndcg_at20": 0.0335197547935163,
+        "playlists": 1500,
+        "unique_queries": 792
+      }
+    }
+  ],
+  "test": {
+    "metrics": {
+      "current_1344": {
+        "precision_at20": 0.00675,
+        "recall_at20": 0.009680790023565313,
+        "ndcg_at20": 0.009277649754756383,
+        "playlists": 1500,
+        "unique_queries": 793
+      },
+      "audio_only": {
+        "precision_at20": 0.011216666666666666,
+        "recall_at20": 0.014978933143968372,
+        "ndcg_at20": 0.015319024923976014,
+        "playlists": 1500,
+        "unique_queries": 793
+      },
+      "metadata_only": {
+        "precision_at20": 0.004,
+        "recall_at20": 0.006257504685118719,
+        "ndcg_at20": 0.005664966398785314,
+        "playlists": 1500,
+        "unique_queries": 793
+      },
+      "pca64": {
+        "precision_at20": 0.006716666666666666,
+        "recall_at20": 0.010132335204987727,
+        "ndcg_at20": 0.009101194858211122,
+        "playlists": 1500,
+        "unique_queries": 793
+      },
+      "pca128": {
+        "precision_at20": 0.006616666666666666,
+        "recall_at20": 0.009588774414925071,
+        "ndcg_at20": 0.008839285801568038,
+        "playlists": 1500,
+        "unique_queries": 793
+      },
+      "popularity": {
+        "precision_at20": 0.028700000000000003,
+        "recall_at20": 0.028122427020170194,
+        "ndcg_at20": 0.033609762722934346,
+        "playlists": 1500,
+        "unique_queries": 793
+      },
+      "two_branch_MLP-64-seed3": {
+        "precision_at20": 0.015533333333333336,
+        "recall_at20": 0.02227979265713743,
+        "ndcg_at20": 0.020607221255169794,
+        "playlists": 1500,
+        "unique_queries": 793
+      },
+      "two_branch_MLP-64-seed17": {
+        "precision_at20": 0.01675,
+        "recall_at20": 0.023502307867421166,
+        "ndcg_at20": 0.022263853746313855,
+        "playlists": 1500,
+        "unique_queries": 793
+      },
+      "two_branch_MLP-64-seed41": {
+        "precision_at20": 0.016766666666666666,
+        "recall_at20": 0.02282337866714597,
+        "ndcg_at20": 0.02121629916099628,
+        "playlists": 1500,
+        "unique_queries": 793
+      },
+      "two_branch_MLP-128-seed3": {
+        "precision_at20": 0.019133333333333332,
+        "recall_at20": 0.026981343539862857,
+        "ndcg_at20": 0.025366209072581348,
+        "playlists": 1500,
+        "unique_queries": 793
+      },
+      "two_branch_MLP-128-seed17": {
+        "precision_at20": 0.016383333333333337,
+        "recall_at20": 0.02390259383187688,
+        "ndcg_at20": 0.021853613056057743,
+        "playlists": 1500,
+        "unique_queries": 793
+      },
+      "two_branch_MLP-128-seed41": {
+        "precision_at20": 0.016050000000000002,
+        "recall_at20": 0.022078044058662927,
+        "ndcg_at20": 0.020668332033001047,
+        "playlists": 1500,
+        "unique_queries": 793
+      },
+      "supervised_linear-64-seed3": {
+        "precision_at20": 0.022,
+        "recall_at20": 0.028834525943398207,
+        "ndcg_at20": 0.028616415036780717,
+        "playlists": 1500,
+        "unique_queries": 793
+      },
+      "supervised_linear-64-seed17": {
+        "precision_at20": 0.02215,
+        "recall_at20": 0.0283904044671595,
+        "ndcg_at20": 0.02772861366323272,
+        "playlists": 1500,
+        "unique_queries": 793
+      },
+      "supervised_linear-64-seed41": {
+        "precision_at20": 0.0219,
+        "recall_at20": 0.028458936144851586,
+        "ndcg_at20": 0.0283501127254805,
+        "playlists": 1500,
+        "unique_queries": 793
+      },
+      "supervised_linear-128-seed3": {
+        "precision_at20": 0.022033333333333332,
+        "recall_at20": 0.028941513326606723,
+        "ndcg_at20": 0.02982046264581147,
+        "playlists": 1500,
+        "unique_queries": 793
+      },
+      "supervised_linear-128-seed17": {
+        "precision_at20": 0.0205,
+        "recall_at20": 0.027296592825135774,
+        "ndcg_at20": 0.028179509695803878,
+        "playlists": 1500,
+        "unique_queries": 793
+      },
+      "supervised_linear-128-seed41": {
+        "precision_at20": 0.022833333333333334,
+        "recall_at20": 0.031277186090389646,
+        "ndcg_at20": 0.031059565040000868,
+        "playlists": 1500,
+        "unique_queries": 793
+      }
+    },
+    "validation_selected_models": {
+      "two_branch_MLP-64": "two_branch_MLP-64-seed3",
+      "two_branch_MLP-128": "two_branch_MLP-128-seed41",
+      "supervised_linear-64": "supervised_linear-64-seed41",
+      "supervised_linear-128": "supervised_linear-128-seed17"
+    },
+    "comparisons": {
+      "two_branch_MLP-64": {
+        "current_1344": {
+          "delta_ndcg20": 0.011329571500413412,
+          "playlist_bootstrap_95_percent_interval": [
+            0.00888290003483893,
+            0.01385423157163614
+          ]
+        },
+        "pca64": {
+          "delta_ndcg20": 0.011506026396958675,
+          "playlist_bootstrap_95_percent_interval": [
+            0.009073912478099305,
+            0.014186103491703048
+          ]
+        }
+      },
+      "two_branch_MLP-128": {
+        "current_1344": {
+          "delta_ndcg20": 0.011390682278244663,
+          "playlist_bootstrap_95_percent_interval": [
+            0.008894087513466523,
+            0.013910109571954274
+          ]
+        },
+        "pca128": {
+          "delta_ndcg20": 0.01182904623143301,
+          "playlist_bootstrap_95_percent_interval": [
+            0.009364111153102199,
+            0.014300609638595703
+          ]
+        }
+      },
+      "supervised_linear-64": {
+        "current_1344": {
+          "delta_ndcg20": 0.019072462970724114,
+          "playlist_bootstrap_95_percent_interval": [
+            0.016421044615862256,
+            0.021959797585052773
+          ]
+        },
+        "pca64": {
+          "delta_ndcg20": 0.019248917867269375,
+          "playlist_bootstrap_95_percent_interval": [
+            0.016415196464074286,
+            0.022182247016221672
+          ]
+        }
+      },
+      "supervised_linear-128": {
+        "current_1344": {
+          "delta_ndcg20": 0.018901859941047493,
+          "playlist_bootstrap_95_percent_interval": [
+            0.016056650499422745,
+            0.02177864370553595
+          ]
+        },
+        "pca128": {
+          "delta_ndcg20": 0.019340223894235835,
+          "playlist_bootstrap_95_percent_interval": [
+            0.01648241834189713,
+            0.022298777322520516
+          ]
+        }
+      }
+    },
+    "interval_note": "Descriptive paired playlist bootstrap; playlists share tracks/artists, so not independent population confidence. Fixed one split and small seed grid.",
+    "frozen_selection_sha256": "3e4f39a584b6fbb3baa4d5d9bff7629c6ab405dc321694e9ceef2f6f2ac3e3e3",
+    "test_evaluated_after_all_training": true
+  },
+  "personal_transfer": {
+    "rows": 1106,
+    "complete_modalities_only": true,
+    "metrics": {
+      "current_1344": {
+        "dimensions": 1344,
+        "playlist_at15": 0.6268239405854086,
+        "playlist_query_memberships": 763,
+        "same_artist_at15": 0.2620253164556962,
+        "map_playlist_at15": 0.6156400174748798,
+        "map_neighbor_recall_at15": 0.5584086799276673,
+        "map_trustworthiness_at15": 0.9739541503102638,
+        "projection_seconds": 2.045695,
+        "regions": 18,
+        "assigned_tracks": 991,
+        "largest_region": 146,
+        "assigned_genre_known": 989,
+        "dominant_genre_coverage": 0.7957532861476239,
+        "within_region_playlist_agreement": 0.5119459696145586,
+        "within_region_playlist_memberships": 720,
+        "mean_coordinate_std": 0.015572218224406242
+      },
+      "pca64": {
+        "dimensions": 64,
+        "playlist_at15": 0.6224552206203582,
+        "playlist_query_memberships": 763,
+        "same_artist_at15": 0.2620253164556962,
+        "map_playlist_at15": 0.6083005679335954,
+        "map_neighbor_recall_at15": 0.548221820373719,
+        "map_trustworthiness_at15": 0.9679341035244118,
+        "projection_seconds": 1.800712,
+        "regions": 18,
+        "assigned_tracks": 984,
+        "largest_region": 149,
+        "assigned_genre_known": 982,
+        "dominant_genre_coverage": 0.7230142566191446,
+        "within_region_playlist_agreement": 0.522825225881818,
+        "within_region_playlist_memberships": 715,
+        "mean_coordinate_std": 0.099130779504776
+      },
+      "pca128": {
+        "dimensions": 128,
+        "playlist_at15": 0.6221057230231544,
+        "playlist_query_memberships": 763,
+        "same_artist_at15": 0.2629897528631706,
+        "map_playlist_at15": 0.6207077326343382,
+        "map_neighbor_recall_at15": 0.5529837251356238,
+        "map_trustworthiness_at15": 0.9718540187911484,
+        "projection_seconds": 2.23647,
+        "regions": 18,
+        "assigned_tracks": 928,
+        "largest_region": 147,
+        "assigned_genre_known": 926,
+        "dominant_genre_coverage": 0.7894168466522679,
+        "within_region_playlist_agreement": 0.5554639884901968,
+        "within_region_playlist_memberships": 680,
+        "mean_coordinate_std": 0.07087762653827667
+      },
+      "two_branch_MLP-64": {
+        "dimensions": 64,
+        "playlist_at15": 0.4444735692442115,
+        "playlist_query_memberships": 763,
+        "same_artist_at15": 0.17450271247739602,
+        "map_playlist_at15": 0.4021843599825251,
+        "map_neighbor_recall_at15": 0.526702833031947,
+        "map_trustworthiness_at15": 0.9741059844815236,
+        "projection_seconds": 2.228078,
+        "regions": 18,
+        "assigned_tracks": 890,
+        "largest_region": 112,
+        "assigned_genre_known": 888,
+        "dominant_genre_coverage": 0.7173423423423423,
+        "within_region_playlist_agreement": 0.3495331431512342,
+        "within_region_playlist_memberships": 604,
+        "mean_coordinate_std": 0.11617115885019302
+      },
+      "two_branch_MLP-128": {
+        "dimensions": 128,
+        "playlist_at15": 0.45775447793796414,
+        "playlist_query_memberships": 763,
+        "same_artist_at15": 0.188667872212176,
+        "map_playlist_at15": 0.4275229357798165,
+        "map_neighbor_recall_at15": 0.5216395418927066,
+        "map_trustworthiness_at15": 0.9722660526510591,
+        "projection_seconds": 1.910284,
+        "regions": 18,
+        "assigned_tracks": 882,
+        "largest_region": 136,
+        "assigned_genre_known": 880,
+        "dominant_genre_coverage": 0.6613636363636364,
+        "within_region_playlist_agreement": 0.4047235391510212,
+        "within_region_playlist_memberships": 612,
+        "mean_coordinate_std": 0.08156923949718475
+      },
+      "supervised_linear-64": {
+        "dimensions": 64,
+        "playlist_at15": 0.5575360419397116,
+        "playlist_query_memberships": 763,
+        "same_artist_at15": 0.22447257383966246,
+        "map_playlist_at15": 0.5332459589340324,
+        "map_neighbor_recall_at15": 0.4606389391199518,
+        "map_trustworthiness_at15": 0.9569008018603026,
+        "projection_seconds": 1.814132,
+        "regions": 18,
+        "assigned_tracks": 847,
+        "largest_region": 86,
+        "assigned_genre_known": 845,
+        "dominant_genre_coverage": 0.7467455621301775,
+        "within_region_playlist_agreement": 0.4636121947184005,
+        "within_region_playlist_memberships": 585,
+        "mean_coordinate_std": 0.1133335754275322
+      },
+      "supervised_linear-128": {
+        "dimensions": 128,
+        "playlist_at15": 0.5556138051550896,
+        "playlist_query_memberships": 763,
+        "same_artist_at15": 0.22742616033755275,
+        "map_playlist_at15": 0.5344692005242465,
+        "map_neighbor_recall_at15": 0.46787221217600966,
+        "map_trustworthiness_at15": 0.9570475155243204,
+        "projection_seconds": 1.891338,
+        "regions": 18,
+        "assigned_tracks": 835,
+        "largest_region": 79,
+        "assigned_genre_known": 833,
+        "dominant_genre_coverage": 0.8163265306122449,
+        "within_region_playlist_agreement": 0.4009851503124387,
+        "within_region_playlist_memberships": 571,
+        "mean_coordinate_std": 0.08135336637496948
+      }
+    },
+    "selection": {
+      "two_branch_MLP-64": "two_branch_MLP-64-seed3",
+      "two_branch_MLP-128": "two_branch_MLP-128-seed41",
+      "supervised_linear-64": "supervised_linear-64-seed41",
+      "supervised_linear-128": "supervised_linear-128-seed17"
+    },
+    "limits": [
+      "Previously inspected personal library; descriptive audit, not independent blind assessment.",
+      "Primary artists present here excluded from MPD head fitting/validation/test; aliases and collaboration credits not exhaustive.",
+      "Kotlin production clustering, routing, naming and PCA/t-SNE applied unchanged to each candidate representation.",
+      "Playlist and genre agreement are metadata proxies, not listening judgments.",
+      "MPD has preview audio and artist-only text with facts; personal library has fuller metadata and full-song window sampling."
+    ]
+  },
+  "query_swap": {
+    "current_1344": {
+      "actual_ndcg20": 0.009277649754756383,
+      "query_swapped_ndcg20_mean": 0.0012665828731267216,
+      "query_swapped_ndcg20_range": [
+        0.0010707396391084866,
+        0.0016871315366355458
+      ],
+      "permutations": 5
+    },
+    "two_branch_MLP-64": {
+      "actual_ndcg20": 0.020607221255169794,
+      "query_swapped_ndcg20_mean": 0.0017058567991384266,
+      "query_swapped_ndcg20_range": [
+        0.0013933375594523323,
+        0.0022108221432995917
+      ],
+      "permutations": 5
+    },
+    "two_branch_MLP-128": {
+      "actual_ndcg20": 0.020668332033001047,
+      "query_swapped_ndcg20_mean": 0.00194754584653315,
+      "query_swapped_ndcg20_range": [
+        0.001357537257446437,
+        0.0024249603255992137
+      ],
+      "permutations": 5
+    },
+    "supervised_linear-64": {
+      "actual_ndcg20": 0.0283501127254805,
+      "query_swapped_ndcg20_mean": 0.003400123731742963,
+      "query_swapped_ndcg20_range": [
+        0.0023849058400878197,
+        0.004048375469676168
+      ],
+      "permutations": 5
+    },
+    "supervised_linear-128": {
+      "actual_ndcg20": 0.028179509695803878,
+      "query_swapped_ndcg20_mean": 0.0032467166001899257,
+      "query_swapped_ndcg20_range": [
+        0.002504943860520198,
+        0.004140101665059075
+      ],
+      "permutations": 5
+    }
+  },
+  "verification": {
+    "split_isolation": "Passed for normalized primary artists and exact audio SHA-256; personal primary artists excluded.",
+    "training_playlist_rows_only": true,
+    "all_vectors_finite_and_unit": true,
+    "checkpoints_verified": 12,
+    "audio_norm_max_error_float64": 2.1699740837544113e-06,
+    "audio_norm_tolerance": 1e-05,
+    "checkpoint_replay_max_absolute_error": 0.0,
+    "ndcg_sklearn_actual_queries": 25,
+    "ndcg_max_absolute_difference": 1.3877787807814457e-17,
+    "multi_positive_loss_gradient_checks": true,
+    "limits": "Artist aliases and all collaboration credits remain an explicit limitation."
+  },
+  "audio_only_followup": {
+    "metrics": {
+      "audio_only": {
+        "tracks": 1107,
+        "dimensions": 960,
+        "raw_clusters": 16,
+        "regions": 18,
+        "assigned_tracks": 879,
+        "unassigned_tracks": 228,
+        "sizes": [
+          95,
+          80,
+          74,
+          72,
+          72,
+          69,
+          52,
+          51,
+          44,
+          43,
+          43,
+          39,
+          37,
+          37,
+          30,
+          18,
+          18,
+          5
+        ],
+        "playlist_at15": 0.32214941022280474,
+        "map_playlist_at15": 0.28623853211009176,
+        "same_artist_at15": 0.11339957844022884,
+        "dominant_genre_coverage": 0.6856492027334852,
+        "within_region_playlist_agreement": 0.3133481861891264,
+        "within_region_audio_pair_cosine": 0.4346186261823413,
+        "genre_known_assigned": 878,
+        "name_sources": {
+          "GENRE_BLEND": 4,
+          "MAJOR_FAMILIES": 3,
+          "GENRE": 7,
+          "LEADING_STYLE": 2,
+          "SEMANTIC": 2
+        }
+      },
+      "current_1344": {
+        "tracks": 1107,
+        "dimensions": 1344,
+        "raw_clusters": 16,
+        "regions": 17,
+        "assigned_tracks": 974,
+        "unassigned_tracks": 133,
+        "sizes": [
+          148,
+          106,
+          79,
+          75,
+          74,
+          68,
+          64,
+          60,
+          59,
+          47,
+          44,
+          39,
+          38,
+          20,
+          20,
+          19,
+          14
+        ],
+        "playlist_at15": 0.6268239405854086,
+        "map_playlist_at15": 0.6128440366972477,
+        "same_artist_at15": 0.2618488407106293,
+        "dominant_genre_coverage": 0.7713697219361483,
+        "within_region_playlist_agreement": 0.5048439425329116,
+        "within_region_audio_pair_cosine": 0.22818677615664368,
+        "genre_known_assigned": 971,
+        "name_sources": {
+          "GENRE_BLEND": 4,
+          "GENRE": 10,
+          "MAJOR_FAMILIES": 2,
+          "SEMANTIC": 1
+        }
+      }
+    },
+    "production_control_memberships_match_saved_replay": true,
+    "limits": [
+      "Clustering geometry uses only audio for audio_only; production content routing and names still consult tags/semantics.",
+      "No new listening or MOSS evaluation. Metadata agreement and audio-vector coherence are imperfect, different proxies.",
+      "Full 1107-row population; do not mix with the separate 1106 complete-modality MLP transfer table."
+    ]
+  },
+  "provenance": {
+    "application_head": "ca4fb985b86f3747e406ded363f2d8d833440ec3",
+    "source_sha256": {
+      "FusionRegionProbe.java": "9565fbcdeac79a6c6f810686f95d9d7aca16f7368bdc484fc885008e46051ceb",
+      "MapProjectionProbe.java": "d102d29543a6b0dede61e490ebd55e150970ba10635f33f661896ae341a0545c",
+      "MpdTextInputs.java": "58cfb410ebbf158ce08ecd0b69080a21cabc2271a8dda91f68032a8cf33dad09",
+      "audit_audio_only.py": "56959d69259e8893a18707f2af9d13346bb61fa321be889a38a0c96ce3a817d6",
+      "audit_transfer.py": "3eaa35dfb1cc948cd3c9af636d32feb1cdab1ebf58415080d2703bb4b363cb9e",
+      "prepare_experiment.py": "6fbf2b18be69c7e20fc41dad38b8a14c8f2f3b592f2c0d57797f109675684dc0",
+      "refresh_mpd.py": "4a05c26c9e67d52caff6f5c31fb05ede71c6e4168f53c4a53fc6bfabb5b43f66",
+      "render_audio_only.py": "35cb4045570b550278f9c9a9e1baf56499d3ebca1139bdf4ac179435208355d2",
+      "render_results.py": "ed07a86a3de1768e3c173ca1893bb08e10db03e92e0f270730e77ef5bfb86a5a",
+      "train_fusion.py": "2712114a8c2c42a6a32cefa4e74578a9ab0a418b5ba4826d553f502854eef0bd",
+      "verify_experiment.py": "11e28e0967b57428dbf598cd8a1432fbd46a8477ed3f3f206a9f635821e5c509"
+    },
+    "split_summary_sha256": "512d1f0e892bcfe9c0c2cbb264cfff98fe4075240c5b34ee8b371fc6aafeaab7",
+    "transfer_audit_protocol_sha256": "b27b41fe4fb0206c39d79cad3465e408e8222090794616ba91deffacae3449d4"
+  }
+}

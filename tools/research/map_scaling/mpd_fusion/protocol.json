@@ -1,0 +1,52 @@
+{
+  "frozen_before_training": true,
+  "seeds": [
+    20261013,
+    20261014,
+    20261015
+  ],
+  "track_split": "Approximate 80/10/10 grouped primary artist names and identical audio-file SHA-256; all groups matching personal-library primary artists excluded.",
+  "playlist_split": "Deduplicated complete available membership SHA-256, buckets 0-7 train,8 validation,9 test; disjoint.",
+  "train_signal": "Only train playlist memberships intersected with train tracks; different-artist positive pairs, uniform playlist sampling.",
+  "evaluation": "Up to 1500 held-out playlists per split; up to 2 held-out-artist queries per playlist, >=3 relevant training tracks, rank entire training catalogue. Macro-average within playlist then across playlists.",
+  "selection": "Checkpoint and family selection by validation macro nDCG@20. Test evaluated after all model fits and selection are frozen.",
+  "model_grid": {
+    "output_dimensions": [
+      64,
+      128
+    ],
+    "model_seeds": [
+      3,
+      17,
+      41
+    ],
+    "families": [
+      "two_branch_MLP",
+      "supervised_linear"
+    ],
+    "epochs": 40,
+    "steps_per_epoch": 80,
+    "batch_pairs": 128,
+    "lr": 0.001,
+    "weight_decay": 0.001,
+    "temperature": 0.12,
+    "modality_dropout_each": 0.1,
+    "early_stop_validation_checks": 4,
+    "validation_every_epochs": 5
+  },
+  "baselines": [
+    "fixed_audio25_metadata75_train_centered",
+    "PCA64_train_fit",
+    "PCA128_train_fit",
+    "training_playlist_popularity",
+    "audio_only",
+    "metadata_only"
+  ],
+  "limits": [
+    "Existing local MPD subset and preview audio, not the full million-playlist corpus.",
+    "Artist aliases and all featured credits not exhaustively resolved.",
+    "Frozen encoders have their prior training history; only the new fusion-head split is controlled here.",
+    "Playlist co-occurrence is weak supervision, not judged perceptual similarity.",
+    "Personal-library audit is previously inspected descriptive context; no model selection on it."
+  ]
+}
