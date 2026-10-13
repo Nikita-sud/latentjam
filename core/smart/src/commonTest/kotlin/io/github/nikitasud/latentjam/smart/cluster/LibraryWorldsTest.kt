@@ -226,7 +226,7 @@ class LibraryWorldsTest {
 
         val world = library.discover(k = 1).single()
 
-        assertEquals("Rock + Pop", world.name)
+        assertEquals("Rock + Pop • Mix", world.name)
         assertEquals(LibraryWorldNameSource.MAJOR_FAMILIES, world.nameSource)
         // A descriptive name claims nothing about coverage, so nobody is dropped for its sake.
         assertEquals(30, world.tracks.size)
@@ -266,7 +266,7 @@ class LibraryWorldsTest {
         val world = library.discover(k = 1).single()
 
         // The tag's own spelling, not the lowercased family key.
-        assertEquals("Anime OST", world.name)
+        assertEquals("Anime OST • Mix", world.name)
         assertEquals(LibraryWorldNameSource.LEADING_STYLE, world.nameSource)
         // Descriptive: nobody is removed for the title, but a member of the style leads.
         assertEquals(32, world.tracks.size)
@@ -296,7 +296,7 @@ class LibraryWorldsTest {
 
         val world = library.discover(k = 1).single()
 
-        assertEquals("Soundtrack", world.name)
+        assertEquals("Soundtrack • Mix", world.name)
         assertEquals(LibraryWorldNameSource.LEADING_STYLE, world.nameSource)
     }
 
@@ -311,7 +311,7 @@ class LibraryWorldsTest {
 
         val world = library.discover(k = 1).single()
 
-        assertEquals("Rap + Dance", world.name)
+        assertEquals("Rap + Dance • Mix", world.name)
         assertEquals(LibraryWorldNameSource.MAJOR_FAMILIES, world.nameSource)
     }
 

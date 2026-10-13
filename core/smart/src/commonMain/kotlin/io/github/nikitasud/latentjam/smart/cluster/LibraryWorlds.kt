@@ -15,7 +15,7 @@ import io.github.nikitasud.latentjam.smart.TrackSemantics
  *
  * @property name generated locally from evidence in the members — a genre (optionally sharpened
  *   by a shared decade), a supported two-style blend, an artist, a shared decade, the one or two
- *   styles leading the region, or a neutral discovery label — or the listener's playlist or an
+ *   styles leading a mixed region, or a neutral discovery label — or the listener's playlist or an
  *   album that holds most of it. No filename text is treated as a genre and no network model is
  *   involved.
  * @property tracks members, ordered by centrality with the nearest member supporting the name first.
@@ -27,8 +27,8 @@ public data class LibraryWorld(
     public val content: LibraryWorldContent = LibraryWorldContent.UNKNOWN,
     public val semanticTitle: LibraryWorldSemanticTitle? = null,
     /**
-     * The style families the name claims: the two of a blend, or the one of a
-     * [LibraryWorldNameSource.LEADING_STYLE] name. Other coherent members may still be present.
+     * The style families the name claims: a supported blend, the leading pair of a mixed
+     * region, or one leading style. Other coherent members may still be present.
      */
     public val blendFamilies: Set<String> = emptySet(),
 ) {
@@ -51,6 +51,7 @@ public data class LibraryWorld(
         LibraryWorldNameSource.ARTIST ->
             track.worldArtistKey() != null && track.worldArtistKey() == representative.worldArtistKey()
         LibraryWorldNameSource.GENRE_BLEND,
+        LibraryWorldNameSource.MAJOR_FAMILIES,
         LibraryWorldNameSource.LEADING_STYLE,
         -> Genres.families(track.genre).any { it in blendFamilies }
         LibraryWorldNameSource.DECADE ->
@@ -59,7 +60,6 @@ public data class LibraryWorld(
         LibraryWorldNameSource.GENERIC -> true
         LibraryWorldNameSource.PLAYLIST -> true
         LibraryWorldNameSource.ALBUM -> true
-        LibraryWorldNameSource.MAJOR_FAMILIES -> true
     }
 }
 
@@ -83,17 +83,17 @@ public enum class LibraryWorldNameSource {
     GENRE_BLEND,
 
     /**
-     * The two largest followings, joined with "+", in a region no single style or well-covered pair
-     * could name. Descriptive only: it claims nothing about coverage, so no member is removed for
-     * the sake of the title, and "Discovery mix" stays for regions whose styles are all marginal.
+     * The two largest followings, joined with "+" and marked as a mix, in a region no single
+     * style or well-covered pair could name. No member is removed for the title, but the cover
+     * must support one of the named families. Marginal evidence keeps "Discovery mix".
      */
     MAJOR_FAMILIES,
 
     /**
      * One style followed by at least half of the region — the coverage a [MAJOR_FAMILIES] pair
      * needs together — yet short of the share a [GENRE] name needs, with no second style to pair it
-     * with. Descriptive like the pair: no member is removed for the title, but the region leads
-     * with a member of that style.
+     * with. Marked as a mix like the pair: no member is removed for the title, but the region
+     * leads with a member of that style.
      */
     LEADING_STYLE,
 }
@@ -131,10 +131,9 @@ public enum class LibraryWorldSemanticTitle {
  * cannot collapse under its own feedback, because nothing here is derived from what was already
  * played. Everything else on a For You page can only reflect existing habits back.
  *
- * Run it over the metadata-text index, not the audio one. On a fresh install the audio index is
- * empty until the listener goes looking for the button that fills it, while text vectors are
- * encoded for the whole library at first launch — clustering the wrong space produces a section
- * that is missing for almost everybody.
+ * Production uses the space selected by [LibraryVectorFusion]: normalized, weighted audio
+ * and metadata when both have enough coverage, otherwise the best-covered single modality.
+ * Membership is discovered in that full-dimensional space, independently of the 2D map layout.
  */
 public object LibraryWorlds {
 
@@ -299,7 +298,7 @@ public object LibraryWorlds {
 
     /**
      * @param library the tracks to consider; ordering is the tie-break, so keep it stable
-     * @param vectors embeddings by id — the metadata-text index
+     * @param vectors embeddings by id; production uses the fused-space overload
      * @param dim their dimension
      * @return named worlds, largest first, each with its nearest supported member at index 0.
      *   Tracks with no vector are absent rather than pooled. Coherent regions without enough
@@ -749,10 +748,13 @@ public object LibraryWorlds {
                 firstOnly >= side && secondOnly >= side &&
                 covered >= facts.size * MAJOR_FAMILIES_COVERAGE
             ) {
+                val families = linkedSetOf(first, second)
+                val representative = facts.first { fact -> fact.families.any { it in families } }.track
                 return WorldName(
-                    text = listOf(first, second).joinToString(" + ") { displayFamily(it) },
+                    text = families.joinToString(" + ", transform = ::displayFamily) + " • Mix",
                     source = LibraryWorldNameSource.MAJOR_FAMILIES,
-                    tracks = tracks,
+                    tracks = listOf(representative) + tracks.filter { it.id != representative.id },
+                    blendFamilies = families,
                 )
             }
         }
@@ -783,7 +785,7 @@ public object LibraryWorlds {
                     ?: displayFamily(leading)
                 val representative = members.first().track
                 return WorldName(
-                    text = text,
+                    text = "$text • Mix",
                     source = LibraryWorldNameSource.LEADING_STYLE,
                     tracks = listOf(representative) + tracks.filter { it.id != representative.id },
                     blendFamilies = setOf(leading),

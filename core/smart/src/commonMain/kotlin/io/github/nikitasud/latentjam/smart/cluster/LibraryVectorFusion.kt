@@ -101,8 +101,11 @@ public enum class LibraryVectorSource {
 public object LibraryVectorFusion {
 
     /**
-     * Cross-library Pareto point. Fused cosine is 75% metadata and 25% audio when both exist,
-     * preserving explicit user tags while correcting acoustically implausible neighbours.
+     * Default selected by earlier cross-library neighbor experiments. Before corpus centering,
+     * fused cosine is exactly 75% metadata cosine + 25% audio cosine when both exist: each unit
+     * block is scaled by the square root of its weight. Different block dimensions do not change
+     * that identity. Centering/re-normalization and map PCA change the geometry, so this is an
+     * input metric weight, not a fixed percentage of influence on final regions or 2D positions.
      */
     public const val METADATA_WEIGHT: Float = 0.75f
 

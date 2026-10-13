@@ -51,7 +51,7 @@ class GenreBlendWorldsTest {
         // No pair: Pop has 9 tracks of its own in 100. Rock alone covers 58, which is enough to
         // lead, so the region is named after it rather than after a pair it cannot support.
         assertEquals(LibraryWorldNameSource.LEADING_STYLE, world.nameSource)
-        assertEquals("Rock", world.name)
+        assertEquals("Rock • Mix", world.name)
     }
 
     @Test
@@ -65,8 +65,35 @@ class GenreBlendWorldsTest {
         val world = world(List(51) { "Rap" } + List(2) { "Folk" } + List(47) { null })
         // The majority names the region on its own; two Folk tracks do not get into the title.
         assertEquals(LibraryWorldNameSource.LEADING_STYLE, world.nameSource)
-        assertEquals("Rap", world.name)
+        assertEquals("Rap • Mix", world.name)
         assertEquals(100, world.tracks.size)
+    }
+
+    @Test
+    fun `a weak pair keeps all members but its representative and cover support the name`() {
+        // The most central member is Jazz, outside the two leading styles. Together Pop and
+        // Rock cover only half the region, so this must not claim a well-covered genre blend.
+        val genres = List(20) { "Jazz" } + List(30) { "Pop" } + List(20) { "Rock" } + List(30) { null }
+        val world = world(genres)
+        assertEquals(LibraryWorldNameSource.MAJOR_FAMILIES, world.nameSource)
+        assertEquals("Pop + Jazz • Mix", world.name)
+        // Jazz and Rock tie; centrality gives Jazz the second place. The fixture below moves
+        // the unsupported representative ahead without changing which pair has the most votes.
+        val unsupportedFirst = world(List(19) { "Jazz" } + List(30) { "Pop" } + List(21) { "Rock" } + List(30) { null })
+        assertEquals("Pop + Rock • Mix", unsupportedFirst.name)
+        assertEquals(100, unsupportedFirst.tracks.size)
+        assertEquals(100, unsupportedFirst.tracks.map { it.id }.toSet().size)
+        assertEquals("Pop", unsupportedFirst.representative.genre)
+        assertEquals(setOf("pop", "rock"), unsupportedFirst.blendFamilies)
+        assertTrue(unsupportedFirst.supportsName(TrackDescriptor(TrackId("pop-cover"), genre = "Pop")))
+        assertTrue(unsupportedFirst.supportsName(TrackDescriptor(TrackId("rock-cover"), genre = "Rock")))
+        assertFalse(unsupportedFirst.supportsName(TrackDescriptor(TrackId("jazz-cover"), genre = "Jazz")))
+        assertFalse(unsupportedFirst.supportsName(TrackDescriptor(TrackId("unknown-cover"))))
+        assertEquals("synthetic-19", unsupportedFirst.representative.id.value)
+        assertEquals(
+            (0 until 100).filter { it != 19 }.map { "synthetic-$it" },
+            unsupportedFirst.tracks.drop(1).map { it.id.value },
+        )
     }
 
     @Test

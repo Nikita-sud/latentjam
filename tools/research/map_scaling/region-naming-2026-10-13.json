@@ -1,0 +1,21 @@
+{
+  "regions": 17,
+  "assigned_tracks": 974,
+  "membership_sets_identical": true,
+  "changes": [
+    {
+      "region": 5,
+      "before": "Rap + Dance",
+      "after": "Rap + Dance • Mix",
+      "representative_changed": false,
+      "tracks": 68
+    },
+    {
+      "region": 12,
+      "before": "Game ost + Production music",
+      "after": "Game ost + Production music • Mix",
+      "representative_changed": false,
+      "tracks": 38
+    }
+  ]
+}
