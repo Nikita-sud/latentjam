@@ -257,6 +257,76 @@ The old real-vector projection replay remains only a preliminary engine check: e
 equivalence margin prevent claims of equivalence or superiority. The earlier published 873-track
 study used a different PCA/initialization/iteration configuration and is not a release baseline.
 
+### MOSS-Music pilot on 15 available regions
+
+The user-approved diagnostic ran the actual [MOSS-Music](https://github.com/OpenMOSS/MOSS-Music)
+8B-Instruct model on a dedicated A40, using the pinned source/weights and official Transformers
+route documented in the [research runner](../tools/research/map_scaling/moss/README.md).
+It did not train a model, change production embeddings or send metadata to the captioner.
+
+The sample covers **75 tracks from 15 regions**: two central, two boundary and one seeded random
+available track per region. These regions contain 794 of the 974 assigned tracks; two regions
+with 180 members lacked strong local audio matches and were excluded. Only five sampled members
+were evaluated from each covered region. Local copies match normalized basename, exact byte size
+and duration, but phone audio hashes were unavailable, so identity is not cryptographically proven.
+
+Seventy-one tracks supplied two fixed-position excerpts; four short tracks supplied one, giving
+**146 real clips**. The blind manifest additionally contained silence and two exact duplicates.
+All WAVs were mono 16 kHz with metadata stripped; only opaque clip IDs and audio reached MOSS.
+All **149** answers completed with valid caption JSON and no token-limit truncation. Silence
+produced no claimed instruments, vocals, rhythm or energy, though its broad label was
+"instrumental". Both duplicates produced exactly equal descriptions. These narrow controls
+establish repeatability and response to zero input, not musical accuracy.
+
+The model claimed stereo in **111/146 real clips**, despite mono inputs, and supplied unverified
+numerical BPM in 130/146. BPM, stereo/width and speculative origin were excluded from conclusions.
+An isolated agent reviewed all 146 caption texts against a seven-field acoustic-description
+rubric without seeing identities or region memberships. This was AI text review, not human
+listening. Conservative missing-evidence handling left only **503/2775** track pairs evaluable;
+matched hard controls covered 23 comparisons in eight MUSIC regions, and random controls covered
+16 in nine. That coverage cannot support a single score for all 15 regions or a reliable choice
+between 25/75 and 50/50. Secondary lexical similarity favored within-region captions in most
+sampled MUSIC regions, but it measures wording and inherits caption errors.
+
+Qualitative review of the frozen descriptions finds:
+
+- One small Rock region has a consistently forceful guitar/bass/drum character at both its center
+  and boundaries. Another small Rock region has a more melodic vocal-guitar character. A third,
+  larger Rock region includes quieter piano-led and ballad-like excerpts. Identical labels hide
+  these potentially useful distinctions.
+- Synth-pop has a clear electronic center; Dance / Pop and Disco also have recurring instrumental
+  and vocal patterns in this sample. Individual tracks can change arrangement between excerpts,
+  and some apparent changes may be model errors.
+- Rap + Dance is less convincing: broad bass/drums/synth descriptions connect substantially
+  different vocal and instrumental examples. One extreme discrepancy occurs between two excerpts
+  of a single track, so blaming clustering alone would be unwarranted.
+- Game ost + Production music has an orchestral/piano center, with vocal funk, quiet piano and
+  electronic/guitar material at its edges. This supports a broad thematic collection more than a
+  homogeneous listening set. Soundtracks can legitimately have different arrangements. The 50/50
+  variant drops a quiet piano example, which is not by itself an improvement.
+- The two Pop / Rock labels describe broad, partly different mixtures. NOVELTY is a content
+  category; acoustic uniformity does not establish whether something is a meme.
+
+A separate text-only MOSS pass compared 15 anonymous actual groups with 15 controls. MUSIC used
+the same 70 tracks shuffled within excerpt-count strata; NOVELTY had a separate order control.
+Only instruments, vocals and energy were retained. The model sometimes treated unknown vocals
+as absent and contradicted explicit rap descriptions. Review found unsupported or contradicted claims in 20/30 responses
+(19 in main claims, one only in an uncertainty statement), nine uninformative responses and
+one supported control response. Normalized means were 1.43/4 for actual MUSIC groups and 1.50/4
+for shuffled controls, with median 2 for both; these scores cannot establish good or bad regions
+because the judge failed evidence checks. Five exact numeric strings were transparently converted
+to integers; original responses were never rewritten. The
+[aggregate evidence](../tools/research/map_scaling/moss/moss-pilot-2026-10-13.json) preserves
+strict and normalized summaries, while all private answers and audit failures remain archived.
+
+**Decision remains 25/75 for 0.9.1.** Use these results to prioritize honest region names and a
+small listening review of questionable boundaries. Neither automatic renaming from five samples
+nor a global weight change is justified. All private audio, mappings, outputs and review notes are
+retained outside Git. The pod was deleted after download and SHA-256 checks; the deletion returned
+HTTP 204 and a subsequent read returned 404. Approximate compute charge from elapsed time was
+$0.35 at $0.59/hour, excluding any storage/other fees; this is not a provider invoice.
+
+
 ## Cached-map gestures and requested UI changes
 
 `MapTab` already uses a spatial index to avoid offscreen dots, cached dot visuals/text, and reads

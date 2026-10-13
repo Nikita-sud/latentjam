@@ -1,0 +1,17 @@
+# Direct dependencies pinned for this bounded Transformers inference run.
+# CUDA torch/torchaudio are installed separately from the official cu128 index.
+transformers==4.57.1
+tokenizers==0.22.1
+huggingface-hub==0.36.0
+accelerate==1.11.0
+safetensors==0.6.2
+numpy==2.3.5
+scipy==1.16.3
+soundfile==0.13.1
+tiktoken==0.12.0
+einops==0.8.1
+tqdm==4.67.1
+packaging==25.0
+requests==2.32.5
+# Not used for already prepared WAVs; pinned to match upstream runtime family.
+torchcodec==0.9.0

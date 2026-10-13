@@ -1,0 +1,46 @@
+{
+  "id": "OpenMOSS-Team/MOSS-Music-8B-Instruct",
+  "sha": "fce7f8304e96cc2d3398b8106456cbb2ecec3139",
+  "siblings": [
+    {
+      "rfilename": "model-00001-of-00004.safetensors",
+      "blobId": "6d74580c789f5389f7003fc53d608e21f592598a",
+      "size": 4931219872,
+      "lfs": {
+        "sha256": "63edf20789c6fa3bac2fb635a097a927a64237d488ffa29c2e1a946c84490f3f",
+        "size": 4931219872,
+        "pointerSize": 135
+      }
+    },
+    {
+      "rfilename": "model-00002-of-00004.safetensors",
+      "blobId": "8f15fb960c7cd2fcc1f9db5f54ab15f789b01347",
+      "size": 4983069688,
+      "lfs": {
+        "sha256": "b2473dec1d6a648372beaf906d26477f73e271de8f0c8eaa8d5b7147518c666c",
+        "size": 4983069688,
+        "pointerSize": 135
+      }
+    },
+    {
+      "rfilename": "model-00003-of-00004.safetensors",
+      "blobId": "329fe3c49b095aa9d66f6ba4061e34730d6b4805",
+      "size": 4999847576,
+      "lfs": {
+        "sha256": "5b00d237df0fc68b5d17504ce02dcdae1a724424042d47d6156c5cf60706f4e6",
+        "size": 4999847576,
+        "pointerSize": 135
+      }
+    },
+    {
+      "rfilename": "model-00004-of-00004.safetensors",
+      "blobId": "d1b85e945a6ad2bc438e957cfa707cc4d3f15e81",
+      "size": 3190899504,
+      "lfs": {
+        "sha256": "e598e7a6d470f4766639abafef01670dff46cda3c636aea64d0801cc26309584",
+        "size": 3190899504,
+        "pointerSize": 135
+      }
+    }
+  ]
+}

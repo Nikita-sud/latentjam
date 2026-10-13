@@ -1,0 +1,2132 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-13",
+  "purpose": "Diagnostic model-caption pilot; not calibrated musical accuracy",
+  "scope": {
+    "available_regions": 15,
+    "music_regions": 14,
+    "novelty_categories": 1,
+    "sampled_tracks": 75,
+    "real_clips": 146,
+    "qa_controls": 3,
+    "selected_region_population": 794,
+    "unavailable_region_population": 180,
+    "unavailable_regions": 2,
+    "baseline_assigned_tracks": 974,
+    "library_tracks": 1107,
+    "sampling_roles": {
+      "central": 30,
+      "boundary": 30,
+      "random": 15
+    }
+  },
+  "model": {
+    "model_id": "OpenMOSS-Team/MOSS-Music-8B-Instruct",
+    "model_revision": "fce7f8304e96cc2d3398b8106456cbb2ecec3139",
+    "source_revision": "ad107c7ddaa06de168a0dfbc18d3e1e6a40c0e5e",
+    "gpu": "NVIDIA A40"
+  },
+  "audio_caption_quality": {
+    "all_audio_sha256_and_mono16k_duration_match": true,
+    "valid_schema_real_clips": 146,
+    "invalid_schema_real_clips": 0,
+    "hit_token_limit_real_clips": 0,
+    "numeric_bpm_clip_counts": {
+      "120": 49,
+      "130": 14,
+      "100": 42,
+      "60": 3,
+      "119": 2,
+      "58": 2,
+      "125": 1,
+      "56": 1,
+      "57": 2,
+      "160": 1,
+      "140": 1,
+      "86": 1,
+      "158": 3,
+      "80": 2,
+      "150": 1,
+      "118": 1,
+      "115": 2,
+      "90": 2
+    },
+    "numeric_bpm_any_clips": 130,
+    "stereo_word_in_production_texture_clips": 111,
+    "stereo_claim_share_of_valid_clips": 0.7602739726027398
+  },
+  "controls": {
+    "silence_claimed_no_instruments_vocals_rhythm_energy": true,
+    "silence_broad_label_instrumental_is_imprecise": true,
+    "exact_caption_duplicate_pairs": 2,
+    "duplicate_pairs": 2
+  },
+  "caption_feature_analysis": {
+    "status": "complete_captions",
+    "captions_sha256": "980537786762a31760e45b3c2501cdb43e11ed7180144cbee524448a79961dd5",
+    "aggregator_sha256": "9f6ee1e045f8d3fde4bc69b60768a5b6c86ea4f36620f5ba4aaa87e96b55a9a5",
+    "feature_parser_sha256": "f11cc258e8117483725b354a3f01c26cc33a215d4e4561cca2d35ce623cbaa50",
+    "pair_plan_sha256": "abbc42a336a9e11fd402e8d5fa769b5c9c04ca554a4fa93b42a8fc06479f0150",
+    "features_sha256": "e32017ee6ae649a5cb684ca44be6ff325b8e70329cf2afbb6722bfd636886b52",
+    "primary_status": "Computed from explicit blinded text review by an agent of model-generated captions,not human listening or audio ground truth.",
+    "quality": {
+      "expected_clips": 149,
+      "completed_clips": 149,
+      "valid_schema_clips": 149,
+      "real_valid_schema_clips": 146,
+      "truncated_at_token_limit": 0,
+      "exact_bpm_mentions_excluded": 132,
+      "stereo_mentions_excluded": 113,
+      "controls": [
+        {
+          "role": "silence",
+          "available": true,
+          "described_instrument_families": null,
+          "described_voice": "instrumental",
+          "described_tempo": null,
+          "manual_silence_review_required": true
+        },
+        {
+          "role": "hidden_duplicate",
+          "available": true,
+          "original_available": true,
+          "verbatim_caption_equal": true,
+          "lexical_distance": 0.0
+        },
+        {
+          "role": "hidden_duplicate",
+          "available": true,
+          "original_available": true,
+          "verbatim_caption_equal": true,
+          "lexical_distance": 4.4408920985006264e-17
+        }
+      ]
+    },
+    "metrics": [
+      {
+        "method": "reviewed_acoustic_rubric",
+        "distance_meaning": "Lower means more similar model descriptions in this chosen representation,not a direct audio distance or ground truth.",
+        "pair_coverage": {
+          "total": 2775,
+          "complete_evaluable": 503
+        },
+        "within_track_excerpt_distance": {
+          "n": 41,
+          "mean": 0.07205284552845528,
+          "median": 0.0,
+          "q25": 0.0,
+          "q75": 0.125,
+          "min": 0.0,
+          "max": 0.45
+        },
+        "matched_controls": {
+          "hard": {
+            "matched_delta_control_minus_within": {
+              "n": 23,
+              "mean": 0.045615942028985515,
+              "median": 0.0062500000000000056,
+              "q25": -0.020312500000000004,
+              "q75": 0.1203125,
+              "min": -0.09375,
+              "max": 0.35
+            },
+            "equal_region_mean_delta": 0.04782335069444445,
+            "evaluable_regions": 8,
+            "regions_positive_mean_delta": 6,
+            "matched_positive_fraction": 0.5217391304347826
+          },
+          "random": {
+            "matched_delta_control_minus_within": {
+              "n": 16,
+              "mean": 0.10226562500000001,
+              "median": 0.0775,
+              "q25": -0.0015625000000000014,
+              "q75": 0.17812500000000003,
+              "min": -0.25,
+              "max": 0.6
+            },
+            "equal_region_mean_delta": 0.10890046296296298,
+            "evaluable_regions": 9,
+            "regions_positive_mean_delta": 5,
+            "matched_positive_fraction": 0.5625
+          }
+        },
+        "regions": [
+          {
+            "baseline_region_index": 0,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 10,
+              "mean": 0.07568749999999999,
+              "median": 0.0890625,
+              "q25": 0.0159375,
+              "q75": 0.1234375,
+              "min": 0.0,
+              "max": 0.1375
+            },
+            "central_pair": {
+              "n": 1,
+              "mean": 0.0,
+              "median": 0.0,
+              "q25": 0.0,
+              "q75": 0.0,
+              "min": 0.0,
+              "max": 0.0
+            },
+            "boundary_containing_pairs": {
+              "n": 7,
+              "mean": 0.108125,
+              "median": 0.1225,
+              "q25": 0.0890625,
+              "q75": 0.1275,
+              "min": 0.06375,
+              "max": 0.1375
+            },
+            "hard_matched_delta": {
+              "n": 3,
+              "mean": -0.029166666666666664,
+              "median": 0.0,
+              "q25": -0.046875,
+              "q75": 0.0031250000000000028,
+              "min": -0.09375,
+              "max": 0.0062500000000000056
+            },
+            "random_matched_delta": {
+              "n": 4,
+              "mean": 0.15031250000000002,
+              "median": 0.1403125,
+              "q25": 0.10546875,
+              "q75": 0.18515625,
+              "min": 0.03,
+              "max": 0.290625
+            }
+          },
+          {
+            "baseline_region_index": 2,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "central_pair": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "boundary_containing_pairs": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "hard_matched_delta": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "random_matched_delta": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            }
+          },
+          {
+            "baseline_region_index": 3,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 1,
+              "mean": 0.265625,
+              "median": 0.265625,
+              "q25": 0.265625,
+              "q75": 0.265625,
+              "min": 0.265625,
+              "max": 0.265625
+            },
+            "central_pair": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "boundary_containing_pairs": {
+              "n": 1,
+              "mean": 0.265625,
+              "median": 0.265625,
+              "q25": 0.265625,
+              "q75": 0.265625,
+              "min": 0.265625,
+              "max": 0.265625
+            },
+            "hard_matched_delta": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "random_matched_delta": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            }
+          },
+          {
+            "baseline_region_index": 5,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 2,
+              "mean": 0.171875,
+              "median": 0.171875,
+              "q25": 0.1171875,
+              "q75": 0.2265625,
+              "min": 0.0625,
+              "max": 0.28125
+            },
+            "central_pair": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "boundary_containing_pairs": {
+              "n": 2,
+              "mean": 0.171875,
+              "median": 0.171875,
+              "q25": 0.1171875,
+              "q75": 0.2265625,
+              "min": 0.0625,
+              "max": 0.28125
+            },
+            "hard_matched_delta": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "random_matched_delta": {
+              "n": 2,
+              "mean": -0.128125,
+              "median": -0.128125,
+              "q25": -0.1890625,
+              "q75": -0.06718750000000001,
+              "min": -0.25,
+              "max": -0.0062500000000000056
+            }
+          },
+          {
+            "baseline_region_index": 6,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "central_pair": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "boundary_containing_pairs": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "hard_matched_delta": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "random_matched_delta": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            }
+          },
+          {
+            "baseline_region_index": 7,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 3,
+              "mean": 0.0,
+              "median": 0.0,
+              "q25": 0.0,
+              "q75": 0.0,
+              "min": 0.0,
+              "max": 0.0
+            },
+            "central_pair": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "boundary_containing_pairs": {
+              "n": 2,
+              "mean": 0.0,
+              "median": 0.0,
+              "q25": 0.0,
+              "q75": 0.0,
+              "min": 0.0,
+              "max": 0.0
+            },
+            "hard_matched_delta": {
+              "n": 3,
+              "mean": 0.046875,
+              "median": 0.0,
+              "q25": 0.0,
+              "q75": 0.0703125,
+              "min": 0.0,
+              "max": 0.140625
+            },
+            "random_matched_delta": {
+              "n": 3,
+              "mean": 0.041666666666666664,
+              "median": 0.0,
+              "q25": 0.0,
+              "q75": 0.0625,
+              "min": 0.0,
+              "max": 0.125
+            }
+          },
+          {
+            "baseline_region_index": 8,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 3,
+              "mean": 0.3052777777777778,
+              "median": 0.28,
+              "q25": 0.2566666666666667,
+              "q75": 0.34125,
+              "min": 0.23333333333333336,
+              "max": 0.40249999999999997
+            },
+            "central_pair": {
+              "n": 1,
+              "mean": 0.28,
+              "median": 0.28,
+              "q25": 0.28,
+              "q75": 0.28,
+              "min": 0.28,
+              "max": 0.28
+            },
+            "boundary_containing_pairs": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "hard_matched_delta": {
+              "n": 1,
+              "mean": -0.08000000000000002,
+              "median": -0.08000000000000002,
+              "q25": -0.08000000000000002,
+              "q75": -0.08000000000000002,
+              "min": -0.08000000000000002,
+              "max": -0.08000000000000002
+            },
+            "random_matched_delta": {
+              "n": 1,
+              "mean": -0.09624999999999995,
+              "median": -0.09624999999999995,
+              "q25": -0.09624999999999995,
+              "q75": -0.09624999999999995,
+              "min": -0.09624999999999995,
+              "max": -0.09624999999999995
+            }
+          },
+          {
+            "baseline_region_index": 9,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 3,
+              "mean": 0.06666666666666667,
+              "median": 0.1,
+              "q25": 0.05,
+              "q75": 0.1,
+              "min": 0.0,
+              "max": 0.1
+            },
+            "central_pair": {
+              "n": 1,
+              "mean": 0.1,
+              "median": 0.1,
+              "q25": 0.1,
+              "q75": 0.1,
+              "min": 0.1,
+              "max": 0.1
+            },
+            "boundary_containing_pairs": {
+              "n": 2,
+              "mean": 0.05,
+              "median": 0.05,
+              "q25": 0.025,
+              "q75": 0.07500000000000001,
+              "min": 0.0,
+              "max": 0.1
+            },
+            "hard_matched_delta": {
+              "n": 3,
+              "mean": 0.21388888888888888,
+              "median": 0.19166666666666668,
+              "q25": 0.14583333333333334,
+              "q75": 0.2708333333333333,
+              "min": 0.1,
+              "max": 0.35
+            },
+            "random_matched_delta": {
+              "n": 1,
+              "mean": 0.6,
+              "median": 0.6,
+              "q25": 0.6,
+              "q75": 0.6,
+              "min": 0.6,
+              "max": 0.6
+            }
+          },
+          {
+            "baseline_region_index": 10,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 6,
+              "mean": 0.08645833333333335,
+              "median": 0.0875,
+              "q25": 0.0671875,
+              "q75": 0.09843750000000001,
+              "min": 0.03125,
+              "max": 0.15
+            },
+            "central_pair": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "boundary_containing_pairs": {
+              "n": 5,
+              "mean": 0.0875,
+              "median": 0.09375,
+              "q25": 0.0625,
+              "q75": 0.1,
+              "min": 0.03125,
+              "max": 0.15
+            },
+            "hard_matched_delta": {
+              "n": 6,
+              "mean": 0.005208333333333331,
+              "median": 0.006249999999999999,
+              "q25": -0.0234375,
+              "q75": 0.0265625,
+              "min": -0.037500000000000006,
+              "max": 0.056249999999999994
+            },
+            "random_matched_delta": {
+              "n": 1,
+              "mean": 0.0,
+              "median": 0.0,
+              "q25": 0.0,
+              "q75": 0.0,
+              "min": 0.0,
+              "max": 0.0
+            }
+          },
+          {
+            "baseline_region_index": 11,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 2,
+              "mean": 0.03125,
+              "median": 0.03125,
+              "q25": 0.015625,
+              "q75": 0.046875,
+              "min": 0.0,
+              "max": 0.0625
+            },
+            "central_pair": {
+              "n": 1,
+              "mean": 0.0,
+              "median": 0.0,
+              "q25": 0.0,
+              "q75": 0.0,
+              "min": 0.0,
+              "max": 0.0
+            },
+            "boundary_containing_pairs": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "hard_matched_delta": {
+              "n": 2,
+              "mean": 0.175,
+              "median": 0.175,
+              "q25": 0.16875,
+              "q75": 0.18125,
+              "min": 0.1625,
+              "max": 0.1875
+            },
+            "random_matched_delta": {
+              "n": 2,
+              "mean": 0.25,
+              "median": 0.25,
+              "q25": 0.20625000000000002,
+              "q75": 0.29375,
+              "min": 0.1625,
+              "max": 0.3375
+            }
+          },
+          {
+            "baseline_region_index": 12,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 1,
+              "mean": 0.44999999999999996,
+              "median": 0.44999999999999996,
+              "q25": 0.44999999999999996,
+              "q75": 0.44999999999999996,
+              "min": 0.44999999999999996,
+              "max": 0.44999999999999996
+            },
+            "central_pair": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "boundary_containing_pairs": {
+              "n": 1,
+              "mean": 0.44999999999999996,
+              "median": 0.44999999999999996,
+              "q25": 0.44999999999999996,
+              "q75": 0.44999999999999996,
+              "min": 0.44999999999999996,
+              "max": 0.44999999999999996
+            },
+            "hard_matched_delta": {
+              "n": 1,
+              "mean": 0.050000000000000044,
+              "median": 0.050000000000000044,
+              "q25": 0.050000000000000044,
+              "q75": 0.050000000000000044,
+              "min": 0.050000000000000044,
+              "max": 0.050000000000000044
+            },
+            "random_matched_delta": {
+              "n": 1,
+              "mean": 0.2250000000000001,
+              "median": 0.2250000000000001,
+              "q25": 0.2250000000000001,
+              "q75": 0.2250000000000001,
+              "min": 0.2250000000000001,
+              "max": 0.2250000000000001
+            }
+          },
+          {
+            "baseline_region_index": 13,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 6,
+              "mean": 0.059895833333333336,
+              "median": 0.06875,
+              "q25": 0.0625,
+              "q75": 0.075,
+              "min": 0.0,
+              "max": 0.084375
+            },
+            "central_pair": {
+              "n": 1,
+              "mean": 0.0,
+              "median": 0.0,
+              "q25": 0.0,
+              "q75": 0.0,
+              "min": 0.0,
+              "max": 0.0
+            },
+            "boundary_containing_pairs": {
+              "n": 3,
+              "mean": 0.078125,
+              "median": 0.075,
+              "q25": 0.075,
+              "q75": 0.0796875,
+              "min": 0.075,
+              "max": 0.084375
+            },
+            "hard_matched_delta": {
+              "n": 4,
+              "mean": 0.0007812499999999972,
+              "median": -0.035937500000000004,
+              "q25": -0.065625,
+              "q75": 0.03046874999999999,
+              "min": -0.075,
+              "max": 0.15
+            },
+            "random_matched_delta": {
+              "n": 1,
+              "mean": -0.0625,
+              "median": -0.0625,
+              "q25": -0.0625,
+              "q75": -0.0625,
+              "min": -0.0625,
+              "max": -0.0625
+            }
+          },
+          {
+            "baseline_region_index": 14,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "central_pair": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "boundary_containing_pairs": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "hard_matched_delta": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "random_matched_delta": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            }
+          },
+          {
+            "baseline_region_index": 15,
+            "content": "NOVELTY",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 1,
+              "mean": 0.4166666666666667,
+              "median": 0.4166666666666667,
+              "q25": 0.4166666666666667,
+              "q75": 0.4166666666666667,
+              "min": 0.4166666666666667,
+              "max": 0.4166666666666667
+            },
+            "central_pair": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "boundary_containing_pairs": {
+              "n": 1,
+              "mean": 0.4166666666666667,
+              "median": 0.4166666666666667,
+              "q25": 0.4166666666666667,
+              "q75": 0.4166666666666667,
+              "min": 0.4166666666666667,
+              "max": 0.4166666666666667
+            },
+            "hard_matched_delta": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "random_matched_delta": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            }
+          },
+          {
+            "baseline_region_index": 16,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "central_pair": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "boundary_containing_pairs": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "hard_matched_delta": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "random_matched_delta": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            }
+          }
+        ],
+        "weight_transition_pair_distances": {
+          "all": {
+            "same_both": {
+              "n": 23,
+              "mean": 0.11315217391304348,
+              "median": 0.075,
+              "q25": 0.046875,
+              "q75": 0.125,
+              "min": 0.0,
+              "max": 0.4166666666666667
+            },
+            "split_in_50": {
+              "n": 7,
+              "mean": 0.09901785714285714,
+              "median": 0.1225,
+              "q25": 0.0890625,
+              "q75": 0.1275,
+              "min": 0.0,
+              "max": 0.1375
+            },
+            "merged_in_50": {
+              "n": 4,
+              "mean": 0.23041666666666671,
+              "median": 0.21083333333333334,
+              "q25": 0.12562500000000001,
+              "q75": 0.31562500000000004,
+              "min": 0.1125,
+              "max": 0.38750000000000007
+            },
+            "different_both": {
+              "n": 298,
+              "mean": 0.17561940715883667,
+              "median": 0.125,
+              "q25": 0.0625,
+              "q75": 0.28359375,
+              "min": 0.0,
+              "max": 0.5375000000000001
+            },
+            "unassigned_endpoint_in_50": {
+              "n": 171,
+              "mean": 0.3042482943469786,
+              "median": 0.25,
+              "q25": 0.1390625,
+              "q75": 0.42500000000000004,
+              "min": 0.0,
+              "max": 0.875
+            }
+          },
+          "music_only": {
+            "same_both": {
+              "n": 22,
+              "mean": 0.09935606060606061,
+              "median": 0.06937499999999999,
+              "q25": 0.0390625,
+              "q75": 0.09843750000000001,
+              "min": 0.0,
+              "max": 0.40249999999999997
+            },
+            "split_in_50": {
+              "n": 7,
+              "mean": 0.09901785714285714,
+              "median": 0.1225,
+              "q25": 0.0890625,
+              "q75": 0.1275,
+              "min": 0.0,
+              "max": 0.1375
+            },
+            "merged_in_50": {
+              "n": 4,
+              "mean": 0.23041666666666671,
+              "median": 0.21083333333333334,
+              "q25": 0.12562500000000001,
+              "q75": 0.31562500000000004,
+              "min": 0.1125,
+              "max": 0.38750000000000007
+            },
+            "different_both": {
+              "n": 272,
+              "mean": 0.1600344669117647,
+              "median": 0.125,
+              "q25": 0.0625,
+              "q75": 0.2453125,
+              "min": 0.0,
+              "max": 0.5375000000000001
+            },
+            "unassigned_endpoint_in_50": {
+              "n": 162,
+              "mean": 0.3002019032921811,
+              "median": 0.225,
+              "q25": 0.125,
+              "q75": 0.42500000000000004,
+              "min": 0.0,
+              "max": 0.875
+            }
+          }
+        },
+        "common_assigned_music_cohort": {
+          "same_region25": {
+            "within_distance": {
+              "n": 29,
+              "mean": 0.09927442528735632,
+              "median": 0.08125,
+              "q25": 0.0625,
+              "q75": 0.12375,
+              "min": 0.0,
+              "max": 0.40249999999999997
+            },
+            "between_distance": {
+              "n": 276,
+              "mean": 0.16105449879227055,
+              "median": 0.125,
+              "q25": 0.0625,
+              "q75": 0.25,
+              "min": 0.0,
+              "max": 0.5375000000000001
+            }
+          },
+          "same_region50": {
+            "within_distance": {
+              "n": 26,
+              "mean": 0.11951923076923077,
+              "median": 0.078125,
+              "q25": 0.0625,
+              "q75": 0.145,
+              "min": 0.0,
+              "max": 0.40249999999999997
+            },
+            "between_distance": {
+              "n": 279,
+              "mean": 0.1585035842293907,
+              "median": 0.125,
+              "q25": 0.0625,
+              "q75": 0.24270833333333336,
+              "min": 0.0,
+              "max": 0.5375000000000001
+            }
+          }
+        },
+        "dependent_observations": "Clips share tracks and pairs share endpoints; no independent-pair significance test or population confidence interval is provided."
+      },
+      {
+        "method": "caption_lexical_sensitivity",
+        "distance_meaning": "Lower means more similar model descriptions in this chosen representation,not a direct audio distance or ground truth.",
+        "pair_coverage": {
+          "total": 2775,
+          "complete_evaluable": 2775
+        },
+        "within_track_excerpt_distance": {
+          "n": 71,
+          "mean": 0.6140971063155479,
+          "median": 0.67090601375604,
+          "q25": 0.4466636053396174,
+          "q75": 0.8095550427582313,
+          "min": 0.0,
+          "max": 1.0
+        },
+        "matched_controls": {
+          "hard": {
+            "matched_delta_control_minus_within": {
+              "n": 140,
+              "mean": 0.04846648580524517,
+              "median": 0.029901109769264134,
+              "q25": -0.04530347107387353,
+              "q75": 0.12569337182387946,
+              "min": -0.3288383957814227,
+              "max": 0.6659218999994265
+            },
+            "equal_region_mean_delta": 0.04846648580524517,
+            "evaluable_regions": 14,
+            "regions_positive_mean_delta": 10,
+            "matched_positive_fraction": 0.6285714285714286
+          },
+          "random": {
+            "matched_delta_control_minus_within": {
+              "n": 140,
+              "mean": 0.06691273654113122,
+              "median": 0.04265077767908482,
+              "q25": -0.03973487030513129,
+              "q75": 0.1361426973137923,
+              "min": -0.26892787240242755,
+              "max": 0.7825095138325326
+            },
+            "equal_region_mean_delta": 0.06691273654113121,
+            "evaluable_regions": 14,
+            "regions_positive_mean_delta": 11,
+            "matched_positive_fraction": 0.6357142857142857
+          }
+        },
+        "regions": [
+          {
+            "baseline_region_index": 0,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 10,
+              "mean": 0.8051565727694623,
+              "median": 0.8633473043090623,
+              "q25": 0.703974613847199,
+              "q75": 0.8887556158550258,
+              "min": 0.5735043354434096,
+              "max": 0.9210855359613108
+            },
+            "central_pair": {
+              "n": 1,
+              "mean": 0.6303615094612642,
+              "median": 0.6303615094612642,
+              "q25": 0.6303615094612642,
+              "q75": 0.6303615094612642,
+              "min": 0.6303615094612642,
+              "max": 0.6303615094612642
+            },
+            "boundary_containing_pairs": {
+              "n": 7,
+              "mean": 0.8845369025832616,
+              "median": 0.886369956769413,
+              "q25": 0.8633473043090623,
+              "q75": 0.9047672277332715,
+              "min": 0.84807376126744,
+              "max": 0.9210855359613108
+            },
+            "hard_matched_delta": {
+              "n": 10,
+              "mean": -0.00564364019953133,
+              "median": -0.001539420187698315,
+              "q25": -0.1167084128863459,
+              "q75": 0.04728172537104852,
+              "min": -0.25416961002101457,
+              "max": 0.28933527521300884
+            },
+            "random_matched_delta": {
+              "n": 10,
+              "mean": 0.04796292075111665,
+              "median": -0.006273541807697014,
+              "q25": -0.0819788783907053,
+              "q75": 0.20881021794678928,
+              "min": -0.15173148054754892,
+              "max": 0.31584447548646377
+            }
+          },
+          {
+            "baseline_region_index": 2,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 10,
+              "mean": 0.8510214299775207,
+              "median": 0.8661909436786898,
+              "q25": 0.7715519570305411,
+              "q75": 0.9078886457760007,
+              "min": 0.7448242721083553,
+              "max": 0.9548706222882413
+            },
+            "central_pair": {
+              "n": 1,
+              "mean": 0.7674969721347034,
+              "median": 0.7674969721347034,
+              "q25": 0.7674969721347034,
+              "q75": 0.7674969721347034,
+              "min": 0.7674969721347034,
+              "max": 0.7674969721347034
+            },
+            "boundary_containing_pairs": {
+              "n": 7,
+              "mean": 0.8339219982664734,
+              "median": 0.8524538939380351,
+              "q25": 0.7751271105896499,
+              "q75": 0.8895705563488814,
+              "min": 0.7448242721083553,
+              "max": 0.9107804879418615
+            },
+            "hard_matched_delta": {
+              "n": 10,
+              "mean": -0.017396079908733188,
+              "median": -0.027987793494508917,
+              "q25": -0.05258750650014099,
+              "q75": 0.024312796973146755,
+              "min": -0.28746672566942877,
+              "max": 0.16950293529083826
+            },
+            "random_matched_delta": {
+              "n": 10,
+              "mean": 0.03025589841129429,
+              "median": 0.02878920963444309,
+              "q25": -0.038345145510481654,
+              "q75": 0.1521170214036487,
+              "min": -0.21843485421114983,
+              "max": 0.20618916990749958
+            }
+          },
+          {
+            "baseline_region_index": 3,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 10,
+              "mean": 0.8517019027043794,
+              "median": 0.8812731954688673,
+              "q25": 0.8282657165921129,
+              "q75": 0.8889686528386527,
+              "min": 0.6780505632455204,
+              "max": 0.9146509565902696
+            },
+            "central_pair": {
+              "n": 1,
+              "mean": 0.8794132272147602,
+              "median": 0.8794132272147602,
+              "q25": 0.8794132272147602,
+              "q75": 0.8794132272147602,
+              "min": 0.8794132272147602,
+              "max": 0.8794132272147602
+            },
+            "boundary_containing_pairs": {
+              "n": 7,
+              "mean": 0.8670274504597192,
+              "median": 0.8831331637229745,
+              "q25": 0.8291656481170313,
+              "q75": 0.8985516674446288,
+              "min": 0.8159734017814695,
+              "max": 0.9146509565902696
+            },
+            "hard_matched_delta": {
+              "n": 10,
+              "mean": 0.0067652146132616275,
+              "median": 0.010108793347862188,
+              "q25": -0.041656250051686355,
+              "q75": 0.038167143709263024,
+              "min": -0.08647032843094205,
+              "max": 0.13300782022179858
+            },
+            "random_matched_delta": {
+              "n": 10,
+              "mean": 0.04156646061797259,
+              "median": 0.029309961646374894,
+              "q25": -0.015590317073918225,
+              "q75": 0.08472941280349852,
+              "min": -0.05261535224445735,
+              "max": 0.19178940949088885
+            }
+          },
+          {
+            "baseline_region_index": 5,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 10,
+              "mean": 0.8580915546217913,
+              "median": 0.8671540550343271,
+              "q25": 0.8327368937152823,
+              "q75": 0.9089798456314446,
+              "min": 0.6916317951949204,
+              "max": 0.9397864421732751
+            },
+            "central_pair": {
+              "n": 1,
+              "mean": 0.8912506360999377,
+              "median": 0.8912506360999377,
+              "q25": 0.8912506360999377,
+              "q75": 0.8912506360999377,
+              "min": 0.8912506360999377,
+              "max": 0.8912506360999377
+            },
+            "boundary_containing_pairs": {
+              "n": 7,
+              "mean": 0.8811947312215632,
+              "median": 0.8788794274358086,
+              "q25": 0.8486831341888188,
+              "q75": 0.9202479767494927,
+              "min": 0.8118350270652355,
+              "max": 0.9397864421732751
+            },
+            "hard_matched_delta": {
+              "n": 10,
+              "mean": -0.02235637287615929,
+              "median": -0.009728309140127789,
+              "q25": -0.0465459969058972,
+              "q75": 0.03183837549954441,
+              "min": -0.3288383957814227,
+              "max": 0.16382005747585593
+            },
+            "random_matched_delta": {
+              "n": 10,
+              "mean": -0.02714304721033859,
+              "median": -0.022608532008007387,
+              "q25": -0.08887022838330286,
+              "q75": 0.013956952184965538,
+              "min": -0.26892787240242755,
+              "max": 0.19359774432488852
+            }
+          },
+          {
+            "baseline_region_index": 6,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 10,
+              "mean": 0.844717154454359,
+              "median": 0.855874330365843,
+              "q25": 0.7716377236596642,
+              "q75": 0.9165558262176762,
+              "min": 0.7391529647133904,
+              "max": 0.9318036201864139
+            },
+            "central_pair": {
+              "n": 1,
+              "mean": 0.7645349570589356,
+              "median": 0.7645349570589356,
+              "q25": 0.7645349570589356,
+              "q75": 0.7645349570589356,
+              "min": 0.7645349570589356,
+              "max": 0.7645349570589356
+            },
+            "boundary_containing_pairs": {
+              "n": 7,
+              "mean": 0.8590743162959766,
+              "median": 0.9080650311567606,
+              "q25": 0.7945697643176033,
+              "q75": 0.9226795346900325,
+              "min": 0.7391529647133904,
+              "max": 0.9318036201864139
+            },
+            "hard_matched_delta": {
+              "n": 10,
+              "mean": 0.019787096837299213,
+              "median": 0.050542472781106795,
+              "q25": -0.07137292378634116,
+              "q75": 0.08311021015275505,
+              "min": -0.1009872018475072,
+              "max": 0.12384473566425858
+            },
+            "random_matched_delta": {
+              "n": 10,
+              "mean": -0.034726333319429835,
+              "median": 0.004587902466114568,
+              "q25": -0.09350440198781149,
+              "q75": 0.026704883878624658,
+              "min": -0.2679577185118376,
+              "max": 0.1358918524075532
+            }
+          },
+          {
+            "baseline_region_index": 7,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 10,
+              "mean": 0.7954237113223024,
+              "median": 0.8032863721160086,
+              "q25": 0.7659140234937372,
+              "q75": 0.8424771140499178,
+              "min": 0.6281158960883535,
+              "max": 0.9095980741511097
+            },
+            "central_pair": {
+              "n": 1,
+              "mean": 0.8789721781347477,
+              "median": 0.8789721781347477,
+              "q25": 0.8789721781347477,
+              "q75": 0.8789721781347477,
+              "min": 0.8789721781347477,
+              "max": 0.8789721781347477
+            },
+            "boundary_containing_pairs": {
+              "n": 7,
+              "mean": 0.7728903641637277,
+              "median": 0.7825181578727514,
+              "q25": 0.7417138384009307,
+              "q75": 0.8032863721160086,
+              "min": 0.6281158960883535,
+              "max": 0.9095980741511097
+            },
+            "hard_matched_delta": {
+              "n": 10,
+              "mean": -0.01837145386734119,
+              "median": 0.009748069043112706,
+              "q25": -0.13985499617420397,
+              "q75": 0.08451335292843834,
+              "min": -0.2360281314895465,
+              "max": 0.21313404939995573
+            },
+            "random_matched_delta": {
+              "n": 10,
+              "mean": -0.013924072610915527,
+              "median": -0.0380798052626069,
+              "q25": -0.0947371099679967,
+              "q75": 0.09257692615175683,
+              "min": -0.13988433907950182,
+              "max": 0.12147760862149137
+            }
+          },
+          {
+            "baseline_region_index": 8,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 10,
+              "mean": 0.8809797076053499,
+              "median": 0.9325527518735108,
+              "q25": 0.868111195101075,
+              "q75": 0.9676565729275471,
+              "min": 0.4157935832830416,
+              "max": 1.0
+            },
+            "central_pair": {
+              "n": 1,
+              "mean": 0.837962983004877,
+              "median": 0.837962983004877,
+              "q25": 0.837962983004877,
+              "q75": 0.837962983004877,
+              "min": 0.837962983004877,
+              "max": 0.837962983004877
+            },
+            "boundary_containing_pairs": {
+              "n": 7,
+              "mean": 0.9568072465464592,
+              "median": 0.9675915443873976,
+              "q25": 0.9325527518735108,
+              "q75": 0.9838391245537985,
+              "min": 0.8972754285831982,
+              "max": 1.0
+            },
+            "hard_matched_delta": {
+              "n": 10,
+              "mean": 0.03137888497855775,
+              "median": -0.011222630467403572,
+              "q25": -0.0580734563500854,
+              "q75": 0.02097354100608087,
+              "min": -0.1027245714168018,
+              "max": 0.5285979959563288
+            },
+            "random_matched_delta": {
+              "n": 10,
+              "mean": 0.06256660405935621,
+              "median": 0.004772026949588337,
+              "q25": -0.023632174192547706,
+              "q75": 0.05572331536431513,
+              "min": -0.09421596607904392,
+              "max": 0.5726306304321013
+            }
+          },
+          {
+            "baseline_region_index": 9,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 10,
+              "mean": 0.6895754401466603,
+              "median": 0.8312807069864283,
+              "q25": 0.4767572384723647,
+              "q75": 0.8902105723527451,
+              "min": 0.2153095727440028,
+              "max": 0.9422287606390887
+            },
+            "central_pair": {
+              "n": 1,
+              "mean": 0.22091454347958453,
+              "median": 0.22091454347958453,
+              "q25": 0.22091454347958453,
+              "q75": 0.22091454347958453,
+              "min": 0.22091454347958453,
+              "max": 0.22091454347958453
+            },
+            "boundary_containing_pairs": {
+              "n": 7,
+              "mean": 0.6955073111522309,
+              "median": 0.796772302771082,
+              "q25": 0.5771526506227629,
+              "q75": 0.8799676203329577,
+              "min": 0.2153095727440028,
+              "max": 0.9422287606390887
+            },
+            "hard_matched_delta": {
+              "n": 10,
+              "mean": 0.13297217132848121,
+              "median": 0.09089211802204986,
+              "q25": -0.046774504099599795,
+              "q75": 0.14926003197900634,
+              "min": -0.1667150917730803,
+              "max": 0.6659218999994265
+            },
+            "random_matched_delta": {
+              "n": 10,
+              "mean": 0.16962780893545445,
+              "median": 0.054925726848820355,
+              "q25": -0.06540038455611105,
+              "q75": 0.34036656172178115,
+              "min": -0.2277226852981259,
+              "max": 0.7825095138325326
+            }
+          },
+          {
+            "baseline_region_index": 10,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 10,
+              "mean": 0.8323068794446071,
+              "median": 0.8361799390775151,
+              "q25": 0.786408405917022,
+              "q75": 0.8765902949513599,
+              "min": 0.6901226500770867,
+              "max": 0.9546745130112771
+            },
+            "central_pair": {
+              "n": 1,
+              "mean": 0.8257211379997949,
+              "median": 0.8257211379997949,
+              "q25": 0.8257211379997949,
+              "q75": 0.8257211379997949,
+              "min": 0.8257211379997949,
+              "max": 0.8257211379997949
+            },
+            "boundary_containing_pairs": {
+              "n": 7,
+              "mean": 0.861758841522683,
+              "median": 0.8628362617013169,
+              "q25": 0.8199132469445012,
+              "q75": 0.8954129993728722,
+              "min": 0.7841486233114402,
+              "max": 0.9546745130112771
+            },
+            "hard_matched_delta": {
+              "n": 10,
+              "mean": 0.030810005172624867,
+              "median": 0.012732866357479,
+              "q25": -0.01602985625879541,
+              "q75": 0.10013123344033883,
+              "min": -0.09498024114078973,
+              "max": 0.20281607250089517
+            },
+            "random_matched_delta": {
+              "n": 10,
+              "mean": 0.05584342407129796,
+              "median": 0.07398239804591783,
+              "q25": 0.017737039239744484,
+              "q75": 0.09548905280899608,
+              "min": -0.05477266125613556,
+              "max": 0.19060535044634586
+            }
+          },
+          {
+            "baseline_region_index": 11,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 10,
+              "mean": 0.7638076699961222,
+              "median": 0.8098508874150148,
+              "q25": 0.6964321347219533,
+              "q75": 0.9084239385726304,
+              "min": 0.2353539818025277,
+              "max": 0.9711488611075864
+            },
+            "central_pair": {
+              "n": 1,
+              "mean": 0.2353539818025277,
+              "median": 0.2353539818025277,
+              "q25": 0.2353539818025277,
+              "q75": 0.2353539818025277,
+              "min": 0.2353539818025277,
+              "max": 0.2353539818025277
+            },
+            "boundary_containing_pairs": {
+              "n": 7,
+              "mean": 0.8464466301187493,
+              "median": 0.8790759528584117,
+              "q25": 0.7677373843246631,
+              "q75": 0.9248537385516056,
+              "min": 0.6897193511127095,
+              "max": 0.9711488611075864
+            },
+            "hard_matched_delta": {
+              "n": 10,
+              "mean": 0.10525276692191551,
+              "median": 0.06506987416691967,
+              "q25": 0.015388148902259619,
+              "q75": 0.1141133237235406,
+              "min": -0.023697853183308193,
+              "max": 0.39567997254558746
+            },
+            "random_matched_delta": {
+              "n": 10,
+              "mean": 0.06429658119037487,
+              "median": 0.038955551569139546,
+              "q25": -0.0018872516266107975,
+              "q75": 0.09801871322972122,
+              "min": -0.1572827255599134,
+              "max": 0.3271460181974723
+            }
+          },
+          {
+            "baseline_region_index": 12,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 10,
+              "mean": 0.8994829109407101,
+              "median": 0.9447108894624647,
+              "q25": 0.8972379077512711,
+              "q75": 0.9708392027976275,
+              "min": 0.6429418718774582,
+              "max": 0.9880834885054839
+            },
+            "central_pair": {
+              "n": 1,
+              "mean": 0.6429418718774582,
+              "median": 0.6429418718774582,
+              "q25": 0.6429418718774582,
+              "q75": 0.6429418718774582,
+              "min": 0.6429418718774582,
+              "max": 0.6429418718774582
+            },
+            "boundary_containing_pairs": {
+              "n": 7,
+              "mean": 0.9493063908697008,
+              "median": 0.9541742406066546,
+              "q25": 0.927699625619377,
+              "q75": 0.97752399403165,
+              "min": 0.8924397676737128,
+              "max": 0.9880834885054839
+            },
+            "hard_matched_delta": {
+              "n": 10,
+              "mean": 0.023938197226718028,
+              "median": 0.0250694904968628,
+              "q25": 0.00196268664937177,
+              "q75": 0.06913751313275115,
+              "min": -0.18420842903090962,
+              "max": 0.14681530920990538
+            },
+            "random_matched_delta": {
+              "n": 10,
+              "mean": 0.04564988513007462,
+              "median": 0.029488894799861276,
+              "q25": -0.06652584461395858,
+              "q75": 0.09836397026197097,
+              "min": -0.11020660328012988,
+              "max": 0.35530279424865774
+            }
+          },
+          {
+            "baseline_region_index": 13,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 10,
+              "mean": 0.6322702494200491,
+              "median": 0.6906180119645304,
+              "q25": 0.5389527141253718,
+              "q75": 0.7503567604436282,
+              "min": 0.30583335610422613,
+              "max": 0.7700732486429612
+            },
+            "central_pair": {
+              "n": 1,
+              "mean": 0.44830622553254923,
+              "median": 0.44830622553254923,
+              "q25": 0.44830622553254923,
+              "q75": 0.44830622553254923,
+              "min": 0.44830622553254923,
+              "max": 0.44830622553254923
+            },
+            "boundary_containing_pairs": {
+              "n": 7,
+              "mean": 0.629073243205445,
+              "median": 0.6715276987884181,
+              "q25": 0.581540425676107,
+              "q75": 0.7464987737751481,
+              "min": 0.30583335610422613,
+              "max": 0.7700732486429612
+            },
+            "hard_matched_delta": {
+              "n": 10,
+              "mean": 0.19733386895961197,
+              "median": 0.1629334329171005,
+              "q25": 0.10970142978232139,
+              "q75": 0.29309986890445383,
+              "min": -0.061021913988202114,
+              "max": 0.5064987574986477
+            },
+            "random_matched_delta": {
+              "n": 10,
+              "mean": 0.26256876909714333,
+              "median": 0.23616499066467328,
+              "q25": 0.15598930345425524,
+              "q75": 0.41103163862431213,
+              "min": -0.03935717978072251,
+              "max": 0.5001279030668306
+            }
+          },
+          {
+            "baseline_region_index": 14,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 10,
+              "mean": 0.6472692640308793,
+              "median": 0.6546900761576815,
+              "q25": 0.615425731143473,
+              "q75": 0.6688289295171514,
+              "min": 0.551417144534551,
+              "max": 0.7461464664751979
+            },
+            "central_pair": {
+              "n": 1,
+              "mean": 0.551417144534551,
+              "median": 0.551417144534551,
+              "q25": 0.551417144534551,
+              "q75": 0.551417144534551,
+              "min": 0.551417144534551,
+              "max": 0.551417144534551
+            },
+            "boundary_containing_pairs": {
+              "n": 7,
+              "mean": 0.651205545984187,
+              "median": 0.6605197601613723,
+              "q25": 0.624723614342271,
+              "q75": 0.6665509941481933,
+              "min": 0.5692233782718104,
+              "max": 0.7461464664751979
+            },
+            "hard_matched_delta": {
+              "n": 10,
+              "mean": 0.15446879023011295,
+              "median": 0.15017578502180023,
+              "q25": 0.09076118517324003,
+              "q75": 0.18207305535456667,
+              "min": 0.0059839491012835255,
+              "max": 0.4380528362615933
+            },
+            "random_matched_delta": {
+              "n": 10,
+              "mean": 0.182357786879143,
+              "median": 0.2070559646014289,
+              "q25": 0.11319790468171251,
+              "q75": 0.26322793955349827,
+              "min": -0.004140231170040365,
+              "max": 0.33774732030685484
+            }
+          },
+          {
+            "baseline_region_index": 15,
+            "content": "NOVELTY",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 10,
+              "mean": 0.8152257205962895,
+              "median": 0.8896910984920761,
+              "q25": 0.8,
+              "q75": 0.9429063259913169,
+              "min": 0.2,
+              "max": 1.0
+            },
+            "central_pair": {
+              "n": 1,
+              "mean": 0.8,
+              "median": 0.8,
+              "q25": 0.8,
+              "q75": 0.8,
+              "min": 0.8,
+              "max": 0.8
+            },
+            "boundary_containing_pairs": {
+              "n": 7,
+              "mean": 0.9074653151375563,
+              "median": 0.9,
+              "q25": 0.8896910984920761,
+              "q75": 0.9715270979138948,
+              "min": 0.7298208131509532,
+              "max": 1.0
+            },
+            "hard_matched_delta": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            },
+            "random_matched_delta": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "q25": null,
+              "q75": null,
+              "min": null,
+              "max": null
+            }
+          },
+          {
+            "baseline_region_index": 16,
+            "content": "MUSIC",
+            "sampled_tracks": 5,
+            "within_pairs": {
+              "n": 10,
+              "mean": 0.7286517412999871,
+              "median": 0.70382346728208,
+              "q25": 0.688898762012589,
+              "q75": 0.798489898476717,
+              "min": 0.604960401900566,
+              "max": 0.8425351569147701
+            },
+            "central_pair": {
+              "n": 1,
+              "mean": 0.604960401900566,
+              "median": 0.604960401900566,
+              "q25": 0.604960401900566,
+              "q75": 0.604960401900566,
+              "min": 0.604960401900566,
+              "max": 0.604960401900566
+            },
+            "boundary_containing_pairs": {
+              "n": 7,
+              "mean": 0.7459470275501644,
+              "median": 0.7142803737066336,
+              "q25": 0.692746594660133,
+              "q75": 0.7957488331901379,
+              "min": 0.6878228065292055,
+              "max": 0.8425351569147701
+            },
+            "hard_matched_delta": {
+              "n": 10,
+              "mean": 0.03959135185661424,
+              "median": 0.06913089321050603,
+              "q25": -0.06567941101564154,
+              "q75": 0.13174357661824918,
+              "min": -0.1388312048638316,
+              "max": 0.20697290537470292
+            },
+            "random_matched_delta": {
+              "n": 10,
+              "mean": 0.049875625573293,
+              "median": 0.05726712808806361,
+              "q25": -0.037532081949325585,
+              "q75": 0.14139162334286612,
+              "min": -0.11365862703517826,
+              "max": 0.17771233910629158
+            }
+          }
+        ],
+        "weight_transition_pair_distances": {
+          "all": {
+            "same_both": {
+              "n": 101,
+              "mean": 0.7790731806672461,
+              "median": 0.8,
+              "q25": 0.6901226500770867,
+              "q75": 0.8961288338512426,
+              "min": 0.2,
+              "max": 1.0
+            },
+            "split_in_50": {
+              "n": 24,
+              "mean": 0.8527304372236785,
+              "median": 0.8633473043090623,
+              "q25": 0.7787628614382394,
+              "q75": 0.9202590989275624,
+              "min": 0.6933665608575266,
+              "max": 0.9880834885054839
+            },
+            "merged_in_50": {
+              "n": 74,
+              "mean": 0.7950115197349819,
+              "median": 0.8108154904269258,
+              "q25": 0.7442531382997022,
+              "q75": 0.8877241429549978,
+              "min": 0.3023616530398655,
+              "max": 0.9531908441128377
+            },
+            "different_both": {
+              "n": 2079,
+              "mean": 0.8727315920701839,
+              "median": 0.8901698623429809,
+              "q25": 0.8231438837914817,
+              "q75": 0.943862579481979,
+              "min": 0.2294992220783198,
+              "max": 1.0
+            },
+            "unassigned_endpoint_in_50": {
+              "n": 497,
+              "mean": 0.861379367579551,
+              "median": 0.881723825170134,
+              "q25": 0.8030759570360285,
+              "q75": 0.9482395826418086,
+              "min": 0.2153095727440028,
+              "max": 1.0
+            }
+          },
+          "music_only": {
+            "same_both": {
+              "n": 91,
+              "mean": 0.775100374081637,
+              "median": 0.7841486233114402,
+              "q25": 0.6887710788209576,
+              "q75": 0.8875742223118257,
+              "min": 0.2353539818025277,
+              "max": 1.0
+            },
+            "split_in_50": {
+              "n": 24,
+              "mean": 0.8527304372236785,
+              "median": 0.8633473043090623,
+              "q25": 0.7787628614382394,
+              "q75": 0.9202590989275624,
+              "min": 0.6933665608575266,
+              "max": 0.9880834885054839
+            },
+            "merged_in_50": {
+              "n": 74,
+              "mean": 0.7950115197349819,
+              "median": 0.8108154904269258,
+              "q25": 0.7442531382997022,
+              "q75": 0.8877241429549978,
+              "min": 0.3023616530398655,
+              "max": 0.9531908441128377
+            },
+            "different_both": {
+              "n": 1764,
+              "mean": 0.865514545995853,
+              "median": 0.8823799171535964,
+              "q25": 0.8176489500508886,
+              "q75": 0.933199588153953,
+              "min": 0.30421518965601113,
+              "max": 1.0
+            },
+            "unassigned_endpoint_in_50": {
+              "n": 462,
+              "mean": 0.8579318649883021,
+              "median": 0.880443383658229,
+              "q25": 0.7996980221938401,
+              "q75": 0.9455101827748938,
+              "min": 0.2153095727440028,
+              "max": 1.0
+            }
+          }
+        },
+        "common_assigned_music_cohort": {
+          "same_region25": {
+            "within_distance": {
+              "n": 115,
+              "mean": 0.7913014307373674,
+              "median": 0.8159734017814695,
+              "q25": 0.6966846505733725,
+              "q75": 0.8942630323415679,
+              "min": 0.2353539818025277,
+              "max": 1.0
+            },
+            "between_distance": {
+              "n": 1838,
+              "mean": 0.8626760128384513,
+              "median": 0.8801244383956048,
+              "q25": 0.8133817422390988,
+              "q75": 0.9317708164013023,
+              "min": 0.3023616530398655,
+              "max": 1.0
+            }
+          },
+          "same_region50": {
+            "within_distance": {
+              "n": 165,
+              "mean": 0.7840302212231373,
+              "median": 0.8082727110573495,
+              "q25": 0.6987972733091209,
+              "q75": 0.8887566450925031,
+              "min": 0.2353539818025277,
+              "max": 1.0
+            },
+            "between_distance": {
+              "n": 1788,
+              "mean": 0.8653429472203875,
+              "median": 0.8821750246627744,
+              "q25": 0.8171062110195375,
+              "q75": 0.9330363610642209,
+              "min": 0.30421518965601113,
+              "max": 1.0
+            }
+          }
+        },
+        "dependent_observations": "Clips share tracks and pairs share endpoints; no independent-pair significance test or population confidence interval is provided."
+      }
+    ],
+    "limits": [
+      "75selectedtracks from15available regions;14MUSIC+1NOVELTY,not an unbiased library evaluation.",
+      "50/50assigns68of75tracks;7unassigned remain a coverage cost,not discarded successes.",
+      "MOSS captions and derived semantic fields can hallucinate; same-model wording consistency does not prove sonic cohesion.",
+      "No exactBPM,stereo/mono,width or inferred recording source enters theprimary rubric.",
+      "Automatic draft features require region-blind evidence review; unknown features are not filled from metadata.",
+      "Lexical sensitivity uses equal5caption-field TFIDF cosines excluding broad_style,changes,uncertainty; minimum3fields; this is wording similarity only.",
+      "Primary7fieldrubric needs4jointly observed fields per clip pair; all expected excerpt cross-pairs must be evaluable for a track-pair score.",
+      "NOVELTYiscontentcategory,not expected homogeneous sound; primarymatchedcontrols useMUSIConly."
+    ]
+  },
+  "text_only_group_judge": {
+    "groups": 30,
+    "actual_music_groups": 14,
+    "permuted_music_controls": 14,
+    "novelty_order_groups": 2,
+    "group_plan_frozen_before_full_captions": true,
+    "retained_fields": [
+      "instruments",
+      "vocals",
+      "energy"
+    ],
+    "strict_json_schema_responses": 24,
+    "score_string_exact_repairs": 5,
+    "review_counts": {
+      "material_unsupported_or_contradicted": 20,
+      "unclear": 9,
+      "supported": 1
+    },
+    "strict_music": {
+      "expected_per_condition": 14,
+      "observed_groups": 28,
+      "actual": {
+        "n": 11,
+        "mean": 1.2727272727272727,
+        "median": 2,
+        "distribution": {
+          "0": 4,
+          "1": 0,
+          "2": 7,
+          "3": 0,
+          "4": 0
+        }
+      },
+      "control": {
+        "n": 11,
+        "mean": 1.3636363636363635,
+        "median": 2,
+        "distribution": {
+          "0": 3,
+          "1": 1,
+          "2": 7,
+          "3": 0,
+          "4": 0
+        }
+      },
+      "difference_of_included_means": -0.09090909090909083,
+      "matched_complete_pairs": 8,
+      "matched_mean_difference": -0.125,
+      "matched_median_difference": 0.0,
+      "pairs_actual_higher": 2,
+      "pairs_equal": 4,
+      "pairs_actual_lower": 2
+    },
+    "score_normalized_music": {
+      "expected_per_condition": 14,
+      "observed_groups": 28,
+      "actual": {
+        "n": 14,
+        "mean": 1.4285714285714286,
+        "median": 2.0,
+        "distribution": {
+          "0": 4,
+          "1": 0,
+          "2": 10,
+          "3": 0,
+          "4": 0
+        }
+      },
+      "control": {
+        "n": 14,
+        "mean": 1.5,
+        "median": 2.0,
+        "distribution": {
+          "0": 3,
+          "1": 1,
+          "2": 10,
+          "3": 0,
+          "4": 0
+        }
+      },
+      "difference_of_included_means": -0.0714285714285714,
+      "matched_complete_pairs": 14,
+      "matched_mean_difference": -0.07142857142857142,
+      "matched_median_difference": 0.0,
+      "pairs_actual_higher": 3,
+      "pairs_equal": 8,
+      "pairs_actual_lower": 3
+    },
+    "supported_only_music": {
+      "expected_per_condition": 14,
+      "observed_groups": 28,
+      "actual": {
+        "n": 0,
+        "mean": null,
+        "median": null,
+        "distribution": {
+          "0": 0,
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 0
+        }
+      },
+      "control": {
+        "n": 1,
+        "mean": 2,
+        "median": 2,
+        "distribution": {
+          "0": 0,
+          "1": 0,
+          "2": 1,
+          "3": 0,
+          "4": 0
+        }
+      },
+      "difference_of_included_means": null,
+      "matched_complete_pairs": 0,
+      "matched_mean_difference": null,
+      "matched_median_difference": null,
+      "pairs_actual_higher": 0,
+      "pairs_equal": 0,
+      "pairs_actual_lower": 0
+    },
+    "interpretation": "Not a usable verdict of region quality in this setup:20responses contain unsupported/contradicted claims,9are uninformative,1is supported. Similar actual/control scores do not establish either good or bad regions.19failures affect main claims and1only an uncertainty statement."
+  },
+  "decision": "Keep25/75 for0.9.1; prioritize clearer naming and targeted listening; no automatic renaming or weight changes.",
+  "execution": {
+    "created_at": "2026-10-13T15:15:13.323Z",
+    "deleted_at_observed_utc": "2026-10-13T15:51:15Z",
+    "cleanup": "Confirmed deleted: delete_pod HTTP 204, subsequent get_pod HTTP 404 pod not found",
+    "quoted_compute_usd_per_hour": 0.59,
+    "estimated_compute_cost_usd": 0.3542748416666667,
+    "cost_scope": "elapsed from creation to deletion observation x quoted rate; approximate compute only, not provider invoice; storage/other fees excluded"
+  }
+}
