@@ -160,6 +160,14 @@ public interface PlaybackController {
     public val state: StateFlow<NowPlaying>
 
     /**
+     * Advances when the listener requests play or transport changes. Slow external-file lookup
+     * snapshots this before resolving, so it cannot replace a newer explicit choice. Position
+     * ticks, automatic transitions and saved-session restoration do not advance this revision.
+     * Platforms without deferred external-file opening may keep the default.
+     */
+    public val userPlaybackRevision: Long get() = 0L
+
+    /**
      * Synchronizes [state] with an already-running platform session before launch restore decides
      * whether the saved queue is still needed. Platforms whose player state is already local can
      * keep the default no-op.

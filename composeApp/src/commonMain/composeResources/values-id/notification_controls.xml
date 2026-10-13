@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_notification_favorite">Favorit di notifikasi</string>
+    <string name="settings_notification_favorite_subtitle">Mengganti tombol ulang dengan tombol favorit</string>
+</resources>

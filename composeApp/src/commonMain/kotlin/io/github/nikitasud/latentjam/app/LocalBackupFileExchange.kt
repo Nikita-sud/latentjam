@@ -9,6 +9,12 @@ import androidx.compose.runtime.Composable
 internal const val LOCAL_BACKUP_MIME_TYPE: String = "application/vnd.latentjam.backup"
 internal const val MAX_LOCAL_BACKUP_DOCUMENT_CHARS: Int = 64 * 1024 * 1024
 
+/** Text read from the selected document, with its provider's file name when available. */
+internal data class ImportedLocalDocument(
+    val text: String,
+    val displayName: String? = null,
+)
+
 /** System document-picker result; cancellation is normal and never reported as a failure. */
 internal sealed interface LocalBackupFileResult<out T> {
     data class Success<T>(val value: T) : LocalBackupFileResult<T>
@@ -49,7 +55,7 @@ internal expect fun rememberLocalBackupFileExchange(
     /** MIME filter the import picker offers; platforms without MIME filtering may ignore it. */
     importMimeTypes: List<String> = listOf(LOCAL_BACKUP_MIME_TYPE, "application/octet-stream"),
     onExportResult: (LocalBackupFileResult<Unit>) -> Unit,
-    onImportResult: (LocalBackupFileResult<String>) -> Unit,
+    onImportResult: (LocalBackupFileResult<ImportedLocalDocument>) -> Unit,
 ): LocalBackupFileExchange
 
 internal fun normalizedBackupFileName(suggestedName: String): String {

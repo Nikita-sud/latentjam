@@ -42,7 +42,7 @@ internal actual fun rememberLocalBackupFileExchange(
     exportMimeType: String,
     importMimeTypes: List<String>,
     onExportResult: (LocalBackupFileResult<Unit>) -> Unit,
-    onImportResult: (LocalBackupFileResult<String>) -> Unit,
+    onImportResult: (LocalBackupFileResult<ImportedLocalDocument>) -> Unit,
 ): LocalBackupFileExchange {
     val scope = rememberCoroutineScope()
     val currentExportResult = rememberUpdatedState(onExportResult)
@@ -221,7 +221,7 @@ private fun discardTemporaryBackup(path: String) {
 }
 
 @OptIn(ExperimentalForeignApi::class)
-private fun readDocument(url: NSURL): LocalBackupFileResult<String> = runCatching {
+private fun readDocument(url: NSURL): LocalBackupFileResult<ImportedLocalDocument> = runCatching {
     val path = url.path ?: error("The selected document cannot be opened")
     val handle = NSFileHandle.fileHandleForReadingAtPath(path)
         ?: error("The selected document cannot be opened")
@@ -241,7 +241,10 @@ private fun readDocument(url: NSURL): LocalBackupFileResult<String> = runCatchin
     check(data.length <= MAX_LOCAL_BACKUP_DOCUMENT_CHARS.toULong()) {
         "Backup exceeds the supported size"
     }
-    data.toByteArray().decodeToString(throwOnInvalidSequence = true)
+    ImportedLocalDocument(
+        text = data.toByteArray().decodeToString(throwOnInvalidSequence = true),
+        displayName = url.lastPathComponent,
+    )
 }.fold(
     onSuccess = { LocalBackupFileResult.Success(it) },
     onFailure = { LocalBackupFileResult.Failure(it.message ?: "Could not import backup") },

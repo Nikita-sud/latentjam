@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_notification_favorite">Favoritos na notificação</string>
+    <string name="settings_notification_favorite_subtitle">Substitui o botão de repetição por um botão de favoritos</string>
+</resources>

@@ -1,0 +1,4 @@
+<resources>
+    <string name="media_session_favorite">お気に入りに追加</string>
+    <string name="media_session_unfavorite">お気に入りから削除</string>
+</resources>

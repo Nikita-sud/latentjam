@@ -16,6 +16,10 @@ kotlin {
         compileSdk = 36
         minSdk = 24
         withHostTest {}
+        withDeviceTest {
+            applicationId = "io.github.nikitasud.latentjam.library.test"
+            instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        }
     }
 
     iosArm64()
@@ -27,6 +31,12 @@ kotlin {
             api(project(":core:smart"))
             implementation(libs.kotlinx.coroutines.core)
             api(libs.koin.core)
+        }
+        getByName("androidDeviceTest").dependencies {
+            implementation(libs.androidx.annotation)
+            implementation(libs.androidx.test.core)
+            implementation(libs.androidx.test.runner)
+            implementation(libs.junit4)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

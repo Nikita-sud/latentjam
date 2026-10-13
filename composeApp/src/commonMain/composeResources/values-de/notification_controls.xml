@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_notification_favorite">Favoriten in der Benachrichtigung</string>
+    <string name="settings_notification_favorite_subtitle">Ersetzt die Wiederholen-Taste durch eine Favoriten-Taste</string>
+</resources>

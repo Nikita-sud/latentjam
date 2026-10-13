@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.app
 
 import android.content.ContentResolver
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -47,7 +48,7 @@ internal actual fun rememberLocalBackupFileExchange(
     exportMimeType: String,
     importMimeTypes: List<String>,
     onExportResult: (LocalBackupFileResult<Unit>) -> Unit,
-    onImportResult: (LocalBackupFileResult<String>) -> Unit,
+    onImportResult: (LocalBackupFileResult<ImportedLocalDocument>) -> Unit,
 ): LocalBackupFileExchange {
     val activity = LocalActivity.current as? ComponentActivity
         ?: return LocalBackupFileExchange(
@@ -139,7 +140,7 @@ internal actual fun rememberLocalBackupFileExchange(
 
 internal sealed interface LocalBackupExchangeResult {
     data class Export(val result: LocalBackupFileResult<Unit>) : LocalBackupExchangeResult
-    data class Import(val result: LocalBackupFileResult<String>) : LocalBackupExchangeResult
+    data class Import(val result: LocalBackupFileResult<ImportedLocalDocument>) : LocalBackupExchangeResult
 }
 
 /** Retains picker input, IO and undelivered results across configuration changes. */
@@ -147,7 +148,7 @@ internal class LocalBackupExchangeModel(
     private val handle: SavedStateHandle,
     /** Encodes the payload by calling it, off the main thread, then writes it to the destination. */
     private val writeDocument: suspend (payload: () -> String, destination: String) -> Unit,
-    private val readDocument: suspend (source: String) -> String,
+    private val readDocument: suspend (source: String) -> ImportedLocalDocument,
     /** The folder a created destination sits in, as an absolute path; null when unknown. */
     private val documentDirectory: (destination: String) -> String? = { null },
 ) : ViewModel() {
@@ -329,10 +330,23 @@ private fun copyToDocument(resolver: ContentResolver, uri: Uri, staged: File) {
     staged.inputStream().use { input -> output.use { input.copyTo(it) } }
 }
 
-private suspend fun readDocument(resolver: ContentResolver, uri: Uri): String =
+private suspend fun readDocument(resolver: ContentResolver, uri: Uri): ImportedLocalDocument =
     withContext(Dispatchers.IO) {
         val input = resolver.openInputStream(uri) ?: error("The selected document cannot be opened")
-        input.bufferedReader(Charsets.UTF_8).use { it.readBounded() }
+        val text = input.bufferedReader(Charsets.UTF_8).use { it.readBounded() }
+        // Document IDs and URI path segments need not be file names. Ask the provider for its
+        // display name; missing metadata must never prevent importing readable contents.
+        val displayName = try {
+            resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                val column = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (column >= 0 && cursor.moveToFirst()) cursor.getString(column) else null
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
+        ImportedLocalDocument(text, displayName)
     }
 
 private suspend fun BufferedReader.readBounded(): String {

@@ -423,6 +423,10 @@ interface AppSettings {
     val relativePlaylistPaths: StateFlow<Boolean>
     fun setRelativePlaylistPaths(enabled: Boolean)
 
+    /** Android notification layout; device-local like playlist export and per-playlist sorting. */
+    val notificationFavorite: StateFlow<Boolean> get() = DEFAULT_NOTIFICATION_FAVORITE
+    fun setNotificationFavorite(enabled: Boolean) {}
+
     /** The Tracks tab's order. */
     val songSort: StateFlow<SortChoice<SongSort>>
     fun setSongSort(choice: SortChoice<SongSort>)
@@ -547,5 +551,11 @@ internal fun ResumePlayback.sameSessionExceptPosition(other: ResumePlayback): Bo
         sourceQueuePersisted == other.sourceQueuePersisted &&
         smartContinuationIds == other.smartContinuationIds &&
         smartPlanPositions == other.smartPlanPositions
+
+private val DEFAULT_NOTIFICATION_FAVORITE: StateFlow<Boolean> =
+    kotlinx.coroutines.flow.MutableStateFlow(false)
+
+/** Whether this platform offers configurable media notification actions. */
+internal expect val notificationFavoriteAvailable: Boolean
 
 expect fun appSettingsModule(): Module

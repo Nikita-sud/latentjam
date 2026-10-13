@@ -6,7 +6,6 @@ package io.github.nikitasud.latentjam.app
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -16,14 +15,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import io.github.nikitasud.latentjam.smart.MediaStoreArtwork
+import io.github.nikitasud.latentjam.library.AndroidTrackArtwork
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runInterruptible
+import java.io.IOException
+import java.io.InterruptedIOException
 
 /**
  * Samples cover art for its most characteristic colour.
@@ -49,7 +50,7 @@ actual fun rememberArtworkColor(uri: String?): ArtworkColorState {
             if (cached != null) {
                 cached.value
             } else {
-                withContext(Dispatchers.IO) {
+                runInterruptible(Dispatchers.IO) {
                     sampleArtwork(context, artworkUri)
                 }.also { sampled ->
                     if (artworkColorCache.size >= ARTWORK_COLOR_CACHE_SIZE) {
@@ -67,28 +68,23 @@ actual fun rememberArtworkColor(uri: String?): ArtworkColorState {
     return state
 }
 
-private fun sampleArtwork(context: Context, uri: String): Color? = runCatching {
+private fun sampleArtwork(context: Context, uri: String): Color? = try {
     val parsed = Uri.parse(uri)
-    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    MediaStoreArtwork.open(context.contentResolver, parsed).use { stream ->
-        BitmapFactory.decodeStream(stream, null, bounds)
+    AndroidTrackArtwork.loadBitmap(context.contentResolver, parsed, ARTWORK_SAMPLE_SIDE * 2)?.let { bitmap ->
+        try {
+            dominantAccent(bitmap)
+        } finally {
+            bitmap.recycle()
+        }
     }
-    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
-    var sample = 1
-    while (
-        bounds.outWidth / (sample * 2) >= ARTWORK_SAMPLE_SIDE ||
-        bounds.outHeight / (sample * 2) >= ARTWORK_SAMPLE_SIDE
-    ) {
-        sample *= 2
-    }
-    val options = BitmapFactory.Options().apply { inSampleSize = sample }
-    val bitmap = MediaStoreArtwork.open(context.contentResolver, parsed).use { stream ->
-        BitmapFactory.decodeStream(stream, null, options)
-    } ?: return null
-    val accent = dominantAccent(bitmap)
-    bitmap.recycle()
-    accent
-}.getOrNull()
+} catch (interrupted: InterruptedIOException) {
+    throw interrupted
+} catch (_: IOException) {
+    null
+} catch (_: SecurityException) {
+    // A revoked grant shows the default accent; it does not trigger another cover source.
+    null
+}
 
 private fun dominantAccent(bitmap: Bitmap): Color? =
     sampleArtworkAccentArgb(bitmap)?.let { argb ->

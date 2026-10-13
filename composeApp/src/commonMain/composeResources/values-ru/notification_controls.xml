@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_notification_favorite">Избранное в уведомлении</string>
+    <string name="settings_notification_favorite_subtitle">Заменяет кнопку повтора кнопкой избранного</string>
+</resources>

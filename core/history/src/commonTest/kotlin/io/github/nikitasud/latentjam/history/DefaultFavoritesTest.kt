@@ -305,6 +305,31 @@ internal class DefaultFavoritesTest {
     }
 
     @Test
+    fun everyDurableEditNotifiesOtherFavoriteSurfaces() = runTest {
+        for ((name, edit) in edits) {
+            val store = PausingStore(stored = listOf("a", "x"))
+            val favorites = DefaultFavorites(store)
+            favorites.all()
+            store.pauseNextWrite = true
+            val caller = launch { edit(favorites) }
+            store.landed.await()
+            assertEquals(0L, favorites.revision.value, "$name: storage has not completed")
+            store.resume.complete(Unit)
+            caller.join()
+            assertEquals(1L, favorites.revision.value, "$name: committed edit is observable")
+        }
+    }
+
+    @Test
+    fun noOpBulkEditsDoNotRefreshOtherFavoriteSurfaces() = runTest {
+        val favorites = DefaultFavorites(FakeStore(listOf("a")))
+        favorites.addAll(listOf(a))
+        favorites.removeAll(listOf(b))
+        favorites.replaceIfUnchanged(listOf(b), listOf(a))
+        assertEquals(0L, favorites.revision.value)
+    }
+
+    @Test
     fun aFailedWriteOfAnyEditLeavesTheListAsItWas() = runTest {
         for ((name, edit) in edits) {
             val store = object : FavoritesStore {
@@ -314,6 +339,7 @@ internal class DefaultFavoritesTest {
             val favorites = DefaultFavorites(store)
 
             assertFailsWith<IllegalStateException>(name) { edit(favorites) }
+            assertEquals(0L, favorites.revision.value, "$name: failed writes publish no change")
             assertEquals(listOf(a, x), favorites.all(), name)
         }
     }

@@ -1,0 +1,4 @@
+<resources>
+    <string name="media_session_favorite">Favorilere ekle</string>
+    <string name="media_session_unfavorite">Favorilerden çıkar</string>
+</resources>

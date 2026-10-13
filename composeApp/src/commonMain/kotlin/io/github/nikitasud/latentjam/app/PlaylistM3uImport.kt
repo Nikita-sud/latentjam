@@ -16,7 +16,7 @@ import org.jetbrains.compose.resources.getPluralString
 
 /** What one M3U file came to against the library. */
 internal class M3uImport(
-    /** The file's own `#PLAYLIST:` name, when it carries one. */
+    /** The nonblank `#PLAYLIST:` name, or the selected file name without its M3U extension. */
     val name: String?,
     /** Every track row of the file, repeats included. */
     val entryCount: Int,
@@ -37,6 +37,7 @@ internal class M3uImport(
 internal suspend fun importM3u(
     text: String,
     library: List<TrackDescriptor>,
+    displayName: String? = null,
     filePaths: suspend (List<TrackId>) -> Map<TrackId, String>,
 ): M3uImport {
     val entries = withContext(Dispatchers.Default) { parseM3u(text) }
@@ -51,12 +52,23 @@ internal suspend fun importM3u(
     return withContext(Dispatchers.Default) {
         val matched = matchM3uEntries(entries, library, paths)
         M3uImport(
-            name = parseM3uName(text),
+            name = parseM3uName(text) ?: m3uFileName(displayName),
             entryCount = entries.size,
             matchedEntryCount = matched.count { it != null },
             tracks = matched.filterNotNull().distinctBy { it.id },
         )
     }
+}
+
+/** Keep dots and other extensions in the title; only an M3U suffix is format metadata. */
+private fun m3uFileName(displayName: String?): String? {
+    val fileName = displayName?.substringAfterLast('/')?.substringAfterLast('\\')?.trim() ?: return null
+    val name = when {
+        fileName.endsWith(".m3u8", ignoreCase = true) -> fileName.dropLast(5)
+        fileName.endsWith(".m3u", ignoreCase = true) -> fileName.dropLast(4)
+        else -> fileName
+    }
+    return name.trim().ifEmpty { null }
 }
 
 /**

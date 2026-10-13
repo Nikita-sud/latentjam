@@ -13,7 +13,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
@@ -37,7 +36,9 @@ import io.github.nikitasud.latentjam.playback.PlaybackWidgetSnapshot
 import io.github.nikitasud.latentjam.playback.PlaybackWidgetStateStore
 import io.github.nikitasud.latentjam.playback.RepeatMode
 import io.github.nikitasud.latentjam.playback.ShuffleMode
-import io.github.nikitasud.latentjam.smart.MediaStoreArtwork
+import io.github.nikitasud.latentjam.library.AndroidTrackArtwork
+import java.io.IOException
+import java.io.InterruptedIOException
 import java.util.LinkedHashMap
 import java.util.concurrent.Executors
 import kotlinx.coroutines.launch
@@ -663,32 +664,19 @@ private fun widgetAction(
     )
 }
 
-private fun decodeBoundedArtwork(context: Context, value: String): Bitmap? = runCatching {
+private fun decodeBoundedArtwork(context: Context, value: String): Bitmap? = try {
     val uri = Uri.parse(value)
-    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    MediaStoreArtwork.open(context.contentResolver, uri)?.use { input ->
-        BitmapFactory.decodeStream(input, null, bounds)
+    AndroidTrackArtwork.loadBitmap(context.contentResolver, uri, ARTWORK_SIZE_PX * 2)?.let { decoded ->
+        centerCrop(decoded, ARTWORK_SIZE_PX)
     }
-    if (bounds.outWidth !in 1..100_000 || bounds.outHeight !in 1..100_000) return@runCatching null
-    var sample = 1
-    while (bounds.outWidth / sample > ARTWORK_SIZE_PX * 2 ||
-        bounds.outHeight / sample > ARTWORK_SIZE_PX * 2
-    ) {
-        sample *= 2
-    }
-    val options = BitmapFactory.Options().apply {
-        inSampleSize = sample
-        inPreferredConfig = Bitmap.Config.ARGB_8888
-    }
-    val decoded = MediaStoreArtwork.open(context.contentResolver, uri)?.use { input ->
-        BitmapFactory.decodeStream(input, null, options)
-    } ?: return@runCatching null
-    if (maxOf(decoded.width, decoded.height) > ARTWORK_SIZE_PX * 2) {
-        decoded.recycle()
-        return@runCatching null
-    }
-    centerCrop(decoded, ARTWORK_SIZE_PX)
-}.getOrNull()
+} catch (interrupted: InterruptedIOException) {
+    throw interrupted
+} catch (_: IOException) {
+    null
+} catch (_: SecurityException) {
+    // Widgets keep their generated placeholder while storage access is unavailable.
+    null
+}
 
 private fun centerCrop(source: Bitmap, size: Int): Bitmap {
     var output: Bitmap? = null

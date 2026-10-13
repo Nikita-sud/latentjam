@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_notification_favorite">Ulubione w powiadomieniu</string>
+    <string name="settings_notification_favorite_subtitle">Zastępuje przycisk powtarzania przyciskiem ulubionych</string>
+</resources>

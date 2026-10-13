@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_notification_favorite">सूचना में पसंदीदा</string>
+    <string name="settings_notification_favorite_subtitle">दोहराने के बटन की जगह पसंदीदा बटन दिखाता है</string>
+</resources>

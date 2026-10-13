@@ -1,0 +1,4 @@
+<resources>
+    <string name="media_session_favorite">Dodaj do ulubionych</string>
+    <string name="media_session_unfavorite">Usuń z ulubionych</string>
+</resources>

@@ -27,6 +27,7 @@ public class LatentJamApplication : Application(), SingletonImageLoader.Factory 
             },
         )
         installMediaBrowseCatalog(this)
+        installNotificationFavorites()
         widgetFontScale = resources.configuration.fontScale
         widgetDensityDpi = resources.configuration.densityDpi
         widgetOrientation = resources.configuration.orientation

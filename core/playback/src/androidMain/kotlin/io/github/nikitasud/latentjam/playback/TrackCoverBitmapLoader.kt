@@ -4,33 +4,39 @@
  */
 package io.github.nikitasud.latentjam.playback
 
+import android.content.ContentResolver
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.media3.common.util.BitmapLoader
 import androidx.media3.common.util.UnstableApi
-import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
+import io.github.nikitasud.latentjam.library.AndroidTrackArtwork
 import io.github.nikitasud.latentjam.smart.MediaStoreArtwork
+import java.util.concurrent.Executors
 
-/**
- * The session's bitmap loader: a song's own cover, or its album's when the song has none (see
- * [MediaStoreArtwork]), so the notification, the lock screen and Bluetooth show what the app shows.
- * Every other cover loads through [delegate] unchanged.
- */
+/** Shares the app's embedded fallback and bounded decoding with notification / lock-screen art. */
 @UnstableApi
-internal class TrackCoverBitmapLoader(private val delegate: BitmapLoader) : BitmapLoader {
+internal class TrackCoverBitmapLoader(
+    private val delegate: BitmapLoader,
+    private val resolver: ContentResolver,
+    private val maxDimension: Int,
+) : BitmapLoader {
     override fun supportsMimeType(mimeType: String): Boolean = delegate.supportsMimeType(mimeType)
 
     override fun decodeBitmap(data: ByteArray): ListenableFuture<Bitmap> = delegate.decodeBitmap(data)
 
     override fun loadBitmap(uri: Uri): ListenableFuture<Bitmap> {
-        val fallback = MediaStoreArtwork.albumFallback(uri.toString()) ?: return delegate.loadBitmap(uri)
-        return Futures.catchingAsync(
-            delegate.loadBitmap(uri),
-            Exception::class.java,
-            { delegate.loadBitmap(Uri.parse(fallback)) },
-            MoreExecutors.directExecutor(),
+        if (MediaStoreArtwork.audioFallback(uri.toString()) == null) return delegate.loadBitmap(uri)
+        return artworkExecutor.submit<Bitmap> {
+            checkNotNull(AndroidTrackArtwork.loadBitmap(resolver, uri, maxDimension)) { "Unable to decode '$uri'." }
+        }
+    }
+
+    private companion object {
+        // One worker for the process; cancellation interrupts its bounded reads.
+        val artworkExecutor = MoreExecutors.listeningDecorator(
+            Executors.newSingleThreadExecutor { work -> Thread(work, "latentjam-artwork").apply { isDaemon = true } },
         )
     }
 }

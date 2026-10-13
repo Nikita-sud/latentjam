@@ -18,12 +18,14 @@ import java.io.InputStream
  * their folder's name) and same-titled albums of different artists in one folder therefore all
  * showed one song's cover (issue #12). `…/audio/media/<song>/albumart` is the song's own cover on
  * Android 10 and later; older releases answer it with the album's cached cover, or with nothing
- * before one is cached, so the library asks for it from Android 10 on only.
+ * before one is cached. Keeping the song id in this locator lets readers also try its embedded
+ * picture when the provider has none.
  *
  * A song with no cover of its own has nothing there, while its album may well have one (a rip
  * that embeds the cover in its first file only), so the locator names its album too, and every
- * reader in this app opens the album's cover when the song's own is missing: [open],
- * [openDescriptor], [albumFallback]. MediaProvider opens both locators by path alone, so the query
+ * provider reader can open the album's cover when the song's own is missing: [open],
+ * [openDescriptor], [albumFallback]. The library's artwork loader tries embedded bytes before
+ * this album fallback. MediaProvider opens both locators by path alone, so the query
  * is invisible to it and to any other app reading the locator.
  */
 public object MediaStoreArtwork {
@@ -37,7 +39,17 @@ public object MediaStoreArtwork {
     public fun albumCover(albumId: Long): String = "$ALBUM_COVERS$albumId"
 
     /** [trackId]'s own cover, falling back to [albumId]'s. */
-    public fun trackCover(trackId: Long, albumId: Long): String = "$SONGS$trackId$SONG_COVER?$ALBUM=$albumId"
+    public fun trackCover(trackId: Long, albumId: Long): String =
+        "$SONGS$trackId$SONG_COVER" + if (albumId > 0) "?$ALBUM=$albumId" else ""
+
+    /** The audio file named by a song-cover locator; never an arbitrary external or override URI. */
+    public fun audioFallback(uri: String): String? {
+        if (!uri.startsWith(SONGS)) return null
+        val path = uri.substringBefore('?').substring(SONGS.length)
+        if (!path.endsWith(SONG_COVER)) return null
+        val id = path.removeSuffix(SONG_COVER)
+        return if (id.isDecimal()) "$SONGS$id" else null
+    }
 
     /** [uri] carrying [version], so every cache keyed by the string drops a cover that changed. */
     public fun versioned(uri: String, version: String): String =
@@ -48,7 +60,7 @@ public object MediaStoreArtwork {
      * locator, which has nothing to fall back to.
      */
     public fun albumFallback(uri: String): String? {
-        if (!uri.startsWith(SONGS)) return null
+        if (audioFallback(uri) == null) return null
         val queryStart = uri.indexOf('?')
         if (queryStart < 0) return null
         val path = uri.substring(SONGS.length, queryStart)
@@ -56,7 +68,7 @@ public object MediaStoreArtwork {
         val parameters = uri.substring(queryStart + 1).split('&').associate { parameter ->
             parameter.substringBefore('=') to parameter.substringAfter('=', missingDelimiterValue = "")
         }
-        val album = parameters[ALBUM]?.takeIf { it.isDecimal() } ?: return null
+        val album = parameters[ALBUM]?.takeIf { it.isDecimal() && it.toLongOrNull()?.let { id -> id > 0 } == true } ?: return null
         val cover = "$ALBUM_COVERS$album"
         return parameters[VERSION]?.let { versioned(cover, it) } ?: cover
     }

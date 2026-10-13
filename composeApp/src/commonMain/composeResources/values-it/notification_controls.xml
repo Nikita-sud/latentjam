@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_notification_favorite">Preferiti nella notifica</string>
+    <string name="settings_notification_favorite_subtitle">Sostituisce il pulsante di ripetizione con quello dei preferiti</string>
+</resources>

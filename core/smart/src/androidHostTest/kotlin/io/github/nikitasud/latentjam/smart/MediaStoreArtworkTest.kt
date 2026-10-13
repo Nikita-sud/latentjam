@@ -19,6 +19,35 @@ internal class MediaStoreArtworkTest {
     }
 
     @Test
+    fun aSongWithoutAnAlbumStillNamesItsAudioFile() {
+        for (albumId in listOf(0L, -1L)) {
+            val cover = MediaStoreArtwork.trackCover(42, albumId)
+            assertEquals("content://media/external/audio/media/42/albumart", cover)
+            assertEquals("content://media/external/audio/media/42", MediaStoreArtwork.audioFallback(cover))
+            assertNull(MediaStoreArtwork.albumFallback(cover))
+        }
+        assertNull(MediaStoreArtwork.albumFallback("content://media/external/audio/media/42/albumart?album=0"))
+    }
+
+    @Test
+    fun anAudioFallbackOnlyNamesTheTrackInASongCoverLocator() {
+        assertEquals("content://media/external/audio/media/42", MediaStoreArtwork.audioFallback(song))
+        assertEquals(
+            "content://media/external/audio/media/42",
+            MediaStoreArtwork.audioFallback("content://media/external/audio/media/42/albumart?v=abc"),
+        )
+        listOf(
+            album,
+            "content://media/external/audio/media/42?album=7",
+            "content://media/external/audio/media/42/albumart/extra?album=7",
+            "content://other/external/audio/media/42/albumart?album=7",
+            "content://media/external/audio/media/../albumart?album=7",
+            "content://media/external/audio/media/42/albumart#fragment",
+            "file:///data/user/0/app/files/track-covers/saved.jpg",
+        ).forEach { assertNull(MediaStoreArtwork.audioFallback(it), it) }
+    }
+
+    @Test
     fun aSongsCoverFallsBackToItsAlbumsAtTheSameVersion() {
         val song = MediaStoreArtwork.versioned(MediaStoreArtwork.trackCover(42, 7), "1f")
         assertEquals("content://media/external/audio/media/42/albumart?album=7&v=1f", song)

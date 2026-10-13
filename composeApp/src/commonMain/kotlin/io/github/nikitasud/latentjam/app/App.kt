@@ -232,6 +232,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.snack_track_exclude
 import io.github.nikitasud.latentjam.app.generated.resources.snack_track_included_in_smart
 import io.github.nikitasud.latentjam.app.generated.resources.snack_removed_from_latentjam
 import io.github.nikitasud.latentjam.app.generated.resources.snack_hidden_tracks_restored
+import io.github.nikitasud.latentjam.app.generated.resources.snack_audio_open_unavailable
 import io.github.nikitasud.latentjam.app.generated.resources.snack_library_refreshed
 import io.github.nikitasud.latentjam.app.generated.resources.tab_albums
 import io.github.nikitasud.latentjam.app.generated.resources.tab_artists
@@ -748,7 +749,12 @@ private suspend fun IndexStore.saveMapLayoutBestEffort(
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
-fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackController) {
+fun App(
+    engine: SimilarityEngine,
+    library: MusicLibrary,
+    playback: PlaybackController,
+    externalAudioOpener: ExternalAudioOpener? = null,
+) {
     val settings = AppGraph.settings
     val themeMode by settings.themeMode.collectAsState()
     val startPage by settings.startPage.collectAsState()
@@ -1278,6 +1284,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 snackbar.showSnackbar(getString(Res.string.settings_library_manage_failed))
             }
         }
+        LaunchedEffect(Unit) {
+            AppGraph.favorites.revision.collect { loadFavorites() }
+        }
         fun toggleFavorite(id: TrackId) {
             scope.launch {
                 try {
@@ -1669,8 +1678,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // process: a restore that raced a user tap must not fire again later and yank the queue
         // out from under whatever the user chose instead.
         var resumeAttempted by remember { mutableStateOf(false) }
-        LaunchedEffect(tracks, playlistsState.playlistsLoaded) {
-            if (resumeAttempted) return@LaunchedEffect
+        val externalAudioRequest = externalAudioOpener?.pending?.collectAsState()?.value
+        LaunchedEffect(tracks, playlistsState.playlistsLoaded, externalAudioRequest) {
+            if (resumeAttempted || externalAudioOpener?.pending?.value != null) return@LaunchedEffect
             val loaded = tracks ?: return@LaunchedEffect
             // Restore may asynchronously top up a short SMART future. Wait until its marked
             // playlist policy has been hydrated so those new rows honor the saved preference.
@@ -1684,6 +1694,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // session before this composition existed. Import that state before deciding whether
             // launch restore is needed; replacing it here would pause live playback.
             playback.synchronizeWithPlatformSession()
+            if (externalAudioOpener?.pending?.value != null) return@LaunchedEffect
             // Something already sounding (an external controller, a fast user) wins outright.
             if (!shouldApplySavedPlaybackAfterPlatformSync(playback.state.value)) {
                 return@LaunchedEffect
@@ -1747,6 +1758,23 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 AppGraph.queueSource.value = saved.savedQueueSource()
             }
         }
+
+        ExternalAudioOpenEffect(
+            opener = externalAudioOpener,
+            library = library,
+            tracks = tracks,
+            playbackReady = playlistsState.playlistsLoaded,
+            userPlaybackRevision = { playback.userPlaybackRevision },
+            onBegin = { resumeAttempted = true },
+            onPlay = { track ->
+                AppGraph.queueSource.value = null
+                playback.play(listOf(track), 0)
+                showNowPlaying = true
+            },
+            onUnavailable = {
+                scope.launch { snackbar.showSnackbar(getString(Res.string.snack_audio_open_unavailable)) }
+            },
+        )
 
         // Library clustering and journeys serve these pages only. Starting playback or browsing
         // Tracks must not allocate a vector space or run discovery for an unopened/hidden page.
@@ -2365,7 +2393,12 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             onImportResult = { result ->
                 when (result) {
                     is LocalBackupFileResult.Success -> scope.launch {
-                        val imported = importM3u(result.value, catalog?.songs.orEmpty(), library::filePaths)
+                        val imported = importM3u(
+                            text = result.value.text,
+                            library = catalog?.songs.orEmpty(),
+                            displayName = result.value.displayName,
+                            filePaths = library::filePaths,
+                        )
                         if (imported.tracks.isEmpty()) {
                             snackbar.showSnackbar(getString(Res.string.snack_m3u_import_failed))
                             return@launch

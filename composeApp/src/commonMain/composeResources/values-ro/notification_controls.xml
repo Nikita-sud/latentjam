@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_notification_favorite">Favorite în notificare</string>
+    <string name="settings_notification_favorite_subtitle">Înlocuiește butonul de repetare cu un buton de favorite</string>
+</resources>

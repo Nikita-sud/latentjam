@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_notification_favorite">通知中的收藏按钮</string>
+    <string name="settings_notification_favorite_subtitle">用收藏按钮替换重复播放按钮</string>
+</resources>

@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_notification_favorite">Bildirimde favoriler</string>
+    <string name="settings_notification_favorite_subtitle">Tekrar düğmesini favori düğmesiyle değiştirir</string>
+</resources>

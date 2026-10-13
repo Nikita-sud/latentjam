@@ -1,0 +1,4 @@
+<resources>
+    <string name="media_session_favorite">Добавить в избранное</string>
+    <string name="media_session_unfavorite">Убрать из избранного</string>
+</resources>

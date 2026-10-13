@@ -32,6 +32,7 @@ kotlin {
             api(libs.koin.core)
         }
         androidMain.dependencies {
+            implementation(project(":core:library"))
             implementation(libs.androidx.media3.exoplayer)
             implementation(libs.androidx.media3.session)
         }

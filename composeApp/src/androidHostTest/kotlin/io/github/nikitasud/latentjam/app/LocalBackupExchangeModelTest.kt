@@ -75,7 +75,7 @@ internal class LocalBackupExchangeModelTest {
 
     @Test
     fun documentIOAndItsResultOutliveAReplacedScreenCallback() = runTest {
-        val ready = CompletableDeferred<String>()
+        val ready = CompletableDeferred<ImportedLocalDocument>()
         val exchange = model(read = { ready.await() })
         assertTrue(exchange.beginImport())
         exchange.importSource("chosen-document")
@@ -84,16 +84,32 @@ internal class LocalBackupExchangeModelTest {
         assertFalse(exchange.beginImport())
         assertNull(exchange.completed.value)
 
-        ready.complete("retained imported contents")
+        val document = ImportedLocalDocument("retained imported contents", "Road trip.m3u8")
+        ready.complete(document)
         runCurrent()
         assertEquals(
-            LocalBackupExchangeResult.Import(LocalBackupFileResult.Success("retained imported contents")),
+            LocalBackupExchangeResult.Import(LocalBackupFileResult.Success(document)),
             exchange.completed.value,
         )
         // A fresh callback can consume the result once, even if no UI was present at completion.
         exchange.acknowledge()
         assertNull(exchange.completed.value)
         assertFalse(exchange.inProgress.value)
+    }
+
+    @Test
+    fun aDocumentWithoutAFileNameStillImportsItsExactContents() = runTest {
+        val text = "#EXTM3U\nMusic/song.mp3\n"
+        val exchange = model(read = { ImportedLocalDocument(text) })
+
+        assertTrue(exchange.beginImport())
+        exchange.importSource("content://provider/opaque-document-id")
+        runCurrent()
+
+        val completed = assertIs<LocalBackupExchangeResult.Import>(exchange.completed.value)
+        val document = assertIs<LocalBackupFileResult.Success<ImportedLocalDocument>>(completed.result).value
+        assertEquals(text, document.text)
+        assertNull(document.displayName)
     }
 
     @Test
@@ -144,7 +160,7 @@ internal class LocalBackupExchangeModelTest {
         val exchange = model(read = {
             // Some document providers cannot interrupt their current blocking read immediately.
             withContext(NonCancellable) { releaseOldRead.await() }
-            "old document"
+            ImportedLocalDocument("old document", "Old playlist.m3u")
         })
         assertTrue(exchange.beginImport())
         exchange.importSource("old-source")
@@ -235,7 +251,7 @@ internal class LocalBackupExchangeModelTest {
     private fun model(
         handle: SavedStateHandle = SavedStateHandle(),
         write: suspend (() -> String, String) -> Unit = { _, _ -> },
-        read: suspend (String) -> String = { "document" },
+        read: suspend (String) -> ImportedLocalDocument = { ImportedLocalDocument("document") },
         directory: (String) -> String? = { null },
     ) = LocalBackupExchangeModel(handle, write, read, directory).also(models::add)
 }

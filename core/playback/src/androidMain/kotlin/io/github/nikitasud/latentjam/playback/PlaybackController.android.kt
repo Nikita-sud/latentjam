@@ -28,7 +28,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import io.github.nikitasud.latentjam.smart.EngineState
-import io.github.nikitasud.latentjam.smart.MediaStoreArtwork
+import io.github.nikitasud.latentjam.library.AndroidTrackArtwork
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
@@ -49,6 +49,9 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runInterruptible
+import java.io.IOException
+import java.io.InterruptedIOException
 import org.koin.core.module.Module
 import org.koin.dsl.module
 import kotlin.coroutines.resume
@@ -88,6 +91,9 @@ internal class AndroidPlaybackController(
 
     /** The newest tap wins even when an older, larger queue takes longer to prepare. */
     private val playRequestGeneration = AtomicLong()
+
+    private val userInteractionRevision = AtomicLong()
+    override val userPlaybackRevision: Long get() = userInteractionRevision.get()
 
     /** Main-thread-owned identity of the queue used to reject stale SMART inference results. */
     private var queueGeneration = 0L
@@ -554,6 +560,7 @@ internal class AndroidPlaybackController(
         smartPlanPositions: Map<TrackId, Int>,
     ) {
         if (tracks.isEmpty()) return
+        userInteractionRevision.incrementAndGet()
         val requestGeneration = playRequestGeneration.incrementAndGet()
         val modeAtRequest = withContext(Dispatchers.Main.immediate) {
             pendingAdvance.invalidate()
@@ -646,6 +653,7 @@ internal class AndroidPlaybackController(
     }
 
     override suspend fun togglePlayPause(): Unit = withContext(Dispatchers.Main) {
+        userInteractionRevision.incrementAndGet()
         pendingAdvance.invalidate()
         val player = controller ?: return@withContext
         if (player.playWhenReady && player.playbackState != Player.STATE_ENDED && !transportFade.pausePending) {
@@ -663,6 +671,7 @@ internal class AndroidPlaybackController(
     }
 
     override suspend fun pause(): Unit = withContext(Dispatchers.Main) {
+        userInteractionRevision.incrementAndGet()
         pendingAdvance.invalidate()
         val player = controller ?: return@withContext
         if (player.playWhenReady && !transportFade.pausePending) fadeOutAndPause(player)
@@ -707,6 +716,7 @@ internal class AndroidPlaybackController(
     }
 
     override suspend fun next(): Unit = withContext(Dispatchers.Main) {
+        userInteractionRevision.incrementAndGet()
         val player = controller ?: return@withContext
         pendingAdvance.invalidate()
         beginFreshRecoveryAttempt()
@@ -730,6 +740,7 @@ internal class AndroidPlaybackController(
     }
 
     override suspend fun previous(): Unit = withContext(Dispatchers.Main) {
+        userInteractionRevision.incrementAndGet()
         pendingAdvance.invalidate()
         val player = controller ?: return@withContext
         beginFreshRecoveryAttempt()
@@ -744,6 +755,7 @@ internal class AndroidPlaybackController(
     }
 
     override suspend fun seekTo(positionMs: Long): Unit = withContext(Dispatchers.Main) {
+        userInteractionRevision.incrementAndGet()
         pendingAdvance.invalidate()
         val player = controller ?: return@withContext
         player.seekTo(positionMs)
@@ -751,6 +763,7 @@ internal class AndroidPlaybackController(
     }
 
     override suspend fun playAt(queueIndex: Int): Unit = withContext(Dispatchers.Main) {
+        userInteractionRevision.incrementAndGet()
         val player = controller ?: return@withContext
         val mediaItemIndex = cachedQueueMediaIndices.getOrNull(queueIndex) ?: return@withContext
         if (mediaItemIndex !in 0 until player.mediaItemCount) return@withContext
@@ -1549,12 +1562,18 @@ internal class AndroidPlaybackController(
         return true
     }
 
-    private suspend fun hasReadableArtwork(uri: String): Boolean = withContext(Dispatchers.IO) {
-        runCatching {
-            MediaStoreArtwork.open(context.contentResolver, Uri.parse(uri)).use { input ->
-                input != null && input.read() != -1
-            }
-        }.getOrDefault(false)
+    private suspend fun hasReadableArtwork(uri: String): Boolean = runInterruptible(Dispatchers.IO) {
+        try {
+            val bitmap = AndroidTrackArtwork.loadBitmap(context.contentResolver, Uri.parse(uri), 32)
+            bitmap?.recycle()
+            bitmap != null
+        } catch (interrupted: InterruptedIOException) {
+            throw interrupted
+        } catch (_: IOException) {
+            false
+        } catch (_: SecurityException) {
+            false
+        }
     }
 
     /** Connects to [PlaybackService] on first use; cached afterwards. */

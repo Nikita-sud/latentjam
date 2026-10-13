@@ -16,6 +16,8 @@ import kotlinx.coroutines.withContext
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
+internal actual val notificationFavoriteAvailable: Boolean = true
+
 internal const val APP_SETTINGS_FILE = "app_settings"
 internal const val APP_THEME_KEY = "theme_mode"
 
@@ -58,6 +60,10 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         ),
     )
     override val relativePlaylistPaths: StateFlow<Boolean> = mutableRelativePlaylistPaths.asStateFlow()
+    private val mutableNotificationFavorite = MutableStateFlow(
+        runCatching { preferences.getBoolean(KEY_NOTIFICATION_FAVORITE, false) }.getOrNull() ?: false,
+    )
+    override val notificationFavorite: StateFlow<Boolean> = mutableNotificationFavorite.asStateFlow()
     private val mutableSongSort = MutableStateFlow(songSortFromPersisted(readString(KEY_SONG_SORT)))
     override val songSort: StateFlow<SortChoice<SongSort>> = mutableSongSort.asStateFlow()
     private val mutableAlbumSort = MutableStateFlow(albumSortFromPersisted(readString(KEY_ALBUM_SORT)))
@@ -134,6 +140,11 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
     override fun setRelativePlaylistPaths(enabled: Boolean) {
         preferences.edit().putBoolean(KEY_RELATIVE_PLAYLIST_PATHS, enabled).apply()
         mutableRelativePlaylistPaths.value = enabled
+    }
+
+    override fun setNotificationFavorite(enabled: Boolean) {
+        preferences.edit().putBoolean(KEY_NOTIFICATION_FAVORITE, enabled).apply()
+        mutableNotificationFavorite.value = enabled
     }
 
     override fun setArtistVariety(level: Int) {
@@ -347,6 +358,7 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         const val KEY_RESUME_POSITION = "resume_position_ms"
         const val KEY_RESUME_SOURCE_KIND = "resume_source_kind"
         const val KEY_RESUME_SOURCE_NAME = "resume_source_name"
+        const val KEY_NOTIFICATION_FAVORITE = "notification_favorite"
         const val KEY_NORMALIZE_VOLUME = "normalize_volume"
         const val KEY_CROSSFADE_SECONDS = "crossfade_seconds"
         const val KEY_RELATIVE_PLAYLIST_PATHS = "relative_playlist_paths"

@@ -45,6 +45,27 @@ class MainActivityManifestTest {
     }
 
     @Test
+    fun audioViewFiltersAcceptOnlyLocalUrisAndTheActivityIsAMusicApp() {
+        val filters = mainActivity().childElements().filter { it.elementName() == "intent-filter" }
+        val view = filters.single { filter ->
+            filter.childElements().any {
+                it.elementName() == "action" && it.getAttributeNS(ANDROID, "name") == "android.intent.action.VIEW"
+            }
+        }
+        val data = view.childElements().filter { it.elementName() == "data" }
+        assertEquals(setOf("content", "file"), data.map { it.getAttributeNS(ANDROID, "scheme") }.filter(String::isNotEmpty).toSet())
+        assertTrue("audio/*" in data.map { it.getAttributeNS(ANDROID, "mimeType") })
+        assertTrue(view.childElements().any {
+            it.elementName() == "category" && it.getAttributeNS(ANDROID, "name") == "android.intent.category.DEFAULT"
+        })
+        assertTrue(filters.any { filter ->
+            val names = filter.childElements().map { it.getAttributeNS(ANDROID, "name") }
+            "android.intent.action.MAIN" in names && "android.intent.category.APP_MUSIC" in names
+        })
+        assertEquals("singleTop", mainActivity().getAttributeNS(ANDROID, "launchMode"))
+    }
+
+    @Test
     fun rotationAndResizingKeepTheActivity() {
         for (change in listOf("orientation", "screenSize", "screenLayout", "smallestScreenSize")) {
             assertTrue(change in handled, "$change recreates the activity: $handled")

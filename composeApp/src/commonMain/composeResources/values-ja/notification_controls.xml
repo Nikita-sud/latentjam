@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_notification_favorite">通知にお気に入りボタンを表示</string>
+    <string name="settings_notification_favorite_subtitle">リピートボタンをお気に入りボタンに置き換えます</string>
+</resources>

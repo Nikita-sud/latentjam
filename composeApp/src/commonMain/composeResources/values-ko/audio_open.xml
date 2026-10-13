@@ -1,0 +1,3 @@
+<resources>
+    <string name="snack_audio_open_unavailable">이 오디오 파일을 LatentJam 라이브러리에서 사용할 수 없습니다. 음악 접근 권한을 확인하고 라이브러리를 새로고침하세요.</string>
+</resources>

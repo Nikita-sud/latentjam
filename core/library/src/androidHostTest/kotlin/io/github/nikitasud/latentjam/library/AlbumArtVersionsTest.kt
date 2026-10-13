@@ -70,4 +70,18 @@ internal class AlbumArtVersionsTest {
         val edited = withAlbumArtVersions(listOf(song(1, "a"), song(2, "b-edited")))
         assertNotEquals(versioned.first().artworkUri, edited.first().artworkUri, "a sibling's edit can change the fallback")
     }
+    @Test
+    fun aSongWithoutAnAlbumStillInvalidatesItsEmbeddedCoverAfterRetagging() {
+        fun song(revision: String) = TrackDescriptor(
+            TrackId("42"),
+            artworkUri = MediaStoreArtwork.trackCover(42, albumId = 0),
+            sourceRevision = revision,
+        )
+        val before = withAlbumArtVersions(listOf(song("old"))).single()
+        val after = withAlbumArtVersions(listOf(song("new"))).single()
+        assertNotEquals(before.artworkUri, after.artworkUri)
+        assertEquals("content://media/external/audio/media/42", MediaStoreArtwork.audioFallback(after.artworkUri!!))
+        assertNull(MediaStoreArtwork.albumFallback(after.artworkUri!!))
+    }
+
 }

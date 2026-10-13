@@ -1,0 +1,3 @@
+<resources>
+    <string name="snack_audio_open_unavailable">Este ficheiro de áudio não está disponível na biblioteca LatentJam. Verifique o acesso à música e atualize a biblioteca.</string>
+</resources>

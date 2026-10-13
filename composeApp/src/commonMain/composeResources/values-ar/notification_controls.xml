@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_notification_favorite">المفضلة في الإشعار</string>
+    <string name="settings_notification_favorite_subtitle">يستبدل زر التكرار بزر المفضلة</string>
+</resources>

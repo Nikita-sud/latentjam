@@ -1,0 +1,4 @@
+<resources>
+    <string name="media_session_favorite">Adaugă la favorite</string>
+    <string name="media_session_unfavorite">Elimină din favorite</string>
+</resources>

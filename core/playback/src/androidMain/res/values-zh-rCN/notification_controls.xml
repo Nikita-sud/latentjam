@@ -1,0 +1,4 @@
+<resources>
+    <string name="media_session_favorite">添加到收藏</string>
+    <string name="media_session_unfavorite">取消收藏</string>
+</resources>

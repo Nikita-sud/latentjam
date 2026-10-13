@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_notification_favorite">Улюблене у сповіщенні</string>
+    <string name="settings_notification_favorite_subtitle">Замінює кнопку повтору кнопкою улюбленого</string>
+</resources>

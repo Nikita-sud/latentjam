@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.app
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.drawable.ColorDrawable
@@ -16,6 +17,10 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.createSavedStateHandle
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -61,12 +66,30 @@ import org.jetbrains.compose.resources.stringResource
  */
 class MainActivity : ComponentActivity() {
 
+    private val externalAudioOpener by lazy {
+        val context = applicationContext
+        val factory = viewModelFactory {
+            initializer {
+                AndroidExternalAudioOpener(
+                    createSavedStateHandle(),
+                    userPlaybackRevision = { AppGraph.playback.userPlaybackRevision },
+                ) { uri, tracks, library ->
+                    resolveExternalAudio(context, uri, tracks, library)
+                }
+            }
+        }
+        ViewModelProvider(this, factory)[AndroidExternalAudioOpener::class.java]
+    }
+
     private var audioPermissionGranted by mutableStateOf(false)
     private var audioPermissionGateDismissed by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         applyStoredWindowTheme()
+        // SavedStateHandle already owns any unfinished request after recreation. Re-reading the
+        // launch intent here would replay an already consumed file after a locale/rotation change.
+        if (savedInstanceState == null) externalAudioOpener.submit(intent?.action, intent?.dataString)
         audioPermissionGranted = hasAudioPermission()
         audioPermissionGateDismissed = getSharedPreferences(
             AUDIO_GATE_PREFERENCES,
@@ -78,6 +101,7 @@ class MainActivity : ComponentActivity() {
                     engine = AppGraph.engine,
                     library = AppGraph.library,
                     playback = AppGraph.playback,
+                    externalAudioOpener = externalAudioOpener,
                 )
                 ContextualNotificationPermissionRequest(AppGraph.permissions)
             } else {
@@ -104,11 +128,23 @@ class MainActivity : ComponentActivity() {
         applyStoredWindowTheme(systemBars = false)
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        externalAudioOpener.submit(intent.action, intent.dataString)
+    }
+
+    override fun onPause() {
+        externalAudioOpener.setActive(false)
+        super.onPause()
+    }
+
     override fun onResume() {
         super.onResume()
         // Returning from the system settings page is a normal part of permission recovery.
         audioPermissionGranted = hasAudioPermission()
         AppGraph.permissions.refresh()
+        externalAudioOpener.setActive(true)
     }
 
     private fun setAudioGateDismissed(dismissed: Boolean) {

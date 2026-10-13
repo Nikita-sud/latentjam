@@ -1,0 +1,4 @@
+M3U imports keep the file name when the playlist has no title.
+Missing system artwork falls back to the picture embedded in the song.
+Open local audio from a file manager; LatentJam plays the matching song in your library.
+Choose Favorite instead of Repeat in Android media controls; SMART stays available. Enable it in Settings → Appearance.

@@ -346,6 +346,8 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_crossfade
 import io.github.nikitasud.latentjam.app.generated.resources.settings_crossfade_subtitle
 import io.github.nikitasud.latentjam.app.generated.resources.settings_crossfade_value
 import io.github.nikitasud.latentjam.app.generated.resources.settings_normalize_volume
+import io.github.nikitasud.latentjam.app.generated.resources.settings_notification_favorite
+import io.github.nikitasud.latentjam.app.generated.resources.settings_notification_favorite_subtitle
 import io.github.nikitasud.latentjam.app.generated.resources.settings_normalize_volume_subtitle
 import io.github.nikitasud.latentjam.app.generated.resources.settings_stats
 import io.github.nikitasud.latentjam.app.generated.resources.settings_stats_subtitle
@@ -825,6 +827,34 @@ private fun AppearanceSettings(
                         },
                     ),
                 )
+            }
+        }
+        if (notificationFavoriteAvailable) {
+            item {
+                val favorite by settings.notificationFavorite.collectAsState()
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .toggleable(
+                            value = favorite,
+                            role = Role.Switch,
+                            onValueChange = settings::setNotificationFavorite,
+                        )
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                        Text(
+                            stringResource(Res.string.settings_notification_favorite),
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        Text(
+                            stringResource(Res.string.settings_notification_favorite_subtitle),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = favorite, onCheckedChange = null)
+                }
             }
         }
         item {
@@ -3050,7 +3080,7 @@ private fun BackupSettings(
             when (result) {
                 is LocalBackupFileResult.Success -> {
                     selectedSections = LocalBackupSections()
-                    pendingImport = result.value
+                    pendingImport = result.value.text
                 }
                 LocalBackupFileResult.Cancelled -> Unit
                 is LocalBackupFileResult.Failure -> show(failedMessage)

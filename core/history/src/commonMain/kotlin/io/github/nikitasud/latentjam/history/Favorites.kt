@@ -8,6 +8,9 @@ import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -19,6 +22,9 @@ import kotlinx.coroutines.withContext
  * personal signal and leave the phone only in a local backup file the listener writes themselves.
  */
 public interface Favorites {
+
+    /** Advances only after a durable mutation, so every surface observes the same hearts. */
+    public val revision: StateFlow<Long>
 
     /** Every favourite, newest first. */
     public suspend fun all(): List<TrackId>
@@ -79,6 +85,8 @@ public class DefaultFavorites(
     private val store: FavoritesStore,
 ) : Favorites {
 
+    private val mutableRevision = MutableStateFlow(0L)
+    override val revision: StateFlow<Long> = mutableRevision.asStateFlow()
     private val mutex = Mutex()
     private var loaded = false
     private val ids = mutableListOf<TrackId>()
@@ -144,6 +152,7 @@ public class DefaultFavorites(
             store.write(replacement.map { it.value })
             ids.clear()
             ids += replacement
+            mutableRevision.value += 1L
         }
     }
 

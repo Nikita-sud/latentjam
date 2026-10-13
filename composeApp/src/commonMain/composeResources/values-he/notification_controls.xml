@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_notification_favorite">מועדפים בהתראה</string>
+    <string name="settings_notification_favorite_subtitle">מחליף את כפתור החזרה בכפתור מועדפים</string>
+</resources>

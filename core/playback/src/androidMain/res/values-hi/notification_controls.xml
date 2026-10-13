@@ -1,0 +1,4 @@
+<resources>
+    <string name="media_session_favorite">पसंदीदा में जोड़ें</string>
+    <string name="media_session_unfavorite">पसंदीदा से हटाएँ</string>
+</resources>

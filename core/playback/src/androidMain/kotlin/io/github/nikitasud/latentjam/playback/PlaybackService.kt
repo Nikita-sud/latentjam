@@ -32,6 +32,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import com.google.common.util.concurrent.SettableFuture
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -120,6 +121,7 @@ public class PlaybackService : MediaLibraryService() {
                 .setAvailableSessionCommands(
                     result.availableSessionCommands.buildUpon()
                         .add(CycleShuffleModeCommand)
+                        .add(ToggleFavoriteCommand)
                         .build(),
                 )
                 .setAvailablePlayerCommands(result.availablePlayerCommands)
@@ -164,6 +166,19 @@ public class PlaybackService : MediaLibraryService() {
         ): ListenableFuture<SessionResult> {
             if (controller.isTrusted) {
                 when (customCommand) {
+                    ToggleFavoriteCommand -> {
+                        // Capture the item now: a transition while storage suspends must never
+                        // apply this tap to the next song. Empty/unready sessions cannot heart.
+                        val state = NotificationFavoritesRegistry.state.value
+                        val id = playbackPlayer?.currentMediaItem?.mediaId?.takeIf { it.isNotBlank() }
+                        val toggle = NotificationFavoritesRegistry.toggleFavorite
+                        if (!state.enabled || !state.ready || id == null || toggle == null) {
+                            return Futures.immediateFuture(
+                                SessionResult(SessionResult.RESULT_ERROR_INVALID_STATE),
+                            )
+                        }
+                        return favoriteCommandFuture(TrackId(id), toggle)
+                    }
                     CycleShuffleModeCommand -> {
                         AndroidShuffleModeRegistry.cycle()
                         return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
@@ -589,6 +604,7 @@ public class PlaybackService : MediaLibraryService() {
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             playbackPlayer?.let { AndroidPlaybackStarts.onMediaItemTransition(it, mediaItem, reason) }
+            refreshMediaButtons()
         }
 
         override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
@@ -746,11 +762,16 @@ public class PlaybackService : MediaLibraryService() {
                     DataSourceBitmapLoader.Builder(this)
                         .setMaximumOutputDimension(MediaSession.getBitmapDimensionLimit(this))
                         .build(),
+                    resolver = contentResolver,
+                    maxDimension = MediaSession.getBitmapDimensionLimit(this),
                 ),
             )
         appLaunchPendingIntent()?.let(sessionBuilder::setSessionActivity)
         mediaSession = sessionBuilder.build()
         player.addListener(playerListener)
+        serviceScope.launch {
+            NotificationFavoritesRegistry.state.collectLatest { refreshMediaButtons() }
+        }
         // If Android recreated the service after an unclean process death, the persisted timing
         // anchor must no longer claim that progress is live while Media3 restores the queue.
         PlaybackWidgetStateStore.markPaused(this)
@@ -869,20 +890,16 @@ public class PlaybackService : MediaLibraryService() {
     }
 
     /**
-     * Requests the same order as the in-app player: repeat on the left secondary slot and the
+     * Requests repeat (or the chosen favorite action) on the left secondary slot and the
      * three-state shuffle on the right secondary slot. Android's legacy System UI bridge ignores
      * explicit secondary slots, so OVERFLOW also keeps both actions visible there; it preserves
-     * their repeat-before-shuffle order even when an OEM chooses the precise placement.
+     * their secondary-action-before-shuffle order even when an OEM chooses the precise placement.
      */
     private fun mediaButtonPreferences(
         player: Player,
         shuffleMode: ShuffleMode,
     ): List<CommandButton> = listOf(
-        CommandButton.Builder(repeatIcon(player.repeatMode))
-            .setDisplayName(repeatActionName(player.repeatMode))
-            .setPlayerCommand(Player.COMMAND_SET_REPEAT_MODE, nextRepeatMode(player.repeatMode))
-            .setSlots(CommandButton.SLOT_BACK_SECONDARY, CommandButton.SLOT_OVERFLOW)
-            .build(),
+        secondaryMediaButton(player),
         CommandButton.Builder(shuffleIcon(shuffleMode))
             .apply {
                 // SMART wears the app's own mark, exactly like the in-app player. Media3 takes a
@@ -896,6 +913,51 @@ public class PlaybackService : MediaLibraryService() {
             .setSlots(CommandButton.SLOT_FORWARD_SECONDARY, CommandButton.SLOT_OVERFLOW)
             .build(),
     )
+
+    private fun secondaryMediaButton(player: Player): CommandButton {
+        val state = NotificationFavoritesRegistry.state.value
+        if (!state.enabled) {
+            return CommandButton.Builder(repeatIcon(player.repeatMode))
+                .setDisplayName(repeatActionName(player.repeatMode))
+                .setPlayerCommand(Player.COMMAND_SET_REPEAT_MODE, nextRepeatMode(player.repeatMode))
+                .setSlots(CommandButton.SLOT_BACK_SECONDARY, CommandButton.SLOT_OVERFLOW)
+                .build()
+        }
+        val id = player.currentMediaItem?.mediaId?.takeIf { it.isNotBlank() }?.let(::TrackId)
+        val favorite = id != null && id in state.favoriteIds
+        return CommandButton.Builder(CommandButton.ICON_UNDEFINED)
+            .setCustomIconResId(
+                if (favorite) R.drawable.ic_favorite_filled else R.drawable.ic_favorite_outline,
+            )
+            .setDisplayName(getString(
+                if (favorite) R.string.media_session_unfavorite else R.string.media_session_favorite,
+            ))
+            .setSessionCommand(ToggleFavoriteCommand)
+            .setEnabled(id != null && state.ready && NotificationFavoritesRegistry.toggleFavorite != null)
+            .setSlots(CommandButton.SLOT_BACK_SECONDARY, CommandButton.SLOT_OVERFLOW)
+            .build()
+    }
+
+    private fun favoriteCommandFuture(
+        id: TrackId,
+        toggle: suspend (TrackId) -> Unit,
+    ): ListenableFuture<SessionResult> {
+        val result = SettableFuture.create<SessionResult>()
+        val job = serviceScope.launch {
+            try {
+                toggle(id)
+                refreshMediaButtons()
+                result.set(SessionResult(SessionResult.RESULT_SUCCESS))
+            } catch (cancelled: CancellationException) {
+                result.cancel(false)
+                throw cancelled
+            } catch (_: Throwable) {
+                result.set(SessionResult(SessionResult.RESULT_ERROR_UNKNOWN))
+            }
+        }
+        job.invokeOnCompletion { if (!result.isDone) result.cancel(false) }
+        return result
+    }
 
     private fun refreshMediaButtons() {
         val player = playbackPlayer ?: return

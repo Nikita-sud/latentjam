@@ -17,6 +17,8 @@ import org.koin.dsl.module
 import platform.Foundation.NSNumber
 import platform.Foundation.NSUserDefaults
 
+internal actual val notificationFavoriteAvailable: Boolean = false
+
 internal class IosAppSettings : AppSettings {
 
     private val defaults = NSUserDefaults.standardUserDefaults
