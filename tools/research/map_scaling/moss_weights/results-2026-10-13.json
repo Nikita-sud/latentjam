@@ -1,0 +1,1067 @@
+{
+  "geometry": {
+    "metrics": {
+      "a25": {
+        "tracks": 1107,
+        "regions": 17,
+        "assigned": 974,
+        "outside": 133,
+        "playlist_at15": 0.6268239405854086,
+        "map_playlist_at15": 0.6128440366972477,
+        "same_artist_at15": 0.2618488407106293,
+        "dominant_genre_coverage": 0.7713697219361483
+      },
+      "a50": {
+        "tracks": 1107,
+        "regions": 18,
+        "assigned": 959,
+        "outside": 148,
+        "playlist_at15": 0.6294451725644387,
+        "map_playlist_at15": 0.6178243774574049,
+        "same_artist_at15": 0.25817524841915085,
+        "dominant_genre_coverage": 0.7949790794979079
+      },
+      "a75": {
+        "tracks": 1107,
+        "regions": 17,
+        "assigned": 855,
+        "outside": 252,
+        "playlist_at15": 0.580602883355177,
+        "map_playlist_at15": 0.561817387505461,
+        "same_artist_at15": 0.22830472749171937,
+        "dominant_genre_coverage": 0.7810304449648712
+      }
+    },
+    "exact_baseline_replay": true,
+    "strong_available_at_least12s": 615,
+    "region_audio_coverage": [
+      {
+        "variant": "a25",
+        "region": 0,
+        "content": "MUSIC",
+        "population": 148,
+        "available": 91
+      },
+      {
+        "variant": "a25",
+        "region": 1,
+        "content": "MUSIC",
+        "population": 106,
+        "available": 0
+      },
+      {
+        "variant": "a25",
+        "region": 2,
+        "content": "MUSIC",
+        "population": 79,
+        "available": 53
+      },
+      {
+        "variant": "a25",
+        "region": 3,
+        "content": "MUSIC",
+        "population": 75,
+        "available": 36
+      },
+      {
+        "variant": "a25",
+        "region": 4,
+        "content": "MUSIC",
+        "population": 74,
+        "available": 0
+      },
+      {
+        "variant": "a25",
+        "region": 5,
+        "content": "MUSIC",
+        "population": 68,
+        "available": 55
+      },
+      {
+        "variant": "a25",
+        "region": 6,
+        "content": "MUSIC",
+        "population": 64,
+        "available": 49
+      },
+      {
+        "variant": "a25",
+        "region": 7,
+        "content": "MUSIC",
+        "population": 60,
+        "available": 27
+      },
+      {
+        "variant": "a25",
+        "region": 8,
+        "content": "MUSIC",
+        "population": 59,
+        "available": 28
+      },
+      {
+        "variant": "a25",
+        "region": 9,
+        "content": "MUSIC",
+        "population": 47,
+        "available": 42
+      },
+      {
+        "variant": "a25",
+        "region": 10,
+        "content": "MUSIC",
+        "population": 44,
+        "available": 22
+      },
+      {
+        "variant": "a25",
+        "region": 11,
+        "content": "MUSIC",
+        "population": 39,
+        "available": 23
+      },
+      {
+        "variant": "a25",
+        "region": 12,
+        "content": "MUSIC",
+        "population": 38,
+        "available": 36
+      },
+      {
+        "variant": "a25",
+        "region": 13,
+        "content": "MUSIC",
+        "population": 20,
+        "available": 14
+      },
+      {
+        "variant": "a25",
+        "region": 14,
+        "content": "MUSIC",
+        "population": 20,
+        "available": 18
+      },
+      {
+        "variant": "a25",
+        "region": 15,
+        "content": "NOVELTY",
+        "population": 19,
+        "available": 13
+      },
+      {
+        "variant": "a25",
+        "region": 16,
+        "content": "MUSIC",
+        "population": 14,
+        "available": 9
+      },
+      {
+        "variant": "a50",
+        "region": 0,
+        "content": "MUSIC",
+        "population": 139,
+        "available": 85
+      },
+      {
+        "variant": "a50",
+        "region": 1,
+        "content": "MUSIC",
+        "population": 94,
+        "available": 1
+      },
+      {
+        "variant": "a50",
+        "region": 2,
+        "content": "MUSIC",
+        "population": 83,
+        "available": 42
+      },
+      {
+        "variant": "a50",
+        "region": 3,
+        "content": "MUSIC",
+        "population": 83,
+        "available": 0
+      },
+      {
+        "variant": "a50",
+        "region": 4,
+        "content": "MUSIC",
+        "population": 78,
+        "available": 57
+      },
+      {
+        "variant": "a50",
+        "region": 5,
+        "content": "MUSIC",
+        "population": 61,
+        "available": 54
+      },
+      {
+        "variant": "a50",
+        "region": 6,
+        "content": "MUSIC",
+        "population": 61,
+        "available": 41
+      },
+      {
+        "variant": "a50",
+        "region": 7,
+        "content": "MUSIC",
+        "population": 46,
+        "available": 29
+      },
+      {
+        "variant": "a50",
+        "region": 8,
+        "content": "MUSIC",
+        "population": 46,
+        "available": 29
+      },
+      {
+        "variant": "a50",
+        "region": 9,
+        "content": "MUSIC",
+        "population": 44,
+        "available": 22
+      },
+      {
+        "variant": "a50",
+        "region": 10,
+        "content": "MUSIC",
+        "population": 42,
+        "available": 18
+      },
+      {
+        "variant": "a50",
+        "region": 11,
+        "content": "MUSIC",
+        "population": 42,
+        "available": 34
+      },
+      {
+        "variant": "a50",
+        "region": 12,
+        "content": "MUSIC",
+        "population": 38,
+        "available": 23
+      },
+      {
+        "variant": "a50",
+        "region": 13,
+        "content": "MUSIC",
+        "population": 35,
+        "available": 21
+      },
+      {
+        "variant": "a50",
+        "region": 14,
+        "content": "MUSIC",
+        "population": 25,
+        "available": 23
+      },
+      {
+        "variant": "a50",
+        "region": 15,
+        "content": "MUSIC",
+        "population": 21,
+        "available": 14
+      },
+      {
+        "variant": "a50",
+        "region": 16,
+        "content": "NOVELTY",
+        "population": 17,
+        "available": 11
+      },
+      {
+        "variant": "a50",
+        "region": 17,
+        "content": "SOUND_EFFECTS",
+        "population": 4,
+        "available": 3
+      },
+      {
+        "variant": "a75",
+        "region": 0,
+        "content": "MUSIC",
+        "population": 91,
+        "available": 56
+      },
+      {
+        "variant": "a75",
+        "region": 1,
+        "content": "MUSIC",
+        "population": 82,
+        "available": 61
+      },
+      {
+        "variant": "a75",
+        "region": 2,
+        "content": "MUSIC",
+        "population": 78,
+        "available": 49
+      },
+      {
+        "variant": "a75",
+        "region": 3,
+        "content": "MUSIC",
+        "population": 78,
+        "available": 48
+      },
+      {
+        "variant": "a75",
+        "region": 4,
+        "content": "MUSIC",
+        "population": 76,
+        "available": 37
+      },
+      {
+        "variant": "a75",
+        "region": 5,
+        "content": "MUSIC",
+        "population": 65,
+        "available": 30
+      },
+      {
+        "variant": "a75",
+        "region": 6,
+        "content": "MUSIC",
+        "population": 64,
+        "available": 34
+      },
+      {
+        "variant": "a75",
+        "region": 7,
+        "content": "MUSIC",
+        "population": 42,
+        "available": 0
+      },
+      {
+        "variant": "a75",
+        "region": 8,
+        "content": "MUSIC",
+        "population": 39,
+        "available": 3
+      },
+      {
+        "variant": "a75",
+        "region": 9,
+        "content": "MUSIC",
+        "population": 38,
+        "available": 1
+      },
+      {
+        "variant": "a75",
+        "region": 10,
+        "content": "MUSIC",
+        "population": 37,
+        "available": 21
+      },
+      {
+        "variant": "a75",
+        "region": 11,
+        "content": "MUSIC",
+        "population": 35,
+        "available": 15
+      },
+      {
+        "variant": "a75",
+        "region": 12,
+        "content": "MUSIC",
+        "population": 33,
+        "available": 23
+      },
+      {
+        "variant": "a75",
+        "region": 13,
+        "content": "MUSIC",
+        "population": 32,
+        "available": 0
+      },
+      {
+        "variant": "a75",
+        "region": 14,
+        "content": "MUSIC",
+        "population": 29,
+        "available": 29
+      },
+      {
+        "variant": "a75",
+        "region": 15,
+        "content": "MUSIC",
+        "population": 20,
+        "available": 18
+      },
+      {
+        "variant": "a75",
+        "region": 16,
+        "content": "NOVELTY",
+        "population": 16,
+        "available": 11
+      }
+    ]
+  },
+  "protocol": {
+    "seed": 2026101321,
+    "weights_audio": [
+      0.25,
+      0.5,
+      0.75
+    ],
+    "library_rows": 1107,
+    "geometry": "Exact Kotlin fusion, regions and PCA/t-SNE; fixed source snapshot, unchanged thresholds.",
+    "neighbor_sampling": "12 uniform distinct anchors for each rank 1/3/5, among strong local matches with true same-rank neighbors available in all three variants. No reranking to available catalogue. Two 12s positions per track.",
+    "neighbor_eligibility": {
+      "1": {
+        "eligible_anchors": 367,
+        "available_music_anchors": 602
+      },
+      "3": {
+        "eligible_anchors": 255,
+        "available_music_anchors": 602
+      },
+      "5": {
+        "eligible_anchors": 202,
+        "available_music_anchors": 602
+      }
+    },
+    "region_sampling": "Every region with >=5 strong available members: 1 central + 1 lowest final-world cosine margin + 3 uniform; same five at two positions. MUSIC primary, special content separate.",
+    "judge": "Direct 4-audio neighbor and 5-audio region prompts; greedy BF16 pinned MOSS-Music-8B-Instruct. No captions, names, genres, weights or conditions supplied.",
+    "audio": "Mono16k PCM16, stripped metadata; 12s centered at30%/65% of song; preserve original gain.",
+    "qa_gate": "All12 control answers parse, 3/3 exact scores >=3 and >silence, 3/3 equal candidate spreads <=1, 3/3 identical groups >=3, 3/3 silent groups not assessable. Failure blocks winner claims; retain all outputs.",
+    "analysis": "Average repeated positions within anchor/region first. Neighbor matched differences and per-anchor bootstrap descriptive. Regions equal-region macro plus coverage; random groups diagnostic only, regions unpaired between variants. Order repeats reported. No population accuracy or significance claim.",
+    "task_counts": {
+      "qa_silence": 3,
+      "qa_equal": 3,
+      "qa_identical": 3,
+      "qa_exact": 3,
+      "main_neighbor": 72,
+      "main_region": 86,
+      "neighbor_order_repeat": 6,
+      "region_order_repeat": 6,
+      "random_region": 18
+    },
+    "limits": [
+      "One personal library; audio only where strong local matches exist. Missing areas excluded and counted, not assumed successful.",
+      "Local matches use filename,size,duration; phone audio hashes unavailable.",
+      "Model opinion is not human listening; multi-audio qualification and order checks required.",
+      "Repeated tracks/regions/anchors not independent. 12s excerpts do not represent full songs."
+    ]
+  },
+  "verification": {
+    "tasks": 200,
+    "clips": 509,
+    "all_wavs_hashed_and_metadata_free": true,
+    "anonymous_upload_schema_verified": true,
+    "true_full_library_neighbor_ranks_verified": true,
+    "paired_anchors": 36,
+    "two_positions_each": true,
+    "frozen_allocation_hashes_verified": true,
+    "baseline_exact_replay": true,
+    "neighbor_overlap_at15_vs25": {
+      "a50": 0.7773562180066245,
+      "a75": 0.5380909364649202
+    }
+  },
+  "evaluation": {
+    "qa": {
+      "controls": 12,
+      "completed": 12,
+      "passed": 11,
+      "gate_passed": false,
+      "checks": [
+        {
+          "task_id": "t0001",
+          "check": "qa_silence",
+          "pass": true,
+          "response": {
+            "assessable": false,
+            "coherence": null,
+            "common": "none",
+            "differences": "none"
+          },
+          "complete": true
+        },
+        {
+          "task_id": "t0002",
+          "check": "qa_equal",
+          "pass": true,
+          "response": {
+            "scores": [
+              0,
+              0,
+              0
+            ],
+            "reason": "All candidates are silent or contain no audible musical content, making comparison impossible."
+          },
+          "complete": true
+        },
+        {
+          "task_id": "t0003",
+          "check": "qa_silence",
+          "pass": true,
+          "response": {
+            "assessable": false,
+            "coherence": null,
+            "common": "none",
+            "differences": "none"
+          },
+          "complete": true
+        },
+        {
+          "task_id": "t0004",
+          "check": "qa_identical",
+          "pass": true,
+          "response": {
+            "assessable": true,
+            "coherence": 4,
+            "common": "identical chord progression, tempo, vocal delivery, and instrumental arrangement",
+            "differences": "none"
+          },
+          "complete": true
+        },
+        {
+          "task_id": "t0005",
+          "check": "qa_exact",
+          "pass": true,
+          "response": {
+            "scores": [
+              3,
+              3,
+              0
+            ],
+            "reason": "Candidates A and B are nearly identical to the reference in instrumentation, vocal delivery, and groove, with only minor timing or processing differences. Candidate C contains no audible musical content."
+          },
+          "complete": true
+        },
+        {
+          "task_id": "t0006",
+          "check": "qa_identical",
+          "pass": true,
+          "response": {
+            "assessable": true,
+            "coherence": 4,
+            "common": "All recordings feature a driving electronic beat, pulsing synthesizers, and a consistent rhythmic groove with a high-energy dance feel.",
+            "differences": "none"
+          },
+          "complete": true
+        },
+        {
+          "task_id": "t0007",
+          "check": "qa_equal",
+          "pass": true,
+          "response": {
+            "scores": [
+              0,
+              0,
+              0
+            ],
+            "reason": "All candidates are silent or contain no audible musical content, making comparison impossible."
+          },
+          "complete": true
+        },
+        {
+          "task_id": "t0008",
+          "check": "qa_equal",
+          "pass": false,
+          "response": {
+            "scores": [
+              0,
+              2,
+              2
+            ],
+            "reason": "Candidate A is silent or inaudible. Candidates B and C are moderately similar to the reference, featuring acoustic guitar and vocal delivery, but differ in rhythm and energy."
+          },
+          "complete": true
+        },
+        {
+          "task_id": "t0009",
+          "check": "qa_identical",
+          "pass": true,
+          "response": {
+            "assessable": true,
+            "coherence": 4,
+            "common": "All recordings feature the same male vocal performance with consistent phrasing, melody, and lyrical content, indicating a unified musical take.",
+            "differences": "none"
+          },
+          "complete": true
+        },
+        {
+          "task_id": "t0010",
+          "check": "qa_exact",
+          "pass": true,
+          "response": {
+            "scores": [
+              3,
+              0,
+              0
+            ],
+            "reason": "Candidate A matches the reference in instrumentation, rhythm, and energy, featuring a driving electronic beat and synth textures. Candidates B and C are silent or contain no audible musical content."
+          },
+          "complete": true
+        },
+        {
+          "task_id": "t0011",
+          "check": "qa_silence",
+          "pass": true,
+          "response": {
+            "assessable": false,
+            "coherence": null,
+            "common": "none",
+            "differences": "none"
+          },
+          "complete": true
+        },
+        {
+          "task_id": "t0012",
+          "check": "qa_exact",
+          "pass": true,
+          "response": {
+            "scores": [
+              3,
+              0,
+              0
+            ],
+            "reason": "Candidate A matches the reference in instrumentation, rhythm, vocal delivery, and energy, while B and C are silent or non-musical."
+          },
+          "complete": true
+        }
+      ]
+    },
+    "completed_tasks": 200,
+    "planned_tasks": 200,
+    "valid_normalized": 200,
+    "strict_schema": 200,
+    "truncated": 0,
+    "neighbors": {
+      "paired_anchors_complete": 36,
+      "planned_anchors": 36,
+      "means": {
+        "a25": 1.5694444444444444,
+        "a50": 1.6111111111111112,
+        "a75": 1.375
+      },
+      "same_candidate_score_differences": {
+        "pairs": 108,
+        "max": 3,
+        "above_one": 21
+      },
+      "presentation_slot_means_ABC": [
+        1.5555555555555556,
+        1.5416666666666667,
+        1.4583333333333333
+      ],
+      "distinct_candidate_counts_per_anchor": {
+        "3": 10,
+        "1": 14,
+        "2": 12
+      },
+      "comparisons": {
+        "a50_minus_a25": {
+          "mean_difference": 0.041666666666666664,
+          "descriptive_anchor_bootstrap95": [
+            -0.3055555555555556,
+            0.4166666666666667
+          ],
+          "anchors_win_tie_loss": [
+            8,
+            21,
+            7
+          ]
+        },
+        "a75_minus_a25": {
+          "mean_difference": -0.19444444444444445,
+          "descriptive_anchor_bootstrap95": [
+            -0.6666666666666666,
+            0.2777777777777778
+          ],
+          "anchors_win_tie_loss": [
+            11,
+            12,
+            13
+          ]
+        }
+      }
+    },
+    "regions": {
+      "a25": {
+        "main_region": {
+          "complete_music_groups": 14,
+          "mean": 1.4642857142857142,
+          "scores": [
+            2.0,
+            0.0,
+            2.0,
+            2.0,
+            1.5,
+            2.0,
+            2.0,
+            1.0,
+            1.0,
+            1.0,
+            2.0,
+            2.0,
+            1.0,
+            1.0
+          ]
+        },
+        "random_region": {
+          "complete_music_groups": 3,
+          "mean": 0.3333333333333333,
+          "scores": [
+            0.0,
+            0.0,
+            1.0
+          ]
+        }
+      },
+      "a50": {
+        "main_region": {
+          "complete_music_groups": 14,
+          "mean": 1.5,
+          "scores": [
+            2.0,
+            2.0,
+            2.0,
+            1.0,
+            0.0,
+            0.0,
+            2.0,
+            2.0,
+            1.0,
+            1.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0
+          ]
+        },
+        "random_region": {
+          "complete_music_groups": 3,
+          "mean": 0.0,
+          "scores": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "a75": {
+        "main_region": {
+          "complete_music_groups": 12,
+          "mean": 1.0833333333333333,
+          "scores": [
+            2.0,
+            0.0,
+            0.0,
+            2.0,
+            0.0,
+            1.0,
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            2.0,
+            2.0
+          ]
+        },
+        "random_region": {
+          "complete_music_groups": 3,
+          "mean": 0.3333333333333333,
+          "scores": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        }
+      }
+    },
+    "order_repeats": [
+      {
+        "kind": "neighbor",
+        "task_id": "t0015",
+        "absolute_score_changes": [
+          3,
+          0,
+          3
+        ]
+      },
+      {
+        "kind": "region",
+        "task_id": "t0035",
+        "absolute_score_changes": [
+          2
+        ]
+      },
+      {
+        "kind": "region",
+        "task_id": "t0038",
+        "absolute_score_changes": [
+          0
+        ]
+      },
+      {
+        "kind": "neighbor",
+        "task_id": "t0053",
+        "absolute_score_changes": [
+          2,
+          3,
+          2
+        ]
+      },
+      {
+        "kind": "region",
+        "task_id": "t0054",
+        "absolute_score_changes": [
+          2
+        ]
+      },
+      {
+        "kind": "region",
+        "task_id": "t0061",
+        "absolute_score_changes": [
+          0
+        ]
+      },
+      {
+        "kind": "neighbor",
+        "task_id": "t0079",
+        "absolute_score_changes": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "kind": "neighbor",
+        "task_id": "t0080",
+        "absolute_score_changes": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "kind": "region",
+        "task_id": "t0089",
+        "absolute_score_changes": [
+          2
+        ]
+      },
+      {
+        "kind": "neighbor",
+        "task_id": "t0110",
+        "absolute_score_changes": [
+          3,
+          3,
+          1
+        ]
+      },
+      {
+        "kind": "region",
+        "task_id": "t0141",
+        "absolute_score_changes": [
+          0
+        ]
+      },
+      {
+        "kind": "neighbor",
+        "task_id": "t0183",
+        "absolute_score_changes": [
+          0,
+          0,
+          0
+        ]
+      }
+    ],
+    "winner_claim_permitted_by_qa": false,
+    "limits": [
+      "One personal library; audio only where strong local matches exist. Missing areas excluded and counted, not assumed successful.",
+      "Local matches use filename,size,duration; phone audio hashes unavailable.",
+      "Model opinion is not human listening; multi-audio qualification and order checks required.",
+      "Repeated tracks/regions/anchors not independent. 12s excerpts do not represent full songs.",
+      "0..4 scores are ordinal model opinions, not a percentage of musical correctness.",
+      "Region samples differ between variants; region means are unpaired and selected-member coverage must accompany them."
+    ]
+  },
+  "montage_qualification": {
+    "controls": 12,
+    "completed": 12,
+    "passed": 7,
+    "gate_passed": false,
+    "checks": [
+      {
+        "task_id": "t0001",
+        "check": "qa_silence",
+        "pass": false,
+        "response": null,
+        "complete": true
+      },
+      {
+        "task_id": "t0002",
+        "check": "qa_equal",
+        "pass": true,
+        "response": {
+          "scores": [
+            0,
+            0,
+            0
+          ],
+          "reason": "Each candidate is a distinct, non-musical spoken-word segment with no audible connection to the reference recording, which features a full band arrangement with electric guitar, bass, drums, and vocals."
+        },
+        "complete": true
+      },
+      {
+        "task_id": "t0003",
+        "check": "qa_silence",
+        "pass": false,
+        "response": null,
+        "complete": true
+      },
+      {
+        "task_id": "t0004",
+        "check": "qa_identical",
+        "pass": true,
+        "response": {
+          "assessable": true,
+          "coherence": 3,
+          "common": "All segments feature a male vocalist singing in Russian over a consistent rhythmic groove with prominent bass and drums, maintaining a similar melodic and harmonic structure throughout.",
+          "differences": "While the core instrumentation and tempo remain consistent, subtle variations in vocal phrasing, instrumental layering, and dynamic intensity distinguish each segment, contributing to a sense of progression without disrupting overall coherence."
+        },
+        "complete": true
+      },
+      {
+        "task_id": "t0005",
+        "check": "qa_exact",
+        "pass": false,
+        "response": {
+          "scores": [
+            0,
+            0,
+            0
+          ],
+          "reason": "Each candidate is a distinct, unrelated recording with no audible continuity or similarity to the reference or to each other."
+        },
+        "complete": true
+      },
+      {
+        "task_id": "t0006",
+        "check": "qa_identical",
+        "pass": true,
+        "response": {
+          "assessable": true,
+          "coherence": 3,
+          "common": "All segments feature a driving electronic beat, prominent synthesizer textures, and a consistent rhythmic pulse, suggesting a unified production style and genre.",
+          "differences": "While the core instrumentation remains consistent, subtle variations in synth layering, rhythmic phrasing, and dynamic intensity distinguish each segment, contributing to a sense of progression and development across the piece."
+        },
+        "complete": true
+      },
+      {
+        "task_id": "t0007",
+        "check": "qa_equal",
+        "pass": true,
+        "response": {
+          "scores": [
+            0,
+            0,
+            0
+          ],
+          "reason": "Each candidate is a distinct, unrelated recording with no audible connection to the reference or to each other."
+        },
+        "complete": true
+      },
+      {
+        "task_id": "t0008",
+        "check": "qa_equal",
+        "pass": true,
+        "response": {
+          "scores": [
+            0,
+            1,
+            1
+          ],
+          "reason": "Candidate A features a high-energy electronic dance track with synthesizers and a driving beat, while Candidates B and C shift to a lo-fi, intimate acoustic folk style with fingerpicked guitar and raw vocals. The timbres, rhythms, and production aesthetics are distinctly different, making only weak comparisons to the reference."
+        },
+        "complete": true
+      },
+      {
+        "task_id": "t0009",
+        "check": "qa_identical",
+        "pass": true,
+        "response": {
+          "assessable": true,
+          "coherence": 3,
+          "common": "All segments feature a male vocalist singing in Russian with a consistent melodic and rhythmic structure, suggesting a unified musical theme.",
+          "differences": "The vocal timbre and emotional delivery vary slightly between recordings, with subtle shifts in intensity and phrasing, indicating different performances or interpretations of the same piece."
+        },
+        "complete": true
+      },
+      {
+        "task_id": "t0010",
+        "check": "qa_exact",
+        "pass": false,
+        "response": {
+          "scores": [
+            0,
+            0,
+            0
+          ],
+          "reason": "Each candidate is a distinct musical segment with different instrumentation, rhythm, and vocal style, separated by silence, showing no audible continuity with the reference or each other."
+        },
+        "complete": true
+      },
+      {
+        "task_id": "t0011",
+        "check": "qa_silence",
+        "pass": false,
+        "response": null,
+        "complete": true
+      },
+      {
+        "task_id": "t0012",
+        "check": "qa_exact",
+        "pass": true,
+        "response": {
+          "scores": [
+            3,
+            0,
+            0
+          ],
+          "reason": "Candidate A matches the reference in vocal timbre, rhythm, and energy, while Candidates B and C are silent or contain non-musical content."
+        },
+        "complete": true
+      }
+    ]
+  },
+  "inference": {
+    "model": "OpenMOSS-Team/MOSS-Music-8B-Instruct",
+    "model_revision": "fce7f8304e96cc2d3398b8106456cbb2ecec3139",
+    "source_revision": "ad107c7ddaa06de168a0dfbc18d3e1e6a40c0e5e"
+  },
+  "provenance": {
+    "application_head": "16e3482dd9b7bfe276bbe39baced875ad6f1c3a3",
+    "geometry_input_sha256": {
+      "a25": "3525fc97053862a161b7fbfcedfd728c329a01fcf5e1ba51a6d9010d43ada580",
+      "a50": "d4b73af6222883fc30f8faa25da0cd91a55d16d4da42c7da68feffaf7cae8246",
+      "a75": "bdeca4bc765722d3713308af867f60c861170c20b637fed0b143aad24e70343f"
+    },
+    "source_sha256": {
+      "analyze_results.py": "4729e7e4f68ce00f1010df336b39f65f6e018e0694a4aef95303a0929248ced0",
+      "render_comparison.py": "e19f42fd76188f64373c85e8d1158b4a7bc8f25c901a05d447b0b0a2bd7814a0",
+      "prepare_comparison.py": "719cbd83faeb0d7db484efad8cf8768422d31a405fa94f96a9572d658ce716e2",
+      "caption_blind.py": "fb3e2d5f7f9ade596530e208643efd1696f9e43a930f3f18e2a62eb6ae6cb43a",
+      "judge_audio.py": "fa38ea89d0dff71e6fddc6d0d027806425566bb4e0bee02595cc8c7448bb21fd",
+      "MapProjectionProbe.java": "d102d29543a6b0dede61e490ebd55e150970ba10635f33f661896ae341a0545c",
+      "verify_comparison.py": "a45a4af470e32102435171c00448958571faac9b1acacdc8839d2115fd18fa39",
+      "build_report.py": "6663e14d20178395c37f623454a1a37de528d1cd91943569436409ae24fdd2af",
+      "requirements-runtime.txt": "0b1a38c90a8d6078d1ec7d9d27c43b7130233dcb58a5e134b9099017d76a2ad2",
+      "README.md": "0726f86acb99e079f4d2216e2fb2d374138356bea7868ddd2a9e282ad4bcb0d9",
+      "bootstrap.sh": "dc5f461cf32efa13e12702c144a525ee9d4c34d05152bf39993cbe8a4b446aaf",
+      "judge_montage.py": "283e74cacdc316b9b5d7a95379eb8d721f3cb92c9897aebff7d7da965bffb752",
+      "FusionRegionProbe.java": "c75690d540d5e39ebf22a2dd9c6f8a87810fbf523683e0eabe61543f4bb70ed4"
+    },
+    "protocol_sha256": "5166d87311b22b2f7b4a3406bdffc7ddde3a2c0af4b139aa509d580806dc45aa",
+    "plan_sha256": "eca5d03cb62696feba9a9adfec8df1fb1eb4e64f8d1725e95985f16fe06e6e95",
+    "responses_sha256": "c50808139ffb95cc83235f755a93fa5be5c6265be68f735e1e02dbf00ca79074"
+  }
+}

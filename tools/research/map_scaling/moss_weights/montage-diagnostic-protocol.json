@@ -1,0 +1,8 @@
+{
+  "reason": "Predeclared12-control gate failed for separate-audio inputs; a bounded alternative serialization diagnostic is added without changing recordings, allocation, rubric or earlier results.",
+  "created_after": "All12 primary controls; primary200-task run ongoing.",
+  "same_payload": true,
+  "new_prompt": "Single waveform with explicit segment times; original12s segments padded at most120ms, gaps0.5s.",
+  "qa_gate": "Same fixed checks and thresholds as original protocol; never retroactively change primary outcome.",
+  "full_followup": "Only consider a full secondary run if all12 controls pass; otherwise preserve diagnostic and reject model-only winner claims."
+}

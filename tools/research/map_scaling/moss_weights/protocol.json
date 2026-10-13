@@ -1,0 +1,47 @@
+{
+  "seed": 2026101321,
+  "weights_audio": [
+    0.25,
+    0.5,
+    0.75
+  ],
+  "library_rows": 1107,
+  "geometry": "Exact Kotlin fusion, regions and PCA/t-SNE; fixed source snapshot, unchanged thresholds.",
+  "neighbor_sampling": "12 uniform distinct anchors for each rank 1/3/5, among strong local matches with true same-rank neighbors available in all three variants. No reranking to available catalogue. Two 12s positions per track.",
+  "neighbor_eligibility": {
+    "1": {
+      "eligible_anchors": 367,
+      "available_music_anchors": 602
+    },
+    "3": {
+      "eligible_anchors": 255,
+      "available_music_anchors": 602
+    },
+    "5": {
+      "eligible_anchors": 202,
+      "available_music_anchors": 602
+    }
+  },
+  "region_sampling": "Every region with >=5 strong available members: 1 central + 1 lowest final-world cosine margin + 3 uniform; same five at two positions. MUSIC primary, special content separate.",
+  "judge": "Direct 4-audio neighbor and 5-audio region prompts; greedy BF16 pinned MOSS-Music-8B-Instruct. No captions, names, genres, weights or conditions supplied.",
+  "audio": "Mono16k PCM16, stripped metadata; 12s centered at30%/65% of song; preserve original gain.",
+  "qa_gate": "All12 control answers parse, 3/3 exact scores >=3 and >silence, 3/3 equal candidate spreads <=1, 3/3 identical groups >=3, 3/3 silent groups not assessable. Failure blocks winner claims; retain all outputs.",
+  "analysis": "Average repeated positions within anchor/region first. Neighbor matched differences and per-anchor bootstrap descriptive. Regions equal-region macro plus coverage; random groups diagnostic only, regions unpaired between variants. Order repeats reported. No population accuracy or significance claim.",
+  "task_counts": {
+    "qa_silence": 3,
+    "qa_equal": 3,
+    "qa_identical": 3,
+    "qa_exact": 3,
+    "main_neighbor": 72,
+    "main_region": 86,
+    "neighbor_order_repeat": 6,
+    "region_order_repeat": 6,
+    "random_region": 18
+  },
+  "limits": [
+    "One personal library; audio only where strong local matches exist. Missing areas excluded and counted, not assumed successful.",
+    "Local matches use filename,size,duration; phone audio hashes unavailable.",
+    "Model opinion is not human listening; multi-audio qualification and order checks required.",
+    "Repeated tracks/regions/anchors not independent. 12s excerpts do not represent full songs."
+  ]
+}
