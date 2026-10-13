@@ -10,8 +10,8 @@
 #include <sys/resource.h>
 
 int main(int argc, char** argv) {
-    if (argc != 6) {
-        std::fprintf(stderr, "usage: qdtsne_probe rows dimensions input.f32 output.f32 theta\n");
+    if (argc != 6 && argc != 7) {
+        std::fprintf(stderr, "usage: qdtsne_probe rows dimensions input.f32 output.f32 theta [eta=800]\n");
         return 2;
     }
     const int n = std::stoi(argv[1]);
@@ -22,7 +22,7 @@ int main(int argc, char** argv) {
     std::ifstream input(argv[3], std::ios::binary);
     input.read(reinterpret_cast<char*>(rows.data()), rows.size() * sizeof(float));
     if (!input || input.peek() != std::char_traits<char>::eof()) throw std::runtime_error("bad input size");
-    // Match the application's cold initialization, seed, perplexity, learning rate and schedule.
+    // Match the application's cold initialization, seed and perplexity.
     std::vector<float> y(n * 2);
     std::uint64_t state = 0x1A7E27 | 1;
     for (auto& v : y) {
@@ -38,7 +38,10 @@ int main(int argc, char** argv) {
     options.max_iterations = 1000;
     options.early_exaggeration_iterations = 250;
     options.momentum_switch_iterations = 250;
-    options.eta = 200;
+    // Kotlin's gradient includes the derivative's factor of 4; qdtsne's gradient omits it.
+    // eta=800 here matches the effective step scale of Kotlin's learning rate 200.
+    options.eta = argc == 7 ? std::stod(argv[6]) : 800;
+    if (!std::isfinite(options.eta) || options.eta <= 0) return 2;
     options.num_threads = 1;
     options.leaf_approximation = false;
     knncolle::VptreeBuilder<int, float, float> neighbors(std::make_shared<knncolle::EuclideanDistance<float, float>>());
@@ -64,8 +67,8 @@ int main(int argc, char** argv) {
 #else
     const long maxrss_bytes = usage.ru_maxrss * 1024L;
 #endif
-    std::printf("LJ_MAP_BH n=%d dim=%d theta=%.3f affinity_ms=%.3f optimizer_ms=%.3f total_ms=%.3f max_iteration_ms=%.3f maxrss_bytes=%ld threads=1 iterations=1000\n",
-        n, dim, options.theta,
+    std::printf("LJ_MAP_BH n=%d dim=%d theta=%.3f eta=%.1f affinity_ms=%.3f optimizer_ms=%.3f total_ms=%.3f max_iteration_ms=%.3f maxrss_bytes=%ld threads=1 iterations=1000\n",
+        n, dim, options.theta, options.eta,
         std::chrono::duration<double, std::milli>(prepared - start).count(),
         std::chrono::duration<double, std::milli>(end - prepared).count(),
         std::chrono::duration<double, std::milli>(end - start).count(), longest, maxrss_bytes);

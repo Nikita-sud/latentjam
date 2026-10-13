@@ -1,0 +1,484 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-13",
+  "scope": "Synthetic numerical engine comparison on the reconnected physical phone; no personal music data or UI timings",
+  "device": {
+    "model": "Samsung Galaxy S24 Ultra SM-S928B",
+    "soc": "SM8650",
+    "android_api": 36,
+    "abi": "arm64-v8a",
+    "normal_app_heap_growth_limit_bytes": 268435456
+  },
+  "provenance": {
+    "fixture": "Deterministic normalized 12-style synthetic 1344-dimensional vectors; fixture seed99871; production Kotlin PCA50 captured and reused by native candidate",
+    "same_reduced_input_for_both_engines": true,
+    "layout_seed": "0x1A7E27",
+    "iterations": 1000,
+    "perplexity": 20,
+    "exact": {
+      "runtime": "ART, isolated io.github.nikitasud.latentjam.smart.test instrumentation APK",
+      "large_heap_manifest": true,
+      "heap_limit_bytes": 536870912,
+      "thread_priority": "Process.THREAD_PRIORITY_BACKGROUND",
+      "synthetic_warmups_per_invocation": 3,
+      "warmup_rows": 180,
+      "timing_includes": "production centering/normalization and PCA, affinities and exact optimizer",
+      "timing_excludes": "fixture construction/input loading, GC before run, output persistence and UI",
+      "memory_measure": "used Java heap sampled every20ms; includes uncollected garbage and can miss a peak"
+    },
+    "native": {
+      "runtime": "Standalone optimized C++ qdtsne probe launched from Android shell",
+      "threads": 1,
+      "nice_priority_requested": 10,
+      "android_task_cpuset_equivalence_verified": false,
+      "warmup_provenance": "No separate native warmup recorded",
+      "compiler_options": [
+        "-O3",
+        "-std=c++17",
+        "-ffp-contract=off",
+        "-static-libstdc++"
+      ],
+      "theta": 0.5,
+      "nearest_neighbors": 60,
+      "max_tree_depth": 20,
+      "leaf_approximation": false,
+      "timing_includes": "sparse-neighbor affinities and Barnes-Hut optimizer",
+      "timing_excludes": "PCA, input loading, output persistence and UI",
+      "memory_measure": "peak process RSS from getrusage, not comparable directly to sampled Java heap"
+    },
+    "learning_rate_correction": "Kotlin rate200 multiplies gradient forces by4. qdtsne omits that factor, so native eta800 matches effective gradient scale. eta200 runs are a separate sensitivity configuration; earlier host results also used eta200. Adaptive gains at zero velocity and sparse/approximate forces still differ.",
+    "operating_conditions": "Numerical runs were sequential but foreground activity, task scheduling and thermal conditions were not experimentally controlled. Baseline/candidate order was not randomized; this is not an integrated release benchmark.",
+    "post_numerical_battery_snapshot": {
+      "usb_powered": true,
+      "level_percent": 47,
+      "temperature_celsius": 37.8
+    },
+    "quality_reference": "Captured synthetic PCA50 matrix, before2Dprojection. Quality metrics exclude PCA loss, musical relevance, region semantics and warm-map stability.",
+    "source_log_notes": [
+      "1107 reconnect log used the earlier APK without a fixture field; source run was synthetic.",
+      "3000 and4643 reconnect exact sets contain one measured run each; native eta800 sets contain three.",
+      "Quality metrics describe the saved output matrix, not a confidence interval over libraries or seeds.",
+      "Do not turn same-phone cross-runtime timing ratios into a guaranteed app-latency or FPS gain."
+    ]
+  },
+  "source_artifacts": [
+    {
+      "name": "exact-1107-reconnected.log",
+      "sha256": "83b3cb3d17e7f50ebeee94c6c0215fd70c3dfd7e9102ef4fb84c3fa7d843906b"
+    },
+    {
+      "name": "map-profile-3000.log",
+      "sha256": "8df27f93f2e9584eae80562506f622997b1a3b32b2d7a9f83096db016789ecf0"
+    },
+    {
+      "name": "map-profile-4643.log",
+      "sha256": "27a5b0a0a08d80c706ae6de261d2f550781524c8717fa4f8eb51dcbf03cf67d7"
+    },
+    {
+      "name": "bh-phone-reconnected.log",
+      "sha256": "b34f9de4761c556dba09ac1d1f81a95b4abd6a871da2f2dfa0c41ae94c5afa0c"
+    },
+    {
+      "name": "bh-phone-4643.log",
+      "sha256": "ffa1f66ca7a06d977b7b3f4a9b8cd9a7027ee57c2c1b9cc2cff3b762536ab826"
+    },
+    {
+      "name": "quality-phone-1107.json",
+      "sha256": "f1ea3f35e42c6e0bfa8313eba3aea15a13d7d60ec5b84f9fcac8e083eb7309e3"
+    },
+    {
+      "name": "quality-phone-3000.json",
+      "sha256": "311ea8f056a1b11205d332765d30340f2a820d185e26a052b2693337a5bc25f2"
+    },
+    {
+      "name": "quality-phone-4643.json",
+      "sha256": "e16040bd35694beb79de0d4876d2c9d0dc5cc05814c21975755017ac55d31dd7"
+    }
+  ],
+  "exact_runs": [
+    {
+      "source_log": "exact-1107-reconnected.log",
+      "n": 1107,
+      "round": 0,
+      "dim": 1344,
+      "pca_ms": 1242.907499,
+      "affinity_ms": 1674.86,
+      "optimizer_ms": 4066.1288,
+      "total_ms": 6983.896299,
+      "max_iteration_ms": 4.726771,
+      "heap_before_bytes": 8119008,
+      "heap_peak_sampled_bytes": 19895008,
+      "heap_limit_bytes": 536870912,
+      "gc_before": 4,
+      "gc_after": 4,
+      "iterations": 1000,
+      "tsne_ms": 5740.9888
+    },
+    {
+      "source_log": "exact-1107-reconnected.log",
+      "n": 1107,
+      "round": 1,
+      "dim": 1344,
+      "pca_ms": 1242.132864,
+      "affinity_ms": 1678.74526,
+      "optimizer_ms": 4071.977238,
+      "total_ms": 6992.855362,
+      "max_iteration_ms": 4.689427,
+      "heap_before_bytes": 8123104,
+      "heap_peak_sampled_bytes": 19899104,
+      "heap_limit_bytes": 536870912,
+      "gc_before": 5,
+      "gc_after": 5,
+      "iterations": 1000,
+      "tsne_ms": 5750.722498
+    },
+    {
+      "source_log": "exact-1107-reconnected.log",
+      "n": 1107,
+      "round": 2,
+      "dim": 1344,
+      "pca_ms": 1241.215989,
+      "affinity_ms": 1677.283645,
+      "optimizer_ms": 4064.683748,
+      "total_ms": 6983.183382,
+      "max_iteration_ms": 4.9375,
+      "heap_before_bytes": 8123104,
+      "heap_peak_sampled_bytes": 19899104,
+      "heap_limit_bytes": 536870912,
+      "gc_before": 6,
+      "gc_after": 6,
+      "iterations": 1000,
+      "tsne_ms": 5741.967393
+    },
+    {
+      "source_log": "map-profile-3000.log",
+      "n": 3000,
+      "round": 0,
+      "dim": 1344,
+      "fixture": "synthetic",
+      "pca_ms": 3710.236874,
+      "affinity_ms": 14202.658171,
+      "optimizer_ms": 34588.16957,
+      "total_ms": 52501.064615,
+      "max_iteration_ms": 43.325885,
+      "heap_before_bytes": 18297568,
+      "heap_peak_sampled_bytes": 91169504,
+      "heap_limit_bytes": 536870912,
+      "gc_before": 4,
+      "gc_after": 6,
+      "iterations": 1000,
+      "tsne_ms": 48790.827741
+    },
+    {
+      "source_log": "map-profile-4643.log",
+      "n": 4643,
+      "round": 0,
+      "dim": 1344,
+      "fixture": "synthetic",
+      "pca_ms": 5993.666039,
+      "affinity_ms": 39807.333162,
+      "optimizer_ms": 93311.684392,
+      "total_ms": 139112.683593,
+      "max_iteration_ms": 190.657709,
+      "heap_before_bytes": 27128544,
+      "heap_peak_sampled_bytes": 200737504,
+      "heap_limit_bytes": 536870912,
+      "gc_before": 5,
+      "gc_after": 9,
+      "iterations": 1000,
+      "tsne_ms": 133119.017554
+    }
+  ],
+  "native_runs": [
+    {
+      "source_log": "bh-phone-reconnected.log",
+      "round": 0,
+      "n": 1107,
+      "dim": 50,
+      "theta": 0.5,
+      "eta": 800,
+      "affinity_ms": 83.253,
+      "optimizer_ms": 1752.381,
+      "total_ms": 1835.634,
+      "max_iteration_ms": 3.839,
+      "maxrss_bytes": 9543680,
+      "threads": 1,
+      "iterations": 1000
+    },
+    {
+      "source_log": "bh-phone-reconnected.log",
+      "round": 1,
+      "n": 1107,
+      "dim": 50,
+      "theta": 0.5,
+      "eta": 800,
+      "affinity_ms": 168.245,
+      "optimizer_ms": 3551.363,
+      "total_ms": 3719.608,
+      "max_iteration_ms": 7.672,
+      "maxrss_bytes": 7049216,
+      "threads": 1,
+      "iterations": 1000
+    },
+    {
+      "source_log": "bh-phone-reconnected.log",
+      "round": 2,
+      "n": 1107,
+      "dim": 50,
+      "theta": 0.5,
+      "eta": 800,
+      "affinity_ms": 169.042,
+      "optimizer_ms": 2114.035,
+      "total_ms": 2283.077,
+      "max_iteration_ms": 8.366,
+      "maxrss_bytes": 9138176,
+      "threads": 1,
+      "iterations": 1000
+    },
+    {
+      "source_log": "bh-phone-reconnected.log",
+      "round": 0,
+      "n": 1107,
+      "dim": 50,
+      "theta": 0.5,
+      "eta": 200,
+      "affinity_ms": 82.711,
+      "optimizer_ms": 1602.266,
+      "total_ms": 1684.977,
+      "max_iteration_ms": 4.334,
+      "maxrss_bytes": 8036352,
+      "threads": 1,
+      "iterations": 1000
+    },
+    {
+      "source_log": "bh-phone-reconnected.log",
+      "round": 0,
+      "n": 3000,
+      "dim": 50,
+      "theta": 0.5,
+      "eta": 800,
+      "affinity_ms": 514.577,
+      "optimizer_ms": 7110.487,
+      "total_ms": 7625.063,
+      "max_iteration_ms": 20.429,
+      "maxrss_bytes": 10485760,
+      "threads": 1,
+      "iterations": 1000
+    },
+    {
+      "source_log": "bh-phone-reconnected.log",
+      "round": 1,
+      "n": 3000,
+      "dim": 50,
+      "theta": 0.5,
+      "eta": 800,
+      "affinity_ms": 512.423,
+      "optimizer_ms": 7170.328,
+      "total_ms": 7682.751,
+      "max_iteration_ms": 21.001,
+      "maxrss_bytes": 10489856,
+      "threads": 1,
+      "iterations": 1000
+    },
+    {
+      "source_log": "bh-phone-reconnected.log",
+      "round": 2,
+      "n": 3000,
+      "dim": 50,
+      "theta": 0.5,
+      "eta": 800,
+      "affinity_ms": 1039.625,
+      "optimizer_ms": 9369.94,
+      "total_ms": 10409.565,
+      "max_iteration_ms": 41.678,
+      "maxrss_bytes": 10485760,
+      "threads": 1,
+      "iterations": 1000
+    },
+    {
+      "source_log": "bh-phone-reconnected.log",
+      "round": 0,
+      "n": 3000,
+      "dim": 50,
+      "theta": 0.5,
+      "eta": 200,
+      "affinity_ms": 511.638,
+      "optimizer_ms": 6828.233,
+      "total_ms": 7339.872,
+      "max_iteration_ms": 11.323,
+      "maxrss_bytes": 10452992,
+      "threads": 1,
+      "iterations": 1000
+    },
+    {
+      "source_log": "bh-phone-4643.log",
+      "round": 0,
+      "n": 4643,
+      "dim": 50,
+      "theta": 0.5,
+      "eta": 800,
+      "affinity_ms": 1338.453,
+      "optimizer_ms": 15541.943,
+      "total_ms": 16880.396,
+      "max_iteration_ms": 46.925,
+      "maxrss_bytes": 14491648,
+      "threads": 1,
+      "iterations": 1000
+    },
+    {
+      "source_log": "bh-phone-4643.log",
+      "round": 1,
+      "n": 4643,
+      "dim": 50,
+      "theta": 0.5,
+      "eta": 800,
+      "affinity_ms": 1497.352,
+      "optimizer_ms": 12368.689,
+      "total_ms": 13866.041,
+      "max_iteration_ms": 52.71,
+      "maxrss_bytes": 14589952,
+      "threads": 1,
+      "iterations": 1000
+    },
+    {
+      "source_log": "bh-phone-4643.log",
+      "round": 2,
+      "n": 4643,
+      "dim": 50,
+      "theta": 0.5,
+      "eta": 800,
+      "affinity_ms": 2342.317,
+      "optimizer_ms": 16197.865,
+      "total_ms": 18540.182,
+      "max_iteration_ms": 84.102,
+      "maxrss_bytes": 14553088,
+      "threads": 1,
+      "iterations": 1000
+    }
+  ],
+  "summaries": [
+    {
+      "rows": 1107,
+      "exact_runs": 3,
+      "native_eta800_runs": 3,
+      "exact_component_medians_ms": {
+        "pca_ms": 1242.132864,
+        "affinity_ms": 1677.283645,
+        "optimizer_ms": 4066.1288,
+        "tsne_ms": 5741.967393,
+        "total_ms": 6983.896299
+      },
+      "native_eta800_component_medians_ms": {
+        "affinity_ms": 168.245,
+        "optimizer_ms": 2114.035,
+        "total_ms": 2283.077
+      },
+      "native_eta800_total_range_ms": [
+        1835.634,
+        3719.608
+      ]
+    },
+    {
+      "rows": 3000,
+      "exact_runs": 1,
+      "native_eta800_runs": 3,
+      "exact_component_medians_ms": {
+        "pca_ms": 3710.236874,
+        "affinity_ms": 14202.658171,
+        "optimizer_ms": 34588.16957,
+        "tsne_ms": 48790.827741,
+        "total_ms": 52501.064615
+      },
+      "native_eta800_component_medians_ms": {
+        "affinity_ms": 514.577,
+        "optimizer_ms": 7170.328,
+        "total_ms": 7682.751
+      },
+      "native_eta800_total_range_ms": [
+        7625.063,
+        10409.565
+      ]
+    },
+    {
+      "rows": 4643,
+      "exact_runs": 1,
+      "native_eta800_runs": 3,
+      "exact_component_medians_ms": {
+        "pca_ms": 5993.666039,
+        "affinity_ms": 39807.333162,
+        "optimizer_ms": 93311.684392,
+        "tsne_ms": 133119.017554,
+        "total_ms": 139112.683593
+      },
+      "native_eta800_component_medians_ms": {
+        "affinity_ms": 1497.352,
+        "optimizer_ms": 15541.943,
+        "total_ms": 16880.396
+      },
+      "native_eta800_total_range_ms": [
+        13866.041,
+        18540.182
+      ]
+    }
+  ],
+  "quality": [
+    {
+      "rows": 1107,
+      "reference": "input matrix before 2D projection",
+      "metrics": {
+        "map-exact-1107.f32": {
+          "trustworthiness_at_15": 0.9805551388847222,
+          "neighbor_recall_at_15": 0.39229147847034024,
+          "neighbor_overlap_with_first_embedding_at_15": 1
+        },
+        "latentjam-map-bh-1107-05-eta800.f32": {
+          "trustworthiness_at_15": 0.9810683662392179,
+          "neighbor_recall_at_15": 0.4005420054200542,
+          "neighbor_overlap_with_first_embedding_at_15": 0.6367359229147846
+        },
+        "latentjam-map-bh-1107-05-eta200.f32": {
+          "trustworthiness_at_15": 0.9815523710792663,
+          "neighbor_recall_at_15": 0.4019873532068654,
+          "neighbor_overlap_with_first_embedding_at_15": 0.6316772056609455
+        }
+      }
+    },
+    {
+      "rows": 3000,
+      "reference": "input matrix before 2D projection",
+      "metrics": {
+        "map-exact-3000.f32": {
+          "trustworthiness_at_15": 0.9785694323144105,
+          "neighbor_recall_at_15": 0.2752888888888889,
+          "neighbor_overlap_with_first_embedding_at_15": 1
+        },
+        "latentjam-map-bh-3000-05-eta800.f32": {
+          "trustworthiness_at_15": 0.9793283992087486,
+          "neighbor_recall_at_15": 0.2831111111111111,
+          "neighbor_overlap_with_first_embedding_at_15": 0.4571777777777778
+        },
+        "latentjam-map-bh-3000-05-eta200.f32": {
+          "trustworthiness_at_15": 0.9793036688687343,
+          "neighbor_recall_at_15": 0.28386666666666666,
+          "neighbor_overlap_with_first_embedding_at_15": 0.47959999999999997
+        }
+      }
+    },
+    {
+      "rows": 4643,
+      "reference": "input matrix before 2D projection",
+      "metrics": {
+        "map-exact-4643.f32": {
+          "trustworthiness_at_15": 0.977788428576712,
+          "neighbor_recall_at_15": 0.2388972646995477,
+          "neighbor_overlap_with_first_embedding_at_15": 1
+        },
+        "latentjam-map-bh-4643-05-eta800-run0.f32": {
+          "trustworthiness_at_15": 0.9787797080991136,
+          "neighbor_recall_at_15": 0.24756981836456315,
+          "neighbor_overlap_with_first_embedding_at_15": 0.3876373034675856
+        }
+      }
+    }
+  ]
+}

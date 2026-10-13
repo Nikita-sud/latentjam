@@ -20,7 +20,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 
-/** Opt-in numerical profiling in an isolated test APK; never reads or writes the music library. */
+/** Opt-in profiling: synthetic input, or an explicitly copied f32 replay; no music-app access. */
 class MapLayoutProfileDeviceTest {
     @Test
     fun profileExactLayout() {
@@ -29,19 +29,26 @@ class MapLayoutProfileDeviceTest {
         val n = args.getString("mapRows")?.toInt() ?: 1107
         val repeats = args.getString("mapRepeats")?.toInt() ?: 3
         require(n in 3..5000 && repeats in 1..5)
+        val inputFile = if (args.getString("mapInput") == "1") {
+            File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir, "map-input.f32")
+        } else null
         val originalPriority = Process.getThreadPriority(Process.myTid())
         Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND)
         try {
             repeat(3) { run(180, -1, persist = false) }
-            repeat(repeats) { run(n, it, persist = it == 0) }
+            repeat(repeats) { run(n, it, persist = it == 0, inputFile = inputFile) }
         } finally {
             Process.setThreadPriority(originalPriority)
         }
     }
 
-    private fun run(n: Int, round: Int, persist: Boolean) {
+    private fun run(n: Int, round: Int, persist: Boolean, inputFile: File? = null) {
         // Identical deterministic clustered fixture to LayoutPerformanceReplay. No media or tags.
-        val rows = fixture(n)
+        val rows = if (inputFile == null) fixture(n) else {
+            require(inputFile.length() == n.toLong() * DIM * 4) { "Unexpected replay matrix size" }
+            val buffer = ByteBuffer.wrap(inputFile.readBytes()).order(ByteOrder.LITTLE_ENDIAN)
+            FloatArray(n * DIM) { buffer.float }.also { values -> require(values.all { it.isFinite() }) }
+        }
         val runtime = Runtime.getRuntime()
         System.gc()
         val usedBefore = runtime.totalMemory() - runtime.freeMemory()
@@ -80,6 +87,7 @@ class MapLayoutProfileDeviceTest {
             assertTrue(checks == 2 * n + Tsne.ITERATIONS)
             if (round >= 0) {
                 val info = "LJ_MAP_EXACT n=$n round=$round dim=$DIM " +
+                    "fixture=${if (inputFile == null) "synthetic" else "replay"} " +
                     "pca_ms=${(reducedAt - start) / 1e6} " +
                     "affinity_ms=${(optimizerStart - reducedAt) / 1e6} " +
                     "optimizer_ms=${(end - optimizerStart) / 1e6} total_ms=${(end - start) / 1e6} " +

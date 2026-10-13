@@ -1,0 +1,1021 @@
+{
+  "provenance": {
+    "library_rows": 1107,
+    "media_store_rows": 1110,
+    "hidden_rows": 3,
+    "excluded_sources": 0,
+    "enrichment_rows": 1087,
+    "valid_enrichment_rows": 1058,
+    "stale_enrichment_rows": 0,
+    "audio": {
+      "model": "mnv4-960-retrieval-distill-v1-p50q4aq",
+      "version": 3,
+      "rows": 1107,
+      "dimensions": 960,
+      "failed_rows": 0,
+      "identity_rows": 1107,
+      "sha256": "937dfada43b6232ff1006908087c93cbd2a72d23f309be036a70245b4bc50570"
+    },
+    "metadata": {
+      "model": "student-s256x3m-emb4-int8-trusted-v1",
+      "version": 3,
+      "rows": 1106,
+      "dimensions": 384,
+      "failed_rows": 0,
+      "identity_rows": 1106,
+      "sha256": "186873430e0d8726939e6dd6f8b643ca40356061309e5bd4897ebef2582b7614"
+    },
+    "library_has_audio": 1107,
+    "library_has_metadata": 1106,
+    "semantic_rows": 1107,
+    "semantic_model_sha256": "3f248153d0f2edfa2e6c1e8d1c61942b14624769906c59094bbd2b9738d3c34a",
+    "onnxruntime_host_version": "1.26.0",
+    "semantic_inference": "Raw stored 960-dimensional embeddings, CPUExecutionProvider,batch128,unchanged shipped model; host inference not runtime cache dump",
+    "stored_playlists": 22,
+    "map_settings": {
+      "include_novelty_mixes": true
+    },
+    "row_order": "MediaStore TITLE COLLATE NOCASE ASC, filtered hidden/source exclusions, as app scanner; exact original IDs private"
+  },
+  "regions": {
+    "scope": "Fresh phone export 2026-10-13,1107 visible tracks; exact production JVM fusion and regions classes; unchanged shipped semantic ONNX inferred on host; baseline counts match observed app17/974/133",
+    "rows": 1107,
+    "groups": {
+      "playlists": 20,
+      "playlist_unique_tracks": 469,
+      "playlist_member_slots": 763,
+      "artist_groups": 27
+    },
+    "variants": [
+      {
+        "assigned_tracks": 974,
+        "unassigned_tracks": 133,
+        "coverage": 0.8798554652213189,
+        "region_size_min_median_max": [
+          14,
+          59.0,
+          148
+        ],
+        "same_region_neighbors": {
+          "fused_own_weight": 0.854312114989733,
+          "audio": 0.3641683778234086,
+          "metadata": 0.8482014388489209
+        },
+        "silhouette": {
+          "fused_own_weight": {
+            "mean": 0.3027404066958168,
+            "negative_fraction": 0.07084188911704312
+          },
+          "common_audio": {
+            "mean": -0.03516290456000234,
+            "negative_fraction": 0.6047227926078029
+          },
+          "common_baseline25_75": {
+            "mean": 0.3027404066958168,
+            "negative_fraction": 0.07084188911704312
+          },
+          "common_metadata": {
+            "mean": 0.34925755781109363,
+            "negative_fraction": 0.07913669064748201
+          }
+        },
+        "random_same_region_neighbor_baseline": 0.06848587692296267,
+        "playlist_pair_same_region_recall_all_playlist_pairs": 0.43489785363330746,
+        "playlist_largest_region_share_size_weighted": 0.5897771952817824,
+        "playlist_best_region_jaccard_size_weighted": 0.4073967622726381,
+        "variant": "audio25-meta75",
+        "metadata_weight": 0.75,
+        "regions": 17,
+        "requested_k": 16,
+        "name_sources": {
+          "GENRE_BLEND": 3,
+          "PLAYLIST": 3,
+          "GENRE": 7,
+          "MAJOR_FAMILIES": 2,
+          "ALBUM": 1,
+          "SEMANTIC": 1
+        },
+        "discovered_name_sources": {
+          "GENRE_BLEND": 4,
+          "GENRE": 10,
+          "MAJOR_FAMILIES": 2,
+          "SEMANTIC": 1
+        },
+        "content_routes": {
+          "MUSIC": 16,
+          "NOVELTY": 1
+        },
+        "fused_neighbor_playlist_at15": 0.6268239405854085,
+        "fused_neighbor_artist_at15": 0.7479674796747967,
+        "confidence_trimmed_before_routing_naming": 54,
+        "other_excluded_after_routing_naming_min_size": 79,
+        "genre_family_top_two_union_share_size_weighted": 0.8880903490759754,
+        "regions_with_negative_mean_audio_silhouette": 10
+      },
+      {
+        "assigned_tracks": 959,
+        "unassigned_tracks": 148,
+        "coverage": 0.8663053297199639,
+        "region_size_min_median_max": [
+          4,
+          45.0,
+          139
+        ],
+        "same_region_neighbors": {
+          "fused_own_weight": 0.8079249217935349,
+          "audio": 0.394577685088634,
+          "metadata": 0.7838204592901878
+        },
+        "silhouette": {
+          "fused_own_weight": {
+            "mean": 0.23322621542362304,
+            "negative_fraction": 0.08029197080291971
+          },
+          "common_audio": {
+            "mean": -0.0017248429668085504,
+            "negative_fraction": 0.5349322210636079
+          },
+          "common_baseline25_75": {
+            "mean": 0.280619978693179,
+            "negative_fraction": 0.10218978102189781
+          },
+          "common_metadata": {
+            "mean": 0.3152810394580745,
+            "negative_fraction": 0.15031315240083507
+          }
+        },
+        "random_same_region_neighbor_baseline": 0.06433577773713199,
+        "playlist_pair_same_region_recall_all_playlist_pairs": 0.4587858805275407,
+        "playlist_largest_region_share_size_weighted": 0.5976408912188729,
+        "playlist_best_region_jaccard_size_weighted": 0.44195803051625354,
+        "variant": "audio50-meta50",
+        "metadata_weight": 0.5,
+        "regions": 18,
+        "requested_k": 16,
+        "name_sources": {
+          "GENRE_BLEND": 1,
+          "PLAYLIST": 3,
+          "GENRE": 8,
+          "MAJOR_FAMILIES": 1,
+          "GENERIC": 2,
+          "ALBUM": 1,
+          "SEMANTIC": 2
+        },
+        "discovered_name_sources": {
+          "GENRE_BLEND": 1,
+          "GENRE": 11,
+          "MAJOR_FAMILIES": 1,
+          "GENERIC": 3,
+          "SEMANTIC": 2
+        },
+        "content_routes": {
+          "MUSIC": 16,
+          "NOVELTY": 1,
+          "SOUND_EFFECTS": 1
+        },
+        "fused_neighbor_playlist_at15": 0.6294451725644385,
+        "fused_neighbor_artist_at15": 0.7385727190605239,
+        "confidence_trimmed_before_routing_naming": 63,
+        "other_excluded_after_routing_naming_min_size": 85,
+        "genre_family_top_two_union_share_size_weighted": 0.8592283628779979,
+        "regions_with_negative_mean_audio_silhouette": 9
+      },
+      {
+        "assigned_tracks": 872,
+        "unassigned_tracks": 235,
+        "coverage": 0.7877145438121048,
+        "region_size_min_median_max": [
+          5,
+          40.0,
+          116
+        ],
+        "same_region_neighbors": {
+          "fused_own_weight": 0.7724770642201835,
+          "audio": 0.4959862385321101,
+          "metadata": 0.625
+        },
+        "silhouette": {
+          "fused_own_weight": {
+            "mean": 0.19155995643748988,
+            "negative_fraction": 0.08142201834862385
+          },
+          "common_audio": {
+            "mean": 0.0841896239114558,
+            "negative_fraction": 0.36353211009174313
+          },
+          "common_baseline25_75": {
+            "mean": 0.18547917705955067,
+            "negative_fraction": 0.20871559633027523
+          },
+          "common_metadata": {
+            "mean": 0.1683117876882837,
+            "negative_fraction": 0.31077981651376146
+          }
+        },
+        "random_same_region_neighbor_baseline": 0.05743276871775304,
+        "playlist_pair_same_region_recall_all_playlist_pairs": 0.2373933281613654,
+        "playlist_largest_region_share_size_weighted": 0.40235910878112713,
+        "playlist_best_region_jaccard_size_weighted": 0.29819378717929773,
+        "variant": "audio65-meta35",
+        "metadata_weight": 0.35,
+        "regions": 18,
+        "requested_k": 16,
+        "name_sources": {
+          "GENRE_BLEND": 4,
+          "GENRE": 4,
+          "PLAYLIST": 6,
+          "LEADING_STYLE": 1,
+          "ALBUM": 1,
+          "SEMANTIC": 2
+        },
+        "discovered_name_sources": {
+          "GENRE_BLEND": 4,
+          "GENRE": 11,
+          "LEADING_STYLE": 1,
+          "SEMANTIC": 2
+        },
+        "content_routes": {
+          "MUSIC": 16,
+          "NOVELTY": 1,
+          "SOUND_EFFECTS": 1
+        },
+        "fused_neighbor_playlist_at15": 0.6116207951070335,
+        "fused_neighbor_artist_at15": 0.7000903342366758,
+        "confidence_trimmed_before_routing_naming": 84,
+        "other_excluded_after_routing_naming_min_size": 151,
+        "genre_family_top_two_union_share_size_weighted": 0.8876146788990825,
+        "regions_with_negative_mean_audio_silhouette": 7
+      }
+    ],
+    "paired_fused_neighbor_playlist_comparisons": [
+      {
+        "candidate": "audio50-meta50",
+        "reference": "audio25-meta75",
+        "delta": 0.0026212319790301676,
+        "exploratory_group_bootstrap_95_ci": [
+          -0.002895320910973057,
+          0.008666666666666694
+        ]
+      },
+      {
+        "candidate": "audio65-meta35",
+        "reference": "audio25-meta75",
+        "delta": -0.015203145478374827,
+        "exploratory_group_bootstrap_95_ci": [
+          -0.0347292015633724,
+          0.0022543259557344228
+        ]
+      }
+    ],
+    "limits": [
+      "Same-region neighbor agreement is not accuracy or a probability that tracks sound alike.",
+      "Metadata and artist/genre agreement are partly circular because those tags feed the text embedding.",
+      "User playlists are an independent reference to clustering inputs, but overlap, vary in intent, and are not definitive sonic labels.",
+      "Semantic head scores are model outputs, not human listening judgments; runtime semantics cache itself was not exported.",
+      "Weights evaluated on one library,one production seed,k=16,not a population evaluation; adaptive naming changes coverage.",
+      "Metadata metric omits1track with no384-dimensional vector. No application weight changed.",
+      "Primary silhouette/region-neighbor averages use each variant assigned subset; common-assigned sensitivity is reported separately.",
+      "Matching baseline counts17/974/133 supports replay fidelity but does not prove bit-identical runtime member IDs; runtime membership cache was not exported.",
+      "Exploratory bootstrap resamples overlapping playlists, so intervals are not calibrated population confidence or significance tests."
+    ],
+    "common_assigned_population_sensitivity": {
+      "common_assigned_rows": 759,
+      "common_assigned_metadata_valid_rows": 759,
+      "all_metadata_valid_rows": 1106,
+      "method": "Fixed intersection of tracks assigned in all3variants. Audio10NN agreement averages same anchors, neighbors searched in full1107 library. Silhouette trims every variant group to common set; singleton groups omitted (reported).",
+      "variants": [
+        {
+          "variant": "audio25-meta75",
+          "audio_same_region_neighbor_agreement_all1107_unassigned_queries_miss": 0.3204155374887082,
+          "metadata_same_region_neighbor_agreement_all1106_valid_queries_unassigned_miss": 0.7462025316455696,
+          "metadata_same_region_neighbor_agreement_common_valid_anchors": 0.8831357048748353,
+          "audio_same_region_neighbor_agreement_common_anchors": 0.4051383399209486,
+          "audio_silhouette_common_assigned_population": {
+            "mean": -0.006193474256080114,
+            "negative_fraction": 0.5612648221343873
+          },
+          "silhouette_included_rows": 759,
+          "singleton_groups_omitted": 0
+        },
+        {
+          "variant": "audio50-meta50",
+          "audio_same_region_neighbor_agreement_all1107_unassigned_queries_miss": 0.34182475158084913,
+          "metadata_same_region_neighbor_agreement_all1106_valid_queries_unassigned_miss": 0.6789330922242315,
+          "metadata_same_region_neighbor_agreement_common_valid_anchors": 0.8308300395256917,
+          "audio_same_region_neighbor_agreement_common_anchors": 0.43741765480895917,
+          "audio_silhouette_common_assigned_population": {
+            "mean": 0.022339359877074062,
+            "negative_fraction": 0.5085638998682477
+          },
+          "silhouette_included_rows": 759,
+          "singleton_groups_omitted": 0
+        },
+        {
+          "variant": "audio65-meta35",
+          "audio_same_region_neighbor_agreement_all1107_unassigned_queries_miss": 0.39069557362240287,
+          "metadata_same_region_neighbor_agreement_all1106_valid_queries_unassigned_miss": 0.49276672694394213,
+          "metadata_same_region_neighbor_agreement_common_valid_anchors": 0.6582345191040844,
+          "audio_same_region_neighbor_agreement_common_anchors": 0.49393939393939396,
+          "audio_silhouette_common_assigned_population": {
+            "mean": 0.08364208738944338,
+            "negative_fraction": 0.383399209486166
+          },
+          "silhouette_included_rows": 759,
+          "singleton_groups_omitted": 0
+        }
+      ]
+    }
+  },
+  "labels": {
+    "method": "Name support measures metadata/group claims only. GENRE uses production supportsName cover eligibility (not perceptual audio truth); GENRE_BLEND uses explicit blendFamilies union; MAJOR_FAMILIES uses top2 family union; PLAYLIST/ALBUM matches exact naming group; semantic omitted because category support is routing definition. No private IDs,titles or playlist/album names included.",
+    "variants": [
+      {
+        "variant": "audio25-meta75",
+        "duplicate_display_names": 2,
+        "regions_affected_by_duplicate_display_names": 5,
+        "region_label_support": [
+          {
+            "size": 148,
+            "name_source": "GENRE_BLEND",
+            "content": "MUSIC",
+            "name_support_tracks": 112,
+            "name_support_share": 0.7567567567567568,
+            "audio_silhouette": -0.20559479795002672,
+            "leading_family_counts": [
+              78,
+              43
+            ]
+          },
+          {
+            "size": 106,
+            "name_source": "PLAYLIST",
+            "content": "MUSIC",
+            "name_support_tracks": 93,
+            "name_support_share": 0.8773584905660378,
+            "audio_silhouette": 0.09462815970916647,
+            "leading_family_counts": [
+              106,
+              93
+            ]
+          },
+          {
+            "size": 79,
+            "name_source": "GENRE",
+            "content": "MUSIC",
+            "name_support_tracks": 79,
+            "name_support_share": 1.0,
+            "audio_silhouette": -0.058555577575686024,
+            "leading_family_counts": [
+              79,
+              5
+            ]
+          },
+          {
+            "size": 75,
+            "name_source": "GENRE",
+            "content": "MUSIC",
+            "name_support_tracks": 75,
+            "name_support_share": 1.0,
+            "audio_silhouette": 0.36636085654916123,
+            "leading_family_counts": [
+              75,
+              4
+            ]
+          },
+          {
+            "size": 74,
+            "name_source": "PLAYLIST",
+            "content": "MUSIC",
+            "name_support_tracks": 74,
+            "name_support_share": 1.0,
+            "audio_silhouette": -0.07804988863288537,
+            "leading_family_counts": [
+              74,
+              1
+            ]
+          },
+          {
+            "size": 68,
+            "name_source": "MAJOR_FAMILIES",
+            "content": "MUSIC",
+            "name_support_tracks": 34,
+            "name_support_share": 0.5,
+            "audio_silhouette": -0.2640777376255504,
+            "leading_family_counts": [
+              25,
+              9
+            ]
+          },
+          {
+            "size": 64,
+            "name_source": "GENRE_BLEND",
+            "content": "MUSIC",
+            "name_support_tracks": 62,
+            "name_support_share": 0.96875,
+            "audio_silhouette": -0.1343584884375173,
+            "leading_family_counts": [
+              38,
+              33
+            ]
+          },
+          {
+            "size": 60,
+            "name_source": "GENRE_BLEND",
+            "content": "MUSIC",
+            "name_support_tracks": 57,
+            "name_support_share": 0.95,
+            "audio_silhouette": 0.1274087494704124,
+            "leading_family_counts": [
+              34,
+              31
+            ]
+          },
+          {
+            "size": 59,
+            "name_source": "GENRE",
+            "content": "MUSIC",
+            "name_support_tracks": 59,
+            "name_support_share": 1.0,
+            "audio_silhouette": -0.01031365650761887,
+            "leading_family_counts": [
+              59,
+              15
+            ]
+          },
+          {
+            "size": 47,
+            "name_source": "PLAYLIST",
+            "content": "MUSIC",
+            "name_support_tracks": 28,
+            "name_support_share": 0.5957446808510638,
+            "audio_silhouette": -0.2532590480290499,
+            "leading_family_counts": [
+              21,
+              15
+            ]
+          },
+          {
+            "size": 44,
+            "name_source": "GENRE",
+            "content": "MUSIC",
+            "name_support_tracks": 44,
+            "name_support_share": 1.0,
+            "audio_silhouette": 0.2037563363351006,
+            "leading_family_counts": [
+              44,
+              20
+            ]
+          },
+          {
+            "size": 39,
+            "name_source": "ALBUM",
+            "content": "MUSIC",
+            "name_support_tracks": 22,
+            "name_support_share": 0.5641025641025641,
+            "audio_silhouette": -0.15129236109644575,
+            "leading_family_counts": [
+              39,
+              23
+            ]
+          },
+          {
+            "size": 38,
+            "name_source": "MAJOR_FAMILIES",
+            "content": "MUSIC",
+            "name_support_tracks": 19,
+            "name_support_share": 0.5,
+            "audio_silhouette": -0.05859657979851898,
+            "leading_family_counts": [
+              10,
+              9
+            ]
+          },
+          {
+            "size": 20,
+            "name_source": "GENRE",
+            "content": "MUSIC",
+            "name_support_tracks": 20,
+            "name_support_share": 1.0,
+            "audio_silhouette": 0.003899287025777272,
+            "leading_family_counts": [
+              20,
+              3
+            ]
+          },
+          {
+            "size": 20,
+            "name_source": "GENRE",
+            "content": "MUSIC",
+            "name_support_tracks": 20,
+            "name_support_share": 1.0,
+            "audio_silhouette": 0.15992090245029625,
+            "leading_family_counts": [
+              20,
+              1
+            ]
+          },
+          {
+            "size": 19,
+            "name_source": "SEMANTIC",
+            "content": "NOVELTY",
+            "name_support_tracks": null,
+            "name_support_share": null,
+            "audio_silhouette": -0.22802653894838584,
+            "leading_family_counts": [
+              13,
+              2
+            ]
+          },
+          {
+            "size": 14,
+            "name_source": "GENRE",
+            "content": "MUSIC",
+            "name_support_tracks": 14,
+            "name_support_share": 1.0,
+            "audio_silhouette": 0.051040962900203754,
+            "leading_family_counts": [
+              14,
+              4
+            ]
+          }
+        ]
+      },
+      {
+        "variant": "audio50-meta50",
+        "duplicate_display_names": 2,
+        "regions_affected_by_duplicate_display_names": 4,
+        "region_label_support": [
+          {
+            "size": 139,
+            "name_source": "GENRE_BLEND",
+            "content": "MUSIC",
+            "name_support_tracks": 104,
+            "name_support_share": 0.7482014388489209,
+            "audio_silhouette": -0.23192659430208587,
+            "leading_family_counts": [
+              69,
+              44
+            ]
+          },
+          {
+            "size": 94,
+            "name_source": "PLAYLIST",
+            "content": "MUSIC",
+            "name_support_tracks": 93,
+            "name_support_share": 0.9893617021276596,
+            "audio_silhouette": 0.05860880459641568,
+            "leading_family_counts": [
+              94,
+              93
+            ]
+          },
+          {
+            "size": 83,
+            "name_source": "GENRE",
+            "content": "MUSIC",
+            "name_support_tracks": 83,
+            "name_support_share": 1.0,
+            "audio_silhouette": 0.36403730911914467,
+            "leading_family_counts": [
+              83,
+              4
+            ]
+          },
+          {
+            "size": 83,
+            "name_source": "PLAYLIST",
+            "content": "MUSIC",
+            "name_support_tracks": 83,
+            "name_support_share": 1.0,
+            "audio_silhouette": -0.13946316779367382,
+            "leading_family_counts": [
+              83,
+              3
+            ]
+          },
+          {
+            "size": 78,
+            "name_source": "GENRE",
+            "content": "MUSIC",
+            "name_support_tracks": 78,
+            "name_support_share": 1.0,
+            "audio_silhouette": 0.033319863951874744,
+            "leading_family_counts": [
+              78,
+              11
+            ]
+          },
+          {
+            "size": 61,
+            "name_source": "MAJOR_FAMILIES",
+            "content": "MUSIC",
+            "name_support_tracks": 35,
+            "name_support_share": 0.5737704918032787,
+            "audio_silhouette": -0.27356749038238676,
+            "leading_family_counts": [
+              18,
+              17
+            ]
+          },
+          {
+            "size": 61,
+            "name_source": "GENRE",
+            "content": "MUSIC",
+            "name_support_tracks": 61,
+            "name_support_share": 1.0,
+            "audio_silhouette": 0.2634741027477435,
+            "leading_family_counts": [
+              61,
+              2
+            ]
+          },
+          {
+            "size": 46,
+            "name_source": "GENRE",
+            "content": "MUSIC",
+            "name_support_tracks": 46,
+            "name_support_share": 1.0,
+            "audio_silhouette": 0.06549138485568841,
+            "leading_family_counts": [
+              46,
+              9
+            ]
+          },
+          {
+            "size": 46,
+            "name_source": "PLAYLIST",
+            "content": "MUSIC",
+            "name_support_tracks": 27,
+            "name_support_share": 0.5869565217391305,
+            "audio_silhouette": 0.09693853537020168,
+            "leading_family_counts": [
+              14,
+              13
+            ]
+          },
+          {
+            "size": 44,
+            "name_source": "GENRE",
+            "content": "MUSIC",
+            "name_support_tracks": 44,
+            "name_support_share": 1.0,
+            "audio_silhouette": 0.20636380262186996,
+            "leading_family_counts": [
+              44,
+              20
+            ]
+          },
+          {
+            "size": 42,
+            "name_source": "GENRE",
+            "content": "MUSIC",
+            "name_support_tracks": 42,
+            "name_support_share": 1.0,
+            "audio_silhouette": -0.00038399260380289423,
+            "leading_family_counts": [
+              42,
+              6
+            ]
+          },
+          {
+            "size": 42,
+            "name_source": "GENERIC",
+            "content": "MUSIC",
+            "name_support_tracks": null,
+            "name_support_share": null,
+            "audio_silhouette": -0.16665079176202321,
+            "leading_family_counts": [
+              11,
+              10
+            ]
+          },
+          {
+            "size": 38,
+            "name_source": "ALBUM",
+            "content": "MUSIC",
+            "name_support_tracks": 22,
+            "name_support_share": 0.5789473684210527,
+            "audio_silhouette": -0.17323530464146797,
+            "leading_family_counts": [
+              38,
+              23
+            ]
+          },
+          {
+            "size": 35,
+            "name_source": "GENRE",
+            "content": "MUSIC",
+            "name_support_tracks": 35,
+            "name_support_share": 1.0,
+            "audio_silhouette": 0.24337616910925672,
+            "leading_family_counts": [
+              35,
+              5
+            ]
+          },
+          {
+            "size": 25,
+            "name_source": "GENERIC",
+            "content": "MUSIC",
+            "name_support_tracks": null,
+            "name_support_share": null,
+            "audio_silhouette": -0.08208307524039964,
+            "leading_family_counts": [
+              9,
+              3
+            ]
+          },
+          {
+            "size": 21,
+            "name_source": "GENRE",
+            "content": "MUSIC",
+            "name_support_tracks": 21,
+            "name_support_share": 1.0,
+            "audio_silhouette": -0.005184752728370103,
+            "leading_family_counts": [
+              21,
+              3
+            ]
+          },
+          {
+            "size": 17,
+            "name_source": "SEMANTIC",
+            "content": "NOVELTY",
+            "name_support_tracks": null,
+            "name_support_share": null,
+            "audio_silhouette": -0.2889010596926398,
+            "leading_family_counts": [
+              12,
+              2
+            ]
+          },
+          {
+            "size": 4,
+            "name_source": "SEMANTIC",
+            "content": "SOUND_EFFECTS",
+            "name_support_tracks": null,
+            "name_support_share": null,
+            "audio_silhouette": 0.013066439113574115,
+            "leading_family_counts": [
+              2,
+              1
+            ]
+          }
+        ]
+      },
+      {
+        "variant": "audio65-meta35",
+        "duplicate_display_names": 1,
+        "regions_affected_by_duplicate_display_names": 2,
+        "region_label_support": [
+          {
+            "size": 116,
+            "name_source": "GENRE_BLEND",
+            "content": "MUSIC",
+            "name_support_tracks": 90,
+            "name_support_share": 0.7758620689655172,
+            "audio_silhouette": -0.20162941502944273,
+            "leading_family_counts": [
+              59,
+              38
+            ]
+          },
+          {
+            "size": 84,
+            "name_source": "GENRE",
+            "content": "MUSIC",
+            "name_support_tracks": 84,
+            "name_support_share": 1.0,
+            "audio_silhouette": 0.1863075122818211,
+            "leading_family_counts": [
+              84,
+              5
+            ]
+          },
+          {
+            "size": 77,
+            "name_source": "GENRE",
+            "content": "MUSIC",
+            "name_support_tracks": 77,
+            "name_support_share": 1.0,
+            "audio_silhouette": 0.446075348063527,
+            "leading_family_counts": [
+              77,
+              4
+            ]
+          },
+          {
+            "size": 77,
+            "name_source": "GENRE_BLEND",
+            "content": "MUSIC",
+            "name_support_tracks": 65,
+            "name_support_share": 0.8441558441558441,
+            "audio_silhouette": 0.2512070863114285,
+            "leading_family_counts": [
+              38,
+              32
+            ]
+          },
+          {
+            "size": 74,
+            "name_source": "GENRE_BLEND",
+            "content": "MUSIC",
+            "name_support_tracks": 52,
+            "name_support_share": 0.7027027027027027,
+            "audio_silhouette": 0.1654677220676964,
+            "leading_family_counts": [
+              41,
+              26
+            ]
+          },
+          {
+            "size": 68,
+            "name_source": "PLAYLIST",
+            "content": "MUSIC",
+            "name_support_tracks": 68,
+            "name_support_share": 1.0,
+            "audio_silhouette": 0.07104398030202903,
+            "leading_family_counts": [
+              68,
+              68
+            ]
+          },
+          {
+            "size": 54,
+            "name_source": "GENRE_BLEND",
+            "content": "MUSIC",
+            "name_support_tracks": 41,
+            "name_support_share": 0.7592592592592593,
+            "audio_silhouette": 0.1093196589133869,
+            "leading_family_counts": [
+              31,
+              13
+            ]
+          },
+          {
+            "size": 47,
+            "name_source": "GENRE",
+            "content": "MUSIC",
+            "name_support_tracks": 47,
+            "name_support_share": 1.0,
+            "audio_silhouette": 0.13457147368573386,
+            "leading_family_counts": [
+              47,
+              7
+            ]
+          },
+          {
+            "size": 43,
+            "name_source": "LEADING_STYLE",
+            "content": "MUSIC",
+            "name_support_tracks": 22,
+            "name_support_share": 0.5116279069767442,
+            "audio_silhouette": -0.09479728726238852,
+            "leading_family_counts": [
+              22,
+              3
+            ]
+          },
+          {
+            "size": 37,
+            "name_source": "PLAYLIST",
+            "content": "MUSIC",
+            "name_support_tracks": 34,
+            "name_support_share": 0.918918918918919,
+            "audio_silhouette": 0.11371894724912918,
+            "leading_family_counts": [
+              37,
+              3
+            ]
+          },
+          {
+            "size": 34,
+            "name_source": "PLAYLIST",
+            "content": "MUSIC",
+            "name_support_tracks": 18,
+            "name_support_share": 0.5294117647058824,
+            "audio_silhouette": 0.21384035941829116,
+            "leading_family_counts": [
+              34,
+              21
+            ]
+          },
+          {
+            "size": 32,
+            "name_source": "PLAYLIST",
+            "content": "MUSIC",
+            "name_support_tracks": 18,
+            "name_support_share": 0.5625,
+            "audio_silhouette": -0.08645310612568124,
+            "leading_family_counts": [
+              32,
+              1
+            ]
+          },
+          {
+            "size": 32,
+            "name_source": "ALBUM",
+            "content": "MUSIC",
+            "name_support_tracks": 20,
+            "name_support_share": 0.625,
+            "audio_silhouette": -0.13723718951021474,
+            "leading_family_counts": [
+              32,
+              20
+            ]
+          },
+          {
+            "size": 31,
+            "name_source": "PLAYLIST",
+            "content": "MUSIC",
+            "name_support_tracks": 27,
+            "name_support_share": 0.8709677419354839,
+            "audio_silhouette": 0.1534832039595067,
+            "leading_family_counts": [
+              31,
+              5
+            ]
+          },
+          {
+            "size": 23,
+            "name_source": "GENRE",
+            "content": "MUSIC",
+            "name_support_tracks": 23,
+            "name_support_share": 1.0,
+            "audio_silhouette": -0.004751649217437712,
+            "leading_family_counts": [
+              23,
+              3
+            ]
+          },
+          {
+            "size": 21,
+            "name_source": "PLAYLIST",
+            "content": "MUSIC",
+            "name_support_tracks": 16,
+            "name_support_share": 0.7619047619047619,
+            "audio_silhouette": -0.0518817062130197,
+            "leading_family_counts": [
+              21
+            ]
+          },
+          {
+            "size": 17,
+            "name_source": "SEMANTIC",
+            "content": "NOVELTY",
+            "name_support_tracks": null,
+            "name_support_share": null,
+            "audio_silhouette": -0.3417607368422626,
+            "leading_family_counts": [
+              11,
+              2
+            ]
+          },
+          {
+            "size": 5,
+            "name_source": "SEMANTIC",
+            "content": "SOUND_EFFECTS",
+            "name_support_tracks": null,
+            "name_support_share": null,
+            "audio_silhouette": 0.03300385756006136,
+            "leading_family_counts": [
+              3,
+              1
+            ]
+          }
+        ]
+      }
+    ],
+    "baseline_selected_region_anonymized": {
+      "size": 38,
+      "first_title_family_tracks": 10,
+      "second_title_family_tracks": 9,
+      "exact_title_family_union_tracks": 19,
+      "related_screen_or_game_tag_union_including_title": 28,
+      "other_tagged_tracks": 10,
+      "related_union_is_manual_interpretation_not_production_metric": true
+    },
+    "missing_metadata_entry": {
+      "count": 1,
+      "in_smart_exclusions": false,
+      "failed_identity_entry": false,
+      "has_title": true,
+      "has_artist": false,
+      "has_genre": false,
+      "reason": "Unknown from snapshot; sparse tags alone do not prove why text row is absent."
+    }
+  },
+  "recommendation": {
+    "production_audio_metadata_weights": [
+      25,
+      75
+    ],
+    "decision": "Keep current default for0.9.1; one library does not overturn earlier cross-library choice.50/50 is a listening-test candidate;65/35 sacrifices substantial coverage and playlist co-membership.",
+    "next_quality_work": [
+      "Review weak A+B names and duplicated labels.",
+      "Review genre aliases (game OST/video game music etc.) carefully without conflating all soundtrack subtypes.",
+      "Blind listening check of same fixed tracks before any default change."
+    ],
+    "scope": "No production weights changed; no perceptual listening test or standalone proof of identical runtime membership."
+  }
+}
