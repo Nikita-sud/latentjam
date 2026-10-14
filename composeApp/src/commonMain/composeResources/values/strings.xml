@@ -862,4 +862,6 @@
     <string name="equalizer_response_headroom">Level reserve: %1$s dB</string>
     <string name="equalizer_peak_reduction">Peak reduction: %1$s dB</string>
     <string name="equalizer_peak_hint">Strong boosts can reduce the level of the whole track.</string>
+    <string name="map_memory_limited">Not enough free memory to calculate the map. Close other apps and reopen the map.</string>
+    <string name="map_unavailable">The map could not be calculated. Reopen it to try again.</string>
 </resources>

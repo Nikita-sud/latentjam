@@ -194,28 +194,20 @@ class TsneTest {
         for (value in out) assertTrue(value.isFinite(), "aborted embedding produced a non-finite value")
     }
 
-    // Symmetric to the test above: an abort that lands partway through affinities' second
-    // (perplexity-search) loop, after the first (distances) loop already completed in full, must
-    // still stop before that phase's own O(n^2 * PERPLEXITY_STEPS) exp() calls run for every row --
-    // proving the second loop's poll is independent of the first's, not merely inherited from it.
+    // Distance and probability preparation now alternate row by row. Cancellation between
+    // them must stop before the first row's bandwidth search, not wait for optimization.
     @Test
     fun `embed also aborts mid-affinities from the perplexity-search loop`() {
         val n = 60
         val dim = 4
         val rows = FloatArray(n * dim) { ((it * 13) % 7).toFloat() }
         var calls = 0
-        // The distances loop alone costs exactly n calls (one per row, i=0 until n) when never
-        // aborted; allowing n + 1 true calls lets the distances loop finish (n calls) plus the
-        // perplexity-search loop's own first row check (call n + 1), so the trip -- and the total,
-        // by the same "+2" reasoning as the test above -- lands on the perplexity-search loop's
-        // 2nd row check.
-        val abortAfter = n + 1
+        val abortAfter = 1
         Tsne.embed(rows, n, dim, seed = 1, isActive = { calls++; calls <= abortAfter })
         assertEquals(
             abortAfter + 2,
             calls,
-            "expected the perplexity-search loop's own poll to stop it independently of the " +
-                "distances loop that already ran to completion",
+            "expected cancellation before the first probability row plus one optimizer check",
         )
     }
 

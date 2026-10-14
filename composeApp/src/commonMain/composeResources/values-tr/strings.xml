@@ -782,4 +782,6 @@
     <string name="equalizer_response_headroom">Seviye payı: %1$s dB</string>
     <string name="equalizer_peak_reduction">Tepe azaltma: %1$s dB</string>
     <string name="equalizer_peak_hint">Güçlü artırmalar parçanın tamamının ses düzeyini azaltabilir.</string>
+    <string name="map_memory_limited">Haritayı hesaplamak için yeterli boş bellek yok. Diğer uygulamaları kapatıp haritayı yeniden açın.</string>
+    <string name="map_unavailable">Harita hesaplanamadı. Tekrar denemek için haritayı yeniden açın.</string>
 </resources>

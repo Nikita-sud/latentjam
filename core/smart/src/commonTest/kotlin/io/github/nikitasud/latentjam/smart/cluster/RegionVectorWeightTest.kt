@@ -16,7 +16,7 @@ class RegionVectorWeightTest {
         val text = ids.drop(1).associateWith { floatArrayOf(0f, 2f, 1f) }
         val original = assertNotNull(LibraryVectorFusion.build(ids, audio, text, 2, 3, metadataWeight = 0.75f))
         val expected = assertNotNull(LibraryVectorFusion.build(ids, audio, text, 2, 3, metadataWeight = 0.25f))
-        val before = original.peekRows().clone()
+        val before = original.peekRows().copyOf()
         val fingerprint = original.fingerprint
         // Layout and journeys see the original vectors until the clustering handoff.
         assertTrue(abs(before[5] - 0.3f) < 1e-6f)
@@ -33,7 +33,7 @@ class RegionVectorWeightTest {
     fun `single modality and explicitly weighted legacy matrices retain their directions`() {
         for (source in LibraryVectorSource.entries) {
             val values = floatArrayOf(0.6f, 0.8f)
-            val space = LibraryVectorSpace(listOf(TrackId("x")), values.clone(), 2, source)
+            val space = LibraryVectorSpace(listOf(TrackId("x")), values.copyOf(), 2, source)
             assertContentEquals(values, space.takeRowsForRegions(0.25f))
         }
     }

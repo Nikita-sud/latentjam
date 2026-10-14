@@ -404,16 +404,17 @@ class LibraryLayoutTest {
         )
     }
 
-    // Finding (b): the abort hook must actually be wired from compute() through to both Pca.reduce
-    // and Tsne.embed, not merely accepted and dropped. An immediate abort still returns a
-    // well-formed (if under-converged) result rather than throwing.
+    // Cancellation is explicit: a caller cannot accidentally persist an under-converged layout.
     @Test
-    fun `compute honors an immediately aborted isActive without throwing`() {
-        val points = LibraryLayout.compute(space(30, 16), isActive = { false })
-        assertEquals(30, points.size)
-        for (point in points) {
-            assertTrue(point.x.isFinite() && point.y.isFinite(), "non-finite point from an abort")
+    fun `compute rejects cancelled and over-budget work before consuming the matrix`() {
+        val input = space(30, 16)
+        assertFailsWith<kotlinx.coroutines.CancellationException> {
+            LibraryLayout.compute(input, isActive = { false })
         }
+        assertFailsWith<MapComputationUnavailable> {
+            LibraryLayout.compute(input, workBudgetBytes = 0)
+        }
+        assertEquals(30, LibraryLayout.compute(input).size)
     }
 
     private fun space(n: Int, dim: Int): LibraryVectorSpace {

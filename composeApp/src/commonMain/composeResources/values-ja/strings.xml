@@ -751,4 +751,6 @@
     <string name="equalizer_response_headroom">レベルの余裕：%1$s dB</string>
     <string name="equalizer_peak_reduction">ピークの減衰：%1$s dB</string>
     <string name="equalizer_peak_hint">大幅な増幅により、曲全体の音量が下がる場合があります。</string>
+    <string name="map_memory_limited">マップの計算に必要な空きメモリが不足しています。他のアプリを閉じて、マップを開き直してください。</string>
+    <string name="map_unavailable">マップを計算できませんでした。開き直して、もう一度お試しください。</string>
 </resources>

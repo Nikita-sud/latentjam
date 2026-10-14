@@ -370,9 +370,12 @@ public object LibraryWorlds {
         vectorSpace: LibraryVectorSpace,
         semantics: Map<TrackId, TrackSemantics>,
         isActive: () -> Boolean,
+        workBudgetBytes: Long = Long.MAX_VALUE,
     ): List<LibraryWorld> {
         if (library.isEmpty() || vectorSpace.size == 0) return emptyList()
-        val clusters = if (vectorSpace.size <= AverageLinkageClustering.MAX_TRACKS) {
+        val clusters = if (vectorSpace.size <= AverageLinkageClustering.MAX_TRACKS &&
+            MapMemoryBudget.regionBytes(vectorSpace.size, vectorSpace.dim) <= workBudgetBytes
+        ) {
             AverageLinkageClustering.cluster(vectorSpace, isActive = isActive)
         } else {
             TrackClustering.cluster(vectorSpace, k = recommendedK(vectorSpace.size))

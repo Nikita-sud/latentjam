@@ -751,4 +751,6 @@
     <string name="equalizer_response_headroom">电平余量：%1$s dB</string>
     <string name="equalizer_peak_reduction">峰值衰减：%1$s dB</string>
     <string name="equalizer_peak_hint">大幅提升频段可能会降低整首曲目的音量。</string>
+    <string name="map_memory_limited">可用内存不足，无法计算地图。请关闭其他应用后重新打开地图。</string>
+    <string name="map_unavailable">无法计算地图。请重新打开以重试。</string>
 </resources>

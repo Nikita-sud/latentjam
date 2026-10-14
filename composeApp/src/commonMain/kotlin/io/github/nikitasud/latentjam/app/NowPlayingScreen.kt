@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.ui.platform.testTag
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
@@ -874,7 +875,7 @@ private fun AdaptivePlayerContent(
     modifier: Modifier = Modifier,
 ) {
     val fontScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
-    BoxWithConstraints(modifier = modifier) {
+    BoxWithConstraints(modifier = modifier.testTag("latentjam_full_player")) {
         val horizontalPadding = if (maxWidth < 360.dp) 16.dp else 24.dp
         val contentWidth = maxWidth - horizontalPadding * 2
         val contentHeight = maxHeight

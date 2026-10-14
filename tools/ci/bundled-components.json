@@ -1,0 +1,76 @@
+{
+  "native": [
+    {
+      "name": "Arm KleidiAI",
+      "path": "core/ort-ops/src/main/cpp/vendor/kleidiai",
+      "license": "Apache-2.0",
+      "url": "https://github.com/ARM-software/kleidiai"
+    },
+    {
+      "name": "ONNX Runtime C API headers",
+      "path": "core/ort-ops/src/main/cpp/vendor/onnxruntime",
+      "license": "MIT",
+      "url": "https://github.com/microsoft/onnxruntime"
+    },
+    {
+      "name": "qdtsne",
+      "path": "core/map-native/src/main/cpp/vendor/qdtsne",
+      "license": "MIT AND BSD-4-Clause",
+      "url": "https://github.com/libscran/qdtsne/tree/93f184cabe4c50310627bd379326def442bfa5fc"
+    },
+    {
+      "name": "knncolle",
+      "path": "core/map-native/src/main/cpp/vendor/knncolle",
+      "license": "MIT",
+      "url": "https://github.com/knncolle/knncolle/tree/bb070f4746bfa9d29d754af6dad2d4fd83bcb0ea"
+    },
+    {
+      "name": "aarand",
+      "path": "core/map-native/src/main/cpp/vendor/aarand",
+      "license": "MIT",
+      "url": "https://github.com/LTLA/aarand/tree/255d3040e5bbf64af215e9f55fd5b32edb0b989f"
+    },
+    {
+      "name": "subpar",
+      "path": "core/map-native/src/main/cpp/vendor/subpar",
+      "license": "MIT",
+      "url": "https://github.com/LTLA/subpar/tree/9dea49e4b2ee11f02944c0e770d05b2660a2ff76"
+    },
+    {
+      "name": "sanisizer",
+      "path": "core/map-native/src/main/cpp/vendor/sanisizer",
+      "license": "MIT",
+      "url": "https://github.com/LTLA/sanisizer/tree/9cd3e61347b563d2ee9cbaff55b80598b36bf15d"
+    }
+  ],
+  "assets": {
+    "artist_adapter.bin": {
+      "license": "Apache-2.0",
+      "provenance": "LICENSE-MODEL.txt; synthesized artist metadata"
+    },
+    "artist_knowledge.bin": {
+      "license": "Apache-2.0",
+      "provenance": "LICENSE-MODEL.txt; generated descriptions encoded by MiniLM"
+    },
+    "music_entities_250k.bin": {
+      "license": "CC0-1.0",
+      "provenance": "LICENSE-MODEL.txt; MusicBrainz core and Wikidata, asset lineage still to audit"
+    },
+    "mnv4_audio.onnx": {
+      "license": "Apache-2.0",
+      "provenance": "LICENSE-MODEL.txt; training-data rights review pending"
+    },
+    "universal_semantic_head.onnx": {
+      "license": "Apache-2.0 AND MIT",
+      "provenance": "LICENSE-MODEL.txt; training-data rights review pending"
+    },
+    "text_encoder.onnx": {
+      "license": "Apache-2.0",
+      "provenance": "LICENSE-MODEL.txt; distilled from MiniLM using metadata and synthetic text"
+    },
+    "text_vocab.txt": {
+      "license": "Apache-2.0",
+      "provenance": "LICENSE-MODEL.txt; local WordPiece vocabulary"
+    }
+  }
+}

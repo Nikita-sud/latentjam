@@ -852,4 +852,6 @@
     <string name="equalizer_response_headroom">Запас рівня: %1$s дБ</string>
     <string name="equalizer_peak_reduction">Зниження піків: %1$s дБ</string>
     <string name="equalizer_peak_hint">Сильне підсилення може знижувати гучність усього треку.</string>
+    <string name="map_memory_limited">Недостатньо вільної пам’яті для розрахунку карти. Закрийте інші програми й відкрийте карту знову.</string>
+    <string name="map_unavailable">Не вдалося розрахувати карту. Відкрийте її знову, щоб повторити спробу.</string>
 </resources>

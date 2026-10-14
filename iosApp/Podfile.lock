@@ -1,4 +1,5 @@
 PODS:
+  - LatentJamMap (0.1.0)
   - LatentJamOrtOps (1.0.0):
     - LatentJamOrtOps/Core (= 1.0.0)
     - LatentJamOrtOps/Dotprod (= 1.0.0)
@@ -9,6 +10,7 @@ PODS:
   - onnxruntime-c (1.26.0)
 
 DEPENDENCIES:
+  - LatentJamMap (from `../core/map-native`)
   - LatentJamOrtOps (from `../core/ort-ops`)
   - onnxruntime-c (= 1.26.0)
 
@@ -17,13 +19,16 @@ SPEC REPOS:
     - onnxruntime-c
 
 EXTERNAL SOURCES:
+  LatentJamMap:
+    :path: "../core/map-native"
   LatentJamOrtOps:
     :path: "../core/ort-ops"
 
 SPEC CHECKSUMS:
+  LatentJamMap: fa87b10132cae5f26ab81dcc13cd628813fdb1cc
   LatentJamOrtOps: 35f22e5a3954aebe09da191990fefea49b2de66f
   onnxruntime-c: e6e9272f5996fed3ea3ca3c9bc843478b2ecbc73
 
-PODFILE CHECKSUM: 213b954945807df08e0b09fc29f351936f667219
+PODFILE CHECKSUM: 2d79de74e24dadc84bc73544ced6d800f3262759
 
 COCOAPODS: 1.17.0

@@ -5,17 +5,33 @@ import java.util.*;
 
 /** Standalone Android JNI probe, run with app_process; never installed into LatentJam. */
 public final class OrtParity {
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) throws Throwable {
+        try {
+            run(args);
+        } catch (Throwable failure) {
+            // app_process routes uncaught exceptions to logcat; preserve them in the probe log too.
+            failure.printStackTrace(System.err);
+            System.err.flush();
+            throw failure;
+        }
+    }
+
+    private static void run(String[] args) throws Exception {
         Path root = Paths.get(args[0]);
         Path out = Paths.get(args[1]);
         Files.createDirectories(out);
         OrtEnvironment env = OrtEnvironment.getEnvironment();
+        env.setTelemetry(false);
         System.out.println("version\t" + env.getVersion());
         System.out.println("providers\t" + OrtEnvironment.getAvailableProviders());
         try (OrtSession.SessionOptions options = new OrtSession.SessionOptions()) {
             options.setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL);
             options.setIntraOpNumThreads(1);
             options.setInterOpNumThreads(1);
+            options.setCPUArenaAllocator(false);
+            if (args.length > 2 && args[2].equals("xnnpack")) {
+                options.addXnnpack(Collections.singletonMap("intra_op_num_threads", "1"));
+            }
             // The music encoder needs LatentJam's own operator: libljq4.so (core/ort-ops) beside the fixtures.
             Path operators = root.resolve("libljq4.so");
             if (Files.exists(operators)) options.registerCustomOpLibrary(operators.toString());
@@ -30,6 +46,7 @@ public final class OrtParity {
                 for (int line = 0; line < lines.size();) {
                     String[] header = lines.get(line++).split("\t");
                     String id = header[0], model = header[1];
+                    System.out.println("case_begin\t" + id);
                     int inputCount = Integer.parseInt(header[2]);
                     OrtSession session = sessions.get(model);
                     if (session == null) {

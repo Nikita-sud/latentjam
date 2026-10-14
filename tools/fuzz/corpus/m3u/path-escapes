@@ -1,0 +1,7 @@
+#EXTM3U
+#PLAYLIST: Synthetic
+#EXTINF:12,Artist - Title
+../Music/track.flac
+file:///storage/emulated/0/%F0%9F%8E%B5.mp3
+/absolute/path.mp3
+

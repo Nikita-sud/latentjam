@@ -300,7 +300,7 @@ internal class OnnxEmbeddingBackend(
                     destinationOffset = row * config.embeddingDim,
                 )
             }
-            val environment = OrtEnvironment.getEnvironment()
+            val environment = offlineOrtEnvironment()
             OnnxTensor.createTensor(
                 environment,
                 FloatBuffer.wrap(flattened),
@@ -338,7 +338,7 @@ internal class OnnxEmbeddingBackend(
     }
 
     private fun runWindow(session: OrtSession, waveform: FloatArray): FloatArray {
-        val environment = OrtEnvironment.getEnvironment()
+        val environment = offlineOrtEnvironment()
         OnnxTensor.createTensor(
             environment,
             FloatBuffer.wrap(waveform),

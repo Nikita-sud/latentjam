@@ -850,4 +850,6 @@
     <string name="equalizer_response_headroom">Zapas poziomu: %1$s dB</string>
     <string name="equalizer_peak_reduction">Redukcja szczytów: %1$s dB</string>
     <string name="equalizer_peak_hint">Silne wzmocnienie może obniżyć głośność całego utworu.</string>
+    <string name="map_memory_limited">Za mało wolnej pamięci, aby obliczyć mapę. Zamknij inne aplikacje i otwórz mapę ponownie.</string>
+    <string name="map_unavailable">Nie udało się obliczyć mapy. Otwórz ją ponownie, aby spróbować jeszcze raz.</string>
 </resources>

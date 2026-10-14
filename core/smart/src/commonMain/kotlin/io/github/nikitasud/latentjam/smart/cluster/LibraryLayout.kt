@@ -29,8 +29,8 @@ private fun FloatArray.isUsableLayoutPosition(): Boolean =
 /**
  * The library's 2-D shape.
  *
- * Projects the same fused space [LibraryWorlds] clusters — so the picture and the regions agree by
- * construction rather than by coincidence — and returns a stable position per track.
+ * Projects the layout fusion into a stable position per track. Region discovery independently
+ * reweights its own copy; this projection preserves the existing layout weights.
  *
  * Pure and deterministic: identical input yields byte-identical output. The Map is a place people
  * learn, and a page that rearranges itself between visits is indistinguishable from a broken one.
@@ -46,6 +46,10 @@ public object LibraryLayout {
      * is the point: a different algorithm is a different picture.
      */
     public const val VERSION: String = "tsne-p20-pca50-v2"
+    /** The alternative remains opt-in until full-app speed, memory and quality gates pass. */
+    public val experimentalBackend: Boolean get() = MapBuildFlags.EXPERIMENTAL
+    public val cacheVersion: String
+        get() = if (experimentalBackend) BarnesHutMapEmbedding.VERSION else VERSION
 
     /** Pre-reduction width. Measured: keeping this step is worth ~0.01 on both quality metrics. */
     public const val COMPONENTS: Int = 50
@@ -55,9 +59,8 @@ public object LibraryLayout {
      *
      * Exact t-SNE still takes quadratic CPU time across 1000 iterations. Its symmetric optimizer
      * matrices now store each pair once: together they hold `n * (n - 1)` floats, about 36 MB at
-     * n=3000. Affinity preparation reuses its distance matrix for conditional probabilities; that
-     * matrix plus the packed result peaks at roughly 54 MB, down from 108 MB for the previous
-     * three full matrices. These figures exclude the input, PCA buffers, and runtime overhead.
+     * n=3000. Affinity preparation holds only a packed result and two scratch rows (about 18 MB).
+     * These figures exclude the input, PCA buffers, and runtime overhead.
      *
      * Packing and evaluating equal-and-opposite forces once preserve the existing coordinates,
      * but do not remove the quadratic growth. Keep the 3000-track guard for phone memory and CPU
@@ -87,17 +90,16 @@ public object LibraryLayout {
      *   pre-reduction and the t-SNE pass -- see [Tsne.embed]'s parameter of the same name. A caller
      *   running this under a coroutine (the only realistic caller: see [MAX_TRACKS]'s doc on why
      *   this can take real wall time) passes its own `{ isActive }` so a reader who has already
-     *   navigated away is not paid for in full CPU regardless. Aborting mid-pass still returns a
-     *   well-formed, merely under-converged, `List<LayoutPoint>` -- it is the caller's job to check
-     *   its own `isActive` again before treating that result as final and persisting it; this
-     *   function has no way to know whether it was actually cancelled or just handed a hook that
-     *   happened to return false once.
+     *   navigated away stops the work. Cancellation throws; a partial embedding is never returned.
+     * @throws kotlinx.coroutines.CancellationException when [isActive] becomes false
+     * @throws MapComputationUnavailable before unsafe allocation or when a backend fails
      * @throws IllegalArgumentException if `space.size` exceeds [MAX_TRACKS]
      */
     public fun compute(
         space: LibraryVectorSpace,
         previous: Map<TrackId, FloatArray> = emptyMap(),
         isActive: () -> Boolean = { true },
+        workBudgetBytes: Long = Long.MAX_VALUE,
     ): List<LayoutPoint> {
         val ids = space.trackIds
         val n = space.size
@@ -111,13 +113,22 @@ public object LibraryLayout {
                 "this before calling compute() and show an honest state instead of hitting this"
         }
         val dim = space.dim
+        if (MapMemoryBudget.projectionBytes(n, dim, experimentalBackend) > workBudgetBytes) {
+            throw MapComputationUnavailable("Insufficient memory for map projection", memoryLimited = true)
+        }
+        if (!isActive()) throw kotlinx.coroutines.CancellationException("Map cancelled before PCA")
         val rows = space.takeRows()
 
         val reduced = reduceForEmbedding(rows, n, dim, isActive)
         val reducedDim = reduced.size / n
 
         val warm = warmStart(ids, previous, n)
-        var embedded = Tsne.embed(reduced, n, reducedDim, SEED, warm, isActive)
+        val backend = if (experimentalBackend && n >= 61) BarnesHutMapEmbedding else ExactMapEmbedding
+        var embedded = when (val result = backend.embed(reduced, n, reducedDim, warm, isActive)) {
+            is MapEmbeddingResult.Complete -> result.coordinates
+            MapEmbeddingResult.Cancelled -> throw kotlinx.coroutines.CancellationException("Map cancelled")
+            is MapEmbeddingResult.Failed -> throw MapComputationUnavailable(result.reason)
+        }
 
         if (warm != null) {
             embedded = alignToPrevious(ids, embedded, previous, n)
@@ -543,7 +554,10 @@ private fun FloatArray.decodeFingerprintOrNull(): Long? {
  * valid decoded position remains available as a warm start.
  */
 public suspend fun IndexStore.loadStoredLayout(): StoredLibraryLayout {
-    val stored = load(LibraryLayout.VERSION).orEmpty()
+    val current = load(LibraryLayout.cacheVersion).orEmpty()
+    // An old exact layout remains a warm start when entering the experimental build.
+    val legacy = current.isEmpty() && LibraryLayout.experimentalBackend
+    val stored = if (legacy) load(LibraryLayout.VERSION).orEmpty() else current
     val positions = LinkedHashMap<TrackId, FloatArray>(stored.size)
     for ((storedId, vector) in stored) {
         if (storedId == STORED_FINGERPRINT_KEY) continue
@@ -552,7 +566,7 @@ public suspend fun IndexStore.loadStoredLayout(): StoredLibraryLayout {
     }
     return StoredLibraryLayout(
         positions = positions,
-        fingerprint = stored[STORED_FINGERPRINT_KEY]?.decodeFingerprintOrNull(),
+        fingerprint = if (legacy) null else stored[STORED_FINGERPRINT_KEY]?.decodeFingerprintOrNull(),
     )
 }
 
@@ -579,5 +593,5 @@ private suspend fun IndexStore.saveLayoutEntries(points: List<LayoutPoint>, fing
         entries[storedTrackKey(point.trackId)] = floatArrayOf(point.x, point.y)
     }
     if (fingerprint != null) entries[STORED_FINGERPRINT_KEY] = encodeFingerprint(fingerprint)
-    save(LibraryLayout.VERSION, entries)
+    save(LibraryLayout.cacheVersion, entries)
 }

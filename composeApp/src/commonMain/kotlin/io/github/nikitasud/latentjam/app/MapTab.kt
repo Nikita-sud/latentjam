@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.ui.platform.testTag
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -109,6 +110,8 @@ import io.github.nikitasud.latentjam.app.generated.resources.map_action_smart_he
 import io.github.nikitasud.latentjam.app.generated.resources.map_dot_outside_hint
 import io.github.nikitasud.latentjam.app.generated.resources.map_empty_building
 import io.github.nikitasud.latentjam.app.generated.resources.map_empty_indexing
+import io.github.nikitasud.latentjam.app.generated.resources.map_memory_limited
+import io.github.nikitasud.latentjam.app.generated.resources.map_unavailable
 import io.github.nikitasud.latentjam.app.generated.resources.map_empty_too_large
 import io.github.nikitasud.latentjam.app.generated.resources.map_headline_never_played
 import io.github.nikitasud.latentjam.app.generated.resources.map_headline_unplayed_total
@@ -180,6 +183,9 @@ private class MapDotVisuals(
  * library…") to someone whose indexing finished minutes ago.
  */
 sealed interface MapPageState {
+    /** Work was refused before allocating its large buffers; the persisted cache is intact. */
+    data object MemoryLimited : MapPageState
+    data object Unavailable : MapPageState
     /** No usable vector space yet: indexing has not produced one, or the tab has not been visited. */
     data object Indexing : MapPageState
 
@@ -265,6 +271,8 @@ fun MapTab(
                     pluralStringResource(Res.plurals.count_tracks, state.limit, state.limit),
                 )
                 MapPageState.Indexing -> stringResource(Res.string.map_empty_indexing)
+                MapPageState.MemoryLimited -> stringResource(Res.string.map_memory_limited)
+                MapPageState.Unavailable -> stringResource(Res.string.map_unavailable)
                 // Final review finding (MINOR 3): unreachable in practice -- App.kt's assembly
                 // effect never constructs a Ready state with an empty page (see
                 // MapPageState.Ready's doc) -- but the `when` above must still stay exhaustive over
@@ -419,7 +427,8 @@ fun MapTab(
         }
     val header: @Composable () -> Unit = {
         BoxWithConstraints(
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp)
+                .testTag(if ((state as? MapPageState.Ready)?.rebuilding == false) "latentjam_map_ready" else "latentjam_map_building"),
         ) {
             // Measured at the width the Text actually gets, with the indicator's slot subtracted
             // whether or not it is showing (see the Row below) -- a reservation measured at some

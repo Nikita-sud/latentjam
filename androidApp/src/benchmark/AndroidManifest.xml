@@ -1,0 +1,8 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <profileable android:shell="true" />
+        <receiver android:name="io.github.nikitasud.latentjam.benchmark.MapCacheControl"
+            android:exported="true" android:permission="android.permission.DUMP" />
+    </application>
+</manifest>
+

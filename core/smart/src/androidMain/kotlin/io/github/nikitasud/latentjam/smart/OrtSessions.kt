@@ -7,6 +7,11 @@ package io.github.nikitasud.latentjam.smart
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 
+/** Disable telemetry before any application session or tensor uses the process environment. */
+internal fun offlineOrtEnvironment(): OrtEnvironment = OrtEnvironment.getEnvironment().also {
+    it.setTelemetry(false)
+}
+
 /**
  * Creates an ONNX Runtime session the way every SMART model runs.
  *
@@ -25,7 +30,7 @@ internal fun createOrtSession(model: ByteArray, operators: Boolean = false): Ort
         options.setInterOpNumThreads(1)
         options.setCPUArenaAllocator(false)
         if (operators) OrtOperators.register(options)
-        OrtEnvironment.getEnvironment().createSession(model, options)
+        offlineOrtEnvironment().createSession(model, options)
     }
 
 /**

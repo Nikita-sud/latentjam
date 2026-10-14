@@ -185,34 +185,18 @@ internal object Tsne {
      * plus [PERPLEXITY_STEPS] `* n^2` `exp()` calls (roughly 540M of them at
      * n=[LibraryLayout.MAX_TRACKS], several seconds on a phone) -- entirely before [embed]'s own
      * [isActive] check was ever consulted, since that check only guards the *gradient* loop below
-     * and this function runs before it. [isActive] is polled once per outer row of each of this
-     * function's two loops, exactly like the gradient loop already does, so a caller who has
-     * navigated away is not paid for in full CPU regardless of which of the two phases the abort
-     * lands in.
+     * and this function runs before it. [isActive] is polled before each distance row and again
+     * before its bandwidth search, so cancellation does not wait for the full affinity matrix.
      *
      * @param isActive forwarded from [embed]'s parameter of the same name
      */
     internal fun affinities(rows: FloatArray, n: Int, dim: Int, isActive: () -> Boolean): FloatArray {
         val pairCount = n * (n - 1) / 2
-        val distances = FloatArray(n * n)
-        for (i in 0 until n) {
-            if (!isActive()) return FloatArray(pairCount)
-            for (j in i + 1 until n) {
-                var sum = 0f
-                val a = i * dim
-                val b = j * dim
-                for (d in 0 until dim) {
-                    val delta = rows[a + d] - rows[b + d]
-                    sum += delta * delta
-                }
-                distances[i * n + j] = sum
-                distances[j * n + i] = sum
-            }
-        }
-
-        // Searches read only their own distance row, so each completed row can become its
-        // conditional probabilities in place. The symmetric copy in every later row is intact.
-        val p = distances
+        // One distance row plus one probability row; no dense n*n working matrix.
+        // P initially holds the earlier row's conditional value. The later row completes each
+        // pair with exactly the previous Float32 addition/division/clamp order.
+        val out = FloatArray(pairCount)
+        val distances = FloatArray(n)
         // A row of n points has n - 1 candidate neighbours, so its conditional entropy can never
         // exceed ln(n - 1) -- the value it takes when every neighbour gets equal weight (beta -> 0).
         // PERPLEXITY (20) implies a target entropy of ln(20) =~ 2.996, which for n <= 21 is at or
@@ -229,7 +213,25 @@ internal object Tsne {
         val target = ln(effectivePerplexity)
         val row = FloatArray(n)
         for (i in 0 until n) {
-            if (!isActive()) return FloatArray(pairCount)
+            if (!isActive()) {
+                out.fill(0f)
+                return out
+            }
+            for (j in 0 until n) {
+                var sum = 0f
+                // Preserve even the subtraction direction used by the old upper triangle.
+                val a = minOf(i, j) * dim
+                val b = maxOf(i, j) * dim
+                for (d in 0 until dim) {
+                    val delta = rows[a + d] - rows[b + d]
+                    sum += delta * delta
+                }
+                distances[j] = sum
+            }
+            if (!isActive()) {
+                out.fill(0f)
+                return out
+            }
             var low = 0f
             var high = Float.MAX_VALUE
             var beta = 1f
@@ -252,10 +254,10 @@ internal object Tsne {
                         row[j] = 0f
                         continue
                     }
-                    val value = exp(-distances[i * n + j] * beta)
+                    val value = exp(-distances[j] * beta)
                     row[j] = value
                     sum += value
-                    entropySum += distances[i * n + j] * value
+                    entropySum += distances[j] * value
                 }
                 if (sum <= 0f) sum = 1e-12f
                 rowSum = sum
@@ -270,16 +272,13 @@ internal object Tsne {
                 }
                 if (error < PERPLEXITY_TOLERANCE && error > -PERPLEXITY_TOLERANCE) break@perplexitySearch
             }
-            for (j in 0 until n) p[i * n + j] = row[j] / rowSum
-        }
-
-        // Symmetrize and normalize to a joint distribution, packing only i < j in row order.
-        // The gradient pass reads each pair once and applies equal and opposite forces.
-        val out = FloatArray(pairCount)
-        var pair = 0
-        for (i in 0 until n) {
+            for (j in 0 until i) {
+                val pair = j * (2 * n - j - 1) / 2 + i - j - 1
+                out[pair] = ((out[pair] + row[j] / rowSum) / (2f * n)).coerceAtLeast(1e-12f)
+            }
+            var pair = i * (2 * n - i - 1) / 2
             for (j in i + 1 until n) {
-                out[pair++] = ((p[i * n + j] + p[j * n + i]) / (2f * n)).coerceAtLeast(1e-12f)
+                out[pair++] = row[j] / rowSum
             }
         }
         return out

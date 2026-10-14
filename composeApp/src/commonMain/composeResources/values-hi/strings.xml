@@ -782,4 +782,6 @@
     <string name="equalizer_response_headroom">स्तर का अतिरिक्त अंतर: %1$s dB</string>
     <string name="equalizer_peak_reduction">पीक में कमी: %1$s dB</string>
     <string name="equalizer_peak_hint">ज़्यादा बढ़ाने से पूरे ट्रैक की आवाज़ कम हो सकती है।</string>
+    <string name="map_memory_limited">मानचित्र की गणना के लिए पर्याप्त खाली मेमोरी नहीं है। अन्य ऐप बंद करके मानचित्र फिर खोलें।</string>
+    <string name="map_unavailable">मानचित्र की गणना नहीं हो सकी। फिर से कोशिश करने के लिए इसे दोबारा खोलें।</string>
 </resources>

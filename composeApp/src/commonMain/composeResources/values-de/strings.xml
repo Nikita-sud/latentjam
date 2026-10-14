@@ -794,4 +794,6 @@
     <string name="equalizer_response_headroom">Pegelreserve: %1$s dB</string>
     <string name="equalizer_peak_reduction">Spitzenabsenkung: %1$s dB</string>
     <string name="equalizer_peak_hint">Starke Anhebungen können die Lautstärke des gesamten Titels verringern.</string>
+    <string name="map_memory_limited">Nicht genug freier Speicher für die Karte. Schließe andere Apps und öffne die Karte erneut.</string>
+    <string name="map_unavailable">Die Karte konnte nicht berechnet werden. Öffne sie erneut, um es noch einmal zu versuchen.</string>
 </resources>

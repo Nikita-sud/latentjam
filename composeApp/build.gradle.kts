@@ -87,3 +87,11 @@ compose.resources {
     packageOfResClass = "io.github.nikitasud.latentjam.app.generated.resources"
     publicResClass = true
 }
+
+// Opt in on CI/profiling builds; reports do not alter application behaviour.
+composeCompiler {
+    if (providers.gradleProperty("latentjam.composeReports").orNull == "true") {
+        reportsDestination = layout.buildDirectory.dir("reports/compose")
+        metricsDestination = layout.buildDirectory.dir("reports/compose")
+    }
+}

@@ -1,0 +1,48 @@
+name: Discover parser regressions
+on:
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: Seconds per target (maximum 1800)
+        default: "300"
+        required: true
+permissions:
+  contents: read
+jobs:
+  fuzz:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [id3, mp4, ogg, flac, backup, m3u]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v5
+      - uses: android-actions/setup-android@v3
+      - name: Install Android platform
+        run: sdkmanager "platforms;android-36" "ndk;28.2.13676358" "cmake;3.22.1"
+      - name: Install standalone Jazzer 0.30.0
+        run: |
+          curl --fail --location --retry 3 https://github.com/CodeIntelligenceTesting/jazzer/releases/download/v0.30.0/jazzer-linux-x86-64.tar.gz -o /tmp/jazzer.tar.gz
+          echo "6eeaf0026d75599b07527d93b576593ce847cfca8b337a579971a5a9cdf792d0  /tmp/jazzer.tar.gz" | sha256sum --check
+          mkdir /tmp/jazzer
+          tar -xzf /tmp/jazzer.tar.gz -C /tmp/jazzer
+      - name: Fuzz
+        env:
+          FUZZ_SECONDS: ${{ inputs.seconds }}
+          FUZZ_TARGET: ${{ matrix.target }}
+        run: |
+          python3 -c 'import os; assert 1 <= int(os.environ["FUZZ_SECONDS"]) <= 1800'
+          python3 tools/fuzz/run.py "$FUZZ_TARGET" --jazzer /tmp/jazzer/jazzer --seconds "$FUZZ_SECONDS"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fuzz-${{ matrix.target }}
+          path: build/fuzz/
+          retention-days: 30
+

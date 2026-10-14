@@ -843,4 +843,6 @@
     <string name="equalizer_response_headroom">Запас уровня: %1$s дБ</string>
     <string name="equalizer_peak_reduction">Снижение пиков: %1$s дБ</string>
     <string name="equalizer_peak_hint">Сильное усиление может снижать громкость всего трека.</string>
+    <string name="map_memory_limited">Недостаточно свободной памяти для расчёта карты. Закройте другие приложения и откройте карту снова.</string>
+    <string name="map_unavailable">Не удалось рассчитать карту. Откройте её снова, чтобы повторить попытку.</string>
 </resources>

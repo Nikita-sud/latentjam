@@ -918,4 +918,6 @@
     <string name="equalizer_response_headroom">هامش المستوى: %1$s ديسيبل</string>
     <string name="equalizer_peak_reduction">خفض القمم: %1$s ديسيبل</string>
     <string name="equalizer_peak_hint">قد تؤدي الزيادات الكبيرة إلى خفض مستوى صوت المقطع بأكمله.</string>
+    <string name="map_memory_limited">لا توجد ذاكرة خالية كافية لحساب الخريطة. أغلق التطبيقات الأخرى وافتح الخريطة مجددًا.</string>
+    <string name="map_unavailable">تعذّر حساب الخريطة. افتحها مجددًا لإعادة المحاولة.</string>
 </resources>

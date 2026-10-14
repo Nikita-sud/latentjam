@@ -817,4 +817,6 @@
     <string name="equalizer_response_headroom">מרווח עוצמה: %1$s דציבל</string>
     <string name="equalizer_peak_reduction">הנחתת שיאים: %1$s דציבל</string>
     <string name="equalizer_peak_hint">הגברה חזקה עלולה להפחית את עוצמת הרצועה כולה.</string>
+    <string name="map_memory_limited">אין מספיק זיכרון פנוי לחישוב המפה. יש לסגור יישומים אחרים ולפתוח את המפה מחדש.</string>
+    <string name="map_unavailable">לא ניתן לחשב את המפה. יש לפתוח אותה מחדש כדי לנסות שוב.</string>
 </resources>

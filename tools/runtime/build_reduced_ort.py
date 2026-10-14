@@ -36,6 +36,7 @@ def main():
     parser.add_argument("--sdk", type=Path, required=True)
     parser.add_argument("--ndk", type=Path, required=True)
     parser.add_argument("--stock-aar", type=Path, required=True)
+    parser.add_argument("--ort-version", help="Isolated experiment; does not change the application version")
     parser.add_argument("--jobs", type=int, default=4)
     parser.add_argument("--native-build-dir", type=Path)
     parser.add_argument("--custom-op-library", type=Path, required=True,
@@ -45,7 +46,7 @@ def main():
     import onnxruntime as ort
     from onnxruntime.tools.reduced_build_config_parser import parse_config
 
-    version = tomllib.loads((REPO / "gradle/libs.versions.toml").read_text())["versions"]["onnxruntime"]
+    version = args.ort_version or tomllib.loads((REPO / "gradle/libs.versions.toml").read_text())["versions"]["onnxruntime"]
     if ort.__version__ != version:
         raise SystemExit(f"Conversion runtime {ort.__version__} differs from app runtime {version}")
     source = args.source.resolve()
@@ -102,6 +103,8 @@ def main():
         "--build_java", "--enable_lto", "--disable_ml_ops", "--include_ops_by_config", config,
         "--skip_tests", "--cmake_extra_defines", "onnxruntime_BUILD_UNIT_TESTS=OFF",
         "--parallel", str(args.jobs)]
+    if tuple(map(int, version.split("."))) >= (1, 31, 0):
+        command.append("--no_telemetry")
     run(command, cwd=source)
     release = build / "Release"
     native = {f"jni/arm64-v8a/{name}": release / name
@@ -124,8 +127,9 @@ def main():
     base_name = "onnxruntime-android-" + candidate_version
     aar = artifact / (base_name + ".aar")
     with zipfile.ZipFile(args.stock_aar) as original, zipfile.ZipFile(aar, "w", zipfile.ZIP_DEFLATED) as reduced:
-        for entry in original.infolist():
-            reduced.writestr(entry.filename, native[entry.filename].read_bytes()
+        for entry in sorted(original.infolist(), key=lambda e: e.filename):
+            # Preserve source ZIP metadata; never inject the current clock.
+            reduced.writestr(entry, native[entry.filename].read_bytes()
                              if entry.filename in native else original.read(entry.filename))
     (artifact / (base_name + ".pom")).write_text(
         '<project xmlns="http://maven.apache.org/POM/4.0.0"><modelVersion>4.0.0</modelVersion>'

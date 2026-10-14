@@ -7,4 +7,5 @@ target 'iosApp' do
   pod 'onnxruntime-c', '1.26.0'
   # LatentJam's own operators (the music encoder's 4-bit convolutions), built from source.
   pod 'LatentJamOrtOps', :path => '../core/ort-ops'
+  pod 'LatentJamMap', :path => '../core/map-native'
 end

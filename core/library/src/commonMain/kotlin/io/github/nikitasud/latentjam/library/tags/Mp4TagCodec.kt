@@ -309,13 +309,29 @@ internal object Mp4TagCodec : TagCodec {
             }
         }
         if (topFreeEnd == layout.atoms.size) {
+            // Extending the final moov could turn a dangling pointer beyond EOF into a
+            // pointer to newly written metadata, even though its numeric value never moves.
+            val targets = OffsetTargets(layout.atoms)
+            val offsets = chunkOffsets(moov) ?: return WritePlan.Refused(TagRefusal.MP4_MALFORMED_ATOMS)
+            if (offsets.any { table -> table.any { !targets.canMove(it) } }) {
+                return WritePlan.Refused(TagRefusal.MP4_MALFORMED_ATOMS)
+            }
             return ByteDiff.patchOrNoChange(atom.offset, region, withSpare, atom.offset + withSpare.size, length)
         }
 
         // C: moov changes size where it is; everything after it moves, and so must its chunk offsets.
         if (layout.atoms.any { it.type !in MOVABLE_TOP_LEVEL }) return WritePlan.Refused(TagRefusal.MP4_UNKNOWN_OFFSET_BOX)
+        if (hasUnexpectedChunkTable(moov)) return WritePlan.Refused(TagRefusal.MP4_UNKNOWN_OFFSET_BOX)
         val shifted = Mp4Boxes.parse(withSpare) ?: return WritePlan.Refused(TagRefusal.MP4_MALFORMED_ATOMS)
         shiftOffsets(shifted, atom.offset, atom.end, withSpare.size - atom.size)?.let { return WritePlan.Refused(it) }
+        // A malformed table can point beyond EOF or into padding. Shifting such a pointer
+        // invents a new target: inventory verification would (correctly) reject it after writing.
+        // Refuse before allocating/copying a replacement file instead.
+        val targets = OffsetTargets(layout.atoms)
+        val originalOffsets = chunkOffsets(moov) ?: return WritePlan.Refused(TagRefusal.MP4_MALFORMED_ATOMS)
+        if (originalOffsets.any { table -> table.any { it >= atom.end && !targets.canMove(it) } }) {
+            return WritePlan.Refused(TagRefusal.MP4_MALFORMED_ATOMS)
+        }
         return WritePlan.StreamingRewrite(
             listOf(
                 OutputSegment.Copy(0, atom.offset),
@@ -330,6 +346,13 @@ internal object Mp4TagCodec : TagCodec {
     private fun replaceRange(list: MutableList<Mp4Box>, from: Int, to: Int, with: List<Mp4Box>) {
         repeat(to - from) { list.removeAt(from) }
         list.addAll(from, with)
+    }
+
+    /** Only track sample tables have a defined relocation contract. Unknown user data stays opaque. */
+    private fun hasUnexpectedChunkTable(box: Mp4Box, parent: String = ""): Boolean {
+        if (box.type == "stco" || box.type == "co64") return parent != "moov/trak/mdia/minf/stbl"
+        val path = if (parent.isEmpty()) box.type else "$parent/${box.type}"
+        return box.children?.any { hasUnexpectedChunkTable(it, path) } == true
     }
 
     /** Every chunk offset of every `stco`/`co64` in [moov]; null when a table does not add up. */
@@ -587,6 +610,8 @@ internal object Mp4TagCodec : TagCodec {
         private val ordinals = HashMap<Mp4Atom, Int>().also { map ->
             atoms.filter { it.type !in FREE }.forEachIndexed { i, atom -> map[atom] = i }
         }
+
+        fun canMove(offset: Long): Boolean = containing(offset)?.type?.let { it !in FREE } == true
 
         fun identity(table: Mp4Box): String {
             val p = table.payload

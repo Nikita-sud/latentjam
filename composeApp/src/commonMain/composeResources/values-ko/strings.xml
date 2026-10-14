@@ -751,4 +751,6 @@
     <string name="equalizer_response_headroom">레벨 여유: %1$s dB</string>
     <string name="equalizer_peak_reduction">피크 감소: %1$s dB</string>
     <string name="equalizer_peak_hint">크게 증폭하면 곡 전체의 음량이 줄어들 수 있습니다.</string>
+    <string name="map_memory_limited">지도를 계산할 여유 메모리가 부족합니다. 다른 앱을 닫고 지도를 다시 열어 주세요.</string>
+    <string name="map_unavailable">지도를 계산하지 못했습니다. 다시 열어 재시도해 주세요.</string>
 </resources>

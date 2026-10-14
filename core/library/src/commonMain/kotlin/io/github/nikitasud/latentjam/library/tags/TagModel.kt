@@ -247,10 +247,11 @@ public data class TagSnapshot(
         var newDiscTotal = number(discTotal, edits.discTotal)
         val newTrackNumber = number(trackNumber, edits.trackNumber)
         val newDiscNumber = number(discNumber, edits.discNumber)
-        // ID3 stores "3/12" in one frame: without the number there is no frame to hold a total.
+        // Rewriting an ID3 number/total pair needs a number. An untouched frame can still
+        // contain a lone total ("/12"): unrelated edits preserve its bytes and readable total.
         if (format == TagFormat.MP3) {
-            if (newTrackNumber == null) newTrackTotal = null
-            if (newDiscNumber == null) newDiscTotal = null
+            if (newTrackNumber == null && (edits.trackNumber != null || edits.trackTotal != null)) newTrackTotal = null
+            if (newDiscNumber == null && (edits.discNumber != null || edits.discTotal != null)) newDiscTotal = null
         }
         // Removing the cover promotes the next picture; every other picture stays where it was.
         val (newCover, newOtherPictures) = when (val edit = edits.cover) {

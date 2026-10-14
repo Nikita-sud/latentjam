@@ -1,5 +1,44 @@
 # Smaller Android ONNX Runtime candidate
 
+## Reliability upgrade gate (2026-10-14)
+
+The application still uses full ORT **1.26.0**. Environment telemetry is explicitly
+disabled in both Android and iOS before sessions are created.
+
+`compare_android.py` compares independently compiled Java/JNI probes using the
+two supplied official AARs and the current three models. It records model, fixture,
+custom-op and AAR hashes, loading/inference logs and per-tensor numerical differences.
+Optional `--xnnpack` is a separate run. No application is replaced.
+
+```sh
+python3 tools/runtime/compare_android.py \
+  --baseline /path/onnxruntime-android-1.26.0.aar \
+  --candidate /path/onnxruntime-android-1.31.0.aar \
+  --custom-ops /path/arm64-v8a/libljq4.so \
+  --sdk /path/android-sdk --serial SERIAL --output /tmp/ort-comparison --xnnpack
+```
+
+On the available ARM64 API 36.1 emulator, 1.26.0 completed all ten synthetic
+cases (39,927 output floats), corrupt-model rejection and error recovery.
+The official 1.31.0 AAR loaded its environment but failed during the first model
+load with SIGILL, exit 132, at an `rdsvl` instruction in `libonnxruntime.so`
+(offset `0xb62e44`). CPU and XNNPACK runs failed identically. This is an emulator
+compatibility finding, not a claim that every ARM phone fails. It blocks adopting
+1.31.0 here; iOS parity, device performance and network observations are not
+inferred from this run. The reduced 1.31.0 rebuild is intentionally not promoted.
+
+A separate XNNPACK run on the retained **1.26.0** version passed semantic batch 1
+but failed at batch 4 in `/Concat_3`: non-concat axis 0 had dimensions 1 and 4.
+The same fixtures completed with the CPU provider (including a repeat with
+bitwise-equal outputs). This blocks enabling XNNPACK for the current variable
+batch pipeline; it does not establish a speed or memory benefit. The Android
+`app_process` exit was 137 after the uncaught `OrtException`, not evidence of OOM.
+
+The reduced builder accepts an isolated `--ort-version`, disables telemetry at
+build time for 1.31+, preserves deterministic ZIP metadata, and requires matching
+source/runtime versions. The substitution manifest now requires the **exact**
+shipped model set, including removals. Other ABIs retain the full stock runtime.
+
 This is an **opt-in ARM64 build**, not a replacement for the default dependency.
 It keeps ONNX model loading, graph optimization, the CPU provider, JNI, and C++
 exceptions. It removes unused providers and operator kernels. The app's model
@@ -105,9 +144,7 @@ After Android parity passes, build with the optional init script:
 ```
 
 The init script rejects a shipped graph that is new or whose hash changed,
-mismatched runtime versions, or a modified candidate AAR. A graph the app no
-longer ships may stay in the manifest: its operators remain in the runtime,
-unused. An ordinary Gradle invocation still uses the official full runtime. If
+mismatched runtime versions, or a modified candidate AAR. The manifest must match the exact shipped graph set, including removals. An ordinary Gradle invocation still uses the official full runtime. If
 a model changes, regenerate the operator config, rebuild, and repeat Android
 parity before using the reduced build. Custom `modelLocator` assets with other
 operators are outside this candidate's validated contract.

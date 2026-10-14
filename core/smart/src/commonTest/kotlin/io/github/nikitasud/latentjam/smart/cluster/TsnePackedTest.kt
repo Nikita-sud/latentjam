@@ -12,11 +12,11 @@ import kotlin.test.assertEquals
 
 class TsnePackedTest {
     @Test
-    fun `aborted affinities retain the packed shape in both preparation phases`() {
+    fun `aborted affinities discard partial rows without another matrix allocation`() {
         val n = 73
         val dim = 7
         val rows = FloatArray(n * dim) { ((it * 19) % 23).toFloat() / 23f }
-        for (abortAfter in listOf(0, n + 1)) {
+        for (abortAfter in listOf(0, 1, n / 2, n - 1)) {
             var calls = 0
             val packed = Tsne.affinities(rows, n, dim) { calls++ < abortAfter }
             assertContentEquals(FloatArray(n * (n - 1) / 2), packed)

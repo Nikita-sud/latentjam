@@ -1,0 +1,7 @@
+// Run inside the booted simulator, with Foundation coordination services available.
+gradle.beforeProject { project ->
+    project.tasks.matching { it.name == 'iosSimulatorArm64Test' }.configureEach {
+        device.set(project.providers.gradleProperty('latentjam.simulatorId'))
+        standalone.set(false)
+    }
+}

@@ -486,6 +486,7 @@ private final class OrtRuntime {
             try Self.check(api, api.pointee.CreateEnv(
                 ORT_LOGGING_LEVEL_WARNING, "LatentJam", &environment
             ))
+            try Self.check(api, api.pointee.DisableTelemetryEvents(environment))
             try Self.check(api, api.pointee.CreateCpuMemoryInfo(
                 OrtArenaAllocator, OrtMemTypeDefault, &memoryInfo
             ))

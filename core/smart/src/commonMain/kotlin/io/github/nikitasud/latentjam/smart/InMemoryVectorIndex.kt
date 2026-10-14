@@ -71,13 +71,46 @@ public class InMemoryVectorIndex(
         require(query.all(Float::isFinite)) { "Query contains a non-finite component" }
         if (k <= 0 || vectors.isEmpty()) return emptyList()
         val normalizedQuery = l2Normalized(query)
-        return vectors.asSequence()
-            .filter { (id, _) -> id !in exclude }
-            .map { (id, stored) -> ScoredTrack(trackId = id, score = dot(normalizedQuery, stored)) }
-            .sortedByDescending { it.score }
-            .take(k)
-            .toList()
+        // A worst-first heap keeps only k candidates. The ordinal makes ties agree with the
+        // old stable sort, including upserts (which retain their LinkedHashMap position).
+        val limit = minOf(k, vectors.size)
+        val heap = ArrayList<RankedTrack>(limit)
+        for ((ordinal, entry) in vectors.entries.withIndex()) {
+            if (entry.key in exclude) continue
+            val score = dot(normalizedQuery, entry.value)
+            if (heap.size == limit && score.compareTo(heap[0].track.score) <= 0) continue
+            val candidate = RankedTrack(ScoredTrack(entry.key, score), ordinal)
+            if (heap.size < limit) {
+                heap.add(candidate)
+                var child = heap.lastIndex
+                while (child > 0) {
+                    val parent = (child - 1) / 2
+                    if (rank.compare(heap[child], heap[parent]) <= 0) break
+                    val swap = heap[parent]
+                    heap[parent] = heap[child]
+                    heap[child] = swap
+                    child = parent
+                }
+            } else {
+                heap[0] = candidate
+                var parent = 0
+                while (parent * 2 + 1 < heap.size) {
+                    var worst = parent * 2 + 1
+                    if (worst + 1 < heap.size && rank.compare(heap[worst + 1], heap[worst]) > 0) worst++
+                    if (rank.compare(heap[worst], heap[parent]) <= 0) break
+                    val swap = heap[parent]
+                    heap[parent] = heap[worst]
+                    heap[worst] = swap
+                    parent = worst
+                }
+            }
+        }
+        return heap.sortedWith(rank).map { it.track }
     }
+
+    private data class RankedTrack(val track: ScoredTrack, val ordinal: Int)
+
+    private val rank = compareByDescending<RankedTrack> { it.track.score }.thenBy { it.ordinal }
 
     override fun clear() {
         vectors.clear()

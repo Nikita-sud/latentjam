@@ -1,0 +1,75 @@
+name: Verify application
+on:
+  pull_request:
+  push:
+    branches: [main, "codex/opensource-reliability"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: app-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  GRADLE_OPTS: -Dorg.gradle.workers.max=2 -Dorg.gradle.jvmargs=-Xmx4g -Dkotlin.daemon.jvm.options=-Xmx2g
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v5
+      - uses: android-actions/setup-android@v3
+      - name: Android SDK
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
+      - name: Host tests, resources and Kotlin Native identifiers
+        run: ./gradlew testAndroidHostTest --max-workers=2
+      - name: Native cancellation, deterministic output, sanitizers and notices
+        run: python3 tools/ci/native_verify.py
+      - name: Optimized release, DEX and native gates
+        run: ./gradlew :androidApp:assembleRelease :androidApp:checkReleaseDexRegisters :androidApp:checkReleaseNativeLibraries -Platentjam.composeReports=true --max-workers=2
+      - name: APK inventory and 16 KiB alignment
+        run: python3 tools/ci/apk_inventory.py androidApp/build/outputs/apk/release --output build/reports/apks.json
+      - name: CycloneDX and bundled components
+        run: |
+          ./gradlew -I tools/ci/sbom.init.gradle cyclonedxBom --no-configuration-cache --max-workers=2
+          python3 tools/ci/sbom_assets.py --input build/reports/cyclonedx/bom.json --output build/reports/cyclonedx/application.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-verification
+          path: |
+            **/build/reports/
+            **/build/test-results/
+            androidApp/build/outputs/mapping/release/
+          retention-days: 14
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Test common and platform code on an arm64 simulator
+        run: python3 tools/ci/ios_verify.py
+      - name: Resolve locked CocoaPods
+        working-directory: iosApp
+        run: pod install --deployment
+      - name: Compile and link Swift, CocoaPods and Compose
+        run: xcodebuild -workspace iosApp/iosApp.xcworkspace -scheme iosApp -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build/ios CODE_SIGNING_ALLOWED=NO build
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-verification
+          path: |
+            **/build/reports/
+            **/build/test-results/
+            build/ios/Logs/
+          retention-days: 14
+

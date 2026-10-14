@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.ui.platform.testTag
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
@@ -180,7 +181,7 @@ internal fun SearchLaunchButton(enabled: Boolean, onClick: () -> Unit, modifier:
         enabled = enabled,
         onClick = { haptics.play(PlayerHaptic.TAP); onClick() },
         interactionSource = interaction,
-        modifier = modifier.scaleOnPress(interaction),
+        modifier = modifier.testTag("latentjam_search").scaleOnPress(interaction),
     ) {
         Icon(Icons.Rounded.Search, stringResource(Res.string.cd_search_library))
     }

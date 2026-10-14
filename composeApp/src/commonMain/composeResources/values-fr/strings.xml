@@ -796,4 +796,6 @@
     <string name="equalizer_response_headroom">Réserve de niveau : %1$s dB</string>
     <string name="equalizer_peak_reduction">Réduction des crêtes : %1$s dB</string>
     <string name="equalizer_peak_hint">Une forte amplification peut réduire le volume de tout le morceau.</string>
+    <string name="map_memory_limited">Mémoire libre insuffisante pour calculer la carte. Fermez les autres applications et rouvrez la carte.</string>
+    <string name="map_unavailable">Le calcul de la carte a échoué. Rouvrez-la pour réessayer.</string>
 </resources>

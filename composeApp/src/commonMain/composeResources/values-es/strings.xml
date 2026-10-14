@@ -791,4 +791,6 @@
     <string name="equalizer_response_headroom">Margen de nivel: %1$s dB</string>
     <string name="equalizer_peak_reduction">Reducción de picos: %1$s dB</string>
     <string name="equalizer_peak_hint">Un aumento fuerte puede reducir el volumen de toda la pista.</string>
+    <string name="map_memory_limited">No hay suficiente memoria libre para calcular el mapa. Cierra otras aplicaciones y vuelve a abrirlo.</string>
+    <string name="map_unavailable">No se pudo calcular el mapa. Vuelve a abrirlo para intentarlo de nuevo.</string>
 </resources>

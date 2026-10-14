@@ -1,0 +1,7 @@
+{
+  "qdtsne": {"url": "https://github.com/libscran/qdtsne", "commit": "93f184cabe4c50310627bd379326def442bfa5fc", "license": "MIT, except SPTree.hpp and Status.hpp: BSD-4-Clause"},
+  "knncolle": {"url": "https://github.com/knncolle/knncolle", "commit": "bb070f4746bfa9d29d754af6dad2d4fd83bcb0ea", "license": "MIT"},
+  "aarand": {"url": "https://github.com/LTLA/aarand", "commit": "255d3040e5bbf64af215e9f55fd5b32edb0b989f", "license": "MIT"},
+  "subpar": {"url": "https://github.com/LTLA/subpar", "commit": "9dea49e4b2ee11f02944c0e770d05b2660a2ff76", "license": "MIT"},
+  "sanisizer": {"url": "https://github.com/LTLA/sanisizer", "commit": "9cd3e61347b563d2ee9cbaff55b80598b36bf15d", "license": "MIT"}
+}

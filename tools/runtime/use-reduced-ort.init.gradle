@@ -20,11 +20,8 @@ gradle.settingsEvaluated { settings ->
     }
     def models = new File(settings.settingsDir, 'androidApp/src/main/assets/ml')
         .listFiles().findAll { it.name.endsWith('.onnx') }.collectEntries { [(it.name): hash(it)] }
-    // Every shipped graph must be one the candidate was built and validated for, byte for byte. A
-    // graph the app no longer ships may stay in the manifest: its operators remain in the runtime
-    // unused, which costs bytes but changes no result of the graphs that do ship.
-    def unknown = models.findAll { name, sha -> manifest.models[name] != sha }
-    if (models.isEmpty() || !unknown.isEmpty()) {
+    // The exact graph set is part of the candidate identity, including removals.
+    if (models.isEmpty() || models != manifest.models) {
         throw new GradleException('ML models changed; regenerate operators, rebuild and validate reduced ORT')
     }
     def version = manifest.candidate_version

@@ -11,6 +11,12 @@ import io.github.nikitasud.latentjam.smart.IosInferenceRegistry
 public fun installIosInferenceProvider(provider: IosInferenceProvider): Unit =
     IosInferenceRegistry.install(provider)
 
+public fun installIosMapEmbeddingProvider(
+    provider: io.github.nikitasud.latentjam.smart.cluster.IosMapEmbeddingProvider,
+): Unit {
+    io.github.nikitasud.latentjam.smart.cluster.IosMapEmbeddingRegistry.provider = provider
+}
+
 /** Opt-in simulator/device verification, invoked by LATENTJAM_BATCH_DOTS_BENCHMARK in the Swift shell. */
 public fun runIosBatchDotsDiagnostics(): String =
     io.github.nikitasud.latentjam.smart.runIosBatchDotsDiagnostics()

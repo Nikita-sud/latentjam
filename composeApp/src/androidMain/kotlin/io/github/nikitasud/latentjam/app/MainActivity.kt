@@ -22,6 +22,9 @@ import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -97,6 +100,7 @@ class MainActivity : ComponentActivity() {
         ).getBoolean(KEY_AUDIO_GATE_DISMISSED, false)
         setContent {
             if (audioPermissionGranted || audioPermissionGateDismissed) {
+                Box(Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
                 App(
                     engine = AppGraph.engine,
                     library = AppGraph.library,
@@ -104,6 +108,7 @@ class MainActivity : ComponentActivity() {
                     externalAudioOpener = externalAudioOpener,
                 )
                 ContextualNotificationPermissionRequest(AppGraph.permissions)
+                }
             } else {
                 AudioPermissionGate(
                     permissions = AppGraph.permissions,

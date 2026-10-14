@@ -20,6 +20,31 @@ internal class InMemoryVectorIndexTest {
     private val b = TrackId("b")
     private val c = TrackId("c")
 
+    @Test
+    fun heapMatchesStableFullSortAcrossTiesExclusionsAndUpdates() {
+        val index = InMemoryVectorIndex(dim = 7)
+        for (i in 0 until 257) {
+            index.upsert(TrackId("$i"), FloatArray(7) { d -> ((i % 29 + d * 13) % 11 - 5).toFloat() })
+        }
+        index.upsert(TrackId("5"), FloatArray(7))
+        index.remove(TrackId("4"))
+        index.upsert(TrackId("4"), FloatArray(7))
+        for (query in listOf(FloatArray(7), FloatArray(7) { (it - 3).toFloat() })) {
+            val norm = kotlin.math.sqrt(query.fold(0f) { sum, v -> sum + v * v })
+            val normalized = query.map { if (norm == 0f) it else it / norm }
+            for (exclude in listOf(emptySet(), setOf(TrackId("0"), TrackId("5")), index.ids())) {
+                val expected = index.entries().filterKeys { it !in exclude }.map { (id, vector) ->
+                    var score = 0f
+                    for (d in vector.indices) score += normalized[d] * vector[d]
+                    ScoredTrack(id, score)
+                }.sortedByDescending { it.score }
+                for (k in listOf(0, 1, 2, 7, 128, 257, Int.MAX_VALUE)) {
+                    assertEquals(expected.take(k), index.nearest(query, k, exclude), "k=$k")
+                }
+            }
+        }
+    }
+
     private fun indexWithTriangle(): InMemoryVectorIndex {
         // Against query (1,0,0): a ≈ 0.994, b ≈ 0.707, c = 0.
         return InMemoryVectorIndex(dim = 3).apply {

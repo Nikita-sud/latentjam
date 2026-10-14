@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.smart.text
 
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
+import io.github.nikitasud.latentjam.smart.offlineOrtEnvironment
 import ai.onnxruntime.OrtSession
 import android.content.Context
 import io.github.nikitasud.latentjam.smart.EngineError
@@ -59,7 +60,7 @@ internal class OnnxTextEncoder(
         if (metadata.isBlank()) return null
         val activeSession = session ?: return null
         val ids = (tokenizer ?: return null).encode(metadata)
-        val environment = OrtEnvironment.getEnvironment()
+        val environment = offlineOrtEnvironment()
         val shape = longArrayOf(1L, ids.size.toLong())
 
         // Every tensor is created inside the try: a failure half-way through the list must not leave the

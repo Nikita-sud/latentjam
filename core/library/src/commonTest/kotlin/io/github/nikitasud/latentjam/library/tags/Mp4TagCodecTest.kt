@@ -323,6 +323,34 @@ internal class Mp4TagCodecTest {
     }
 
     @Test
+    fun chunkOffsetPastEofRefusesBeforeRewriting() {
+        val ftyp = Mp4Fixtures.ftyp()
+        val mdat = Mp4Fixtures.leaf("mdat", Mp4Fixtures.samples)
+        fun moov(mdatStart: Int) = Mp4Fixtures.moov(listOf(mdatStart + 8, 1_000_000), items)
+        val file = ftyp + moov(ftyp.size + moov(0).size) + mdat
+        // Both a streaming rewrite and appending to a now-final moov must refuse.
+        for (input in listOf(file, file.copyOf(file.size - mdat.size))) {
+            val original = input.copyOf()
+            val plan = codec.plan(ByteArraySource(input), TagEdits(lyrics = "x".repeat(1000)))
+            assertEquals(TagRefusal.MP4_MALFORMED_ATOMS, (plan as WritePlan.Refused).reason)
+            assertTrue(input.contentEquals(original))
+            assertEquals(null, WritePlans.applyInMemory(input, plan))
+        }
+    }
+
+    @Test
+    fun chunkTablesInsideUserDataAreNotRelocated() {
+        val file = Mp4Fixtures.file(items)
+        val at = file.asList().windowed(4).indexOf("trak".encodeToByteArray().asList())
+        assertTrue(at > 0)
+        "udta".encodeToByteArray().copyInto(file, at)
+        val original = file.copyOf()
+        val plan = codec.plan(ByteArraySource(file), TagEdits(lyrics = "x".repeat(1000)))
+        assertEquals(TagRefusal.MP4_UNKNOWN_OFFSET_BOX, (plan as WritePlan.Refused).reason)
+        assertTrue(file.contentEquals(original))
+    }
+
+    @Test
     fun userDataInsideATrackIsPinnedLikeEverythingElse() {
         fun file(name: String) = Mp4Fixtures.file(
             items,

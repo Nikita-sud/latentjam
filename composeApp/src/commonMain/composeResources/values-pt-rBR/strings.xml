@@ -791,4 +791,6 @@
     <string name="equalizer_response_headroom">Reserva de nível: %1$s dB</string>
     <string name="equalizer_peak_reduction">Redução de picos: %1$s dB</string>
     <string name="equalizer_peak_hint">Uma amplificação forte pode reduzir o volume de toda a faixa.</string>
+    <string name="map_memory_limited">Memória livre insuficiente para calcular o mapa. Feche outros aplicativos e abra o mapa novamente.</string>
+    <string name="map_unavailable">Não foi possível calcular o mapa. Abra-o novamente para tentar de novo.</string>
 </resources>

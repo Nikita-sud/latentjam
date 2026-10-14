@@ -43,6 +43,7 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.onnxruntime.android)
             implementation(project(":core:ort-ops"))
+            implementation(project(":core:map-native"))
         }
         getByName("androidDeviceTest").dependencies {
             implementation(libs.androidx.annotation)
@@ -64,3 +65,21 @@ kotlin {
         }
     }
 }
+
+abstract class GenerateMapBuildFlags : DefaultTask() {
+    @get:Input abstract val experimental: Property<Boolean>
+    @get:OutputDirectory abstract val destination: DirectoryProperty
+    @TaskAction fun generate() {
+        val output = destination.file("MapBuildFlags.kt").get().asFile
+        output.parentFile.mkdirs()
+        output.writeText(
+            "package io.github.nikitasud.latentjam.smart.cluster\n" +
+                "internal object MapBuildFlags { const val EXPERIMENTAL = ${experimental.get()} }\n",
+        )
+    }
+}
+val mapBuildFlags = tasks.register<GenerateMapBuildFlags>("generateMapBuildFlags") {
+    experimental = providers.gradleProperty("latentjam.experimentalMap").map(String::toBoolean).orElse(false)
+    destination = layout.buildDirectory.dir("generated/mapFlags")
+}
+kotlin.sourceSets.commonMain { kotlin.srcDir(mapBuildFlags) }

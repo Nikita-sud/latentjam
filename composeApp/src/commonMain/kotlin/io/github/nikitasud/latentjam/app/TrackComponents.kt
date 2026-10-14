@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.ui.platform.testTag
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.StartOffset
@@ -230,6 +231,7 @@ internal fun TrackRow(
     }
     Row(
         modifier = modifier
+            .testTag("latentjam_track_row")
             .fillMaxWidth()
             .padding(start = 8.dp, end = rowEndInset)
             .clip(RoundedCornerShape(16.dp))

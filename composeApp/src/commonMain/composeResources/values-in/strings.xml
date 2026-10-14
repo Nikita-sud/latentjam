@@ -757,4 +757,6 @@
     <string name="equalizer_response_headroom">Cadangan level: %1$s dB</string>
     <string name="equalizer_peak_reduction">Pengurangan puncak: %1$s dB</string>
     <string name="equalizer_peak_hint">Penguatan besar dapat menurunkan volume seluruh lagu.</string>
+    <string name="map_memory_limited">Memori bebas tidak cukup untuk menghitung peta. Tutup aplikasi lain lalu buka kembali peta.</string>
+    <string name="map_unavailable">Peta tidak dapat dihitung. Buka kembali untuk mencoba lagi.</string>
 </resources>

@@ -8,6 +8,7 @@ import ComposeApp
 @main
 struct iOSApp: App {
     init() {
+        IosInferenceBridgeKt.installIosMapEmbeddingProvider(provider: IosNativeMapEmbeddingProvider())
         let provider = IosOnnxInferenceProvider()
         IosInferenceBridgeKt.installIosInferenceProvider(
             provider: provider

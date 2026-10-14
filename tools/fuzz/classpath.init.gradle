@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: Apache-2.0
+// Reuse compiled Android host tests and their Kotlin friend paths; no JUnit 5 migration.
+abstract class FuzzClasspath extends DefaultTask {
+    @Classpath abstract ConfigurableFileCollection getClasspath()
+    @OutputFile abstract RegularFileProperty getDestination()
+    @TaskAction void write() {
+        def out = destination.get().asFile
+        out.parentFile.mkdirs()
+        out.text = classpath.asPath
+    }
+}
+gradle.projectsEvaluated {
+    gradle.rootProject.allprojects.findAll { it.path in [':core:library', ':composeApp'] }.each { p ->
+            def test = p.tasks.named('testAndroidHostTest', Test).get()
+                p.tasks.register('exportFuzzClasspath', FuzzClasspath) {
+                    classpath.from(test.classpath, test.testClassesDirs)
+                    destination.set(p.layout.buildDirectory.file('fuzz/classpath.txt'))
+                }
+    }
+}
+

@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: Apache-2.0
+// Isolated from normal/F-Droid builds; this plugin is a verification dependency only.
+initscript {
+    repositories { gradlePluginPortal() }
+    dependencies { classpath 'org.cyclonedx.bom:org.cyclonedx.bom.gradle.plugin:3.2.2' }
+}
+rootProject {
+    apply plugin: org.cyclonedx.gradle.CyclonedxPlugin
+    allprojects {
+        tasks.withType(org.cyclonedx.gradle.CyclonedxDirectTask).configureEach {
+            includeConfigs = ['(?i).*releaseRuntimeClasspath', 'androidRuntimeClasspath']
+            includeLicenseText = true
+        }
+    }
+}
+

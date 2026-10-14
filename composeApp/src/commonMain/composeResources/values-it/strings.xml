@@ -791,4 +791,6 @@
     <string name="equalizer_response_headroom">Riserva di livello: %1$s dB</string>
     <string name="equalizer_peak_reduction">Riduzione dei picchi: %1$s dB</string>
     <string name="equalizer_peak_hint">Un forte aumento può ridurre il volume dell’intero brano.</string>
+    <string name="map_memory_limited">Memoria libera insufficiente per calcolare la mappa. Chiudi altre app e riapri la mappa.</string>
+    <string name="map_unavailable">Impossibile calcolare la mappa. Riaprila per riprovare.</string>
 </resources>

@@ -1,0 +1,18 @@
+{
+  "status": "experimental",
+  "max_tracks": 3000,
+  "native_revision": "93f184cabe4c50310627bd379326def442bfa5fc",
+  "parameters": {"neighbors": 60, "perplexity": 20, "theta": 0.5, "iterations": 1000, "eta": 800, "threads": 1},
+  "acceptance": {
+    "whole_app_cold_speedup_at_3000_min": 2.0,
+    "trustworthiness_at_15_max_loss": 0.005,
+    "playlist_neighbor_precision_max_loss": 0.01
+  },
+  "requires": [
+    "Freeze dataset hashes, track membership, playlists and modality coverage before comparing backends.",
+    "Measure the complete app without largeHeap, including region discovery and PCA.",
+    "Report Java heap and native/process memory separately.",
+    "Exercise duplicates, small libraries, missing modalities, add/remove, cancellation and corrupt caches.",
+    "Insufficient quality or device evidence keeps the backend opt-in."
+  ]
+}

@@ -82,6 +82,17 @@ android {
                 else -> signingConfigs.getByName("debug")
             }
         }
+        create("benchmark") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".benchmark"
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "release"
+            // Generate readable rules first, then measure the same optimized build with/without them.
+            if (providers.gradleProperty("latentjam.profileGeneration").orNull == "true") {
+                isMinifyEnabled = false
+                isShrinkResources = false
+            }
+        }
     }
 
     // One APK per ABI instead of one APK with four: libonnxruntime.so alone is 20-33 MB per
@@ -236,4 +247,5 @@ abstract class CheckNativeLibraries : DefaultTask() {
 
 dependencies {
     implementation(project(":composeApp"))
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
 }

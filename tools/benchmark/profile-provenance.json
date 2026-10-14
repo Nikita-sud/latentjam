@@ -1,0 +1,20 @@
+{
+  "apk_sha256": "83217a84530d933dff1e36101db9030cb021e9f150b359eb732dfda74313255b",
+  "fixture": "LJ-big36 read-only ARM64 emulator, API 36.1, existing 10000 synthetic tracks; startup, search, player, return. Generation only, not performance evidence.",
+  "profiles": {
+    "baseline": {
+      "rules": 39193,
+      "sha256": "e883c15e7d74e12786a2492db1fcc68bc9accfa1fc2d7f1644abffdb33a92d07",
+      "inputs": {
+        "AppBaselineProfile_launchBrowseSearchPlayerReturn-baseline-prof.txt": "9c85c91934219ccc82ced975ab5f6b52aff0e4f42ff37b97b6293bd88d9cc2d2"
+      }
+    },
+    "startup": {
+      "rules": 24842,
+      "sha256": "36dbfec09b2afa802c2931b5eff9c7a4aaddf31988bcb24bd1095e911ac42ae0",
+      "inputs": {
+        "AppBaselineProfile_startup-startup-prof.txt": "964a4ffe0e0c1d4bf06aaad3baaf50624931dd0e045e7fd0050a7cb7665f48a4"
+      }
+    }
+  }
+}

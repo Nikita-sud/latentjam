@@ -54,6 +54,10 @@ endif()
 target_include_directories(ljq4 PRIVATE vendor/onnxruntime ${KAI} ${PACK} ${BLOCKS} ${CHANNELS})
 target_compile_options(ljq4 PRIVATE -O3 -fvisibility=hidden $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
 if(ANDROID)
+  # Keep the final ELF build ID independent of the clean checkout directory.
+  target_compile_options(ljq4 PRIVATE
+    "-ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=."
+    "-fdebug-prefix-map=${CMAKE_BINARY_DIR}=.")
   target_link_options(ljq4 PRIVATE -Wl,--gc-sections -Wl,-z,max-page-size=16384)
 endif()
 

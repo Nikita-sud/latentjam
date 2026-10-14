@@ -39,8 +39,11 @@ rootProject.name = "latentjam-monorepo"
 
 include(":core:smart")
 include(":core:ort-ops")
+include(":core:map-native")
 include(":core:library")
 include(":core:playback")
 include(":core:history")
 include(":composeApp")
 include(":androidApp")
+// Device tooling is opt-in; normal/F-Droid builds do not configure a benchmark APK.
+if (providers.gradleProperty("latentjam.benchmarks").orNull == "true") include(":benchmark")
