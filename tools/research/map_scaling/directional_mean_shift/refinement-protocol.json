@@ -1,0 +1,21 @@
+{
+  "stage": "Exploratory refinement after coarse sweep",
+  "reason": "Coarse kappa6/8/10 gave6/51/298 raw modes; count-only selector can select fragmented cases after small clusters disappear. Preserve coarse outcome, refine transition without claiming preregistered quality optimization.",
+  "kappa_grid": [
+    6.5,
+    7,
+    7.5,
+    8.5,
+    9,
+    9.5
+  ],
+  "main_for_detailed_display": 9,
+  "shown": [
+    "baseline",
+    "dms8",
+    "dms9",
+    "dms10"
+  ],
+  "selection": "Kappa9 is the midpoint between coarse8 and10, fixed before refinement; display neighboring8/10 and all grid metrics, no winner selected by metadata scores",
+  "same_algorithm_and_filters": true
+}

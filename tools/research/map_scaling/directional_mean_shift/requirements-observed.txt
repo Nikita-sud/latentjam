@@ -1,0 +1,5 @@
+numpy==2.2.6
+scipy==1.16.3
+scikit-learn==1.7.2
+matplotlib==3.10.7
+threadpoolctl==3.6.0

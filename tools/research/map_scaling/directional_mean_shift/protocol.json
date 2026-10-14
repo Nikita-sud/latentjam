@@ -1,0 +1,45 @@
+{
+  "date": "2026-10-14",
+  "population": 1107,
+  "source": "Frozen phone snapshot 2026-10-13; no new data or uploads",
+  "weights_audio_metadata": [
+    0.25,
+    0.75
+  ],
+  "geometry": "Full 1344D exact Kotlin fused+centered rows; float64 unit renormalization for DMS only; no PCA or 2D clustering",
+  "algorithm": "Non-blurring directional mean shift, von Mises kernel; y <- unit(sum_i exp(kappa*(dot(y,x_i)-maxdot))*x_i); all data rows as seeds, fixed density data",
+  "kappa_grid": [
+    2,
+    4,
+    6,
+    8,
+    10,
+    12,
+    16,
+    24,
+    32,
+    48,
+    64
+  ],
+  "h": "1/sqrt(kappa)",
+  "epsilon_cosine_step": 1e-09,
+  "max_iterations": 1000,
+  "mode_merge_cosine_tolerance": 0.0001,
+  "merge_sensitivity": [
+    1e-05,
+    0.0001,
+    0.001
+  ],
+  "mode_grouping": "Stable source-order greedy representatives, last matching representative as authors Unique_Modes; no nearest-centroid reassignment",
+  "postprocessing": "Exact Kotlin collect, minimum4, confidence filters, content routing, naming and user playlist/album titles; also report raw basins and no-confidence diagnostic",
+  "selection": "Display all grid counts. Main example: converged variant with final region count closest to baseline17; tie largest assigned then smallest kappa. This is UI-size matching, not music-quality selection. Show adjacent grid settings. Freeze before seeing results.",
+  "stability": "Three seeded10% track deletions, recompute fusion centering per retained library; compare raw common-track assignments with adjusted Rand. Compare exact Kotlin baseline likewise. Fixed main kappa; no retuning.",
+  "evaluation": "Coverage; size imbalance; full-space silhouette raw and retained; genre+playlist descriptive proxies; representative/boundary tracks; baseline overlap; no perceptual winner without listening",
+  "visualization": "Identical existing tSNE coordinates in all panels; own membership colors, optional overlap matching for continuity; gray=outside. Coordinates/neighbors unchanged.",
+  "limits": [
+    "One personal library, exploratory bandwidth sweep, no held-out perceptual evaluation",
+    "Same centroid-margin filter may favor k-means; keep raw and untrimmed diagnostics",
+    "Desktop Python timings are not device/app speedups",
+    "Current MOSS judge failed qualification; not used"
+  ]
+}

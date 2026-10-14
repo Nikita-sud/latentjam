@@ -1,0 +1,860 @@
+{
+  "population": 1107,
+  "weights": [
+    0.25,
+    0.75
+  ],
+  "selection": {
+    "main": "dms9",
+    "shown": [
+      "baseline",
+      "dms8",
+      "dms9",
+      "dms10"
+    ],
+    "criterion": "Kappa9 is the midpoint between coarse8 and10, fixed before refinement; display neighboring8/10 and all grid metrics, no winner selected by metadata scores",
+    "coarse_count_selector": "dms8p5",
+    "stage": "Exploratory transition refinement; coarse results preserved"
+  },
+  "metrics": {
+    "baseline": {
+      "regions": 17,
+      "assigned": 974,
+      "outside": 133,
+      "largest": 148,
+      "median_size": 59.0,
+      "raw_modes": 16,
+      "raw_small_cluster_tracks": 0,
+      "raw_silhouette_cosine": 0.26200557768144694,
+      "retained_silhouette_cosine": 0.30274040669581676,
+      "dominant_genre_coverage": 0.7713697219361483,
+      "genre_known_assigned": 971,
+      "pair_weighted_shared_playlist": 0.25,
+      "pair_weighted_same_artist": 0.21009542398612016,
+      "pair_weighted_fused_cosine": 0.4719295063163463,
+      "pair_weighted_audio_cosine": 0.7258160984354926,
+      "common_with_baseline": 974,
+      "ari_to_baseline_common_retained": 1.0,
+      "processing_seconds": 0.626441292
+    },
+    "dms2": {
+      "regions": 4,
+      "assigned": 954,
+      "outside": 153,
+      "largest": 562,
+      "median_size": 194.0,
+      "raw_modes": 2,
+      "raw_small_cluster_tracks": 0,
+      "raw_silhouette_cosine": 0.1990002772554773,
+      "retained_silhouette_cosine": 0.07561083936034749,
+      "dominant_genre_coverage": 0.41028331584470096,
+      "genre_known_assigned": 953,
+      "pair_weighted_shared_playlist": 0.08982654394118898,
+      "pair_weighted_same_artist": 0.03556782231711604,
+      "pair_weighted_fused_cosine": 0.13938729192916652,
+      "pair_weighted_audio_cosine": 0.6922212716220572,
+      "common_with_baseline": 848,
+      "ari_to_baseline_common_retained": 0.167443751861797,
+      "processing_seconds": 0.024584,
+      "without_confidence_regions": 4,
+      "without_confidence_assigned": 1107,
+      "kappa": 2,
+      "h": 0.7071067811865475,
+      "seconds": 1.5399339160649106,
+      "iterations": 42,
+      "converged": true,
+      "merge_sensitivity": {
+        "1e-05": {
+          "modes": 2,
+          "ari_to_default": 1.0
+        },
+        "0.0001": {
+          "modes": 2,
+          "ari_to_default": 1.0
+        },
+        "0.001": {
+          "modes": 2,
+          "ari_to_default": 1.0
+        }
+      }
+    },
+    "dms4": {
+      "regions": 5,
+      "assigned": 819,
+      "outside": 288,
+      "largest": 552,
+      "median_size": 106.0,
+      "raw_modes": 3,
+      "raw_small_cluster_tracks": 0,
+      "raw_silhouette_cosine": 0.18372556782158853,
+      "retained_silhouette_cosine": 0.19191144242349137,
+      "dominant_genre_coverage": 0.5660146699266504,
+      "genre_known_assigned": 818,
+      "pair_weighted_shared_playlist": 0.08711051094804048,
+      "pair_weighted_same_artist": 0.045746640370047914,
+      "pair_weighted_fused_cosine": 0.14572839066945434,
+      "pair_weighted_audio_cosine": 0.7061042586719516,
+      "common_with_baseline": 752,
+      "ari_to_baseline_common_retained": 0.2171618775908945,
+      "processing_seconds": 0.022398042,
+      "without_confidence_regions": 5,
+      "without_confidence_assigned": 933,
+      "kappa": 4,
+      "h": 0.5,
+      "seconds": 4.561517333029769,
+      "iterations": 131,
+      "converged": true,
+      "merge_sensitivity": {
+        "1e-05": {
+          "modes": 3,
+          "ari_to_default": 1.0
+        },
+        "0.0001": {
+          "modes": 3,
+          "ari_to_default": 1.0
+        },
+        "0.001": {
+          "modes": 3,
+          "ari_to_default": 1.0
+        }
+      }
+    },
+    "dms6": {
+      "regions": 8,
+      "assigned": 796,
+      "outside": 311,
+      "largest": 196,
+      "median_size": 110.0,
+      "raw_modes": 6,
+      "raw_small_cluster_tracks": 0,
+      "raw_silhouette_cosine": 0.19514952744016156,
+      "retained_silhouette_cosine": 0.3073766867896886,
+      "dominant_genre_coverage": 0.7987421383647799,
+      "genre_known_assigned": 795,
+      "pair_weighted_shared_playlist": 0.2476188738459293,
+      "pair_weighted_same_artist": 0.14086048972740212,
+      "pair_weighted_fused_cosine": 0.3791218102239883,
+      "pair_weighted_audio_cosine": 0.7243573880715396,
+      "common_with_baseline": 752,
+      "ari_to_baseline_common_retained": 0.6728232578282695,
+      "processing_seconds": 0.011667875,
+      "without_confidence_regions": 8,
+      "without_confidence_assigned": 908,
+      "kappa": 6,
+      "h": 0.4082482904638631,
+      "seconds": 1.4042120419908315,
+      "iterations": 39,
+      "converged": true,
+      "merge_sensitivity": {
+        "1e-05": {
+          "modes": 6,
+          "ari_to_default": 1.0
+        },
+        "0.0001": {
+          "modes": 6,
+          "ari_to_default": 1.0
+        },
+        "0.001": {
+          "modes": 6,
+          "ari_to_default": 1.0
+        }
+      }
+    },
+    "dms6p5": {
+      "regions": 9,
+      "assigned": 788,
+      "outside": 319,
+      "largest": 180,
+      "median_size": 106.0,
+      "raw_modes": 7,
+      "raw_small_cluster_tracks": 0,
+      "raw_silhouette_cosine": 0.18240697996809535,
+      "retained_silhouette_cosine": 0.32011924484683846,
+      "dominant_genre_coverage": 0.8170266836086404,
+      "genre_known_assigned": 787,
+      "pair_weighted_shared_playlist": 0.260178386067433,
+      "pair_weighted_same_artist": 0.14837953173657298,
+      "pair_weighted_fused_cosine": 0.395368428189925,
+      "pair_weighted_audio_cosine": 0.7280403999809534,
+      "common_with_baseline": 743,
+      "ari_to_baseline_common_retained": 0.6996034979994122,
+      "processing_seconds": 0.046686708,
+      "without_confidence_regions": 9,
+      "without_confidence_assigned": 906,
+      "kappa": 6.5,
+      "h": 0.3922322702763681,
+      "seconds": 2.085032958071679,
+      "iterations": 55,
+      "converged": true,
+      "merge_sensitivity": {
+        "1e-05": {
+          "modes": 7,
+          "ari_to_default": 1.0
+        },
+        "0.0001": {
+          "modes": 7,
+          "ari_to_default": 1.0
+        },
+        "0.001": {
+          "modes": 7,
+          "ari_to_default": 1.0
+        }
+      }
+    },
+    "dms7": {
+      "regions": 11,
+      "assigned": 775,
+      "outside": 332,
+      "largest": 173,
+      "median_size": 77.0,
+      "raw_modes": 9,
+      "raw_small_cluster_tracks": 0,
+      "raw_silhouette_cosine": 0.1821594985176003,
+      "retained_silhouette_cosine": 0.346108889723079,
+      "dominant_genre_coverage": 0.8191214470284238,
+      "genre_known_assigned": 774,
+      "pair_weighted_shared_playlist": 0.22387395406800784,
+      "pair_weighted_same_artist": 0.16921844400925762,
+      "pair_weighted_fused_cosine": 0.41616643549725163,
+      "pair_weighted_audio_cosine": 0.738480253280365,
+      "common_with_baseline": 730,
+      "ari_to_baseline_common_retained": 0.7732806271185237,
+      "processing_seconds": 0.021292458,
+      "without_confidence_regions": 11,
+      "without_confidence_assigned": 926,
+      "kappa": 7,
+      "h": 0.3779644730092272,
+      "seconds": 1.2593079579528421,
+      "iterations": 34,
+      "converged": true,
+      "merge_sensitivity": {
+        "1e-05": {
+          "modes": 9,
+          "ari_to_default": 1.0
+        },
+        "0.0001": {
+          "modes": 9,
+          "ari_to_default": 1.0
+        },
+        "0.001": {
+          "modes": 9,
+          "ari_to_default": 1.0
+        }
+      }
+    },
+    "dms7p5": {
+      "regions": 11,
+      "assigned": 775,
+      "outside": 332,
+      "largest": 170,
+      "median_size": 77.0,
+      "raw_modes": 15,
+      "raw_small_cluster_tracks": 6,
+      "raw_silhouette_cosine": 0.1559891736269343,
+      "retained_silhouette_cosine": 0.3455171621073,
+      "dominant_genre_coverage": 0.8242894056847545,
+      "genre_known_assigned": 774,
+      "pair_weighted_shared_playlist": 0.22757341438340858,
+      "pair_weighted_same_artist": 0.1699816743396058,
+      "pair_weighted_fused_cosine": 0.41852436345563626,
+      "pair_weighted_audio_cosine": 0.7385675554861644,
+      "common_with_baseline": 733,
+      "ari_to_baseline_common_retained": 0.774093955511705,
+      "processing_seconds": 0.020998958,
+      "without_confidence_regions": 12,
+      "without_confidence_assigned": 927,
+      "kappa": 7.5,
+      "h": 0.3651483716701107,
+      "seconds": 2.116958292084746,
+      "iterations": 58,
+      "converged": true,
+      "merge_sensitivity": {
+        "1e-05": {
+          "modes": 15,
+          "ari_to_default": 1.0
+        },
+        "0.0001": {
+          "modes": 15,
+          "ari_to_default": 1.0
+        },
+        "0.001": {
+          "modes": 15,
+          "ari_to_default": 1.0
+        }
+      }
+    },
+    "dms8": {
+      "regions": 11,
+      "assigned": 736,
+      "outside": 371,
+      "largest": 157,
+      "median_size": 75.0,
+      "raw_modes": 51,
+      "raw_small_cluster_tracks": 47,
+      "raw_silhouette_cosine": 0.11894243051894295,
+      "retained_silhouette_cosine": 0.38278284584184796,
+      "dominant_genre_coverage": 0.8260869565217391,
+      "genre_known_assigned": 736,
+      "pair_weighted_shared_playlist": 0.2601843057730318,
+      "pair_weighted_same_artist": 0.19511256000205354,
+      "pair_weighted_fused_cosine": 0.45621344866387914,
+      "pair_weighted_audio_cosine": 0.7400935320939891,
+      "common_with_baseline": 698,
+      "ari_to_baseline_common_retained": 0.8366014881248054,
+      "processing_seconds": 0.050977417,
+      "without_confidence_regions": 12,
+      "without_confidence_assigned": 905,
+      "kappa": 8,
+      "h": 0.35355339059327373,
+      "seconds": 4.915349666960537,
+      "iterations": 138,
+      "converged": true,
+      "merge_sensitivity": {
+        "1e-05": {
+          "modes": 51,
+          "ari_to_default": 1.0
+        },
+        "0.0001": {
+          "modes": 51,
+          "ari_to_default": 1.0
+        },
+        "0.001": {
+          "modes": 51,
+          "ari_to_default": 1.0
+        }
+      }
+    },
+    "dms8p5": {
+      "regions": 16,
+      "assigned": 730,
+      "outside": 377,
+      "largest": 151,
+      "median_size": 12.0,
+      "raw_modes": 103,
+      "raw_small_cluster_tracks": 101,
+      "raw_silhouette_cosine": 0.10501204206245349,
+      "retained_silhouette_cosine": 0.404915732203975,
+      "dominant_genre_coverage": 0.8410958904109589,
+      "genre_known_assigned": 730,
+      "pair_weighted_shared_playlist": 0.2770373731072421,
+      "pair_weighted_same_artist": 0.21828389950660693,
+      "pair_weighted_fused_cosine": 0.482733413033217,
+      "pair_weighted_audio_cosine": 0.741791868570186,
+      "common_with_baseline": 694,
+      "ari_to_baseline_common_retained": 0.8653321200447253,
+      "processing_seconds": 0.077284125,
+      "without_confidence_regions": 17,
+      "without_confidence_assigned": 863,
+      "kappa": 8.5,
+      "h": 0.34299717028501764,
+      "seconds": 4.123095375020057,
+      "iterations": 112,
+      "converged": true,
+      "merge_sensitivity": {
+        "1e-05": {
+          "modes": 103,
+          "ari_to_default": 1.0
+        },
+        "0.0001": {
+          "modes": 103,
+          "ari_to_default": 1.0
+        },
+        "0.001": {
+          "modes": 103,
+          "ari_to_default": 1.0
+        }
+      }
+    },
+    "dms9": {
+      "regions": 21,
+      "assigned": 682,
+      "outside": 425,
+      "largest": 150,
+      "median_size": 12.0,
+      "raw_modes": 154,
+      "raw_small_cluster_tracks": 148,
+      "raw_silhouette_cosine": 0.10892279757562091,
+      "retained_silhouette_cosine": 0.3980587407586362,
+      "dominant_genre_coverage": 0.8958944281524927,
+      "genre_known_assigned": 682,
+      "pair_weighted_shared_playlist": 0.32103346155155393,
+      "pair_weighted_same_artist": 0.2605439629642237,
+      "pair_weighted_fused_cosine": 0.5252936954340646,
+      "pair_weighted_audio_cosine": 0.7326240053362967,
+      "common_with_baseline": 653,
+      "ari_to_baseline_common_retained": 0.9099167114639726,
+      "processing_seconds": 0.109191083,
+      "without_confidence_regions": 22,
+      "without_confidence_assigned": 835,
+      "kappa": 9,
+      "h": 0.3333333333333333,
+      "seconds": 3.672009209054522,
+      "iterations": 96,
+      "converged": true,
+      "merge_sensitivity": {
+        "1e-05": {
+          "modes": 154,
+          "ari_to_default": 1.0
+        },
+        "0.0001": {
+          "modes": 154,
+          "ari_to_default": 1.0
+        },
+        "0.001": {
+          "modes": 154,
+          "ari_to_default": 1.0
+        }
+      }
+    },
+    "dms9p5": {
+      "regions": 25,
+      "assigned": 684,
+      "outside": 423,
+      "largest": 145,
+      "median_size": 11.0,
+      "raw_modes": 218,
+      "raw_small_cluster_tracks": 215,
+      "raw_silhouette_cosine": 0.15040675736354533,
+      "retained_silhouette_cosine": 0.4237442019456362,
+      "dominant_genre_coverage": 0.9004392386530015,
+      "genre_known_assigned": 683,
+      "pair_weighted_shared_playlist": 0.3421294875728751,
+      "pair_weighted_same_artist": 0.2942236882479288,
+      "pair_weighted_fused_cosine": 0.5521442954211846,
+      "pair_weighted_audio_cosine": 0.7362923717362372,
+      "common_with_baseline": 666,
+      "ari_to_baseline_common_retained": 0.8933643848314109,
+      "processing_seconds": 0.136918958,
+      "without_confidence_regions": 26,
+      "without_confidence_assigned": 793,
+      "kappa": 9.5,
+      "h": 0.3244428422615251,
+      "seconds": 6.446185583015904,
+      "iterations": 169,
+      "converged": true,
+      "merge_sensitivity": {
+        "1e-05": {
+          "modes": 218,
+          "ari_to_default": 1.0
+        },
+        "0.0001": {
+          "modes": 218,
+          "ari_to_default": 1.0
+        },
+        "0.001": {
+          "modes": 218,
+          "ari_to_default": 1.0
+        }
+      }
+    },
+    "dms10": {
+      "regions": 24,
+      "assigned": 644,
+      "outside": 463,
+      "largest": 145,
+      "median_size": 11.0,
+      "raw_modes": 298,
+      "raw_small_cluster_tracks": 304,
+      "raw_silhouette_cosine": 0.17633094462069324,
+      "retained_silhouette_cosine": 0.46491071065002815,
+      "dominant_genre_coverage": 0.8942457231726283,
+      "genre_known_assigned": 643,
+      "pair_weighted_shared_playlist": 0.362322504529558,
+      "pair_weighted_same_artist": 0.3242320819112628,
+      "pair_weighted_fused_cosine": 0.5755433477720843,
+      "pair_weighted_audio_cosine": 0.7366391180251399,
+      "common_with_baseline": 636,
+      "ari_to_baseline_common_retained": 0.9079762751887217,
+      "processing_seconds": 0.165002333,
+      "without_confidence_regions": 25,
+      "without_confidence_assigned": 724,
+      "kappa": 10,
+      "h": 0.31622776601683794,
+      "seconds": 2.560383916948922,
+      "iterations": 68,
+      "converged": true,
+      "merge_sensitivity": {
+        "1e-05": {
+          "modes": 298,
+          "ari_to_default": 1.0
+        },
+        "0.0001": {
+          "modes": 298,
+          "ari_to_default": 1.0
+        },
+        "0.001": {
+          "modes": 298,
+          "ari_to_default": 1.0
+        }
+      }
+    },
+    "dms12": {
+      "regions": 27,
+      "assigned": 474,
+      "outside": 633,
+      "largest": 93,
+      "median_size": 8.0,
+      "raw_modes": 493,
+      "raw_small_cluster_tracks": 502,
+      "raw_silhouette_cosine": 0.23246680101528974,
+      "retained_silhouette_cosine": 0.5987146009691244,
+      "dominant_genre_coverage": 1.0,
+      "genre_known_assigned": 474,
+      "pair_weighted_shared_playlist": 0.7245463228271252,
+      "pair_weighted_same_artist": 0.7297994269340974,
+      "pair_weighted_fused_cosine": 0.7682979158988386,
+      "pair_weighted_audio_cosine": 0.7431535358592635,
+      "common_with_baseline": 465,
+      "ari_to_baseline_common_retained": 0.8083707138022374,
+      "processing_seconds": 0.2050035,
+      "without_confidence_regions": 27,
+      "without_confidence_assigned": 490,
+      "kappa": 12,
+      "h": 0.2886751345948129,
+      "seconds": 5.308063292060979,
+      "iterations": 140,
+      "converged": true,
+      "merge_sensitivity": {
+        "1e-05": {
+          "modes": 493,
+          "ari_to_default": 1.0
+        },
+        "0.0001": {
+          "modes": 493,
+          "ari_to_default": 1.0
+        },
+        "0.001": {
+          "modes": 493,
+          "ari_to_default": 1.0
+        }
+      }
+    },
+    "dms16": {
+      "regions": 29,
+      "assigned": 401,
+      "outside": 706,
+      "largest": 93,
+      "median_size": 7.0,
+      "raw_modes": 649,
+      "raw_small_cluster_tracks": 657,
+      "raw_silhouette_cosine": 0.24370984187041672,
+      "retained_silhouette_cosine": 0.6579891342712488,
+      "dominant_genre_coverage": 1.0,
+      "genre_known_assigned": 401,
+      "pair_weighted_shared_playlist": 0.897408336319121,
+      "pair_weighted_same_artist": 0.9045742266809984,
+      "pair_weighted_fused_cosine": 0.8204018328809503,
+      "pair_weighted_audio_cosine": 0.7325938037681496,
+      "common_with_baseline": 393,
+      "ari_to_baseline_common_retained": 0.7815769175385032,
+      "processing_seconds": 0.197454875,
+      "without_confidence_regions": 29,
+      "without_confidence_assigned": 425,
+      "kappa": 16,
+      "h": 0.25,
+      "seconds": 5.697892833966762,
+      "iterations": 148,
+      "converged": true,
+      "merge_sensitivity": {
+        "1e-05": {
+          "modes": 649,
+          "ari_to_default": 1.0
+        },
+        "0.0001": {
+          "modes": 649,
+          "ari_to_default": 1.0
+        },
+        "0.001": {
+          "modes": 649,
+          "ari_to_default": 1.0
+        }
+      }
+    },
+    "dms24": {
+      "regions": 23,
+      "assigned": 307,
+      "outside": 800,
+      "largest": 93,
+      "median_size": 5.0,
+      "raw_modes": 781,
+      "raw_small_cluster_tracks": 791,
+      "raw_silhouette_cosine": 0.19668167621310773,
+      "retained_silhouette_cosine": 0.727493512376754,
+      "dominant_genre_coverage": 1.0,
+      "genre_known_assigned": 307,
+      "pair_weighted_shared_playlist": 0.9785522788203753,
+      "pair_weighted_same_artist": 0.9970509383378016,
+      "pair_weighted_fused_cosine": 0.834872560443606,
+      "pair_weighted_audio_cosine": 0.7265866790061004,
+      "common_with_baseline": 302,
+      "ari_to_baseline_common_retained": 0.8605438646328467,
+      "processing_seconds": 0.166731667,
+      "without_confidence_regions": 23,
+      "without_confidence_assigned": 307,
+      "kappa": 24,
+      "h": 0.20412414523193154,
+      "seconds": 4.874577624956146,
+      "iterations": 123,
+      "converged": true,
+      "merge_sensitivity": {
+        "1e-05": {
+          "modes": 781,
+          "ari_to_default": 1.0
+        },
+        "0.0001": {
+          "modes": 781,
+          "ari_to_default": 1.0
+        },
+        "0.001": {
+          "modes": 781,
+          "ari_to_default": 1.0
+        }
+      }
+    },
+    "dms32": {
+      "regions": 20,
+      "assigned": 255,
+      "outside": 852,
+      "largest": 93,
+      "median_size": 6.5,
+      "raw_modes": 827,
+      "raw_small_cluster_tracks": 829,
+      "raw_silhouette_cosine": 0.1517885056853174,
+      "retained_silhouette_cosine": 0.6589150147502492,
+      "dominant_genre_coverage": 1.0,
+      "genre_known_assigned": 255,
+      "pair_weighted_shared_playlist": 0.9792796281951975,
+      "pair_weighted_same_artist": 0.9970952749806352,
+      "pair_weighted_fused_cosine": 0.8577410512864068,
+      "pair_weighted_audio_cosine": 0.7523064638080086,
+      "common_with_baseline": 255,
+      "ari_to_baseline_common_retained": 0.7470456031698852,
+      "processing_seconds": 0.156888542,
+      "without_confidence_regions": 20,
+      "without_confidence_assigned": 273,
+      "kappa": 32,
+      "h": 0.17677669529663687,
+      "seconds": 10.255091416998766,
+      "iterations": 265,
+      "converged": true,
+      "merge_sensitivity": {
+        "1e-05": {
+          "modes": 827,
+          "ari_to_default": 1.0
+        },
+        "0.0001": {
+          "modes": 827,
+          "ari_to_default": 1.0
+        },
+        "0.001": {
+          "modes": 827,
+          "ari_to_default": 1.0
+        }
+      }
+    },
+    "dms48": {
+      "regions": 14,
+      "assigned": 157,
+      "outside": 950,
+      "largest": 73,
+      "median_size": 6.0,
+      "raw_modes": 918,
+      "raw_small_cluster_tracks": 929,
+      "raw_silhouette_cosine": 0.052005540431969914,
+      "retained_silhouette_cosine": 0.735561686743579,
+      "dominant_genre_coverage": 1.0,
+      "genre_known_assigned": 157,
+      "pair_weighted_shared_playlist": 0.9928425357873211,
+      "pair_weighted_same_artist": 0.9989775051124744,
+      "pair_weighted_fused_cosine": 0.8740729103880752,
+      "pair_weighted_audio_cosine": 0.7819394433729171,
+      "common_with_baseline": 157,
+      "ari_to_baseline_common_retained": 0.7971605708869347,
+      "processing_seconds": 0.112107292,
+      "without_confidence_regions": 14,
+      "without_confidence_assigned": 176,
+      "kappa": 48,
+      "h": 0.14433756729740646,
+      "seconds": 8.416910541942343,
+      "iterations": 214,
+      "converged": true,
+      "merge_sensitivity": {
+        "1e-05": {
+          "modes": 918,
+          "ari_to_default": 1.0
+        },
+        "0.0001": {
+          "modes": 918,
+          "ari_to_default": 1.0
+        },
+        "0.001": {
+          "modes": 918,
+          "ari_to_default": 1.0
+        }
+      }
+    },
+    "dms64": {
+      "regions": 4,
+      "assigned": 20,
+      "outside": 1087,
+      "largest": 6,
+      "median_size": 5.0,
+      "raw_modes": 1038,
+      "raw_small_cluster_tracks": 1056,
+      "raw_silhouette_cosine": 0.025595707306214042,
+      "retained_silhouette_cosine": 0.9507637442651665,
+      "dominant_genre_coverage": 1.0,
+      "genre_known_assigned": 20,
+      "pair_weighted_shared_playlist": 0.6428571428571429,
+      "pair_weighted_same_artist": 1.0,
+      "pair_weighted_fused_cosine": 0.9580063303151111,
+      "pair_weighted_audio_cosine": 0.9106552390879873,
+      "common_with_baseline": 20,
+      "ari_to_baseline_common_retained": 1.0,
+      "processing_seconds": 0.039418416,
+      "without_confidence_regions": 6,
+      "without_confidence_assigned": 51,
+      "kappa": 64,
+      "h": 0.125,
+      "seconds": 5.552488083019853,
+      "iterations": 137,
+      "converged": true,
+      "merge_sensitivity": {
+        "1e-05": {
+          "modes": 1038,
+          "ari_to_default": 1.0
+        },
+        "0.0001": {
+          "modes": 1038,
+          "ari_to_default": 1.0
+        },
+        "0.001": {
+          "modes": 1038,
+          "ari_to_default": 1.0
+        }
+      }
+    }
+  },
+  "stability": [
+    {
+      "seed": 3,
+      "retained": 996,
+      "dms_raw_ari": 0.9412134372263031,
+      "kmeans_raw_ari": 0.777420181693732,
+      "dms_modes": 152,
+      "kmeans_modes": 16,
+      "dms_seconds": 5.240085583063774,
+      "kmeans_seconds": 0.227068208
+    },
+    {
+      "seed": 17,
+      "retained": 996,
+      "dms_raw_ari": 0.9431235589560617,
+      "kmeans_raw_ari": 0.7060417768362761,
+      "dms_modes": 163,
+      "kmeans_modes": 16,
+      "dms_seconds": 3.45091587502975,
+      "kmeans_seconds": 0.18347825
+    },
+    {
+      "seed": 41,
+      "retained": 996,
+      "dms_raw_ari": 0.9437389943883492,
+      "kmeans_raw_ari": 0.7137748357984793,
+      "dms_modes": 157,
+      "kmeans_modes": 16,
+      "dms_seconds": 2.7069000840419903,
+      "kmeans_seconds": 0.188899542
+    }
+  ],
+  "verification": {
+    "upstream_final_max_abs_error": 1.532628191025509e-15,
+    "upstream_labels_equal": true,
+    "three_caps_recovered": true,
+    "permutation_fixture_ari": 1.0,
+    "minimum_log_density_gain": 0.00030141960095342313,
+    "strict_convergence": {
+      "kappa": 9,
+      "h": 0.3333333333333333,
+      "seconds": 4.590424790978432,
+      "iterations": 113,
+      "converged": true,
+      "max_cosine_step": 9.78328529299688e-13,
+      "modes": 154,
+      "trace": [
+        {
+          "iteration": 1,
+          "max_cosine_step": 4.5262338321805373e-10
+        },
+        {
+          "iteration": 25,
+          "max_cosine_step": 1.1200618210693847e-10
+        },
+        {
+          "iteration": 50,
+          "max_cosine_step": 2.8108626537459713e-11
+        },
+        {
+          "iteration": 75,
+          "max_cosine_step": 7.320366535168432e-12
+        },
+        {
+          "iteration": 100,
+          "max_cosine_step": 1.942890293094024e-12
+        },
+        {
+          "iteration": 113,
+          "max_cosine_step": 9.78328529299688e-13
+        }
+      ]
+    },
+    "strict_vs_main_raw_ari": 1.0,
+    "reverse_mode_merge_ari": 1.0
+  },
+  "map_coordinates_unchanged": true,
+  "app_changes": false,
+  "extra_checks": {
+    "stage": "Additional diagnostics after refinement;8.5 chosen for16final regions near17baseline",
+    "exact_kotlin_centering_bytes_equal": true,
+    "exact_kmeans_labels_equal": true,
+    "baseline_desktop_kmeans_seconds": 0.336326916,
+    "kappa8p5_deletion_stability": [
+      {
+        "seed": 3,
+        "ari": 0.9201695494125915,
+        "modes": 99
+      },
+      {
+        "seed": 17,
+        "ari": 0.8873010448375963,
+        "modes": 113
+      },
+      {
+        "seed": 41,
+        "ari": 0.960794621625047,
+        "modes": 112
+      }
+    ],
+    "kappa8p5_strict_convergence": {
+      "kappa": 8.5,
+      "h": 0.34299717028501764,
+      "seconds": 0.1431426249910146,
+      "iterations": 3,
+      "converged": true,
+      "max_cosine_step": 8.637535131583718e-14,
+      "modes": 103,
+      "trace": [
+        {
+          "iteration": 1,
+          "max_cosine_step": 1.8925527811575193e-11
+        },
+        {
+          "iteration": 3,
+          "max_cosine_step": 8.637535131583718e-14
+        }
+      ]
+    },
+    "kappa8p5_strict_ari": 1.0,
+    "kappa8p5_reverse_merge_ari": 1.0
+  }
+}
