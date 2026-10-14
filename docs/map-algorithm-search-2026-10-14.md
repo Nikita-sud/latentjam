@@ -1,6 +1,6 @@
 # Region algorithm and audio-weight search — 2026-10-14
 
-**Practical candidate: average-linkage hierarchical clustering, 75% audio / 25% metadata, cosine-distance cut 0.75, minimum final region size 4.** Use the hierarchy's memberships, then existing semantic routing and naming; do not force small or rejected groups into another region. This is the best-supported practical candidate in this experiment, not a universal optimum or a validated rate of musically correct assignments. Production code is unchanged.
+**Practical candidate: average-linkage hierarchical clustering, 75% audio / 25% metadata, cosine-distance cut 0.75, minimum final region size 4.** Use the hierarchy's memberships, then existing semantic routing and naming; do not force small or rejected groups into another region. This is the best-supported practical candidate in this experiment, not a universal optimum or a validated rate of musically correct assignments. Production code was unchanged during this research. The subsequent owner-authorized 0.9.1 implementation and phone trial are recorded in [the integration note](map-average-linkage-device-2026-10-14.md).
 
 The candidate gives **35 regions, 898 included tracks and 209 outside**, versus the current **17 / 974 / 133**. It produces smaller, more specific areas, with some mixed or poorly named groups still present. An algorithm cannot currently certify every membership as correct.
 

@@ -37,6 +37,34 @@ public class LibraryVectorSpace internal constructor(
 ) {
     private var ownedRows: FloatArray? = rows
 
+    // Set only by the fusion builder. Legacy diagnostic spaces have no block description and
+    // are already weighted by their caller. Raw-vector fingerprints continue to identify the
+    // original space used by layout/journeys; region reweighting happens after their read pass.
+    internal var hybridAudioDim: Int = 0
+    internal var hybridMetadataWeight: Float = Float.NaN
+
+    internal fun takeRowsForRegions(metadataWeight: Float): FloatArray {
+        val values = takeRows()
+        val width = hybridAudioDim
+        val originalWeight = hybridMetadataWeight
+        if (source != LibraryVectorSource.AUDIO_AND_METADATA || width == 0 ||
+            originalWeight == metadataWeight || originalWeight <= 0f || originalWeight >= 1f ||
+            !originalWeight.isFinite()
+        ) return values
+        val audioScale = sqrt((1f - metadataWeight) / (1f - originalWeight))
+        val textScale = sqrt(metadataWeight / originalWeight)
+        for (row in 0 until size) {
+            val start = row * dim
+            // A missing modality stays missing; the available block retains its full unit norm.
+            val hasAudio = (0 until width).any { values[start + it] != 0f }
+            val hasText = (width until dim).any { values[start + it] != 0f }
+            if (!hasAudio || !hasText) continue
+            for (d in 0 until width) values[start + d] *= audioScale
+            for (d in width until dim) values[start + d] *= textScale
+        }
+        return values
+    }
+
     public val size: Int get() = trackIds.size
 
     init {
@@ -46,7 +74,7 @@ public class LibraryVectorSpace internal constructor(
         }
     }
 
-    /** One-shot handoff: spherical k-means centers this private matrix in place. */
+    /** One-shot handoff: clustering centers this private matrix in place. */
     internal fun takeRows(): FloatArray =
         checkNotNull(ownedRows) { "A library vector space can only be clustered once" }
             .also { ownedRows = null }
@@ -335,7 +363,10 @@ public object LibraryVectorFusion {
                 dim = dim,
                 source = LibraryVectorSource.AUDIO_AND_METADATA,
                 fingerprint = selection.fingerprint,
-            )
+            ).also {
+                it.hybridAudioDim = audioDim
+                it.hybridMetadataWeight = metadataWeight
+            }
         }
 
         return when (selection.source) {

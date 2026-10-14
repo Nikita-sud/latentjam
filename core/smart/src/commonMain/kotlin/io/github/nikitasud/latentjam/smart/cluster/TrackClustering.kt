@@ -339,6 +339,26 @@ public object TrackClustering {
         assignment: IntArray,
         ids: List<TrackId>,
         minSize: Int,
+    ): List<TrackCluster> = collectWithEvidence(rows, n, dim, assignment, ids, minSize, true)
+
+    /** Same medoid ordering for hierarchy memberships, without k-means boundary evidence. */
+    internal fun collectRegions(
+        rows: FloatArray,
+        n: Int,
+        dim: Int,
+        assignment: IntArray,
+        ids: List<TrackId>,
+        minSize: Int,
+    ): List<TrackCluster> = collectWithEvidence(rows, n, dim, assignment, ids, minSize, false)
+
+    private fun collectWithEvidence(
+        rows: FloatArray,
+        n: Int,
+        dim: Int,
+        assignment: IntArray,
+        ids: List<TrackId>,
+        minSize: Int,
+        includeEvidence: Boolean,
     ): List<TrackCluster> {
         val buckets = LinkedHashMap<Int, MutableList<Int>>()
         for (i in 0 until n) buckets.getOrPut(assignment[i]) { mutableListOf() }.add(i)
@@ -380,7 +400,7 @@ public object TrackClustering {
                     .map { row ->
                         val ownSimilarity = dot(rows, row, centroids, cluster, dim)
                         var rivalSimilarity = Float.NEGATIVE_INFINITY
-                        for (rival in 0 until centroidCount) {
+                        if (includeEvidence) for (rival in 0 until centroidCount) {
                             if (rival == cluster || counts[rival] == 0) continue
                             rivalSimilarity = maxOf(
                                 rivalSimilarity,
@@ -411,7 +431,7 @@ public object TrackClustering {
             .map { ranked ->
                 TrackCluster(
                     members = ranked.map { (_, membership) -> membership.trackId },
-                    memberships = ranked.map { (_, membership) -> membership },
+                    memberships = if (includeEvidence) ranked.map { (_, membership) -> membership } else emptyList(),
                 )
             }
     }

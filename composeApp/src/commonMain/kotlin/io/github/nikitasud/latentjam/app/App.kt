@@ -1870,6 +1870,7 @@ fun App(
                                 library = loaded,
                                 vectorSpace = features.vectorSpace,
                                 semantics = features.semantics,
+                                isActive = { isActive },
                             ).also { mixes ->
                                 val routed = mixes.groupingBy { it.content }.eachCount()
                                 println(

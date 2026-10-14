@@ -358,13 +358,27 @@ public object LibraryWorlds {
         library: List<TrackDescriptor>,
         vectorSpace: LibraryVectorSpace,
         semantics: Map<TrackId, TrackSemantics> = emptyMap(),
-    ): List<LibraryWorld> = discover(
-        library = library,
-        vectorSpace = vectorSpace,
-        semantics = semantics,
-        k = recommendedK(vectorSpace.size),
-        minSize = TrackClustering.MIN_CLUSTER_SIZE,
-    )
+    ): List<LibraryWorld> = discover(library, vectorSpace, semantics, isActive = { true })
+
+    /**
+     * Region experiment selected on the frozen 0.9.1 library: average linkage, audio/metadata
+     * 75/25, cosine cut 0.75. Layout and journey weights are unaffected. Above the quadratic
+     * memory ceiling, preserve the previous full-library k-means path rather than truncate.
+     */
+    public fun discover(
+        library: List<TrackDescriptor>,
+        vectorSpace: LibraryVectorSpace,
+        semantics: Map<TrackId, TrackSemantics>,
+        isActive: () -> Boolean,
+    ): List<LibraryWorld> {
+        if (library.isEmpty() || vectorSpace.size == 0) return emptyList()
+        val clusters = if (vectorSpace.size <= AverageLinkageClustering.MAX_TRACKS) {
+            AverageLinkageClustering.cluster(vectorSpace, isActive = isActive)
+        } else {
+            TrackClustering.cluster(vectorSpace, k = recommendedK(vectorSpace.size))
+        }
+        return worlds(library, clusters, TrackClustering.MIN_CLUSTER_SIZE, semantics)
+    }
 
     /**
      * Explicit-k overload for fused-space fixtures and experiments.
