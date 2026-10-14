@@ -737,4 +737,13 @@
     <string name="duplicates_summary_extra">추가 사본: %1$d</string>
     <string name="duplicates_copy_count">사본: %1$d</string>
     <string name="playlist_reorder_track">드래그하여 %1$s 순서 변경</string>
+    <string name="equalizer_custom">사용자 설정</string>
+    <string name="equalizer_hint">프리셋을 선택하면 켜집니다. 각 대역을 취향에 맞게 조절할 수도 있습니다.</string>
+    <string name="equalizer_reset_short">초기화</string>
+    <string name="equalizer_bands_hint">주파수: Hz · 게인: dB · 옆으로 밀어 다른 대역 보기</string>
+    <string name="normalization_waiting">트랙을 재생하면 음량을 측정합니다.</string>
+    <string name="normalization_measuring">이 트랙의 음량 측정 중…</string>
+    <string name="normalization_unavailable">이 트랙을 측정하지 못했습니다. 원래 음량을 사용합니다.</string>
+    <string name="normalization_unchanged">이 트랙은 음량을 줄일 필요가 없습니다. 조용한 트랙은 증폭하지 않습니다.</string>
+    <string name="normalization_reduced">이 트랙의 음량을 %1$s dB 줄였습니다.</string>
 </resources>

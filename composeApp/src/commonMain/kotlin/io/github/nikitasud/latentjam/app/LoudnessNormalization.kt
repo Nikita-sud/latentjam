@@ -95,6 +95,13 @@ internal fun TrackDescriptor.loudnessAudioIdentity(): String = buildString {
     }
 }
 
+internal enum class NormalizationPhase { OFF, WAITING, MEASURING, READY, UNAVAILABLE }
+
+internal data class NormalizationStatus(
+    val phase: NormalizationPhase = NormalizationPhase.OFF,
+    val reductionDb: Float = 0f,
+)
+
 /**
  * Keeps playback volumes matched to measured loudness, measuring lazily as tracks play.
  *
@@ -107,6 +114,7 @@ internal class LoudnessNormalizer(
     private val settings: AppSettings,
     private val playback: PlaybackController,
     private val meter: TrackLoudnessMeter,
+    private val onStatus: (NormalizationStatus) -> Unit = {},
 ) {
 
     private val measured = MutableStateFlow<Map<String, StoredTrackLoudness>>(emptyMap())
@@ -123,20 +131,30 @@ internal class LoudnessNormalizer(
             combine(
                 playback.state.map { it.track }.distinctUntilChanged(),
                 settings.normalizeVolume,
-            ) { track, enabled -> track.takeIf { enabled } }
-                .collectLatest { track ->
-                    if (track == null) return@collectLatest
+            ) { track, enabled -> track to enabled }
+                .collectLatest { (track, enabled) ->
+                    if (!enabled || track == null) {
+                        onStatus(NormalizationStatus(if (enabled) NormalizationPhase.WAITING else NormalizationPhase.OFF))
+                        return@collectLatest
+                    }
                     val id = track.id.value
                     val audioIdentity = track.loudnessAudioIdentity()
                     val attemptIdentity = "$id|$audioIdentity"
                     val existing = measured.value[id]
-                    if (existing?.audioIdentity == audioIdentity) return@collectLatest
+                    if (existing?.audioIdentity == audioIdentity) {
+                        reportReady(existing.db)
+                        return@collectLatest
+                    }
                     if (existing != null) {
                         // Remove the stale gain before decoding the replacement. Otherwise the old
                         // file's attenuation remains audible during the new file's measurement.
                         publish(measured.value - id)
                     }
-                    if (attemptIdentity in failedThisSession) return@collectLatest
+                    if (attemptIdentity in failedThisSession) {
+                        onStatus(NormalizationStatus(NormalizationPhase.UNAVAILABLE))
+                        return@collectLatest
+                    }
+                    onStatus(NormalizationStatus(NormalizationPhase.MEASURING))
                     val db = try {
                         meter.measureDb(track)
                     } catch (cancelled: CancellationException) {
@@ -147,11 +165,18 @@ internal class LoudnessNormalizer(
                     }
                     if (db == null || !db.isValidMeasuredLoudness()) {
                         failedThisSession += attemptIdentity
+                        onStatus(NormalizationStatus(NormalizationPhase.UNAVAILABLE))
                         return@collectLatest
                     }
                     publish(measured.value + (id to StoredTrackLoudness(db, audioIdentity)))
+                    reportReady(db)
                 }
         }
+    }
+
+    private fun reportReady(db: Float) {
+        val volume = Loudness.normalizationVolume(db)
+        onStatus(NormalizationStatus(NormalizationPhase.READY, if (volume >= 1f) 0f else -20f * kotlin.math.log10(volume)))
     }
 
     /** A preference failure must not permanently kill the app-lifetime measurement collector. */

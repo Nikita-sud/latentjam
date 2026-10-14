@@ -1,7 +1,7 @@
 # 0.9.1 — release candidate
 
 This patch follows the October 13 feedback on playlist migration, missing artwork and Android
-integration. Android and iOS use version 0.9.1, build 15. Publication is a separate step after
+integration, plus the Android audio-effects report in issue #16. Android and iOS use version 0.9.1, build 15. Publication is a separate step after
 validation; this document describes the candidate, not an already published release.
 
 ## Changes
@@ -15,6 +15,16 @@ validation; this document describes the candidate, not an already published rele
   An unavailable or unrecognised file reports a failure instead of silently playing a namesake.
 - An optional Android notification setting replaces Repeat with Favorite while retaining
   SMART/shuffle and the transport controls. Existing notification controls remain the default.
+
+- Android equalizer and bass boost now process decoded audio inside the player instead of relying
+  on device-specific audio effects. Ten bands, five presets and a separate bass shelf apply live;
+  selecting a preset also turns the equalizer on. Curve changes are smoothed and boosts reserve
+  headroom to reduce clipping. Existing tone settings migrate where the device exposes the old curve.
+- The equalizer screen now has a curve preview, labelled band controls, grouped presets and
+  separate bass/normalization cards. The normalization card reports measurement progress,
+  failure, no reduction needed, or the actual reduction in dB. Normalization still attenuates loud
+  tracks; it does not amplify quiet recordings.
+- Cancelling an Android cover-color read no longer crashes the app with `InterruptedIOException`.
 
 ## Deliberate scope
 

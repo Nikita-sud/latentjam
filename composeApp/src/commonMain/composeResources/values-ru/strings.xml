@@ -829,4 +829,13 @@
     <string name="duplicates_summary_extra">Лишние копии: %1$d</string>
     <string name="duplicates_copy_count">Копии: %1$d</string>
     <string name="playlist_reorder_track">Потяните, чтобы переместить %1$s</string>
+    <string name="equalizer_custom">Своя настройка</string>
+    <string name="equalizer_hint">Выберите пресет, чтобы включить эквалайзер, или настройте полосы по вкусу.</string>
+    <string name="equalizer_reset_short">Сбросить</string>
+    <string name="equalizer_bands_hint">Частота в Гц · усиление в дБ · листайте полосы</string>
+    <string name="normalization_waiting">Включите трек, чтобы измерить его громкость.</string>
+    <string name="normalization_measuring">Измеряем громкость трека…</string>
+    <string name="normalization_unavailable">Не удалось измерить этот трек. Громкость остаётся исходной.</string>
+    <string name="normalization_unchanged">Этому треку снижение не нужно. Тихие треки не усиливаются.</string>
+    <string name="normalization_reduced">Громкость этого трека снижена на %1$s дБ.</string>
 </resources>

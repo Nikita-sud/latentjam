@@ -737,4 +737,13 @@
     <string name="duplicates_summary_extra">余分なコピー：%1$d</string>
     <string name="duplicates_copy_count">コピー数：%1$d</string>
     <string name="playlist_reorder_track">ドラッグして%1$sの順序を変更</string>
+    <string name="equalizer_custom">カスタム</string>
+    <string name="equalizer_hint">プリセットを選ぶとオンになります。各帯域を好みに合わせて調整することもできます。</string>
+    <string name="equalizer_reset_short">リセット</string>
+    <string name="equalizer_bands_hint">周波数：Hz · ゲイン：dB · スワイプで他の帯域を表示</string>
+    <string name="normalization_waiting">曲を再生すると音量を測定します。</string>
+    <string name="normalization_measuring">この曲を測定中…</string>
+    <string name="normalization_unavailable">この曲を測定できませんでした。元の音量で再生します。</string>
+    <string name="normalization_unchanged">この曲の音量を下げる必要はありません。静かな曲は増幅しません。</string>
+    <string name="normalization_reduced">この曲の音量を %1$s dB 下げています。</string>
 </resources>

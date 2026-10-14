@@ -803,4 +803,13 @@
     <string name="duplicates_summary_extra">עותקים עודפים: %1$d</string>
     <string name="duplicates_copy_count">עותקים: %1$d</string>
     <string name="playlist_reorder_track">גרירה לשינוי הסדר של %1$s</string>
+    <string name="equalizer_custom">מותאם אישית</string>
+    <string name="equalizer_hint">בחרו הגדרה מוכנה כדי להפעיל, או התאימו את תחומי התדר לטעמכם.</string>
+    <string name="equalizer_reset_short">איפוס</string>
+    <string name="equalizer_bands_hint">תדר בהרץ · הגבר בדציבל · החליקו לתחומים נוספים</string>
+    <string name="normalization_waiting">נגנו רצועה כדי למדוד את עוצמתה.</string>
+    <string name="normalization_measuring">מודדים את עוצמת הרצועה…</string>
+    <string name="normalization_unavailable">לא ניתן למדוד רצועה זו. נעשה שימוש בעוצמה המקורית.</string>
+    <string name="normalization_unchanged">אין צורך להנמיך רצועה זו. רצועות שקטות אינן מוגברות.</string>
+    <string name="normalization_reduced">עוצמת רצועה זו מופחתת ב־%1$s דציבל.</string>
 </resources>

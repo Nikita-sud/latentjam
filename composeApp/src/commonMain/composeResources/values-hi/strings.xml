@@ -768,4 +768,13 @@
     <string name="duplicates_summary_extra">अतिरिक्त कॉपियाँ: %1$d</string>
     <string name="duplicates_copy_count">कॉपियाँ: %1$d</string>
     <string name="playlist_reorder_track">%1$s का क्रम बदलने के लिए खींचें</string>
+    <string name="equalizer_custom">कस्टम</string>
+    <string name="equalizer_hint">चालू करने के लिए प्रीसेट चुनें या बैंड अपनी पसंद के अनुसार समायोजित करें।</string>
+    <string name="equalizer_reset_short">रीसेट</string>
+    <string name="equalizer_bands_hint">फ़्रीक्वेंसी Hz में · गेन dB में · और बैंड के लिए स्वाइप करें</string>
+    <string name="normalization_waiting">आवाज़ मापने के लिए कोई ट्रैक चलाएँ।</string>
+    <string name="normalization_measuring">इस ट्रैक की आवाज़ मापी जा रही है…</string>
+    <string name="normalization_unavailable">इस ट्रैक की आवाज़ नहीं मापी जा सकी। मूल आवाज़ इस्तेमाल होगी।</string>
+    <string name="normalization_unchanged">इस ट्रैक की आवाज़ कम करने की ज़रूरत नहीं है। धीमे ट्रैक की आवाज़ नहीं बढ़ाई जाती।</string>
+    <string name="normalization_reduced">इस ट्रैक की आवाज़ %1$s dB कम की गई है।</string>
 </resources>

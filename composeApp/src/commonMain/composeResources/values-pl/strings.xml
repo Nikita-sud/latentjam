@@ -836,4 +836,13 @@
     <string name="duplicates_summary_extra">Dodatkowe kopie: %1$d</string>
     <string name="duplicates_copy_count">Kopie: %1$d</string>
     <string name="playlist_reorder_track">Przeciągnij, aby zmienić kolejność %1$s</string>
+    <string name="equalizer_custom">Własne</string>
+    <string name="equalizer_hint">Wybierz ustawienie, aby włączyć korektor, lub dostosuj pasma do swoich upodobań.</string>
+    <string name="equalizer_reset_short">Resetuj</string>
+    <string name="equalizer_bands_hint">Częstotliwość w Hz · wzmocnienie w dB · przesuń, aby zobaczyć kolejne pasma</string>
+    <string name="normalization_waiting">Odtwórz utwór, aby zmierzyć jego głośność.</string>
+    <string name="normalization_measuring">Pomiar głośności utworu…</string>
+    <string name="normalization_unavailable">Nie udało się zmierzyć tego utworu. Używana jest oryginalna głośność.</string>
+    <string name="normalization_unchanged">Ten utwór nie wymaga ściszenia. Ciche utwory nie są wzmacniane.</string>
+    <string name="normalization_reduced">Głośność tego utworu jest obniżona o %1$s dB.</string>
 </resources>

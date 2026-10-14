@@ -780,4 +780,13 @@
     <string name="duplicates_summary_extra">Zusätzliche Kopien: %1$d</string>
     <string name="duplicates_copy_count">Kopien: %1$d</string>
     <string name="playlist_reorder_track">%1$s zum Umsortieren ziehen</string>
+    <string name="equalizer_custom">Benutzerdefiniert</string>
+    <string name="equalizer_hint">Wähle eine Voreinstellung zum Einschalten oder passe die Bänder nach deinem Geschmack an.</string>
+    <string name="equalizer_reset_short">Zurücksetzen</string>
+    <string name="equalizer_bands_hint">Frequenz in Hz · Verstärkung in dB · Wischen für weitere Bänder</string>
+    <string name="normalization_waiting">Spiele einen Titel ab, um seine Lautstärke zu messen.</string>
+    <string name="normalization_measuring">Lautstärke wird gemessen…</string>
+    <string name="normalization_unavailable">Dieser Titel konnte nicht gemessen werden. Die ursprüngliche Lautstärke bleibt erhalten.</string>
+    <string name="normalization_unchanged">Dieser Titel muss nicht leiser werden. Leise Titel werden nicht verstärkt.</string>
+    <string name="normalization_reduced">Dieser Titel wird um %1$s dB abgesenkt.</string>
 </resources>

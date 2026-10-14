@@ -314,6 +314,8 @@ internal class IosAudioEngine : EqualizerController {
 
     override suspend fun applyPreset(presetIndex: Int): Unit = withContext(Dispatchers.Main) {
         val curve = PRESET_CURVES.getOrNull(presetIndex) ?: return@withContext
+        equalizer.bypass = false
+        preferences.setBool(true, KEY_ENABLED)
         parameters.forEachIndexed { index, band ->
             val level = curve[index]
             band.gain = level / 100f

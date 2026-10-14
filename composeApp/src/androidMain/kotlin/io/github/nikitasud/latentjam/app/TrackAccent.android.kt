@@ -21,8 +21,6 @@ import kotlin.math.min
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runInterruptible
 import java.io.IOException
 import java.io.InterruptedIOException
 
@@ -50,7 +48,7 @@ actual fun rememberArtworkColor(uri: String?): ArtworkColorState {
             if (cached != null) {
                 cached.value
             } else {
-                runInterruptible(Dispatchers.IO) {
+                readArtworkInterruptibly {
                     sampleArtwork(context, artworkUri)
                 }.also { sampled ->
                     if (artworkColorCache.size >= ARTWORK_COLOR_CACHE_SIZE) {

@@ -41,7 +41,7 @@ public class MediaPlaybackResume(
 )
 
 /**
- * Announced rather than injected, like [AudioSessionRegistry]: the service is built by the
+ * Announced rather than injected: the service is built by the
  * system and cannot see the app's scoped Koin graph. The provider runs per browse request, so
  * Auto always sees the current library without any push-refresh plumbing.
  */

@@ -777,4 +777,13 @@
     <string name="duplicates_summary_extra">Copias adicionales: %1$d</string>
     <string name="duplicates_copy_count">Copias: %1$d</string>
     <string name="playlist_reorder_track">Arrastra para cambiar el orden de %1$s</string>
+    <string name="equalizer_custom">Personalizado</string>
+    <string name="equalizer_hint">Elige un ajuste para activarlo o adapta las bandas a tu gusto.</string>
+    <string name="equalizer_reset_short">Restablecer</string>
+    <string name="equalizer_bands_hint">Frecuencia en Hz · ganancia en dB · desliza para ver más bandas</string>
+    <string name="normalization_waiting">Reproduce una pista para medir su volumen.</string>
+    <string name="normalization_measuring">Midiendo esta pista…</string>
+    <string name="normalization_unavailable">No se pudo medir esta pista. Se mantiene el volumen original.</string>
+    <string name="normalization_unchanged">Esta pista no necesita reducción. Las pistas suaves no se amplifican.</string>
+    <string name="normalization_reduced">El volumen de esta pista se reduce %1$s dB.</string>
 </resources>

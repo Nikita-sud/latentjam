@@ -76,6 +76,7 @@ import org.koin.dsl.module
  * the very first UI frame.
  */
 object AppGraph {
+    internal val normalizationStatus = MutableStateFlow(NormalizationStatus())
 
     internal val lyricsSearchCache = LyricsSearchCache()
 
@@ -189,6 +190,7 @@ object AppGraph {
                     settings = settings,
                     playback = playback,
                     meter = koin.get(),
+                    onStatus = { normalizationStatus.value = it },
                 ).start(appScope)
                 // Boundary fades follow the preference for the app's whole lifetime.
                 appScope.launch {

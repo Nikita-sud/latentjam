@@ -19,6 +19,10 @@ kotlin {
         // (Media3 CommandButton takes a resource id, not a Compose vector).
         androidResources.enable = true
         withHostTest {}
+        withDeviceTest {
+            applicationId = "io.github.nikitasud.latentjam.playback.test"
+            instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        }
     }
 
     iosArm64()
@@ -32,9 +36,15 @@ kotlin {
             api(libs.koin.core)
         }
         androidMain.dependencies {
+            implementation(libs.kotlinx.coroutines.android)
             implementation(project(":core:library"))
             implementation(libs.androidx.media3.exoplayer)
             implementation(libs.androidx.media3.session)
+        }
+        getByName("androidDeviceTest").dependencies {
+            implementation(libs.androidx.test.core)
+            implementation(libs.androidx.test.runner)
+            implementation(libs.junit4)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

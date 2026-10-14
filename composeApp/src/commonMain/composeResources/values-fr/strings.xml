@@ -782,4 +782,13 @@
     <string name="duplicates_summary_extra">Copies supplémentaires : %1$d</string>
     <string name="duplicates_copy_count">Copies : %1$d</string>
     <string name="playlist_reorder_track">Faire glisser pour déplacer %1$s</string>
+    <string name="equalizer_custom">Personnalisé</string>
+    <string name="equalizer_hint">Choisissez un préréglage pour activer l’égaliseur ou ajustez les bandes à votre goût.</string>
+    <string name="equalizer_reset_short">Réinitialiser</string>
+    <string name="equalizer_bands_hint">Fréquence en Hz · gain en dB · balayez pour voir les autres bandes</string>
+    <string name="normalization_waiting">Lancez un morceau pour mesurer son volume.</string>
+    <string name="normalization_measuring">Mesure de ce morceau…</string>
+    <string name="normalization_unavailable">Impossible de mesurer ce morceau. Le volume d’origine est conservé.</string>
+    <string name="normalization_unchanged">Ce morceau ne nécessite aucune réduction. Les morceaux faibles ne sont pas amplifiés.</string>
+    <string name="normalization_reduced">Le volume de ce morceau est réduit de %1$s dB.</string>
 </resources>

@@ -743,4 +743,13 @@
     <string name="duplicates_summary_extra">Salinan tambahan: %1$d</string>
     <string name="duplicates_copy_count">Salinan: %1$d</string>
     <string name="playlist_reorder_track">Seret untuk mengubah urutan %1$s</string>
+    <string name="equalizer_custom">Kustom</string>
+    <string name="equalizer_hint">Pilih preset untuk mengaktifkan atau atur pita sesuai selera.</string>
+    <string name="equalizer_reset_short">Atur ulang</string>
+    <string name="equalizer_bands_hint">Frekuensi dalam Hz · penguatan dalam dB · geser untuk pita lainnya</string>
+    <string name="normalization_waiting">Putar lagu untuk mengukur volumenya.</string>
+    <string name="normalization_measuring">Mengukur lagu ini…</string>
+    <string name="normalization_unavailable">Lagu ini tidak dapat diukur. Volume asli digunakan.</string>
+    <string name="normalization_unchanged">Lagu ini tidak perlu dikecilkan. Lagu yang pelan tidak diperkuat.</string>
+    <string name="normalization_reduced">Volume lagu ini dikurangi %1$s dB.</string>
 </resources>

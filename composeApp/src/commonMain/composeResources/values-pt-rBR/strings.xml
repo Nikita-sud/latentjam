@@ -777,4 +777,13 @@
     <string name="duplicates_summary_extra">Cópias extras: %1$d</string>
     <string name="duplicates_copy_count">Cópias: %1$d</string>
     <string name="playlist_reorder_track">Arraste para reordenar %1$s</string>
+    <string name="equalizer_custom">Personalizado</string>
+    <string name="equalizer_hint">Escolha uma predefinição para ativar ou ajuste as bandas como preferir.</string>
+    <string name="equalizer_reset_short">Redefinir</string>
+    <string name="equalizer_bands_hint">Frequência em Hz · ganho em dB · deslize para mais bandas</string>
+    <string name="normalization_waiting">Reproduza uma faixa para medir o volume.</string>
+    <string name="normalization_measuring">Medindo esta faixa…</string>
+    <string name="normalization_unavailable">Não foi possível medir esta faixa. O volume original será usado.</string>
+    <string name="normalization_unchanged">Esta faixa não precisa de redução. Faixas mais baixas não são amplificadas.</string>
+    <string name="normalization_reduced">O volume desta faixa é reduzido em %1$s dB.</string>
 </resources>

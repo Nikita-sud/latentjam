@@ -743,4 +743,13 @@
     <string name="duplicates_summary_extra">多余副本：%1$d</string>
     <string name="duplicates_copy_count">副本：%1$d</string>
     <string name="playlist_reorder_track">拖动以调整%1$s的顺序</string>
+    <string name="equalizer_custom">自定义</string>
+    <string name="equalizer_hint">选择预设即可开启，也可按喜好调整各频段。</string>
+    <string name="equalizer_reset_short">重置</string>
+    <string name="equalizer_bands_hint">频率：Hz · 增益：dB · 滑动查看更多频段</string>
+    <string name="normalization_waiting">播放一首歌曲以测量其音量。</string>
+    <string name="normalization_measuring">正在测量此歌曲…</string>
+    <string name="normalization_unavailable">无法测量此歌曲，将使用原始音量。</string>
+    <string name="normalization_unchanged">此歌曲无需降低音量。音量较低的歌曲不会被放大。</string>
+    <string name="normalization_reduced">此歌曲的音量已降低 %1$s dB。</string>
 </resources>

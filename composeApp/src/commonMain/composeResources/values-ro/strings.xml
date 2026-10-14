@@ -793,4 +793,13 @@
     <string name="duplicates_summary_extra">Copii suplimentare: %1$d</string>
     <string name="duplicates_copy_count">Copii: %1$d</string>
     <string name="playlist_reorder_track">Trage pentru a schimba ordinea piesei %1$s</string>
+    <string name="equalizer_custom">Personalizat</string>
+    <string name="equalizer_hint">Alege o presetare pentru activare sau reglează benzile după preferințe.</string>
+    <string name="equalizer_reset_short">Resetează</string>
+    <string name="equalizer_bands_hint">Frecvență în Hz · câștig în dB · glisează pentru alte benzi</string>
+    <string name="normalization_waiting">Redă o piesă pentru a-i măsura volumul.</string>
+    <string name="normalization_measuring">Se măsoară această piesă…</string>
+    <string name="normalization_unavailable">Piesa nu a putut fi măsurată. Se folosește volumul original.</string>
+    <string name="normalization_unchanged">Această piesă nu necesită reducere. Piesele mai încete nu sunt amplificate.</string>
+    <string name="normalization_reduced">Volumul acestei piese este redus cu %1$s dB.</string>
 </resources>

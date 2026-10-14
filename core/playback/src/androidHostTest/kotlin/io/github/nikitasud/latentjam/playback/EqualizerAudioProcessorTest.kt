@@ -1,0 +1,109 @@
+/*
+ * Copyright (c) 2026 LatentJam Project
+ * SPDX-License-Identifier: Apache-2.0
+ */
+package io.github.nikitasud.latentjam.playback
+
+import androidx.media3.common.C
+import androidx.media3.common.Format
+import androidx.media3.common.MimeTypes
+import androidx.media3.common.audio.AudioProcessor
+import androidx.media3.common.audio.AudioProcessor.StreamMetadata
+import androidx.media3.exoplayer.audio.AudioSink
+import java.lang.reflect.Proxy
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.sin
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
+
+internal class EqualizerAudioProcessorTest {
+    private fun buffer(samples: List<Int>): ByteBuffer = ByteBuffer.allocateDirect(samples.size * 2)
+        .order(ByteOrder.nativeOrder()).apply { samples.forEach { putShort(it.toShort()) }; flip() }
+
+    private fun read(buffer: ByteBuffer): List<Int> = buildList { while (buffer.hasRemaining()) add(buffer.short.toInt()) }
+
+    @Test fun disabledProcessorPreservesEveryPcm16ValueAndRemainsInTheChain() {
+        val processor = EqualizerAudioProcessor { SoftwareEqualizerSettings() }
+        val format = AudioProcessor.AudioFormat(48000, 2, C.ENCODING_PCM_16BIT)
+        assertEquals(format, processor.configure(format))
+        assertTrue(processor.isActive)
+        processor.flush(StreamMetadata.DEFAULT)
+        val input = (-32768..32767).toList()
+        processor.queueInput(buffer(input))
+        assertEquals(input, read(processor.output))
+        processor.queueEndOfStream()
+        assertTrue(processor.isEnded)
+    }
+
+    @Test fun emptyDrainBuffersDoNotCopyTheSharedSingletonOrDiscardPendingOutput() {
+        val processor = EqualizerAudioProcessor { SoftwareEqualizerSettings() }
+        processor.configure(AudioProcessor.AudioFormat(48000, 2, C.ENCODING_PCM_16BIT))
+        processor.flush(StreamMetadata.DEFAULT)
+        processor.queueInput(AudioProcessor.EMPTY_BUFFER)
+        assertTrue(!processor.output.hasRemaining())
+        processor.queueInput(buffer(listOf(123, -456)))
+        processor.queueInput(AudioProcessor.EMPTY_BUFFER)
+        assertEquals(listOf(123, -456), read(processor.output))
+        processor.queueEndOfStream()
+        processor.queueInput(AudioProcessor.EMPTY_BUFFER)
+        assertTrue(processor.isEnded)
+    }
+
+    @Test fun realPcmChangesLiveAndSettingsSurviveAFlush() {
+        var settings = SoftwareEqualizerSettings()
+        val processor = EqualizerAudioProcessor { settings }
+        processor.configure(AudioProcessor.AudioFormat(48000, 2, C.ENCODING_PCM_16BIT))
+        processor.flush(StreamMetadata.DEFAULT)
+        val tone = (0 until 4800).flatMap { i -> listOf((10000 * sin(2 * PI * i / 48)).toInt(), 0) }
+        processor.queueInput(buffer(tone))
+        assertEquals(tone, read(processor.output))
+        settings = SoftwareEqualizerSettings(true, List(10) { if (it == 5) -1200 else 0 })
+        processor.queueInput(buffer(tone))
+        val changed = read(processor.output)
+        assertTrue(changed.drop(4000).filterIndexed { i, _ -> i % 2 == 0 }.maxOf(::abs) < 2700)
+        assertTrue(changed.filterIndexed { i, _ -> i % 2 == 1 }.all { it == 0 })
+        processor.flush(StreamMetadata.DEFAULT)
+        processor.queueInput(buffer(tone))
+        assertTrue(read(processor.output).drop(4000).maxOf(::abs) < 2700)
+    }
+
+    @Test fun formatChangeResetsChannelHistoriesAndHandlesMono() {
+        val processor = EqualizerAudioProcessor { SoftwareEqualizerSettings().withPreset(1) }
+        processor.configure(AudioProcessor.AudioFormat(48000, 2, C.ENCODING_PCM_16BIT))
+        processor.flush(StreamMetadata.DEFAULT)
+        processor.queueInput(buffer(List(400) { 10000 }))
+        read(processor.output)
+        processor.configure(AudioProcessor.AudioFormat(16000, 1, C.ENCODING_PCM_16BIT))
+        processor.flush(StreamMetadata.DEFAULT)
+        processor.queueInput(buffer(List(100) { 0 }))
+        assertEquals(List(100) { 0 }, read(processor.output))
+    }
+
+    @Test fun unsupportedInputIsRejectedInsteadOfSilentlyBypassingEffects() {
+        val processor = EqualizerAudioProcessor { SoftwareEqualizerSettings() }
+        assertFailsWith<AudioProcessor.UnhandledAudioFormatException> {
+            processor.configure(AudioProcessor.AudioFormat(48000, 2, C.ENCODING_PCM_FLOAT))
+        }
+    }
+
+    @Test fun compressedPassthroughAndOffloadCannotBypassTheProcessor() {
+        val delegate = Proxy.newProxyInstance(AudioSink::class.java.classLoader, arrayOf(AudioSink::class.java)) { _, method, _ ->
+            when (method.name) {
+                "getFormatSupport" -> AudioSink.SINK_FORMAT_SUPPORTED_DIRECTLY
+                else -> error("Unexpected delegation to ${method.name}")
+            }
+        } as AudioSink
+        val sink = PcmOnlyAudioSink(delegate)
+        for (mime in listOf(MimeTypes.AUDIO_AC3, MimeTypes.AUDIO_E_AC3, MimeTypes.AUDIO_AAC, MimeTypes.AUDIO_MPEG)) {
+            val format = Format.Builder().setSampleMimeType(mime).build()
+            assertTrue(!sink.supportsFormat(format))
+            assertTrue(!sink.getFormatOffloadSupport(format).isFormatSupported)
+        }
+        assertTrue(sink.supportsFormat(Format.Builder().setSampleMimeType(MimeTypes.AUDIO_RAW).build()))
+    }
+}

@@ -904,4 +904,13 @@
     <string name="duplicates_summary_extra">النسخ الإضافية: %1$d</string>
     <string name="duplicates_copy_count">النسخ: %1$d</string>
     <string name="playlist_reorder_track">اسحب لتغيير ترتيب %1$s</string>
+    <string name="equalizer_custom">مخصص</string>
+    <string name="equalizer_hint">اختر إعدادًا مسبقًا للتشغيل أو اضبط النطاقات حسب ذوقك.</string>
+    <string name="equalizer_reset_short">إعادة ضبط</string>
+    <string name="equalizer_bands_hint">التردد بالهرتز · الكسب بالديسيبل · اسحب لرؤية المزيد من النطاقات</string>
+    <string name="normalization_waiting">شغّل مقطعًا لقياس مستوى صوته.</string>
+    <string name="normalization_measuring">جارٍ قياس هذا المقطع…</string>
+    <string name="normalization_unavailable">تعذر قياس هذا المقطع. يُستخدم مستوى الصوت الأصلي.</string>
+    <string name="normalization_unchanged">لا يحتاج هذا المقطع إلى خفض الصوت. لا يتم تضخيم المقاطع الهادئة.</string>
+    <string name="normalization_reduced">تم خفض صوت هذا المقطع بمقدار %1$s ديسيبل.</string>
 </resources>

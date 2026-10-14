@@ -848,4 +848,13 @@
     <string name="duplicates_summary_extra">Extra copies: %1$d</string>
     <string name="duplicates_copy_count">Copies: %1$d</string>
     <string name="playlist_reorder_track">Drag to reorder %1$s</string>
+    <string name="equalizer_custom">Custom</string>
+    <string name="equalizer_hint">Choose a preset to turn it on, or adjust the bands to your taste.</string>
+    <string name="equalizer_reset_short">Reset</string>
+    <string name="equalizer_bands_hint">Frequency in Hz · gain in dB · swipe for more bands</string>
+    <string name="normalization_waiting">Play a track to measure its loudness.</string>
+    <string name="normalization_measuring">Measuring this track…</string>
+    <string name="normalization_unavailable">Could not measure this track. Original volume is used.</string>
+    <string name="normalization_unchanged">This track needs no reduction. Quiet tracks are not boosted.</string>
+    <string name="normalization_reduced">This track is reduced by %1$s dB.</string>
 </resources>

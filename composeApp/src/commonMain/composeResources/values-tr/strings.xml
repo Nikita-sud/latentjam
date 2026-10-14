@@ -768,4 +768,13 @@
     <string name="duplicates_summary_extra">Fazladan kopyalar: %1$d</string>
     <string name="duplicates_copy_count">Kopyalar: %1$d</string>
     <string name="playlist_reorder_track">%1$s sırasını değiştirmek için sürükleyin</string>
+    <string name="equalizer_custom">Özel</string>
+    <string name="equalizer_hint">Açmak için bir ön ayar seçin veya bantları zevkinize göre ayarlayın.</string>
+    <string name="equalizer_reset_short">Sıfırla</string>
+    <string name="equalizer_bands_hint">Frekans: Hz · kazanç: dB · diğer bantlar için kaydırın</string>
+    <string name="normalization_waiting">Ses düzeyini ölçmek için bir parça çalın.</string>
+    <string name="normalization_measuring">Bu parça ölçülüyor…</string>
+    <string name="normalization_unavailable">Bu parça ölçülemedi. Özgün ses düzeyi kullanılıyor.</string>
+    <string name="normalization_unchanged">Bu parçanın sesi kısılmamalı. Düşük sesli parçalar yükseltilmez.</string>
+    <string name="normalization_reduced">Bu parçanın ses düzeyi %1$s dB azaltılıyor.</string>
 </resources>

@@ -6,7 +6,6 @@ package io.github.nikitasud.latentjam.playback
 
 import android.app.PendingIntent
 import android.content.Intent
-import android.media.AudioManager
 import android.net.Uri
 import android.os.SystemClock
 import androidx.media3.common.AudioAttributes
@@ -716,25 +715,18 @@ public class PlaybackService : MediaLibraryService() {
 
     override fun onCreate() {
         super.onCreate()
-        // The audio session id is generated HERE rather than read back from the player: the
-        // equalizer effect binds to a session, and asking for one we chose removes any window
-        // where the effect could attach to a session the player has already replaced.
-        val audioSessionId = (getSystemService(AUDIO_SERVICE) as AudioManager).generateAudioSessionId()
-        val player = ExoPlayer.Builder(this)
+        // The app-owned PCM chain applies tone controls on every local output route.
+        val player = ExoPlayer.Builder(this, EqualizerRenderersFactory(this))
             .setAudioAttributes(AudioAttributes.DEFAULT, /* handleAudioFocus = */ true)
             .setHandleAudioBecomingNoisy(true)
             .setMaxSeekToPreviousPositionMs(PREVIOUS_RESTART_THRESHOLD_MS)
             .build()
-            .apply { setAudioSessionId(audioSessionId) }
         // The listener's persisted repeat choice belongs to the transport this service is about to
         // host: the widget and the player screen show it again as soon as the app connects (see
         // [initialPlaybackModes]), and until now only the shuffle half reached a player. Applied
         // before the session and the listener exist — see [applyPersistedRepeatMode] for why.
         applyPersistedRepeatMode(player)
         playbackPlayer = player
-        // Announced rather than injected: this service is built by the system and cannot see
-        // the app's scoped Koin graph. Whoever owns the equalizer picks the session up from here.
-        AudioSessionRegistry.publish(audioSessionId)
         val sessionPlayer = object : LoadedQueueKeeper(player) {
             override fun setPlaylistMetadata(playlistMetadata: MediaMetadata) {
                 val marker = playlistMetadata.extras?.getBundle(AndroidQueueCommand.KEY)
@@ -812,7 +804,6 @@ public class PlaybackService : MediaLibraryService() {
 
     override fun onDestroy() {
         PlaybackWidgetStateStore.markPaused(this)
-        AudioSessionRegistry.publish(null)
         MediaBrowseRegistry.clearActiveResumption()
         serviceScope.cancel()
         playbackPlayer?.removeListener(playerListener)

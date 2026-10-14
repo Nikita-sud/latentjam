@@ -7,12 +7,8 @@ package io.github.nikitasud.latentjam.app
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.updateTransition
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,15 +16,11 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
@@ -72,19 +64,17 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -92,21 +82,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.LayoutDirection
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.setProgress
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
@@ -171,17 +151,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.engine_state_not_st
 import io.github.nikitasud.latentjam.app.generated.resources.engine_state_ready
 import io.github.nikitasud.latentjam.app.generated.resources.engine_state_starting
 import io.github.nikitasud.latentjam.app.generated.resources.engine_state_unavailable
-import io.github.nikitasud.latentjam.app.generated.resources.equalizer_bands
-import io.github.nikitasud.latentjam.app.generated.resources.equalizer_bass_boost
-import io.github.nikitasud.latentjam.app.generated.resources.equalizer_bass_value
-import io.github.nikitasud.latentjam.app.generated.resources.equalizer_preset_bass
-import io.github.nikitasud.latentjam.app.generated.resources.equalizer_preset_electronic
-import io.github.nikitasud.latentjam.app.generated.resources.equalizer_preset_flat
-import io.github.nikitasud.latentjam.app.generated.resources.equalizer_preset_treble
-import io.github.nikitasud.latentjam.app.generated.resources.equalizer_preset_vocal
-import io.github.nikitasud.latentjam.app.generated.resources.equalizer_presets
-import io.github.nikitasud.latentjam.app.generated.resources.equalizer_reset
-import io.github.nikitasud.latentjam.app.generated.resources.equalizer_unavailable_body
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_analysis_failed
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_analysis_progress
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_artist_variety
@@ -192,7 +161,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.intelligence_artist
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_artist_variety_low
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_artist_variety_max
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_engine
-import io.github.nikitasud.latentjam.app.generated.resources.intelligence_failures_more
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_fingerprints
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_how_it_works
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_how_title
@@ -263,7 +231,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_color_smar
 import io.github.nikitasud.latentjam.app.generated.resources.settings_color_theme
 import io.github.nikitasud.latentjam.app.generated.resources.settings_color_theme_body
 import io.github.nikitasud.latentjam.app.generated.resources.settings_equalizer
-import io.github.nikitasud.latentjam.app.generated.resources.settings_equalizer_subtitle
 import io.github.nikitasud.latentjam.app.generated.resources.settings_equalizer_unavailable
 import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_being_repaired
 import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_finish
@@ -282,7 +249,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_library_lo
 import io.github.nikitasud.latentjam.app.generated.resources.settings_library_refresh
 import io.github.nikitasud.latentjam.app.generated.resources.settings_library_refresh_body
 import io.github.nikitasud.latentjam.app.generated.resources.settings_library_refreshing
-import io.github.nikitasud.latentjam.app.generated.resources.settings_library_restore
 import io.github.nikitasud.latentjam.app.generated.resources.settings_library_restore_body
 import io.github.nikitasud.latentjam.app.generated.resources.settings_library_subtitle
 import io.github.nikitasud.latentjam.app.generated.resources.settings_language
@@ -342,13 +308,8 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_section_pr
 import io.github.nikitasud.latentjam.app.generated.resources.settings_smart_engine
 import io.github.nikitasud.latentjam.app.generated.resources.settings_smart_engine_subtitle
 import io.github.nikitasud.latentjam.app.generated.resources.snack_duplicates_merged
-import io.github.nikitasud.latentjam.app.generated.resources.settings_crossfade
-import io.github.nikitasud.latentjam.app.generated.resources.settings_crossfade_subtitle
-import io.github.nikitasud.latentjam.app.generated.resources.settings_crossfade_value
-import io.github.nikitasud.latentjam.app.generated.resources.settings_normalize_volume
 import io.github.nikitasud.latentjam.app.generated.resources.settings_notification_favorite
 import io.github.nikitasud.latentjam.app.generated.resources.settings_notification_favorite_subtitle
-import io.github.nikitasud.latentjam.app.generated.resources.settings_normalize_volume_subtitle
 import io.github.nikitasud.latentjam.app.generated.resources.settings_stats
 import io.github.nikitasud.latentjam.app.generated.resources.settings_stats_subtitle
 import io.github.nikitasud.latentjam.app.generated.resources.settings_start_page
@@ -373,9 +334,6 @@ import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.library.LibrarySource
 import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.playback.EqualizerController
-import io.github.nikitasud.latentjam.playback.MAX_CROSSFADE_SECONDS
-import io.github.nikitasud.latentjam.playback.EqualizerPreset
-import io.github.nikitasud.latentjam.playback.EqualizerPresetKind
 import io.github.nikitasud.latentjam.smart.EngineError
 import io.github.nikitasud.latentjam.smart.EngineState
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
@@ -1636,372 +1594,6 @@ private fun HiddenTrackRow(
             Text(stringResource(Res.string.settings_restore))
         }
     }
-}
-
-// ------------------------------------------------------------------ equalizer
-
-@Composable
-private fun EqualizerSettings(equalizer: EqualizerController, settings: AppSettings) {
-    val state by equalizer.state.collectAsState()
-    val scope = rememberCoroutineScope()
-    val normalizeVolume by settings.normalizeVolume.collectAsState()
-
-    FadingLazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 24.dp),
-    ) {
-        if (playbackGainControlsAvailable) {
-            // Normalization is our own gain stage, deliberately independent of the system
-            // equalizer's availability.
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .toggleable(
-                            value = normalizeVolume,
-                            role = Role.Switch,
-                            onValueChange = settings::setNormalizeVolume,
-                        )
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(Res.string.settings_normalize_volume),
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                        Text(
-                            text = stringResource(Res.string.settings_normalize_volume_subtitle),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Switch(checked = normalizeVolume, onCheckedChange = null)
-                }
-            }
-
-            item {
-                val crossfade by settings.crossfadeSeconds.collectAsState()
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 8.dp),
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = stringResource(Res.string.settings_crossfade),
-                                style = MaterialTheme.typography.bodyLarge,
-                            )
-                            Text(
-                                text = stringResource(Res.string.settings_crossfade_subtitle),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Text(
-                            text = if (crossfade == 0) {
-                                stringResource(Res.string.state_off)
-                            } else {
-                                stringResource(Res.string.settings_crossfade_value, crossfade)
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Slider(
-                        value = crossfade.toFloat(),
-                        onValueChange = { settings.setCrossfadeSeconds(it.roundToInt()) },
-                        valueRange = 0f..MAX_CROSSFADE_SECONDS.toFloat(),
-                        steps = MAX_CROSSFADE_SECONDS - 1,
-                    )
-                }
-            }
-        }
-
-        if (!state.available) {
-            item {
-                Text(
-                    text = stringResource(Res.string.equalizer_unavailable_body),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp),
-                )
-            }
-            return@FadingLazyColumn
-        }
-
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .toggleable(
-                        value = state.enabled,
-                        role = Role.Switch,
-                        onValueChange = { scope.launch { equalizer.setEnabled(it) } },
-                    )
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(Res.string.settings_equalizer),
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                    Text(
-                        text = stringResource(if (state.enabled) Res.string.state_on else Res.string.state_off),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Switch(checked = state.enabled, onCheckedChange = null)
-            }
-        }
-
-        if (state.presets.isNotEmpty()) {
-            item {
-                SettingsSection(stringResource(Res.string.equalizer_presets)) {
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(horizontal = 20.dp),
-                    ) {
-                        items(state.presets) { preset ->
-                            FilterChip(
-                                selected = state.activePreset == preset.index,
-                                onClick = { scope.launch { equalizer.applyPreset(preset.index) } },
-                                label = { Text(equalizerPresetLabel(preset)) },
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        item {
-            SettingsSection(stringResource(Res.string.equalizer_bands)) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(260.dp)
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    state.bands.forEach { band ->
-                        BandSlider(
-                            label = formatFrequency(band.centreFrequencyHz),
-                            value = band.levelMillibels.toFloat(),
-                            range = state.minLevelMillibels.toFloat()..state.maxLevelMillibels.toFloat(),
-                            enabled = state.enabled,
-                            onChangeFinished = {
-                                scope.launch { equalizer.setBandLevel(band.index, it.toInt()) }
-                            },
-                        )
-                    }
-                }
-            }
-        }
-
-        if (state.bassBoostSupported) {
-            item {
-                var bassValue by remember(state.bassBoostStrength) {
-                    mutableFloatStateOf(state.bassBoostStrength.toFloat())
-                }
-                val bassValueDescription = stringResource(
-                    Res.string.equalizer_bass_value,
-                    bassValue.toInt() / 10,
-                )
-                SettingsSection(stringResource(Res.string.equalizer_bass_boost)) {
-                    StatRow(
-                        label = stringResource(Res.string.equalizer_bass_boost),
-                        value = bassValueDescription,
-                    )
-                    Slider(
-                        value = bassValue,
-                        onValueChange = { bassValue = it },
-                        onValueChangeFinished = {
-                            scope.launch { equalizer.setBassBoost(bassValue.toInt()) }
-                        },
-                        valueRange = 0f..1000f,
-                        enabled = state.enabled,
-                        modifier = Modifier
-                            .semantics { stateDescription = bassValueDescription }
-                            .padding(horizontal = 20.dp),
-                    )
-                }
-            }
-        }
-
-        item {
-            Box(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
-                OutlinedButton(onClick = { scope.launch { equalizer.reset() } }) {
-                    Text(stringResource(Res.string.equalizer_reset))
-                }
-            }
-        }
-    }
-}
-
-/** A bipolar vertical fader with a roomy touch target and adjustable accessibility semantics. */
-@Composable
-private fun BandSlider(
-    label: String,
-    value: Float,
-    range: ClosedFloatingPointRange<Float>,
-    enabled: Boolean,
-    onChangeFinished: (Float) -> Unit,
-) {
-    val span = (range.endInclusive - range.start).takeIf { it > 0f } ?: 1f
-    val trackColor = MaterialTheme.colorScheme.surfaceVariant
-    val activeColor = MaterialTheme.colorScheme.primary
-    val fillColor = if (enabled) activeColor else activeColor.copy(alpha = 0.25f)
-    val zeroLineColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-    val thumbColor = if (enabled) activeColor else activeColor.copy(alpha = 0.35f)
-    var displayValue by remember(label) { mutableFloatStateOf(value) }
-    var dragging by remember(label) { mutableStateOf(false) }
-    val currentValue by rememberUpdatedState(value)
-    val currentOnChangeFinished by rememberUpdatedState(onChangeFinished)
-    LaunchedEffect(value, dragging) {
-        if (!dragging) displayValue = value
-    }
-    val coercedValue = displayValue.coerceIn(range.start, range.endInclusive)
-    val valueDescription = formatDecibels(coercedValue)
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .fillMaxHeight()
-            .width(72.dp)
-            .semantics(mergeDescendants = true) {
-                contentDescription = label
-                stateDescription = valueDescription
-                progressBarRangeInfo = ProgressBarRangeInfo(coercedValue, range)
-                if (enabled) {
-                    setProgress { requested ->
-                        displayValue = requested.coerceIn(range.start, range.endInclusive)
-                        onChangeFinished(displayValue)
-                        true
-                    }
-                } else {
-                    disabled()
-                }
-            },
-    ) {
-        Text(
-            text = valueDescription,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = if (coercedValue != 0f) FontWeight.SemiBold else FontWeight.Normal,
-            color = if (enabled && coercedValue != 0f) {
-                MaterialTheme.colorScheme.onSurface
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-            maxLines = 1,
-            softWrap = false,
-        )
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .padding(vertical = 8.dp)
-                .fillMaxWidth()
-                .pointerInput(enabled, range) {
-                    if (!enabled) return@pointerInput
-                    awaitEachGesture {
-                        val down = awaitFirstDown()
-                        dragging = true
-                        var latest = bandValueForY(down.position.y, size.height.toFloat(), range)
-                        var released = false
-                        try {
-                            displayValue = latest
-                            down.consume()
-                            while (true) {
-                                val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id }
-                                    ?: break
-                                if (change.isConsumed) break
-                                latest = bandValueForY(change.position.y, size.height.toFloat(), range)
-                                displayValue = latest
-                                if (change.changedToUpIgnoreConsumed()) {
-                                    change.consume()
-                                    released = true
-                                    break
-                                }
-                                if (!change.pressed) break
-                                change.consume()
-                            }
-                            if (released) currentOnChangeFinished(latest)
-                        } finally {
-                            dragging = false
-                            if (!released) displayValue = currentValue
-                        }
-                    }
-                },
-        ) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val centreX = size.width / 2f
-                val trackWidth = 6.dp.toPx()
-                val radius = trackWidth / 2f
-                fun yFor(level: Float): Float {
-                    val fraction = ((level - range.start) / span).coerceIn(0f, 1f)
-                    return size.height * (1f - fraction)
-                }
-                val zeroY = yFor(0f)
-                val thumbY = yFor(coercedValue)
-                drawRoundRect(
-                    color = trackColor,
-                    topLeft = Offset(centreX - radius, 0f),
-                    size = Size(trackWidth, size.height),
-                    cornerRadius = CornerRadius(radius, radius),
-                )
-                val fillTop = minOf(zeroY, thumbY)
-                val fillHeight = (maxOf(zeroY, thumbY) - fillTop).coerceAtLeast(radius)
-                drawRoundRect(
-                    color = fillColor,
-                    topLeft = Offset(centreX - radius, fillTop),
-                    size = Size(trackWidth, fillHeight),
-                    cornerRadius = CornerRadius(radius, radius),
-                )
-                drawLine(
-                    color = zeroLineColor,
-                    start = Offset(centreX - 8.dp.toPx(), zeroY),
-                    end = Offset(centreX + 8.dp.toPx(), zeroY),
-                    strokeWidth = 1.5.dp.toPx(),
-                )
-                drawCircle(color = thumbColor, radius = 9.dp.toPx(), center = Offset(centreX, thumbY))
-            }
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            softWrap = false,
-        )
-    }
-}
-
-private fun bandValueForY(y: Float, height: Float, range: ClosedFloatingPointRange<Float>): Float {
-    if (height <= 0f) return range.start
-    val fraction = (1f - (y / height)).coerceIn(0f, 1f)
-    return range.start + fraction * (range.endInclusive - range.start)
-}
-
-private fun formatFrequency(hz: Int): String =
-    if (hz >= 1000) "${hz / 1000} kHz" else "$hz Hz"
-
-@Composable
-private fun equalizerPresetLabel(preset: EqualizerPreset): String = when (preset.kind) {
-    EqualizerPresetKind.FLAT -> stringResource(Res.string.equalizer_preset_flat)
-    EqualizerPresetKind.BASS -> stringResource(Res.string.equalizer_preset_bass)
-    EqualizerPresetKind.TREBLE -> stringResource(Res.string.equalizer_preset_treble)
-    EqualizerPresetKind.VOCAL -> stringResource(Res.string.equalizer_preset_vocal)
-    EqualizerPresetKind.ELECTRONIC -> stringResource(Res.string.equalizer_preset_electronic)
-    null -> preset.name
-}
-
-private fun formatDecibels(millibels: Float): String {
-    val rounded = kotlin.math.round(millibels / 100f).toInt()
-    return (if (rounded > 0) "+$rounded" else "$rounded") + " dB"
 }
 
 // --------------------------------------------------------------- intelligence

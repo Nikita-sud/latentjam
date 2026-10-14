@@ -838,4 +838,13 @@
     <string name="duplicates_summary_extra">Зайві копії: %1$d</string>
     <string name="duplicates_copy_count">Копії: %1$d</string>
     <string name="playlist_reorder_track">Потягніть, щоб перемістити %1$s</string>
+    <string name="equalizer_custom">Власне налаштування</string>
+    <string name="equalizer_hint">Виберіть пресет, щоб увімкнути еквалайзер, або налаштуйте смуги на свій смак.</string>
+    <string name="equalizer_reset_short">Скинути</string>
+    <string name="equalizer_bands_hint">Частота в Гц · підсилення в дБ · гортайте смуги</string>
+    <string name="normalization_waiting">Увімкніть трек, щоб виміряти його гучність.</string>
+    <string name="normalization_measuring">Вимірюємо гучність треку…</string>
+    <string name="normalization_unavailable">Не вдалося виміряти цей трек. Гучність залишається початковою.</string>
+    <string name="normalization_unchanged">Цей трек не потребує зниження. Тихі треки не підсилюються.</string>
+    <string name="normalization_reduced">Гучність цього треку знижено на %1$s дБ.</string>
 </resources>

@@ -17,6 +17,7 @@ import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runCurrent
@@ -114,6 +115,63 @@ internal class LoudnessNormalizationTest {
         assertEquals(listOf("first", "second"), measuredIds)
         assertEquals(2, settings.writeAttempts)
         assertEquals(setOf("first", "second"), playback.volumeUpdates.last().keys)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun statusDistinguishesMeasuringQuietLoudAndFailedTracks() = runTest {
+        val settings = ThrowingSettings()
+        val playback = FakePlayback()
+        val pending = CompletableDeferred<Float?>()
+        val statuses = mutableListOf<NormalizationStatus>()
+        val meter = object : TrackLoudnessMeter {
+            override suspend fun measureDb(track: TrackDescriptor): Float? = when (track.id.value) {
+                "loud" -> pending.await()
+                "quiet" -> -22f
+                else -> null
+            }
+        }
+        LoudnessNormalizer(settings, playback, meter, statuses::add).start(backgroundScope)
+        runCurrent()
+        assertEquals(NormalizationPhase.WAITING, statuses.last().phase)
+        playback.nowPlaying.value = NowPlaying(track = audioTrack("loud", "one"))
+        runCurrent()
+        assertEquals(NormalizationPhase.MEASURING, statuses.last().phase)
+        pending.complete(-8f)
+        runCurrent()
+        assertEquals(NormalizationPhase.READY, statuses.last().phase)
+        assertTrue(abs(statuses.last().reductionDb - 6f) < 0.01f)
+        playback.nowPlaying.value = NowPlaying(track = audioTrack("quiet", "one"))
+        runCurrent()
+        assertEquals(NormalizationStatus(NormalizationPhase.READY), statuses.last())
+        playback.nowPlaying.value = NowPlaying(track = audioTrack("broken", "one"))
+        runCurrent()
+        assertEquals(NormalizationPhase.UNAVAILABLE, statuses.last().phase)
+        settings.normalizeVolume.value = false
+        runCurrent()
+        assertEquals(NormalizationPhase.OFF, statuses.last().phase)
+        assertEquals(emptyMap(), playback.volumeUpdates.last())
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun switchingOffDuringMeasurementCannotPublishAStaleReadyStatus() = runTest {
+        val settings = ThrowingSettings()
+        val playback = FakePlayback()
+        val pending = CompletableDeferred<Float?>()
+        val statuses = mutableListOf<NormalizationStatus>()
+        val meter = object : TrackLoudnessMeter {
+            override suspend fun measureDb(track: TrackDescriptor): Float? = pending.await()
+        }
+        LoudnessNormalizer(settings, playback, meter, statuses::add).start(backgroundScope)
+        playback.nowPlaying.value = NowPlaying(track = audioTrack("loud", "one"))
+        runCurrent()
+        settings.normalizeVolume.value = false
+        runCurrent()
+        pending.complete(-8f)
+        runCurrent()
+        assertEquals(NormalizationPhase.OFF, statuses.last().phase)
+        assertEquals(emptyMap(), playback.volumeUpdates.last())
     }
 
     private fun audioTrack(id: String, revision: String): TrackDescriptor = TrackDescriptor(
