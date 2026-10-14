@@ -72,6 +72,9 @@ still needs a device check. Notification relocalization during a running session
 
 ## October 14 addendum: issue #16 audio effects
 
+The initial implementation below is commit `a8acc806`. The subsequent gain correction at the end
+of this document supersedes its headroom policy, throughput measurement and affected test counts.
+
 Branch: `codex/map-performance-0.9.1`. The full arm64 0.9.1/build 15 release candidate was
 installed in place on a Samsung Galaxy S24 Ultra (SM-S928B), Android 16, preserving app data.
 The installed package is not debuggable. No GitHub release was published.
@@ -139,3 +142,66 @@ The test-only package was removed after verification.
 The reporter's **Moto e22 / Android 12** was unavailable. Bluetooth/USB route changes and long-term
 battery impact were not physically tested. The new path removes dependence on firmware EQ effects,
 but these results do not establish that every device/output combination works.
+
+
+## October 14 follow-up: bass loudness correction
+
+The user reported that turning bass to 100% mainly made playback quieter. The previous static
+headroom policy attenuated a flat curve plus bass by 9.26 dB, or the Bass preset plus bass by
+17.53 dB. Relative frequency-response tests did not catch this loss of absolute level.
+
+### Change
+
+- Static boost headroom is now at most **2 dB**, with no attenuation for flat/bypass or cut-only
+  curves. Bands above the usable input frequency range do not reduce the output level.
+- A linked-channel sample-peak limiter delays audio by **5 ms**, smooths attack over that interval,
+  holds peaks for 20 ms and releases over 100 ms. A monotonic deque keeps processing amortized O(1)
+  per frame. Smoothing cannot overlook the delayed sample's peak: its attenuation is held throughout
+  the smoothing window. The tone-active sample ceiling is **-0.5 dBFS**; bypass uses unity.
+- End-of-stream drains the delayed frames without adding leading silence or losing the tail.
+  Flush clears the delay/filter histories. Bypass still preserves every PCM16 sample exactly.
+- Removed the 257-point frequency-response scan from audio-thread setting updates and iterator
+  allocation from the per-sample filter loop.
+
+Background: [lookahead, release and channel linking](https://www.fabfilter.com/help/pro-l/using/advancedsettings)
+explain the tradeoffs. This implementation is a sample-peak limiter, not an oversampled
+[true-peak limiter](https://www.fabfilter.com/help/pro-l/using/truepeaklimiting). The -0.5 dB ceiling
+reduces reconstruction overshoots but does not guarantee their absence for every signal.
+
+### Music comparison
+
+Used the actual old and new Kotlin DSP on twelve local library excerpts, 30–42 seconds into each
+track, decoded to 48 kHz stereo PCM16, with no volume normalization or loudness matching. The set
+includes rock, pop, hip-hop and electronic music; it is a small chosen sample, not a library-wide
+or blind listening study. Output float samples were measured with FFmpeg `ebur128=peak=true`.
+Per-excerpt results and decoded-input hashes are in `eq-gain-validation-2026-10-14.csv`.
+
+| Setting | Previous median loudness change vs bypass | Corrected median | Corrected range |
+|---|---:|---:|---:|
+| Flat + bass 100% | -6.8 LU | **-0.65 LU** | -1.2 to +2.1 LU |
+| Bass preset + bass 100% | -9.65 LU | **+2.3 LU** | -0.6 to +4.3 LU |
+
+All rendered samples were finite, each excerpt kept its full frame count, the maximum sample peak
+was 0.944061 (-0.5 dBFS), and maximum measured true peak was **-0.2 dBFS** in this set. Strong
+boosts can still activate limiting and alter dynamics; these figures do not prove transparent
+sound on all music. No files were uploaded for this comparison.
+
+### Final verification
+
+- `core/playback`: **194 host tests passed**; `composeApp`: **1,062 passed**, no failures/errors/skips.
+  Added checks for absolute bass/midrange level, changing ceilings, smooth transient anticipation,
+  stereo linking, steady bass waveform preservation, short streams, exact EOF draining and chunk
+  independence. Existing frequency-response, live-setting and sample-rate coverage still passes.
+- Device suite: **2/2 passed** on the same Galaxy S24 Ultra / Android 16. Production Media3 PCM
+  measurement found bass 100% at **+6.74 dB absolute at 40 Hz**, with 1 kHz at **-2.00 dB**.
+  Bass preset + bass 100% measured **+13.94 dB at 40 Hz**, with 1 kHz at **-1.86 dB**, on the
+  non-overloading test signal. Every mode emitted all **48,000 frames** of the source.
+- Ten seconds of stereo with all bands and bass active took **352 ms elapsed** after warmup.
+  This remains a throughput measurement, not a battery benchmark.
+- iOS simulator source compilation, arm64 Android release build and DEX gate passed;
+  29,217 methods, maximum 243 registers. The limiter changes affect Android playback.
+- The full updated 0.9.1/build 15 release APK was installed in place on the phone and launched;
+  the temporary instrumentation package was removed. Existing EQ preferences were retained.
+
+Moto e22/Android 12, Bluetooth/USB route switching, battery usage and subjective headphone listening
+remain unverified. The permanent PCM16/offload tradeoff from the first implementation is unchanged.

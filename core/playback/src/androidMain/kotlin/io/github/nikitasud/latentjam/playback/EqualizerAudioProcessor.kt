@@ -25,6 +25,8 @@ internal class EqualizerAudioProcessor(
 ) : BaseAudioProcessor() {
     private var equalizer: SoftwareEqualizer? = null
     private var frame = FloatArray(0)
+    private var framesToPrime = 0
+    private var pendingFrames = 0
 
     override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
         if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT || inputAudioFormat.channelCount <= 0 ||
@@ -35,9 +37,11 @@ internal class EqualizerAudioProcessor(
     override fun onFlush(streamMetadata: StreamMetadata) {
         frame = FloatArray(inputAudioFormat.channelCount)
         equalizer = SoftwareEqualizer(inputAudioFormat.sampleRate, frame.size, readSettings())
+        framesToPrime = checkNotNull(equalizer).latencyFrames
+        pendingFrames = 0
     }
 
-    override fun onReset() { equalizer = null; frame = FloatArray(0) }
+    override fun onReset() { equalizer = null; frame = FloatArray(0); pendingFrames = 0; framesToPrime = 0 }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
         // Media3 drains the pipeline with its shared EMPTY_BUFFER. Never replace/copy that buffer:
@@ -46,16 +50,40 @@ internal class EqualizerAudioProcessor(
         val dsp = checkNotNull(equalizer)
         dsp.update(readSettings())
         val output = replaceOutputBuffer(inputBuffer.remaining())
-        if (dsp.bypassed) {
-            output.put(inputBuffer)
-        } else {
-            while (inputBuffer.remaining() >= frame.size * 2) {
-                for (channel in frame.indices) frame[channel] = inputBuffer.short / 32768f
-                dsp.process(frame)
-                for (sample in frame) output.putShort((sample * 32768f).roundToInt().coerceIn(-32768, 32767).toShort())
+        while (inputBuffer.remaining() >= frame.size * 2) {
+            for (channel in frame.indices) frame[channel] = inputBuffer.short / 32768f
+            dsp.process(frame)
+            pendingFrames++
+            if (framesToPrime > 0) framesToPrime-- else {
+                writeFrame(output)
+                pendingFrames--
             }
         }
         output.flip()
+    }
+
+    override fun onQueueEndOfStream() {
+        if (pendingFrames == 0) return
+        // Preserve any output not yet read by the caller, including for streams shorter than
+        // lookahead. Emit exactly the delayed input frames, never add silence or cut the tail.
+        val previous = output
+        val prefix = ByteArray(previous.remaining()).also { previous.get(it) }
+        val output = replaceOutputBuffer(prefix.size + pendingFrames * frame.size * 2)
+        output.put(prefix)
+        val dsp = checkNotNull(equalizer)
+        while (pendingFrames > 0) {
+            frame.fill(0f)
+            dsp.process(frame)
+            if (framesToPrime > 0) framesToPrime-- else {
+                writeFrame(output)
+                pendingFrames--
+            }
+        }
+        output.flip()
+    }
+
+    private fun writeFrame(output: ByteBuffer) {
+        for (sample in frame) output.putShort((sample * 32768f).roundToInt().coerceIn(-32768, 32767).toShort())
     }
 }
 

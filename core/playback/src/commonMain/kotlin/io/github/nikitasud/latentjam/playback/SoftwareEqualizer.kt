@@ -5,10 +5,7 @@
 package io.github.nikitasud.latentjam.playback
 
 import kotlin.math.PI
-import kotlin.math.abs
 import kotlin.math.cos
-import kotlin.math.exp
-import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.sin
@@ -64,7 +61,8 @@ internal data class SoftwareEqualizerSettings(
  * Ten octave-spaced RBJ peaking filters and a low shelf, before the device's audio output.
  * Coefficients: https://www.w3.org/TR/audio-eq-cookbook/ (peaking EQ and low shelf, S=1).
  * Filter histories belong to each channel. Edits crossfade whole stable filter banks for 20 ms;
- * coefficients are never interpolated through an unstable intermediate filter.
+ * coefficients are never interpolated through an unstable intermediate filter. A linked-channel
+ * lookahead limiter protects actual peaks instead of attenuating the whole track by its EQ maximum.
  */
 internal class SoftwareEqualizer(
     private val sampleRate: Int,
@@ -78,10 +76,10 @@ internal class SoftwareEqualizer(
     private var next: Bank? = null
     private val transitionFrames = max(1, sampleRate / 50)
     private var transitionPosition = 0
-    private var limiterGain = 1.0
-    private val limiterRelease = exp(-1.0 / (sampleRate * 0.1))
+    private val limiter = LookaheadPeakLimiter(sampleRate, channels)
 
-    val bypassed: Boolean get() = bank.filters.isEmpty() && next == null && limiterGain == 1.0
+    /** Fixed for the stream, including bypass, so live toggles cannot drop or repeat samples. */
+    val latencyFrames: Int get() = limiter.latencyFrames
 
     fun update(value: SoftwareEqualizerSettings) {
         // Coalesce rapid slider edits; finish the current 20 ms ramp before starting another.
@@ -96,26 +94,20 @@ internal class SoftwareEqualizer(
         require(frame.size == channels)
         val pending = next
         val mix = if (pending == null) 0.0 else (transitionPosition + 1).toDouble() / transitionFrames
-        var peak = 0.0
         for (channel in 0 until channels) {
-            val input = frame[channel].toDouble().takeIf { it.isFinite() } ?: 0.0
+            val input = if (frame[channel].isFinite()) frame[channel].toDouble() else 0.0
             val old = bank.sample(input, channel)
             val output = if (pending == null) old else old + mix * (pending.sample(input, channel) - old)
             frame[channel] = output.toFloat()
-            peak = max(peak, abs(output))
         }
         if (pending != null && ++transitionPosition >= transitionFrames) {
             bank = pending
             next = null
         }
-        // Linked-channel peak protection preserves stereo balance; quick attack, 100 ms release.
-        // Frequency-response headroom handles steady boosts; this catches transient overshoots.
-        val safeGain = if (peak > 1.0) 1.0 / peak else 1.0
-        limiterGain = minOf(safeGain, 1.0 - (1.0 - limiterGain) * limiterRelease)
-        if (limiterGain > 0.999999) limiterGain = 1.0
-        for (channel in 0 until channels) {
-            frame[channel] = (frame[channel] * limiterGain).coerceIn(-1.0, 1.0).toFloat()
-        }
+        // Leave 0.5 dB at the sample ceiling while processing tone. This reduces reconstruction
+        // overshoots; it is not an oversampled true-peak guarantee. Flat/bypass remains bit-exact.
+        val ceiling = if (bank.filters.isEmpty() && next == null) 1f else 0.9440609f
+        limiter.process(frame, ceiling)
     }
 
     private inner class Bank(value: SoftwareEqualizerSettings) {
@@ -128,21 +120,22 @@ internal class SoftwareEqualizer(
             }
             if (value.bass > 0) add(Biquad(lowShelf(minOf(100.0, sampleRate * 0.1), value.bass * 0.009), channels))
         }
-        // Evaluate the combined response, including band centres, instead of summing unrelated
-        // band boosts (which would unnecessarily turn a broad preset down by tens of dB).
+        // Reserve a small amount for boosts, not the worst possible response of the entire
+        // curve: that used to turn Bass + 100% boost down by 17.5 dB even on quiet recordings.
+        // Actual overloads are handled by the lookahead limiter. Cuts need no fixed attenuation.
         private val gain = if (filters.isEmpty()) 1.0 else {
-            val frequencies = (0..256).map { index ->
-                10.0 * exp(ln(sampleRate * 0.499 / 10.0) * index / 256.0)
-            } + SoftwareEqualizerSettings.FREQUENCIES.map(Int::toDouble)
-            val maximum = frequencies.filter { it < sampleRate / 2.0 }.maxOf { frequency ->
-                filters.fold(1.0) { product, filter -> product * filter.response(frequency, sampleRate) }
+            var boostDb = value.bass * 0.009
+            for (index in SoftwareEqualizerSettings.FREQUENCIES.indices) {
+                if (SoftwareEqualizerSettings.FREQUENCIES[index] < sampleRate * 0.45) {
+                    boostDb = max(boostDb, value.levels[index] / 100.0)
+                }
             }
-            1.0 / max(1.0, maximum * 1.03)
+            10.0.pow(-boostDb.coerceIn(0.0, 2.0) / 20.0)
         }
 
         fun sample(input: Double, channel: Int): Double {
             var sample = input * gain
-            for (filter in filters) sample = filter.sample(sample, channel)
+            for (index in filters.indices) sample = filters[index].sample(sample, channel)
             return sample
         }
     }
@@ -181,15 +174,6 @@ internal class SoftwareEqualizer(
             z1[channel] = c[1] * input - c[3] * output + z2[channel]
             z2[channel] = c[2] * input - c[4] * output
             return output
-        }
-        fun response(frequency: Double, sampleRate: Int): Double {
-            val w = 2 * PI * frequency / sampleRate
-            fun power(a: Double, b: Double, d: Double): Double {
-                val re = a + b * cos(w) + d * cos(2 * w)
-                val im = -b * sin(w) - d * sin(2 * w)
-                return re * re + im * im
-            }
-            return sqrt(power(c[0], c[1], c[2]) / power(1.0, c[3], c[4]))
         }
     }
 }

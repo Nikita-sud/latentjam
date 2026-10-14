@@ -35,8 +35,9 @@ internal class EqualizerAudioProcessorTest {
         processor.flush(StreamMetadata.DEFAULT)
         val input = (-32768..32767).toList()
         processor.queueInput(buffer(input))
-        assertEquals(input, read(processor.output))
+        val result = read(processor.output)
         processor.queueEndOfStream()
+        assertEquals(input, result + read(processor.output))
         assertTrue(processor.isEnded)
     }
 
@@ -48,8 +49,9 @@ internal class EqualizerAudioProcessorTest {
         assertTrue(!processor.output.hasRemaining())
         processor.queueInput(buffer(listOf(123, -456)))
         processor.queueInput(AudioProcessor.EMPTY_BUFFER)
-        assertEquals(listOf(123, -456), read(processor.output))
+        assertTrue(!processor.output.hasRemaining())
         processor.queueEndOfStream()
+        assertEquals(listOf(123, -456), read(processor.output))
         processor.queueInput(AudioProcessor.EMPTY_BUFFER)
         assertTrue(processor.isEnded)
     }
@@ -61,7 +63,8 @@ internal class EqualizerAudioProcessorTest {
         processor.flush(StreamMetadata.DEFAULT)
         val tone = (0 until 4800).flatMap { i -> listOf((10000 * sin(2 * PI * i / 48)).toInt(), 0) }
         processor.queueInput(buffer(tone))
-        assertEquals(tone, read(processor.output))
+        val initial = read(processor.output)
+        assertEquals(tone.take(initial.size), initial)
         settings = SoftwareEqualizerSettings(true, List(10) { if (it == 5) -1200 else 0 })
         processor.queueInput(buffer(tone))
         val changed = read(processor.output)
@@ -81,7 +84,47 @@ internal class EqualizerAudioProcessorTest {
         processor.configure(AudioProcessor.AudioFormat(16000, 1, C.ENCODING_PCM_16BIT))
         processor.flush(StreamMetadata.DEFAULT)
         processor.queueInput(buffer(List(100) { 0 }))
-        assertEquals(List(100) { 0 }, read(processor.output))
+        val result = read(processor.output)
+        processor.queueEndOfStream()
+        assertEquals(List(100) { 0 }, result + read(processor.output))
+    }
+
+    @Test fun lookaheadPreservesShortStreamsAndPendingOutputAtEndOfStream() {
+        for (length in listOf(1, 239, 240, 241, 1200)) {
+            val processor = EqualizerAudioProcessor { SoftwareEqualizerSettings() }
+            processor.configure(AudioProcessor.AudioFormat(48000, 1, C.ENCODING_PCM_16BIT))
+            processor.flush(StreamMetadata.DEFAULT)
+            val samples = List(length) { it % 100 - 50 }
+            processor.queueInput(buffer(samples))
+            // EOS before getOutput must append the delayed tail instead of replacing pending PCM.
+            processor.queueEndOfStream()
+            assertEquals(samples, read(processor.output), "Length=$length")
+            assertTrue(processor.isEnded)
+            processor.queueEndOfStream()
+            assertTrue(!processor.output.hasRemaining())
+        }
+    }
+
+    @Test fun delayedOutputIsIndependentOfInputChunkBoundaries() {
+        val samples = List(4000) { (10000 * sin(2 * PI * 40 * it / 48000)).toInt() }
+        fun render(chunkSize: Int): List<Int> {
+            val processor = EqualizerAudioProcessor { SoftwareEqualizerSettings().withPreset(1).copy(bass = 1000) }
+            processor.configure(AudioProcessor.AudioFormat(48000, 1, C.ENCODING_PCM_16BIT))
+            processor.flush(StreamMetadata.DEFAULT)
+            return buildList {
+                for (chunk in samples.chunked(chunkSize)) {
+                    processor.queueInput(buffer(chunk))
+                    addAll(read(processor.output))
+                }
+                processor.queueEndOfStream()
+                addAll(read(processor.output))
+                assertTrue(processor.isEnded)
+            }
+        }
+        val oneBuffer = render(samples.size)
+        assertEquals(samples.size, oneBuffer.size)
+        assertEquals(oneBuffer, render(137))
+        assertEquals(oneBuffer, render(1))
     }
 
     @Test fun unsupportedInputIsRejectedInsteadOfSilentlyBypassingEffects() {

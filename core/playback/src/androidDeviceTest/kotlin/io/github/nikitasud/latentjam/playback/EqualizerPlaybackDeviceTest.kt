@@ -20,7 +20,6 @@ import java.nio.ByteOrder
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.math.PI
-import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.log10
 import kotlin.math.sin
@@ -37,7 +36,7 @@ class EqualizerPlaybackDeviceTest {
         writeTone(input)
         val amplitudes = mutableMapOf<String, List<Double>>()
         try {
-            for (mode in listOf("off", "bass", "treble", "boost")) {
+            for (mode in listOf("off", "bass", "treble", "boost", "stacked")) {
                 val capture = Capture()
                 val end = CountDownLatch(1)
                 var failure: PlaybackException? = null
@@ -51,6 +50,7 @@ class EqualizerPlaybackDeviceTest {
                             "bass" -> controller.applyPreset(1)
                             "treble" -> controller.applyPreset(2)
                             "boost" -> controller.setBassBoost(1000)
+                            "stacked" -> { controller.applyPreset(1); controller.setBassBoost(1000) }
                         }
                     }
                     val factory = object : EqualizerRenderersFactory(context) {
@@ -72,7 +72,7 @@ class EqualizerPlaybackDeviceTest {
                 try {
                     assertTrue("Playback timed out: $mode", end.await(15, TimeUnit.SECONDS))
                     assertTrue("Playback failed: $failure", failure == null)
-                    assertTrue("PCM was bypassed", capture.count > 24000)
+                    assertTrue("Lookahead must preserve every frame, including the tail", capture.count == 48000)
                     amplitudes[mode] = capture.amplitudes()
                     Log.i("LJEqualizerTest", "$mode: amplitudes=${capture.amplitudes()} frames=${capture.count}")
                 } finally {
@@ -87,6 +87,13 @@ class EqualizerPlaybackDeviceTest {
             assertTrue("Bass preset must change the waveform", relative("bass", 0, 1) > 5)
             assertTrue("Treble preset must change the waveform", relative("treble", 2, 1) > 4)
             assertTrue("Bass boost must change the waveform", relative("boost", 0, 1) > 7)
+            for (mode in listOf("boost", "stacked")) {
+                val midDb = 20 * log10(amplitudes.getValue(mode)[1] / amplitudes.getValue("off")[1])
+                val bassDb = 20 * log10(amplitudes.getValue(mode)[0] / amplitudes.getValue("off")[0])
+                assertTrue("$mode must preserve midrange level: $midDb dB", midDb > -2.1)
+                assertTrue("$mode must raise bass absolutely: $bassDb dB", bassDb > 6.5)
+                Log.i("LJEqualizerTest", "$mode absolute bass=$bassDb dB mid=$midDb dB")
+            }
             Log.i("LJEqualizerTest", "PASS bass=${relative("bass", 0, 1)} dB treble=${relative("treble", 2, 1)} dB boost=${relative("boost", 0, 1)} dB")
         } finally { input.delete() }
     }
@@ -102,7 +109,7 @@ class EqualizerPlaybackDeviceTest {
             processor.process(frame)
         }
         val elapsedMs = (System.nanoTime() - start) / 1e6
-        Log.i("LJEqualizerTest", "10 seconds stereo, all bands + bass: $elapsedMs ms CPU-thread elapsed")
+        Log.i("LJEqualizerTest", "10 seconds stereo, all bands + bass: $elapsedMs ms elapsed")
         assertTrue("Processing must keep up with audio", elapsedMs < 5000)
     }
 

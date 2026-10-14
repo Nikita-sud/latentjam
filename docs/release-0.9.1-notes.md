@@ -18,8 +18,9 @@ validation; this document describes the candidate, not an already published rele
 
 - Android equalizer and bass boost now process decoded audio inside the player instead of relying
   on device-specific audio effects. Ten bands, five presets and a separate bass shelf apply live;
-  selecting a preset also turns the equalizer on. Curve changes are smoothed and boosts reserve
-  headroom to reduce clipping. Existing tone settings migrate where the device exposes the old curve.
+  selecting a preset also turns the equalizer on. Curve changes are smoothed; boosts reserve at
+  most 2 dB of fixed headroom and a 5 ms lookahead limiter handles actual peaks instead of turning
+  the whole track down by 9–17 dB. Existing tone settings migrate where the device exposes the old curve.
 - The equalizer screen now has a curve preview, labelled band controls, grouped presets and
   separate bass/normalization cards. The normalization card reports measurement progress,
   failure, no reduction needed, or the actual reduction in dB. Normalization still attenuates loud

@@ -33,11 +33,13 @@ internal class SoftwareEqualizerTest {
         for (enabled in listOf(false, true)) {
             val dsp = SoftwareEqualizer(48000, 2, SoftwareEqualizerSettings(enabled))
             val random = Random(42)
-            repeat(2000) {
-                val input = floatArrayOf(random.nextFloat() * 2 - 1, random.nextFloat() * 2 - 1)
-                val expected = input.copyOf()
-                dsp.process(input)
-                assertTrue(expected.contentEquals(input))
+            val input = List(2000) { floatArrayOf(random.nextFloat() * 2 - 1, random.nextFloat() * 2 - 1) }
+            repeat(input.size + dsp.latencyFrames) { index ->
+                val frame = input.getOrNull(index)?.copyOf() ?: FloatArray(2)
+                dsp.process(frame)
+                if (index >= dsp.latencyFrames) {
+                    assertTrue(input[index - dsp.latencyFrames].contentEquals(frame))
+                }
             }
         }
     }
@@ -67,6 +69,24 @@ internal class SoftwareEqualizerTest {
         assertTrue(amplitude(electronic, 62.0) > amplitude(electronic, 500.0) * 1.4)
     }
 
+    @Test fun maximumBassRaisesBassWithoutCollapsingTheUnboostedMidrange() {
+        val flat = SoftwareEqualizerSettings(enabled = true)
+        val boost = flat.copy(bass = 1000)
+        val stacked = flat.withPreset(1).copy(bass = 1000)
+        for (settings in listOf(boost, stacked)) {
+            val midDb = 20 * log10(amplitude(settings, 1000.0) / amplitude(flat, 1000.0))
+            val bassDb = 20 * log10(amplitude(settings, 40.0) / amplitude(flat, 40.0))
+            assertTrue(midDb > -2.1, "The headroom policy must not turn quiet midrange down by 9–17 dB: $midDb")
+            assertTrue(bassDb > 6.5, "Bass must increase in absolute level on an unclipped signal: $bassDb")
+        }
+    }
+
+    @Test fun aBandAboveTheInputNyquistDoesNotTurnDownTheAudio() {
+        val flat = SoftwareEqualizerSettings(enabled = true)
+        val unavailableBand = flat.copy(levels = List(10) { if (it == 9) 1200 else 0 })
+        assertEquals(amplitude(flat, 1000.0, 8000), amplitude(unavailableBand, 1000.0, 8000))
+    }
+
     @Test fun selectingAPresetEnablesItAndClearsThePreviousBassBoost() {
         val preset = SoftwareEqualizerSettings(bass = 1000).withPreset(3)
         assertTrue(preset.enabled)
@@ -88,9 +108,8 @@ internal class SoftwareEqualizerTest {
             last = frame[0]
         }
         dsp.update(SoftwareEqualizerSettings())
-        repeat(1000) { frame[0] = 0.1f; dsp.process(frame) }
+        repeat(1600) { frame[0] = 0.1f; dsp.process(frame) }
         assertEquals(0.1f, frame[0])
-        assertTrue(dsp.bypassed)
     }
 
     @Test fun extremeCurvesStayFiniteAndBoundedAcrossSampleRatesAndChannelLayouts() {
