@@ -1,0 +1,75 @@
+{
+  "seed": 2026101426,
+  "population": 1107,
+  "source": "Frozen 2026-10-13 embeddings and descriptors; all1107 MediaStore IDs present on phone2026-10-14, file sizes match snapshot. Audio obtained/verified against current phone files.",
+  "configs": {
+    "baseline": "a25-k16",
+    "average": "a75-average-0p75-own",
+    "dms": "a75-dms-10-own",
+    "compact": "a50-compact-0p55-own",
+    "kmeans": "a60-kmeans-24-own"
+  },
+  "coverage": {
+    "baseline": {
+      "all_regions": 17,
+      "assigned": 974,
+      "music_regions": 16,
+      "sampled_music_regions": 16,
+      "omitted_music_regions": []
+    },
+    "average": {
+      "all_regions": 35,
+      "assigned": 898,
+      "music_regions": 33,
+      "sampled_music_regions": 33,
+      "omitted_music_regions": []
+    },
+    "dms": {
+      "all_regions": 15,
+      "assigned": 745,
+      "music_regions": 14,
+      "sampled_music_regions": 14,
+      "omitted_music_regions": []
+    },
+    "compact": {
+      "all_regions": 37,
+      "assigned": 807,
+      "music_regions": 36,
+      "sampled_music_regions": 36,
+      "omitted_music_regions": []
+    },
+    "kmeans": {
+      "all_regions": 26,
+      "assigned": 1018,
+      "music_regions": 24,
+      "sampled_music_regions": 24,
+      "omitted_music_regions": []
+    }
+  },
+  "matched_anchor_eligible": 358,
+  "matched_anchors": 36,
+  "matched_sampling": "Uniform common eligible MUSIC anchors; each gets three uniform different-artist region peers per algorithm; two positions. Paired per-anchor differences; eligibility/coverage are reported separately.",
+  "region_sampling": "Every MUSIC region with four >=40s songs: central+lowest centroid similarity+two uniform others, unique four; two positions. Macro region means unpaired, no accuracy claim.",
+  "neighbor_sampling": "8 distinct full-library anchors each at exact cosine rank1/3/5, same anchors for25/50/60/75% audio; no rerank to available audio.",
+  "neighbor_eligibility": {
+    "1": 555,
+    "3": 546,
+    "5": 541
+  },
+  "excerpt": "12 seconds centered at30% and65% duration, mono16k PCM16 original gain, strip metadata; explicit silence controls.",
+  "judge": "Pinned MOSS-Music-8B-Instruct via official OpenMOSS SGLang moss-audio branch, BF16, greedy. Native /generate with anonymous audio array and plain prompt, no intermediate captions or identities.",
+  "gate": "All19 controls parse and none truncated; exact match>=3 and silence<=1 and exact>silence; equal candidate scores all>=3 spread<=1; identical music region>=3; silent regions unassessable; single music heard and single silence not heard. Failed gate prohibits winner claims. One bounded diagnostic repair may be retained separately, never erase failures.",
+  "analysis": "Average both positions before paired anchor summaries, bootstrap by anchor artist10000 draws with98.75% intervals for4 baseline comparisons; repeated tracks/peers remain dependent, opinion not ground truth. Full-region macro and coverage descriptive. Quantify order sensitivity and identical candidate inconsistencies.",
+  "control_tasks": 19,
+  "tasks": 733,
+  "unique_clips": 1365,
+  "unique_phone_tracks": 681,
+  "source_hashes": {
+    "baseline": "db6f6a33b25dbafd84378bb1aa0905a6f2d3ba857f7f65e3b3b7e6f8375d5b65",
+    "average": "cf043cd57838b7c9b6167fdc283405c95ce19e7fbad345cb6700b548d07d7fc4",
+    "dms": "3fd443ff926b4aedd91d4104bb11f1bf8b4bce774c5a969d453f46758b4ceca6",
+    "compact": "fab5b9bd882fe6e30ec4c8f86a565b532ea3f1a9ecb7248648d3e0e3792f2e39",
+    "kmeans": "3d583794e4eb8fc67937c7391d320ed0bff0b94592b33fe11600d84b503a15e9"
+  },
+  "tasks_sha256": "0e6091729d3d448825b987ce5b54370130c5ac9d424670903e342e20c91a9824"
+}

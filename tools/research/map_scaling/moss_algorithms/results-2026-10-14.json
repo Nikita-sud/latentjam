@@ -1,0 +1,142 @@
+{
+  "instruct-multi": {
+    "answered": 19,
+    "usable_schema": 19,
+    "truncated": 0,
+    "functional_control_passes": 13,
+    "functional_control_total": 19,
+    "by_role": {
+      "qa_exact": {
+        "passed": 0,
+        "total": 6
+      },
+      "qa_equal": {
+        "passed": 3,
+        "total": 3
+      },
+      "qa_identical": {
+        "passed": 3,
+        "total": 3
+      },
+      "qa_silence": {
+        "passed": 3,
+        "total": 3
+      },
+      "qa_music": {
+        "passed": 3,
+        "total": 3
+      },
+      "qa_single_silence": {
+        "passed": 1,
+        "total": 1
+      }
+    },
+    "order_absolute_differences": [],
+    "order_mean_absolute_difference": null,
+    "qualified": false
+  },
+  "instruct-pair": {
+    "answered": 27,
+    "usable_schema": 0,
+    "truncated": 0,
+    "functional_control_passes": 9,
+    "functional_control_total": 21,
+    "by_role": {
+      "identical": {
+        "passed": 6,
+        "total": 6
+      },
+      "music_silence": {
+        "passed": 0,
+        "total": 6
+      },
+      "silence_music": {
+        "passed": 0,
+        "total": 6
+      },
+      "silence": {
+        "passed": 3,
+        "total": 3
+      },
+      "different": {
+        "passed": 3,
+        "total": 3
+      },
+      "reverse": {
+        "passed": 3,
+        "total": 3
+      }
+    },
+    "order_absolute_differences": [
+      1,
+      2,
+      3
+    ],
+    "order_mean_absolute_difference": 2,
+    "qualified": false
+  },
+  "thinking-pair": {
+    "answered": 27,
+    "usable_schema": 27,
+    "truncated": 0,
+    "functional_control_passes": 15,
+    "functional_control_total": 21,
+    "by_role": {
+      "identical": {
+        "passed": 6,
+        "total": 6
+      },
+      "music_silence": {
+        "passed": 0,
+        "total": 6
+      },
+      "silence_music": {
+        "passed": 6,
+        "total": 6
+      },
+      "silence": {
+        "passed": 3,
+        "total": 3
+      },
+      "different": {
+        "passed": 3,
+        "total": 3
+      },
+      "reverse": {
+        "passed": 3,
+        "total": 3
+      }
+    },
+    "order_absolute_differences": [
+      0,
+      0,
+      1
+    ],
+    "order_mean_absolute_difference": 0.3333333333333333,
+    "qualified": false
+  },
+  "thinking-attributes": {
+    "answered": 15,
+    "usable_schema": 15,
+    "truncated": 0,
+    "functional_control_passes": 14,
+    "functional_control_total": 15,
+    "by_role": {
+      "control_music": {
+        "passed": 6,
+        "total": 6
+      },
+      "control_duplicate": {
+        "passed": 5,
+        "total": 6
+      },
+      "control_silence": {
+        "passed": 3,
+        "total": 3
+      }
+    },
+    "order_absolute_differences": [],
+    "order_mean_absolute_difference": null,
+    "qualified": false
+  }
+}

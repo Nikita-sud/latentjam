@@ -1,0 +1,1563 @@
+[
+  {
+    "task_id": "tb256a5aee7cb3a",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "instruct-multi",
+    "role": "qa_exact",
+    "answer": {
+      "scores": [
+        2,
+        0,
+        0,
+        0
+      ]
+    },
+    "exact_index": 1,
+    "silence_index": 3
+  },
+  {
+    "task_id": "t067c38b94dc063",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "instruct-multi",
+    "role": "qa_exact",
+    "answer": {
+      "scores": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "exact_index": 2,
+    "silence_index": 1
+  },
+  {
+    "task_id": "t7debb73aa59af3",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "instruct-multi",
+    "role": "qa_exact",
+    "answer": {
+      "scores": [
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    "exact_index": 0,
+    "silence_index": 1
+  },
+  {
+    "task_id": "tb2d0554db00afa",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "instruct-multi",
+    "role": "qa_exact",
+    "answer": {
+      "scores": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "exact_index": 1,
+    "silence_index": 0
+  },
+  {
+    "task_id": "td679fc93577e1e",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "instruct-multi",
+    "role": "qa_exact",
+    "answer": {
+      "scores": [
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    "exact_index": 2,
+    "silence_index": 3
+  },
+  {
+    "task_id": "t08a17032c25331",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "instruct-multi",
+    "role": "qa_exact",
+    "answer": {
+      "scores": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "exact_index": 3,
+    "silence_index": 1
+  },
+  {
+    "task_id": "tf0aca1ae1f8d58",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "instruct-multi",
+    "role": "qa_equal",
+    "answer": {
+      "scores": [
+        3,
+        3,
+        3,
+        3
+      ]
+    },
+    "exact_index": null,
+    "silence_index": null
+  },
+  {
+    "task_id": "tf4e48dea8ed8e5",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "instruct-multi",
+    "role": "qa_equal",
+    "answer": {
+      "scores": [
+        3,
+        3,
+        3,
+        3
+      ]
+    },
+    "exact_index": null,
+    "silence_index": null
+  },
+  {
+    "task_id": "tced26c2df6fe86",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "instruct-multi",
+    "role": "qa_equal",
+    "answer": {
+      "scores": [
+        3,
+        3,
+        3,
+        3
+      ]
+    },
+    "exact_index": null,
+    "silence_index": null
+  },
+  {
+    "task_id": "te9665fa7e83f78",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "instruct-multi",
+    "role": "qa_identical",
+    "answer": {
+      "assessable": true,
+      "coherence": 4
+    },
+    "exact_index": null,
+    "silence_index": null
+  },
+  {
+    "task_id": "t83a387c639fa9a",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "instruct-multi",
+    "role": "qa_identical",
+    "answer": {
+      "assessable": true,
+      "coherence": 4
+    },
+    "exact_index": null,
+    "silence_index": null
+  },
+  {
+    "task_id": "tf98ff55dc3bded",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "instruct-multi",
+    "role": "qa_identical",
+    "answer": {
+      "assessable": true,
+      "coherence": 4
+    },
+    "exact_index": null,
+    "silence_index": null
+  },
+  {
+    "task_id": "t840ea489af549c",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "instruct-multi",
+    "role": "qa_silence",
+    "answer": {
+      "assessable": false,
+      "coherence": null
+    },
+    "exact_index": null,
+    "silence_index": null
+  },
+  {
+    "task_id": "ta2b240478a3240",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "instruct-multi",
+    "role": "qa_silence",
+    "answer": {
+      "assessable": false,
+      "coherence": null
+    },
+    "exact_index": null,
+    "silence_index": null
+  },
+  {
+    "task_id": "te0621efb554469",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "instruct-multi",
+    "role": "qa_silence",
+    "answer": {
+      "assessable": false,
+      "coherence": null
+    },
+    "exact_index": null,
+    "silence_index": null
+  },
+  {
+    "task_id": "t9df2b618297fd0",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "instruct-multi",
+    "role": "qa_music",
+    "answer": {
+      "music": true
+    },
+    "exact_index": null,
+    "silence_index": null
+  },
+  {
+    "task_id": "t2fc4066cab0d99",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "instruct-multi",
+    "role": "qa_music",
+    "answer": {
+      "music": true
+    },
+    "exact_index": null,
+    "silence_index": null
+  },
+  {
+    "task_id": "tfb6c30bcdfabc2",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "instruct-multi",
+    "role": "qa_music",
+    "answer": {
+      "music": true
+    },
+    "exact_index": null,
+    "silence_index": null
+  },
+  {
+    "task_id": "t4c2ac0fa9c088c",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "instruct-multi",
+    "role": "qa_single_silence",
+    "answer": {
+      "music": false
+    },
+    "exact_index": null,
+    "silence_index": null
+  },
+  {
+    "task_id": "p0d793659aadda6",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "identical",
+    "expected_music": [
+      true,
+      true
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 4
+    },
+    "normalized_key": true,
+    "original": null
+  },
+  {
+    "task_id": "p0b73c6f232885c",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "music_silence",
+    "expected_music": [
+      true,
+      false
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 3
+    },
+    "normalized_key": true,
+    "original": null
+  },
+  {
+    "task_id": "pdc5e144236e228",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "silence_music",
+    "expected_music": [
+      false,
+      true
+    ],
+    "answer": {
+      "first_music": false,
+      "second_music": true,
+      "similarity": 3
+    },
+    "normalized_key": true,
+    "original": null
+  },
+  {
+    "task_id": "pb9fccc7a2c75bd",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "identical",
+    "expected_music": [
+      true,
+      true
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 4
+    },
+    "normalized_key": true,
+    "original": null
+  },
+  {
+    "task_id": "p7fa7bf937c7e9a",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "music_silence",
+    "expected_music": [
+      true,
+      false
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 3
+    },
+    "normalized_key": true,
+    "original": null
+  },
+  {
+    "task_id": "p337daed92b6b7d",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "silence_music",
+    "expected_music": [
+      false,
+      true
+    ],
+    "answer": {
+      "first_music": false,
+      "second_music": true,
+      "similarity": 3
+    },
+    "normalized_key": true,
+    "original": null
+  },
+  {
+    "task_id": "p38c457cb024ac1",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "identical",
+    "expected_music": [
+      true,
+      true
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 4
+    },
+    "normalized_key": true,
+    "original": null
+  },
+  {
+    "task_id": "p25e24e336b8b51",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "music_silence",
+    "expected_music": [
+      true,
+      false
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 3
+    },
+    "normalized_key": true,
+    "original": null
+  },
+  {
+    "task_id": "pf71cb36594821d",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "silence_music",
+    "expected_music": [
+      false,
+      true
+    ],
+    "answer": {
+      "first_music": false,
+      "second_music": true,
+      "similarity": 1
+    },
+    "normalized_key": true,
+    "original": null
+  },
+  {
+    "task_id": "p9ee055638cafb7",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "identical",
+    "expected_music": [
+      true,
+      true
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 4
+    },
+    "normalized_key": true,
+    "original": null
+  },
+  {
+    "task_id": "p5d750981a86388",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "music_silence",
+    "expected_music": [
+      true,
+      false
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 3
+    },
+    "normalized_key": true,
+    "original": null
+  },
+  {
+    "task_id": "p1b047448e19e7a",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "silence_music",
+    "expected_music": [
+      false,
+      true
+    ],
+    "answer": {
+      "first_music": false,
+      "second_music": true,
+      "similarity": 1
+    },
+    "normalized_key": true,
+    "original": null
+  },
+  {
+    "task_id": "pfb83b6e69a9448",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "identical",
+    "expected_music": [
+      true,
+      true
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 4
+    },
+    "normalized_key": true,
+    "original": null
+  },
+  {
+    "task_id": "pc33656fc1d52dc",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "music_silence",
+    "expected_music": [
+      true,
+      false
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 3
+    },
+    "normalized_key": true,
+    "original": null
+  },
+  {
+    "task_id": "p7cd120ba83dcd1",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "silence_music",
+    "expected_music": [
+      false,
+      true
+    ],
+    "answer": {
+      "first_music": false,
+      "second_music": true,
+      "similarity": 3
+    },
+    "normalized_key": true,
+    "original": null
+  },
+  {
+    "task_id": "pf62c3c31b0bfc3",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "identical",
+    "expected_music": [
+      true,
+      true
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 4
+    },
+    "normalized_key": true,
+    "original": null
+  },
+  {
+    "task_id": "p9fbd848458585c",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "music_silence",
+    "expected_music": [
+      true,
+      false
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 3
+    },
+    "normalized_key": true,
+    "original": null
+  },
+  {
+    "task_id": "pf8352c7485fc78",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "silence_music",
+    "expected_music": [
+      false,
+      true
+    ],
+    "answer": {
+      "first_music": false,
+      "second_music": true,
+      "similarity": 1
+    },
+    "normalized_key": true,
+    "original": null
+  },
+  {
+    "task_id": "pb48aa14899b334",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "silence",
+    "expected_music": [
+      false,
+      false
+    ],
+    "answer": {
+      "first_music": false,
+      "second_music": false,
+      "similarity": null
+    },
+    "normalized_key": true,
+    "original": null
+  },
+  {
+    "task_id": "p8fe16a9138f9d6",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "silence",
+    "expected_music": [
+      false,
+      false
+    ],
+    "answer": {
+      "first_music": false,
+      "second_music": false,
+      "similarity": null
+    },
+    "normalized_key": true,
+    "original": null
+  },
+  {
+    "task_id": "p49edc02e2a0e29",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "silence",
+    "expected_music": [
+      false,
+      false
+    ],
+    "answer": {
+      "first_music": false,
+      "second_music": false,
+      "similarity": null
+    },
+    "normalized_key": true,
+    "original": null
+  },
+  {
+    "task_id": "pec7337f7e517b6",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "different",
+    "expected_music": [
+      true,
+      true
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 3
+    },
+    "normalized_key": true,
+    "original": null
+  },
+  {
+    "task_id": "pf0221d3d39c5ab",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "reverse",
+    "expected_music": [
+      true,
+      true
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 2
+    },
+    "normalized_key": true,
+    "original": "pec7337f7e517b6"
+  },
+  {
+    "task_id": "p81fd49203b1c9b",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "different",
+    "expected_music": [
+      true,
+      true
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 1
+    },
+    "normalized_key": true,
+    "original": null
+  },
+  {
+    "task_id": "p16cc8b67987810",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "reverse",
+    "expected_music": [
+      true,
+      true
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 3
+    },
+    "normalized_key": true,
+    "original": "p81fd49203b1c9b"
+  },
+  {
+    "task_id": "p719cc0f1d5aa30",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "different",
+    "expected_music": [
+      true,
+      true
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 0
+    },
+    "normalized_key": true,
+    "original": null
+  },
+  {
+    "task_id": "pcccbca7ee9301f",
+    "truncated": false,
+    "schema_valid": false,
+    "experiment": "instruct-pair",
+    "role": "reverse",
+    "expected_music": [
+      true,
+      true
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 3
+    },
+    "normalized_key": true,
+    "original": "p719cc0f1d5aa30"
+  },
+  {
+    "task_id": "p16b108ccb129bc",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "identical",
+    "expected_music": [
+      true,
+      true
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 4
+    },
+    "normalized_key": false,
+    "original": null
+  },
+  {
+    "task_id": "pda05da60cf297a",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "music_silence",
+    "expected_music": [
+      true,
+      false
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 4
+    },
+    "normalized_key": false,
+    "original": null
+  },
+  {
+    "task_id": "p5f0b2f1ca184fa",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "silence_music",
+    "expected_music": [
+      false,
+      true
+    ],
+    "answer": {
+      "first_music": false,
+      "second_music": true,
+      "similarity": null
+    },
+    "normalized_key": false,
+    "original": null
+  },
+  {
+    "task_id": "p538dd2e7798216",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "identical",
+    "expected_music": [
+      true,
+      true
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 4
+    },
+    "normalized_key": false,
+    "original": null
+  },
+  {
+    "task_id": "pb6c3a26d426b62",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "music_silence",
+    "expected_music": [
+      true,
+      false
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 4
+    },
+    "normalized_key": false,
+    "original": null
+  },
+  {
+    "task_id": "p7e67bd416c3d2e",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "silence_music",
+    "expected_music": [
+      false,
+      true
+    ],
+    "answer": {
+      "first_music": false,
+      "second_music": true,
+      "similarity": null
+    },
+    "normalized_key": false,
+    "original": null
+  },
+  {
+    "task_id": "p0f1f7e08542518",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "identical",
+    "expected_music": [
+      true,
+      true
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 4
+    },
+    "normalized_key": false,
+    "original": null
+  },
+  {
+    "task_id": "pe53457238f8e66",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "music_silence",
+    "expected_music": [
+      true,
+      false
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 4
+    },
+    "normalized_key": false,
+    "original": null
+  },
+  {
+    "task_id": "p2d0447cf74c544",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "silence_music",
+    "expected_music": [
+      false,
+      true
+    ],
+    "answer": {
+      "first_music": false,
+      "second_music": true,
+      "similarity": null
+    },
+    "normalized_key": false,
+    "original": null
+  },
+  {
+    "task_id": "p013f810392d62b",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "identical",
+    "expected_music": [
+      true,
+      true
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 4
+    },
+    "normalized_key": false,
+    "original": null
+  },
+  {
+    "task_id": "p22781336b1556a",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "music_silence",
+    "expected_music": [
+      true,
+      false
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 4
+    },
+    "normalized_key": false,
+    "original": null
+  },
+  {
+    "task_id": "pa8ffb334209969",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "silence_music",
+    "expected_music": [
+      false,
+      true
+    ],
+    "answer": {
+      "first_music": false,
+      "second_music": true,
+      "similarity": null
+    },
+    "normalized_key": false,
+    "original": null
+  },
+  {
+    "task_id": "p469c2738aa17f4",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "identical",
+    "expected_music": [
+      true,
+      true
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 4
+    },
+    "normalized_key": false,
+    "original": null
+  },
+  {
+    "task_id": "p30f801a2cebf8a",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "music_silence",
+    "expected_music": [
+      true,
+      false
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 1
+    },
+    "normalized_key": false,
+    "original": null
+  },
+  {
+    "task_id": "pd890b2ebc9a88c",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "silence_music",
+    "expected_music": [
+      false,
+      true
+    ],
+    "answer": {
+      "first_music": false,
+      "second_music": true,
+      "similarity": null
+    },
+    "normalized_key": false,
+    "original": null
+  },
+  {
+    "task_id": "pc129145553a642",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "identical",
+    "expected_music": [
+      true,
+      true
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 4
+    },
+    "normalized_key": false,
+    "original": null
+  },
+  {
+    "task_id": "p5bf4be866fed00",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "music_silence",
+    "expected_music": [
+      true,
+      false
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 4
+    },
+    "normalized_key": false,
+    "original": null
+  },
+  {
+    "task_id": "p2b9852782a14bb",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "silence_music",
+    "expected_music": [
+      false,
+      true
+    ],
+    "answer": {
+      "first_music": false,
+      "second_music": true,
+      "similarity": null
+    },
+    "normalized_key": false,
+    "original": null
+  },
+  {
+    "task_id": "p71ff50da609b3b",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "silence",
+    "expected_music": [
+      false,
+      false
+    ],
+    "answer": {
+      "first_music": false,
+      "second_music": false,
+      "similarity": null
+    },
+    "normalized_key": false,
+    "original": null
+  },
+  {
+    "task_id": "pb288f1d1ca7302",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "silence",
+    "expected_music": [
+      false,
+      false
+    ],
+    "answer": {
+      "first_music": false,
+      "second_music": false,
+      "similarity": null
+    },
+    "normalized_key": false,
+    "original": null
+  },
+  {
+    "task_id": "p574c6114979130",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "silence",
+    "expected_music": [
+      false,
+      false
+    ],
+    "answer": {
+      "first_music": false,
+      "second_music": false,
+      "similarity": null
+    },
+    "normalized_key": false,
+    "original": null
+  },
+  {
+    "task_id": "p1aa4419d1f677e",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "different",
+    "expected_music": [
+      true,
+      true
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 0
+    },
+    "normalized_key": false,
+    "original": null
+  },
+  {
+    "task_id": "p5d4600a80a37df",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "reverse",
+    "expected_music": [
+      true,
+      true
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 0
+    },
+    "normalized_key": false,
+    "original": "p1aa4419d1f677e"
+  },
+  {
+    "task_id": "p02d1bd1c1f21f6",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "different",
+    "expected_music": [
+      true,
+      true
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 0
+    },
+    "normalized_key": false,
+    "original": null
+  },
+  {
+    "task_id": "pc674d198c82923",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "reverse",
+    "expected_music": [
+      true,
+      true
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 0
+    },
+    "normalized_key": false,
+    "original": "p02d1bd1c1f21f6"
+  },
+  {
+    "task_id": "p5d07a0044869a7",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "different",
+    "expected_music": [
+      true,
+      true
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 1
+    },
+    "normalized_key": false,
+    "original": null
+  },
+  {
+    "task_id": "p3289b69a4e0d0f",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-pair",
+    "role": "reverse",
+    "expected_music": [
+      true,
+      true
+    ],
+    "answer": {
+      "first_music": true,
+      "second_music": true,
+      "similarity": 2
+    },
+    "normalized_key": false,
+    "original": "p5d07a0044869a7"
+  },
+  {
+    "task_id": "af0b31d2b9c727f",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-attributes",
+    "role": "control_music",
+    "expected_music": true,
+    "answer": {
+      "audible_music": true,
+      "instruments": [
+        "bass",
+        "drum_kit",
+        "electric_guitar"
+      ],
+      "vocal": "none",
+      "texture": "electric_band",
+      "pulse": "fast",
+      "energy": "high",
+      "groove": "straight"
+    },
+    "original": null
+  },
+  {
+    "task_id": "ab113a079d6d6f0",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-attributes",
+    "role": "control_duplicate",
+    "expected_music": true,
+    "answer": {
+      "audible_music": true,
+      "instruments": [
+        "bass",
+        "drum_kit",
+        "electric_guitar"
+      ],
+      "vocal": "none",
+      "texture": "electric_band",
+      "pulse": "fast",
+      "energy": "high",
+      "groove": "straight"
+    },
+    "original": "af0b31d2b9c727f"
+  },
+  {
+    "task_id": "a74a8b2d792dc2f",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-attributes",
+    "role": "control_music",
+    "expected_music": true,
+    "answer": {
+      "audible_music": true,
+      "instruments": [
+        "bass",
+        "electronic_drums",
+        "synth"
+      ],
+      "vocal": "none",
+      "texture": "electronic",
+      "pulse": "fast",
+      "energy": "high",
+      "groove": "straight"
+    },
+    "original": null
+  },
+  {
+    "task_id": "ad74e2279a5f81e",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-attributes",
+    "role": "control_duplicate",
+    "expected_music": true,
+    "answer": {
+      "audible_music": true,
+      "instruments": [
+        "bass",
+        "electronic_drums",
+        "synth"
+      ],
+      "vocal": "none",
+      "texture": "electronic",
+      "pulse": "fast",
+      "energy": "high",
+      "groove": "straight"
+    },
+    "original": "a74a8b2d792dc2f"
+  },
+  {
+    "task_id": "a5fff09d4ae06a4",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-attributes",
+    "role": "control_music",
+    "expected_music": true,
+    "answer": {
+      "audible_music": true,
+      "instruments": [
+        "bass",
+        "electric_guitar",
+        "electronic_drums"
+      ],
+      "vocal": "none",
+      "texture": "electric_band",
+      "pulse": "fast",
+      "energy": "high",
+      "groove": "straight"
+    },
+    "original": null
+  },
+  {
+    "task_id": "a1242fece464bcc",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-attributes",
+    "role": "control_duplicate",
+    "expected_music": true,
+    "answer": {
+      "audible_music": true,
+      "instruments": [
+        "bass",
+        "drum_kit",
+        "electric_guitar"
+      ],
+      "vocal": "none",
+      "texture": "electric_band",
+      "pulse": "fast",
+      "energy": "high",
+      "groove": "straight"
+    },
+    "original": "a5fff09d4ae06a4"
+  },
+  {
+    "task_id": "a98143e3146a00e",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-attributes",
+    "role": "control_music",
+    "expected_music": true,
+    "answer": {
+      "audible_music": true,
+      "instruments": [
+        "acoustic_guitar"
+      ],
+      "vocal": "sung",
+      "texture": "acoustic",
+      "pulse": "medium",
+      "energy": "medium",
+      "groove": "uncertain"
+    },
+    "original": null
+  },
+  {
+    "task_id": "a27850d64e138c3",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-attributes",
+    "role": "control_duplicate",
+    "expected_music": true,
+    "answer": {
+      "audible_music": true,
+      "instruments": [
+        "acoustic_guitar"
+      ],
+      "vocal": "sung",
+      "texture": "acoustic",
+      "pulse": "medium",
+      "energy": "medium",
+      "groove": "uncertain"
+    },
+    "original": "a98143e3146a00e"
+  },
+  {
+    "task_id": "a01a7e4a151222c",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-attributes",
+    "role": "control_music",
+    "expected_music": true,
+    "answer": {
+      "audible_music": true,
+      "instruments": [
+        "acoustic_guitar",
+        "orchestral_strings"
+      ],
+      "vocal": "none",
+      "texture": "acoustic",
+      "pulse": "fast",
+      "energy": "high",
+      "groove": "uncertain"
+    },
+    "original": null
+  },
+  {
+    "task_id": "aef36cf23fdfb57",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-attributes",
+    "role": "control_duplicate",
+    "expected_music": true,
+    "answer": {
+      "audible_music": true,
+      "instruments": [
+        "acoustic_guitar",
+        "orchestral_strings"
+      ],
+      "vocal": "none",
+      "texture": "acoustic",
+      "pulse": "fast",
+      "energy": "high",
+      "groove": "uncertain"
+    },
+    "original": "a01a7e4a151222c"
+  },
+  {
+    "task_id": "a5830f670baa192",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-attributes",
+    "role": "control_music",
+    "expected_music": true,
+    "answer": {
+      "audible_music": true,
+      "instruments": [
+        "brass_winds",
+        "piano_keys"
+      ],
+      "vocal": "none",
+      "texture": "acoustic",
+      "pulse": "medium",
+      "energy": "medium",
+      "groove": "uncertain"
+    },
+    "original": null
+  },
+  {
+    "task_id": "a24e6fc6ebb1ec7",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-attributes",
+    "role": "control_duplicate",
+    "expected_music": true,
+    "answer": {
+      "audible_music": true,
+      "instruments": [
+        "brass_winds",
+        "piano_keys"
+      ],
+      "vocal": "none",
+      "texture": "acoustic",
+      "pulse": "medium",
+      "energy": "medium",
+      "groove": "uncertain"
+    },
+    "original": "a5830f670baa192"
+  },
+  {
+    "task_id": "a96a262cf7ee688",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-attributes",
+    "role": "control_silence",
+    "expected_music": false,
+    "answer": {
+      "audible_music": false,
+      "instruments": [],
+      "vocal": "none",
+      "texture": "uncertain",
+      "pulse": "none",
+      "energy": "uncertain",
+      "groove": "uncertain"
+    },
+    "original": null
+  },
+  {
+    "task_id": "ae48ddd43e7e95a",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-attributes",
+    "role": "control_silence",
+    "expected_music": false,
+    "answer": {
+      "audible_music": false,
+      "instruments": [],
+      "vocal": "none",
+      "texture": "uncertain",
+      "pulse": "none",
+      "energy": "uncertain",
+      "groove": "uncertain"
+    },
+    "original": null
+  },
+  {
+    "task_id": "a25b7247056d853",
+    "truncated": false,
+    "schema_valid": true,
+    "experiment": "thinking-attributes",
+    "role": "control_silence",
+    "expected_music": false,
+    "answer": {
+      "audible_music": false,
+      "instruments": [],
+      "vocal": "none",
+      "texture": "uncertain",
+      "pulse": "none",
+      "energy": "uncertain",
+      "groove": "uncertain"
+    },
+    "original": null
+  }
+]

@@ -1,0 +1,13 @@
+{
+  "id": "aac4rdeidgc12k",
+  "created_at": "2026-10-14T16:21:38.871Z",
+  "deletion_verified_at": "2026-10-14T16:51:44Z",
+  "hourly_usd": 0.59,
+  "gpu": "NVIDIA A40",
+  "region": "EU-SE-1",
+  "delete_status": 204,
+  "get_after_delete_status": 404,
+  "final_archive_sha256": "6730ef46f2acd4b5bc3405ade884f275b3e53c8317c390b3b168c25cc4217ca8",
+  "estimated_compute_usd": 0.296,
+  "cost_is_estimate_not_billing": true
+}

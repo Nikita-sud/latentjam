@@ -1,0 +1,20 @@
+{
+  "seed": 2026101429,
+  "purpose": "SECONDARY exploratory consistency of independently heard musical attributes; NOT direct perceptual similarity or a qualified MOSS pair judge. Introduced after all three direct-judge pilots failed; preserve every failure. No algorithm is chosen from this metric alone.",
+  "model": "OpenMOSS-Team/MOSS-Music-8B-Thinking",
+  "revision": "2ce899988b94b8ecc5dd0dacbc5ce1874d3500e3",
+  "thinking_budget": 128,
+  "max_new_tokens": 512,
+  "workers": 4,
+  "gate": "All15 control outputs schema valid, correct audible_music for6 real clips and3 silent clips;6 byte-identical repeats have identical categorical features; no truncations. Main requires>=95% schema-valid and>=90% audible_music for expected music; report all omissions. Judge is not acoustically gold-labelled.",
+  "sampling": "Same36 original common anchors (358 eligible); two peers chosen uniformly from each original three different-artist region peers, five configurations. Two12s positions per track. Also all24 original true-rank neighbor anchors at weights25/50/60/75. Random reference from preselected eligible audio-access subset, not full-library random.",
+  "metric": "Equal-weight mean of six predeclared feature similarities: instrument-set Jaccard; vocal, texture, groove exact agreement; pulse ordinal 1-|difference|/3 (none,slow,medium,fast); energy ordinal 1-|difference|/2. Unknown values excluded. At least4 valid dimensions. Compare all4 cross-position combinations per track-pair then average peers per anchor. 98.75% artist-cluster bootstrap CIs for four comparisons vs installed average,10000 draws. Reused peers create residual dependence; intervals exploratory. No learned embeddings or metadata in scoring.",
+  "reliability": "Compare same-track cross-position agreement with randomly permuted different tracks (fixed seed) and report per-dimension stability, missingness and marginal entropy. If within-track agreement does not exceed random with95% bootstrapCI, no comparative inference.",
+  "control_tasks": 15,
+  "main_tasks": 722,
+  "unique_tracks": 361,
+  "region_edges": 360,
+  "neighbor_edges": 96,
+  "random_edges": 72,
+  "tasks_sha256": "c56e46033a79f671793aa312806f5a7c0025e5d85fe5be1cfdd14a4ba051942e"
+}

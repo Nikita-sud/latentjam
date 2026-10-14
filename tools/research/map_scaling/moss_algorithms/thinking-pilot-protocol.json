@@ -1,0 +1,20 @@
+{
+  "date": "2026-10-14",
+  "introduced_after": "Failed multi-file SGLang controls, all results preserved. Fresh disjoint control tracks for the official Thinking checkpoint; Instruct failures are retained.",
+  "seed": 2026101428,
+  "controls": 27,
+  "fresh_music_tracks": 6,
+  "gate": "All21 exact/silence controls have usable answers after only documented syntax normalization and no truncation and correctly locate music; identical >=3; absent music similarity null. Three different pairs plus reversals must have mean absolute score difference<=1 and max<=1. No algorithm-selection claim if any hard control fails.",
+  "audio": "One24.5s WAV: 0..12s first,0.5s silence,12.5..24.5s second; originalPCM16; fresh music clips not in previous controls; no metadata.",
+  "tasks_sha256": "65ea99c27d63b6c3c21dfa9f2a2716ed7e15271929751306651c96ba5bd5899c",
+  "model": "OpenMOSS-Team/MOSS-Music-8B-Thinking",
+  "revision": "2ce899988b94b8ecc5dd0dacbc5ce1874d3500e3",
+  "thinking_budget": 256,
+  "max_new_tokens": 768,
+  "normalization": [
+    "Extract answer after closing think tag",
+    "Strip optional JSON fence",
+    "Normalize unambiguous secondMusic key to second_music; flag original raw syntax"
+  ],
+  "fresh_control_tracks_disjoint_from_previous": true
+}

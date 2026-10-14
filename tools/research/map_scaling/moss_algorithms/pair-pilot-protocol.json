@@ -1,0 +1,10 @@
+{
+  "date": "2026-10-14",
+  "introduced_after": "Failed multi-file SGLang controls, all results preserved. One bounded alternate serialization diagnostic.",
+  "seed": 2026101427,
+  "controls": 27,
+  "fresh_music_tracks": 6,
+  "gate": "All21 exact/silence controls parse and correctly locate music; identical >=3; absent music similarity null. Three different pairs plus reversals must have mean absolute score difference<=1 and max<=1. No algorithm-selection claim if any hard control fails.",
+  "audio": "One24.5s WAV: 0..12s first,0.5s silence,12.5..24.5s second; originalPCM16; fresh music clips not in previous controls; no metadata.",
+  "tasks_sha256": "6eb16534904188955dd1730a8137eb4cf15ea111ff44d74f3e644298595d1b5d"
+}
