@@ -13,6 +13,8 @@ import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import platform.Foundation.NSUUID
 import platform.Foundation.dataWithBytes
+import kotlinx.coroutines.runBlocking
+import platform.Foundation.NSUserDefaults
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -82,4 +84,50 @@ class IosAudioResetTest {
             assertFalse(engine.play())
         } finally { engine.stop() }
     }
+    private fun withSavedTonePreferences(block: (NSUserDefaults) -> Unit) {
+        val preferences = NSUserDefaults.standardUserDefaults
+        val keys = List(10) { "ios_equalizer_band_$it" } + listOf("ios_equalizer_enabled", "ios_equalizer_preset", "ios_equalizer_software_bass", "ios_equalizer_software_version")
+        val saved = keys.associateWith { preferences.objectForKey(it) }
+        try { block(preferences) } finally {
+            saved.forEach { (key, value) -> if (value == null) preferences.removeObjectForKey(key) else preferences.setObject(value, key) }
+        }
+    }
+
+    @Test fun bassAndPresetsUseTheSameIndependentSettingsAsAndroid() = withSavedTonePreferences {
+        val engine = IosAudioEngine()
+        try {
+            runBlocking {
+                engine.applyPreset(3)
+                val bands = engine.state.value.bands
+                engine.setBassBoost(730)
+                assertEquals(bands, engine.state.value.bands)
+                assertEquals(730, engine.state.value.bassBoostStrength)
+                assertTrue(engine.state.value.supportsFrequencyResponse)
+                engine.applyPreset(2)
+                assertEquals(0, engine.state.value.bassBoostStrength)
+                assertEquals(SoftwareEqualizerSettings.PRESETS[2], engine.state.value.bands.map { it.levelMillibels })
+            }
+        } finally { engine.stop() }
+    }
+
+    @Test fun migrationPreservesTheOldNativeBassCurveWithoutAddingTheShelfTwice() = withSavedTonePreferences { preferences ->
+        val old = listOf(1200, 984, 660, 300, 0, 0, 0, 0, 0, 0)
+        preferences.setInteger(0, "ios_equalizer_software_version")
+        preferences.setBool(true, "ios_equalizer_enabled")
+        preferences.setInteger(-1, "ios_equalizer_preset")
+        old.forEachIndexed { index, value -> preferences.setInteger(value.toLong(), "ios_equalizer_band_$index") }
+        val engine = IosAudioEngine()
+        try {
+            assertEquals(old, engine.state.value.bands.map { it.levelMillibels })
+            assertEquals(0, engine.state.value.bassBoostStrength)
+            runBlocking { engine.setBassBoost(400) }
+            assertEquals(old, engine.state.value.bands.map { it.levelMillibels })
+            val reopened = IosAudioEngine()
+            try {
+                assertEquals(400, reopened.state.value.bassBoostStrength)
+                assertEquals(old, reopened.state.value.bands.map { it.levelMillibels })
+            } finally { reopened.stop() }
+        } finally { engine.stop() }
+    }
+
 }

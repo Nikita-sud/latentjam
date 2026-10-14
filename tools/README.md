@@ -1,7 +1,8 @@
 # tools
 
-One-off scripts. Not part of the app, not shipped, and not on any build path except
-`release/check-dex-registers.py`, which every release build runs.
+Build helpers and research scripts. The scripts themselves are not shipped in the app.
+`release/check-dex-registers.py` runs on release builds; `release/build-native-eq.py` builds the
+shared DSP for iOS and JVM tests.
 
 ## release/check-dex-registers.py
 
@@ -41,6 +42,13 @@ Device-targeted builds can write to `androidApp/build/intermediates/apk/release`
 remain in `outputs/apk/release`. Resolve the artifact before installing it; a successful Gradle
 build does not make a hard-coded `outputs/apk` path current. Verify the installed APK hash against
 the resolved file when validating a phone build. The script does not run ADB or install anything.
+
+## release/build-native-eq.py
+
+Builds the vendored C++ equalizer without downloading dependencies. Playback Gradle tasks invoke
+it for iOS Arm64, iOS simulator Arm64 and the JVM test host. Android production uses the
+`core/audio-dsp` NDK/CMake module. Host builds need a C++17 compiler and JDK JNI headers; Apple
+builds need Xcode's `xcrun`. See `core/audio-dsp/README.md` for lifecycle, flags and validation.
 
 ## convert_audio_encoder_fp16.py
 

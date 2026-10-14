@@ -297,3 +297,93 @@ panel labels and the new response/meter labels. Its SHA-256 and the installed `b
 subsequent installs do not assume the output directory. Full 0.9.1/build 15 was installed with
 `adb install -r`, preserving app data. No release was published. Phone media volume and saved
 EQ settings were not changed by the automated tests, which use a separate test package.
+
+
+## Shared Signalsmith C++ EQ — October 14 follow-up
+
+This phase supersedes the earlier Android-only/iOS native-EQ scope above. Both file-playback
+backends now use `core/audio-dsp`: pinned Signalsmith DSP 1.7.0 cookbook biquads (MIT), the same
+bass shelf, at-most-2 dB boost headroom, 20 ms filter-bank transition and linked lookahead limiter.
+The response chart also calls the shared native coefficient design. The previous Kotlin DSP is
+retained as a numerical test reference, not the production audio path.
+
+Android passes complete direct PCM16 buffers through JNI. The iOS adapter is an in-process
+AUAudioUnit in `AVAudioPlayerNode -> shared EQ -> mainMixer`; its audio render block uses C/C++,
+preallocated buffers and the lock-free settings mailbox. Resource reset is performed with the
+engine stopped, including seek, file changes and media-services graph reconstruction. iOS keeps
+legacy stored curves; a previously applied native bass macro is not double-applied as the new
+independent shelf. A shared MIT notice is packaged in both platforms' Compose resources.
+
+### Checks
+
+- Playback Android host suite: **205/205 passed**. Numerical native/reference checks cover
+  8, 44.1, 48, 96 and 192 kHz, mono/stereo/6 channels, bypass, presets, alternating maximum
+  boost/cut with bass, and live updates. Maximum permitted Float32 error is 0.00002.
+- Playback iOS simulator suite: **176/176 passed**, including native/reference comparisons,
+  an actual AVAudioEngine Audio Unit render in eight 44.1/48 kHz mono/stereo cases, delayed
+  input end, saved controls/migration, file preparation and simulated media-services graph reconstruction.
+- Compose Android host suite: **1,062/1,062 passed**. iOS simulator app compilation passed.
+- Full iOS Arm64 release framework linkage passed in a separate build (6 min 41 sec). The
+  earlier combined build lost its Gradle daemon during linkage; running it separately succeeded.
+- Android DSP release AAR built successfully for arm64-v8a, armeabi-v7a, x86 and x86_64.
+- Native AddressSanitizer + UndefinedBehaviorSanitizer and separate ThreadSanitizer passed:
+  chunked PCM16/EOS is bit/frame exact in bypass, Float32 bypass preserves bits after its delay,
+  stereo gain remains linked, processing/settings publication performs zero tracked heap
+  allocations, and concurrent publication of 20,000 settings updates loses no final bypass.
+- Reproducible CMake/CTest core and Apple Audio Unit tests: **2/2 passed**. Twelve actual Apple
+  offline Audio Unit renders (44.1/48 kHz, 1/2/6 channels, bypass/boosted) matched the C core
+  exactly, including the last delayed samples. Direct engine output isolates the DSP: passing
+  mono through Apple's main mixer can instead apply its -3 dB pan law.
+- Phone SM-S928B / Android 16: **3/3 production Media3/device tests passed**. Quiet test signals
+  retain all 48,000 frames; separate bass boost gives +6.7367 dB at 40 Hz with about -2.0 dB at
+  1 kHz, stacked bass band+shelf gives +13.9366 dB at 40 Hz. A strong bass signal reports
+  **4.886363 dB** actual peak reduction through the production controller flow. Output is muted
+  inside the separate instrumentation player; app library and EQ preferences are not edited.
+
+### Device throughput
+
+The same settings (ten +6 dB bands, bass 100%) and approximately ten seconds of 48 kHz stereo
+were measured after warmup, three runs per implementation:
+
+| Processor | Elapsed runs, ms | Median, ms |
+|---|---|---:|
+| Previous Kotlin reference | 381.304531, 382.004323, 412.650104 | 382.004323 |
+| C++ block processing, JNI Float32 test entry | 78.900260, 78.915104, 110.420573 | 78.915104 |
+
+The median ratio is **4.8407×** on this phone. C++ processes 480,256 frames in 512-frame blocks;
+Kotlin processes 480,000 per-frame calls. Input regeneration is included and the runs are not
+counterbalanced; the Kotlin reference runs in the instrumentation build without release R8
+optimization. This is a practical DSP throughput check, not an end-to-end player benchmark,
+battery measurement or a performance guarantee on all devices. Production Android uses the
+separate direct PCM16 entry point, covered by Media3 tests.
+
+### Installed Android artifact
+
+Arm64 release assembly, lint and DEX gate passed: **29,241 methods**, at most **243 registers**.
+Resolved the actual APK via `tools/release/resolve-apk.py`, verified `liblj_equalizer.so`, packaged
+Signalsmith notice, 16 KiB alignment of the native library LOAD segments, and both the modern UI and response/meter resource labels. Installed the
+full 0.9.1/build 15 with `adb install -r`; installed `base.apk` and local APK SHA-256 match:
+
+```text
+61219272dbd63cc1cf9b9c18b89a72a091ba5db3c40b98aaafcfa9164fe39a7a
+```
+
+The installed release opens the modern card/preset/vertical-fader EQ with a native-calculated
+curve. A library track was played in the installed release with EQ enabled; MediaSession
+reported PLAYING, progressing position and no error. It was then paused. The captured original
+media volume was restored and verified at 8/15. No new crash-buffer entries occurred during
+this release check. The modern response/fader card was visually inspected at
+`/private/tmp/lj-eq-native-final.png`; a floating video partially covered the upper card, so this
+is not a complete visual inspection of every screen section. Publication remains a separate step.
+
+### Limits of parity
+
+Identical decoded Float32 input and sample rate have the same DSP response. Android still
+converts high-resolution/float PCM to PCM16 in DefaultAudioSink; iOS processes decoded Float32
+before route resampling. Decoder, quantization, mixer, system effects, Bluetooth codecs and
+headphones can change final output. This migration does not promise bit-identical speaker audio,
+less battery consumption, improved perceived loudness at extreme boosts, or an oversampled
+true-peak limiter. Protected Music.app/DRM playback remains outside the app's graph and exposes
+EQ as unavailable. Physical iPhone listening/output-route checks have not been performed.
+
+Build/reproduction details: `core/audio-dsp/README.md`.

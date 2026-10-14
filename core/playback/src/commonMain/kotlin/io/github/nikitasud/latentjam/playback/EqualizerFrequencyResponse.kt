@@ -32,16 +32,16 @@ public fun EqualizerState.frequencyResponse(sampleRateHz: Int = 48000): Equalize
         },
         bass = bassBoostStrength,
     ).sanitized()
-    val design = EqualizerFilterDesign(sampleRateHz, settings)
     val upper = minOf(20000.0, sampleRateHz * 0.49)
     val lower = minOf(20.0, upper / 10)
-    return EqualizerFrequencyResponse(sampleRateHz, design.headroomDb.toFloat(), List(121) { index ->
-        val frequency = lower * (upper / lower).pow(index / 120.0)
-        EqualizerResponsePoint(frequency.toFloat(), design.responseDb(frequency).toFloat())
+    val frequencies = FloatArray(121) { index -> (lower * (upper / lower).pow(index / 120.0)).toFloat() }
+    val native = nativeEqualizerResponse(sampleRateHz, settings, frequencies)
+    return EqualizerFrequencyResponse(sampleRateHz, native.headroomDb, frequencies.indices.map { index ->
+        EqualizerResponsePoint(frequencies[index], native.gainsDb[index])
     })
 }
 
-/** The sole coefficient/headroom definition, shared by the processor and its UI response. */
+/** Kotlin reference retained for numerical comparison tests; production uses Signalsmith C++. */
 internal class EqualizerFilterDesign(private val sampleRate: Int, value: SoftwareEqualizerSettings) {
     val coefficients: List<DoubleArray> = if (!value.enabled) emptyList() else buildList {
         SoftwareEqualizerSettings.FREQUENCIES.forEachIndexed { index, frequency ->

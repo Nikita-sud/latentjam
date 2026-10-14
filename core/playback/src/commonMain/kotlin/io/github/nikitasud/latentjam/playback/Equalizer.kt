@@ -60,7 +60,7 @@ public data class EqualizerState(
  * The equalizer attached to this app's audio output.
  *
  * The state describes the app-owned effect graph: Android processes PCM inside Media3, and iOS
- * uses the bands in LatentJam's AVAudioEngine graph. The UI therefore controls exactly the
+ * uses the same C++ DSP in an Audio Unit inside LatentJam's AVAudioEngine graph. The UI therefore controls exactly the
  * filters through which app-owned playback is routed.
  *
  * Settings persist and are re-applied whenever the audio session is rebuilt, so an equalizer set

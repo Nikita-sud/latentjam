@@ -4,8 +4,15 @@
  */
 package io.github.nikitasud.latentjam.playback
 
-import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.*
+import io.github.nikitasud.latentjam.playback.nativeeq.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,16 +21,15 @@ import platform.AVFAudio.AVAudioEngine
 import platform.AVFAudio.AVAudioFile
 import platform.AVFAudio.AVAudioPlayerNode
 import platform.AVFAudio.AVAudioPlayerNodeCompletionDataPlayedBack
-import platform.AVFAudio.AVAudioUnitEQ
-import platform.AVFAudio.AVAudioUnitEQFilterParameters
-import platform.AVFAudio.AVAudioUnitEQFilterTypeParametric
 import platform.Foundation.NSURL
 import platform.Foundation.NSUserDefaults
+import platform.Foundation.NSProcessInfo
+import kotlin.math.log10
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
 
 /**
- * The app-owned iOS audio graph: file player -> ten-band EQ -> main mixer.
+ * The app-owned iOS audio graph: file player -> shared Signalsmith DSP Audio Unit -> main mixer.
  *
  * AVPlayer does not expose a node where an equalizer can be inserted. Owning this graph is what
  * makes the settings on iOS affect the samples that reach the speaker instead of being decorative
@@ -38,13 +44,30 @@ internal class IosAudioEngine : EqualizerController {
 
     private var engine = AVAudioEngine()
     private var player = AVAudioPlayerNode()
-    private var equalizer = AVAudioUnitEQ(numberOfBands = FREQUENCIES.size.toULong())
     private val preferences = NSUserDefaults.standardUserDefaults
-
-    private var parameters: List<AVAudioUnitEQFilterParameters> = emptyList()
+    private var settings = restoreSettings()
+    private var equalizer = checkNotNull(lj_eq_ios_create()) { "Could not instantiate the shared EQ Audio Unit" }
 
     private val mutableState = MutableStateFlow(EqualizerState())
     override val state: StateFlow<EqualizerState> = mutableState.asStateFlow()
+    override val processing: Flow<EqualizerProcessingState> = flow {
+        var heldGain = 1f
+        var heldUntil = 0.0
+        while (currentCoroutineContext().isActive) {
+            if (!outputSupportsEqualizer) emit(EqualizerProcessingState()) else {
+                val now = NSProcessInfo.processInfo.systemUptime
+                val gain = lj_eq_ios_take_meter_gain(equalizer)
+                if (gain <= heldGain || now >= heldUntil) {
+                    heldGain = gain
+                    heldUntil = now + 0.4
+                }
+                val rate = lj_eq_ios_sample_rate(equalizer).takeIf { it > 0 }
+                val reduction = if (heldGain < 1f) (-20 * log10(heldGain.toDouble())).toFloat() else 0f
+                emit(EqualizerProcessingState(rate, reduction))
+            }
+            delay(100)
+        }
+    }.distinctUntilChanged()
 
     private var currentFile: AVAudioFile? = null
     private var segmentStartFrame: Long = 0L
@@ -62,22 +85,15 @@ internal class IosAudioEngine : EqualizerController {
     /**
      * Attaches a fresh player -> EQ -> mixer chain and prepares it.
      *
-     * Also the second half of [rebuildAfterMediaServicesReset]: the bands belong to the equalizer
-     * instance, so they are re-collected here rather than kept from the previous graph.
+     * Also the second half of [rebuildAfterMediaServicesReset]: each fresh Audio Unit owns its
+     * C++ stream, and receives the saved settings before rendering starts.
      */
     private fun buildGraph() {
-        parameters = equalizer.bands.map { it as AVAudioUnitEQFilterParameters }
-        parameters.forEachIndexed { index, band ->
-            band.filterType = AVAudioUnitEQFilterTypeParametric
-            band.frequency = FREQUENCIES[index].toFloat()
-            band.bandwidth = 1f
-            band.bypass = false
-        }
-        equalizer.globalGain = 0f
         engine.attachNode(player)
         engine.attachNode(equalizer)
         engine.connect(player, equalizer, null)
         engine.connect(equalizer, engine.mainMixerNode, null)
+        applySettings()
         engine.prepare()
     }
 
@@ -88,7 +104,7 @@ internal class IosAudioEngine : EqualizerController {
      * the objects keep their handles and the transport keeps its flags, while the graph renders
      * nothing. Apple's guidance is to dispose of the old objects and build new ones, so the engine,
      * the player node and the equalizer are replaced, the persisted curve is re-applied to the new
-     * bands, and the cued file is scheduled again. The new position comes from the caller because a
+     * C++ stream, and the cued file is scheduled again. The new position comes from the caller because a
      * dead player node cannot report one.
      *
      * @param resumePositionMs last published playhead of the cued file, or null when the file
@@ -110,7 +126,7 @@ internal class IosAudioEngine : EqualizerController {
         completionGeneration++
         engine = AVAudioEngine()
         player = AVAudioPlayerNode()
-        equalizer = AVAudioUnitEQ(numberOfBands = FREQUENCIES.size.toULong())
+        equalizer = checkNotNull(lj_eq_ios_create())
         buildGraph()
         restoreCurve()
         publishEqualizerState()
@@ -118,8 +134,9 @@ internal class IosAudioEngine : EqualizerController {
         // AVAudioFile belongs to the old audio services too. Keep only its URL and reopen it;
         // a file removed in the meantime must not leave a stale handle in the new graph.
         val file = runCatching { AVAudioFile(forReading = fileUrl, error = null) }.getOrNull()
-            ?.takeIf { it.length > 0L } ?: return false
+            ?.takeIf { it.length > 0L && supportsFormat(it) } ?: return false
         currentFile = file
+        configureFileGraph(file)
         completion = onEnded
         val lastFrame = (file.length - 1L).coerceAtLeast(0L)
         val start = millisToFrame(resumePositionMs, file).coerceIn(0L, lastFrame)
@@ -145,16 +162,18 @@ internal class IosAudioEngine : EqualizerController {
         // A file without frames can never yield a segment, and scheduleSegment forbids an empty
         // one, so such a file is unplayable here: fail the load like an unreadable URL and let
         // the controller walk on to the next candidate instead of cueing silence.
-        if (file.length <= 0L) {
+        if (file.length <= 0L || !supportsFormat(file)) {
             stop()
             return false
         }
         completionGeneration++
+        engine.stop()
         player.stop()
         currentFile = file
         segmentStartFrame = 0L
         pausedFrame = 0L
         completion = onEnded
+        configureFileGraph(file)
         scheduleSegment(file, 0L)
         if (autoPlay) {
             if (!ensureEngineRunning()) {
@@ -175,7 +194,9 @@ internal class IosAudioEngine : EqualizerController {
         // fresh segment just like an explicit seek to zero.
         if (shouldRestartConsumedSegment(pausedFrame, file.length)) {
             completionGeneration++
+            engine.stop()
             player.stop()
+            lj_eq_ios_reset(equalizer)
             segmentStartFrame = 0L
             pausedFrame = 0L
             scheduleSegment(file, 0L)
@@ -209,6 +230,7 @@ internal class IosAudioEngine : EqualizerController {
         completionGeneration++
         player.stop()
         engine.stop()
+        lj_eq_ios_reset(equalizer)
         currentFile = null
         completion = null
         segmentStartFrame = 0L
@@ -224,7 +246,9 @@ internal class IosAudioEngine : EqualizerController {
         val lastFrame = (file.length - 1L).coerceAtLeast(0L)
         val frame = millisToFrame(positionMs, file).coerceIn(0L, lastFrame)
         completionGeneration++
+        engine.stop()
         player.stop()
+        lj_eq_ios_reset(equalizer)
         segmentStartFrame = frame
         pausedFrame = frame
         scheduleSegment(file, frame)
@@ -265,6 +289,8 @@ internal class IosAudioEngine : EqualizerController {
             completion?.invoke()
             return
         }
+        // The AU advertises its fixed latency. DataPlayedBack accounts for downstream
+        // processing latency, so the delayed tail is rendered before advancing the queue.
         val token = ++completionGeneration
         player.scheduleSegment(
             file = file,
@@ -283,6 +309,21 @@ internal class IosAudioEngine : EqualizerController {
         )
     }
 
+    private fun supportsFormat(file: AVAudioFile): Boolean =
+        file.processingFormat.channelCount in 1u..32u && file.processingFormat.sampleRate > 0 &&
+            file.processingFormat.sampleRate <= 768000
+
+    private fun configureFileGraph(file: AVAudioFile) {
+        // Caller has stopped rendering before reconnecting/resetting native histories.
+        engine.disconnectNodeOutput(player)
+        engine.disconnectNodeOutput(equalizer)
+        engine.connect(player, equalizer, file.processingFormat)
+        engine.connect(equalizer, engine.mainMixerNode, file.processingFormat)
+        applySettings()
+        engine.prepare()
+        lj_eq_ios_reset(equalizer)
+    }
+
     private fun ensureEngineRunning(): Boolean =
         engine.running || engine.startAndReturnError(null)
 
@@ -296,126 +337,68 @@ internal class IosAudioEngine : EqualizerController {
 
     // -------------------------------------------------------------- equalizer
 
-    override suspend fun setEnabled(enabled: Boolean): Unit = withContext(Dispatchers.Main) {
-        equalizer.bypass = !enabled
-        preferences.setBool(enabled, KEY_ENABLED)
-        publishEqualizerState()
+    override suspend fun setEnabled(enabled: Boolean) { edit { it.copy(enabled = enabled) } }
+    override suspend fun setBandLevel(bandIndex: Int, levelMillibels: Int) {
+        if (bandIndex !in SoftwareEqualizerSettings.FREQUENCIES.indices) return
+        edit { old -> old.copy(levels = old.levels.mapIndexed { index, level ->
+            if (index == bandIndex) levelMillibels else level
+        }, preset = null) }
     }
+    override suspend fun applyPreset(presetIndex: Int) { edit { it.withPreset(presetIndex) } }
+    override suspend fun setBassBoost(strength: Int) { edit { it.copy(bass = strength, preset = null) } }
+    override suspend fun reset() { edit { SoftwareEqualizerSettings(enabled = it.enabled, preset = 0) } }
 
-    override suspend fun setBandLevel(bandIndex: Int, levelMillibels: Int): Unit =
-        withContext(Dispatchers.Main) {
-            val band = parameters.getOrNull(bandIndex) ?: return@withContext
-            val clamped = levelMillibels.coerceIn(MIN_LEVEL_MB, MAX_LEVEL_MB)
-            band.gain = clamped / 100f
-            preferences.setInteger(clamped.toLong(), bandKey(bandIndex))
-            preferences.setInteger(NO_PRESET.toLong(), KEY_PRESET)
-            publishEqualizerState()
-        }
-
-    override suspend fun applyPreset(presetIndex: Int): Unit = withContext(Dispatchers.Main) {
-        val curve = PRESET_CURVES.getOrNull(presetIndex) ?: return@withContext
-        equalizer.bypass = false
-        preferences.setBool(true, KEY_ENABLED)
-        parameters.forEachIndexed { index, band ->
-            val level = curve[index]
-            band.gain = level / 100f
-            preferences.setInteger(level.toLong(), bandKey(index))
-        }
-        preferences.setInteger(presetIndex.toLong(), KEY_PRESET)
-        publishEqualizerState()
-    }
-
-    override suspend fun setBassBoost(strength: Int): Unit = withContext(Dispatchers.Main) {
-        val clamped = strength.coerceIn(0, 1000)
-        val maximum = clamped * MAX_LEVEL_MB / 1000
-        val lowBandScale = floatArrayOf(1f, 0.82f, 0.55f, 0.25f)
-        parameters.forEachIndexed { index, band ->
-            val level = if (index < lowBandScale.size) {
-                (maximum * lowBandScale[index]).toInt()
-            } else {
-                0
+    private suspend fun edit(change: (SoftwareEqualizerSettings) -> SoftwareEqualizerSettings): Unit =
+        withContext(Dispatchers.Main.immediate) {
+            val updated = change(settings).sanitized()
+            if (updated != settings) {
+                settings = updated
+                persistSettings()
+                applySettings()
+                publishEqualizerState()
             }
-            band.gain = level / 100f
-            preferences.setInteger(level.toLong(), bandKey(index))
         }
-        preferences.setInteger(NO_PRESET.toLong(), KEY_PRESET)
-        publishEqualizerState()
+
+    private fun applySettings() {
+        settings.levels.toIntArray().usePinned {
+            lj_eq_ios_set_settings(equalizer, if (settings.enabled) 1 else 0, it.addressOf(0), settings.bass)
+        }
     }
 
-    override suspend fun reset(): Unit = withContext(Dispatchers.Main) {
-        parameters.forEachIndexed { index, band ->
-            band.gain = 0f
-            preferences.setInteger(0L, bandKey(index))
+    private fun restoreCurve() { settings = restoreSettings(); applySettings() }
+
+    private fun restoreSettings(): SoftwareEqualizerSettings {
+        // Preserve the old native curve exactly as band settings. Its bass macro already changed
+        // those bands; the new independent shelf starts at zero to avoid applying it twice.
+        val software = preferences.integerForKey(KEY_VERSION).toInt() == 1
+        val levels = List(10) { preferences.integerForKey(bandKey(it)).toInt().coerceIn(-1200, 1200) }
+        val preset = preferences.integerForKey(KEY_PRESET).toInt().takeIf {
+            preferences.objectForKey(KEY_PRESET) != null && it in SoftwareEqualizerSettings.PRESETS.indices &&
+                levels == SoftwareEqualizerSettings.PRESETS[it]
         }
-        preferences.setInteger(NO_PRESET.toLong(), KEY_PRESET)
-        publishEqualizerState()
+        return SoftwareEqualizerSettings(
+            enabled = preferences.boolForKey(KEY_ENABLED), levels = levels,
+            bass = if (software) preferences.integerForKey(KEY_BASS).toInt() else 0, preset = preset,
+        ).sanitized()
     }
 
-    private fun restoreCurve() {
-        equalizer.bypass = !preferences.boolForKey(KEY_ENABLED)
-        parameters.forEachIndexed { index, band ->
-            val level = preferences.integerForKey(bandKey(index)).toInt()
-                .coerceIn(MIN_LEVEL_MB, MAX_LEVEL_MB)
-            band.gain = level / 100f
-        }
+    private fun persistSettings() {
+        preferences.setInteger(1, KEY_VERSION)
+        preferences.setBool(settings.enabled, KEY_ENABLED)
+        preferences.setInteger((settings.preset ?: -1).toLong(), KEY_PRESET)
+        preferences.setInteger(settings.bass.toLong(), KEY_BASS)
+        settings.levels.forEachIndexed { index, value -> preferences.setInteger(value.toLong(), bandKey(index)) }
     }
 
     private fun publishEqualizerState() {
-        val activePreset = preferences.integerForKey(KEY_PRESET).toInt()
-            .takeIf { it in PRESET_CURVES.indices }
-        mutableState.value = EqualizerState(
-            available = outputSupportsEqualizer,
-            enabled = !equalizer.bypass,
-            bands = parameters.mapIndexed { index, band ->
-                EqualizerBand(index, FREQUENCIES[index], (band.gain * 100f).toInt())
-            },
-            presets = PRESET_NAMES.mapIndexed { index, name ->
-                EqualizerPreset(index, name, EqualizerPresetKind.entries[index])
-            },
-            activePreset = activePreset,
-            minLevelMillibels = MIN_LEVEL_MB,
-            maxLevelMillibels = MAX_LEVEL_MB,
-            bassBoostStrength = bassBoostStrength(),
-            bassBoostSupported = true,
-        )
-    }
-
-    /**
-     * The bass-boost slider's position, read back from the bands themselves.
-     *
-     * iOS has no separate bass-boost effect: [setBassBoost] is a macro over the four lowest bands,
-     * so their gains are the only honest report of how much boost is actually in the graph. A stored
-     * strength beside them drifts the moment a preset or a hand-moved band rewrites the curve — the
-     * slider then claims 0% bass boost while the low bands are still lifted — and it is what the
-     * engine would restore from disk after a restart, when the curve is the part that is restored.
-     */
-    private fun bassBoostStrength(): Int {
-        val strongest = parameters.firstOrNull() ?: return 0
-        val level = (strongest.gain * 100f).toInt()
-        if (level <= 0) return 0
-        // Inverse of the slider's own `strength * MAX_LEVEL_MB / 1000`: rounding that division
-        // drifts a unit off for 244 of the 1001 slider positions, so take the largest strength
-        // that reproduces exactly this gain.
-        return (((level + 1L) * 1000L - 1L) / MAX_LEVEL_MB).toInt().coerceIn(0, 1000)
+        mutableState.value = settings.asState().copy(available = outputSupportsEqualizer)
     }
 
     private companion object {
-        const val MIN_LEVEL_MB = -1200
-        const val MAX_LEVEL_MB = 1200
-        const val NO_PRESET = -1
         const val KEY_ENABLED = "ios_equalizer_enabled"
         const val KEY_PRESET = "ios_equalizer_preset"
-
-        val FREQUENCIES = intArrayOf(31, 62, 125, 250, 500, 1_000, 2_000, 4_000, 8_000, 16_000)
-        val PRESET_NAMES = listOf("Flat", "Bass", "Treble", "Vocal", "Electronic")
-        val PRESET_CURVES = listOf(
-            intArrayOf(0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
-            intArrayOf(700, 600, 450, 250, 0, 0, 0, 0, 0, 0),
-            intArrayOf(0, 0, 0, 0, 0, 100, 250, 450, 600, 700),
-            intArrayOf(-200, -150, 0, 200, 400, 500, 400, 200, 0, -100),
-            intArrayOf(500, 350, 100, 0, -150, 100, 300, 450, 500, 350),
-        )
-
+        const val KEY_BASS = "ios_equalizer_software_bass"
+        const val KEY_VERSION = "ios_equalizer_software_version"
         fun bandKey(index: Int): String = "ios_equalizer_band_$index"
     }
 }

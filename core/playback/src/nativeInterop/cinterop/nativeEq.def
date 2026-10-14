@@ -1,0 +1,5 @@
+headers = lj_equalizer.h lj_equalizer_ios.h
+headerFilter = lj_equalizer*.h
+language = Objective-C
+package = io.github.nikitasud.latentjam.playback.nativeeq
+linkerOpts = -framework AVFoundation -framework AudioToolbox -framework Foundation -lc++

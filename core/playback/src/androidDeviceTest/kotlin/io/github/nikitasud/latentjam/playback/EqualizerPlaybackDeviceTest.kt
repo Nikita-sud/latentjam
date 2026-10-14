@@ -135,18 +135,37 @@ class EqualizerPlaybackDeviceTest {
     }
 
     @Test fun processingIsFasterThanRealtimeOnTheDevice() {
-        val processor = SoftwareEqualizer(48000, 2, SoftwareEqualizerSettings(true, List(10) { 600 }, 1000))
-        val frame = floatArrayOf(0.1f, -0.1f)
-        repeat(48000) { frame[0] = 0.1f; frame[1] = -0.1f; processor.process(frame) }
-        val start = System.nanoTime()
-        repeat(480000) { index ->
-            frame[0] = if (index % 2 == 0) 0.2f else -0.2f
-            frame[1] = -frame[0]
-            processor.process(frame)
+        val settings = SoftwareEqualizerSettings(true, List(10) { 600 }, 1000)
+        val block = FloatArray(1024) { if (it % 2 == 0) 0.2f else -0.2f }
+        val frame = FloatArray(2)
+        fun reference(): Double {
+            val processor = SoftwareEqualizer(48000, 2, settings)
+            repeat(48000) { frame[0] = 0.1f; frame[1] = -0.1f; processor.process(frame) }
+            val start = System.nanoTime()
+            repeat(480000) { index ->
+                frame[0] = if (index % 2 == 0) 0.2f else -0.2f
+                frame[1] = -frame[0]
+                processor.process(frame)
+            }
+            return (System.nanoTime() - start) / 1e6
         }
-        val elapsedMs = (System.nanoTime() - start) / 1e6
-        Log.i("LJEqualizerTest", "10 seconds stereo, all bands + bass: $elapsedMs ms elapsed")
-        assertTrue("Processing must keep up with audio", elapsedMs < 5000)
+        fun native(): Double {
+            val processor = NativeEqualizer(48000, 2, settings)
+            try {
+                repeat(100) { block.fill(0.1f); processor.process(block, 512) }
+                val start = System.nanoTime()
+                repeat(938) {
+                    for (index in block.indices) block[index] = if ((index / 2) % 2 == index % 2) 0.2f else -0.2f
+                    processor.process(block, 512)
+                }
+                return (System.nanoTime() - start) / 1e6
+            } finally { processor.close() }
+        }
+        val kotlinTimes = listOf(reference(), reference(), reference()).sorted()
+        val nativeTimes = listOf(native(), native(), native()).sorted()
+        val kotlinMs = kotlinTimes[1]; val nativeMs = nativeTimes[1]
+        Log.i("LJEqualizerTest", "10 seconds stereo DSP: Kotlin median=$kotlinMs ms $kotlinTimes; native median=$nativeMs ms $nativeTimes; ratio=${kotlinMs/nativeMs}")
+        assertTrue("Native processing must keep up with audio", nativeMs < 5000)
     }
 
     private class Capture : BaseAudioProcessor() {

@@ -16,7 +16,8 @@ validation; this document describes the candidate, not an already published rele
 - An optional Android notification setting replaces Repeat with Favorite while retaining
   SMART/shuffle and the transport controls. Existing notification controls remain the default.
 
-- Android equalizer and bass boost now process decoded audio inside the player instead of relying
+- Android and iOS file-playback equalizer and bass boost now share a C++ Signalsmith DSP core.
+  Android processes decoded audio inside Media3 instead of relying
   on device-specific audio effects. Ten bands, five presets and a separate bass shelf apply live;
   selecting a preset also turns the equalizer on. Curve changes are smoothed; boosts reserve at
   most 2 dB of fixed headroom and a 5 ms lookahead limiter handles actual peaks instead of turning
@@ -43,7 +44,7 @@ build and its DEX-register gate, plus emulator playback/open-file and notificati
 
 ## EQ response and peak metering
 
-- Android tone controls now show the calculated frequency response of the actual filter cascade,
+- Android and iOS tone controls now show the calculated frequency response of the actual filter cascade,
   including the separate bass shelf and static boost headroom. The processor and chart share one
   coefficient definition. The logarithmic chart adapts its dB range to combined boosts/cuts.
 - Uses the configured PCM sample rate when known; before playback, the chart explicitly labels
@@ -51,8 +52,9 @@ build and its DEX-register gate, plus emulator playback/open-file and notificati
 - A recent peak-reduction indicator explains why extreme boosts may reduce the rest of a track.
   Audio processing publishes primitive readings per buffer; UI polling runs at 10 Hz only while
   the tone screen is collected, with a 400 ms peak hold and a 500 ms stale-reading timeout.
-- Native iOS EQ retains its band controls. Its transfer function and limiter are not represented
-  by Android's curve/meter. A shared native processing core remains a subsequent project.
+- File playback on iOS uses the same filters, bass shelf, limiter and response calculation through
+  an in-process Audio Unit. Apple Music protected playback remains unavailable for EQ. Existing
+  iOS curves are retained; the old bass macro is not added again as a second shelf.
 - An offline gain-interaction experiment is available in `tools/research/eq_band_interaction_probe.py`.
   The candidate fits are not enabled for playback: centre-only correction worsens some inter-band
   errors, and the midpoint fit does not meet the desired 1 dB tolerance on extreme settings.

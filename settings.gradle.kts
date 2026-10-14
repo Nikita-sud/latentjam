@@ -40,6 +40,7 @@ rootProject.name = "latentjam-monorepo"
 include(":core:smart")
 include(":core:ort-ops")
 include(":core:map-native")
+include(":core:audio-dsp")
 include(":core:library")
 include(":core:playback")
 include(":core:history")
