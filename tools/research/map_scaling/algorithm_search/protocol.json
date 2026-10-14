@@ -1,0 +1,34 @@
+{
+  "frozen_before_new_grid_results": true,
+  "decision": "Best tested useful high-precision regions on the frozen owner library; no claim of universal optimality or listener ground truth",
+  "population": 1107,
+  "audio_weights": [0.25, 0.4, 0.5, 0.6, 0.75],
+  "algorithms": {
+    "spherical_kmeans": {"k": [12, 16, 24, 32], "implementation": "actual Kotlin production"},
+    "directional_von_mises": {"kappa": [4, 6, 8, 10, 12, 16, 24, 32]},
+    "directional_compact": {"cosine_radius": [0.25, 0.35, 0.45, 0.55, 0.65], "update": "uniform weights inside cap; Epanechnikov density profile"},
+    "hdbscan": {"min_cluster_size": [8, 16, 32], "min_samples": [4, 8, 16], "selection": ["eom", "leaf"], "metric": "Euclidean chord distance on exact centered unit fused vectors"},
+    "average_linkage": {"cosine_distance_cut": [0.35, 0.45, 0.55, 0.65, 0.75]}
+  },
+  "postprocessing": ["actual_product_centroid_confidence_and_naming", "own_membership_then_product_semantic_routing_and_naming"],
+  "noise": "Never group all noise points together; remove before centroid collection; no forcing to nearest region",
+  "min_final_region_size": 4,
+  "audit": {
+    "encoder": "cached laion/larger_clap_music a0b4534a14f58e20944452dff00a22a06ce629d1; local only",
+    "source": "existing anonymous MOSS excerpts; all non-silence; deterministic central 10 seconds",
+    "checks": "finite noncollapsed vectors; same-track other-excerpt retrieval versus random; repeat determinism. Exclude encoder if same-track median cross-excerpt percentile <0.8",
+    "development": "artists SHA256(normalized artist) first byte <128, excerpt position0",
+    "holdout": "remaining artists, excerpt position1; never used for tuning",
+    "measure": "For each audited assigned track, mean CLAP cosine percentile of its different-artist region peers relative to all eligible different-artist audit tracks; then mean across tracks. Report same-artist-inclusive sensitivity, lower quartile and group coverage.",
+    "warning": "Proxy for acoustic cohesion, not human correctness. Nonrandom audio availability and prior MOSS selection bias. Artist-only regions cannot win the cross-artist primary score."
+  },
+  "selection": {
+    "eligibility": "converged; >=55% full-library final assignment; >=45% of development audit tracks have >=2 different-artist region peers; 8..45 final regions; largest <=30% library",
+    "rule": "Highest development cross-artist cohesion mean; within 0.01 choose highest full-library coverage. Pick per-family and global before holdout disclosure.",
+    "coverage_policy": "55% is an explicitly assumed usefulness floor; also report Pareto at >=35% and >=70%, never equate low coverage with incorrectness",
+    "holdout": "Confirm direction against current baseline on shared eligible anchors; bootstrap paired anchor differences, 2000 draws, seed20261014; report both own covered population and common anchors",
+    "stability": "Top per-family selected configuration: delete10% rows seeds3,17,41, refit incl recenter; ARI on commonly retained raw clusters and pair retention; noise separately"
+  },
+  "random_seed": 20261014,
+  "limits": "No Android performance claim, no new cloud job, no production code change. No MOSS ratings used."
+}

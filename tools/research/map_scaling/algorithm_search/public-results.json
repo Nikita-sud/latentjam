@@ -1,0 +1,953 @@
+{
+  "population": 1107,
+  "raw_settings": 220,
+  "output_settings": 440,
+  "audit_checks": {
+    "tracks": 252,
+    "clips": 508,
+    "same_track_other_excerpt_median_percentile": 0.9841269841269841,
+    "same_track_other_excerpt_top1": 0.3373015873015873,
+    "median_cosine_same_track": 0.9837976694107056,
+    "median_cosine_all": 0.9493642449378967,
+    "embedding_std_mean": 0.010937754064798355
+  },
+  "development_tracks": 107,
+  "holdout_tracks": 145,
+  "selection": {
+    "average": {
+      "key": "a75-average-0p75",
+      "algorithm": "average",
+      "audio_weight": 0.75,
+      "params": {
+        "cut": 0.75
+      },
+      "raw_groups": 62,
+      "raw_noise": 0,
+      "seconds": 0.014808624982833862,
+      "converged": true,
+      "name": "a75-average-0p75-own",
+      "admission": "own",
+      "regions": 35,
+      "assigned": 898,
+      "coverage": 0.8112014453477868,
+      "largest": 121,
+      "audit_assigned": 78,
+      "audit_total": 107,
+      "audit_scored": 60,
+      "audit_coverage": 0.5607476635514018,
+      "score": 0.5439609353326381,
+      "q25": 0.43573113207547176,
+      "below_median_peer_fraction": 0.45134920634920633,
+      "including_same_artist_score": 0.5429683288409703
+    },
+    "compact": {
+      "key": "a50-compact-0p55",
+      "algorithm": "compact",
+      "audio_weight": 0.5,
+      "params": {
+        "radius": 0.55
+      },
+      "raw_groups": 183,
+      "raw_noise": 0,
+      "seconds": 1.0665006670169532,
+      "iterations": 27,
+      "converged": true,
+      "name": "a50-compact-0p55-own",
+      "admission": "own",
+      "regions": 37,
+      "assigned": 807,
+      "coverage": 0.7289972899728997,
+      "largest": 238,
+      "audit_assigned": 73,
+      "audit_total": 107,
+      "audit_scored": 53,
+      "audit_coverage": 0.4953271028037383,
+      "score": 0.5457713836846516,
+      "q25": 0.5,
+      "below_median_peer_fraction": 0.4467459666393218,
+      "including_same_artist_score": 0.5457903168387327
+    },
+    "dms": {
+      "key": "a75-dms-10",
+      "algorithm": "dms",
+      "audio_weight": 0.75,
+      "params": {
+        "kappa": 10
+      },
+      "raw_groups": 248,
+      "raw_noise": 0,
+      "seconds": 6.28994666703511,
+      "converged": true,
+      "iterations": 153,
+      "name": "a75-dms-10-own",
+      "admission": "own",
+      "regions": 15,
+      "assigned": 745,
+      "coverage": 0.6729900632339657,
+      "largest": 187,
+      "audit_assigned": 54,
+      "audit_total": 107,
+      "audit_scored": 50,
+      "audit_coverage": 0.4672897196261682,
+      "score": 0.5962443175786682,
+      "q25": 0.5709905660377359,
+      "below_median_peer_fraction": 0.3614967320261438,
+      "including_same_artist_score": 0.5951352201257862
+    },
+    "hdbscan": null,
+    "kmeans": {
+      "key": "a60-kmeans-24",
+      "algorithm": "kmeans",
+      "audio_weight": 0.6,
+      "params": {
+        "k": 24
+      },
+      "raw_groups": 24,
+      "raw_noise": 0,
+      "seconds": 0.467065708,
+      "converged": true,
+      "name": "a60-kmeans-24-own",
+      "admission": "own",
+      "regions": 26,
+      "assigned": 1018,
+      "coverage": 0.919602529358627,
+      "largest": 122,
+      "audit_assigned": 100,
+      "audit_total": 107,
+      "audit_scored": 89,
+      "audit_coverage": 0.8317757009345794,
+      "score": 0.5503779110202685,
+      "q25": 0.4283018867924529,
+      "below_median_peer_fraction": 0.4255654457901648,
+      "including_same_artist_score": 0.5515194934162163
+    },
+    "global": {
+      "key": "a75-dms-10",
+      "algorithm": "dms",
+      "audio_weight": 0.75,
+      "params": {
+        "kappa": 10
+      },
+      "raw_groups": 248,
+      "raw_noise": 0,
+      "seconds": 6.28994666703511,
+      "converged": true,
+      "iterations": 153,
+      "name": "a75-dms-10-own",
+      "admission": "own",
+      "regions": 15,
+      "assigned": 745,
+      "coverage": 0.6729900632339657,
+      "largest": 187,
+      "audit_assigned": 54,
+      "audit_total": 107,
+      "audit_scored": 50,
+      "audit_coverage": 0.4672897196261682,
+      "score": 0.5962443175786682,
+      "q25": 0.5709905660377359,
+      "below_median_peer_fraction": 0.3614967320261438,
+      "including_same_artist_score": 0.5951352201257862
+    },
+    "coverage35": {
+      "key": "a75-dms-10",
+      "algorithm": "dms",
+      "audio_weight": 0.75,
+      "params": {
+        "kappa": 10
+      },
+      "raw_groups": 248,
+      "raw_noise": 0,
+      "seconds": 6.28994666703511,
+      "converged": true,
+      "iterations": 153,
+      "name": "a75-dms-10-own",
+      "admission": "own",
+      "regions": 15,
+      "assigned": 745,
+      "coverage": 0.6729900632339657,
+      "largest": 187,
+      "audit_assigned": 54,
+      "audit_total": 107,
+      "audit_scored": 50,
+      "audit_coverage": 0.4672897196261682,
+      "score": 0.5962443175786682,
+      "q25": 0.5709905660377359,
+      "below_median_peer_fraction": 0.3614967320261438,
+      "including_same_artist_score": 0.5951352201257862
+    },
+    "coverage70": {
+      "key": "a50-dms-8p5",
+      "algorithm": "dms",
+      "audio_weight": 0.5,
+      "params": {
+        "kappa": 8.5
+      },
+      "raw_groups": 94,
+      "raw_noise": 0,
+      "seconds": 3.32733954093419,
+      "converged": true,
+      "iterations": 81,
+      "name": "a50-dms-8p5-own",
+      "admission": "own",
+      "regions": 13,
+      "assigned": 886,
+      "coverage": 0.8003613369467028,
+      "largest": 217,
+      "audit_assigned": 75,
+      "audit_total": 107,
+      "audit_scored": 71,
+      "audit_coverage": 0.6635514018691588,
+      "score": 0.564202900988847,
+      "q25": 0.518931027954818,
+      "below_median_peer_fraction": 0.4129726586731777,
+      "including_same_artist_score": 0.564380256211762
+    }
+  },
+  "recommendation": "a75-average-0p75-own",
+  "recommendation_reason": "Development-selected family winner; strongest matched held-out acoustic gain, also positive with approximate four-comparison artist bootstrap adjustment. DMS more stable but its unmatched average is selection-biased. This is an exploratory recommendation on one library, not listener ground truth.",
+  "matched_comparisons": {
+    "common_all_count": 45,
+    "common_all_scores": {
+      "a25-kmeans-16-product": 0.5862396039654127,
+      "a75-average-0p75-own": 0.6717895855350692,
+      "a50-compact-0p55-own": 0.6292847617257259,
+      "a75-dms-10-own": 0.6010991392316136,
+      "a60-kmeans-24-own": 0.6038221704905189
+    },
+    "family_vs_baseline": [
+      {
+        "name": "a75-average-0p75-own",
+        "anchors": 97,
+        "artists": 73,
+        "difference": 0.04372401733769534,
+        "artist_bootstrap_ci95": [
+          0.011501917291701701,
+          0.07615244330039503
+        ],
+        "artist_bootstrap_ci98p75_four_comparisons": [
+          0.0032615227571582716,
+          0.08521150348018486
+        ],
+        "q25_candidate_common": 0.5104166666666666,
+        "q25_baseline_common": 0.46620046620046623
+      },
+      {
+        "name": "a50-compact-0p55-own",
+        "anchors": 71,
+        "artists": 57,
+        "difference": 0.026814995165853544,
+        "artist_bootstrap_ci95": [
+          3.913245118157919e-05,
+          0.05624922593296554
+        ],
+        "artist_bootstrap_ci98p75_four_comparisons": [
+          -0.008113884764453466,
+          0.06490133758817859
+        ],
+        "q25_candidate_common": 0.5139102564102564,
+        "q25_baseline_common": 0.5228365384615384
+      },
+      {
+        "name": "a75-dms-10-own",
+        "anchors": 69,
+        "artists": 56,
+        "difference": 0.014098338450282953,
+        "artist_bootstrap_ci95": [
+          -0.01908424278091006,
+          0.046454084676669526
+        ],
+        "artist_bootstrap_ci98p75_four_comparisons": [
+          -0.028008702724274973,
+          0.055266113218784926
+        ],
+        "q25_candidate_common": 0.5110294117647058,
+        "q25_baseline_common": 0.46620046620046623
+      },
+      {
+        "name": "a60-kmeans-24-own",
+        "anchors": 114,
+        "artists": 91,
+        "difference": 0.027543813743989978,
+        "artist_bootstrap_ci95": [
+          -0.00616311976749858,
+          0.06280688033208555
+        ],
+        "artist_bootstrap_ci98p75_four_comparisons": [
+          -0.015613102276379713,
+          0.07339619455157503
+        ],
+        "q25_candidate_common": 0.46290428321678323,
+        "q25_baseline_common": 0.4523518148518148
+      }
+    ]
+  },
+  "supplementary_comparisons": [
+    {
+      "winner": "a75-dms-10-own",
+      "comparator": "a25-kmeans-16-product",
+      "common_anchors": 69,
+      "artists": 56,
+      "difference": 0.014098338450282953,
+      "artist_bootstrap_ci95": [
+        -0.020029740395493316,
+        0.046895690571555994
+      ]
+    },
+    {
+      "winner": "a75-dms-10-own",
+      "comparator": "a40-dms-9-own",
+      "common_anchors": 59,
+      "artists": 47,
+      "difference": -0.014071878771607772,
+      "artist_bootstrap_ci95": [
+        -0.029788231071481208,
+        0.004176064142364501
+      ]
+    },
+    {
+      "winner": "a75-dms-10-own",
+      "comparator": "a75-average-0p75-own",
+      "common_anchors": 64,
+      "artists": 51,
+      "difference": -0.04250074844712361,
+      "artist_bootstrap_ci95": [
+        -0.0743977407671477,
+        -0.005559390677962805
+      ]
+    },
+    {
+      "winner": "a75-dms-10-own",
+      "comparator": "a75-kmeans-24-own",
+      "common_anchors": 64,
+      "artists": 51,
+      "difference": -0.04728099045935688,
+      "artist_bootstrap_ci95": [
+        -0.07493819103979388,
+        -0.017283041491112892
+      ]
+    }
+  ],
+  "holdout": [
+    {
+      "name": "a25-average-0p75-product",
+      "regions": 40,
+      "assigned": 860,
+      "coverage": 0.7768744354110207,
+      "largest": 139,
+      "audit_assigned": 121,
+      "audit_total": 145,
+      "audit_scored": 101,
+      "audit_coverage": 0.696551724137931,
+      "score": 0.55638163039194,
+      "q25": 0.45054945054945045,
+      "below_median_peer_fraction": 0.42062540934119264,
+      "including_same_artist_score": 0.592796588630211,
+      "common_baseline_anchors": 85,
+      "paired_difference": 0.010607018673641989,
+      "paired_bootstrap_ci95": [
+        -0.009460257070481207,
+        0.029514475690783172
+      ]
+    },
+    {
+      "name": "a25-compact-0p55-own",
+      "regions": 33,
+      "assigned": 833,
+      "coverage": 0.7524841915085817,
+      "largest": 187,
+      "audit_assigned": 102,
+      "audit_total": 145,
+      "audit_scored": 88,
+      "audit_coverage": 0.6068965517241379,
+      "score": 0.55685520859836,
+      "q25": 0.4481551434676434,
+      "below_median_peer_fraction": 0.43846660989040664,
+      "including_same_artist_score": 0.5931633615268437,
+      "common_baseline_anchors": 77,
+      "paired_difference": 0.026288997475431394,
+      "paired_bootstrap_ci95": [
+        0.0009919340290323834,
+        0.05237400032337355
+      ]
+    },
+    {
+      "name": "a25-dms-8p5-own",
+      "regions": 17,
+      "assigned": 863,
+      "coverage": 0.7795844625112918,
+      "largest": 206,
+      "audit_assigned": 106,
+      "audit_total": 145,
+      "audit_scored": 92,
+      "audit_coverage": 0.6344827586206897,
+      "score": 0.5595698766465287,
+      "q25": 0.44081386466949846,
+      "below_median_peer_fraction": 0.4069549464398236,
+      "including_same_artist_score": 0.5937999211436712,
+      "common_baseline_anchors": 76,
+      "paired_difference": 0.002183141875065144,
+      "paired_bootstrap_ci95": [
+        -0.023070967573666962,
+        0.027588871917711883
+      ]
+    },
+    {
+      "name": "a25-kmeans-12-product",
+      "regions": 14,
+      "assigned": 1028,
+      "coverage": 0.928635953026197,
+      "largest": 148,
+      "audit_assigned": 137,
+      "audit_total": 145,
+      "audit_scored": 126,
+      "audit_coverage": 0.8689655172413793,
+      "score": 0.5393919308636568,
+      "q25": 0.46709567844436267,
+      "below_median_peer_fraction": 0.45212338442993405,
+      "including_same_artist_score": 0.5495554403755277,
+      "common_baseline_anchors": 117,
+      "paired_difference": -0.014007582345833028,
+      "paired_bootstrap_ci95": [
+        -0.030325137766052748,
+        0.002256244324117295
+      ]
+    },
+    {
+      "name": "a25-kmeans-16-product",
+      "regions": 17,
+      "assigned": 974,
+      "coverage": 0.8798554652213189,
+      "largest": 148,
+      "audit_assigned": 133,
+      "audit_total": 145,
+      "audit_scored": 122,
+      "audit_coverage": 0.8413793103448276,
+      "score": 0.5565205244583381,
+      "q25": 0.460609243697479,
+      "below_median_peer_fraction": 0.4329296721172324,
+      "including_same_artist_score": 0.5700727455610988,
+      "common_baseline_anchors": 122,
+      "paired_difference": 0.0,
+      "paired_bootstrap_ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "a40-average-0p75-product",
+      "regions": 42,
+      "assigned": 858,
+      "coverage": 0.7750677506775068,
+      "largest": 139,
+      "audit_assigned": 110,
+      "audit_total": 145,
+      "audit_scored": 94,
+      "audit_coverage": 0.6482758620689655,
+      "score": 0.5524810328066001,
+      "q25": 0.45276756535947715,
+      "below_median_peer_fraction": 0.438152845770921,
+      "including_same_artist_score": 0.5737844428551563,
+      "common_baseline_anchors": 78,
+      "paired_difference": 0.0069406942542431975,
+      "paired_bootstrap_ci95": [
+        -0.016978856000011745,
+        0.029697282294860964
+      ]
+    },
+    {
+      "name": "a40-compact-0p65-own",
+      "regions": 25,
+      "assigned": 857,
+      "coverage": 0.7741644083107497,
+      "largest": 134,
+      "audit_assigned": 102,
+      "audit_total": 145,
+      "audit_scored": 92,
+      "audit_coverage": 0.6344827586206897,
+      "score": 0.5497526726456212,
+      "q25": 0.427692267827529,
+      "below_median_peer_fraction": 0.44808969713861024,
+      "including_same_artist_score": 0.5886608952330602,
+      "common_baseline_anchors": 76,
+      "paired_difference": 0.008070771691713084,
+      "paired_bootstrap_ci95": [
+        -0.018546200450033815,
+        0.03544617153547233
+      ]
+    },
+    {
+      "name": "a40-dms-9-own",
+      "regions": 17,
+      "assigned": 837,
+      "coverage": 0.7560975609756098,
+      "largest": 199,
+      "audit_assigned": 100,
+      "audit_total": 145,
+      "audit_scored": 73,
+      "audit_coverage": 0.503448275862069,
+      "score": 0.5910265013167361,
+      "q25": 0.5390946502057614,
+      "below_median_peer_fraction": 0.3803328837575413,
+      "including_same_artist_score": 0.602465920781893,
+      "common_baseline_anchors": 72,
+      "paired_difference": 0.02461815879526725,
+      "paired_bootstrap_ci95": [
+        -0.0032576547558433623,
+        0.05119167554225826
+      ]
+    },
+    {
+      "name": "a40-kmeans-16-own",
+      "regions": 18,
+      "assigned": 1025,
+      "coverage": 0.9259259259259259,
+      "largest": 147,
+      "audit_assigned": 137,
+      "audit_total": 145,
+      "audit_scored": 134,
+      "audit_coverage": 0.9241379310344827,
+      "score": 0.5467133853314297,
+      "q25": 0.4380952380952381,
+      "below_median_peer_fraction": 0.4345746489697786,
+      "including_same_artist_score": 0.5625480315631534,
+      "common_baseline_anchors": 112,
+      "paired_difference": -0.0006568557461544561,
+      "paired_bootstrap_ci95": [
+        -0.02271729337435961,
+        0.022405927072652224
+      ]
+    },
+    {
+      "name": "a50-average-0p75-own",
+      "regions": 39,
+      "assigned": 890,
+      "coverage": 0.8039747064137308,
+      "largest": 137,
+      "audit_assigned": 113,
+      "audit_total": 145,
+      "audit_scored": 95,
+      "audit_coverage": 0.6551724137931034,
+      "score": 0.5531539931552849,
+      "q25": 0.4483053482587065,
+      "below_median_peer_fraction": 0.42862287297190343,
+      "including_same_artist_score": 0.5901474041005291,
+      "common_baseline_anchors": 84,
+      "paired_difference": 0.0024735327216115124,
+      "paired_bootstrap_ci95": [
+        -0.014581794769943514,
+        0.018244268693056963
+      ]
+    },
+    {
+      "name": "a50-compact-0p55-own",
+      "regions": 37,
+      "assigned": 807,
+      "coverage": 0.7289972899728997,
+      "largest": 238,
+      "audit_assigned": 99,
+      "audit_total": 145,
+      "audit_scored": 83,
+      "audit_coverage": 0.5724137931034483,
+      "score": 0.5606081545906052,
+      "q25": 0.4664285714285714,
+      "below_median_peer_fraction": 0.4442121523862279,
+      "including_same_artist_score": 0.5899725887677695,
+      "common_baseline_anchors": 71,
+      "paired_difference": 0.026814995165853544,
+      "paired_bootstrap_ci95": [
+        0.002398147656140349,
+        0.05280446971179844
+      ]
+    },
+    {
+      "name": "a50-dms-8p5-own",
+      "regions": 13,
+      "assigned": 886,
+      "coverage": 0.8003613369467028,
+      "largest": 217,
+      "audit_assigned": 110,
+      "audit_total": 145,
+      "audit_scored": 96,
+      "audit_coverage": 0.6620689655172414,
+      "score": 0.5459110454440294,
+      "q25": 0.47777528575225947,
+      "below_median_peer_fraction": 0.42760514567669167,
+      "including_same_artist_score": 0.5813807058960415,
+      "common_baseline_anchors": 84,
+      "paired_difference": 0.01411117110617264,
+      "paired_bootstrap_ci95": [
+        -0.013595429200498287,
+        0.0425795765984267
+      ]
+    },
+    {
+      "name": "a50-kmeans-12-own",
+      "regions": 14,
+      "assigned": 1017,
+      "coverage": 0.9186991869918699,
+      "largest": 148,
+      "audit_assigned": 134,
+      "audit_total": 145,
+      "audit_scored": 123,
+      "audit_coverage": 0.8482758620689655,
+      "score": 0.5584814716270172,
+      "q25": 0.45533012892167823,
+      "below_median_peer_fraction": 0.4233851606539064,
+      "including_same_artist_score": 0.5733178780520198,
+      "common_baseline_anchors": 114,
+      "paired_difference": 0.0025935719347381634,
+      "paired_bootstrap_ci95": [
+        -0.019181235777559143,
+        0.025483054756129553
+      ]
+    },
+    {
+      "name": "a60-average-0p75-own",
+      "regions": 36,
+      "assigned": 894,
+      "coverage": 0.8075880758807588,
+      "largest": 139,
+      "audit_assigned": 114,
+      "audit_total": 145,
+      "audit_scored": 97,
+      "audit_coverage": 0.6689655172413793,
+      "score": 0.545000564230377,
+      "q25": 0.43690476190476185,
+      "below_median_peer_fraction": 0.4482306496481754,
+      "including_same_artist_score": 0.5885272395995435,
+      "common_baseline_anchors": 84,
+      "paired_difference": 0.008792497591043766,
+      "paired_bootstrap_ci95": [
+        -0.013754093201748366,
+        0.03156352233420108
+      ]
+    },
+    {
+      "name": "a60-compact-0p65-own",
+      "regions": 24,
+      "assigned": 806,
+      "coverage": 0.7280939476061428,
+      "largest": 150,
+      "audit_assigned": 97,
+      "audit_total": 145,
+      "audit_scored": 86,
+      "audit_coverage": 0.593103448275862,
+      "score": 0.5665812635386853,
+      "q25": 0.45477430555555554,
+      "below_median_peer_fraction": 0.39692408264929685,
+      "including_same_artist_score": 0.6004640758547009,
+      "common_baseline_anchors": 75,
+      "paired_difference": 0.02853799272432921,
+      "paired_bootstrap_ci95": [
+        -0.0010580552673617478,
+        0.05829547369737964
+      ]
+    },
+    {
+      "name": "a60-dms-9-own",
+      "regions": 17,
+      "assigned": 856,
+      "coverage": 0.7732610659439928,
+      "largest": 226,
+      "audit_assigned": 105,
+      "audit_total": 145,
+      "audit_scored": 78,
+      "audit_coverage": 0.5379310344827586,
+      "score": 0.5834099801448337,
+      "q25": 0.5281075465370337,
+      "below_median_peer_fraction": 0.3871646620515398,
+      "including_same_artist_score": 0.602660418158218,
+      "common_baseline_anchors": 77,
+      "paired_difference": 0.010116105517091158,
+      "paired_bootstrap_ci95": [
+        -0.017005469783078854,
+        0.03662313970266715
+      ]
+    },
+    {
+      "name": "a60-kmeans-24-own",
+      "regions": 26,
+      "assigned": 1018,
+      "coverage": 0.919602529358627,
+      "largest": 122,
+      "audit_assigned": 134,
+      "audit_total": 145,
+      "audit_scored": 128,
+      "audit_coverage": 0.8827586206896552,
+      "score": 0.5595072753213766,
+      "q25": 0.41880432999835987,
+      "below_median_peer_fraction": 0.43189679308130596,
+      "including_same_artist_score": 0.5845675994756877,
+      "common_baseline_anchors": 114,
+      "paired_difference": 0.027543813743989978,
+      "paired_bootstrap_ci95": [
+        -0.0014931593762706485,
+        0.05763813450383329
+      ]
+    },
+    {
+      "name": "a75-average-0p75-own",
+      "regions": 35,
+      "assigned": 898,
+      "coverage": 0.8112014453477868,
+      "largest": 121,
+      "audit_assigned": 129,
+      "audit_total": 145,
+      "audit_scored": 116,
+      "audit_coverage": 0.8,
+      "score": 0.5776602931662266,
+      "q25": 0.4472094745532245,
+      "below_median_peer_fraction": 0.40624378835018576,
+      "including_same_artist_score": 0.5989786687344159,
+      "common_baseline_anchors": 97,
+      "paired_difference": 0.04372401733769534,
+      "paired_bootstrap_ci95": [
+        0.014224407632716141,
+        0.07192493173360925
+      ]
+    },
+    {
+      "name": "a75-dms-10-own",
+      "regions": 15,
+      "assigned": 745,
+      "coverage": 0.6729900632339657,
+      "largest": 187,
+      "audit_assigned": 92,
+      "audit_total": 145,
+      "audit_scored": 70,
+      "audit_coverage": 0.4827586206896552,
+      "score": 0.5926206367506631,
+      "q25": 0.5123687814454319,
+      "below_median_peer_fraction": 0.38493139746016986,
+      "including_same_artist_score": 0.6105727015216225,
+      "common_baseline_anchors": 69,
+      "paired_difference": 0.014098338450282953,
+      "paired_bootstrap_ci95": [
+        -0.018879154945600794,
+        0.04566624842979217
+      ]
+    },
+    {
+      "name": "a75-kmeans-24-own",
+      "regions": 26,
+      "assigned": 957,
+      "coverage": 0.8644986449864499,
+      "largest": 79,
+      "audit_assigned": 128,
+      "audit_total": 145,
+      "audit_scored": 119,
+      "audit_coverage": 0.8206896551724138,
+      "score": 0.5851887066532712,
+      "q25": 0.4982638888888889,
+      "below_median_peer_fraction": 0.3895570349351862,
+      "including_same_artist_score": 0.6128187941401987,
+      "common_baseline_anchors": 97,
+      "paired_difference": 0.04986073356623168,
+      "paired_bootstrap_ci95": [
+        0.024209614057021416,
+        0.07539605809268259
+      ]
+    }
+  ],
+  "stability": [
+    {
+      "key": "a75-average-0p75",
+      "seed": 3,
+      "converged": true,
+      "common_retained": 930,
+      "old_retained": 948,
+      "new_retained": 947,
+      "ari_common_retained": 0.7559572025903589,
+      "ari_noise_as_singletons": 0.7465378470078006,
+      "old_pairs_retained": 0.8360405121345309
+    },
+    {
+      "key": "a75-average-0p75",
+      "seed": 17,
+      "converged": true,
+      "common_retained": 928,
+      "old_retained": 947,
+      "new_retained": 939,
+      "ari_common_retained": 0.73273024077768,
+      "ari_noise_as_singletons": 0.725880411406453,
+      "old_pairs_retained": 0.7214729682185997
+    },
+    {
+      "key": "a75-average-0p75",
+      "seed": 41,
+      "converged": true,
+      "common_retained": 929,
+      "old_retained": 949,
+      "new_retained": 949,
+      "ari_common_retained": 0.6793493526006505,
+      "ari_noise_as_singletons": 0.6703478067058347,
+      "old_pairs_retained": 0.6843438219493476
+    },
+    {
+      "key": "a50-compact-0p55",
+      "seed": 3,
+      "converged": true,
+      "common_retained": 797,
+      "old_retained": 837,
+      "new_retained": 848,
+      "ari_common_retained": 0.9469639034615926,
+      "ari_noise_as_singletons": 0.9122965047648134,
+      "old_pairs_retained": 0.9117057392606057
+    },
+    {
+      "key": "a50-compact-0p55",
+      "seed": 17,
+      "converged": true,
+      "common_retained": 788,
+      "old_retained": 839,
+      "new_retained": 818,
+      "ari_common_retained": 0.5990682450436955,
+      "ari_noise_as_singletons": 0.5880125084566901,
+      "old_pairs_retained": 0.46292074560815344
+    },
+    {
+      "key": "a50-compact-0p55",
+      "seed": 41,
+      "converged": true,
+      "common_retained": 776,
+      "old_retained": 833,
+      "new_retained": 806,
+      "ari_common_retained": 0.6313858173940966,
+      "ari_noise_as_singletons": 0.6084488784803892,
+      "old_pairs_retained": 0.4792585117119031
+    },
+    {
+      "key": "a75-dms-10",
+      "seed": 3,
+      "converged": true,
+      "common_retained": 745,
+      "old_retained": 777,
+      "new_retained": 750,
+      "ari_common_retained": 0.9624666169216952,
+      "ari_noise_as_singletons": 0.9169746019325677,
+      "old_pairs_retained": 0.8773031918423323
+    },
+    {
+      "key": "a75-dms-10",
+      "seed": 17,
+      "converged": true,
+      "common_retained": 750,
+      "old_retained": 773,
+      "new_retained": 756,
+      "ari_common_retained": 0.962535660068964,
+      "ari_noise_as_singletons": 0.9365920230074272,
+      "old_pairs_retained": 0.9290020393984895
+    },
+    {
+      "key": "a75-dms-10",
+      "seed": 41,
+      "converged": true,
+      "common_retained": 749,
+      "old_retained": 779,
+      "new_retained": 758,
+      "ari_common_retained": 0.9573658753152905,
+      "ari_noise_as_singletons": 0.9231526284233597,
+      "old_pairs_retained": 0.9236415085997258
+    },
+    {
+      "key": "a60-kmeans-24",
+      "seed": 3,
+      "converged": true,
+      "common_retained": 996,
+      "old_retained": 996,
+      "new_retained": 996,
+      "ari_common_retained": 0.6805594275112414,
+      "ari_noise_as_singletons": 0.6805594275112414,
+      "old_pairs_retained": 0.7202507556252099
+    },
+    {
+      "key": "a60-kmeans-24",
+      "seed": 17,
+      "converged": true,
+      "common_retained": 996,
+      "old_retained": 996,
+      "new_retained": 996,
+      "ari_common_retained": 0.6430500136248566,
+      "ari_noise_as_singletons": 0.6430500136248566,
+      "old_pairs_retained": 0.6749367471016956
+    },
+    {
+      "key": "a60-kmeans-24",
+      "seed": 41,
+      "converged": true,
+      "common_retained": 996,
+      "old_retained": 996,
+      "new_retained": 996,
+      "ari_common_retained": 0.6778422158964337,
+      "ari_noise_as_singletons": 0.6778422158964337,
+      "old_pairs_retained": 0.7065556711758585
+    },
+    {
+      "key": "a50-dms-8p5",
+      "seed": 3,
+      "converged": true,
+      "common_retained": 904,
+      "old_retained": 923,
+      "new_retained": 905,
+      "ari_common_retained": 0.9710801386419823,
+      "ari_noise_as_singletons": 0.949579490787769,
+      "old_pairs_retained": 0.9385045857298305
+    },
+    {
+      "key": "a50-dms-8p5",
+      "seed": 17,
+      "converged": true,
+      "common_retained": 891,
+      "old_retained": 914,
+      "new_retained": 895,
+      "ari_common_retained": 0.9651999433643336,
+      "ari_noise_as_singletons": 0.9390382248384717,
+      "old_pairs_retained": 0.9232364816720766
+    },
+    {
+      "key": "a50-dms-8p5",
+      "seed": 41,
+      "converged": true,
+      "common_retained": 890,
+      "old_retained": 914,
+      "new_retained": 892,
+      "ari_common_retained": 0.9641551441550159,
+      "ari_noise_as_singletons": 0.9359319645656693,
+      "old_pairs_retained": 0.9197104259178185
+    },
+    {
+      "key": "a25-kmeans-16",
+      "seed": 3,
+      "converged": true,
+      "common_retained": 996,
+      "old_retained": 996,
+      "new_retained": 996,
+      "ari_common_retained": 0.777420181693732,
+      "ari_noise_as_singletons": 0.777420181693732,
+      "old_pairs_retained": 0.8149037826993638
+    },
+    {
+      "key": "a25-kmeans-16",
+      "seed": 17,
+      "converged": true,
+      "common_retained": 996,
+      "old_retained": 996,
+      "new_retained": 996,
+      "ari_common_retained": 0.7060417768362761,
+      "ari_noise_as_singletons": 0.7060417768362761,
+      "old_pairs_retained": 0.753727922340569
+    },
+    {
+      "key": "a25-kmeans-16",
+      "seed": 41,
+      "converged": true,
+      "common_retained": 996,
+      "old_retained": 996,
+      "new_retained": 996,
+      "ari_common_retained": 0.7137748357984793,
+      "ari_noise_as_singletons": 0.7137748357984793,
+      "old_pairs_retained": 0.7595304014481951
+    }
+  ],
+  "baseline_exact": true
+}

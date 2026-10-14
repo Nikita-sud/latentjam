@@ -1,0 +1,23 @@
+{
+  "baseline_exact": true,
+  "fixtures": {
+    "compact": 1.0,
+    "dms": 1.0,
+    "hdbscan": 1.0,
+    "average": 1.0
+  },
+  "clap_repeat": {
+    "repeated_clips": 6,
+    "max_abs_error": 0.0
+  },
+  "notebook_executed": true,
+  "notebook_render_visually_checked": true,
+  "report_variant_switch_verified": true,
+  "report_search_verified": true,
+  "outside_list_verified_count": 209,
+  "browser_console_errors": 0,
+  "figure_visually_checked": true,
+  "production_changed": false,
+  "all_directional_mean_shift_fits_converged": true,
+  "kmeans_convergence_note": "Actual production fixed20iteration run; mathematical convergence not separately audited."
+}

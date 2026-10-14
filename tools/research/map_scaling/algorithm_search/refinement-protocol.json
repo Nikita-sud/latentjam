@@ -1,0 +1,7 @@
+{
+ "declared_before_any_development_score_or_holdout_score": true,
+ "reason": "The earlier 25/75 experiment already showed a narrow directional mean-shift transition between kappa8 and10. The coarse grid should not unfairly omit that known useful range.",
+ "audio_weights": [0.25,0.4,0.5,0.6,0.75],
+ "kappa": [7,8.5,9,9.5],
+ "selection": "Same frozen development-only rule; include in all candidate comparisons; holdout remains sealed."
+}
