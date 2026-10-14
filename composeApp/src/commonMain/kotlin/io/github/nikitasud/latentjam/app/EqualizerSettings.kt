@@ -193,7 +193,7 @@ internal fun EqualizerSettings(equalizer: EqualizerController, settings: AppSett
                     }
                 }
             }
-            item {
+            if (boundaryFadeControlsAvailable) item {
                 ToneCard {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text(stringResource(Res.string.settings_crossfade), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))

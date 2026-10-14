@@ -6,7 +6,9 @@ package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.library.AlbumSort
 import io.github.nikitasud.latentjam.library.SongSort
-import io.github.nikitasud.latentjam.smart.Loudness
+import io.github.nikitasud.latentjam.playback.IntegratedLoudness
+import kotlin.test.assertFalse
+import kotlinx.coroutines.awaitCancellation
 import io.github.nikitasud.latentjam.playback.NowPlaying
 import io.github.nikitasud.latentjam.playback.PlaybackController
 import io.github.nikitasud.latentjam.playback.RepeatMode
@@ -28,9 +30,9 @@ internal class LoudnessNormalizationTest {
     @Test
     fun loudnessMapRoundTripsThroughItsPayloadIncludingHostileIds() {
         val original = mapOf(
-            "42" to StoredTrackLoudness(-8.5f, "media-v1|42"),
+            "42" to StoredTrackLoudness(IntegratedLoudness(-8.5f, -2f), "media-v1|42"),
             "path|with|pipes\nand lines 🎧" to StoredTrackLoudness(
-                -17.25f,
+                IntegratedLoudness(-17.25f, -3.75f),
                 "identity|with|pipes\nand lines",
             ),
         )
@@ -38,9 +40,10 @@ internal class LoudnessNormalizationTest {
         assertEquals(original.keys, decoded.keys)
         original.forEach { (id, measurement) ->
             assertTrue(
-                abs(decoded.getValue(id).db - measurement.db) < 0.011f,
+                abs(decoded.getValue(id).measurement.lufs - measurement.measurement.lufs) < 0.011f,
                 "$id: ${decoded[id]}",
             )
+            assertEquals(measurement.measurement.truePeakDbtp, decoded.getValue(id).measurement.truePeakDbtp)
             assertEquals(measurement.audioIdentity, decoded.getValue(id).audioIdentity)
         }
     }
@@ -54,21 +57,22 @@ internal class LoudnessNormalizationTest {
             (byte.toInt() and 0xff).toString(16).padStart(2, '0')
         }
         val decoded = decodeTrackLoudness(
-            "nonsense\nzz|$identity|-850\n$good|-850\n$good|$identity|-850\n" +
-                "$good|$identity|notanumber\n$good|$identity|100\n",
+            "nonsense\nr128-v1|zz|$identity|-850|-200\n$good|-850\n$good|$identity|-850\n" +
+                "r128-v1|$good|$identity|-850|-200\nr128-v1|$good|$identity|notanumber|-200\n" +
+                "r128-v1|$good|$identity|10000|-200\nr128-v1|$good|$identity|-850|10000\n",
         )
-        assertEquals(mapOf("42" to StoredTrackLoudness(-8.5f, "source")), decoded)
+        assertEquals(mapOf("42" to StoredTrackLoudness(IntegratedLoudness(-8.5f, -2f), "source")), decoded)
     }
 
     @Test
     fun volumesAreEmptyWhenTheFeatureIsOff() {
         val loudness = mapOf(
-            "a" to StoredTrackLoudness(-8f, "a-v1"),
-            "b" to StoredTrackLoudness(-20f, "b-v1"),
+            "a" to StoredTrackLoudness(IntegratedLoudness(-8f, -2f), "a-v1"),
+            "b" to StoredTrackLoudness(IntegratedLoudness(-20f, -2f), "b-v1"),
         )
         assertEquals(emptyMap(), normalizationVolumes(loudness, enabled = false))
         val enabled = normalizationVolumes(loudness, enabled = true)
-        assertEquals(Loudness.normalizationVolume(-8f), enabled.getValue("a"))
+        assertEquals(IntegratedLoudness(-8f, -2f).normalizationVolume(), enabled.getValue("a"))
         assertEquals(1f, enabled.getValue("b"))
     }
 
@@ -98,9 +102,9 @@ internal class LoudnessNormalizationTest {
         val playback = FakePlayback()
         val measuredIds = mutableListOf<String>()
         val meter = object : TrackLoudnessMeter {
-            override suspend fun measureDb(track: TrackDescriptor): Float {
+            override suspend fun measure(track: TrackDescriptor): IntegratedLoudness {
                 measuredIds += track.id.value
-                return -8f
+                return IntegratedLoudness(-8f, -2f)
             }
         }
         val normalizer = LoudnessNormalizer(settings, playback, meter)
@@ -122,12 +126,12 @@ internal class LoudnessNormalizationTest {
     fun statusDistinguishesMeasuringQuietLoudAndFailedTracks() = runTest {
         val settings = ThrowingSettings()
         val playback = FakePlayback()
-        val pending = CompletableDeferred<Float?>()
+        val pending = CompletableDeferred<IntegratedLoudness?>()
         val statuses = mutableListOf<NormalizationStatus>()
         val meter = object : TrackLoudnessMeter {
-            override suspend fun measureDb(track: TrackDescriptor): Float? = when (track.id.value) {
+            override suspend fun measure(track: TrackDescriptor): IntegratedLoudness? = when (track.id.value) {
                 "loud" -> pending.await()
-                "quiet" -> -22f
+                "quiet" -> IntegratedLoudness(-22f, -2f)
                 else -> null
             }
         }
@@ -137,7 +141,7 @@ internal class LoudnessNormalizationTest {
         playback.nowPlaying.value = NowPlaying(track = audioTrack("loud", "one"))
         runCurrent()
         assertEquals(NormalizationPhase.MEASURING, statuses.last().phase)
-        pending.complete(-8f)
+        pending.complete(IntegratedLoudness(-8f, -2f))
         runCurrent()
         assertEquals(NormalizationPhase.READY, statuses.last().phase)
         assertTrue(abs(statuses.last().reductionDb - 6f) < 0.01f)
@@ -158,20 +162,49 @@ internal class LoudnessNormalizationTest {
     fun switchingOffDuringMeasurementCannotPublishAStaleReadyStatus() = runTest {
         val settings = ThrowingSettings()
         val playback = FakePlayback()
-        val pending = CompletableDeferred<Float?>()
+        val pending = CompletableDeferred<IntegratedLoudness?>()
         val statuses = mutableListOf<NormalizationStatus>()
         val meter = object : TrackLoudnessMeter {
-            override suspend fun measureDb(track: TrackDescriptor): Float? = pending.await()
+            override suspend fun measure(track: TrackDescriptor): IntegratedLoudness? = pending.await()
         }
         LoudnessNormalizer(settings, playback, meter, statuses::add).start(backgroundScope)
         playback.nowPlaying.value = NowPlaying(track = audioTrack("loud", "one"))
         runCurrent()
         settings.normalizeVolume.value = false
         runCurrent()
-        pending.complete(-8f)
+        pending.complete(IntegratedLoudness(-8f, -2f))
         runCurrent()
         assertEquals(NormalizationPhase.OFF, statuses.last().phase)
         assertEquals(emptyMap(), playback.volumeUpdates.last())
+    }
+
+    @Test
+    fun sampledRmsCacheIsNeverReinterpretedAsLufs() {
+        assertEquals(emptyMap(), decodeTrackLoudness("3432|736f75726365|-850\n3432|-850"))
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun changingTracksCancelsMeasurementAndDoesNotStoreItsPartialResult() = runTest {
+        val settings = ThrowingSettings()
+        val playback = FakePlayback()
+        var cancelled = false
+        val meter = object : TrackLoudnessMeter {
+            override suspend fun measure(track: TrackDescriptor): IntegratedLoudness? {
+                if (track.id.value == "first") {
+                    try { awaitCancellation() } finally { cancelled = true }
+                }
+                return IntegratedLoudness(-8f, -2f)
+            }
+        }
+        LoudnessNormalizer(settings, playback, meter).start(backgroundScope)
+        playback.nowPlaying.value = NowPlaying(track = audioTrack("first", "one"))
+        runCurrent()
+        playback.nowPlaying.value = NowPlaying(track = audioTrack("second", "one"))
+        runCurrent()
+        assertTrue(cancelled)
+        assertFalse(playback.volumeUpdates.any { "first" in it })
+        assertEquals(setOf("second"), playback.volumeUpdates.last().keys)
     }
 
     private fun audioTrack(id: String, revision: String): TrackDescriptor = TrackDescriptor(

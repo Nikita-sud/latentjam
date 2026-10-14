@@ -192,8 +192,8 @@ object AppGraph {
                     meter = koin.get(),
                     onStatus = { normalizationStatus.value = it },
                 ).start(appScope)
-                // Boundary fades follow the preference for the app's whole lifetime.
-                appScope.launch {
+                // Boundary fades follow the preference where the platform implements them.
+                if (boundaryFadeControlsAvailable) appScope.launch {
                     settings.crossfadeSeconds.collect { playback.setCrossfadeSeconds(it) }
                 }
             }

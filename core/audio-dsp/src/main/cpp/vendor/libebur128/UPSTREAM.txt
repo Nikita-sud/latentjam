@@ -1,0 +1,9 @@
+libebur128 1.2.6
+https://github.com/jiixyj/libebur128
+Revision: 67b33abe1558160ed76ada1322329b0e9e058b02
+License: MIT (ebur128.c/.h), BSD-3-Clause (queue/sys/queue.h)
+Unmodified upstream sources; SHA-256:
+c2fc562f1088cacab4d21250b6e04996ef36c7694ea901e08cc4d64eb542b78d  ebur128.c
+a988fa03828bcdd6258e6c52300d709a58727272a9ce6cd3fbf351f090517111  ebur128.h
+8b284031772b1ba2035d9b05b24f2cb9b23e7bd324bcccb5e3fcc57d34aafa48  queue/sys/queue.h
+d6b4754bb67bdd08b97d5d11b2d7434997a371585a78fe77007149df3af8d09c  COPYING

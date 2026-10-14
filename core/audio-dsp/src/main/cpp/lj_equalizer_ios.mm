@@ -138,3 +138,23 @@ void lj_eq_ios_set_settings(AVAudioUnit *unit, int enabled, const int32_t *level
 void lj_eq_ios_reset(AVAudioUnit *unit) { [(LJEqualizerAudioUnit *)unit.AUAudioUnit resetDSP]; }
 int lj_eq_ios_sample_rate(AVAudioUnit *unit) { return [(LJEqualizerAudioUnit *)unit.AUAudioUnit sampleRate]; }
 float lj_eq_ios_take_meter_gain(AVAudioUnit *unit) { return [(LJEqualizerAudioUnit *)unit.AUAudioUnit takeMeterGain]; }
+
+int lj_eq_ios_connect(AVAudioEngine *engine, AVAudioPlayerNode *player, AVAudioUnit *unit, AVAudioFormat *format) {
+    if (engine.running) return 0;
+    @try {
+        [engine disconnectNodeOutput:player];
+        [engine detachNode:unit];
+        AUAudioUnit *au = unit.AUAudioUnit;
+        [au deallocateRenderResources];
+        NSError *error = nil;
+        BOOL configured = [au.inputBusses[0] setFormat:format error:&error] &&
+            [au.outputBusses[0] setFormat:format error:&error];
+        [engine attachNode:unit];
+        if (!configured) return 0;
+        [engine connect:player to:unit format:format];
+        [engine connect:unit to:engine.mainMixerNode format:format];
+        return 1;
+    } @catch (NSException *exception) {
+        return 0;
+    }
+}

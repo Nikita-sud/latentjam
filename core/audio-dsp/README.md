@@ -70,3 +70,40 @@ clang++ -std=c++17 -O1 -g -ffp-contract=off -fno-fast-math -pthread \
 Device throughput compares three warmed runs of the old Kotlin reference and C++ block
 processing. It measures DSP elapsed time, not full decoder CPU usage, battery or route latency.
 The old Kotlin processor remains a test reference; production playback and response use C++.
+
+## Integrated loudness measurement
+
+The same native library now includes libebur128 1.2.6 pinned at
+`67b33abe1558160ed76ada1322329b0e9e058b02`. Unmodified source hashes and MIT/BSD
+notices live in `src/main/cpp/vendor/libebur128`; notices are also bundled in Compose
+resources and the source tree is included in the augmented CycloneDX inventory.
+This meter runs only on a background decoder, never in the render callback.
+
+`lj_loudness_*` accepts original-rate, interleaved mono/stereo PCM at 8–192 kHz in
+blocks of at most 4,096 frames. It measures integrated LUFS and maximum true peak
+in dBTP. Histogram mode uses fixed 0.1 LU bins instead of accumulating one record
+per audio block, keeping native memory independent of programme length. Upstream
+1.2.6 rewrites shared histogram constants on construction; the wrapper serializes
+all library calls, including reads, so concurrent meter creation is race-free.
+
+Android streams through MediaExtractor/MediaCodec; iOS reads Float32 PCM through
+AVAudioFile. Channels are retained, without RMS downmix or resampling to 16 kHz.
+Only a complete decode reaching EOS/expected frame count produces a result. A
+large duration mismatch, unsupported/ambiguous layout, corrupt PCM, cancellation,
+6-hour programme cap or 120-second wall budget produces no cache entry. Android
+also abandons a decoder that makes no PCM progress for 5 seconds. System decoder
+calls themselves remain subject to the OS; cancellation is checked between calls
+and every bounded PCM block. All handles/descriptors are released in `finally`.
+
+The initial supported scope is mono/stereo local files. Multichannel layouts,
+rates above 192 kHz and protected Music.app playback retain original volume. This
+is an explicit refusal, not a guessed channel map or a misleading mono LUFS value.
+
+The `r128-v1` cache contains LUFS, dBTP and an audio source identity. Older RMS
+records are discarded. Analysis remains lazy, opt-in and one-track-at-a-time;
+there is no launch-time library scan. Android and iOS local-file playback apply
+attenuation toward -14 LUFS, with additional source headroom to -1 dBTP, and never
+boost a quiet track. New results ramp over 400 ms; cached gains are installed at
+track boundaries. The source true-peak margin is not a promise about peaks after
+EQ: the existing EQ limiter is still a sample-peak limiter. Protected Music.app
+items bypass the app-owned gain stage. iOS boundary fades remain unavailable.

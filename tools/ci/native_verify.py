@@ -24,6 +24,24 @@ def main():
             raise SystemExit("Bundled map notices differ: " + path)
     if b"This product includes software developed by the Delft University of Technology." not in notices:
         raise SystemExit("Missing BSD acknowledgement")
+    ebur = ROOT / "core/audio-dsp/src/main/cpp/vendor/libebur128"
+    for line in (ebur / "UPSTREAM.txt").read_text().splitlines():
+        if "  " in line and len(line.split("  ")[0]) == 64:
+            expected, filename = line.split("  ", 1)
+            if hashlib.sha256((ebur / filename).read_bytes()).hexdigest() != expected:
+                raise SystemExit("Modified libebur128 source: " + filename)
+    bundled_notice = (ROOT / "composeApp/src/commonMain/composeResources/files/licenses/libebur128.txt").read_text()
+    if (ebur / "COPYING").read_text() not in bundled_notice or (ebur / "queue/sys/queue.h").read_text().split("#ifndef")[0].rstrip() not in bundled_notice:
+        raise SystemExit("Missing libebur128 MIT/BSD notices")
+    audio_build = ROOT / "build/audio-contracts"
+    subprocess.run(["cmake", "-S", str(ROOT / "core/audio-dsp/src/main/cpp"), "-B", str(audio_build),
+                    "-DLJ_EQ_TESTS=ON", "-DCMAKE_BUILD_TYPE=Debug",
+                    "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer",
+                    "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer",
+                    "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined",
+                    "-DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=address,undefined"], check=True)
+    subprocess.run(["cmake", "--build", str(audio_build), "--parallel", "2"], check=True)
+    subprocess.run(["ctest", "--test-dir", str(audio_build), "--output-on-failure"], check=True)
     build = ROOT / "build/native-contracts"
     subprocess.run(["cmake", "-S", str(ROOT / "core/map-native/src/main/cpp"),
                     "-B", str(build), "-DLJMAP_TESTS=ON", "-DCMAKE_BUILD_TYPE=Debug",

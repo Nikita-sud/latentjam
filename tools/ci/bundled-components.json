@@ -7,6 +7,12 @@
       "url": "https://github.com/Signalsmith-Audio/dsp/tree/ca390d28c41ea5108a528e2e81faa4088f2f8ac8"
     },
     {
+      "name": "libebur128",
+      "path": "core/audio-dsp/src/main/cpp/vendor/libebur128",
+      "license": "MIT AND BSD-3-Clause",
+      "url": "https://github.com/jiixyj/libebur128/tree/67b33abe1558160ed76ada1322329b0e9e058b02"
+    },
+    {
       "name": "Arm KleidiAI",
       "path": "core/ort-ops/src/main/cpp/vendor/kleidiai",
       "license": "Apache-2.0",

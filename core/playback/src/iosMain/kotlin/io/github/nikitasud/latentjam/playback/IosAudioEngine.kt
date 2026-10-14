@@ -69,6 +69,8 @@ internal class IosAudioEngine : EqualizerController {
         }
     }.distinctUntilChanged()
 
+    private var transportGain = 1f
+    private var normalizationGain = 1f
     private var currentFile: AVAudioFile? = null
     private var segmentStartFrame: Long = 0L
     private var pausedFrame: Long = 0L
@@ -95,6 +97,7 @@ internal class IosAudioEngine : EqualizerController {
         engine.connect(equalizer, engine.mainMixerNode, null)
         applySettings()
         engine.prepare()
+        applyMixerGain()
     }
 
     /**
@@ -136,7 +139,7 @@ internal class IosAudioEngine : EqualizerController {
         val file = runCatching { AVAudioFile(forReading = fileUrl, error = null) }.getOrNull()
             ?.takeIf { it.length > 0L && supportsFormat(it) } ?: return false
         currentFile = file
-        configureFileGraph(file)
+        if (!configureFileGraph(file)) { stop(); return false }
         completion = onEnded
         val lastFrame = (file.length - 1L).coerceAtLeast(0L)
         val start = millisToFrame(resumePositionMs, file).coerceIn(0L, lastFrame)
@@ -173,7 +176,7 @@ internal class IosAudioEngine : EqualizerController {
         segmentStartFrame = 0L
         pausedFrame = 0L
         completion = onEnded
-        configureFileGraph(file)
+        if (!configureFileGraph(file)) { stop(); return false }
         scheduleSegment(file, 0L)
         if (autoPlay) {
             if (!ensureEngineRunning()) {
@@ -223,7 +226,20 @@ internal class IosAudioEngine : EqualizerController {
 
     /** The pause/resume fade rides the mixer, leaving the player node and the equalizer alone. */
     fun setTransportGain(gain: Float) {
-        engine.mainMixerNode.outputVolume = gain.coerceIn(0f, 1f)
+        transportGain = if (gain.isFinite()) gain.coerceIn(0f, 1f) else 1f
+        applyMixerGain()
+    }
+
+    fun setNormalizationGain(gain: Float) {
+        normalizationGain = if (gain.isFinite()) gain.coerceIn(0f, 1f) else 1f
+        applyMixerGain()
+    }
+
+    /** Effective platform mixer value, after composing independent gain controls. */
+    val effectiveOutputVolume: Float get() = engine.mainMixerNode.outputVolume
+
+    private fun applyMixerGain() {
+        engine.mainMixerNode.outputVolume = normalizationGain * transportGain
     }
 
     fun stop() {
@@ -313,15 +329,15 @@ internal class IosAudioEngine : EqualizerController {
         file.processingFormat.channelCount in 1u..32u && file.processingFormat.sampleRate > 0 &&
             file.processingFormat.sampleRate <= 768000
 
-    private fun configureFileGraph(file: AVAudioFile) {
-        // Caller has stopped rendering before reconnecting/resetting native histories.
-        engine.disconnectNodeOutput(player)
-        engine.disconnectNodeOutput(equalizer)
-        engine.connect(player, equalizer, file.processingFormat)
-        engine.connect(equalizer, engine.mainMixerNode, file.processingFormat)
+    private fun configureFileGraph(file: AVAudioFile): Boolean {
+        // A prepared graph can allocate the AU after changing only one bus, briefly leaving its
+        // old stereo output against a new mono input. Detach and set BOTH formats first.
+        if (lj_eq_ios_connect(engine, player, equalizer, file.processingFormat) == 0) return false
         applySettings()
         engine.prepare()
         lj_eq_ios_reset(equalizer)
+        applyMixerGain()
+        return true
     }
 
     private fun ensureEngineRunning(): Boolean =

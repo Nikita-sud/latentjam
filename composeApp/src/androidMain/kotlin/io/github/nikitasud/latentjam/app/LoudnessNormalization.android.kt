@@ -5,7 +5,8 @@
 package io.github.nikitasud.latentjam.app
 
 import android.content.Context
-import io.github.nikitasud.latentjam.smart.AndroidAudioLoudnessMeter
+import io.github.nikitasud.latentjam.playback.AndroidIntegratedLoudnessMeter
+import io.github.nikitasud.latentjam.playback.IntegratedLoudness
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import org.koin.core.module.Module
 import org.koin.dsl.module
@@ -18,10 +19,12 @@ internal actual val playbackGainControlsAvailable: Boolean = true
 
 private class AndroidTrackLoudnessMeter(context: Context) : TrackLoudnessMeter {
 
-    private val meter = AndroidAudioLoudnessMeter(context)
+    private val meter = AndroidIntegratedLoudnessMeter(context)
 
-    override suspend fun measureDb(track: TrackDescriptor): Float? {
+    override suspend fun measure(track: TrackDescriptor): IntegratedLoudness? {
         val uri = track.audioUri?.takeIf { it.isNotBlank() } ?: return null
-        return meter.measureDb(audioUri = uri, durationMs = track.durationMs)
+        return meter.measure(audioUri = uri, durationMs = track.durationMs)
     }
 }
+
+internal actual val boundaryFadeControlsAvailable: Boolean = true

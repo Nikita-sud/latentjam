@@ -5,7 +5,9 @@
 package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.playback.PlaybackController
-import io.github.nikitasud.latentjam.smart.Loudness
+import io.github.nikitasud.latentjam.playback.IntegratedLoudness
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -18,71 +20,54 @@ import kotlinx.coroutines.launch
 import org.koin.core.module.Module
 
 /**
- * Measures one track's playback loudness in dBFS, or null when this platform or track cannot
+ * Measures one complete track in integrated LUFS and true peak dBTP, or null when this platform or track cannot
  * be measured. Implementations are main-safe and cancellable.
  */
 internal interface TrackLoudnessMeter {
-    suspend fun measureDb(track: TrackDescriptor): Float?
+    suspend fun measure(track: TrackDescriptor): IntegratedLoudness?
 }
 
 /** Koin binding for this platform's [TrackLoudnessMeter]. */
 internal expect fun loudnessMeterModule(): Module
 
-/** Whether the platform playback controller can apply normalization and boundary-fade gains. */
+/** Whether the platform can apply normalization to app-owned file playback. */
 internal expect val playbackGainControlsAvailable: Boolean
+/** Separate capability: iOS normalization does not imply support for boundary fades. */
+internal expect val boundaryFadeControlsAvailable: Boolean
 
-/**
- * Persisted loudness codec: one `hex(trackId)|hex(audioIdentity)|centi-dB` line per measured track.
- *
- * Ids are hex-encoded because imported file identities can legally contain any character,
- * including the delimiters. Corrupt lines drop individually — one damaged row must not discard
- * a library's worth of measurements. The audio identity makes a replacement at the same track id
- * remeasure instead of inheriting the previous file's gain.
- */
-internal data class StoredTrackLoudness(
-    val db: Float,
-    val audioIdentity: String,
-)
+/** Versioned derived cache. Legacy sampled RMS rows are discarded, never reinterpreted as LUFS. */
+internal data class StoredTrackLoudness(val measurement: IntegratedLoudness, val audioIdentity: String)
+private const val LOUDNESS_CACHE_VERSION = "r128-v1"
 
 internal fun encodeTrackLoudness(loudnessById: Map<String, StoredTrackLoudness>): String =
-    loudnessById.entries
-        .filter { (_, measurement) -> measurement.db.isValidMeasuredLoudness() }
-        .joinToString("\n") { (id, measurement) ->
-            "${id.encodeLoudnessHex()}|${measurement.audioIdentity.encodeLoudnessHex()}|" +
-                "${(measurement.db * 100).toInt()}"
-        }
+    loudnessById.entries.filter { it.value.measurement.isValid() }.joinToString("\n") { (id, stored) ->
+        "$LOUDNESS_CACHE_VERSION|${id.encodeLoudnessHex()}|${stored.audioIdentity.encodeLoudnessHex()}|" +
+            "${(stored.measurement.lufs * 100).toInt()}|${(stored.measurement.truePeakDbtp * 100).toInt()}"
+    }
 
 internal fun decodeTrackLoudness(payload: String): Map<String, StoredTrackLoudness> {
     val result = LinkedHashMap<String, StoredTrackLoudness>()
     for (line in payload.lineSequence()) {
-        if (line.isBlank()) continue
         val parts = line.split('|')
-        // The original two-field rows had no source identity. They are a derived cache, so dropping
-        // them once is safer than applying stale attenuation to replaced media forever.
-        if (parts.size != 3) continue
-        val id = parts[0].decodeLoudnessHex() ?: continue
-        val audioIdentity = parts[1].decodeLoudnessHex() ?: continue
-        val centiDb = parts[2].toIntOrNull() ?: continue
-        val db = centiDb / 100f
-        if (!db.isValidMeasuredLoudness()) continue
-        result[id] = StoredTrackLoudness(db = db, audioIdentity = audioIdentity)
+        if (parts.size != 5 || parts[0] != LOUDNESS_CACHE_VERSION) continue
+        val id = parts[1].decodeLoudnessHex() ?: continue
+        val identity = parts[2].decodeLoudnessHex() ?: continue
+        val lufs = parts[3].toIntOrNull()?.div(100f) ?: continue
+        val peak = parts[4].toIntOrNull()?.div(100f) ?: continue
+        val measurement = IntegratedLoudness(lufs, peak)
+        if (!measurement.isValid()) continue
+        result[id] = StoredTrackLoudness(measurement, identity)
     }
     return result
 }
 
 /** The complete per-track volume map playback should apply; empty when the feature is off. */
-internal fun normalizationVolumes(
-    loudnessById: Map<String, StoredTrackLoudness>,
-    enabled: Boolean,
-): Map<String, Float> = if (!enabled) {
-    emptyMap()
-} else {
-    loudnessById.mapValues { (_, measurement) -> Loudness.normalizationVolume(measurement.db) }
-}
+internal fun normalizationVolumes(loudnessById: Map<String, StoredTrackLoudness>, enabled: Boolean): Map<String, Float> =
+    if (!enabled) emptyMap() else loudnessById.mapValues { it.value.measurement.normalizationVolume() }
 
-/** Same id is not same audio: use every descriptor field that identifies the decoded bytes/window. */
+/** Same id is not same audio: use every descriptor field that identifies the decoded bytes. */
 internal fun TrackDescriptor.loudnessAudioIdentity(): String = buildString {
-    append("loudness-v2")
+    append("loudness-r128-v1-libebur128-1.2.6-hist")
     listOf(audioUri, durationMs?.toString(), sourceRevision).forEach { field ->
         append('|')
         if (field == null) {
@@ -106,7 +91,7 @@ internal data class NormalizationStatus(
  * Keeps playback volumes matched to measured loudness, measuring lazily as tracks play.
  *
  * There is deliberately no library-wide backfill pass: each track is measured once, on the first
- * play after the toggle goes on (a few seconds of background decode), and remembered until its
+ * play after the toggle goes on (bounded streaming background decode), and remembered until its
  * underlying audio identity changes.
  * Measurement failures are retried next session at most — never in a loop while a track plays.
  */
@@ -142,7 +127,7 @@ internal class LoudnessNormalizer(
                     val attemptIdentity = "$id|$audioIdentity"
                     val existing = measured.value[id]
                     if (existing?.audioIdentity == audioIdentity) {
-                        reportReady(existing.db)
+                        reportReady(existing.measurement)
                         return@collectLatest
                     }
                     if (existing != null) {
@@ -155,27 +140,28 @@ internal class LoudnessNormalizer(
                         return@collectLatest
                     }
                     onStatus(NormalizationStatus(NormalizationPhase.MEASURING))
-                    val db = try {
-                        meter.measureDb(track)
+                    val measurement = try {
+                        meter.measure(track)
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (failure: Throwable) {
                         println("Loudness: measurement failed: $failure")
                         null
                     }
-                    if (db == null || !db.isValidMeasuredLoudness()) {
+                    currentCoroutineContext().ensureActive()
+                    if (measurement == null || !measurement.isValid()) {
                         failedThisSession += attemptIdentity
                         onStatus(NormalizationStatus(NormalizationPhase.UNAVAILABLE))
                         return@collectLatest
                     }
-                    publish(measured.value + (id to StoredTrackLoudness(db, audioIdentity)))
-                    reportReady(db)
+                    publish(measured.value + (id to StoredTrackLoudness(measurement, audioIdentity)))
+                    reportReady(measurement)
                 }
         }
     }
 
-    private fun reportReady(db: Float) {
-        val volume = Loudness.normalizationVolume(db)
+    private fun reportReady(measurement: IntegratedLoudness) {
+        val volume = measurement.normalizationVolume()
         onStatus(NormalizationStatus(NormalizationPhase.READY, if (volume >= 1f) 0f else -20f * kotlin.math.log10(volume)))
     }
 
@@ -186,9 +172,6 @@ internal class LoudnessNormalizer(
             .onFailure { failure -> println("Loudness: persistence failed: $failure") }
     }
 }
-
-/** Decoder samples are clamped, so a real RMS result is finite and lies between -100 and 0 dBFS. */
-private fun Float.isValidMeasuredLoudness(): Boolean = isFinite() && this in -100f..0f
 
 private fun String.encodeLoudnessHex(): String = encodeToByteArray().joinToString("") { byte ->
     (byte.toInt() and 0xff).toString(16).padStart(2, '0')

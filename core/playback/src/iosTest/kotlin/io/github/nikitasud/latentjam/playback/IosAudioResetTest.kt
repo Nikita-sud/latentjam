@@ -84,6 +84,23 @@ class IosAudioResetTest {
             assertFalse(engine.play())
         } finally { engine.stop() }
     }
+    @Test
+    fun normalizationComposesWithTransportAndSurvivesGraphRecreation() = withWave { url ->
+        val engine = IosAudioEngine()
+        try {
+            engine.setNormalizationGain(0.5f)
+            engine.setTransportGain(0.4f)
+            assertEquals(0.2f, engine.effectiveOutputVolume, 0.00001f)
+            assertTrue(engine.load(url, autoPlay = false) {})
+            assertTrue(engine.rebuildAfterMediaServicesReset(250L))
+            assertEquals(0.2f, engine.effectiveOutputVolume, 0.00001f)
+            engine.setTransportGain(1f)
+            assertEquals(0.5f, engine.effectiveOutputVolume, 0.00001f)
+            engine.setNormalizationGain(1f)
+            assertEquals(1f, engine.effectiveOutputVolume, 0.00001f)
+        } finally { engine.stop() }
+    }
+
     private fun withSavedTonePreferences(block: (NSUserDefaults) -> Unit) {
         val preferences = NSUserDefaults.standardUserDefaults
         val keys = List(10) { "ios_equalizer_band_$it" } + listOf("ios_equalizer_enabled", "ios_equalizer_preset", "ios_equalizer_software_bass", "ios_equalizer_software_version")

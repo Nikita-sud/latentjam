@@ -111,6 +111,37 @@ internal class IosPlaybackController(
 ) : PlaybackController {
 
     private val mainScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var trackVolumes: Map<String, Float> = emptyMap()
+    private var normalizationGain = 1f
+    private var normalizationJob: Job? = null
+
+    override suspend fun setTrackVolumes(volumes: Map<String, Float>): Unit = withContext(Dispatchers.Main) {
+        trackVolumes = volumes.mapValues { (_, value) -> if (value.isFinite()) value.coerceIn(0f, 1f) else 1f }
+        updateNormalizationGain(snap = !playing)
+    }
+
+    private fun updateNormalizationGain(snap: Boolean) {
+        normalizationJob?.cancel()
+        normalizationJob = null
+        val target = queue.getOrNull(queueIndex)?.id?.value?.let(trackVolumes::get) ?: 1f
+        if (snap || target == normalizationGain) {
+            normalizationGain = target
+            audioEngine.setNormalizationGain(target)
+            return
+        }
+        val from = normalizationGain
+        val started = transportTimeMs()
+        normalizationJob = mainScope.launch {
+            do {
+                val elapsed = (transportTimeMs() - started).coerceAtLeast(0)
+                normalizationGain = normalizationRampVolume(from, target, elapsed)
+                audioEngine.setNormalizationGain(normalizationGain)
+                if (elapsed >= NORMALIZATION_RAMP_MS) break
+                delay(GAIN_RAMP_TICK_MS)
+            } while (isActive)
+        }
+    }
+
     private var transportFadeJob: Job? = null
     private val transportFade = TransportFadeState()
     private val mutableState = MutableStateFlow(NowPlaying())
@@ -966,6 +997,7 @@ internal class IosPlaybackController(
             stopBackendsAfterLoadFailure()
             return false
         }
+        updateNormalizationGain(snap = true)
         val isMediaLibraryItem = track.id.value.startsWith(MEDIA_ID_PREFIX)
         val loaded = if (isMediaLibraryItem && track.audioUri == null) {
             loadMediaLibraryItem(track, autoPlay)

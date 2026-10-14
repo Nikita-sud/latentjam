@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+cmake_minimum_required(VERSION 3.22)
+project(latentjam_taglib_oracle LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(BUILD_BINDINGS OFF CACHE BOOL "" FORCE)
+set(WITH_ZLIB OFF CACHE BOOL "" FORCE)
+# Use the audited submodule even on machines with Homebrew/system utf8cpp installed.
+set(CMAKE_DISABLE_FIND_PACKAGE_utf8cpp TRUE)
+set(utf8cpp_INCLUDE_DIR "${TAGLIB_SOURCE}/3rdparty/utfcpp/source" CACHE PATH "" FORCE)
+add_subdirectory("${TAGLIB_SOURCE}" taglib)
+add_executable(taglib_oracle oracle.cpp)
+target_include_directories(taglib_oracle PRIVATE "${TAGLIB_SOURCE}/taglib" "${TAGLIB_SOURCE}/taglib/toolkit" "${TAGLIB_SOURCE}/taglib/mpeg" "${TAGLIB_SOURCE}/taglib/mpeg/id3v1" "${TAGLIB_SOURCE}/taglib/mpeg/id3v2" "${CMAKE_CURRENT_BINARY_DIR}/taglib")
+target_link_libraries(taglib_oracle PRIVATE tag)
