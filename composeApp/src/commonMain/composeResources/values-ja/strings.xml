@@ -746,4 +746,9 @@
     <string name="normalization_unavailable">この曲を測定できませんでした。元の音量で再生します。</string>
     <string name="normalization_unchanged">この曲の音量を下げる必要はありません。静かな曲は増幅しません。</string>
     <string name="normalization_reduced">この曲の音量を %1$s dB 下げています。</string>
+    <string name="equalizer_response">周波数特性</string>
+    <string name="equalizer_response_preview">%1$s kHz でのプレビュー</string>
+    <string name="equalizer_response_headroom">レベルの余裕：%1$s dB</string>
+    <string name="equalizer_peak_reduction">ピークの減衰：%1$s dB</string>
+    <string name="equalizer_peak_hint">大幅な増幅により、曲全体の音量が下がる場合があります。</string>
 </resources>

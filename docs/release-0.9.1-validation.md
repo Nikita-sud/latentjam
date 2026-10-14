@@ -205,3 +205,95 @@ sound on all music. No files were uploaded for this comparison.
 
 Moto e22/Android 12, Bluetooth/USB route switching, battery usage and subjective headphone listening
 remain unverified. The permanent PCM16/offload tradeoff from the first implementation is unchanged.
+
+
+## October 14 follow-up: frequency response and limiter meter
+
+### Implementation
+
+The Android DSP and frequency-response chart now share `EqualizerFilterDesign`, including the
+existing Q=1.4 peaking filters, 100 Hz bass shelf and at-most-2 dB static headroom. This refactor
+preserves the filter mathematics and presets. The chart samples 121 logarithmically spaced
+frequencies from 20 Hz to the lower of 20 kHz and 0.49 times the configured sample rate. The
+response includes static headroom; signal-dependent peak limiting is shown separately.
+
+The UI obtains recent minimum limiter gain from PCM buffers. Meter publication uses primitive
+fields without per-sample allocations, UI dispatch or locks. A collector snapshots readings at
+10 Hz only while the tone screen is present; a 400 ms hold exposes short peaks, and readings
+return to zero after 500 ms without input. The known sample rate remains available while paused.
+Before the first PCM buffer, the chart identifies its 48 kHz reference as a preview. The meter
+measures gain reduction in our sample-peak limiter, not LUFS or reconstructed true peaks.
+
+The iOS native AVAudioUnitEQ does not expose this processing model/meter. Its controls remain
+available without an invented matching response curve. This change does not establish Android/iOS
+DSP parity or remove the protected Music.app playback limitation.
+
+### Offline band-interaction experiment
+
+Reproduce with standard-library Python:
+
+```sh
+python3 tools/research/eq_band_interaction_probe.py --random-curves 100 --output /tmp/eq-band-interaction.csv
+```
+
+The experiment uses the shipped RBJ Q=1.4 formula with static headroom, bass shelf and limiter
+excluded. It evaluates 119 curves at each of 44.1 and 48 kHz: five app presets, constant boosts/cut,
+a zigzag, ten isolated bands and 100 uniformly sampled random curves with seed 20261014. It
+compares current gains, an iterative fit to ten band centres, and a fit to centres plus nine
+logarithmic midpoints. Filter gains in the fit are bounded to ±24 dB. Results are in
+`eq-band-interaction-2026-10-14.csv`; errors are deviations from requested tonal gain, not measured
+music quality. Reported errors are rounded to six decimal places.
+
+| Design | Median maximum error at band centres | Median maximum error at midpoints | Worst midpoint error |
+|---|---:|---:|---:|
+| Current cascade | 3.1833 dB | 1.9857 dB | 5.0966 dB |
+| Centre fit | <0.000001 dB | 2.0898 dB | 5.9671 dB |
+| Centre + midpoint fit | 0.7801 dB | 1.7764 dB | 4.9002 dB |
+
+The centre fit hits the controls but can worsen the curve between them. Fitting midpoints improves
+some aggregate errors but still fails the desired ±1 dB bound on the sampled extreme settings.
+Neither candidate is enabled in the release. These numerical results are not a listening study,
+a CPU/battery benchmark or an implementation of the complete published ACGE design. The paper
+also changes band-filter design/bandwidth; gain fitting alone does not reproduce its guarantees.
+A subsequent prototype should compare those filter shapes before any preset migration.
+
+Reference: Välimäki and Liski, [Accurate Cascade Graphic Equalizer](https://acris.aalto.fi/ws/portalfiles/portal/27113913/ELEC_valimaki_et_al_Accurate_cascade_graphic.pdf),
+IEEE Signal Processing Letters, 2017. No third-party DSP code was added to the application.
+
+
+### Verification and installed artifact
+
+- `:core:playback:testAndroidHostTest`: **202/202 passed**, no failures/errors/skips, including
+  analytical response vs actual quiet PCM at 44.1/48 kHz, shelf/headroom, log sampling, bypass,
+  unsupported bands, peak hold/timeout and production PCM metering.
+- `:composeApp:testAndroidHostTest`: **1,062/1,062 passed**, including translation parity for the
+  five new labels in all 22 resource bundles and legacy locale aliases.
+- `:composeApp:compileKotlinIosSimulatorArm64`: passed; no iOS runtime/audio parity claim.
+- Arm64 release assembly and DEX gate passed: **29,247 methods**, maximum **243 registers**.
+- `:core:playback:connectedAndroidDeviceTest`: **3/3 passed** on SM-S928B / Android 16.
+  The new production Media3 test decodes a strong 40 Hz tone with bass boost and observes the
+  controller's UI flow reporting **4.886363 dB** peak reduction at **48 kHz**, with output muted.
+  Existing tests preserve all 48,000 frames and the previous absolute bass/midrange results.
+  DSP throughput was **396 ms elapsed for 10 seconds** of 48 kHz stereo with all bands and bass
+  after warmup; this is not a battery measurement.
+- After the user unlocked the phone and opened the EQ, inspected the actual updated screen:
+  the card/preset/vertical-fader design from `a8acc806` is present, with the new curve, 2 dB
+  level reserve and the user's actual **44.1 kHz** stream. The screenshot is local at
+  `/private/tmp/lj-eq-response-verified-ui.png`. The lower card was not visually inspected
+  because the screen subsequently locked; its data flow is covered by the device test above.
+
+The initial install incorrectly selected an old APK left in `outputs/apk/release`, visibly
+reverting the design. This was corrected by following AGP's current artifact locator:
+`androidApp/build/intermediates/apk_ide_redirect_file/release/createReleaseApkListingFileRedirect/redirect.txt`.
+The correct APK was in `androidApp/build/intermediates/apk/release/androidApp-arm64-v8a-release.apk`.
+Before reinstalling, verified the APK's Compose resource payload contains both the `a8acc806`
+panel labels and the new response/meter labels. Its SHA-256 and the installed `base.apk` both equal:
+
+```text
+66f6e2d663cfc214e6b90d859ef4c2d81107fe9484734a9d211984825a5a3330
+```
+
+`tools/release/resolve-apk.py` now resolves the current artifact path from AGP metadata, so
+subsequent installs do not assume the output directory. Full 0.9.1/build 15 was installed with
+`adb install -r`, preserving app data. No release was published. Phone media volume and saved
+EQ settings were not changed by the automated tests, which use a separate test package.

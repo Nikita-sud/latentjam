@@ -21,6 +21,7 @@ import kotlin.math.roundToInt
 
 /** Always stays in the PCM chain, so toggling EQ mid-track never needs a seek or player rebuild. */
 internal class EqualizerAudioProcessor(
+    private val meter: EqualizerMeter? = null,
     private val readSettings: () -> SoftwareEqualizerSettings,
 ) : BaseAudioProcessor() {
     private var equalizer: SoftwareEqualizer? = null
@@ -50,9 +51,11 @@ internal class EqualizerAudioProcessor(
         val dsp = checkNotNull(equalizer)
         dsp.update(readSettings())
         val output = replaceOutputBuffer(inputBuffer.remaining())
+        var minimumGain = 1f
         while (inputBuffer.remaining() >= frame.size * 2) {
             for (channel in frame.indices) frame[channel] = inputBuffer.short / 32768f
             dsp.process(frame)
+            if (meter != null) minimumGain = minOf(minimumGain, dsp.limiterGain)
             pendingFrames++
             if (framesToPrime > 0) framesToPrime-- else {
                 writeFrame(output)
@@ -60,6 +63,7 @@ internal class EqualizerAudioProcessor(
             }
         }
         output.flip()
+        meter?.report(inputAudioFormat.sampleRate, minimumGain)
     }
 
     override fun onQueueEndOfStream() {
@@ -108,7 +112,7 @@ internal open class EqualizerRenderersFactory(context: Context) : DefaultRendere
 
     protected open fun buildAudioProcessors(context: Context): Array<AudioProcessor> {
         val controller = AndroidEqualizerController.get(context)
-        return arrayOf(EqualizerAudioProcessor { controller.settings })
+        return arrayOf(EqualizerAudioProcessor(controller.meter) { controller.settings })
     }
 }
 

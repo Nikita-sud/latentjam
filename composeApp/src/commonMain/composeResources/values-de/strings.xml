@@ -789,4 +789,9 @@
     <string name="normalization_unavailable">Dieser Titel konnte nicht gemessen werden. Die ursprüngliche Lautstärke bleibt erhalten.</string>
     <string name="normalization_unchanged">Dieser Titel muss nicht leiser werden. Leise Titel werden nicht verstärkt.</string>
     <string name="normalization_reduced">Dieser Titel wird um %1$s dB abgesenkt.</string>
+    <string name="equalizer_response">Frequenzgang</string>
+    <string name="equalizer_response_preview">Vorschau bei %1$s kHz</string>
+    <string name="equalizer_response_headroom">Pegelreserve: %1$s dB</string>
+    <string name="equalizer_peak_reduction">Spitzenabsenkung: %1$s dB</string>
+    <string name="equalizer_peak_hint">Starke Anhebungen können die Lautstärke des gesamten Titels verringern.</string>
 </resources>

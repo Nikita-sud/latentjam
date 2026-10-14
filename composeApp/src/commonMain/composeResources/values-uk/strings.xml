@@ -847,4 +847,9 @@
     <string name="normalization_unavailable">Не вдалося виміряти цей трек. Гучність залишається початковою.</string>
     <string name="normalization_unchanged">Цей трек не потребує зниження. Тихі треки не підсилюються.</string>
     <string name="normalization_reduced">Гучність цього треку знижено на %1$s дБ.</string>
+    <string name="equalizer_response">Частотна характеристика</string>
+    <string name="equalizer_response_preview">Попередній перегляд при %1$s кГц</string>
+    <string name="equalizer_response_headroom">Запас рівня: %1$s дБ</string>
+    <string name="equalizer_peak_reduction">Зниження піків: %1$s дБ</string>
+    <string name="equalizer_peak_hint">Сильне підсилення може знижувати гучність усього треку.</string>
 </resources>

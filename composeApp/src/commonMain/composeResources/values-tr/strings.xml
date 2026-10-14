@@ -777,4 +777,9 @@
     <string name="normalization_unavailable">Bu parça ölçülemedi. Özgün ses düzeyi kullanılıyor.</string>
     <string name="normalization_unchanged">Bu parçanın sesi kısılmamalı. Düşük sesli parçalar yükseltilmez.</string>
     <string name="normalization_reduced">Bu parçanın ses düzeyi %1$s dB azaltılıyor.</string>
+    <string name="equalizer_response">Frekans yanıtı</string>
+    <string name="equalizer_response_preview">%1$s kHz önizleme</string>
+    <string name="equalizer_response_headroom">Seviye payı: %1$s dB</string>
+    <string name="equalizer_peak_reduction">Tepe azaltma: %1$s dB</string>
+    <string name="equalizer_peak_hint">Güçlü artırmalar parçanın tamamının ses düzeyini azaltabilir.</string>
 </resources>

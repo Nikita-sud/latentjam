@@ -786,4 +786,9 @@
     <string name="normalization_unavailable">Impossibile misurare il brano. Verrà usato il volume originale.</string>
     <string name="normalization_unchanged">Questo brano non richiede riduzioni. I brani più bassi non vengono amplificati.</string>
     <string name="normalization_reduced">Il volume di questo brano viene ridotto di %1$s dB.</string>
+    <string name="equalizer_response">Risposta in frequenza</string>
+    <string name="equalizer_response_preview">Anteprima a %1$s kHz</string>
+    <string name="equalizer_response_headroom">Riserva di livello: %1$s dB</string>
+    <string name="equalizer_peak_reduction">Riduzione dei picchi: %1$s dB</string>
+    <string name="equalizer_peak_hint">Un forte aumento può ridurre il volume dell’intero brano.</string>
 </resources>

@@ -845,4 +845,9 @@
     <string name="normalization_unavailable">Nie udało się zmierzyć tego utworu. Używana jest oryginalna głośność.</string>
     <string name="normalization_unchanged">Ten utwór nie wymaga ściszenia. Ciche utwory nie są wzmacniane.</string>
     <string name="normalization_reduced">Głośność tego utworu jest obniżona o %1$s dB.</string>
+    <string name="equalizer_response">Charakterystyka częstotliwościowa</string>
+    <string name="equalizer_response_preview">Podgląd przy %1$s kHz</string>
+    <string name="equalizer_response_headroom">Zapas poziomu: %1$s dB</string>
+    <string name="equalizer_peak_reduction">Redukcja szczytów: %1$s dB</string>
+    <string name="equalizer_peak_hint">Silne wzmocnienie może obniżyć głośność całego utworu.</string>
 </resources>

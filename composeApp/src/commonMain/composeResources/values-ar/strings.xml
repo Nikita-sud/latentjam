@@ -913,4 +913,9 @@
     <string name="normalization_unavailable">تعذر قياس هذا المقطع. يُستخدم مستوى الصوت الأصلي.</string>
     <string name="normalization_unchanged">لا يحتاج هذا المقطع إلى خفض الصوت. لا يتم تضخيم المقاطع الهادئة.</string>
     <string name="normalization_reduced">تم خفض صوت هذا المقطع بمقدار %1$s ديسيبل.</string>
+    <string name="equalizer_response">استجابة التردد</string>
+    <string name="equalizer_response_preview">معاينة عند %1$s كيلوهرتز</string>
+    <string name="equalizer_response_headroom">هامش المستوى: %1$s ديسيبل</string>
+    <string name="equalizer_peak_reduction">خفض القمم: %1$s ديسيبل</string>
+    <string name="equalizer_peak_hint">قد تؤدي الزيادات الكبيرة إلى خفض مستوى صوت المقطع بأكمله.</string>
 </resources>

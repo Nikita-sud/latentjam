@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
@@ -31,14 +32,23 @@ import io.github.nikitasud.latentjam.playback.EqualizerController
 import io.github.nikitasud.latentjam.playback.EqualizerPreset
 import io.github.nikitasud.latentjam.playback.EqualizerPresetKind
 import io.github.nikitasud.latentjam.playback.EqualizerState
+import io.github.nikitasud.latentjam.playback.EqualizerFrequencyResponse
+import io.github.nikitasud.latentjam.playback.EqualizerProcessingState
+import io.github.nikitasud.latentjam.playback.frequencyResponse
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
+import kotlin.math.ceil
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun EqualizerSettings(equalizer: EqualizerController, settings: AppSettings) {
     val state by equalizer.state.collectAsState()
+    val processing by remember(equalizer) { equalizer.processing }.collectAsState(EqualizerProcessingState())
+    val response = remember(state, processing.sampleRateHz) {
+        state.frequencyResponse(processing.sampleRateHz ?: 48000)
+    }
     val scope = rememberCoroutineScope()
     val normalize by settings.normalizeVolume.collectAsState()
     val normalization by AppGraph.normalizationStatus.collectAsState()
@@ -97,7 +107,21 @@ internal fun EqualizerSettings(equalizer: EqualizerController, settings: AppSett
                             )
                         }
                     }
-                    BandCurve(state)
+                    response?.let { curve ->
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text(stringResource(Res.string.equalizer_response), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                            val rate = (curve.sampleRateHz / 1000f).toString().removeSuffix(".0")
+                            Text(
+                                if (processing.sampleRateHz == null) stringResource(Res.string.equalizer_response_preview, rate) else "$rate kHz",
+                                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        BandCurve(curve, state.enabled)
+                        Text(
+                            stringResource(Res.string.equalizer_response_headroom, formatReductionDb(curve.headroomDb)),
+                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     Row(
                         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).height(200.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly,
@@ -130,6 +154,17 @@ internal fun EqualizerSettings(equalizer: EqualizerController, settings: AppSett
                         modifier = Modifier.semantics { contentDescription = bassLabel },
                     )
                 }
+            }
+        }
+        if (state.available && processing.limiterReductionDb != null) item {
+            ToneCard {
+                val reduction = if (state.enabled) processing.limiterReductionDb ?: 0f else 0f
+                Text(
+                    stringResource(Res.string.equalizer_peak_reduction, formatReductionDb(reduction)),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                LinearProgressIndicator(progress = { (reduction / 12f).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+                Text(stringResource(Res.string.equalizer_peak_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         if (playbackGainControlsAvailable) {
@@ -179,28 +214,47 @@ private fun ToneCard(content: @Composable ColumnScope.() -> Unit) {
     }
 }
 
-/** A visual summary of band settings, separate from the bass shelf below. */
+/** The actual linear filter response on a logarithmic frequency axis. */
 @Composable
-private fun BandCurve(state: EqualizerState) {
-    val accent = MaterialTheme.colorScheme.primary.copy(alpha = if (state.enabled) 1f else 0.3f)
+private fun BandCurve(response: EqualizerFrequencyResponse, enabled: Boolean) {
+    val accent = MaterialTheme.colorScheme.primary.copy(alpha = if (enabled) 1f else 0.3f)
     val grid = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)
-    Canvas(Modifier.fillMaxWidth().height(72.dp).padding(vertical = 8.dp)) {
-        for (fraction in listOf(0f, 0.5f, 1f)) drawLine(grid, Offset(0f, size.height * fraction), Offset(size.width, size.height * fraction))
-        if (state.bands.size < 2) return@Canvas
-        val points = state.bands.mapIndexed { index, band ->
-            Offset(size.width * index / (state.bands.size - 1), size.height * (0.5f - band.levelMillibels / 2400f))
+    val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val scale = maxOf(12f, ceil(response.points.maxOf { abs(it.gainDb) } / 6f) * 6f)
+    val description = stringResource(Res.string.equalizer_response)
+    Row(Modifier.fillMaxWidth().height(112.dp)) {
+        Column(Modifier.width(40.dp).fillMaxHeight(), verticalArrangement = Arrangement.SpaceBetween) {
+            Text("+${scale.roundToInt()}", style = MaterialTheme.typography.labelSmall, color = labelColor)
+            Text("0 dB", style = MaterialTheme.typography.labelSmall, color = labelColor)
+            Text("−${scale.roundToInt()}", style = MaterialTheme.typography.labelSmall, color = labelColor)
         }
-        val path = Path().apply {
-            moveTo(points.first().x, points.first().y)
-            points.zipWithNext().forEach { (a, b) ->
-                val mid = (a.x + b.x) / 2
-                cubicTo(mid, a.y, mid, b.y, b.x, b.y)
+        Canvas(Modifier.weight(1f).fillMaxHeight().padding(vertical = 6.dp).semantics { contentDescription = description }) {
+            for (fraction in listOf(0f, 0.5f, 1f)) {
+                drawLine(grid, Offset(0f, size.height * fraction), Offset(size.width, size.height * fraction))
             }
+            val path = Path()
+            response.points.forEachIndexed { index, point ->
+                val x = size.width * index / response.points.lastIndex
+                val y = size.height * (0.5f - point.gainDb / (2 * scale))
+                if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            val fill = Path().apply {
+                addPath(path)
+                lineTo(size.width, size.height / 2)
+                lineTo(0f, size.height / 2)
+                close()
+            }
+            drawPath(fill, Brush.verticalGradient(listOf(accent.copy(alpha = 0.12f), accent.copy(alpha = 0.02f))))
+            drawPath(path, accent, style = Stroke(2.dp.toPx()))
         }
-        drawPath(path, accent, style = Stroke(2.dp.toPx()))
-        points.forEach { drawCircle(accent, 3.dp.toPx(), it) }
+    }
+    Row(Modifier.fillMaxWidth().padding(start = 40.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text("${response.points.first().frequencyHz.roundToInt()} Hz", style = MaterialTheme.typography.labelSmall, color = labelColor)
+        Text("${response.points.last().frequencyHz.roundToInt() / 1000f} kHz".replace(".0 ", " "), style = MaterialTheme.typography.labelSmall, color = labelColor)
     }
 }
+
+private fun formatReductionDb(value: Float): String = ((value * 10).roundToInt() / 10f).toString()
 
 @Composable
 private fun EqualizerBandSlider(label: String, description: String, value: Float, range: ClosedFloatingPointRange<Float>, enabled: Boolean, onChange: (Float) -> Unit) {

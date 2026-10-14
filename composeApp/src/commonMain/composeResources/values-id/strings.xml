@@ -752,4 +752,9 @@
     <string name="normalization_unavailable">Lagu ini tidak dapat diukur. Volume asli digunakan.</string>
     <string name="normalization_unchanged">Lagu ini tidak perlu dikecilkan. Lagu yang pelan tidak diperkuat.</string>
     <string name="normalization_reduced">Volume lagu ini dikurangi %1$s dB.</string>
+    <string name="equalizer_response">Respons frekuensi</string>
+    <string name="equalizer_response_preview">Pratinjau pada %1$s kHz</string>
+    <string name="equalizer_response_headroom">Cadangan level: %1$s dB</string>
+    <string name="equalizer_peak_reduction">Pengurangan puncak: %1$s dB</string>
+    <string name="equalizer_peak_hint">Penguatan besar dapat menurunkan volume seluruh lagu.</string>
 </resources>

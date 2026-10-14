@@ -24,6 +24,8 @@ import kotlin.math.cos
 import kotlin.math.log10
 import kotlin.math.sin
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.flow.first
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -98,6 +100,40 @@ class EqualizerPlaybackDeviceTest {
         } finally { input.delete() }
     }
 
+    @Test fun limiterMeterReportsReductionFromTheProductionMedia3Chain() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val input = File(context.cacheDir, "equalizer-meter.wav")
+        writeTone(input, level = 25000, frequencies = listOf(40))
+        val controller = AndroidEqualizerController.get(context)
+        var player: ExoPlayer? = null
+        try {
+            instrumentation.runOnMainSync {
+                runBlocking {
+                    controller.reset()
+                    controller.setEnabled(true)
+                    controller.setBassBoost(1000)
+                }
+                player = ExoPlayer.Builder(context, EqualizerRenderersFactory(context)).build().apply {
+                    volume = 0f
+                    setMediaItem(MediaItem.fromUri(input.toURI().toString()))
+                    prepare()
+                    play()
+                }
+            }
+            val reading = runBlocking {
+                withTimeout(5000) {
+                    controller.processing.first { it.sampleRateHz == 48000 && (it.limiterReductionDb ?: 0f) > 3f }
+                }
+            }
+            Log.i("LJEqualizerTest", "Production meter: ${reading.sampleRateHz} Hz, ${reading.limiterReductionDb} dB peak reduction")
+            assertTrue(reading.limiterReductionDb!! < 12f)
+        } finally {
+            instrumentation.runOnMainSync { player?.release() }
+            input.delete()
+        }
+    }
+
     @Test fun processingIsFasterThanRealtimeOnTheDevice() {
         val processor = SoftwareEqualizer(48000, 2, SoftwareEqualizerSettings(true, List(10) { 600 }, 1000))
         val frame = floatArrayOf(0.1f, -0.1f)
@@ -141,14 +177,14 @@ class EqualizerPlaybackDeviceTest {
         fun amplitudes(): List<Double> = re.indices.map { kotlin.math.sqrt(re[it] * re[it] + im[it] * im[it]) / 18000 }
     }
 
-    private fun writeTone(file: File) {
+    private fun writeTone(file: File, level: Int = 2000, frequencies: List<Int> = FREQUENCIES) {
         val frames = 48000
         val bytes = ByteBuffer.allocate(44 + frames * 4).order(ByteOrder.LITTLE_ENDIAN)
         bytes.put("RIFF".toByteArray()).putInt(36 + frames * 4).put("WAVEfmt ".toByteArray())
         bytes.putInt(16).putShort(1).putShort(2).putInt(48000).putInt(192000).putShort(4).putShort(16)
         bytes.put("data".toByteArray()).putInt(frames * 4)
         repeat(frames) { index ->
-            val sample = FREQUENCIES.sumOf { frequency -> 2000 * sin(2 * PI * frequency * index / 48000) }.toInt().toShort()
+            val sample = frequencies.sumOf { frequency -> level * sin(2 * PI * frequency * index / 48000) }.toInt().toShort()
             bytes.putShort(sample).putShort(sample)
         }
         file.writeBytes(bytes.array())

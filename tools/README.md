@@ -29,6 +29,19 @@ at 243 registers, a library's, which does not change with the app's code; App's 
 next. When App grows, move groups of its state into the remembered holders next to it in `App.kt`
 rather than raising the limit.
 
+## release/resolve-apk.py
+
+Prints the current APK path for an ABI using AGP's artifact locator and output metadata:
+
+```bash
+python3 tools/release/resolve-apk.py --variant release --abi arm64-v8a
+```
+
+Device-targeted builds can write to `androidApp/build/intermediates/apk/release` while older APKs
+remain in `outputs/apk/release`. Resolve the artifact before installing it; a successful Gradle
+build does not make a hard-coded `outputs/apk` path current. Verify the installed APK hash against
+the resolved file when validating a phone build. The script does not run ADB or install anything.
+
 ## convert_audio_encoder_fp16.py
 
 Converts an FP32 waveform encoder to FP16 weights while retaining FP32 inputs and outputs. By

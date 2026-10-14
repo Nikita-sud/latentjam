@@ -9,6 +9,12 @@ import android.media.AudioManager
 import android.media.audiofx.Equalizer
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,6 +36,13 @@ internal class AndroidEqualizerController private constructor(context: Context) 
     private val mutableState = MutableStateFlow(settings.asState())
     override val state: StateFlow<EqualizerState> = mutableState.asStateFlow()
     private val lock = Any()
+    internal val meter = EqualizerMeter()
+    override val processing: Flow<EqualizerProcessingState> = flow {
+        while (currentCoroutineContext().isActive) {
+            emit(meter.snapshot())
+            delay(100)
+        }
+    }.distinctUntilChanged()
 
     private fun restore(context: Context): SoftwareEqualizerSettings {
         val software = preferences.getInt("software_version", 0) == 1

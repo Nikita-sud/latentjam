@@ -786,4 +786,9 @@
     <string name="normalization_unavailable">Não foi possível medir esta faixa. O volume original será usado.</string>
     <string name="normalization_unchanged">Esta faixa não precisa de redução. Faixas mais baixas não são amplificadas.</string>
     <string name="normalization_reduced">O volume desta faixa é reduzido em %1$s dB.</string>
+    <string name="equalizer_response">Resposta em frequência</string>
+    <string name="equalizer_response_preview">Prévia em %1$s kHz</string>
+    <string name="equalizer_response_headroom">Reserva de nível: %1$s dB</string>
+    <string name="equalizer_peak_reduction">Redução de picos: %1$s dB</string>
+    <string name="equalizer_peak_hint">Uma amplificação forte pode reduzir o volume de toda a faixa.</string>
 </resources>

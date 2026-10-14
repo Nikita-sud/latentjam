@@ -802,4 +802,9 @@
     <string name="normalization_unavailable">Piesa nu a putut fi măsurată. Se folosește volumul original.</string>
     <string name="normalization_unchanged">Această piesă nu necesită reducere. Piesele mai încete nu sunt amplificate.</string>
     <string name="normalization_reduced">Volumul acestei piese este redus cu %1$s dB.</string>
+    <string name="equalizer_response">Răspuns în frecvență</string>
+    <string name="equalizer_response_preview">Previzualizare la %1$s kHz</string>
+    <string name="equalizer_response_headroom">Rezervă de nivel: %1$s dB</string>
+    <string name="equalizer_peak_reduction">Reducerea vârfurilor: %1$s dB</string>
+    <string name="equalizer_peak_hint">Amplificarea puternică poate reduce volumul întregii piese.</string>
 </resources>

@@ -746,4 +746,9 @@
     <string name="normalization_unavailable">이 트랙을 측정하지 못했습니다. 원래 음량을 사용합니다.</string>
     <string name="normalization_unchanged">이 트랙은 음량을 줄일 필요가 없습니다. 조용한 트랙은 증폭하지 않습니다.</string>
     <string name="normalization_reduced">이 트랙의 음량을 %1$s dB 줄였습니다.</string>
+    <string name="equalizer_response">주파수 응답</string>
+    <string name="equalizer_response_preview">%1$s kHz 미리보기</string>
+    <string name="equalizer_response_headroom">레벨 여유: %1$s dB</string>
+    <string name="equalizer_peak_reduction">피크 감소: %1$s dB</string>
+    <string name="equalizer_peak_hint">크게 증폭하면 곡 전체의 음량이 줄어들 수 있습니다.</string>
 </resources>

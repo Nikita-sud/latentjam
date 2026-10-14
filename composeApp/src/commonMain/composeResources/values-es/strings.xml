@@ -786,4 +786,9 @@
     <string name="normalization_unavailable">No se pudo medir esta pista. Se mantiene el volumen original.</string>
     <string name="normalization_unchanged">Esta pista no necesita reducción. Las pistas suaves no se amplifican.</string>
     <string name="normalization_reduced">El volumen de esta pista se reduce %1$s dB.</string>
+    <string name="equalizer_response">Respuesta en frecuencia</string>
+    <string name="equalizer_response_preview">Vista previa a %1$s kHz</string>
+    <string name="equalizer_response_headroom">Margen de nivel: %1$s dB</string>
+    <string name="equalizer_peak_reduction">Reducción de picos: %1$s dB</string>
+    <string name="equalizer_peak_hint">Un aumento fuerte puede reducir el volumen de toda la pista.</string>
 </resources>

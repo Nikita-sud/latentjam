@@ -791,4 +791,9 @@
     <string name="normalization_unavailable">Impossible de mesurer ce morceau. Le volume d’origine est conservé.</string>
     <string name="normalization_unchanged">Ce morceau ne nécessite aucune réduction. Les morceaux faibles ne sont pas amplifiés.</string>
     <string name="normalization_reduced">Le volume de ce morceau est réduit de %1$s dB.</string>
+    <string name="equalizer_response">Réponse en fréquence</string>
+    <string name="equalizer_response_preview">Aperçu à %1$s kHz</string>
+    <string name="equalizer_response_headroom">Réserve de niveau : %1$s dB</string>
+    <string name="equalizer_peak_reduction">Réduction des crêtes : %1$s dB</string>
+    <string name="equalizer_peak_hint">Une forte amplification peut réduire le volume de tout le morceau.</string>
 </resources>

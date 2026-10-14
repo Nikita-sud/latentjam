@@ -838,4 +838,9 @@
     <string name="normalization_unavailable">Не удалось измерить этот трек. Громкость остаётся исходной.</string>
     <string name="normalization_unchanged">Этому треку снижение не нужно. Тихие треки не усиливаются.</string>
     <string name="normalization_reduced">Громкость этого трека снижена на %1$s дБ.</string>
+    <string name="equalizer_response">Частотная характеристика</string>
+    <string name="equalizer_response_preview">Предпросмотр при %1$s кГц</string>
+    <string name="equalizer_response_headroom">Запас уровня: %1$s дБ</string>
+    <string name="equalizer_peak_reduction">Снижение пиков: %1$s дБ</string>
+    <string name="equalizer_peak_hint">Сильное усиление может снижать громкость всего трека.</string>
 </resources>

@@ -752,4 +752,9 @@
     <string name="normalization_unavailable">无法测量此歌曲，将使用原始音量。</string>
     <string name="normalization_unchanged">此歌曲无需降低音量。音量较低的歌曲不会被放大。</string>
     <string name="normalization_reduced">此歌曲的音量已降低 %1$s dB。</string>
+    <string name="equalizer_response">频率响应</string>
+    <string name="equalizer_response_preview">%1$s kHz 预览</string>
+    <string name="equalizer_response_headroom">电平余量：%1$s dB</string>
+    <string name="equalizer_peak_reduction">峰值衰减：%1$s dB</string>
+    <string name="equalizer_peak_hint">大幅提升频段可能会降低整首曲目的音量。</string>
 </resources>

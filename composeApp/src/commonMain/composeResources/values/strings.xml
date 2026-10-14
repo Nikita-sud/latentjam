@@ -857,4 +857,9 @@
     <string name="normalization_unavailable">Could not measure this track. Original volume is used.</string>
     <string name="normalization_unchanged">This track needs no reduction. Quiet tracks are not boosted.</string>
     <string name="normalization_reduced">This track is reduced by %1$s dB.</string>
+    <string name="equalizer_response">Frequency response</string>
+    <string name="equalizer_response_preview">Preview at %1$s kHz</string>
+    <string name="equalizer_response_headroom">Level reserve: %1$s dB</string>
+    <string name="equalizer_peak_reduction">Peak reduction: %1$s dB</string>
+    <string name="equalizer_peak_hint">Strong boosts can reduce the level of the whole track.</string>
 </resources>

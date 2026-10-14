@@ -39,3 +39,20 @@ verification on Honor; declaring supported intents cannot guarantee that list's 
 Validation results are recorded in `release-0.9.1-validation.md` after the candidate is built.
 Required checks include host tests, translation parity, iOS source compilation, an Android release
 build and its DEX-register gate, plus emulator playback/open-file and notification checks.
+
+
+## EQ response and peak metering
+
+- Android tone controls now show the calculated frequency response of the actual filter cascade,
+  including the separate bass shelf and static boost headroom. The processor and chart share one
+  coefficient definition. The logarithmic chart adapts its dB range to combined boosts/cuts.
+- Uses the configured PCM sample rate when known; before playback, the chart explicitly labels
+  its 48 kHz preview. Peak attenuation is metered separately from the linear filter response.
+- A recent peak-reduction indicator explains why extreme boosts may reduce the rest of a track.
+  Audio processing publishes primitive readings per buffer; UI polling runs at 10 Hz only while
+  the tone screen is collected, with a 400 ms peak hold and a 500 ms stale-reading timeout.
+- Native iOS EQ retains its band controls. Its transfer function and limiter are not represented
+  by Android's curve/meter. A shared native processing core remains a subsequent project.
+- An offline gain-interaction experiment is available in `tools/research/eq_band_interaction_probe.py`.
+  The candidate fits are not enabled for playback: centre-only correction worsens some inter-band
+  errors, and the midpoint fit does not meet the desired 1 dB tolerance on extreme settings.

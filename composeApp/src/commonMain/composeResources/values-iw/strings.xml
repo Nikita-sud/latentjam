@@ -812,4 +812,9 @@
     <string name="normalization_unavailable">לא ניתן למדוד רצועה זו. נעשה שימוש בעוצמה המקורית.</string>
     <string name="normalization_unchanged">אין צורך להנמיך רצועה זו. רצועות שקטות אינן מוגברות.</string>
     <string name="normalization_reduced">עוצמת רצועה זו מופחתת ב־%1$s דציבל.</string>
+    <string name="equalizer_response">תגובת תדר</string>
+    <string name="equalizer_response_preview">תצוגה מקדימה ב־%1$s קילוהרץ</string>
+    <string name="equalizer_response_headroom">מרווח עוצמה: %1$s דציבל</string>
+    <string name="equalizer_peak_reduction">הנחתת שיאים: %1$s דציבל</string>
+    <string name="equalizer_peak_hint">הגברה חזקה עלולה להפחית את עוצמת הרצועה כולה.</string>
 </resources>

@@ -4,12 +4,7 @@
  */
 package io.github.nikitasud.latentjam.playback
 
-import kotlin.math.PI
-import kotlin.math.cos
 import kotlin.math.max
-import kotlin.math.pow
-import kotlin.math.sin
-import kotlin.math.sqrt
 
 /** Immutable settings shared with the audio thread; never mutate a published band list. */
 internal data class SoftwareEqualizerSettings(
@@ -43,6 +38,7 @@ internal data class SoftwareEqualizerSettings(
         maxLevelMillibels = 1200,
         bassBoostStrength = bass,
         bassBoostSupported = true,
+        supportsFrequencyResponse = true,
     )
 
     companion object {
@@ -80,6 +76,7 @@ internal class SoftwareEqualizer(
 
     /** Fixed for the stream, including bypass, so live toggles cannot drop or repeat samples. */
     val latencyFrames: Int get() = limiter.latencyFrames
+    val limiterGain: Float get() = limiter.currentGain
 
     fun update(value: SoftwareEqualizerSettings) {
         // Coalesce rapid slider edits; finish the current 20 ms ramp before starting another.
@@ -111,27 +108,9 @@ internal class SoftwareEqualizer(
     }
 
     private inner class Bank(value: SoftwareEqualizerSettings) {
-        val filters: List<Biquad> = if (!value.enabled) emptyList() else buildList {
-            SoftwareEqualizerSettings.FREQUENCIES.forEachIndexed { index, frequency ->
-                val gain = value.levels[index] / 100.0
-                if (gain != 0.0 && frequency < sampleRate * 0.45) {
-                    add(Biquad(peak(frequency.toDouble(), gain), channels))
-                }
-            }
-            if (value.bass > 0) add(Biquad(lowShelf(minOf(100.0, sampleRate * 0.1), value.bass * 0.009), channels))
-        }
-        // Reserve a small amount for boosts, not the worst possible response of the entire
-        // curve: that used to turn Bass + 100% boost down by 17.5 dB even on quiet recordings.
-        // Actual overloads are handled by the lookahead limiter. Cuts need no fixed attenuation.
-        private val gain = if (filters.isEmpty()) 1.0 else {
-            var boostDb = value.bass * 0.009
-            for (index in SoftwareEqualizerSettings.FREQUENCIES.indices) {
-                if (SoftwareEqualizerSettings.FREQUENCIES[index] < sampleRate * 0.45) {
-                    boostDb = max(boostDb, value.levels[index] / 100.0)
-                }
-            }
-            10.0.pow(-boostDb.coerceIn(0.0, 2.0) / 20.0)
-        }
+        private val design = EqualizerFilterDesign(sampleRate, value)
+        val filters: List<Biquad> = design.coefficients.map { Biquad(it, channels) }
+        private val gain = design.gain
 
         fun sample(input: Double, channel: Int): Double {
             var sample = input * gain
@@ -139,32 +118,6 @@ internal class SoftwareEqualizer(
             return sample
         }
     }
-
-    private fun peak(frequency: Double, gainDb: Double): DoubleArray {
-        val a = 10.0.pow(gainDb / 40.0)
-        val w = 2 * PI * frequency / sampleRate
-        val alpha = sin(w) / (2 * 1.4) // Approximately one octave bandwidth.
-        return coefficients(1 + alpha * a, -2 * cos(w), 1 - alpha * a,
-            1 + alpha / a, -2 * cos(w), 1 - alpha / a)
-    }
-
-    private fun lowShelf(frequency: Double, gainDb: Double): DoubleArray {
-        val a = 10.0.pow(gainDb / 40.0)
-        val w = 2 * PI * frequency / sampleRate
-        val c = cos(w)
-        val t = sqrt(2 * a) * sin(w)
-        return coefficients(
-            a * ((a + 1) - (a - 1) * c + t),
-            2 * a * ((a - 1) - (a + 1) * c),
-            a * ((a + 1) - (a - 1) * c - t),
-            (a + 1) + (a - 1) * c + t,
-            -2 * ((a - 1) + (a + 1) * c),
-            (a + 1) + (a - 1) * c - t,
-        )
-    }
-
-    private fun coefficients(b0: Double, b1: Double, b2: Double, a0: Double, a1: Double, a2: Double): DoubleArray =
-        doubleArrayOf(b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0)
 
     private class Biquad(private val c: DoubleArray, channels: Int) {
         private val z1 = DoubleArray(channels)

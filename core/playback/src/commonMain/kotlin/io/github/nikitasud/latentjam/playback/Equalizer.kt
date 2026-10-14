@@ -4,7 +4,9 @@
  */
 package io.github.nikitasud.latentjam.playback
 
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flowOf
 import org.koin.core.module.Module
 
 /**
@@ -50,6 +52,8 @@ public data class EqualizerState(
     public val maxLevelMillibels: Int = 1500,
     public val bassBoostStrength: Int = 0,
     public val bassBoostSupported: Boolean = false,
+    /** Only true when the app can evaluate the actual filter coefficients. */
+    public val supportsFrequencyResponse: Boolean = false,
 )
 
 /**
@@ -62,9 +66,20 @@ public data class EqualizerState(
  * Settings persist and are re-applied whenever the audio session is rebuilt, so an equalizer set
  * once survives the service being restarted.
  */
+/** Sample rate of the configured PCM stream and recent peak attenuation, in positive dB. */
+public data class EqualizerProcessingState(
+    public val sampleRateHz: Int? = null,
+    /** Null means this output cannot report its limiter; zero means no recent attenuation. */
+    public val limiterReductionDb: Float? = null,
+)
+
 public interface EqualizerController {
 
     public val state: StateFlow<EqualizerState>
+
+    /** Collected only while the tone screen is visible; meter updates must not drive settings. */
+    public val processing: Flow<EqualizerProcessingState>
+        get() = flowOf(EqualizerProcessingState())
 
     /** Turns the effect on or off without discarding the curve. */
     public suspend fun setEnabled(enabled: Boolean)

@@ -21,6 +21,8 @@ internal class LookaheadPeakLimiter(sampleRate: Int, private val channels: Int) 
     init { require(sampleRate > 0 && channels > 0) }
 
     val latencyFrames: Int = max(1, sampleRate / 200)
+    var currentGain: Float = 1f
+        private set
     private val window = latencyFrames + 1
     private val holdFrames = max(latencyFrames, sampleRate / 50)
     private val delayed = FloatArray(window * channels)
@@ -61,6 +63,7 @@ internal class LookaheadPeakLimiter(sampleRate: Int, private val channels: Int) 
         gainSum += envelope - gains[position]
         gains[position] = envelope
         val gain = (gainSum / window).coerceIn(0.0, 1.0)
+        currentGain = gain.toFloat()
         val oldest = (position + 1) % window
         for (channel in 0 until channels) {
             // The clamp only guards floating-point rounding at the ceiling.
