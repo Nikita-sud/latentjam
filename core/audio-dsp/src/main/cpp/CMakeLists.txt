@@ -7,6 +7,10 @@ add_library(lj_equalizer SHARED lj_equalizer.cpp)
 target_compile_options(lj_equalizer PRIVATE -O3 -ffp-contract=off -fno-fast-math)
 if(ANDROID)
     target_sources(lj_equalizer PRIVATE lj_equalizer_jni.cpp)
+    # Keep stripped build IDs independent of the absolute checkout/build directories.
+    target_compile_options(lj_equalizer PRIVATE
+        "-ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=."
+        "-fdebug-prefix-map=${CMAKE_BINARY_DIR}=.")
     target_link_options(lj_equalizer PRIVATE -Wl,-z,max-page-size=16384)
 elseif(LJ_EQ_JNI)
     find_package(JNI REQUIRED)

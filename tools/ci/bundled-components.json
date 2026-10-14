@@ -1,6 +1,12 @@
 {
   "native": [
     {
+      "name": "Signalsmith DSP",
+      "path": "core/audio-dsp/src/main/cpp/vendor/signalsmith",
+      "license": "MIT",
+      "url": "https://github.com/Signalsmith-Audio/dsp/tree/ca390d28c41ea5108a528e2e81faa4088f2f8ac8"
+    },
+    {
       "name": "Arm KleidiAI",
       "path": "core/ort-ops/src/main/cpp/vendor/kleidiai",
       "license": "Apache-2.0",

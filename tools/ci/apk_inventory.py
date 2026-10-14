@@ -18,7 +18,7 @@ def inspect(path):
                 continue
             _, abi, library = name.split("/")
             if library == "libonnxruntime.so":
-                for required in ("libljq4.so", "libljmap.so"):
+                for required in ("libljq4.so", "libljmap.so", "liblj_equalizer.so"):
                     if f"lib/{abi}/{required}" not in names:
                         raise ValueError(f"{path}: {abi} lacks {required}")
             info = apk.getinfo(name)
