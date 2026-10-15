@@ -1,0 +1,176 @@
+{
+  "date": "2026-10-15",
+  "issue": "https://github.com/Nikita-sud/latentjam/issues/17",
+  "branch": "codex/adversarial-0.9.1",
+  "source_commit": "d7ae28000638c64c250ba131059723178e154193",
+  "status": "conservative_fix_validated_with_documented_limits",
+  "tests": [
+    {
+      "module": "composeApp",
+      "task": "testAndroidHostTest",
+      "execution": "executed",
+      "tests": 1072,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "xml_files": 113,
+      "xml_evidence_sha256": "c8844ef1d687a0759435b6b9306031efd080621ec81a87b866777f67e11054ee",
+      "results_directory": "composeApp/build/test-results/testAndroidHostTest"
+    },
+    {
+      "module": "core/library",
+      "task": "testAndroidHostTest",
+      "execution": "executed",
+      "tests": 831,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "xml_files": 69,
+      "xml_evidence_sha256": "1dfb532833f0e092ff4dc2bc8545ea062217869a098f8b57b620a20724a0cdf9",
+      "results_directory": "core/library/build/test-results/testAndroidHostTest"
+    },
+    {
+      "module": "core/history",
+      "task": "testAndroidHostTest",
+      "execution": "up-to-date; unchanged module",
+      "tests": 140,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "xml_files": 10,
+      "xml_evidence_sha256": "fe88ff7209d089523d4bccc83a1bec0c4a016c6224d30fdc3b6100bf2b207ae9",
+      "results_directory": "core/history/build/test-results/testAndroidHostTest"
+    },
+    {
+      "module": "core/playback",
+      "task": "testAndroidHostTest",
+      "execution": "executed",
+      "tests": 222,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "xml_files": 27,
+      "xml_evidence_sha256": "19b069212ffd97e4c46dd9a64cc2ae4af9fa05f52da45c08a78f2a8a5543077c",
+      "results_directory": "core/playback/build/test-results/testAndroidHostTest"
+    },
+    {
+      "module": "core/smart",
+      "task": "testAndroidHostTest",
+      "execution": "up-to-date; unchanged module",
+      "tests": 541,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "xml_files": 77,
+      "xml_evidence_sha256": "d09c2c96e954fb901768a58688f7a39525e2cd798b10126a3d530635c693e23d",
+      "results_directory": "core/smart/build/test-results/testAndroidHostTest"
+    },
+    {
+      "module": "composeApp",
+      "task": "iosSimulatorArm64Test",
+      "execution": "executed",
+      "tests": 964,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "xml_files": 98,
+      "xml_evidence_sha256": "d8f35678211a5608e03770b0a52c8687d3c43c9595c46cbdf2b3c6b2fb35f71c",
+      "results_directory": "composeApp/build/test-results/iosSimulatorArm64Test"
+    },
+    {
+      "module": "core/library",
+      "task": "iosSimulatorArm64Test",
+      "execution": "executed",
+      "tests": 727,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "xml_files": 59,
+      "xml_evidence_sha256": "5fb1302c72559db49fe755c1ceca480648d0f6aa67e66d46df8df8bcb79b93e0",
+      "results_directory": "core/library/build/test-results/iosSimulatorArm64Test"
+    },
+    {
+      "module": "core/library",
+      "task": "connectedAndroidDeviceTest",
+      "execution": "executed",
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "xml_files": 1,
+      "xml_evidence_sha256": "e923c0df4f073649f6addecbdeeb7c296ce0d99e568df04810ab92ecda011469",
+      "results_directory": "core/library/build/outputs/androidTest-results/connected"
+    },
+    {
+      "module": "core/playback",
+      "task": "connectedAndroidDeviceTest",
+      "execution": "executed",
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "xml_files": 1,
+      "xml_evidence_sha256": "124178eb816ebdeb93d536572837642e0980b8b706cb156aaf8cf96601434e17",
+      "results_directory": "core/playback/build/outputs/androidTest-results/connected"
+    }
+  ],
+  "totals": {
+    "testAndroidHostTest": 2806,
+    "iosSimulatorArm64Test": 1691,
+    "connectedAndroidDeviceTest": 18
+  },
+  "new_tests": {
+    "registry_android_host": 13,
+    "tag_parsers_common": 8,
+    "android_instrumented": 3
+  },
+  "android_device": "LJ-api30 emulator, Android 11; no physical device in this run",
+  "log": "/private/tmp/latentjam-issue17-final-tests.log",
+  "release": {
+    "status": "verified",
+    "provenance": "build/reports/issue17-compact-release/provenance.json",
+    "gates": [
+      "Gradle release/DEX/native",
+      "packaged runtime SHA256 after NDK stripping",
+      "ELF/ZIP 16 KiB"
+    ],
+    "apks": [
+      {
+        "abi": "arm64-v8a",
+        "bytes": 37309792,
+        "sha256": "c35ddaab263b9b98ebb11243439e9c822918760d05e9cafd5da5f8fbc1699321",
+        "mib": 35.581390380859375,
+        "runtime": "reduced",
+        "path": "/Users/nichitabulgaru/.codex/worktrees/adversarial-0-9-1/latentjam/androidApp/build/outputs/apk/release/androidApp-arm64-v8a-release.apk"
+      },
+      {
+        "abi": "armeabi-v7a",
+        "bytes": 44523292,
+        "sha256": "e605397316c8a7a08d37f16fb3ada7c275bf860a5ece973f89f614b496102de2",
+        "mib": 42.46072006225586,
+        "runtime": "stock",
+        "path": "/Users/nichitabulgaru/.codex/worktrees/adversarial-0-9-1/latentjam/androidApp/build/outputs/apk/release/androidApp-armeabi-v7a-release.apk"
+      },
+      {
+        "abi": "x86_64",
+        "bytes": 58884654,
+        "sha256": "9c5b5b54ead03c0c126d28ff585c5080957fb9bbf5df7a3286fce7cf23b59d68",
+        "mib": 56.156782150268555,
+        "runtime": "stock",
+        "path": "/Users/nichitabulgaru/.codex/worktrees/adversarial-0-9-1/latentjam/androidApp/build/outputs/apk/release/androidApp-x86_64-release.apk"
+      }
+    ],
+    "dex_contains_identity_registry": true,
+    "fresh_inference_parity": false,
+    "fdroid_double_clean_rebuild_repeated": false
+  },
+  "limits": [
+    "Baseline identity metadata must be saved before files move; no retroactive recovery claim.",
+    "Unique MusicBrainz release-track ID required; recording ID, ISRC and AcoustID alone never relink.",
+    "Same available volume and extension; positive duration within 1000ms; no known duplicates or unread candidates.",
+    "Already established independent rows are not merged; ambiguous or incomplete evidence declines relinking.",
+    "Actual reporter library and move during active playback on a physical phone were not tested.",
+    "Incorrect metadata cannot prove byte-identical audio; analysis cache is not reused by MBID.",
+    "No publication, merge, GitHub comment or issue closure performed."
+  ]
+}
