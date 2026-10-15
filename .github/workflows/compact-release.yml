@@ -38,7 +38,7 @@ jobs:
       - uses: android-actions/setup-android@v3
       - name: Install native build tools
         run: |
-          sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "platforms;android-34" "build-tools;30.0.3" "ndk;28.2.13676358" "cmake;3.22.1"
           python -m pip install cmake ninja
       - name: Read the application's runtime version
         run: |
