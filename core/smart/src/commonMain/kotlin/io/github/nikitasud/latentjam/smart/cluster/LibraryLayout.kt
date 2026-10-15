@@ -57,17 +57,25 @@ public object LibraryLayout {
     /**
      * Hard ceiling on the library size [compute] will lay out.
      *
-     * Exact t-SNE still takes quadratic CPU time across 1000 iterations. Its symmetric optimizer
-     * matrices now store each pair once: together they hold `n * (n - 1)` floats, about 36 MB at
-     * n=3000. Affinity preparation holds only a packed result and two scratch rows (about 18 MB).
-     * These figures exclude the input, PCA buffers, and runtime overhead.
-     *
-     * Packing and evaluating equal-and-opposite forces once preserve the existing coordinates,
-     * but do not remove the quadratic growth. Keep the 3000-track guard for phone memory and CPU
-     * budgets. Above it the caller shows an explicit limit instead of silently drawing a subset;
-     * [compute] also enforces the guard independently of the UI.
+     * Up to [EXACT_MAX_TRACKS] the map uses exact t-SNE ([Tsne]), whose quadratic matrices hold
+     * `n * (n - 1)` floats. Above it [BarnesHutTsne] keeps memory linear: about 30 MB of its own
+     * working set at 10,000 tracks, plus the 54 MB fused input and PCA buffers. This ceiling is the
+     * largest size measured on a 256 MB heap (docs/map-scaling-10k-2026-10-15.md). Above it the
+     * caller shows an explicit limit instead of silently drawing a subset; [compute] also enforces
+     * the guard independently of the UI.
      */
-    public const val MAX_TRACKS: Int = 3000
+    public const val MAX_TRACKS: Int = 10_000
+
+    /**
+     * Largest library laid out with exact t-SNE; larger libraries use [BarnesHutTsne].
+     *
+     * Measured (docs/map-scaling-10k-2026-10-15.md): Barnes-Hut matches exact on trustworthiness,
+     * neighbour recall and same-playlist neighbours at 1,104 real and 3,000 synthetic tracks, and
+     * is several times faster from about 1,000 tracks. Exact stays below this size so small
+     * libraries, including the 1,107-track library the map was tuned on, keep their pictures.
+     * A library crossing it warm-starts from its stored positions, as after any library change.
+     */
+    public const val EXACT_MAX_TRACKS: Int = 2000
 
     private const val SEED: Int = 0x1A7E27
 
@@ -91,6 +99,8 @@ public object LibraryLayout {
      *   running this under a coroutine (the only realistic caller: see [MAX_TRACKS]'s doc on why
      *   this can take real wall time) passes its own `{ isActive }` so a reader who has already
      *   navigated away stops the work. Cancellation throws; a partial embedding is never returned.
+     * @param workBudgetBytes free heap measured while [space] already holds its input matrix;
+     *   compared against [MapMemoryBudget.projectionWorkBytes]
      * @throws kotlinx.coroutines.CancellationException when [isActive] becomes false
      * @throws MapComputationUnavailable before unsafe allocation or when a backend fails
      * @throws IllegalArgumentException if `space.size` exceeds [MAX_TRACKS]
@@ -113,7 +123,8 @@ public object LibraryLayout {
                 "this before calling compute() and show an honest state instead of hitting this"
         }
         val dim = space.dim
-        if (MapMemoryBudget.projectionBytes(n, dim, experimentalBackend) > workBudgetBytes) {
+        // The space already holds the input matrix, so the measured budget already reflects it.
+        if (MapMemoryBudget.projectionWorkBytes(n, dim, experimentalBackend) > workBudgetBytes) {
             throw MapComputationUnavailable("Insufficient memory for map projection", memoryLimited = true)
         }
         if (!isActive()) throw kotlinx.coroutines.CancellationException("Map cancelled before PCA")
@@ -123,7 +134,7 @@ public object LibraryLayout {
         val reducedDim = reduced.size / n
 
         val warm = warmStart(ids, previous, n)
-        val backend = if (experimentalBackend && n >= 61) BarnesHutMapEmbedding else ExactMapEmbedding
+        val backend = backendFor(n)
         var embedded = when (val result = backend.embed(reduced, n, reducedDim, warm, isActive)) {
             is MapEmbeddingResult.Complete -> result.coordinates
             MapEmbeddingResult.Cancelled -> throw kotlinx.coroutines.CancellationException("Map cancelled")
@@ -134,6 +145,12 @@ public object LibraryLayout {
             embedded = alignToPrevious(ids, embedded, previous, n)
         }
         return normalize(ids, embedded, n)
+    }
+
+    internal fun backendFor(n: Int): MapEmbeddingBackend = when {
+        experimentalBackend && n >= 61 -> BarnesHutMapEmbedding
+        n > EXACT_MAX_TRACKS -> ApproximateMapEmbedding
+        else -> ExactMapEmbedding
     }
 
     /**

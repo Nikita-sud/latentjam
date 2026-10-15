@@ -26,8 +26,8 @@ internal object Tsne {
     const val ITERATIONS: Int = 1000
 
     /** Iterations during which P is inflated, which opens gaps between clusters early. */
-    private const val EXAGGERATION_ITERATIONS = 250
-    private const val EXAGGERATION = 12f
+    internal const val EXAGGERATION_ITERATIONS = 250
+    internal const val EXAGGERATION = 12f
 
     private const val LEARNING_RATE = 200f
     private const val EARLY_MOMENTUM = 0.5f
@@ -35,8 +35,8 @@ internal object Tsne {
     private const val MOMENTUM_SWITCH = 250
 
     /** Binary-search bounds for the per-point bandwidth that hits [PERPLEXITY]. */
-    private const val PERPLEXITY_STEPS = 60
-    private const val PERPLEXITY_TOLERANCE = 1e-5f
+    internal const val PERPLEXITY_STEPS = 60
+    internal const val PERPLEXITY_TOLERANCE = 1e-5f
 
     /**
      * @param rows row-major `n x dim`; rows are unit-normalized by the caller so squared euclidean
@@ -69,23 +69,7 @@ internal object Tsne {
 
         val p = affinities(rows, n, dim, isActive)
 
-        var state = (seed.toLong() and 0xFFFFFFFFL) or 1L
-        fun next(): Float {
-            state = state xor (state shl 13)
-            state = state xor (state ushr 7)
-            state = state xor (state shl 17)
-            return ((state ushr 11).toDouble() / (1L shl 53).toDouble()).toFloat() * 2f - 1f
-        }
-
-        val y = FloatArray(n * 2)
-        if (initial != null && initial.size == n * 2) {
-            initial.copyInto(y)
-            // A warm start still needs a nudge, or points that start exactly coincident have zero
-            // gradient between them and never separate.
-            for (i in y.indices) y[i] += next() * 1e-3f
-        } else {
-            for (i in y.indices) y[i] = next() * 1e-2f
-        }
+        val y = initialPositions(n, seed, initial)
 
         val gains = FloatArray(n * 2) { 1f }
         val velocity = FloatArray(n * 2)
@@ -116,34 +100,68 @@ internal object Tsne {
 
             gradient(y, n, p, q, sum, scale, grad)
 
-            val momentum = if (iteration < MOMENTUM_SWITCH) EARLY_MOMENTUM else LATE_MOMENTUM
-            for (i in y.indices) {
-                // Jacobs' adaptive gains: grow while the gradient keeps its sign, shrink when it
-                // flips. Standard t-SNE, and without it 1000 iterations is not enough to settle.
-                gains[i] = if ((grad[i] > 0f) != (velocity[i] > 0f)) {
-                    gains[i] + 0.2f
-                } else {
-                    (gains[i] * 0.8f).coerceAtLeast(0.01f)
-                }
-                velocity[i] = momentum * velocity[i] - LEARNING_RATE * gains[i] * grad[i]
-                y[i] += velocity[i]
-            }
-
-            // Recenter every pass so the embedding cannot drift off toward infinity.
-            var mx = 0f
-            var my = 0f
-            for (i in 0 until n) {
-                mx += y[i * 2]
-                my += y[i * 2 + 1]
-            }
-            mx /= n
-            my /= n
-            for (i in 0 until n) {
-                y[i * 2] -= mx
-                y[i * 2 + 1] -= my
-            }
+            update(y, n, grad, gains, velocity, iteration)
         }
         return y
+    }
+
+    /** Cold or warm start shared by the exact and Barnes-Hut optimizers. */
+    internal fun initialPositions(n: Int, seed: Int, initial: FloatArray?): FloatArray {
+        var state = (seed.toLong() and 0xFFFFFFFFL) or 1L
+        fun next(): Float {
+            state = state xor (state shl 13)
+            state = state xor (state ushr 7)
+            state = state xor (state shl 17)
+            return ((state ushr 11).toDouble() / (1L shl 53).toDouble()).toFloat() * 2f - 1f
+        }
+
+        val y = FloatArray(n * 2)
+        if (initial != null && initial.size == n * 2) {
+            initial.copyInto(y)
+            // A warm start still needs a nudge, or points that start exactly coincident have zero
+            // gradient between them and never separate.
+            for (i in y.indices) y[i] += next() * 1e-3f
+        } else {
+            for (i in y.indices) y[i] = next() * 1e-2f
+        }
+        return y
+    }
+
+    /** One gradient-descent step, shared by the exact and Barnes-Hut optimizers. */
+    internal fun update(
+        y: FloatArray,
+        n: Int,
+        grad: FloatArray,
+        gains: FloatArray,
+        velocity: FloatArray,
+        iteration: Int,
+    ) {
+        val momentum = if (iteration < MOMENTUM_SWITCH) EARLY_MOMENTUM else LATE_MOMENTUM
+        for (i in y.indices) {
+            // Jacobs' adaptive gains: grow while the gradient keeps its sign, shrink when it
+            // flips. Standard t-SNE, and without it 1000 iterations is not enough to settle.
+            gains[i] = if ((grad[i] > 0f) != (velocity[i] > 0f)) {
+                gains[i] + 0.2f
+            } else {
+                (gains[i] * 0.8f).coerceAtLeast(0.01f)
+            }
+            velocity[i] = momentum * velocity[i] - LEARNING_RATE * gains[i] * grad[i]
+            y[i] += velocity[i]
+        }
+
+        // Recenter every pass so the embedding cannot drift off toward infinity.
+        var mx = 0f
+        var my = 0f
+        for (i in 0 until n) {
+            mx += y[i * 2]
+            my += y[i * 2 + 1]
+        }
+        mx /= n
+        my /= n
+        for (i in 0 until n) {
+            y[i * 2] -= mx
+            y[i * 2 + 1] -= my
+        }
     }
 
     /** Packed symmetric force pass; internal so the dense gradient can independently verify it. */

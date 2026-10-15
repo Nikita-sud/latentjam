@@ -22,8 +22,15 @@ internal object Pca {
     private const val ITERATIONS = 4
 
     /**
+     * Rows between extra [reduce] cancellation polls. One pass over 10,000 x 1344 rows takes
+     * seconds on a phone, so polling only per iteration left multi-second cancellation gaps.
+     */
+    private const val ROW_POLL = 256
+
+    /**
      * @param rows row-major `n x dim`, mean-centered
-     * @param isActive cooperative abort hook, checked once per subspace iteration -- see
+     * @param isActive cooperative abort hook, checked once per subspace iteration and every
+     *   [ROW_POLL] rows of each matrix pass -- see
      *   [Tsne.embed]'s parameter of the same name for why a plain lambda rather than a coroutines
      *   dependency. [ITERATIONS] is only 4, so this matters far less here than in [Tsne.embed], but
      *   the entry point still honours it rather than silently running to completion regardless.
@@ -61,10 +68,11 @@ internal object Pca {
             // persisted or drawn.
             if (!isActive()) return scratch
             // scratch = rows * basis
-            multiply(rows, n, dim, basis, k, scratch)
+            if (!multiply(rows, n, dim, basis, k, scratch, isActive)) return scratch
             // basis = rows^T * scratch
             val next = FloatArray(dim * k)
             for (i in 0 until n) {
+                if (i % ROW_POLL == 0 && !isActive()) return scratch
                 for (d in 0 until dim) {
                     val value = rows[i * dim + d]
                     if (value == 0f) continue
@@ -76,7 +84,7 @@ internal object Pca {
         }
 
         val out = FloatArray(n * k)
-        multiply(rows, n, dim, basis, k, out)
+        multiply(rows, n, dim, basis, k, out, isActive)
         return out
     }
 
@@ -87,9 +95,11 @@ internal object Pca {
         basis: FloatArray,
         k: Int,
         out: FloatArray,
-    ) {
+        isActive: () -> Boolean,
+    ): Boolean {
         out.fill(0f)
         for (i in 0 until n) {
+            if (i % ROW_POLL == 0 && !isActive()) return false
             val rowBase = i * dim
             val outBase = i * k
             for (d in 0 until dim) {
@@ -99,6 +109,7 @@ internal object Pca {
                 for (c in 0 until k) out[outBase + c] += value * basis[basisBase + c]
             }
         }
+        return true
     }
 
     /** Modified Gram-Schmidt over the columns of a `dim x k` matrix. */

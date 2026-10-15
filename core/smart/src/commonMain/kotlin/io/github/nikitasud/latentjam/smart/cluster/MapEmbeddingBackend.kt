@@ -27,6 +27,19 @@ internal object ExactMapEmbedding : MapEmbeddingBackend {
     }
 }
 
+/** Pure-Kotlin Barnes-Hut t-SNE for libraries above [LibraryLayout.EXACT_MAX_TRACKS]. */
+internal object ApproximateMapEmbedding : MapEmbeddingBackend {
+    override fun embed(rows: FloatArray, n: Int, dim: Int, initial: FloatArray?, isActive: () -> Boolean): MapEmbeddingResult {
+        if (!isActive()) return MapEmbeddingResult.Cancelled
+        val result = BarnesHutTsne.embed(rows, n, dim, 0x1A7E27, initial, isActive)
+        return when {
+            !isActive() -> MapEmbeddingResult.Cancelled
+            result.all(Float::isFinite) -> MapEmbeddingResult.Complete(result)
+            else -> MapEmbeddingResult.Failed("Non-finite coordinates")
+        }
+    }
+}
+
 internal object BarnesHutMapEmbedding : MapEmbeddingBackend {
     const val VERSION = "qdtsne-93f184ca-f32-vp60-p20-t0.5-i1000-e800-threads1-pca50-v1"
     override fun embed(rows: FloatArray, n: Int, dim: Int, initial: FloatArray?, isActive: () -> Boolean): MapEmbeddingResult {
@@ -52,24 +65,46 @@ public class MapComputationUnavailable(
     public val memoryLimited: Boolean = false,
 ) : IllegalStateException(reason)
 
-/** Conservative working-set estimates, including fused input and PCA, before allocation. */
+/**
+ * Conservative working-set estimates. [projectionBytes] and [regionBytes] include the fused input
+ * matrix, for a check made before it is built; the `Work` variants exclude it, for a check made
+ * when the caller's space already holds it (and the measured free heap already reflects it).
+ */
 public object MapMemoryBudget {
     private const val RESERVE = 8L * 1024 * 1024
     public fun projectionBytes(n: Int, dim: Int, experimental: Boolean): Long {
         require(n in 0..LibraryLayout.MAX_TRACKS && dim in 1..1344)
         val rows = 4L * n * dim
         val pca = 8L * n * 50 + 20L * dim * 50
-        val embedding = if (experimental && n >= 61) {
+        val embedding = when {
             // Neighbor lists, symmetric edges, VP-tree, optimizer and JNI/Swift copies.
-            4L * n * 50 * 3 + 128L * n * 60
-        } else 4L * n * (n - 1) + 64L * n
+            experimental && n >= 61 -> 4L * n * 50 * 3 + 128L * n * 60
+            n > LibraryLayout.EXACT_MAX_TRACKS -> BarnesHutTsne.workingBytes(n)
+            else -> 4L * n * (n - 1) + 64L * n
+        }
         return RESERVE + rows + maxOf(pca, embedding)
     }
     public fun regionBytes(n: Int, dim: Int): Long {
         require(n >= 0 && dim > 0)
+        if (n > AverageLinkageClustering.MAX_TRACKS) {
+            // The owned rows are reordered in place. The projection, the micro-cluster direction
+            // sums, their linkage matrix and the final region centroids (at most one per
+            // MIN_CLUSTER_SIZE tracks) are budgeted together, without relying on GC between them.
+            val sample = AverageLinkageClustering.MAX_TRACKS.toLong()
+            val width = AverageLinkageClustering.PROJECTION_DIM.toLong()
+            val regions = n.toLong() / TrackClustering.MIN_CLUSTER_SIZE
+            return RESERVE + 4L * n * dim + 4L * (n + dim) * width + 4L * sample * dim +
+                4L * sample * (sample - 1) + 4L * regions * dim + 160L * n
+        }
         // Dropping degenerate directions can briefly retain both the owned input and a
         // compacted row matrix. Budget both, without relying on platform GC liveness.
         return RESERVE + 8L * n * dim + 4L * n * (n - 1) + 128L * n
     }
-}
 
+    /** [projectionBytes] without the fused input the caller's space already holds. */
+    public fun projectionWorkBytes(n: Int, dim: Int, experimental: Boolean): Long =
+        projectionBytes(n, dim, experimental) - 4L * n * dim
+
+    /** [regionBytes] without the fused input the caller's space already holds. */
+    public fun regionWorkBytes(n: Int, dim: Int): Long = regionBytes(n, dim) - 4L * n * dim
+}

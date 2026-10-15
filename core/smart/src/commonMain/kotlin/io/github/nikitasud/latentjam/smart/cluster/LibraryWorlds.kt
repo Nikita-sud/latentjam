@@ -362,8 +362,10 @@ public object LibraryWorlds {
 
     /**
      * Region experiment selected on the frozen 0.9.1 library: average linkage, audio/metadata
-     * 75/25, cosine cut 0.75. Layout and journey weights are unaffected. Above the quadratic
-     * memory ceiling, preserve the previous full-library k-means path rather than truncate.
+     * 75/25, cosine cut 0.75. Layout and journey weights are unaffected. Above
+     * [AverageLinkageClustering.MAX_TRACKS] the hierarchy is built on a stable sample that the rest
+     * of the library joins. When the work budget cannot hold that, or above the library limit,
+     * preserve the previous full-library k-means path rather than truncate.
      */
     public fun discover(
         library: List<TrackDescriptor>,
@@ -373,8 +375,8 @@ public object LibraryWorlds {
         workBudgetBytes: Long = Long.MAX_VALUE,
     ): List<LibraryWorld> {
         if (library.isEmpty() || vectorSpace.size == 0) return emptyList()
-        val clusters = if (vectorSpace.size <= AverageLinkageClustering.MAX_TRACKS &&
-            MapMemoryBudget.regionBytes(vectorSpace.size, vectorSpace.dim) <= workBudgetBytes
+        val clusters = if (vectorSpace.size <= AverageLinkageClustering.MAX_LIBRARY_TRACKS &&
+            MapMemoryBudget.regionWorkBytes(vectorSpace.size, vectorSpace.dim) <= workBudgetBytes
         ) {
             AverageLinkageClustering.cluster(vectorSpace, isActive = isActive)
         } else {

@@ -388,12 +388,22 @@ public object TrackClustering {
         // Recompute every non-empty final centroid before scoring any member. Rival margins must be
         // measured against the same final assignment as own-cluster similarity; reusing the last
         // Lloyd centroids would leave the two measurements one assignment out of step.
-        val centroidCount = (assignment.maxOrNull() ?: -1) + 1
+        val labelCount = (assignment.maxOrNull() ?: -1) + 1
+        // Without rival evidence only kept regions need a centroid. Hierarchical labels include a
+        // singleton per outside track, so allocating one per label would scale with the library.
+        val slot = IntArray(labelCount) { label -> if (includeEvidence) label else -1 }
+        var centroidCount = if (includeEvidence) labelCount else 0
+        if (!includeEvidence) {
+            for (members in buckets.values) {
+                if (members.size >= minSize) slot[assignment[members.first()]] = centroidCount++
+            }
+        }
         val centroids = FloatArray(centroidCount * dim)
         val counts = IntArray(centroidCount)
         for (row in 0 until n) {
             checkActive(isActive)
-            val cluster = assignment[row]
+            val cluster = slot[assignment[row]]
+            if (cluster < 0) continue
             counts[cluster]++
             val source = row * dim
             val target = cluster * dim
@@ -416,7 +426,7 @@ public object TrackClustering {
         return buckets.values
             .filter { it.size >= minSize }
             .map { rowsInCluster ->
-                val cluster = assignment[rowsInCluster.first()]
+                val cluster = slot[assignment[rowsInCluster.first()]]
                 // Descending dot is ascending distance: the medoid lands at index 0. The sort is
                 // stable, so rows equidistant from the centre keep the caller's original order.
                 rowsInCluster

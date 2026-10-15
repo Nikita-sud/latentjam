@@ -11,6 +11,10 @@ import kotlin.random.Random
 import kotlin.test.*
 
 class AverageLinkageClusteringTest {
+    private companion object {
+        const val STABLE_KEY_OF_TRACK_42 = 7300103868188868364L
+    }
+
     @Test
     fun `nearest neighbor chain agrees with direct global average linkage`() {
         // The reference recomputes every cross-member distance, independently of the chain
@@ -89,6 +93,71 @@ class AverageLinkageClusteringTest {
         }.toMap()
         val space = assertNotNull(LibraryVectorFusion.build(ids, vectors, emptyMap(), 2, 2))
         assertTrue(AverageLinkageClustering.cluster(space).isEmpty())
+    }
+
+    @Test
+    fun `sampled hierarchy recovers separated regions and keeps strays outside`() {
+        val random = Random(4)
+        val groups = 6
+        val perGroup = 20
+        val strays = 8
+        val n = groups * perGroup + strays
+        // Each stray owns one extra axis, so it is far from every group and every other stray.
+        val dim = 24 + strays
+        val rows = FloatArray(n * dim)
+        for (i in 0 until n) {
+            val stray = i - groups * perGroup
+            for (d in 0 until dim) {
+                val planted = if (stray >= 0) d == 24 + stray else d < 24 && d % groups == i / perGroup
+                // A long stray axis keeps the shared centering offset from pulling strays together.
+                val length = if (stray >= 0) 12f else 4f
+                rows[i * dim + d] = (if (planted) length else 0f) + random.nextFloat() - 0.5f
+            }
+        }
+        val ids = List(n) { TrackId("sampled-$it") }
+        fun space() = LibraryVectorSpace(ids, rows.copyOf(), dim, LibraryVectorSource.AUDIO)
+        val exact = AverageLinkageClustering.cluster(space()).map { it.members.toSet() }.toSet()
+        val sampled = AverageLinkageClustering.cluster(space(), exactLimit = 50)
+        assertEquals(exact, sampled.map { it.members.toSet() }.toSet())
+        // Every region is pure, and no stray joins one.
+        for (cluster in sampled) {
+            val origins = cluster.members.map { it.value.removePrefix("sampled-").toInt() / perGroup }.toSet()
+            assertEquals(1, origins.size)
+            assertTrue(origins.single() < groups)
+        }
+        // Deterministic, including member order.
+        assertEquals(sampled, AverageLinkageClustering.cluster(space(), exactLimit = 50))
+    }
+
+    @Test
+    fun `sampled hierarchy cancels after work has started`() {
+        val n = 80
+        val ids = List(n) { TrackId("cancel-sampled-$it") }
+        val rows = FloatArray(n * 6) { if (it % 6 == (it / 6) % 6) 1f else 0.05f * (it % 5) }
+        var polls = 0
+        assertFailsWith<CancellationException> {
+            AverageLinkageClustering.cluster(
+                LibraryVectorSpace(ids, rows, 6, LibraryVectorSource.AUDIO),
+                // Centering and the usable-row filter poll 3n + 1 times; stop inside the sampled path.
+                isActive = { ++polls < 4 * n + 30 },
+                exactLimit = 20,
+            )
+        }
+        assertEquals(4 * n + 30, polls)
+    }
+
+    @Test
+    fun `library population limit and stable sample keys are pinned`() {
+        assertEquals(3_000, AverageLinkageClustering.MAX_TRACKS)
+        assertEquals(10_000, AverageLinkageClustering.MAX_LIBRARY_TRACKS)
+        val n = AverageLinkageClustering.MAX_LIBRARY_TRACKS + 1
+        assertFailsWith<IllegalArgumentException> {
+            AverageLinkageClustering.cluster(
+                LibraryVectorSpace(List(n) { TrackId("over-$it") }, FloatArray(n), 1, LibraryVectorSource.AUDIO),
+            )
+        }
+        // The sample must not depend on the platform's String.hashCode or iteration order.
+        assertEquals(STABLE_KEY_OF_TRACK_42, AverageLinkageClustering.stableKey("track-42"))
     }
 
     private fun reference(rows: FloatArray, n: Int, dim: Int, cut: Double): IntArray {

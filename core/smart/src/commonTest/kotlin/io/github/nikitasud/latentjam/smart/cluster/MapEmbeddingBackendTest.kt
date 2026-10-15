@@ -22,17 +22,40 @@ class MapEmbeddingBackendTest {
         assertIs<MapEmbeddingResult.Cancelled>(BarnesHutMapEmbedding.embed(FloatArray(61 * 3), 61, 3, null) { false })
     }
     @Test fun budgetsIncludeOptimizerAndRegionQuadraticBuffers() {
-        val n = 3000
-        assertTrue(MapMemoryBudget.projectionBytes(n, 1344, false) > 4L * n * (n - 1) + 4L * n * 1344)
+        val exact = LibraryLayout.EXACT_MAX_TRACKS
+        assertTrue(MapMemoryBudget.projectionBytes(exact, 1344, false) > 4L * exact * (exact - 1) + 4L * exact * 1344)
+        val n = AverageLinkageClustering.MAX_TRACKS
         // The centered source and the compacted usable rows can both remain live while
         // the linkage matrix is allocated; reserve both without relying on GC timing.
         val rowMatrices = 2L * Float.SIZE_BYTES * n * 1344
         val linkageMatrix = Double.SIZE_BYTES.toLong() * n * (n - 1) / 2
         assertTrue(MapMemoryBudget.regionBytes(n, 1344) > rowMatrices + linkageMatrix)
-        assertTrue(MapMemoryBudget.projectionBytes(n, 1344, true) < MapMemoryBudget.projectionBytes(n, 1344, false))
-        // Raising either quadratic limit requires an explicit review of both algorithms.
-        assertEquals(3000, LibraryLayout.MAX_TRACKS)
+        // The quadratic exact paths stay within their reviewed sizes.
+        assertEquals(2000, LibraryLayout.EXACT_MAX_TRACKS)
         assertEquals(3000, AverageLinkageClustering.MAX_TRACKS)
+    }
+
+    @Test fun largeLibraryLimitsArePinnedToTheMeasuredSize() {
+        // Raised from 3,000 only after the 256 MB-heap device run in
+        // docs/map-scaling-10k-2026-10-15.md. Raising it again needs a new measurement.
+        assertEquals(10_000, LibraryLayout.MAX_TRACKS)
+        assertEquals(LibraryLayout.MAX_TRACKS, AverageLinkageClustering.MAX_LIBRARY_TRACKS)
+        assertIs<ExactMapEmbedding>(LibraryLayout.backendFor(LibraryLayout.EXACT_MAX_TRACKS))
+        assertIs<ApproximateMapEmbedding>(LibraryLayout.backendFor(LibraryLayout.EXACT_MAX_TRACKS + 1))
+        assertIs<ApproximateMapEmbedding>(LibraryLayout.backendFor(LibraryLayout.MAX_TRACKS))
+        val mib = 1024L * 1024
+        // Sampled heap peaks at 10,000 on a 256 MB heap, 51 MiB fused input included:
+        // layout 80.7 MiB, regions 111.3 MiB. Estimates must cover them, and stay bounded.
+        assertTrue(MapMemoryBudget.projectionBytes(10_000, 1344, false) in 81 * mib..100 * mib)
+        assertTrue(MapMemoryBudget.regionBytes(10_000, 1344) in 112 * mib..140 * mib)
+        // A check made after the space exists must not count its input twice.
+        val input = 4L * 10_000 * 1344
+        assertEquals(MapMemoryBudget.projectionBytes(10_000, 1344, false) - input, MapMemoryBudget.projectionWorkBytes(10_000, 1344, false))
+        assertEquals(MapMemoryBudget.regionBytes(10_000, 1344) - input, MapMemoryBudget.regionWorkBytes(10_000, 1344))
+        // Linear above the exact limit: no quadratic term survives.
+        val boundary = LibraryLayout.EXACT_MAX_TRACKS
+        assertTrue(MapMemoryBudget.projectionBytes(boundary + 1, 1344, false) < MapMemoryBudget.projectionBytes(boundary, 1344, false))
+        assertTrue(MapMemoryBudget.regionBytes(3001, 1344) < MapMemoryBudget.regionBytes(3000, 1344) + 40 * mib)
     }
 
     @Test fun lowMemoryRegionsUseExistingBoundedFallback() {
@@ -50,7 +73,7 @@ class MapEmbeddingBackendTest {
 
     @Test fun fallbackRegionsHonorCancellationBeforeConsumingRows() {
         // Exercise both reasons production selects k-means: memory and population limits.
-        for ((n, budget) in listOf(60 to 0L, (AverageLinkageClustering.MAX_TRACKS + 1) to Long.MAX_VALUE)) {
+        for ((n, budget) in listOf(60 to 0L, (AverageLinkageClustering.MAX_LIBRARY_TRACKS + 1) to Long.MAX_VALUE)) {
             val ids = List(n) { TrackId("cancel-$it") }
             val tracks = ids.map { TrackDescriptor(it) }
             val rows = FloatArray(n * 8) { if (it % 8 == (it / 8) % 8) 1f else 0.01f }
