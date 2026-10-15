@@ -132,13 +132,14 @@ android {
 // disabling the gate for the very APK used in release device checks.
 val buildOnlyTargetAbi = providers.gradleProperty("android.buildOnlyTargetAbi").orNull != "false"
 val supportedDeviceAbis = setOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
-val deviceAbis = providers.gradleProperty("android.injected.build.abi")
-    .map { value ->
-        if (buildOnlyTargetAbi) value.split(',').map(String::trim)
-            .firstOrNull { it in supportedDeviceAbis }?.let { listOf(it) }.orEmpty()
-        else emptyList()
-    }
-    .orElse(emptyList())
+// A plain list, read now: a provider lambda would capture this script, which the configuration cache
+// cannot store, and every release build would then fail.
+val deviceAbis: List<String> = providers.gradleProperty("android.injected.build.abi").orNull
+    ?.takeIf { buildOnlyTargetAbi }
+    ?.split(',')?.map(String::trim)
+    ?.firstOrNull { it in supportedDeviceAbis }
+    ?.let { listOf(it) }
+    .orEmpty()
 androidComponents {
     onVariants { variant ->
         val variantName = variant.name.replaceFirstChar(Char::uppercaseChar)
