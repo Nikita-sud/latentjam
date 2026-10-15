@@ -73,7 +73,10 @@ public final class OrtParity {
                             try (OrtSession.Result result = session.run(inputs)) {
                                 times[rep] = System.nanoTime() - started;
                                 if (rep == 0) for (int j = 0; j < result.size(); ++j) {
-                                    FloatBuffer values = ((OnnxTensor)result.get(j)).getFloatBuffer();
+                                    OnnxTensor tensor = (OnnxTensor)result.get(j);
+                                    FloatBuffer values = tensor.getFloatBuffer();
+                                    Files.write(out.resolve(id + "." + j + ".shape.json"),
+                                        Arrays.toString(tensor.getInfo().getShape()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
                                     ByteBuffer bytes = ByteBuffer.allocate(values.remaining()*4).order(ByteOrder.LITTLE_ENDIAN);
                                     while (values.hasRemaining()) bytes.putFloat(values.get());
                                     Files.write(out.resolve(id + "." + j + ".f32"), bytes.array());

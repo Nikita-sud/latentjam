@@ -133,6 +133,35 @@ app_process -Djava.library.path=/data/local/tmp/probe/stock /system/bin \
 Then repeat with the candidate directory. Compare every `.f32` output, including
 shape and finiteness. A successful native build alone is not an inference test.
 
+## Checked compact release command
+
+After parity passes for the candidate, prefer the checked wrapper for distributable APKs:
+
+```sh
+python3 tools/runtime/build_compact_release.py \
+  --reduced-repo /absolute/path/to/latentjam-reduced-ort/maven \
+  --stock-aar /absolute/path/to/onnxruntime-android-1.26.0.aar \
+  --strip-tool /android-sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/HOST/bin/llvm-strip
+```
+
+`--check-only` validates inputs without running Gradle; `--offline` prevents Gradle downloads.
+The wrapper does not fetch/build a runtime, install an APK or publish a release. It uses the
+existing strict init script and release/DEX/native gates, then verifies both packaged ORT libraries
+against the candidate AAR after the same NDK `llvm-strip --strip-unneeded` packaging transform,
+by SHA256. Raw AAR and expected packaged native hashes are recorded separately, along with the
+strip tool hash/version and commands. An accidentally packaged full ARM64 runtime is a hard failure.
+The stock AAR must match the manifest; every non-ARM64 native library in the candidate must match
+that stock artifact. **Only ARM64 is reduced; ARMv7 and x86_64 retain full ORT.**
+
+`build/reports/compact-release/provenance.json` records the exact commands, source revision and
+dirty-file fingerprints, manifest/AAR/native hashes, APK sizes and hashes, and verification status.
+The accompanying `gradle.log` contains build/gate output. Use the default ignored report directory
+or an output directory outside the checkout; do not change source files during the build. Success
+requires `status: verified`; `preflight_passed_no_build` is only input validation. This packaging
+check does not replace device inference parity or prove runtime compatibility.
+
+Regression checks for the wrapper itself: `python3 -B tools/runtime/test_compact_release.py`.
+
 ## Candidate APK
 
 After Android parity passes, build with the optional init script:
@@ -178,8 +207,31 @@ bitwise identical to the stock runtime; both error cases and the recovery passed
 
 ## 2026-10-10: 0.9.0 drops the SMART nets
 
-The app stopped shipping `predictor_state.onnx` and `predictor_scorer_n100.onnx`. The 2026-10-06
-candidate stays valid: the three graphs left are byte-identical to their manifest entries and were
-part of its parity run, and the nets' operators stay in the runtime unused. The fixture script no
-longer builds cases for the nets, so a new parity run has 13 cases with three real excerpts
-instead of 21.
+The app stopped shipping `predictor_state.onnx` and `predictor_scorer_n100.onnx`. At that time,
+the three remaining graphs were byte-identical to entries in the 2026-10-06 candidate's five-model
+manifest and had passed its parity run; the removed nets' operators remained unused. This is
+historical compatibility evidence, not permission to use that old manifest with today's gate.
+
+The current init script requires the **exact** shipped graph set, so it rejects that five-model
+manifest. Regenerate the operators and manifest through the current reduced-runtime builder,
+rebuild the candidate and repeat device parity on the current three models before using the
+[checked compact release command](#checked-compact-release-command). Do not remove manifest
+entries manually to bypass the gate. The current fixtures cover ten synthetic cases, with optional
+real audio excerpts added separately.
+
+## 2026-10-15 compact build
+
+The exact three-model ORT 1.26.0 rebuild passes physical-device CPU parity:
+13 cases / 42,807 Float32 values, including three public FMA excerpts, with
+matching shapes and bitwise outputs; invalid-model/shape rejection and recovery
+pass. ARM64 APK size is 37,145,894 bytes (35.43 MiB). Only the ORT native libraries
+differ from the 52,956,542-byte full-runtime UI APK. See the
+[artifact and size audit](../../docs/apk-size-audit-2026-10-15.md) and
+[aggregate validation](../../docs/compact-runtime-validation-2026-10-15.json).
+The stored candidate's manifest and AAR are required inputs to the wrapper;
+an ordinary `assembleRelease` still intentionally builds the full runtime.
+
+`compare_android.py --require-bitwise` makes numerical differences fatal. It
+compares actual output shapes, counts and finiteness, and accepts repeated
+`--audio` plus optional `--listener-vectors` fixtures. Every run requires a new
+local output directory and creates an isolated device directory.

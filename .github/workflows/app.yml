@@ -27,6 +27,8 @@ jobs:
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
       - name: Host tests, resources and Kotlin Native identifiers
         run: ./gradlew testAndroidHostTest --max-workers=2
+      - name: Compact runtime packaging guards
+        run: python3 -m unittest discover -s tools/runtime -p "test_compact_release.py"
       - name: Independent tag serialization checks (pinned TagLib)
         run: python3 tools/taglib/verify.py
       - name: Native cancellation, deterministic output, sanitizers and notices
