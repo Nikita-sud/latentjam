@@ -165,6 +165,7 @@ data class MapPage(
     // The page cache retains these across tab returns along with the data they index.
     internal val dotIndex by lazy { MapDotIndex(dots) }
     internal val centroids by lazy { largestRegionCentroids(this, limit = Int.MAX_VALUE) }
+    internal val outsideRegionCount by lazy { dots.count { !it.claimed } }
 }
 
 /** Per-dot facts that change with a lens/selection, but never while the map is panned or zoomed. */
@@ -375,6 +376,7 @@ fun MapTab(
             }
         }.sortedBy { if (it.region == selectedRegion) 0 else 1 }
     }
+    val labelLayout = remember(labelAnchors) { MapLabelLayout(labelAnchors) }
     val mapDescription = stringResource(Res.string.tab_map)
     val selectedRegionDescription = page.regionNames.getOrNull(selectedRegion).orEmpty()
     // A Canvas otherwise collapses to one opaque, gesture-only accessibility node: TalkBack can
@@ -557,11 +559,11 @@ fun MapTab(
                 // Only keyed on identity/lens, not on zoom or pan: those are read fresh from their
                 // MutableState at tap time regardless, and re-keying on them meant this detector
                 // was torn down and relaunched on every frame of an in-flight pinch or drag.
-                .pointerInput(page, lens, labelAnchors) {
+                .pointerInput(page, lens, labelLayout) {
                     detectTapGestures(
                         onTap = { offset ->
-                            val labelRegion = mapLabelPlacements(
-                                labelAnchors, size.width.toFloat(), size.height.toFloat(),
+                            val labelRegion = labelLayout.placements(
+                                size.width.toFloat(), size.height.toFloat(),
                                 zoom, panX * size.width, panY * size.height, LABEL_EDGE_MARGIN_DP.toPx(),
                             ).firstOrNull { it.bounds.contains(offset) }?.region
                             val tappedDot = if (labelRegion == null) nearest(
@@ -627,8 +629,8 @@ fun MapTab(
                     style = Stroke(width = 2.dp.toPx()),
                 )
             }
-            for (label in mapLabelPlacements(
-                labelAnchors, size.width, size.height, frameZoom, framePanX, framePanY,
+            for (label in labelLayout.placements(
+                size.width, size.height, frameZoom, framePanX, framePanY,
                 LABEL_EDGE_MARGIN_DP.toPx(),
             )) {
                 val bounds = label.bounds
@@ -676,7 +678,7 @@ fun MapTab(
             accent = accent,
             coolRamp = coolRamp,
             warmRamp = warmRamp,
-            outsideRegions = page.dots.count { !it.claimed },
+            outsideRegions = page.outsideRegionCount,
         )
 
         val region = page.listening.regions.firstOrNull { it.region == selectedRegion }
@@ -858,7 +860,7 @@ fun MapTab(
             accent = accent,
             coolRamp = coolRamp,
             warmRamp = warmRamp,
-            outsideRegions = page.dots.count { !it.claimed },
+            outsideRegions = page.outsideRegionCount,
         )
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
@@ -1453,6 +1455,44 @@ internal data class MapLabelAnchor(
 )
 
 internal data class MapLabelPlacement(val region: Int, val bounds: Rect)
+
+/**
+ * One layout shared by painting and tapping. Song-accent and theme animations redraw the Canvas
+ * without moving the viewport: keep collision detection and its temporary Rects out of those
+ * frames. Anchors include label size and selection order; changing either creates a new cache.
+ * This is a UI-thread cache, like [MapDotIndex], not Compose state that could invalidate drawing.
+ */
+internal class MapLabelLayout(private val anchors: List<MapLabelAnchor>) {
+    private var cachedWidth = Float.NaN
+    private var cachedHeight = Float.NaN
+    private var cachedZoom = Float.NaN
+    private var cachedPanX = Float.NaN
+    private var cachedPanY = Float.NaN
+    private var cachedMargin = Float.NaN
+    private var cachedPlacements: List<MapLabelPlacement> = emptyList()
+
+    fun placements(
+        width: Float,
+        height: Float,
+        zoom: Float,
+        panX: Float,
+        panY: Float,
+        marginPx: Float,
+    ): List<MapLabelPlacement> {
+        if (width == cachedWidth && height == cachedHeight && zoom == cachedZoom &&
+            panX == cachedPanX && panY == cachedPanY && marginPx == cachedMargin
+        ) return cachedPlacements
+        val result = mapLabelPlacements(anchors, width, height, zoom, panX, panY, marginPx)
+        cachedWidth = width
+        cachedHeight = height
+        cachedZoom = zoom
+        cachedPanX = panX
+        cachedPanY = panY
+        cachedMargin = marginPx
+        cachedPlacements = result
+        return result
+    }
+}
 
 /**
  * Place labels in priority order (selected region first, then population), omitting collisions.

@@ -169,7 +169,6 @@ import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.library.PlaylistTrackChange
 import io.github.nikitasud.latentjam.library.SongSort
-import io.github.nikitasud.latentjam.library.SongSorting
 import io.github.nikitasud.latentjam.library.defaultDirection
 import io.github.nikitasud.latentjam.library.tags.write.JournalState
 import io.github.nikitasud.latentjam.playback.PlaybackController
@@ -484,8 +483,6 @@ private fun AppShell(
         // Sort choices live in settings, not saved instance state: a listener who sorted by year
         // expects the list sorted by year after a cold start too.
         val songSortChoice by settings.songSort.collectAsState()
-        val songSort = songSortChoice.sort
-        val songSortDirection = songSortChoice.direction
         val albumSortChoice by settings.albumSort.collectAsState()
         val groupSortOrders by settings.groupSortOrders.collectAsState()
         val artistAlbumSortChoice by settings.artistAlbumSort.collectAsState()
@@ -1312,6 +1309,7 @@ private fun AppShell(
 
         var catalog by remember { mutableStateOf<LibraryCatalog?>(null) }
         var albumBrowse by remember { mutableStateOf<AlbumBrowseDerivation?>(null) }
+        var songsBrowse by remember { mutableStateOf<SongsBrowseDerivation?>(null) }
         val albumSections = albumBrowse?.albumSections.orEmpty()
         val albumTabTracks = albumBrowse?.albumTabTracks.orEmpty()
         LaunchedEffect(tracks) {
@@ -1324,13 +1322,16 @@ private fun AppShell(
             // just-deleted row resolves to a harmless no-op — a far better trade than the jump.
             if (loaded != null) {
                 val derived = withContext(Dispatchers.Default) {
-                    AlbumBrowseDerivation.of(buildCatalog(loaded), settings.albumSort.value)
+                    val albums = AlbumBrowseDerivation.of(buildCatalog(loaded), settings.albumSort.value)
+                    albums to prepareSongsBrowse(albums.catalog.songs, settings.songSort.value)
                 }
-                catalog = derived.catalog
-                albumBrowse = derived
+                catalog = derived.first.catalog
+                albumBrowse = derived.first
+                songsBrowse = derived.second
             } else {
                 catalog = null
                 albumBrowse = null
+                songsBrowse = null
             }
         }
         // A new album sort re-derives the Albums tab from the catalog in hand, never rebuilding the
@@ -1343,10 +1344,24 @@ private fun AppShell(
             if (shown != null && shown.catalog === current && shown.choice == albumSortChoice) return@LaunchedEffect
             albumBrowse = withContext(Dispatchers.Default) { AlbumBrowseDerivation.of(current, albumSortChoice) }
         }
+        // Keep the last complete snapshot while a new choice is prepared. Cancellation of this
+        // effect prevents an older sort (or catalog) from replacing a newer publication.
+        LaunchedEffect(catalog, songSortChoice) {
+            val current = catalog ?: return@LaunchedEffect
+            val shown = songsBrowse
+            if (shown != null && shown.source === current.songs && shown.choice == songSortChoice) {
+                return@LaunchedEffect
+            }
+            val requested = songSortChoice
+            val prepared = prepareSongsBrowse(current.songs, requested)
+            // An already queued continuation can beat the recomposition that cancels this
+            // effect. Check live identities too before replacing the visible snapshot.
+            if (catalog === current && settings.songSort.value == requested) songsBrowse = prepared
+        }
         val groupOrderedCatalog = remember(catalog, groupSortOrders) { catalog?.inGroupOrder(groupSortOrders) }
         val tracksById = remember(catalog) { catalog?.songs?.associateBy { it.id }.orEmpty() }
         val selectedTracks = remember(
-            catalog, groupSortOrders, albumTabTracks, songSort, songSortDirection, selectedTrackIds,
+            catalog, groupSortOrders, albumTabTracks, songsBrowse, selectedTrackIds,
             selectedCollection, selectedTab,
         ) {
             // Selection is empty during ordinary browsing. Avoid duplicating the Songs list's
@@ -1367,12 +1382,10 @@ private fun AppShell(
                     }
                     else -> null
                 }
-            groupOrderedSource?.filter { it.id in selectedTrackIds }
-                ?: SongSorting.sort(
-                    catalog?.songs.orEmpty().filter { it.id in selectedTrackIds },
-                    songSort,
-                    songSortDirection,
-                )
+            // A choice may still be sorting in the background: selected tracks follow the
+            // order visible on screen, just like tapping a row, until that snapshot is replaced.
+            (groupOrderedSource ?: songsBrowse?.displayOrder.orEmpty())
+                .filter { it.id in selectedTrackIds }
         }
         LaunchedEffect(catalog) {
             updateTrackSelection(selectedTrackIds.intersect(tracksById.keys))
@@ -2820,10 +2833,11 @@ private fun AppShell(
                                         StartPage.TRACKS -> Column {
                                             val songsListState = rememberLazyListState()
                                             val scrollSongsToTopOnSort = rememberScrollToTopOnSort(
-                                                shown = songSortChoice,
+                                                shown = songsBrowse?.choice,
                                             ) { songsListState.requestScrollToItem(0) }
                                             SortHeader(
                                                 options = SongSort.entries,
+                                                testTagPrefix = "latentjam_song_sort",
                                                 choice = songSortChoice,
                                                 label = { it.label() },
                                                 defaultDirection = { it.defaultDirection },
@@ -2835,13 +2849,11 @@ private fun AppShell(
                                                     settings.setSongSort(choice)
                                                 },
                                             )
-                                            SectionedSongsList(
+                                            songsBrowse?.let { browse -> SectionedSongsList(
+                                                browse = browse,
                                                 listState = songsListState,
                                                 onRailScrubbingChange = { railScrubbing = it },
                                                 currentAccent = browseAccentInk(accent),
-                                                songs = visibleCatalog.songs,
-                                                sort = songSort,
-                                                sortDirection = songSortDirection,
                                                 currentTrackId = currentTrack?.id,
                                                 currentTrackPlaying = currentTrackPlaying,
                                                 contentPadding = listPadding,
@@ -2864,7 +2876,7 @@ private fun AppShell(
                                                 onTrackMenu = {
                                                     sheets.trackMenuRequest = TrackMenuRequest(it)
                                                 },
-                                            )
+                                            ) }
                                         }
 
                                         StartPage.ALBUMS -> Column {

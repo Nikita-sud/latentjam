@@ -23,6 +23,7 @@ import java.io.InterruptedIOException
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.util.concurrent.Semaphore
+import kotlin.math.ceil
 
 /**
  * Artwork shared by the app, widgets and media session. An unusable provider thumbnail falls
@@ -39,36 +40,72 @@ public object AndroidTrackArtwork {
     // semaphore. Share one permit so scrolling cannot multiply the metadata/bitmap ceilings.
     private val readPermit = Semaphore(1)
 
-    public fun loadBitmap(resolver: ContentResolver, uri: Uri, maxDimension: Int = MAX_DIMENSION): Bitmap? {
+    public fun loadBitmap(resolver: ContentResolver, uri: Uri, maxDimension: Int = MAX_DIMENSION): Bitmap? =
+        loadBitmap(resolver, uri, maxDimension.coerceIn(1, MAX_DIMENSION), null)
+
+    /**
+     * Decode to the display's pixel bounds, preserving aspect ratio and optional center-crop.
+     * BitmapFactory combines subsampling and density scaling so Coil retains display-sized
+     * pixels instead of an oversized power-of-two bitmap. Android may allocate both sampled
+     * and scaled pixels temporarily; both obey the global dimension ceiling. Small source
+     * pictures and samples limited by that ceiling are never enlarged.
+     */
+    public fun loadDisplayBitmap(
+        resolver: ContentResolver,
+        uri: Uri,
+        width: Int,
+        height: Int,
+        crop: Boolean,
+    ): Bitmap? = loadBitmap(
+        resolver, uri, MAX_DIMENSION,
+        ArtworkDisplaySize(width.coerceIn(1, MAX_DIMENSION), height.coerceIn(1, MAX_DIMENSION), crop),
+    )
+
+    private fun loadBitmap(
+        resolver: ContentResolver,
+        uri: Uri,
+        dimension: Int,
+        displaySize: ArtworkDisplaySize?,
+    ): Bitmap? {
         readPermit.acquire()
         try {
-            return readBitmap(resolver, uri, maxDimension.coerceIn(1, MAX_DIMENSION))
+            return readBitmap(resolver, uri, dimension, displaySize)
         } finally {
             readPermit.release()
         }
     }
 
-    private fun readBitmap(resolver: ContentResolver, uri: Uri, dimension: Int): Bitmap? =
+    private fun readBitmap(
+        resolver: ContentResolver,
+        uri: Uri,
+        dimension: Int,
+        displaySize: ArtworkDisplaySize?,
+    ): Bitmap? =
         loadArtworkWithFallback(
             uri = uri.toString(),
             provider = { locator ->
                 resolver.openInputStream(Uri.parse(locator))?.use { input ->
-                    readArtworkBytes(input)?.let { decodeArtwork(it, dimension) }
+                    readArtworkBytes(input)?.let { decodeArtwork(it, dimension, displaySize) }
                 }
             },
             embedded = { audio ->
                 resolver.openFileDescriptor(Uri.parse(audio), "r")?.use { descriptor ->
                     // The ParcelFileDescriptor owns the descriptor; its stream must not close it twice.
                     val channel = FileInputStream(descriptor.fileDescriptor).channel
-                    decodeEmbeddedArtwork(ArtworkChannelSource(channel), dimension)
+                    decodeEmbeddedArtwork(ArtworkChannelSource(channel), dimension, displaySize)
                 }
             },
         )
 }
 
 /** Shared by the descriptor adapter and real Android codec/bitmap regression fixtures. */
-internal fun decodeEmbeddedArtwork(source: RandomAccessSource, maxDimension: Int): Bitmap? =
-    TagCodecs.readCover(BoundedArtworkSource(source))?.bytes?.let { decodeArtwork(it, maxDimension) }
+internal fun decodeEmbeddedArtwork(
+    source: RandomAccessSource,
+    maxDimension: Int,
+    displaySize: ArtworkDisplaySize? = null,
+): Bitmap? = TagCodecs.readCover(BoundedArtworkSource(source))?.bytes?.let {
+    decodeArtwork(it, maxDimension, displaySize)
+}
 
 /** A decode failure is absence too. Permission, I/O and cancellation failures remain failures. */
 internal fun <T : Any> loadArtworkWithFallback(
@@ -149,22 +186,74 @@ internal fun artworkSampleSize(width: Int, height: Int, maxDimension: Int): Int?
     return sample
 }
 
-private fun decodeArtwork(bytes: ByteArray, maxDimension: Int): Bitmap? {
+internal data class ArtworkDisplaySize(val width: Int, val height: Int, val crop: Boolean)
+
+internal data class ArtworkDecodeScale(val sampleSize: Int, val density: Int, val targetDensity: Int)
+
+/**
+ * Like Coil's BitmapFactoryDecoder, retain the smallest sufficient power-of-two sample and
+ * perform the remaining downscale using BitmapFactory's density ratio. Width/height here are
+ * encoded dimensions; the display request is swapped before this call for 90/270-degree EXIF.
+ */
+internal fun artworkDisplayScale(
+    width: Int,
+    height: Int,
+    display: ArtworkDisplaySize,
+    maxDimension: Int = AndroidTrackArtwork.MAX_DIMENSION,
+): ArtworkDecodeScale? {
+    val minimumSample = artworkSampleSize(width, height, maxDimension) ?: return null
+    if (display.width <= 0 || display.height <= 0) return null
+    val horizontal = display.width.toDouble() / width
+    val vertical = display.height.toDouble() / height
+    val requestedScale = if (display.crop) maxOf(horizontal, vertical) else minOf(horizontal, vertical)
+    val scale = minOf(1.0, requestedScale, maxDimension.toDouble() / maxOf(width, height))
+    var sample = 1
+    while (1.0 / (sample * 2) >= scale) sample *= 2
+    // Density scaling can allocate both the sampled and final bitmap inside BitmapFactory.
+    // Preserve the existing ceiling before either allocation, even when that means a large
+    // crop request receives fewer pixels than it asked for. Never upscale the bounded sample.
+    sample = maxOf(sample, minimumSample)
+    // JPEG and other subsampled formats may round a non-divisible edge up. Using the ceiling
+    // also keeps odd-sized images inside the hard limit when density scaling follows sampling.
+    val sampledMax = (maxOf(width, height) + sample - 1) / sample
+    val targetMax = ceil(maxOf(width, height) * scale).toInt().coerceIn(1, maxDimension)
+    return ArtworkDecodeScale(sample, sampledMax, minOf(sampledMax, targetMax))
+}
+
+private fun decodeArtwork(
+    bytes: ByteArray,
+    maxDimension: Int,
+    displaySize: ArtworkDisplaySize? = null,
+): Bitmap? {
     checkArtworkInterrupted()
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
     val sample = artworkSampleSize(bounds.outWidth, bounds.outHeight, maxDimension) ?: return null
+    val transform = readArtworkTransform(bytes)
+    val displayScale = displaySize?.let { display ->
+        val encodedDisplay = if (transform.rotation % 180 != 0) {
+            display.copy(width = display.height, height = display.width)
+        } else display
+        artworkDisplayScale(bounds.outWidth, bounds.outHeight, encodedDisplay, maxDimension)
+    }
     val options = BitmapFactory.Options().apply {
-        inSampleSize = sample
+        inSampleSize = displayScale?.sampleSize ?: sample
         inPreferredConfig = Bitmap.Config.ARGB_8888
+        if (displayScale != null && displayScale.targetDensity < displayScale.density) {
+            inScaled = true
+            inDensity = displayScale.density
+            inTargetDensity = displayScale.targetDensity
+        }
     }
     checkArtworkInterrupted()
     val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) ?: return null
+    // Density is only the decoder's scaling mechanism; callers use the actual pixel dimensions.
+    if (displayScale != null) bitmap.density = Bitmap.DENSITY_NONE
     if (maxOf(bitmap.width, bitmap.height) > maxDimension) {
         bitmap.recycle()
         return null
     }
-    return orientArtwork(bitmap, bytes)
+    return orientArtwork(bitmap, transform)
 }
 
 internal data class ArtworkTransform(val rotation: Int = 0, val flipped: Boolean = false)
@@ -181,7 +270,7 @@ internal fun artworkTransform(orientation: Int): ArtworkTransform = when (orient
     else -> ArtworkTransform()
 }
 
-private fun orientArtwork(bitmap: Bitmap, bytes: ByteArray): Bitmap {
+private fun readArtworkTransform(bytes: ByteArray): ArtworkTransform {
     val orientation = try {
         ExifInterface(ByteArrayInputStream(bytes)).getAttributeInt(
             ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL,
@@ -190,7 +279,10 @@ private fun orientArtwork(bitmap: Bitmap, bytes: ByteArray): Bitmap {
         // Malformed/unsupported optional EXIF must not hide an otherwise decodable picture.
         ExifInterface.ORIENTATION_NORMAL
     }
-    val transform = artworkTransform(orientation)
+    return artworkTransform(orientation)
+}
+
+private fun orientArtwork(bitmap: Bitmap, transform: ArtworkTransform): Bitmap {
     if (!transform.flipped && transform.rotation == 0) return bitmap
     val matrix = Matrix().apply {
         if (transform.flipped) postScale(-1f, 1f)

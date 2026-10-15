@@ -1,0 +1,354 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-15",
+  "purpose": "Physical-device validation of UI changes against the exact base revision, with unchanged real media and harness.",
+  "device": {
+    "model": "SM-S928B",
+    "sdk": "36",
+    "fingerprint": "samsung/e3qxxx/e3q:16/BP4A.251205.006/S928BXXS6DZI1:user/release-keys",
+    "emulator": "0"
+  },
+  "display": "Physical size: 1080x2340",
+  "density": "Physical density: 450",
+  "refresh_rate_settings": {
+    "peak": "null",
+    "minimum": "null"
+  },
+  "fixture": {
+    "identity": "S24-Ultra-existing-media-1110-v1",
+    "tracks": 1110,
+    "media_fingerprint": {
+      "rows": 1110,
+      "sha256": "526774bef30ec9858118e258be2aa4b2a131610ab17a1eebead6011967ef4a62"
+    },
+    "readiness": "Local indexing completed before the measured pair; no IndexingService was running. Benchmark MediaSession was checked paused.",
+    "privacy": "Only aggregate measurements and media metadata hash are committed; no song titles, audio, paths, or device serial."
+  },
+  "runtime_scope": "Both measured APKs use stock ONNX Runtime 1.26.0. These measurements do not validate any later reduced-runtime artifact.",
+  "source": {
+    "before": "2b02d37bb83f56867dc6010ad32012b7ae5e8aa7 plus measurement-only tags",
+    "after": "Same base plus UI optimization, including serialized cancellable song preparation; exact binary identified by SHA-256."
+  },
+  "sha256": {
+    "before_apk": "640b6f363d4d20652274540b576f3144c36b7d36cb8fdd19bf98ecc79c3f8f11",
+    "after_apk": "37c55e56e3df0eedcf114ec0639e41fdc1f2711f45d5e054b89fd9b8a7fcc3b1",
+    "harness_apk": "57f5039e34b1a39958b0cdeaf0a2013c50858d4d46110ee5624b947d80081b63"
+  },
+  "runs": {
+    "before-full-2": {
+      "label": "before-full-2",
+      "passed": true,
+      "started_utc": "2026-10-15T05:31:20.139986+00:00",
+      "completed_utc": "2026-10-15T05:41:13.668073+00:00",
+      "compilation": "full",
+      "requested_iterations": 5,
+      "thermal_status": {
+        "before": 2,
+        "after": 1
+      },
+      "media_fingerprint_unchanged": true,
+      "benchmark_data_sha256": "ef9dab932153022e39f3ea8ca59fd6d342c8e1bcc281491b214335fa2cdbc4ea",
+      "benchmarks": {
+        "openClosePlayer": {
+          "completed_iterations": 5,
+          "thermal_throttle_sleep_seconds": 0,
+          "metrics": {
+            "frameDurationCpuMs": {
+              "pooled_p95": 19.936,
+              "iteration_p95_median": 20.277,
+              "iteration_p95_range": [
+                15.605,
+                22.304
+              ],
+              "samples": 955
+            },
+            "frameOverrunMs": {
+              "pooled_p95": 9.56,
+              "iteration_p95_median": 8.4,
+              "iteration_p95_range": [
+                3.232,
+                13.873
+              ],
+              "samples": 955
+            }
+          }
+        },
+        "scrollTracks": {
+          "completed_iterations": 5,
+          "thermal_throttle_sleep_seconds": 0,
+          "metrics": {
+            "frameDurationCpuMs": {
+              "pooled_p95": 23.724,
+              "iteration_p95_median": 23.468,
+              "iteration_p95_range": [
+                22.33,
+                24.404
+              ],
+              "samples": 6621
+            },
+            "frameOverrunMs": {
+              "pooled_p95": 9.995,
+              "iteration_p95_median": 9.914,
+              "iteration_p95_range": [
+                8.581,
+                11.008
+              ],
+              "samples": 6621
+            }
+          }
+        },
+        "changeTrackSort": {
+          "completed_iterations": 5,
+          "thermal_throttle_sleep_seconds": 0,
+          "metrics": {
+            "frameDurationCpuMs": {
+              "pooled_p95": 37.776,
+              "iteration_p95_median": 37.598,
+              "iteration_p95_range": [
+                33.452,
+                39.272
+              ],
+              "samples": 1143
+            },
+            "frameOverrunMs": {
+              "pooled_p95": 43.917,
+              "iteration_p95_median": 42.703,
+              "iteration_p95_range": [
+                42.455,
+                46.603
+              ],
+              "samples": 1143
+            }
+          }
+        }
+      }
+    },
+    "after-full-2": {
+      "label": "after-full-2",
+      "passed": false,
+      "started_utc": "2026-10-15T05:41:40.214423+00:00",
+      "completed_utc": "2026-10-15T05:51:01.076282+00:00",
+      "compilation": "full",
+      "requested_iterations": 5,
+      "thermal_status": {
+        "before": 1,
+        "after": 0
+      },
+      "media_fingerprint_unchanged": true,
+      "benchmark_data_sha256": "b935cb8d5ac2013d1e669528dfce8f70d4e9235298a415e9019ced307837c8e6",
+      "benchmarks": {
+        "openClosePlayer": {
+          "completed_iterations": 5,
+          "thermal_throttle_sleep_seconds": 0,
+          "metrics": {
+            "frameDurationCpuMs": {
+              "pooled_p95": 21.23,
+              "iteration_p95_median": 21.042,
+              "iteration_p95_range": [
+                17.996,
+                23.17
+              ],
+              "samples": 1010
+            },
+            "frameOverrunMs": {
+              "pooled_p95": 10.392,
+              "iteration_p95_median": 10.704,
+              "iteration_p95_range": [
+                6.072,
+                11.547
+              ],
+              "samples": 1010
+            }
+          }
+        },
+        "changeTrackSort": {
+          "completed_iterations": 5,
+          "thermal_throttle_sleep_seconds": 0,
+          "metrics": {
+            "frameDurationCpuMs": {
+              "pooled_p95": 39.152,
+              "iteration_p95_median": 39.172,
+              "iteration_p95_range": [
+                38.017,
+                40.577
+              ],
+              "samples": 1175
+            },
+            "frameOverrunMs": {
+              "pooled_p95": 43.998,
+              "iteration_p95_median": 42.903,
+              "iteration_p95_range": [
+                37.78,
+                50.894
+              ],
+              "samples": 1175
+            }
+          }
+        }
+      },
+      "failure": {
+        "scenario": "scrollTracks",
+        "iteration_one_based": 5,
+        "operation": "First injected swipe returned false",
+        "observed_cause": "NotificationShade temporarily acquired focus; InputManager reported failed injection from the test process; focus returned to the application.",
+        "app_crash_observed": false,
+        "crash_check_scope": "Android crash log buffer contained no benchmark-package entry at inspection.",
+        "partial_scroll_metrics": "Four completed iteration traces were preserved locally; Macrobenchmark did not publish aggregate scroll metrics after failure."
+      }
+    },
+    "after-scroll-smoke-3": {
+      "label": "after-scroll-smoke-3",
+      "passed": true,
+      "started_utc": "2026-10-15T05:52:38.954690+00:00",
+      "completed_utc": "2026-10-15T05:53:57.316280+00:00",
+      "compilation": "full",
+      "requested_iterations": 1,
+      "thermal_status": {
+        "before": 0,
+        "after": 0
+      },
+      "media_fingerprint_unchanged": true,
+      "benchmark_data_sha256": "87027c710595e72d29e4a4617dc2f007e853215b82c65b9531cd214a29fa40e5",
+      "benchmarks": {
+        "scrollTracks": {
+          "completed_iterations": 1,
+          "thermal_throttle_sleep_seconds": 0,
+          "metrics": {
+            "frameDurationCpuMs": {
+              "pooled_p95": 23.885,
+              "iteration_p95_median": 23.885,
+              "iteration_p95_range": [
+                23.885,
+                23.885
+              ],
+              "samples": 1317
+            },
+            "frameOverrunMs": {
+              "pooled_p95": 10.079,
+              "iteration_p95_median": 10.079,
+              "iteration_p95_range": [
+                10.079,
+                10.079
+              ],
+              "samples": 1317
+            }
+          }
+        }
+      }
+    },
+    "before-startup-require-1": {
+      "label": "before-startup-require-1",
+      "passed": true,
+      "started_utc": "2026-10-15T05:56:34.868568+00:00",
+      "completed_utc": "2026-10-15T05:57:13.959695+00:00",
+      "compilation": "require",
+      "requested_iterations": 5,
+      "thermal_status": {
+        "before": 0,
+        "after": 0
+      },
+      "media_fingerprint_unchanged": true,
+      "benchmark_data_sha256": "b0e326adc2dfeb81a9e238720cd34109c36b7a2427b840ab1ecebf3a0dd712d4",
+      "benchmarks": {
+        "coldStartAndFirstList": {
+          "completed_iterations": 5,
+          "thermal_throttle_sleep_seconds": 0,
+          "metrics": {
+            "frameDurationCpuMs": {
+              "pooled_p95": 52.816,
+              "iteration_p95_median": 38.707,
+              "iteration_p95_range": [
+                33.939,
+                55.6
+              ],
+              "samples": 199
+            },
+            "frameOverrunMs": {
+              "pooled_p95": 69.127,
+              "iteration_p95_median": 66.622,
+              "iteration_p95_range": [
+                39.79,
+                89.624
+              ],
+              "samples": 199
+            },
+            "timeToInitialDisplayMs": {
+              "minimum": 262.582,
+              "median": 268.336,
+              "maximum": 287.386
+            },
+            "LatentJam.FirstListFirstMs": {
+              "minimum": 1966.54,
+              "median": 2116.679,
+              "maximum": 2338.712
+            }
+          }
+        }
+      }
+    },
+    "after-startup-require-1": {
+      "label": "after-startup-require-1",
+      "passed": true,
+      "started_utc": "2026-10-15T05:55:06.739226+00:00",
+      "completed_utc": "2026-10-15T05:55:48.323203+00:00",
+      "compilation": "require",
+      "requested_iterations": 5,
+      "thermal_status": {
+        "before": 0,
+        "after": 0
+      },
+      "media_fingerprint_unchanged": true,
+      "benchmark_data_sha256": "64e1e993790468e8521cbc97f6a9356f2e179fdd63fb8c6bd49e4cbd16cef588",
+      "benchmarks": {
+        "coldStartAndFirstList": {
+          "completed_iterations": 5,
+          "thermal_throttle_sleep_seconds": 0,
+          "metrics": {
+            "frameDurationCpuMs": {
+              "pooled_p95": 37.204,
+              "iteration_p95_median": 35.482,
+              "iteration_p95_range": [
+                32.295,
+                39.285
+              ],
+              "samples": 196
+            },
+            "frameOverrunMs": {
+              "pooled_p95": 56.185,
+              "iteration_p95_median": 47.289,
+              "iteration_p95_range": [
+                42.949,
+                58.836
+              ],
+              "samples": 196
+            },
+            "timeToInitialDisplayMs": {
+              "minimum": 235.667,
+              "median": 266.527,
+              "maximum": 296.696
+            },
+            "LatentJam.FirstListFirstMs": {
+              "minimum": 2043.777,
+              "median": 2399.668,
+              "maximum": 2466.405
+            }
+          }
+        }
+      }
+    }
+  },
+  "conclusion": {
+    "interaction_comparison": "Inconclusive. Before suite passed; after suite had an external input failure. Successful player/sort metrics are diagnostic, not a passing paired suite.",
+    "scroll_smoke_passed": true,
+    "startup_comparison": "Both five-iteration runs required the packaged baseline profile and passed. Metrics describe this device/fixture and are not a statistically established cross-device speedup.",
+    "startup_observation": "TTID medians were 268.336 ms before and 266.527 ms after. FirstList trace medians were 2116.679 ms before and 2399.668 ms after; this interval includes UIAutomator synchronization. No first-list speed improvement is claimed.",
+    "fps_improvement_confirmed": false,
+    "limitations": [
+      "Thermal status changed 2 to 1 during the before interaction suite and 1 to 0 during after. There was no balanced reverse-order interaction pair.",
+      "Pooled frame percentiles are descriptive; per-iteration ranges are not confidence intervals. A single retry iteration cannot establish a scroll performance change.",
+      "FirstList and sort trace durations include UIAutomator synchronization; they are not pure application compute time.",
+      "One high-end physical Android phone, 1110 existing tracks, adaptive display settings. No low-end Android or physical iPhone performance claim.",
+      "No fixed completed map fixture; map gestures were not measured. Background indexing, whole-process PSS and battery consumption were not benchmarked."
+    ]
+  }
+}

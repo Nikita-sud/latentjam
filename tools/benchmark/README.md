@@ -63,3 +63,102 @@ F-Droid builds, with the committed profiles enabled. It keeps APKs, logs and
 exact source/output hashes under `build/reports`. It needs 5 GiB of free space.
 A mismatch requires artifact-level investigation; do not disable profiles or
 downgrade the Android toolchain without identifying the differing artifact.
+
+## UI optimization: before/after on the same phone
+
+The three focused `AppBenchmarks` methods use existing AndroidX Macrobenchmark
+and UIAutomator, without a runtime dependency in the app:
+
+- `scrollTracks`: eight bounded swipes down and eight up through the actual library,
+  including artwork decode/reuse and lazy row composition.
+- `changeTrackSort`: three title → artist → title round trips, waiting for the
+  **published list order** tag before the next action. The menu label alone is
+  not proof that asynchronous preparation has finished.
+- `openClosePlayer`: five player open/Back transitions after pausing the selected
+  track outside the measurement. Search, playback decoding and normalization
+  are not mixed into this scenario.
+
+Build the benchmark target and harness without `latentjam.profileGeneration`.
+The target needs only measurement tags on the track list, published sort order,
+menu button and choices; copy those tags to the baseline revision as well. Use
+an exact source revision for the baseline, not an older APK with unrelated code
+changes. Keep both APKs and their SHA-256 values. Install only the separate
+`.kmp.benchmark` package with `adb install -r`; preserve its data between runs.
+The scripts do not install APKs, clear app data or change system settings.
+The harness restores title-ascending order before scrolling/sorting, respecting
+the application behavior where selecting the active field toggles direction.
+
+Prepare at least 20 tracks (prefer the same representative large library),
+allow scanning to finish, and keep background audio analysis idle. Keep the
+phone unlocked in portrait, on the same display/font settings and thermal
+conditions. Real media is read through the separately granted audio permission;
+no production private app data needs to be copied. The default pause selector
+supports English/Russian; for another locale pass `--pause-description`,
+`--sort-title-label` and `--sort-artist-label`. Dropdown menus have a separate
+Compose semantics owner, so their visible labels are used rather than assuming
+that root test tags automatically become resource IDs inside a popup.
+
+```sh
+python3 tools/benchmark/run_ui.py --serial SERIAL --label before-full-1 \
+  --apk /absolute/path/to/before.apk --source 'COMMIT + measurement-only tags' \
+  --fixture 'same-device-media-library-v1' --tracks 1110 --iterations 5
+# Install the optimized target only; leave the same harness and fixture in place.
+python3 tools/benchmark/run_ui.py --serial SERIAL --label after-full-1 \
+  --apk androidApp/build/outputs/apk/benchmark/androidApp-arm64-v8a-benchmark.apk \
+  --source 'COMMIT + UI changes' --fixture 'same-device-media-library-v1' \
+  --tracks 1110 --iterations 5
+python3 tools/benchmark/compare_ui.py \
+  build/ui-optimization/before-full-1 build/ui-optimization/after-full-1 \
+  --output build/reports/ui-optimization-comparison.json
+```
+
+`full` compilation is the default for isolating UI code changes from JIT warmup
+and differences in profile coverage. `--profile require` checks production
+baseline-profile behavior separately. Do not compare different compilation
+modes. Repeat in reversed order and compare the per-iteration spread before
+claiming a gain. The runner verifies the installed target and harness APK hashes, fingerprints
+MediaStore music IDs/revisions/sizes/durations without song names, and records
+the fixture/source/device/display settings and thermal/battery state, and preserves
+JSON plus Perfetto traces in a unique output directory. It does not suppress
+benchmark errors. Failed runs keep partial evidence and must not be reported as
+passing measurements.
+
+The comparison reports frame CPU/overrun percentiles and per-iteration P95
+ranges. Positive `frameOverrunMs` means the frame missed its deadline; the
+percentage is reported per iteration. P95 ranges are not confidence intervals.
+The sort trace duration includes UIAutomator synchronization and must not be
+called sort computation time. A result from one S24 Ultra does not establish a
+speedup on slower phones or on iOS. Map gesture measurement remains separate
+until a completed, fixed map fixture exists; background indexing would confound
+these UI measurements.
+
+To check startup separately with the packaged baseline profile, run matching
+`--profile require --scenarios coldStartAndFirstList --iterations 5` sessions.
+Do not mix these results with the full-compilation interaction benchmarks.
+
+## Recorded phone validation
+
+[The 2026-10-15 aggregate report](../../docs/ui-optimization-phone-2026-10-15.json)
+records the exact source/APK/harness hashes and the unchanged 1,110-track fixture.
+It covers stock ORT 1.26.0 APKs only. The interaction comparison is inconclusive:
+thermal conditions changed, and NotificationShade interrupted one injected swipe
+in the after suite. A one-iteration scroll retry passed. The successful player
+and sort samples remain diagnostic; the failed suite is not counted as passing.
+
+The separate five-iteration startup pair required the packaged profile on both
+APKs and ran at thermal status 0. Median initial display was 268.336 → 266.527 ms.
+The FirstList trace was 2116.679 → 2399.668 ms, including UIAutomator waits. These
+results establish neither a first-list speedup nor an FPS improvement. Local raw
+logs and traces remain under `build/ui-optimization`; they are not committed.
+
+## Upstream references used for the UI work
+
+The measurement and background-work approach follows Google's
+[Compose performance codelab](https://developer.android.com/codelabs/jetpack-compose-performance)
+and [Macrobenchmark guide](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-overview):
+measure optimized builds on a physical device, compare frame CPU/deadline
+metrics, use full compilation for runtime changes and profile compilation for
+startup. Artwork sizing follows the existing
+[Coil 3.4.0 BitmapFactoryDecoder](https://github.com/coil-kt/coil/blob/3.4.0/coil-core/src/androidMain/kotlin/coil3/decode/BitmapFactoryDecoder.kt)
+source's sampled decode/density approach. This work reuses dependencies already
+in LatentJam; it adds no production UI framework or image-loading library.

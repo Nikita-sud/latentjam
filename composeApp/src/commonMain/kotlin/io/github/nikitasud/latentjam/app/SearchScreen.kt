@@ -513,7 +513,7 @@ internal fun SearchScreen(
                         modifier = Modifier.fillMaxSize().fadingListTop { resultsListState.canScrollBackward },
                         contentPadding = PaddingValues(bottom = bottomInset),
                     ) {
-                        item(key = "result-count") {
+                        item(key = "result-count", contentType = "result-count") {
                             Text(
                                 text = pluralStringResource(
                                     Res.plurals.count_tracks, shown.results.size, shown.results.size,
@@ -531,6 +531,7 @@ internal fun SearchScreen(
                         itemsIndexed(
                             shown.results,
                             key = { _, track -> track.id.value },
+                            contentType = { _, _ -> "search-track" },
                         ) { index, track ->
                             TrackRow(
                                 track = track,

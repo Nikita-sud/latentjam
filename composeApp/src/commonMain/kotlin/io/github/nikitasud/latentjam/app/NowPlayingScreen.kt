@@ -56,6 +56,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -184,6 +185,8 @@ import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlin.time.TimeMark
@@ -360,7 +363,11 @@ fun NowPlayingScreen(
         if (sleepTimerRequest != initialSleepTimerRequest) showSleepTimer = true
     }
     LaunchedEffect(flipped, currentTrackId) {
-        if (flipped && currentTrackId != null) trackStats = AppGraph.history.stats()[currentTrackId]
+        if (flipped && currentTrackId != null) {
+            // stats() snapshots all track aggregates. Suspending does not itself move that copy
+            // off Main, and the first read can additionally load/aggregate the listening log.
+            trackStats = withContext(Dispatchers.Default) { AppGraph.history.stats()[currentTrackId] }
+        }
     }
     // The lyrics button exists only for songs that carry lyrics, so every track is probed for
     // them once it has settled: a bounded off-main read, delayed past rapid skipping so a run
@@ -1189,10 +1196,10 @@ private fun SyncedLyricsBody(
             },
         contentPadding = PaddingValues(start = 24.dp, end = 12.dp, bottom = 160.dp),
     ) {
-        item(key = "lyrics-header") {
+        item(key = "lyrics-header", contentType = "lyrics-header") {
             LyricsSheetHeader(track = track, dismissEnabled = dismissEnabled, onDismiss = onDismiss)
         }
-        itemsIndexed(items = lines, key = { index, _ -> index }) { index, line ->
+        itemsIndexed(items = lines, key = { index, _ -> index }, contentType = { _, _ -> "lyric-line" }) { index, line ->
             val active = index == activeIndex
             val color by animateColorAsState(
                 targetValue = if (active) {
@@ -1203,12 +1210,16 @@ private fun SyncedLyricsBody(
                 label = "lyric-line-colour",
             )
             val seekTo = line.timeMs
-            Text(
+            // The animated ink is read by BasicText's draw node. A color-only animation must
+            // not recompose/remeasure a lyric row each frame; font weight still changes once when
+            // the active line changes. BasicText retains text/selection/click semantics.
+            BasicText(
                 // A timed but wordless line is an instrumental gap; show that it is one.
                 text = line.text.ifBlank { if (seekTo != null) "♪" else "" },
-                style = MaterialTheme.typography.titleLarge.metadata(),
-                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
-                color = color,
+                style = MaterialTheme.typography.titleLarge.metadata().copy(
+                    fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                ),
+                color = { color },
                 modifier = Modifier
                     .fillMaxWidth()
                     .then(

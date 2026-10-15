@@ -103,6 +103,76 @@ class AndroidTrackArtworkDeviceTest {
             }
         }
 
+    @Test
+    fun displayThumbnailUsesItsPixelSizeWithoutRetainingAnOversizedBitmap() =
+        withJpeg(2048, 2048, ExifInterface.ORIENTATION_NORMAL) { file ->
+            val uri = Uri.fromFile(file)
+            val previous = AndroidTrackArtwork.loadBitmap(context.contentResolver, uri, 152 * 2)!!
+            val display = AndroidTrackArtwork.loadDisplayBitmap(context.contentResolver, uri, 152, 152, true)!!
+            try {
+                assertEquals(256, previous.width)
+                assertEquals(152, display.width)
+                assertEquals(152, display.height)
+                assertTrue(display.allocationByteCount < previous.allocationByteCount / 2)
+                assertRed(display.getPixel(38, 76))
+                assertBlue(display.getPixel(114, 76))
+                android.util.Log.i("ArtworkSizingTest", "152px cover: previous=${previous.allocationByteCount} display=${display.allocationByteCount}")
+            } finally {
+                previous.recycle()
+                display.recycle()
+            }
+        }
+
+    @Test
+    fun displayCropRetainsEnoughPixelsOnTheShortEdgeAndFitPreservesTheWholeImage() =
+        withJpeg(2048, 1024, ExifInterface.ORIENTATION_NORMAL) { file ->
+            val uri = Uri.fromFile(file)
+            val crop = AndroidTrackArtwork.loadDisplayBitmap(context.contentResolver, uri, 152, 152, true)!!
+            val fit = AndroidTrackArtwork.loadDisplayBitmap(context.contentResolver, uri, 152, 152, false)!!
+            try {
+                assertEquals(304, crop.width)
+                assertEquals(152, crop.height)
+                assertEquals(152, fit.width)
+                assertEquals(76, fit.height)
+                assertRed(crop.getPixel(76, 76))
+                assertBlue(crop.getPixel(228, 76))
+            } finally {
+                crop.recycle()
+                fit.recycle()
+            }
+        }
+
+    @Test
+    fun displaySizingUsesTheExifOrientedDimensions() =
+        withJpeg(2048, 1024, ExifInterface.ORIENTATION_ROTATE_90) { file ->
+            val display = AndroidTrackArtwork.loadDisplayBitmap(
+                context.contentResolver, Uri.fromFile(file), 100, 200, true,
+            )!!
+            try {
+                assertEquals(100, display.width)
+                assertEquals(200, display.height)
+                assertRed(display.getPixel(50, 50))
+                assertBlue(display.getPixel(50, 150))
+            } finally {
+                display.recycle()
+            }
+        }
+
+    @Test
+    fun oddDisplayDimensionsAndCropRemainInsideTheGlobalCeiling() =
+        withJpeg(4097, 257, ExifInterface.ORIENTATION_ROTATE_270) { file ->
+            val display = AndroidTrackArtwork.loadDisplayBitmap(
+                context.contentResolver, Uri.fromFile(file), 2048, 2048, true,
+            )!!
+            try {
+                assertTrue(display.width in 1..2048)
+                assertTrue(display.height in 1..2048)
+                assertTrue(display.height > display.width)
+            } finally {
+                display.recycle()
+            }
+        }
+
     private fun intBytes(value: Int): ByteArray = byteArrayOf(
         (value shr 24).toByte(), (value shr 16).toByte(), (value shr 8).toByte(), value.toByte(),
     )

@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
@@ -75,6 +76,7 @@ internal fun <S : Enum<S>> SortPill(
     modifier: Modifier = Modifier,
     /** False for a field that runs one way only (a playlist's own order): no arrow is offered for it. */
     hasDirection: (S) -> Boolean = { true },
+    testTagPrefix: String? = null,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     SortPillFrame(
@@ -84,11 +86,14 @@ internal fun <S : Enum<S>> SortPill(
         onLabelClick = { menuOpen = true },
         onDirectionClick = { onChoiceChange(choice.copy(direction = choice.direction.toggled())) },
         modifier = modifier,
+        testTagPrefix = testTagPrefix,
     ) {
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             options.forEach { option ->
                 DropdownMenuItem(
                     text = { Text(label(option)) },
+                    modifier = testTagPrefix?.let { Modifier.testTag("${it}_${option.name.lowercase()}") }
+                        ?: Modifier,
                     onClick = {
                         menuOpen = false
                         onChoiceChange(choice.afterSelecting(option, defaultDirection(option), hasDirection(option)))
@@ -143,6 +148,7 @@ private fun SortPillFrame(
     onLabelClick: () -> Unit,
     onDirectionClick: () -> Unit,
     modifier: Modifier = Modifier,
+    testTagPrefix: String? = null,
     menu: @Composable () -> Unit = {},
 ) {
     Box(modifier) {
@@ -152,7 +158,8 @@ private fun SortPillFrame(
         ) {
             TextButton(onClick = onLabelClick, enabled = enabled,
                 contentPadding = PaddingValues(start = 14.dp, end = 12.dp),
-                modifier = Modifier.heightIn(min = 48.dp),
+                modifier = Modifier.heightIn(min = 48.dp)
+                    .then(testTagPrefix?.let { Modifier.testTag(it) } ?: Modifier),
             ) {
                 Icon(Icons.AutoMirrored.Rounded.Sort, null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
@@ -219,6 +226,7 @@ internal fun <S : Enum<S>> SortHeader(
     countPlural: PluralStringResource,
     enabled: Boolean = true,
     onChoiceChange: (SortChoice<S>) -> Unit,
+    testTagPrefix: String? = null,
 ) {
     SortHeaderRow(count = count, countPlural = countPlural, enabled = enabled, trailing = null) {
         SortPill(
@@ -228,6 +236,7 @@ internal fun <S : Enum<S>> SortHeader(
             defaultDirection = defaultDirection,
             enabled = enabled,
             onChoiceChange = onChoiceChange,
+            testTagPrefix = testTagPrefix,
         )
     }
 }

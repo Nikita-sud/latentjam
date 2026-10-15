@@ -12,6 +12,7 @@ import coil3.fetch.FetchResult
 import coil3.fetch.Fetcher
 import coil3.fetch.ImageFetchResult
 import coil3.request.Options
+import coil3.size.Scale
 import coil3.size.pxOrElse
 import coil3.toAndroidUri
 import io.github.nikitasud.latentjam.library.AndroidTrackArtwork
@@ -24,11 +25,13 @@ internal class TrackCoverFetcher(
     private val options: Options,
 ) : Fetcher {
     override suspend fun fetch(): FetchResult = runInterruptible {
-        val side = maxOf(
-            options.size.width.pxOrElse { AndroidTrackArtwork.MAX_DIMENSION },
-            options.size.height.pxOrElse { AndroidTrackArtwork.MAX_DIMENSION },
-        ).coerceAtMost(AndroidTrackArtwork.MAX_DIMENSION / 2) * 2
-        val bitmap = checkNotNull(AndroidTrackArtwork.loadBitmap(options.context.contentResolver, data.toAndroidUri(), side)) {
+        val bitmap = checkNotNull(AndroidTrackArtwork.loadDisplayBitmap(
+            resolver = options.context.contentResolver,
+            uri = data.toAndroidUri(),
+            width = options.size.width.pxOrElse { AndroidTrackArtwork.MAX_DIMENSION },
+            height = options.size.height.pxOrElse { AndroidTrackArtwork.MAX_DIMENSION },
+            crop = options.scale == Scale.FILL,
+        )) {
             "Unable to decode '$data'."
         }
         ImageFetchResult(image = bitmap.asImage(), isSampled = true, dataSource = DataSource.DISK)

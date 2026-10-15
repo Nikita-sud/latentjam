@@ -174,4 +174,57 @@ internal class AndroidTrackArtworkTest {
         assertEquals(ArtworkTransform(), artworkTransform(999))
     }
 
+    @Test
+    fun displayScaleDoesNotRetainAnOversizedPowerOfTwoThumbnail() {
+        assertEquals(
+            ArtworkDecodeScale(sampleSize = 8, density = 256, targetDensity = 152),
+            artworkDisplayScale(2048, 2048, ArtworkDisplaySize(152, 152, crop = true)),
+        )
+        // The legacy bounded loader is still available to the media session and widgets.
+        assertEquals(8, artworkSampleSize(2048, 2048, 304))
+    }
+
+    @Test
+    fun displayScalePreservesCropAndFitWithoutEnlargingSmallSources() {
+        assertEquals(
+            ArtworkDecodeScale(4, 512, 304),
+            artworkDisplayScale(2048, 1024, ArtworkDisplaySize(152, 152, crop = true)),
+        )
+        assertEquals(
+            ArtworkDecodeScale(8, 256, 152),
+            artworkDisplayScale(2048, 1024, ArtworkDisplaySize(152, 152, crop = false)),
+        )
+        assertEquals(
+            ArtworkDecodeScale(1, 80, 80),
+            artworkDisplayScale(80, 40, ArtworkDisplaySize(152, 152, crop = true)),
+        )
+    }
+
+    @Test
+    fun displayScaleBoundsExtremeAspectRatiosAndRejectsCorruptDimensions() {
+        assertEquals(
+            ArtworkDecodeScale(64, 1563, 1563),
+            artworkDisplayScale(100_000, 1, ArtworkDisplaySize(152, 152, crop = true)),
+        )
+        assertNull(artworkDisplayScale(Int.MAX_VALUE, 1, ArtworkDisplaySize(152, 152, true)))
+        assertNull(artworkDisplayScale(100, 100, ArtworkDisplaySize(0, 100, true)))
+        assertNull(artworkDisplayScale(100, 100, ArtworkDisplaySize(100, -1, true)))
+        for (width in listOf(1, 63, 152, 2049, 99_999)) {
+            for (height in listOf(1, 77, 152, 4097, 100_000)) {
+                val scale = artworkDisplayScale(width, height, ArtworkDisplaySize(152, 152, true))!!
+                assertTrue((maxOf(width, height) + scale.sampleSize - 1) / scale.sampleSize <= 2048)
+                assertTrue(scale.targetDensity in 1..2048)
+                assertTrue(scale.targetDensity <= scale.density)
+                assertTrue(scale.sampleSize > 0 && scale.sampleSize and (scale.sampleSize - 1) == 0)
+            }
+        }
+    }
+
+    @Test
+    fun displayScalingBoundsTheNativeIntermediateBeforeDensityResizing() {
+        val scale = artworkDisplayScale(100_000, 100_000, ArtworkDisplaySize(2048, 2048, true))!!
+        assertEquals(ArtworkDecodeScale(64, 1563, 1563), scale)
+        assertTrue((100_000L + scale.sampleSize - 1) / scale.sampleSize <= 2048)
+    }
+
 }

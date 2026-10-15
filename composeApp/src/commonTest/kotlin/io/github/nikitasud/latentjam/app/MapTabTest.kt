@@ -17,6 +17,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertSame
+import kotlin.test.assertNotSame
 import kotlin.test.assertTrue
 
 /**
@@ -161,6 +163,60 @@ class MapTabTest {
         assertEquals(1, overview.size)
         assertEquals(listOf(0, 1), zoomed.map { it.region })
         assertFalse(zoomed[0].bounds.overlaps(zoomed[1].bounds))
+    }
+
+    @Test
+    fun `repainting a stationary map reuses label hit bounds and collision results`() {
+        val layout = MapLabelLayout(listOf(
+            MapLabelAnchor(0, Offset(0.4f, 0.5f), 120f, 30f),
+            MapLabelAnchor(1, Offset(0.5f, 0.5f), 120f, 30f),
+        ))
+        val first = layout.placements(800f, 600f, 1f, 0f, 0f, 6f)
+
+        repeat(60) {
+            assertSame(first, layout.placements(800f, 600f, 1f, 0f, 0f, 6f))
+        }
+        assertEquals(listOf(0), first.map { it.region })
+        assertTrue(first.single().bounds.contains(Offset(320f, 300f)))
+
+        // Zoom separates these labels; tap bounds must update along with the painted labels.
+        val zoomed = layout.placements(800f, 600f, 2f, -320f, -300f, 6f)
+        assertEquals(listOf(0, 1), zoomed.map { it.region })
+        assertTrue(zoomed[1].bounds.contains(Offset(480f, 300f)))
+        assertSame(zoomed, layout.placements(800f, 600f, 2f, -320f, -300f, 6f))
+    }
+
+    @Test
+    fun `label cache invalidates each geometry input and cannot retain an old tap target`() {
+        val anchors = listOf(MapLabelAnchor(0, Offset(0.5f, 0.5f), 120f, 30f))
+        val base = listOf(800f, 600f, 2f, -320f, -300f, 6f)
+        for (changed in base.indices) {
+            val layout = MapLabelLayout(anchors)
+            fun place(values: List<Float>) = layout.placements(
+                values[0], values[1], values[2], values[3], values[4], values[5],
+            )
+            val first = place(base)
+            val altered = base.toMutableList().also { it[changed] += 1f }
+            val second = place(altered)
+            assertNotSame(first, second, "geometry input $changed")
+            assertEquals(
+                mapLabelPlacements(anchors, altered[0], altered[1], altered[2], altered[3], altered[4], altered[5]),
+                second,
+            )
+            assertEquals(first, place(base))
+        }
+    }
+
+    @Test
+    fun `changing label selection or measurements creates a fresh collision layout`() {
+        val first = MapLabelAnchor(0, Offset(0.5f, 0.5f), 120f, 30f)
+        val second = MapLabelAnchor(1, Offset(0.55f, 0.5f), 120f, 30f)
+        fun place(anchors: List<MapLabelAnchor>) =
+            MapLabelLayout(anchors).placements(800f, 600f, 1f, 0f, 0f, 6f)
+
+        assertEquals(listOf(0), place(listOf(first, second)).map { it.region })
+        assertEquals(listOf(1), place(listOf(second, first)).map { it.region })
+        assertEquals(listOf(0, 1), place(listOf(first.copy(width = 20f), second.copy(width = 20f))).map { it.region })
     }
 
     @Test

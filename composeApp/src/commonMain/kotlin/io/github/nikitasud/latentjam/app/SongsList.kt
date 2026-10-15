@@ -43,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
@@ -55,9 +56,6 @@ import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
-import io.github.nikitasud.latentjam.library.SongSort
-import io.github.nikitasud.latentjam.library.SongSortDirection
-import io.github.nikitasud.latentjam.library.SongSorting
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.async
@@ -69,7 +67,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.compose.resources.stringResource
 
 /**
- * The Songs tab for large libraries: sorted per [sort], scrolling index headers,
+ * The Songs tab for large libraries: sorted per [browse], scrolling index headers,
  * and an A–Z rail in its own pill — position-based navigation instead of
  * endless flinging (Fitts's law for ~1000-row lists). While dragging, the
  * letter appears beside the finger rather than over the list, so the titles
@@ -80,9 +78,7 @@ import org.jetbrains.compose.resources.stringResource
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun SectionedSongsList(
-    songs: List<TrackDescriptor>,
-    sort: SongSort,
-    sortDirection: SongSortDirection,
+    browse: SongsBrowseDerivation,
     currentTrackId: TrackId?,
     /** Whether the player is audibly running; animates the current row's badge. */
     currentTrackPlaying: Boolean = false,
@@ -96,14 +92,9 @@ internal fun SectionedSongsList(
     onRailScrubbingChange: (Boolean) -> Unit = {},
     listState: LazyListState = rememberLazyListState(),
 ) {
-    val sections = remember(songs, sort, sortDirection) {
-        SongSorting.sections(songs, sort, sortDirection)
-    }
-    val displayOrder = remember(sections) { sections.flatMap { it.tracks } }
-    val indexed = remember(sections) { indexSections(sections) }
-    // Headers and the emitted-item anchors of indexSections() belong to the sort, not to the
-    // viewport: they keep their place even on a list too short to scroll.
-    val indexEnabled = sort != SongSort.RECENT && sections.size > 1
+    val displayOrder = browse.displayOrder
+    val indexed = browse.indexed
+    val indexEnabled = browse.indexEnabled
     // The pill and its gutter, unlike the headers, are only useful beside a list they can move.
     // Same measured rule as the album, artist and playlist rails in ListWithRail.
     val showRail by remember(indexEnabled, listState) {
@@ -115,8 +106,8 @@ internal fun SectionedSongsList(
             )
         }
     }
-    val sectionStarts = remember(indexed) { indexed.map(IndexedSection::emitStartIndex) }
-    val sectionBuckets = remember(indexed) { indexed.map(IndexedSection::bucket) }
+    val sectionStarts = browse.sectionStarts
+    val sectionBuckets = browse.sectionBuckets
     val activeBucket by remember(indexed, listState) {
         derivedStateOf {
             currentRailBucketIndex(
@@ -135,14 +126,7 @@ internal fun SectionedSongsList(
     // Identity, not bucket equality: track counts/content can change while the labels stay equal.
     val railCatalogKey = remember(indexed) { Any() }
     val artworkLoadGate = remember(railCatalogKey) { ArtworkLoadGate() }
-    val emittedTracks = remember(indexed) {
-        buildList<TrackDescriptor?> {
-            indexed.forEach { section ->
-                add(null) // Section header occupies one LazyColumn emission index.
-                addAll(section.tracks)
-            }
-        }
-    }
+    val emittedTracks = browse.emittedTracks
     var railScrubbing by remember(railCatalogKey) { mutableStateOf(false) }
     val reportRailScrubbing by rememberUpdatedState(onRailScrubbingChange)
     DisposableEffect(railCatalogKey) {
@@ -154,7 +138,9 @@ internal fun SectionedSongsList(
     val unknownTitle = stringResource(Res.string.track_untitled)
     val unknownArtist = stringResource(Res.string.track_unknown_artist)
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().testTag(
+        "latentjam_song_order_${browse.choice.sort.name}_${browse.choice.direction.name}",
+    )) {
         LazyColumn(
             state = listState,
             userScrollEnabled = !previewRequested,
@@ -168,6 +154,7 @@ internal fun SectionedSongsList(
                 bottom = contentPadding.calculateBottomPadding() + 12.dp,
             ),
             modifier = Modifier
+                .testTag("latentjam_track_list")
                 .fillMaxSize()
                 .graphicsLayer { alpha = if (previewRequested) 0f else 1f }
                 .fadingListTop { listState.canScrollBackward }
@@ -547,35 +534,4 @@ private fun SectionHeader(bucket: String) {
                 .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f)),
         )
     }
-}
-
-// ------------------------------------------------------------------ indexing
-
-/** A section plus the positions it occupies, for rail jumps and queue mapping. */
-private data class IndexedSection(
-    val bucket: String,
-    val tracks: List<TrackDescriptor>,
-    /** Index of this section's HEADER in LazyColumn emission order. */
-    val emitStartIndex: Int,
-    /** Index of this section's first track within the flattened display order. */
-    val firstTrackGlobalIndex: Int,
-)
-
-private fun indexSections(
-    sections: List<io.github.nikitasud.latentjam.library.SongSection>,
-): List<IndexedSection> {
-    val indexed = mutableListOf<IndexedSection>()
-    var emitIndex = 0
-    var globalIndex = 0
-    for (section in sections) {
-        indexed += IndexedSection(
-            bucket = section.bucket,
-            tracks = section.tracks,
-            emitStartIndex = emitIndex,
-            firstTrackGlobalIndex = globalIndex,
-        )
-        emitIndex += 1 + section.tracks.size // header + rows
-        globalIndex += section.tracks.size
-    }
-    return indexed
 }
