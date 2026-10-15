@@ -185,6 +185,25 @@ internal class BulkFavoritesTest {
     }
 
     @Test
+    fun aSortedFavoritesPageIsLeftAloneWhileItsHeartsAreUnchanged() {
+        val byTitle: (CollectionSelection) -> CollectionSelection = { page ->
+            page.copy(tracks = page.tracks.sortedBy { it.title })
+        }
+        val hearted = listOf(c, a, b)
+        val page = CollectionSelection(
+            title = "Favorites",
+            subtitle = "3 tracks",
+            artworkUri = "art:c",
+            tracks = hearted.sortedBy { it.title },
+            allowsTrackSelection = true,
+            routeId = FAVORITES_ROUTE_ID,
+        )
+
+        assertNull(page.followingFavorites(hearted, byTitle), "same hearts, already in the chosen order")
+        assertEquals(listOf(a, c).sortedBy { it.title }, page.followingFavorites(listOf(c, a), byTitle)?.tracks)
+    }
+
+    @Test
     fun anyOtherPageIsLeftAlone() {
         val playlist = CollectionSelection(
             title = "Mix",

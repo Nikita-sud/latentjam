@@ -1548,7 +1548,12 @@ private fun AppShell(
             val openPage = selectedCollection?.takeIf { songs != null } ?: return@LaunchedEffect
             val hearted = playlistsState.autoPlaylists
                 .firstOrNull { it.kind == AutoPlaylistKind.FAVORITES }?.tracks.orEmpty()
-            val followed = openPage.followingFavorites(hearted) ?: return@LaunchedEffect
+            val followed = openPage.followingFavorites(hearted) { page ->
+                page.inChosenOrder(
+                    AppGraph.settings.playlistSortOrders.value,
+                    playlistsState.playlists, playlistsState.autoPlaylists,
+                )
+            } ?: return@LaunchedEffect
             val subtitle = trackCountLabel(hearted.size)
             if (selectedCollection === openPage) {
                 applySelectedCollection(followed.copy(subtitle = subtitle))

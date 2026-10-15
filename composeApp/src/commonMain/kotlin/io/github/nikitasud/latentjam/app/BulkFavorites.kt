@@ -155,13 +155,22 @@ internal suspend fun runBulkFavoriteEdit(
  * open, or it already shows [hearted]. The page lists the hearts, so a track un-hearted while it is
  * open leaves it and a newly hearted one joins at the top — as a playlist's page follows an edit —
  * instead of showing a list the hearts no longer match until it is opened again.
+ *
+ * The page shows the hearts in its chosen order ([inOrder]), so that is what is compared: a page
+ * sorted by title must not be rebuilt each time a play count or the clock changes the auto lists.
  */
-internal fun CollectionSelection.followingFavorites(hearted: List<TrackDescriptor>): CollectionSelection? {
-    if (routeId != FAVORITES_ROUTE_ID || tracks == hearted) return null
-    return copy(
-        tracks = hearted,
-        artworkUri = hearted.firstNotNullOfOrNull { it.artworkUri },
+internal fun CollectionSelection.followingFavorites(
+    hearted: List<TrackDescriptor>,
+    inOrder: (CollectionSelection) -> CollectionSelection = { it },
+): CollectionSelection? {
+    if (routeId != FAVORITES_ROUTE_ID) return null
+    val followed = inOrder(
+        copy(
+            tracks = hearted,
+            artworkUri = hearted.firstNotNullOfOrNull { it.artworkUri },
+        ),
     )
+    return followed.takeIf { it.tracks != tracks }
 }
 
 /**
