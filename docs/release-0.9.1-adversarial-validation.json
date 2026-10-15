@@ -1,0 +1,185 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-15",
+  "branch": "codex/adversarial-0.9.1",
+  "review_base": "233389cd",
+  "application_source_commit": "65021eb76090ad68fa759274e8e83d9edbb9b961",
+  "ci_source_commit": "e1fe7976143c12dc2b8b0d44754121bc65fd2808",
+  "status": "release_candidate_checks_passed_original_user_media_reproduction_pending",
+  "android_host": {
+    "composeApp/build/test-results/testAndroidHostTest": {
+      "tests": 1072,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "core/history/build/test-results/testAndroidHostTest": {
+      "tests": 140,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "core/library/build/test-results/testAndroidHostTest": {
+      "tests": 810,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "core/playback/build/test-results/testAndroidHostTest": {
+      "tests": 222,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "core/smart/build/test-results/testAndroidHostTest": {
+      "tests": 541,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "ios_simulator": {
+    "composeApp/build/test-results/iosSimulatorArm64Test": {
+      "tests": 964,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "core/history/build/test-results/iosSimulatorArm64Test": {
+      "tests": 142,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "core/library/build/test-results/iosSimulatorArm64Test": {
+      "tests": 719,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "core/playback/build/test-results/iosSimulatorArm64Test": {
+      "tests": 186,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "core/smart/build/test-results/iosSimulatorArm64Test": {
+      "tests": 485,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "device": {
+    "model": "SM-S928B",
+    "android_version": 16,
+    "library_tests": 9,
+    "playback_tests": 6,
+    "failures": 0,
+    "skipped": 0,
+    "production_app_replaced": false
+  },
+  "build_logic_tests": 11,
+  "python_guard_tests": 29,
+  "taglib": {
+    "taglibRevision": "deadc2990767dfbda0701e0ab35fdeea653db08f",
+    "utfcppRevision": "2d8e20b22dcb3e9b3c4f52103182ebda949c6089",
+    "cases": 35,
+    "failures": [],
+    "runtimeDependency": false
+  },
+  "native": {
+    "asan_ubsan": [
+      "equalizer",
+      "loudness",
+      "map"
+    ],
+    "release": [
+      "equalizer",
+      "loudness"
+    ],
+    "apple_ctest_passed": 3,
+    "apple_render_cases": 12,
+    "apple_max_difference": 0,
+    "armv7_compile_passed": true
+  },
+  "fuzz_gate": {
+    "jazzer": "0.30.0",
+    "deliberate_finding_exit_code": 77,
+    "java_reproducer_created": true
+  },
+  "compact_release": {
+    "status": "verified",
+    "source": {
+      "commit": "65021eb76090ad68fa759274e8e83d9edbb9b961",
+      "status": "",
+      "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "untracked_sha256": {}
+    },
+    "ndk_version": "28.2.13676358",
+    "apks": [
+      {
+        "abi": "arm64-v8a",
+        "bytes": 37309792,
+        "sha256": "b12cf28647e814840fc9ed40f029d073e2a7f5b6f9420c997e48ca3b2f4375b0",
+        "runtime": "reduced"
+      },
+      {
+        "abi": "armeabi-v7a",
+        "bytes": 44523292,
+        "sha256": "0d39798573ca6019899949dad80ab433ac4808a0aa624e28f984902a8787a29d",
+        "runtime": "stock"
+      },
+      {
+        "abi": "x86_64",
+        "bytes": 58884654,
+        "sha256": "4dabb4d2b6a8a566583ed9d0a5bc9cd39bf456017f52900da1aab39fef057cf3",
+        "runtime": "stock"
+      }
+    ],
+    "max_dex_registers": 243
+  },
+  "fdroid_reproducibility": {
+    "identical": true,
+    "builds": [
+      {
+        "sha256": "cbb4aa986903360df5e0aa05959faf2c919c5d8214da880a2ef5e5a704041f59",
+        "bytes": 69291751,
+        "log": "/private/tmp/latentjam-adversarial-091-reproducibility.build1.log",
+        "apk": "/private/tmp/latentjam-adversarial-091-reproducibility.build1.apk"
+      },
+      {
+        "sha256": "cbb4aa986903360df5e0aa05959faf2c919c5d8214da880a2ef5e5a704041f59",
+        "bytes": 69291751,
+        "log": "/private/tmp/latentjam-adversarial-091-reproducibility.build2.log",
+        "apk": "/private/tmp/latentjam-adversarial-091-reproducibility.build2.apk"
+      }
+    ],
+    "environment": {
+      "host": "macOS-26.6.2-arm64-arm-64bit",
+      "java": "openjdk version \"21.0.9\" 2025-10-21\nOpenJDK Runtime Environment Homebrew (build 21.0.9)\nOpenJDK 64-Bit Server VM Homebrew (build 21.0.9, mixed mode, sharing)",
+      "gradle_wrapper": "distributionBase=GRADLE_USER_HOME\ndistributionPath=wrapper/dists\ndistributionSha256Sum=2ab2958f2a1e51120c326cad6f385153bb11ee93b3c216c5fccebfdfbb7ec6cb\ndistributionUrl=https\\://services.gradle.org/distributions/gradle-9.4.1-bin.zip\nnetworkTimeout=10000\nzipStoreBase=GRADLE_USER_HOME\nzipStorePath=wrapper/dists\n",
+      "agp": "9.2.1",
+      "kotlin": "2.3.10",
+      "native_build_config": {
+        "audio-dsp": "/* Copyright (c) 2026 LatentJam Project. SPDX-License-Identifier: Apache-2.0 */\nplugins { alias(libs.plugins.androidLibrary) }\nandroid {\n    namespace = \"io.github.nikitasud.latentjam.audiodsp\"\n    compileSdk = 36\n    ndkVersion = \"28.2.13676358\"\n    defaultConfig {\n        minSdk = 24\n        consumerProguardFiles(\"consumer-rules.pro\")\n        externalNativeBuild { cmake { arguments += \"-DANDROID_STL=c++_static\" } }\n        ndk { abiFilters += listOf(\"arm64-v8a\", \"armeabi-v7a\", \"x86\", \"x86_64\") }\n    }\n    externalNativeBuild { cmake { path = file(\"src/main/cpp/CMakeLists.txt\"); version = \"3.22.1\" } }\n}\n",
+        "map-native": "// SPDX-License-Identifier: Apache-2.0\nplugins { alias(libs.plugins.androidLibrary) }\nandroid {\n    namespace = \"io.github.nikitasud.latentjam.mapnative\"\n    compileSdk = 36\n    ndkVersion = \"28.2.13676358\"\n    defaultConfig {\n        minSdk = 24\n        externalNativeBuild { cmake { arguments += \"-DANDROID_STL=c++_static\" } }\n        ndk { abiFilters += listOf(\"arm64-v8a\", \"armeabi-v7a\", \"x86\", \"x86_64\") }\n        consumerProguardFiles(\"consumer-rules.pro\")\n    }\n    externalNativeBuild {\n        cmake {\n            path = file(\"src/main/cpp/CMakeLists.txt\")\n            version = \"3.22.1\"\n        }\n    }\n}\n\n",
+        "ort-ops": "/*\n * Copyright (c) 2026 LatentJam Project\n * SPDX-License-Identifier: Apache-2.0\n */\n// LatentJam's own ONNX Runtime operators as a native library (libljq4.so) for the ABIs the app ships.\n// A plain Android library: the Kotlin Multiplatform Android plugin of :core:smart has no native build.\nplugins {\n    alias(libs.plugins.androidLibrary)\n}\n\nandroid {\n    namespace = \"io.github.nikitasud.latentjam.ortops\"\n    compileSdk = 36\n    ndkVersion = \"28.2.13676358\"\n\n    defaultConfig {\n        minSdk = 24\n        externalNativeBuild {\n            cmake {\n                arguments += listOf(\"-DANDROID_STL=c++_static\")\n            }\n        }\n        ndk {\n            // Every ABI ONNX Runtime ships: the universal APK (F-Droid) and the Play bundle carry its x86\n            // libraries, and a device that installs them must find these operators beside them.\n            abiFilters += listOf(\"arm64-v8a\", \"armeabi-v7a\", \"x86\", \"x86_64\")\n        }\n    }\n\n    externalNativeBuild {\n        cmake {\n            path = file(\"src/main/cpp/CMakeLists.txt\")\n            version = \"3.22.1\"\n        }\n    }\n}\n"
+      }
+    },
+    "sources_manifest_sha256": "d96e59ad4bc57eb93adbbf3bed81c18708966762ee51b00a1bc79029f0224f88",
+    "abis": [
+      "arm64-v8a",
+      "armeabi-v7a",
+      "x86",
+      "x86_64"
+    ]
+  },
+  "limits": [
+    "Original 417-track playlist and affected audio files are unavailable.",
+    "No production APK installation or new runtime inference parity experiment.",
+    "No physical iPhone, low-end Android, Bluetooth/USB, battery or Honor integration acceptance.",
+    "New GitHub workflows were not remotely executed.",
+    "Synchronous legacy EQ probe, bitmap memory/quality policy, optional native map packaging and Kotlin reference placement remain as documented in the review."
+  ]
+}
