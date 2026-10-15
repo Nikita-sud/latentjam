@@ -1,6 +1,10 @@
 # Map up to 10,000 tracks — 15 October 2026
 
 The Map now lays out and finds regions for libraries of up to **10,000 tracks** (was 3,000).
+The full fused 10,000-track case was measured to fit a 256 MB heap. A 192 MB heap draws a
+metadata-only 10,000-track map, but refuses the fused one with its existing explanation; it never
+crashes. Along the way, a Map accessibility crash that also affects 0.9.1 was found and fixed
+(see [the in-app section](#real-app-at-10000-tracks)).
 Branch `feat/map-scale-10k`, cut from `codex/adversarial-0.9.1` (8102b432). Builds on
 [the scaling analysis](map-scaling-analysis-2026-10-13.md),
 [the region algorithm search](map-algorithm-search-2026-10-14.md) and
@@ -160,7 +164,41 @@ nearest-seed search.
 
 ## Real app at 10,000 tracks
 
-PENDING: filled in below once the in-app run on `LJ-big36` finishes.
+The app itself was run on `LJ-big36`, a 10,000-track test AVD (Android 16, arm64, booted
+`-read-only`, so nothing persisted). Its 0.6.0 install was updated in place with this branch's
+arm64 **release** APK (0.9.1 / 15, debug-key signed like the 0.6.0 install). This AVD's growth
+limit is **192 MB**, below the S24's 256 MB, and it cannot be changed without root. The app
+started re-fingerprinting all 10,000 tracks, at about 2 per second.
+
+1. **Before the gate fixes**, with ~1,900 fingerprints done, the Map showed *"Not enough free
+   memory to calculate the map"*. Java used was ~70 MB of 192 MB and native heap was ~81 MB.
+2. **After the fixes**, the same state built the map. The Map showed
+   **"9543 of 10000 tracks across 96 regions"** about 80 s after it started working, with the
+   process unchanged (no memory failure). With most tracks not yet fingerprinted, this build
+   most likely used metadata vectors only (384-d) rather than the fused 1,344-d space.
+3. Reading the accessibility tree of that 96-region Map (`uiautomator dump`, as TalkBack would)
+   **crashed the app**: `IllegalStateException: Can't have more than 32 custom actions for one
+   widget`. The Map canvas had one custom action per region. **This also affects 0.9.1 as it
+   stands**: the owner's 1,107-track library has 35 regions. The fix caps the actions at 32 in
+   listening order; every region stays reachable from the region selector. A unit test pins
+   the cap.
+4. With **all 10,000 tracks fingerprinted** (fused 1,344-d input), the 192 MB AVD shows
+   *"Not enough free memory to calculate the map"*. It stayed so for 7 minutes, and an
+   accessibility dump on the page then caused no crash. The idle app holds ~90 MB of
+   allocated Java heap, garbage included. On 192 MB that leaves less than the 94 MB a fused
+   10,000-track projection needs, so the refusal is the gate working, not a failure.
+
+What this means for a phone. With a **256 MB** heap (the owner's S24), the same app state
+leaves about 256 − 90 − 32 (reserve) ≈ 134 MB. That covers the projection estimate (94 MB, input
+included, measured peak 85 MB). The emulator run with 80 MB of extra heap held completed both
+layout and regions. Sampled regions need 81 MB beyond the 54 MB input; on such a phone they may
+fit only after garbage collection, and otherwise use the k-means fallback. A full in-app
+10,000-track run on a 256 MB device was **not** possible here: the 10k-track AVD cannot be
+rooted to raise its heap. A **192 MB** device draws metadata-only maps of 10,000 tracks, but
+refuses the fused one with an explanation.
+
+Heap figures in this section are `dumpsys meminfo` Dalvik values. Before step 4, the logged
+"peaks" (109–167 MB) were heap *size*, which includes free space, not allocation.
 
 ## Limits and what was not measured
 
@@ -168,6 +206,8 @@ PENDING: filled in below once the in-app run on `LJ-big36` finishes.
   is a scaled estimate.
 - Quality on real data comes from one 1,104-track library. No real library above 3,000 tracks
   was available, so the sampled path was compared with the exact one by forcing small samples.
+- Region discovery's budget is now read after one garbage collection on the map lane (it runs
+  once per library change and takes seconds).
 - The memory gate still uses the 1/8-heap reserve and counts uncollected garbage as used, so on
   a 192 MB heap a 10,000-track library can still be refused or fall back to k-means regions while
   much else is resident. That is a refusal with an explanation, never a crash.

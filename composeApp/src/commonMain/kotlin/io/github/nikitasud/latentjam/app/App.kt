@@ -1277,7 +1277,9 @@ private fun AppShell(
                                 vectorSpace = features.vectorSpace,
                                 semantics = features.semantics,
                                 isActive = { isActive },
-                                workBudgetBytes = availableMapWorkBytes(),
+                                // Discovery takes seconds; one collection first keeps released
+                                // matrices from pushing a large library onto the k-means fallback.
+                                workBudgetBytes = collectMapGarbage().let { availableMapWorkBytes() },
                             ).also { mixes ->
                                 val routed = mixes.groupingBy { it.content }.eachCount()
                                 println(
