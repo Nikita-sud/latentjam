@@ -92,7 +92,7 @@ public interface EqualizerController {
     /** @param strength 0..1000, the platform's scale. */
     public suspend fun setBassBoost(strength: Int)
 
-    /** Returns every band to flat and clears the active preset. */
+    /** Returns every band to flat, clears bass boost and selects the Flat preset. */
     public suspend fun reset()
 }
 

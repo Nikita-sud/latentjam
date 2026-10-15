@@ -29,6 +29,16 @@ jobs:
         run: ./gradlew testAndroidHostTest --max-workers=2
       - name: Compact runtime packaging guards
         run: python3 -m unittest discover -s tools/runtime -p "test_compact_release.py"
+      - name: Tag oracle regression checks
+        run: python3 -m unittest discover -s tools/taglib -p "test_*.py"
+      - name: Fuzz runner regression checks
+        run: python3 -m unittest discover -s tools/fuzz -p "test_*.py"
+      - name: APK inventory regression checks
+        run: python3 -m unittest discover -s tools/ci -p "test_apk_inventory.py"
+      - name: Build plugin regression checks
+        run: ./gradlew -p build-logic test --max-workers=2
+      - name: Compile benchmark harness
+        run: ./gradlew :benchmark:assembleBenchmark -Platentjam.benchmarks=true --max-workers=2
       - name: Independent tag serialization checks (pinned TagLib)
         run: python3 tools/taglib/verify.py
       - name: Native cancellation, deterministic output, sanitizers and notices
@@ -36,7 +46,11 @@ jobs:
       - name: Optimized release, DEX and native gates
         run: ./gradlew :androidApp:assembleRelease :androidApp:checkReleaseDexRegisters :androidApp:checkReleaseNativeLibraries -Platentjam.composeReports=true --max-workers=2
       - name: APK inventory and 16 KiB alignment
-        run: python3 tools/ci/apk_inventory.py androidApp/build/outputs/apk/release --output build/reports/apks.json
+        run: python3 tools/ci/apk_inventory.py androidApp/build/outputs/apk/release --output build/reports/apks.json --abis arm64-v8a armeabi-v7a x86_64
+      - name: Universal F-Droid release, DEX and all four native ABIs
+        run: |
+          ./gradlew :androidApp:clean :androidApp:assembleRelease -Platentjam.fdroid=true --max-workers=2
+          python3 tools/ci/apk_inventory.py androidApp/build/outputs/apk/release --output build/reports/fdroid-apks.json --abis arm64-v8a armeabi-v7a x86 x86_64
       - name: CycloneDX and bundled components
         run: |
           ./gradlew -I tools/ci/sbom.init.gradle cyclonedxBom --no-configuration-cache --max-workers=2
@@ -62,6 +76,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
       - name: Test common and platform code on an arm64 simulator
         run: python3 tools/ci/ios_verify.py
+      - name: Native DSP and Apple Audio Unit offline renders
+        run: |
+          cmake -S core/audio-dsp/src/main/cpp -B build/apple-audio-contracts -DLJ_EQ_TESTS=ON -DLJ_EQ_APPLE_TESTS=ON -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/apple-audio-contracts --parallel 2
+          ctest --test-dir build/apple-audio-contracts --output-on-failure
       - name: Resolve locked CocoaPods
         working-directory: iosApp
         run: pod install --deployment

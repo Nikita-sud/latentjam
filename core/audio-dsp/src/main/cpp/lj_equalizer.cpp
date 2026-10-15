@@ -23,6 +23,10 @@ struct ScopedDenormals {
     uint64_t previous;
     ScopedDenormals() { asm volatile("mrs %0, fpcr" : "=r"(previous)); const uint64_t value = previous | (1ULL << 24); asm volatile("msr fpcr, %0" : : "r"(value)); }
     ~ScopedDenormals() { asm volatile("msr fpcr, %0" : : "r"(previous)); }
+#elif defined(__ARM_NEON)
+    uint32_t previous;
+    ScopedDenormals() { asm volatile("vmrs %0, fpscr" : "=r"(previous)); const uint32_t value = previous | (1U << 24); asm volatile("vmsr fpscr, %0" : : "r"(value)); }
+    ~ScopedDenormals() { asm volatile("vmsr fpscr, %0" : : "r"(previous)); }
 #elif defined(__SSE__)
     unsigned previous;
     ScopedDenormals() : previous(_mm_getcsr()) { _mm_setcsr(previous | 0x8040); }
@@ -40,7 +44,7 @@ struct Config {
         double boost = 0;
         for (int i = 0; i < kBands; ++i) {
             if (kFrequencies[i] >= rate * 0.45) continue;
-            const double db = std::clamp(levels[i], -1200, 1200) / 100.0;
+            const double db = std::clamp(levels[i], -1500, 1500) / 100.0;
             boost = std::max(boost, db);
             if (db != 0) filters[count++].peakDbQ(double(kFrequencies[i]) / rate, db, 1.4, Design::cookbook);
         }
@@ -191,6 +195,7 @@ void lj_eq_reset(lj_equalizer *eq) {
     eq->meterGain.store(1); eq->lastRender.store(0);
 }
 int lj_eq_latency_frames(const lj_equalizer *eq) { return eq ? eq->limiter.latency : 0; }
+int lj_eq_channel_count(const lj_equalizer *eq) { return eq ? eq->channels : 0; }
 void lj_eq_process_f32(lj_equalizer *eq, float *data, int count) {
     if (!eq || !data || count <= 0) return;
     ScopedDenormals denormals; eq->beginBlock(); double minimum = 1;

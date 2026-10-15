@@ -2,6 +2,12 @@
   "schema_version": 1,
   "date": "2026-10-15",
   "ui_commit": "dfe0e7f1",
+  "source": {
+    "commit": "dfe0e7f16549115438c35e3728f3790185c1d4b6",
+    "worktree_dirty": true,
+    "tracked_diff_sha256": "17aa7f28dca16cb0ce21071117e995cd59aa5c433ab7ffd8f366d5a71fb4b3e7",
+    "note": "Historical development build: tracked runtime tooling changes and untracked wrapper/tests/docs were present. Full source fingerprints are in the original build/reports/compact-release/provenance.json. This is not evidence of a clean release commit."
+  },
   "device": {
     "model": "SM-S928B",
     "android_api": 36

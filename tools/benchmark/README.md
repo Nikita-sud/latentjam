@@ -25,8 +25,11 @@ python3 tools/benchmark/install_profiles.py /tmp/lj-profiles \
   --fixture 'device/API, fixture identity, track count and readiness'
 ```
 
-Generation disables minification only in this variant. The script validates
-unobfuscated rules, merges flags deterministically, and records input hashes.
+Generation disables minification only in this variant. The script checks basic rule syntax
+and the presence of app class names, merges flags deterministically, and records input hashes.
+This is not a complete ART grammar or proof that every input rule is unobfuscated.
+AGP reads `androidApp/src/main/baseline-prof.txt` and
+`androidApp/src/main/baselineProfiles/startup-prof.txt`; these paths are intentionally different.
 Commit the two text profiles and provenance together. Startup rules cover launch
 and the first list; baseline rules additionally cover search, player and return.
 An emulator may need `-e androidx.benchmark.suppressErrors EMULATOR`; this does

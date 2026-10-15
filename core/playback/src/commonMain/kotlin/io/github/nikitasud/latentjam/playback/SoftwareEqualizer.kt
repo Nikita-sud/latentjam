@@ -14,7 +14,7 @@ internal data class SoftwareEqualizerSettings(
     val preset: Int? = null,
 ) {
     fun sanitized(): SoftwareEqualizerSettings = copy(
-        levels = List(FREQUENCIES.size) { levels.getOrElse(it) { 0 }.coerceIn(-1200, 1200) },
+        levels = List(FREQUENCIES.size) { levels.getOrElse(it) { 0 }.coerceIn(MIN_LEVEL_MILLIBELS, MAX_LEVEL_MILLIBELS) },
         bass = bass.coerceIn(0, 1000),
         preset = preset?.takeIf { it in PRESETS.indices },
     )
@@ -34,14 +34,16 @@ internal data class SoftwareEqualizerSettings(
             EqualizerPreset(index, kind.name, kind)
         },
         activePreset = preset,
-        minLevelMillibels = -1200,
-        maxLevelMillibels = 1200,
+        minLevelMillibels = MIN_LEVEL_MILLIBELS,
+        maxLevelMillibels = MAX_LEVEL_MILLIBELS,
         bassBoostStrength = bass,
         bassBoostSupported = true,
         supportsFrequencyResponse = true,
     )
 
     companion object {
+        const val MIN_LEVEL_MILLIBELS = -1500
+        const val MAX_LEVEL_MILLIBELS = 1500
         val FREQUENCIES = listOf(31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000)
         val PRESETS = listOf(
             List(10) { 0 },
@@ -102,7 +104,8 @@ internal class SoftwareEqualizer(
             next = null
         }
         // Leave 0.5 dB at the sample ceiling while processing tone. This reduces reconstruction
-        // overshoots; it is not an oversampled true-peak guarantee. Flat/bypass remains bit-exact.
+        // overshoots; it is not an oversampled true-peak guarantee. Flat/bypass is bit-exact within
+        // the nominal ±1 PCM range; over-full-scale decoder values still activate the limiter.
         val ceiling = if (bank.filters.isEmpty() && next == null) 1f else 0.9440609f
         limiter.process(frame, ceiling)
     }

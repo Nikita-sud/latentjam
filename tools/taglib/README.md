@@ -26,6 +26,9 @@ an independent implementation, not a universal source of truth: a disagreement
 must be investigated, not automatically worked around or used to change files.
 
 Results are written to `build/reports/taglib.json`. CI runs this after host tests.
+Empty or malformed manifests, missing container/deletion coverage, and deletion
+fixtures without an original value fail the check. Run the runner's regression
+tests with `python3 -m unittest discover -s tools/taglib -p 'test_*.py'`.
 Fixture payloads are synthetic and are not intended for playback. Existing tests
 with playable media, fuzzing and `DurableWriter` failure/recovery tests still cover
 other parts of the file contract.

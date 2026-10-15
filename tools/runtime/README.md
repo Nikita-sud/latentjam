@@ -145,6 +145,9 @@ python3 tools/runtime/build_compact_release.py \
 ```
 
 `--check-only` validates inputs without running Gradle; `--offline` prevents Gradle downloads.
+The source tree must be clean, and the strip tool must belong to the NDK pinned by all native
+modules. `--allow-dirty` is available for explicit development builds, which receive
+`verified_with_local_changes` instead of release status `verified`.
 The wrapper does not fetch/build a runtime, install an APK or publish a release. It uses the
 existing strict init script and release/DEX/native gates, then verifies both packaged ORT libraries
 against the candidate AAR after the same NDK `llvm-strip --strip-unneeded` packaging transform,
@@ -161,6 +164,11 @@ requires `status: verified`; `preflight_passed_no_build` is only input validatio
 check does not replace device inference parity or prove runtime compatibility.
 
 Regression checks for the wrapper itself: `python3 -B tools/runtime/test_compact_release.py`.
+
+`.github/workflows/compact-release.yml` rebuilds the reduced runtime and executes this wrapper
+on changes to the models/runtime tooling, and on manual dispatch. Ordinary application CI also
+checks the stock split and four-ABI F-Droid packages. The compact job checks build and packaging;
+it does not replace the separate ARM64 device inference-parity check.
 
 ## Candidate APK
 

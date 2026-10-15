@@ -11,6 +11,7 @@ import kotlin.math.sqrt
 internal object AverageLinkageClustering {
     const val METADATA_WEIGHT: Float = 0.25f
     const val DISTANCE_CUT: Double = 0.75
+    private const val MIN_DIRECTION_NORM: Double = 1e-12
 
     // A triangular DoubleArray uses at most 36 MB. Larger libraries retain the bounded k-means
     // path; never allocate an unbounded quadratic matrix or silently truncate the population.
@@ -27,14 +28,17 @@ internal object AverageLinkageClustering {
         checkActive(isActive)
         val rows = space.takeRowsForRegions(METADATA_WEIGHT)
         require(rows.all(Float::isFinite)) { "Library vector space contains a non-finite row" }
-        TrackClustering.center(rows, space.size, space.dim)
-        // A direction exactly equal to the corpus mean provides no clustering evidence.
+        TrackClustering.center(rows, space.size, space.dim, isActive)
+        // A direction at or too close to the corpus mean provides no clustering evidence.
+        // Use the same norm threshold as assign: centering leaves tiny residuals unnormalized.
         val usable = (0 until space.size).filter { row ->
-            (0 until space.dim).any { d -> rows[row * space.dim + d] != 0f }
+            checkActive(isActive)
+            directionNorm(rows, row, space.dim) > MIN_DIRECTION_NORM
         }
         if (usable.size < minSize) return emptyList()
         val matrix = if (usable.size == space.size) rows else FloatArray(usable.size * space.dim).also { out ->
             usable.forEachIndexed { into, from ->
+                checkActive(isActive)
                 rows.copyInto(out, into * space.dim, from * space.dim, (from + 1) * space.dim)
             }
         }
@@ -43,7 +47,7 @@ internal object AverageLinkageClustering {
         checkActive(isActive)
         // The hierarchy's distance cut determines admission. K-means rival-centroid margins
         // would impose a second, different clustering criterion and discard valid subregions.
-        return TrackClustering.collectRegions(matrix, ids.size, space.dim, labels, ids, minSize)
+        return TrackClustering.collectRegions(matrix, ids.size, space.dim, labels, ids, minSize, isActive)
     }
 
     /** Nearest-neighbor chain UPGMA: quadratic linkage work after pairwise cosine distances. */
@@ -59,9 +63,9 @@ internal object AverageLinkageClustering {
         require(rows.all(Float::isFinite))
         if (n == 0) return IntArray(0)
         val norms = DoubleArray(n) { row ->
-            var sum = 0.0
-            for (d in 0 until dim) { val v = rows[row * dim + d].toDouble(); sum += v * v }
-            sqrt(sum).also { require(it > 1e-12) { "A zero row has no direction" } }
+            directionNorm(rows, row, dim).also {
+                require(it > MIN_DIRECTION_NORM) { "A zero row has no direction" }
+            }
         }
         val distances = Distances(n)
         for (i in 1 until n) {
@@ -126,6 +130,15 @@ internal object AverageLinkageClustering {
         }
         val compact = LinkedHashMap<Int, Int>()
         return IntArray(n) { i -> compact.getOrPut(root(i)) { compact.size } }
+    }
+
+    private fun directionNorm(rows: FloatArray, row: Int, dim: Int): Double {
+        var sum = 0.0
+        for (d in 0 until dim) {
+            val value = rows[row * dim + d].toDouble()
+            sum += value * value
+        }
+        return sqrt(sum)
     }
 
     private fun checkActive(isActive: () -> Boolean) {

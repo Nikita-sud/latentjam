@@ -402,34 +402,6 @@ class MapTabTest {
     }
 
     @Test
-    fun `a region outline is the hull of its dots without the interior`() {
-        val points = listOf(
-            Offset(0f, 0f), Offset(1f, 0f), Offset(1f, 1f), Offset(0f, 1f),
-            Offset(0.5f, 0.5f), Offset(0.25f, 0.75f),
-        )
-
-        val hull = regionOutline(points).toSet()
-
-        assertEquals(
-            setOf(Offset(0f, 0f), Offset(1f, 0f), Offset(1f, 1f), Offset(0f, 1f)),
-            hull,
-        )
-    }
-
-    @Test
-    fun `a region with no area to draw has no outline`() {
-        assertTrue(regionOutline(listOf(Offset(0f, 0f), Offset(1f, 1f))).isEmpty())
-        assertTrue(
-            regionOutline(listOf(Offset(0f, 0f), Offset(0.5f, 0.5f), Offset(1f, 1f))).isEmpty(),
-            "collinear dots have no hull to draw",
-        )
-        assertTrue(
-            regionOutline(listOf(Offset(0.5f, 0.5f), Offset(0.5f, 0.5f), Offset(0.5f, 0.5f))).isEmpty(),
-            "duplicate dots are one point",
-        )
-    }
-
-    @Test
     fun `an unclaimed dot selects the region it is nearest to on the map`() {
         val dot = MapDot(TrackId("loose"), x = 0.1f, y = 0.9f, region = MapDot.NO_REGION, plays = 0, skipRate = 0f)
         val centroids = listOf(0 to Offset(0f, 0f), 1 to Offset(0.2f, 0.95f), 2 to Offset(1f, 1f))

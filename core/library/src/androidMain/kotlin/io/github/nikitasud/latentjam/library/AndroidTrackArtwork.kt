@@ -191,9 +191,11 @@ internal data class ArtworkDisplaySize(val width: Int, val height: Int, val crop
 internal data class ArtworkDecodeScale(val sampleSize: Int, val density: Int, val targetDensity: Int)
 
 /**
- * Like Coil's BitmapFactoryDecoder, retain the smallest sufficient power-of-two sample and
- * perform the remaining downscale using BitmapFactory's density ratio. Width/height here are
- * encoded dimensions; the display request is swapped before this call for 90/270-degree EXIF.
+ * Retain a sufficient power-of-two sample when the allocation ceiling permits, then downscale
+ * using BitmapFactory's density ratio. The ceiling can take precedence over the requested size:
+ * a 3000px source requested at 2048px yields a 1500px sample, which is not enlarged to pretend
+ * that it retained more detail. Width/height here are encoded dimensions; the display request
+ * is swapped before this call for 90/270-degree EXIF.
  */
 internal fun artworkDisplayScale(
     width: Int,
@@ -239,6 +241,7 @@ private fun decodeArtwork(
     val options = BitmapFactory.Options().apply {
         inSampleSize = displayScale?.sampleSize ?: sample
         inPreferredConfig = Bitmap.Config.ARGB_8888
+        inScaled = false
         if (displayScale != null && displayScale.targetDensity < displayScale.density) {
             inScaled = true
             inDensity = displayScale.density

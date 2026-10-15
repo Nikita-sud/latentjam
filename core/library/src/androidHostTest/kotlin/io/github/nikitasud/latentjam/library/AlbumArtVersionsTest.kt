@@ -42,6 +42,34 @@ internal class AlbumArtVersionsTest {
     }
 
     @Test
+    fun distinctMediaStoreRevisionsWithTheSameStringHashInvalidateArtwork() {
+        val before = "android-mediastore-v1:2354898:1792139421:200584"
+        val after = "android-mediastore-v1:19416011:1792173056:752108"
+        assertEquals(before.hashCode(), after.hashCode(), "regression fixture must collide")
+        assertNotEquals(
+            withAlbumArtVersions(listOf(track("1", before))).single().artworkUri,
+            withAlbumArtVersions(listOf(track("1", after))).single().artworkUri,
+        )
+    }
+
+    @Test
+    fun exchangingTwoTracksRevisionsInvalidatesTheAlbum() {
+        val before = withAlbumArtVersions(listOf(track("1", "a"), track("2", "b")))
+        val after = withAlbumArtVersions(listOf(track("1", "b"), track("2", "a")))
+        assertNotEquals(before.first().artworkUri, after.first().artworkUri)
+    }
+
+    @Test
+    fun addingATrackWithNoRevisionChangesTheAlbumsMembership() {
+        val first = track("1", "a")
+        val unknown = track("2", "b").copy(sourceRevision = null)
+        assertNotEquals(
+            withAlbumArtVersions(listOf(first)).first().artworkUri,
+            withAlbumArtVersions(listOf(first, unknown)).first().artworkUri,
+        )
+    }
+
+    @Test
     fun otherAlbumsKeepTheirVersionAndArtworklessTracksStayAsTheyAre() {
         val other = "content://media/external/audio/albumart/13"
         val before = withAlbumArtVersions(listOf(track("1", "a"), track("3", "c", other), track("4", "d", null)))

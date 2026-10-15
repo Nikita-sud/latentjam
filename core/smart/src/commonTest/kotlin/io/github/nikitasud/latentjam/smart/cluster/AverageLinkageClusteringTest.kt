@@ -78,6 +78,19 @@ class AverageLinkageClusteringTest {
         }
     }
 
+
+    @Test
+    fun `tiny centered directions are ignored instead of aborting discovery`() {
+        // These are finite unit vectors accepted by the production fusion builder. After
+        // centering only their sub-epsilon second component remains; it has no stable direction.
+        val ids = List(8) { TrackId("tiny-$it") }
+        val vectors = ids.mapIndexed { index, id ->
+            id to floatArrayOf(1f, if (index < 4) 1e-14f else -1e-14f)
+        }.toMap()
+        val space = assertNotNull(LibraryVectorFusion.build(ids, vectors, emptyMap(), 2, 2))
+        assertTrue(AverageLinkageClustering.cluster(space).isEmpty())
+    }
+
     private fun reference(rows: FloatArray, n: Int, dim: Int, cut: Double): IntArray {
         val norms = DoubleArray(n) { i -> sqrt((0 until dim).sumOf { d -> rows[i * dim + d].toDouble().let { it * it } }) }
         val distances = Array(n) { i -> DoubleArray(n) { j ->

@@ -127,6 +127,44 @@ internal class EqualizerAudioProcessorTest {
         assertEquals(oneBuffer, render(1))
     }
 
+    @Test fun pcm16ShippingPathLimitsBoostedPeaksBeforeIntegerQuantization() {
+        val processor = EqualizerAudioProcessor { SoftwareEqualizerSettings(true, List(10) { 1500 }, 1000) }
+        processor.configure(AudioProcessor.AudioFormat(48000, 2, C.ENCODING_PCM_16BIT))
+        processor.flush(StreamMetadata.DEFAULT)
+        val samples = (0 until 48000).flatMap { frame ->
+            val sample = (30000 * sin(2 * PI * 40 * frame / 48000)).toInt()
+            listOf(sample, -sample / 4)
+        }
+        val actual = buildList {
+            for (chunk in samples.chunked(1024)) {
+                processor.queueInput(buffer(chunk))
+                addAll(read(processor.output))
+            }
+            processor.queueEndOfStream()
+            addAll(read(processor.output))
+        }
+        assertEquals(samples.size, actual.size)
+        val peak = actual.maxOf(::abs)
+        assertTrue(peak in 30000..30936, "Peak must approach the -0.5 dB ceiling without clipping: $peak")
+        assertTrue(actual.chunked(2).all { abs(it[0] / 4.0 + it[1]) < 4 }, "Stereo gain must remain linked")
+        processor.reset()
+    }
+
+    @Test fun jniRejectsMismatchedLayoutsAndInvalidResponseRatesBeforeAccessingBuffers() {
+        assertFailsWith<IllegalArgumentException> { NativeEqualizerJni.create(0, 2) }
+        val handle = NativeEqualizerJni.create(48000, 2)
+        try {
+            assertFailsWith<IllegalArgumentException> { NativeEqualizerJni.processFloat(handle, floatArrayOf(0f), 1, 1) }
+            val input = buffer(listOf(1))
+            val output = buffer(listOf(0))
+            assertFailsWith<IllegalArgumentException> { NativeEqualizerJni.processPcm16(handle, input, 0, output, 0, 1, 1) }
+            assertFailsWith<IllegalArgumentException> { NativeEqualizerJni.drain(handle, output, 0, 1, 1) }
+            val gains = floatArrayOf(123f)
+            assertFailsWith<IllegalArgumentException> { NativeEqualizerJni.response(0, true, IntArray(10), 0, floatArrayOf(1000f), gains) }
+            assertEquals(123f, gains[0])
+        } finally { NativeEqualizerJni.destroy(handle) }
+    }
+
     @Test fun unsupportedInputIsRejectedInsteadOfSilentlyBypassingEffects() {
         val processor = EqualizerAudioProcessor { SoftwareEqualizerSettings() }
         assertFailsWith<AudioProcessor.UnhandledAudioFormatException> {

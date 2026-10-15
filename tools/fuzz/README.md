@@ -8,6 +8,8 @@ alongside the existing full-disk, sync-failure, torn-write and recovery suites.
 ```sh
 python3 tools/fuzz/run.py id3 --jazzer /absolute/path/to/jazzer --seconds 300
 python3 tools/fuzz/run.py backup --jazzer /absolute/path/to/jazzer --replay
+python3 -m unittest discover -s tools/fuzz -p 'test_*.py'
+python3 tools/fuzz/check_failure.py --jazzer /absolute/path/to/jazzer
 ```
 
 Targets: id3, flac, mp4, ogg, backup, m3u. The workflow is manual to keep long exploratory
@@ -15,6 +17,12 @@ runs separate from PR gates. Inputs are capped at 1 MiB, JVM heap at 512 MiB, pr
 at 2 GiB and an input at 10 seconds. These are harness budgets, not claims about all
 possible production inputs. Native allocation and timeout failures are findings too.
 Only explicit format/stream refusals are accepted; unexpected exceptions escape.
+Replay rejects an empty corpus before building or launching Jazzer, because calling
+Jazzer without seed operands would start fuzzing instead. Nonzero Jazzer exits are
+propagated by the runner and fail the workflow.
+`check_failure.py` compiles a deliberately throwing Java target and requires both a
+nonzero exit and its Java reproducer. A JVM/agent startup failure cannot satisfy
+this check; run it after installing the pinned Jazzer binary in CI.
 
 Tag targets plan and serialize into memory, then verify audio digests, untouched
 inventory and requested fields. They never open user music for writing. Existing

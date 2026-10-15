@@ -128,24 +128,31 @@ android {
 
 // Builds that turn the splits off package every ABI a dependency ships, x86 included. An ABI that has
 // ONNX Runtime but not LatentJam's operators (:core:ort-ops) installs, then never loads the music encoder.
-// Android Studio builds native code only for the connected device's ABI (android.injected.build.abi), so
-// its builds are not held to this.
-val deviceAbiOnly = providers.gradleProperty("android.injected.build.abi").isPresent
+// Device-targeted builds compile the first supported ABI in Studio's preference list. Validate it instead of
+// disabling the gate for the very APK used in release device checks.
+val buildOnlyTargetAbi = providers.gradleProperty("android.buildOnlyTargetAbi").orNull != "false"
+val supportedDeviceAbis = setOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+val deviceAbis = providers.gradleProperty("android.injected.build.abi")
+    .map { value ->
+        if (buildOnlyTargetAbi) value.split(',').map(String::trim)
+            .firstOrNull { it in supportedDeviceAbis }?.let { listOf(it) }.orEmpty()
+        else emptyList()
+    }
+    .orElse(emptyList())
 androidComponents {
     onVariants { variant ->
         val variantName = variant.name.replaceFirstChar(Char::uppercaseChar)
         val verify = tasks.register<CheckNativeLibraries>("check${variantName}NativeLibraries") {
             group = LifecycleBasePlugin.VERIFICATION_GROUP
-            description = "Fails when an ABI of this build packages ONNX Runtime without libljq4.so."
+            description = "Fails when an ABI of this build lacks LatentJam's native libraries."
             nativeLibraries.set(variant.artifacts.get(SingleArtifact.MERGED_NATIVE_LIBS))
+            requestedAbis.set(deviceAbis)
         }
-        if (!deviceAbiOnly) {
-            tasks.named { it == "assemble$variantName" || it == "bundle$variantName" }
-                .configureEach { dependsOn(verify) }
-        }
+        tasks.named { it == "assemble$variantName" || it == "bundle$variantName" }
+            .configureEach { dependsOn(verify) }
         // R8 mis-encodes a method that needs more than 256 registers, and the verifier then rejects
         // its class at launch: the 0.8.1 candidate fe24e12c crashed on start in every release build.
-        // F-Droid's build is left alone, so that it never depends on python3 or the SDK's build-tools.
+        // Every release channel, including universal and device-targeted APKs, runs the gate.
         if (variant.buildType == "release") {
             val registers = tasks.register<CheckDexRegisters>("check${variantName}DexRegisters") {
                 group = LifecycleBasePlugin.VERIFICATION_GROUP
@@ -155,9 +162,7 @@ androidComponents {
                 script.set(rootProject.layout.projectDirectory.file("tools/release/check-dex-registers.py"))
                 report.set(layout.buildDirectory.file("reports/dex-registers/${variant.name}.txt"))
             }
-            if (!fdroidBuild && !deviceAbiOnly) {
-                tasks.named { it == "assemble$variantName" }.configureEach { dependsOn(registers) }
-            }
+            tasks.named { it == "assemble$variantName" }.configureEach { dependsOn(registers) }
         }
     }
 }
@@ -219,27 +224,33 @@ abstract class CheckDexRegisters : DefaultTask() {
     }
 }
 
-/** Fails when an ABI directory of [nativeLibraries] holds libonnxruntime.so but not libljq4.so. */
+/** Checks every native library required by a packaged runtime, including targeted device builds. */
 @DisableCachingByDefault(because = "Listing the libraries again is as quick as a cache lookup")
 abstract class CheckNativeLibraries : DefaultTask() {
 
     @get:InputFiles
-    @get:SkipWhenEmpty
     @get:IgnoreEmptyDirectories
     @get:PathSensitive(PathSensitivity.RELATIVE)
     abstract val nativeLibraries: DirectoryProperty
 
+    @get:Input
+    abstract val requestedAbis: ListProperty<String>
+
     @TaskAction
     fun check() {
         val abis = nativeLibraries.get().asFile.resolve("lib").listFiles().orEmpty().filter { it.isDirectory }
-        val missing = abis
-            .filter { it.resolve("libonnxruntime.so").isFile && !it.resolve("libljq4.so").isFile }
-            .map { it.name }
+        val requested = requestedAbis.get().toSet()
+        val selected = abis.filter { requested.isEmpty() || it.name in requested }
+        val absentAbis = requested - selected.map { it.name }.toSet()
+        val missing = selected.flatMap { abi ->
+            listOf("libonnxruntime.so", "libonnxruntime4j_jni.so", "libljq4.so", "libljmap.so", "liblj_equalizer.so")
+                .filterNot { abi.resolve(it).isFile }.map { "${abi.name}/$it" }
+        }
             .sorted()
-        if (missing.isNotEmpty()) {
+        if (selected.isEmpty() || absentAbis.isNotEmpty() || missing.isNotEmpty()) {
             throw GradleException(
-                "libljq4.so is missing for ${missing.joinToString()}, which packages ONNX Runtime: the music " +
-                    "encoder would never load on such a device. Add the ABI to :core:ort-ops' abiFilters.",
+                "Native packaging is incomplete. Missing ABIs: $absentAbis; libraries: $missing. " +
+                    "Every packaged ABI needs the runtime, music operators, map and audio DSP libraries.",
             )
         }
     }

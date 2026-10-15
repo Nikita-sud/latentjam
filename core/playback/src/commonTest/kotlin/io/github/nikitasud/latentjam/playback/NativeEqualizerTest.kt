@@ -11,7 +11,7 @@ internal class NativeEqualizerTest {
     @Test fun signalsmithMatchesThePreviousProcessorAcrossRatesAndLayouts() {
         for (rate in listOf(8000, 44100, 48000, 96000, 192000)) for (channels in listOf(1, 2, 6)) {
             for (settings in listOf(SoftwareEqualizerSettings(), SoftwareEqualizerSettings().withPreset(3),
-                SoftwareEqualizerSettings(true, List(10) { if (it % 2 == 0) 1200 else -1200 }, 1000))) {
+                SoftwareEqualizerSettings(true, List(10) { if (it % 2 == 0) 1500 else -1500 }, 1000))) {
                 val native = NativeEqualizer(rate, channels, settings)
                 val reference = SoftwareEqualizer(rate, channels, settings)
                 try {

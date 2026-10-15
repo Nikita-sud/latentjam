@@ -1,3 +1,8 @@
 Signalsmith DSP 1.7.0, upstream commit ca390d28c41ea5108a528e2e81faa4088f2f8ac8
 https://github.com/Signalsmith-Audio/dsp
 Unmodified filters.h, common.h and perf.h; MIT license in LICENSE.txt.
+
+8b7cb3437bcbe89c4bd5c51da3c1a67f71fa7e9026a89670e9e499189225aff8  LICENSE.txt
+d0a9055695090c4a217f684cadea8cc2c5343e93cdfd180125f941318b2f9366  common.h
+752215646c6d78701b3727023ca0dec2426f16725f88e3f56484ce4183ca98d0  filters.h
+8d8dcad667c4955da42468f55d13a854a14541bc68121a4ebd09a08cdb6e3814  perf.h

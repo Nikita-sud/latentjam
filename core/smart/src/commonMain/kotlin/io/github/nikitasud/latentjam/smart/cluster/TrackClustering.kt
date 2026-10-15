@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.smart.cluster
 
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlinx.coroutines.CancellationException
 import kotlin.math.sqrt
 import kotlin.random.Random
 
@@ -57,7 +58,7 @@ public data class TrackClusterMembership(
 /**
  * Spherical k-means over track embeddings.
  *
- * Pure functions over a flat, row-major [FloatArray] and its dimension: no coroutines, no Android,
+ * Pure functions over a flat, row-major [FloatArray] and its dimension: no dispatcher, no Android,
  * no clock, no I/O. That is not modesty about the algorithm — it is what makes the rules below
  * testable, and rules that decide what a listener is shown do not stay correct otherwise.
  *
@@ -174,17 +175,19 @@ public object TrackClustering {
         k: Int = DEFAULT_K,
         minSize: Int = MIN_CLUSTER_SIZE,
         iterations: Int = DEFAULT_ITERATIONS,
+        isActive: () -> Boolean = { true },
     ): List<TrackCluster> {
         require(minSize > 0) { "Minimum cluster size must be positive, got $minSize" }
         require(iterations > 0) { "Iteration count must be positive, got $iterations" }
         if (k <= 0 || space.size < minSize) return emptyList()
+        checkActive(isActive)
         val rows = space.takeRows()
         require(rows.all(Float::isFinite)) { "Library vector space contains a non-finite row" }
         val n = space.size
         val dim = space.dim
-        center(rows, n, dim)
-        val assignment = assign(rows, n, dim, k = k.coerceAtMost(n), iterations = iterations)
-        return collect(rows, n, dim, assignment, space.trackIds, minSize)
+        center(rows, n, dim, isActive)
+        val assignment = assign(rows, n, dim, k = k.coerceAtMost(n), iterations = iterations, isActive = isActive)
+        return collect(rows, n, dim, assignment, space.trackIds, minSize, isActive)
     }
 
     /**
@@ -194,15 +197,17 @@ public object TrackClustering {
      * stay at the origin rather than being scaled to infinity — with real embeddings that does not
      * happen, and the guard costs nothing.
      */
-    internal fun center(rows: FloatArray, n: Int, dim: Int) {
+    internal fun center(rows: FloatArray, n: Int, dim: Int, isActive: () -> Boolean = { true }) {
         if (n == 0) return
         val mean = FloatArray(dim)
         for (i in 0 until n) {
+            checkActive(isActive)
             val base = i * dim
             for (d in 0 until dim) mean[d] += rows[base + d]
         }
         for (d in 0 until dim) mean[d] /= n
         for (i in 0 until n) {
+            checkActive(isActive)
             val base = i * dim
             var sumSq = 0.0
             for (d in 0 until dim) {
@@ -225,8 +230,11 @@ public object TrackClustering {
      *
      * @return the centroid index each row was assigned to
      */
-    private fun assign(rows: FloatArray, n: Int, dim: Int, k: Int, iterations: Int): IntArray {
-        val centroids = seedCentroids(rows, n, dim, k)
+    private fun assign(
+        rows: FloatArray, n: Int, dim: Int, k: Int, iterations: Int,
+        isActive: () -> Boolean = { true },
+    ): IntArray {
+        val centroids = seedCentroids(rows, n, dim, k, isActive)
         val assignment = IntArray(n) { -1 }
         val sums = FloatArray(k * dim)
         val counts = IntArray(k)
@@ -234,6 +242,7 @@ public object TrackClustering {
         repeat(iterations) {
             var moved = false
             for (i in 0 until n) {
+                checkActive(isActive)
                 var best = 0
                 var bestDot = Float.NEGATIVE_INFINITY
                 for (c in 0 until k) {
@@ -256,6 +265,7 @@ public object TrackClustering {
             sums.fill(0f)
             counts.fill(0)
             for (i in 0 until n) {
+                checkActive(isActive)
                 val c = assignment[i]
                 counts[c]++
                 val from = i * dim
@@ -289,13 +299,19 @@ public object TrackClustering {
      * Plain random seeding routinely drops two centres inside one dense genre and leaves a whole
      * region unrepresented — which on this surface is not a slightly worse score but a missing row.
      */
-    private fun seedCentroids(rows: FloatArray, n: Int, dim: Int, k: Int): FloatArray {
+    private fun seedCentroids(
+        rows: FloatArray, n: Int, dim: Int, k: Int, isActive: () -> Boolean,
+    ): FloatArray {
+        checkActive(isActive)
         val random = Random(SEED)
         val centroids = FloatArray(k * dim)
         val first = random.nextInt(n)
         copyRow(rows, first, centroids, 0, dim)
 
-        val nearest = FloatArray(n) { squaredDistance(rows, it, centroids, 0, dim) }
+        val nearest = FloatArray(n) {
+            checkActive(isActive)
+            squaredDistance(rows, it, centroids, 0, dim)
+        }
         for (c in 1 until k) {
             var total = 0.0
             for (d in nearest) total += d.toDouble()
@@ -307,6 +323,7 @@ public object TrackClustering {
                 var target = random.nextDouble() * total
                 var chosen = n - 1
                 for (i in 0 until n) {
+                    checkActive(isActive)
                     target -= nearest[i]
                     if (target <= 0.0) {
                         chosen = i
@@ -317,6 +334,7 @@ public object TrackClustering {
             }
             copyRow(rows, pick, centroids, c, dim)
             for (i in 0 until n) {
+                checkActive(isActive)
                 val distance = squaredDistance(rows, i, centroids, c, dim)
                 if (distance < nearest[i]) nearest[i] = distance
             }
@@ -339,7 +357,8 @@ public object TrackClustering {
         assignment: IntArray,
         ids: List<TrackId>,
         minSize: Int,
-    ): List<TrackCluster> = collectWithEvidence(rows, n, dim, assignment, ids, minSize, true)
+        isActive: () -> Boolean = { true },
+    ): List<TrackCluster> = collectWithEvidence(rows, n, dim, assignment, ids, minSize, true, isActive)
 
     /** Same medoid ordering for hierarchy memberships, without k-means boundary evidence. */
     internal fun collectRegions(
@@ -349,7 +368,8 @@ public object TrackClustering {
         assignment: IntArray,
         ids: List<TrackId>,
         minSize: Int,
-    ): List<TrackCluster> = collectWithEvidence(rows, n, dim, assignment, ids, minSize, false)
+        isActive: () -> Boolean = { true },
+    ): List<TrackCluster> = collectWithEvidence(rows, n, dim, assignment, ids, minSize, false, isActive)
 
     private fun collectWithEvidence(
         rows: FloatArray,
@@ -359,7 +379,9 @@ public object TrackClustering {
         ids: List<TrackId>,
         minSize: Int,
         includeEvidence: Boolean,
+        isActive: () -> Boolean,
     ): List<TrackCluster> {
+        checkActive(isActive)
         val buckets = LinkedHashMap<Int, MutableList<Int>>()
         for (i in 0 until n) buckets.getOrPut(assignment[i]) { mutableListOf() }.add(i)
 
@@ -370,6 +392,7 @@ public object TrackClustering {
         val centroids = FloatArray(centroidCount * dim)
         val counts = IntArray(centroidCount)
         for (row in 0 until n) {
+            checkActive(isActive)
             val cluster = assignment[row]
             counts[cluster]++
             val source = row * dim
@@ -398,6 +421,7 @@ public object TrackClustering {
                 // stable, so rows equidistant from the centre keep the caller's original order.
                 rowsInCluster
                     .map { row ->
+                        checkActive(isActive)
                         val ownSimilarity = dot(rows, row, centroids, cluster, dim)
                         var rivalSimilarity = Float.NEGATIVE_INFINITY
                         if (includeEvidence) for (rival in 0 until centroidCount) {
@@ -434,6 +458,10 @@ public object TrackClustering {
                     memberships = if (includeEvidence) ranked.map { (_, membership) -> membership } else emptyList(),
                 )
             }
+    }
+
+    private fun checkActive(isActive: () -> Boolean) {
+        if (!isActive()) throw CancellationException("Region discovery cancelled")
     }
 
     private fun copyRow(from: FloatArray, fromRow: Int, into: FloatArray, intoRow: Int, dim: Int) {

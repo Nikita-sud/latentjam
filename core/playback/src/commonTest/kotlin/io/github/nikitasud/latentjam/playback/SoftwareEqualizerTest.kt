@@ -45,7 +45,7 @@ internal class SoftwareEqualizerTest {
     }
 
     @Test fun aSingleBandChangesRelativeToneByTheRequestedDecibels() {
-        for (gain in listOf(-1200, -600, 600, 1200)) {
+        for (gain in listOf(-1500, -1200, -600, 600, 1200, 1500)) {
             val curve = SoftwareEqualizerSettings(true, List(10) { if (it == 5) gain else 0 })
             val ratio = 20 * log10(amplitude(curve, 1000.0) / amplitude(curve, 100.0))
             assertTrue(abs(ratio - gain / 100.0) < 0.35, "gain=$gain, measured=$ratio dB")

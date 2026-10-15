@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 import zipfile
+from unittest.mock import patch
 
 sys.dont_write_bytecode = True
 spec = importlib.util.spec_from_file_location("compact_release", Path(__file__).with_name("build_compact_release.py"))
@@ -99,6 +100,63 @@ class CompactReleaseTest(unittest.TestCase):
         self.save_manifest()
         with self.assertRaisesRegex(ValueError, "Non-ARM64 runtime must be stock"):
             self.validate()
+
+    def test_dirty_source_is_rejected_unless_explicitly_requested(self):
+        compact.validate_source({"status": ""})
+        with self.assertRaisesRegex(ValueError, "local changes"):
+            compact.validate_source({"status": "?? unexpected.py\n"})
+        compact.validate_source({"status": " M settings.gradle.kts\n"}, allow_dirty=True)
+
+    def test_missing_or_duplicate_packaged_runtime_fails(self):
+        checked = self.validate()
+        apk = self.root / "incomplete.apk"
+        self.write_zip(apk, {"lib/arm64-v8a/libonnxruntime.so": b"reduced" * 100})
+        with self.assertRaisesRegex(ValueError, "Packaged ORT does not match"):
+            compact.verify_runtime(apk, "arm64-v8a", checked["native"])
+        with zipfile.ZipFile(apk, "a") as archive:
+            import warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", UserWarning)
+                archive.writestr("lib/arm64-v8a/libonnxruntime.so", b"second")
+        with self.assertRaisesRegex(ValueError, "Duplicate APK"):
+            compact.verify_runtime(apk, "arm64-v8a", checked["native"])
+
+    def test_wrong_packaged_abi_fails(self):
+        checked = self.validate()
+        apk = self.root / "wrong-abi.apk"
+        self.write_zip(apk, {"lib/x86/libonnxruntime.so": b"wrong"})
+        with self.assertRaisesRegex(ValueError, "Expected one"):
+            compact.verify_runtime(apk, "arm64-v8a", checked["native"])
+
+    def test_strip_tool_must_come_from_matching_ndk(self):
+        for name in ("audio-dsp", "map-native", "ort-ops"):
+            directory = self.root / "core" / name
+            directory.mkdir(parents=True)
+            (directory / "build.gradle.kts").write_text('ndkVersion = "28.2.13676358"')
+        ndk = self.root / "ndk"
+        tool = ndk / "bin/llvm-strip"
+        tool.parent.mkdir(parents=True)
+        tool.touch()
+        properties = ndk / "source.properties"
+        properties.write_text("Pkg.Revision = 27.0.0\n")
+        with self.assertRaisesRegex(ValueError, "app's NDK"):
+            compact.validate_strip_tool(self.root, tool)
+        properties.write_text("Pkg.Revision = 28.2.13676358\n")
+        self.assertEqual("28.2.13676358", compact.validate_strip_tool(self.root, tool))
+
+    def test_packaged_hash_uses_stripped_bytes_without_changing_aar(self):
+        before = compact.sha(self.candidate)
+        tool = self.root / "strip"
+        tool.write_bytes(b"strip fixture")
+        def strip(argv, **kwargs):
+            p = Path(argv[-1])
+            p.write_bytes(p.read_bytes() + b"stripped")
+        with patch.object(compact.subprocess, "check_output", return_value="fixture"), patch.object(compact.subprocess, "run", side_effect=strip):
+            result = compact.packaged_native(self.candidate, tool)
+        self.assertEqual(before, compact.sha(self.candidate))
+        self.assertEqual(len(self.reduced_entries), len(result["commands"]))
+        for name, value in self.reduced_entries.items():
+            self.assertEqual(compact.hashlib.sha256(value + b"stripped").hexdigest(), result["native"][name]["sha256"])
 
 
 if __name__ == "__main__":

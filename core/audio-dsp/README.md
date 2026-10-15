@@ -20,19 +20,26 @@ No network download is needed to build it.
   complete direct PCM buffer per call; iOS renders in C++ without a Kotlin audio callback.
 - Float entry points retain a fixed `max(1, sampleRate / 200)` frame delay, even in bypass.
   Media3's PCM16 adapter removes the initial delay and drains exactly the pending input frames
-  at EOS. iOS advertises this latency to AVAudioPlayerNode's DataPlayedBack completion.
+  at EOS. iOS advertises this latency to AVAudioPlayerNode's DataPlayedBack completion. iOS
+  therefore retains up to 5 ms of priming silence after a seek/segment start; its source playhead
+  precedes the delayed audio by that amount.
 - The limiter uses 5 ms lookahead, 20 ms peak hold, 100 ms release and a linked -0.5 dBFS
   sample-peak ceiling while filters are active. It is not a true-peak/oversampled limiter.
-  Fixed boost headroom is at most 2 dB; flat and cut-only curves have no fixed reduction.
+  Fixed boost headroom is at most 2 dB; flat and cut-only curves have no fixed reduction. Bypass
+  preserves finite Float32 samples within ±1 exactly after its delay. Float decoder overshoots
+  outside this range still activate the sample limiter; bypass is not transparent above full scale.
 - Supported streams have 1–32 channels and a positive sample rate up to 768 kHz. Tests cover
-  common rates through 192 kHz. Disabled/flat bands above 45% of sample rate are omitted.
+  common rates through 192 kHz. Band gain spans ±15 dB on both platforms, preserving the common
+  Android legacy range during migration. Bands at or above 45% of the current sample rate are
+  omitted (for example 4/8/16 kHz bands at 8 kHz PCM); they resume at a supported sample rate.
 - Response points use the same Signalsmith configuration, including static headroom. Limiter
   attenuation is a separate meter, polled by UI at 10 Hz while observed.
 
 Android currently converts decoded high-resolution/float PCM to PCM16 in DefaultAudioSink.
 iOS uses decoded Float32 before its mixer resamples to the output route. Same input and sample
 rate have the same DSP response; decoding, quantization, mixer pan law and system output can
-still differ. Protected Music.app playback does not enter this graph and reports EQ unavailable.
+still differ. Android always decodes locally, including with EQ off, so live tone edits work on
+all routes; compressed passthrough and offload are intentionally unavailable. Protected Music.app playback does not enter this graph and reports EQ unavailable.
 
 ## Builds and tests
 
@@ -51,7 +58,11 @@ ctest --test-dir /tmp/lj-eq-tests --output-on-failure
 ```
 
 CMake tests check PCM16 frame/bypass preservation, float bypass, limiter ceiling/stereo linking,
-zero processing allocations and concurrent settings updates. On Apple hosts they also compare
+zero processing allocations and concurrent settings updates. The portable CMake suite runs without
+CoreAudio services. To opt into the Apple host integration suite, configure with
+`-DLJ_EQ_APPLE_TESTS=ON` on a host with working CoreAudio. Sandboxed/headless hosts may reject
+AVAudioEngine or Audio Unit creation; that does not substitute for an iOS simulator/device run.
+The optional tests compare
 an actual AVAudioEngine Audio Unit render with the C core at 44.1/48 kHz, 1/2/6 channels,
 boosted/bypass, including the delayed end. Direct engine output isolates DSP from mixer pan law.
 The Kotlin iOS simulator suite independently exercises the Audio Unit and persisted controls.
@@ -81,7 +92,11 @@ This meter runs only on a background decoder, never in the render callback.
 
 `lj_loudness_*` accepts original-rate, interleaved mono/stereo PCM at 8–192 kHz in
 blocks of at most 4,096 frames. It measures integrated LUFS and maximum true peak
-in dBTP. Histogram mode uses fixed 0.1 LU bins instead of accumulating one record
+in dBTP using libebur128's BS.1770 estimator: 4× interpolation below 96 kHz, 2× below
+192 kHz, and the original samples at 192 kHz. Like the standard's 192 kHz method, this is an
+estimate, not a mathematical bound on the reconstructed waveform (especially ultrasonic
+content). It must not be treated as a guarantee against every subsequent resampling/codec peak.
+Histogram mode uses fixed 0.1 LU bins instead of accumulating one record
 per audio block, keeping native memory independent of programme length. Upstream
 1.2.6 rewrites shared histogram constants on construction; the wrapper serializes
 all library calls, including reads, so concurrent meter creation is race-free.

@@ -14,8 +14,8 @@ builds do not run R8, so only the release DEX shows it.
 
 `assembleRelease` depends on `:androidApp:checkReleaseDexRegisters`, which runs this script over the
 split APKs with the build's R8 mapping and writes `androidApp/build/reports/dex-registers/release.txt`.
-It fails the build on a method over the limit and only warns when python3 or the SDK's `dexdump`
-is missing; F-Droid's build does not run it. By hand, on any APK:
+It fails the build on a method over the limit or when python3 or the SDK's `dexdump`
+is missing. F-Droid and device-targeted release builds run the same gate. By hand, on any APK:
 
 ```bash
 tools/release/check-dex-registers.py \

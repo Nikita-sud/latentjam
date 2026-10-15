@@ -8,19 +8,28 @@ from pathlib import Path
 import struct
 import zipfile
 
+REQUIRED_LIBRARIES = {"libonnxruntime.so", "libonnxruntime4j_jni.so", "libljq4.so",
+                      "libljmap.so", "liblj_equalizer.so"}
+
 def inspect(path):
+    with path.open("rb") as stream:
+        digest = hashlib.file_digest(stream, "sha256").hexdigest()
     result = {"apk": path.name, "bytes": path.stat().st_size,
-              "sha256": hashlib.file_digest(path.open("rb"), "sha256").hexdigest(), "native": []}
+              "sha256": digest, "native": []}
     with zipfile.ZipFile(path) as apk, path.open("rb") as raw:
         names = set(apk.namelist())
+        if len(names) != len(apk.namelist()):
+            raise ValueError(f"{path}: duplicate ZIP members")
+        abis = {name.split('/')[1] for name in names if name.startswith('lib/') and name.endswith('.so')}
+        for abi in abis:
+            missing = REQUIRED_LIBRARIES - {name.rsplit('/', 1)[-1] for name in names if name.startswith(f'lib/{abi}/')}
+            if missing:
+                raise ValueError(f"{path}: {abi} lacks {', '.join(sorted(missing))}")
+        result["abis"] = sorted(abis)
         for name in sorted(names):
             if not name.startswith("lib/") or not name.endswith(".so"):
                 continue
             _, abi, library = name.split("/")
-            if library == "libonnxruntime.so":
-                for required in ("libljq4.so", "libljmap.so", "liblj_equalizer.so"):
-                    if f"lib/{abi}/{required}" not in names:
-                        raise ValueError(f"{path}: {abi} lacks {required}")
             info = apk.getinfo(name)
             data = apk.read(name)
             if abi in ("arm64-v8a", "x86_64"):
@@ -55,11 +64,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory", type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--abis", nargs="+", help="Required ABI set across the APKs (detects missing whole splits/ABIs)")
     args = parser.parse_args()
     apks = sorted(args.directory.glob("*.apk"))
     if not apks:
         raise SystemExit("No APKs found")
     report = [inspect(p) for p in apks]
+    if args.abis and {abi for item in report for abi in item["abis"]} != set(args.abis):
+        raise SystemExit("Packaged ABI set differs from --abis")
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + "\n")
     for item in report:

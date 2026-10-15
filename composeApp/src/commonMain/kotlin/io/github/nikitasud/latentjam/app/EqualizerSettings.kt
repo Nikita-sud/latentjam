@@ -132,7 +132,11 @@ internal fun EqualizerSettings(equalizer: EqualizerController, settings: AppSett
                                 description = "${band.centreFrequencyHz} Hz",
                                 value = band.levelMillibels.toFloat(),
                                 range = state.minLevelMillibels.toFloat()..state.maxLevelMillibels.toFloat(),
-                                enabled = state.enabled,
+                                // Keep the saved curve, but do not offer a control the current
+                                // stream cannot render. It becomes editable again at a higher rate.
+                                enabled = state.enabled && (processing.sampleRateHz?.let {
+                                    band.centreFrequencyHz < it * 0.45
+                                } ?: true),
                                 onChange = { scope.launch { equalizer.setBandLevel(band.index, it.roundToInt()) } },
                             )
                         }

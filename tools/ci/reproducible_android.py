@@ -4,10 +4,13 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
+import platform
 import shutil
 import subprocess
 import tempfile
+import tomllib
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -22,7 +25,17 @@ def main():
     # Do not copy ignored credentials, local SDK paths, build caches or any existing outputs.
     files = sorted({f for f in files if f and (ROOT / f).is_file()})
     hashes = {f: hashlib.sha256((ROOT / f).read_bytes()).hexdigest() for f in files}
-    report = {"sources": hashes, "builds": []}
+    versions = tomllib.loads((ROOT / "gradle/libs.versions.toml").read_text())["versions"]
+    java = Path(os.environ["JAVA_HOME"]) / "bin/java" if "JAVA_HOME" in os.environ else "java"
+    java_version = subprocess.run([str(java), "-version"], stdout=subprocess.PIPE,
+                                  stderr=subprocess.STDOUT, text=True, check=True).stdout.strip()
+    report = {"sources": hashes, "builds": [], "environment": {
+        "host": platform.platform(), "java": java_version,
+        "gradle_wrapper": (ROOT / "gradle/wrapper/gradle-wrapper.properties").read_text(),
+        "agp": versions["agp"], "kotlin": versions["kotlin"],
+        "native_build_config": {name: (ROOT / f"core/{name}/build.gradle.kts").read_text()
+                                for name in ("audio-dsp", "map-native", "ort-ops")},
+    }}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     for iteration in (1, 2):
         with tempfile.TemporaryDirectory(prefix="latentjam-repro-") as folder:

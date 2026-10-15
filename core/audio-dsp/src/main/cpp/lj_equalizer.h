@@ -14,6 +14,7 @@ void lj_eq_destroy(lj_equalizer *eq);
 void lj_eq_set_settings(lj_equalizer *eq, int enabled, const int32_t levels[10], int bass);
 void lj_eq_reset(lj_equalizer *eq);
 int lj_eq_latency_frames(const lj_equalizer *eq);
+int lj_eq_channel_count(const lj_equalizer *eq);
 /* Float entry points preserve the fixed delay, including bypass. Buffers are in-place. */
 void lj_eq_process_f32(lj_equalizer *eq, float *interleaved, int frames);
 void lj_eq_process_planar(lj_equalizer *eq, float *const *channels, int frames);

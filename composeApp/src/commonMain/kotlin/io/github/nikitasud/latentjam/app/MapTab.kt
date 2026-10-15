@@ -1019,43 +1019,6 @@ private fun LegendLabel(text: String) {
 }
 
 /**
- * Convex hull of one region's dots, in page coordinates, for the outline the map draws around the
- * selected region.
- *
- * A region is a claim about a set of tracks, and until now the only thing saying so was a colour on
- * the dots and a label somewhere among them — a listener looking at two interleaved regions had no
- * way to see where one ended. The hull is the cheapest honest answer: it needs no new clustering, it
- * cannot claim a track the region does not hold, and it is stable for a fixed layout.
- *
- * Monotonic chain, lower hull then upper. Fewer than three distinct points, or points on one line,
- * have no area to draw and return empty rather than a degenerate sliver.
- *
- * Pure and Compose-free (it only reads [Offset] arithmetic), so `MapTabTest` covers it.
- */
-internal fun regionOutline(points: List<Offset>): List<Offset> {
-    val sorted = points.distinct().sortedWith(compareBy({ it.x }, { it.y }))
-    if (sorted.size < 3) return emptyList()
-    fun cross(origin: Offset, a: Offset, b: Offset): Float =
-        (a.x - origin.x) * (b.y - origin.y) - (a.y - origin.y) * (b.x - origin.x)
-    val lower = ArrayList<Offset>()
-    for (point in sorted) {
-        while (lower.size >= 2 && cross(lower[lower.size - 2], lower[lower.size - 1], point) <= 0f) {
-            lower.removeAt(lower.size - 1)
-        }
-        lower += point
-    }
-    val upper = ArrayList<Offset>()
-    for (point in sorted.asReversed()) {
-        while (upper.size >= 2 && cross(upper[upper.size - 2], upper[upper.size - 1], point) <= 0f) {
-            upper.removeAt(upper.size - 1)
-        }
-        upper += point
-    }
-    val hull = lower.dropLast(1) + upper.dropLast(1)
-    return if (hull.size < 3) emptyList() else hull
-}
-
-/**
  * The region an unclaimed dot sits closest to, for selection only.
  *
  * Roughly a tenth of a real library is outside every region — trimmed by confidence or by a name

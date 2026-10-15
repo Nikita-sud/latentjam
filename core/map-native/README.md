@@ -5,6 +5,13 @@ the default. The first integration keeps the 3,000-track limit and uses exact
 t-SNE below 61 points. Android JNI and the iOS CocoaPod share a small C ABI and
 have no ONNX Runtime dependency.
 
+A native loading or computation failure in an opt-in build makes the map unavailable.
+It does not automatically retry exact t-SNE: the native path may have been admitted
+with less memory than the quadratic backend needs, and the cache identifies the chosen
+backend. This failure mode does not affect default builds. The iOS shell must register
+its map provider before starting Compose, including for the memory-budget query; the
+shipping `iOSApp.init` does so.
+
 Pinned sources and hashes live in `dependencies.json` and
 `src/main/cpp/vendor/manifest.sha256.json`. The implementation uses qdtsne with
 Float32, a VP-tree, 60 neighbors, perplexity 20, theta 0.5, 1,000 iterations,
@@ -21,8 +28,10 @@ Exceptions, invalid inputs and cancellation have explicit status values.
 The application serializes region preparation and projection, checks a conservative
 working-set estimate before constructing fused vectors, and retains old cached
 geometry on refusal. Regions use the existing bounded k-means fallback when
-average linkage exceeds the budget. These estimates do not replace process-level
-memory measurements.
+average linkage exceeds the budget. Both clustering paths poll cancellation throughout
+preparation and scoring. The region estimate reserves the original and compacted row
+matrices, and directions too close to the corpus mean are excluded consistently before
+linkage. These estimates do not replace process-level memory measurements.
 
 `python3 tools/ci/native_verify.py` verifies vendored bytes and both bundled
 notices, then runs cancellation/determinism/invalid-input tests under ASan/UBSan.

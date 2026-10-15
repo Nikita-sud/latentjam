@@ -36,6 +36,8 @@ struct LJRenderState {
         _inputBus = [[AUAudioUnitBus alloc] initWithFormat:format error:error];
         _outputBus = [[AUAudioUnitBus alloc] initWithFormat:format error:error];
         if (!_inputBus || !_outputBus) return nil;
+        _inputBus.maximumChannelCount = 32;
+        _outputBus.maximumChannelCount = 32;
         _inputs = [[AUAudioUnitBusArray alloc] initWithAudioUnit:self busType:AUAudioUnitBusTypeInput busses:@[_inputBus]];
         _outputs = [[AUAudioUnitBusArray alloc] initWithAudioUnit:self busType:AUAudioUnitBusTypeOutput busses:@[_outputBus]];
         self.maximumFramesToRender = 4096;
@@ -50,7 +52,7 @@ struct LJRenderState {
     return rate > 0 ? double(std::max(1, int(rate) / 200)) / rate : 0.005;
 }
 - (BOOL)shouldChangeToFormat:(AVAudioFormat *)format forBus:(AUAudioUnitBus *)bus {
-    return format.commonFormat == AVAudioPCMFormatFloat32 && !format.interleaved &&
+    return !self.renderResourcesAllocated && format.commonFormat == AVAudioPCMFormatFloat32 && !format.interleaved &&
         format.channelCount > 0 && format.channelCount <= 32 && format.sampleRate > 0 && format.sampleRate <= 768000;
 }
 - (BOOL)allocateRenderResourcesAndReturnError:(NSError **)error {
@@ -149,8 +151,8 @@ int lj_eq_ios_connect(AVAudioEngine *engine, AVAudioPlayerNode *player, AVAudioU
         NSError *error = nil;
         BOOL configured = [au.inputBusses[0] setFormat:format error:&error] &&
             [au.outputBusses[0] setFormat:format error:&error];
-        [engine attachNode:unit];
         if (!configured) return 0;
+        [engine attachNode:unit];
         [engine connect:player to:unit format:format];
         [engine connect:unit to:engine.mainMixerNode format:format];
         return 1;

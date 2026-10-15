@@ -7,11 +7,68 @@ import argparse
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
 REVISION = "deadc2990767dfbda0701e0ab35fdeea653db08f"  # TagLib 2.3.2
 UTFCPP_REVISION = "2d8e20b22dcb3e9b3c4f52103182ebda949c6089"
+FORMATS = {"mp3", "flac", "opus", "ogg", "m4a"}
+FIELDS = {"TITLE", "ARTIST", "ALBUM", "ALBUMARTIST", "LYRICS"}
+
+
+def parse_manifest(text):
+    """Reject incomplete exports rather than reporting a successful empty oracle run."""
+    cases = {}
+    for number, row in enumerate(text.splitlines(), 1):
+        if not row.strip():
+            continue
+        parts = row.split("\t")
+        if parts[0] == "case" and len(parts) == 3:
+            _, name, extension = parts
+            if not re.fullmatch(r"[A-Za-z0-9_-]+", name) or name in cases or extension not in FORMATS:
+                raise ValueError(f"manifest line {number}: invalid or duplicate case")
+            cases[name] = {"extension": extension, "edits": {}}
+        elif parts[0] == "edit" and len(parts) == 4:
+            _, name, field, encoded = parts
+            if name not in cases or field not in FIELDS or field in cases[name]["edits"]:
+                raise ValueError(f"manifest line {number}: invalid or duplicate edit")
+            try:
+                cases[name]["edits"][field] = bytes.fromhex(encoded).decode("utf-8")
+            except (ValueError, UnicodeError) as error:
+                raise ValueError(f"manifest line {number}: invalid edit encoding") from error
+        else:
+            raise ValueError(f"manifest line {number}: unknown or malformed record")
+    if not cases:
+        raise ValueError("manifest contains no cases")
+    if any(not case["edits"] for case in cases.values()):
+        raise ValueError("manifest contains a case without edits")
+    return cases
+
+
+def verify_cases(cases, fixtures, read):
+    failures = []
+    missing = FORMATS - {case["extension"] for case in cases.values()}
+    if missing:
+        failures.append(f"missing format coverage: {', '.join(sorted(missing))}")
+    if not any(value == "" for case in cases.values() for value in case["edits"].values()):
+        failures.append("missing field-deletion coverage")
+    for name, case in cases.items():
+        try:
+            before = read(fixtures / f"{name}.before.{case['extension']}")
+            after = read(fixtures / f"{name}.after.{case['extension']}")
+            for field, value in case["edits"].items():
+                if not value and not before.get(field):
+                    failures.append(f"{name}: {field}: deletion fixture has no original value")
+                expected = [value] if value else []
+                if after.get(field, []) != expected:
+                    failures.append(f"{name}: {field}: expected {expected!r}, got {after.get(field, [])!r}")
+            for field in before.keys() | after.keys():
+                if field not in case["edits"] and before.get(field, []) != after.get(field, []):
+                    failures.append(f"{name}: untouched {field} changed")
+        except (OSError, subprocess.SubprocessError, ValueError) as error:
+            failures.append(f"{name}: {error}")
+    return failures
 
 def run(*args, **kwargs):
     return subprocess.run([str(a) for a in args], check=True, **kwargs)
@@ -44,11 +101,6 @@ def main():
         classpath = (ROOT / "core/library/build/fuzz/classpath.txt").read_text().strip()
         java = Path(os.environ["JAVA_HOME"]) / "bin/java" if os.environ.get("JAVA_HOME") else "java"
         run(java, "-cp", classpath, "io.github.nikitasud.latentjam.library.tags.TagLibFixtures", fixtures)
-    cases = {}
-    for row in (fixtures / "manifest.tsv").read_text().splitlines():
-        parts = row.split("\t")
-        if parts[0] == "case": cases[parts[1]] = {"extension": parts[2], "edits": {}}
-        else: cases[parts[1]]["edits"][parts[2]] = bytes.fromhex(parts[3]).decode("utf-8")
     def read(path):
         result = subprocess.run([str(build / "taglib_oracle"), str(path)], text=True, capture_output=True, timeout=15, check=True)
         properties = {}
@@ -56,20 +108,12 @@ def main():
             key, value = [bytes.fromhex(p).decode("utf-8") for p in line.split("\t")]
             properties.setdefault(key, []).append(value)
         return properties
-    failures = []
-    for name, case in cases.items():
-        try:
-            before = read(fixtures / f"{name}.before.{case['extension']}")
-            after = read(fixtures / f"{name}.after.{case['extension']}")
-            for field, value in case["edits"].items():
-                expected = [value] if value else []
-                if after.get(field, []) != expected:
-                    failures.append(f"{name}: {field}: expected {expected!r}, got {after.get(field, [])!r}")
-            for field in before.keys() | after.keys():
-                if field not in case["edits"] and before.get(field, []) != after.get(field, []):
-                    failures.append(f"{name}: untouched {field} changed")
-        except (subprocess.SubprocessError, ValueError) as error:
-            failures.append(f"{name}: {error}")
+    cases = {}
+    try:
+        cases = parse_manifest((fixtures / "manifest.tsv").read_text())
+        failures = verify_cases(cases, fixtures, read)
+    except (OSError, ValueError) as error:
+        failures = [f"invalid fixture manifest: {error}"]
     report = {"taglibRevision": REVISION, "utfcppRevision": UTFCPP_REVISION,
               "cases": len(cases), "failures": failures, "runtimeDependency": False}
     destination = ROOT / "build/reports/taglib.json"

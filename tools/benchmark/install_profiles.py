@@ -37,7 +37,13 @@ def main():
         if not paths:
             raise SystemExit("Missing measured " + kind + " profile")
         content = merge(paths)
-        output = ROOT / "androidApp/src/main" / (kind + "-prof.txt")
+        # AGP reads baseline rules from src/main, but startup rules from its
+        # baselineProfiles source directory. A misplaced startup file is silently ignored.
+        directory = ROOT / "androidApp/src/main"
+        if kind == "startup":
+            directory /= "baselineProfiles"
+        directory.mkdir(parents=True, exist_ok=True)
+        output = directory / (kind + "-prof.txt")
         output.write_text(content)
         manifest["profiles"][kind] = {"rules": len(content.splitlines()),
             "sha256": hashlib.sha256(content.encode()).hexdigest(),

@@ -32,6 +32,8 @@ jobs:
           echo "6eeaf0026d75599b07527d93b576593ce847cfca8b337a579971a5a9cdf792d0  /tmp/jazzer.tar.gz" | sha256sum --check
           mkdir /tmp/jazzer
           tar -xzf /tmp/jazzer.tar.gz -C /tmp/jazzer
+      - name: Verify finding exit status and crash artifact
+        run: python3 tools/fuzz/check_failure.py --jazzer /tmp/jazzer/jazzer
       - name: Fuzz
         env:
           FUZZ_SECONDS: ${{ inputs.seconds }}

@@ -387,7 +387,7 @@ internal class IosAudioEngine : EqualizerController {
         // Preserve the old native curve exactly as band settings. Its bass macro already changed
         // those bands; the new independent shelf starts at zero to avoid applying it twice.
         val software = preferences.integerForKey(KEY_VERSION).toInt() == 1
-        val levels = List(10) { preferences.integerForKey(bandKey(it)).toInt().coerceIn(-1200, 1200) }
+        val levels = List(10) { preferences.integerForKey(bandKey(it)).toInt() }
         val preset = preferences.integerForKey(KEY_PRESET).toInt().takeIf {
             preferences.objectForKey(KEY_PRESET) != null && it in SoftwareEqualizerSettings.PRESETS.indices &&
                 levels == SoftwareEqualizerSettings.PRESETS[it]

@@ -126,6 +126,31 @@ def source_identity(root):
                                   git("ls-files", "--others", "--exclude-standard", "-z").decode().split("\0") if name}}
 
 
+def validate_source(identity, allow_dirty=False):
+    if identity["status"] and not allow_dirty:
+        raise ValueError("Source tree has local changes; commit the candidate first, or use --allow-dirty for a development build")
+
+
+def validate_strip_tool(root, tool):
+    # llvm-strip can be a symlink to llvm-objcopy; validate its owning NDK,
+    # rather than rejecting a legitimate resolved executable name.
+    versions = set()
+    for module in ("audio-dsp", "map-native", "ort-ops"):
+        text = (root / f"core/{module}/build.gradle.kts").read_text()
+        match = re.search(r'ndkVersion\s*=\s*"([^"]+)"', text)
+        if not match:
+            raise ValueError(f"Cannot determine NDK version for {module}")
+        versions.add(match.group(1))
+    if len(versions) != 1:
+        raise ValueError("Native modules use different NDK versions")
+    properties = next((p / "source.properties" for p in tool.resolve().parents
+                       if (p / "source.properties").is_file()), None)
+    match = re.search(r'^Pkg.Revision\s*=\s*(\S+)\s*$', properties.read_text(), re.MULTILINE) if properties else None
+    if not match or match.group(1) not in versions:
+        raise ValueError(f"Strip tool must belong to the app's NDK {next(iter(versions))}")
+    return match.group(1)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--reduced-repo", required=True, type=Path, help="Local Maven directory containing manifest.json")
@@ -135,6 +160,7 @@ def main():
     parser.add_argument("--max-workers", type=int, default=2)
     parser.add_argument("--offline", action="store_true", help="Pass --offline to Gradle; wrapper never downloads a runtime")
     parser.add_argument("--check-only", action="store_true", help="Validate inputs and record the command, without building APKs")
+    parser.add_argument("--allow-dirty", action="store_true", help="Explicit development build; result cannot receive release status 'verified'")
     args = parser.parse_args()
     if args.max_workers < 1:
         parser.error("--max-workers must be positive")
@@ -148,6 +174,8 @@ def main():
               "wrapper_argv": [sys.executable, *sys.argv], "project": str(root), "apks": []}
     try:
         report["source"] = source_identity(root)
+        validate_source(report["source"], args.allow_dirty)
+        report["ndk_version"] = validate_strip_tool(root, strip_tool)
         report["runtime"] = validate_candidate(root, repo, stock)
         report["native_packaging"] = packaged_native(Path(report["runtime"]["candidate_aar"]), strip_tool)
         init = root / "tools/runtime/use-reduced-ort.init.gradle"
@@ -185,7 +213,7 @@ def main():
         report["source_after"] = source_identity(root)
         if report["source_after"] != report["source"]:
             raise ValueError("Source files changed during the build; repeat for attributable APKs")
-        report["status"] = "verified"
+        report["status"] = "verified_with_local_changes" if report["source"]["status"] else "verified"
         report["gates"] = ["Gradle release/DEX/native", "packaged runtime SHA256 after NDK stripping", "ELF/ZIP 16 KiB"]
         return 0
     except (OSError, ValueError, KeyError, zipfile.BadZipFile, subprocess.CalledProcessError) as error:

@@ -24,6 +24,19 @@ def main():
             raise SystemExit("Bundled map notices differ: " + path)
     if b"This product includes software developed by the Delft University of Technology." not in notices:
         raise SystemExit("Missing BSD acknowledgement")
+    signalsmith = ROOT / "core/audio-dsp/src/main/cpp/vendor/signalsmith"
+    expected_files = set()
+    for line in (signalsmith / "UPSTREAM.txt").read_text().splitlines():
+        if "  " in line and len(line.split("  ")[0]) == 64:
+            expected, filename = line.split("  ", 1)
+            expected_files.add(filename)
+            if hashlib.sha256((signalsmith / filename).read_bytes()).hexdigest() != expected:
+                raise SystemExit("Modified Signalsmith source: " + filename)
+    if expected_files != {p.name for p in signalsmith.iterdir() if p.is_file() and p.name != "UPSTREAM.txt"}:
+        raise SystemExit("Signalsmith manifest does not cover the vendored files")
+    signalsmith_notice = (ROOT / "composeApp/src/commonMain/composeResources/files/licenses/signalsmith-dsp.txt").read_text()
+    if (signalsmith / "LICENSE.txt").read_text().strip() not in signalsmith_notice:
+        raise SystemExit("Missing Signalsmith license notice")
     ebur = ROOT / "core/audio-dsp/src/main/cpp/vendor/libebur128"
     for line in (ebur / "UPSTREAM.txt").read_text().splitlines():
         if "  " in line and len(line.split("  ")[0]) == 64:

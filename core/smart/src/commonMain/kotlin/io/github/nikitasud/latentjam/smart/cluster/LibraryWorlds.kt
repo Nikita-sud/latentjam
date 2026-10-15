@@ -378,7 +378,7 @@ public object LibraryWorlds {
         ) {
             AverageLinkageClustering.cluster(vectorSpace, isActive = isActive)
         } else {
-            TrackClustering.cluster(vectorSpace, k = recommendedK(vectorSpace.size))
+            TrackClustering.cluster(vectorSpace, k = recommendedK(vectorSpace.size), isActive = isActive)
         }
         return worlds(library, clusters, TrackClustering.MIN_CLUSTER_SIZE, semantics)
     }

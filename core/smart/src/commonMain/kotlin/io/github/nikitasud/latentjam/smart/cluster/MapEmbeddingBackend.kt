@@ -67,7 +67,9 @@ public object MapMemoryBudget {
     }
     public fun regionBytes(n: Int, dim: Int): Long {
         require(n >= 0 && dim > 0)
-        return RESERVE + 4L * n * dim + 4L * n * (n - 1) + 128L * n
+        // Dropping degenerate directions can briefly retain both the owned input and a
+        // compacted row matrix. Budget both, without relying on platform GC liveness.
+        return RESERVE + 8L * n * dim + 4L * n * (n - 1) + 128L * n
     }
 }
 

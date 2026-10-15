@@ -41,6 +41,19 @@ Validation results are recorded in `release-0.9.1-validation.md` after the candi
 Required checks include host tests, translation parity, iOS source compilation, an Android release
 build and its DEX-register gate, plus emulator playback/open-file and notification checks.
 
+## Adversarial review corrections
+
+- A temporarily unavailable Android legacy equalizer no longer marks migration complete with
+  flat bands. The next launch retries; later explicit curve edits take precedence. The shared
+  supported range now preserves legacy curves through ±15 dB.
+- Artwork cache versions distinguish track identities and full revisions. Interrupted provider
+  reads preserve coroutine cancellation and use the normal fallback for unrelated I/O failures.
+- Region discovery honors cancellation in both algorithms, budgets the temporary row copies,
+  and skips centered vectors too small to normalize consistently.
+- Android startup rules are placed in AGP's actual startup-profile source directory. Release
+  DEX/native checks now also cover F-Droid and device-targeted builds; independent packaging,
+  tag serialization and fuzz checks reject incomplete evidence.
+
 
 ## EQ response and peak metering
 
