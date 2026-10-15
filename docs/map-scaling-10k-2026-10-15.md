@@ -45,6 +45,11 @@ Other fixes found during measurement:
   51 MiB input twice and would refuse a 10,000-track map that fits. They now compare
   `projectionWorkBytes` / `regionWorkBytes`. The pre-allocation check in `AppMapPage` still uses
   the full estimate.
+- On Android, `availableMapWorkBytes` subtracted the whole native heap (ONNX models, decoders)
+  from the Java budget. The Kotlin map paths allocate only Java arrays, and the Java limit alone
+  bounds those. On the 10,000-track app below, the native charge (~81 MB during analysis) made the
+  Map show "Not enough free memory" with Java headroom to spare. Native heap is now charged only
+  when the experimental native backend is built in, since that backend allocates natively.
 
 ## Device measurements
 
@@ -163,9 +168,9 @@ PENDING: filled in below once the in-app run on `LJ-big36` finishes.
   is a scaled estimate.
 - Quality on real data comes from one 1,104-track library. No real library above 3,000 tracks
   was available, so the sampled path was compared with the exact one by forcing small samples.
-- The app's memory gate still charges native heap (ONNX models, decoders) against the Java
-  budget. During audio analysis that can make a 10,000-track map wait for a later visit, or make
-  regions use the k-means fallback. This is the existing conservative design and is not changed.
+- The memory gate still uses the 1/8-heap reserve and counts uncollected garbage as used, so on
+  a 192 MB heap a 10,000-track library can still be refused or fall back to k-means regions while
+  much else is resident. That is a refusal with an explanation, never a crash.
 - For You's Sonic Journey session copies the full fused matrix (54 MB at 10,000). That is
   existing behaviour and not part of the Map paths measured here.
 - The Barnes–Hut layout is a different picture from exact t-SNE. A 2,001–3,000-track library

@@ -134,9 +134,9 @@ internal fun rememberMapPageModel(
                             transientBuildState = stableStateBeforeBuild.duringMapBuild()
                             mapPage.mapState = transientBuildState!!
                         }
-                        if (MapMemoryBudget.projectionBytes(coverage.size, 1344, LibraryLayout.experimentalBackend) >
-                            availableMapWorkBytes()
-                        ) throw MapComputationUnavailable("Insufficient memory for map projection", memoryLimited = true)
+                        if (!mapWorkFits(MapMemoryBudget.projectionBytes(coverage.size, 1344, LibraryLayout.experimentalBackend))) {
+                            throw MapComputationUnavailable("Insufficient memory for map projection", memoryLimited = true)
+                        }
                         val space = engine.libraryMixVectors(loadedIds)
                         if (space == null || space.fingerprint != coverage.fingerprint) {
                             null // Index changed while waiting; the new discovery run will retry.

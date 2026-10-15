@@ -1208,7 +1208,10 @@ private fun AppShell(
                             libraryWorlds.memoryLimited = false
                             return@collect
                         }
-                        libraryWorlds.memoryLimited = availableMapWorkBytes() < 4L * coverage.size * 1344 + 8L * 1024 * 1024
+                        // Measured on the map lane, where a short reading may collect garbage first.
+                        libraryWorlds.memoryLimited = withContext(AppGraph.mapLayoutDispatcher) {
+                            !mapWorkFits(4L * coverage.size * 1344 + 8L * 1024 * 1024)
+                        }
                         if (libraryWorlds.memoryLimited) return@collect
                         val features = engine.libraryMixFeatures(
                             ids = loadedIds,
