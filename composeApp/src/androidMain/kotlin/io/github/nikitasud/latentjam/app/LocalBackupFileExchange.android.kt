@@ -30,8 +30,9 @@ import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import java.io.BufferedReader
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.InputStream
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -333,7 +334,7 @@ private fun copyToDocument(resolver: ContentResolver, uri: Uri, staged: File) {
 private suspend fun readDocument(resolver: ContentResolver, uri: Uri): ImportedLocalDocument =
     withContext(Dispatchers.IO) {
         val input = resolver.openInputStream(uri) ?: error("The selected document cannot be opened")
-        val text = input.bufferedReader(Charsets.UTF_8).use { it.readBounded() }
+        val text = decodeImportedText(input.use { it.readBounded() })
         // Document IDs and URI path segments need not be file names. Ask the provider for its
         // display name; missing metadata must never prevent importing readable contents.
         val displayName = try {
@@ -349,17 +350,17 @@ private suspend fun readDocument(resolver: ContentResolver, uri: Uri): ImportedL
         ImportedLocalDocument(text, displayName)
     }
 
-private suspend fun BufferedReader.readBounded(): String {
-    val result = StringBuilder()
-    val buffer = CharArray(8 * 1024)
+private suspend fun InputStream.readBounded(): ByteArray {
+    val result = ByteArrayOutputStream()
+    val buffer = ByteArray(8 * 1024)
     while (true) {
         currentCoroutineContext().ensureActive()
         val count = read(buffer)
         if (count < 0) break
-        check(result.length <= MAX_LOCAL_BACKUP_DOCUMENT_CHARS - count) {
+        check(result.size() <= MAX_LOCAL_BACKUP_DOCUMENT_CHARS - count) {
             "Backup exceeds the supported size"
         }
-        result.append(buffer, 0, count)
+        result.write(buffer, 0, count)
     }
-    return result.toString()
+    return result.toByteArray()
 }

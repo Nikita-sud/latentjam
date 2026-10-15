@@ -594,8 +594,9 @@ private fun sharedTrailingNames(a: List<String>, b: List<String>, ignoreCase: Bo
 private val URI_SCHEME = Regex("^[A-Za-z][A-Za-z0-9+.-]+:")
 
 /**
- * `%XX` escapes decoded as UTF-8, or null when an escape is malformed or the bytes are not
- * UTF-8. `+` stays a plus: it means a space only in form data, never in a path.
+ * `%XX` escapes decoded as UTF-8, or null when an escape is malformed. Escaped bytes that are not
+ * UTF-8 come from an older tool's ANSI code page (`%E9` for é) and are read as Windows-1252.
+ * `+` stays a plus: it means a space only in form data, never in a path.
  */
 private fun String.percentDecoded(): String? {
     if ('%' !in this) return this
@@ -619,7 +620,23 @@ private fun String.percentDecoded(): String? {
     }
     return runCatching {
         decoded.decodeToString(0, size, throwOnInvalidSequence = true)
-    }.getOrNull()
+    }.getOrElse { windows1252Escapes() }
+}
+
+/** Only the escapes are code-page bytes; literal characters stay as written. */
+private fun String.windows1252Escapes(): String = buildString {
+    var index = 0
+    while (index < this@windows1252Escapes.length) {
+        val char = this@windows1252Escapes[index]
+        if (char == '%') {
+            val byte = this@windows1252Escapes.substring(index + 1, index + 3).toInt(16)
+            append(byteArrayOf(byte.toByte()).decodeUtf8OrWindows1252())
+            index += 3
+        } else {
+            append(char)
+            index++
+        }
+    }
 }
 
 private fun hexDigit(byte: Byte): Int = when (val char = byte.toInt().toChar()) {

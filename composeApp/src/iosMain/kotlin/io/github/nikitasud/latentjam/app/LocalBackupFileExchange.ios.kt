@@ -242,7 +242,7 @@ private fun readDocument(url: NSURL): LocalBackupFileResult<ImportedLocalDocumen
         "Backup exceeds the supported size"
     }
     ImportedLocalDocument(
-        text = data.toByteArray().decodeToString(throwOnInvalidSequence = true),
+        text = decodeImportedText(data.toByteArray()),
         displayName = url.lastPathComponent,
     )
 }.fold(
