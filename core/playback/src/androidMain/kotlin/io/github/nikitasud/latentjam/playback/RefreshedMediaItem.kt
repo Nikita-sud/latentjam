@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.playback
 
 import android.net.Uri
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 
 /**
@@ -27,4 +28,25 @@ internal fun MediaItem.withRefreshedTrack(fresh: TrackDescriptor, coverChanged: 
     fresh.audioUri?.takeIf { it.isNotBlank() && it != localConfiguration?.uri?.toString() }
         ?.let { builder.setUri(it) }
     return builder.build()
+}
+
+/**
+ * A different URI forces Media3 to replace its source (remove/add), which resets the current
+ * item's position even when its media ID is unchanged. Keep the playhead for this one case.
+ * [previousAudioUri] comes from the app's queue: a controller may omit local configurations in
+ * the session's timeline. Tag-only refreshes and replacements elsewhere must never seek.
+ */
+internal fun Player.refreshTrackAt(
+    index: Int,
+    fresh: TrackDescriptor,
+    coverChanged: Boolean,
+    previousAudioUri: String?,
+) {
+    val original = getMediaItemAt(index)
+    val previousUri = original.localConfiguration?.uri?.toString() ?: previousAudioUri
+    val relocated = !fresh.audioUri.isNullOrBlank() && previousUri != null && fresh.audioUri != previousUri
+    val resumePosition = if (relocated && index == currentMediaItemIndex) currentPosition.coerceAtLeast(0L) else null
+    replaceMediaItem(index, original.withRefreshedTrack(fresh, coverChanged))
+    // Replacing the source keeps playWhenReady; restoring it here would overwrite a pause request.
+    if (resumePosition != null) seekTo(index, resumePosition)
 }

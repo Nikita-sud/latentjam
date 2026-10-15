@@ -27,12 +27,15 @@ validation; this document describes the candidate, not an already published rele
   failure, no reduction needed, or the actual reduction in dB. Normalization still attenuates loud
   tracks; it does not amplify quiet recordings.
 - Cancelling an Android cover-color read no longer crashes the app with `InterruptedIOException`.
-- Android preserves playlist, favorite and listening-history references when a previously indexed
-  file moves to a new MediaStore ID and has an unambiguous MusicBrainz release-track ID. Matching
-  also checks volume, format and duration; duplicates, incomplete reads and recording-only tags
-  do not trigger automatic merges. Playback and playlist exports use the file's current address.
-  Identity metadata is learned in the background; this cannot reconstruct associations already
-  lost before that evidence was saved. Libraries without these tags retain their existing behavior.
+- Android can preserve playlist, favorite and listening-history references after a file moves to
+  a new MediaStore ID, provided its identity metadata was saved before the move and its
+  MusicBrainz release-track ID matches unambiguously. Let the app finish reading the original
+  files in the background before moving them. Matching also requires the same available volume
+  and format, compatible duration and complete reads; duplicates and recording-only tags do not
+  trigger automatic merges. Playback and playlist exports use the file's current address; the
+  playing or paused track keeps its position when that address changes.
+  This does not restore associations already lost before that evidence was saved, or provide
+  general AcoustID recognition. Libraries without these tags retain their existing behavior.
 
 ## Deliberate scope
 
@@ -43,7 +46,11 @@ verification on Honor; declaring supported intents cannot guarantee that list's 
 
 ## Validation
 
-Validation results are recorded in `release-0.9.1-validation.md` after the candidate is built.
+The [adversarial review](release-0.9.1-adversarial-review.md) records corrected defects and the
+remaining limits of the original reports. The [issue #17 validation](issue-17-track-identity-validation.md)
+records the conservative relocation checks, tested source revision and matching APK hashes.
+The [earlier validation record](release-0.9.1-validation.md) covers previous candidates; its
+device observations do not certify every subsequent APK. Each report identifies its tested revision.
 Required checks include host tests, translation parity, iOS source compilation, an Android release
 build and its DEX-register gate, plus emulator playback/open-file and notification checks.
 

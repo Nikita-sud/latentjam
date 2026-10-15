@@ -816,11 +816,13 @@ internal class AndroidPlaybackController(
         pushState()
     }
 
-    override suspend fun refreshTracks(tracks: List<TrackDescriptor>): Unit = withContext(Dispatchers.Main) {
+    override suspend fun refreshTracks(tracks: List<TrackDescriptor>): Unit = withContext(Dispatchers.Main.immediate) {
         if (tracks.isEmpty()) return@withContext
         val updates = tracks.associateBy { it.id }
-        // Before the swap: which cover each track had decides whether its item's cover changes.
-        val previousArtworkUris = updates.keys.associateWith { trackById(it.value)?.artworkUri }
+        // Capture before swapping or yielding: publishing a fresh library can schedule an update
+        // of smartById too. The queue's old URI is needed if MediaController hides its source.
+        val previousTracks = updates.keys.associateWith { trackById(it.value) }
+        val previousArtworkUris = previousTracks.mapValues { it.value?.artworkUri }
         refreshedTracks(pool, updates)?.let { pool = it }
         refreshedTracks(smartLibrary, updates)?.let { smartLibrary = it }
         poolById = poolById.mapValues { (id, track) -> updates[TrackId(id)] ?: track }
@@ -833,7 +835,8 @@ internal class AndroidPlaybackController(
             val queueIds = List(player.mediaItemCount) { player.getMediaItemAt(it).mediaId }
             for ((index, coverChanged) in refreshedItems(queueIds, previousArtworkUris, updates)) {
                 val item = player.getMediaItemAt(index)
-                player.replaceMediaItem(index, item.withRefreshedTrack(updates.getValue(TrackId(item.mediaId)), coverChanged))
+                val id = TrackId(item.mediaId)
+                player.refreshTrackAt(index, updates.getValue(id), coverChanged, previousTracks[id]?.audioUri)
             }
         }
         rebuildQueueSnapshot()

@@ -1,4 +1,6 @@
-M3U imports keep the file name when the playlist has no title.
-Missing system artwork falls back to the picture embedded in the song.
-Open local audio from a file manager; LatentJam plays the matching song in your library.
-Choose Favorite instead of Repeat in Android media controls; SMART stays available. Enable it in Settings → Appearance.
+M3U imports keep the filename when no title is set.
+Embedded artwork backs up missing system covers.
+Open local audio from a file manager.
+Optional Favorite action in Android media controls.
+More consistent EQ and bass boost.
+Android keeps playlists, favorites and history after file moves only when a unique MusicBrainz release-track ID was saved beforehand and matching checks pass. Ambiguous files are not merged; previously lost links are not restored.
