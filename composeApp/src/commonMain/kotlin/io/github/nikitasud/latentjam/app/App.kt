@@ -326,6 +326,16 @@ private fun AppShell(
                     permissionStatus = AppGraph.permissions.audioLibraryStatus.value,
                 ),
             )
+            // A recovered app ID may now point at a different MediaStore row. Only relocated
+            // queued tracks need a media-source replacement; an ordinary scan leaves playback alone.
+            if (library.preservesRelocatedTrackIds) {
+                val queued = playback.state.value
+                val queuedUris = (queued.queue + queued.sourceQueue).associate { it.id to it.audioUri }
+                val relocated = playable.filter { fresh ->
+                    !fresh.audioUri.isNullOrBlank() && queuedUris[fresh.id]?.let { it != fresh.audioUri } == true
+                }
+                if (relocated.isNotEmpty()) playback.refreshTracks(relocated)
+            }
             return playable
         }
         // Rescans when the files under repair differ from those the library was filtered with. Keyed
@@ -348,6 +358,11 @@ private fun AppShell(
         // check keeps a superseding scan from being overwritten with an older list.
         // Counts the enrichment's republishes, which an open page follows (see refreshOpenCollection).
         var enrichedLibraryRevision by remember { mutableLongStateOf(0L) }
+        LaunchedEffect(libraryIndexingRequest) {
+            if (libraryIndexingRequest?.librarySnapshotAuthoritative == true) {
+                library.rememberTrackIdentities()
+            }
+        }
         LaunchedEffect(libraryIndexingRequest) {
             val request = libraryIndexingRequest ?: return@LaunchedEffect
             if (request.tracks.isEmpty()) return@LaunchedEffect

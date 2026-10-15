@@ -156,6 +156,19 @@ internal object Mp4TagCodec : TagCodec {
     private fun freeformName(item: Mp4Box): String? =
         item.child("name")?.payload?.takeIf { it.size >= 4 }?.let { it.decodeToString(4, it.size) }
 
+    /** Read-only evidence; never changes the codec's writable fields or verification snapshot. */
+    internal fun identityComments(source: RandomAccessSource): List<Pair<String, String>>? {
+        val parsed = parse(source) as? Parsed.Ok ?: return null
+        return findTags(parsed.layout.moov)?.ilst?.children.orEmpty().flatMap { item ->
+            val mean = item.child("mean")?.payload?.takeIf { it.size >= 4 }
+                ?.let { it.decodeToString(4, it.size) }
+            if (item.type != "----" || mean != ITUNES_MEAN) return@flatMap emptyList()
+            val name = freeformName(item) ?: return@flatMap emptyList()
+            dataBoxes(item).filter { code(it) == TEXT }.mapNotNull(::value)
+                .map { name to it.decodeToString() }
+        }
+    }
+
     private fun isArtists(item: Mp4Box): Boolean = item.type == "----" && freeformName(item)?.equals(ARTISTS, ignoreCase = true) == true
 
     /**

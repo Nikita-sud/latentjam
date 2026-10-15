@@ -833,7 +833,7 @@ internal class AndroidPlaybackController(
             val queueIds = List(player.mediaItemCount) { player.getMediaItemAt(it).mediaId }
             for ((index, coverChanged) in refreshedItems(queueIds, previousArtworkUris, updates)) {
                 val item = player.getMediaItemAt(index)
-                player.replaceMediaItem(index, item.withTagsOf(updates.getValue(TrackId(item.mediaId)), coverChanged))
+                player.replaceMediaItem(index, item.withRefreshedTrack(updates.getValue(TrackId(item.mediaId)), coverChanged))
             }
         }
         rebuildQueueSnapshot()
@@ -1676,25 +1676,6 @@ internal class AndroidPlaybackController(
                 .build(),
         )
         .build()
-
-    /**
-     * This item with [fresh]'s tags. Id and URI stay, so Media3 updates the item in place without
-     * re-preparing it. A generated fallback cover the item carries as data (see
-     * [publishFallbackArtwork]) stays until [fresh] brings a real cover, which replaces it. With
-     * the same cover as before ([coverChanged] false) the item's artwork is not touched at all,
-     * so a title-only edit does not drop a generated cover for an unreadable album-art URI.
-     */
-    private fun MediaItem.withTagsOf(fresh: TrackDescriptor, coverChanged: Boolean): MediaItem {
-        val metadata = mediaMetadata.buildUpon()
-            .setTitle(fresh.title)
-            .setArtist(fresh.artist)
-            .setAlbumTitle(fresh.album)
-        if (coverChanged) {
-            metadata.setArtworkUri(fresh.artworkUri?.let(Uri::parse))
-            if (fresh.artworkUri != null) metadata.setArtworkData(null, null)
-        }
-        return buildUpon().setMediaMetadata(metadata.build()).build()
-    }
 
     private fun MediaItem.toProvisionalTrack(): TrackDescriptor? {
         val metadata = mediaMetadata

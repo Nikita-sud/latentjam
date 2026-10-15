@@ -27,6 +27,12 @@ validation; this document describes the candidate, not an already published rele
   failure, no reduction needed, or the actual reduction in dB. Normalization still attenuates loud
   tracks; it does not amplify quiet recordings.
 - Cancelling an Android cover-color read no longer crashes the app with `InterruptedIOException`.
+- Android preserves playlist, favorite and listening-history references when a previously indexed
+  file moves to a new MediaStore ID and has an unambiguous MusicBrainz release-track ID. Matching
+  also checks volume, format and duration; duplicates, incomplete reads and recording-only tags
+  do not trigger automatic merges. Playback and playlist exports use the file's current address.
+  Identity metadata is learned in the background; this cannot reconstruct associations already
+  lost before that evidence was saved. Libraries without these tags retain their existing behavior.
 
 ## Deliberate scope
 

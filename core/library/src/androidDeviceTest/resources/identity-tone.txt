@@ -1,0 +1,5 @@
+identity-tone.mp3 is a synthetic three-second 440 Hz tone generated for this test.
+No recording or music was sampled. The MBIDs are test values, not fetched from a service.
+
+Generate with FFmpeg:
+ffmpeg -f lavfi -i sine=frequency=440:duration=3 -ac 1 -ar 44100 -codec:a libmp3lame -b:a 32k -id3v2_version 3 -metadata title="Identity fixture" -metadata artist="Old artist" -metadata album="Identity tests" -metadata "MusicBrainz Release Track Id=9abf58c1-274d-4d84-bbc3-70385f9b321d" -metadata "MusicBrainz Track Id=91e3dc54-5919-4fbc-9b48-e3740b2f1bb8" identity-tone.mp3

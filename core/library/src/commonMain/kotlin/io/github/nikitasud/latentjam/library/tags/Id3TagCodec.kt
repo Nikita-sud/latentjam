@@ -23,6 +23,14 @@ internal object Id3TagCodec : TagCodec {
     override fun recognizes(head: ByteArray): Boolean =
         Id3Codec.looksLikeTag(head) || Id3Tags.canPrependTag(head)
 
+    internal fun identityComments(source: RandomAccessSource): List<Pair<String, String>>? {
+        val head = head(source) ?: return null
+        if (refusal(head) != null) return null
+        if (head.tagLength == 0) return emptyList()
+        return Id3Tags.userTexts(head.prefix) +
+            Id3Tags.musicBrainzRecordingIds(head.prefix).map { "MUSICBRAINZ_TRACKID" to it }
+    }
+
     private fun head(source: RandomAccessSource): Head? {
         val header = source.read(0, minOf(source.length, Id3Tags.HEADER_SIZE.toLong()).toInt()) ?: return null
         val tagLength = Id3Tags.tagLength(header) ?: return Head(header, -1)

@@ -863,6 +863,17 @@ public object Id3Tags {
         return result
     }
 
+    /** Picard stores the recording MBID in UFID, whose owner is an exact namespace. */
+    internal fun musicBrainzRecordingIds(prefix: ByteArray): List<String> {
+        val tag = (Id3Codec.parse(prefix) as? Id3Parse.Parsed)?.tag ?: return emptyList()
+        return tag.frames.filter { it.id == "UFID" }.mapNotNull { frame ->
+            val body = frameTextBody(frame, tag.version) ?: return@mapNotNull null
+            val separator = body.indexOf(0)
+            if (separator < 0 || body.decodeToString(0, separator) != "http://musicbrainz.org") return@mapNotNull null
+            body.decodeToString(separator + 1, body.size).trimEnd('\u0000')
+        }
+    }
+
     /** The original-release year frame's text, honouring the version's frame id. */
     internal fun originalYearText(prefix: ByteArray): String? {
         val tag = (Id3Codec.parse(prefix) as? Id3Parse.Parsed)?.tag ?: return null

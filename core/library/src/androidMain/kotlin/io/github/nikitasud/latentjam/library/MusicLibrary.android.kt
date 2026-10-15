@@ -16,11 +16,14 @@ import io.github.nikitasud.latentjam.library.tags.CoverPicture
 import io.github.nikitasud.latentjam.library.tags.RandomAccessSource
 import io.github.nikitasud.latentjam.library.tags.TagCodecs
 import io.github.nikitasud.latentjam.library.tags.TextRepair
+import io.github.nikitasud.latentjam.library.tags.readTrackIdentityTags
 import io.github.nikitasud.latentjam.smart.MediaStoreArtwork
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -51,6 +54,30 @@ internal class MediaStoreMusicLibrary(
 ) : MusicLibrary {
 
     private val visibilityMutex = Mutex()
+    private val scanLock = Any()
+    override val preservesRelocatedTrackIds: Boolean get() = true
+    private val identityFile = java.io.File(context.filesDir, "track-identities-v1.txt")
+    private val identities = AndroidTrackIdentities(
+        read = { if (identityFile.exists()) identityFile.readText() else null },
+        write = { identityFile.atomicReplaceText(it) },
+        readTags = { track ->
+            val uri = track.audioUri?.let(Uri::parse)
+            uri?.let { context.contentResolver.openFileDescriptor(it, "r") }?.use {
+                readTrackIdentityTags(ChannelSource(FileInputStream(it.fileDescriptor).channel))
+            }
+        },
+    )
+
+    override suspend fun rememberTrackIdentities(): Unit = withContext(Dispatchers.IO) {
+        val job = currentCoroutineContext()
+        try {
+            identities.remember { job.ensureActive() }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: java.io.IOException) {
+            // Keep the last durable registry. A later background pass retries.
+        }
+    }
 
     /**
      * Whether MediaStore has an album-artist column. It is public from API 30, but the scanner filled
@@ -189,7 +216,8 @@ internal class MediaStoreMusicLibrary(
             // MediaStore answers for mounted volumes only. A card that is out keeps its rows, and
             // its songs come back under the same ids when it returns: nothing is certain until then.
             if (storageMayBeMissing(recentVolumeStates())) return@withContext emptySet()
-            val present = audioRowIds() ?: return@withContext emptySet()
+            val present = audioRowIds()?.mapTo(HashSet()) { identities.logicalId(it.value) }
+                ?: return@withContext emptySet()
             provablyMissing(ids, present) { true }
         }
 
@@ -235,7 +263,30 @@ internal class MediaStoreMusicLibrary(
         listOf(null)
     }
 
-    private fun queryTracks(): LibraryScan = mediaStoreLibraryScan {
+    private suspend fun queryTracks(): LibraryScan {
+        val job = currentCoroutineContext()
+        return synchronized(scanLock) {
+            mediaStoreLibraryScan {
+                val tracks = queryRawTracks() ?: return@mediaStoreLibraryScan null
+                val resolved = try {
+                    val probe = identities.needsRelocationProbe(tracks)
+                    identities.resolve(
+                        tracks,
+                        allAudioIds = if (probe) audioRowIds()?.mapTo(HashSet(), TrackId::value) else null,
+                        storageAvailable = probe && !storageMayBeMissing(recentVolumeStates()),
+                        cancellationCheck = { job.ensureActive() },
+                    )
+                } catch (_: java.io.IOException) {
+                    // A registry that could not be read or committed is not an authoritative scan.
+                    return@mediaStoreLibraryScan null
+                }
+                // Only a complete scan may tell the cover overrides which songs are gone.
+                coverOverrides.apply(withAlbumArtVersions(resolved))
+            }
+        }
+    }
+
+    private fun queryRawTracks(): List<TrackDescriptor>? {
         val tracks = mutableListOf<TrackDescriptor>()
         // GENRE joined into the audio table only since API 30.
         val genreSupported = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R
@@ -271,7 +322,7 @@ internal class MediaStoreMusicLibrary(
             "${MediaStore.Audio.Media.IS_MUSIC} != 0",
             null,
             "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC",
-        ) ?: return@mediaStoreLibraryScan null
+        ) ?: return null
         cursor.use { cursor ->
             val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
             val titleColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
@@ -355,9 +406,7 @@ internal class MediaStoreMusicLibrary(
                 )
             }
         }
-        // Only a complete scan reaches here: an incomplete one returned or threw above, and must
-        // not read as "these songs are gone" to the overrides.
-        coverOverrides.apply(withAlbumArtVersions(tracks))
+        return tracks
     }
 
     override val recordsCovers: Boolean get() = true
@@ -387,14 +436,14 @@ internal class MediaStoreMusicLibrary(
             val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
             val albumColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
             buildList(cursor.count) {
-                while (cursor.moveToNext()) add(TrackId(cursor.getLong(idColumn).toString()) to cursor.getLong(albumColumn))
+                while (cursor.moveToNext()) add(identities.logicalId(cursor.getLong(idColumn).toString()) to cursor.getLong(albumColumn))
             }
         }
     }.getOrNull().orEmpty()
 
     /** The picture song [id]'s own file holds, for pinning it; null when none or unreadable. */
     private fun readOwnCover(id: TrackId): CoverPicture? = try {
-        val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id.value.toLong())
+        val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, identities.sourceId(id).toLong())
         context.contentResolver.openFileDescriptor(uri, "r")?.use {
             // Not closed: closing a stream over this descriptor closes the descriptor itself.
             TagCodecs.readCover(ChannelSource(FileInputStream(it.fileDescriptor).channel))
@@ -467,7 +516,7 @@ internal class MediaStoreMusicLibrary(
     override suspend fun filePaths(ids: List<TrackId>): Map<TrackId, String> =
         withContext(Dispatchers.IO) {
             if (ids.isEmpty()) return@withContext emptyMap()
-            val wanted = ids.mapTo(HashSet(), TrackId::value)
+            val wanted = ids.toHashSet()
             val paths = LinkedHashMap<TrackId, String>(ids.size)
             runCatching {
                 context.contentResolver.query(
@@ -486,11 +535,11 @@ internal class MediaStoreMusicLibrary(
                     )
                     if (dataColumn < 0) return@use
                     while (cursor.moveToNext()) {
-                        val id = cursor.getLong(idColumn).toString()
+                        val id = identities.logicalId(cursor.getLong(idColumn).toString())
                         if (id !in wanted) continue
                         cursor.getString(dataColumn)
                             ?.takeIf { it.isNotBlank() }
-                            ?.let { paths[TrackId(id)] = it }
+                            ?.let { paths[id] = it }
                     }
                 }
             }

@@ -49,6 +49,11 @@ internal object OggTagCodec : TagCodec {
     /** The decoded comment packet: the block, and what follows it. */
     private class Comment(val block: VorbisComments, val tail: ByteArray, val tailIsPadding: Boolean)
 
+    internal fun identityComments(source: RandomAccessSource): List<Pair<String, String>>? {
+        val layout = (parse(source) as? Parsed.Ok)?.layout ?: return null
+        return comment(layout)?.block?.entries?.map { it.key to it.value }
+    }
+
     /**
      * The complete packets of the header pages read so far, accumulated one page at a time.
      *

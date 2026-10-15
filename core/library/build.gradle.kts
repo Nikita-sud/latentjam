@@ -33,6 +33,7 @@ kotlin {
             api(libs.koin.core)
         }
         getByName("androidDeviceTest").dependencies {
+            implementation(project(":core:history"))
             implementation(libs.androidx.annotation)
             implementation(libs.androidx.test.core)
             implementation(libs.androidx.test.runner)

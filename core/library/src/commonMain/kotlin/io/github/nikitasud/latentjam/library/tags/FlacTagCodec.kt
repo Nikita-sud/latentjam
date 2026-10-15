@@ -44,6 +44,31 @@ internal object FlacTagCodec : TagCodec {
     override fun recognizes(head: ByteArray): Boolean =
         head.size >= 4 && MAGIC.indices.all { head[it] == MAGIC[it] }
 
+    /** Strict comment boundaries, skipping picture bodies instead of allocating them. */
+    internal fun identityComments(source: RandomAccessSource): List<Pair<String, String>>? {
+        var position = 4L
+        var comments: List<Pair<String, String>>? = null
+        repeat(MAX_BLOCKS) { index ->
+            val header = source.read(position, 4) ?: return null
+            val type = header[0].toInt() and 127
+            val length = ((header[1].toInt() and 255) shl 16) or
+                ((header[2].toInt() and 255) shl 8) or (header[3].toInt() and 255)
+            if (type == INVALID || length > source.length - position - 4 ||
+                (index == 0 && (type != STREAMINFO || length != STREAMINFO_LENGTH)) ||
+                (index != 0 && type == STREAMINFO)) return null
+            if (type == VORBIS_COMMENT) {
+                if (comments != null) return null
+                val bytes = source.read(position + 4, length) ?: return null
+                val (block, end) = VorbisComments.decode(bytes, 0) ?: return null
+                if (end != bytes.size) return null
+                comments = block.entries.map { it.key to it.value }
+            }
+            position += 4L + length
+            if (header[0].toInt() and 128 != 0) return comments.orEmpty()
+        }
+        return null
+    }
+
     private fun parse(source: RandomAccessSource): Parsed {
         val magic = source.read(0, 4) ?: return Parsed.Bad(TagRefusal.TRUNCATED)
         if (!recognizes(magic)) return Parsed.Bad(TagRefusal.UNSUPPORTED_FORMAT)

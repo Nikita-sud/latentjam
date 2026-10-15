@@ -98,6 +98,12 @@ public interface MusicLibrary {
      */
     public suspend fun missingTrackIds(ids: Collection<TrackId>): Set<TrackId> = emptySet()
 
+    /** Learns relocation evidence in the background; never changes a published track's ID. */
+    public suspend fun rememberTrackIdentities(): Unit = Unit
+
+    /** This source can retain an app ID while recovering a moved file under a new playback URI. */
+    public val preservesRelocatedTrackIds: Boolean get() = false
+
     /**
      * Absolute file paths for [ids], for open-format export (M3U). Best-effort by contract:
      * platforms without stable user-visible file paths return an empty map and callers fall
