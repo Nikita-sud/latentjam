@@ -1,4 +1,4 @@
-M3U imports keep the filename when no title is set.
+M3U imports read non-UTF-8 files and keep the filename when no title is set.
 Embedded artwork backs up missing system covers.
 Open local audio from a file manager.
 Optional Favorite action in Android media controls.

@@ -8,7 +8,11 @@ validation; this document describes the candidate, not an already published rele
 
 - M3U imports keep the selected file's name when the playlist has no nonblank `#PLAYLIST:` title.
   Only `.m3u` and `.m3u8` suffixes are removed. This works on Android and iOS; missing filename
-  metadata does not prevent importing readable contents.
+  metadata does not prevent importing readable contents. Files that are not UTF-8 are read too:
+  UTF-16 by its byte order mark, otherwise Windows-1252 (as Windows tools write `.m3u`), so
+  accented paths are no longer silently missed; ANSI percent escapes such as `%E9` match as well.
+- An open Favorites page sorted by anything other than date added is no longer rebuilt each time
+  a play count changes.
 - Android artwork loading falls back to a track's embedded picture when the system artwork
   source cannot provide a usable cover. Explicit artwork edits and removals remain authoritative.
 - Android can receive local audio opening requests and play the matching visible library track.
@@ -36,6 +40,8 @@ validation; this document describes the candidate, not an already published rele
   playing or paused track keeps its position when that address changes.
   This does not restore associations already lost before that evidence was saved, or provide
   general AcoustID recognition. Libraries without these tags retain their existing behavior.
+  Move files rather than copy them and delete the originals later: a copy that the app scans
+  while the original still exists receives its own identity and is not merged afterwards.
 
 ## Deliberate scope
 
@@ -45,6 +51,10 @@ notification are not part of this patch. A firmware-specific default-music-app l
 verification on Honor; declaring supported intents cannot guarantee that list's behaviour.
 
 ## Validation
+
+The [final review](release-0.9.1-final-review.md) records the last three fixes (including a release
+build that failed to store Gradle's configuration cache), the APKs built from that revision and
+their checks.
 
 The [final Android smoke check](release-0.9.1-final-smoke.md) records the later playback-position
 fix, its regression tests and the final APK verification.
