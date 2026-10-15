@@ -46,6 +46,9 @@ verification on Honor; declaring supported intents cannot guarantee that list's 
 
 ## Validation
 
+The [final Android smoke check](release-0.9.1-final-smoke.md) records the later playback-position
+fix, its regression tests and the final APK verification.
+
 The [adversarial review](release-0.9.1-adversarial-review.md) records corrected defects and the
 remaining limits of the original reports. The [issue #17 validation](issue-17-track-identity-validation.md)
 records the conservative relocation checks, tested source revision and matching APK hashes.
