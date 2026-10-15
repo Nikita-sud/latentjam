@@ -388,6 +388,21 @@ class MapTabTest {
     }
 
     @Test
+    fun `region accessibility actions stay within the platform limit of 32`() {
+        // Android's Compose bridge throws above 32 custom actions per node, crashing the app for
+        // any accessibility service; real 10,000-track libraries produce about 96 regions.
+        val base = page(emptyList())
+        val actions = regionAccessibilityActions(base.copy(
+            regionNames = List(96) { "Region $it" },
+            listening = base.listening.copy(regions = List(96) { region(it) }),
+        )) {}
+
+        assertEquals(MAX_REGION_ACCESSIBILITY_ACTIONS, actions.size)
+        assertEquals(32, MAX_REGION_ACCESSIBILITY_ACTIONS)
+        assertEquals("Region 0", actions.first().label)
+    }
+
+    @Test
     fun `largestRegionCentroids ignores a straggler that would drag a mean off the region`() {
         // Three members sit at the origin and one is far away: the mean lands at 0.25 and would
         // label empty space, while the median stays on the bulk of the region.

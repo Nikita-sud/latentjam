@@ -1085,12 +1085,20 @@ private fun median(values: List<Float>): Float {
  * Kept outside the composable so the action callbacks themselves can be regression-tested; invoking
  * one must update the same selected-region state a pointer tap updates.
  */
+/**
+ * Compose on Android throws while building the accessibility tree when one node has more than
+ * 32 custom actions, and that crashes the app for TalkBack and any other accessibility service.
+ * A 1,107-track library already has 35 regions and 10,000 tracks give about 96, so only the first
+ * regions in listening order get actions; every region stays reachable from the region selector.
+ */
+internal const val MAX_REGION_ACCESSIBILITY_ACTIONS: Int = 32
+
 internal fun regionAccessibilityActions(
     page: MapPage,
     onSelect: (Int) -> Unit,
 ): List<CustomAccessibilityAction> {
     val seen = mutableSetOf<Int>()
-    return page.listening.regions.mapNotNull { regionListening ->
+    return page.listening.regions.asSequence().mapNotNull { regionListening ->
         val region = regionListening.region
         val name = page.regionNames.getOrNull(region)?.takeIf(String::isNotBlank)
         if (name == null || !seen.add(region)) {
@@ -1101,7 +1109,7 @@ internal fun regionAccessibilityActions(
                 true
             }
         }
-    }
+    }.take(MAX_REGION_ACCESSIBILITY_ACTIONS).toList()
 }
 
 /**
