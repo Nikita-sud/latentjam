@@ -45,9 +45,8 @@ around not moving. The cost side would have passed.
 at a time, works on its own. Subspace-iteration PCA can be streamed *exactly*: the streamed
 reduction is **bit-identical** to today's, so the map does not change at all. Feeding today's
 Barnes–Hut from it at 10,000 tracks took the same time (83.5 s against 82.1 s) and peaked at
-**31 MB of Java heap instead of 84 MB**, because the 54 MB fused matrix is never held. Wiring it
-into the app needs an engine API that reads fused rows on demand (see [below](#follow-up-streamed-pca-in-the-app)).
-That API is not part of this branch.
+**31 MB of Java heap instead of 84 MB**, because the 54 MB fused matrix is never held. It is now
+wired into the app on `feat/map-streamed-pca` (see [below](#follow-up-streamed-pca-in-the-app-done-branch-featmap-streamed-pca)).
 
 ## What was built
 
@@ -216,23 +215,50 @@ The longest gap between two polls in an uncancelled run: 93 ms (streamed BH, 10,
   back. Old tracks moved 0.045–0.20 of the map width (median) where today's warm start moves them
   0.03–0.07.
 
-## Follow-up: streamed PCA in the app
+## Follow-up: streamed PCA in the app (done, branch `feat/map-streamed-pca`)
 
-Not done here, because it changes the engine API. It is the change worth making:
+The app's Map layout now uses the streamed reduction. The 54 MB fused matrix is no longer built
+for the layout.
 
-- It needs a row source that produces exactly the fused, normalized row
-  `LibraryVectorFusion.buildSelected` would write, from `VectorIndex.vector(id)`. The reduction
-  makes six passes: mean, four subspace iterations, projection. Either hold the engine lock per
-  pass, or read without it and check `fingerprint` afterwards, discarding the result on a
-  mismatch. Holding it for the whole ~9 s at 10,000 would block SMART.
-- Region discovery still takes its own fused space (`takeRowsForRegions` reweights it). That is
-  a separate 54 MB at 10,000 and is unaffected.
-- `MapMemoryBudget.projectionBytes` would drop its `4·n·dim` input term for the streamed path,
-  and the `AppMapPage` pre-allocation check with it.
-- The 192 MB `LJ-big36` case could fit: about 90 MB idle, plus a 31 MB peak, plus the 24 MB
-  reserve, is about 145 MB. That is an estimate, **not measured**. An in-app run on `LJ-big36`
-  was not attempted for this note, because the rejected candidate has no app wiring and the
-  streamed path needs the engine API first.
+- **Engine API.** `SimilarityEngine.libraryMixRows(ids)` returns `LibraryVectorRows`. These are
+  the rows `libraryMixVectors` would build, read on demand in chunks of 256 rows, one engine lock
+  per chunk, so SMART waits at most one chunk. Each row is written by the same code as
+  `LibraryVectorFusion.buildSelected` (`writeHybridRow` / `copyNormalized`) from
+  `VectorIndex.vector(id)`. After the last read, `isCurrent()` compares the coverage fingerprint
+  with the one the rows were planned against. If the index changed during the ~6 passes,
+  `LibraryLayout.compute(rows)` returns null and lays out nothing. The interface default serves
+  rows from a built space, which keeps other engines working but saves nothing.
+- **Layout.** `LibraryLayout.compute(rows, …)` is mean pass → `Pca.reduceStreamed` → the same
+  backend, warm start, alignment and normalization as `compute(space, …)`. For the same input it
+  returns the same `LayoutPoint`s exactly (`MapStreamedRowsTest`: 300 hybrid tracks across a
+  chunk boundary, including one audio-only and one metadata-only row, cold and warm-started; a
+  deliberately broken row writer fails it).
+- **Budget.** `MapMemoryBudget.projectionStreamedBytes` drops the `4·n·dim` input and adds one
+  chunk buffer. At 10,000 × 1,344 that is **41,288,960 B (39.4 MiB)** against 93,672,704 B
+  (89.3 MiB) held. `AppMapPage`'s pre-allocation check and `compute`'s own check both use it.
+- **Unchanged.** Region discovery still builds its own fused space (`libraryMixFeatures` →
+  `takeRowsForRegions`). For You's Sonic Journey still copies the matrix.
+
+### Measured in the app on `LJ-big36` (192 MB heap, 10,000 tracks)
+
+`LJ-big36` was booted `-read-only` (emulator-5570, `ANDROID_SERIAL` pinned) and its 0.6.0 install
+was updated in place with this branch's arm64 release APK. All 10,000 tracks were then
+fingerprinted, about 70 min at ~2.3/s. This is the state in which the 0.9.1 build showed *"Not
+enough free memory to calculate the map"* ([10k note](map-scaling-10k-2026-10-15.md), step 4).
+`dumpsys meminfo` Dalvik *Heap Alloc* was sampled several times a second; it includes garbage
+not yet collected.
+
+| Phase (Map tab opened at 09:05:38) | Dalvik heap allocated |
+| --- | --- |
+| idle, all fingerprints done, before opening | ~101 MB |
+| region discovery (own fused space), first ~4 s | ~155 MB plateau |
+| **streamed layout**, ~61 s | **108–112 MB steady, 125.5 MB highest sample** |
+| after the Map drew | ~103 MB |
+
+**The fused 10,000-track Map drew**: *"8971 of 10000 tracks across 17 regions"*, 71 s after the
+tab opened, without a memory refusal. The layout itself held about 11 MB above the idle app. The
+visit's peak belongs to region discovery, which this change does not touch. It is now the larger
+of the two Map allocations on a 192 MB heap.
 
 ## Reproduce
 
