@@ -88,7 +88,7 @@ import org.jetbrains.compose.resources.stringResource
 
 internal enum class ArtworkLoadState { LOADING, TERMINAL }
 
-/** Square, rounded artwork with a music-note placeholder behind it. */
+/** Square, rounded artwork with a music-note placeholder until a cover loads. */
 @Composable
 internal fun Artwork(
     uri: String?,
@@ -104,11 +104,17 @@ internal fun Artwork(
             .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            imageVector = Icons.Rounded.MusicNote,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        // The note is only the fallback. A vector icon draws through its own offscreen bitmap, so
+        // keeping it under a loaded cover cost every scrolled row an extra texture nobody sees:
+        // about 1 ms of each frame's render thread on a Galaxy S24 Ultra (#18).
+        var covered by remember(uri) { mutableStateOf(false) }
+        if (!covered) {
+            Icon(
+                imageVector = Icons.Rounded.MusicNote,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         // Scrolling-list artwork stays direct: animating the URI can fade to an AsyncImage that is
         // still loading, producing a blank frame followed by a bitmap pop. Player handoffs retain
         // their old composed content and animate at the player level instead.
@@ -123,11 +129,13 @@ internal fun Artwork(
                     onLoadStateChanged?.invoke(requestUri, ArtworkLoadState.LOADING)
                 },
                 onSuccess = {
+                    covered = true
                     onLoadStateChanged?.invoke(requestUri, ArtworkLoadState.TERMINAL)
                 },
                 // A terminal error is ready to reveal too: the music-note fallback is the
                 // correct final state and must never keep a rail handoff waiting indefinitely.
                 onError = {
+                    covered = false
                     onLoadStateChanged?.invoke(requestUri, ArtworkLoadState.TERMINAL)
                 },
             )
