@@ -23,6 +23,10 @@ jobs:
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v5
       - uses: android-actions/setup-android@v3
+        # The default also installs the legacy "tools" package, which current runner
+        # images' cmdline-tools no longer offer; the SDK step below installs what we need.
+        with:
+          packages: platform-tools
       - name: Android SDK
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
       - name: Host tests, resources and Kotlin Native identifiers

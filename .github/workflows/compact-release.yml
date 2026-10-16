@@ -36,6 +36,10 @@ jobs:
         with:
           python-version: "3.11"
       - uses: android-actions/setup-android@v3
+        # The default also installs the legacy "tools" package, which current runner
+        # images' cmdline-tools no longer offer; the SDK step below installs what we need.
+        with:
+          packages: platform-tools
       - name: Install native build tools
         run: |
           sdkmanager "platforms;android-36" "build-tools;36.0.0" "platforms;android-34" "build-tools;30.0.3" "ndk;28.2.13676358" "cmake;3.22.1"
