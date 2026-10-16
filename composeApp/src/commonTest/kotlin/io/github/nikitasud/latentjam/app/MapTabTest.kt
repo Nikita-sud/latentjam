@@ -388,8 +388,8 @@ class MapTabTest {
     }
 
     @Test
-    fun `region accessibility actions stay within the platform limit of 32`() {
-        // Android's Compose bridge throws above 32 custom actions per node, crashing the app for
+    fun `region accessibility actions stay below the platform limit of 32`() {
+        // Android's Compose bridge throws once a node has 32 custom actions, crashing the app for
         // any accessibility service; real 10,000-track libraries produce about 96 regions.
         val base = page(emptyList())
         val actions = regionAccessibilityActions(base.copy(
@@ -398,7 +398,7 @@ class MapTabTest {
         )) {}
 
         assertEquals(MAX_REGION_ACCESSIBILITY_ACTIONS, actions.size)
-        assertEquals(32, MAX_REGION_ACCESSIBILITY_ACTIONS)
+        assertEquals(31, MAX_REGION_ACCESSIBILITY_ACTIONS)
         assertEquals("Region 0", actions.first().label)
     }
 

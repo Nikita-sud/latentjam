@@ -1086,12 +1086,13 @@ private fun median(values: List<Float>): Float {
  * one must update the same selected-region state a pointer tap updates.
  */
 /**
- * Compose on Android throws while building the accessibility tree when one node has more than
- * 32 custom actions, and that crashes the app for TalkBack and any other accessibility service.
- * A 1,107-track library already has 35 regions and 10,000 tracks give about 96, so only the first
- * regions in listening order get actions; every region stays reachable from the region selector.
+ * Compose on Android throws while building the accessibility tree once one node has 32 custom
+ * actions (`size >= 32`, despite its "more than 32" message), and that crashes the app for TalkBack
+ * and any other accessibility service. A 1,107-track library already has 35 regions and 10,000
+ * tracks give about 96, so only the first regions in listening order get actions; every region
+ * stays reachable from the region selector.
  */
-internal const val MAX_REGION_ACCESSIBILITY_ACTIONS: Int = 32
+internal const val MAX_REGION_ACCESSIBILITY_ACTIONS: Int = 31
 
 internal fun regionAccessibilityActions(
     page: MapPage,
