@@ -3,4 +3,5 @@ Embedded artwork backs up missing system covers.
 Open local audio from a file manager.
 Optional Favorite action in Android media controls.
 More consistent EQ and bass boost.
-Android keeps playlists, favorites and history after file moves only when a unique MusicBrainz release-track ID was saved beforehand and matching checks pass. Ambiguous files are not merged; previously lost links are not restored.
+Fixed a Map crash with screen readers.
+Android keeps playlists, favorites and history after file moves only when a unique MusicBrainz release-track ID was saved beforehand. Ambiguous files are not merged; previously lost links are not restored.

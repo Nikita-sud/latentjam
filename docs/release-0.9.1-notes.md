@@ -31,6 +31,10 @@ validation; this document describes the candidate, not an already published rele
   failure, no reduction needed, or the actual reduction in dB. Normalization still attenuates loud
   tracks; it does not amplify quiet recordings.
 - Cancelling an Android cover-color read no longer crashes the app with `InterruptedIOException`.
+- The Map no longer crashes the app when TalkBack or another accessibility service reads it.
+  Compose on Android throws above 32 custom accessibility actions per node, and the Map gave
+  one per region (35 on a 1,107-track library). The first 32 regions in listening order keep an
+  action; the region selector still reaches every region.
 - Android can preserve playlist, favorite and listening-history references after a file moves to
   a new MediaStore ID, provided its identity metadata was saved before the move and its
   MusicBrainz release-track ID matches unambiguously. Let the app finish reading the original
