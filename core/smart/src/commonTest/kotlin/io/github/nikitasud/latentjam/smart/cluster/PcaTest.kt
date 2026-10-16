@@ -71,6 +71,30 @@ class PcaTest {
         assertEquals(2, calls, "expected the loop to stop right after isActive first returned false")
     }
 
+    // A streamed reduction lets a large library skip holding its fused matrix; it is only safe if
+    // it is the same map, so the result must match bit for bit, not approximately.
+    @Test
+    fun `streamed reduction is bit identical to the held matrix`() {
+        val n = 300
+        val dim = 64
+        var state = 12345L
+        val rows = FloatArray(n * dim) {
+            state = state * 6364136223846793005L + 1442695040888963407L
+            ((state ushr 33).toInt() % 1000) / 1000f * if (it % 3 == 0) 0f else 1f
+        }
+        val held = LibraryLayout.reduceForEmbedding(rows.copyOf(), n, dim)
+        val streamed = SampledTsne.reduce(
+            source = { row, out -> rows.copyInto(out, 0, row * dim, (row + 1) * dim) },
+            n = n,
+            dim = dim,
+            sample = null,
+            components = LibraryLayout.COMPONENTS,
+            seed = 0x1A7E27,
+            isActive = { true },
+        )
+        assertTrue(held.contentEquals(streamed))
+    }
+
     private fun center(rows: FloatArray, n: Int, dim: Int) {
         for (d in 0 until dim) {
             var mean = 0f

@@ -277,7 +277,7 @@ class MapScaleReplay {
         return Fixture(List(n) { TrackId("scale-$it") }, rows, dim, labels)
     }
 
-    private class RealLibrary(
+    internal class RealLibrary(
         val ids: List<TrackId>,
         val audio: Map<TrackId, FloatArray>,
         val text: Map<TrackId, FloatArray>,
@@ -292,7 +292,7 @@ class MapScaleReplay {
         }
     }
 
-    private fun realLibrary(): RealLibrary? {
+    internal fun realLibrary(): RealLibrary? {
         val dir = System.getenv("MAP_DIAG_DIR") ?: return null
         val (audioDim, audio) = readNpy(File(dir, "smart_index_vecs.npy"))
         val (textDim, text) = readNpy(File(dir, "smart_text_vecs.npy"))
@@ -307,7 +307,7 @@ class MapScaleReplay {
         return RealLibrary((audioIds + textIds).distinct().map(::TrackId), audioMap, textMap, audioDim, textDim, playlists)
     }
 
-    private fun readNpy(file: File): Pair<Int, List<FloatArray>> {
+    internal fun readNpy(file: File): Pair<Int, List<FloatArray>> {
         val bytes = file.readBytes()
         val major = bytes[6].toInt()
         val headerStart = if (major == 1) 10 else 12

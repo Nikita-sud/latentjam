@@ -122,6 +122,19 @@ public object LibraryLayout {
             "Library has $n laid-out tracks, above MAX_TRACKS ($MAX_TRACKS); the caller must check " +
                 "this before calling compute() and show an honest state instead of hitting this"
         }
+        return computeWith(space, previous, isActive, workBudgetBytes, backendFor(n))
+    }
+
+    /** [compute] with an explicit backend, so replays can compare backends at any size. */
+    internal fun computeWith(
+        space: LibraryVectorSpace,
+        previous: Map<TrackId, FloatArray>,
+        isActive: () -> Boolean,
+        workBudgetBytes: Long,
+        backend: MapEmbeddingBackend,
+    ): List<LayoutPoint> {
+        val ids = space.trackIds
+        val n = space.size
         val dim = space.dim
         // The space already holds the input matrix, so the measured budget already reflects it.
         if (MapMemoryBudget.projectionWorkBytes(n, dim, experimentalBackend) > workBudgetBytes) {
@@ -134,7 +147,6 @@ public object LibraryLayout {
         val reducedDim = reduced.size / n
 
         val warm = warmStart(ids, previous, n)
-        val backend = backendFor(n)
         var embedded = when (val result = backend.embed(reduced, n, reducedDim, warm, isActive)) {
             is MapEmbeddingResult.Complete -> result.coordinates
             MapEmbeddingResult.Cancelled -> throw kotlinx.coroutines.CancellationException("Map cancelled")
@@ -144,6 +156,71 @@ public object LibraryLayout {
         if (warm != null) {
             embedded = alignToPrevious(ids, embedded, previous, n)
         }
+        return normalize(ids, embedded, n)
+    }
+
+    /**
+     * [compute] reading rows one at a time from [source] (streamed PCA, bit-identical reduction)
+     * instead of from a held matrix; prototype, see docs/map-sample-place-2026-10-16.md.
+     */
+    internal fun computeStreamed(
+        ids: List<TrackId>,
+        source: LayoutRowSource,
+        dim: Int,
+        previous: Map<TrackId, FloatArray> = emptyMap(),
+        isActive: () -> Boolean = { true },
+        onPhase: (String) -> Unit = {},
+    ): List<LayoutPoint> {
+        val n = ids.size
+        if (n < 3) return ids.map { id -> LayoutPoint(id, 0.5f, 0.5f) }
+        val reduced = SampledTsne.reduce(source, n, dim, null, COMPONENTS, SEED, isActive)
+            ?: throw kotlinx.coroutines.CancellationException("Map cancelled during PCA")
+        onPhase("reduced")
+        val warm = warmStart(ids, previous, n)
+        var embedded = when (val result = backendFor(n).embed(reduced, n, reduced.size / n, warm, isActive)) {
+            is MapEmbeddingResult.Complete -> result.coordinates
+            MapEmbeddingResult.Cancelled -> throw kotlinx.coroutines.CancellationException("Map cancelled")
+            is MapEmbeddingResult.Failed -> throw MapComputationUnavailable(result.reason)
+        }
+        if (warm != null) embedded = alignToPrevious(ids, embedded, previous, n)
+        return normalize(ids, embedded, n)
+    }
+
+    /**
+     * Prototype "sample and place" layout (docs/map-sample-place-2026-10-16.md): [compute]'s warm
+     * start, alignment and normalization around [SampledTsne], reading rows from [source] one at a
+     * time instead of from a held matrix.
+     */
+    internal fun computeSampled(
+        ids: List<TrackId>,
+        source: LayoutRowSource,
+        dim: Int,
+        previous: Map<TrackId, FloatArray> = emptyMap(),
+        isActive: () -> Boolean = { true },
+        sampleSize: Int = SampledTsne.SAMPLE_SIZE,
+        refineIterations: Int = SampledTsne.REFINE_ITERATIONS,
+        refineRate: Float = 1f,
+        neighbours: Int = SampledTsne.PLACE_NEIGHBORS,
+        onPhase: (String) -> Unit = {},
+        fullIterations: Int = 0,
+        sampleIterations: Int = Tsne.ITERATIONS,
+        samplePca: Boolean = false,
+    ): List<LayoutPoint> {
+        val n = ids.size
+        if (n < 3) return ids.map { id -> LayoutPoint(id, 0.5f, 0.5f) }
+        val sample = SampledTsne.sampleRows(ids, sampleSize)
+        val reduced = SampledTsne.reduce(source, n, dim, sample.takeIf { samplePca }, COMPONENTS, SEED, isActive)
+            ?: throw kotlinx.coroutines.CancellationException("Map cancelled during PCA")
+        onPhase("reduced")
+        val reducedDim = reduced.size / n
+        val warm = warmStart(ids, previous, n)
+        var embedded = SampledTsne.embed(
+            reduced, n, reducedDim, sample, SEED, warm, isActive, refineIterations, refineRate, neighbours, onPhase,
+            fullIterations, sampleIterations,
+        ) ?: throw kotlinx.coroutines.CancellationException("Map cancelled")
+        if (!isActive()) throw kotlinx.coroutines.CancellationException("Map cancelled")
+        if (!embedded.all(Float::isFinite)) throw MapComputationUnavailable("Non-finite coordinates")
+        if (warm != null) embedded = alignToPrevious(ids, embedded, previous, n)
         return normalize(ids, embedded, n)
     }
 

@@ -55,6 +55,9 @@ internal object BarnesHutTsne {
         seed: Int,
         initial: FloatArray? = null,
         isActive: () -> Boolean = { true },
+        iterations: Int = Tsne.ITERATIONS,
+        exaggerationIterations: Int = Tsne.EXAGGERATION_ITERATIONS,
+        scheduleOffset: Int = 0,
     ): FloatArray {
         require(n > 0 && dim > 0) { "Cannot embed an empty matrix" }
         require(rows.size == n * dim) {
@@ -72,9 +75,9 @@ internal object BarnesHutTsne {
         val repulsion = FloatArray(n * 2)
         val tree = QuadTree(n)
 
-        for (iteration in 0 until Tsne.ITERATIONS) {
+        for (iteration in 0 until iterations) {
             if (!isActive()) break
-            val scale = if (iteration < Tsne.EXAGGERATION_ITERATIONS) Tsne.EXAGGERATION else 1f
+            val scale = if (iteration < exaggerationIterations) Tsne.EXAGGERATION else 1f
             tree.build(y)
             var normalizer = 0.0
             for (i in 0 until n) normalizer += tree.repel(i, y, repulsion)
@@ -97,7 +100,7 @@ internal object BarnesHutTsne {
                 grad[i * 2] = 4f * (scale * ax - repulsion[i * 2] / sum)
                 grad[i * 2 + 1] = 4f * (scale * ay - repulsion[i * 2 + 1] / sum)
             }
-            Tsne.update(y, n, grad, gains, velocity, iteration)
+            Tsne.update(y, n, grad, gains, velocity, iteration + scheduleOffset)
         }
         return y
     }
@@ -380,9 +383,14 @@ internal object BarnesHutTsne {
          * Adds point [i]'s unnormalized repulsion, `sum_j w_ij^2 (y_i - y_j)`, into [out] and
          * returns its share of the normalizer, `sum_j w_ij`, with `w = 1 / (1 + d^2)`.
          */
-        fun repel(i: Int, y: FloatArray, out: FloatArray): Double {
-            val ix = y[i * 2]
-            val iy = y[i * 2 + 1]
+        fun repel(i: Int, y: FloatArray, out: FloatArray): Double =
+            repelAt(y[i * 2], y[i * 2 + 1], i, y, out, i)
+
+        /**
+         * [repel] for a point at ([ix], [iy]) that may not be in the tree: [skip] is the tree row to
+         * leave out (-1 for none), and the result goes to `out[slot * 2]`, `out[slot * 2 + 1]`.
+         */
+        fun repelAt(ix: Float, iy: Float, skip: Int, y: FloatArray, out: FloatArray, slot: Int): Double {
             var rx = 0f
             var ry = 0f
             var z = 0f
@@ -395,7 +403,7 @@ internal object BarnesHutTsne {
                 if (child[node] < 0) {
                     for (m in first[node] until last[node]) {
                         val j = order[m]
-                        if (j == i) continue
+                        if (j == skip) continue
                         val dx = ix - y[j * 2]
                         val dy = iy - y[j * 2 + 1]
                         val w = 1f / (1f + dx * dx + dy * dy)
@@ -420,8 +428,8 @@ internal object BarnesHutTsne {
                     for (q in 3 downTo 0) stack[top++] = children + q
                 }
             }
-            out[i * 2] = rx
-            out[i * 2 + 1] = ry
+            out[slot * 2] = rx
+            out[slot * 2 + 1] = ry
             return z.toDouble()
         }
 
