@@ -52,7 +52,7 @@ That API is not part of this branch.
 ## What was built
 
 All of it is `internal` prototype code in `core/smart`. No app path calls it, and existing outputs
-are unchanged: the 555 host tests pass, the iOS test sources compile, and the existing PCA and
+are unchanged: the 555 existing host tests pass, the iOS test sources compile, and the existing PCA and
 Barnes–Hut results are unchanged.
 
 - `SampledTsne` (new). It takes 3,000 tracks in `AverageLinkageClustering.stableKey` order, the
