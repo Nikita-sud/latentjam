@@ -59,6 +59,37 @@ private fun MacrobenchmarkScope.chooseTrackSort(name: String) {
     device.waitForIdle(WAIT_MS)
 }
 
+/** Eight bounded swipes down and eight up through the Tracks list, with inertia after each. */
+private fun MacrobenchmarkScope.scrollTrackList() {
+    val list = device.wait(Until.findObject(By.res("latentjam_track_list")), WAIT_MS)
+        ?: error("The target needs benchmark list tags")
+    // The LazyColumn draws behind the mini player/navigation bar. Start above both,
+    // otherwise a fling can hit the overlay even though the list has a large viewport.
+    val bounds = list.visibleBounds
+    val x = bounds.centerX()
+    val top = bounds.top + device.displayHeight / 12
+    val bottom = bounds.bottom - device.displayHeight / 4
+    check(bottom > top) { "Not enough unobstructed list space for the gesture" }
+    // UiObject2.fling waits 5 seconds for a scroll accessibility event on some Compose
+    // versions. Inject the same bounded physical swipe without that event dependency.
+    val steps = ((bottom - top) / 3_500f * 1_000 / 5).toInt().coerceAtLeast(5)
+    fun swipe(down: Boolean) {
+        check(device.swipe(x, if (down) bottom else top, x, if (down) top else bottom, steps))
+        SystemClock.sleep(700) // Let inertia draw frames before the next gesture.
+    }
+    fun firstVisibleRowText(): String = device.findObjects(By.res("latentjam_track_row"))
+        .firstOrNull()?.findObjects(By.clazz("android.widget.TextView"))
+        ?.joinToString("\n") { it.text.orEmpty() }.orEmpty()
+    val before = firstVisibleRowText()
+    require(before.isNotEmpty()) { "Fixture row semantics unavailable" }
+    swipe(down = true)
+    device.waitForIdle(WAIT_MS)
+    check(firstVisibleRowText() != before) { "The gesture did not move the track list" }
+    repeat(7) { swipe(down = true) }
+    repeat(8) { swipe(down = false) }
+    device.waitForIdle(WAIT_MS)
+}
+
 private fun traced(name: String, block: () -> Unit) {
     Trace.beginSection(name)
     try { block() } finally { Trace.endSection() }
@@ -117,35 +148,7 @@ class AppBenchmarks {
             chooseTrackSort("ARTIST"); chooseTrackSort("TITLE")
             device.waitForIdle(WAIT_MS)
         },
-    ) {
-        val list = device.wait(Until.findObject(By.res("latentjam_track_list")), WAIT_MS)
-            ?: error("The target needs benchmark list tags")
-        // The LazyColumn draws behind the mini player/navigation bar. Start above both,
-        // otherwise a fling can hit the overlay even though the list has a large viewport.
-        val bounds = list.visibleBounds
-        val x = bounds.centerX()
-        val top = bounds.top + device.displayHeight / 12
-        val bottom = bounds.bottom - device.displayHeight / 4
-        check(bottom > top) { "Not enough unobstructed list space for the gesture" }
-        // UiObject2.fling waits 5 seconds for a scroll accessibility event on some Compose
-        // versions. Inject the same bounded physical swipe without that event dependency.
-        val steps = ((bottom - top) / 3_500f * 1_000 / 5).toInt().coerceAtLeast(5)
-        fun swipe(down: Boolean) {
-            check(device.swipe(x, if (down) bottom else top, x, if (down) top else bottom, steps))
-            SystemClock.sleep(700) // Let inertia draw frames before the next gesture.
-        }
-        fun firstVisibleRowText(): String = device.findObjects(By.res("latentjam_track_row"))
-            .firstOrNull()?.findObjects(By.clazz("android.widget.TextView"))
-            ?.joinToString("\n") { it.text.orEmpty() }.orEmpty()
-        val before = firstVisibleRowText()
-        require(before.isNotEmpty()) { "Fixture row semantics unavailable" }
-        swipe(down = true)
-        device.waitForIdle(WAIT_MS)
-        check(firstVisibleRowText() != before) { "The gesture did not move the track list" }
-        repeat(7) { swipe(down = true) }
-        repeat(8) { swipe(down = false) }
-        device.waitForIdle(WAIT_MS)
-    }
+    ) { scrollTrackList() }
 
     /** Waits for the order actually displayed, not just the selected sort-menu label. */
     @Test fun changeTrackSort() = benchmark.measureRepeated(
@@ -258,6 +261,21 @@ class AppBaselineProfile {
         pressHome()
         startActivityAndWait()
         browsePlayerAndReturn()
+    }
+
+    /**
+     * Scrolling the long Tracks list (#18). Without these rules a sideloaded APK interprets the
+     * fling, prefetch, row and rail code until the phone's idle-time compilation runs, which on a
+     * slow CPU is the difference between a smooth and a stuttering list.
+     */
+    @Test fun scrollLongList() = profile.collect(
+        packageName = PACKAGE,
+        includeInStartupProfile = false,
+    ) {
+        pressHome()
+        startActivityAndWait()
+        firstList()
+        scrollTrackList()
     }
 }
 
