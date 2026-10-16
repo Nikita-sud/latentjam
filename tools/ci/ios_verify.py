@@ -4,9 +4,20 @@
 import json
 import platform
 import subprocess
+import time
 
 def run(*args):
     return subprocess.check_output(args, text=True)
+
+def fetch_gradle(attempts=3):
+    """The wrapper's one-shot download from services.gradle.org breaks on macOS runners now and then
+    (TLS "Broken pipe" before any build step); retry it alone instead of failing the whole job."""
+    for attempt in range(1, attempts + 1):
+        if subprocess.run(["./gradlew", "--version"]).returncode == 0:
+            return
+        if attempt < attempts:
+            time.sleep(20 * attempt)
+    raise SystemExit("Could not download the Gradle distribution.")
 
 def main():
     if platform.machine() != "arm64":
@@ -20,6 +31,7 @@ def main():
     if device["state"] != "Booted":
         subprocess.run(["xcrun", "simctl", "boot", device["udid"]], check=True)
     subprocess.run(["xcrun", "simctl", "bootstatus", device["udid"], "-b"], check=True)
+    fetch_gradle()
     modules = ["core:smart", "core:library", "core:playback", "core:history", "composeApp"]
     subprocess.run(["./gradlew", "--max-workers=1",
                     "-Pkotlin.native.jvmArgs=-Xmx4g",
