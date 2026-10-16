@@ -4,4 +4,5 @@ Open local audio from a file manager.
 Optional Favorite action in Android media controls.
 More consistent EQ and bass boost.
 Fixed a Map crash with screen readers.
-Android keeps playlists, favorites and history after file moves only when a unique MusicBrainz release-track ID was saved beforehand. Ambiguous files are not merged; previously lost links are not restored.
+Tracks skipped within 30 s no longer count as plays.
+Moved files keep playlists, favorites and history if a unique MusicBrainz release-track ID was read before the move. Ambiguous files are not merged.

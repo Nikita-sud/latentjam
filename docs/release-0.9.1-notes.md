@@ -31,6 +31,11 @@ validation; this document describes the candidate, not an already published rele
   failure, no reduction needed, or the actual reduction in dB. Normalization still attenuates loud
   tracks; it does not amplify quiet recordings.
 - Cancelling an Android cover-color read no longer crashes the app with `InterruptedIOException`.
+- A start skipped within 30 seconds no longer counts as a play (issue #20). Most played, play
+  counts, For You's "played N times" and the statistics' totals, rankings and repeats count only
+  listens that were not skipped, so the opener of an often-started playlist no longer tops them.
+  Skipped starts still count as listening time, as starts for the completion and skip rates, and
+  for SMART. The listening log itself is unchanged; past history is recounted the same way.
 - The Map no longer crashes the app when TalkBack or another accessibility service reads it.
   Compose on Android throws once a node has 32 custom accessibility actions, and the Map gave
   one per region (35 on a 1,107-track library). The first 31 regions in listening order keep an
