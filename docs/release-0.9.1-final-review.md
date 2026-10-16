@@ -1,6 +1,6 @@
 # 0.9.1: финальная проверка
 
-Дата: 15–16 октября 2026. Ветка `codex/adversarial-0.9.1`. Код APK: `d769ffb1`.
+Дата: 15–16 октября 2026. Ветка `codex/adversarial-0.9.1`. Код APK: `8dd079a8`.
 После него в ветку добавлены только документы и текст changelog, они в APK не входят.
 
 **Рекомендация: Android-кандидат можно выпускать.** Ограничения из обращений,
@@ -24,30 +24,34 @@
   библиотеки на 1 107 треков. Поэтому TalkBack или любое приложение, читающее экран,
   роняло LatentJam на карте. Ошибка была и в 0.9.0. Теперь действие есть у первых
   32 регионов в порядке прослушивания, остальные доступны через выбор региона.
+- **`8dd079a8` — лимит 31, а не 32.** Проверка на телефоне показала, что `d769ffb1` всё ещё
+  падал: в Compose 1.11 условие `customActions.size >= 32`, хотя сообщение говорит «more than 32».
+  Теперь действий не больше 31.
 
 ## Проверки
 
 | Проверка | Результат |
 |---|---|
-| Android host | 2 814 тестов на `d769ffb1`, 0 ошибок (часть задач Gradle взята как up-to-date); `MapTabTest` 58/58 |
+| Android host | 2 814 тестов на `8dd079a8`, 0 ошибок (часть задач Gradle взята как up-to-date); `MapTabTest` 58/58 |
 | iOS | `compileKotlinIosSimulatorArm64` прошла; iOS-тесты не запускались |
 | Обычная сборка релиза | split, сборка под устройство и F-Droid собираются с configuration cache; DEX/native-гейты прошли |
-| Compact-сборка | `provenance.json`: `verified`, чистый `d769ffb1` |
+| Compact-сборка | `provenance.json`: `verified`, чистый `8dd079a8` |
 | Воспроизводимость F-Droid (на `c98f3270`) | две чистые сборки побайтово одинаковы: 69 302 743 байта, `b8975dc7f1e172e3e80e48c98a455c04d705fbf78bd270e9b8ca218de5d90ba1` |
 | Эмулятор LJ-api30, Android 11 | APK `d769ffb1` установлен обновлением; запуск за 336 мс, буфер crash пуст. Сам фикс карты здесь не проверить: на эмуляторе меньше 32 регионов |
+| Galaxy S24 Ultra (SM-S928B), карта на 35 регионов | `d769ffb1`: `uiautomator dump` на карте уронил приложение (`Can't have more than 32 custom actions for one widget`). `8dd079a8`: карта построена (893 из 1 108 треков, 35 областей), дерево прочитано четыре раза, процесс жив, буфер crash пуст |
 | Импорт на эмуляторе | M3U в Windows-1252 (`Café Déjà.mp3`) нашёл 2 из 2 через системный выбор файла |
 | Refresh на эмуляторе | доиндексировал файл, у которого в MediaStore была неполная запись (`is_music=NULL`) |
 
 ## Артефакты
 
-Файлы лежат в `build/reports/release-0.9.1-final2-compact/` и собраны из `d769ffb1`.
-Прежние APK из `c98f3270` остались в `build/reports/release-0.9.1-final-compact/` и заменены этими.
+Файлы лежат в `build/reports/release-0.9.1-final3-compact/` и собраны из `8dd079a8`.
+Они заменяют прежние сборки из `final-compact` (`c98f3270`) и `final2-compact` (`d769ffb1`).
 
 | APK | Байт | SHA-256 |
 |---|---:|---|
-| androidApp-arm64-v8a-release.apk | 37 309 792 | `b8493e52a02916778ef6f71c415a52ef0bee96a7fd51517ae6a316d922336b84` |
-| androidApp-armeabi-v7a-release.apk | 44 523 292 | `917c28919114946268580d482067412d9a2cbe68c86319730fd58e64db5a7aea` |
-| androidApp-x86_64-release.apk | 58 884 654 | `38ee4f6b3c9917eec37ef5e8655dd1e3578875e7900ac0c16c522629d9bd809e` |
+| androidApp-arm64-v8a-release.apk | 37 309 792 | `7de0c89795e953dfd42a3a1b0c83717e5022ddddd8bded731beaea02a81e1716` |
+| androidApp-armeabi-v7a-release.apk | 44 523 292 | `510174e47aaf71ae2fd65a3dea961e5bd96a83bad49d15f4ffcfff2ee2898705` |
+| androidApp-x86_64-release.apk | 58 884 654 | `c0cf35612bcf16752b964694f81cc94d138d4db17116f37351f36c11483d657d` |
 
 ## Что остаётся открытым
 

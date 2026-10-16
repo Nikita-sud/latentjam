@@ -32,8 +32,8 @@ validation; this document describes the candidate, not an already published rele
   tracks; it does not amplify quiet recordings.
 - Cancelling an Android cover-color read no longer crashes the app with `InterruptedIOException`.
 - The Map no longer crashes the app when TalkBack or another accessibility service reads it.
-  Compose on Android throws above 32 custom accessibility actions per node, and the Map gave
-  one per region (35 on a 1,107-track library). The first 32 regions in listening order keep an
+  Compose on Android throws once a node has 32 custom accessibility actions, and the Map gave
+  one per region (35 on a 1,107-track library). The first 31 regions in listening order keep an
   action; the region selector still reaches every region.
 - Android can preserve playlist, favorite and listening-history references after a file moves to
   a new MediaStore ID, provided its identity metadata was saved before the move and its
