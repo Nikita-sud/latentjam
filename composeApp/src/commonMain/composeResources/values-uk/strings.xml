@@ -270,6 +270,18 @@
         <item quantity="many">Знайдено %1$d з %2$d треків</item>
         <item quantity="other">Знайдено %1$d з %2$d трека</item>
     </plurals>
+    <plurals name="m3u_import_playlists">
+        <item quantity="one">%1$d плейлист</item>
+        <item quantity="few">%1$d плейлисти</item>
+        <item quantity="many">%1$d плейлистів</item>
+        <item quantity="other">%1$d плейлиста</item>
+    </plurals>
+    <plurals name="playlist_new_count">
+        <item quantity="one">%1$d новий плейлист</item>
+        <item quantity="few">%1$d нові плейлисти</item>
+        <item quantity="many">%1$d нових плейлистів</item>
+        <item quantity="other">%1$d нового плейлиста</item>
+    </plurals>
     <string name="playlist_imported_name">Імпортований плейлист</string>
     <string name="action_information">Відомості</string>
     <string name="action_delete_from_device">Видалити з пристрою</string>

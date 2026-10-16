@@ -238,6 +238,14 @@
         <item quantity="one">%2$d में से %1$d गाना मिला</item>
         <item quantity="other">%2$d में से %1$d गाने मिले</item>
     </plurals>
+    <plurals name="m3u_import_playlists">
+        <item quantity="one">%1$d प्लेलिस्ट</item>
+        <item quantity="other">%1$d प्लेलिस्ट</item>
+    </plurals>
+    <plurals name="playlist_new_count">
+        <item quantity="one">%1$d नई प्लेलिस्ट</item>
+        <item quantity="other">%1$d नई प्लेलिस्ट</item>
+    </plurals>
     <string name="playlist_imported_name">आयातित प्लेलिस्ट</string>
     <string name="action_information">जानकारी</string>
     <string name="action_delete_from_device">डिवाइस से मिटाएं</string>

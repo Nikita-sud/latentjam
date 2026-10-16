@@ -1670,6 +1670,8 @@ private fun AppShell(
                 "text/plain",
                 "application/octet-stream",
             ),
+            // Several files at once, each its own playlist (#21).
+            allowMultipleImport = true,
             onExportResult = { result ->
                 if (result is LocalBackupFileResult.Failure) {
                     scope.launch {
@@ -1680,18 +1682,20 @@ private fun AppShell(
             onImportResult = { result ->
                 when (result) {
                     is LocalBackupFileResult.Success -> scope.launch {
-                        val imported = importM3u(
-                            text = result.value.text,
-                            library = catalog?.songs.orEmpty(),
-                            displayName = result.value.displayName,
-                            filePaths = library::filePaths,
-                        )
-                        if (imported.tracks.isEmpty()) {
+                        val imports = result.value.map { document ->
+                            importM3u(
+                                text = document.text,
+                                library = catalog?.songs.orEmpty(),
+                                displayName = document.displayName,
+                                filePaths = library::filePaths,
+                            )
+                        }.filter { it.entryCount > 0 }
+                        if (imports.none { it.tracks.isNotEmpty() }) {
                             snackbar.showSnackbar(getString(Res.string.snack_m3u_import_failed))
                             return@launch
                         }
-                        // A new playlist, or Favorites: chosen knowing how much of the file was found.
-                        sheets.m3uImportOffer = M3uImportOffer(imported)
+                        // New playlists, or Favorites: chosen knowing how much of the files was found.
+                        sheets.m3uImportOffer = M3uImportOffer(imports)
                     }
                     is LocalBackupFileResult.Failure -> scope.launch {
                         snackbar.showSnackbar(getString(Res.string.snack_m3u_import_failed))
@@ -1700,16 +1704,16 @@ private fun AppShell(
                 }
             },
         )
-        suspend fun importM3uAsPlaylist(offer: M3uImportOffer) {
-            val name = offer.name ?: getString(Res.string.playlist_imported_name)
-            if (!runPlaylistMutation {
-                    AppGraph.playlists.create(name, offer.matched.map { it.id })
+        suspend fun importM3uAsPlaylists(offer: M3uImportOffer) {
+            val fallbackName = getString(Res.string.playlist_imported_name)
+            val created = runPlaylistMutation {
+                for (import in offer.playlists) {
+                    AppGraph.playlists.create(import.name ?: fallbackName, import.tracks.map { it.id })
                 }
-            ) {
-                return
             }
+            // A failure part-way still leaves the earlier files' playlists: show them either way.
             refreshPlaylistMembershipsBestEffort()
-            snackbar.showSnackbar(m3uImportedMessage(offer.import))
+            if (created) snackbar.showSnackbar(m3uImportedMessage(offer))
         }
         // A playlist, or Favorites newest first: one exporter, one relative-paths setting.
         fun exportAsM3u(name: String, tracks: () -> List<TrackDescriptor>) {
@@ -4162,7 +4166,7 @@ private fun AppShell(
         sheets.m3uImportOffer?.let { offer ->
             M3uImportTargetSheet(
                 offer = offer,
-                onNewPlaylist = { scope.launch { importM3uAsPlaylist(offer) } },
+                onNewPlaylist = { scope.launch { importM3uAsPlaylists(offer) } },
                 onFavorites = { editFavorites(SelectionFavoriteAction.ADD, offer.favoriteIds) },
                 onDismiss = { sheets.m3uImportOffer = null },
             )

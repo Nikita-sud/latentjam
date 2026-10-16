@@ -72,18 +72,19 @@ private fun m3uFileName(displayName: String?): String? {
 }
 
 /**
- * The snackbar after a playlist was created from [import]: how many tracks it holds, or, when
- * rows found nothing, how many of the file's rows came in, so a partial playlist never passes for
+ * The snackbar after playlists were created from [offer]: how many tracks they hold, or, when
+ * rows found nothing, how many of the files' rows came in, so a partial playlist never passes for
  * the whole file.
  */
-internal suspend fun m3uImportedMessage(import: M3uImport): String =
-    if (import.matchedEntryCount == import.entryCount) {
-        getPluralString(Res.plurals.snack_m3u_imported_all, import.tracks.size, import.tracks.size)
+internal suspend fun m3uImportedMessage(offer: M3uImportOffer): String =
+    if (offer.matchedEntryCount == offer.entryCount) {
+        val tracks = offer.playlists.sumOf { it.tracks.size }
+        getPluralString(Res.plurals.snack_m3u_imported_all, tracks, tracks)
     } else {
         getPluralString(
             Res.plurals.snack_m3u_imported_partial,
-            import.entryCount,
-            import.matchedEntryCount,
-            import.entryCount,
+            offer.entryCount,
+            offer.matchedEntryCount,
+            offer.entryCount,
         )
     }

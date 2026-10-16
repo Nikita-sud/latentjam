@@ -54,8 +54,13 @@ internal expect fun rememberLocalBackupFileExchange(
     exportMimeType: String = LOCAL_BACKUP_MIME_TYPE,
     /** MIME filter the import picker offers; platforms without MIME filtering may ignore it. */
     importMimeTypes: List<String> = listOf(LOCAL_BACKUP_MIME_TYPE, "application/octet-stream"),
+    /**
+     * Lets the import picker select several documents. The result then lists every one that could
+     * be read, in the order picked; it fails only when none could. Without it the list holds one.
+     */
+    allowMultipleImport: Boolean = false,
     onExportResult: (LocalBackupFileResult<Unit>) -> Unit,
-    onImportResult: (LocalBackupFileResult<ImportedLocalDocument>) -> Unit,
+    onImportResult: (LocalBackupFileResult<List<ImportedLocalDocument>>) -> Unit,
 ): LocalBackupFileExchange
 
 internal fun normalizedBackupFileName(suggestedName: String): String {

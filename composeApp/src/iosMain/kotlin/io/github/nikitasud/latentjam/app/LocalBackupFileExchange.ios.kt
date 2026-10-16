@@ -41,8 +41,9 @@ internal actual fun rememberLocalBackupFileExchange(
     // here, so both parameters are accepted for the shared contract and intentionally unused.
     exportMimeType: String,
     importMimeTypes: List<String>,
+    allowMultipleImport: Boolean,
     onExportResult: (LocalBackupFileResult<Unit>) -> Unit,
-    onImportResult: (LocalBackupFileResult<ImportedLocalDocument>) -> Unit,
+    onImportResult: (LocalBackupFileResult<List<ImportedLocalDocument>>) -> Unit,
 ): LocalBackupFileExchange {
     val scope = rememberCoroutineScope()
     val currentExportResult = rememberUpdatedState(onExportResult)
@@ -56,12 +57,11 @@ internal actual fun rememberLocalBackupFileExchange(
                         else LocalBackupFileResult.Success(Unit),
                     )
                     PickerPurpose.IMPORT -> {
-                        val url = urls.firstOrNull()
-                        if (url == null) {
+                        if (urls.isEmpty()) {
                             currentImportResult.value(LocalBackupFileResult.Cancelled)
                         } else {
                             scope.launch {
-                                val result = withContext(Dispatchers.Default) { readDocument(url) }
+                                val result = withContext(Dispatchers.Default) { readDocuments(urls) }
                                 currentImportResult.value(result)
                             }
                         }
@@ -77,7 +77,7 @@ internal actual fun rememberLocalBackupFileExchange(
         )
     }
 
-    return remember(delegate) {
+    return remember(delegate, allowMultipleImport) {
         LocalBackupFileExchange(
             exportTo = { encode, suggestedName ->
                 if (!delegate.begin(PickerPurpose.EXPORT)) {
@@ -127,7 +127,7 @@ internal actual fun rememberLocalBackupFileExchange(
                             forOpeningContentTypes = listOf(UTTypeData),
                             asCopy = true,
                         ).apply {
-                            allowsMultipleSelection = false
+                            allowsMultipleSelection = allowMultipleImport
                             this.delegate = delegate
                         }
                         presenter.presentViewController(picker, true, null)
@@ -218,6 +218,21 @@ private fun discardTemporaryBackup(url: NSURL) {
 private fun discardTemporaryBackup(path: String) {
     val manager = NSFileManager.defaultManager
     if (manager.fileExistsAtPath(path)) manager.removeItemAtPath(path, null)
+}
+
+/**
+ * Reads [urls] in the order picked. One that cannot be read is left out rather than costing the
+ * others; the import fails only when none could be read.
+ */
+private fun readDocuments(urls: List<NSURL>): LocalBackupFileResult<List<ImportedLocalDocument>> {
+    val results = urls.map(::readDocument)
+    val documents = results.mapNotNull { (it as? LocalBackupFileResult.Success)?.value }
+    return if (documents.isNotEmpty()) {
+        LocalBackupFileResult.Success(documents)
+    } else {
+        results.firstNotNullOfOrNull { it as? LocalBackupFileResult.Failure }
+            ?: LocalBackupFileResult.Failure("Could not import backup")
+    }
 }
 
 @OptIn(ExperimentalForeignApi::class)

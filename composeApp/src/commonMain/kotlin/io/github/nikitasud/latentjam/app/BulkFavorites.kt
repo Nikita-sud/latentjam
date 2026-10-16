@@ -39,8 +39,10 @@ import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.action_add_favorite
 import io.github.nikitasud.latentjam.app.generated.resources.action_undo
 import io.github.nikitasud.latentjam.app.generated.resources.m3u_import_found
+import io.github.nikitasud.latentjam.app.generated.resources.m3u_import_playlists
 import io.github.nikitasud.latentjam.app.generated.resources.playlist_imported_name
 import io.github.nikitasud.latentjam.app.generated.resources.playlist_new
+import io.github.nikitasud.latentjam.app.generated.resources.playlist_new_count
 import io.github.nikitasud.latentjam.app.generated.resources.settings_library_manage_failed
 import io.github.nikitasud.latentjam.app.generated.resources.snack_favorites_added
 import io.github.nikitasud.latentjam.app.generated.resources.snack_favorites_removed
@@ -182,24 +184,37 @@ internal fun List<AutoPlaylist>.favoriteTracks(): List<TrackDescriptor> =
     firstOrNull { it.kind == AutoPlaylistKind.FAVORITES }?.tracks.orEmpty()
 
 /**
- * A playlist file, read and matched against the library, waiting for the listener to say where it
- * goes: a new playlist, or Favorites. [matched] keeps the file's order, each track once.
+ * One or more playlist files, read and matched against the library, waiting for the listener to
+ * say where they go: a new playlist per file, or Favorites. [matched] keeps the files' order, each
+ * track once.
  */
 internal class M3uImportOffer(
-    /** The file read and matched against the library (see [importM3u]). */
-    val import: M3uImport,
+    /** The files read and matched against the library (see [importM3u]), in the order picked. */
+    val imports: List<M3uImport>,
 ) {
-    /** The file's own `#PLAYLIST` name; null names it with the localized default. */
-    val name: String? get() = import.name
+    constructor(import: M3uImport) : this(listOf(import))
 
-    /** Track rows in the file, matched or not. */
-    val entryCount: Int get() = import.entryCount
+    init {
+        require(imports.isNotEmpty()) { "An import offer needs a file" }
+    }
+
+    /** Whether the listener picked one file, which keeps the single-playlist wording. */
+    val isSingleFile: Boolean get() = imports.size == 1
+
+    /** One file's own name (see [M3uImport.name]); null for several files or a file without one. */
+    val name: String? get() = imports.singleOrNull()?.name
+
+    /** The files that become playlists: a file none of whose rows was found makes none. */
+    val playlists: List<M3uImport> get() = imports.filter { it.tracks.isNotEmpty() }
+
+    /** Track rows in the files, matched or not. */
+    val entryCount: Int get() = imports.sumOf { it.entryCount }
 
     /** The rows that found their track. */
-    val matchedEntryCount: Int get() = import.matchedEntryCount
+    val matchedEntryCount: Int get() = imports.sumOf { it.matchedEntryCount }
 
-    /** The found tracks in the file's order, each once. */
-    val matched: List<TrackDescriptor> get() = import.tracks
+    /** The found tracks in the files' order, each once, even when two files share it. */
+    val matched: List<TrackDescriptor> get() = imports.flatMap { it.tracks }.distinctBy { it.id }
 
     /** What Favorites receives: the matched tracks in the file's order, which heads the list. */
     val favoriteIds: List<TrackId> get() = matched.map { it.id }
@@ -241,7 +256,11 @@ internal fun M3uImportTargetSheet(
     ) {
         Column(modifier = Modifier.navigationBarsPadding().padding(bottom = 8.dp)) {
             Text(
-                text = offer.name ?: stringResource(Res.string.playlist_imported_name),
+                text = if (offer.isSingleFile) {
+                    offer.name ?: stringResource(Res.string.playlist_imported_name)
+                } else {
+                    pluralStringResource(Res.plurals.m3u_import_playlists, offer.imports.size, offer.imports.size)
+                },
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -260,7 +279,11 @@ internal fun M3uImportTargetSheet(
             )
             ImportTargetRow(
                 icon = Icons.AutoMirrored.Outlined.PlaylistAdd,
-                label = stringResource(Res.string.playlist_new),
+                label = if (offer.isSingleFile) {
+                    stringResource(Res.string.playlist_new)
+                } else {
+                    pluralStringResource(Res.plurals.playlist_new_count, offer.playlists.size, offer.playlists.size)
+                },
             ) { dismissWhile(onNewPlaylist) }
             ImportTargetRow(
                 icon = Icons.Outlined.FavoriteBorder,

@@ -230,6 +230,12 @@
     <plurals name="m3u_import_found">
         <item quantity="other">Ditemukan %1$d dari %2$d lagu</item>
     </plurals>
+    <plurals name="m3u_import_playlists">
+        <item quantity="other">%1$d playlist</item>
+    </plurals>
+    <plurals name="playlist_new_count">
+        <item quantity="other">%1$d playlist baru</item>
+    </plurals>
     <string name="playlist_imported_name">Playlist impor</string>
     <string name="action_information">Informasi</string>
     <string name="action_delete_from_device">Hapus dari perangkat</string>

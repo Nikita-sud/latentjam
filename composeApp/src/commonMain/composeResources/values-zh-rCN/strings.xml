@@ -224,6 +224,12 @@
     <plurals name="m3u_import_found">
         <item quantity="other">在 %2$d 首歌曲中找到 %1$d 首</item>
     </plurals>
+    <plurals name="m3u_import_playlists">
+        <item quantity="other">%1$d 个播放列表</item>
+    </plurals>
+    <plurals name="playlist_new_count">
+        <item quantity="other">新建 %1$d 个播放列表</item>
+    </plurals>
     <string name="playlist_imported_name">导入的播放列表</string>
     <string name="action_information">详细信息</string>
     <string name="action_delete_from_device">从设备中删除</string>

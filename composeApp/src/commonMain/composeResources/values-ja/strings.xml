@@ -224,6 +224,12 @@
     <plurals name="m3u_import_found">
         <item quantity="other">%2$d曲中%1$d曲が見つかりました</item>
     </plurals>
+    <plurals name="m3u_import_playlists">
+        <item quantity="other">%1$d個のプレイリスト</item>
+    </plurals>
+    <plurals name="playlist_new_count">
+        <item quantity="other">%1$d個の新規プレイリスト</item>
+    </plurals>
     <string name="playlist_imported_name">読み込んだプレイリスト</string>
     <string name="action_information">情報</string>
     <string name="action_delete_from_device">デバイスから削除</string>

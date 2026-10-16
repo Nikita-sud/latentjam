@@ -88,7 +88,7 @@ internal class LocalBackupExchangeModelTest {
         ready.complete(document)
         runCurrent()
         assertEquals(
-            LocalBackupExchangeResult.Import(LocalBackupFileResult.Success(document)),
+            LocalBackupExchangeResult.Import(LocalBackupFileResult.Success(listOf(document))),
             exchange.completed.value,
         )
         // A fresh callback can consume the result once, even if no UI was present at completion.
@@ -107,9 +107,53 @@ internal class LocalBackupExchangeModelTest {
         runCurrent()
 
         val completed = assertIs<LocalBackupExchangeResult.Import>(exchange.completed.value)
-        val document = assertIs<LocalBackupFileResult.Success<ImportedLocalDocument>>(completed.result).value
+        val document = assertIs<LocalBackupFileResult.Success<List<ImportedLocalDocument>>>(completed.result)
+            .value.single()
         assertEquals(text, document.text)
         assertNull(document.displayName)
+    }
+
+    @Test
+    fun severalPickedDocumentsArriveInPickedOrderWithoutTheUnreadableOne() = runTest {
+        val exchange = model(
+            read = { source ->
+                if (source == "broken") error("The selected document cannot be opened")
+                ImportedLocalDocument("#EXTM3U\n", "$source.m3u")
+            },
+        )
+
+        assertTrue(exchange.beginImport())
+        exchange.importSources(listOf("2000s rock", "broken", "2000 Fun"))
+        runCurrent()
+
+        val completed = assertIs<LocalBackupExchangeResult.Import>(exchange.completed.value)
+        val documents = assertIs<LocalBackupFileResult.Success<List<ImportedLocalDocument>>>(completed.result).value
+        assertEquals(listOf("2000s rock.m3u", "2000 Fun.m3u"), documents.map { it.displayName })
+    }
+
+    @Test
+    fun severalPickedDocumentsFailOnlyWhenNoneCanBeRead() = runTest {
+        val exchange = model(read = { error("Unreadable $it") })
+
+        assertTrue(exchange.beginImport())
+        exchange.importSources(listOf("first", "second"))
+        runCurrent()
+
+        val completed = assertIs<LocalBackupExchangeResult.Import>(exchange.completed.value)
+        assertEquals(LocalBackupFileResult.Failure("Unreadable first"), completed.result)
+    }
+
+    @Test
+    fun anEmptyMultiplePickIsACancellation() = runTest {
+        val exchange = model()
+
+        assertTrue(exchange.beginImport())
+        exchange.importSources(emptyList())
+
+        assertEquals(
+            LocalBackupExchangeResult.Import(LocalBackupFileResult.Cancelled),
+            exchange.completed.value,
+        )
     }
 
     @Test

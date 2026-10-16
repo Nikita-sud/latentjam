@@ -270,6 +270,18 @@
         <item quantity="many">Znaleziono %1$d z %2$d utworów</item>
         <item quantity="other">Znaleziono %1$d z %2$d utworu</item>
     </plurals>
+    <plurals name="m3u_import_playlists">
+        <item quantity="one">%1$d playlista</item>
+        <item quantity="few">%1$d playlisty</item>
+        <item quantity="many">%1$d playlist</item>
+        <item quantity="other">%1$d playlisty</item>
+    </plurals>
+    <plurals name="playlist_new_count">
+        <item quantity="one">%1$d nowa playlista</item>
+        <item quantity="few">%1$d nowe playlisty</item>
+        <item quantity="many">%1$d nowych playlist</item>
+        <item quantity="other">%1$d nowej playlisty</item>
+    </plurals>
     <string name="playlist_imported_name">Zaimportowana playlista</string>
     <string name="action_information">Informacje</string>
     <string name="action_delete_from_device">Usuń z urządzenia</string>

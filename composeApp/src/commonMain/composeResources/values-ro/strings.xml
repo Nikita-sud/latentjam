@@ -246,6 +246,16 @@
         <item quantity="few">Găsite %1$d din %2$d piese</item>
         <item quantity="other">Găsite %1$d din %2$d de piese</item>
     </plurals>
+    <plurals name="m3u_import_playlists">
+        <item quantity="one">%1$d playlist</item>
+        <item quantity="few">%1$d playlisturi</item>
+        <item quantity="other">%1$d de playlisturi</item>
+    </plurals>
+    <plurals name="playlist_new_count">
+        <item quantity="one">%1$d playlist nou</item>
+        <item quantity="few">%1$d playlisturi noi</item>
+        <item quantity="other">%1$d de playlisturi noi</item>
+    </plurals>
     <string name="playlist_imported_name">Playlist importat</string>
     <string name="action_information">Informații</string>
     <string name="action_delete_from_device">Șterge de pe dispozitiv</string>

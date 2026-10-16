@@ -245,6 +245,14 @@
         <item quantity="one">Encontrada %1$d de %2$d canción</item>
         <item quantity="other">Encontradas %1$d de %2$d canciones</item>
     </plurals>
+    <plurals name="m3u_import_playlists">
+        <item quantity="one">%1$d lista de reproducción</item>
+        <item quantity="other">%1$d listas de reproducción</item>
+    </plurals>
+    <plurals name="playlist_new_count">
+        <item quantity="one">%1$d lista de reproducción nueva</item>
+        <item quantity="other">%1$d listas de reproducción nuevas</item>
+    </plurals>
     <string name="playlist_imported_name">Lista importada</string>
     <string name="action_information">Información</string>
     <string name="action_delete_from_device">Eliminar del dispositivo</string>

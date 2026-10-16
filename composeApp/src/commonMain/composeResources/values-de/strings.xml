@@ -248,6 +248,14 @@
         <item quantity="one">%1$d von %2$d Titel gefunden</item>
         <item quantity="other">%1$d von %2$d Titeln gefunden</item>
     </plurals>
+    <plurals name="m3u_import_playlists">
+        <item quantity="one">%1$d Playlist</item>
+        <item quantity="other">%1$d Playlists</item>
+    </plurals>
+    <plurals name="playlist_new_count">
+        <item quantity="one">%1$d neue Playlist</item>
+        <item quantity="other">%1$d neue Playlists</item>
+    </plurals>
     <string name="playlist_imported_name">Importierte Playlist</string>
     <string name="action_information">Informationen</string>
     <string name="action_delete_from_device">Vom Gerät löschen</string>

@@ -299,6 +299,16 @@
         <item quantity="one">Found %1$d of %2$d track</item>
         <item quantity="other">Found %1$d of %2$d tracks</item>
     </plurals>
+    <!-- Over the choice of where several imported M3U files go: how many files were picked. -->
+    <plurals name="m3u_import_playlists">
+        <item quantity="one">%1$d playlist</item>
+        <item quantity="other">%1$d playlists</item>
+    </plurals>
+    <!-- The choice that makes one playlist per picked file. -->
+    <plurals name="playlist_new_count">
+        <item quantity="one">%1$d new playlist</item>
+        <item quantity="other">%1$d new playlists</item>
+    </plurals>
     <string name="playlist_imported_name">Imported playlist</string>
     <string name="action_information">Information</string>
     <string name="action_exclude_track_from_smart">Don’t recommend this track</string>

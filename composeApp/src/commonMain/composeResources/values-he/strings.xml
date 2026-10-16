@@ -253,6 +253,16 @@
         <item quantity="two">נמצאו %1$d מתוך %2$d שירים</item>
         <item quantity="other">נמצאו %1$d מתוך %2$d שירים</item>
     </plurals>
+    <plurals name="m3u_import_playlists">
+        <item quantity="one">%1$d פלייליסט</item>
+        <item quantity="two">%1$d פלייליסטים</item>
+        <item quantity="other">%1$d פלייליסטים</item>
+    </plurals>
+    <plurals name="playlist_new_count">
+        <item quantity="one">%1$d פלייליסט חדש</item>
+        <item quantity="two">%1$d פלייליסטים חדשים</item>
+        <item quantity="other">%1$d פלייליסטים חדשים</item>
+    </plurals>
     <string name="playlist_imported_name">פלייליסט מיובא</string>
     <string name="action_information">מידע</string>
     <string name="action_exclude_track_from_smart">לא להמליץ על השיר הזה</string>

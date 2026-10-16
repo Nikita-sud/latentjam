@@ -48,8 +48,9 @@ import kotlinx.coroutines.withContext
 internal actual fun rememberLocalBackupFileExchange(
     exportMimeType: String,
     importMimeTypes: List<String>,
+    allowMultipleImport: Boolean,
     onExportResult: (LocalBackupFileResult<Unit>) -> Unit,
-    onImportResult: (LocalBackupFileResult<ImportedLocalDocument>) -> Unit,
+    onImportResult: (LocalBackupFileResult<List<ImportedLocalDocument>>) -> Unit,
 ): LocalBackupFileExchange {
     val activity = LocalActivity.current as? ComponentActivity
         ?: return LocalBackupFileExchange(
@@ -88,6 +89,9 @@ internal actual fun rememberLocalBackupFileExchange(
     val openDocument = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         model.importSource(uri?.toString())
     }
+    val openDocuments = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        model.importSources(uris.map(Uri::toString))
+    }
     var resumed by remember(activity) {
         mutableStateOf(activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
     }
@@ -114,7 +118,7 @@ internal actual fun rememberLocalBackupFileExchange(
             }
         }
     }
-    return remember(model, createDocument, openDocument, importMimeTypes, inProgress) {
+    return remember(model, createDocument, openDocument, openDocuments, importMimeTypes, allowMultipleImport, inProgress) {
         LocalBackupFileExchange(
             exportTo = { encode, suggestedName ->
                 if (model.beginExport(encode)) {
@@ -128,7 +132,11 @@ internal actual fun rememberLocalBackupFileExchange(
             import = {
                 if (model.beginImport()) {
                     try {
-                        openDocument.launch(importMimeTypes.toTypedArray())
+                        if (allowMultipleImport) {
+                            openDocuments.launch(importMimeTypes.toTypedArray())
+                        } else {
+                            openDocument.launch(importMimeTypes.toTypedArray())
+                        }
                     } catch (failure: Exception) {
                         model.failedToLaunch(failure)
                     }
@@ -141,7 +149,7 @@ internal actual fun rememberLocalBackupFileExchange(
 
 internal sealed interface LocalBackupExchangeResult {
     data class Export(val result: LocalBackupFileResult<Unit>) : LocalBackupExchangeResult
-    data class Import(val result: LocalBackupFileResult<ImportedLocalDocument>) : LocalBackupExchangeResult
+    data class Import(val result: LocalBackupFileResult<List<ImportedLocalDocument>>) : LocalBackupExchangeResult
 }
 
 /** Retains picker input, IO and undelivered results across configuration changes. */
@@ -229,23 +237,38 @@ internal class LocalBackupExchangeModel(
         }
     }
 
-    fun importSource(source: String?) {
+    fun importSource(source: String?) = importSources(listOfNotNull(source))
+
+    /**
+     * Reads [sources] in the order picked. One that cannot be read is left out rather than
+     * costing the others; the import fails only when none could be read.
+     */
+    fun importSources(sources: List<String>) {
         if (!picking || operation != "import") return
         picking = false
-        if (source == null) {
+        if (sources.isEmpty()) {
             complete(LocalBackupExchangeResult.Import(LocalBackupFileResult.Cancelled))
             return
         }
         val request = generation
         work = viewModelScope.launch {
-            val result = try {
-                LocalBackupFileResult.Success(readDocument(source))
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Exception) {
-                LocalBackupFileResult.Failure(failure.message ?: "Could not import backup")
-            } catch (_: OutOfMemoryError) {
-                LocalBackupFileResult.Failure("Backup exceeds available memory")
+            val documents = ArrayList<ImportedLocalDocument>(sources.size)
+            var firstFailure: String? = null
+            for (source in sources) {
+                try {
+                    documents += readDocument(source)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (failure: Exception) {
+                    firstFailure = firstFailure ?: (failure.message ?: "Could not import backup")
+                } catch (_: OutOfMemoryError) {
+                    firstFailure = firstFailure ?: "Backup exceeds available memory"
+                }
+            }
+            val result = if (documents.isEmpty()) {
+                LocalBackupFileResult.Failure(firstFailure ?: "Could not import backup")
+            } else {
+                LocalBackupFileResult.Success(documents.toList())
             }
             if (request == generation) complete(LocalBackupExchangeResult.Import(result))
         }

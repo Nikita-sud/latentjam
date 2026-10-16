@@ -302,6 +302,22 @@
         <item quantity="many">تم العثور على %1$d من أصل %2$d مقطعًا صوتيًا</item>
         <item quantity="other">تم العثور على %1$d من أصل %2$d مقطع صوتي</item>
     </plurals>
+    <plurals name="m3u_import_playlists">
+        <item quantity="zero">%1$d قائمة تشغيل</item>
+        <item quantity="one">%1$d قائمة تشغيل</item>
+        <item quantity="two">%1$d قائمتا تشغيل</item>
+        <item quantity="few">%1$d قوائم تشغيل</item>
+        <item quantity="many">%1$d قائمة تشغيل</item>
+        <item quantity="other">%1$d قائمة تشغيل</item>
+    </plurals>
+    <plurals name="playlist_new_count">
+        <item quantity="zero">%1$d قائمة تشغيل جديدة</item>
+        <item quantity="one">%1$d قائمة تشغيل جديدة</item>
+        <item quantity="two">%1$d قائمتا تشغيل جديدتان</item>
+        <item quantity="few">%1$d قوائم تشغيل جديدة</item>
+        <item quantity="many">%1$d قائمة تشغيل جديدة</item>
+        <item quantity="other">%1$d قائمة تشغيل جديدة</item>
+    </plurals>
     <string name="playlist_imported_name">قائمة مستوردة</string>
     <string name="action_information">معلومات</string>
     <string name="action_delete_from_device">حذف من الجهاز</string>

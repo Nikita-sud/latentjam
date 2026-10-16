@@ -31,6 +31,8 @@ internal class PlaylistM3uImportNameTest {
             "Вечер.2026.M3U8" to "Вечер.2026",
             "Road trip.m3U" to "Road trip",
             "Road trip.M3u8" to "Road trip",
+            // #21: emoji names from a phone's file manager.
+            "2000s rock💥💥.m3u" to "2000s rock💥💥",
         )) {
             for (header in listOf("", "#EXTM3U\n")) {
                 val imported = readPlaylist(fileName, header)
