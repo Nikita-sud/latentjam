@@ -51,6 +51,12 @@ public data class DailyListening(
  * rankings include only available tracks; [distinctArtists] counts all known artist names.
  * [newTracks] counts tracks whose first recorded listen falls in the selected period.
  * [dailyListening] is a bounded calendar-day chart, not a second rolling-period total.
+ *
+ * Plays — the totals, hours, days, rankings, repeats and SMART share — count only listens that
+ * were not skipped ([ListenEvent.skipped]): a track started and skipped within 30 seconds is not a
+ * play, or the opener of an often-started playlist tops every ranking. Listening time, streaks,
+ * distinct and new tracks still include skipped starts, and [completionRate] and [skipRate] are
+ * shares of all starts.
  */
 public data class ListeningOverview(
     public val plays: Int,
@@ -113,6 +119,7 @@ public object ListeningOverviews {
             (start - (nowMs - start)).coerceAtLeast(0)
         }
         var plays = 0
+        var starts = 0
         var playedMs = 0L
         var completions = 0
         var skips = 0
@@ -135,26 +142,28 @@ public object ListeningOverviews {
             if (periodStart != null && event.startedAtMs < periodStart) {
                 tracksBeforePeriod += event.trackId
                 if (previousStart != null && event.startedAtMs >= previousStart) {
-                    previousPlays++
+                    if (!event.skipped) previousPlays++
                     previousPlayedMs = saturatingDurationAdd(previousPlayedMs, duration)
                 }
                 return@forEachIndexed
             }
 
-            plays++
+            starts++
+            val play = if (event.skipped) 0 else 1
+            plays += play
             playedMs = saturatingDurationAdd(playedMs, duration)
             // Completion wins when a corrupt/legacy event claims both outcomes. This keeps the
             // two outcome shares disjoint and their combined rate at or below 100 percent.
             if (event.completed) completions++ else if (event.skipped) skips++
-            if (event.shuffleMode == "SMART") smartPlays++
+            if (event.shuffleMode == "SMART") smartPlays += play
             periodDays += point.epochDay
-            if (point.hourOfDay in 0..23) byHour[point.hourOfDay]++
+            if (point.hourOfDay in 0..23) byHour[point.hourOfDay] += play
             if (point.epochDay in firstChartDay..today) {
                 val dayIndex = (point.epochDay - firstChartDay).toInt()
-                dailyPlays[dayIndex]++
+                dailyPlays[dayIndex] += play
                 dailyPlayedMs[dayIndex] = saturatingDurationAdd(dailyPlayedMs[dayIndex], duration)
             }
-            perTrack.getOrPut(event.trackId) { ListeningTotal() }.add(1, duration)
+            perTrack.getOrPut(event.trackId) { ListeningTotal() }.add(play, duration)
         }
 
         val availableTracks = ArrayList<TrackListening>()
@@ -173,12 +182,14 @@ public object ListeningOverviews {
             }
         }
         val topTracks = availableTracks
+            .filter { it.plays > 0 }
             .sortedWith(
                 compareByDescending<TrackListening> { it.plays }.thenByDescending { it.playedMs },
             )
             .take(TOP_LIMIT)
         val topArtists = perArtist.entries
             .map { (artist, total) -> ArtistListening(artist, total.plays, total.playedMs) }
+            .filter { it.plays > 0 }
             .sortedWith(
                 compareByDescending<ArtistListening> { it.plays }.thenByDescending { it.playedMs },
             )
@@ -195,8 +206,8 @@ public object ListeningOverviews {
             plays = plays,
             playedMs = playedMs,
             distinctTracks = perTrack.size,
-            completionRate = if (plays == 0) 0f else completions.toFloat() / plays,
-            skipRate = if (plays == 0) 0f else skips.toFloat() / plays,
+            completionRate = if (starts == 0) 0f else completions.toFloat() / starts,
+            skipRate = if (starts == 0) 0f else skips.toFloat() / starts,
             playsByHour = byHour.toList(),
             currentStreakDays = current,
             longestStreakDays = longest,
@@ -205,7 +216,7 @@ public object ListeningOverviews {
             activeDays = periodDays.size,
             distinctArtists = knownArtists.size,
             newTracks = newTracks,
-            repeatPlays = plays - perTrack.size,
+            repeatPlays = perTrack.values.sumOf { (it.plays - 1).coerceAtLeast(0) },
             libraryTracksHeard = availableTracks.size,
             dailyListening = List(chartCount) { index ->
                 DailyListening(firstChartDay + index, dailyPlays[index], dailyPlayedMs[index])

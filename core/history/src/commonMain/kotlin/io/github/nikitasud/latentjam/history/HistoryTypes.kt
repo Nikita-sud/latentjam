@@ -191,11 +191,19 @@ public enum class ListenStart {
 internal fun saturatingDurationAdd(left: Long, right: Long): Long =
     if (right >= Long.MAX_VALUE - left) Long.MAX_VALUE else left + right
 
-/** Aggregate per-track listening statistics. */
+/**
+ * Aggregate per-track listening statistics.
+ *
+ * [plays] counts every start, skipped ones included: rates such as skips per start and "was it
+ * ever started" need them. [listens] counts only starts that were not skipped, and is what the
+ * listener sees as a play count (Most played, play counts, rankings): a track started and skipped
+ * within 30 seconds was not played.
+ */
 public data class TrackStats(
     public val plays: Int,
     public val completions: Int,
     public val skips: Int,
     public val totalPlayedMs: Long,
     public val lastPlayedAtMs: Long,
+    public val listens: Int = plays,
 )

@@ -412,7 +412,7 @@ object ForYouBuilder {
         val revisit = stats.entries
             .filter { (id, stat) ->
                 id !in excluded &&
-                    stat.plays >= MIN_PLAYS_TO_COUNT &&
+                    stat.listens >= MIN_PLAYS_TO_COUNT &&
                     stat.lastPlayedAtMs > 0 &&
                     nowMs - stat.lastPlayedAtMs >= quietMs &&
                     stat.completions >= stat.skips
@@ -421,7 +421,7 @@ object ForYouBuilder {
             .take(HERO_ROTATION_POOL)
         if (revisit.isNotEmpty()) {
             val (id, stat) = revisit[dayIndex.mod(revisit.size)]
-            byId[id]?.let { return ForYouHero(it, ForYouKicker.PlayedTimes(stat.plays)) }
+            byId[id]?.let { return ForYouHero(it, ForYouKicker.PlayedTimes(stat.listens)) }
         }
         val unheard = byId.values
             .filter { (stats[it.id]?.plays ?: 0) == 0 }
@@ -496,7 +496,7 @@ object ForYouBuilder {
         val candidates = stats.entries
             .filter { (id, stat) ->
                 id !in used &&
-                    stat.plays >= MIN_PLAYS_TO_COUNT &&
+                    stat.listens >= MIN_PLAYS_TO_COUNT &&
                     stat.lastPlayedAtMs > 0 &&
                     nowMs - stat.lastPlayedAtMs >= quietMs &&
                     // Something finished repeatedly is loved; something started repeatedly and
@@ -518,7 +518,7 @@ object ForYouBuilder {
         val singles = capPerArtist(dormant.filterNot { it.id in claimed })
 
         val cards = groups + singles.map { track ->
-            ForYouCard(track, caption = ForYouCaption.PlayedBefore(statOf[track.id]?.plays ?: 0))
+            ForYouCard(track, caption = ForYouCaption.PlayedBefore(statOf[track.id]?.listens ?: 0))
         }
         if (cards.isEmpty()) return null
         return ForYouSection(

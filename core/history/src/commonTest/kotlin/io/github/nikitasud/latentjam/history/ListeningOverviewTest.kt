@@ -44,6 +44,54 @@ internal class ListeningOverviewTest {
     )
 
     @Test
+    fun aSkippedStartIsNotAPlay() {
+        // Issue #20: a playlist started often and skipped through must not make its opener the
+        // top track. Starts skipped within 30 seconds still count as listening time and as starts
+        // for the completion and skip rates.
+        val events = (0 until 5).map { event("opener", startedAtMs = 10 * day + it * hour, playedMs = 4_000, completed = false, skipped = true, listenedMs = 4_000) } +
+            listOf(
+                event("loved", startedAtMs = 10 * day + 6 * hour),
+                event("loved", startedAtMs = 10 * day + 7 * hour),
+            )
+        val overview = ListeningOverviews.summarize(
+            events = events,
+            artistOf = { if (it.value == "opener") "Opener" else "Loved" },
+            sinceMs = 10 * day,
+            nowMs = 10 * day + 23 * hour,
+            timePointOf = utc,
+            chartDays = 1,
+        )
+
+        assertEquals(2, overview.plays)
+        assertEquals(listOf(TrackId("loved")), overview.topTracks.map { it.trackId })
+        assertEquals(listOf("Loved"), overview.topArtists.map { it.artist })
+        assertEquals(1, overview.repeatPlays)
+        assertEquals(2, overview.dailyListening.single().plays)
+        assertEquals(0, overview.playsByHour[0])
+        assertEquals(2, overview.distinctTracks)
+        assertEquals(2f / 7f, overview.completionRate)
+        assertEquals(5f / 7f, overview.skipRate)
+        assertEquals(5 * 4_000L + 2 * 60_000L, overview.playedMs)
+    }
+
+    @Test
+    fun onlySkippedStartsLeaveNoRepeatsAndNoRankings() {
+        val overview = ListeningOverviews.summarize(
+            events = listOf(event("a", startedAtMs = 10 * day, completed = false, skipped = true)),
+            artistOf = { "A" },
+            sinceMs = null,
+            nowMs = 10 * day + hour,
+            timePointOf = utc,
+        )
+
+        assertEquals(0, overview.plays)
+        assertEquals(0, overview.repeatPlays)
+        assertTrue(overview.topTracks.isEmpty())
+        assertTrue(overview.topArtists.isEmpty())
+        assertEquals(1f, overview.skipRate)
+    }
+
+    @Test
     fun periodFilterKeepsAggregatesInsideTheWindow() {
         val overview = ListeningOverviews.summarize(
             events = listOf(
@@ -58,13 +106,14 @@ internal class ListeningOverviewTest {
             timePointOf = utc,
         )
 
-        assertEquals(3, overview.plays)
+        // "b" was skipped: a start (rates, time, distinct tracks) but not a play.
+        assertEquals(2, overview.plays)
         assertEquals(240_000, overview.playedMs)
         assertEquals(2, overview.distinctTracks)
         assertEquals(2f / 3f, overview.completionRate)
         assertEquals(1f / 3f, overview.skipRate)
         assertEquals(2, overview.playsByHour[8])
-        assertEquals(1, overview.playsByHour[22])
+        assertEquals(0, overview.playsByHour[22])
         assertEquals(
             listOf(TrackListening(TrackId("a"), plays = 2, playedMs = 180_000)),
             overview.topTracks.take(1),

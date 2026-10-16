@@ -125,7 +125,7 @@ internal fun TrackDetailsFace(
             DetailRow(stringResource(Res.string.details_file), track.fileName ?: track.audioUri ?: notSet)
             DetailRow(
                 stringResource(Res.string.details_plays),
-                stats?.plays?.takeIf { it > 0 }?.toString()
+                stats?.listens?.takeIf { it > 0 }?.toString()
                     ?: stringResource(Res.string.details_plays_none),
             )
         }

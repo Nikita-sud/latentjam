@@ -1412,7 +1412,8 @@ private fun AppShell(
 
         suspend fun refreshPlaylistStats() {
             val stats = AppGraph.history.stats()
-            playlistsState.playCounts = stats.mapValues { it.value.plays }
+            // What the listener calls plays: a start skipped within 30 seconds is not one.
+            playlistsState.playCounts = stats.mapValues { it.value.listens }
             playlistsState.lastPlayedAt = stats.mapValues { it.value.lastPlayedAtMs }
         }
 

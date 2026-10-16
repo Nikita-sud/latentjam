@@ -44,6 +44,32 @@ internal class ListeningHistoryTest {
     )
 
     @Test
+    fun skippedStartsAreStartsButNotListens() = runTest {
+        val history = DefaultListeningHistory(FakeStore())
+        history.record(event("1", startedAt = 1, played = 3_000, skipped = true))
+        history.record(event("1", startedAt = 2, played = 3_000, skipped = true))
+        history.record(event("1", startedAt = 3, completed = true))
+
+        val stats = history.stats().getValue(TrackId("1"))
+        assertEquals(3, stats.plays)
+        assertEquals(1, stats.listens)
+        assertEquals(2, stats.skips)
+    }
+
+    @Test
+    fun listensAreRebuiltFromAnExistingLog() = runTest {
+        val store = FakeStore(
+            listOf(
+                event("1", startedAt = 1, played = 3_000, skipped = true).serialize(),
+                event("1", startedAt = 2, completed = true).serialize(),
+            ),
+        )
+        val stats = DefaultListeningHistory(store).stats().getValue(TrackId("1"))
+        assertEquals(2, stats.plays)
+        assertEquals(1, stats.listens)
+    }
+
+    @Test
     fun serializationRoundTrips() {
         val original = event("42", startedAt = 1_234, completed = true)
         assertEquals(original, ListenEvent.parse(original.serialize()))
