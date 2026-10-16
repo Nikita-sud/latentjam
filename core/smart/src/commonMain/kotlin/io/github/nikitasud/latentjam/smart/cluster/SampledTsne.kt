@@ -11,7 +11,7 @@ import kotlin.math.sqrt
 
 /** Supplies one unit-normalized fused row at a time, so the full matrix need not be held. */
 internal fun interface LayoutRowSource {
-    fun read(row: Int, out: FloatArray)
+    suspend fun read(row: Int, out: FloatArray)
 }
 
 /**
@@ -48,7 +48,7 @@ internal object SampledTsne {
      *
      * @return row-major `n x k`
      */
-    fun reduce(
+    suspend fun reduce(
         source: LayoutRowSource,
         n: Int,
         dim: Int,
@@ -66,7 +66,7 @@ internal object SampledTsne {
             for (d in 0 until dim) mean[d] += row[d]
         }
         for (d in 0 until dim) mean[d] /= n
-        val prepared = { i: Int, out: FloatArray ->
+        val prepared: suspend (Int, FloatArray) -> Unit = { i, out ->
             source.read(i, out)
             centerAndUnitize(out, mean, dim)
         }

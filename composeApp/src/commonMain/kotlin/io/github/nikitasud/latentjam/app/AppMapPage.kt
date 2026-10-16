@@ -134,22 +134,31 @@ internal fun rememberMapPageModel(
                             transientBuildState = stableStateBeforeBuild.duringMapBuild()
                             mapPage.mapState = transientBuildState!!
                         }
-                        if (!mapWorkFits(MapMemoryBudget.projectionBytes(coverage.size, 1344, LibraryLayout.experimentalBackend))) {
+                        // Streamed: rows are read from the engine per chunk, so the fused
+                        // n x dim input (54 MB at 10,000) is never held, and budgeted without it.
+                        val streamedBytes = MapMemoryBudget.projectionStreamedBytes(
+                            coverage.size, 1344, LibraryLayout.experimentalBackend,
+                        )
+                        if (!mapWorkFits(streamedBytes)) {
                             throw MapComputationUnavailable("Insufficient memory for map projection", memoryLimited = true)
                         }
-                        val space = engine.libraryMixVectors(loadedIds)
-                        if (space == null || space.fingerprint != coverage.fingerprint) {
-                            null // Index changed while waiting; the new discovery run will retry.
+                        val rows = engine.libraryMixRows(loadedIds)
+                        val computed = if (rows == null || rows.fingerprint != coverage.fingerprint) {
+                            null
                         } else {
-                            val computed = LibraryLayout.compute(
-                                space, previous.positions, isActive = { isActive },
+                            LibraryLayout.compute(
+                                rows, previous.positions, isActive = { isActive },
                                 workBudgetBytes = availableMapWorkBytes(),
                             )
+                        }
+                        if (computed == null) {
+                            null // Index changed while waiting or reading; the new discovery run will retry.
+                        } else {
                             kotlinx.coroutines.currentCoroutineContext().ensureActive()
-                            layoutStore.saveMapLayoutBestEffort(computed, space.fingerprint)
+                            layoutStore.saveMapLayoutBestEffort(computed, coverage.fingerprint)
                             StoredLibraryLayout(
                                 computed.associate { it.trackId to floatArrayOf(it.x, it.y) },
-                                space.fingerprint,
+                                coverage.fingerprint,
                             )
                         }
                     },

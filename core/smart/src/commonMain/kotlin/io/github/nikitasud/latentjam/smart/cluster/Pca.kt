@@ -89,8 +89,8 @@ internal object Pca {
      * dimension order as [reduce], so the result is bit-identical while only `n x k` is held.
      * Null when cancelled.
      */
-    fun reduceStreamed(
-        read: (row: Int, out: FloatArray) -> Unit,
+    suspend fun reduceStreamed(
+        read: suspend (row: Int, out: FloatArray) -> Unit,
         n: Int,
         dim: Int,
         components: Int,

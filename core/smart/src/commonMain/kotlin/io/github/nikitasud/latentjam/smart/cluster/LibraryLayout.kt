@@ -160,24 +160,67 @@ public object LibraryLayout {
     }
 
     /**
-     * [compute] reading rows one at a time from [source] (streamed PCA, bit-identical reduction)
-     * instead of from a held matrix; prototype, see docs/map-sample-place-2026-10-16.md.
+     * [compute] reading [rows] on demand instead of from a held matrix.
+     *
+     * The reduction is [Pca.reduceStreamed]: one pass over the rows for the mean, one per
+     * subspace iteration and one for the projection, accumulating in the same order as the held
+     * path, so for the same rows the result is identical to [compute]'s, bit for bit. Only the
+     * `n x COMPONENTS` reduction and one [LibraryVectorRows.CHUNK_ROWS] buffer are held, never the
+     * `n x dim` input: 54 MB fewer at 10,000 tracks.
+     *
+     * @param workBudgetBytes free heap measured before the call; compared against
+     *   [MapMemoryBudget.projectionStreamedBytes]
+     * @return null when [rows] stopped being current while they were read (the index changed);
+     *   nothing is laid out from the mixed rows and the caller retries on the new library
+     * @throws kotlinx.coroutines.CancellationException when [isActive] becomes false
+     * @throws MapComputationUnavailable before unsafe allocation or when a backend fails
+     * @throws IllegalArgumentException if `rows.size` exceeds [MAX_TRACKS]
      */
-    internal fun computeStreamed(
+    public suspend fun compute(
+        rows: LibraryVectorRows,
+        previous: Map<TrackId, FloatArray> = emptyMap(),
+        isActive: () -> Boolean = { true },
+        workBudgetBytes: Long = Long.MAX_VALUE,
+    ): List<LayoutPoint>? {
+        val ids = rows.trackIds
+        val n = ids.size
+        if (n == 0) return emptyList()
+        if (n < 3) return ids.map { id -> LayoutPoint(id, 0.5f, 0.5f) }
+        require(n <= MAX_TRACKS) {
+            "Library has $n laid-out tracks, above MAX_TRACKS ($MAX_TRACKS); the caller must check " +
+                "this before calling compute() and show an honest state instead of hitting this"
+        }
+        if (MapMemoryBudget.projectionStreamedBytes(n, rows.dim, experimentalBackend) > workBudgetBytes) {
+            throw MapComputationUnavailable("Insufficient memory for map projection", memoryLimited = true)
+        }
+        return computeStreamed(
+            ids, rows::read, rows.dim, previous, isActive, isCurrent = rows::isCurrent,
+        )
+    }
+
+    /**
+     * Streamed [compute] over any [source]; also the device-test entry point.
+     * [isCurrent] runs once, after the last row is read and before the embedding.
+     */
+    internal suspend fun computeStreamed(
         ids: List<TrackId>,
         source: LayoutRowSource,
         dim: Int,
         previous: Map<TrackId, FloatArray> = emptyMap(),
         isActive: () -> Boolean = { true },
         onPhase: (String) -> Unit = {},
-    ): List<LayoutPoint> {
+        isCurrent: suspend () -> Boolean = { true },
+        backend: MapEmbeddingBackend = backendFor(ids.size),
+    ): List<LayoutPoint>? {
         val n = ids.size
         if (n < 3) return ids.map { id -> LayoutPoint(id, 0.5f, 0.5f) }
+        if (!isActive()) throw kotlinx.coroutines.CancellationException("Map cancelled before PCA")
         val reduced = SampledTsne.reduce(source, n, dim, null, COMPONENTS, SEED, isActive)
             ?: throw kotlinx.coroutines.CancellationException("Map cancelled during PCA")
         onPhase("reduced")
+        if (!isCurrent()) return null
         val warm = warmStart(ids, previous, n)
-        var embedded = when (val result = backendFor(n).embed(reduced, n, reduced.size / n, warm, isActive)) {
+        var embedded = when (val result = backend.embed(reduced, n, reduced.size / n, warm, isActive)) {
             is MapEmbeddingResult.Complete -> result.coordinates
             MapEmbeddingResult.Cancelled -> throw kotlinx.coroutines.CancellationException("Map cancelled")
             is MapEmbeddingResult.Failed -> throw MapComputationUnavailable(result.reason)
@@ -191,7 +234,7 @@ public object LibraryLayout {
      * start, alignment and normalization around [SampledTsne], reading rows from [source] one at a
      * time instead of from a held matrix.
      */
-    internal fun computeSampled(
+    internal suspend fun computeSampled(
         ids: List<TrackId>,
         source: LayoutRowSource,
         dim: Int,

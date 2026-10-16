@@ -8,6 +8,7 @@ import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlinx.coroutines.test.runTest
 
 class PcaTest {
 
@@ -74,7 +75,7 @@ class PcaTest {
     // A streamed reduction lets a large library skip holding its fused matrix; it is only safe if
     // it is the same map, so the result must match bit for bit, not approximately.
     @Test
-    fun `streamed reduction is bit identical to the held matrix`() {
+    fun `streamed reduction is bit identical to the held matrix`() = runTest {
         val n = 300
         val dim = 64
         var state = 12345L

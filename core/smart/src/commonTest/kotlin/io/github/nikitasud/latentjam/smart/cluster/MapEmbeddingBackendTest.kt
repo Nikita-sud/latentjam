@@ -52,6 +52,19 @@ class MapEmbeddingBackendTest {
         val input = 4L * 10_000 * 1344
         assertEquals(MapMemoryBudget.projectionBytes(10_000, 1344, false) - input, MapMemoryBudget.projectionWorkBytes(10_000, 1344, false))
         assertEquals(MapMemoryBudget.regionBytes(10_000, 1344) - input, MapMemoryBudget.regionWorkBytes(10_000, 1344))
+        // The streamed layout never holds the input, only one chunk of it: 39.4 MiB at 10,000
+        // against 89.3 MiB held. Measured streamed peak there: 31 MB on a 256 MB heap.
+        assertEquals(93_672_704L, MapMemoryBudget.projectionBytes(10_000, 1344, false))
+        assertEquals(41_288_960L, MapMemoryBudget.projectionStreamedBytes(10_000, 1344, false))
+        assertEquals(
+            MapMemoryBudget.projectionBytes(10_000, 1344, false) - input + 4L * LibraryVectorRows.CHUNK_ROWS * 1344,
+            MapMemoryBudget.projectionStreamedBytes(10_000, 1344, false),
+        )
+        // Below one chunk the buffer is only as large as the library.
+        assertEquals(
+            MapMemoryBudget.projectionBytes(100, 1344, false) - 4L * 100 * 1344 + 4L * 100 * 1344,
+            MapMemoryBudget.projectionStreamedBytes(100, 1344, false),
+        )
         // Linear above the exact limit: no quadratic term survives.
         val boundary = LibraryLayout.EXACT_MAX_TRACKS
         assertTrue(MapMemoryBudget.projectionBytes(boundary + 1, 1344, false) < MapMemoryBudget.projectionBytes(boundary, 1344, false))

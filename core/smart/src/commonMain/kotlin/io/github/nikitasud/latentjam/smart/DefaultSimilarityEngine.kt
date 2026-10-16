@@ -18,6 +18,7 @@ import io.github.nikitasud.latentjam.smart.chain.SmartTrack
 import io.github.nikitasud.latentjam.smart.chain.TrackMeta
 import io.github.nikitasud.latentjam.smart.chain.applyLibraryEnergy
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorCoverage
+import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorRows
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorFusion
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorSpace
 import io.github.nikitasud.latentjam.smart.text.ArtistKnowledge
@@ -501,19 +502,64 @@ internal class DefaultSimilarityEngine(
         withContext(dispatcher) {
             mutex.withLock {
                 if (mutableState.value !is EngineState.Ready) return@withLock null
-                mixCoverageCache?.takeIf { it.revision == indexRevision && it.requestedIds == ids }
-                    ?.let { return@withLock it.coverage }
-                LibraryVectorFusion.coverageFromIndexes(
-                    ids = ids,
-                    audio = index,
-                    metadata = textIndex,
-                    audioDim = config.embeddingDim,
-                    metadataDim = TextEncoder.TEXT_DIM,
-                ).also { coverage ->
-                    mixCoverageCache = MixCoverageCache(indexRevision, ids.toList(), coverage)
-                }
+                mixCoverageLocked(ids)
             }
         }
+
+    override suspend fun libraryMixRows(ids: List<TrackId>): LibraryVectorRows? =
+        withContext(dispatcher) {
+            mutex.withLock {
+                if (mutableState.value !is EngineState.Ready) return@withLock null
+                val coverage = mixCoverageLocked(ids) ?: return@withLock null
+                val writer = LibraryVectorFusion.rowWriter(
+                    coverage = coverage,
+                    audioDim = config.embeddingDim,
+                    metadataDim = TextEncoder.TEXT_DIM,
+                )
+                val trackIds = coverage.trackIds
+                val requested = ids.toList()
+                LibraryVectorRows(
+                    trackIds = trackIds,
+                    dim = writer.dim,
+                    source = coverage.source,
+                    fingerprint = coverage.fingerprint,
+                    // One chunk per lock: SMART waits at most one chunk, never the whole pass.
+                    readChunk = { start, count, out ->
+                        withContext(dispatcher) {
+                            mutex.withLock {
+                                for (slot in 0 until count) {
+                                    writer.write(trackIds[start + slot], index, textIndex, out, slot * writer.dim)
+                                }
+                            }
+                        }
+                    },
+                    // Cached while the revision is unchanged; otherwise one hashing pass.
+                    verify = {
+                        withContext(dispatcher) {
+                            mutex.withLock {
+                                mutableState.value is EngineState.Ready &&
+                                    mixCoverageLocked(requested)?.fingerprint == coverage.fingerprint
+                            }
+                        }
+                    },
+                )
+            }
+        }
+
+    /** [libraryMixCoverage] with [mutex] already held. */
+    private fun mixCoverageLocked(ids: List<TrackId>): LibraryVectorCoverage? {
+        mixCoverageCache?.takeIf { it.revision == indexRevision && it.requestedIds == ids }
+            ?.let { return it.coverage }
+        return LibraryVectorFusion.coverageFromIndexes(
+            ids = ids,
+            audio = index,
+            metadata = textIndex,
+            audioDim = config.embeddingDim,
+            metadataDim = TextEncoder.TEXT_DIM,
+        ).also { coverage ->
+            mixCoverageCache = MixCoverageCache(indexRevision, ids.toList(), coverage)
+        }
+    }
 
     override suspend fun libraryMixFeatures(
         ids: List<TrackId>,

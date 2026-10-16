@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.concurrent.thread
 import kotlin.math.sqrt
 import kotlin.random.Random
+import kotlinx.coroutines.runBlocking
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 
@@ -109,20 +110,22 @@ class MapScaleDeviceTest {
                 fixture!!.rows.copyInto(out, 0, row * DIM, (row + 1) * DIM)
             }
             outcome = if (stage == "layout-stream") {
-                val points = LibraryLayout.computeStreamed(
-                    ids, source, DIM, isActive = isActive,
-                    onPhase = { phase -> phaseMarks += "${phase}_at_ms=${(System.nanoTime() - start) / 1e6}" },
-                )
+                val points = runBlocking {
+                    LibraryLayout.computeStreamed(
+                        ids, source, DIM, isActive = isActive,
+                        onPhase = { phase -> phaseMarks += "${phase}_at_ms=${(System.nanoTime() - start) / 1e6}" },
+                    )!!
+                }
                 check(points.size == n && points.all { it.x.isFinite() && it.y.isFinite() })
                 "points=${points.size} backend=streamed-${if (n > LibraryLayout.EXACT_MAX_TRACKS) "barnes-hut" else "exact"}"
             } else if (stage.startsWith("layout-sampled")) {
-                val points = LibraryLayout.computeSampled(
+                val points = runBlocking { LibraryLayout.computeSampled(
                     ids, source, DIM, isActive = isActive,
                     refineIterations = InstrumentationRegistry.getArguments().getString("mapRefine")?.toInt() ?: SampledTsne.REFINE_ITERATIONS,
                     fullIterations = InstrumentationRegistry.getArguments().getString("mapFull")?.toInt() ?: 0,
                     sampleIterations = InstrumentationRegistry.getArguments().getString("mapSampleIter")?.toInt() ?: Tsne.ITERATIONS,
                     onPhase = { phase -> phaseMarks += "${phase}_at_ms=${(System.nanoTime() - start) / 1e6}" },
-                )
+                ) }
                 check(points.size == n && points.all { it.x.isFinite() && it.y.isFinite() })
                 "points=${points.size} backend=sampled sample=${minOf(n, SampledTsne.SAMPLE_SIZE)}"
             } else if (stage == "layout") {
@@ -199,7 +202,7 @@ class MapScaleDeviceTest {
             check(n > 0)
         }
 
-        override fun read(row: Int, out: FloatArray) {
+        override suspend fun read(row: Int, out: FloatArray) {
             val random = Random(seed * 1_000_003 + row)
             val scattered = random.nextDouble() < 0.15
             var pick = random.nextDouble() * total

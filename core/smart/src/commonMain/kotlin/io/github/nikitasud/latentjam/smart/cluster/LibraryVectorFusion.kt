@@ -344,18 +344,10 @@ public object LibraryVectorFusion {
                 // copyNormalized and either throw or poison the whole layout.
                 val audioVector = if (id in audioIds) audio(id) else null
                 val metadataVector = if (id in metadataIds) metadata(id) else null
-                val base = row * dim
-                if (audioVector != null) {
-                    // With no metadata, the available modality carries the full unit norm. Against
-                    // a complete row it still contributes only sqrt(audioWeight), which is the
-                    // natural masked-cosine fallback.
-                    val scale = if (metadataVector == null) 1f else audioScale
-                    copyNormalized(audioVector, rows, base, audioDim, scale)
-                }
-                if (metadataVector != null) {
-                    val scale = if (audioVector == null) 1f else metadataScale
-                    copyNormalized(metadataVector, rows, base + audioDim, metadataDim, scale)
-                }
+                writeHybridRow(
+                    audioVector, metadataVector, rows, row * dim, audioDim, metadataDim,
+                    audioScale, metadataScale,
+                )
             }
             return LibraryVectorSpace(
                 trackIds = selectedIds,
@@ -401,6 +393,67 @@ public object LibraryVectorFusion {
             copyNormalized(checkNotNull(vectors(id)), rows, row * dim, dim, scale = 1f)
         }
         return LibraryVectorSpace(ids, rows, dim, source, fingerprint)
+    }
+
+    /**
+     * Writes one hybrid row into [output] at [offset]. Shared by [buildSelected] and [rowWriter],
+     * so a row read on demand is the row the held matrix would contain, bit for bit.
+     */
+    private fun writeHybridRow(
+        audioVector: FloatArray?,
+        metadataVector: FloatArray?,
+        output: FloatArray,
+        offset: Int,
+        audioDim: Int,
+        metadataDim: Int,
+        audioScale: Float,
+        metadataScale: Float,
+    ) {
+        if (audioVector != null) {
+            // With no metadata, the available modality carries the full unit norm. Against a
+            // complete row it still contributes only sqrt(audioWeight), which is the natural
+            // masked-cosine fallback.
+            val scale = if (metadataVector == null) 1f else audioScale
+            copyNormalized(audioVector, output, offset, audioDim, scale)
+        }
+        if (metadataVector != null) {
+            val scale = if (audioVector == null) 1f else metadataScale
+            copyNormalized(metadataVector, output, offset + audioDim, metadataDim, scale)
+        }
+    }
+
+    /**
+     * Writes the row [buildFromIndexes] would hold for one track of [coverage], reading the
+     * indexes afresh. Usability is re-checked per row instead of taken from an inventory, so a
+     * vector that changed since [coverage] was taken becomes a zero block rather than a throw;
+     * the caller detects the change by comparing [LibraryVectorCoverage.fingerprint] afterwards.
+     */
+    internal fun rowWriter(
+        coverage: LibraryVectorCoverage,
+        audioDim: Int,
+        metadataDim: Int,
+        metadataWeight: Float = METADATA_WEIGHT,
+    ): FusedRowWriter {
+        validateParameters(audioDim, metadataDim, metadataWeight, MIN_HYBRID_COVERAGE)
+        val audioScale = sqrt(1f - metadataWeight)
+        val metadataScale = sqrt(metadataWeight)
+        return when (coverage.source) {
+            LibraryVectorSource.AUDIO_AND_METADATA -> FusedRowWriter(audioDim + metadataDim) { id, audio, metadata, out, offset ->
+                writeHybridRow(
+                    audio.vector(id)?.takeIf { it.isUsable(audioDim) },
+                    metadata?.vector(id)?.takeIf { it.isUsable(metadataDim) },
+                    out, offset, audioDim, metadataDim, audioScale, metadataScale,
+                )
+            }
+            LibraryVectorSource.METADATA -> FusedRowWriter(metadataDim) { id, _, metadata, out, offset ->
+                metadata?.vector(id)?.takeIf { it.isUsable(metadataDim) }
+                    ?.let { copyNormalized(it, out, offset, metadataDim, scale = 1f) }
+            }
+            LibraryVectorSource.AUDIO -> FusedRowWriter(audioDim) { id, audio, _, out, offset ->
+                audio.vector(id)?.takeIf { it.isUsable(audioDim) }
+                    ?.let { copyNormalized(it, out, offset, audioDim, scale = 1f) }
+            }
+        }
     }
 
     private class VectorInventory(

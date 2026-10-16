@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.smart.cluster
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.math.sqrt
 import kotlin.test.Test
+import kotlinx.coroutines.runBlocking
 
 /**
  * Opt-in quality and stability comparison of the "sample and place" prototype against full
@@ -75,17 +76,17 @@ class MapSampleReplay {
         println("SAMPLE $label bh ms=${ms(start)}")
         maps["bh-seed2"] = BarnesHutTsne.embed(reference, n, k, SEED + 1)
         // Isolates the streamed PCA: basis fitted on the sample, then full Barnes-Hut on every row.
-        val sampledPca = SampledTsne.reduce(source(rows, dim), n, dim, SampledTsne.sampleRows(ids, sampleSize), LibraryLayout.COMPONENTS, SEED) { true }!!
+        val sampledPca = runBlocking { SampledTsne.reduce(source(rows, dim), n, dim, SampledTsne.sampleRows(ids, sampleSize), LibraryLayout.COMPONENTS, SEED) { true }!! }
         maps["pca-sample+bh"] = BarnesHutTsne.embed(sampledPca, n, k, SEED)
-        val streamed = SampledTsne.reduce(source(rows, dim), n, dim, null, LibraryLayout.COMPONENTS, SEED) { true }!!
+        val streamed = runBlocking { SampledTsne.reduce(source(rows, dim), n, dim, null, LibraryLayout.COMPONENTS, SEED) { true }!! }
         println("SAMPLE $label streamed-pca bitIdentical=${streamed.contentEquals(reference)}")
         for (variant in variants) {
             start = System.nanoTime()
-            val points = LibraryLayout.computeSampled(
+            val points = runBlocking { LibraryLayout.computeSampled(
                 ids, source(rows, dim), dim, sampleSize = variant.sampleFraction?.let { (n * it).toInt() } ?: sampleSize,
                 refineIterations = variant.iterations, refineRate = variant.rate, neighbours = variant.neighbours,
                 fullIterations = variant.full, sampleIterations = variant.sampleIterations, samplePca = variant.samplePca,
-            )
+            ) }
             println("SAMPLE $label ${variant.name} ms=${ms(start)}")
             maps[variant.name] = flatten(points)
         }
@@ -159,12 +160,12 @@ class MapSampleReplay {
         )
         report("bh-warm", bhBefore, bhAfter)
         for (variant in variants) {
-            fun sampled(subset: List<TrackId>, matrix: FloatArray, previous: Map<TrackId, FloatArray>) = LibraryLayout.computeSampled(
+            fun sampled(subset: List<TrackId>, matrix: FloatArray, previous: Map<TrackId, FloatArray>) = runBlocking { LibraryLayout.computeSampled(
                 subset, source(matrix, dim), dim, previous,
                 sampleSize = variant.sampleFraction?.let { (subset.size * it).toInt() } ?: sampleSize,
                 refineIterations = variant.iterations, refineRate = variant.rate, neighbours = variant.neighbours,
                 fullIterations = variant.full, sampleIterations = variant.sampleIterations, samplePca = variant.samplePca,
-            )
+            ) }
             val before = sampled(oldIds, oldRows, emptyMap())
             val after = sampled(ids, rows, before.associate { it.trackId to floatArrayOf(it.x, it.y) })
             report(variant.name, before, after)

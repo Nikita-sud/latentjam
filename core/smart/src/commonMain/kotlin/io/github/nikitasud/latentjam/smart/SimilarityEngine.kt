@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.smart
 
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorCoverage
+import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorRows
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorSpace
 import kotlinx.coroutines.flow.StateFlow
 
@@ -178,6 +179,21 @@ public interface SimilarityEngine {
      * cannot disagree about which tracks are covered.
      */
     public suspend fun libraryMixCoverage(ids: List<TrackId>): LibraryVectorCoverage?
+
+    /**
+     * The rows [libraryMixVectors] would build, read on demand rather than held.
+     *
+     * For a single sequential consumer such as the Map's streamed PCA, which needs every row
+     * several times but never all at once: at 10,000 tracks this avoids a 54 MB matrix. Each row
+     * equals the corresponding row of [libraryMixVectors]' space bit for bit. The engine lock is
+     * taken per chunk, not for the whole read, so callers must check
+     * [LibraryVectorRows.isCurrent] after their last read and discard the result when it is false.
+     *
+     * The default serves rows from a built space, so it saves nothing; [DefaultSimilarityEngine]
+     * reads its indexes instead.
+     */
+    public suspend fun libraryMixRows(ids: List<TrackId>): LibraryVectorRows? =
+        libraryMixVectors(ids)?.let(LibraryVectorRows::of)
 
     /**
      * Builds mix vectors and batches the corresponding audio fingerprints through the universal

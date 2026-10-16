@@ -101,6 +101,15 @@ public object MapMemoryBudget {
         return RESERVE + 8L * n * dim + 4L * n * (n - 1) + 128L * n
     }
 
+    /**
+     * [projectionBytes] for [LibraryLayout.compute] over [LibraryVectorRows]: the `n x dim` input
+     * is never held, only one [LibraryVectorRows.CHUNK_ROWS] buffer of it, plus the streamed
+     * reduction's row and accumulator (inside the PCA term's `20 * dim * 50`).
+     */
+    public fun projectionStreamedBytes(n: Int, dim: Int, experimental: Boolean): Long =
+        projectionBytes(n, dim, experimental) - 4L * n * dim +
+            4L * minOf(n, LibraryVectorRows.CHUNK_ROWS) * dim
+
     /** [projectionBytes] without the fused input the caller's space already holds. */
     public fun projectionWorkBytes(n: Int, dim: Int, experimental: Boolean): Long =
         projectionBytes(n, dim, experimental) - 4L * n * dim
