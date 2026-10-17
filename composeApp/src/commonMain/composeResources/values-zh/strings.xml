@@ -392,8 +392,6 @@
     <string name="settings_mini_player">迷你播放器</string>
     <string name="settings_mini_player_card">卡片</string>
     <string name="settings_mini_player_bar">横条</string>
-    <string name="settings_mini_player_previous">上一首按钮</string>
-    <string name="settings_mini_player_previous_body">在暂停旁显示上一首按钮</string>
     <string name="settings_section_handling">操作</string>
     <string name="settings_left_handed">左手模式</string>
     <string name="settings_left_handed_body">随机播放按钮和字母索引放在左侧</string>

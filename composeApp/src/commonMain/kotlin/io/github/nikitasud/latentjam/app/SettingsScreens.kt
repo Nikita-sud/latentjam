@@ -342,8 +342,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_shape_body
 import io.github.nikitasud.latentjam.app.generated.resources.settings_mini_player
 import io.github.nikitasud.latentjam.app.generated.resources.settings_mini_player_card
 import io.github.nikitasud.latentjam.app.generated.resources.settings_mini_player_bar
-import io.github.nikitasud.latentjam.app.generated.resources.settings_mini_player_previous
-import io.github.nikitasud.latentjam.app.generated.resources.settings_mini_player_previous_body
 import io.github.nikitasud.latentjam.app.generated.resources.settings_section_handling
 import io.github.nikitasud.latentjam.app.generated.resources.settings_left_handed
 import io.github.nikitasud.latentjam.app.generated.resources.settings_left_handed_body
@@ -928,12 +926,6 @@ private fun AppearanceSettings(
                         })
                     },
                     onSelected = { style -> update { copy(miniPlayer = style) } },
-                )
-                AppearanceSwitchRow(
-                    title = stringResource(Res.string.settings_mini_player_previous),
-                    body = stringResource(Res.string.settings_mini_player_previous_body),
-                    checked = appearance.miniPlayerPrevious,
-                    onCheckedChange = { on -> update { copy(miniPlayerPrevious = on) } },
                 )
             }
         }

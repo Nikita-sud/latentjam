@@ -404,8 +404,6 @@
     <string name="settings_mini_player">Mini oynatıcı</string>
     <string name="settings_mini_player_card">Kart</string>
     <string name="settings_mini_player_bar">Çubuk</string>
-    <string name="settings_mini_player_previous">Önceki parça düğmesi</string>
-    <string name="settings_mini_player_previous_body">Duraklat düğmesinin yanında önceki parça düğmesini göster</string>
     <string name="settings_section_handling">Kullanım</string>
     <string name="settings_left_handed">Solak</string>
     <string name="settings_left_handed_body">Karıştır düğmesi ve alfabe solda</string>

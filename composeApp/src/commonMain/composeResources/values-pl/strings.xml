@@ -444,8 +444,6 @@
     <string name="settings_mini_player">Miniodtwarzacz</string>
     <string name="settings_mini_player_card">Karta</string>
     <string name="settings_mini_player_bar">Pasek</string>
-    <string name="settings_mini_player_previous">Przycisk poprzedniego utworu</string>
-    <string name="settings_mini_player_previous_body">Pokazuj przycisk poprzedniego utworu obok pauzy</string>
     <string name="settings_section_handling">Obsługa</string>
     <string name="settings_left_handed">Dla leworęcznych</string>
     <string name="settings_left_handed_body">Przycisk losowania i alfabet po lewej</string>

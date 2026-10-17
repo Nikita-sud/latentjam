@@ -411,8 +411,6 @@
     <string name="settings_mini_player">Mini lettore</string>
     <string name="settings_mini_player_card">Scheda</string>
     <string name="settings_mini_player_bar">Barra</string>
-    <string name="settings_mini_player_previous">Tasto brano precedente</string>
-    <string name="settings_mini_player_previous_body">Mostra il tasto del brano precedente accanto alla pausa</string>
     <string name="settings_section_handling">Uso</string>
     <string name="settings_left_handed">Mancino</string>
     <string name="settings_left_handed_body">Tasto casuale e alfabeto a sinistra</string>

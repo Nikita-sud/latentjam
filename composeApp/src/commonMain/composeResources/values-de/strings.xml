@@ -414,8 +414,6 @@
     <string name="settings_mini_player">Mini-Player</string>
     <string name="settings_mini_player_card">Karte</string>
     <string name="settings_mini_player_bar">Leiste</string>
-    <string name="settings_mini_player_previous">Taste „Vorheriger Titel“</string>
-    <string name="settings_mini_player_previous_body">Zeigt die Taste für den vorherigen Titel neben Pause</string>
     <string name="settings_section_handling">Bedienung</string>
     <string name="settings_left_handed">Linkshändig</string>
     <string name="settings_left_handed_body">Zufallstaste und Alphabet links</string>

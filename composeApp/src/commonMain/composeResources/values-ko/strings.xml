@@ -386,8 +386,6 @@
     <string name="settings_mini_player">미니 플레이어</string>
     <string name="settings_mini_player_card">카드</string>
     <string name="settings_mini_player_bar">막대</string>
-    <string name="settings_mini_player_previous">이전 곡 버튼</string>
-    <string name="settings_mini_player_previous_body">일시정지 옆에 이전 곡 버튼 표시</string>
     <string name="settings_section_handling">사용 편의</string>
     <string name="settings_left_handed">왼손잡이</string>
     <string name="settings_left_handed_body">셔플 버튼과 색인을 왼쪽에</string>

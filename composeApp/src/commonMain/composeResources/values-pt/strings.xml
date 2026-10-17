@@ -424,8 +424,6 @@
     <string name="settings_mini_player">Minileitor</string>
     <string name="settings_mini_player_card">Cartão</string>
     <string name="settings_mini_player_bar">Barra</string>
-    <string name="settings_mini_player_previous">Botão de faixa anterior</string>
-    <string name="settings_mini_player_previous_body">Mostrar o botão da faixa anterior ao lado da pausa</string>
     <string name="settings_section_handling">Utilização</string>
     <string name="settings_left_handed">Canhoto</string>
     <string name="settings_left_handed_body">Botão aleatório e alfabeto à esquerda</string>

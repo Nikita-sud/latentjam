@@ -431,8 +431,6 @@
     <string name="settings_mini_player">נגן מוקטן</string>
     <string name="settings_mini_player_card">כרטיס</string>
     <string name="settings_mini_player_bar">פס</string>
-    <string name="settings_mini_player_previous">כפתור הרצועה הקודמת</string>
-    <string name="settings_mini_player_previous_body">הצגת כפתור הרצועה הקודמת ליד ההשהיה</string>
     <string name="settings_section_handling">שימוש</string>
     <string name="settings_left_handed">לשמאליים</string>
     <string name="settings_left_handed_body">כפתור הערבוב והאלפבית משמאל</string>

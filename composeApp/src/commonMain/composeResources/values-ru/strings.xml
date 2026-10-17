@@ -430,8 +430,6 @@
     <string name="settings_mini_player">Мини-плеер</string>
     <string name="settings_mini_player_card">Карточка</string>
     <string name="settings_mini_player_bar">Полоса</string>
-    <string name="settings_mini_player_previous">Кнопка «Предыдущий трек»</string>
-    <string name="settings_mini_player_previous_body">Показывать предыдущий трек рядом с паузой</string>
     <string name="settings_section_handling">Удобство</string>
     <string name="settings_left_handed">Для левой руки</string>
     <string name="settings_left_handed_body">Кнопка перемешивания и алфавит — слева</string>

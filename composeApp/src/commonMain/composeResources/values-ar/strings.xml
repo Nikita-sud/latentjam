@@ -484,8 +484,6 @@
     <string name="settings_mini_player">المشغل المصغر</string>
     <string name="settings_mini_player_card">بطاقة</string>
     <string name="settings_mini_player_bar">شريط</string>
-    <string name="settings_mini_player_previous">زر المقطع السابق</string>
-    <string name="settings_mini_player_previous_body">إظهار زر المقطع السابق بجانب الإيقاف المؤقت</string>
     <string name="settings_section_handling">الاستخدام</string>
     <string name="settings_left_handed">لليد اليسرى</string>
     <string name="settings_left_handed_body">زر الخلط والأبجدية على اليسار</string>

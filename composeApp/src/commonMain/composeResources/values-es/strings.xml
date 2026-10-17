@@ -411,8 +411,6 @@
     <string name="settings_mini_player">Minirreproductor</string>
     <string name="settings_mini_player_card">Tarjeta</string>
     <string name="settings_mini_player_bar">Barra</string>
-    <string name="settings_mini_player_previous">Botón de pista anterior</string>
-    <string name="settings_mini_player_previous_body">Muestra el botón de pista anterior junto a pausa</string>
     <string name="settings_section_handling">Manejo</string>
     <string name="settings_left_handed">Para zurdos</string>
     <string name="settings_left_handed_body">Botón de aleatorio y alfabeto a la izquierda</string>

@@ -61,7 +61,6 @@ data class Appearance(
     val playerBackground: PlayerBackground = PlayerBackground.CLOUD,
     val shape: ShapeStyle = ShapeStyle.ROUND,
     val miniPlayer: MiniPlayerStyle = MiniPlayerStyle.CARD,
-    val miniPlayerPrevious: Boolean = true,
     val leftHanded: Boolean = false,
     val albumColumns: Int = 0,
 )
@@ -93,7 +92,6 @@ internal fun encodeAppearance(appearance: Appearance): String = APPEARANCE_PREFI
     "player" to appearance.playerBackground.persistedValue,
     "shape" to appearance.shape.persistedValue,
     "mini" to appearance.miniPlayer.persistedValue,
-    "previous" to appearance.miniPlayerPrevious.toString(),
     "left" to appearance.leftHanded.toString(),
     "albums" to appearance.albumColumns.toString(),
 ).joinToString(";") { (key, value) -> "$key=$value" }
@@ -116,7 +114,6 @@ internal fun decodeAppearance(value: String?): Appearance {
         shape = ShapeStyle.entries.firstOrNull { it.persistedValue == fields["shape"] } ?: defaults.shape,
         miniPlayer = MiniPlayerStyle.entries.firstOrNull { it.persistedValue == fields["mini"] }
             ?: defaults.miniPlayer,
-        miniPlayerPrevious = fields["previous"]?.toBooleanStrictOrNull() ?: defaults.miniPlayerPrevious,
         leftHanded = fields["left"]?.toBooleanStrictOrNull() ?: defaults.leftHanded,
         albumColumns = fields["albums"]?.toIntOrNull()?.takeIf { it == 0 || it in ALBUM_COLUMN_CHOICES }
             ?: defaults.albumColumns,

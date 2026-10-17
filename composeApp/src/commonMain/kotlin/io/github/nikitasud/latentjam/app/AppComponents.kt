@@ -1253,7 +1253,7 @@ internal fun MiniPlayerPill(
         ) {
             // At compact widths or large text, give the song name the room it needs. Previous
             // remains available by swipe, through accessibility, and in the expanded player.
-            val showPrevious = appearance.miniPlayerPrevious && maxWidth >= 340.dp && fontScale < 1.5f
+            val showPrevious = maxWidth >= 340.dp && fontScale < 1.5f
             Box(modifier = Modifier.fillMaxSize().semantics {
                 if (!showPrevious) {
                     customActions = listOf(CustomAccessibilityAction(previousDescription) {

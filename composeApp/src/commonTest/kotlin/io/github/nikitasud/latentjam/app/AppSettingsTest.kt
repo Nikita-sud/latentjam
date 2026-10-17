@@ -380,7 +380,6 @@ class AppSettingsTest {
             playerBackground = PlayerBackground.BLURRED_COVER,
             shape = ShapeStyle.SHARP,
             miniPlayer = MiniPlayerStyle.BAR,
-            miniPlayerPrevious = false,
             leftHanded = true,
             albumColumns = 3,
         )

@@ -481,8 +481,6 @@
     <string name="settings_mini_player">Mini player</string>
     <string name="settings_mini_player_card">Card</string>
     <string name="settings_mini_player_bar">Bar</string>
-    <string name="settings_mini_player_previous">Previous-track button</string>
-    <string name="settings_mini_player_previous_body">Show the previous-track button next to pause</string>
     <string name="settings_section_handling">Handling</string>
     <string name="settings_left_handed">Left-handed</string>
     <string name="settings_left_handed_body">Shuffle button and alphabet on the left</string>

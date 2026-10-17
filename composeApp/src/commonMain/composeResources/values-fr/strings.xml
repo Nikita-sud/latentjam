@@ -416,8 +416,6 @@
     <string name="settings_mini_player">Mini-lecteur</string>
     <string name="settings_mini_player_card">Carte</string>
     <string name="settings_mini_player_bar">Barre</string>
-    <string name="settings_mini_player_previous">Bouton « Titre précédent »</string>
-    <string name="settings_mini_player_previous_body">Afficher le bouton du titre précédent à côté de pause</string>
     <string name="settings_section_handling">Prise en main</string>
     <string name="settings_left_handed">Gaucher</string>
     <string name="settings_left_handed_body">Bouton aléatoire et alphabet à gauche</string>
