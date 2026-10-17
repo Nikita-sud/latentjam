@@ -426,12 +426,11 @@
     <string name="settings_mini_player">נגן מוקטן</string>
     <string name="settings_mini_player_card">כרטיס</string>
     <string name="settings_mini_player_bar">פס</string>
-    <string name="settings_mini_player_previous">כפתור הקודם</string>
+    <string name="settings_mini_player_previous">כפתור הרצועה הקודמת</string>
     <string name="settings_mini_player_previous_body">הצגת כפתור הרצועה הקודמת ליד ההשהיה</string>
     <string name="settings_section_handling">שימוש</string>
     <string name="settings_left_handed">לשמאליים</string>
     <string name="settings_left_handed_body">כפתור הערבוב והאלפבית משמאל</string>
-    <string name="settings_album_pinch_body">צבטו את רשת האלבומים בשתי אצבעות כדי להציג 2, 3 או 4 עמודות.</string>
     <string name="settings_color_dynamic">עטיפה</string>
     <string name="settings_color_dynamic_body">צבעים מתוך העטיפה, ואם אין — צבעי SMART.</string>
     <string name="settings_color_smart">SMART</string>

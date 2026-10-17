@@ -386,12 +386,11 @@
     <string name="settings_mini_player">ミニプレーヤー</string>
     <string name="settings_mini_player_card">カード</string>
     <string name="settings_mini_player_bar">バー</string>
-    <string name="settings_mini_player_previous">前へボタン</string>
+    <string name="settings_mini_player_previous">前の曲ボタン</string>
     <string name="settings_mini_player_previous_body">一時停止の横に前の曲ボタンを表示</string>
     <string name="settings_section_handling">操作</string>
     <string name="settings_left_handed">左手用</string>
     <string name="settings_left_handed_body">シャッフルボタンと索引を左側に</string>
-    <string name="settings_album_pinch_body">アルバム一覧を 2 本の指でピンチすると 2・3・4 列に切り替わります。</string>
     <string name="settings_color_dynamic">アートワーク</string>
     <string name="settings_color_dynamic_body">アートワークから取得した色を使い、取得できない場合は SMART の色を使います。</string>
     <string name="settings_color_smart">SMART</string>

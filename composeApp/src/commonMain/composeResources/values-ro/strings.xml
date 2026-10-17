@@ -413,12 +413,11 @@
     <string name="settings_mini_player">Mini-player</string>
     <string name="settings_mini_player_card">Card</string>
     <string name="settings_mini_player_bar">Bară</string>
-    <string name="settings_mini_player_previous">Butonul înapoi</string>
+    <string name="settings_mini_player_previous">Butonul piesei anterioare</string>
     <string name="settings_mini_player_previous_body">Arată butonul piesei anterioare lângă pauză</string>
     <string name="settings_section_handling">Utilizare</string>
     <string name="settings_left_handed">Stângaci</string>
     <string name="settings_left_handed_body">Butonul de amestecare și alfabetul în stânga</string>
-    <string name="settings_album_pinch_body">Apropie sau depărtează două degete pe grila de albume: 2, 3 sau 4 coloane.</string>
     <string name="settings_color_dynamic">Copertă</string>
     <string name="settings_color_dynamic_body">Folosește culorile din copertă, cu SMART ca alternativă.</string>
     <string name="settings_color_smart">SMART</string>

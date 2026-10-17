@@ -404,12 +404,11 @@
     <string name="settings_mini_player">Mini oynatıcı</string>
     <string name="settings_mini_player_card">Kart</string>
     <string name="settings_mini_player_bar">Çubuk</string>
-    <string name="settings_mini_player_previous">Önceki düğmesi</string>
+    <string name="settings_mini_player_previous">Önceki parça düğmesi</string>
     <string name="settings_mini_player_previous_body">Duraklat düğmesinin yanında önceki parça düğmesini göster</string>
     <string name="settings_section_handling">Kullanım</string>
     <string name="settings_left_handed">Solak</string>
     <string name="settings_left_handed_body">Karıştır düğmesi ve alfabe solda</string>
-    <string name="settings_album_pinch_body">2, 3 veya 4 sütun için albüm ızgarasında iki parmağınızı kıstırın.</string>
     <string name="settings_color_dynamic">Kapak</string>
     <string name="settings_color_dynamic_body">Kapaktan alınan renkleri, gerekirse SMART renklerini kullan.</string>
     <string name="settings_color_smart">SMART</string>

@@ -484,12 +484,11 @@
     <string name="settings_mini_player">المشغل المصغر</string>
     <string name="settings_mini_player_card">بطاقة</string>
     <string name="settings_mini_player_bar">شريط</string>
-    <string name="settings_mini_player_previous">زر السابق</string>
+    <string name="settings_mini_player_previous">زر المقطع السابق</string>
     <string name="settings_mini_player_previous_body">إظهار زر المقطع السابق بجانب الإيقاف المؤقت</string>
     <string name="settings_section_handling">الاستخدام</string>
     <string name="settings_left_handed">لليد اليسرى</string>
     <string name="settings_left_handed_body">زر الخلط والأبجدية على اليسار</string>
-    <string name="settings_album_pinch_body">قرّب إصبعين أو باعدهما على شبكة الألبومات لعرض 2 أو 3 أو 4 أعمدة.</string>
     <string name="settings_color_dynamic">صورة الغلاف</string>
     <string name="settings_color_dynamic_body">استخدام ألوان مأخوذة من صورة الغلاف، والرجوع إلى SMART عند الحاجة.</string>
     <string name="settings_color_smart">SMART</string>

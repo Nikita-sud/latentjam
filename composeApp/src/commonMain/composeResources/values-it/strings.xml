@@ -411,12 +411,11 @@
     <string name="settings_mini_player">Mini lettore</string>
     <string name="settings_mini_player_card">Scheda</string>
     <string name="settings_mini_player_bar">Barra</string>
-    <string name="settings_mini_player_previous">Tasto precedente</string>
+    <string name="settings_mini_player_previous">Tasto brano precedente</string>
     <string name="settings_mini_player_previous_body">Mostra il tasto del brano precedente accanto alla pausa</string>
     <string name="settings_section_handling">Uso</string>
     <string name="settings_left_handed">Mancino</string>
     <string name="settings_left_handed_body">Tasto casuale e alfabeto a sinistra</string>
-    <string name="settings_album_pinch_body">Pizzica la griglia degli album con due dita per vedere 2, 3 o 4 colonne.</string>
     <string name="settings_color_dynamic">Copertina</string>
     <string name="settings_color_dynamic_body">Usa i colori della copertina, con SMART come alternativa.</string>
     <string name="settings_color_smart">SMART</string>

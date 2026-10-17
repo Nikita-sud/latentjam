@@ -404,12 +404,11 @@
     <string name="settings_mini_player">मिनी प्लेयर</string>
     <string name="settings_mini_player_card">कार्ड</string>
     <string name="settings_mini_player_bar">पट्टी</string>
-    <string name="settings_mini_player_previous">पिछला बटन</string>
+    <string name="settings_mini_player_previous">पिछले ट्रैक का बटन</string>
     <string name="settings_mini_player_previous_body">पॉज़ के पास पिछले ट्रैक का बटन दिखाएँ</string>
     <string name="settings_section_handling">इस्तेमाल</string>
     <string name="settings_left_handed">बाएँ हाथ के लिए</string>
     <string name="settings_left_handed_body">शफ़ल बटन और वर्णमाला बाईं ओर</string>
-    <string name="settings_album_pinch_body">2, 3 या 4 कॉलम के लिए एल्बम ग्रिड पर दो उँगलियों से पिंच करें।</string>
     <string name="settings_color_dynamic">कवर आर्ट</string>
     <string name="settings_color_dynamic_body">कवर आर्ट से लिए रंग इस्तेमाल करें, जरूरत पर SMART रंग लगेंगे।</string>
     <string name="settings_color_smart">SMART</string>

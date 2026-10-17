@@ -411,12 +411,11 @@
     <string name="settings_mini_player">Miniplayer</string>
     <string name="settings_mini_player_card">Cartão</string>
     <string name="settings_mini_player_bar">Barra</string>
-    <string name="settings_mini_player_previous">Botão anterior</string>
+    <string name="settings_mini_player_previous">Botão de faixa anterior</string>
     <string name="settings_mini_player_previous_body">Mostrar o botão da faixa anterior ao lado da pausa</string>
     <string name="settings_section_handling">Uso</string>
     <string name="settings_left_handed">Canhoto</string>
     <string name="settings_left_handed_body">Botão aleatório e alfabeto à esquerda</string>
-    <string name="settings_album_pinch_body">Junte ou afaste dois dedos na grade de álbuns para ver 2, 3 ou 4 colunas.</string>
     <string name="settings_color_dynamic">Capa</string>
     <string name="settings_color_dynamic_body">Use as cores da capa, com SMART como alternativa.</string>
     <string name="settings_color_smart">SMART</string>

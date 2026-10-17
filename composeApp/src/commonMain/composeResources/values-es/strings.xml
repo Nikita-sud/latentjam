@@ -411,12 +411,11 @@
     <string name="settings_mini_player">Minirreproductor</string>
     <string name="settings_mini_player_card">Tarjeta</string>
     <string name="settings_mini_player_bar">Barra</string>
-    <string name="settings_mini_player_previous">Botón anterior</string>
+    <string name="settings_mini_player_previous">Botón de pista anterior</string>
     <string name="settings_mini_player_previous_body">Muestra el botón de pista anterior junto a pausa</string>
     <string name="settings_section_handling">Manejo</string>
     <string name="settings_left_handed">Para zurdos</string>
     <string name="settings_left_handed_body">Botón de aleatorio y alfabeto a la izquierda</string>
-    <string name="settings_album_pinch_body">Pellizca la cuadrícula de álbumes con dos dedos para ver 2, 3 o 4 columnas.</string>
     <string name="settings_color_dynamic">Carátula</string>
     <string name="settings_color_dynamic_body">Usa colores de la carátula y recurre a SMART si no están disponibles.</string>
     <string name="settings_color_smart">SMART</string>

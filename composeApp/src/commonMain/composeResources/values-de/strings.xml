@@ -414,12 +414,11 @@
     <string name="settings_mini_player">Mini-Player</string>
     <string name="settings_mini_player_card">Karte</string>
     <string name="settings_mini_player_bar">Leiste</string>
-    <string name="settings_mini_player_previous">Zurück-Taste</string>
+    <string name="settings_mini_player_previous">Taste „Vorheriger Titel“</string>
     <string name="settings_mini_player_previous_body">Zeigt die Taste für den vorherigen Titel neben Pause</string>
     <string name="settings_section_handling">Bedienung</string>
     <string name="settings_left_handed">Linkshändig</string>
     <string name="settings_left_handed_body">Zufallstaste und Alphabet links</string>
-    <string name="settings_album_pinch_body">Zieh das Albenraster mit zwei Fingern auf oder zu: 2, 3 oder 4 Spalten.</string>
     <string name="settings_color_dynamic">Cover</string>
     <string name="settings_color_dynamic_body">Farben aus dem Cover verwenden, mit SMART als Ersatz.</string>
     <string name="settings_color_smart">SMART</string>

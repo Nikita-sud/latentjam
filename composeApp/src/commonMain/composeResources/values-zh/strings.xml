@@ -397,7 +397,6 @@
     <string name="settings_section_handling">操作</string>
     <string name="settings_left_handed">左手模式</string>
     <string name="settings_left_handed_body">随机播放按钮和字母索引放在左侧</string>
-    <string name="settings_album_pinch_body">在专辑网格上用两指捏合，可显示 2、3 或 4 列。</string>
     <string name="settings_color_dynamic">封面</string>
     <string name="settings_color_dynamic_body">使用从封面提取的颜色，无法提取时使用 SMART 颜色。</string>
     <string name="settings_color_smart">SMART</string>

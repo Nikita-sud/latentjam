@@ -444,12 +444,11 @@
     <string name="settings_mini_player">Miniodtwarzacz</string>
     <string name="settings_mini_player_card">Karta</string>
     <string name="settings_mini_player_bar">Pasek</string>
-    <string name="settings_mini_player_previous">Przycisk wstecz</string>
+    <string name="settings_mini_player_previous">Przycisk poprzedniego utworu</string>
     <string name="settings_mini_player_previous_body">Pokazuj przycisk poprzedniego utworu obok pauzy</string>
     <string name="settings_section_handling">Obsługa</string>
     <string name="settings_left_handed">Dla leworęcznych</string>
     <string name="settings_left_handed_body">Przycisk losowania i alfabet po lewej</string>
-    <string name="settings_album_pinch_body">Zsuń lub rozsuń dwa palce na siatce albumów: 2, 3 lub 4 kolumny.</string>
     <string name="settings_color_dynamic">Okładka</string>
     <string name="settings_color_dynamic_body">Używaj kolorów z okładki, a w razie potrzeby kolorów SMART.</string>
     <string name="settings_color_smart">SMART</string>

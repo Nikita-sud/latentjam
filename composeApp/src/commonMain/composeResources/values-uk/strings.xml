@@ -444,12 +444,11 @@
     <string name="settings_mini_player">Мініплеєр</string>
     <string name="settings_mini_player_card">Картка</string>
     <string name="settings_mini_player_bar">Смуга</string>
-    <string name="settings_mini_player_previous">Кнопка «назад»</string>
+    <string name="settings_mini_player_previous">Кнопка «Попередній трек»</string>
     <string name="settings_mini_player_previous_body">Показувати попередній трек поруч із паузою</string>
     <string name="settings_section_handling">Зручність</string>
     <string name="settings_left_handed">Для лівої руки</string>
     <string name="settings_left_handed_body">Кнопка перемішування й алфавіт — ліворуч</string>
-    <string name="settings_album_pinch_body">Зведіть або розведіть два пальці на сітці альбомів: 2, 3 або 4 стовпці.</string>
     <string name="settings_color_dynamic">Обкладинка</string>
     <string name="settings_color_dynamic_body">Використовувати кольори з обкладинки, а за потреби — кольори SMART.</string>
     <string name="settings_color_smart">SMART</string>

@@ -430,12 +430,11 @@
     <string name="settings_mini_player">Мини-плеер</string>
     <string name="settings_mini_player_card">Карточка</string>
     <string name="settings_mini_player_bar">Полоса</string>
-    <string name="settings_mini_player_previous">Кнопка «назад»</string>
+    <string name="settings_mini_player_previous">Кнопка «Предыдущий трек»</string>
     <string name="settings_mini_player_previous_body">Показывать предыдущий трек рядом с паузой</string>
     <string name="settings_section_handling">Удобство</string>
     <string name="settings_left_handed">Для левой руки</string>
     <string name="settings_left_handed_body">Кнопка перемешивания и алфавит — слева</string>
-    <string name="settings_album_pinch_body">Сведите или разведите два пальца на сетке альбомов: 2, 3 или 4 столбца.</string>
     <string name="settings_color_dynamic">Обложка</string>
     <string name="settings_color_dynamic_body">Использовать цвета из обложки, а если их определить не удалось — цвета SMART.</string>
     <string name="settings_color_smart">SMART</string>

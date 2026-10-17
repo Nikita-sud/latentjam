@@ -347,7 +347,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_mini_playe
 import io.github.nikitasud.latentjam.app.generated.resources.settings_section_handling
 import io.github.nikitasud.latentjam.app.generated.resources.settings_left_handed
 import io.github.nikitasud.latentjam.app.generated.resources.settings_left_handed_body
-import io.github.nikitasud.latentjam.app.generated.resources.settings_album_pinch_body
 import io.github.nikitasud.latentjam.app.generated.resources.settings_track_colors
 import io.github.nikitasud.latentjam.app.generated.resources.settings_version
 import io.github.nikitasud.latentjam.app.generated.resources.state_off
@@ -955,7 +954,6 @@ private fun AppearanceSettings(
                         onCheckedChange = settings::setNotificationFavorite,
                     )
                 }
-                SettingsBody(stringResource(Res.string.settings_album_pinch_body))
             }
         }
         item {

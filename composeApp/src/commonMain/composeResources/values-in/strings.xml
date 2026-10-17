@@ -392,12 +392,11 @@
     <string name="settings_mini_player">Pemutar mini</string>
     <string name="settings_mini_player_card">Kartu</string>
     <string name="settings_mini_player_bar">Bilah</string>
-    <string name="settings_mini_player_previous">Tombol sebelumnya</string>
+    <string name="settings_mini_player_previous">Tombol lagu sebelumnya</string>
     <string name="settings_mini_player_previous_body">Tampilkan tombol lagu sebelumnya di samping jeda</string>
     <string name="settings_section_handling">Penggunaan</string>
     <string name="settings_left_handed">Kidal</string>
     <string name="settings_left_handed_body">Tombol acak dan alfabet di kiri</string>
-    <string name="settings_album_pinch_body">Cubit kisi album dengan dua jari untuk menampilkan 2, 3, atau 4 kolom.</string>
     <string name="settings_color_dynamic">Sampul</string>
     <string name="settings_color_dynamic_body">Gunakan warna dari sampul, dengan SMART sebagai cadangan.</string>
     <string name="settings_color_smart">SMART</string>
