@@ -78,7 +78,7 @@ internal val LocalControlInk = staticCompositionLocalOf<Color?> { null }
 @ReadOnlyComposable
 internal fun Dp.corner(): Dp = this * LocalAppearance.current.shape.cornerScale
 
-private const val APPEARANCE_PREFIX = "LJAP1|"
+internal const val APPEARANCE_PREFIX = "LJAP1|"
 
 /**
  * One line, `key=value` pairs. Unknown keys and values are skipped, so a later build's settings

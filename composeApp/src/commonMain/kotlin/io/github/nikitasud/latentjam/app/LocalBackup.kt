@@ -76,6 +76,10 @@ internal data class LocalBackupSettings(
     /** An artist's page order; see [songSort]. */
     val artistAlbumSort: SortChoice<AlbumSort> = DEFAULT_ARTIST_ALBUM_SORT,
     val groupSortOrders: GroupSortOrders = GroupSortOrders(),
+    /** Added in backup v11 with the "K" record; older snapshots restore the default look. */
+    val appearance: Appearance = Appearance(),
+    /** The browse header's style; see [appearance]. */
+    val pageHeaderStyle: PageHeaderStyle = PageHeaderStyle.DOTS,
 )
 
 /**
@@ -155,6 +159,9 @@ internal data class LocalBackupSnapshot(
 
 /** The format version that brought the favourites ("F") and duplicate decision ("N") records. */
 private const val FIRST_VERSION_WITH_FAVORITES = 9
+
+/** The format version that brought the look ("K") record and the custom track colour mode. */
+private const val FIRST_VERSION_WITH_APPEARANCE = 11
 
 internal enum class LocalBackupSection {
     PLAYLISTS,
@@ -254,11 +261,11 @@ internal object LocalBackupCodec {
     /**
      * The version every export writes. A record arrives together with the version number that
      * carries it — "L" with v4, "V" with v6, "O" with v7, "G" with v8, the favourites ("F") and
-     * the duplicate finder's verdicts ("N") with v9 — so a build that knows only an older
+     * the duplicate finder's verdicts ("N") with v9, the look ("K") with v11 — so a build that knows only an older
      * version refuses such a file with "Unsupported backup version" instead of tripping over a
      * record it does not know ("Unknown backup record at line N").
      */
-    const val FORMAT_VERSION: Int = 10
+    const val FORMAT_VERSION: Int = 11
     private const val LEGACY_FORMAT_VERSION: Int = 1
     private const val HEADER = "LATENTJAM-LOCAL-BACKUP"
     private const val MAX_TEXT_CHARS = 64 * 1024 * 1024
@@ -322,6 +329,9 @@ internal object LocalBackupCodec {
                         encodeSortChoice(albumSort),
                         encodeSortChoice(artistAlbumSort),
                     )
+                }
+                if (snapshot.formatVersion >= FIRST_VERSION_WITH_APPEARANCE) {
+                    appendRecord("K", encodeAppearance(appearance).encodeField(), pageHeaderStyle.persistedValue)
                 }
             }
             snapshot.tracks.sortedBy(LocalBackupTrackReference::originalId).forEach { track ->
@@ -405,6 +415,7 @@ internal object LocalBackupCodec {
         var artistVariety: Int? = null
         var sortOrders: SortOrders? = null
         var groupSortOrders: GroupSortOrders? = null
+        var look: Pair<Appearance, PageHeaderStyle>? = null
         val tracks = mutableListOf<LocalBackupTrackReference>()
         val playlists = mutableListOf<LocalBackupPlaylist>()
         val history = mutableListOf<LocalBackupListenEvent>()
@@ -504,6 +515,22 @@ internal object LocalBackupCodec {
                             ::artistAlbumSortFromPersisted,
                         ),
                     )
+                }
+                "K" -> {
+                    record.requireFieldCount(3)
+                    if (version < FIRST_VERSION_WITH_APPEARANCE) formatError("Older backups cannot encode appearance")
+                    if (look != null) formatError("Duplicate appearance record")
+                    // The look is a tolerant record of its own: a key from a later build, or one a
+                    // later build dropped, falls back field by field the way the app's own settings
+                    // do. Demanding an exact round trip would make every new appearance option
+                    // break the restore of every v11 backup made before it.
+                    val encodedAppearance = record.nextField().decodeField("appearance")
+                    if (!encodedAppearance.startsWith(APPEARANCE_PREFIX)) formatError("Unknown appearance")
+                    val appearance = decodeAppearance(encodedAppearance)
+                    val persistedStyle = record.nextField()
+                    val style = pageHeaderStyleFromPersisted(persistedStyle)
+                    if (style.persistedValue != persistedStyle) formatError("Unknown page header style")
+                    look = appearance to style
                 }
                 "T" -> {
                     record.requireFieldCount(6)
@@ -626,6 +653,8 @@ internal object LocalBackupCodec {
                     albumSort = sortOrders?.album ?: DEFAULT_ALBUM_SORT,
                     artistAlbumSort = sortOrders?.artistAlbum ?: DEFAULT_ARTIST_ALBUM_SORT,
                     groupSortOrders = groupSortOrders ?: GroupSortOrders(),
+                    appearance = look?.first ?: Appearance(),
+                    pageHeaderStyle = look?.second ?: PageHeaderStyle.DOTS,
                 ),
             tracks = tracks,
             playlists = playlists,
@@ -674,6 +703,18 @@ internal object LocalBackupCodec {
                 snapshot.settings.artistAlbumSort != DEFAULT_ARTIST_ALBUM_SORT)
         ) {
             formatError("Older backups cannot encode sort orders")
+        }
+        // An older build refuses "custom" as an unknown colour mode, so only v11 may carry it.
+        if (snapshot.formatVersion < FIRST_VERSION_WITH_APPEARANCE &&
+            (snapshot.settings.trackColorMode == TrackColorMode.CUSTOM ||
+                snapshot.settings.appearance != Appearance() ||
+                snapshot.settings.pageHeaderStyle != PageHeaderStyle.DOTS)
+        ) {
+            formatError("Older backups cannot encode appearance")
+        }
+        // Only what the app's own reader gives back unchanged (palette accents, offered columns).
+        if (decodeAppearance(encodeAppearance(snapshot.settings.appearance)) != snapshot.settings.appearance) {
+            formatError("Unsupported appearance")
         }
         if (snapshot.settings.pageLayout != snapshot.settings.pageLayout.normalized()) {
             formatError("Invalid page layout")
@@ -1036,6 +1077,8 @@ internal class LocalBackupService(
                 albumSort = settings.albumSort.value,
                 artistAlbumSort = settings.artistAlbumSort.value,
                 groupSortOrders = settings.groupSortOrders.value,
+                appearance = settings.appearance.value,
+                pageHeaderStyle = settings.pageHeaderStyle.value,
             ),
             tracks = references,
             playlists = storedPlaylists.map { playlist ->
@@ -1234,6 +1277,8 @@ internal class LocalBackupService(
                 settings.setAlbumSort(snapshot.settings.albumSort)
                 settings.setArtistAlbumSort(snapshot.settings.artistAlbumSort)
                 settings.setGroupSortOrders(snapshot.settings.groupSortOrders)
+                settings.setAppearance(snapshot.settings.appearance)
+                settings.setPageHeaderStyle(snapshot.settings.pageHeaderStyle)
                 settings.setPlaylistSortOrders(settings.playlistSortOrders.value.normalized())
                 completed += LocalBackupSection.SETTINGS
             }

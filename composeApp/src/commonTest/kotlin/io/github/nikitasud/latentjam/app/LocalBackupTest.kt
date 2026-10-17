@@ -158,7 +158,7 @@ internal class LocalBackupTest {
         val encoded = LocalBackupCodec.encode(snapshot)
 
         assertEquals(snapshot, LocalBackupCodec.decode(encoded))
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t10\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t11\n"))
         assertFalse(encoded.contains("Группа крови"), "User strings must be safely encoded")
     }
 
@@ -182,6 +182,92 @@ internal class LocalBackupTest {
     }
 
     @Test
+    fun appearanceSurvivesBackupRestoreAndOlderVersionsRestoreTheDefaultLook() = runTest {
+        val look = Appearance(
+            customAccent = CUSTOM_ACCENT_PALETTE[6],
+            pureBlack = true,
+            cloud = CloudStrength.VIVID,
+            cloudMotion = false,
+            playerBackground = PlayerBackground.BLURRED_COVER,
+            shape = ShapeStyle.SHARP,
+            miniPlayer = MiniPlayerStyle.BAR,
+            leftHanded = true,
+            albumColumns = 3,
+        )
+        val source = fixture(emptyList())
+        source.settings.setAppearance(look)
+        source.settings.setPageHeaderStyle(PageHeaderStyle.PILLS)
+        source.settings.setTrackColorMode(TrackColorMode.CUSTOM)
+        val destination = fixture(emptyList())
+        val encoded = source.service.exportEncoded()
+        assertTrue(encoded.lineSequence().any { it.startsWith("K\t") && it.endsWith("\tpills") })
+        destination.service.importEncoded(encoded, LocalBackupRestoreMode.REPLACE)
+        assertEquals(look, destination.settings.appearance.value)
+        assertEquals(PageHeaderStyle.PILLS, destination.settings.pageHeaderStyle.value)
+        assertEquals(TrackColorMode.CUSTOM, destination.settings.trackColorMode.value)
+
+        // A v10 file has no look record: restoring it brings back the default look.
+        val legacy = emptySnapshot().copy(formatVersion = 10)
+        val legacyEncoded = LocalBackupCodec.encode(legacy)
+        assertFalse(legacyEncoded.lineSequence().any { it.startsWith("K\t") })
+        destination.service.importEncoded(legacyEncoded, LocalBackupRestoreMode.REPLACE)
+        assertEquals(Appearance(), destination.settings.appearance.value)
+        assertEquals(PageHeaderStyle.DOTS, destination.settings.pageHeaderStyle.value)
+        assertEquals(TrackColorMode.DYNAMIC, destination.settings.trackColorMode.value)
+        // An older build would refuse "custom" or simply lose the look, so v10 cannot carry them.
+        for (settings in listOf(
+            legacy.settings.copy(appearance = look),
+            legacy.settings.copy(pageHeaderStyle = PageHeaderStyle.MENU),
+            legacy.settings.copy(trackColorMode = TrackColorMode.CUSTOM),
+        )) {
+            assertFailsWith<LocalBackupFormatException> { LocalBackupCodec.encode(legacy.copy(settings = settings)) }
+        }
+    }
+
+    @Test
+    fun appearanceRoundTripsInTheCodecAndRejectsInvalidDuplicateAndPrematureRecords() {
+        val snapshot = emptySnapshot().copy(
+            settings = emptySnapshot().settings.copy(
+                trackColorMode = TrackColorMode.CUSTOM,
+                appearance = Appearance(customAccent = CUSTOM_ACCENT_PALETTE.last(), shape = ShapeStyle.SOFT),
+                pageHeaderStyle = PageHeaderStyle.NEIGHBOURS,
+            ),
+        )
+        val encoded = LocalBackupCodec.encode(snapshot)
+        assertEquals(snapshot, LocalBackupCodec.decode(encoded))
+
+        val record = encoded.lineSequence().single { it.startsWith("K\t") }
+        val fields = record.split('\t')
+        for (bad in listOf(
+            "K\t${fields[1]}",
+            "K\t${fields[1]}\tunknown",
+            "K\ts${"not an appearance".hex()}\tdots",
+            "K\tsnot-hex\tdots",
+            "$record\n$record",
+        )) {
+            assertFailsWith<LocalBackupFormatException>(bad) { LocalBackupCodec.decode(encoded.replace(record, bad)) }
+        }
+        assertFailsWith<LocalBackupFormatException> {
+            LocalBackupCodec.decode(encoded.replaceFirst("LOCAL-BACKUP\t11", "LOCAL-BACKUP\t10"))
+        }
+        assertFailsWith<LocalBackupFormatException> {
+            LocalBackupCodec.encode(snapshot.copy(settings = snapshot.settings.copy(appearance = Appearance(albumColumns = 7))))
+        }
+    }
+
+    @Test
+    fun appearanceFromAnotherBuildRestoresFieldByField() {
+        val encoded = LocalBackupCodec.encode(emptySnapshot())
+        val record = encoded.lineSequence().single { it.startsWith("K\t") }
+        // A key a later build added, one an earlier build wrote and this one dropped, and a colour
+        // this build does not offer: the known fields restore, the rest take their defaults.
+        val foreign = "LJAP1|black=true;font=serif;previous=false;accent=ff123456;shape=sharp"
+        val decoded = LocalBackupCodec.decode(encoded.replace(record, "K\ts${foreign.hex()}\ttabs"))
+        assertEquals(Appearance(pureBlack = true, shape = ShapeStyle.SHARP), decoded.settings.appearance)
+        assertEquals(PageHeaderStyle.TABS, decoded.settings.pageHeaderStyle)
+    }
+
+    @Test
     fun groupOrderRejectsInvalidDuplicateAndPrematureRecords() {
         val encoded = LocalBackupCodec.encode(emptySnapshot())
         val record = "G\tASCENDING,ASCENDING,ASCENDING"
@@ -191,7 +277,7 @@ internal class LocalBackupTest {
             }
         }
         assertFailsWith<LocalBackupFormatException> {
-            LocalBackupCodec.decode(encoded.replaceFirst("LOCAL-BACKUP\t10", "LOCAL-BACKUP\t7"))
+            LocalBackupCodec.decode(encoded.replaceFirst("LOCAL-BACKUP\t11", "LOCAL-BACKUP\t7"))
         }
     }
 
@@ -395,7 +481,7 @@ internal class LocalBackupTest {
         val encoded = LocalBackupCodec.encode(snapshot)
 
         assertEquals(snapshot, LocalBackupCodec.decode(encoded))
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t10\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t11\n"))
     }
 
     @Test
@@ -449,7 +535,7 @@ internal class LocalBackupTest {
         // One version past the current format: a file from a newer build is refused whole, before
         // any record of it is read.
         assertFailsWith<LocalBackupFormatException> {
-            LocalBackupCodec.decode(valid.replaceFirst("LOCAL-BACKUP\t10", "LOCAL-BACKUP\t11"))
+            LocalBackupCodec.decode(valid.replaceFirst("LOCAL-BACKUP\t11", "LOCAL-BACKUP\t12"))
         }
         assertFailsWith<LocalBackupFormatException> {
             LocalBackupCodec.decode(valid + "Q\tnot-hex\n")
@@ -544,7 +630,7 @@ internal class LocalBackupTest {
         val encoded = source.service.exportEncoded()
         destination.service.importEncoded(encoded, LocalBackupRestoreMode.REPLACE)
 
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t10\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t11\n"))
         assertEquals(layout, destination.settings.pageLayout.value)
         assertEquals(StartPage.STATISTICS, destination.settings.startPage.value)
     }
@@ -1072,7 +1158,7 @@ internal class LocalBackupTest {
         val encoded = LocalBackupCodec.encode(snapshot)
 
         assertEquals(snapshot, LocalBackupCodec.decode(encoded))
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t10\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t11\n"))
         // One record per heart, newest first; one per verdict, every track of it on the line.
         assertEquals(
             listOf("F\ts63", "F\ts${"file:\nКИНО\t1".hex()}", "F\ts62"),
@@ -1672,6 +1758,8 @@ internal class LocalBackupTest {
         override fun setTrackColorMode(mode: TrackColorMode) { trackColorMode.value = mode }
         override val pageHeaderStyle: MutableStateFlow<PageHeaderStyle> = MutableStateFlow(PageHeaderStyle.DOTS)
         override fun setPageHeaderStyle(style: PageHeaderStyle) { pageHeaderStyle.value = style }
+        override val appearance: MutableStateFlow<Appearance> = MutableStateFlow(Appearance())
+        override fun setAppearance(appearance: Appearance) { this.appearance.value = appearance }
         override val smartQueueLength: MutableStateFlow<Int> = MutableStateFlow(DEFAULT_SMART_QUEUE_LENGTH)
         override fun setSmartQueueLength(length: Int) { smartQueueLength.value = sanitizeSmartQueueLength(length) }
         override val artistVariety: MutableStateFlow<Int> = MutableStateFlow(DEFAULT_ARTIST_VARIETY)
