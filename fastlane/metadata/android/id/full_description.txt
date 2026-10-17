@@ -1,0 +1,17 @@
+LatentJam adalah pemutar musik untuk file di ponsel Anda yang memahami seperti apa bunyi pustaka Anda. Sebuah model neural kecil berjalan langsung di perangkat dan mendengarkan lagu-lagu Anda di latar belakang, sehingga mode SMART bisa memilih lagu berikutnya dari koleksi Anda sendiri. Tanpa akun, tanpa katalog, dan tanpa izin jaringan: tidak ada data tentang apa yang Anda dengarkan yang keluar dari ponsel.
+
+<ul>
+<li><b>Antrean SMART</b>: lagu berikutnya dipilih dari pustaka Anda berdasarkan suaranya, tag-nya, dan apa yang diketahui sebuah paket offline ringkas tentang 350.000 artis — bahasa, era, dan gaya mereka. Antrean menghindari lonjakan energi yang besar.</li>
+<li><b>Untuk kamu</b>: baris untuk waktu saat ini, untuk fase yang sedang Anda jalani, satu kejutan, dan sebuah perjalanan suara melintasi pustaka.</li>
+<li><b>Pencarian yang mengurutkan sesuai harapan</b>: judul, artis, album, dan genre lebih dulu, lalu lirik di file Anda, lalu makna, dalam salah satu dari dua puluh bahasa. Tahun atau dekade dalam kueri ("80s", "1985") membatasi hasil ke tahun-tahun tersebut.</li>
+<li><b>Peta pustaka Anda</b>: kelompok-kelompoknya adalah genre Anda sebagaimana didengar oleh model.</li>
+<li><b>Pemutar yang dibuat untuk sentuhan</b>: sampul berbalik untuk menampilkan info lagu, tekan lama untuk membuka tindakan, dan geser untuk berpindah lagu; bilah putar langsung dengan penggeseran halus dan baris lirik di bawah pegangannya; jeda dan lanjut memudar alih-alih terpotong.</li>
+<li><b>Lirik</b>: lirik bertimer mengikuti lagu, dan mengetuk satu baris akan melompat ke bagian itu.</li>
+<li><b>Setiap tag yang ada di file</b>: semua genre, artis yang dikreditkan, dan tahun rilis asli, dibaca dari FLAC, Opus, dan mp3. Album diputar sesuai urutan disk dan trek, dan sebuah kolaborasi tercantum di bawah setiap artis yang disebutkannya.</li>
+<li><b>Pemutar sungguhan di baliknya</b>: playlist dengan impor dan ekspor M3U serta urutan kustom dan baru ditambahkan yang terpisah; jelajah album, artis, genre, dan folder dengan bilah A–Z, dengan folder juga dalam bentuk pohon; transisi mulus dan normalisasi volume; pencari duplikat yang memberi tahu salinan mana yang sebaiknya disimpan; statistik, edit tag, serta cadangan dan pemulihan lokal.</li>
+<li><b>Di layar utama dan di mobil</b>: tiga widget, satu kotak di Setelan Cepat, dan pohon jelajah Android Auto.</li>
+<li><b>Halaman Anda, urutan Anda</b>: tampilkan, sembunyikan, dan atur ulang halaman jelajah, lalu pilih halaman yang terbuka pertama kali.</li>
+<li><b>18 bahasa</b>, termasuk Rusia, Rumania, Arab, Ibrani, Mandarin, Jepang, dan Korea.</li>
+</ul>
+
+SMART menjadi bagus setelah sebagian besar pustaka Anda dianalisis di latar belakang; membiarkan ponsel mengisi daya semalaman akan mempercepatnya.

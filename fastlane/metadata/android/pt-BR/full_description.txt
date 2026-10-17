@@ -1,0 +1,17 @@
+O LatentJam é um player para as músicas salvas no seu celular que entende como a sua biblioteca soa. Um pequeno modelo neural roda no próprio aparelho e ouve suas músicas em segundo plano, para que o modo SMART escolha a próxima faixa da sua própria coleção. Não há conta, nem catálogo, nem permissão de rede: nada do que você ouve sai do celular.
+
+<ul>
+<li><b>Fila SMART</b>: a próxima música é escolhida na sua biblioteca pelo som, pelas tags e pelo que um pacote compacto e offline sabe sobre 350.000 artistas — idioma, época e estilo. A fila evita saltos bruscos de energia.</li>
+<li><b>Para você</b>: fileiras para este momento do dia, para a fase em que você está, um curinga e uma viagem sonora pela biblioteca.</li>
+<li><b>Uma busca que ordena do jeito que você espera</b>: primeiro título, artista, álbum e gênero; depois a letra salva nos seus arquivos; e então o significado, em qualquer um de vinte idiomas. Um ano ou uma década na busca ("anos 80", "1985") restringe os resultados a esses anos.</li>
+<li><b>Um mapa da sua biblioteca</b>: os agrupamentos são os seus gêneros como o modelo os ouve.</li>
+<li><b>Um player feito para o toque</b>: a capa vira para mostrar os dados da faixa, um toque longo abre as ações e um deslize troca de música; barra de progresso ao vivo com ajuste fino e a linha da letra sob o controle; pausar e retomar fazem fade em vez de cortar.</li>
+<li><b>Letra</b>: a letra sincronizada acompanha a música, e tocar em uma linha pula para aquele trecho.</li>
+<li><b>Todas as tags do arquivo</b>: todos os gêneros, os artistas creditados e o ano de lançamento original, lidos de FLAC, Opus e mp3. Os álbuns tocam na ordem de disco e faixa, e uma colaboração aparece em cada artista citado.</li>
+<li><b>Um player completo por baixo</b>: playlists com importação e exportação M3U e ordens independentes personalizada e de adicionadas recentemente; navegação por álbum, artista, gênero e pasta com uma barra A–Z, com as pastas também em árvore; transições suaves e normalização de volume; um localizador de duplicatas que diz qual cópia manter; estatísticas, edição de tags e backup local com restauração.</li>
+<li><b>Na tela inicial e no carro</b>: três widgets, um bloco nas Configurações rápidas e uma árvore de navegação para o Android Auto.</li>
+<li><b>Suas páginas, na sua ordem</b>: mostre, oculte e reordene as páginas de navegação e escolha em qual o app abre.</li>
+<li><b>18 idiomas</b>, incluindo russo, romeno, árabe, hebraico, chinês, japonês e coreano.</li>
+</ul>
+
+O SMART fica bom depois que uma boa parte da sua biblioteca é analisada em segundo plano; deixar o celular carregando durante a noite acelera isso.

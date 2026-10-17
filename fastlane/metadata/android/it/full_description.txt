@@ -1,0 +1,17 @@
+LatentJam è un lettore per la musica salvata sul telefono che capisce come suona la tua libreria. Un piccolo modello neurale gira direttamente sul dispositivo e ascolta i tuoi brani in background, così la modalità SMART può scegliere il brano successivo dalla tua collezione. Niente account, niente catalogo e nessun permesso di rete: nulla di ciò che ascolti lascia il telefono.
+
+<ul>
+<li><b>Coda SMART</b>: il brano successivo viene scelto dalla tua libreria in base al suono, ai tag e a ciò che un pacchetto offline compatto sa di 350.000 artisti — lingua, epoca e stile. La coda evita i grandi sbalzi di energia.</li>
+<li><b>Per te</b>: righe per questo momento della giornata, per la fase che stai vivendo, un jolly e un viaggio sonoro attraverso la libreria.</li>
+<li><b>Una ricerca che ordena come ti aspetti</b>: prima titolo, artista, album e genere, poi il testo contenuto nei tuoi file, poi il significato, in una qualsiasi di venti lingue. Un anno o un decennio nella ricerca ("anni '80", "1985") limita i risultati a quegli anni.</li>
+<li><b>Una mappa della tua libreria</b>: i raggruppamenti sono i tuoi generi così come li sente il modello.</li>
+<li><b>Un lettore pensato per il tocco</b>: la copertina si gira per mostrare i dettagli del brano, una pressione prolungata apre le azioni e uno scorrimento cambia brano; una barra di avanzamento dal vivo con regolazione fine e la riga del testo sotto il cursore; pausa e ripresa sfumano invece di interrompersi di colpo.</li>
+<li><b>Testo</b>: il testo sincronizzato segue il brano e toccando una riga si salta a quel punto.</li>
+<li><b>Tutti i tag del file</b>: tutti i generi, gli artisti accreditati e l'anno di uscita originale, letti da FLAC, Opus e mp3. Gli album vengono riprodotti in ordine di disco e traccia, e una collaborazione compare sotto ogni artista che nomina.</li>
+<li><b>Un vero lettore sotto il cofano</b>: playlist con importazione ed esportazione M3U e ordini indipendenti personalizzato e per aggiunti di recente; navigazione per album, artista, genere e cartella con una barra A–Z, con le cartelle anche ad albero; transizioni morbide e normalizzazione del volume; un rilevatore di duplicati che indica quale copia tenere; statistiche, modifica dei tag, backup locale e ripristino.</li>
+<li><b>Nella schermata Home e in auto</b>: tre widget, un riquadro nelle Impostazioni rapide e un albero di navigazione per Android Auto.</li>
+<li><b>Le tue pagine, nel tuo ordine</b>: mostra, nascondi e riordina le pagine di navigazione e scegli quella da cui partire.</li>
+<li><b>18 lingue</b>, tra cui russo, rumeno, arabo, ebraico, cinese, giapponese e coreano.</li>
+</ul>
+
+SMART dà il meglio quando una buona parte della libreria è stata analizzata in background; lasciare il telefono in carica di notte accelera il processo.

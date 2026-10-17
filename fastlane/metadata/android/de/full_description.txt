@@ -1,0 +1,17 @@
+LatentJam ist ein Player für die Musikdateien auf deinem Smartphone, der versteht, wie deine Bibliothek klingt. Ein kleines neuronales Modell läuft direkt auf dem Gerät und hört sich deine Titel im Hintergrund an, damit der SMART-Modus den nächsten Song aus deiner eigenen Sammlung auswählen kann. Es gibt kein Konto, keinen Katalog und keine Netzwerkberechtigung: Nichts über dein Hörverhalten verlässt das Gerät.
+
+<ul>
+<li><b>SMART-Warteschlange</b>: Der nächste Titel kommt aus deiner Bibliothek – ausgewählt nach Klang, nach Tags und nach dem, was ein kompaktes Offline-Paket über 350.000 Künstler weiß: Sprache, Ära und Stil. Große Energiesprünge vermeidet die Warteschlange.</li>
+<li><b>Für dich</b>: Reihen für die aktuelle Tageszeit, für deine aktuelle Phase, ein Joker und eine Klangreise quer durch die Bibliothek.</li>
+<li><b>Eine Suche, die so sortiert, wie du es erwartest</b>: zuerst Titel, Künstler, Album und Genre, dann die Songtexte in deinen Dateien, dann die Bedeutung – in jeder von zwanzig Sprachen. Ein Jahr oder Jahrzehnt in der Suche („80er“, „1985“) beschränkt die Ergebnisse auf diese Jahre.</li>
+<li><b>Eine Karte deiner Bibliothek</b>: Die Cluster sind deine Genres, so wie das Modell sie hört.</li>
+<li><b>Ein Player für die Bedienung per Touch</b>: Das Cover dreht sich um und zeigt Infos zum Titel, öffnet bei langem Drücken Aktionen und wechselt per Wischen zwischen Titeln; eine Live-Suchleiste mit feinem Spulen und der aktuellen Textzeile unter dem Regler; Pause und Fortsetzen blenden weich über, statt hart abzuschneiden.</li>
+<li><b>Songtexte</b>: Synchronisierte Songtexte laufen mit, und ein Tipp auf eine Zeile springt dorthin.</li>
+<li><b>Jeder Tag, den die Datei mitbringt</b>: alle Genres, genannten Künstler und das ursprüngliche Erscheinungsjahr, gelesen aus FLAC, Opus und mp3. Alben laufen in CD- und Titelreihenfolge, und eine Kollaboration erscheint bei jedem Künstler, den sie nennt.</li>
+<li><b>Ein vollwertiger Player darunter</b>: Playlists mit M3U-Import und -Export sowie unabhängigen Reihenfolgen „Eigene Reihenfolge“ und „Zuletzt hinzugefügt“, Stöbern nach Alben, Künstlern, Genres und Ordnern mit A–Z-Leiste, Ordner auch als Baum, weiche Übergänge und Lautstärkeangleichung, eine Duplikatsuche, die sagt, welche Kopie du behalten solltest, Statistik, Tag-Bearbeitung sowie lokales Backup und Wiederherstellung.</li>
+<li><b>Auf dem Startbildschirm und im Auto</b>: drei Widgets, eine Kachel in den Schnelleinstellungen und ein Navigationsbaum für Android Auto.</li>
+<li><b>Deine Seiten, deine Reihenfolge</b>: Seiten ein- und ausblenden, neu anordnen und festlegen, mit welcher die App startet.</li>
+<li><b>18 Sprachen</b>, darunter Russisch, Rumänisch, Arabisch, Hebräisch, Chinesisch, Japanisch und Koreanisch.</li>
+</ul>
+
+SMART wird richtig gut, sobald ein guter Teil deiner Bibliothek im Hintergrund analysiert wurde; lädt das Smartphone über Nacht, geht das schneller.

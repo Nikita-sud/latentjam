@@ -1,0 +1,17 @@
+LatentJam to odtwarzacz plików muzycznych z Twojego telefonu, który rozumie, jak brzmi Twoja biblioteka. Niewielki model neuronowy działa na urządzeniu i w tle słucha Twoich utworów, dzięki czemu tryb SMART dobiera kolejną piosenkę z Twojej własnej kolekcji. Nie ma konta, katalogu ani uprawnienia do sieci: nic o tym, czego słuchasz, nie opuszcza telefonu.
+
+<ul>
+<li><b>Kolejka SMART</b>: następny utwór wybierany z Twojej biblioteki według brzmienia, tagów i tego, co kompaktowy pakiet offline wie o 350 000 wykonawców — ich języku, epoce i stylu. Kolejka unika dużych skoków energii.</li>
+<li><b>Dla Ciebie</b>: rzędy na tę porę dnia, na fazę, w której jesteś, jeden Dżoker i podróż dźwiękowa przez całą bibliotekę.</li>
+<li><b>Wyszukiwanie, które układa wyniki tak, jak się spodziewasz</b>: najpierw tytuł, wykonawca, album i gatunek, potem teksty z Twoich plików, a potem znaczenie — w dowolnym z dwudziestu języków. Rok lub dekada w zapytaniu („lata 80.”, „1985”) zawęża wyniki do tych lat.</li>
+<li><b>Mapa Twojej biblioteki</b>: skupiska to Twoje gatunki takie, jakimi słyszy je model.</li>
+<li><b>Odtwarzacz stworzony do dotyku</b>: okładka obraca się, pokazując informacje o utworze, po przytrzymaniu daje dostęp do akcji, a przesunięciem zmienia utwory; pasek przewijania na żywo z precyzyjnym przewijaniem i wersem tekstu pod suwakiem; pauza i wznowienie płynnie wyciszają dźwięk zamiast go ucinać.</li>
+<li><b>Tekst utworu</b>: zsynchronizowany tekst podąża za piosenką, a stuknięcie w wers przewija do niego.</li>
+<li><b>Każdy tag zapisany w pliku</b>: wszystkie gatunki, wymienieni wykonawcy i rok pierwotnego wydania, odczytywane z FLAC, Opus i mp3. Albumy grają w kolejności płyt i utworów, a współpraca widnieje u każdego wykonawcy, którego wymienia.</li>
+<li><b>Prawdziwy odtwarzacz pod spodem</b>: playlisty z importem i eksportem M3U oraz niezależnymi kolejnościami „Własna kolejność” i „Ostatnio dodane”, przeglądanie albumów, wykonawców, gatunków i folderów z paskiem A–Z, foldery także jako drzewo, płynne przejścia i normalizacja głośności, wyszukiwarka duplikatów, która podpowiada, którą kopię zachować, statystyki, edycja tagów, lokalna kopia zapasowa i przywracanie.</li>
+<li><b>Na ekranie głównym i w samochodzie</b>: trzy widżety, kafelek w Szybkich ustawieniach i drzewo przeglądania w Android Auto.</li>
+<li><b>Twoje strony, Twoja kolejność</b>: pokazuj, ukrywaj i zmieniaj kolejność stron przeglądania oraz wybierz stronę startową.</li>
+<li><b>18 języków</b>, w tym rosyjski, rumuński, arabski, hebrajski, chiński, japoński i koreański.</li>
+</ul>
+
+SMART rozkręca się, gdy spora część biblioteki zostanie przeanalizowana w tle; zostawienie telefonu na noc przy ładowarce przyspiesza ten proces.
