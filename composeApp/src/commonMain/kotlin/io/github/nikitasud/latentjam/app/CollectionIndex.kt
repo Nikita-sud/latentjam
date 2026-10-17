@@ -4,6 +4,10 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -52,6 +56,8 @@ internal fun AdaptiveCollectionIndex(
     bucketCount: Int,
     contentPadding: PaddingValues,
     grid: Boolean = false,
+    /** A grid's pinched column count; 0 keeps the adaptive count. */
+    fixedColumns: Int = 0,
     content: @Composable (indexed: Boolean) -> Unit,
 ) {
     val density = LocalDensity.current
@@ -65,7 +71,11 @@ internal fun AdaptiveCollectionIndex(
             contentPadding.calculateEndPadding(direction)).value.coerceAtLeast(1f)
         val viewport = (maxHeight - contentPadding.calculateTopPadding() -
             contentPadding.calculateBottomPadding()).value
-        val columns = if (grid) (width / AlbumGridMinCellWidth.value).toInt().coerceAtLeast(1) else 1
+        val columns = when {
+            !grid -> 1
+            fixedColumns > 0 -> fixedColumns
+            else -> (width / AlbumGridMinCellWidth.value).toInt().coerceAtLeast(1)
+        }
         // AlbumCard: square art + 16dp outer padding + 8dp text gap + two text lines.
         // GroupRow: 56dp art or two text lines, whichever is taller, plus 16dp padding.
         val itemHeight = if (grid) width / columns + 8f + textHeight else 16f + max(56f, textHeight)
@@ -115,3 +125,39 @@ internal fun CollectionSectionHeader(bucket: String, horizontalPadding: Dp = 20.
         AppDivider(Modifier.weight(1f))
     }
 }
+
+/**
+ * Two fingers resize the album grid a column at a time (2 to 4); one finger still scrolls, and the
+ * pager still swipes. The pinch is claimed the way the Map claims it, before the grid's own scroll
+ * can take the second finger.
+ */
+@Composable
+internal fun AlbumGridPinch(
+    columns: Int,
+    onColumnsChange: (Int) -> Unit,
+    content: @Composable () -> Unit,
+) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val adaptive = ((maxWidth - 24.dp) / AlbumGridMinCellWidth).toInt().coerceAtLeast(1)
+        val shown by rememberUpdatedState(if (columns > 0) columns else adaptive)
+        val change by rememberUpdatedState(onColumnsChange)
+        Box(
+            Modifier.fillMaxSize().pointerInput(Unit) {
+                var zoom = 1f
+                detectMapTransformGestures { _, _, step ->
+                    zoom *= step
+                    val next = when {
+                        zoom > PINCH_STEP -> shown - 1
+                        zoom < 1f / PINCH_STEP -> shown + 1
+                        else -> return@detectMapTransformGestures
+                    }.coerceIn(ALBUM_COLUMN_CHOICES.first(), ALBUM_COLUMN_CHOICES.last())
+                    zoom = 1f
+                    if (next != shown) change(next)
+                }
+            },
+        ) { content() }
+    }
+}
+
+/** How far fingers must spread or close, as a scale, before the grid changes by one column. */
+private const val PINCH_STEP = 1.3f

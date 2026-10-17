@@ -289,6 +289,8 @@ fun NowPlayingScreen(
     onSmartQueueLength: (Int) -> Unit = {},
     onEditTags: (TrackDescriptor) -> Unit = {},
     onShowOnMap: ((TrackDescriptor) -> Unit)? = null,
+    /** Opens Settings at the equalizer, from the back of the cover. */
+    onOpenEqualizer: (() -> Unit)? = null,
     active: Boolean = true,
     /** Back closes the player only while it is the open surface, not while merely shown. */
     ownsBack: Boolean = active,
@@ -395,12 +397,23 @@ fun NowPlayingScreen(
     val motionHeld = rememberUpdatedState(!active)
     CompositionLocalProvider(LocalEndlessMotionHeld provides motionHeld) {
         Surface(modifier = Modifier.fillMaxSize()) {
+            val backdropUri = now.track?.artworkUri
+                ?.takeIf { LocalAppearance.current.playerBackground == PlayerBackground.BLURRED_COVER }
+            var backdropShown by remember(backdropUri) { mutableStateOf(false) }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.surface)
-                    .playerCloud(accent = accent, playing = active && now.isPlaying),
+                    .then(
+                        // A track without a cover keeps the cloud, so the player never goes flat.
+                        if (backdropUri == null || !backdropShown) {
+                            Modifier.playerCloud(accent = accent, playing = active && now.isPlaying)
+                        } else Modifier,
+                    ),
             ) {
+                if (backdropUri != null) {
+                    PlayerCoverBackdrop(backdropUri, Modifier.matchParentSize(), onShownChange = { backdropShown = it })
+                }
                 // Continues the sheet's own colour through the system-bar strip beneath it.
                 //
                 // The scaffold below is lifted by navigationBarsPadding(), so without this the gradient
@@ -619,6 +632,7 @@ fun NowPlayingScreen(
                                                 onEditTags = { onEditTags(track) },
                                                 onShowOnMap = onShowOnMap?.let { show -> { show(track) } },
                                                 onClose = { flipped = false },
+                                                onOpenEqualizer = onOpenEqualizer,
                                             )
                                         }
                                     },
@@ -1809,7 +1823,7 @@ private fun QueueSheetContent(
                             modifier = Modifier
                                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                                 .padding(horizontal = 8.dp)
-                                .clip(RoundedCornerShape(16.dp))
+                                .clip(RoundedCornerShape(16.dp.corner()))
                                 .background(
                                     if (index == currentIndex) {
                                         accent.vivid.copy(alpha = 0.12f)

@@ -296,6 +296,10 @@ internal fun PlayerSheet(
     val navigationBars = WindowInsets.navigationBars
     val floorColor = MaterialTheme.colorScheme.surface
     val darkFloor = floorColor.luminance() < 0.5f
+    // The pill's geometry in the listener's style: a bar has no margin and square corners.
+    val bar = LocalAppearance.current.miniPlayer == MiniPlayerStyle.BAR
+    val pillMargin = if (bar) 0.dp else PILL_MARGIN
+    val pillRadius = if (bar) 0.dp else PILL_RADIUS.corner()
     val currentOnOpenChange by rememberUpdatedState(onOpenChange)
     val currentOnCoverStart by rememberUpdatedState(onCoverStart)
     val currentReduceMotion by rememberUpdatedState(reduceMotion)
@@ -360,7 +364,7 @@ internal fun PlayerSheet(
         insetLeft = navigationBars.getLeft(this, layoutDirection).toFloat(),
         insetRight = navigationBars.getRight(this, layoutDirection).toFloat(),
         insetBottom = navigationBars.getBottom(this).toFloat(),
-        margin = PILL_MARGIN.toPx(),
+        margin = pillMargin.toPx(),
         pillHeight = (pillHeight - PILL_MARGIN * 2).toPx(),
     )
     fun Density.surface(size: Size, progress: Float): Rect =
@@ -422,7 +426,7 @@ internal fun PlayerSheet(
                     val placeable = measurable.measure(constraints)
                     val pillNow = pill(Size(placeable.width.toFloat(), placeable.height.toFloat()))
                     expansion.pillBounds = pillNow
-                    expansion.pillRadiusPx = PILL_RADIUS.toPx()
+                    expansion.pillRadiusPx = pillRadius.toPx()
                     expansion.travelPx = pillNow.top
                     layout(placeable.width, placeable.height) { placeable.place(0, 0) }
                 },
@@ -443,7 +447,7 @@ internal fun PlayerSheet(
                             color = lerp(pillColor, floorColor, playerSurfaceColorFraction(progress)),
                             topLeft = rect.topLeft,
                             size = rect.size,
-                            cornerRadius = CornerRadius(sheetCornerRadius(PILL_RADIUS.toPx(), progress)),
+                            cornerRadius = CornerRadius(sheetCornerRadius(pillRadius.toPx(), progress)),
                         )
                     },
             )
@@ -462,7 +466,7 @@ internal fun PlayerSheet(
                                 clip = true
                                 shape = SheetWindowShape(
                                     Rect(rect.left, 0f, rect.right, rect.height),
-                                    sheetCornerRadius(PILL_RADIUS.toPx(), progress),
+                                    sheetCornerRadius(pillRadius.toPx(), progress),
                                 )
                             } else {
                                 clip = false
@@ -563,6 +567,8 @@ private fun FlyingCover(
     progress: () -> Float,
     elevation: Dp,
 ) {
+    val thumbRadius = THUMBNAIL_RADIUS.corner()
+    val coverRadius = COVER_RADIUS.corner()
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -588,7 +594,7 @@ private fun FlyingCover(
                         scaleX = scale
                         scaleY = scale
                         // Corners and lift belong to the size on screen, not the layer's.
-                        val radius = lerpFloat(THUMBNAIL_RADIUS.toPx(), COVER_RADIUS.toPx(), p) / scale
+                        val radius = lerpFloat(thumbRadius.toPx(), coverRadius.toPx(), p) / scale
                         shape = RoundedCornerShape(CornerSize(radius))
                         clip = true
                         shadowElevation = elevation.toPx() * p

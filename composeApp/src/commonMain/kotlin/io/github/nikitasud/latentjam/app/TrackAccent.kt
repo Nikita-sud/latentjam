@@ -57,6 +57,8 @@ fun rememberTrackAccent(
     track: TrackDescriptor?,
     mode: TrackColorMode = TrackColorMode.DYNAMIC,
     darkTheme: Boolean,
+    /** The listener's own colour, used by [TrackColorMode.CUSTOM]. */
+    customColor: Color? = null,
 ): TrackAccent {
     val fallback = MaterialTheme.colorScheme.primaryContainer
 
@@ -74,6 +76,7 @@ fun rememberTrackAccent(
         TrackColorMode.DYNAMIC -> artwork.color ?: seededColor
         TrackColorMode.SMART -> seededColor
         TrackColorMode.THEME -> null
+        TrackColorMode.CUSTOM -> customColor
     }
     val resolvedTarget = seed?.let { toContainer(it, darkTheme) } ?: fallback
     val vividTarget = seed ?: fallback

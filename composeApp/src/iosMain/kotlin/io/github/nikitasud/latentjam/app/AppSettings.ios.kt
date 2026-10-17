@@ -40,6 +40,8 @@ internal class IosAppSettings : AppSettings {
         trackColorModeFromPersisted(defaults.stringForKey(KEY_TRACK_COLOR_MODE)),
     )
     override val trackColorMode: StateFlow<TrackColorMode> = mutableTrackColorMode.asStateFlow()
+    private val mutableAppearance = MutableStateFlow(decodeAppearance(defaults.stringForKey(KEY_APPEARANCE)))
+    override val appearance: StateFlow<Appearance> = mutableAppearance.asStateFlow()
     private val mutablePageHeaderStyle = MutableStateFlow(
         pageHeaderStyleFromPersisted(defaults.stringForKey(KEY_PAGE_HEADER_STYLE)),
     )
@@ -123,6 +125,11 @@ internal class IosAppSettings : AppSettings {
     override fun setTrackColorMode(mode: TrackColorMode) {
         defaults.setObject(mode.persistedValue, KEY_TRACK_COLOR_MODE)
         mutableTrackColorMode.value = mode
+    }
+
+    override fun setAppearance(appearance: Appearance) {
+        defaults.setObject(encodeAppearance(appearance), KEY_APPEARANCE)
+        mutableAppearance.value = appearance
     }
 
     override fun setPageHeaderStyle(style: PageHeaderStyle) {
@@ -359,6 +366,7 @@ internal class IosAppSettings : AppSettings {
         const val KEY_PAGE_LAYOUT = "page_layout_v1"
         const val KEY_TRACK_COLOR_MODE = "track_color_mode"
         const val KEY_PAGE_HEADER_STYLE = "page_header_style"
+        const val KEY_APPEARANCE = "appearance_v1"
         const val KEY_SMART_QUEUE_LENGTH = "smart_queue_length"
         const val KEY_INCLUDE_NOVELTY_MIXES = "include_novelty_mixes"
         const val KEY_SAVE_HISTORY = "save_listening_history"

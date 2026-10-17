@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.app.generated.resources.settings_equalizer
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -76,14 +78,17 @@ internal fun TrackDetailsFace(
     onEditTags: () -> Unit,
     onShowOnMap: (() -> Unit)?,
     onClose: () -> Unit,
+    onOpenEqualizer: (() -> Unit)? = null,
 ) {
+    // The back of the card turns over from the cover, so it wears the cover's own corners.
+    val shape = RoundedCornerShape(COVER_RADIUS.corner())
     val notSet = stringResource(Res.string.info_not_set)
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .clip(RoundedCornerShape(24.dp))
+            .clip(shape)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(24.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
             .padding(start = 18.dp, end = 10.dp, top = 6.dp, bottom = 6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -135,6 +140,13 @@ internal fun TrackDetailsFace(
             horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            onOpenEqualizer?.let { openEqualizer ->
+                DetailActionButton(
+                    label = stringResource(Res.string.settings_equalizer),
+                    icon = Icons.Rounded.GraphicEq,
+                    onClick = openEqualizer,
+                )
+            }
             onShowOnMap?.let { showOnMap ->
                 DetailActionButton(
                     label = stringResource(Res.string.action_show_on_map),

@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -42,11 +44,23 @@ import androidx.compose.ui.unit.dp
  * reach every control, and a stock default can no longer slip in screen by screen.
  */
 
+/** The controls' ink: the listener's own accent when they chose one, else onSurface. */
+@Composable
+@ReadOnlyComposable
+internal fun controlInk(): Color = LocalControlInk.current ?: MaterialTheme.colorScheme.onSurface
+
+/** What reads on top of [controlInk]: the floor colour for neutral ink, black or white for an accent. */
+@Composable
+@ReadOnlyComposable
+internal fun onControlInk(): Color = LocalControlInk.current
+    ?.let { if (it.luminance() > 0.4f) Color(0xFF141414) else Color.White }
+    ?: MaterialTheme.colorScheme.surface
+
 /** Every Play button: the shuffle FAB's light disc with a dark glyph. Shape stays the caller's. */
 @Composable
 internal fun playButtonColors(): IconButtonColors = IconButtonDefaults.filledIconButtonColors(
-    containerColor = MaterialTheme.colorScheme.onSurface,
-    contentColor = MaterialTheme.colorScheme.surface,
+    containerColor = controlInk(),
+    contentColor = onControlInk(),
 )
 
 @Composable
@@ -63,9 +77,9 @@ internal fun AppSwitch(
         modifier = modifier,
         enabled = enabled,
         colors = SwitchDefaults.colors(
-            checkedThumbColor = colors.surface,
-            checkedTrackColor = colors.onSurface,
-            checkedBorderColor = colors.onSurface,
+            checkedThumbColor = onControlInk(),
+            checkedTrackColor = controlInk(),
+            checkedBorderColor = controlInk(),
             uncheckedThumbColor = colors.onSurfaceVariant,
             uncheckedTrackColor = colors.surfaceContainerHighest,
             uncheckedBorderColor = colors.outline,
@@ -88,13 +102,14 @@ internal fun AppSlider(
     steps: Int = 0,
     onValueChangeFinished: (() -> Unit)? = null,
 ) {
-    val ink = MaterialTheme.colorScheme.onSurface
+    val ink = controlInk()
+    val line = MaterialTheme.colorScheme.onSurface
     val sliderColors = SliderDefaults.colors(
         thumbColor = ink,
         activeTrackColor = ink,
-        inactiveTrackColor = ink.copy(alpha = 0.22f),
-        activeTickColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
-        inactiveTickColor = ink.copy(alpha = 0.5f),
+        inactiveTrackColor = line.copy(alpha = 0.22f),
+        activeTickColor = onControlInk().copy(alpha = 0.6f),
+        inactiveTickColor = line.copy(alpha = 0.5f),
     )
     val interactionSource = remember { MutableInteractionSource() }
     Slider(
@@ -142,12 +157,12 @@ internal fun AppChoiceChip(
         onClick = onClick,
         label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         modifier = modifier.heightIn(min = 34.dp),
-        shape = RoundedCornerShape(17.dp),
+        shape = RoundedCornerShape(17.dp.corner()),
         colors = FilterChipDefaults.filterChipColors(
             containerColor = Color.Transparent,
             labelColor = colors.onSurfaceVariant,
-            selectedContainerColor = colors.onSurface,
-            selectedLabelColor = colors.surface,
+            selectedContainerColor = controlInk(),
+            selectedLabelColor = onControlInk(),
         ),
         border = FilterChipDefaults.filterChipBorder(
             enabled = true,
@@ -171,7 +186,7 @@ internal fun AppRadioButton(
         modifier = modifier,
         enabled = enabled,
         colors = RadioButtonDefaults.colors(
-            selectedColor = MaterialTheme.colorScheme.onSurface,
+            selectedColor = controlInk(),
             unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant,
         ),
     )
@@ -190,9 +205,9 @@ internal fun AppCheckbox(
         modifier = modifier,
         enabled = enabled,
         colors = CheckboxDefaults.colors(
-            checkedColor = MaterialTheme.colorScheme.onSurface,
+            checkedColor = controlInk(),
             uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            checkmarkColor = MaterialTheme.colorScheme.surface,
+            checkmarkColor = onControlInk(),
         ),
     )
 }
@@ -206,8 +221,8 @@ internal fun AppLinearProgress(
     modifier: Modifier = Modifier,
     progress: (() -> Float)? = null,
 ) {
-    val ink = MaterialTheme.colorScheme.onSurface
-    val track = ink.copy(alpha = 0.12f)
+    val ink = controlInk()
+    val track = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
     if (progress != null) {
         LinearProgressIndicator(
             progress = progress,
@@ -233,7 +248,7 @@ internal fun AppLinearProgress(
 internal fun AppSpinner(
     modifier: Modifier = Modifier,
     strokeWidth: Dp = 4.dp,
-    color: Color = MaterialTheme.colorScheme.onSurface,
+    color: Color = controlInk(),
 ) {
     CircularProgressIndicator(
         modifier = modifier,

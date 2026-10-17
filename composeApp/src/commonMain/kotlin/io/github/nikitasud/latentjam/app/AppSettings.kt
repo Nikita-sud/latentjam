@@ -103,6 +103,9 @@ enum class TrackColorMode(internal val persistedValue: String) {
 
     /** Keep the current app theme colour for every track. */
     THEME("theme"),
+
+    /** The listener's own colour from [CUSTOM_ACCENT_PALETTE], whatever is playing. */
+    CUSTOM("custom"),
 }
 
 /** How the browse header shows the pages around the current one. */
@@ -398,6 +401,8 @@ private const val MAX_DECODED_RESUME_QUEUE_IDS = 10_000
  * Deliberately small. Anything a feature owns (equalizer curves, the SMART index) is stored by that
  * feature, so a preference screen never becomes the place where unrelated state accumulates.
  */
+private val DEFAULT_APPEARANCE: StateFlow<Appearance> = kotlinx.coroutines.flow.MutableStateFlow(Appearance())
+
 interface AppSettings {
     val themeMode: StateFlow<ThemeMode>
     fun setThemeMode(mode: ThemeMode)
@@ -474,6 +479,10 @@ interface AppSettings {
      */
     val folderView: StateFlow<FolderView> get() = DEFAULT_FOLDER_VIEW
     fun setFolderView(view: FolderView) {}
+
+    /** Accent, black floor, cloud, corners, mini player, hand and album columns; see [Appearance]. */
+    val appearance: StateFlow<Appearance> get() = DEFAULT_APPEARANCE
+    fun setAppearance(appearance: Appearance) {}
 
     /** How each playlist's page and Favorites order their tracks; device-local, see [PlaylistSortOrders]. */
     val playlistSortOrders: StateFlow<PlaylistSortOrders>

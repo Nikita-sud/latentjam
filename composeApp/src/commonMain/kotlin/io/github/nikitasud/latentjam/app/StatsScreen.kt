@@ -418,7 +418,7 @@ private fun ListeningHero(overview: ListeningOverview, period: StatsPeriod, acce
 private fun HeroMetric(value: String, label: String, modifier: Modifier) {
     Surface(
         modifier = modifier.widthIn(min = 88.dp),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(16.dp.corner()),
         color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Metric(value, label, Modifier.padding(14.dp), large = true)
@@ -684,7 +684,7 @@ private fun StatsCard(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(16.dp.corner()),
         color = color,
     ) {
         Column(

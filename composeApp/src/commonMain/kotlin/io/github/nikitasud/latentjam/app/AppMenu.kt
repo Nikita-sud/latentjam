@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -38,11 +40,13 @@ import androidx.compose.ui.unit.dp
  * corners. Stock Material menus (4 dp corners, flush full-width rows, labelLarge) looked like a
  * different app wherever they appeared.
  */
-private val MenuShape = RoundedCornerShape(24.dp)
+private val MenuShape: Shape
+    @Composable @ReadOnlyComposable get() = RoundedCornerShape(24.dp.corner())
 
 /** Rows sit this far in from the menu's edge, so their corners nest inside [MenuShape]. */
 private val MenuItemInset = 8.dp
-internal val MenuItemShape = RoundedCornerShape(24.dp - MenuItemInset)
+internal val MenuItemShape: Shape
+    @Composable @ReadOnlyComposable get() = RoundedCornerShape((24.dp - MenuItemInset).corner())
 
 /** Opens a little below its anchor rather than on top of it, so the anchor stays readable. */
 private val MenuOffset = DpOffset(0.dp, 8.dp)

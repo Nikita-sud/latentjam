@@ -198,6 +198,7 @@ internal fun SearchNavigationBar(
     val reduced = rememberReduceMotion()
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val background = MaterialTheme.colorScheme.surfaceContainer
+    val fieldRadius = 24.dp.corner()
     var headerBounds by remember { mutableStateOf(Rect.Zero) }
     Box(
         Modifier.fillMaxWidth()
@@ -209,7 +210,7 @@ internal fun SearchNavigationBar(
                 val target = Rect(insetX, insetY, size.width - insetX, size.height - insetY)
                 val source = origin?.translate(-headerBounds.topLeft) ?: target
                 val bounds = navigationRevealBounds(source, target, p)
-                drawRoundRect(background, bounds.topLeft, bounds.size, CornerRadius(24.dp.toPx()),
+                drawRoundRect(background, bounds.topLeft, bounds.size, CornerRadius(fieldRadius.toPx()),
                     alpha = navigationPhase(p, 0f, 0.3f))
             },
     ) {

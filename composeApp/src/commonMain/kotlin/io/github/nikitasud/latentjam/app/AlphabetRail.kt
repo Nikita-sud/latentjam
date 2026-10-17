@@ -301,14 +301,16 @@ internal fun ListWithRail(
         }
     }
     val layoutDirection = LocalLayoutDirection.current
+    // Left-handed puts the rail, and so its gutter, on the start side.
+    val railAtStart = LocalAppearance.current.leftHanded
+    val railGutter = if (showRail) RailWidth + RailGap else 0.dp
     val inset = PaddingValues(
-        start = contentPadding.calculateStartPadding(layoutDirection),
+        start = contentPadding.calculateStartPadding(layoutDirection) + if (railAtStart) railGutter else 0.dp,
         top = contentPadding.calculateTopPadding(),
         // The gutter belongs to a rail that is actually on screen. Reserving it for every list
         // that merely qualified left short album and artist pages with an empty strip down
         // the right-hand side and rows that stopped short of their own header's buttons.
-        end = contentPadding.calculateEndPadding(layoutDirection) +
-            if (showRail) RailWidth + RailGap else 0.dp,
+        end = contentPadding.calculateEndPadding(layoutDirection) + if (railAtStart) 0.dp else railGutter,
         bottom = contentPadding.calculateBottomPadding(),
     )
     val artworkReporter: ((ArtworkLoadKey, ArtworkLoadState) -> Unit)? =
@@ -443,14 +445,16 @@ internal fun GridListWithRail(
         }
     }
     val layoutDirection = LocalLayoutDirection.current
+    // Left-handed puts the rail, and so its gutter, on the start side.
+    val railAtStart = LocalAppearance.current.leftHanded
+    val railGutter = if (showRail) RailWidth + RailGap else 0.dp
     val inset = PaddingValues(
-        start = contentPadding.calculateStartPadding(layoutDirection),
+        start = contentPadding.calculateStartPadding(layoutDirection) + if (railAtStart) railGutter else 0.dp,
         top = contentPadding.calculateTopPadding(),
         // The gutter belongs to a rail that is actually on screen. Reserving it for every list
         // that merely qualified left short album and artist pages with an empty strip down
         // the right-hand side and rows that stopped short of their own header's buttons.
-        end = contentPadding.calculateEndPadding(layoutDirection) +
-            if (showRail) RailWidth + RailGap else 0.dp,
+        end = contentPadding.calculateEndPadding(layoutDirection) + if (railAtStart) 0.dp else railGutter,
         bottom = contentPadding.calculateBottomPadding(),
     )
     val artworkReporter: ((ArtworkLoadKey, ArtworkLoadState) -> Unit)? =
@@ -567,6 +571,7 @@ internal fun BoxScope.StandaloneAlphabetRailOverlay(
     onScrubbingChange: (Boolean) -> Unit = {},
     interactive: Boolean = true,
 ) {
+    val railAtStart = LocalAppearance.current.leftHanded
     var previewIndex by remember(catalogKey) { mutableStateOf<Int?>(null) }
     var settlingIndex by remember(catalogKey) { mutableStateOf<Int?>(null) }
     var touchY by remember { mutableStateOf(0f) }
@@ -669,7 +674,7 @@ internal fun BoxScope.StandaloneAlphabetRailOverlay(
         gestureKey = catalogKey,
         activeBucket = previewBucket ?: settlingBucket ?: activeBucket,
         modifier = Modifier
-            .align(Alignment.CenterEnd)
+            .align(if (railAtStart) Alignment.CenterStart else Alignment.CenterEnd)
             .fillMaxHeight()
             .padding(bottom = bottomPadding)
             .padding(vertical = 8.dp)
@@ -690,14 +695,16 @@ internal fun BoxScope.StandaloneAlphabetRailOverlay(
             bucketIndex = previewIndex,
             reduceMotion = reduceMotion,
             modifier = Modifier
-                .align(Alignment.TopEnd)
+                .align(if (railAtStart) Alignment.TopStart else Alignment.TopEnd)
                 .offset {
                     val bubblePx = bubbleDiameter.roundToPx()
                     val localTop = (touchY - bubblePx / 2f)
                         .roundToInt()
                         .coerceIn(0, (railHeightPx - bubblePx).coerceAtLeast(0))
+                    // The bubble sits beside the rail, on the side facing the content.
+                    val towardContent = (layoutDirection == LayoutDirection.Ltr) != railAtStart
                     IntOffset(
-                        x = if (layoutDirection == LayoutDirection.Ltr) {
+                        x = if (towardContent) {
                             -(RailWidth + RailGap).roundToPx()
                         } else {
                             (RailWidth + RailGap).roundToPx()

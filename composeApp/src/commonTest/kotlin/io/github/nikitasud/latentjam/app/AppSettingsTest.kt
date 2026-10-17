@@ -369,4 +369,28 @@ class AppSettingsTest {
             fallbackResumeQueue(ShuffleMode.OFF, current, source),
         )
     }
+
+    @Test
+    fun `appearance survives the round trip and tolerates junk`() {
+        val chosen = Appearance(
+            customAccent = CUSTOM_ACCENT_PALETTE[6],
+            pureBlack = true,
+            cloud = CloudStrength.VIVID,
+            cloudMotion = false,
+            playerBackground = PlayerBackground.BLURRED_COVER,
+            shape = ShapeStyle.SHARP,
+            miniPlayer = MiniPlayerStyle.BAR,
+            miniPlayerPrevious = false,
+            leftHanded = true,
+            albumColumns = 3,
+        )
+        assertEquals(chosen, decodeAppearance(encodeAppearance(chosen)))
+        assertEquals(Appearance(), decodeAppearance(null))
+        assertEquals(Appearance(), decodeAppearance("something else"))
+        // Unknown keys are skipped, unknown values fall back field by field.
+        assertEquals(
+            Appearance(pureBlack = true),
+            decodeAppearance("LJAP1|black=true;cloud=thunder;albums=9;accent=123456;future=1"),
+        )
+    }
 }

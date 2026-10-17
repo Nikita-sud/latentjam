@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -124,7 +125,7 @@ internal fun NameSortPill(
         enabled = enabled,
         contentPadding = PaddingValues(horizontal = 14.dp),
         modifier = modifier.heightIn(min = 48.dp)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape),
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(24.dp.corner())),
     ) {
         Icon(Icons.AutoMirrored.Rounded.Sort, null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
@@ -152,7 +153,7 @@ private fun SortPillFrame(
 ) {
     Box(modifier) {
         Row(
-            modifier = Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape),
+            modifier = Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(24.dp.corner())),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             TextButton(onClick = onLabelClick, enabled = enabled,

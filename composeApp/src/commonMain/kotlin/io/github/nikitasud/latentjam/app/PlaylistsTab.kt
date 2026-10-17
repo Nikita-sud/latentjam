@@ -253,7 +253,7 @@ internal fun PlaylistsTabContent(
                 item(key = "new-playlist") {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
-                            .clip(RoundedCornerShape(16.dp)).clickable(onClick = onCreate)
+                            .clip(RoundedCornerShape(16.dp.corner())).clickable(onClick = onCreate)
                             .padding(start = 20.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -413,7 +413,7 @@ private fun PlaylistRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp.corner()))
             .clickable(onClick = onClick)
             .semantics {
                 customActions = listOfNotNull(

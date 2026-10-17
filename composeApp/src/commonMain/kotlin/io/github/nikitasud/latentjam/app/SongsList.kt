@@ -150,7 +150,8 @@ internal fun SectionedSongsList(
             // scrolling content: outer padding exposed the page background as
             // a full-width strip directly above the mini-player on Tracks only.
             contentPadding = PaddingValues(
-                end = if (showRail) RailWidth + RailGap else 0.dp,
+                start = if (showRail && LocalAppearance.current.leftHanded) RailWidth + RailGap else 0.dp,
+                end = if (showRail && !LocalAppearance.current.leftHanded) RailWidth + RailGap else 0.dp,
                 bottom = contentPadding.calculateBottomPadding() + 12.dp,
             ),
             modifier = Modifier
@@ -412,7 +413,8 @@ private fun RailScrubPreviewLayer(
             state = listState,
             userScrollEnabled = false,
             contentPadding = PaddingValues(
-                end = RailWidth + RailGap,
+                start = if (LocalAppearance.current.leftHanded) RailWidth + RailGap else 0.dp,
+                end = if (LocalAppearance.current.leftHanded) 0.dp else RailWidth + RailGap,
                 bottom = bottomPadding,
             ),
             modifier = Modifier.fillMaxSize(),
@@ -461,7 +463,7 @@ internal fun RailScrubPreviewTrackRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = 8.dp, end = rowEndInset)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp.corner()))
             .background(if (isCurrent) accent.copy(alpha = 0.10f) else Color.Transparent)
             .heightIn(min = 64.dp)
             .padding(start = 12.dp, top = 8.dp, bottom = 8.dp),

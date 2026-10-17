@@ -165,16 +165,22 @@ class MainActivity : ComponentActivity() {
  * Compose runs, it owns the [systemBars].
  */
 private fun ComponentActivity.applyStoredWindowTheme(systemBars: Boolean = true) {
-    val stored = runCatching {
-        getSharedPreferences(APP_SETTINGS_FILE, Context.MODE_PRIVATE).getString(APP_THEME_KEY, null)
-    }.getOrNull()
+    val preferences = runCatching { getSharedPreferences(APP_SETTINGS_FILE, Context.MODE_PRIVATE) }.getOrNull()
+    val stored = runCatching { preferences?.getString(APP_THEME_KEY, null) }.getOrNull()
+    val pureBlack = runCatching { decodeAppearance(preferences?.getString(APP_APPEARANCE_KEY, null)).pureBlack }
+        .getOrDefault(false)
     val dark = when (stored) {
         ThemeMode.DARK.name -> true
         ThemeMode.LIGHT.name -> false
         else -> resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
             Configuration.UI_MODE_NIGHT_YES
     }
-    window.setBackgroundDrawable(ColorDrawable(if (dark) 0xFF0C0C0C.toInt() else 0xFFFAFAFA.toInt()))
+    val floor = when {
+        !dark -> 0xFFFAFAFA
+        pureBlack -> 0xFF000000
+        else -> 0xFF0B0B0B
+    }
+    window.setBackgroundDrawable(ColorDrawable(floor.toInt()))
     if (!systemBars) return
     WindowCompat.getInsetsController(window, window.decorView).apply {
         isAppearanceLightStatusBars = !dark

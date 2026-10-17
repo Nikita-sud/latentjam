@@ -220,9 +220,21 @@ fun App(
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
     }
+    val appearance by AppGraph.settings.appearance.collectAsState()
+    val trackColorMode by AppGraph.settings.trackColorMode.collectAsState()
     PlatformThemeEffect(darkTheme)
-    CompositionLocalProvider(LocalReduceMotion provides rememberPlatformReduceMotion()) {
-        MaterialTheme(colorScheme = latentJamColorScheme(darkTheme), typography = LatentJamTypography) {
+    val scheme = latentJamColorScheme(darkTheme).let { if (darkTheme && appearance.pureBlack) it.pureBlack() else it }
+    // The listener's own accent also inks the controls; any other colour mode keeps them neutral.
+    val controlInk = if (trackColorMode == TrackColorMode.CUSTOM) {
+        val custom = Color(appearance.customAccent)
+        if (darkTheme) liftForDarkSurface(custom) else tintForLightSurface(custom)
+    } else null
+    CompositionLocalProvider(
+        LocalReduceMotion provides rememberPlatformReduceMotion(),
+        LocalAppearance provides appearance,
+        LocalControlInk provides controlInk,
+    ) {
+        MaterialTheme(colorScheme = scheme, typography = LatentJamTypography) {
             AppShell(engine, library, playback, externalAudioOpener, darkTheme)
         }
     }
@@ -500,6 +512,7 @@ private fun AppShell(
         val groupSortOrders by settings.groupSortOrders.collectAsState()
         val artistAlbumSortChoice by settings.artistAlbumSort.collectAsState()
         var showSettings by rememberSaveable { mutableStateOf(false) }
+        var settingsRoute by rememberSaveable { mutableStateOf<String?>(null) }
         var infoTargetId by rememberSaveable { mutableStateOf<String?>(null) }
         // An "Edit tags" action opens the sheet on its editor; "Information" opens the info view.
         var infoStartsEditing by rememberSaveable { mutableStateOf(false) }
@@ -692,6 +705,7 @@ private fun AppShell(
             track = currentTrack,
             mode = trackColorMode,
             darkTheme = darkTheme,
+            customColor = Color(LocalAppearance.current.customAccent),
         )
         // AnimatedVisibility retains its composition for exit frames. Keep the last presentation
         // in an ordinary main-thread holder: while a live track exists none of these fallback
@@ -2936,11 +2950,16 @@ private fun AppShell(
                                                 start = 12.dp, end = 12.dp, top = 8.dp,
                                                 bottom = listPadding.calculateBottomPadding(),
                                             )
+                                            AlbumGridPinch(
+                                                columns = LocalAppearance.current.albumColumns,
+                                                onColumnsChange = { n -> settings.setAppearance(settings.appearance.value.copy(albumColumns = n)) },
+                                            ) {
                                             AdaptiveCollectionIndex(
                                                 itemCount = visibleCatalog.albums.size,
                                                 bucketCount = albumSections.size,
                                                 contentPadding = albumPadding,
                                                 grid = true,
+                                                fixedColumns = LocalAppearance.current.albumColumns,
                                             ) { indexed ->
                                             val albumRail = remember(albumSections, indexed) {
                                                 if (!indexed) RailIndex(emptyList(), emptyList()) else RailIndex(
@@ -2974,7 +2993,9 @@ private fun AppShell(
                                                 contentPadding = albumPadding,
                                             ) { railPadding, gridState, artworkReporter, isPreview ->
                                                 LazyVerticalGrid(
-                                                    columns = GridCells.Adaptive(AlbumGridMinCellWidth),
+                                                    columns = LocalAppearance.current.albumColumns
+                                                        .takeIf { it > 0 }?.let { GridCells.Fixed(it) }
+                                                        ?: GridCells.Adaptive(AlbumGridMinCellWidth),
                                                     state = gridState,
                                                     modifier = Modifier.fillMaxSize(),
                                                     contentPadding = railPadding,
@@ -3051,6 +3072,7 @@ private fun AppShell(
                                                         }
                                                     }
                                                 }
+                                            }
                                             }
                                             }
                                         }
@@ -3296,15 +3318,16 @@ private fun AppShell(
                         }
                     }
 
+                    val leftHanded = LocalAppearance.current.leftHanded
                     val showShuffle = !selectionMode && !railScrubbing && !searchOverlayActive && !collectionOverlayActive &&
                         selectedTab.showsShuffleAll() &&
                         catalog?.songs?.isNotEmpty() == true
                     AnimatedVisibility(
                         visible = showShuffle,
-                        modifier = Modifier.align(Alignment.BottomEnd)
+                        modifier = Modifier.align(if (leftHanded) Alignment.BottomStart else Alignment.BottomEnd)
                             // Selection adds its own toolbar inset, but an exiting Shuffle
                             // button must keep its original anchor while it fades away.
-                            .padding(end = 42.dp, bottom = navBottom +
+                            .padding(start = if (leftHanded) 42.dp else 0.dp, end = if (leftHanded) 0.dp else 42.dp, bottom = navBottom +
                                 (if (currentTrack != null) miniPlayerHeight else 12.dp) + 20.dp),
                         enter = if (reduceMotion) fadeIn(tween(Motion.REDUCED_MS)) else {
                             fadeIn(tween(Motion.APPEAR_MS)) +
@@ -3721,6 +3744,10 @@ private fun AppShell(
                         onShowOnMap = if (StartPage.MAP in visiblePages) {
                             { track -> showTrackOnMap(track) }
                         } else null,
+                        onOpenEqualizer = {
+                            settingsRoute = SETTINGS_ROUTE_EQUALIZER
+                            showSettings = true
+                        },
                         onAddQueueToPlaylist = {
                             playback.state.value.queue
                                 .takeIf { it.isNotEmpty() }
@@ -4433,6 +4460,7 @@ private fun AppShell(
             ) {
             SettingsScreen(
                 active = showSettings,
+                startRoute = settingsRoute,
                 accent = accent,
                 rootOpenProgress = { revealProgress.value },
                 rootButtonBounds = settingsButtonBounds,
@@ -4563,7 +4591,10 @@ private fun AppShell(
                     AppGraph.recentSearches.clear()
                 },
                 snackbarHostState = snackbar,
-                onClose = { showSettings = false },
+                onClose = {
+                    showSettings = false
+                    settingsRoute = null
+                },
             )
         }
     }

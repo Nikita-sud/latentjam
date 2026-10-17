@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ColumnScope
@@ -33,8 +35,10 @@ import androidx.compose.ui.window.DialogProperties
  * corner and its handle. Stock Material gave each of them its own radius (28, 28, 4) and the
  * sheets a lighter container than the player's, so every overlay looked borrowed.
  */
-internal val OverlayShape = RoundedCornerShape(24.dp)
-private val SheetShape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+internal val OverlayShape: Shape
+    @Composable @ReadOnlyComposable get() = RoundedCornerShape(24.dp.corner())
+private val SheetShape: Shape
+    @Composable @ReadOnlyComposable get() = RoundedCornerShape(topStart = 24.dp.corner(), topEnd = 24.dp.corner())
 
 /** The queue sheet's handle: 32 x 4 on an 18 dp strip. */
 @Composable

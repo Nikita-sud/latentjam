@@ -630,7 +630,7 @@ private fun CollectionHero(
     ) {
         val changeCoverLabel = stringResource(Res.string.action_change_playlist_cover)
         Box(
-            modifier = Modifier.clip(RoundedCornerShape(24.dp)).then(
+            modifier = Modifier.clip(RoundedCornerShape(24.dp.corner())).then(
                 if (onChangeCover != null && enabled) {
                     Modifier.clickable(onClickLabel = changeCoverLabel, onClick = onChangeCover)
                 } else Modifier,

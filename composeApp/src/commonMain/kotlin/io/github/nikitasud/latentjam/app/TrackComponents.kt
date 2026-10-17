@@ -100,7 +100,7 @@ internal fun Artwork(
     Box(
         modifier = modifier
             .size(size)
-            .clip(RoundedCornerShape(cornerRadius))
+            .clip(RoundedCornerShape(cornerRadius.corner()))
             .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
     ) {
@@ -242,7 +242,7 @@ internal fun TrackRow(
             .testTag("latentjam_track_row")
             .fillMaxWidth()
             .padding(start = 8.dp, end = rowEndInset)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp.corner()))
             .background(if (isCurrent) accent.copy(alpha = 0.10f) else Color.Transparent)
             .then(
                 if (selectionState != null || nowPlayingDescription != null) {

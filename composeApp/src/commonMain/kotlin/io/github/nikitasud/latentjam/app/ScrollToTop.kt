@@ -57,11 +57,13 @@ internal fun BoxScope.ScrollToTopButton(
     }
     val scope = rememberCoroutineScope()
     val reduceMotion = rememberReduceMotion()
+    // It sits opposite the rail and the shuffle button, so it moves when they do.
+    val leftHanded = LocalAppearance.current.leftHanded
     AnimatedVisibility(
         visible = visible,
         modifier = Modifier
-            .align(Alignment.BottomStart)
-            .padding(start = 16.dp, bottom = bottomInset + 16.dp),
+            .align(if (leftHanded) Alignment.BottomEnd else Alignment.BottomStart)
+            .padding(start = if (leftHanded) 0.dp else 16.dp, end = if (leftHanded) 16.dp else 0.dp, bottom = bottomInset + 16.dp),
         enter = if (reduceMotion) {
             fadeIn(tween(Motion.REDUCED_MS))
         } else {

@@ -636,7 +636,7 @@ private fun HeroCard(hero: ForYouHero, accent: TrackAccent?, onPlay: () -> Unit)
                 indication = ripple(),
                 onClick = onPlay,
             ),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(24.dp.corner()),
         color = Color.Transparent,
         border = BorderStroke(1.dp, ink.copy(alpha = 0.16f)),
     ) {

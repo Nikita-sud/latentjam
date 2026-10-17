@@ -18,7 +18,8 @@ import androidx.compose.ui.unit.dp
 /** A quiet, stationary echo of the player. Browsing never starts a frame ticker. */
 @Composable
 internal fun Modifier.browseCloud(accent: TrackAccent?): Modifier {
-    if (accent == null) return this
+    val strength = LocalAppearance.current.cloud.alphaScale
+    if (accent == null || strength == 0f) return this
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val color = if (dark) liftForDarkSurface(accent.vivid) else tintForLightSurface(accent.vivid)
     val companionColor = if (dark) lerp(color, Color.White, 0.16f) else rotateHue(color, 12f)
@@ -26,21 +27,21 @@ internal fun Modifier.browseCloud(accent: TrackAccent?): Modifier {
         // Keep the song recognisable across the whole light header. Radial clouds alone fade
         // nearly to white between their centres; this broad wash dissolves into the list floor.
         val headerWash = if (dark) null else Brush.verticalGradient(
-            0f to color.copy(alpha = 0.90f),
-            0.4f to color.copy(alpha = 0.90f),
+            0f to color.copy(alpha = (0.90f * strength).coerceAtMost(1f)),
+            0.4f to color.copy(alpha = (0.90f * strength).coerceAtMost(1f)),
             1f to color.copy(alpha = 0f),
             endY = 420.dp.toPx(),
         )
         // Two cached gradients carry the current song's hue through the shared header.
         // No blur layer, bitmap, or animation clock is needed while browsing.
         val primary = Brush.radialGradient(
-            colors = listOf(color.copy(alpha = if (dark) 0.30f else 0.50f), Color.Transparent),
+            colors = listOf(color.copy(alpha = ((if (dark) 0.30f else 0.50f) * strength).coerceAtMost(1f)), Color.Transparent),
             center = Offset(100.dp.toPx(), 50.dp.toPx()),
             radius = 220.dp.toPx(),
         )
         val companion = Brush.radialGradient(
             colors = listOf(
-                companionColor.copy(alpha = if (dark) 0.20f else 0.28f),
+                companionColor.copy(alpha = ((if (dark) 0.20f else 0.28f) * strength).coerceAtMost(1f)),
                 Color.Transparent,
             ),
             center = Offset(size.width - 60.dp.toPx(), 0f),

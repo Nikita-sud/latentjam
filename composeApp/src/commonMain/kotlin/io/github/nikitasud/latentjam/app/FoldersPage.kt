@@ -728,7 +728,7 @@ private fun FolderRow(
         Box(
             modifier = Modifier
                 .size(56.dp)
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(16.dp.corner()))
                 .background(MaterialTheme.colorScheme.surfaceContainer),
             contentAlignment = Alignment.Center,
         ) {
@@ -797,7 +797,7 @@ private fun FolderTreeRow(
         Box(
             modifier = Modifier
                 .size(56.dp)
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(16.dp.corner()))
                 .background(MaterialTheme.colorScheme.surfaceContainer),
             contentAlignment = Alignment.Center,
         ) {

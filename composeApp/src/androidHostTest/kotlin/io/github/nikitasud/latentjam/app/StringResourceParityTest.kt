@@ -298,6 +298,7 @@ class StringResourceParityTest {
                 "values-ro" to kbpsAndMegabytes + latinTimeUnits + setOf(
                     "count_albums", "count_artists", "details_format", "equalizer_preset_electronic", "info_album",
                     "info_artist", "sleep_timer_minutes", "stats_streak_longest", "m3u_import_playlists",
+                    "settings_mini_player_card",
                 ),
                 "values-tr" to setOf("unit_megabytes"),
                 "values-zh-rCN" to kbpsAndMegabytes,

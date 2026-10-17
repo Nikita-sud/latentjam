@@ -4,6 +4,22 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import coil3.compose.AsyncImagePainter
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
+import coil3.request.crossfade
+import coil3.request.ImageRequest
+import coil3.compose.LocalPlatformContext
+import coil3.compose.AsyncImage
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -40,7 +56,11 @@ import kotlinx.coroutines.delay
  */
 @Composable
 internal fun Modifier.playerCloud(accent: TrackAccent, playing: Boolean): Modifier {
-    val reduceMotion = rememberReduceMotion()
+    val appearance = LocalAppearance.current
+    val strength = appearance.cloud.alphaScale
+    if (strength == 0f) return this
+    // A still cloud is the listener's choice as much as Reduce Motion is.
+    val reduceMotion = rememberReduceMotion() || !appearance.cloudMotion
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val phase = remember { mutableFloatStateOf(0f) }
     LaunchedEffect(playing, reduceMotion, lifecycle) {
@@ -55,7 +75,7 @@ internal fun Modifier.playerCloud(accent: TrackAccent, playing: Boolean): Modifi
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val primary = if (dark) liftForDarkSurface(accent.vivid) else tintForLightSurface(accent.vivid)
     val companion = rotateHue(primary, if (dark) COMPANION_HUE_SHIFT else 12f)
-    val alpha = if (dark) CLOUD_ALPHA_DARK else CLOUD_ALPHA_LIGHT
+    val alpha = ((if (dark) CLOUD_ALPHA_DARK else CLOUD_ALPHA_LIGHT) * strength).coerceAtMost(1f)
     return drawWithCache {
         // A nearly neutral light floor lets each drifting cloud remain distinct. A stronger
         // same-hue floor erases the visible movement, even while the cloud clock is advancing.
@@ -186,3 +206,52 @@ private const val BLOB_DRIFT_DP = 70f
 private val BLOB_RADII_DP = listOf(150f, 130f, 120f)
 private val BLOB_PERIODS_S = listOf(19f, 23f, 27f)
 private val BLOB_ANCHORS = listOf(Offset(0.15f, 0.12f), Offset(0.78f, 0.3f), Offset(0.35f, 0.64f))
+
+/**
+ * The player's other floor: the cover itself, blurred and dimmed. The image is decoded at a few
+ * dozen pixels, so even where Compose cannot blur (Android before 12) the stretched thumbnail
+ * already reads as a soft wash; [Modifier.blur] smooths it further where it can.
+ */
+@Composable
+internal fun PlayerCoverBackdrop(
+    uri: String,
+    modifier: Modifier = Modifier,
+    /** Whether a cover is actually on screen; until it is (or if it never loads), keep the cloud. */
+    onShownChange: (Boolean) -> Unit = {},
+) {
+    val context = LocalPlatformContext.current
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    var shown by remember(uri) { mutableStateOf(false) }
+    val request = remember(uri) {
+        ImageRequest.Builder(context)
+            .data(uri)
+            .size(BACKDROP_SOURCE_PX)
+            .memoryCacheKey("player-backdrop:$uri")
+            .crossfade(Motion.EMPHASIZED_MS)
+            .build()
+    }
+    Box(modifier) {
+        AsyncImage(
+            model = request,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            onState = { state ->
+                shown = state is AsyncImagePainter.State.Success
+                onShownChange(shown)
+            },
+            modifier = Modifier.fillMaxSize()
+                .graphicsLayer { scaleX = 1.15f; scaleY = 1.15f }
+                .blur(BACKDROP_BLUR, BlurredEdgeTreatment.Rectangle),
+        )
+        if (shown) Box(
+            Modifier.fillMaxSize().background(
+                MaterialTheme.colorScheme.surface.copy(alpha = if (dark) BACKDROP_DIM_DARK else BACKDROP_DIM_LIGHT),
+            ),
+        )
+    }
+}
+
+private const val BACKDROP_SOURCE_PX = 24
+private val BACKDROP_BLUR = 40.dp
+private const val BACKDROP_DIM_DARK = 0.55f
+private const val BACKDROP_DIM_LIGHT = 0.5f

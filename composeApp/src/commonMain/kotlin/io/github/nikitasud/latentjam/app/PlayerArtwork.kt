@@ -550,12 +550,12 @@ private fun CoverFace(uri: String?, fadeIn: Boolean = false) {
             .fillMaxSize()
             .shadow(
                 elevation = if (dark) COVER_ELEVATION else 8.dp,
-                shape = RoundedCornerShape(COVER_RADIUS),
+                shape = RoundedCornerShape(COVER_RADIUS.corner()),
                 clip = false,
                 ambientColor = if (dark) Color.Black else Color.Black.copy(alpha = 0.12f),
                 spotColor = if (dark) Color.Black else Color.Black.copy(alpha = 0.18f),
             )
-            .clip(RoundedCornerShape(COVER_RADIUS))
+            .clip(RoundedCornerShape(COVER_RADIUS.corner()))
             .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
     ) {

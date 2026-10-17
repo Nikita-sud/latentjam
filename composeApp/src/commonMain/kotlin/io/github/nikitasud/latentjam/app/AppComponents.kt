@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -464,6 +466,7 @@ internal fun BrowseCarousel(
     }
     val ink = MaterialTheme.colorScheme.onSurface
     val outline = MaterialTheme.colorScheme.outlineVariant
+    val pillCorner = (PagePillHeight / 2).corner()
     var menuOpen by remember { mutableStateOf(false) }
     // Pill widths from the last measure, for the moving fill drawn behind them.
     val pillWidths = remember { ArrayList<Float>() }
@@ -496,6 +499,7 @@ internal fun BrowseCarousel(
                     val bar = Size(PageTabBarWidth.toPx(), PageTabBarHeight.toPx())
                     val barY = size.height / 2f + PageTabBarOffset.toPx()
                     val pillHeight = PagePillHeight.toPx()
+                    val pillRadius = pillCorner.toPx()
                     val rtl = layoutDirection == LayoutDirection.Rtl
                     onDrawWithContent {
                         val position = pagerState.currentPage + pagerState.currentPageOffsetFraction
@@ -511,7 +515,7 @@ internal fun BrowseCarousel(
                                     color = ink.copy(alpha = 0.16f),
                                     topLeft = Offset((size.width - w) / 2f, (size.height - pillHeight) / 2f),
                                     size = Size(w, pillHeight),
-                                    cornerRadius = CornerRadius(pillHeight / 2f),
+                                    cornerRadius = CornerRadius(pillRadius),
                                 )
                             }
                         }
@@ -570,7 +574,7 @@ internal fun BrowseCarousel(
                             color = ink,
                             modifier = label
                                 .height(PagePillHeight)
-                                .border(1.dp, outline, CircleShape)
+                                .border(1.dp, outline, RoundedCornerShape(pillCorner))
                                 .wrapContentHeight()
                                 .padding(horizontal = 14.dp),
                         )
@@ -743,9 +747,9 @@ internal fun SelectionActionBar(
             .fillMaxWidth()
             .then(if (includeNavigationPadding) Modifier.navigationBarsPadding() else Modifier)
             .padding(horizontal = 8.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(20.dp.corner()))
             .background(MaterialTheme.colorScheme.surfaceContainer)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(20.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(20.dp.corner()))
             .height(height - 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceEvenly,
@@ -1022,7 +1026,7 @@ internal fun AlbumCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(16.dp.corner()))
                 .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center,
         ) {
@@ -1206,8 +1210,11 @@ internal fun MiniPlayerPill(
     val queueIndex by remember(playback) {
         playback.state.map { it.queueIndex }.distinctUntilChanged()
     }.collectAsState(playback.state.value.queueIndex)
-    val playerShape = RoundedCornerShape(24.dp)
+    val appearance = LocalAppearance.current
+    val bar = appearance.miniPlayer == MiniPlayerStyle.BAR
+    val playerShape = if (bar) RectangleShape else RoundedCornerShape(24.dp.corner())
     val miniSurface = miniPlayerSurfaceColor(accent)
+    val edge = browseAccentInk(accent).copy(alpha = 0.14f)
     val miniInk = MaterialTheme.colorScheme.onSurface
     val fontScale = LocalDensity.current.fontScale
     val previousDescription = stringResource(Res.string.action_previous)
@@ -1216,8 +1223,18 @@ internal fun MiniPlayerPill(
             modifier = modifier
                 .testTag("latentjam_mini_player")
                 .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 8.dp, vertical = 8.dp)
+                .then(
+                    if (bar) {
+                        // A bar runs under the navigation bar to the screen's edge, with a hairline
+                        // on top; only its content is lifted above the system inset.
+                        Modifier.padding(top = 16.dp)
+                            .background(miniSurface)
+                            .drawBehind { drawLine(edge, Offset(0f, 0f), Offset(size.width, 0f), 1.dp.toPx()) }
+                            .navigationBarsPadding()
+                    } else {
+                        Modifier.navigationBarsPadding().padding(horizontal = 8.dp, vertical = 8.dp)
+                    },
+                )
                 .height(height - 16.dp)
                 // Material Surface still creates a separate rendered surface at zero elevation. On
                 // some Android renderers its boundary is visible as a full-width grey hairline.
@@ -1230,13 +1247,12 @@ internal fun MiniPlayerPill(
                     onNext = onNext,
                 )
                 .clip(playerShape)
-                .background(miniSurface, playerShape)
-                .border(1.dp, browseAccentInk(accent).copy(alpha = 0.14f), playerShape)
+                .then(if (bar) Modifier else Modifier.background(miniSurface, playerShape).border(1.dp, edge, playerShape))
                 .clickable(onClick = onOpen),
         ) {
             // At compact widths or large text, give the song name the room it needs. Previous
             // remains available by swipe, through accessibility, and in the expanded player.
-            val showPrevious = maxWidth >= 340.dp && fontScale < 1.5f
+            val showPrevious = appearance.miniPlayerPrevious && maxWidth >= 340.dp && fontScale < 1.5f
             Box(modifier = Modifier.fillMaxSize().semantics {
                 if (!showPrevious) {
                     customActions = listOf(CustomAccessibilityAction(previousDescription) {

@@ -65,6 +65,22 @@ internal val NeutralDarkColors: ColorScheme = darkColorScheme(
     onError = Color(0xFF690005),
 )
 
+/**
+ * The dark scheme on a true black floor for OLED screens: every container steps one shade darker
+ * so sheets and cards still separate from the floor.
+ */
+internal fun ColorScheme.pureBlack(): ColorScheme = copy(
+    background = Color.Black,
+    surface = Color.Black,
+    surfaceContainerLowest = Color.Black,
+    surfaceContainerLow = Color(0xFF0A0A0A),
+    surfaceContainer = Color(0xFF0E0E0E),
+    surfaceContainerHigh = Color(0xFF161616),
+    surfaceContainerHighest = Color(0xFF202020),
+    surfaceVariant = Color(0xFF222222),
+    outlineVariant = Color(0xFF262626),
+)
+
 internal val NeutralLightColors: ColorScheme = lightColorScheme(
     primary = Color(0xFF1F1F1F),
     onPrimary = Color(0xFFFFFFFF),

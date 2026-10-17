@@ -678,7 +678,7 @@ private fun RecentSearchList(
         }
         Surface(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(16.dp.corner()),
             color = MaterialTheme.colorScheme.surfaceContainer,
         ) {
             FadingLazyColumn(contentPadding = PaddingValues(bottom = bottomInset)) {

@@ -20,6 +20,7 @@ internal actual val notificationFavoriteAvailable: Boolean = true
 
 internal const val APP_SETTINGS_FILE = "app_settings"
 internal const val APP_THEME_KEY = "theme_mode"
+internal const val APP_APPEARANCE_KEY = "appearance_v1"
 
 internal class AndroidAppSettings(context: Context) : AppSettings {
 
@@ -32,6 +33,8 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
     override val startPage: StateFlow<StartPage> = mutableStartPage.asStateFlow()
     private val mutableTrackColorMode = MutableStateFlow(readTrackColorMode())
     override val trackColorMode: StateFlow<TrackColorMode> = mutableTrackColorMode.asStateFlow()
+    private val mutableAppearance = MutableStateFlow(decodeAppearance(readString(APP_APPEARANCE_KEY)))
+    override val appearance: StateFlow<Appearance> = mutableAppearance.asStateFlow()
     private val mutablePageHeaderStyle = MutableStateFlow(pageHeaderStyleFromPersisted(readString(KEY_PAGE_HEADER_STYLE)))
     override val pageHeaderStyle: StateFlow<PageHeaderStyle> = mutablePageHeaderStyle.asStateFlow()
     private val mutableSmartQueueLength = MutableStateFlow(readSmartQueueLength())
@@ -115,6 +118,11 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
     override fun setTrackColorMode(mode: TrackColorMode) {
         preferences.edit().putString(KEY_TRACK_COLOR_MODE, mode.persistedValue).apply()
         mutableTrackColorMode.value = mode
+    }
+
+    override fun setAppearance(appearance: Appearance) {
+        preferences.edit().putString(APP_APPEARANCE_KEY, encodeAppearance(appearance)).apply()
+        mutableAppearance.value = appearance
     }
 
     override fun setPageHeaderStyle(style: PageHeaderStyle) {

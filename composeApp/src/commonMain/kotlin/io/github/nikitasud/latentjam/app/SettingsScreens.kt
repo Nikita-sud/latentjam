@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.border
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
@@ -317,6 +319,35 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_page_heade
 import io.github.nikitasud.latentjam.app.generated.resources.settings_page_header_neighbours
 import io.github.nikitasud.latentjam.app.generated.resources.settings_page_header_pills
 import io.github.nikitasud.latentjam.app.generated.resources.settings_page_header_tabs
+import io.github.nikitasud.latentjam.app.generated.resources.settings_color_custom
+import io.github.nikitasud.latentjam.app.generated.resources.settings_color_custom_body
+import io.github.nikitasud.latentjam.app.generated.resources.settings_accent_swatch
+import io.github.nikitasud.latentjam.app.generated.resources.settings_pure_black
+import io.github.nikitasud.latentjam.app.generated.resources.settings_pure_black_body
+import io.github.nikitasud.latentjam.app.generated.resources.settings_cloud
+import io.github.nikitasud.latentjam.app.generated.resources.settings_cloud_off
+import io.github.nikitasud.latentjam.app.generated.resources.settings_cloud_soft
+import io.github.nikitasud.latentjam.app.generated.resources.settings_cloud_normal
+import io.github.nikitasud.latentjam.app.generated.resources.settings_cloud_vivid
+import io.github.nikitasud.latentjam.app.generated.resources.settings_cloud_motion
+import io.github.nikitasud.latentjam.app.generated.resources.settings_cloud_motion_body
+import io.github.nikitasud.latentjam.app.generated.resources.settings_player_background
+import io.github.nikitasud.latentjam.app.generated.resources.settings_player_background_cloud
+import io.github.nikitasud.latentjam.app.generated.resources.settings_player_background_cover
+import io.github.nikitasud.latentjam.app.generated.resources.settings_shape
+import io.github.nikitasud.latentjam.app.generated.resources.settings_shape_round
+import io.github.nikitasud.latentjam.app.generated.resources.settings_shape_soft
+import io.github.nikitasud.latentjam.app.generated.resources.settings_shape_sharp
+import io.github.nikitasud.latentjam.app.generated.resources.settings_shape_body
+import io.github.nikitasud.latentjam.app.generated.resources.settings_mini_player
+import io.github.nikitasud.latentjam.app.generated.resources.settings_mini_player_card
+import io.github.nikitasud.latentjam.app.generated.resources.settings_mini_player_bar
+import io.github.nikitasud.latentjam.app.generated.resources.settings_mini_player_previous
+import io.github.nikitasud.latentjam.app.generated.resources.settings_mini_player_previous_body
+import io.github.nikitasud.latentjam.app.generated.resources.settings_section_handling
+import io.github.nikitasud.latentjam.app.generated.resources.settings_left_handed
+import io.github.nikitasud.latentjam.app.generated.resources.settings_left_handed_body
+import io.github.nikitasud.latentjam.app.generated.resources.settings_album_pinch_body
 import io.github.nikitasud.latentjam.app.generated.resources.settings_track_colors
 import io.github.nikitasud.latentjam.app.generated.resources.settings_version
 import io.github.nikitasud.latentjam.app.generated.resources.state_off
@@ -409,11 +440,17 @@ internal fun SettingsScreen(
     rootOpenProgress: () -> Float = { 1f },
     rootButtonBounds: Rect? = null,
     active: Boolean = true,
+    /** A page to open on, as a route of [SettingsPage] names; null opens where it was left. */
+    startRoute: String? = null,
     onClose: () -> Unit,
 ) {
     val library = remember { AppGraph.library }
     val permissions = remember { AppGraph.permissions }
     var savedStack by rememberSaveable { mutableStateOf(SettingsPage.ROOT.name) }
+    LaunchedEffect(startRoute) {
+        // A visit opened at a page ends there too: the gear opens Settings at its root again.
+        savedStack = startRoute ?: if (savedStack == SETTINGS_ROUTE_EQUALIZER) SettingsPage.ROOT.name else savedStack
+    }
     val stack = remember(savedStack) { savedStack.settingsStack() }
     val rootListState = rememberLazyListState()
     // Only navigation parents retain their scroll position. Retaining the whole page would
@@ -742,6 +779,8 @@ private fun AppearanceSettings(
     val theme by settings.themeMode.collectAsState()
     val colorMode by settings.trackColorMode.collectAsState()
     val headerStyle by settings.pageHeaderStyle.collectAsState()
+    val appearance by settings.appearance.collectAsState()
+    fun update(change: Appearance.() -> Appearance) = settings.setAppearance(settings.appearance.value.change())
 
     FadingLazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -762,6 +801,15 @@ private fun AppearanceSettings(
                     },
                     onSelected = settings::setThemeMode,
                 )
+                // Black only means something on the dark scheme; a light theme hides the switch.
+                if (theme != ThemeMode.LIGHT) {
+                    AppearanceSwitchRow(
+                        title = stringResource(Res.string.settings_pure_black),
+                        body = stringResource(Res.string.settings_pure_black_body),
+                        checked = appearance.pureBlack,
+                        onCheckedChange = { on -> update { copy(pureBlack = on) } },
+                    )
+                }
                 SettingsLabel(stringResource(Res.string.settings_page_header))
                 ChoiceChips(
                     values = PageHeaderStyle.entries,
@@ -789,47 +837,125 @@ private fun AppearanceSettings(
                             TrackColorMode.DYNAMIC -> Res.string.settings_color_dynamic
                             TrackColorMode.SMART -> Res.string.settings_color_smart
                             TrackColorMode.THEME -> Res.string.settings_color_theme
+                            TrackColorMode.CUSTOM -> Res.string.settings_color_custom
                         })
                     },
                     onSelected = settings::setTrackColorMode,
                 )
+                if (colorMode == TrackColorMode.CUSTOM) {
+                    AccentPalette(
+                        selected = appearance.customAccent,
+                        onSelect = { colour -> update { copy(customAccent = colour) } },
+                    )
+                }
                 SettingsBody(
                     stringResource(
                         when (colorMode) {
                             TrackColorMode.DYNAMIC -> Res.string.settings_color_dynamic_body
                             TrackColorMode.SMART -> Res.string.settings_color_smart_body
                             TrackColorMode.THEME -> Res.string.settings_color_theme_body
+                            TrackColorMode.CUSTOM -> Res.string.settings_color_custom_body
                         },
                     ),
                 )
             }
         }
-        if (notificationFavoriteAvailable) {
-            item {
-                val favorite by settings.notificationFavorite.collectAsState()
-                Row(
-                    modifier = Modifier.fillMaxWidth()
-                        .toggleable(
-                            value = favorite,
-                            role = Role.Switch,
-                            onValueChange = settings::setNotificationFavorite,
-                        )
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                        Text(
-                            stringResource(Res.string.settings_notification_favorite),
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                        Text(
-                            stringResource(Res.string.settings_notification_favorite_subtitle),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    AppSwitch(checked = favorite, onCheckedChange = null)
+        item {
+            SettingsSection(stringResource(Res.string.settings_cloud)) {
+                ChoiceChips(
+                    values = CloudStrength.entries,
+                    selected = appearance.cloud,
+                    label = { strength ->
+                        stringResource(when (strength) {
+                            CloudStrength.OFF -> Res.string.settings_cloud_off
+                            CloudStrength.SOFT -> Res.string.settings_cloud_soft
+                            CloudStrength.NORMAL -> Res.string.settings_cloud_normal
+                            CloudStrength.VIVID -> Res.string.settings_cloud_vivid
+                        })
+                    },
+                    onSelected = { strength -> update { copy(cloud = strength) } },
+                )
+                if (appearance.cloud != CloudStrength.OFF) {
+                    AppearanceSwitchRow(
+                        title = stringResource(Res.string.settings_cloud_motion),
+                        body = stringResource(Res.string.settings_cloud_motion_body),
+                        checked = appearance.cloudMotion,
+                        onCheckedChange = { on -> update { copy(cloudMotion = on) } },
+                    )
                 }
+            }
+        }
+        item {
+            SettingsSection(stringResource(Res.string.settings_player_background)) {
+                ChoiceChips(
+                    values = PlayerBackground.entries,
+                    selected = appearance.playerBackground,
+                    label = { background ->
+                        stringResource(when (background) {
+                            PlayerBackground.CLOUD -> Res.string.settings_player_background_cloud
+                            PlayerBackground.BLURRED_COVER -> Res.string.settings_player_background_cover
+                        })
+                    },
+                    onSelected = { background -> update { copy(playerBackground = background) } },
+                )
+            }
+        }
+        item {
+            SettingsSection(stringResource(Res.string.settings_shape)) {
+                ChoiceChips(
+                    values = ShapeStyle.entries,
+                    selected = appearance.shape,
+                    label = { shape ->
+                        stringResource(when (shape) {
+                            ShapeStyle.ROUND -> Res.string.settings_shape_round
+                            ShapeStyle.SOFT -> Res.string.settings_shape_soft
+                            ShapeStyle.SHARP -> Res.string.settings_shape_sharp
+                        })
+                    },
+                    onSelected = { shape -> update { copy(shape = shape) } },
+                )
+                SettingsBody(stringResource(Res.string.settings_shape_body))
+            }
+        }
+        item {
+            SettingsSection(stringResource(Res.string.settings_mini_player)) {
+                ChoiceChips(
+                    values = MiniPlayerStyle.entries,
+                    selected = appearance.miniPlayer,
+                    label = { style ->
+                        stringResource(when (style) {
+                            MiniPlayerStyle.CARD -> Res.string.settings_mini_player_card
+                            MiniPlayerStyle.BAR -> Res.string.settings_mini_player_bar
+                        })
+                    },
+                    onSelected = { style -> update { copy(miniPlayer = style) } },
+                )
+                AppearanceSwitchRow(
+                    title = stringResource(Res.string.settings_mini_player_previous),
+                    body = stringResource(Res.string.settings_mini_player_previous_body),
+                    checked = appearance.miniPlayerPrevious,
+                    onCheckedChange = { on -> update { copy(miniPlayerPrevious = on) } },
+                )
+            }
+        }
+        item {
+            SettingsSection(stringResource(Res.string.settings_section_handling)) {
+                AppearanceSwitchRow(
+                    title = stringResource(Res.string.settings_left_handed),
+                    body = stringResource(Res.string.settings_left_handed_body),
+                    checked = appearance.leftHanded,
+                    onCheckedChange = { on -> update { copy(leftHanded = on) } },
+                )
+                if (notificationFavoriteAvailable) {
+                    val favorite by settings.notificationFavorite.collectAsState()
+                    AppearanceSwitchRow(
+                        title = stringResource(Res.string.settings_notification_favorite),
+                        body = stringResource(Res.string.settings_notification_favorite_subtitle),
+                        checked = favorite,
+                        onCheckedChange = settings::setNotificationFavorite,
+                    )
+                }
+                SettingsBody(stringResource(Res.string.settings_album_pinch_body))
             }
         }
         item {
@@ -838,6 +964,55 @@ private fun AppearanceSettings(
                     title = stringResource(Res.string.settings_language),
                     subtitle = stringResource(Res.string.settings_language_body),
                     onClick = onOpenLanguageSettings,
+                )
+            }
+        }
+    }
+}
+
+/** A setting that is on or off: the whole row toggles, the switch only shows the state. */
+@Composable
+private fun AppearanceSwitchRow(
+    title: String,
+    body: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        AppSwitch(checked = checked, onCheckedChange = null)
+    }
+}
+
+/** The custom accent's ten colours; the chosen one wears a ring. */
+@Composable
+private fun AccentPalette(selected: Long, onSelect: (Long) -> Unit) {
+    val ring = MaterialTheme.colorScheme.onSurface
+    FlowRow(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp).selectableGroup(),
+    ) {
+        CUSTOM_ACCENT_PALETTE.forEachIndexed { index, colour ->
+            val chosen = colour == selected
+            val description = stringResource(Res.string.settings_accent_swatch, index + 1, CUSTOM_ACCENT_PALETTE.size)
+            Box(
+                modifier = Modifier.size(48.dp)
+                    .selectable(selected = chosen, role = Role.RadioButton) { onSelect(colour) }
+                    .semantics { contentDescription = description },
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    Modifier.size(36.dp)
+                        .then(if (chosen) Modifier.border(3.dp, ring, CircleShape) else Modifier)
+                        .padding(if (chosen) 5.dp else 0.dp)
+                        .background(Color(colour), CircleShape),
                 )
             }
         }
@@ -2184,7 +2359,7 @@ private fun DuplicatesSettings(
                         Surface(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
                             color = MaterialTheme.colorScheme.surfaceContainer,
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(16.dp.corner()),
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
@@ -2322,7 +2497,7 @@ private fun DuplicateGroupCard(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(16.dp.corner()),
         color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
@@ -3378,7 +3553,7 @@ private fun SettingsCardSection(title: String, content: @Composable () -> Unit) 
         SettingsGroupTitle(title)
         Surface(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 4.dp),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(16.dp.corner()),
             color = MaterialTheme.colorScheme.surfaceContainer,
         ) {
             Column { content() }
@@ -3553,6 +3728,9 @@ private fun EngineError.toUserMessage(): String = when (this) {
 }
 
 private const val ROUTE_SEPARATOR = "|"
+
+/** Settings opened straight at the equalizer; Back goes back to where it was opened from. */
+internal const val SETTINGS_ROUTE_EQUALIZER = "EQUALIZER"
 private const val IOS_MUSIC_LIBRARY_SOURCE_ID = "ios:music"
 private const val RESTORE_ALL_OPERATION_ID = "restore-all"
 private const val SOURCE_URL = "https://github.com/Nikita-sud/latentjam"
