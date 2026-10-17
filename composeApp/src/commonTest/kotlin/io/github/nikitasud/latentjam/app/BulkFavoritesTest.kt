@@ -301,4 +301,20 @@ internal class BulkFavoritesTest {
     fun theFavoritesListIsEmptyBeforeTheAutoPlaylistsExist() {
         assertEquals(emptyList(), emptyList<AutoPlaylist>().favoriteTracks())
     }
+
+    @Test
+    fun aReimportCountsTheTracksThatWereAlreadyHeartedOnce() = runTest {
+        // A list imported once, half of it found, then imported again in full (#19 → the 0.9.1 fix).
+        val store = FavoritesMemory(listOf("1", "2"))
+        val favorites = DefaultFavorites(store)
+        val reimport = listOf(TrackId("1"), TrackId("2"), TrackId("3"), TrackId("2"), TrackId("4"))
+
+        val change = favorites.applyBulk(SelectionFavoriteAction.ADD, reimport)
+
+        assertEquals(2, change.addedCount)
+        // Hearted before and listed (once or twice) again: shown next to the added count.
+        assertEquals(2, alreadyFavoriteCount(reimport, change.before))
+        // A first-time heart has nothing to report beside the added count.
+        assertEquals(0, alreadyFavoriteCount(listOf(TrackId("5")), change.before))
+    }
 }

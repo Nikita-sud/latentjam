@@ -224,6 +224,11 @@
         <item quantity="two">%1$d שירים הוסרו מהמועדפים</item>
         <item quantity="other">%1$d שירים הוסרו מהמועדפים</item>
     </plurals>
+    <plurals name="snack_favorites_already">
+        <item quantity="one">%1$d כבר היה במועדפים</item>
+        <item quantity="two">%1$d כבר היו במועדפים</item>
+        <item quantity="other">%1$d כבר היו במועדפים</item>
+    </plurals>
     <string name="action_remove_from_playlist">הסרה מהפלייליסט הזה</string>
     <string name="snack_playlist_track_removed">הוסר מהפלייליסט "%1$s"</string>
     <plurals name="playlist_unavailable_tracks">

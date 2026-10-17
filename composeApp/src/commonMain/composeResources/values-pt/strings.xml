@@ -233,6 +233,10 @@
         <item quantity="one">%1$d música removida das favoritas</item>
         <item quantity="other">%1$d músicas removidas das favoritas</item>
     </plurals>
+    <plurals name="snack_favorites_already">
+        <item quantity="one">%1$d já estava nas favoritas</item>
+        <item quantity="other">%1$d já estavam nas favoritas</item>
+    </plurals>
     <string name="action_remove_from_playlist">Remover desta playlist</string>
     <string name="snack_playlist_track_removed">Removido de "%1$s"</string>
     <plurals name="playlist_unavailable_tracks">

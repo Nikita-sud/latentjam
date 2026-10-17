@@ -209,6 +209,9 @@
     <plurals name="snack_favorites_removed">
         <item quantity="other">%1$d lagu dihapus dari favorit</item>
     </plurals>
+    <plurals name="snack_favorites_already">
+        <item quantity="other">%1$d sudah ada di favorit</item>
+    </plurals>
     <string name="action_remove_from_playlist">Hapus dari playlist ini</string>
     <string name="snack_playlist_track_removed">Dihapus dari "%1$s"</string>
     <plurals name="playlist_unavailable_tracks">

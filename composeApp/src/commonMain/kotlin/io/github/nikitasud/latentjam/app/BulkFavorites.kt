@@ -44,6 +44,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.playlist_new
 import io.github.nikitasud.latentjam.app.generated.resources.playlist_new_count
 import io.github.nikitasud.latentjam.app.generated.resources.settings_library_manage_failed
 import io.github.nikitasud.latentjam.app.generated.resources.snack_favorites_added
+import io.github.nikitasud.latentjam.app.generated.resources.snack_favorites_already
 import io.github.nikitasud.latentjam.app.generated.resources.snack_favorites_removed
 import io.github.nikitasud.latentjam.history.Favorites
 import io.github.nikitasud.latentjam.history.FavoritesChange
@@ -106,6 +107,12 @@ internal suspend fun Favorites.undoBulk(change: FavoritesChange): Boolean =
  *
  * @return false when the write failed; the hearts are then exactly as they were.
  */
+/** How many of the distinct [ids] were already among the favorites ([before]) when hearted again. */
+internal fun alreadyFavoriteCount(ids: List<TrackId>, before: List<TrackId>): Int {
+    val hearted = before.toSet()
+    return ids.distinct().count { it in hearted }
+}
+
 internal suspend fun runBulkFavoriteEdit(
     favorites: Favorites,
     action: SelectionFavoriteAction,
@@ -124,8 +131,16 @@ internal suspend fun runBulkFavoriteEdit(
     }
     onPublished(change.after)
     val message = when (action) {
-        SelectionFavoriteAction.ADD ->
-            getPluralString(Res.plurals.snack_favorites_added, change.addedCount, change.addedCount)
+        SelectionFavoriteAction.ADD -> {
+            val added = getPluralString(Res.plurals.snack_favorites_added, change.addedCount, change.addedCount)
+            // Re-importing a list that is partly hearted already would otherwise read as lost tracks.
+            val already = alreadyFavoriteCount(ids, change.before)
+            if (already == 0) {
+                added
+            } else {
+                added + " · " + getPluralString(Res.plurals.snack_favorites_already, already, already)
+            }
+        }
         SelectionFavoriteAction.REMOVE ->
             getPluralString(Res.plurals.snack_favorites_removed, change.removedCount, change.removedCount)
     }

@@ -213,6 +213,10 @@
         <item quantity="one">%1$d गाना पसंदीदा से हटाया गया</item>
         <item quantity="other">%1$d गाने पसंदीदा से हटाए गए</item>
     </plurals>
+    <plurals name="snack_favorites_already">
+        <item quantity="one">%1$d पहले से पसंदीदा में था</item>
+        <item quantity="other">%1$d पहले से पसंदीदा में थे</item>
+    </plurals>
     <string name="action_remove_from_playlist">इस प्लेलिस्ट से हटाएँ</string>
     <string name="snack_playlist_track_removed">"%1$s" से हटाया गया</string>
     <plurals name="playlist_unavailable_tracks">

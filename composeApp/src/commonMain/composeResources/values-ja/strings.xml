@@ -203,6 +203,9 @@
     <plurals name="snack_favorites_removed">
         <item quantity="other">%1$d曲をお気に入りから削除しました</item>
     </plurals>
+    <plurals name="snack_favorites_already">
+        <item quantity="other">%1$d曲はすでにお気に入りにありました</item>
+    </plurals>
     <string name="action_remove_from_playlist">このプレイリストから削除</string>
     <string name="snack_playlist_track_removed">"%1$s"から削除しました</string>
     <plurals name="playlist_unavailable_tracks">

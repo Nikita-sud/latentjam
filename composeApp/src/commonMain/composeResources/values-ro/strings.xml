@@ -217,6 +217,11 @@
         <item quantity="few">%1$d piese eliminate din favorite</item>
         <item quantity="other">%1$d de piese eliminate din favorite</item>
     </plurals>
+    <plurals name="snack_favorites_already">
+        <item quantity="one">%1$d era deja la favorite</item>
+        <item quantity="few">%1$d erau deja la favorite</item>
+        <item quantity="other">%1$d erau deja la favorite</item>
+    </plurals>
     <string name="action_remove_from_playlist">Elimină din acest playlist</string>
     <string name="snack_playlist_track_removed">Eliminat din "%1$s"</string>
     <plurals name="playlist_unavailable_tracks">

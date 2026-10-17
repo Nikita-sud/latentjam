@@ -270,6 +270,11 @@
         <item quantity="one">Removed %1$d track from favorites</item>
         <item quantity="other">Removed %1$d tracks from favorites</item>
     </plurals>
+    <!-- After hearting a list: how many of it were hearted before; follows the added count after " · ". -->
+    <plurals name="snack_favorites_already">
+        <item quantity="one">%1$d was already in favorites</item>
+        <item quantity="other">%1$d were already in favorites</item>
+    </plurals>
     <string name="action_remove_from_playlist">Remove from this playlist</string>
     <string name="snack_playlist_track_removed">Removed from "%1$s"</string>
     <!-- On a playlist's page, under its buttons: %1$d of its tracks are not on this device (deleted, or

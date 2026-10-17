@@ -213,6 +213,10 @@
         <item quantity="one">%1$d parça favorilerden çıkarıldı</item>
         <item quantity="other">%1$d parça favorilerden çıkarıldı</item>
     </plurals>
+    <plurals name="snack_favorites_already">
+        <item quantity="one">%1$d zaten favorilerdeydi</item>
+        <item quantity="other">%1$d zaten favorilerdeydi</item>
+    </plurals>
     <string name="action_remove_from_playlist">Bu çalma listesinden kaldır</string>
     <string name="snack_playlist_track_removed">"%1$s" listesinden kaldırıldı</string>
     <plurals name="playlist_unavailable_tracks">

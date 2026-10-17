@@ -224,6 +224,12 @@
         <item quantity="many">Из любимых убрано %1$d треков</item>
         <item quantity="other">Из любимых убрано %1$d трека</item>
     </plurals>
+    <plurals name="snack_favorites_already">
+        <item quantity="one">%1$d уже был в любимых</item>
+        <item quantity="few">%1$d уже были в любимых</item>
+        <item quantity="many">%1$d уже были в любимых</item>
+        <item quantity="other">%1$d уже были в любимых</item>
+    </plurals>
     <string name="action_remove_from_playlist">Убрать из этого плейлиста</string>
     <string name="snack_playlist_track_removed">Убрано из "%1$s"</string>
     <plurals name="playlist_unavailable_tracks">

@@ -203,6 +203,9 @@
     <plurals name="snack_favorites_removed">
         <item quantity="other">%1$d곡을 즐겨찾기에서 제거했습니다</item>
     </plurals>
+    <plurals name="snack_favorites_already">
+        <item quantity="other">%1$d곡은 이미 즐겨찾기에 있었습니다</item>
+    </plurals>
     <string name="action_remove_from_playlist">이 재생목록에서 제거</string>
     <string name="snack_playlist_track_removed">"%1$s"에서 제거됨</string>
     <plurals name="playlist_unavailable_tracks">

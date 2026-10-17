@@ -203,6 +203,9 @@
     <plurals name="snack_favorites_removed">
         <item quantity="other">已从收藏中移除 %1$d 首歌曲</item>
     </plurals>
+    <plurals name="snack_favorites_already">
+        <item quantity="other">%1$d 首已在收藏中</item>
+    </plurals>
     <string name="action_remove_from_playlist">从此播放列表中移除</string>
     <string name="snack_playlist_track_removed">已从"%1$s"中移除</string>
     <plurals name="playlist_unavailable_tracks">
