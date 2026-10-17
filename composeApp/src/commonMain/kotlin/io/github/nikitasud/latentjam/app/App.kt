@@ -1340,6 +1340,9 @@ private fun AppShell(
         )
 
         var catalog by remember { mutableStateOf<LibraryCatalog?>(null) }
+        // SMART colours follow the library: fit its colour axes as tracks are indexed.
+        val paletteIds = remember(catalog) { catalog?.songs?.map { it.id }.orEmpty() }
+        LatentPaletteUpdater(engine, paletteIds)
         var albumBrowse by remember { mutableStateOf<AlbumBrowseDerivation?>(null) }
         var songsBrowse by remember { mutableStateOf<SongsBrowseDerivation?>(null) }
         val albumSections = albumBrowse?.albumSections.orEmpty()

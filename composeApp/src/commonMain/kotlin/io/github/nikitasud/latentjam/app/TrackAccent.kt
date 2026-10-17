@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.smart.cluster.LatentColorAxes
+import androidx.compose.runtime.collectAsState
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.MaterialTheme
@@ -118,7 +120,12 @@ fun rememberTrackAccent(
  * so an identity colour can still upgrade to the embedding's once indexing reaches the track,
  * while a latent colour — deterministic for a given embedding — is never re-resolved.
  */
-private data class SeededAccent(val color: Color, val latent: Boolean)
+private data class SeededAccent(
+    val color: Color,
+    val latent: Boolean,
+    /** The library axes the colour was placed with; a refit retires the colour. */
+    val axes: LatentColorAxes?,
+)
 
 /**
  * Process-wide, so a track wears ONE colour for the app's lifetime. Before this cache the
@@ -138,10 +145,11 @@ private val seededAccents = HashMap<String, SeededAccent>()
  */
 @Composable
 private fun rememberSeededColor(track: TrackDescriptor?): Color? {
-    var accent by remember(track?.id) {
-        mutableStateOf(track?.id?.value?.let(seededAccents::get))
+    val axes by LatentPalette.axes.collectAsState()
+    var accent by remember(track?.id, axes) {
+        mutableStateOf(track?.id?.value?.let(seededAccents::get)?.takeIf { it.axes === axes })
     }
-    LaunchedEffect(track?.id) {
+    LaunchedEffect(track?.id, axes) {
         val id = track?.id ?: return@LaunchedEffect
         // A latent colour is final. Do not keep observing the progressive index after the answer
         // for this track is already cached.
@@ -157,10 +165,13 @@ private fun rememberSeededColor(track: TrackDescriptor?): Color? {
             .distinctUntilChanged()
             .first {
                 val embedding = engine.embedding(id)
-                val resolved = if (embedding != null) {
-                    SeededAccent(latentTrackColorSeed(embedding).toComposeColor(), latent = true)
-                } else {
-                    SeededAccent(identityTrackColorSeed(id.value).toComposeColor(), latent = false)
+                // Final only once the library's axes exist: before that the old fixed projection
+                // stands in, and the colour moves once to its place when the axes arrive.
+                val placed = axes?.let { fitted -> embedding?.let { LatentPalette.colorOf(fitted, it) } }
+                val resolved = when {
+                    placed != null -> SeededAccent(placed, latent = true, axes = axes)
+                    embedding != null -> SeededAccent(latentTrackColorSeed(embedding).toComposeColor(), latent = false, axes = axes)
+                    else -> SeededAccent(identityTrackColorSeed(id.value).toComposeColor(), latent = false, axes = axes)
                 }
                 seededAccents[id.value] = resolved
                 if (accent != resolved) accent = resolved
