@@ -4,7 +4,6 @@
  */
 package io.github.nikitasud.latentjam.app
 
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -42,7 +41,7 @@ internal fun <C> TagRecoveryPrompt(coordinator: TagWriteCoordinator<C>) {
     var dismissed by rememberSaveable { mutableStateOf(false) }
     val busy = active || progress != null || prompt != null
     if (!recoveryPromptVisible(pending.size, busy, dismissed)) return
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = { dismissed = true },
         title = { Text(stringResource(Res.string.tag_recovery_title)) },
         text = { Text(pluralStringResource(Res.plurals.tag_recovery_body, pending.size, pending.size)) },

@@ -375,6 +375,12 @@
     <string name="settings_section_navigation">नेविगेशन</string>
     <string name="settings_section_privacy">डिवाइस पर मौजूद डेटा</string>
     <string name="settings_track_colors">प्लेयर के रंग</string>
+    <string name="settings_page_header">पेज हेडर</string>
+    <string name="settings_page_header_dots">बिंदु</string>
+    <string name="settings_page_header_neighbours">आस-पास के पेज</string>
+    <string name="settings_page_header_tabs">टैब</string>
+    <string name="settings_page_header_pills">पिल</string>
+    <string name="settings_page_header_menu">मेनू</string>
     <string name="settings_color_dynamic">कवर आर्ट</string>
     <string name="settings_color_dynamic_body">कवर आर्ट से लिए रंग इस्तेमाल करें, जरूरत पर SMART रंग लगेंगे।</string>
     <string name="settings_color_smart">SMART</string>

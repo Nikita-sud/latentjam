@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.testTag
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -43,19 +44,13 @@ import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -66,7 +61,6 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
@@ -484,7 +478,7 @@ fun MapTab(
                             if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS,
                         )),
                     ) {
-                        CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 2.dp)
+                        AppSpinner(modifier = Modifier.size(12.dp), strokeWidth = 2.dp)
                     }
                 }
 
@@ -497,24 +491,10 @@ fun MapTab(
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             for (candidate in lenses) {
-                FilterChip(
+                AppChoiceChip(
                     selected = lens == candidate,
                     onClick = { savedLens = candidate.name },
-                    shape = RoundedCornerShape(17.dp),
-                    modifier = Modifier.heightIn(min = 34.dp),
-                    colors = FilterChipDefaults.filterChipColors(
-                        containerColor = Color.Transparent,
-                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        selectedContainerColor = MaterialTheme.colorScheme.onSurface,
-                        selectedLabelColor = MaterialTheme.colorScheme.surface,
-                    ),
-                    label = {
-                        Text(
-                            text = stringResource(lensLabel(candidate)),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
+                    label = stringResource(lensLabel(candidate)),
                 )
             }
         }
@@ -709,24 +689,18 @@ fun MapTab(
                         )
                         Icon(Icons.Rounded.ArrowDropDown, contentDescription = null)
                     }
-                    DropdownMenu(
+                    AppDropdownMenu(
                         expanded = regionMenuOpen,
                         onDismissRequest = { regionMenuOpen = false },
                         modifier = Modifier.heightIn(max = 360.dp),
                     ) {
                         for (candidate in page.listening.regions) {
-                            DropdownMenuItem(
-                                text = {
-                                    Column {
-                                        Text(page.regionNames.getOrElse(candidate.region) { "" }, style = LocalTextStyle.current.metadata())
-                                        Text(
-                                            pluralStringResource(Res.plurals.count_tracks,
-                                                candidate.trackCount, candidate.trackCount),
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                },
+                            AppMenuItem(
+                                text = page.regionNames.getOrElse(candidate.region) { "" },
+                                metadata = true,
+                                supporting = pluralStringResource(Res.plurals.count_tracks,
+                                    candidate.trackCount, candidate.trackCount),
+                                selected = candidate.region == selectedRegion,
                                 onClick = {
                                     outsideHintRegion = null
                                     selectRegion(candidate.region)

@@ -80,7 +80,7 @@ internal fun EqualizerSettings(equalizer: EqualizerController, settings: AppSett
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                         }
-                        Switch(checked = state.enabled, onCheckedChange = null, enabled = state.available)
+                        AppSwitch(checked = state.enabled, onCheckedChange = null, enabled = state.available)
                     }
                     Text(
                         stringResource(if (state.available) Res.string.equalizer_hint else Res.string.equalizer_unavailable_body),
@@ -100,10 +100,10 @@ internal fun EqualizerSettings(equalizer: EqualizerController, settings: AppSett
                     }
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         state.presets.forEach { preset ->
-                            FilterChip(
+                            AppChoiceChip(
                                 selected = state.activePreset == preset.index,
                                 onClick = { scope.launch { equalizer.applyPreset(preset.index) } },
-                                label = { Text(equalizerPresetLabel(preset)) },
+                                label = equalizerPresetLabel(preset),
                             )
                         }
                     }
@@ -151,7 +151,7 @@ internal fun EqualizerSettings(equalizer: EqualizerController, settings: AppSett
                         Text(bassLabel, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                         Text(stringResource(Res.string.equalizer_bass_value, state.bassBoostStrength / 10), style = MaterialTheme.typography.labelLarge)
                     }
-                    Slider(
+                    AppSlider(
                         value = state.bassBoostStrength.toFloat(),
                         onValueChange = { scope.launch { equalizer.setBassBoost(it.roundToInt()) } },
                         valueRange = 0f..1000f, enabled = state.enabled,
@@ -167,7 +167,7 @@ internal fun EqualizerSettings(equalizer: EqualizerController, settings: AppSett
                     stringResource(Res.string.equalizer_peak_reduction, formatReductionDb(reduction)),
                     style = MaterialTheme.typography.titleSmall,
                 )
-                LinearProgressIndicator(progress = { (reduction / 12f).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+                AppLinearProgress(progress = { (reduction / 12f).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
                 Text(stringResource(Res.string.equalizer_peak_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
@@ -182,7 +182,7 @@ internal fun EqualizerSettings(equalizer: EqualizerController, settings: AppSett
                             Text(stringResource(Res.string.settings_normalize_volume), style = MaterialTheme.typography.titleMedium)
                             Text(stringResource(Res.string.settings_normalize_volume_subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Switch(checked = normalize, onCheckedChange = null)
+                        AppSwitch(checked = normalize, onCheckedChange = null)
                     }
                     if (normalize) {
                         val message = when (normalization.phase) {
@@ -192,7 +192,7 @@ internal fun EqualizerSettings(equalizer: EqualizerController, settings: AppSett
                             NormalizationPhase.READY -> if (normalization.reductionDb < 0.05f) stringResource(Res.string.normalization_unchanged)
                                 else stringResource(Res.string.normalization_reduced, ((normalization.reductionDb * 10).roundToInt() / 10f).toString())
                         }
-                        if (normalization.phase == NormalizationPhase.MEASURING) LinearProgressIndicator(Modifier.fillMaxWidth())
+                        if (normalization.phase == NormalizationPhase.MEASURING) AppLinearProgress(Modifier.fillMaxWidth())
                         Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                     }
                 }
@@ -204,7 +204,7 @@ internal fun EqualizerSettings(equalizer: EqualizerController, settings: AppSett
                         Text(if (crossfade == 0) stringResource(Res.string.state_off) else stringResource(Res.string.settings_crossfade_value, crossfade))
                     }
                     Text(stringResource(Res.string.settings_crossfade_subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Slider(value = crossfade.toFloat(), onValueChange = { settings.setCrossfadeSeconds(it.roundToInt()) }, valueRange = 0f..MAX_CROSSFADE_SECONDS.toFloat(), steps = MAX_CROSSFADE_SECONDS - 1)
+                    AppSlider(value = crossfade.toFloat(), onValueChange = { settings.setCrossfadeSeconds(it.roundToInt()) }, valueRange = 0f..MAX_CROSSFADE_SECONDS.toFloat(), steps = MAX_CROSSFADE_SECONDS - 1)
                 }
             }
         }

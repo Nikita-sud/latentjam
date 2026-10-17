@@ -36,8 +36,6 @@ import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.Straight
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -362,13 +360,11 @@ private fun PlaybackModeMenu(
         animationSpec = tween(if (reduceMotion) Motion.REDUCED_MS else Motion.QUICK_MS),
         label = "mode-help-chevron",
     )
-    DropdownMenu(
+    AppDropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismiss,
         modifier = Modifier.width(304.dp),
-        shape = RoundedCornerShape(24.dp),
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 0.dp,
+        contentInset = 0.dp,
     ) {
         Text(
             text = stringResource(Res.string.player_mode_title),
@@ -384,7 +380,7 @@ private fun PlaybackModeMenu(
                 } else MaterialTheme.colorScheme.onSurface
                 Row(
                     modifier = Modifier.fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(MenuItemShape)
                         .background(if (selected) ink.copy(alpha = 0.08f) else Color.Transparent)
                         .selectable(selected = selected, role = Role.RadioButton) { onSelect(option) }
                         .heightIn(min = 56.dp)
@@ -406,10 +402,7 @@ private fun PlaybackModeMenu(
                 }
             }
         }
-        HorizontalDivider(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-        )
+        AppDivider(Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
         Text(
             text = stringResource(Res.string.intelligence_queue_length),
             style = MaterialTheme.typography.bodyMedium,

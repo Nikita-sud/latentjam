@@ -256,7 +256,7 @@ class StringResourceParityTest {
             val indonesian = kbpsAndMegabytes + setOf(
                 "action_edit_album", "count_albums", "count_files", "count_folders", "count_genres", "details_file",
                 "details_format", "equalizer_preset_treble", "info_album", "info_genre",
-                "intelligence_section_status", "m3u_import_playlists",
+                "intelligence_section_status", "m3u_import_playlists", "settings_page_header_menu",
             )
             mapOf(
                 "values-de" to setOf(
@@ -270,7 +270,7 @@ class StringResourceParityTest {
                     "action_pause", "count_albums", "count_genres", "details_format", "info_album", "info_genre",
                     "settings_pages", "settings_section_navigation", "settings_version",
                     "sleep_timer_minutes", "stats_streak_longest", "tab_albums", "tab_genres", "tab_playlists",
-                    "m3u_import_playlists",
+                    "m3u_import_playlists", "settings_page_header_menu",
                 ),
                 "values-he" to kbpsAndMegabytes,
                 "values-iw" to kbpsAndMegabytes,
@@ -279,21 +279,21 @@ class StringResourceParityTest {
                 "values-in" to indonesian,
                 "values-it" to kbpsAndMegabytes + latinTimeUnits + setOf(
                     "count_albums", "count_files", "details_file", "info_album", "stats_streak_longest",
-                    "m3u_import_playlists",
+                    "m3u_import_playlists", "settings_page_header_menu",
                 ),
                 "values-ja" to kbpsAndMegabytes,
                 "values-ko" to kbpsAndMegabytes,
                 "values-pl" to setOf(
                     "count_albums", "count_folders", "details_format", "info_album", "unit_megabytes", "settings_crossfade_value",
-                    "stats_minutes_short", "stats_under_minute", "m3u_import_playlists",
+                    "stats_minutes_short", "stats_under_minute", "m3u_import_playlists", "settings_page_header_menu",
                 ),
                 "values-pt-rBR" to kbpsAndMegabytes + latinTimeUnits + setOf(
                     "equalizer_preset_vocal", "intelligence_section_status", "tab_playlists", "stats_days_short",
-                    "m3u_import_playlists",
+                    "m3u_import_playlists", "settings_page_header_menu",
                 ),
                 "values-pt" to kbpsAndMegabytes + latinTimeUnits + setOf(
                     "equalizer_preset_vocal", "intelligence_section_status", "tab_playlists", "stats_days_short",
-                    "m3u_import_playlists",
+                    "m3u_import_playlists", "settings_page_header_menu",
                 ),
                 "values-ro" to kbpsAndMegabytes + latinTimeUnits + setOf(
                     "count_albums", "count_artists", "details_format", "equalizer_preset_electronic", "info_album",

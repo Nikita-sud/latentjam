@@ -401,6 +401,12 @@
     <string name="settings_section_privacy">Данные на устройстве</string>
 
     <string name="settings_track_colors">Цвета плеера</string>
+    <string name="settings_page_header">Заголовок страниц</string>
+    <string name="settings_page_header_dots">Точки</string>
+    <string name="settings_page_header_neighbours">Соседние страницы</string>
+    <string name="settings_page_header_tabs">Вкладки</string>
+    <string name="settings_page_header_pills">Пилюли</string>
+    <string name="settings_page_header_menu">Меню</string>
     <string name="settings_color_dynamic">Обложка</string>
     <string name="settings_color_dynamic_body">Использовать цвета из обложки, а если их определить не удалось — цвета SMART.</string>
     <string name="settings_color_smart">SMART</string>

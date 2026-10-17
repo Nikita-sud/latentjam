@@ -22,8 +22,6 @@ import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -88,17 +86,18 @@ internal fun <S : Enum<S>> SortPill(
         modifier = modifier,
         testTagPrefix = testTagPrefix,
     ) {
-        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+        AppDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             options.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(label(option)) },
+                AppMenuItem(
+                    text = label(option),
                     modifier = testTagPrefix?.let { Modifier.testTag("${it}_${option.name.lowercase()}") }
                         ?: Modifier,
+                    selected = option == choice.sort,
                     onClick = {
                         menuOpen = false
                         onChoiceChange(choice.afterSelecting(option, defaultDirection(option), hasDirection(option)))
                     },
-                    trailingIcon = when {
+                    trailing = when {
                         option != choice.sort -> null
                         hasDirection(option) -> { { SortDirectionIcon(choice.direction) } }
                         else -> { { Icon(Icons.Rounded.Check, null, Modifier.padding(start = 4.dp).size(16.dp)) } }

@@ -357,6 +357,12 @@
     <string name="settings_section_navigation">ナビゲーション</string>
     <string name="settings_section_privacy">端末上のデータ</string>
     <string name="settings_track_colors">プレーヤーの色</string>
+    <string name="settings_page_header">ページ見出し</string>
+    <string name="settings_page_header_dots">ドット</string>
+    <string name="settings_page_header_neighbours">隣のページ</string>
+    <string name="settings_page_header_tabs">タブ</string>
+    <string name="settings_page_header_pills">ピル</string>
+    <string name="settings_page_header_menu">メニュー</string>
     <string name="settings_color_dynamic">アートワーク</string>
     <string name="settings_color_dynamic_body">アートワークから取得した色を使い、取得できない場合は SMART の色を使います。</string>
     <string name="settings_color_smart">SMART</string>

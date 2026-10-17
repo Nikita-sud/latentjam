@@ -375,6 +375,12 @@
     <string name="settings_section_navigation">Gezinme</string>
     <string name="settings_section_privacy">Cihazdaki veriler</string>
     <string name="settings_track_colors">Oynatıcı renkleri</string>
+    <string name="settings_page_header">Sayfa başlığı</string>
+    <string name="settings_page_header_dots">Noktalar</string>
+    <string name="settings_page_header_neighbours">Komşu sayfalar</string>
+    <string name="settings_page_header_tabs">Sekmeler</string>
+    <string name="settings_page_header_pills">Kapsüller</string>
+    <string name="settings_page_header_menu">Menü</string>
     <string name="settings_color_dynamic">Kapak</string>
     <string name="settings_color_dynamic_body">Kapaktan alınan renkleri, gerekirse SMART renklerini kullan.</string>
     <string name="settings_color_smart">SMART</string>

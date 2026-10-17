@@ -8,15 +8,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -41,16 +38,13 @@ import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -197,7 +191,7 @@ internal fun TrackActionsSheet(
         }
     }
 
-    ModalBottomSheet(
+    AppModalSheet(
         onDismissRequest = { dismissThen {} },
         // Keep top clearance outside the measured sheet: position-dependent content insets
         // can resize a tall menu and continuously move its expanded anchor while it settles.
@@ -207,17 +201,6 @@ internal fun TrackActionsSheet(
         },
         sheetState = sheetState,
         sheetGesturesEnabled = !dismissalInFlight,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-        dragHandle = {
-            Box(modifier = Modifier.fillMaxWidth().height(20.dp), contentAlignment = Alignment.Center) {
-                Box(
-                    modifier = Modifier
-                        .size(width = 32.dp, height = 4.dp)
-                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(2.dp)),
-                )
-            }
-        },
     ) {
         // The complete action set is taller than compact phones (and grows further with large
         // accessibility text). Let the sheet and this content negotiate nested scrolling so the
@@ -264,6 +247,7 @@ internal fun TrackActionsSheet(
                 FilledIconButton(
                     onClick = { dismissWhile(onPlay) },
                     modifier = Modifier.size(48.dp),
+                    colors = playButtonColors(),
                 ) {
                     Icon(Icons.Rounded.PlayArrow, contentDescription = stringResource(Res.string.action_play))
                 }
@@ -279,7 +263,7 @@ internal fun TrackActionsSheet(
                     dismissWhile(onAddToQueue)
                 }
             }
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
+            AppDivider(Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
             onShare?.let { share ->
                 SheetAction(
                     Icons.Outlined.Share,
@@ -333,7 +317,7 @@ internal fun TrackActionsSheet(
                     },
                 ) { dismissThen(sleepTimer) }
             }
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
+            AppDivider(Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
             // An artist-level exclusion already covers every one of their tracks. Surface its
             // restore action first; a dormant track-specific rule appears after the artist returns.
             if (!isArtistExcludedFromSmart) {
@@ -360,7 +344,7 @@ internal fun TrackActionsSheet(
                     ),
                 ) { dismissWhile(toggleArtist) }
             }
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
+            AppDivider(Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
             SheetAction(
                 Icons.Outlined.VisibilityOff,
                 stringResource(Res.string.action_remove_from_latentjam),
@@ -383,7 +367,7 @@ internal fun DeleteTrackDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(Res.string.dialog_delete_track_title)) },
         text = {
@@ -453,7 +437,7 @@ internal fun SelectionRemovalSheet(
         }
     }
 
-    ModalBottomSheet(
+    AppModalSheet(
         onDismissRequest = { dismissThen {} },
         sheetState = sheetState,
         sheetGesturesEnabled = !dismissalInFlight,
@@ -469,7 +453,7 @@ internal fun SelectionRemovalSheet(
                 label = stringResource(Res.string.action_remove_from_latentjam),
             ) { dismissWhile(onHide) }
             if (canDeleteFromDevice) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                AppDivider(Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
                 SheetAction(
                     icon = Icons.Outlined.DeleteOutline,
                     label = stringResource(Res.string.action_delete_from_device),
@@ -487,7 +471,7 @@ internal fun DeleteTracksDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(pluralStringResource(Res.plurals.dialog_delete_tracks_title, count, count)) },
         text = {

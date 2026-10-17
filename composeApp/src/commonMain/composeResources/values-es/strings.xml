@@ -382,6 +382,12 @@
     <string name="settings_section_navigation">Navegación</string>
     <string name="settings_section_privacy">Datos en el dispositivo</string>
     <string name="settings_track_colors">Colores del reproductor</string>
+    <string name="settings_page_header">Encabezado de páginas</string>
+    <string name="settings_page_header_dots">Puntos</string>
+    <string name="settings_page_header_neighbours">Páginas vecinas</string>
+    <string name="settings_page_header_tabs">Pestañas</string>
+    <string name="settings_page_header_pills">Píldoras</string>
+    <string name="settings_page_header_menu">Menú</string>
     <string name="settings_color_dynamic">Carátula</string>
     <string name="settings_color_dynamic_body">Usa colores de la carátula y recurre a SMART si no están disponibles.</string>
     <string name="settings_color_smart">SMART</string>

@@ -363,6 +363,12 @@
     <string name="settings_section_navigation">Navigasi</string>
     <string name="settings_section_privacy">Data di perangkat</string>
     <string name="settings_track_colors">Warna pemutar</string>
+    <string name="settings_page_header">Header halaman</string>
+    <string name="settings_page_header_dots">Titik</string>
+    <string name="settings_page_header_neighbours">Halaman di sebelahnya</string>
+    <string name="settings_page_header_tabs">Tab</string>
+    <string name="settings_page_header_pills">Pil</string>
+    <string name="settings_page_header_menu">Menu</string>
     <string name="settings_color_dynamic">Sampul</string>
     <string name="settings_color_dynamic_body">Gunakan warna dari sampul, dengan SMART sebagai cadangan.</string>
     <string name="settings_color_smart">SMART</string>

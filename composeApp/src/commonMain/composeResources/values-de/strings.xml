@@ -385,6 +385,12 @@
     <string name="settings_section_navigation">Navigation</string>
     <string name="settings_section_privacy">Daten auf diesem Gerät</string>
     <string name="settings_track_colors">Player-Farben</string>
+    <string name="settings_page_header">Seitenkopf</string>
+    <string name="settings_page_header_dots">Punkte</string>
+    <string name="settings_page_header_neighbours">Nachbarseiten</string>
+    <string name="settings_page_header_tabs">Reiter</string>
+    <string name="settings_page_header_pills">Chips</string>
+    <string name="settings_page_header_menu">Menü</string>
     <string name="settings_color_dynamic">Cover</string>
     <string name="settings_color_dynamic_body">Farben aus dem Cover verwenden, mit SMART als Ersatz.</string>
     <string name="settings_color_smart">SMART</string>

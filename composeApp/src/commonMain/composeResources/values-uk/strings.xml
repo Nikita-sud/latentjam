@@ -415,6 +415,12 @@
     <string name="settings_section_navigation">Навігація</string>
     <string name="settings_section_privacy">Дані на пристрої</string>
     <string name="settings_track_colors">Кольори програвача</string>
+    <string name="settings_page_header">Заголовок сторінок</string>
+    <string name="settings_page_header_dots">Крапки</string>
+    <string name="settings_page_header_neighbours">Сусідні сторінки</string>
+    <string name="settings_page_header_tabs">Вкладки</string>
+    <string name="settings_page_header_pills">Пігулки</string>
+    <string name="settings_page_header_menu">Меню</string>
     <string name="settings_color_dynamic">Обкладинка</string>
     <string name="settings_color_dynamic_body">Використовувати кольори з обкладинки, а за потреби — кольори SMART.</string>
     <string name="settings_color_smart">SMART</string>

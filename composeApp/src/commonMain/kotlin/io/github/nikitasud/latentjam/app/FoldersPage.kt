@@ -40,7 +40,6 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.SdCard
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.Smartphone
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -679,10 +678,7 @@ private fun FolderLevelActions(
             onClick = onPlay,
             enabled = enabled,
             modifier = Modifier.size(52.dp),
-            colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = MaterialTheme.colorScheme.onSurface,
-                contentColor = MaterialTheme.colorScheme.surface,
-            ),
+            colors = playButtonColors(),
         ) {
             Icon(Icons.Rounded.PlayArrow, stringResource(Res.string.action_play), modifier = Modifier.size(24.dp))
         }
@@ -828,19 +824,19 @@ private fun FolderTreeRow(
         }
         if (selectionState == null) {
             OverflowButton { dismiss ->
-                DropdownMenuItem(
-                    text = { Text(stringResource(Res.string.action_play)) },
-                    leadingIcon = { Icon(Icons.Rounded.PlayArrow, contentDescription = null) },
+                AppMenuItem(
+                    text = stringResource(Res.string.action_play),
+                    icon = Icons.Rounded.PlayArrow,
                     onClick = { dismiss(); onPlay() },
                 )
-                DropdownMenuItem(
-                    text = { Text(stringResource(Res.string.action_shuffle)) },
-                    leadingIcon = { Icon(Icons.Rounded.Shuffle, contentDescription = null) },
+                AppMenuItem(
+                    text = stringResource(Res.string.action_shuffle),
+                    icon = Icons.Rounded.Shuffle,
                     onClick = { dismiss(); onShuffle() },
                 )
-                DropdownMenuItem(
-                    text = { Text(stringResource(Res.string.map_action_smart_here)) },
-                    leadingIcon = { Icon(LatentJamMark, contentDescription = null, modifier = Modifier.size(24.dp)) },
+                AppMenuItem(
+                    text = stringResource(Res.string.map_action_smart_here),
+                    icon = LatentJamMark,
                     onClick = { dismiss(); onStartSmart() },
                 )
             }

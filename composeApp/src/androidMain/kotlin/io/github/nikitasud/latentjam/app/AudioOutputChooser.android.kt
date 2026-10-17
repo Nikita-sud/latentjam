@@ -27,13 +27,11 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -137,7 +135,7 @@ private fun AudioOutputChooserSheet(onDismiss: () -> Unit) {
         }
     }
 
-    ModalBottomSheet(
+    AppModalSheet(
         onDismissRequest = { dismiss() },
         sheetState = sheetState,
         sheetGesturesEnabled = !dismissing,
@@ -203,7 +201,7 @@ private fun AudioOutputChooserSheet(onDismiss: () -> Unit) {
                         },
                 )
             }
-            HorizontalDivider(Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+            AppDivider(Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
             ListItem(
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                 headlineContent = { Text(stringResource(Res.string.output_connect_device)) },

@@ -24,9 +24,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.BarChart
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -215,18 +212,10 @@ internal fun ListeningStatsSettings(
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     StatsPeriod.entries.forEach { candidate ->
-                        FilterChip(
+                        AppChoiceChip(
                             selected = candidate == period,
                             onClick = { periodName = candidate.name },
-                            label = { Text(stringResource(candidate.titleRes())) },
-                            modifier = Modifier.heightIn(min = 34.dp),
-                            shape = RoundedCornerShape(17.dp),
-                            colors = FilterChipDefaults.filterChipColors(
-                                containerColor = Color.Transparent,
-                                labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                selectedContainerColor = MaterialTheme.colorScheme.onSurface,
-                                selectedLabelColor = MaterialTheme.colorScheme.surface,
-                            ),
+                            label = stringResource(candidate.titleRes()),
                         )
                     }
                 }
@@ -245,7 +234,7 @@ internal fun ListeningStatsSettings(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    CircularProgressIndicator()
+                    AppSpinner()
                 }
             }
             return@FadingLazyColumn

@@ -382,6 +382,12 @@
     <string name="settings_section_navigation">Navegação</string>
     <string name="settings_section_privacy">Dados no dispositivo</string>
     <string name="settings_track_colors">Cores do player</string>
+    <string name="settings_page_header">Cabeçalho das páginas</string>
+    <string name="settings_page_header_dots">Pontos</string>
+    <string name="settings_page_header_neighbours">Páginas vizinhas</string>
+    <string name="settings_page_header_tabs">Abas</string>
+    <string name="settings_page_header_pills">Pílulas</string>
+    <string name="settings_page_header_menu">Menu</string>
     <string name="settings_color_dynamic">Capa</string>
     <string name="settings_color_dynamic_body">Use as cores da capa, com SMART como alternativa.</string>
     <string name="settings_color_smart">SMART</string>

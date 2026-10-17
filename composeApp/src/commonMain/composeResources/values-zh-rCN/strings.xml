@@ -357,6 +357,12 @@
     <string name="settings_section_navigation">导航</string>
     <string name="settings_section_privacy">设备上的数据</string>
     <string name="settings_track_colors">播放器颜色</string>
+    <string name="settings_page_header">页面标题</string>
+    <string name="settings_page_header_dots">圆点</string>
+    <string name="settings_page_header_neighbours">相邻页面</string>
+    <string name="settings_page_header_tabs">标签页</string>
+    <string name="settings_page_header_pills">胶囊</string>
+    <string name="settings_page_header_menu">菜单</string>
     <string name="settings_color_dynamic">封面</string>
     <string name="settings_color_dynamic_body">使用从封面提取的颜色，无法提取时使用 SMART 颜色。</string>
     <string name="settings_color_smart">SMART</string>

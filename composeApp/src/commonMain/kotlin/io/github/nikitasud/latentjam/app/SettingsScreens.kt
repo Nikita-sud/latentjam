@@ -4,6 +4,9 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.updateTransition
@@ -38,43 +41,35 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.DragHandle
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Button
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -316,6 +311,12 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_start_page
 import io.github.nikitasud.latentjam.app.generated.resources.settings_start_page_body
 import io.github.nikitasud.latentjam.app.generated.resources.settings_theme
 import io.github.nikitasud.latentjam.app.generated.resources.settings_title
+import io.github.nikitasud.latentjam.app.generated.resources.settings_page_header
+import io.github.nikitasud.latentjam.app.generated.resources.settings_page_header_dots
+import io.github.nikitasud.latentjam.app.generated.resources.settings_page_header_menu
+import io.github.nikitasud.latentjam.app.generated.resources.settings_page_header_neighbours
+import io.github.nikitasud.latentjam.app.generated.resources.settings_page_header_pills
+import io.github.nikitasud.latentjam.app.generated.resources.settings_page_header_tabs
 import io.github.nikitasud.latentjam.app.generated.resources.settings_track_colors
 import io.github.nikitasud.latentjam.app.generated.resources.settings_version
 import io.github.nikitasud.latentjam.app.generated.resources.state_off
@@ -449,7 +450,7 @@ internal fun SettingsScreen(
             // The artwork glow is painted by the parent; a transparent scaffold cannot infer
             // a contrasting content color from its own container.
             contentColor = MaterialTheme.colorScheme.onSurface,
-            snackbarHost = { SnackbarHost(snackbarHostState) },
+            snackbarHost = { AppSnackbarHost(snackbarHostState) },
             topBar = {
                 TopAppBar(
                     title = {
@@ -740,6 +741,7 @@ private fun AppearanceSettings(
 ) {
     val theme by settings.themeMode.collectAsState()
     val colorMode by settings.trackColorMode.collectAsState()
+    val headerStyle by settings.pageHeaderStyle.collectAsState()
 
     FadingLazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -759,6 +761,21 @@ private fun AppearanceSettings(
                         })
                     },
                     onSelected = settings::setThemeMode,
+                )
+                SettingsLabel(stringResource(Res.string.settings_page_header))
+                ChoiceChips(
+                    values = PageHeaderStyle.entries,
+                    selected = headerStyle,
+                    label = { style ->
+                        stringResource(when (style) {
+                            PageHeaderStyle.DOTS -> Res.string.settings_page_header_dots
+                            PageHeaderStyle.NEIGHBOURS -> Res.string.settings_page_header_neighbours
+                            PageHeaderStyle.TABS -> Res.string.settings_page_header_tabs
+                            PageHeaderStyle.PILLS -> Res.string.settings_page_header_pills
+                            PageHeaderStyle.MENU -> Res.string.settings_page_header_menu
+                        })
+                    },
+                    onSelected = settings::setPageHeaderStyle,
                 )
             }
         }
@@ -811,7 +828,7 @@ private fun AppearanceSettings(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    Switch(checked = favorite, onCheckedChange = null)
+                    AppSwitch(checked = favorite, onCheckedChange = null)
                 }
             }
         }
@@ -898,7 +915,7 @@ private fun PagesSettings(settings: AppSettings) {
     }
 
     if (choosingStartPage) {
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { choosingStartPage = false },
             title = { Text(stringResource(Res.string.settings_start_page)) },
             text = {
@@ -979,17 +996,19 @@ private fun PageOrderRow(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(
-                    text = { Text(moveUpLabel) },
+            AppDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                AppMenuItem(
+                    text = moveUpLabel,
+                    icon = Icons.Rounded.ArrowUpward,
                     enabled = position > 0,
                     onClick = {
                         menuOpen = false
                         settings.setPageLayout(settings.pageLayout.value.movePage(page, -1))
                     },
                 )
-                DropdownMenuItem(
-                    text = { Text(moveDownLabel) },
+                AppMenuItem(
+                    text = moveDownLabel,
+                    icon = Icons.Rounded.ArrowDownward,
                     enabled = position < layout.order.lastIndex,
                     onClick = {
                         menuOpen = false
@@ -1012,7 +1031,7 @@ private fun PageOrderRow(
                 )
             }
         }
-        Switch(checked = enabled, enabled = canDisable, onCheckedChange = null)
+        AppSwitch(checked = enabled, enabled = canDisable, onCheckedChange = null)
     }
 }
 
@@ -1037,7 +1056,7 @@ private fun <T> SingleChoiceRows(
                     .padding(horizontal = 20.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                RadioButton(
+                AppRadioButton(
                     selected = selected == value,
                     onClick = null,
                 )
@@ -1063,10 +1082,10 @@ private fun <T> ChoiceChips(
         contentPadding = PaddingValues(horizontal = 20.dp),
     ) {
         items(values) { value ->
-            FilterChip(
+            AppChoiceChip(
                 selected = selected == value,
                 onClick = { onSelected(value) },
-                label = { Text(label(value)) },
+                label = label(value),
             )
         }
     }
@@ -1250,7 +1269,7 @@ private fun LibrarySettings(
     }
 
     forgetTarget?.let { save ->
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { forgetTarget = null },
             title = { Text(stringResource(Res.string.settings_interrupted_forget_title)) },
             text = {
@@ -1327,7 +1346,7 @@ private fun SourcesSettings(
             SettingsSection(stringResource(Res.string.settings_sources)) {
                 SettingsBody(stringResource(Res.string.settings_sources_body))
                 when {
-                    sources == null && !loadFailed -> LinearProgressIndicator(
+                    sources == null && !loadFailed -> AppLinearProgress(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
                     )
                     loadFailed -> SettingsActionRow(
@@ -1412,7 +1431,7 @@ private fun SourceSwitchRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Switch(
+        AppSwitch(
             checked = source.enabled,
             enabled = enabled,
             onCheckedChange = null,
@@ -1502,7 +1521,7 @@ private fun HiddenTracksSettings(
             SettingsSection(stringResource(Res.string.settings_hidden_tracks)) {
                 SettingsBody(stringResource(Res.string.settings_hidden_tracks_body))
                 when {
-                    hiddenTracks == null && !loadFailed -> LinearProgressIndicator(
+                    hiddenTracks == null && !loadFailed -> AppLinearProgress(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
                     )
                     loadFailed -> SettingsActionRow(
@@ -1631,7 +1650,7 @@ private fun ArtistVarietyRow(level: Int, onLevel: (Int) -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Slider(
+        AppSlider(
             value = sanitizeArtistVariety(level).toFloat(),
             onValueChange = { onLevel(it.roundToInt()) },
             valueRange = 0f..ARTIST_VARIETY_PENALTIES.lastIndex.toFloat(),
@@ -1723,7 +1742,7 @@ private fun IntelligenceSettings(
                 )
                 // Shown once the pass has counted what is already analysed, never as a "0 of N" first.
                 if (!libraryLoading && indexing.running && indexing.progressKnown && tracks.isNotEmpty()) {
-                    LinearProgressIndicator(
+                    AppLinearProgress(
                         progress = { done.toFloat() / tracks.size },
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
                     )
@@ -1892,7 +1911,7 @@ private fun IntelligenceProblemsSettings(
             SettingsSection(stringResource(Res.string.intelligence_problems)) {
                 SettingsBody(stringResource(Res.string.intelligence_problems_body))
                 if (libraryLoading || (indexing.running && failures.isEmpty())) {
-                    LinearProgressIndicator(
+                    AppLinearProgress(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
                     )
                 } else if (failures.isEmpty()) {
@@ -2142,7 +2161,7 @@ private fun DuplicatesSettings(
                 when {
                     scanning -> {
                         SettingsBody(stringResource(Res.string.settings_duplicates_scanning))
-                        LinearProgressIndicator(
+                        AppLinearProgress(
                             progress = { scanProgress },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -2221,7 +2240,7 @@ private fun DuplicatesSettings(
         // a listener who wants files gone says so each time.
         var deleteFiles by remember(merges) { mutableStateOf(false) }
         val canDeleteFiles = canDeleteDuplicateFiles(merges)
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { pendingMerge = null },
             title = { Text(stringResource(Res.string.settings_duplicates)) },
             text = {
@@ -2253,7 +2272,7 @@ private fun DuplicatesSettings(
                                 ),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            RadioButton(selected = deleteFiles == delete, onClick = null)
+                            AppRadioButton(selected = deleteFiles == delete, onClick = null)
                             Text(
                                 text = stringResource(label),
                                 style = MaterialTheme.typography.bodyMedium,
@@ -2331,7 +2350,7 @@ private fun DuplicateGroupCard(
                 modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
             )
             group.copies.forEachIndexed { index, copy ->
-                if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                if (index > 0) AppDivider()
                 DuplicateCopyRow(
                     copy = copy,
                     selected = copy.track.id == survivor.track.id,
@@ -2403,7 +2422,7 @@ private fun DuplicateCopyRow(
             .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        RadioButton(selected = selected, onClick = null, enabled = enabled)
+        AppRadioButton(selected = selected, onClick = null, enabled = enabled)
         Column(modifier = Modifier.weight(1f).padding(start = 4.dp, end = 4.dp)) {
             Text(
                 text = headline,
@@ -2436,9 +2455,10 @@ private fun DuplicateCopyRow(
                     contentDescription = stringResource(Res.string.duplicates_hide_copy),
                 )
             }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(Res.string.duplicates_hide_copy)) },
+            AppDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                AppMenuItem(
+                    text = stringResource(Res.string.duplicates_hide_copy),
+                    icon = Icons.Outlined.VisibilityOff,
                     onClick = {
                         menuOpen = false
                         onHide()
@@ -2747,7 +2767,7 @@ private fun BackupSettings(
                 SettingsBody(stringResource(Res.string.settings_backup_body))
                 SettingsBody(stringResource(Res.string.backup_destination_warning))
                 if (controlsBusy) {
-                    LinearProgressIndicator(
+                    AppLinearProgress(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
                     )
                 }
@@ -2785,7 +2805,7 @@ private fun BackupSettings(
     }
 
     if (pendingImport != null && !confirmReplace) {
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { pendingImport = null },
             title = { Text(stringResource(Res.string.backup_import_title)) },
             text = {
@@ -2897,7 +2917,7 @@ private fun BackupSectionChoice(
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Checkbox(checked = checked, onCheckedChange = null)
+        AppCheckbox(checked = checked, onCheckedChange = null)
         Text(label, modifier = Modifier.padding(start = 8.dp))
     }
 }
@@ -3200,7 +3220,7 @@ private fun SettingsSwitchRow(
                 ),
             )
         }
-        Switch(checked = checked, enabled = enabled, onCheckedChange = null)
+        AppSwitch(checked = checked, enabled = enabled, onCheckedChange = null)
     }
 }
 
@@ -3212,7 +3232,7 @@ private fun ConfirmDisableRecording(
     onDeleteExisting: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { Text(body) },
@@ -3243,7 +3263,7 @@ private fun ConfirmSettingsAction(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { Text(body) },

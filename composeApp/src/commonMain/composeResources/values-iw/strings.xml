@@ -397,6 +397,12 @@
     <string name="settings_section_privacy">נתונים במכשיר</string>
 
     <string name="settings_track_colors">צבעי הנגן</string>
+    <string name="settings_page_header">כותרת הדפים</string>
+    <string name="settings_page_header_dots">נקודות</string>
+    <string name="settings_page_header_neighbours">דפים סמוכים</string>
+    <string name="settings_page_header_tabs">לשוניות</string>
+    <string name="settings_page_header_pills">גלולות</string>
+    <string name="settings_page_header_menu">תפריט</string>
     <string name="settings_color_dynamic">עטיפה</string>
     <string name="settings_color_dynamic_body">צבעים מתוך העטיפה, ואם אין — צבעי SMART.</string>
     <string name="settings_color_smart">SMART</string>

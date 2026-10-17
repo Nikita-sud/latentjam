@@ -12,7 +12,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -53,28 +55,20 @@ import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Restore
 import androidx.compose.material.icons.rounded.FileOpen
 import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
@@ -82,7 +76,6 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
@@ -477,135 +470,56 @@ private fun PlaylistRow(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            DropdownMenu(
+            AppDropdownMenu(
                 expanded = menuOpen,
                 onDismissRequest = { menuOpen = false },
-                shape = RoundedCornerShape(20.dp),
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             ) {
-                val iconModifier = Modifier.size(20.dp)
-                val iconTint = MaterialTheme.colorScheme.onSurfaceVariant
-                DropdownMenuItem(
-                    text = {
-                        Text(stringResource(Res.string.action_rename),
-                            style = MaterialTheme.typography.bodyMedium)
-                    },
-                    leadingIcon = {
-                        Icon(Icons.Outlined.DriveFileRenameOutline, contentDescription = null,
-                            modifier = iconModifier, tint = iconTint)
-                    },
-                    onClick = {
-                        menuOpen = false
-                        onRename()
-                    },
+                AppMenuItem(
+                    text = stringResource(Res.string.action_rename),
+                    icon = Icons.Outlined.DriveFileRenameOutline,
+                    onClick = { menuOpen = false; onRename() },
                 )
-                DropdownMenuItem(
-                    text = {
-                        Text(stringResource(Res.string.action_change_playlist_cover),
-                            style = MaterialTheme.typography.bodyMedium)
-                    },
-                    leadingIcon = {
-                        Icon(Icons.Outlined.Image, contentDescription = null,
-                            modifier = iconModifier, tint = iconTint)
-                    },
+                AppMenuItem(
+                    text = stringResource(Res.string.action_change_playlist_cover),
+                    icon = Icons.Outlined.Image,
                     enabled = !coverEditBusy,
-                    onClick = {
-                        menuOpen = false
-                        onChangeCover()
-                    },
+                    onClick = { menuOpen = false; onChangeCover() },
                 )
                 if (playlist.customArtworkRef != null) {
-                    DropdownMenuItem(
-                        text = {
-                            Text(stringResource(Res.string.action_reset_playlist_cover),
-                                style = MaterialTheme.typography.bodyMedium)
-                        },
-                        leadingIcon = {
-                            Icon(Icons.Outlined.Restore, contentDescription = null,
-                                modifier = iconModifier, tint = iconTint)
-                        },
+                    AppMenuItem(
+                        text = stringResource(Res.string.action_reset_playlist_cover),
+                        icon = Icons.Outlined.Restore,
                         enabled = !coverEditBusy,
-                        onClick = {
-                            menuOpen = false
-                            onResetCover()
-                        },
+                        onClick = { menuOpen = false; onResetCover() },
                     )
                 }
-                DropdownMenuItem(
-                    text = {
-                        Text(stringResource(Res.string.action_add_all_favorites),
-                            style = MaterialTheme.typography.bodyMedium)
-                    },
-                    leadingIcon = {
-                        Icon(Icons.Outlined.FavoriteBorder, contentDescription = null,
-                            modifier = iconModifier, tint = iconTint)
-                    },
+                AppMenuItem(
+                    text = stringResource(Res.string.action_add_all_favorites),
+                    icon = Icons.Outlined.FavoriteBorder,
                     enabled = canAddToFavorites(),
-                    onClick = {
-                        menuOpen = false
-                        onAddToFavorites()
-                    },
+                    onClick = { menuOpen = false; onAddToFavorites() },
                 )
-                DropdownMenuItem(
-                    text = {
-                        Text(stringResource(Res.string.action_export_m3u),
-                            style = MaterialTheme.typography.bodyMedium)
-                    },
-                    leadingIcon = {
-                        Icon(Icons.Outlined.IosShare, contentDescription = null,
-                            modifier = iconModifier, tint = iconTint)
-                    },
-                    onClick = {
-                        menuOpen = false
-                        onExport()
-                    },
+                AppMenuItem(
+                    text = stringResource(Res.string.action_export_m3u),
+                    icon = Icons.Outlined.IosShare,
+                    onClick = { menuOpen = false; onExport() },
                 )
-                DropdownMenuItem(
-                    text = {
-                        Text(stringResource(Res.string.action_smart_keep_together),
-                            style = MaterialTheme.typography.bodyMedium)
-                    },
-                    leadingIcon = {
-                        Icon(Icons.AutoMirrored.Outlined.QueueMusic, contentDescription = null,
-                            modifier = iconModifier, tint = iconTint)
-                    },
-                    trailingIcon = if (playlist.includeInSmart) {
-                        {
-                            Icon(Icons.Outlined.Check, contentDescription = null,
-                                modifier = iconModifier, tint = MaterialTheme.colorScheme.onSurface)
-                        }
+                AppMenuItem(
+                    text = stringResource(Res.string.action_smart_keep_together),
+                    icon = Icons.AutoMirrored.Outlined.QueueMusic,
+                    trailing = if (playlist.includeInSmart) {
+                        { Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(20.dp)) }
                     } else {
                         null
                     },
-                    onClick = {
-                        menuOpen = false
-                        onToggleSmart()
-                    },
+                    onClick = { menuOpen = false; onToggleSmart() },
                 )
-                HorizontalDivider(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
-                )
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = stringResource(Res.string.action_delete),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Outlined.DeleteOutline,
-                            contentDescription = null,
-                            modifier = iconModifier,
-                            tint = iconTint,
-                        )
-                    },
-                    onClick = {
-                        menuOpen = false
-                        onDelete()
-                    },
+                AppMenuDivider()
+                AppMenuItem(
+                    text = stringResource(Res.string.action_delete),
+                    icon = Icons.Outlined.DeleteOutline,
+                    destructive = true,
+                    onClick = { menuOpen = false; onDelete() },
                 )
             }
         }
@@ -640,7 +554,7 @@ internal fun PlaylistNameDialog(
     ) {
         Surface(
             modifier = Modifier.imePadding().padding(24.dp).widthIn(max = 440.dp).fillMaxWidth(),
-            shape = RoundedCornerShape(28.dp),
+            shape = OverlayShape,
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
         ) {
             Column(
@@ -740,7 +654,7 @@ internal fun AddToPlaylistSheet(
         }
     }
 
-    ModalBottomSheet(
+    AppModalSheet(
         onDismissRequest = { dismissThen {} },
         sheetState = sheetState,
         sheetGesturesEnabled = !busy && !dismissalInFlight,

@@ -59,14 +59,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Shuffle
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
@@ -245,6 +242,7 @@ private fun AppShell(
     val pageLayout by settings.pageLayout.collectAsState()
     val visiblePages = remember(pageLayout) { pageLayout.normalized().visiblePages }
     val trackColorMode by settings.trackColorMode.collectAsState()
+    val pageHeaderStyle by settings.pageHeaderStyle.collectAsState()
     val smartQueueLength by settings.smartQueueLength.collectAsState()
     val artistVariety by settings.artistVariety.collectAsState()
     val includeNoveltyMixes by settings.includeNoveltyMixes.collectAsState()
@@ -2440,6 +2438,7 @@ private fun AppShell(
                                             pages = visiblePages,
                                             onSelect = ::navigateToRootTab,
                                             modifier = Modifier.weight(1f),
+                                            style = pageHeaderStyle,
                                         )
                                         SearchLaunchButton(
                                             enabled = !searchOverlayActive && !settingsOverlayActive,
@@ -2499,7 +2498,7 @@ private fun AppShell(
                                     LibraryPresentation.LOADING -> Box(
                                         modifier = Modifier.fillMaxSize(),
                                         contentAlignment = Alignment.Center,
-                                    ) { CircularProgressIndicator() }
+                                    ) { AppSpinner() }
 
                                     // Pages follow the finger. The carousel strip above reads the
                                     // same pager position, so label and content move together
@@ -3327,10 +3326,7 @@ private fun AppShell(
                                 }
                             },
                             modifier = Modifier.size(56.dp).inactiveForMotion(!showShuffle),
-                            colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = MaterialTheme.colorScheme.onSurface,
-                                contentColor = MaterialTheme.colorScheme.surface,
-                            ),
+                            colors = playButtonColors(),
                         ) {
                             Icon(Icons.Rounded.Shuffle,
                                 contentDescription = stringResource(Res.string.action_shuffle_all),
@@ -3745,7 +3741,7 @@ private fun AppShell(
             // One host above both AnimatedContent branches: collection/search surfaces and the
             // full player otherwise cover the Scaffold-owned host, making Undo technically exist
             // but impossible to see or tap.
-            if (!settingsOverlayActive) SnackbarHost(
+            if (!settingsOverlayActive) AppSnackbarHost(
                 hostState = snackbar,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)

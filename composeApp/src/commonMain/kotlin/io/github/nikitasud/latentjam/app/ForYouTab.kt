@@ -34,7 +34,6 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Surface
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -444,7 +443,7 @@ internal fun WorldActionsSheet(
         }
     }
 
-    ModalBottomSheet(
+    AppModalSheet(
         onDismissRequest = { dismissThen {} },
         sheetState = sheetState,
         sheetGesturesEnabled = !dismissalInFlight,
@@ -681,6 +680,7 @@ private fun HeroCard(hero: ForYouHero, accent: TrackAccent?, onPlay: () -> Unit)
                 onClick = onPlay,
                 modifier = Modifier.size(48.dp),
                 shape = RoundedCornerShape(24.dp),
+                colors = playButtonColors(),
             ) {
                 Icon(
                     imageVector = Icons.Rounded.PlayArrow,

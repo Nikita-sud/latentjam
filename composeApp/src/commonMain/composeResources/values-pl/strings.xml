@@ -415,6 +415,12 @@
     <string name="settings_section_navigation">Nawigacja</string>
     <string name="settings_section_privacy">Dane na urządzeniu</string>
     <string name="settings_track_colors">Kolory odtwarzacza</string>
+    <string name="settings_page_header">Nagłówek stron</string>
+    <string name="settings_page_header_dots">Kropki</string>
+    <string name="settings_page_header_neighbours">Sąsiednie strony</string>
+    <string name="settings_page_header_tabs">Karty</string>
+    <string name="settings_page_header_pills">Pigułki</string>
+    <string name="settings_page_header_menu">Menu</string>
     <string name="settings_color_dynamic">Okładka</string>
     <string name="settings_color_dynamic_body">Używaj kolorów z okładki, a w razie potrzeby kolorów SMART.</string>
     <string name="settings_color_smart">SMART</string>

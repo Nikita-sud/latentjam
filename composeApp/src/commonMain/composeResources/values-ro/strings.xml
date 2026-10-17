@@ -384,6 +384,12 @@
     <string name="settings_section_navigation">Navigare</string>
     <string name="settings_section_privacy">Date pe dispozitiv</string>
     <string name="settings_track_colors">Culorile playerului</string>
+    <string name="settings_page_header">Antetul paginilor</string>
+    <string name="settings_page_header_dots">Puncte</string>
+    <string name="settings_page_header_neighbours">Pagini vecine</string>
+    <string name="settings_page_header_tabs">File</string>
+    <string name="settings_page_header_pills">Pastile</string>
+    <string name="settings_page_header_menu">Meniu</string>
     <string name="settings_color_dynamic">Copertă</string>
     <string name="settings_color_dynamic_body">Folosește culorile din copertă, cu SMART ca alternativă.</string>
     <string name="settings_color_smart">SMART</string>

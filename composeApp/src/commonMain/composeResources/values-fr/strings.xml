@@ -387,6 +387,12 @@
     <string name="settings_section_navigation">Navigation</string>
     <string name="settings_section_privacy">Données sur l’appareil</string>
     <string name="settings_track_colors">Couleurs du lecteur</string>
+    <string name="settings_page_header">En-tête des pages</string>
+    <string name="settings_page_header_dots">Points</string>
+    <string name="settings_page_header_neighbours">Pages voisines</string>
+    <string name="settings_page_header_tabs">Onglets</string>
+    <string name="settings_page_header_pills">Pastilles</string>
+    <string name="settings_page_header_menu">Menu</string>
     <string name="settings_color_dynamic">Pochette</string>
     <string name="settings_color_dynamic_body">Utiliser les couleurs de la pochette, avec SMART comme solution de secours.</string>
     <string name="settings_color_smart">SMART</string>

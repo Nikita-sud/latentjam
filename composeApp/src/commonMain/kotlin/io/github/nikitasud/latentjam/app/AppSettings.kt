@@ -105,6 +105,27 @@ enum class TrackColorMode(internal val persistedValue: String) {
     THEME("theme"),
 }
 
+/** How the browse header shows the pages around the current one. */
+enum class PageHeaderStyle(internal val persistedValue: String) {
+    /** One centred title and a dot per page: reads the same in every language. */
+    DOTS("dots"),
+
+    /** The neighbouring titles beside the current one, shrunk to fit the strip. */
+    NEIGHBOURS("neighbours"),
+
+    /** Every page's name in a row that scrolls to keep the current one centred over a bar. */
+    TABS("tabs"),
+
+    /** The same row as outlined pills, the current one filled. */
+    PILLS("pills"),
+
+    /** One title with a chevron; tapping it lists every page. */
+    MENU("menu"),
+}
+
+internal fun pageHeaderStyleFromPersisted(value: String?): PageHeaderStyle =
+    PageHeaderStyle.entries.firstOrNull { it.persistedValue == value } ?: PageHeaderStyle.DOTS
+
 const val DEFAULT_SMART_QUEUE_LENGTH: Int = 20
 val SMART_QUEUE_LENGTH_OPTIONS: List<Int> = listOf(10, DEFAULT_SMART_QUEUE_LENGTH, 40)
 
@@ -390,6 +411,9 @@ interface AppSettings {
 
     val trackColorMode: StateFlow<TrackColorMode>
     fun setTrackColorMode(mode: TrackColorMode)
+
+    val pageHeaderStyle: StateFlow<PageHeaderStyle>
+    fun setPageHeaderStyle(style: PageHeaderStyle)
 
     val smartQueueLength: StateFlow<Int>
     fun setSmartQueueLength(length: Int)

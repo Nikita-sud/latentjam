@@ -455,6 +455,12 @@
     <string name="settings_section_navigation">التنقل</string>
     <string name="settings_section_privacy">البيانات على الجهاز</string>
     <string name="settings_track_colors">ألوان المشغّل</string>
+    <string name="settings_page_header">رأس الصفحات</string>
+    <string name="settings_page_header_dots">نقاط</string>
+    <string name="settings_page_header_neighbours">الصفحات المجاورة</string>
+    <string name="settings_page_header_tabs">علامات تبويب</string>
+    <string name="settings_page_header_pills">كبسولات</string>
+    <string name="settings_page_header_menu">قائمة</string>
     <string name="settings_color_dynamic">صورة الغلاف</string>
     <string name="settings_color_dynamic_body">استخدام ألوان مأخوذة من صورة الغلاف، والرجوع إلى SMART عند الحاجة.</string>
     <string name="settings_color_smart">SMART</string>

@@ -20,9 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SheetState
@@ -174,7 +172,7 @@ internal fun EditorActions(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (busy) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp,
+                if (busy) AppSpinner(Modifier.size(16.dp), strokeWidth = 2.dp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(confirmLabel, style = MaterialTheme.typography.labelLarge)
             }
@@ -219,7 +217,7 @@ internal fun rememberEditorSheetState(
 /** Asked before an editor sheet closes with changes the user has not saved. */
 @Composable
 internal fun DiscardChangesDialog(onDiscard: () -> Unit, onKeepEditing: () -> Unit) {
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onKeepEditing,
         title = { Text(stringResource(Res.string.editor_discard_title)) },
         confirmButton = {

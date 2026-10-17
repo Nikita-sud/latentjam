@@ -41,6 +41,17 @@ class AppSettingsTest {
     }
 
     @Test
+    fun `page header style has stable persisted values and falls back to dots`() {
+        assertEquals(PageHeaderStyle.DOTS, pageHeaderStyleFromPersisted("dots"))
+        assertEquals(PageHeaderStyle.NEIGHBOURS, pageHeaderStyleFromPersisted("neighbours"))
+        assertEquals(PageHeaderStyle.TABS, pageHeaderStyleFromPersisted("tabs"))
+        assertEquals(PageHeaderStyle.PILLS, pageHeaderStyleFromPersisted("pills"))
+        assertEquals(PageHeaderStyle.MENU, pageHeaderStyleFromPersisted("menu"))
+        assertEquals(PageHeaderStyle.DOTS, pageHeaderStyleFromPersisted(null))
+        assertEquals(PageHeaderStyle.DOTS, pageHeaderStyleFromPersisted("renamed-or-corrupt"))
+    }
+
+    @Test
     fun everySortChoiceSurvivesTheRoundTrip() {
         for (sort in SongSort.entries) for (direction in SongSortDirection.entries) {
             val choice = SortChoice(sort, direction)

@@ -4,6 +4,15 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.testTag
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibilityScope
@@ -56,7 +65,6 @@ import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -68,11 +76,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.Stable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -427,10 +433,20 @@ internal fun artistSubtitle(tracks: Int, albums: Int): String =
 // ---------------------------------------------------------------- components
 
 /**
- * Compact section switcher: the active section sits centred at full size,
- * its neighbours shrink and fade with distance so they stay readable but
- * clearly secondary. Items are only as wide as their label, which keeps the
- * strip tight instead of eating a band of the screen.
+ * The page header, in the [style] chosen in Settings > Appearance.
+ *
+ * - [PageHeaderStyle.DOTS]: one title, centred, and a row of dots for where it sits among the
+ *   pages. Neighbouring titles rest off the strip and only slide in under the finger.
+ * - [PageHeaderStyle.NEIGHBOURS]: the neighbours sit beside the title, close to it, and each
+ *   shrinks only as far as it must to fit whole between the title and the strip's edge.
+ * - [PageHeaderStyle.TABS]: every page's name in one row that scrolls to keep the current one
+ *   centred over a short bar.
+ * - [PageHeaderStyle.PILLS]: the same row as outlined pills, the current one filled.
+ * - [PageHeaderStyle.MENU]: one centred title with a chevron; tapping it lists every page.
+ *
+ * Neighbouring titles once sat beside the active one at a fixed scale and, measured across the
+ * 18 locales, fit whole only about two times in three at 390 dp: long words were sliced by the edge.
+ * Every style here keeps whole words, or moves the words somewhere they have room.
  */
 @Composable
 internal fun BrowseCarousel(
@@ -438,82 +454,276 @@ internal fun BrowseCarousel(
     pages: List<StartPage>,
     onSelect: (StartPage) -> Unit,
     modifier: Modifier = Modifier,
+    style: PageHeaderStyle = PageHeaderStyle.DOTS,
 ) {
-    val headerHeight = with(LocalDensity.current) { maxOf(56.dp, 28.sp.toDp() + 20.dp) }
-    // Only these few labels participate in pager motion. Measure once, then read the finger's
-    // position during placement/drawing so swiping never recomposes the browsing lists.
-    Layout(
-        modifier = modifier.testTag("latentjam_browse_header").fillMaxWidth().height(headerHeight).clipToBounds()
-            // Only this small header strip is isolated; the scrolling page never needs an
-            // offscreen texture. Masking alpha reveals the existing song-coloured background.
-            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-            .drawWithCache {
-                val edge = (14.dp.toPx() / size.width.coerceAtLeast(1f)).coerceAtMost(0.25f)
-                val mask = Brush.horizontalGradient(
-                    0f to Color.Transparent,
-                    edge to Color.Black,
-                    (1f - edge) to Color.Black,
-                    1f to Color.Transparent,
-                )
-                onDrawWithContent {
-                    drawContent()
-                    drawRect(mask, blendMode = BlendMode.DstIn)
+    val dots = style == PageHeaderStyle.DOTS
+    val row = style == PageHeaderStyle.TABS || style == PageHeaderStyle.PILLS
+    // Dots: title line, a 7 dp gap, the 5 dp dots, 8 dp above and below. Others: one line, centred.
+    val headerHeight = with(LocalDensity.current) {
+        maxOf(56.dp, 28.sp.toDp() + if (dots) 28.dp else 20.dp)
+    }
+    val ink = MaterialTheme.colorScheme.onSurface
+    val outline = MaterialTheme.colorScheme.outlineVariant
+    var menuOpen by remember { mutableStateOf(false) }
+    // Pill widths from the last measure, for the moving fill drawn behind them.
+    val pillWidths = remember { ArrayList<Float>() }
+    val titleStyle = when (style) {
+        PageHeaderStyle.TABS -> MaterialTheme.typography.titleMedium
+        PageHeaderStyle.PILLS -> MaterialTheme.typography.labelLarge
+        else -> MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold)
+    }
+    Box(modifier) {
+        // Only these few labels participate in pager motion. Measure once, then read the finger's
+        // position during placement/drawing so swiping never recomposes the browsing lists.
+        Layout(
+            modifier = Modifier.testTag("latentjam_browse_header").fillMaxWidth().height(headerHeight).clipToBounds()
+                // Only this small header strip is isolated; the scrolling page never needs an
+                // offscreen texture. Masking alpha reveals the existing song-coloured background.
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithCache {
+                    val fadeWidth = if (row) PageRowEdgeFade else PageEdgeFade
+                    val edge = (fadeWidth.toPx() / size.width.coerceAtLeast(1f)).coerceAtMost(0.25f)
+                    val mask = Brush.horizontalGradient(
+                        0f to Color.Transparent,
+                        edge to Color.Black,
+                        (1f - edge) to Color.Black,
+                        1f to Color.Transparent,
+                    )
+                    val dot = PageDotSize.toPx()
+                    val gap = PageDotGap.toPx()
+                    val stretch = PageDotActiveWidth.toPx() - dot
+                    val dotsY = size.height - PageDotsBottom.toPx() - dot
+                    val bar = Size(PageTabBarWidth.toPx(), PageTabBarHeight.toPx())
+                    val barY = size.height / 2f + PageTabBarOffset.toPx()
+                    val pillHeight = PagePillHeight.toPx()
+                    val rtl = layoutDirection == LayoutDirection.Rtl
+                    onDrawWithContent {
+                        val position = pagerState.currentPage + pagerState.currentPageOffsetFraction
+                        if (style == PageHeaderStyle.PILLS) {
+                            // The current page's fill, always centred; its width follows the finger.
+                            val widths = pillWidths
+                            if (widths.isNotEmpty()) {
+                                val p = position.coerceIn(0f, widths.lastIndex.toFloat())
+                                val from = p.toInt()
+                                val to = (from + 1).coerceAtMost(widths.lastIndex)
+                                val w = widths[from] + (widths[to] - widths[from]) * (p - from)
+                                drawRoundRect(
+                                    color = ink.copy(alpha = 0.16f),
+                                    topLeft = Offset((size.width - w) / 2f, (size.height - pillHeight) / 2f),
+                                    size = Size(w, pillHeight),
+                                    cornerRadius = CornerRadius(pillHeight / 2f),
+                                )
+                            }
+                        }
+                        drawContent()
+                        if (style == PageHeaderStyle.TABS) {
+                            drawRoundRect(
+                                color = ink,
+                                topLeft = Offset((size.width - bar.width) / 2f, barY),
+                                size = bar,
+                                cornerRadius = CornerRadius(bar.height / 2f),
+                            )
+                        }
+                        drawRect(mask, blendMode = BlendMode.DstIn)
+                        if (dots && pages.size > 1) {
+                            // The stretched width moves between two dots, so the row's width never changes.
+                            val total = pages.size * dot + (pages.size - 1) * gap + stretch
+                            var x = (size.width - total) / 2f
+                            for (i in pages.indices) {
+                                val nearness = 1f - abs(i - position).coerceIn(0f, 1f)
+                                val width = dot + stretch * nearness
+                                val left = if (rtl) size.width - x - width else x
+                                drawRoundRect(
+                                    color = ink.copy(alpha = 0.28f + 0.72f * nearness),
+                                    topLeft = Offset(left, dotsY),
+                                    size = Size(width, dot),
+                                    cornerRadius = CornerRadius(dot / 2f),
+                                )
+                                x += width + gap
+                            }
+                        }
+                    }
                 }
-            }
-            .browseHeaderSwipe(pagerState, enabled = pages.size > 1),
-        content = {
-            pages.forEachIndexed { index, page ->
-                Text(
-                    text = stringResource(page.titleResource()),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier
+                .browseHeaderSwipe(pagerState, enabled = pages.size > 1),
+            content = {
+                pages.forEachIndexed { index, page ->
+                    val label = Modifier
                         .testTag("latentjam_page_${page.name.lowercase()}")
                         .selectable(
                             selected = index == pagerState.currentPage,
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                             role = Role.Tab,
-                            onClick = { onSelect(page) },
+                            onClick = {
+                                if (style == PageHeaderStyle.MENU && index == pagerState.currentPage) {
+                                    menuOpen = true
+                                } else {
+                                    onSelect(page)
+                                }
+                            },
                         )
-                        .padding(horizontal = 13.dp, vertical = 10.dp)
-                        .graphicsLayer {
-                            val position = pagerState.currentPage + pagerState.currentPageOffsetFraction
-                            val distance = abs(index - position).coerceIn(0f, 1f)
-                            scaleX = 1f - 0.26f * distance
-                            scaleY = scaleX
-                            alpha = 1f - 0.45f * distance
-                        },
-                )
+                    when (style) {
+                        PageHeaderStyle.PILLS -> Text(
+                            text = stringResource(page.titleResource()),
+                            style = titleStyle,
+                            maxLines = 1,
+                            color = ink,
+                            modifier = label
+                                .height(PagePillHeight)
+                                .border(1.dp, outline, CircleShape)
+                                .wrapContentHeight()
+                                .padding(horizontal = 14.dp),
+                        )
+                        PageHeaderStyle.MENU -> Row(
+                            modifier = label.padding(start = 12.dp, end = 4.dp, top = PageTitlePadding, bottom = PageTitlePadding),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = stringResource(page.titleResource()),
+                                style = titleStyle,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                color = ink,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
+                            Icon(
+                                Icons.Rounded.ExpandMore,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        else -> Text(
+                            text = stringResource(page.titleResource()),
+                            style = titleStyle,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            color = ink,
+                            modifier = label.padding(
+                                horizontal = if (style == PageHeaderStyle.TABS) 12.dp else PageTitleSidePadding,
+                                vertical = PageTitlePadding,
+                            ),
+                        )
+                    }
+                }
+            },
+        ) { measurables, constraints ->
+            val labels = measurables.map {
+                it.measure(Constraints(maxWidth = constraints.maxWidth, maxHeight = constraints.maxHeight))
             }
-        },
-    ) { measurables, constraints ->
-        val labels = measurables.map {
-            it.measure(Constraints(maxWidth = constraints.maxWidth, maxHeight = constraints.maxHeight))
-        }
-        var total = 0
-        val centres = labels.map { label ->
-            (total + label.width / 2f).also { total += label.width }
-        }
-        layout(constraints.maxWidth, constraints.maxHeight) {
-            if (labels.isNotEmpty()) {
+            pillWidths.clear()
+            if (style == PageHeaderStyle.PILLS) labels.mapTo(pillWidths) { it.width.toFloat() }
+            val width = constraints.maxWidth.toFloat()
+            val fade = PageEdgeFade.toPx()
+            val spacing = if (style == PageHeaderStyle.PILLS) PagePillGap.toPx() else 0f
+            val top = if (dots) {
+                (PageTitleTop - PageTitlePadding).roundToPx()
+            } else {
+                (constraints.maxHeight - (labels.maxOfOrNull { it.height } ?: 0)) / 2
+            }
+            layout(constraints.maxWidth, constraints.maxHeight) {
+                if (labels.isEmpty()) return@layout
                 val position = (pagerState.currentPage + pagerState.currentPageOffsetFraction)
                     .coerceIn(0f, labels.lastIndex.toFloat())
                 val from = position.toInt()
                 val to = (from + 1).coerceAtMost(labels.lastIndex)
-                val centre = centres[from] + (centres[to] - centres[from]) * (position - from)
-                var x = constraints.maxWidth / 2f - centre
-                labels.forEach { label ->
-                    label.placeRelative(x.roundToInt(), (constraints.maxHeight - label.height) / 2)
-                    x += label.width
+                val fraction = position - from
+                if (dots || style == PageHeaderStyle.MENU) {
+                    labels.forEachIndexed { index, label ->
+                        val distance = abs(index - position).coerceIn(0f, 1f)
+                        val centre = width / 2f + (index - position) * width
+                        label.placeRelativeWithLayer((centre - label.width / 2f).roundToInt(), top) {
+                            scaleX = 1f - 0.26f * distance
+                            scaleY = scaleX
+                            alpha = 1f - distance
+                        }
+                    }
+                    return@layout
+                }
+                // A neighbour of [active] shrinks to fit whole between that title and the faded edge.
+                fun scaleBeside(index: Int, active: Int): Float = when {
+                    row || index == active -> 1f
+                    else -> {
+                        val room = width / 2f - labels[active].width / 2f - fade
+                        (room / labels[index].width).coerceIn(MIN_NEIGHBOUR_SCALE, NEIGHBOUR_SCALE)
+                    }
+                }
+                // Blending the at-rest scales of both pages keeps every size continuous under the finger.
+                val scales = labels.indices.map { index ->
+                    val a = scaleBeside(index, from)
+                    a + (scaleBeside(index, to) - a) * fraction
+                }
+                // Chain the titles by their drawn widths, so the gaps stay the same at every scale.
+                var run = 0f
+                val centres = labels.mapIndexed { index, label ->
+                    val drawn = label.width * scales[index]
+                    (run + drawn / 2f).also { run += drawn + spacing }
+                }
+                val anchor = centres[from] + (centres[to] - centres[from]) * fraction
+                labels.forEachIndexed { index, label ->
+                    val centre = width / 2f + centres[index] - anchor
+                    val distance = abs(index - position)
+                    label.placeRelativeWithLayer((centre - label.width / 2f).roundToInt(), top) {
+                        scaleX = scales[index]
+                        scaleY = scaleX
+                        alpha = if (row) {
+                            // The whole row stays readable; the current name is simply brighter.
+                            1f - 0.38f * distance.coerceAtMost(1f)
+                        } else if (distance <= 1f) {
+                            1f - 0.45f * distance
+                        } else {
+                            // Only the two neighbours show at rest; the next ones fade in under the
+                            // finger instead of peeking as a stray letter past a neighbour.
+                            (0.55f * (2f - distance)).coerceAtLeast(0f)
+                        }
+                    }
+                }
+            }
+        }
+        if (style == PageHeaderStyle.MENU) {
+            // A centred anchor as wide as the menu, so the list opens under the title.
+            Box(Modifier.align(Alignment.BottomCenter).width(PageMenuWidth)) {
+                AppDropdownMenu(
+                    expanded = menuOpen,
+                    onDismissRequest = { menuOpen = false },
+                    modifier = Modifier.width(PageMenuWidth),
+                ) {
+                    pages.forEachIndexed { index, page ->
+                        val current = index == pagerState.currentPage
+                        AppMenuItem(
+                            text = stringResource(page.titleResource()),
+                            selected = current,
+                            onClick = {
+                                menuOpen = false
+                                onSelect(page)
+                            },
+                            trailing = if (current) {
+                                { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(20.dp)) }
+                            } else null,
+                        )
+                    }
                 }
             }
         }
     }
 }
+
+private val PageRowEdgeFade = 24.dp
+private val PageTabBarWidth = 18.dp
+private val PageTabBarHeight = 3.dp
+private val PageTabBarOffset = 15.dp
+private val PagePillHeight = 34.dp
+private val PagePillGap = 6.dp
+private val PageMenuWidth = 240.dp
+private const val NEIGHBOUR_SCALE = 0.74f
+private const val MIN_NEIGHBOUR_SCALE = 0.55f
+private val PageEdgeFade = 14.dp
+private val PageTitleSidePadding = 8.dp
+private val PageTitleTop = 8.dp
+private val PageTitlePadding = 6.dp
+private val PageDotSize = 5.dp
+private val PageDotActiveWidth = 14.dp
+private val PageDotGap = 5.dp
+private val PageDotsBottom = 8.dp
 
 /**
  * Thumb-zone actions sit above playback while music remains loaded: the three a selection is made
@@ -636,7 +846,7 @@ internal fun OverflowButton(
             )
         }
         if (onClick == null) {
-            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            AppDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
                 menuItems { open = false }
             }
         }

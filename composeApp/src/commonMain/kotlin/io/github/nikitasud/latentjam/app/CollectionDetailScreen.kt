@@ -8,7 +8,6 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -21,7 +20,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -43,21 +41,19 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -69,7 +65,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.rounded.DragHandle
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import io.github.nikitasud.latentjam.library.Playlist
@@ -81,9 +76,6 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -427,94 +419,81 @@ internal fun CollectionDetailScreen(
                                 Icon(Icons.Rounded.MoreVert,
                                     contentDescription = stringResource(Res.string.cd_more_options))
                             }
-                            DropdownMenu(
+                            AppDropdownMenu(
                                 expanded = optionsOpen,
                                 onDismissRequest = { optionsOpen = false },
-                                shape = RoundedCornerShape(20.dp),
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                             ) {
                                 onChangeCover?.let { changeCover ->
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(Res.string.action_change_playlist_cover)) },
-                                        leadingIcon = { Icon(Icons.Outlined.Image, null, Modifier.size(20.dp)) },
+                                    AppMenuItem(
+                                        text = stringResource(Res.string.action_change_playlist_cover),
+                                        icon = Icons.Outlined.Image,
                                         enabled = !coverEditBusy,
                                         onClick = { optionsOpen = false; changeCover() },
                                     )
                                 }
                                 onResetCover?.let { resetCover ->
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(Res.string.action_reset_playlist_cover)) },
-                                        leadingIcon = { Icon(Icons.Outlined.Restore, null, Modifier.size(20.dp)) },
+                                    AppMenuItem(
+                                        text = stringResource(Res.string.action_reset_playlist_cover),
+                                        icon = Icons.Outlined.Restore,
                                         enabled = !coverEditBusy,
                                         onClick = { optionsOpen = false; resetCover() },
                                     )
                                 }
                                 onToggleSmart?.let { toggleSmart ->
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(Res.string.action_smart_keep_together)) },
-                                        leadingIcon = {
-                                            Icon(Icons.AutoMirrored.Outlined.QueueMusic, null, Modifier.size(20.dp))
-                                        },
-                                        trailingIcon = if (includeInSmart) {
+                                    AppMenuItem(
+                                        text = stringResource(Res.string.action_smart_keep_together),
+                                        icon = Icons.AutoMirrored.Outlined.QueueMusic,
+                                        trailing = if (includeInSmart) {
                                             { Icon(Icons.Outlined.Check, null, Modifier.size(20.dp)) }
                                         } else null,
                                         onClick = { optionsOpen = false; toggleSmart() },
                                     )
                                 }
                                 onAddAllToFavorites?.let { addAll ->
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(Res.string.action_add_all_favorites)) },
-                                        leadingIcon = {
-                                            Icon(Icons.Outlined.FavoriteBorder, null, Modifier.size(20.dp))
-                                        },
+                                    AppMenuItem(
+                                        text = stringResource(Res.string.action_add_all_favorites),
+                                        icon = Icons.Outlined.FavoriteBorder,
                                         enabled = canAddAllToFavorites(),
                                         onClick = { optionsOpen = false; addAll() },
                                     )
                                 }
                                 onExportM3u?.let { export ->
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(Res.string.action_export_m3u)) },
-                                        leadingIcon = { Icon(Icons.Outlined.IosShare, null, Modifier.size(20.dp)) },
+                                    AppMenuItem(
+                                        text = stringResource(Res.string.action_export_m3u),
+                                        icon = Icons.Outlined.IosShare,
                                         enabled = selection.tracks.isNotEmpty(),
                                         onClick = { optionsOpen = false; export() },
                                     )
                                 }
                                 onEditTags?.let { editTags ->
-                                    DropdownMenuItem(
-                                        text = {
-                                            val label = when {
-                                                selection.routeId.startsWith("album:") -> Res.string.action_edit_album
-                                                selection.routeId.startsWith("artist:") -> Res.string.action_edit_artist
-                                                else -> Res.string.info_edit
-                                            }
-                                            Text(stringResource(label))
-                                        },
-                                        leadingIcon = { Icon(Icons.Outlined.Edit, null, Modifier.size(20.dp)) },
+                                    val label = when {
+                                        selection.routeId.startsWith("album:") -> Res.string.action_edit_album
+                                        selection.routeId.startsWith("artist:") -> Res.string.action_edit_artist
+                                        else -> Res.string.info_edit
+                                    }
+                                    AppMenuItem(
+                                        text = stringResource(label),
+                                        icon = Icons.Outlined.Edit,
                                         enabled = selection.tracks.isNotEmpty(),
                                         onClick = { optionsOpen = false; editTags() },
                                     )
                                 }
-                                if (onChangeCover != null || onEditTags != null || onExportM3u != null) {
-                                    HorizontalDivider(
-                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
-                                    )
-                                }
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(Res.string.action_play)) },
-                                    leadingIcon = { Icon(Icons.Outlined.PlayArrow, null, Modifier.size(20.dp)) },
+                                if (onChangeCover != null || onEditTags != null || onExportM3u != null) AppMenuDivider()
+                                AppMenuItem(
+                                    text = stringResource(Res.string.action_play),
+                                    icon = Icons.Outlined.PlayArrow,
                                     onClick = { optionsOpen = false; onPlay() },
                                     enabled = selection.tracks.isNotEmpty(),
                                 )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(Res.string.action_shuffle)) },
-                                    leadingIcon = { Icon(Icons.Outlined.Shuffle, null, Modifier.size(20.dp)) },
+                                AppMenuItem(
+                                    text = stringResource(Res.string.action_shuffle),
+                                    icon = Icons.Outlined.Shuffle,
                                     onClick = { optionsOpen = false; onShuffle() },
                                     enabled = selection.tracks.isNotEmpty(),
                                 )
-                                if (selection.allowsTrackSelection) DropdownMenuItem(
-                                    text = { Text(stringResource(Res.string.action_select_all)) },
-                                    leadingIcon = { Icon(Icons.Outlined.SelectAll, null, Modifier.size(20.dp)) },
+                                if (selection.allowsTrackSelection) AppMenuItem(
+                                    text = stringResource(Res.string.action_select_all),
+                                    icon = Icons.Outlined.SelectAll,
                                     onClick = { optionsOpen = false; onToggleAllSelection() },
                                 )
                             }
@@ -609,7 +588,7 @@ internal fun CollectionDetailScreen(
                     listState = listState,
                     bottomInset = bottomInset,
                 )
-                SnackbarHost(reorder.snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = bottomInset))
+                AppSnackbarHost(reorder.snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = bottomInset))
             }
         }
     }
@@ -709,10 +688,7 @@ private fun CollectionHero(
                 onClick = onPlay,
                 enabled = enabled && selection.tracks.isNotEmpty(),
                 modifier = Modifier.size(56.dp),
-                colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.onSurface,
-                    contentColor = MaterialTheme.colorScheme.surface,
-                ),
+                colors = playButtonColors(),
             ) {
                 Icon(Icons.Rounded.PlayArrow, stringResource(Res.string.action_play), modifier = Modifier.size(25.dp))
             }
@@ -1230,21 +1206,16 @@ private fun SelectionTopActions(commands: SelectionCommands) {
         ) {
             Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(Res.string.cd_more_options))
         }
-        DropdownMenu(
+        AppDropdownMenu(
             expanded = menuOpen,
             onDismissRequest = { menuOpen = false },
-            shape = RoundedCornerShape(20.dp),
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         ) {
             val destructive = commands.destructive
-            DropdownMenuItem(
-                text = { Text(stringResource(destructive.label)) },
-                leadingIcon = { Icon(destructive.icon, null, Modifier.size(20.dp)) },
+            AppMenuItem(
+                text = stringResource(destructive.label),
+                icon = destructive.icon,
                 enabled = commands.canAct,
-                colors = MenuDefaults.itemColors(
-                    textColor = MaterialTheme.colorScheme.error,
-                    leadingIconColor = MaterialTheme.colorScheme.error,
-                ),
+                destructive = true,
                 onClick = {
                     menuOpen = false
                     commands.onRemove()

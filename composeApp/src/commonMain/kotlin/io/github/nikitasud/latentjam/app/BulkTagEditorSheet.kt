@@ -22,14 +22,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -222,14 +218,12 @@ internal fun BulkTagEditorSheet(
     }
     if (askDiscard) DiscardChangesDialog(onDiscard = discard, onKeepEditing = keepEditing)
 
-    ModalBottomSheet(
+    AppModalSheet(
         onDismissRequest = leave,
         sheetState = sheetState,
         // A drag cannot be vetoed reliably (a size change mid-drag hides the sheet regardless), so
         // with unsaved changes or a save running the sheet does not drag at all.
         sheetGesturesEnabled = !sheetBusy() && !unsaved(),
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
             Column(
@@ -262,7 +256,7 @@ internal fun BulkTagEditorSheet(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                        AppSpinner(Modifier.size(16.dp), strokeWidth = 2.dp)
                         Text(
                             stringResource(Res.string.bulk_reading, readCount, tracks.size),
                             style = MaterialTheme.typography.bodyMedium,
@@ -306,7 +300,7 @@ internal fun BulkTagEditorSheet(
                 }
                 Spacer(Modifier.padding(bottom = 8.dp))
             }
-            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f))
+            AppDivider()
             val actions = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
             when {
                 result != null -> Button(
@@ -545,10 +539,10 @@ private fun MoreFiles(count: Int) {
 private fun SavingProgress(progress: TagWriteProgress?, onStop: () -> Unit, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (progress == null) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            AppLinearProgress(modifier = Modifier.fillMaxWidth())
             Text(stringResource(Res.string.info_saving), style = MaterialTheme.typography.bodyMedium)
         } else {
-            LinearProgressIndicator(
+            AppLinearProgress(
                 progress = { progress.done.toFloat() / progress.total.coerceAtLeast(1) },
                 modifier = Modifier.fillMaxWidth(),
             )

@@ -7,16 +7,16 @@ package io.github.nikitasud.latentjam.app
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -26,28 +26,22 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -229,7 +223,7 @@ internal fun TrackInfoSheet(
         fileFormatLabel(track.fileName, track.sizeBytes, track.durationMs)
     }
 
-    ModalBottomSheet(
+    AppModalSheet(
         // Back, the scrim, a drag or a stray key: never mid-save, and never past unsaved changes unasked.
         onDismissRequest = {
             when {
@@ -242,22 +236,6 @@ internal fun TrackInfoSheet(
         // A drag cannot be vetoed reliably (a size change mid-drag hides the sheet regardless), so
         // with unsaved changes or a save running the sheet does not drag at all.
         sheetGesturesEnabled = !sheetBusy() && !unsaved(),
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        dragHandle = {
-            Box(
-                modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 6.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Box(
-                    modifier = Modifier.size(width = 32.dp, height = 4.dp)
-                        .background(
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                            RoundedCornerShape(2.dp),
-                        ),
-                )
-            }
-        },
     ) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
             Column(
@@ -330,7 +308,7 @@ internal fun TrackInfoSheet(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                            AppSpinner(Modifier.size(16.dp), strokeWidth = 2.dp)
                             Text(stringResource(Res.string.info_reading_file), style = MaterialTheme.typography.bodyMedium)
                         }
                         read is TagFileRead.NotEditable -> Text(
@@ -455,7 +433,7 @@ internal fun TrackInfoSheet(
             Spacer(modifier = Modifier.padding(bottom = 8.dp))
             }
             if (editing) {
-                HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f))
+                AppDivider()
                 EditorActions(
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                     cancelLabel = stringResource(Res.string.info_cancel),
@@ -540,7 +518,7 @@ private fun InfoRow(label: String, value: String?, showDivider: Boolean = true) 
                 modifier = Modifier.weight(1f).alignByBaseline(),
             )
         }
-        if (showDivider) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        if (showDivider) AppDivider()
     }
 }
 

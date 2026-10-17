@@ -32,6 +32,8 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
     override val startPage: StateFlow<StartPage> = mutableStartPage.asStateFlow()
     private val mutableTrackColorMode = MutableStateFlow(readTrackColorMode())
     override val trackColorMode: StateFlow<TrackColorMode> = mutableTrackColorMode.asStateFlow()
+    private val mutablePageHeaderStyle = MutableStateFlow(pageHeaderStyleFromPersisted(readString(KEY_PAGE_HEADER_STYLE)))
+    override val pageHeaderStyle: StateFlow<PageHeaderStyle> = mutablePageHeaderStyle.asStateFlow()
     private val mutableSmartQueueLength = MutableStateFlow(readSmartQueueLength())
     override val smartQueueLength: StateFlow<Int> = mutableSmartQueueLength.asStateFlow()
     private val mutableArtistVariety = MutableStateFlow(
@@ -113,6 +115,11 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
     override fun setTrackColorMode(mode: TrackColorMode) {
         preferences.edit().putString(KEY_TRACK_COLOR_MODE, mode.persistedValue).apply()
         mutableTrackColorMode.value = mode
+    }
+
+    override fun setPageHeaderStyle(style: PageHeaderStyle) {
+        preferences.edit().putString(KEY_PAGE_HEADER_STYLE, style.persistedValue).apply()
+        mutablePageHeaderStyle.value = style
     }
 
     override fun setSmartQueueLength(length: Int) {
@@ -349,6 +356,7 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         const val KEY_START_PAGE = "start_page"
         const val KEY_PAGE_LAYOUT = "page_layout_v1"
         const val KEY_TRACK_COLOR_MODE = "track_color_mode"
+        const val KEY_PAGE_HEADER_STYLE = "page_header_style"
         const val KEY_SMART_QUEUE_LENGTH = "smart_queue_length"
         const val KEY_INCLUDE_NOVELTY_MIXES = "include_novelty_mixes"
         const val KEY_SAVE_HISTORY = "save_listening_history"

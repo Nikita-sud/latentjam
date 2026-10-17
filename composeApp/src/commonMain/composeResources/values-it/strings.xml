@@ -382,6 +382,12 @@
     <string name="settings_section_navigation">Navigazione</string>
     <string name="settings_section_privacy">Dati sul dispositivo</string>
     <string name="settings_track_colors">Colori del lettore</string>
+    <string name="settings_page_header">Intestazione pagine</string>
+    <string name="settings_page_header_dots">Punti</string>
+    <string name="settings_page_header_neighbours">Pagine vicine</string>
+    <string name="settings_page_header_tabs">Schede</string>
+    <string name="settings_page_header_pills">Pillole</string>
+    <string name="settings_page_header_menu">Menu</string>
     <string name="settings_color_dynamic">Copertina</string>
     <string name="settings_color_dynamic_body">Usa i colori della copertina, con SMART come alternativa.</string>
     <string name="settings_color_smart">SMART</string>
