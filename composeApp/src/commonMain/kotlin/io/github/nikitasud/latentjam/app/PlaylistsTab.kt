@@ -260,7 +260,7 @@ internal fun PlaylistsTabContent(
                     ) {
                         Box(
                             modifier = Modifier.size(48.dp)
-                                .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(12.dp)),
+                                .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(12.dp.corner())),
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(22.dp))
@@ -368,7 +368,7 @@ private fun AutoPlaylistCard(
     val artworkUri = remember(auto.tracks) { auto.tracks.firstNotNullOfOrNull { it.artworkUri } }
     Column(
         modifier = Modifier.width(150.dp)
-            .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
+            .clip(RoundedCornerShape(topStart = 18.dp.corner(), topEnd = 18.dp.corner()))
             .clickable(onClick = onClick),
     ) {
         Artwork(uri = artworkUri, size = 150.dp, cornerRadius = 18.dp, modifier = artworkModifier)
@@ -564,7 +564,7 @@ internal fun PlaylistNameDialog(
                 Row(verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Box(Modifier.size(44.dp)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(14.dp)),
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(14.dp.corner())),
                         contentAlignment = Alignment.Center) {
                         Icon(Icons.AutoMirrored.Outlined.QueueMusic, null, Modifier.size(24.dp))
                     }

@@ -458,7 +458,7 @@ fun NowPlayingScreen(
                         .clipToBounds(),
                     scaffoldState = sheetState,
                     sheetPeekHeight = QueuePeekHeight,
-                    sheetShape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                    sheetShape = RoundedCornerShape(topStart = 24.dp.corner(), topEnd = 24.dp.corner()),
                     sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                     sheetShadowElevation = 0.dp,
                     containerColor = Color.Transparent,
@@ -707,7 +707,7 @@ fun NowPlayingScreen(
                                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                                                 modifier = Modifier
                                                     .padding(top = 2.dp)
-                                                    .clip(RoundedCornerShape(14.dp))
+                                                    .clip(RoundedCornerShape(14.dp.corner()))
                                                     .clickable(role = Role.Button) {
                                                         haptics.play(PlayerHaptic.TAP)
                                                         if (onOpenSource?.invoke() != true) {
@@ -1273,7 +1273,7 @@ private fun NextUpRow(next: TrackDescriptor?, onOpenQueue: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = NEXT_UP_HEIGHT)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(12.dp.corner()))
                     .clickable(role = Role.Button, onClick = onOpenQueue)
                     .inactiveForMotion(shown.id != next?.id)
                     .padding(horizontal = 4.dp),
@@ -1330,7 +1330,7 @@ private fun MetadataLink(text: String?, onClick: (() -> Unit)?, modifier: Modifi
         textDecoration = if (onClick != null) TextDecoration.Underline else null,
         modifier = if (onClick != null) {
             modifier
-                .clip(RoundedCornerShape(6.dp))
+                .clip(RoundedCornerShape(6.dp.corner()))
                 .clickable(role = Role.Button, onClick = onClick)
                 .padding(horizontal = 4.dp, vertical = 2.dp)
         } else {

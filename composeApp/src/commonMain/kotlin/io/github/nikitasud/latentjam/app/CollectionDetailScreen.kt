@@ -648,7 +648,7 @@ private fun CollectionHero(
                     contentDescription = changeCoverLabel,
                     tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp)
-                        .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(10.dp.corner()))
                         .padding(7.dp).size(18.dp),
                 )
             }

@@ -3023,6 +3023,13 @@ private fun AppShell(
                                                             AlbumCard(
                                                                 album = album,
                                                                 railPreview = isPreview,
+                                                                // A pinch to more or fewer columns glides
+                                                                // each cover to its new cell.
+                                                                modifier = if (isPreview || rememberReduceMotion()) Modifier else Modifier.animateItem(
+                                                                    fadeInSpec = null,
+                                                                    fadeOutSpec = null,
+                                                                    placementSpec = tween(Motion.NAVIGATION_MS, easing = Motion.NavigationEasing),
+                                                                ),
                                                                 onArtworkLoadStateChanged =
                                                                     if (isPreview) {
                                                                         null

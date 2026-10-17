@@ -566,7 +566,7 @@ private fun ForYouCardItem(
             size = 132.dp,
             cornerRadius = 16.dp,
             modifier = Modifier
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(16.dp.corner()))
                 .indication(interaction, ripple()),
         )
         Text(

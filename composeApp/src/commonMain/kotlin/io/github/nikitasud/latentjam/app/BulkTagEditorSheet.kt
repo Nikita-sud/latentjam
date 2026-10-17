@@ -309,7 +309,7 @@ internal fun BulkTagEditorSheet(
                         onDismiss()
                     },
                     modifier = actions.fillMaxWidth().heightIn(min = 48.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(16.dp.corner()),
                 ) { Text(stringResource(Res.string.bulk_done)) }
                 // In the fixed footer, not below the fields: Stop must stay in reach without scrolling.
                 saving -> SavingProgress(progress, onStop = { saver?.stop() }, modifier = actions)
@@ -554,7 +554,7 @@ private fun SavingProgress(progress: TagWriteProgress?, onStop: () -> Unit, modi
         OutlinedButton(
             onClick = onStop,
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(16.dp.corner()),
         ) { Text(stringResource(Res.string.bulk_stop)) }
     }
 }

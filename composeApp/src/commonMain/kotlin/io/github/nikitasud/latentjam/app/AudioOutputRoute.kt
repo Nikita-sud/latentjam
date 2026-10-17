@@ -72,7 +72,7 @@ internal fun AudioOutputStatus(route: AudioOutputRoute, onOpen: (() -> Unit)?, m
     Row(
         modifier = modifier
             .height(32.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp.corner()))
             .then(
                 if (onOpen != null) {
                     Modifier.clickable(role = Role.Button) {

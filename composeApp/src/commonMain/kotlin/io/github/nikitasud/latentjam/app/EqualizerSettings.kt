@@ -61,7 +61,7 @@ internal fun EqualizerSettings(equalizer: EqualizerController, settings: AppSett
     ) {
         item {
             Surface(
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(24.dp.corner()),
                 color = if (state.enabled) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
             ) {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -213,7 +213,7 @@ internal fun EqualizerSettings(equalizer: EqualizerController, settings: AppSett
 
 @Composable
 private fun ToneCard(content: @Composable ColumnScope.() -> Unit) {
-    Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+    Surface(shape = RoundedCornerShape(24.dp.corner()), color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
     }
 }

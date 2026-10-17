@@ -1003,12 +1003,13 @@ internal fun AlbumCard(
     onLongClick: (() -> Unit)? = null,
     /** `null` outside selection mode; otherwise whether every track of this album is selected. */
     selectionState: Boolean? = null,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     val platformContext = LocalPlatformContext.current
     val year = remember(album.tracks) { albumYearLabel(album.tracks) }
     Column(
-        modifier = Modifier
+        modifier = modifier
             .then(
                 if (selectionState != null) {
                     Modifier.semantics {

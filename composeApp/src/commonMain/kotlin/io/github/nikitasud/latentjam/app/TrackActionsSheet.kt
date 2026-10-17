@@ -496,7 +496,7 @@ private fun SheetPrimaryAction(label: String, modifier: Modifier = Modifier, onC
     OutlinedButton(
         onClick = onClick,
         modifier = modifier.heightIn(min = 48.dp),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(24.dp.corner()),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
     ) {

@@ -505,7 +505,7 @@ fun MapTab(
             modifier = plotModifier
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp)
-                .clip(RoundedCornerShape(24.dp))
+                .clip(RoundedCornerShape(24.dp.corner()))
                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                 // Keep dots at normalized 0/1 inside the rounded plot. Drawing and hit testing
                 // receive the same inset size, so their shared projection stays unchanged.
@@ -666,7 +666,7 @@ fun MapTab(
         Surface(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(24.dp.corner()),
         ) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -750,7 +750,7 @@ fun MapTab(
                     enabled = region != null &&
                         (lens != MapLens.NEVER_PLAYED || region.neverPlayed > 0),
                     modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                    shape = RoundedCornerShape(24.dp),
+                    shape = RoundedCornerShape(24.dp.corner()),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
                 ) {
                     Icon(Icons.Rounded.PlayArrow, contentDescription = null,
@@ -766,7 +766,7 @@ fun MapTab(
                     onClick = { fullscreen = false; onOpenRegion(selectedRegion) },
                     enabled = region != null,
                     modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                    shape = RoundedCornerShape(24.dp),
+                    shape = RoundedCornerShape(24.dp.corner()),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
                     colors = ButtonDefaults.filledTonalButtonColors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -780,7 +780,7 @@ fun MapTab(
                     onClick = { onSmartFromRegion(selectedRegion) },
                     enabled = region != null,
                     modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                    shape = RoundedCornerShape(24.dp),
+                    shape = RoundedCornerShape(24.dp.corner()),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.tertiary),
                 ) {

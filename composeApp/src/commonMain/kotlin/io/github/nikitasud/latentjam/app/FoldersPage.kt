@@ -535,7 +535,7 @@ private fun FolderBreadcrumb(
                         Modifier.padding(horizontal = 6.dp, vertical = 12.dp).semantics { heading() }
                     } else {
                         Modifier
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(RoundedCornerShape(8.dp.corner()))
                             .clickable(role = Role.Button) { onNavigate(node) }
                             .padding(horizontal = 6.dp, vertical = 12.dp)
                     },

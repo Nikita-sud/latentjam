@@ -222,12 +222,13 @@ internal fun PlayerCoverBackdrop(
     val context = LocalPlatformContext.current
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     var shown by remember(uri) { mutableStateOf(false) }
-    val request = remember(uri) {
+    val reduceMotion = rememberReduceMotion()
+    val request = remember(uri, reduceMotion) {
         ImageRequest.Builder(context)
             .data(uri)
             .size(BACKDROP_SOURCE_PX)
             .memoryCacheKey("player-backdrop:$uri")
-            .crossfade(Motion.EMPHASIZED_MS)
+            .crossfade(if (reduceMotion) Motion.REDUCED_MS else Motion.EMPHASIZED_MS)
             .build()
     }
     Box(modifier) {
