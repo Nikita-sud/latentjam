@@ -4,8 +4,12 @@
  */
 package io.github.nikitasud.latentjam.playback
 
+import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 internal class CrossfadeTest {
 
@@ -65,5 +69,50 @@ internal class CrossfadeTest {
         assertEquals(0.5f, normalizationRampVolume(1f, 0.25f, elapsedMs = 200))
         assertEquals(0.25f, normalizationRampVolume(1f, 0.25f, elapsedMs = 400))
         assertEquals(1f, normalizationRampVolume(0.25f, 1f, elapsedMs = 400))
+    }
+
+    private fun track(id: String, number: Int?, disc: Int? = null, album: String? = "Live at the Paradiso", artist: String? = "Band", albumArtist: String? = null) =
+        TrackDescriptor(TrackId(id), album = album, artist = artist, albumArtist = albumArtist, trackNumber = number, discNumber = disc)
+
+    @Test
+    fun theNextTrackOfTheSameAlbumIsAContinuation() {
+        assertTrue(continuesAlbum(track("a", 3), track("b", 4)))
+        assertTrue(continuesAlbum(track("a", 12, disc = 1), track("b", 1, disc = 2)))
+        assertTrue(continuesAlbum(track("a", 1, artist = "X feat. Y", albumArtist = "VA"), track("b", 2, artist = "Z", albumArtist = "va")))
+        assertTrue(continuesAlbum(track("a", 1, album = " live at the paradiso"), track("b", 2)))
+    }
+
+    @Test
+    fun anythingElseKeepsTheFade() {
+        assertFalse(continuesAlbum(track("a", 3), track("b", 5)), "a skipped track")
+        assertFalse(continuesAlbum(track("a", 4), track("b", 3)), "backwards")
+        assertFalse(continuesAlbum(track("a", 3), track("b", 4, album = "Other")), "another album")
+        assertFalse(continuesAlbum(track("a", 3), track("b", 4, artist = "Other Band")), "same title, another artist")
+        assertFalse(continuesAlbum(track("a", null), track("b", 4)), "unnumbered")
+        assertFalse(continuesAlbum(track("a", 3, album = null), track("b", 4, album = null)), "no album")
+        assertFalse(continuesAlbum(track("a", 3), track("a", 3)), "repeat one")
+        assertFalse(continuesAlbum(null, track("b", 1)))
+        assertFalse(continuesAlbum(track("a", 5, disc = 1), track("b", 1, disc = 3)), "a skipped disc")
+    }
+
+    @Test
+    fun aContinuedEdgeStaysAtFullVolume() {
+        val duration = 180_000L
+        val fade = 4_000L
+        assertEquals(1f, crossfadeFactor(0, duration, fade, fadeIn = false))
+        assertEquals(0.5f, crossfadeFactor(178_000, duration, fade, fadeIn = false))
+        assertEquals(1f, crossfadeFactor(178_000, duration, fade, fadeOut = false))
+        assertEquals(0f, crossfadeFactor(0, duration, fade, fadeOut = false))
+        assertEquals(1f, crossfadeFactor(1_000, durationMs = 0, fadeMs = fade, fadeIn = false))
+    }
+
+    @Test
+    fun aContinuedEdgeNeedsNoRampTicks() {
+        val duration = 180_000L
+        val fade = 4_000L
+        assertEquals(176_000L, crossfadeUpdateDelayMs(0, duration, fade, fadeIn = false))
+        assertEquals(86_000L, crossfadeUpdateDelayMs(90_000, duration, fade, fadeOut = false))
+        assertEquals(500L, crossfadeUpdateDelayMs(178_000, duration, fade, fadeOut = false))
+        assertEquals(GAIN_RAMP_TICK_MS, crossfadeUpdateDelayMs(2_000, duration, fade, fadeOut = false))
     }
 }

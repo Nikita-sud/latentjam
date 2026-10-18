@@ -446,10 +446,13 @@ internal class AndroidPlaybackController(
         val player = controller ?: return
         val base = currentNormalizationVolume(SystemClock.elapsedRealtime())
         val fade = if (crossfadeMs > 0) {
+            val (fadeIn, fadeOut) = boundaryFades(player)
             crossfadeFactor(
                 positionMs = player.currentPosition,
                 durationMs = player.duration.takeIf { it != C.TIME_UNSET } ?: 0L,
                 fadeMs = crossfadeMs,
+                fadeIn = fadeIn,
+                fadeOut = fadeOut,
             )
         } else {
             1f
@@ -475,16 +478,33 @@ internal class AndroidPlaybackController(
                 } else {
                     Long.MAX_VALUE
                 }
+                val (fadeIn, fadeOut) = boundaryFades(player)
                 val fadeDelay = crossfadeUpdateDelayMs(
                     positionMs = player.currentPosition,
                     durationMs = player.duration.takeIf { it != C.TIME_UNSET } ?: 0L,
                     fadeMs = crossfadeMs,
+                    fadeIn = fadeIn,
+                    fadeOut = fadeOut,
                 )
                 val nextDelay = minOf(rampDelay, fadeDelay)
                 if (nextDelay == Long.MAX_VALUE) break
                 delay(nextDelay)
             }
         }
+    }
+
+    /**
+     * Which edges of the current item fade: none where the album itself continues across the
+     * seam (see [continuesAlbum]). Neighbours come from the traversal-ordered queue snapshot.
+     */
+    private fun boundaryFades(player: Player): Pair<Boolean, Boolean> {
+        val row = cachedQueueMediaIndices.indexOf(player.currentMediaItemIndex)
+        if (row < 0) return true to true
+        val current = cachedQueue.getOrNull(row)
+        val repeatsItself = player.repeatMode == Player.REPEAT_MODE_ONE
+        val previous = if (repeatsItself) current else cachedQueue.getOrNull(row - 1)
+        val next = if (repeatsItself) current else cachedQueue.getOrNull(row + 1)
+        return !continuesAlbum(previous, current) to !continuesAlbum(current, next)
     }
 
     private fun desiredNormalizationVolume(player: Player): Float =
