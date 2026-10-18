@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import android.os.SystemClock
+import android.util.Log
 import coil3.ImageLoader
 import coil3.Uri
 import coil3.asImage
@@ -25,15 +27,48 @@ internal class TrackCoverFetcher(
     private val options: Options,
 ) : Fetcher {
     override suspend fun fetch(): FetchResult = runInterruptible {
-        val bitmap = checkNotNull(AndroidTrackArtwork.loadDisplayBitmap(
+        val started = SystemClock.elapsedRealtime()
+        val width = options.size.width.pxOrElse { AndroidTrackArtwork.MAX_DIMENSION }
+        val height = options.size.height.pxOrElse { AndroidTrackArtwork.MAX_DIMENSION }
+        val crop = options.scale == Scale.FILL
+        val key = data.toString()
+        val cache = CoverThumbCache.get(options.context)
+        val bucket = cache.bucketFor(width, height, crop)
+        if (bucket != null) {
+            // A stored thumbnail skips the shared extraction permit entirely: it is a small file.
+            when (val stored = cache.read(key, bucket, width)) {
+                is CoverThumbCache.Lookup.Hit -> {
+                    logCover("cache", width, started)
+                    return@runInterruptible ImageFetchResult(
+                        image = stored.bitmap.asImage(),
+                        isSampled = true,
+                        dataSource = DataSource.DISK,
+                    )
+                }
+                CoverThumbCache.Lookup.Missing -> {
+                    logCover("none", width, started)
+                    error("No cover for '$data'.")
+                }
+                CoverThumbCache.Lookup.Unknown -> Unit
+            }
+        }
+        val decoded = AndroidTrackArtwork.loadDisplayBitmap(
             resolver = options.context.contentResolver,
             uri = data.toAndroidUri(),
-            width = options.size.width.pxOrElse { AndroidTrackArtwork.MAX_DIMENSION },
-            height = options.size.height.pxOrElse { AndroidTrackArtwork.MAX_DIMENSION },
-            crop = options.scale == Scale.FILL,
-        )) {
-            "Unable to decode '$data'."
+            width = bucket ?: width,
+            height = bucket ?: height,
+            crop = crop,
+        )
+        if (decoded == null) {
+            // A cover that is genuinely absent (failures throw instead) is remembered as absent.
+            if (bucket != null) cache.markMissing(key)
+            error("Unable to decode '$data'.")
         }
+        val bitmap = if (bucket != null) {
+            cache.write(key, bucket, decoded)
+            cache.fit(decoded, width)
+        } else decoded
+        logCover("extract", maxOf(width, height), started)
         ImageFetchResult(image = bitmap.asImage(), isSampled = true, dataSource = DataSource.DISK)
     }
 
@@ -42,3 +77,15 @@ internal class TrackCoverFetcher(
             if (MediaStoreArtwork.audioFallback(data.toString()) != null) TrackCoverFetcher(data, options) else null
     }
 }
+
+/**
+ * Cover timing for profiling, off unless `adb shell setprop log.tag.LJArt DEBUG`: one line per
+ * fetch with how it was served, the requested size and the milliseconds from start to bitmap.
+ */
+internal fun logCover(source: String, size: Int, startedAt: Long) {
+    if (Log.isLoggable(COVER_LOG_TAG, Log.DEBUG)) {
+        Log.d(COVER_LOG_TAG, "$source size=$size ms=${SystemClock.elapsedRealtime() - startedAt}")
+    }
+}
+
+private const val COVER_LOG_TAG = "LJArt"

@@ -37,8 +37,11 @@ public object AndroidTrackArtwork {
     public const val MAX_DIMENSION: Int = 2048
 
     // Decoding happens in fetchers as well as media-session workers, outside Coil's decoder
-    // semaphore. Share one permit so scrolling cannot multiply the metadata/bitmap ceilings.
-    private val readPermit = Semaphore(1)
+    // semaphore. A shared permit keeps scrolling from multiplying the metadata/bitmap ceilings:
+    // one on small heaps, two where the heap is large enough for two ceilings at once, so a
+    // fling's covers no longer queue behind a single extraction.
+    private val readPermit = Semaphore(if (Runtime.getRuntime().maxMemory() >= LARGE_HEAP_BYTES) 2 else 1)
+    private const val LARGE_HEAP_BYTES = 256L * 1024 * 1024
 
     public fun loadBitmap(resolver: ContentResolver, uri: Uri, maxDimension: Int = MAX_DIMENSION): Bitmap? =
         loadBitmap(resolver, uri, maxDimension.coerceIn(1, MAX_DIMENSION), null)
