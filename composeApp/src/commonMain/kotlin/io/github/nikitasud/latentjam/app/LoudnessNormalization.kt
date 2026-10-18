@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.playback.NowPlaying
 import io.github.nikitasud.latentjam.playback.PlaybackController
 import io.github.nikitasud.latentjam.playback.IntegratedLoudness
 import kotlinx.coroutines.currentCoroutineContext
@@ -26,6 +27,10 @@ import org.koin.core.module.Module
 internal interface TrackLoudnessMeter {
     suspend fun measure(track: TrackDescriptor): IntegratedLoudness?
 }
+
+/** The row after the playing one in the order it will play, or null at the end of the queue. */
+internal fun NowPlaying.upcomingTrack(): TrackDescriptor? =
+    if (queueIndex < 0) null else queue.getOrNull(queueIndex + 1)
 
 /** Koin binding for this platform's [TrackLoudnessMeter]. */
 internal expect fun loudnessMeterModule(): Module
@@ -90,9 +95,9 @@ internal data class NormalizationStatus(
 /**
  * Keeps playback volumes matched to measured loudness, measuring lazily as tracks play.
  *
- * There is deliberately no library-wide backfill pass: each track is measured once, on the first
- * play after the toggle goes on (bounded streaming background decode), and remembered until its
- * underlying audio identity changes.
+ * There is deliberately no library-wide backfill pass: each track is measured once, while the track
+ * before it in the queue plays (or on its own first play when nothing came before), with a bounded
+ * streaming background decode, and remembered until its underlying audio identity changes.
  * Measurement failures are retried next session at most — never in a loop while a track plays.
  */
 internal class LoudnessNormalizer(
@@ -122,42 +127,54 @@ internal class LoudnessNormalizer(
                         onStatus(NormalizationStatus(if (enabled) NormalizationPhase.WAITING else NormalizationPhase.OFF))
                         return@collectLatest
                     }
-                    val id = track.id.value
-                    val audioIdentity = track.loudnessAudioIdentity()
-                    val attemptIdentity = "$id|$audioIdentity"
-                    val existing = measured.value[id]
-                    if (existing?.audioIdentity == audioIdentity) {
-                        reportReady(existing.measurement)
-                        return@collectLatest
+                    when (val result = ensureMeasured(track, reportsProgress = true)) {
+                        is Measured.Ready -> reportReady(result.measurement)
+                        Measured.Unavailable -> onStatus(NormalizationStatus(NormalizationPhase.UNAVAILABLE))
                     }
-                    if (existing != null) {
-                        // Remove the stale gain before decoding the replacement. Otherwise the old
-                        // file's attenuation remains audible during the new file's measurement.
-                        publish(measured.value - id)
+                    // Then what plays next, while this track plays, so its first second already
+                    // sounds at the right level instead of dipping once a mid-song scan finishes.
+                    // Its own key: SMART appending the next row must not restart the scan above.
+                    playback.state.map { it.upcomingTrack() }.distinctUntilChanged().collectLatest { upcoming ->
+                        if (upcoming != null && upcoming.id != track.id) ensureMeasured(upcoming, reportsProgress = false)
                     }
-                    if (attemptIdentity in failedThisSession) {
-                        onStatus(NormalizationStatus(NormalizationPhase.UNAVAILABLE))
-                        return@collectLatest
-                    }
-                    onStatus(NormalizationStatus(NormalizationPhase.MEASURING))
-                    val measurement = try {
-                        meter.measure(track)
-                    } catch (cancelled: CancellationException) {
-                        throw cancelled
-                    } catch (failure: Throwable) {
-                        println("Loudness: measurement failed: $failure")
-                        null
-                    }
-                    currentCoroutineContext().ensureActive()
-                    if (measurement == null || !measurement.isValid()) {
-                        failedThisSession += attemptIdentity
-                        onStatus(NormalizationStatus(NormalizationPhase.UNAVAILABLE))
-                        return@collectLatest
-                    }
-                    publish(measured.value + (id to StoredTrackLoudness(measurement, audioIdentity)))
-                    reportReady(measurement)
                 }
         }
+    }
+
+    private sealed interface Measured {
+        data class Ready(val measurement: IntegratedLoudness) : Measured
+        data object Unavailable : Measured
+    }
+
+    /** Cached when the audio identity still matches; otherwise decoded once per session attempt. */
+    private suspend fun ensureMeasured(track: TrackDescriptor, reportsProgress: Boolean): Measured {
+        val id = track.id.value
+        val audioIdentity = track.loudnessAudioIdentity()
+        val attemptIdentity = "$id|$audioIdentity"
+        val existing = measured.value[id]
+        if (existing?.audioIdentity == audioIdentity) return Measured.Ready(existing.measurement)
+        if (existing != null) {
+            // Remove the stale gain before decoding the replacement. Otherwise the old
+            // file's attenuation remains audible during the new file's measurement.
+            publish(measured.value - id)
+        }
+        if (attemptIdentity in failedThisSession) return Measured.Unavailable
+        if (reportsProgress) onStatus(NormalizationStatus(NormalizationPhase.MEASURING))
+        val measurement = try {
+            meter.measure(track)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Throwable) {
+            println("Loudness: measurement failed: $failure")
+            null
+        }
+        currentCoroutineContext().ensureActive()
+        if (measurement == null || !measurement.isValid()) {
+            failedThisSession += attemptIdentity
+            return Measured.Unavailable
+        }
+        publish(measured.value + (id to StoredTrackLoudness(measurement, audioIdentity)))
+        return Measured.Ready(measurement)
     }
 
     private fun reportReady(measurement: IntegratedLoudness) {

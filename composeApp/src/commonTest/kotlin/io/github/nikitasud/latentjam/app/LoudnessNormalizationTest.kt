@@ -207,6 +207,62 @@ internal class LoudnessNormalizationTest {
         assertEquals(setOf("second"), playback.volumeUpdates.last().keys)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun theNextQueuedTrackIsMeasuredBeforeItPlays() = runTest {
+        val settings = ThrowingSettings()
+        val playback = FakePlayback()
+        val measuredIds = mutableListOf<String>()
+        val statuses = mutableListOf<NormalizationStatus>()
+        val meter = object : TrackLoudnessMeter {
+            override suspend fun measure(track: TrackDescriptor): IntegratedLoudness {
+                measuredIds += track.id.value
+                return IntegratedLoudness(if (track.id.value == "second") -8f else -20f, -2f)
+            }
+        }
+        LoudnessNormalizer(settings, playback, meter, statuses::add).start(backgroundScope)
+        val first = audioTrack("first", "one")
+        val second = audioTrack("second", "one")
+        playback.nowPlaying.value = NowPlaying(track = first, queue = listOf(first, second), queueIndex = 0)
+        runCurrent()
+        assertEquals(listOf("first", "second"), measuredIds)
+        assertTrue("second" in playback.volumeUpdates.last(), "the next track's gain is ready before it starts")
+        assertEquals(NormalizationStatus(NormalizationPhase.READY), statuses.last(), "the lookahead does not overwrite the playing track's status")
+
+        playback.nowPlaying.value = NowPlaying(track = second, queue = listOf(first, second), queueIndex = 1)
+        runCurrent()
+        assertEquals(listOf("first", "second"), measuredIds, "no second scan when it starts")
+        assertTrue(abs(statuses.last().reductionDb - 6f) < 0.01f)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun aLateNextRowDoesNotRestartThePlayingTracksScan() = runTest {
+        val settings = ThrowingSettings()
+        val playback = FakePlayback()
+        val pending = CompletableDeferred<IntegratedLoudness?>()
+        var firstScans = 0
+        val measuredIds = mutableListOf<String>()
+        val meter = object : TrackLoudnessMeter {
+            override suspend fun measure(track: TrackDescriptor): IntegratedLoudness? {
+                measuredIds += track.id.value
+                if (track.id.value == "first") { firstScans++; return pending.await() }
+                return IntegratedLoudness(-8f, -2f)
+            }
+        }
+        LoudnessNormalizer(settings, playback, meter).start(backgroundScope)
+        val first = audioTrack("first", "one")
+        val appended = audioTrack("appended", "one")
+        playback.nowPlaying.value = NowPlaying(track = first, queue = listOf(first), queueIndex = 0)
+        runCurrent()
+        playback.nowPlaying.value = NowPlaying(track = first, queue = listOf(first, appended), queueIndex = 0)
+        runCurrent()
+        assertEquals(1, firstScans)
+        pending.complete(IntegratedLoudness(-8f, -2f))
+        runCurrent()
+        assertEquals(listOf("first", "appended"), measuredIds)
+    }
+
     private fun audioTrack(id: String, revision: String): TrackDescriptor = TrackDescriptor(
         id = TrackId(id),
         audioUri = "content://media/$id",
