@@ -145,7 +145,7 @@ int16_t quantize(float sample) {
 }
 
 struct lj_equalizer {
-    int rate, channels, transitionFrames, transitionPosition = 0, active = 0;
+    int rate, channels, transitionFrames, transitionPosition = 0, active = 0, fadeFrames, fadePosition;
     bool transitioning = false;
     ConfigMailbox mailbox;
     std::array<Bank, 2> banks;
@@ -154,7 +154,8 @@ struct lj_equalizer {
     std::atomic<float> meterGain{1};
     std::atomic<uint64_t> lastRender{0};
     lj_equalizer(int sampleRate, int channelCount) : rate(sampleRate), channels(channelCount),
-        transitionFrames(std::max(1, rate / 50)), limiter(rate, channels), priming(limiter.latency) {}
+        transitionFrames(std::max(1, rate / 50)), fadeFrames(std::max(1, rate / 200)), fadePosition(fadeFrames),
+        limiter(rate, channels), priming(limiter.latency) {}
     void beginBlock() {
         if (!transitioning && mailbox.consume()) {
             banks[1 - active].configure(mailbox.current(), channels);
@@ -162,6 +163,10 @@ struct lj_equalizer {
         }
     }
     void frame(float *samples) {
+        // Raised-cosine rise; before the filters, so their zeroed histories see a gentle start.
+        const double fade = fadePosition < fadeFrames
+            ? std::pow(std::sin(1.5707963267948966 * double(++fadePosition) / fadeFrames), 2) : 1;
+        if (fade < 1) for (int c = 0; c < channels; ++c) samples[c] = float(samples[c] * fade);
         const double mix = transitioning ? double(transitionPosition + 1) / transitionFrames : 0;
         for (int c = 0; c < channels; ++c) {
             const double input = std::isfinite(samples[c]) ? double(samples[c]) : 0;
@@ -191,9 +196,10 @@ void lj_eq_reset(lj_equalizer *eq) {
     if (!eq) return;
     eq->mailbox.consume(); eq->banks[0].configure(eq->mailbox.current(), eq->channels);
     eq->active = 0; eq->transitioning = false; eq->transitionPosition = 0;
-    eq->limiter.reset(); eq->priming = eq->limiter.latency; eq->pending = 0;
+    eq->limiter.reset(); eq->priming = eq->limiter.latency; eq->pending = 0; eq->fadePosition = eq->fadeFrames;
     eq->meterGain.store(1); eq->lastRender.store(0);
 }
+void lj_eq_fade_in(lj_equalizer *eq) { if (eq) eq->fadePosition = 0; }
 int lj_eq_latency_frames(const lj_equalizer *eq) { return eq ? eq->limiter.latency : 0; }
 int lj_eq_channel_count(const lj_equalizer *eq) { return eq ? eq->channels : 0; }
 void lj_eq_process_f32(lj_equalizer *eq, float *data, int count) {

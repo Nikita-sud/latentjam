@@ -31,6 +31,8 @@ internal actual class NativeEqualizer actual constructor(sampleRate: Int, privat
         output.position(output.position() + frames * channels * 2)
         return frames
     }
+    /** The next 5 ms of input rise from silence: a stream resumed mid-waveform must not click. */
+    fun fadeIn() = NativeEqualizerJni.fadeIn(requireHandle())
     actual fun takeMeterGain(): Float = NativeEqualizerJni.takeGain(requireHandle())
     actual fun close() { if (handle != 0L) { NativeEqualizerJni.destroy(handle); handle = 0L } }
     private fun requireHandle(): Long = handle.also { check(it != 0L) { "EQ stream is closed" } }
@@ -52,6 +54,7 @@ internal object NativeEqualizerJni {
     external fun destroy(handle: Long)
     external fun update(handle: Long, enabled: Boolean, levels: IntArray, bass: Int)
     external fun reset(handle: Long)
+    external fun fadeIn(handle: Long)
     external fun latency(handle: Long): Int
     external fun processFloat(handle: Long, samples: FloatArray, frames: Int, channels: Int)
     external fun processPcm16(handle: Long, input: ByteBuffer, inputOffset: Int, output: ByteBuffer, outputOffset: Int, frames: Int, channels: Int): Int

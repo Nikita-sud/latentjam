@@ -13,6 +13,9 @@ lj_equalizer *lj_eq_create(int sample_rate, int channels);
 void lj_eq_destroy(lj_equalizer *eq);
 void lj_eq_set_settings(lj_equalizer *eq, int enabled, const int32_t levels[10], int bass);
 void lj_eq_reset(lj_equalizer *eq);
+/* Rendering stopped or on the render thread. After a seek or restart the first input frames
+ * rise from silence over 5 ms, so a waveform resumed mid-cycle does not click. Reset cancels it. */
+void lj_eq_fade_in(lj_equalizer *eq);
 int lj_eq_latency_frames(const lj_equalizer *eq);
 int lj_eq_channel_count(const lj_equalizer *eq);
 /* Float entry points preserve the fixed delay, including bypass. Buffers are in-place. */

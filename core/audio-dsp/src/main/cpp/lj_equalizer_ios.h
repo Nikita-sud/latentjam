@@ -8,6 +8,8 @@ extern "C" {
 AVAudioUnit * _Nullable lj_eq_ios_create(void);
 void lj_eq_ios_set_settings(AVAudioUnit *unit, int enabled, const int32_t *levels, int bass);
 void lj_eq_ios_reset(AVAudioUnit *unit);
+/* Reset for a stream resumed mid-track: its first 5 ms rise from silence (see lj_eq_fade_in). */
+void lj_eq_ios_restart(AVAudioUnit *unit);
 /* Stopped graph only. Configure both buses while detached, then reconnect. Unsupported system
  * formats return false; an Objective-C audio-graph exception must not cross the Kotlin boundary. */
 int lj_eq_ios_connect(AVAudioEngine *engine, AVAudioPlayerNode *player, AVAudioUnit *unit, AVAudioFormat *format);

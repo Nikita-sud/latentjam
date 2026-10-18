@@ -145,6 +145,7 @@ internal class IosAudioEngine : EqualizerController {
         val start = millisToFrame(resumePositionMs, file).coerceIn(0L, lastFrame)
         segmentStartFrame = start
         pausedFrame = start
+        if (start > 0L) lj_eq_ios_restart(equalizer)
         scheduleSegment(file, start)
         return true
     }
@@ -264,7 +265,8 @@ internal class IosAudioEngine : EqualizerController {
         completionGeneration++
         engine.stop()
         player.stop()
-        lj_eq_ios_reset(equalizer)
+        // The new position starts mid-waveform: let it rise over 5 ms instead of clicking.
+        lj_eq_ios_restart(equalizer)
         segmentStartFrame = frame
         pausedFrame = frame
         scheduleSegment(file, frame)

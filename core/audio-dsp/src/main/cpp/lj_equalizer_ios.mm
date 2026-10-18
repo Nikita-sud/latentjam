@@ -24,6 +24,7 @@ struct LJRenderState {
 }
 - (void)setEnabled:(int)enabled levels:(const int32_t *)levels bass:(int)bass;
 - (void)resetDSP;
+- (void)restartDSP;
 - (int)sampleRate;
 - (float)takeMeterGain;
 @end
@@ -124,6 +125,7 @@ struct LJRenderState {
     if (_render.core) lj_eq_set_settings(_render.core, _enabled, _levels.data(), _bass);
 }
 - (void)resetDSP { std::lock_guard<std::mutex> guard(_control); if (_render.core) lj_eq_reset(_render.core); }
+- (void)restartDSP { std::lock_guard<std::mutex> guard(_control); if (_render.core) { lj_eq_reset(_render.core); lj_eq_fade_in(_render.core); } }
 - (int)sampleRate { std::lock_guard<std::mutex> guard(_control); return _render.core ? int(_inputBus.format.sampleRate) : 0; }
 - (float)takeMeterGain { std::lock_guard<std::mutex> guard(_control); return lj_eq_take_meter_gain(_render.core); }
 @end
@@ -138,6 +140,7 @@ void lj_eq_ios_set_settings(AVAudioUnit *unit, int enabled, const int32_t *level
     [(LJEqualizerAudioUnit *)unit.AUAudioUnit setEnabled:enabled levels:levels bass:bass];
 }
 void lj_eq_ios_reset(AVAudioUnit *unit) { [(LJEqualizerAudioUnit *)unit.AUAudioUnit resetDSP]; }
+void lj_eq_ios_restart(AVAudioUnit *unit) { [(LJEqualizerAudioUnit *)unit.AUAudioUnit restartDSP]; }
 int lj_eq_ios_sample_rate(AVAudioUnit *unit) { return [(LJEqualizerAudioUnit *)unit.AUAudioUnit sampleRate]; }
 float lj_eq_ios_take_meter_gain(AVAudioUnit *unit) { return [(LJEqualizerAudioUnit *)unit.AUAudioUnit takeMeterGain]; }
 

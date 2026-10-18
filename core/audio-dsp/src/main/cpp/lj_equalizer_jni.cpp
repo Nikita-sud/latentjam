@@ -29,6 +29,7 @@ JNIEXPORT void JNICALL JNI_METHOD(update)(JNIEnv *env, jobject, jlong h, jboolea
     int32_t data[10]; if (levels(env, input, data)) lj_eq_set_settings(core(h), enabled, data, bass);
 }
 JNIEXPORT void JNICALL JNI_METHOD(reset)(JNIEnv *, jobject, jlong h) { lj_eq_reset(core(h)); }
+JNIEXPORT void JNICALL JNI_METHOD(fadeIn)(JNIEnv *, jobject, jlong h) { lj_eq_fade_in(core(h)); }
 JNIEXPORT jint JNICALL JNI_METHOD(latency)(JNIEnv *, jobject, jlong h) { return lj_eq_latency_frames(core(h)); }
 JNIEXPORT void JNICALL JNI_METHOD(processFloat)(JNIEnv *env, jobject, jlong h, jfloatArray input, jint frames, jint channels) {
     if (!h || !input || frames < 0 || channels != lj_eq_channel_count(core(h)) || int64_t(frames) * channels > env->GetArrayLength(input)) { fail(env, "EQ float buffer bounds are invalid"); return; }

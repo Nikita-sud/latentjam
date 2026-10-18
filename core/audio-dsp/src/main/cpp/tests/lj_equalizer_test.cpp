@@ -39,6 +39,18 @@ int main() {
         require(written==4000 && pcm==decoded,"PCM16 chunking/EOS must preserve frames and bits");
         lj_eq_destroy(eq);
     }
+    for (int rate : {8000,44100,48000,192000}) {
+        auto *eq=lj_eq_create(rate,2); lj_eq_set_settings(eq,0,levels,0); lj_eq_reset(eq);
+        const int latency=lj_eq_latency_frames(eq), fade=std::max(1,rate/200), frames=latency+fade+500;
+        std::vector<float> constant(frames*2,0.5f); lj_eq_fade_in(eq); lj_eq_process_f32(eq,constant.data(),frames);
+        require(constant[latency*2]<0.01f,"fade-in starts from near silence");
+        for (int i=1;i<fade;++i) require(constant[(latency+i)*2]>=constant[(latency+i-1)*2] && constant[(latency+i)*2+1]==constant[(latency+i)*2],"fade-in rises monotonically on linked channels");
+        for (int i=fade;i<fade+500;++i) require(constant[(latency+i)*2]==0.5f,"after the fade bypass is bit-exact again");
+        lj_eq_fade_in(eq); lj_eq_reset(eq);
+        std::vector<float> after(frames*2,0.5f); lj_eq_process_f32(eq,after.data(),frames);
+        require(after[latency*2]==0.5f,"reset cancels an armed fade");
+        lj_eq_destroy(eq);
+    }
     auto *eq=lj_eq_create(48000,2);
     for (auto &level:levels) level=1200;
     lj_eq_set_settings(eq,1,levels,1000); lj_eq_reset(eq);
@@ -73,5 +85,5 @@ int main() {
     for (int i=0;i<400;++i) { for (float &sample:block) sample=0.1f; lj_eq_process_f32(eq,block,256); }
     for (float sample:block) require(sample==0.1f,"latest bypass command must not be lost");
     lj_eq_destroy(eq);
-    std::printf("PASS: bypass, layouts/rates, EOS, stereo ceiling, zero allocations, concurrent settings\n");
+    std::printf("PASS: bypass, restart fade, layouts/rates, EOS, stereo ceiling, zero allocations, concurrent settings\n");
 }

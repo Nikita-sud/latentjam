@@ -19,6 +19,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.log10
@@ -56,8 +57,8 @@ class EqualizerPlaybackDeviceTest {
                         }
                     }
                     val factory = object : EqualizerRenderersFactory(context) {
-                        override fun buildAudioProcessors(context: Context): Array<AudioProcessor> =
-                            super.buildAudioProcessors(context) + capture
+                        override fun buildAudioProcessors(context: Context, restart: AtomicBoolean): Array<AudioProcessor> =
+                            super.buildAudioProcessors(context, restart) + capture
                     }
                     player = ExoPlayer.Builder(context, factory).build()
                     player.volume = 0f

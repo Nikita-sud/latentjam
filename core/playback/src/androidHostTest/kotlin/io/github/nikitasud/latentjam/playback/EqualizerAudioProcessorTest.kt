@@ -13,6 +13,7 @@ import androidx.media3.exoplayer.audio.AudioSink
 import java.lang.reflect.Proxy
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sin
@@ -186,5 +187,31 @@ internal class EqualizerAudioProcessorTest {
             assertTrue(!sink.getFormatOffloadSupport(format).isFormatSupported)
         }
         assertTrue(sink.supportsFormat(Format.Builder().setSampleMimeType(MimeTypes.AUDIO_RAW).build()))
+    }
+
+    @Test fun aRendererFlushFadesTheNextStreamInWhileOtherFlushesStayBitExact() {
+        val restart = AtomicBoolean(false)
+        val delegate = Proxy.newProxyInstance(AudioSink::class.java.classLoader, arrayOf(AudioSink::class.java)) { _, method, _ ->
+            if (method.name == "flush") null else error("Unexpected delegation to ${method.name}")
+        } as AudioSink
+        val processor = EqualizerAudioProcessor(restart = restart) { SoftwareEqualizerSettings() }
+        processor.configure(AudioProcessor.AudioFormat(48000, 2, C.ENCODING_PCM_16BIT))
+        val steady = List(2400 * 2) { 20000 }
+
+        PcmOnlyAudioSink(delegate, restart).flush()
+        processor.flush(StreamMetadata.DEFAULT)
+        assertTrue(!restart.get())
+        processor.queueInput(buffer(steady))
+        val faded = read(processor.output)
+        val fadeFrames = 48000 / 200
+        assertTrue(abs(faded[0]) < 200, "starts from near silence")
+        assertTrue((1 until fadeFrames).all { faded[2 * it] >= faded[2 * (it - 1)] }, "rises monotonically")
+        assertTrue(faded.size > fadeFrames * 2 && faded.drop(fadeFrames * 2).all { it == 20000 }, "bit-exact after the fade")
+
+        // Media3's own reconfiguration flush (no renderer reposition) keeps the stream untouched.
+        processor.flush(StreamMetadata.DEFAULT)
+        processor.queueInput(buffer(steady))
+        val plain = read(processor.output)
+        assertEquals(steady.take(plain.size), plain)
     }
 }

@@ -17,10 +17,13 @@ import androidx.media3.exoplayer.audio.AudioOffloadSupport
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.audio.ForwardingAudioSink
 import java.nio.ByteBuffer
+import java.util.concurrent.atomic.AtomicBoolean
 
 /** Always stays in the PCM chain, so toggling EQ mid-track never needs a seek or player rebuild. */
 internal class EqualizerAudioProcessor(
     private val meter: EqualizerMeter? = null,
+    /** Set by the sink when the renderer repositions; the next stream then starts with a fade. */
+    private val restart: AtomicBoolean = AtomicBoolean(false),
     private val readSettings: () -> SoftwareEqualizerSettings,
 ) : BaseAudioProcessor() {
     private var equalizer: NativeEqualizer? = null
@@ -34,6 +37,7 @@ internal class EqualizerAudioProcessor(
     override fun onFlush(streamMetadata: StreamMetadata) {
         equalizer?.close()
         equalizer = NativeEqualizer(inputAudioFormat.sampleRate, inputAudioFormat.channelCount, readSettings())
+            .also { if (restart.getAndSet(false)) it.fadeIn() }
     }
 
     override fun onReset() { equalizer?.close(); equalizer = null }
@@ -74,21 +78,32 @@ internal open class EqualizerRenderersFactory(context: Context) : DefaultRendere
         enableFloatOutput: Boolean,
         enableAudioOutputPlaybackParams: Boolean,
     ): AudioSink {
+        val restart = AtomicBoolean(false)
         val sink = DefaultAudioSink.Builder(context)
             .setEnableFloatOutput(false)
             .setEnableAudioOutputPlaybackParameters(enableAudioOutputPlaybackParams)
-            .setAudioProcessors(buildAudioProcessors(context))
+            .setAudioProcessors(buildAudioProcessors(context, restart))
             .build()
-        return PcmOnlyAudioSink(sink)
+        return PcmOnlyAudioSink(sink, restart)
     }
 
-    protected open fun buildAudioProcessors(context: Context): Array<AudioProcessor> {
+    protected open fun buildAudioProcessors(context: Context, restart: AtomicBoolean): Array<AudioProcessor> {
         val controller = AndroidEqualizerController.get(context)
-        return arrayOf(EqualizerAudioProcessor(controller.meter) { controller.settings })
+        return arrayOf(EqualizerAudioProcessor(controller.meter, restart) { controller.settings })
     }
 }
 
-internal class PcmOnlyAudioSink(sink: AudioSink) : ForwardingAudioSink(sink) {
+/**
+ * Only the renderer calls the public [flush]: a seek, a skip or the first start. DefaultAudioSink's
+ * own reconfiguration between tracks flushes internally, and a gapless join never flushes, so a
+ * continuous stream is never faded. Arming before the flush lets the processor's onFlush see it.
+ */
+internal class PcmOnlyAudioSink(sink: AudioSink, private val restart: AtomicBoolean = AtomicBoolean(false)) : ForwardingAudioSink(sink) {
+    override fun flush() {
+        restart.set(true)
+        super.flush()
+    }
+
     override fun supportsFormat(format: Format): Boolean = getFormatSupport(format) != AudioSink.SINK_FORMAT_UNSUPPORTED
     override fun getFormatSupport(format: Format): Int =
         if (format.sampleMimeType == MimeTypes.AUDIO_RAW) super.getFormatSupport(format)
