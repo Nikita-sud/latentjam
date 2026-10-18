@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.EnterTransition
@@ -2927,6 +2929,12 @@ private fun AppShell(
 
                                         StartPage.ALBUMS -> Column {
                                             val albumsGridState = rememberLazyGridState()
+                                            // Each arrival on the Albums page plays the grid's wave once.
+                                            val reduceGridMotion = rememberReduceMotion()
+                                            val albumWave = remember { Animatable(if (reduceGridMotion) 1f else 0f) }
+                                            LaunchedEffect(Unit) {
+                                                if (!reduceGridMotion) albumWave.animateTo(1f, tween(GRID_WAVE_MS, easing = LinearEasing))
+                                            }
                                             // The grid shows the derived order, which can lag the setting.
                                             val scrollAlbumsToTopOnSort = rememberScrollToTopOnSort(
                                                 shown = albumBrowse?.choice,
@@ -3032,7 +3040,7 @@ private fun AppShell(
                                                                     fadeInSpec = null,
                                                                     fadeOutSpec = null,
                                                                     placementSpec = tween(Motion.NAVIGATION_MS, easing = Motion.NavigationEasing),
-                                                                ),
+                                                                ).gridWave({ albumWave.value }, gridState, album.key),
                                                                 onArtworkLoadStateChanged =
                                                                     if (isPreview) {
                                                                         null

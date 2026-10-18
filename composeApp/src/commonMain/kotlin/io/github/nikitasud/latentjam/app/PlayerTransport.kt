@@ -196,7 +196,7 @@ internal fun SkipButton(
             .size(SKIP_BUTTON_SIZE)
             .clip(CircleShape)
             .indication(interaction, ripple(bounded = false, radius = SKIP_BUTTON_SIZE / 2))
-            .scaleOnPress(interaction)
+            .scaleOnPress(interaction, Motion.BUTTON_PRESS_SCALE)
             .semantics {
                 role = Role.Button
                 contentDescription = description
@@ -289,7 +289,7 @@ internal fun ModeButton(
                 .size(MODE_BUTTON_SIZE)
                 .clip(CircleShape)
                 .indication(interaction, ripple(bounded = false, radius = MODE_BUTTON_SIZE / 2))
-                .scaleOnPress(interaction)
+                .scaleOnPress(interaction, Motion.BUTTON_PRESS_SCALE)
                 .semantics {
                     role = Role.Button
                     contentDescription = description

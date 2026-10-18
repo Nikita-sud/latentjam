@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FiniteAnimationSpec
@@ -72,6 +74,13 @@ internal object Motion {
 
     /** Pressed-card scale: noticeable under the finger, invisible in screenshots. */
     const val PRESS_SCALE = 0.98f
+
+    /** The player's transport buttons sink further: they are pressed on purpose, often blind. */
+    const val BUTTON_PRESS_SCALE = 0.88f
+
+    /** A press lands at once; the release eases back, so the control "gives" under the finger. */
+    const val PRESS_IN_MS = 60
+    const val PRESS_OUT_MS = 360
 }
 
 /** The closing path retraces the opening path, rather than vanishing before the morph finishes. */
@@ -232,21 +241,27 @@ internal fun Modifier.inactiveForMotion(inactive: Boolean): Modifier = if (!inac
 }
 
 /**
- * Card press feedback: a small spring scale under the finger, alongside the ripple.
+ * Press feedback: a scale under the finger, alongside the ripple. Asymmetric on purpose: the
+ * press arrives in [Motion.PRESS_IN_MS] and the release eases back over [Motion.PRESS_OUT_MS], so
+ * the response is immediate and the recovery soft; a symmetric spring felt late on a tap.
  *
  * The caller owns the [MutableInteractionSource] and passes the same instance to `clickable`,
  * so scale and ripple always agree about what is being pressed.
  */
 @Composable
-internal fun Modifier.scaleOnPress(interactionSource: MutableInteractionSource): Modifier {
+internal fun Modifier.scaleOnPress(
+    interactionSource: MutableInteractionSource,
+    pressedScale: Float = Motion.PRESS_SCALE,
+): Modifier {
     val pressed by interactionSource.collectIsPressedAsState()
     val reduceMotion = rememberReduceMotion()
     val scale by animateFloatAsState(
-        targetValue = if (pressed && !reduceMotion) Motion.PRESS_SCALE else 1f,
-        animationSpec = if (reduceMotion) snap() else spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMediumLow,
-        ),
+        targetValue = if (pressed && !reduceMotion) pressedScale else 1f,
+        animationSpec = when {
+            reduceMotion -> snap()
+            pressed -> tween(Motion.PRESS_IN_MS, easing = LinearOutSlowInEasing)
+            else -> tween(Motion.PRESS_OUT_MS, easing = Motion.NavigationEasing)
+        },
         label = "press-scale",
     )
     return graphicsLayer {
@@ -254,3 +269,35 @@ internal fun Modifier.scaleOnPress(interactionSource: MutableInteractionSource):
         scaleY = scale
     }
 }
+
+/**
+ * A grid's first appearance as a diagonal wave: each cell fades in and rises a little, delayed by
+ * its row plus column from the top-left cell on screen, so the page arrives as one sweep instead
+ * of every cover popping at once. [progress] runs 0 to 1 once per arrival (see [GRID_WAVE_MS]);
+ * cells laid out after it finishes, by scrolling, are simply there. Draw-phase only: the wave
+ * never recomposes a cell.
+ */
+internal fun Modifier.gridWave(progress: () -> Float, state: LazyGridState, key: Any): Modifier =
+    graphicsLayer {
+        val p = progress()
+        if (p >= 1f) return@graphicsLayer
+        val visible = state.layoutInfo.visibleItemsInfo
+        val cell = visible.firstOrNull { it.key == key }
+        if (cell == null) {
+            alpha = 0f
+            return@graphicsLayer
+        }
+        val firstRow = visible.minOf { it.row }
+        val delay = minOf((cell.row - firstRow + cell.column) * GRID_WAVE_STEP_MS, GRID_WAVE_MAX_DELAY_MS)
+        val t = ((p * GRID_WAVE_MS - delay) / GRID_WAVE_FADE_MS).coerceIn(0f, 1f)
+        val eased = Motion.NavigationEasing.transform(t)
+        alpha = eased
+        translationY = (1f - eased) * GRID_WAVE_RISE_DP * density
+    }
+
+/** One arrival of the wave: the longest delay plus one cell's fade. */
+internal const val GRID_WAVE_MS = 440
+private const val GRID_WAVE_STEP_MS = 40
+private const val GRID_WAVE_MAX_DELAY_MS = 220
+private const val GRID_WAVE_FADE_MS = 220f
+private const val GRID_WAVE_RISE_DP = 10f

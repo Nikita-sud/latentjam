@@ -802,7 +802,7 @@ fun NowPlayingScreen(
                                             interactionSource = playInteraction,
                                             modifier = Modifier
                                                 .size(72.dp)
-                                                .scaleOnPress(playInteraction)
+                                                .scaleOnPress(playInteraction, Motion.BUTTON_PRESS_SCALE)
                                                 .semantics { contentDescription = playPauseDescription },
                                         ) {
                                             AnimatedContent(
