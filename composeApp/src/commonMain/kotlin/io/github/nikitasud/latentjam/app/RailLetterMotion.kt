@@ -44,19 +44,29 @@ internal fun railLetterPositions(
             label to padding + (index + 0.5f) * inner / buckets.size
         }.toMap()
     }
-    val active = buckets.indexOf(activeBucket).coerceAtLeast(0)
-    val available = (inner - labelHeight).coerceAtLeast(0f)
-    val guideCount = (available / labelHeight).toInt().coerceIn(2, 32)
-    val last = buckets.lastIndex.coerceAtLeast(1)
-    fun centre(index: Int) = padding + labelHeight / 2f + index.toFloat() / last * available
+    // Too many letters for the rail: show an even selection at an even rhythm, the way a printed
+    // index does. Placing each chosen letter at its own alphabet position made the rounding of
+    // the selection visible as clumps and holes ("E G · J L N · R T"), and clearing room around
+    // the current letter punched a further hole beside it.
+    val slots = (inner / labelHeight).toInt().coerceIn(2, 32).coerceAtMost(buckets.size)
+    if (slots < 2 || inner < labelHeight * 2f) {
+        // Room for one label at most: the current letter, centred.
+        return mapOf((activeBucket?.takeIf { it in buckets } ?: buckets.first()) to height / 2f)
+    }
+    val last = buckets.lastIndex
+    val chosen = IntArray(slots) { slot -> (slot.toFloat() / (slots - 1) * last).roundToInt() }
+    // The current letter takes over the slot whose stretch of the alphabet it falls in, so the
+    // rail names exactly where the list is without moving anything else.
+    val active = buckets.indexOf(activeBucket)
+    if (active >= 0) {
+        val slot = chosen.indices.minByOrNull { abs(chosen[it] - active) } ?: 0
+        chosen[slot] = active
+    }
+    val step = (inner - labelHeight) / (slots - 1)
     return buildMap {
-        (0 until guideCount).forEach { guide ->
-            val index = (guide.toFloat() / (guideCount - 1) * buckets.lastIndex).roundToInt()
-            if (abs(centre(index) - centre(active)) >= labelHeight) {
-                put(buckets[index], centre(index))
-            }
+        chosen.forEachIndexed { slot, index ->
+            put(buckets[index], padding + labelHeight / 2f + slot * step)
         }
-        put(buckets[active], centre(active).coerceAtMost(height / 2f + available / 2f))
     }
 }
 

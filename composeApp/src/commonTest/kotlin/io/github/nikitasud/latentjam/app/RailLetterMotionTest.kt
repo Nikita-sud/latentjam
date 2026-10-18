@@ -41,4 +41,23 @@ class RailLetterMotionTest {
         assertTrue(railLetterPositions(listOf("A"), null, 0f, 18f, 6f).isEmpty())
         assertEquals(mapOf("A" to 5f), railLetterPositions(listOf("A"), "A", 10f, 28f, 6f))
     }
+
+    @Test fun aThinnedRailKeepsAnEvenRhythm() {
+        val labels = (0..39).map { "letter-$it" }
+        for (active in listOf("letter-0", "letter-7", "letter-23", "letter-39")) {
+            val positions = railLetterPositions(labels, active, 500f, 18f, 6f).values.sorted()
+            val gaps = positions.zipWithNext { a, b -> b - a }
+            assertTrue(gaps.isNotEmpty())
+            assertTrue(gaps.max() - gaps.min() < 0.01f, "uneven gaps $gaps with $active")
+            assertTrue(active in railLetterPositions(labels, active, 500f, 18f, 6f))
+        }
+    }
+
+    @Test fun theCurrentLetterTakesItsSlotWithoutClearingNeighbours() {
+        val labels = (0..39).map { "letter-$it" }
+        val atRest = railLetterPositions(labels, "letter-0", 500f, 18f, 6f)
+        val scrolled = railLetterPositions(labels, "letter-21", 500f, 18f, 6f)
+        assertEquals(atRest.size, scrolled.size)
+        assertEquals(atRest.values.sorted(), scrolled.values.sorted())
+    }
 }
