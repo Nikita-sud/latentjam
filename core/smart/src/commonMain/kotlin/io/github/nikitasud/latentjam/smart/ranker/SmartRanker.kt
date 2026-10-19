@@ -194,6 +194,7 @@ public class SmartRanker(
         var imputedDescriptor: FloatArray? = null
         var family: String? = packFamily
         var familyImputed: Boolean = false
+        var familyProbabilities: Map<String, Double>? = null
         var imputationTried: Boolean = false
         val descriptor: FloatArray? get() = packDescriptor ?: imputedDescriptor
         val descriptorImputed: Boolean get() = packDescriptor == null && imputedDescriptor != null
@@ -255,7 +256,11 @@ public class SmartRanker(
             k.imputationTried = true
             val out = head.impute(embedding) ?: continue
             if (k.descriptor == null) k.imputedDescriptor = out.descriptor
-            if (k.family == null && out.family != null) { k.family = out.family; k.familyImputed = true }
+            if (k.family == null) {
+                k.family = out.family
+                k.familyImputed = true
+                k.familyProbabilities = out.familyProbabilities
+            }
             filled++
         } }
         return filled
@@ -364,6 +369,7 @@ public class SmartRanker(
                 familyImputed = c.familyImputed,
                 audio = cosine(anchorAudio, audioVectors[c.track.id]),
                 artistOverlap = overlap(anchorArtists, c.artists),
+                familyProbabilities = c.familyProbabilities,
             )
         }
         val personalRows = personal?.let { h ->
@@ -374,6 +380,7 @@ public class SmartRanker(
             RankerRow(
                 family = anchor.family, language = anchor.language, decade = anchor.decade, artistKey = artistKeyOf(anchor),
                 descriptorImputed = anchor.descriptorImputed, familyImputed = anchor.familyImputed,
+                familyProbabilities = anchor.familyProbabilities,
             ),
             rows,
             personalRows,

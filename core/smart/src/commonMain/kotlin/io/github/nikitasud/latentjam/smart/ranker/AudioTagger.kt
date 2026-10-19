@@ -27,7 +27,13 @@ public class AudioTagger private constructor(
     private val ridgeBias: FloatArray,
 ) {
     /** What the head says about one track. [family] is null for its "other" class (no family in the ranker). */
-    public class Imputed(public val family: String?, public val probabilities: DoubleArray, public val descriptor: FloatArray)
+    public class Imputed(
+        public val family: String?,
+        public val probabilities: DoubleArray,
+        public val descriptor: FloatArray,
+        /** P(family) for each named family (the "other" class left out): the ranker's expected family match. */
+        public val familyProbabilities: Map<String, Double>,
+    )
 
     public val inputDim: Int get() = inputMean.size
 
@@ -49,7 +55,8 @@ public class AudioTagger private constructor(
         val ridge = DoubleArray(ridgeBias.size) { d -> dot(ridgeWeight[d], z) + ridgeBias[d] }
         val blended = unit(mean).let { a -> unit(ridge).let { b -> DoubleArray(a.size) { a[it] + b[it] } } }
         val descriptor = unit(blended)
-        return Imputed(classes[best], p, FloatArray(descriptor.size) { descriptor[it].toFloat() })
+        val named = buildMap { classes.forEachIndexed { c, name -> if (name != null) put(name, p[c]) } }
+        return Imputed(classes[best], p, FloatArray(descriptor.size) { descriptor[it].toFloat() }, named)
     }
 
     private fun dot(w: DoubleArray, z: DoubleArray): Double {

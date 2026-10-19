@@ -143,6 +143,12 @@ track's genre family and artist descriptor from mnv4_audio.onnx's embedding,
 on Free Music Archive tracks licensed CC BY, CC0 or public domain only (FMA
 metadata CC BY 4.0); its labels come from artist_knowledge.bin. It fills those
 two fields for tracks whose tags and artist say nothing, flagged as imputed.
+Its training data contains information from the Free Music Archive dataset
+(Defferrard, Benzi, Vandergheynst & Bresson, "FMA: A Dataset For Music
+Analysis", ISMIR 2017, https://github.com/mdeff/fma): the FMA metadata is
+CC BY 4.0, and only tracks whose own licence is CC BY, CC0 or public domain
+were used, each attributed to its artist in that metadata (fma_metadata,
+tracks.csv). No FMA audio or metadata ships with LatentJam.
 
 artist_lfm.bin holds one 32-dimensional vector for about 112,000 artists of
 music_entities_250k.bin: their item embeddings from a LightFM model (Apache-2.0

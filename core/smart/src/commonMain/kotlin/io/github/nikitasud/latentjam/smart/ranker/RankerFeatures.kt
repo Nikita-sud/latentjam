@@ -24,6 +24,8 @@ import kotlin.math.sqrt
  * @property familyImputed the family (of this track or the anchor) came from the audio tagger
  * @property audio A0 audio-embedding cosine to the anchor; NaN when either is not indexed yet
  * @property artistOverlap primary-weighted overlap of the artist sets with the anchor's (§1.2), 0..1
+ * @property familyProbabilities the audio tagger's P(family) when the family is imputed: same_family becomes the
+ *   expected match (the training data had no imputed rows, so no weight is learned for imputation itself)
  */
 public class RankerRow(
     public val cosine: Double = Double.NaN,
@@ -39,6 +41,7 @@ public class RankerRow(
     public val familyImputed: Boolean = false,
     public val audio: Double = Double.NaN,
     public val artistOverlap: Double = 0.0,
+    public val familyProbabilities: Map<String, Double>? = null,
 )
 
 /**
@@ -95,7 +98,8 @@ public object RankerFeatures {
         val actrRank = personal?.let { p -> rank01(DoubleArray(n) { if (p[it].activation.isNaN()) -1e9 else p[it].activation }) }
         return Array(n) { i ->
             val c = candidates[i]
-            val familyKnown = anchor.family != null && c.family != null
+            val familyKnown = (anchor.family != null || anchor.familyProbabilities != null) &&
+                (c.family != null || c.familyProbabilities != null)
             val languageKnown = anchor.language != null && c.language != null
             val decadeKnown = anchor.decade != null && c.decade != null
             val p = personal?.get(i)
@@ -104,7 +108,7 @@ public object RankerFeatures {
                 if (known[i]) c.cosine else 0.0,
                 if (known[i]) cosZ[i] else 0.0,
                 b(known[i]),
-                b(familyKnown && c.family == anchor.family),
+                if (familyKnown) familyMatch(anchor, c) else 0.0,
                 b(familyKnown),
                 b(languageKnown && c.language == anchor.language),
                 b(languageKnown),
@@ -138,6 +142,18 @@ public object RankerFeatures {
     }
 
     private fun b(value: Boolean) = if (value) 1.0 else 0.0
+
+    /** 1 / 0 for two known families; with an imputed side, P(the two families are the same) from the tagger. */
+    internal fun familyMatch(anchor: RankerRow, c: RankerRow): Double {
+        val a = anchor.familyProbabilities
+        val p = c.familyProbabilities
+        return when {
+            a == null && p == null -> b(c.family == anchor.family)
+            a != null && p != null -> a.entries.sumOf { (f, pa) -> pa * (p[f] ?: 0.0) }
+            p != null -> p[anchor.family] ?: 0.0
+            else -> a!![c.family] ?: 0.0
+        }
+    }
 
     /** proto_ranker.zq: population z-scores, all zero when the spread is zero. */
     internal fun zScores(x: DoubleArray): DoubleArray {
