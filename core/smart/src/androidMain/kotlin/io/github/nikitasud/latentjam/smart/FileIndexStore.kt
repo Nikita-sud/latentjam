@@ -117,6 +117,38 @@ internal class FileIndexStore private constructor(
         throw IndexRestoreFailure(failure)
     }
 
+    /**
+     * [loadSnapshot] one row at a time: the same checks, but each decoded row goes straight to [row] instead of into a
+     * map of the whole library. Damage found after some rows were delivered returns null (the receiver discards them);
+     * a read that fails for another reason throws [IndexRestoreFailure], as [loadSnapshot] does.
+     */
+    override suspend fun loadRows(
+        modelVersion: String,
+        row: (id: TrackId, vector: FloatArray, identity: String?) -> Unit,
+    ): Map<TrackId, String>? = withContext(Dispatchers.IO) {
+        if (!file.exists()) return@withContext null
+        val declaredSize = file.length()
+        if (!isLoadableAndroidIndexSnapshotSize(declaredSize, maximumSnapshotBytes)) {
+            return@withContext null
+        }
+        readOrReject {
+            val bounded = CountingBoundedInputStream(
+                input = file.inputStream(),
+                byteLimit = maximumSnapshotBytes + 1L,
+            )
+            val failed = DataInputStream(bounded.buffered()).use { input ->
+                decodeStoredIndexRows(
+                    input = input,
+                    expectedModelVersion = modelVersion,
+                    encodedSizeBytes = declaredSize,
+                    maximumSnapshotBytes = maximumSnapshotBytes,
+                    row = row,
+                )
+            }
+            failed?.takeIf { bounded.bytesRead == declaredSize }
+        }
+    }
+
     override suspend fun save(modelVersion: String, entries: Map<TrackId, FloatArray>): Unit =
         saveSnapshot(modelVersion, StoredIndexSnapshot(entries))
 
@@ -234,6 +266,27 @@ internal fun decodeStoredIndexSnapshot(
     encodedSizeBytes: Long = input.available().toLong(),
     maximumSnapshotBytes: Long = MAX_ANDROID_INDEX_SNAPSHOT_BYTES,
 ): StoredIndexSnapshot? {
+    val result = LinkedHashMap<TrackId, FloatArray>()
+    val identities = LinkedHashMap<TrackId, String>()
+    val failed = decodeStoredIndexRows(input, expectedModelVersion, encodedSizeBytes, maximumSnapshotBytes) { id, vector, identity ->
+        result[id] = vector
+        if (identity != null) identities[id] = identity
+    } ?: return null
+    return StoredIndexSnapshot(result, identities, failed)
+}
+
+/**
+ * The streaming core of [decodeStoredIndexSnapshot]: each finite row goes to [row] as soon as it is read (a fresh
+ * array per row). Returns the failed identities, or null for anything the decoder rejects — rows already delivered
+ * then belong to a rejected snapshot.
+ */
+internal fun decodeStoredIndexRows(
+    input: DataInputStream,
+    expectedModelVersion: String,
+    encodedSizeBytes: Long = input.available().toLong(),
+    maximumSnapshotBytes: Long = MAX_ANDROID_INDEX_SNAPSHOT_BYTES,
+    row: (id: TrackId, vector: FloatArray, identity: String?) -> Unit,
+): Map<TrackId, String>? {
     if (!isLoadableAndroidIndexSnapshotSize(encodedSizeBytes, maximumSnapshotBytes)) return null
     if (input.readInt() != FileIndexStore.MAGIC) return null
     val formatVersion = input.readInt()
@@ -266,8 +319,6 @@ internal fun decodeStoredIndexSnapshot(
     if (count.toLong() * minimumRowBytes > encodedSizeBytes) return null
     // Do not trust a corrupt header enough to preallocate a million-entry table before even one
     // complete row has been read. The map grows normally for a genuinely large valid snapshot.
-    val result = LinkedHashMap<TrackId, FloatArray>(minOf(count, 1_024))
-    val identities = LinkedHashMap<TrackId, String>(minOf(count, 1_024))
     val seen = HashSet<TrackId>(minOf(count, 1_024))
     repeat(count) {
         val id = TrackId(
@@ -281,10 +332,7 @@ internal fun decodeStoredIndexSnapshot(
             null
         }
         if (!seen.add(id)) return null
-        if (vector.all(Float::isFinite)) {
-            result[id] = vector
-            if (identity != null) identities[id] = identity
-        }
+        if (vector.all(Float::isFinite)) row(id, vector, identity)
     }
     val failedIdentities = LinkedHashMap<TrackId, String>()
     if (formatVersion == FileIndexStore.FORMAT_VERSION) {
@@ -300,7 +348,7 @@ internal fun decodeStoredIndexSnapshot(
         }
     }
     if (input.read() != -1) return null
-    return StoredIndexSnapshot(result, identities, failedIdentities)
+    return failedIdentities
 }
 
 private fun DataOutputStream.writeSizedUtf8(value: String) {

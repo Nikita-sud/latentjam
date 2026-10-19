@@ -28,41 +28,111 @@ import kotlin.math.sqrt
  */
 public class InMemoryVectorIndex(
     private val dim: Int,
+    /**
+     * Where the rows live. The heap store keeps the arrays themselves, as this index always did; Android passes a
+     * memory-mapped one so the library's vectors stay off the Java heap. The floats stored are the same either way.
+     */
+    private val store: RowStore = HeapRowStore(dim),
 ) : VectorIndex {
 
     init {
         require(dim > 0) { "Embedding dimension must be positive, got $dim" }
+        require(store.dim == dim) { "Row store dimension ${store.dim} does not match $dim" }
     }
 
-    /** LinkedHashMap keeps iteration deterministic (insertion order). */
-    private val vectors = LinkedHashMap<TrackId, FloatArray>()
+    /** Row of each id in [store]. LinkedHashMap keeps iteration deterministic (insertion order). */
+    private val vectors = LinkedHashMap<TrackId, Int>()
+
+    /** Rows of [store] no id refers to any more (removed or replaced ids); reclaimed by [compactIfSparse]. */
+    private var deadRows = 0
 
     override val size: Int
         get() = vectors.size
 
     override fun upsert(id: TrackId, vector: FloatArray) {
         validate(id, vector)
-        vectors[id] = l2Normalized(vector)
+        put(id, l2Normalized(vector))
     }
 
     /** Normalizes the handed-over array in place, with exactly [upsert]'s arithmetic, and keeps it. */
     override fun adopt(id: TrackId, vector: FloatArray) {
         validate(id, vector)
-        vectors[id] = normalizeInPlace(vector)
+        put(id, normalizeInPlace(vector))
     }
 
-    override fun vector(id: TrackId): FloatArray? = vectors[id]?.copyOf()
+    private fun put(id: TrackId, normalized: FloatArray) {
+        // A replaced id gets a new row (stored rows are never rewritten); it keeps its place in iteration order.
+        val old = vectors.put(id, store.append(normalized))
+        if (old != null) {
+            store.release(old)
+            deadRows++
+            compactIfSparse()
+        }
+    }
+
+    override fun vector(id: TrackId): FloatArray? = vectors[id]?.let { store.row(it).toFloatArray() }
 
     override fun contains(id: TrackId): Boolean = id in vectors
 
     override fun entries(): Map<TrackId, FloatArray> =
-        vectors.entries.associate { (id, vector) -> id to vector.copyOf() }
+        vectors.entries.associate { (id, row) -> id to store.row(row).toFloatArray() }
 
     override fun ids(): Set<TrackId> = vectors.keys.toSet()
 
-    override fun storedEntries(): Map<TrackId, FloatArray> = vectors
+    /**
+     * A read-only view in iteration order. Over the heap store its values are the stored arrays themselves; over
+     * an off-heap store each value read is a fresh copy of one row, so iterating it (a checkpoint) never holds more
+     * than the row being read.
+     */
+    override fun storedEntries(): Map<TrackId, FloatArray> = storedView
 
-    override fun remove(id: TrackId): Boolean = vectors.remove(id) != null
+    private val storedView: Map<TrackId, FloatArray> = object : AbstractMap<TrackId, FloatArray>() {
+        override val size: Int get() = vectors.size
+        override fun containsKey(key: TrackId): Boolean = key in vectors
+        override fun get(key: TrackId): FloatArray? = vectors[key]?.let(::stored)
+        override val entries: Set<Map.Entry<TrackId, FloatArray>>
+            get() = object : AbstractSet<Map.Entry<TrackId, FloatArray>>() {
+                override val size: Int get() = vectors.size
+                override fun iterator(): Iterator<Map.Entry<TrackId, FloatArray>> {
+                    val source = vectors.entries.iterator()
+                    return object : Iterator<Map.Entry<TrackId, FloatArray>> {
+                        override fun hasNext(): Boolean = source.hasNext()
+                        override fun next(): Map.Entry<TrackId, FloatArray> {
+                            val (id, row) = source.next()
+                            return Entry(id, stored(row))
+                        }
+                    }
+                }
+            }
+    }
+
+    private class Entry(override val key: TrackId, override val value: FloatArray) : Map.Entry<TrackId, FloatArray>
+
+    private fun stored(row: Int): FloatArray = store.heapArray(row) ?: store.row(row).toFloatArray()
+
+    override fun storedRow(id: TrackId): StoredVectorRow? = vectors[id]?.let(store::row)
+
+    override fun remove(id: TrackId): Boolean {
+        val row = vectors.remove(id) ?: return false
+        store.release(row)
+        deadRows++
+        compactIfSparse()
+        return true
+    }
+
+    /** Rewrites the store without the rows of removed ids once they outnumber the live ones (and 1,024). */
+    private fun compactIfSparse() {
+        if (deadRows < 1_024 || deadRows < vectors.size) return
+        val live = IntArray(vectors.size)
+        var i = 0
+        for (entry in vectors.entries) {
+            live[i] = entry.value
+            entry.setValue(i)
+            i++
+        }
+        store.compact(live)
+        deadRows = 0
+    }
 
     override fun nearest(query: FloatArray, k: Int, exclude: Set<TrackId>): List<ScoredTrack> {
         require(query.size == dim) {
@@ -75,9 +145,11 @@ public class InMemoryVectorIndex(
         // old stable sort, including upserts (which retain their LinkedHashMap position).
         val limit = minOf(k, vectors.size)
         val heap = ArrayList<RankedTrack>(limit)
+        val scratch = FloatArray(dim)
         for ((ordinal, entry) in vectors.entries.withIndex()) {
             if (entry.key in exclude) continue
-            val score = dot(normalizedQuery, entry.value)
+            val values = store.heapArray(entry.value) ?: scratch.also { store.row(entry.value).copyInto(it) }
+            val score = dot(normalizedQuery, values)
             if (heap.size == limit && score.compareTo(heap[0].track.score) <= 0) continue
             val candidate = RankedTrack(ScoredTrack(entry.key, score), ordinal)
             if (heap.size < limit) {
@@ -114,6 +186,8 @@ public class InMemoryVectorIndex(
 
     override fun clear() {
         vectors.clear()
+        store.clear()
+        deadRows = 0
     }
 
     private fun validate(id: TrackId, vector: FloatArray) {

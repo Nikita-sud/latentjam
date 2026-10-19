@@ -54,6 +54,21 @@ public interface IndexStore {
     public suspend fun loadSnapshot(modelVersion: String): StoredIndexSnapshot? =
         load(modelVersion)?.let(::StoredIndexSnapshot)
 
+    /**
+     * Streams the snapshot for [modelVersion] one row at a time: [row] gets each id, a fresh array the receiver may
+     * keep, and its identity. Returns the failed identities, or null when there is no usable snapshot — in which
+     * case rows may already have been delivered (a store that streams finds damage late), and the receiver must
+     * discard them. Restoring this way never holds the whole library's vectors as one map.
+     */
+    public suspend fun loadRows(
+        modelVersion: String,
+        row: (id: TrackId, vector: FloatArray, identity: String?) -> Unit,
+    ): Map<TrackId, String>? {
+        val snapshot = loadSnapshot(modelVersion) ?: return null
+        for ((id, vector) in snapshot.entries) row(id, vector, snapshot.identities[id])
+        return snapshot.failedIdentities
+    }
+
     /** Atomically replaces the snapshot for [modelVersion]. */
     public suspend fun save(modelVersion: String, entries: Map<TrackId, FloatArray>)
 

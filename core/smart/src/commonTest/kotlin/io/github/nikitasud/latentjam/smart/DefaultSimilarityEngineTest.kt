@@ -820,6 +820,15 @@ internal class DefaultSimilarityEngineTest {
                     if (cancelRestore) throw CancellationException("cancelled restore")
                     return backing.loadSnapshot(modelVersion)
                 }
+
+                // The engine restores by streaming rows; a cancelled restore cancels there.
+                override suspend fun loadRows(
+                    modelVersion: String,
+                    row: (id: TrackId, vector: FloatArray, identity: String?) -> Unit,
+                ): Map<TrackId, String>? {
+                    if (cancelRestore) throw CancellationException("cancelled restore")
+                    return backing.loadRows(modelVersion, row)
+                }
             }
             val engine = engine(FakeEmbeddingBackend(), store)
 
@@ -844,6 +853,11 @@ internal class DefaultSimilarityEngineTest {
                 override suspend fun loadSnapshot(modelVersion: String): StoredIndexSnapshot? {
                     throw CancellationException("cancelled metadata restore")
                 }
+
+                override suspend fun loadRows(
+                    modelVersion: String,
+                    row: (id: TrackId, vector: FloatArray, identity: String?) -> Unit,
+                ): Map<TrackId, String>? = throw CancellationException("cancelled metadata restore")
             }
             val engine = engine(
                 backend = FakeEmbeddingBackend(),

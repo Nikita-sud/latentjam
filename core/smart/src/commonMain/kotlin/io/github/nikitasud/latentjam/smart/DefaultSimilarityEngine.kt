@@ -169,9 +169,14 @@ internal class DefaultSimilarityEngine(
             if (textIndex != null && textIndex.size == 0) {
                 // Same as the audio restore: a cancelled metadata load must surface, never latch
                 // Ready(0) over a snapshot that is still on disk.
-                val persistedText = try {
-                    textStore?.loadSnapshot(TEXT_INDEX_VERSION)
+                val restored = try {
+                    textStore?.loadRows(TEXT_INDEX_VERSION) { id, vector, identity ->
+                        runCatching { textIndex.adopt(id, vector) }
+                            .onSuccess { identity?.let { textVectorIdentities[id] = it } }
+                    }
                 } catch (cancelled: CancellationException) {
+                    textIndex.clear()
+                    textVectorIdentities.clear()
                     throw cancelled
                 } catch (failure: Throwable) {
                     // Unlike the audio index, the metadata vectors are a quick, deterministic re-encode: this
@@ -179,17 +184,10 @@ internal class DefaultSimilarityEngine(
                     println("SMART: the stored metadata index could not be read now (${restoreCause(failure)}); encoding again")
                     null
                 }
-                persistedText
-                    ?.let { persisted ->
-                        for ((id, vector) in persisted.entries) {
-                            runCatching { textIndex.adopt(id, vector) }
-                                .onSuccess {
-                                    persisted.identities[id]?.let { identity ->
-                                        textVectorIdentities[id] = identity
-                                    }
-                                }
-                        }
-                    }
+                if (restored == null) {
+                    textIndex.clear()
+                    textVectorIdentities.clear()
+                }
             }
             mutableState.value = EngineState.Ready(indexedCount = index.size)
             println(
@@ -779,7 +777,7 @@ internal class DefaultSimilarityEngine(
                 val requested = ids.distinct()
                 val missing = requested.mapNotNull { id ->
                     if (id in semanticCache) return@mapNotNull null
-                    index.vector(id)?.let { id to it }
+                    index.storedRow(id)?.let { id to it }
                 }
                 // Semantic routing is optional decoration for library worlds. Never wake the
                 // heavyweight audio model solely to rebuild a background Map/For You page: a
@@ -1276,33 +1274,52 @@ internal class DefaultSimilarityEngine(
         if (index.size > 0 && !audioRestoreFailed) return
         // Cancellation must not read as "no snapshot": falling through would let initialize()
         // publish Ready(0) and re-embed the whole library instead of restarting the restore.
-        val loaded = try {
-            store.loadSnapshot(config.modelVersion)
+        // Streamed and adopted one row at a time: the store's rows are this index's only copy of the library. The retry
+        // of a read that failed may meet live rows (a seed embedded meanwhile): those are kept, and only the rows this
+        // load adopted are dropped again when it turns out unusable (damage found partway, a failed read, cancellation).
+        val startedEmpty = index.size == 0
+        val adopted = ArrayList<TrackId>()
+        fun discardAdopted() {
+            if (startedEmpty) {
+                index.clear()
+                audioVectorIdentities.clear()
+            } else {
+                for (id in adopted) {
+                    index.remove(id)
+                    audioVectorIdentities.remove(id)
+                }
+            }
+        }
+        val failed = try {
+            store.loadRows(config.modelVersion) { id, vector, identity ->
+                if (id in index) return@loadRows
+                runCatching { index.adopt(id, vector) }
+                    .onSuccess {
+                        adopted += id
+                        identity?.let { audioVectorIdentities[id] = it }
+                    }
+            }
         } catch (cancelled: CancellationException) {
+            discardAdopted()
             throw cancelled
         } catch (failure: Throwable) {
+            discardAdopted()
             audioRestoreFailed = true
             println("SMART: the stored audio index could not be read now (${restoreCause(failure)}); kept on disk, retried before indexing")
             return
         }
         audioRestoreFailed = false
-        val persisted = loaded ?: return
-        // Adopted, not copied: the decoded rows are this index's only copy of the library.
-        for ((id, vector) in persisted.entries) {
-            if (id in index) continue
-            runCatching { index.adopt(id, vector) }
-                .onSuccess {
-                    persisted.identities[id]?.let { identity ->
-                        audioVectorIdentities[id] = identity
-                    }
-                }
+        if (failed == null) {
+            // No usable snapshot (or damage found partway through it): nothing this load restored stays.
+            discardAdopted()
+            return
         }
-        for ((id, identity) in persisted.failedIdentities) {
+        for ((id, identity) in failed) {
             if (id !in index && id !in audioFailureIdentities && identity.isNotBlank()) {
                 audioFailureIdentities[id] = identity
             }
         }
-        if (persisted.entries.isNotEmpty()) indexRevision++
+        if (index.size > 0) indexRevision++
     }
 
     /**
@@ -1620,18 +1637,17 @@ internal class DefaultSimilarityEngine(
         // a second copy of both indexes. Nothing here writes to them. The snapshot keeps them as its
         // raw rows (see ScaledRows), which is safe because every change to either index drops the
         // cached snapshot, so it never reads a vector the index has since replaced.
-        val audio = index.storedEntries()
-        val text = textIndex?.storedEntries()
+        // Rows read in place (storedRow): on Android they stay in the index's mapped file, off the Java heap.
         val rows = knownTracks.values.mapNotNull { track ->
-            track.toSmartTrack(audio = audio[track.id] ?: return@mapNotNull null, text = text?.get(track.id))
+            track.toSmartTrack(audio = index.storedRow(track.id) ?: return@mapNotNull null, text = textIndex?.storedRow(track.id))
         }.toMutableList()
         val knownIds = rows.mapTo(HashSet()) { it.id }
         for (id in history.asSequence().map { it.trackId }.distinct()) {
             if (id in knownIds) continue
             rows += SmartTrack(
                 id = id,
-                audio = audio[id] ?: continue,
-                text = text?.get(id),
+                audioRow = index.storedRow(id) ?: continue,
+                textRow = textIndex?.storedRow(id),
                 meta = TrackMeta(null, null, null, null, null),
             )
         }
@@ -1654,15 +1670,16 @@ internal class DefaultSimilarityEngine(
      */
     private suspend fun withEnergy(rows: List<SmartTrack>): List<SmartTrack> {
         if (semanticModelLoaded) {
-            cacheSemantics(rows.mapNotNull { row -> if (row.id in semanticCache) null else row.id to row.audio })
+            cacheSemantics(rows.mapNotNull { row -> if (row.id in semanticCache) null else row.id to row.audioRow })
         }
         return applyLibraryEnergy(rows, semanticCache)
     }
 
     /** Classifies [missing] audio vectors into [semanticCache]; rows the head rejects stay absent. */
-    private suspend fun cacheSemantics(missing: List<Pair<TrackId, FloatArray>>) {
+    private suspend fun cacheSemantics(missing: List<Pair<TrackId, StoredVectorRow>>) {
         for (batch in missing.chunked(SEMANTIC_BATCH_SIZE)) {
-            val outputs = inference.withLock { backend.classify(batch.map { it.second }) }.getOrNull()
+            // One batch of rows as arrays at a time, never the whole library's.
+            val outputs = inference.withLock { backend.classify(batch.map { it.second.toFloatArray() }) }.getOrNull()
                 ?.takeIf { it.size == batch.size }
                 ?: continue
             for (row in batch.indices) {
@@ -1674,10 +1691,10 @@ internal class DefaultSimilarityEngine(
         }
     }
 
-    private fun TrackDescriptor.toSmartTrack(audio: FloatArray, text: FloatArray?): SmartTrack = SmartTrack(
+    private fun TrackDescriptor.toSmartTrack(audio: StoredVectorRow, text: StoredVectorRow?): SmartTrack = SmartTrack(
         id = id,
-        audio = audio,
-        text = text,
+        audioRow = audio,
+        textRow = text,
         energy = energy ?: Float.NaN,
         meta = TrackMeta(
             title, artist, album, genre, year, durationMs,

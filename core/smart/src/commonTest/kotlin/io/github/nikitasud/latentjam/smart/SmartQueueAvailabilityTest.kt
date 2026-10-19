@@ -188,6 +188,12 @@ internal class SmartQueueAvailabilityTest {
             failure?.let { throw it }
             return inner.storedEntries()
         }
+
+        /** The snapshot reads rows in place; it fails where it reads them. */
+        override fun storedRow(id: TrackId): StoredVectorRow? {
+            failure?.let { throw it }
+            return inner.storedRow(id)
+        }
     }
 
     /** What OutOfMemoryError is to common code, which cannot name it: an [Error]. */

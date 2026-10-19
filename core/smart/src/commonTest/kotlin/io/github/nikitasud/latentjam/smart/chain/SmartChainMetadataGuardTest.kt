@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.smart.chain
 
+import io.github.nikitasud.latentjam.smart.ArrayVectorRow
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -53,7 +54,7 @@ class SmartChainMetadataGuardTest {
     fun `alternate releases of the seed do not hide an eligible song beyond the retrieval limit`() {
         val copies = (0..100).map { row ->
             track(row, "Intro (Version $row)", "Same Artist").copy(
-                audio = FloatArray(960).also { it[0] = 1f; it[row + 1] = 0.01f },
+                audioRow = ArrayVectorRow(FloatArray(960).also { it[0] = 1f; it[row + 1] = 0.01f }),
             )
         }
         val other = track(500, "Other Song", "Other Artist")

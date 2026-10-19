@@ -453,6 +453,18 @@ public actual fun smartEngineBackendModule(): Module = module {
         FileIndexStore(context = get(), fileName = "smart_text_index.bin")
     }
 
+    // The two vector indexes keep their rows in mapped scratch files, off the Java heap (MappedRowStore); they
+    // override the common heap-backed bindings the same way.
+    single<VectorIndex> {
+        val dim = get<SmartEngineConfig>().embeddingDim
+        InMemoryVectorIndex(dim = dim, store = MappedRowStore.forIndex(get(), dim, "audio"))
+    }
+
+    single<VectorIndex>(smartTextIndexQualifier) {
+        val dim = io.github.nikitasud.latentjam.smart.text.TextEncoder.TEXT_DIM
+        InMemoryVectorIndex(dim = dim, store = MappedRowStore.forIndex(get(), dim, "text"))
+    }
+
     single<IndexStore>(smartLayoutQualifier) {
         FileIndexStore(context = get(), fileName = "map_layout.bin")
     }

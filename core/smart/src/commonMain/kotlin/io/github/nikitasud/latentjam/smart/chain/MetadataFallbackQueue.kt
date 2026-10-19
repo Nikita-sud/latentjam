@@ -7,6 +7,8 @@ package io.github.nikitasud.latentjam.smart.chain
 import io.github.nikitasud.latentjam.smart.SmartHistoryEvent
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import io.github.nikitasud.latentjam.smart.ArrayVectorRow
+import io.github.nikitasud.latentjam.smart.StoredVectorRow
 import io.github.nikitasud.latentjam.smart.VectorIndex
 import kotlin.math.ln
 
@@ -32,8 +34,8 @@ internal object MetadataFallbackQueue {
         // Only read, under the engine's lock, so the stored vectors serve as they are: copies would
         // be a second text index, and this is also the queue a press gets when the audio snapshot
         // has just run out of memory.
-        val stored = textIndex.storedEntries()
-        val seedVector = stored[seed.id] ?: return emptyList()
+        // Rows read in place (storedRow); only the seed's and the current anchor's are arrays.
+        val seedVector = textIndex.storedRow(seed.id)?.let(::arrayOf) ?: return emptyList()
         val candidateTracks = library.distinctBy { it.id }.filterNot { it.id == seed.id }
         val companions = CompanionMembership.build(
             rowIds = listOf(seed.id) + candidateTracks.map { it.id },
@@ -41,7 +43,7 @@ internal object MetadataFallbackQueue {
         )
         val seedRow = 0
         val candidates = candidateTracks.mapIndexedNotNull { candidateIndex, track ->
-            stored[track.id]?.let { vector ->
+            textIndex.storedRow(track.id)?.let { vector ->
                 Candidate(track, vector, companionRow = candidateIndex + 1)
             }
         }
@@ -126,7 +128,7 @@ internal object MetadataFallbackQueue {
                 recentArtists.removeFirst()
             }
             anchorMeta = meta
-            anchorVector = picked.vector
+            anchorVector = arrayOf(picked.vector)
             anchorCompanionRow = picked.companionRow
         }
         return result
@@ -143,16 +145,23 @@ internal object MetadataFallbackQueue {
         originalYear = originalYear,
     )
 
-    private fun cosine(left: FloatArray, right: FloatArray): Float {
+    private fun cosine(left: FloatArray, right: StoredVectorRow): Float {
         if (left.size != right.size) return 0f
+        val values = (right as? ArrayVectorRow)?.values
         var dot = 0f
-        for (index in left.indices) dot += left[index] * right[index]
+        if (values != null) {
+            for (index in left.indices) dot += left[index] * values[index]
+        } else {
+            for (index in left.indices) dot += left[index] * right[index]
+        }
         return dot
     }
 
+    private fun arrayOf(row: StoredVectorRow): FloatArray = (row as? ArrayVectorRow)?.values ?: row.toFloatArray()
+
     private data class Candidate(
         val track: TrackDescriptor,
-        val vector: FloatArray,
+        val vector: StoredVectorRow,
         val companionRow: Int,
     )
 }

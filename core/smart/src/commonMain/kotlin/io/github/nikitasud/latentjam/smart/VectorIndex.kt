@@ -74,6 +74,12 @@ public interface VectorIndex {
      */
     public fun storedEntries(): Map<TrackId, FloatArray> = entries()
 
+    /**
+     * The stored row of [id], read in place (no copy), or null. Like [storedEntries]: valid until the index next
+     * changes, for a caller under the engine's lock.
+     */
+    public fun storedRow(id: TrackId): StoredVectorRow? = storedEntries()[id]?.let(::ArrayVectorRow)
+
     /** Removes [id], returning true only when a vector was present. */
     public fun remove(id: TrackId): Boolean
 

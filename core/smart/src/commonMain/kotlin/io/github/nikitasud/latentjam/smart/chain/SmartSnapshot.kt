@@ -4,20 +4,40 @@
  */
 package io.github.nikitasud.latentjam.smart.chain
 
+import io.github.nikitasud.latentjam.smart.ArrayVectorRow
+import io.github.nikitasud.latentjam.smart.StoredVectorRow
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.math.sqrt
 import kotlin.random.Random
 
-/** One track's inputs to the chain. Only [audio] is required; the rest sharpen the result. */
+/**
+ * One track's inputs to the chain. Only the audio row is required; the rest sharpen the result. The engine passes the
+ * index's own rows (read in place, possibly off the Java heap); tests and fixtures pass arrays.
+ */
 internal data class SmartTrack(
     val id: TrackId,
-    val audio: FloatArray,
-    val text: FloatArray? = null,
+    val audioRow: StoredVectorRow,
+    val textRow: StoredVectorRow? = null,
     /** Optional second semantic space for experiments and recorded parity fixtures. */
     val descriptor: FloatArray? = null,
     val energy: Float = Float.NaN,
     val meta: TrackMeta,
 ) {
+    constructor(
+        id: TrackId,
+        audio: FloatArray,
+        text: FloatArray? = null,
+        descriptor: FloatArray? = null,
+        energy: Float = Float.NaN,
+        meta: TrackMeta,
+    ) : this(id, ArrayVectorRow(audio), text?.let(::ArrayVectorRow), descriptor, energy, meta)
+
+    /** The audio row as an array: the stored one when it is a heap array, else a copy. */
+    val audio: FloatArray get() = (audioRow as? ArrayVectorRow)?.values ?: audioRow.toFloatArray()
+
+    /** As [audio], for the text row. */
+    val text: FloatArray? get() = textRow?.let { (it as? ArrayVectorRow)?.values ?: it.toFloatArray() }
+
     override fun equals(other: Any?): Boolean = other is SmartTrack && other.id == id
     override fun hashCode(): Int = id.hashCode()
 }
@@ -168,7 +188,7 @@ internal class SmartSnapshot private constructor(
             batchDotProducts: BatchDotProducts = BatchDotProducts.Portable,
             descriptorOf: (SmartTrack) -> FloatArray? = SmartTrack::descriptor,
         ): SmartSnapshot? {
-            val usable = tracks.filter { it.audio.size == AUDIO_DIM && norm(it.audio) >= DEGENERATE_NORM_EPS }
+            val usable = tracks.filter { it.audioRow.size == AUDIO_DIM && norm(it.audioRow) >= DEGENERATE_NORM_EPS }
             val n = usable.size
             if (n == 0) return null
 
@@ -177,8 +197,8 @@ internal class SmartSnapshot private constructor(
             // unit norm — a single long row would otherwise rank first against every query. The
             // rows keep the input arrays and apply their scale where they are read (see ScaledRows).
             val raw = ScaledRows(
-                Array(n) { usable[it].audio },
-                FloatArray(n) { 1f / norm(usable[it].audio).coerceAtLeast(1e-12f) },
+                Array(n) { usable[it].audioRow },
+                FloatArray(n) { 1f / norm(usable[it].audioRow).coerceAtLeast(1e-12f) },
                 AUDIO_DIM,
             )
 
@@ -205,8 +225,8 @@ internal class SmartSnapshot private constructor(
             // Text: unit rows kept as the inputs (rawText), centred through them like audio.
             val textHas = BooleanArray(n)
             var anyText = false
-            val textVectors = Array(n) { i ->
-                val v = usable[i].text
+            val textVectors = Array<StoredVectorRow?>(n) { i ->
+                val v = usable[i].textRow
                 if (v != null && v.size == TEXT_DIM && norm(v) > 1e-9f) {
                     textHas[i] = true
                     anyText = true
@@ -484,6 +504,17 @@ internal class SmartSnapshot private constructor(
             for (x in v) sumSq += x.toDouble() * x
             return sqrt(sumSq).toFloat()
         }
+
+        /** [norm] of a stored row: the same values summed in the same order. */
+        private fun norm(v: StoredVectorRow): Float {
+            if (v is ArrayVectorRow) return norm(v.values)
+            var sumSq = 0.0
+            for (d in 0 until v.size) {
+                val x = v[d]
+                sumSq += x.toDouble() * x
+            }
+            return sqrt(sumSq).toFloat()
+        }
     }
 }
 
@@ -498,11 +529,25 @@ internal class SmartSnapshot private constructor(
  * arrays (see [io.github.nikitasud.latentjam.smart.VectorIndex.storedEntries]).
  */
 internal class ScaledRows(
-    private val vectors: Array<out FloatArray?>,
+    private val vectors: Array<out StoredVectorRow?>,
     private val scales: FloatArray,
     val dim: Int,
 ) {
+    /** Rows that are heap arrays, as the arrays (null for absent rows and for rows read through [vectors]). */
+    private val arrays: Array<FloatArray?> = Array(vectors.size) { (vectors[it] as? ArrayVectorRow)?.values }
+
+    constructor(vectors: Array<out FloatArray?>, scales: FloatArray, dim: Int, @Suppress("UNUSED_PARAMETER") arrays: Unit = Unit) :
+        this(Array<StoredVectorRow?>(vectors.size) { vectors[it]?.let(::ArrayVectorRow) }, scales, dim)
+
     val size: Int get() = vectors.size
+
+    /** Row [row]'s stored floats: its array, or [scratch] filled from the row; null for an absent row. */
+    private fun values(row: Int, scratch: FloatArray): FloatArray? {
+        arrays[row]?.let { return it }
+        val vector = vectors[row] ?: return null
+        vector.copyInto(scratch)
+        return scratch
+    }
 
     operator fun get(row: Int, d: Int): Float {
         val vector = vectors[row] ?: return 0f
@@ -511,7 +556,7 @@ internal class ScaledRows(
 
     /** Writes [row] into [out] from [offset]. */
     fun copyInto(row: Int, out: FloatArray, offset: Int = 0) {
-        val vector = vectors[row]
+        val vector = values(row, FloatArray(dim))
         if (vector == null) {
             out.fill(0f, offset, offset + dim)
             return
@@ -524,7 +569,7 @@ internal class ScaledRows(
 
     /** `Σ row[d] · query[offset + d]`, d ascending. */
     fun dot(row: Int, query: FloatArray, offset: Int = 0): Float {
-        val vector = vectors[row] ?: zeros
+        val vector = values(row, FloatArray(dim)) ?: zeros
         val scale = scales[row]
         var dot = 0f
         for (d in 0 until dim) dot += vector[d] * scale * query[offset + d]
@@ -533,16 +578,20 @@ internal class ScaledRows(
 
     /** [batchDots] over these rows: the same order, four rows side by side, so the same floats. */
     fun dots(query: FloatArray, offset: Int, rows: IntArray, count: Int, out: FloatArray) {
+        val scratch0 = FloatArray(dim)
+        val scratch1 = FloatArray(dim)
+        val scratch2 = FloatArray(dim)
+        val scratch3 = FloatArray(dim)
         var index = 0
         while (index + 4 <= count) {
             val row0 = rows[index]
             val row1 = rows[index + 1]
             val row2 = rows[index + 2]
             val row3 = rows[index + 3]
-            val v0 = vectors[row0] ?: zeros
-            val v1 = vectors[row1] ?: zeros
-            val v2 = vectors[row2] ?: zeros
-            val v3 = vectors[row3] ?: zeros
+            val v0 = values(row0, scratch0) ?: zeros
+            val v1 = values(row1, scratch1) ?: zeros
+            val v2 = values(row2, scratch2) ?: zeros
+            val v3 = values(row3, scratch3) ?: zeros
             val s0 = scales[row0]
             val s1 = scales[row1]
             val s2 = scales[row2]
