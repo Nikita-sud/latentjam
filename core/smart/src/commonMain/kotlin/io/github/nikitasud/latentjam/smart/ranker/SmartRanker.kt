@@ -14,6 +14,7 @@ import io.github.nikitasud.latentjam.smart.text.ArtistNeighbours
 import io.github.nikitasud.latentjam.smart.text.ArtistSets
 import io.github.nikitasud.latentjam.smart.text.ArtistVectors
 import io.github.nikitasud.latentjam.smart.text.KnownArtists
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.sqrt
 import kotlin.time.TimeSource
 
@@ -239,7 +240,8 @@ public class SmartRanker(
     private suspend fun impute(rows: List<Known>): Int {
         val head = tagger ?: return 0
         var filled = 0
-        for (k in rows) {
+        // The audio index may be busy indexing: imputation gets its own budget, what it misses reads as unknown.
+        withTimeoutOrNull(AUDIO_BUDGET_MS) { for (k in rows) {
             if (k.imputationTried || (k.descriptor != null && k.family != null)) continue
             val embedding = runCatching { audio.vector(k.track.id) }.getOrNull() ?: continue
             k.imputationTried = true
@@ -247,12 +249,11 @@ public class SmartRanker(
             if (k.descriptor == null) k.imputedDescriptor = out.descriptor
             if (k.family == null && out.family != null) { k.family = out.family; k.familyImputed = true }
             filled++
-        }
+        } }
         return filled
     }
 
     public suspend fun plan(request: PlanRequest): PlanReport {
-        val clock = TimeSource.Monotonic.markNow()
         val active = when {
             request.ruleOnly -> RankerModel.RULE_SET
             request.personal && fullModel != null -> fullModel
@@ -288,9 +289,11 @@ public class SmartRanker(
             if (k.track.id in audioVectors) audioVectors[k.track.id] else runCatching { audio.vector(k.track.id) }.getOrNull()?.let(::normalized).also { audioVectors[k.track.id] = it }
         // Audio vectors for the pool and the seed are read before the (non-suspending) decoder runs.
         val usesAudio = active.features.contains("audio_cos") || active.audioWeight != 0.0
-        if (usesAudio) { audioOf(seedKnown); for (k in pool) audioOf(k) }
+        if (usesAudio) withTimeoutOrNull(AUDIO_BUDGET_MS) { audioOf(seedKnown); for (k in pool) audioOf(k) }
         val personalRows = if (active.features.any { it in RankerFeatures.PERSONAL }) request.history else null
         val budgetMs = serving.hopBudgetMs * request.length
+        // The decoder's own budget: preparation (knowledge, retrieval, imputation) has its own limits above.
+        val decoding = TimeSource.Monotonic.markNow()
         val modelPicks = RankerQueue.build(
             model = active,
             poolSize = pool.size,
@@ -302,12 +305,12 @@ public class SmartRanker(
             blocked = { row, picks ->
                 blockedVersion(pool[row].version, picks.map { pool[it].track.id }, previousIds, window, ::versionOf)
             },
-            stop = { clock.elapsedNow().inWholeMilliseconds > budgetMs },
+            stop = { decoding.elapsedNow().inWholeMilliseconds > budgetMs },
         ) { anchor ->
             val a = if (anchor == RankerQueue.SEED) seedKnown else pool[anchor]
             features(a, pool, artistKeyOf, audioVectors, personalRows, request.seed.id)
         }.map { pool[it].track.id }
-        val timedOut = modelPicks.size < minOf(request.length, pool.size) && clock.elapsedNow().inWholeMilliseconds > budgetMs
+        val timedOut = modelPicks.size < minOf(request.length, pool.size) && decoding.elapsedNow().inWholeMilliseconds > budgetMs
         val picks = ArrayList(modelPicks)
         val ladder = Ladder(eligibleKnown, byId, previousIds, window, salted, request.history, ::versionOf)
         while (picks.size < request.length) {
@@ -388,7 +391,7 @@ public class SmartRanker(
             }
         }
         val quota = { name: String -> serving.quotas[name] ?: 0 }
-        take(runCatching { audio.neighbours(seed.track.id, quota("audio") * 2) }.getOrDefault(emptyList()), quota("audio"))
+        take(boundedNeighbours(seed.track.id, quota("audio") * 2, R1_BUDGET_MS), quota("audio"))
         if (seed.entity >= 0 && neighbours != null) {
             val rank = HashMap<Int, Double>()
             neighbours.forEachNeighbour(seed.entity) { e, s -> rank[e] = s.toDouble() }
@@ -450,7 +453,7 @@ public class SmartRanker(
             val previousKnown = byId[previous] ?: knownById[previous]
             fun ok(k: Known, dedup: Int) =
                 k.track.id !in taken && !blockedVersion(k.version, picks, before, dedup, versionOf)
-            runCatching { audio.neighbours(previous, 50) }.getOrDefault(emptyList())
+            boundedNeighbours(previous, 50, LADDER_AUDIO_BUDGET_MS)
                 .firstNotNullOfOrNull { id -> byId[id]?.takeIf { ok(it, window) } }?.let { return it.track.id }
             previousKnown?.descriptor?.let { d ->
                 // A salted sample bounds the rung's work and memory on a large library.
@@ -480,6 +483,10 @@ public class SmartRanker(
         return recent.any { versionOf(it) == version }
     }
 
+    /** Audio neighbours within [budgetMs]; a busy or failing index gives none (the next rung or retriever runs). */
+    private suspend fun boundedNeighbours(id: TrackId, k: Int, budgetMs: Long): List<TrackId> =
+        withTimeoutOrNull(budgetMs) { runCatching { audio.neighbours(id, k) }.getOrNull() }.orEmpty()
+
     private fun overlap(anchor: List<Long>, candidate: List<Long>): Double {
         if (anchor.isEmpty() || candidate.isEmpty()) return 0.0
         if (anchor[0] == candidate[0]) return 1.0
@@ -502,6 +509,11 @@ public class SmartRanker(
     }
 
     public companion object {
+        /** §7.2b's time limits: R1 (100 ms), the ladder's audio rung (20 ms), audio reads for features and imputation. */
+        private const val R1_BUDGET_MS = 100L
+        private const val LADDER_AUDIO_BUDGET_MS = 20L
+        private const val AUDIO_BUDGET_MS = 100L
+
         /** Tracks the ladder's descriptor rung compares at most. */
         private const val LADDER_SAMPLE = 2_000
 

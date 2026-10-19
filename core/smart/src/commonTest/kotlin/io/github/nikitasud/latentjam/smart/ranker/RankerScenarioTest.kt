@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.smart.ranker
 import io.github.nikitasud.latentjam.smart.HabitListen
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import kotlin.random.Random
 import kotlin.test.Test
@@ -227,6 +228,24 @@ class RankerScenarioTest {
         }
         check(lib[0], lib, ranker = ranker(partial))
         check(lib[25], lib, ranker = ranker(failing))
+    }
+
+    @Test fun anAudioIndexBusyIndexingDoesNotHoldThePlan() = runTest {
+        val lib = library(800)
+        // Every audio read waits behind an indexing batch far longer than its budget.
+        val busy = object : AudioSource {
+            override suspend fun vector(id: TrackId): FloatArray? { delay(10_000); return FloatArray(8) { 1f } }
+            override suspend fun neighbours(id: TrackId, k: Int): List<TrackId> { delay(10_000); return lib.map { it.id }.take(k) }
+        }
+        val audioModel = RankerModel.parse(
+            """{"features": ["same_family", "audio_cos"], "mean": [0, 0], "sd": [1, 1], "weights": [1, 1], "runPenalty": 1,
+               "anchor": "mix", "epsilon": 0.01}""",
+        )!!
+        val ranker = SmartRanker(audioModel, null, null, audio = busy, tagger = null)
+        val start = testScheduler.currentTime
+        val report = ranker.plan(PlanRequest(lib[0], lib, lib, 20))
+        assertEquals(20, report.ids.size)
+        assertTrue(testScheduler.currentTime - start < 2_000, "audio waits are bounded (${testScheduler.currentTime - start} ms)")
     }
 
     @Test fun theRuleOnlyPathAndALargeLibraryOverTheRetrievalThreshold() = runTest {
