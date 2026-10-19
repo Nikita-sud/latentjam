@@ -181,52 +181,152 @@ public object HabitSlots {
 }
 
 /**
- * Whether a personal row keeps the queue's flow from its seed — the research's coherence filter
- * (slots2.py `coherent`, threshold frozen in slots2_rule.json), made strict for the test build: a row
- * is coherent only when both tracks are KNOWN to the artist knowledge pack (both have a descriptor;
- * the adapter's guesses do not count) and their artist descriptors' cosine is at least
- * [DESCRIPTOR_FLOOR], their genre families agree when both have one, and their pack languages agree
- * when both have one. Unknown is not coherent. Without the pack nothing is.
+ * How far a personal row would pull the queue away from its seed — the soft flow score of the test
+ * build (docs/habit-slots.md, deviation 4b). Incoherence P is the mean of four parts in [0, 1]:
+ * genre family and pack language (0 same, 1 different, [UNKNOWN] when either side has none), the
+ * artist-descriptor distance (0 at cosine ≥ [DESCRIPTOR_NEAR], 1 at ≤ [DESCRIPTOR_FAR], linear
+ * between, [UNKNOWN] without both pack descriptors) and the audio distance on the on-device vectors
+ * (0 at cosine ≥ the library's 75th percentile of random-pair cosines, 1 at ≤ its 25th, linear
+ * between, [UNKNOWN] when either track has no vector yet). A row with transition strength t is kept
+ * when t − [LAMBDA]·P > 0 ([pick]).
  *
- * The genre family is the alias family of the track's first genre tag value ([Genres]' table, the
- * table the research's `family()` mirrors); the research read it from the teacher's genres, which the
- * app does not ship (docs/habit-slots.md).
+ * The family is the alias family of the track's first genre tag value ([Genres]' table, which the
+ * research's `family()` mirrors); the research read the teacher's genres, which the app does not ship.
+ * [audio] returns a track's audio vector or null; the percentiles are drawn once per library list.
  */
-public class HabitCoherence(private val knowledge: ArtistKnowledge?) {
+public class HabitFlow(
+    private val knowledge: ArtistKnowledge?,
+    private val audio: suspend (TrackId) -> FloatArray?,
+) {
+    private var anchorsFor: List<TrackDescriptor>? = null
+    private var anchors: AudioAnchors? = null
 
-    private class Known(val descriptor: FloatArray, val language: String?, val family: String?)
+    /** The audio cosines a random pair of this library falls under 25 % and 75 % of the time. */
+    public data class AudioAnchors(val low: Double, val high: Double)
 
-    private fun known(track: TrackDescriptor): Known? {
-        val pack = knowledge ?: return null
-        val raw = pack.descriptor(track.artist, track.artists.firstOrNull(), text = null) ?: return null
-        var norm = 0.0
-        for (value in raw) norm += value.toDouble() * value
-        if (norm <= 0.0 || !norm.isFinite()) return null
-        val scale = 1.0 / sqrt(norm)
-        val descriptor = FloatArray(raw.size) { (raw[it] * scale).toFloat() }
-        return Known(descriptor, pack.facts(track.artist, track.artists.firstOrNull())?.language, family(track.genre))
+    private class Known(val descriptor: FloatArray?, val language: String?, val family: String?, val audio: FloatArray?)
+
+    private suspend fun known(track: TrackDescriptor): Known {
+        val primary = track.artists.firstOrNull()
+        return Known(
+            descriptor = knowledge?.descriptor(track.artist, primary, text = null),
+            language = knowledge?.facts(track.artist, primary)?.language,
+            family = family(track.genre),
+            audio = audio(track.id),
+        )
     }
 
-    /** A predicate for rows after [seed]; the seed is looked up once. */
-    public fun from(seed: TrackDescriptor): (TrackDescriptor) -> Boolean {
-        val anchor = known(seed) ?: return { false }
-        return predicate@{ row ->
-            val other = known(row) ?: return@predicate false
-            if (anchor.family != null && other.family != null && anchor.family != other.family) return@predicate false
-            if (anchor.language != null && other.language != null && anchor.language != other.language) return@predicate false
-            if (anchor.descriptor.size != other.descriptor.size) return@predicate false
-            var dot = 0.0
-            for (i in anchor.descriptor.indices) dot += anchor.descriptor[i].toDouble() * other.descriptor[i]
-            dot >= DESCRIPTOR_FLOOR
+    /** P(row) for rows after [seed]; [library] is the list the audio anchors are drawn from. Not thread-safe. */
+    public suspend fun incoherence(
+        seed: TrackDescriptor,
+        library: List<TrackDescriptor>,
+    ): suspend (TrackDescriptor) -> Double {
+        if (anchorsFor !== library) {
+            anchors = audioAnchors(library)
+            anchorsFor = library
+        }
+        val from = known(seed)
+        val bounds = anchors
+        return { track ->
+            val row = known(track)
+            val parts = doubleArrayOf(
+                differs(from.family, row.family),
+                differs(from.language, row.language),
+                distance(cosine(from.descriptor, row.descriptor), DESCRIPTOR_NEAR, DESCRIPTOR_FAR),
+                bounds?.let { distance(cosine(from.audio, row.audio), it.high, it.low) } ?: UNKNOWN,
+            )
+            parts.average()
         }
     }
 
+    private suspend fun audioAnchors(library: List<TrackDescriptor>): AudioAnchors? {
+        if (library.size < 2) return null
+        val ordered = library.map(TrackDescriptor::id).sortedBy(TrackId::value)
+        val random = kotlin.random.Random(AUDIO_SAMPLE_SEED)
+        val vectors = HashMap<TrackId, FloatArray?>()
+        suspend fun vector(id: TrackId) = if (id in vectors) vectors[id] else audio(id).also { vectors[id] = it }
+        val cosines = ArrayList<Double>(AUDIO_PAIRS)
+        var attempts = 0
+        while (cosines.size < AUDIO_PAIRS && attempts++ < AUDIO_PAIRS * 10) {
+            val a = random.nextInt(ordered.size)
+            val b = random.nextInt(ordered.size)
+            if (a == b) continue
+            cosine(vector(ordered[a]), vector(ordered[b]))?.let(cosines::add)
+        }
+        if (cosines.size < AUDIO_MIN_PAIRS) return null
+        cosines.sort()
+        return AudioAnchors(low = percentile(cosines, 0.25), high = percentile(cosines, 0.75))
+    }
+
     public companion object {
+        /** How much incoherence costs against transition strength. */
+        public const val LAMBDA: Double = 1.0
+        /** A part neither side can judge. */
+        public const val UNKNOWN: Double = 0.5
+        /** Artist-descriptor cosine from which a row is as close as a seed's own neighbours. */
+        public const val DESCRIPTOR_NEAR: Double = 0.80
         /** FIT real-sequence 10th percentile of consecutive artist-descriptor cosines (slots2_rule.json). */
-        public const val DESCRIPTOR_FLOOR: Double = 0.6036645770072937
+        public const val DESCRIPTOR_FAR: Double = 0.6036645770072937
+        /** Random pairs drawn per library for the audio anchors, from a fixed seed. */
+        public const val AUDIO_PAIRS: Int = 2_000
+        public const val AUDIO_SAMPLE_SEED: Int = 20_261_019
+        /** Fewer judged pairs than this (a library still being analysed) leaves audio unknown. */
+        public const val AUDIO_MIN_PAIRS: Int = 50
 
         /** The alias family of the first genre value, or null when it has none (score.py `family`). */
         public fun family(genre: String?): String? =
             Genres.rawList(genre).firstOrNull()?.let(Genres::aliasFamily)
+
+        /**
+         * Rows by score t − [lambda]·P, best first, those above zero, at most [limit]. [rows] are the
+         * transition list's rows with a count above zero, in its order (ties keep it);
+         * t = ln(1 + c) / ln(1 + max c).
+         */
+        public fun pick(
+            rows: List<TrackId>,
+            count: (TrackId) -> Int,
+            incoherence: Map<TrackId, Double>,
+            lambda: Double = LAMBDA,
+            limit: Int = HabitSlots.PERSONAL_SLOTS,
+        ): List<TrackId> {
+            val top = rows.maxOfOrNull(count)?.takeIf { it > 0 } ?: return emptyList()
+            val scored = rows.map { row ->
+                row to kotlin.math.ln(1.0 + count(row)) / kotlin.math.ln(1.0 + top) - lambda * (incoherence[row] ?: UNKNOWN)
+            }
+            return scored.filter { it.second > 0.0 }.sortedByDescending { it.second }.take(limit).map { it.first }
+        }
+
+        private fun differs(a: String?, b: String?): Double =
+            if (a == null || b == null) UNKNOWN else if (a == b) 0.0 else 1.0
+
+        /** 0 at or above [near], 1 at or below [far], linear between; [UNKNOWN] without a cosine. */
+        internal fun distance(cosine: Double?, near: Double, far: Double): Double = when {
+            cosine == null -> UNKNOWN
+            cosine >= near -> 0.0
+            cosine <= far -> 1.0
+            else -> (near - cosine) / (near - far)
+        }
+
+        internal fun cosine(a: FloatArray?, b: FloatArray?): Double? {
+            if (a == null || b == null || a.size != b.size || a.isEmpty()) return null
+            var dot = 0.0
+            var na = 0.0
+            var nb = 0.0
+            for (i in a.indices) {
+                dot += a[i].toDouble() * b[i]
+                na += a[i].toDouble() * a[i]
+                nb += b[i].toDouble() * b[i]
+            }
+            if (na <= 0.0 || nb <= 0.0) return null
+            return (dot / sqrt(na * nb)).takeIf(Double::isFinite)
+        }
+
+        /** numpy's default (linear) percentile of an ascending list. */
+        internal fun percentile(sorted: List<Double>, q: Double): Double {
+            val position = q * (sorted.size - 1)
+            val lower = position.toInt()
+            val upper = minOf(lower + 1, sorted.lastIndex)
+            return sorted[lower] + (sorted[upper] - sorted[lower]) * (position - lower)
+        }
     }
 }

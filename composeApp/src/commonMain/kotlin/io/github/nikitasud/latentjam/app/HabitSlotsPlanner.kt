@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.app
 import io.github.nikitasud.latentjam.history.ListenEvent
 import io.github.nikitasud.latentjam.history.ListenStart
 import io.github.nikitasud.latentjam.history.ListeningHistory
+import io.github.nikitasud.latentjam.smart.HabitFlow
 import io.github.nikitasud.latentjam.smart.HabitListen
 import io.github.nikitasud.latentjam.smart.HabitSlots
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
@@ -15,9 +16,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * "Learn from my habits" (docs/habit-slots.md): gives the listener's own top transition rows for
- * [seed] the 1-based slots 1, 3, 5, 7 and 9 of SMART's [chain], as many as really followed the seed
- * or its artist. Returns [chain] unchanged when none did.
+ * "Learn from my habits" (docs/habit-slots.md): gives tracks that really followed [seed] or its
+ * artist the 1-based slots 1, 3, 5, 7 and 9 of SMART's [chain], those whose transition strength
+ * outweighs how far they would pull the queue from the seed ([HabitFlow]; without one, every row
+ * counts as coherent). Returns [chain] unchanged when none qualifies.
  */
 internal suspend fun withHabitSlots(
     history: ListeningHistory,
@@ -26,7 +28,7 @@ internal suspend fun withHabitSlots(
     library: List<TrackDescriptor>,
     chain: List<TrackId>,
     seedMs: Long,
-    coherence: (TrackDescriptor) -> (TrackDescriptor) -> Boolean,
+    flow: HabitFlow?,
 ): List<TrackId> = withContext(Dispatchers.Default) {
     val events = runCatching { history.recentEvents(SMART_HABIT_HISTORY_LIMIT) }.getOrNull()
         ?: return@withContext chain
@@ -34,21 +36,17 @@ internal suspend fun withHabitSlots(
     for (track in library) artistKeys[track.id] = HabitSlots.artistKey(track)
     artistKeys[seed.id] = HabitSlots.artistKey(seed)
     val listens = habitListens(events.asReversed(), artistKeys.keys, seedMs)
+    val artistKey = { id: TrackId -> artistKeys[id].orEmpty() }
+    val rows = habitRows(listens, seed.id, seedMs, candidates.map(TrackDescriptor::id), artistKey, salt = seedMs)
+    if (rows.isEmpty()) return@withContext chain
+    val (byTrack, byArtist) = HabitSlots.transitionCounts(listens, seed.id, artistKey)
     val byId = candidates.associateBy(TrackDescriptor::id)
-    val coherentWithSeed = coherence(seed)
-    val personal = habitRows(
-        listens = listens,
-        seed = seed.id,
-        seedMs = seedMs,
-        candidates = candidates.map(TrackDescriptor::id),
-        artistKey = { artistKeys[it].orEmpty() },
-        salt = seedMs,
-        coherent = { id -> byId[id]?.let(coherentWithSeed) ?: false },
-    )
-    if (personal.isEmpty()) return@withContext chain
+    val score = flow?.incoherence(seed, library)
+    val incoherence = rows.associateWith { id -> score?.let { s -> byId[id]?.let { s(it) } } ?: 0.0 }
+    val personal = HabitFlow.pick(rows, count = { (byTrack[it] ?: 0) + (byArtist[it] ?: 0) }, incoherence)
     // Aggregate on purpose: no title, artist or id leaves the app through the system log.
-    println("SMART: habit slots placed ${personal.size} of ${HabitSlots.PERSONAL_SLOTS}")
-    HabitSlots.interleave(personal, chain)
+    println("SMART: habit slots placed ${personal.size} of ${rows.size} real transitions")
+    if (personal.isEmpty()) chain else HabitSlots.interleave(personal, chain)
 }
 
 /**
@@ -74,13 +72,10 @@ internal fun habitListens(
 }.sortedBy(HabitListen::startedAtMs) // the log is in recording order; a merged or restored one may not be
 
 /**
- * The top [HabitSlots.PERSONAL_SLOTS] rows of the transition list among [candidates] that really
- * followed the seed or its artist (a count above zero), in the list's order. Rows the reference
- * ranks only by ACT-R or its random key are left to SMART: overall favourites unrelated to the seed
- * made the queue swing between genres on the owner's phone (FIT: genre breaks 28 % vs 16.5 %).
- * Of those, only rows [coherent] with the seed (HabitCoherence) are placed, deeper ones moving up:
- * real transitions alone still broke the queue's flow on FIT (jumps 6.1 % vs chain 0.6 %).
- * Fewer such rows leave their slots to SMART; none leaves SMART's queue unchanged.
+ * The transition list's rows among [candidates] that really followed the seed or its artist (a count
+ * above zero), in the list's order. Rows the reference ranks only by ACT-R or its random key are left
+ * to SMART: overall favourites unrelated to the seed made the queue swing between genres on the
+ * owner's phone (FIT: genre breaks 28 % vs 16.5 %).
  */
 internal fun habitRows(
     listens: List<HabitListen>,
@@ -89,7 +84,6 @@ internal fun habitRows(
     candidates: List<TrackId>,
     artistKey: (TrackId) -> String,
     salt: Long,
-    coherent: (TrackId) -> Boolean = { true },
 ): List<TrackId> {
     if (listens.isEmpty()) return emptyList()
     val (byTrack, byArtist) = HabitSlots.transitionCounts(listens, seed, artistKey)
@@ -100,7 +94,7 @@ internal fun habitRows(
         listens = listens,
         artistKey = artistKey,
         tieKey = { saltedTieKey(it, salt) },
-    ).asSequence().filter(coherent).take(HabitSlots.PERSONAL_SLOTS).toList()
+    )
 }
 
 /** A uniform `[0, 1)` key per track, fixed for one plan ([salt]) and different between plans. */

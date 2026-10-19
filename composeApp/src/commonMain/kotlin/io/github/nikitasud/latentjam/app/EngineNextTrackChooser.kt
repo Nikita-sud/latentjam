@@ -8,6 +8,7 @@ import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.playback.NextTrackChooser
 import io.github.nikitasud.latentjam.playback.SmartChoice
+import io.github.nikitasud.latentjam.smart.HabitFlow
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.SmartHistoryEvent
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
@@ -45,8 +46,8 @@ class EngineNextTrackChooser(
     private val learnFromHabits: () -> Boolean = { false },
     /** SMART's library, whose listens the habit list reads (not only what may still be queued). */
     private val library: () -> List<TrackDescriptor> = { emptyList() },
-    /** Whether a habit row keeps the flow from a seed (HabitCoherence in the app). */
-    private val habitCoherence: (TrackDescriptor) -> (TrackDescriptor) -> Boolean = { { true } },
+    /** How far a habit row would pull the queue from its seed; null scores every row coherent. */
+    private val habitFlow: HabitFlow? = null,
 ) : NextTrackChooser {
 
     private val mutex = Mutex()
@@ -112,7 +113,7 @@ class EngineNextTrackChooser(
             // queue with the tapped track); top-ups of a running queue keep SMART's own order.
             if (recentIds.isEmpty() && plan.isNotEmpty() && learnFromHabits()) {
                 plan = withHabitSlots(
-                    history, current, candidates, library(), plan, seedMs = events.last().startedAtMs, coherence = habitCoherence,
+                    history, current, candidates, library(), plan, seedMs = events.last().startedAtMs, flow = habitFlow,
                 )
             }
             planned = ArrayDeque(plan.withIndex().toList())

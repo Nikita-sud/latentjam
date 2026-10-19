@@ -5,7 +5,7 @@ Test build, 19 October 2026. Not a release and not yet confirmed on a sealed win
 ## What it does
 
 When SMART starts a queue from a track, the tracks the listener really played after it (or after its artist)
-take up to the 1-based slots 1, 3, 5, 7 and 9 when they keep the queue's flow (deviation 4b); SMART's own plan fills the other slots in its order without repeats, and the
+take up to the 1-based slots 1, 3, 5, 7 and 9 when their habit outweighs how far they pull the queue from the seed (deviation 4b); SMART's own plan fills the other slots in its order without repeats, and the
 rest of that plan follows. Later top-ups of the running queue are SMART's own walk, unchanged.
 
 Setting: *Settings → SMART engine → Recommendations → Learn from my habits* (`learn_from_habits`), on by default,
@@ -64,14 +64,18 @@ python3 tools/research/habit_slots/export_golden.py \
    vs chain 16.5 %, descriptor jumps 9.5 % vs 1.1 %, language switches 15 % vs 4 %). This is not the measured
    SLOTS5 arm any more (closer to slots_rule, without its top-up); research v2 with flow gates may change it again.
    The golden test still pins the reference list; this filter sits on top of it.
-4b. **Coherence gate (19 Oct, from FIT v2 / slots2_rule.json).** Real transitions alone still broke the flow on FIT
-   (top-10 descriptor jumps 6.1 % vs chain 0.6 %, language switches 11 % vs 3 %). A real-transition row is placed only
-   if it is coherent with the seed and *known*: both tracks have an artist-knowledge-pack descriptor (the adapter's
-   guesses do not count), their cosine is ≥ 0.6036645770072937 (FIT's frozen jump threshold), their genre families
-   agree when both have one, and their pack languages agree when both have one. Failing rows are skipped and deeper
-   coherent rows move up (up to five); empty slots go to SMART. Stricter than the research's RC (which let unknown
-   rows through); not W4-validated. The family is the alias family (Genres' table) of the track's *first genre tag
-   value* — the research read the teacher's genres, which the app does not ship. Code: `HabitCoherence`.
+4b. **Soft flow score (19 Oct, replaces the strict gate of 34f902fc; the owner's "давай").** Real-transition rows
+   are scored s = t − λ·P, λ = 1 (`HabitFlow.LAMBDA`), and up to five with s > 0 go to the slots by s, best first;
+   empty slots go to SMART. t = ln(1 + c) / ln(1 + max c), c = track count + artist count (a track transition also
+   counts as an artist one, so it weighs double). P = mean of four parts in [0, 1]: genre family and pack language
+   (0 same, 1 different, 0.5 when either is unknown), artist-descriptor distance (0 at cosine ≥ 0.80, 1 at
+   ≤ 0.6037, linear, 0.5 without both pack descriptors), and audio distance on the on-device A0 vectors (0 at
+   cosine ≥ the library's 75th percentile of random-pair cosines, 1 at ≤ its 25th, linear, 0.5 when either track
+   has no vector yet; percentiles from 2,000 random pairs, fixed seed, once per library list). So a track without
+   pack data can still enter when it sounds close to the seed. All anchors are named constants in `HabitFlow`.
+   Not window-validated (a matching research item is being reviewed for W9). The family is the alias family
+   (Genres' table) of the track's *first genre tag value* — the research read the teacher's genres, which the
+   app does not ship.
 5. **Candidates** are the tracks SMART may append (its library minus SMART exclusions, already-queued and removed
    rows); listens are those of SMART's library. The reference: the whole library minus the seed and novelty set.
 6. **History window.** The newest 10,000 events (the SMART window, skips included before they are dropped), no
