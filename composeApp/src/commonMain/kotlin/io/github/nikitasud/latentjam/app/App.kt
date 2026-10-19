@@ -986,14 +986,21 @@ private fun AppShell(
             smartExclusionState,
             playlistPresentationIdentity,
         ) {
+            if (!forYouPageActive) {
+                // Off screen: whatever changes now is applied when the page comes back into view.
+                forYouPage.currentSinceShown = false
+                return@LaunchedEffect
+            }
             val loaded = tracks ?: return@LaunchedEffect
-            if (!forYouPageActive) return@LaunchedEffect
             val loadedIds = loaded.map(TrackDescriptor::id)
             val requestedWorlds = if (libraryWorlds.worldLibraryIds == loadedIds) libraryWorlds.worlds else emptyList()
-            // Built once, and again only when the worlds arrive — the text index fills in the
-            // background, so on a cold library they are simply not ready at first visit. Never
-            // rebuilt on a mere return to the tab: a page that regroups itself while being read is
-            // indistinguishable from a broken one.
+            val clock = localTimePoint(epochMillis())
+            val pageDaypart = ForYouRhythm.daypartOf(clock.hourOfDay)
+            // Built once, and again only when its inputs change — the worlds arrive later on a cold
+            // library, because the text index fills in the background. What the listener does and
+            // the clock (a listen, a new phase, a new day) never re-lay the page while it is on
+            // screen: a page that regroups itself while being read is indistinguishable from a
+            // broken one. They are applied the next time the page comes into view.
             if (
                 !forYouPage.forYou.isEmpty &&
                 forYouPage.builtWorlds == requestedWorlds &&
@@ -1004,11 +1011,21 @@ private fun AppShell(
                 forYouPage.builtForYouExclusions == smartExclusionState &&
                 forYouPage.builtIncludeNoveltyMixes == includeNoveltyMixes &&
                 forYouPage.builtPersonalizationRevision == forYouPage.personalizationRevision &&
-                forYouPage.builtHistoryRevision == historyRevision
+                (
+                    forYouPage.currentSinceShown ||
+                        (
+                            forYouPage.builtHistoryRevision == historyRevision &&
+                                forYouPage.builtDay == clock.epochDay &&
+                                forYouPage.builtDaypart == pageDaypart
+                            )
+                    )
             ) {
+                forYouPage.currentSinceShown = true
                 forYouPage.forYouRefreshing = false
+                forYouPage.forYouBuilding = false
                 return@LaunchedEffect
             }
+            forYouPage.forYouBuilding = true
             val historySnapshot = try {
                 AppGraph.history.stats() to
                     AppGraph.history.recentEvents(RECENT_EVENTS_FOR_YOU)
@@ -1020,6 +1037,8 @@ private fun AppShell(
                 // recommendations and mark that false page as successfully built.
                 println("For You: could not load listening history: $failure")
                 forYouPage.forYouRefreshing = false
+                forYouPage.forYouBuilding = false
+                forYouPage.forYouLoadFailed = forYouPage.forYou.isEmpty
                 snackbar.showSnackbar(getString(Res.string.settings_library_manage_failed))
                 return@LaunchedEffect
             }
@@ -1029,6 +1048,13 @@ private fun AppShell(
                     .filter { smartExclusionState.excludes(it) }
                     .mapTo(this) { it.id }
                 currentTrack?.id?.let(::add)
+                // What is already queued to play next is not offered again (for-you-ux.md §8.3) —
+                // only the near part of the queue, so playing the whole library does not empty the page.
+                val now = playback.state.value
+                now.queue.asSequence()
+                    .drop(now.queueIndex + 1)
+                    .take(FOR_YOU_QUEUED_EXCLUSION)
+                    .mapTo(this) { it.id }
             }
             // Discovery offers ignored on recent prior days yield their slots today. Same-day
             // offers never cool anything — the page stays stable within its day.
@@ -1079,7 +1105,12 @@ private fun AppShell(
             forYouPage.builtIncludeNoveltyMixes = includeNoveltyMixes
             forYouPage.builtPersonalizationRevision = forYouPage.personalizationRevision
             forYouPage.builtHistoryRevision = historyRevision
+            forYouPage.builtDay = localTimePoint(nowForPage).epochDay
+            forYouPage.builtDaypart = ForYouRhythm.daypartOf(localTimePoint(nowForPage).hourOfDay)
+            forYouPage.currentSinceShown = true
             forYouPage.forYouRefreshing = false
+            forYouPage.forYouBuilding = false
+            forYouPage.forYouLoadFailed = false
         }
 
         LaunchedEffect(libraryIndexingRequest, smartEligibleTracks) {
@@ -2586,6 +2617,11 @@ private fun AppShell(
                                             page = shownForYou,
                                             contentPadding = listPadding,
                                             isRefreshing = forYouPage.forYouRefreshing,
+                                            // Never built yet (or emptied by an exclusion change) and
+                                            // not failed: an empty page means "not ready", not "no history".
+                                            isLoading = forYouPage.forYouBuilding ||
+                                                (forYouPage.builtForYouLibraryIds == null && !forYouPage.forYouLoadFailed),
+                                            loadFailed = forYouPage.forYouLoadFailed,
                                             // An offer is recorded when its card is on screen, not
                                             // when the page is assembled: LazyRow composes what
                                             // fits, and the builder's own discoveryOffers — which

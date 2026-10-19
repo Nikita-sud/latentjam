@@ -116,6 +116,10 @@ fun ForYouTab(
     contentPadding: PaddingValues,
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
+    /** The page is being built; an empty page then means "not ready yet", not "no history". */
+    isLoading: Boolean = false,
+    /** The history could not be read and no page exists; the caller's snackbar says why. */
+    loadFailed: Boolean = false,
     onPlay: (List<TrackDescriptor>, Int) -> Unit,
     onPlayHero: (ForYouHero) -> Unit,
     onTrackMenu: (TrackDescriptor) -> Unit,
@@ -148,11 +152,18 @@ fun ForYouTab(
                 modifier = Modifier.fillMaxSize().padding(32.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = stringResource(Res.string.foryou_empty),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                // The empty-history invitation is only true once a build has finished and found
+                // nothing; shown while loading it told listeners with years of history to "play a
+                // few tracks". A failed read leaves the space blank — the snackbar explains it.
+                when {
+                    isLoading -> AppSpinner(modifier = Modifier.size(32.dp), strokeWidth = 3.dp)
+                    loadFailed -> Unit
+                    else -> Text(
+                        text = stringResource(Res.string.foryou_empty),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         } else {
             FadingLazyColumn(
@@ -195,7 +206,7 @@ fun ForYouTab(
                         ),
                     ) {
                         Text(
-                            text = section.title().uppercase(),
+                            text = section.title().uppercaseForDisplay(),
                             style = MaterialTheme.typography.labelSmall.copy(
                                 letterSpacing = 0.4.sp,
                             ),
@@ -650,7 +661,7 @@ private fun HeroCard(hero: ForYouHero, accent: TrackAccent?, onPlay: () -> Unit)
             Artwork(uri = hero.track.artworkUri, size = 92.dp, cornerRadius = 16.dp)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = hero.kicker.text().uppercase(),
+                    text = hero.kicker.text().uppercaseForDisplay(),
                     style = MaterialTheme.typography.labelSmall.copy(
                         letterSpacing = 0.5.sp,
                     ),

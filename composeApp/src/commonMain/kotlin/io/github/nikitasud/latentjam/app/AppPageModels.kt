@@ -328,7 +328,23 @@ internal class ForYouPageState {
     var personalizationRevision by mutableStateOf(0)
     var builtPersonalizationRevision by mutableStateOf(-1)
     var builtHistoryRevision by mutableStateOf(-1L)
+
+    // The local day and phase the page was built in: a new day or phase is a reason to rebuild,
+    // applied the next time the page comes into view rather than under the reader.
+    var builtDay by mutableStateOf(Long.MIN_VALUE)
+    var builtDaypart by mutableStateOf<ForYouDaypart?>(null)
+
+    // True once the page has been built (or confirmed current) since it last came into view. While
+    // it stays true, a listen does not rebuild the page on screen; it is cleared whenever the page
+    // leaves the screen, and an interrupted build leaves it false so the next run still rebuilds.
+    var currentSinceShown by mutableStateOf(false)
     var forYouRefreshing by mutableStateOf(false)
+
+    // A build is running: an empty page then means "not ready yet", never "no history".
+    var forYouBuilding by mutableStateOf(false)
+
+    // The last history read failed and no page exists to keep; the snackbar says why.
+    var forYouLoadFailed by mutableStateOf(false)
 }
 
 /** The library as scanned and what Settings says about it. */

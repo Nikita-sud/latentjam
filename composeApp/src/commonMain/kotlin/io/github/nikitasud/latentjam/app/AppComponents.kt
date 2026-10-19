@@ -258,6 +258,9 @@ internal fun StartPage.showsShuffleAll(): Boolean = this in SHUFFLE_ALL_PAGES
 // heavy listener's ~80 events/day, 500 events was six days — too short to know what a morning is.
 internal const val RECENT_EVENTS_FOR_YOU = 4000
 
+/** How much of the upcoming queue For You leaves out: about the next hour and a half of music. */
+internal const val FOR_YOU_QUEUED_EXCLUSION = 25
+
 // The full player owns precise seeking; the browse pill updates this glanceable hint less often so
 // playback does not invalidate the browse shell every 500 ms.
 internal const val MINI_PLAYER_PROGRESS_STEP_MS = 1_000L
