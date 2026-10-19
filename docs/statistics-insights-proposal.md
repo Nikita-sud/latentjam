@@ -1,6 +1,6 @@
-# Statistics page — whole-page spec (draft v4, 19 October 2026)
+# Statistics page — whole-page spec (v5, 19 October 2026)
 
-Status: **design under adversarial review, nothing implemented.** Branch `claude/stats-habits-55f9ee` (from
+Status: **design READY after four adversarial review rounds; awaiting the owner's go. Nothing implemented.** Branch `claude/stats-habits-55f9ee` (from
 `release/0.9.2` at 334a36a9). Review log at the end.
 
 Goal (owner): the page should be *interesting and informative* for an ordinary listener, using what the SMART
@@ -11,9 +11,9 @@ user's own log and library tags; nothing leaves the device; no population data s
 
 ```
 1 · YOU LATELY                          (no chips — always "now")
-  L1 On repeat now    5 tracks · bar vs top row · "8 plays in 4 weeks"         tap plays
+  L1 On repeat now    5 tracks · bar vs top row · "artist · on 6 days · 12 plays"  tap plays
                       (fallback: artists on repeat, when < 3 tracks qualify)
-     Streak 6 days · record 23   (current streak hidden under 2 days)
+     Streak 6 days · record 23   (under 2 days: "on 5 of the last 7 days" instead)
 2 · YOUR NUMBERS   [ 7 days | 30 days | All time ]   (chips are this section's header)
   N0 Hero            32 h 10 min · +4 h vs previous 30 days        (All time: "≈ 9 days of music")
                      412 plays · 230 tracks · 61 artists
@@ -24,11 +24,12 @@ user's own log and library tags; nothing leaves the device; no population data s
   N3 When you listen hour bars (listening time) + 4 daypart labels
                      Typical session 38 min · 9 tracks · Longest 3 h 12 min
   N4 Your top        chips [Artists | Albums | Genres | Tracks] · 5 rows · "Show 10"
-  N5 How you listen  Finished 64 % · Partly heard 24 % · Skipped 12 % · Played in SMART mode 41 %
+  N5 How you listen  Finished 64 % · Partly heard 24 % · Skipped 12 %   (of starts)
+                     ── Played in SMART mode 41 % (of plays)
 3 · OVER TIME                           (no chips — whole log)
   T1 Slipping away   ≤ 5 old favourites · "12 plays · 4 months"                 tap plays
   T2 On this day     what you played a year ago (log > 1 year)                   tap plays
-  T3 Your patterns   Same artist next when you pick: 27 % · sequences X → Y 4/6  (when they exist)
+  T3 Your patterns   Picking the same artist again: 27 of 100 picks · X → Y 4/6  (when they exist)
   T4 Library         heard 312 of 5,000 · decades strip
   T5 More appears as you listen   (one card listing what is still locked in sections 1 and 3)
 History note
@@ -66,14 +67,20 @@ Applied once per history revision to the sorted snapshot; every card reads its o
    a phantom second completed play. Merged: A's start, origin and shuffle mode; listened = sum; playedMs = max;
    completed = A ∨ B; skipped = ¬completed ∧ listened < 30 s; end = B.startedAtMs + B.listenedMs. Chains merge
    repeatedly. Legacy lines are not merged. Finished/Skipped shares change slightly as a result (documented).
+   Documented limits of the position test (`playedMs` is the furthest playhead, `listenedMs` heard time): a backward
+   seek inside B can block a real merge (host test); a forward seek inside a restart can wrongly allow one (rare —
+   restarts carry a signal); the tracker compares A's *last* position, the spec A's *furthest*.
 4. **End** = `startedAtMs + effectiveListenedMs`, capped at the next event's start.
 5. **Artist key** = `MetadataRerank.normalizeArtist(first artist)`; an empty key never counts as "same artist" and
    such steps leave numerator and denominator. **Album key** = (album, albumArtist ?: first artist); a null album
    never groups tracks.
-6. **Columnar snapshot.** The output is primitive arrays (track index, start, listened, played, flags, origin start,
-   plan position, session id) ≈ 35 bytes/event; the raw `List<ListenEvent>` copy from `allEvents()` is dropped after
-   normalisation. `ListeningOverviews.summarize` is ported to read these arrays (N0/N5 need post-normalisation values),
-   with an equivalence test against today's overview on logs where nothing merges.
+6. **Output.** A normalised `List<ListenEvent>` in which unmerged events are the store's own objects and only merged
+   events are new copies, plus primitive side arrays per event: track index (`IntArray`), session id (`IntArray`),
+   flags (`ByteArray`: overlap break, pick, chosen). `ListeningOverviews.summarize` runs **unchanged** on that list
+   (the store already keeps every `ListenEvent` for the process lifetime, `ListeningHistory.kt:126,153`, so a
+   columnar port would add memory, not save it). Equivalence test against today's overview on logs with no duplicates
+   and no merges, excluding the fields this spec redefines on purpose (N0 tracks/artists with ≥ 1 play, N2 first
+   non-skipped play, play-day streaks).
 7. Times use the device's current time zone for the whole log (documented limit). Events outside `0..now` are
    ignored everywhere, as today.
 
@@ -89,7 +96,8 @@ Terms:
   Legacy lines are never picks.
 - **Chosen play** (for favourites) = a pick, or a completed play that SMART did not plan and that is not a repeat-one
   loop (`smartPlanPosition == null && shuffleMode != "SMART" && start != REPEAT`; the shuffle-mode test also covers
-  legacy lines).
+  legacy lines). Repeat-one on transports that only use the near-end wrap heuristic records a null start and still
+  counts (documented).
 - **Burn-in** for a comparison with the previous window: `logStart ≤ previousStart` (as computed in
   `ListeningOverview.kt:118-120`). Otherwise the existing "first period" text.
 - **Variety rule** for track lists in sections 1 and 3: at most 1 track per album key and 2 per artist key, so a
@@ -106,13 +114,15 @@ Terms:
 ### L1 On repeat now (new)
 - Weight per track = Σ over local days **today−27 … today** with ≥ 1 play of `0.5^(days ago / 14)` (one count per
   day: loops and fragments cannot inflate it). Ties: more plays, then most recent.
-- Eligible: ≥ 3 plays on ≥ 2 days in that window. Variety rule. 5 rows; bar = weight / top weight; subtitle plural
-  "N plays in 4 weeks". Visible card note: "A day you played it counts fully today, half after two weeks."
+- Eligible: ≥ 3 plays on ≥ 2 days in that window. Variety rule. 5 rows; bar = weight / top weight; subtitle
+  "artist · on N days · M plays" (plurals) — the ranked quantity (days) is shown first, so a row can never look
+  out of order. No jargon note.
 - **Fallback for shuffle-heavy listeners:** when fewer than 3 tracks qualify, the card shows *Artists on repeat* with
   the same weight over artist keys (artist rows not tappable). Empty on an old log → hidden silently; locked (T5) only
   when the log is younger than 7 days. On a locked fresh log T5 renders in section 1's place.
-- Under it, one line: current streak (shown from 2 days) and record, computed on play days after normalisation
-  (today a skip-only day counts; changed and documented).
+- Under it, one line: current streak and record, computed on play days after normalisation (today a skip-only day
+  counts; changed and documented). When the current streak is under 2 days (weekday listeners), the line reads "on N
+  of the last 7 days · record M days" instead.
 
 ## Section 2 · Your numbers (chips)
 
@@ -166,13 +176,17 @@ overlap: Tracks on 30 days resembles L1 (default chip is Artists).
 ### N5 How you listen (changed)
 `ShareMeter`s: Finished, Partly heard (the rest), Skipped — definitions unchanged, after normalisation — and
 *Played in SMART mode* (moved here; definition unchanged: SMART was on when the listen started, picks included).
+Partly heard = 100 % − the two others after rounding, so the three always add up. *Played in SMART mode* sits
+below a divider with its base stated ("of plays"), so it is not read as a fourth slice of starts.
 Visible note: "Finished = heard to 85 %, skipped = left in the first 30 s.".
 
 ## Section 3 · Over time (whole log)
 
 ### T1 Slipping away (new; the page's first "play it again" action)
 - ≥ 5 chosen plays on ≥ 3 distinct days ever, **no start** (skips included) in the last 60 days, ranked by chosen
-  plays; variety rule; ≤ 5; subtitle shows chosen plays. Old enough but nothing qualifies → hidden silently.
+  plays; variety rule; ≤ 5; subtitle shows chosen plays. Old enough but nothing qualifies → hidden silently (a
+  SMART-only listener may then see section 3 as T4 alone; accepted — SMART repetition must not be called a favourite).
+  A tapped row that leaves the list shrinks the card; the scroll anchor holds unless T1 is the first visible item.
 - Recording-gap guard: only if the log has events on ≥ 10 of the last 60 days (Privacy can pause recording).
   Subtitle: "12 plays · 4 months" (plurals); card note "not played in LatentJam since then". A tapped row leaves the
   list once its listen is recorded (intended; the list must not jump the scroll position).
@@ -184,7 +198,7 @@ Visible note: "Finished = heard to 85 %, skipped = left in the first 30 s.".
   nothing qualifies; not listed in T5 (a year is too far to promise).
 
 ### T3 Your patterns (new; hidden entirely until it has content, not locked)
-- *Same artist next when you pick* = steps whose Y is a pick and X, Y have the same non-empty artist key, over all
+- *Picking the same artist again* ("27 of 100 picks") = steps whose Y is a pick and X, Y have the same non-empty artist key, over all
   steps whose Y is a pick. Shown with ≥ 30 such steps. Card note: "Includes starting an artist's page."
 - *Sequences* X→Y over steps whose Y is a pick; denominator = X's steps whose Y is a pick. Rows when ≥ 3 occurrences
   from ≥ 3 sessions (steps packed with their session id and sorted as (pair, session)) and ≥ 40 %; ≤ 3 rows: two thumbs, `X` / `→ Y` on two ellipsised lines with
@@ -214,19 +228,24 @@ main page and in Settings (no `playable` flag). Rows: `Role.Button`, 48 dp, merg
 signature and `App()` stay untouched.
 
 ## Loading, memory, threading
-- **One snapshot producer** per history revision: a `Deferred` of the columnar snapshot, launched in a
-  `rememberCoroutineScope` owned by the screen (not inside either effect), keyed by (history, revision). It is
-  cancelled when `active` turns false and replaced when it is cancelled or failed or Retry is pressed; an awaiter
-  that finds it cancelled re-creates it instead of treating that as its own cancellation. Never two `allEvents()`
+- **One snapshot producer** per history revision: a `Deferred<Result<Snapshot>>` launched from a
+  `rememberCoroutineScope` owned by the screen (not inside either effect) with
+  `SupervisorJob(parent) + Dispatchers.Default`, keyed by (history, revision) — `history` is already re-keyed on
+  `replacedHistoryEpoch` (`App.kt:2559`). The producer never throws (failures come back as `Result.failure`), so a
+  failure cannot cancel the scope. `active` turning false cancels only an in-flight producer; a finished snapshot
+  stays cached across tab-aways. An awaiter that finds the producer cancelled re-creates it once. One Retry re-creates
+  the snapshot and restarts both effects (a single Retry card even if both sections failed). Never two `allEvents()`
   copies.
 - **Section 2** effect: keyed by (selection, revision), as today, awaits the snapshot.
-- **Sections 1+3** effect: keyed by (revision, tracks, active), awaits the same snapshot, own try/catch; on failure
+- **Sections 1+3** effect: keyed by (revision, tracks, active, local day — so "today" in L1 and the streak roll over
+  at midnight while the page stays open), awaits the same snapshot, own try/catch; on failure
   their cards fall back to T5's text, never the dashboard's error. Both keep showing their last result while
   recomputing (the same `displayed` rule as today), so a new listen never swaps cards to locked and back.
 - Per-track state through one `HashMap<TrackId, Int>`; `IntArray`/`FloatArray` per track; steps in a `LongArray`
   sized by the counted pick steps, packed `(from shl 32) or to`, sorted in place, run-length counted; session totals
-  in primitive arrays. Cancellation checks every 1,024 events. Budget for 200k events: persistent ≈ 7 MB (columnar
-  snapshot; replaces today's retained ~40 MB `List<ListenEvent>` copy), transient ≈ 2–3 MB per pass. No OOM-catching
+  in primitive arrays. Cancellation checks every 1,024 events. Budget for 200k events, on top of the ~40 MB of
+  `ListenEvent`s the history store already holds: persistent ≈ 3–4 MB while the page is open (normalised list
+  references 1.6 MB + side arrays ≈ 1.8 MB + merged copies), transient ≈ 2–3 MB per pass. No OOM-catching
   claim (Kotlin/Native cannot catch it); the budget is the guard.
 - Section 1+3 failure shows a neutral "Couldn't load" note with Retry, never T5's "appears as you listen" text.
 
@@ -237,8 +256,9 @@ definition (dedup, overlap, fragment merge incl. completed-then-restart not merg
 legacy logs, SMART-only legacy log → T3 absent and T1 SMART repetition not a favourite, recording gap, variety rule,
 thresholds, cancellation, empty period with non-empty log, completed-then-resumed merged, restart-from-0 not merged,
 merge chains and gap from the merged end, repeat-one not a chosen play, big SMART-only log shows no false lock text,
-old vs new overview equivalence, snapshot race (cancel one awaiter, the other completes) and retry after failure,
-N4 chip-absent fallback, per-section loading keeps section 3). RTL run (he/ar: bars, N2 bar, "4/6"), TalkBack pass,
+old vs new overview equivalence (with the stated exclusions), backward seek inside a resumed half, snapshot race
+(cancel one awaiter, the other completes), N4 chip-absent fallback). Compose UI tests: producer failure → Retry →
+success; dimmed section 2 while section 3 stays rendered. RTL run (he/ar: bars, N2 bar, "4/6"), TalkBack pass,
 one iOS runtime look. `testAndroidHostTest`, `compileKotlinIosSimulatorArm64`,
 lint, R8 release APK: dexdump register count of the `App()` lambda before/after plus launch smoke; read-only
 emulator with a fresh and an old log at default and 150 % font; update `docs/statistics-validation.md`.
@@ -288,3 +308,11 @@ claim about track numbers. UX: snapshot `Deferred` ownership/cancellation/retry;
 library (→ null source, no `App()` edit); per-section loading without collapsing; persistent memory of the raw list
 (→ columnar snapshot, raw copy dropped); chip row not sticky; N4 chip rules; rows filtered to available tracks.
 → v4: all of the above applied.
+
+**Round 4 (3 fresh reviewers).** Listener: **READY** (polish folded in: L1 subtitle shows the ranked quantity, plain
+T3 wording with an anchor, weekday-friendly streak line, SMART meter separated). Honesty: REVISE on one false memory
+claim (the store already retains every event; `allEvents()` is a shallow copy) — all definitions verified; seek edge
+cases of the resume test documented. UX: REVISE on the same memory claim (→ normalised list reusing the store's
+objects, `summarize` unchanged) and on the producer scope (a failed `async` would cancel a plain-`Job` scope → never
+throws, `SupervisorJob` + `Dispatchers.Default`, single Retry, day key, Compose UI tests).
+→ v5: all applied. Both REVISE verdicts named these as their only majors and called the spec READY once fixed.
