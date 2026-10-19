@@ -16,8 +16,8 @@ import kotlinx.coroutines.withContext
 
 /**
  * "Learn from my habits" (docs/habit-slots.md): gives the listener's own top transition rows for
- * [seed] the 1-based slots 1, 3, 5, 7 and 9 of SMART's [chain]. Returns [chain] unchanged when the
- * history holds nothing the list can rank.
+ * [seed] the 1-based slots 1, 3, 5, 7 and 9 of SMART's [chain], as many as really followed the seed
+ * or its artist. Returns [chain] unchanged when none did.
  */
 internal suspend fun withHabitSlots(
     history: ListeningHistory,
@@ -70,9 +70,11 @@ internal fun habitListens(
 }.sortedBy(HabitListen::startedAtMs) // the log is in recording order; a merged or restored one may not be
 
 /**
- * The top [HabitSlots.PERSONAL_SLOTS] rows of the transition list among [candidates] the listener
- * has heard in [listens]. Unheard rows, which the reference ranks last by a random key, are left to
- * SMART: a sparse history must not put random tracks in the personal slots.
+ * The top [HabitSlots.PERSONAL_SLOTS] rows of the transition list among [candidates] that really
+ * followed the seed or its artist (a count above zero), in the list's order. Rows the reference
+ * ranks only by ACT-R or its random key are left to SMART: overall favourites unrelated to the seed
+ * made the queue swing between genres on the owner's phone (FIT: genre breaks 28 % vs 16.5 %).
+ * Fewer such rows leave their slots to SMART; none leaves SMART's queue unchanged.
  */
 internal fun habitRows(
     listens: List<HabitListen>,
@@ -83,9 +85,9 @@ internal fun habitRows(
     salt: Long,
 ): List<TrackId> {
     if (listens.isEmpty()) return emptyList()
-    val heard = listens.mapTo(HashSet()) { it.trackId }
+    val (byTrack, byArtist) = HabitSlots.transitionCounts(listens, seed, artistKey)
     return HabitSlots.transitionList(
-        candidates = candidates.filter { it in heard },
+        candidates = candidates.filter { it in byTrack || it in byArtist },
         seed = seed,
         seedMs = seedMs,
         listens = listens,

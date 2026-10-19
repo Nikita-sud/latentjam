@@ -30,7 +30,10 @@ class HabitSlotsChooserTest {
     private val planned = (1..24).map { track("planned-$it") }
     private val library = listOf(seed) + habits + planned
 
-    /** Three days ago (outside the novelty window): seed → habit-1 twice, then habit-2..6 once each, newest last. */
+    /**
+     * Three days ago (outside the novelty window): seed → habit-1 twice, seed → habit-2 once, then
+     * habit-3..6 alone (frequent and recent, but never after the seed), newest last.
+     */
     private fun log(): List<ListenEvent> {
         val base = epochMillis() - 3L * 86_400_000L
         val oldestFirst = mutableListOf<ListenEvent>()
@@ -47,7 +50,10 @@ class HabitSlotsChooserTest {
             play(habits[0], ListenStart.USER_PICK)
             at += 3_600_000L
         }
-        habits.drop(1).forEach { play(it, ListenStart.USER_PICK); at += 3_600_000L }
+        play(seed, ListenStart.USER_PICK)
+        play(habits[1], ListenStart.USER_PICK)
+        at += 3_600_000L
+        habits.drop(2).forEach { play(it, ListenStart.USER_PICK); at += 3_600_000L }
         return oldestFirst
     }
 
@@ -88,14 +94,14 @@ class HabitSlotsChooserTest {
     }
 
     @Test
-    fun `a queue started from a seed gives slots 1 3 5 7 9 to the habit list`() = runTest {
+    fun `a queue started from a seed gives its first slots to what really followed the seed`() = runTest {
         val served = queue(enabled = true, events = log(), rows = 20).map { it.track.id.value }
-        // habit-1 followed the seed twice; the rest follow by recency (ACT-R), newest first.
-        val personal = listOf("habit-1", "habit-6", "habit-5", "habit-4", "habit-3")
-        assertEquals(personal, listOf(0, 2, 4, 6, 8).map(served::get))
-        assertEquals((1..12).map { "planned-$it" }, served.take(17).filterNot { it.startsWith("habit") })
+        // Only habit-1 (twice) and habit-2 (once) followed the seed; the frequent habit-3..6 do not
+        // fill the other slots, SMART does.
+        assertEquals(listOf("habit-1", "habit-2"), listOf(0, 2).map(served::get))
+        assertEquals((1..12).map { "planned-$it" }, served.take(14).filterNot { it.startsWith("habit") })
         // The next plan tops up a running queue: SMART's own order, nothing personal.
-        assertEquals((13..15).map { "planned-$it" }, served.drop(17))
+        assertEquals((13..18).map { "planned-$it" }, served.drop(14))
     }
 
     @Test
@@ -112,9 +118,9 @@ class HabitSlotsChooserTest {
         }
         val listens = habitListens(auto, library.mapTo(HashSet()) { it.id }, epochMillis())
         val (byTrack, byArtist) = HabitSlots.transitionCounts(listens, seed.id) { it.value }
-        assertTrue(byTrack.isEmpty() && byArtist.isEmpty())
-        // habit-1 still ranks as a listen (two plays outweigh one newer play in ACT-R).
+        assertTrue(habits[0].id !in byTrack && habits[0].id !in byArtist)
+        // habit-1 lost its transitions and its slot; habit-2's pick still counts.
         val served = queue(enabled = true, events = auto, rows = 10).map { it.track.id.value }
-        assertEquals(listOf("habit-1", "habit-6", "habit-5", "habit-4", "habit-3"), listOf(0, 2, 4, 6, 8).map(served::get))
+        assertEquals(listOf("habit-2") + (1..9).map { "planned-$it" }, served)
     }
 }

@@ -49,14 +49,23 @@ class HabitSlotsPlannerTest {
     }
 
     @Test
-    fun `unheard candidates never take a personal slot`() {
+    fun `only tracks that really followed the seed or its artist take a personal slot`() {
         val day = 86_400_000L
-        val listens = listOf(HabitListen(TrackId("heard"), 0L))
+        val listens = listOf(
+            HabitListen(TrackId("favourite"), 0L), // played often, never after the seed
+            HabitListen(TrackId("favourite"), 1_000L),
+            HabitListen(TrackId("seed"), day, countsAsNext = true),
+            HabitListen(TrackId("after"), day + 60_000L, countsAsNext = true),
+            HabitListen(TrackId("other-by-seed-artist"), day + 3_600_000L, countsAsNext = true),
+            HabitListen(TrackId("after-artist"), day + 3_660_000L, countsAsNext = true),
+        )
+        val artists = mapOf("seed" to "a", "other-by-seed-artist" to "a")
         val rows = habitRows(
             listens, seed = TrackId("seed"), seedMs = 3 * day,
-            candidates = listOf("x", "heard", "y", "z").map(::TrackId), artistKey = { "" }, salt = 1L,
+            candidates = listOf("x", "favourite", "after-artist", "after").map(::TrackId),
+            artistKey = { artists[it.value].orEmpty() }, salt = 1L,
         )
-        assertEquals(listOf(TrackId("heard")), rows)
+        assertEquals(listOf(TrackId("after"), TrackId("after-artist")), rows)
         assertTrue(habitRows(emptyList(), TrackId("seed"), 3 * day, listOf(TrackId("x")), { "" }, 1L).isEmpty())
     }
 

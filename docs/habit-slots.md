@@ -4,12 +4,12 @@ Test build, 19 October 2026. Not a release and not yet confirmed on a sealed win
 
 ## What it does
 
-When SMART starts a queue from a track, the listener's own "after this you usually play…" list takes the
-1-based slots 1, 3, 5, 7 and 9; SMART's own plan fills the other slots in its order without repeats, and the
+When SMART starts a queue from a track, the tracks the listener really played after it (or after its artist)
+take up to the 1-based slots 1, 3, 5, 7 and 9; SMART's own plan fills the other slots in its order without repeats, and the
 rest of that plan follows. Later top-ups of the running queue are SMART's own walk, unchanged.
 
 Setting: *Settings → SMART engine → Recommendations → Learn from my habits* (`learn_from_habits`), on by default,
-all locales. Off, an empty history, or a history with no listen of an available track = SMART's queue unchanged.
+all locales. Off, or no pick that ever followed the seed or its artist = SMART's queue unchanged.
 A change takes effect at the next queue start. Not in local backup yet.
 
 Why: on the ListenBrainz (CC0) FIT set (2,120 listeners, four row orders, scenario A; `slots_result.json` on
@@ -56,9 +56,14 @@ python3 tools/research/habit_slots/export_golden.py \
 3. **Tie key.** The reference draws a PCG64 key from the research query key, which has no app equivalent. The app
    uses a splitmix64 key of the track id salted with the planning time (one fixed order per plan, a new one per
    plan). Ties at the tie key are reached only by tracks with equal counts and equal activation.
-4. **Unheard tracks are never placed.** The reference ranks unheard candidates last by the random key and would
-   place them when fewer than five heard candidates remain; the app leaves those slots to SMART (none of the 36
-   golden cases is affected).
+4. **Only real transitions are placed (19 Oct, after the owner's first try).** A personal slot takes only a row
+   with a track or artist→track count above zero, in the list's order, at most five; the rows the reference ranks
+   by ACT-R or its random key (overall favourites unrelated to the seed) are left to SMART. Fewer such rows leave
+   their slots to SMART (they fill 1, 3, … first); none = SMART's queue unchanged. Why: on the phone the queue
+   swung between the owner's phonk favourites and SMART's neighbours; FIT agrees (SLOTS5 genre-family breaks 28 %
+   vs chain 16.5 %, descriptor jumps 9.5 % vs 1.1 %, language switches 15 % vs 4 %). This is not the measured
+   SLOTS5 arm any more (closer to slots_rule, without its top-up); research v2 with flow gates may change it again.
+   The golden test still pins the reference list; this filter sits on top of it.
 5. **Candidates** are the tracks SMART may append (its library minus SMART exclusions, already-queued and removed
    rows); listens are those of SMART's library. The reference: the whole library minus the seed and novelty set.
 6. **History window.** The newest 10,000 events (the SMART window, skips included before they are dropped), no
