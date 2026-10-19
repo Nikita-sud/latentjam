@@ -454,7 +454,7 @@
     <string name="intelligence_include_novelty_mixes">अनोखे मिक्स शामिल करें</string>
     <string name="intelligence_include_novelty_mixes_body">आपके लिए में मीम, वायरल ऑडियो और साउंड इफ़ेक्ट के अलग मिक्स दिखाएँ।</string>
     <string name="intelligence_learn_from_habits">मेरी आदतों से सीखें</string>
-    <string name="intelligence_learn_from_habits_body">SMART कतार के पहले दस गानों में हर दूसरा गाना वह होता है जो आप चुने गए गाने के बाद अक्सर सुनते हैं। सब कुछ इसी डिवाइस पर रहता है।</string>
+    <string name="intelligence_learn_from_habits_body">SMART आपके सुनने से भी सीखता है: आप क्या अक्सर सुनते हैं और आमतौर पर आगे क्या बजाते हैं। सब कुछ इसी डिवाइस पर रहता है।</string>
     <string name="intelligence_smart_ranker">सीखा हुआ रैंकर (परीक्षण)</string>
     <string name="intelligence_smart_ranker_body">SMART हर अगला गाना सार्वजनिक सुनने के डेटा (ListenBrainz) से सीखे मॉडल से चुनता है। बंद: सामान्य SMART शृंखला।</string>
     <string name="foryou_mix_meme_viral">मीम और वायरल ऑडियो</string>

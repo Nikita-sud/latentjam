@@ -184,10 +184,12 @@ object AppGraph {
                                 engine = get(),
                                 history = get(),
                                 companionGroups = { smartCompanionGroups.value },
-                                // Habit slots are withdrawn in the ranker test build (docs/smart-ranker.md).
+                                // Habit slots are withdrawn; "Learn from my habits" now picks the ranker's FULL model.
                                 learnFromHabits = { false },
                                 useRanker = { settings.smartRanker.value },
                                 ranker = getOrNull<SmartRankerAssets>().let { assets -> { assets?.ranker } },
+                                rankerHealthy = getOrNull<SmartRankerAssets>().let { assets -> { assets?.healthy ?: false } },
+                                personalRanker = { settings.learnFromHabits.value },
                                 presses = getOrNull(),
                                 library = { smartLibraryTracks.value },
                                 habitFlow = get<SimilarityEngine>().let { engine ->

@@ -461,7 +461,7 @@
     <string name="intelligence_include_novelty_mixes">Includi i mix insoliti</string>
     <string name="intelligence_include_novelty_mixes_body">Mostra in Per te mix separati di meme, audio virali ed effetti sonori.</string>
     <string name="intelligence_learn_from_habits">Impara dalle mie abitudini</string>
-    <string name="intelligence_learn_from_habits_body">Un brano su due tra i primi dieci di una coda SMART è uno che di solito ascolti dopo quello scelto. Tutto resta su questo dispositivo.</string>
+    <string name="intelligence_learn_from_habits_body">SMART impara anche dai tuoi ascolti: cosa ascolti spesso e cosa metti di solito dopo. Tutto resta su questo dispositivo.</string>
     <string name="intelligence_smart_ranker">Classificatore appreso (test)</string>
     <string name="intelligence_smart_ranker_body">SMART sceglie ogni brano successivo con un modello appreso da dati di ascolto pubblici (ListenBrainz). Disattivato: la solita catena SMART.</string>
     <string name="foryou_mix_meme_viral">Meme e audio virali</string>

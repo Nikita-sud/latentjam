@@ -435,7 +435,7 @@
     <string name="intelligence_include_novelty_mixes">ネタ系ミックスを含める</string>
     <string name="intelligence_include_novelty_mixes_body">ミーム、バイラル、効果音のミックスを「あなたへ」に別枠で表示します。</string>
     <string name="intelligence_learn_from_habits">自分の習慣から学ぶ</string>
-    <string name="intelligence_learn_from_habits_body">SMART キューの最初の10曲のうち1曲おきに、選んだ曲のあとによく聴く曲が入ります。データはこの端末から出ません。</string>
+    <string name="intelligence_learn_from_habits_body">SMART はあなたの再生履歴からも学びます。よく聴く曲や、次によく再生する曲です。データはこの端末から出ません。</string>
     <string name="intelligence_smart_ranker">学習済みランカー（テスト）</string>
     <string name="intelligence_smart_ranker_body">SMART が公開リスニングデータ（ListenBrainz）から学習したモデルで次の曲を選びます。オフ：通常の SMART チェーン。</string>
     <string name="foryou_mix_meme_viral">ミーム＆バイラル音源</string>

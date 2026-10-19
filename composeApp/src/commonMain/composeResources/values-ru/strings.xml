@@ -485,7 +485,7 @@
     <string name="intelligence_include_novelty_mixes">Показывать необычные миксы</string>
     <string name="intelligence_include_novelty_mixes_body">Показывать в разделе «Для вас» отдельные миксы с мемами, вирусными аудиозаписями и звуковыми эффектами.</string>
     <string name="intelligence_learn_from_habits">Учитывать мои привычки</string>
-    <string name="intelligence_learn_from_habits_body">Каждый второй трек из первых десяти в очереди SMART — тот, что вы обычно включаете после выбранного. Всё остаётся на устройстве.</string>
+    <string name="intelligence_learn_from_habits_body">SMART учитывает и ваше прослушивание: что вы часто слушаете и что обычно включаете следом. Всё остаётся на устройстве.</string>
     <string name="intelligence_smart_ranker">Обученный ранжировщик (тест)</string>
     <string name="intelligence_smart_ranker_body">SMART выбирает каждый следующий трек моделью, обученной на открытых данных о прослушиваниях (ListenBrainz). Выключено — обычная цепочка SMART.</string>
     <string name="foryou_mix_meme_viral">Мемы и вирусные аудиозаписи</string>

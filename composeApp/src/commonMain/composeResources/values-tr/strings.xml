@@ -454,7 +454,7 @@
     <string name="intelligence_include_novelty_mixes">Eğlencelik mixleri dahil et</string>
     <string name="intelligence_include_novelty_mixes_body">Sana özel bölümünde komik, viral ve ses efekti mixlerini ayrı göster.</string>
     <string name="intelligence_learn_from_habits">Alışkanlıklarımdan öğren</string>
-    <string name="intelligence_learn_from_habits_body">SMART kuyruğunun ilk on parçasından her ikincisi, seçtiğin parçadan sonra genellikle dinlediğin bir parça olur. Her şey bu cihazda kalır.</string>
+    <string name="intelligence_learn_from_habits_body">SMART senin dinlediklerinden de öğrenir: sık dinlediklerin ve genellikle ardından açtıkların. Her şey bu cihazda kalır.</string>
     <string name="intelligence_smart_ranker">Öğrenilmiş sıralayıcı (test)</string>
     <string name="intelligence_smart_ranker_body">SMART her sonraki parçayı herkese açık dinleme verilerinden (ListenBrainz) öğrenilmiş bir modelle seçer. Kapalı: alışılmış SMART zinciri.</string>
     <string name="foryou_mix_meme_viral">Komik ve viral sesler</string>

@@ -54,6 +54,10 @@ class EngineNextTrackChooser(
     /** The "learned ranker" setting: plans come from [ranker] instead of the engine's chain. */
     private val useRanker: () -> Boolean = { false },
     private val ranker: () -> SmartRanker? = { null },
+    /** Whether the ranker's assets passed their manifest; false runs its rule-only path (PLAN_FINAL §7.2). */
+    private val rankerHealthy: () -> Boolean = { true },
+    /** "Learn from my habits": the ranker's FULL model (the listener's history as features) instead of CORE. */
+    private val personalRanker: () -> Boolean = { false },
     /** The persisted press counters; null keeps every start at press 0. */
     private val presses: SmartPresses? = null,
 ) : NextTrackChooser {
@@ -61,6 +65,8 @@ class EngineNextTrackChooser(
     private val mutex = Mutex()
     /** The press of the SMART queue being served: set when a queue starts from its seed, reused by its top-ups. */
     private var queuePress = 0L
+    /** Ranker failures and spent budgets in this SMART queue; at [BREAKER_LIMIT] the queue runs rule-only (§7.2). */
+    private var queueFailures = 0
     /** The unserved rest of the current plan, each id with its index in that plan. */
     private var planned = ArrayDeque<IndexedValue<TrackId>>()
     private var expectedNext: TrackId? = null
@@ -120,11 +126,15 @@ class EngineNextTrackChooser(
             var plan = if (learned != null) {
                 if (recentIds.isEmpty()) {
                     queuePress = presses?.let { runCatching { it.next(SaltedKey.contentKey(current)) }.getOrNull() } ?: 0L
+                    queueFailures = 0
                 }
-                rankerPlan(
+                val report = rankerPlan(
                     learned, history, current, candidates, library(), RANKER_LENGTH,
-                    seedMs = events.last().startedAtMs, press = queuePress,
+                    seedMs = events.last().startedAtMs, press = queuePress, recentIds = recentIds,
+                    personal = personalRanker(), ruleOnly = !rankerHealthy() || queueFailures >= BREAKER_LIMIT,
                 )
+                if (report == null || report.timedOut) queueFailures++
+                report?.ids.orEmpty()
             } else {
                 engine.continueSmartQueue(
                     current, candidates, CHAIN_LENGTH, events, groups, precedingTrackIds = recentIds,
@@ -194,6 +204,9 @@ class EngineNextTrackChooser(
          * still reflects what the listener picked rather than where it drifted.
          */
         const val CHAIN_LENGTH = 12
+
+        /** Ranker failures or spent budgets in one queue before it runs the rule-only path (§7.2: k = 3). */
+        const val BREAKER_LIMIT = 3
 
         /** Tracks the learned ranker plans per call: the 20-row queues it was evaluated on (proto_ranker2.py). */
         const val RANKER_LENGTH = 20

@@ -61,7 +61,8 @@ public class PersonalHistory(listens: List<HabitListen>, seedMs: Long, artistKey
         return PersonalRow(
             heard = heard,
             count = counts[track] ?: 0,
-            ageSeconds = lastAt[track]?.let { (seedAt - it) / 1000.0 } ?: Double.POSITIVE_INFINITY,
+            // A clock or timezone change can date a listen after the seed: the age is clamped at 0 (PLAN_FINAL §1.2).
+            ageSeconds = lastAt[track]?.let { maxOf(0.0, (seedAt - it) / 1000.0) } ?: Double.POSITIVE_INFINITY,
             activation = activation[track] ?: Double.NaN,
             transTrack = fromTrack[anchor]?.get(track) ?: 0,
             transArtist = if (anchorArtist.isEmpty()) 0 else fromArtist[anchorArtist]?.get(track) ?: 0,

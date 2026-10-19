@@ -496,7 +496,7 @@
     <string name="intelligence_include_novelty_mixes">Показувати незвичні мікси</string>
     <string name="intelligence_include_novelty_mixes_body">Показувати в розділі «Для вас» окремі мікси з мемами, вірусними аудіо та звуковими ефектами.</string>
     <string name="intelligence_learn_from_habits">Враховувати мої звички</string>
-    <string name="intelligence_learn_from_habits_body">Кожен другий трек із перших десяти в черзі SMART — той, що ви зазвичай вмикаєте після вибраного. Усе лишається на пристрої.</string>
+    <string name="intelligence_learn_from_habits_body">SMART враховує і ваше прослуховування: що ви часто слухаєте і що зазвичай вмикаєте слідом. Усе лишається на пристрої.</string>
     <string name="intelligence_smart_ranker">Навчений ранжувальник (тест)</string>
     <string name="intelligence_smart_ranker_body">SMART обирає кожен наступний трек моделлю, навченою на відкритих даних про прослуховування (ListenBrainz). Вимкнено — звичайний ланцюжок SMART.</string>
     <string name="foryou_mix_meme_viral">Меми й вірусні аудіо</string>

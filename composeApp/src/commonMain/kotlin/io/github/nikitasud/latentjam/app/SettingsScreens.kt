@@ -164,6 +164,8 @@ import io.github.nikitasud.latentjam.app.generated.resources.intelligence_how_ti
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_indexed_of
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_include_novelty_mixes
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_include_novelty_mixes_body
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_learn_from_habits
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_learn_from_habits_body
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_smart_ranker
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_smart_ranker_body
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_library
@@ -1846,6 +1848,7 @@ private fun IntelligenceSettings(
     val artistVariety by settings.artistVariety.collectAsState()
     val includeNoveltyMixes by settings.includeNoveltyMixes.collectAsState()
     val smartRanker by settings.smartRanker.collectAsState()
+    val learnFromHabits by settings.learnFromHabits.collectAsState()
     val notificationStatus by permissions.notificationStatus.collectAsState()
     val ids = remember(tracks) { tracks.map(TrackDescriptor::id) }
     val indexingMatchesLibrary = indexing.trackIds == ids
@@ -1964,6 +1967,13 @@ private fun IntelligenceSettings(
                     checked = smartRanker,
                     enabled = true,
                     onCheckedChange = settings::setSmartRanker,
+                )
+                SettingsSwitchRow(
+                    title = stringResource(Res.string.intelligence_learn_from_habits),
+                    subtitle = stringResource(Res.string.intelligence_learn_from_habits_body),
+                    checked = learnFromHabits,
+                    enabled = smartRanker,
+                    onCheckedChange = settings::setLearnFromHabits,
                 )
                 SettingsSwitchRow(
                     title = stringResource(Res.string.intelligence_include_novelty_mixes),
