@@ -91,3 +91,22 @@ parity on the trained model (§7: no interim builds).
 (manifest pass; a damaged or missing asset → rule-only, still a full queue), `RankerResilienceTest` (presses survive
 a restart; an unhealthy manifest and a throwing audio index still fill the queue), `SmartPressesTest`,
 `RankerDecoderTest`, `SmartRankerTest`, `RankerChooserTest`.
+
+## Device checks (19 October, evening)
+
+- **v2 on the owner's phone** (7f9b8701, reduced ORT, 57.0 MiB, sha256 230507aa…): installed 18:47 as an update, launch
+  OK. Copy: `~/Documents/LJ/releases/test-builds/2026-10-19/ranker-v2-coreplfm-7f9b8701-arm64.apk`.
+- **Pixel_7_Pro emulator** (read-only), current build: SMART plans 20 from the model; process death and resume and a
+  media-button play work. A plan made during indexing used to spend its budget waiting on the engine's lock — fixed
+  with per-read audio limits (858ceb54).
+- **48 MB heap, 10,021 tracks** (rootable LJ-api30, `setprop dalvik.vm.heapgrowthlimit 48m`, 10,000 generated tagged
+  MP3s): the app launches (Dalvik heap 39 MB), but the first play is killed under GC pressure — **the released 0.9.1
+  dies the same way**, before any SMART planning: the known low-memory problem (fix branch fix/low-memory-launch,
+  unmerged), not the ranker. At 96 MB the app plays (heap 91 of 96 MB before SMART). A ranker press at 96 MB was not
+  observed: the app's log lines are pruned by API 30's chatty under indexing load.
+- **Open, found on API 30**: a media-button event from the shell (`cmd media_session dispatch`, empty package name)
+  crashes the app inside Media3's legacy session stub (`IllegalArgumentException: packageName should be nonempty`, in
+  MediaSessionLegacyStub → MediaSessionManager.RemoteUserInfo). v2 and the current build both; 0.9.1 survived the
+  same command, likely because it was not the active session then. Real controllers carry a package name; to be
+  checked separately (not in the ranker).
+- **Open**: parity of the audio tagger on on-device (4-bit) A0 vectors waits for a debuggable build.
