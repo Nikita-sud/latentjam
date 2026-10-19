@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.smart
 
+import io.github.nikitasud.latentjam.smart.chain.CentredRows
 import io.github.nikitasud.latentjam.smart.chain.ScaledRows
 import io.github.nikitasud.latentjam.smart.chain.SmartSnapshot
 import io.github.nikitasud.latentjam.smart.text.ArtistKnowledge
@@ -254,14 +255,14 @@ internal class SmartPressFootprintTest {
             "ids=" + fnv { tracks.forEach { track -> track.id.value.encodeToByteArray().forEach(::byte) } },
             "energy=" + fnv { tracks.forEach { floatBits(it.energy) } },
             "rawAudio=" + rows(rawAudio),
-            "centeredAudio=" + floats(centeredAudio),
+            "centeredAudio=" + centred(centeredAudio),
             "hubPenalty=" + floats(hubPenalty),
             "typicality=" + floats(typicality),
-            "centeredText=" + floats(centeredText),
+            "centeredText=" + centred(centeredText),
             "hasText=" + booleans(hasText),
             "rawText=" + rows(rawText),
             "descriptorDim=$descriptorDim",
-            "centeredDescriptor=" + floats(centeredDescriptor),
+            "centeredDescriptor=" + centred(centeredDescriptor),
             "hasDescriptor=" + booleans(hasDescriptor),
         ).joinToString("\n")
     }
@@ -281,6 +282,19 @@ internal class SmartPressFootprintTest {
 
     private fun floats(values: FloatArray?): String =
         if (values == null) "null" else "${values.size}:" + fnv { values.forEach(::floatBits) }
+
+    /**
+     * As [floats] over the centred rows laid end to end: the digest the centred matrix had before the snapshot stopped
+     * holding one, so the recorded digests below still pin every centred float.
+     */
+    private fun centred(values: CentredRows?): String =
+        if (values == null) "null" else "${values.size * values.dim}:" + fnv {
+            val row = FloatArray(values.dim)
+            for (r in 0 until values.size) {
+                values.copyRow(r, row)
+                row.forEach(::floatBits)
+            }
+        }
 
     /** As [floats] over the rows laid end to end: the digest a matrix of them would have. */
     private fun rows(values: ScaledRows?): String =

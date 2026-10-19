@@ -593,9 +593,7 @@ internal class SmartChain(
             // is spent, so the seed-anchored gravity + semantic-seed terms re-anchor to the chain's
             // own centroid (keeping SEED_KEEP of the intent). Recomputed per hop; hops before
             // MIN_IDX, and any hop that never exhausts, leave the score byte-identical.
-            var effSeed: FloatArray? = if (continueAfterExhaustion) snapshot.centeredAudio.copyOfRange(
-                intentRow * dim, (intentRow + 1) * dim,
-            ) else null
+            var effSeed: FloatArray? = if (continueAfterExhaustion) snapshot.centeredAudio.row(intentRow) else null
             var zSeedActive = zSeed
             if (!continueAfterExhaustion && Reanchor.ENABLED && seedRow >= 0 && chain.size >= Reanchor.MIN_IDX) {
                 var onNiche = 0
@@ -611,9 +609,10 @@ internal class SmartChain(
                 if (Reanchor.reanchorExhausted(onNiche)) {
                     val dim = SmartSnapshot.AUDIO_DIM
                     val centroid = FloatArray(dim)
+                    val picked = FloatArray(dim)
                     for (pickedRow in chain) {
-                        val base = pickedRow * dim
-                        for (d in 0 until dim) centroid[d] += snapshot.centeredAudio[base + d]
+                        snapshot.centeredAudio.copyRow(pickedRow, picked)
+                        for (d in 0 until dim) centroid[d] += picked[d]
                     }
                     var sumSq = 0.0
                     for (x in centroid) sumSq += x.toDouble() * x
@@ -621,18 +620,13 @@ internal class SmartChain(
                     if (cnorm > 1e-9f) {
                         val inv = 1f / cnorm
                         for (d in 0 until dim) centroid[d] *= inv
-                        val seedVec = snapshot.centeredAudio.copyOfRange(
-                            seedRow * dim,
-                            (seedRow + 1) * dim,
-                        )
+                        val seedVec = snapshot.centeredAudio.row(seedRow)
                         effSeed = Reanchor.reanchorBlend(seedVec, centroid, Reanchor.SEED_KEEP)
                         // zSeed reference -> the played pick nearest the centroid (its medoid).
                         var medoidRow = -1
                         var bestDot = Float.NEGATIVE_INFINITY
                         for (pickedRow in chain) {
-                            var dot = 0f
-                            val base = pickedRow * dim
-                            for (d in 0 until dim) dot += centroid[d] * snapshot.centeredAudio[base + d]
+                            val dot = snapshot.centeredAudio.dotWith(centroid, pickedRow)
                             if (dot > bestDot) {
                                 bestDot = dot
                                 medoidRow = pickedRow
@@ -1467,27 +1461,12 @@ internal class SmartChain(
 
     private fun seedGravityCos(effSeed: FloatArray?, seedRow: Int, row: Int): Float {
         if (effSeed == null) return snapshot.centeredCosine(seedRow, row)
-        var dot = 0f
-        val base = row * SmartSnapshot.AUDIO_DIM
-        for (d in 0 until SmartSnapshot.AUDIO_DIM) dot += effSeed[d] * snapshot.centeredAudio[base + d]
-        return dot
+        return snapshot.centeredAudio.dotWith(effSeed, row)
     }
 
     private fun chainSemanticZ(refRow: Int, poolRows: IntArray): FloatArray {
-        val zDesc = SemanticZ.poolZ(
-            snapshot.centeredDescriptor,
-            snapshot.hasDescriptor,
-            snapshot.descriptorDim,
-            refRow,
-            poolRows,
-        )
-        val zText = SemanticZ.poolZ(
-            snapshot.centeredText,
-            snapshot.hasText,
-            SmartSnapshot.TEXT_DIM,
-            refRow,
-            poolRows,
-        )
+        val zDesc = SemanticZ.poolZ(snapshot.centeredDescriptor, refRow, poolRows)
+        val zText = SemanticZ.poolZ(snapshot.centeredText, refRow, poolRows)
         return SemanticZ.combine(zDesc, zText, poolRows.size)
     }
 

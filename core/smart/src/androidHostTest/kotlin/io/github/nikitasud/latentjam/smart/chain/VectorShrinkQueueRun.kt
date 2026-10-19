@@ -90,11 +90,9 @@ class VectorShrinkQueueRun {
             val snapshot = requireNotNull(SmartSnapshot.build(rows) { row ->
                 byId[row.id.value]?.let { knowledge.descriptor(it[2].ifBlank { null }, null, row.text) }
             })
-            if (snapshotFp16) {
-                for (matrix in listOfNotNull(snapshot.centeredAudio, snapshot.centeredText, snapshot.centeredDescriptor)) {
-                    for (i in matrix.indices) matrix[i] = java.lang.Float.float16ToFloat(java.lang.Float.floatToFloat16(matrix[i]))
-                }
-            }
+            // VSHRINK_SNAPSHOT=fp16 rounded the centred matrices in place; the snapshot no longer holds matrices
+            // (CentredRows), so that study arm is retired (its results are in the audit folder).
+            check(!snapshotFp16) { "VSHRINK_SNAPSHOT=fp16 needs the matrix snapshot this runner was written for" }
             val eligible = BooleanArray(snapshot.size) { true }
             val started = System.nanoTime()
             File(dir, "picks.$audioVariant.$textVariant$suffix.tsv").bufferedWriter().use { out ->
@@ -185,75 +183,6 @@ class VectorShrinkQueueRun {
             check(sum == sum2) { "scan sums differ: $sum vs $sum2" }
             println("vector shrink mmap: $n rows bit-identical; full scan heap ${heapNs / 1000} us, mapped+normalise ${mappedNs / 1000} us")
         }
-    }
-
-    /**
-     * A snapshot without its centred matrices: each centred element recomputed from the raw row, the corpus mean and a
-     * per-row scale, with the build's own float operations, equals the matrix value bit for bit (audio and text).
-     */
-    @Test
-    fun matrixFreeCentringIsBitIdentical() {
-        val dir = System.getenv("VSHRINK_DIR")?.let(::File)?.takeIf(File::isDirectory) ?: return
-        val meta = File(dir, "meta.tsv").readLines().filter(String::isNotEmpty).map { it.split('\t') }
-        val n = meta.size
-        val dim = PredictorRuntime.EMBEDDING_DIM
-        val hasText = File(dir, "hasText.u8").readBytes()
-        val audio = floats(File(dir, "audio.fp32.f32"), n * dim)
-        val text = floats(File(dir, "text.fp32.f32"), n * 384)
-        val audioIndex = InMemoryVectorIndex(dim)
-        val textIndex = InMemoryVectorIndex(384)
-        for (row in 0 until n) {
-            audioIndex.adopt(TrackId(meta[row][0]), audio.copyOfRange(row * dim, (row + 1) * dim))
-            if (hasText[row].toInt() != 0) textIndex.adopt(TrackId(meta[row][0]), text.copyOfRange(row * 384, (row + 1) * 384))
-        }
-        val a = audioIndex.storedEntries(); val t = textIndex.storedEntries()
-        val rows = meta.map { m -> SmartTrack(TrackId(m[0]), a.getValue(TrackId(m[0])), t[TrackId(m[0])], meta = TrackMeta(null, null, null, null, null)) }
-        val snapshot = requireNotNull(SmartSnapshot.build(rows))
-        var mismatches = 0
-        fun check(matrix: FloatArray, width: Int, raw: (Int, FloatArray) -> Boolean) {
-            val row = FloatArray(width); val mean = FloatArray(width); var present = 0
-            for (i in 0 until snapshot.size) if (raw(i, row)) { present++; for (d in 0 until width) mean[d] += row[d] }
-            for (d in 0 until width) mean[d] /= present
-            for (i in 0 until snapshot.size) {
-                if (!raw(i, row)) continue
-                var sumSq = 0.0
-                for (d in 0 until width) { val v = row[d] - mean[d]; sumSq += v.toDouble() * v }
-                val scale = 1f / kotlin.math.sqrt(sumSq).toFloat().coerceAtLeast(1e-12f)
-                for (d in 0 until width) if (((row[d] - mean[d]) * scale).toRawBits() != matrix[i * width + d].toRawBits()) mismatches++
-            }
-        }
-        check(snapshot.centeredAudio, dim) { i, out -> snapshot.rawAudio.copyInto(i, out); true }
-        check(requireNotNull(snapshot.centeredText), 384) { i, out ->
-            val v = rows[i].text
-            if (v == null) false else {
-                var ss = 0.0; for (x in v) ss += x.toDouble() * x
-                val s = 1f / kotlin.math.sqrt(ss).toFloat().coerceAtLeast(1e-12f)
-                for (d in 0 until 384) out[d] = v[d] * s
-                true
-            }
-        }
-        check(mismatches == 0) { "$mismatches centred floats differ" }
-        // Descriptors are not index rows (pack PQ decode or the adapter MLP on the row's text): a matrix-free snapshot
-        // would keep one centred row per distinct descriptor. Equal raw descriptors must give equal centred rows.
-        val knowledge = ArtistKnowledge(
-            MusicEntityResolver { System.getenv("VSHRINK_ASSETS")?.let { File(it, "music_entities_250k.bin") }?.takeIf(File::isFile)?.readBytes()?.let { b -> AssetBytes.of(b) } },
-            loadAdapter = { System.getenv("VSHRINK_ASSETS")?.let { File(it, "artist_adapter.bin") }?.takeIf(File::isFile)?.readBytes() },
-            loadPack = { System.getenv("VSHRINK_ASSETS")?.let { File(it, "artist_knowledge.bin") }?.takeIf(File::isFile)?.readBytes()?.let { b -> AssetBytes.of(b) } },
-        )
-        val described = rows.map { it.copy(meta = TrackMeta(null, meta.first { m -> m[0] == it.id.value }[2].ifBlank { null }, null, null, null)) }
-        val descriptors = described.map { knowledge.descriptor(it.meta.artist, null, it.text) }
-        val withDescriptors = requireNotNull(SmartSnapshot.build(described) { row -> descriptors[described.indexOf(row)] })
-        val centredDescriptor = requireNotNull(withDescriptors.centeredDescriptor)
-        val width = withDescriptors.descriptorDim
-        val groups = HashMap<List<Int>, MutableList<Int>>()
-        for (i in descriptors.indices) descriptors[i]?.let { d -> groups.getOrPut(d.map(Float::toRawBits)) { ArrayList() }.add(i) }
-        var descriptorMismatches = 0
-        for (members in groups.values) for (i in members.drop(1)) for (d in 0 until width) {
-            if (centredDescriptor[i * width + d].toRawBits() != centredDescriptor[members[0] * width + d].toRawBits()) descriptorMismatches++
-        }
-        check(descriptorMismatches == 0) { "$descriptorMismatches centred descriptor floats differ between equal descriptors" }
-        println("vector shrink descriptors: width $width, ${descriptors.count { it != null }} rows with one, ${groups.size} distinct; equal descriptors give bit-identical centred rows")
-        println("vector shrink centring: audio ${snapshot.size}x$dim and text rows recomputed without matrices, bit-identical")
     }
 
     private fun floats(file: File, count: Int): FloatArray {

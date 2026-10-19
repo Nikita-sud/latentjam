@@ -47,20 +47,25 @@ internal object SemanticZ {
         dim: Int,
         refRow: Int,
         poolRows: IntArray,
+    ): FloatArray? = poolZ(matrix?.let { MatrixCentredRows(it, dim, has) }, refRow, poolRows)
+
+    /** [poolZ] over a snapshot space read row by row (see [CentredRows]): the same cosines, so the same z-scores. */
+    fun poolZ(
+        rows: CentredRows?,
+        refRow: Int,
+        poolRows: IntArray,
     ): FloatArray? {
-        if (matrix == null || has == null) return null
+        if (rows == null) return null
+        val has = rows.has ?: return null
         if (refRow < 0 || refRow >= has.size || !has[refRow]) return null
         val n = poolRows.size
         val sims = FloatArray(n)
         val valid = BooleanArray(n)
         var validCount = 0
-        val refBase = refRow * dim
         for (k in 0 until n) {
             val row = poolRows[k]
             if (row < 0 || row >= has.size || !has[row]) continue
-            var dot = 0f
-            val base = row * dim
-            for (d in 0 until dim) dot += matrix[refBase + d] * matrix[base + d]
+            val dot = rows.dot(refRow, row)
             sims[k] = dot
             valid[k] = true
             validCount++
