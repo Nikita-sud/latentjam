@@ -259,8 +259,12 @@ public class HabitFlow(
     }
 
     public companion object {
-        /** How much incoherence costs against transition strength. */
-        public const val LAMBDA: Double = 1.0
+        /**
+         * How much incoherence costs against transition strength: the λ* = 2 chosen on FIT
+         * (slots3_result.json, PLAN_ITEM5 v5). At 1, a top-count row far in genre, descriptor and
+         * audio (P ≈ 0.875) still entered and the owner's queue swung between genres.
+         */
+        public const val LAMBDA: Double = 2.0
         /** A part neither side can judge. */
         public const val UNKNOWN: Double = 0.5
         /** Artist-descriptor cosine from which a row is as close as a seed's own neighbours. */
