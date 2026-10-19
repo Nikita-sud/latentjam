@@ -1,98 +1,93 @@
-# SMART learned ranker — test build notes
+# SMART learned ranker — app notes
 
-Test build, 19 October 2026 (branch `claude/test-ranker-1019`, from `claude/test-combined-1019`: Statistics and For
-You fixes kept). Not a release. The research is PLAN_BASE.md / `proto_ranker.py` on `claude/smart-stage0-eval-f2a727`;
-a v2 (hop-by-hop queues, LightGBM) decides the variant and the weights. Until then the app ships **v1 CORE** weights.
+Branch `claude/test-ranker-1019` (from `claude/test-combined-1019`: Statistics and For You kept), 19 October 2026.
+Spec: PLAN_FINAL.md §1, §7 (READY) and §8 (draft, under review) on `claude/smart-stage0-eval-f2a727`; the app-side plan
+and its status are in `docs/smart-final-app-plan.md`. Not a release; the owner build comes after Python ↔ Kotlin
+parity on the trained model (§7: no interim builds).
 
-## What it does
+## Settings
 
-Setting: *Settings → SMART engine → Recommendations → Learned ranker (test)* (`smart_ranker`), **on by default** in this
-build, all locales. Off = SMART's usual chain, at once for the next queue: switching back needs no reinstall.
-The "Learn from my habits" slots are withdrawn (wired off, toggle removed).
+*Settings → SMART engine → Recommendations*:
+- **Learned ranker (test)** (`smart_ranker`, on by default in this build): off = SMART's usual chain, at once for the
+  next queue — switching back needs no reinstall.
+- **Learn from my habits** (`learn_from_habits`, on by default; enabled with the ranker): on = the FULL model (the
+  listener's own history as features and retrievers), off = CORE. The earlier habit slots are withdrawn.
 
-**v2 (current): CORE+LFM**, proto_ranker2.py's winner (6e2fd6ce; FIT vs the v0.9.1 engine: hits +0.022
-[+0.014, +0.030], same-artist adjacency 0.23 vs 0.41, flow no worse). When SMART plans (a new queue or a top-up),
-`RankerQueue` builds **20** tracks (the research's queue length) hop by hop, exactly as `Query.queue`: candidates =
-SMART's library minus queued/removed tracks, minus the seed and what was heard in the last 24 hours or earlier in this
-session (the novelty rule the model trained with). Hop 1 scores every candidate against the seed; hop k > 1 scores it
-against the seed and against the previous pick with the same model and mixes them 2 : 1. Pick = argmax of
-score − p · runLength · sd(open rows' scores) for rows of the artist the queue ends with (the seed counts),
-p = 2.129 (calibrated on FIT train listeners to people's Balanced adjacency 0.238). Ties go to the earlier candidate
-(the research: the lower track key). A top-up plans from the queue's last track, so each 20-row plan is re-anchored there.
+## One plan (`SmartRanker.plan`, called by `EngineNextTrackChooser` under its lock)
 
-## Weights asset — `ml/smart_ranker.json`
+1. **Exclusions** (§7.2): the seed, ringtone / notification / alarm / recording folders (MediaStore's IS_MUSIC is
+   applied upstream), unplayable or removed tracks (not among the controller's candidates), durations ≤ 0 or over a
+   day read as unknown.
+2. **Candidates** (§1.1): libraries up to `serving.wholeLibraryUpTo` (600) eligible tracks are scored whole (as the
+   research scored them); larger ones score the union of the retrievers' quotas — R1 audio neighbours, R2
+   co-listening, R4 same artist set or album, R5 same genre family, and with FULL the listener's transitions and
+   ACT-R favourites — topped up with a salted sample if they return fewer than 2 × length. What was heard in the last
+   24 hours or earlier in this session is left out while anything else remains.
+3. **Knowledge per track**, read once per library list: pack language, decade and entity, the artist set (§1.4, the
+   port of artist_sets.py), the song-version key, the sanitised duration; the descriptor and the LightFM vector on
+   first use. **Imputation** (§1.3): a track without a descriptor or a genre family gets them from the audio tagger
+   (FMA-trained head on its A0 embedding), flagged `desc_imputed` / `family_imputed`.
+4. **Decoder** (§8): conditional-logit scores over the model's features; hop k > 1 scores against the seed and the
+   previous pick, mixed 2 : 1; the artist-run penalty p · runLength · sd(hop scores) (seed in the run); the rows within
+   ε = 0.01 · sd of the best form the near-best set, ordered by the UTF-8 bytes of the track id, and hop h takes the
+   pick from the h-th SplitMix64 output of SHA-256("salt|content key|press|0"). The **press** — how many SMART starts
+   from that seed came before — is persisted (`smart_presses.txt`, keyed by §7.2b's content key), so a second start
+   gives a fresh queue and a restart keeps the count. **Song-version dedup**: no version of the previous pick or of
+   the last min(50, n / 2) picks. **Budget**: 150 ms per hop; past it the plan stops and the ladder fills.
+5. **Ladder** (§7.2), one track per step until the plan is full: audio neighbours of the last pick → descriptor
+   neighbours (a salted 2,000-track sample) → the same genre family (salted) → the least recently played track
+   outside the recency window (log order; never-played first, salted), relaxing the dedup window to 1, then the
+   recency window to 1; a version of the previous pick only when nothing else exists.
+6. **Rule-only path** (§7.2b): RULE_SET weights in code, R4 (100) + a 500-track salted sample, the same decoder and
+   ladder. Used when the assets fail their manifest, when the heap headroom is below 2 × the press's memory + 8 MB
+   (checked up front), and for the rest of a queue after 3 failures or spent budgets (circuit breaker). If a plan still
+   throws, the chooser's labelled continuation keeps the music going.
 
-One JSON file: `features`, `mean`, `sd`, `weights` (score = Σ w·(x − mean)/sd), `runPenalty` (p), `anchor`
-(`seed` | `previous` | `mix` with `seedWeight` / `previousWeight`). Swapping weights = replacing this file in
-`androidApp/.../ml` and `iosApp/iosApp/ml` (the bundle test keeps them equal). An unknown feature, a bad anchor or a
-non-positive sd refuses the asset and SMART keeps its chain.
+## Assets (`ml/`, mirrored in `iosApp/iosApp/ml`; checked by `smart_manifest.json`, sizes + SHA-256, hashed by streaming)
 
-v2 = `proto_ranker2.json` `core_lfm.weights_standardised` with **mean/sd recomputed** by proto_ranker2's own training-row
-pass (the JSON did not keep them; the refit from those rows reproduces the published weights exactly, max diff 0.0),
-`runPenalty 2.129`, `anchor mix 2 : 1`. v1 (the first test build) was proto_ranker CORE in raw units, p 0.5, anchor seed;
-its weights stay as a test resource (`ranker_core_v1.json`).
+| File | Bytes | Content | Licence |
+|---|---|---|---|
+| `smart_ranker.json` | ≈ 2.6 KB | CORE+LFM (proto_ranker2 6e2fd6ce): standardised weights, mean / sd recomputed from its training rows (refit = published, max diff 0.0), p 2.129, anchor mix 2 : 1, ε 0.01, serving block | Apache-2.0 |
+| `smart_ranker_full.json` | ≈ 1.5 KB | FULL (proto_ranker a5747d63 raw weights, proto_ranker2's FULL p 1.9015), anchor mix, ε 0.01 | Apache-2.0 |
+| `artist_colisten.bin` | 7,947,962 | pop_k10 co-listening, 179,585 artists, pack entity ids | CC0-1.0 |
+| `artist_lfm.bin` | 14,369,964 | LightFM artist vectors, 111,902 entity-keyed, float32 (int8 changed 24 of 300 FIT top-10s, float16 7; credit-keyed artists left out) | Apache-2.0 |
+| `artist_known.bin` | 6,404,144 | artist_sets.py's known list as FNV-1a keys: 335,457 canonical, 310,039 aliases (MBID rows not shipped) | CC0-1.0 |
+| `audio_tagger.json` / `.bin` | 3,260 / 396,920 | the §1.3 tagger head, int8 | Apache-2.0 |
 
-## Features (RankerFeatures.kt = proto_ranker.py `lib_features`, CORE)
+## Parity (golden tests against the research code)
 
-cos, cos_z (unknown → the known mean, population z over the pool, unknown rows 0), desc_known, same_family,
-family_known, same_lang, lang_known, same_artist (engine artist key), decade_dist (|Δ decade| / 10), decade_known,
-logpop, logpop_z, colisten (the anchor artist's co-listening similarity q/255 to the candidate's artist), and from
-proto_ranker2 lfm_cos / lfm_known (LightFM artist-vector cosine to the anchor, 0 / false when either has no vector).
+- `RankerGoldenTest`: proto_ranker CORE and PERSONAL features on 8 FIT queries (4,052 candidates) within 4e-6
+  (float32), top 10 identical.
+- `RankerQueueGoldenTest`: proto_ranker2's CORE+LFM queues, 6 queries × 20 hops, teacher-forced; differences only at
+  8 exact ties the reference split by one ulp.
+- `ArtistSetsGoldenTest` / `ArtistSetsTest`: 47 hashed hard cases, 3,000 real FIT credits on the shipped list, 31
+  normalisation strings (cases and strings also on the iOS simulator).
+- `AudioTaggerTest`: the head's graph, probabilities within 1e-9.
+- `SaltedKeyTest`: SHA-256 vectors, the seed and SplitMix64 outputs against Python.
+- Still to come: the decoder's salted near-best pick and the retrievers against the Python serving reference the
+  research side is writing for the revised §1.6 / §8; FULL's queues.
 
-App-side sources and deviations:
-- Descriptor, language, decade, entity: the shipped artist knowledge pack, resolved by artist name (the research used
-  the MusicBrainz entity of each track). Adapter guesses are not used.
-- **Genre family**: the alias family (Genres' table) of the track's own first genre tag value; the research used the
-  teacher's genres, which the app does not ship.
-- **Popularity**: no per-track table ships, so logpop = logpop_z = 0 for every track. In CORE+LFM their standardised
-  weights are 0.078 and −0.019 (vs lfm_cos 0.58, cos −0.47): the research's popular-track lift is missing.
-- **LightFM coverage**: in training every track had a vector (`lfm_known` always 1). The app ships only entity-keyed
-  vectors, so an artist that does not resolve to one of them reads lfm_cos = 0, which the model scores like a
-  dissimilar artist: such tracks are picked less often than the research would.
-- **No audio term yet.**
+## Deviations (app vs research)
 
-## Co-listening asset — `ml/artist_colisten.bin`
+- Genre family from the track's own first genre tag (the research used the teacher's genres, not shipped).
+- No popularity table yet: logpop = logpop_z = 0 (CORE+LFM's standardised weights 0.078 / −0.019 are lost) — an
+  entity-keyed artist popularity table is agreed and pending.
+- LightFM: entity-keyed vectors only (78 % of the emulator library's tracks have one); the rest read lfm_cos = 0,
+  which the model treats as dissimilar.
+- The device reads no artist MBID tags (the parser's MBID rules never fire) and no composer tag (classical cap key =
+  the primary artist).
+- FULL's personal transitions count only the listener's own picks (Addendum A's rule); the research counted every
+  consecutive pair.
+- The audio term follows §1.3's rule, w_audio = max(0, raw weight of the descriptor cosine): CORE+LFM's is negative, so
+  the term is 0 with today's weights. Audio still feeds R1, the ladder and imputation.
+- A small library's SMART queue ends when every track is queued once (the app's queues hold a track once; repeat-all
+  loops), where §7.2b lets n = 2 alternate.
+- Marked playlists ("keep together in SMART") are not a ranker feature yet; the old chain still honours them.
 
-`tools/research/ranker/pack_colisten.py` writes the research's `v6/pop_k10.npz` (ListenBrainz CC0, FIT listeners
-with the fitsample listeners left out, 10 neighbours per artist, sha256 bcd40735…) in the `LJNBRS1` layout read by
-`ArtistNeighbours.kt` (from the Stage 1 branch). Entity ids are already the pack's own: **no remapping needed**.
-179,585 artists with a list, 1,795,776 entries, **7,947,962 B** raw (6.8 MB gzip; stored uncompressed in the APK and
-mapped, like the pack; the arm64 reduced-ORT APK grows from 35.7 to 43.3 MB, and to 57.0 MB with the LightFM table). Match rate: on FIT libraries 72.1 % of tracks have a MusicBrainz entity and 99.6 % of those
-have a list (71.8 % of tracks). In the app the rate depends on name resolution; the log line
-"SMART: ranker … library tracks whose artist has an entity N, a co-listening list M" reports it per library (no names).
-On the read-only Pixel_7_Pro emulator library: 679 of 852 tracks (80 %) resolve to an entity, 669 (79 %) to one with
-a list.
+## Tests (app)
 
-## Speed
-
-Emulator (852 tracks), v2 (20 hops, seed + previous): first plan 420 ms including the per-track knowledge read, a
-top-up 169 ms (v1: 141 / 91 ms). A 10k library was
-not measured; the knowledge read is linear in the library and happens once per library list, a plan is 12 hops
-over the pool (with `anchor = seed` the scores are computed once).
-
-## LightFM asset — `ml/artist_lfm.bin`
-
-`tools/research/ranker/pack_lfm.py` writes the research's `proto_ranker/lfm_artist.npz` (32-d LightFM WARP item
-vectors of the FIT library artists, trained on ListenBrainz CC0 listeners disjoint from the FIT queries; LightFM run
-offline only) in the `LJVECS1` layout (`ArtistVectors.kt`): the **111,902 entity-keyed** artists, L2-normalised,
-**float32** — **14,369,964 B** (11.1 MB gzip). Left out: 522,641 credit-keyed artists (`c:<credit>`; the app maps
-artists to pack entities; they would add ≈ 19 MB). Precision: on 300 FIT queues int8 changed 24 top-10s and float16 7,
-so neither ships (`export_golden2.py`, LFM_STORAGE). Match rate: in the research every FIT library track had a vector
-(72 % by entity, 28 % by credit); the app gets only the entity part — the log line reports the library's own rate: on the emulator library 661 of 852
-tracks (78 %) have a vector.
-
-## Tests
-
-- `RankerGoldenTest`: 8 FIT queries (4,052 candidates) exported by `tools/research/ranker/export_golden.py` from
-  proto_ranker.py's own feature code — all 13 features within 4e-6 (float32), top 10 identical under the shipped
-  weights, ties by track key; 234 candidates carry co-listening.
-- `ArtistColistenAssetTest`: the shipped table reads back the npz lists; ABBA, Eminem, Кино, Ramin Djawadi and Daft
-  Punk resolve to an entity with a list.
-- `RankerQueueGoldenTest`: 6 FIT queries, 120 hops of proto_ranker2's CORE+LFM queue (p 2.129) from its own float32
-  feature values (`tools/research/ranker/export_golden2.py`), the shipped asset's weights and standardisation, checked
-  hop by hop with the reference's earlier picks forced. The app's pick equals the reference's at every hop except 8
-  exact ties: rows with identical features that the reference's BLAS dot product split by one ulp (2.2e-16) and the
-  app breaks by candidate order; no hop had a real margin under 1e-6.
-- `ArtistLfmAssetTest`: the shipped vectors read back the npz values (cosine to 1e-6).
-- `SmartRankerTest`, `RankerChooserTest`: ordering, exclusions, run penalty, previous-pick anchor, asset refusal,
-  chooser wiring (engine not called, 24-hour rule).
+`RankerScenarioTest` (20 scenarios of §7.1 with §7.3's invariants, JVM + iOS simulator), `RankerLargeLibraryTest`
+(10k tracks with the shipped assets: 200 ms first press / 24 ms next on the host), `SmartRankerAssetsTest`
+(manifest pass; a damaged or missing asset → rule-only, still a full queue), `RankerResilienceTest` (presses survive
+a restart; an unhealthy manifest and a throwing audio index still fill the queue), `SmartPressesTest`,
+`RankerDecoderTest`, `SmartRankerTest`, `RankerChooserTest`.

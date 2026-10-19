@@ -54,3 +54,17 @@ for fixed keys, library-order invariance, latency ≤ 150 ms per hop and ≤ 2 M
    "unknown" through its availability flag.
 4. `artist_sets.py` frozen with its `artist_known` export (sha) — P2 can start on the current file.
 5. The audio tagger (§1.3) after W6: until then the "imputed" path is wired and tested with a stub.
+
+## Status (19 October 2026, evening; after PLAN_FINAL §8's draft)
+
+| # | Package | Status |
+|---|---------|--------|
+| P0 | Asset schema + manifest | Done: serving block, `smart_manifest.json` (sizes + SHA-256, streamed), rule-only on mismatch. No separate kill-switch UI: the "Learned ranker" toggle returns to the old chain, rule-only is automatic |
+| P1 | Decoder | Done per §8: argmax + run penalty, 2 : 1 mix, ε-near-best salted pick (SHA-256 → SplitMix64, h-th output), press persisted by content key. Softmax / quantisation / top-p not built (retired) |
+| P2 | Artist sets | Done: port of artist_sets.py (230a6214), 6.4 MB key table; parity on 47 cases, 3,000 FIT credits, 31 strings; iOS simulator |
+| P3 | Retrievers | Done: R1 audio, R2 co-listening, R4 artist set / album, R5 family, FULL R6 / R7; whole pool up to 600 eligible tracks. Python parity pending the serving reference |
+| P4 | Features | Done: CORE + LFM + PERSONAL (parity on FIT) + duration (weight 0) + availability + imputed + audio term (rule) + artist overlap. Context features not built (dropped by §8). Tagger: real imputation with the FMA head (parity 1e-9) |
+| P5 | Degradation | Done in the ranker and chooser: exclusions, dedup windows, ladder with relaxation, rule-only path, per-hop budget, circuit breaker (3), heap bound. Not built: playback-error stop after 3 errors and volume exclusion in the controllers (app layer outside the hashed engine; next) |
+| P6 | CORE / FULL | Done: "Learn from my habits" selects FULL (proto_ranker FULL weights, p 1.9015) |
+| P7 | Tests | Done for the ranker (20 scenarios + invariants, JVM and iOS; large library; assets; resilience). Emulator product checks (Android Auto start, process death, 48 MB heap with 10k) run with the build |
+| P8 | Parity + build | Waits for the trained model and the Python serving reference; the LightFM int8 question is open (float32 ships: int8 changed FIT top-10s) |
