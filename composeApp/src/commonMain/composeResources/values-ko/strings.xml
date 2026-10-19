@@ -595,9 +595,6 @@
     <string name="stats_minutes_short">분</string>
     <string name="stats_finished_share">끝까지 감상</string>
     <string name="stats_skipped_share">건너뜀</string>
-    <string name="stats_by_hour">시간대별</string>
-    <string name="stats_top_artists">톱 아티스트</string>
-    <string name="stats_top_tracks">톱 곡</string>
     <string name="stats_empty">이 기간에는 아직 재생된 곡이 없습니다.</string>
     <string name="stats_load_failed">감상 통계를 불러올 수 없습니다.</string>
     <string name="settings_normalize_volume">음량 평준화</string>
@@ -704,22 +701,89 @@
     <string name="stats_calendar_days">최근 %1$d일 · 날짜별 감상 시간</string>
     <string name="stats_today">오늘</string>
     <string name="stats_yesterday">어제</string>
-    <string name="stats_days_ago">%1$d일 전</string>
-    <string name="stats_habits">감상 습관</string>
-    <string name="stats_active_days">감상한 날</string>
     <string name="stats_new_tracks">처음 들은 곡</string>
-    <string name="stats_habits_note">새로운 곡은 저장된 기록에서 처음 감상한 곡입니다. 연속 감상 일수는 전체 기간을 기준으로 계산합니다.</string>
-    <string name="stats_repeat_share">반복 재생</string>
-    <string name="stats_coverage">라이브러리 둘러보기</string>
-    <string name="stats_coverage_detail">이 기간에 %2$s 중 %1$d곡 재생</string>
-    <string name="stats_smart_share">SMART 모드</string>
     <string name="stats_smart_detail">SMART 셔플이 켜진 상태에서 시작된 재생의 비율</string>
     <string name="stats_listening_style">나의 감상 방식</string>
-    <string name="stats_peak_hour">%1$s 무렵에 가장 많이 재생</string>
-    <string name="stats_average_active_day">감상한 날당 평균</string>
     <string name="stats_recent_empty">이 날짜에는 아직 감상 기록이 없습니다.</string>
-    <string name="stats_history_note">저장된 기록을 바탕으로 곡이 끝나거나 바뀔 때 업데이트됩니다. 순위에는 라이브러리에서 이용할 수 있는 곡이 포함됩니다.</string>
+    <string name="stats_history_note">저장된 기록을 바탕으로 이 기기의 시간대에 맞춰 계산하며, 곡이 끝나거나 바뀔 때 업데이트됩니다. 목록에는 라이브러리에 아직 있는 곡만 표시됩니다. 복원한 백업은 찾을 수 있는 곡만 유지하며, 삭제된 곡으로만 알려진 아티스트는 새 아티스트로 표시될 수 있습니다.</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+    <plurals name="stats_days_ago">
+        <item quantity="other">%1$d일 전</item>
+    </plurals>
+    <string name="stats_section_lately">최근의 나</string>
+    <string name="stats_section_numbers">나의 숫자</string>
+    <string name="stats_section_over_time">시간에 따른 변화</string>
+    <string name="stats_on_repeat">요즘 반복해서 듣는 곡</string>
+    <string name="stats_artists_on_repeat">요즘 반복해서 듣는 아티스트</string>
+    <plurals name="stats_on_days">
+        <item quantity="other">%1$d일 동안</item>
+    </plurals>
+    <string name="stats_week_days">최근 7일 중 %1$d일</string>
+    <plurals name="stats_days_of_music">
+        <item quantity="other">약 %1$d일 분량의 음악</item>
+    </plurals>
+    <string name="stats_activity_months">최근 12개월 · 감상 시간</string>
+    <string name="stats_activity_years">연도별 · 감상 시간</string>
+    <string name="stats_activity_over_time">시간에 따른 나의 감상</string>
+    <string name="stats_this_month">이번 달</string>
+    <string name="stats_this_year">올해</string>
+    <plurals name="stats_months_ago">
+        <item quantity="other">%1$d개월 전</item>
+    </plurals>
+    <plurals name="stats_years_ago">
+        <item quantity="other">%1$d년 전</item>
+    </plurals>
+    <string name="stats_new_and_familiar">새로운 곡과 익숙한 곡</string>
+    <string name="stats_familiar">익숙한 곡</string>
+    <plurals name="stats_new_tracks_count">
+        <item quantity="other">새로운 곡 %1$d곡</item>
+    </plurals>
+    <plurals name="stats_new_artists_count">
+        <item quantity="other">새로운 아티스트 %1$d명</item>
+    </plurals>
+    <string name="stats_new_previous">이전 %1$d일: 새로운 곡 %2$s</string>
+    <string name="stats_stuck_artists">자리 잡은 새 아티스트</string>
+    <string name="stats_stuck_artists_recent">자리 잡은 새 아티스트 · 최근 3개월</string>
+    <plurals name="stats_log_age">
+        <item quantity="other">LatentJam과 함께 들은 지 %1$d일</item>
+    </plurals>
+    <string name="stats_new_note">처음 들은 곡 = LatentJam에서 처음 재생한 곡입니다. 라이브러리가 앱보다 오래되었을 수 있습니다.</string>
+    <plurals name="stats_locked_plays">
+        <item quantity="other">이 기간에 %1$d회 재생하면 표시됩니다</item>
+    </plurals>
+    <string name="stats_when_you_listen">언제 듣나요</string>
+    <string name="stats_night">새벽</string>
+    <string name="stats_morning">아침</string>
+    <string name="stats_afternoon">오후</string>
+    <string name="stats_evening">저녁</string>
+    <string name="stats_daypart_peak">가장 많이 들은 시간: %1$s, %2$s</string>
+    <string name="stats_typical_session">일반적인 세션</string>
+    <string name="stats_longest_session">가장 긴 세션</string>
+    <string name="stats_locked_sessions">이 기간에 몇 번 감상하면 표시됩니다</string>
+    <string name="stats_your_top">나의 톱</string>
+    <string name="stats_show_more">10개 보기</string>
+    <string name="stats_show_less">5개 보기</string>
+    <string name="stats_partly_share">일부만 감상</string>
+    <string name="stats_smart_mode_share">SMART 모드로 재생</string>
+    <string name="stats_finish_note">전체 재생 시작 대비 비율입니다. 끝까지 감상 = 85%까지 들은 곡, 건너뜀 = 처음 30초 안에 넘긴 곡.</string>
+    <string name="stats_slipping_away">멀어지는 곡</string>
+    <string name="stats_slipping_note">직접 자주 골랐지만 LatentJam에서 두 달 이상 재생하지 않은 즐겨 듣던 곡입니다.</string>
+    <string name="stats_year_ago">1년 전</string>
+    <string name="stats_patterns">나의 패턴</string>
+    <string name="stats_same_artist_picks">같은 아티스트를 다시 고르기</string>
+    <string name="stats_of_100_picks">100번 중 %1$d번</string>
+    <string name="stats_same_artist_note">다음 곡을 직접 고를 때 기준입니다. 아티스트 페이지에서 시작한 재생도 포함됩니다.</string>
+    <string name="stats_picked_next">자주 이어서 고른 곡</string>
+    <string name="stats_sequence_description">%1$s 다음에 %2$s을(를) %4$d번 중 %3$d번 골랐습니다</string>
+    <string name="stats_library">나의 라이브러리</string>
+    <string name="stats_played_once">한 번 이상 재생</string>
+    <string name="stats_x_of_y">%2$s 중 %1$s</string>
+    <string name="stats_decades">연대</string>
+    <string name="stats_decade">%1$d년대</string>
+    <string name="stats_more_appears">들을수록 더 많은 항목이 표시됩니다</string>
+    <string name="stats_unlock_on_repeat">요즘 반복해서 듣는 곡 — 일주일 감상 후 표시</string>
+    <string name="stats_unlock_slipping">멀어지는 곡 — 3개월 감상 후 표시</string>
+    <string name="stats_part_failed">일부 통계를 불러오지 못했습니다.</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">그룹: %1$d · 여분의 사본: %2$d · 확보 가능: %3$s</string>

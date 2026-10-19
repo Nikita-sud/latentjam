@@ -627,9 +627,6 @@
     <string name="stats_minutes_short">Min.</string>
     <string name="stats_finished_share">Zu Ende gehört</string>
     <string name="stats_skipped_share">Übersprungen</string>
-    <string name="stats_by_hour">Nach Tageszeit</string>
-    <string name="stats_top_artists">Top-Künstler</string>
-    <string name="stats_top_tracks">Top-Titel</string>
     <string name="stats_empty">In diesem Zeitraum wurde noch nichts abgespielt.</string>
     <string name="stats_load_failed">Die Hörstatistik konnte nicht geladen werden.</string>
     <string name="settings_normalize_volume">Lautstärkeangleichung</string>
@@ -750,22 +747,98 @@
     <string name="stats_calendar_days">Letzte %1$d Kalendertage · Hörzeit</string>
     <string name="stats_today">Heute</string>
     <string name="stats_yesterday">Gestern</string>
-    <string name="stats_days_ago">Vor %1$d Tagen</string>
-    <string name="stats_habits">Hörgewohnheiten</string>
-    <string name="stats_active_days">Aktive Tage</string>
     <string name="stats_new_tracks">Zum ersten Mal gehört</string>
-    <string name="stats_habits_note">Neue Titel wurden erstmals im gespeicherten Verlauf gehört. Serien berücksichtigen den gesamten Zeitraum.</string>
-    <string name="stats_repeat_share">Wiederholte Wiedergaben</string>
-    <string name="stats_coverage">Entdecke deine Mediathek</string>
-    <string name="stats_coverage_detail">%1$d von %2$s in diesem Zeitraum gehört</string>
-    <string name="stats_smart_share">SMART-Modus</string>
     <string name="stats_smart_detail">Anteil der Wiedergaben, die mit aktiviertem SMART-Zufallsmodus gestartet wurden</string>
     <string name="stats_listening_style">So hörst du Musik</string>
-    <string name="stats_peak_hour">Die meisten Wiedergaben gegen %1$s</string>
-    <string name="stats_average_active_day">Pro aktivem Tag</string>
     <string name="stats_recent_empty">An diesen Kalendertagen wurde noch nichts gehört.</string>
-    <string name="stats_history_note">Basierend auf dem gespeicherten Verlauf; wird beim Ende oder Wechsel eines Titels aktualisiert. Ranglisten berücksichtigen verfügbare Titel deiner Mediathek.</string>
+    <string name="stats_history_note">Basierend auf dem gespeicherten Verlauf, in der Zeitzone dieses Geräts; wird beim Ende oder Wechsel eines Titels aktualisiert. Listen zeigen Titel, die noch in deiner Mediathek sind. Eine wiederhergestellte Sicherung behält nur Titel, die sie findet, und ein Künstler, der nur aus entfernten Titeln bekannt ist, kann als neu erscheinen.</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+    <plurals name="stats_days_ago">
+        <item quantity="one">Vor %1$d Tag</item>
+        <item quantity="other">Vor %1$d Tagen</item>
+    </plurals>
+    <string name="stats_section_lately">Du in letzter Zeit</string>
+    <string name="stats_section_numbers">Deine Zahlen</string>
+    <string name="stats_section_over_time">Im Lauf der Zeit</string>
+    <string name="stats_on_repeat">Gerade in Dauerschleife</string>
+    <string name="stats_artists_on_repeat">Künstler in Dauerschleife</string>
+    <plurals name="stats_on_days">
+        <item quantity="one">an %1$d Tag</item>
+        <item quantity="other">an %1$d Tagen</item>
+    </plurals>
+    <string name="stats_week_days">An %1$d der letzten 7 Tage</string>
+    <plurals name="stats_days_of_music">
+        <item quantity="one">≈ %1$d Tag Musik</item>
+        <item quantity="other">≈ %1$d Tage Musik</item>
+    </plurals>
+    <string name="stats_activity_months">Letzte 12 Monate · Hörzeit</string>
+    <string name="stats_activity_years">Nach Jahr · Hörzeit</string>
+    <string name="stats_activity_over_time">Dein Hören im Lauf der Zeit</string>
+    <string name="stats_this_month">Dieser Monat</string>
+    <string name="stats_this_year">Dieses Jahr</string>
+    <plurals name="stats_months_ago">
+        <item quantity="one">Vor %1$d Monat</item>
+        <item quantity="other">Vor %1$d Monaten</item>
+    </plurals>
+    <plurals name="stats_years_ago">
+        <item quantity="one">Vor %1$d Jahr</item>
+        <item quantity="other">Vor %1$d Jahren</item>
+    </plurals>
+    <string name="stats_new_and_familiar">Neu und vertraut</string>
+    <string name="stats_familiar">Vertraut</string>
+    <plurals name="stats_new_tracks_count">
+        <item quantity="one">%1$d neuer Titel</item>
+        <item quantity="other">%1$d neue Titel</item>
+    </plurals>
+    <plurals name="stats_new_artists_count">
+        <item quantity="one">%1$d neuer Künstler</item>
+        <item quantity="other">%1$d neue Künstler</item>
+    </plurals>
+    <string name="stats_new_previous">Vorherige %1$d Tage: %2$s neu</string>
+    <string name="stats_stuck_artists">Neue Künstler, die geblieben sind</string>
+    <string name="stats_stuck_artists_recent">Neue Künstler, die geblieben sind · letzte 3 Monate</string>
+    <plurals name="stats_log_age">
+        <item quantity="one">LatentJam hört seit %1$d Tag mit</item>
+        <item quantity="other">LatentJam hört seit %1$d Tagen mit</item>
+    </plurals>
+    <string name="stats_new_note">Zum ersten Mal gehört = erstmals in LatentJam abgespielt. Deine Mediathek kann älter sein als die App.</string>
+    <plurals name="stats_locked_plays">
+        <item quantity="one">Erscheint nach %1$d Wiedergabe in diesem Zeitraum</item>
+        <item quantity="other">Erscheint nach %1$d Wiedergaben in diesem Zeitraum</item>
+    </plurals>
+    <string name="stats_when_you_listen">Wann du hörst</string>
+    <string name="stats_night">Nacht</string>
+    <string name="stats_morning">Morgen</string>
+    <string name="stats_afternoon">Nachmittag</string>
+    <string name="stats_evening">Abend</string>
+    <string name="stats_daypart_peak">Am meisten gehört: %1$s, %2$s</string>
+    <string name="stats_typical_session">Typische Session</string>
+    <string name="stats_longest_session">Längste Session</string>
+    <string name="stats_locked_sessions">Erscheint nach ein paar Hörsessions in diesem Zeitraum</string>
+    <string name="stats_your_top">Deine Top-Liste</string>
+    <string name="stats_show_more">10 anzeigen</string>
+    <string name="stats_show_less">5 anzeigen</string>
+    <string name="stats_partly_share">Teilweise gehört</string>
+    <string name="stats_smart_mode_share">Im SMART-Modus gespielt</string>
+    <string name="stats_finish_note">Anteile an allen Starts. Zu Ende gehört = bis 85 % gehört, übersprungen = in den ersten 30 s verlassen.</string>
+    <string name="stats_slipping_away">Fast vergessen</string>
+    <string name="stats_slipping_note">Lieblingstitel, die du oft selbst gewählt hast und seit zwei Monaten oder länger nicht in LatentJam gespielt hast.</string>
+    <string name="stats_year_ago">Vor einem Jahr</string>
+    <string name="stats_patterns">Deine Muster</string>
+    <string name="stats_same_artist_picks">Wieder derselbe Künstler</string>
+    <string name="stats_of_100_picks">%1$d von 100 Auswahlen</string>
+    <string name="stats_same_artist_note">Wenn du den nächsten Titel selbst auswählst. Einschließlich Start von einer Künstlerseite.</string>
+    <string name="stats_picked_next">Oft als Nächstes gewählt</string>
+    <string name="stats_sequence_description">Nach %1$s hast du %2$s %3$d von %4$d Mal gewählt</string>
+    <string name="stats_library">Deine Mediathek</string>
+    <string name="stats_played_once">Mindestens einmal gespielt</string>
+    <string name="stats_x_of_y">%1$s von %2$s</string>
+    <string name="stats_decades">Jahrzehnte</string>
+    <string name="stats_decade">%1$der</string>
+    <string name="stats_more_appears">Mehr erscheint, während du hörst</string>
+    <string name="stats_unlock_on_repeat">Gerade in Dauerschleife — nach einer Woche Hören</string>
+    <string name="stats_unlock_slipping">Fast vergessen — nach drei Monaten Hören</string>
+    <string name="stats_part_failed">Einige dieser Statistiken konnten nicht geladen werden.</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">Gruppen: %1$d · Überzählige Kopien: %2$d · Freigebbar: %3$s</string>

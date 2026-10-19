@@ -691,9 +691,6 @@
     <string name="stats_minutes_short">min</string>
     <string name="stats_finished_share">Finished</string>
     <string name="stats_skipped_share">Skipped</string>
-    <string name="stats_by_hour">By time of day</string>
-    <string name="stats_top_artists">Top artists</string>
-    <string name="stats_top_tracks">Top tracks</string>
     <string name="stats_empty">Nothing has been played in this period yet.</string>
     <string name="stats_load_failed">Could not load listening statistics.</string>
     <string name="settings_normalize_volume">Volume normalization</string>
@@ -820,22 +817,105 @@
     <string name="stats_calendar_days">Last %1$d calendar days · listening time</string>
     <string name="stats_today">Today</string>
     <string name="stats_yesterday">Yesterday</string>
-    <string name="stats_days_ago">%1$d days ago</string>
-    <string name="stats_habits">Listening habits</string>
-    <string name="stats_active_days">Active days</string>
     <string name="stats_new_tracks">New to you</string>
-    <string name="stats_habits_note">New tracks are first-time listens in your saved history. Streaks use all time.</string>
-    <string name="stats_repeat_share">Repeat plays</string>
-    <string name="stats_coverage">Explore your library</string>
-    <string name="stats_coverage_detail">%1$d of %2$s played in this period</string>
-    <string name="stats_smart_share">SMART mode</string>
     <string name="stats_smart_detail">Share of plays started with SMART shuffle enabled</string>
     <string name="stats_listening_style">How you listen</string>
-    <string name="stats_peak_hour">Most plays around %1$s</string>
-    <string name="stats_average_active_day">Per active day</string>
     <string name="stats_recent_empty">No listening in these calendar days yet.</string>
-    <string name="stats_history_note">Based on saved history; updated when a track ends or changes. Rankings use tracks available in your library.</string>
+    <string name="stats_history_note">Based on saved history, in this device’s time zone; updated when a track ends or changes. Lists show tracks still in your library. A restored backup keeps only tracks it can find, and an artist known only from removed tracks can show as new.</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+    <plurals name="stats_days_ago">
+        <item quantity="one">%1$d day ago</item>
+        <item quantity="other">%1$d days ago</item>
+    </plurals>
+    <string name="stats_section_lately">You lately</string>
+    <string name="stats_section_numbers">Your numbers</string>
+    <string name="stats_section_over_time">Over time</string>
+    <string name="stats_on_repeat">On repeat now</string>
+    <string name="stats_artists_on_repeat">Artists on repeat</string>
+    <plurals name="stats_on_days">
+        <item quantity="one">on %1$d day</item>
+        <item quantity="other">on %1$d days</item>
+    </plurals>
+    <!-- %1$d: days of the last seven with a play -->
+    <string name="stats_week_days">On %1$d of the last 7 days</string>
+    <plurals name="stats_days_of_music">
+        <item quantity="one">≈ %1$d day of music</item>
+        <item quantity="other">≈ %1$d days of music</item>
+    </plurals>
+    <string name="stats_activity_months">Last 12 months · listening time</string>
+    <string name="stats_activity_years">By year · listening time</string>
+    <string name="stats_activity_over_time">Your listening over time</string>
+    <string name="stats_this_month">This month</string>
+    <string name="stats_this_year">This year</string>
+    <plurals name="stats_months_ago">
+        <item quantity="one">%1$d month ago</item>
+        <item quantity="other">%1$d months ago</item>
+    </plurals>
+    <plurals name="stats_years_ago">
+        <item quantity="one">%1$d year ago</item>
+        <item quantity="other">%1$d years ago</item>
+    </plurals>
+    <string name="stats_new_and_familiar">New and familiar</string>
+    <string name="stats_familiar">Familiar</string>
+    <plurals name="stats_new_tracks_count">
+        <item quantity="one">%1$d new track</item>
+        <item quantity="other">%1$d new tracks</item>
+    </plurals>
+    <plurals name="stats_new_artists_count">
+        <item quantity="one">%1$d new artist</item>
+        <item quantity="other">%1$d new artists</item>
+    </plurals>
+    <!-- %1$d: days in the previous window; %2$s: a percentage such as 15% -->
+    <string name="stats_new_previous">Previous %1$d days: %2$s new</string>
+    <string name="stats_stuck_artists">New artists that stuck</string>
+    <string name="stats_stuck_artists_recent">New artists that stuck · last 3 months</string>
+    <plurals name="stats_log_age">
+        <item quantity="one">LatentJam has listened along for %1$d day</item>
+        <item quantity="other">LatentJam has listened along for %1$d days</item>
+    </plurals>
+    <string name="stats_new_note">New to you = first played in LatentJam. Your library may be older than the app.</string>
+    <plurals name="stats_locked_plays">
+        <item quantity="one">Appears after %1$d play in this period</item>
+        <item quantity="other">Appears after %1$d plays in this period</item>
+    </plurals>
+    <string name="stats_when_you_listen">When you listen</string>
+    <string name="stats_night">Night</string>
+    <string name="stats_morning">Morning</string>
+    <string name="stats_afternoon">Afternoon</string>
+    <string name="stats_evening">Evening</string>
+    <!-- %1$s: a part of the day (Night, Morning…); %2$s: its share, such as 46% -->
+    <string name="stats_daypart_peak">Most listening: %1$s, %2$s</string>
+    <string name="stats_typical_session">Typical session</string>
+    <string name="stats_longest_session">Longest session</string>
+    <string name="stats_locked_sessions">Appears after a few listening sessions in this period</string>
+    <string name="stats_your_top">Your top</string>
+    <string name="stats_show_more">Show 10</string>
+    <string name="stats_show_less">Show 5</string>
+    <string name="stats_partly_share">Partly heard</string>
+    <string name="stats_smart_mode_share">Played in SMART mode</string>
+    <string name="stats_finish_note">Shares of all starts. Finished = heard to 85%, skipped = left in the first 30 s.</string>
+    <string name="stats_slipping_away">Slipping away</string>
+    <string name="stats_slipping_note">Favourites you often chose yourself, not played in LatentJam for two months or more.</string>
+    <string name="stats_year_ago">A year ago</string>
+    <string name="stats_patterns">Your patterns</string>
+    <string name="stats_same_artist_picks">Picking the same artist again</string>
+    <!-- %1$d: how many of every 100 tracks the listener picked were by the artist they had just heard -->
+    <string name="stats_of_100_picks">%1$d of 100 picks</string>
+    <string name="stats_same_artist_note">When you pick the next track yourself. Includes starting an artist’s page.</string>
+    <string name="stats_picked_next">Often picked next</string>
+    <!-- %1$s and %2$s: track titles; %3$d of %4$d: how many times -->
+    <string name="stats_sequence_description">After %1$s you picked %2$s %3$d of %4$d times</string>
+    <string name="stats_library">Your library</string>
+    <string name="stats_played_once">Played at least once</string>
+    <!-- %1$s and %2$s: numbers, as in 312 of 5,000 -->
+    <string name="stats_x_of_y">%1$s of %2$s</string>
+    <string name="stats_decades">Decades</string>
+    <!-- %1$d: the first year of a decade, as in 1990s -->
+    <string name="stats_decade">%1$ds</string>
+    <string name="stats_more_appears">More appears as you listen</string>
+    <string name="stats_unlock_on_repeat">On repeat now — after a week of listening</string>
+    <string name="stats_unlock_slipping">Slipping away — after three months of listening</string>
+    <string name="stats_part_failed">Some of these statistics could not be loaded.</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">Groups: %1$d · Extra copies: %2$d · Reclaimable: %3$s</string>

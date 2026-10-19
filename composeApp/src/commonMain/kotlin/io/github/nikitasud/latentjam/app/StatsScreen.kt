@@ -13,126 +13,202 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.progressBarRangeInfo
-import androidx.compose.ui.semantics.setProgress
-import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
+import io.github.nikitasud.latentjam.app.generated.resources.action_play
 import io.github.nikitasud.latentjam.app.generated.resources.action_retry
 import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.privacy_history_listens
-import io.github.nikitasud.latentjam.app.generated.resources.stats_active_days
 import io.github.nikitasud.latentjam.app.generated.resources.stats_activity
-import io.github.nikitasud.latentjam.app.generated.resources.stats_average_active_day
-import io.github.nikitasud.latentjam.app.generated.resources.stats_by_hour
+import io.github.nikitasud.latentjam.app.generated.resources.stats_activity_months
+import io.github.nikitasud.latentjam.app.generated.resources.stats_activity_over_time
+import io.github.nikitasud.latentjam.app.generated.resources.stats_activity_years
+import io.github.nikitasud.latentjam.app.generated.resources.stats_afternoon
+import io.github.nikitasud.latentjam.app.generated.resources.stats_artists_on_repeat
 import io.github.nikitasud.latentjam.app.generated.resources.stats_calendar_days
 import io.github.nikitasud.latentjam.app.generated.resources.stats_chart_day_summary
 import io.github.nikitasud.latentjam.app.generated.resources.stats_comparison_first
 import io.github.nikitasud.latentjam.app.generated.resources.stats_comparison_less
 import io.github.nikitasud.latentjam.app.generated.resources.stats_comparison_more
 import io.github.nikitasud.latentjam.app.generated.resources.stats_comparison_same
-import io.github.nikitasud.latentjam.app.generated.resources.stats_coverage
-import io.github.nikitasud.latentjam.app.generated.resources.stats_coverage_detail
 import io.github.nikitasud.latentjam.app.generated.resources.stats_days_ago
+import io.github.nikitasud.latentjam.app.generated.resources.stats_days_of_music
 import io.github.nikitasud.latentjam.app.generated.resources.stats_days_short
+import io.github.nikitasud.latentjam.app.generated.resources.stats_daypart_peak
+import io.github.nikitasud.latentjam.app.generated.resources.stats_decade
+import io.github.nikitasud.latentjam.app.generated.resources.stats_decades
 import io.github.nikitasud.latentjam.app.generated.resources.stats_distinct_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.stats_empty
+import io.github.nikitasud.latentjam.app.generated.resources.stats_evening
+import io.github.nikitasud.latentjam.app.generated.resources.stats_familiar
+import io.github.nikitasud.latentjam.app.generated.resources.stats_finish_note
 import io.github.nikitasud.latentjam.app.generated.resources.stats_finished_share
-import io.github.nikitasud.latentjam.app.generated.resources.stats_habits
-import io.github.nikitasud.latentjam.app.generated.resources.stats_habits_note
 import io.github.nikitasud.latentjam.app.generated.resources.stats_history_note
 import io.github.nikitasud.latentjam.app.generated.resources.stats_hours_short
+import io.github.nikitasud.latentjam.app.generated.resources.stats_library
 import io.github.nikitasud.latentjam.app.generated.resources.stats_listening_style
 import io.github.nikitasud.latentjam.app.generated.resources.stats_load_failed
+import io.github.nikitasud.latentjam.app.generated.resources.stats_locked_plays
+import io.github.nikitasud.latentjam.app.generated.resources.stats_locked_sessions
+import io.github.nikitasud.latentjam.app.generated.resources.stats_log_age
+import io.github.nikitasud.latentjam.app.generated.resources.stats_longest_session
 import io.github.nikitasud.latentjam.app.generated.resources.stats_minutes_short
+import io.github.nikitasud.latentjam.app.generated.resources.stats_months_ago
+import io.github.nikitasud.latentjam.app.generated.resources.stats_more_appears
+import io.github.nikitasud.latentjam.app.generated.resources.stats_morning
+import io.github.nikitasud.latentjam.app.generated.resources.stats_new_and_familiar
+import io.github.nikitasud.latentjam.app.generated.resources.stats_new_artists_count
+import io.github.nikitasud.latentjam.app.generated.resources.stats_new_note
+import io.github.nikitasud.latentjam.app.generated.resources.stats_new_previous
 import io.github.nikitasud.latentjam.app.generated.resources.stats_new_tracks
-import io.github.nikitasud.latentjam.app.generated.resources.stats_peak_hour
+import io.github.nikitasud.latentjam.app.generated.resources.stats_new_tracks_count
+import io.github.nikitasud.latentjam.app.generated.resources.stats_night
+import io.github.nikitasud.latentjam.app.generated.resources.stats_of_100_picks
+import io.github.nikitasud.latentjam.app.generated.resources.stats_on_days
+import io.github.nikitasud.latentjam.app.generated.resources.stats_on_repeat
+import io.github.nikitasud.latentjam.app.generated.resources.stats_part_failed
+import io.github.nikitasud.latentjam.app.generated.resources.stats_partly_share
+import io.github.nikitasud.latentjam.app.generated.resources.stats_patterns
 import io.github.nikitasud.latentjam.app.generated.resources.stats_period_all
 import io.github.nikitasud.latentjam.app.generated.resources.stats_period_month
 import io.github.nikitasud.latentjam.app.generated.resources.stats_period_week
+import io.github.nikitasud.latentjam.app.generated.resources.stats_picked_next
+import io.github.nikitasud.latentjam.app.generated.resources.stats_played_once
 import io.github.nikitasud.latentjam.app.generated.resources.stats_plays
 import io.github.nikitasud.latentjam.app.generated.resources.stats_recent_empty
 import io.github.nikitasud.latentjam.app.generated.resources.stats_recording_off
-import io.github.nikitasud.latentjam.app.generated.resources.stats_repeat_share
+import io.github.nikitasud.latentjam.app.generated.resources.stats_same_artist_note
+import io.github.nikitasud.latentjam.app.generated.resources.stats_same_artist_picks
+import io.github.nikitasud.latentjam.app.generated.resources.stats_section_lately
+import io.github.nikitasud.latentjam.app.generated.resources.stats_section_numbers
+import io.github.nikitasud.latentjam.app.generated.resources.stats_section_over_time
+import io.github.nikitasud.latentjam.app.generated.resources.stats_sequence_description
+import io.github.nikitasud.latentjam.app.generated.resources.stats_show_less
+import io.github.nikitasud.latentjam.app.generated.resources.stats_show_more
 import io.github.nikitasud.latentjam.app.generated.resources.stats_skipped_share
+import io.github.nikitasud.latentjam.app.generated.resources.stats_slipping_away
+import io.github.nikitasud.latentjam.app.generated.resources.stats_slipping_note
 import io.github.nikitasud.latentjam.app.generated.resources.stats_smart_detail
-import io.github.nikitasud.latentjam.app.generated.resources.stats_smart_share
+import io.github.nikitasud.latentjam.app.generated.resources.stats_smart_mode_share
+import io.github.nikitasud.latentjam.app.generated.resources.stats_stuck_artists
+import io.github.nikitasud.latentjam.app.generated.resources.stats_stuck_artists_recent
 import io.github.nikitasud.latentjam.app.generated.resources.stats_streak_current
 import io.github.nikitasud.latentjam.app.generated.resources.stats_streak_longest
+import io.github.nikitasud.latentjam.app.generated.resources.stats_this_month
+import io.github.nikitasud.latentjam.app.generated.resources.stats_this_year
 import io.github.nikitasud.latentjam.app.generated.resources.stats_time_listened
 import io.github.nikitasud.latentjam.app.generated.resources.stats_today
-import io.github.nikitasud.latentjam.app.generated.resources.stats_top_artists
-import io.github.nikitasud.latentjam.app.generated.resources.stats_top_tracks
+import io.github.nikitasud.latentjam.app.generated.resources.stats_typical_session
 import io.github.nikitasud.latentjam.app.generated.resources.stats_under_minute
+import io.github.nikitasud.latentjam.app.generated.resources.stats_unlock_on_repeat
+import io.github.nikitasud.latentjam.app.generated.resources.stats_unlock_slipping
+import io.github.nikitasud.latentjam.app.generated.resources.stats_week_days
+import io.github.nikitasud.latentjam.app.generated.resources.stats_when_you_listen
+import io.github.nikitasud.latentjam.app.generated.resources.stats_x_of_y
+import io.github.nikitasud.latentjam.app.generated.resources.stats_year_ago
+import io.github.nikitasud.latentjam.app.generated.resources.stats_years_ago
 import io.github.nikitasud.latentjam.app.generated.resources.stats_yesterday
+import io.github.nikitasud.latentjam.app.generated.resources.stats_your_top
+import io.github.nikitasud.latentjam.app.generated.resources.tab_albums
 import io.github.nikitasud.latentjam.app.generated.resources.tab_artists
+import io.github.nikitasud.latentjam.app.generated.resources.tab_genres
+import io.github.nikitasud.latentjam.app.generated.resources.tab_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
-import io.github.nikitasud.latentjam.history.DailyListening
-import io.github.nikitasud.latentjam.history.ListenEvent
+import io.github.nikitasud.latentjam.history.ActivityScale
+import io.github.nikitasud.latentjam.history.HabitInsights
 import io.github.nikitasud.latentjam.history.ListeningHistory
+import io.github.nikitasud.latentjam.history.ListeningInsights
+import io.github.nikitasud.latentjam.history.ListeningNormalization
 import io.github.nikitasud.latentjam.history.ListeningOverview
 import io.github.nikitasud.latentjam.history.ListeningOverviews
+import io.github.nikitasud.latentjam.history.NormalizedHistory
+import io.github.nikitasud.latentjam.history.PeriodInsights
+import io.github.nikitasud.latentjam.history.RankedName
 import io.github.nikitasud.latentjam.history.epochMillis
+import io.github.nikitasud.latentjam.history.localTimePoint
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
 private enum class StatsPeriod(val days: Int?) { WEEK(7), MONTH(30), ALL(null) }
 
-private data class StatsHistorySnapshot(val revision: Long, val events: List<ListenEvent>)
+private enum class TopKind { ARTISTS, ALBUMS, GENRES, TRACKS }
 
-private data class StatsLoad(
+private const val DAY_MS = 24L * 60 * 60 * 1000
+
+/** Section 2: the chips' period. [selection] identifies the chip/source it was computed for. */
+private class PeriodLoad(
+    val selection: Any,
     val overview: ListeningOverview,
-    val tracksById: Map<TrackId, TrackDescriptor>,
-    val history: StatsHistorySnapshot,
+    val insights: PeriodInsights,
+    val logEmpty: Boolean,
 )
 
 /** A shared dashboard for Settings and the optional root page; never reads playback ticks. */
@@ -149,64 +225,146 @@ internal fun ListeningStatsSettings(
     val period = StatsPeriod.entries.firstOrNull { it.name == periodName } ?: StatsPeriod.MONTH
     val historyRevision by AppGraph.historyRevision.collectAsState()
     val recordingHistory by AppGraph.settings.saveListeningHistory.collectAsState()
-    var historySnapshot by remember(history) { mutableStateOf<StatsHistorySnapshot?>(null) }
-    var catalogSnapshot by remember(tracks) { mutableStateOf<Map<TrackId, TrackDescriptor>?>(null) }
-    var loaded by remember { mutableStateOf<StatsLoad?>(null) }
-    var loadedSelection by remember { mutableStateOf<Any?>(null) }
-    var failedRequest by remember { mutableStateOf<Any?>(null) }
+    val scope = rememberCoroutineScope()
+    val snapshots = remember(history, scope) { StatsSnapshots(scope, readEvents = history::allEvents) }
+    val catalog = remember(tracks, scope) {
+        scope.async(Dispatchers.Default, start = CoroutineStart.LAZY) { tracks.associateBy { it.id } }
+    }
     var retryRevision by remember { mutableIntStateOf(0) }
-    // Filter/source changes must not show mislabeled old data. New recorded listens and page
-    // activation refresh that same selection in place, preserving lazy items and scroll position.
+    // "Today" rolls over at midnight while the page stays open.
+    val localDay by produceState(localTimePoint(epochMillis()).epochDay) {
+        while (true) {
+            delay(10 * 60_000L)
+            value = localTimePoint(epochMillis()).epochDay
+        }
+    }
     val selection = remember(history, period, tracks) { Any() }
-    val request = remember(selection, historyRevision, retryRevision) { Any() }
-    val displayed = loaded.takeIf { loadedSelection === selection || !active }
+    var periodLoad by remember { mutableStateOf<PeriodLoad?>(null) }
+    var habitsLoad by remember { mutableStateOf<HabitInsights?>(null) }
+    var periodFailed by remember { mutableStateOf(false) }
+    var habitsFailed by remember { mutableStateOf(false) }
+    // Built once off the main thread; rows read it after the first load.
+    var tracksById by remember(tracks) { mutableStateOf<Map<TrackId, TrackDescriptor>>(emptyMap()) }
 
-    LaunchedEffect(request, active) {
+    LaunchedEffect(active) {
+        if (!active) snapshots.cancelInFlight()
+    }
+    // Section 2 follows the chips. New listens refresh it in place; a chip change keeps the old
+    // cards dimmed until the new period is ready, so neither the layout nor the scroll jumps.
+    LaunchedEffect(selection, historyRevision, retryRevision, active) {
         if (!active) return@LaunchedEffect
-        failedRequest = null
         try {
+            val normalized = snapshots.await(historyRevision, retryRevision)
+            val catalogMap = catalog.await()
+            tracksById = catalogMap
+            val loadContext = currentCoroutineContext()
             val now = epochMillis()
-            val loadContext = kotlinx.coroutines.currentCoroutineContext()
-            val cachedEvents = historySnapshot?.takeIf { it.revision == historyRevision }
-            val cachedCatalog = catalogSnapshot
-            val result = withContext(Dispatchers.Default) {
-                val events = cachedEvents ?: StatsHistorySnapshot(historyRevision, history.allEvents())
-                val tracksById = cachedCatalog ?: tracks.associateBy { it.id }
-                loadContext.ensureActive()
-                StatsLoad(
+            periodLoad = withContext(Dispatchers.Default) {
+                val since = period.days?.let { now - it * DAY_MS }
+                PeriodLoad(
+                    selection = selection,
                     overview = ListeningOverviews.summarize(
-                        events = events.events,
-                        artistOf = { tracksById[it]?.artist },
-                        sinceMs = period.days?.let { now - it * 24L * 60 * 60 * 1000 },
+                        events = normalized.events,
+                        artistOf = { catalogMap[it]?.artist },
+                        sinceMs = since,
                         nowMs = now,
-                        includeTrack = tracksById::containsKey,
+                        includeTrack = catalogMap::containsKey,
                         cancellationCheck = { loadContext.ensureActive() },
                         chartDays = period.days ?: 30,
                     ),
-                    tracksById = tracksById,
-                    history = events,
+                    insights = ListeningInsights.period(
+                        history = normalized,
+                        catalog = catalogMap::get,
+                        sinceMs = since,
+                        nowMs = now,
+                        cancellationCheck = { loadContext.ensureActive() },
+                    ),
+                    logEmpty = normalized.size == 0,
                 )
             }
-            historySnapshot = result.history
-            catalogSnapshot = result.tracksById
-            loaded = result
-            loadedSelection = selection
+            periodFailed = false
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Throwable) {
-            failedRequest = request
+            periodFailed = true
         }
     }
+    // Sections 1 and 3 describe the whole log as of today; the chips never touch them.
+    LaunchedEffect(historyRevision, tracks, active, localDay, retryRevision) {
+        if (!active) return@LaunchedEffect
+        try {
+            val normalized = snapshots.await(historyRevision, retryRevision)
+            val catalogMap = catalog.await()
+            tracksById = catalogMap
+            val loadContext = currentCoroutineContext()
+            habitsLoad = withContext(Dispatchers.Default) {
+                ListeningInsights.habits(
+                    history = normalized,
+                    catalog = catalogMap::get,
+                    librarySize = catalogMap.size,
+                    nowMs = epochMillis(),
+                    cancellationCheck = { loadContext.ensureActive() },
+                )
+            }
+            habitsFailed = false
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            habitsFailed = true
+        }
+    }
+
+    val currentTracks by rememberUpdatedState(tracksById)
+    val playRows: (List<TrackId>, Int) -> Unit = remember(scope) {
+        { ids, index ->
+            val rows = ids.mapNotNull { currentTracks[it] }
+            val start = rows.indexOfFirst { it.id == ids.getOrNull(index) }
+            if (start >= 0) {
+                // A hand-picked set from this page has no single honest source to name.
+                AppGraph.queueSource.value = null
+                scope.launch { AppGraph.playback.play(rows, start) }
+            }
+        }
+    }
+    val periodShown = periodLoad
+    val dimmed = periodShown != null && periodShown.selection !== selection
+    val habits = habitsLoad
 
     FadingLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = contentPadding,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item(key = "filters") {
-            // The browse carousel and Settings top bar already name this page. Start with the
-            // reporting period so the content has one hierarchy in either entry point.
-            Column(modifier = Modifier.padding(horizontal = 20.dp).padding(top = 3.dp)) {
+        if (!recordingHistory) {
+            item(key = "recording-paused") {
+                StatsCard { StatsNote(stringResource(Res.string.stats_recording_off)) }
+            }
+        }
+        if (periodShown?.logEmpty == true && habits?.logStartMs == null && !dimmed) {
+            item(key = "empty") { EmptyLogCard() }
+            return@FadingLazyColumn
+        }
+
+        // 1 · You lately
+        if (habits != null) {
+            val repeatShown = habits.onRepeatTracks.isNotEmpty() || habits.onRepeatArtists.isNotEmpty()
+            item(key = "lately-title") { StatsSectionHeader(stringResource(Res.string.stats_section_lately)) }
+            if (!repeatShown && habits.onRepeatLocked) {
+                item(key = "more-appears") { MoreAppearsCard(habits) }
+            }
+            item(key = "on-repeat") {
+                OnRepeatCard(habits, tracksById, accentInk, playRows)
+            }
+        }
+
+        // 2 · Your numbers
+        item(key = "numbers-title") {
+            Column(
+                modifier = Modifier.padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                StatsSectionHeader(stringResource(Res.string.stats_section_numbers), padded = false)
+                // The chips govern only this section; they are its header, not a page filter.
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -219,127 +377,75 @@ internal fun ListeningStatsSettings(
                         )
                     }
                 }
-            }
-        }
-        if (!recordingHistory) {
-            item(key = "recording-paused") {
-                StatsCard {
-                    StatsNote(stringResource(Res.string.stats_recording_off))
+                Box(Modifier.fillMaxWidth().height(2.dp)) {
+                    if (dimmed || (periodShown == null && !periodFailed)) {
+                        AppLinearProgress(Modifier.fillMaxWidth())
+                    }
                 }
             }
         }
-        if (displayed == null && failedRequest !== request) {
-            item(key = "loading") {
-                Box(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    AppSpinner()
-                }
+        if (periodShown != null) {
+            val overview = periodShown.overview
+            val insights = periodShown.insights
+            val cardModifier = if (dimmed) {
+                Modifier.alpha(0.4f).clearAndSetSemantics { }
+            } else {
+                Modifier
             }
-            return@FadingLazyColumn
+            if (overview.plays == 0) {
+                item(key = "n-empty") {
+                    Box(cardModifier) {
+                        StatsCard { StatsNote(stringResource(Res.string.stats_empty)) }
+                    }
+                }
+            } else {
+                item(key = "n0") { Box(cardModifier) { ListeningHero(overview, insights, period) } }
+                item(key = "n1") { Box(cardModifier) { ActivityCard(overview, insights, accentInk) } }
+                item(key = "n2") { Box(cardModifier) { NewAndFamiliarCard(overview, insights, period, accentInk) } }
+                item(key = "n3") { Box(cardModifier) { WhenYouListenCard(insights, accentInk) } }
+                item(key = "n4") {
+                    Box(cardModifier) { YourTopCard(overview, insights, tracksById, playRows) }
+                }
+                item(key = "n5") { Box(cardModifier) { HowYouListenCard(overview, accentInk) } }
+            }
         }
-        if (failedRequest === request) {
-            item(key = "error") {
+
+        // 3 · Over time
+        if (habits != null) {
+            item(key = "over-time-title") { StatsSectionHeader(stringResource(Res.string.stats_section_over_time)) }
+            if (habits.slippingAway.isNotEmpty()) {
+                item(key = "t1") { SlippingAwayCard(habits, tracksById, playRows) }
+            }
+            if (habits.yearAgo.isNotEmpty()) {
+                item(key = "t2") { YearAgoCard(habits, tracksById, playRows) }
+            }
+            if (habits.sameArtistShown || habits.sequences.isNotEmpty()) {
+                item(key = "t3") { PatternsCard(habits, tracksById, accentInk) }
+            }
+            if (habits.librarySize > 0) {
+                item(key = "t4") { LibraryCard(habits, accentInk) }
+            }
+            val repeatShown = habits.onRepeatTracks.isNotEmpty() || habits.onRepeatArtists.isNotEmpty()
+            if ((repeatShown || !habits.onRepeatLocked) && habits.slippingAwayLocked) {
+                item(key = "t5") { MoreAppearsCard(habits) }
+            }
+        }
+
+        if (periodFailed || habitsFailed) {
+            item(key = "failed") {
                 StatsCard {
                     Text(
-                        text = stringResource(Res.string.stats_load_failed),
+                        text = stringResource(
+                            if (periodFailed && habitsFailed) Res.string.stats_load_failed else Res.string.stats_part_failed,
+                        ),
                         style = MaterialTheme.typography.bodyLarge,
                     )
+                    // One retry re-reads the log and restarts both sections.
                     OutlinedButton(
                         onClick = { retryRevision += 1 },
                         modifier = Modifier.heightIn(min = 48.dp),
                     ) {
                         Text(stringResource(Res.string.action_retry))
-                    }
-                }
-            }
-            if (displayed == null) return@FadingLazyColumn
-        }
-        val result = displayed ?: return@FadingLazyColumn
-        val current = result.overview
-        item(key = "listening-summary") { ListeningHero(current, period, accentInk) }
-        if (current.plays == 0) {
-            item(key = "empty") {
-                StatsCard {
-                    Icon(
-                        imageVector = Icons.Rounded.BarChart,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(32.dp),
-                    )
-                    Text(
-                        text = stringResource(Res.string.stats_empty),
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                    StatsNote(stringResource(Res.string.stats_history_note))
-                }
-            }
-            return@FadingLazyColumn
-        }
-        item(key = "habits") { ListeningHabits(current) }
-        if (result.tracksById.isNotEmpty()) {
-            item(key = "library-coverage") {
-                LibraryCoverage(current, result.tracksById.size, accentInk)
-            }
-        }
-        item(key = "daily-activity") {
-            StatsCard {
-                StatsTitle(stringResource(Res.string.stats_activity))
-                StatsNote(stringResource(Res.string.stats_calendar_days, current.dailyListening.size))
-                DailyBars(current.dailyListening, accentInk)
-            }
-        }
-        item(key = "listening-style") {
-            StatsCard {
-                StatsTitle(stringResource(Res.string.stats_listening_style))
-                ShareMeter(stringResource(Res.string.stats_finished_share), current.completionRate, color = accentInk)
-                ShareMeter(stringResource(Res.string.stats_skipped_share), current.skipRate, color = accentInk)
-                ShareMeter(
-                    stringResource(Res.string.stats_repeat_share),
-                    current.repeatPlays.toFloat() / current.plays,
-                    color = accentInk,
-                )
-            }
-        }
-        item(key = "time-of-day") {
-            StatsCard {
-                StatsTitle(stringResource(Res.string.stats_by_hour))
-                HourBars(current.playsByHour, accentInk)
-            }
-        }
-        if (current.topArtists.isNotEmpty()) {
-            item(key = "top-artists") {
-                StatsCard {
-                    StatsTitle(stringResource(Res.string.stats_top_artists))
-                    current.topArtists.forEachIndexed { index, artist ->
-                        RankedRow(
-                            rank = index + 1,
-                            title = artist.artist,
-                            plays = artist.plays,
-                            playedMs = artist.playedMs,
-                        )
-                    }
-                }
-            }
-        }
-        if (current.topTracks.isNotEmpty()) {
-            item(key = "top-tracks") {
-                StatsCard {
-                    StatsTitle(stringResource(Res.string.stats_top_tracks))
-                    current.topTracks.forEachIndexed { index, entry ->
-                        val descriptor = result.tracksById[entry.trackId] ?: return@forEachIndexed
-                        RankedRow(
-                            rank = index + 1,
-                            title = descriptor.title?.takeIf { it.isNotBlank() }
-                                ?: stringResource(Res.string.track_untitled),
-                            subtitle = descriptor.artist?.takeIf { it.isNotBlank() }
-                                ?: stringResource(Res.string.track_unknown_artist),
-                            artworkUri = descriptor.artworkUri,
-                            showArtwork = true,
-                            plays = entry.plays,
-                            playedMs = entry.playedMs,
-                        )
                     }
                 }
             }
@@ -360,14 +466,96 @@ private fun StatsPeriod.titleRes() = when (this) {
 }
 
 @Composable
-private fun ListeningHero(overview: ListeningOverview, period: StatsPeriod, accentInk: Color) {
+private fun EmptyLogCard() {
+    StatsCard {
+        Icon(
+            imageVector = Icons.Rounded.BarChart,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(32.dp),
+        )
+        Text(text = stringResource(Res.string.stats_empty), style = MaterialTheme.typography.bodyLarge)
+    }
+}
+
+// ---- Section 1 ----------------------------------------------------------------------------------
+
+@Composable
+private fun OnRepeatCard(
+    habits: HabitInsights,
+    tracksById: Map<TrackId, TrackDescriptor>,
+    accentInk: Color,
+    playRows: (List<TrackId>, Int) -> Unit,
+) {
+    StatsCard {
+        if (habits.onRepeatTracks.isNotEmpty()) {
+            StatsTitle(stringResource(Res.string.stats_on_repeat))
+            val top = habits.onRepeatTracks.first().weight
+            val ids = habits.onRepeatTracks.map { it.trackId }
+            habits.onRepeatTracks.forEachIndexed { index, entry ->
+                val descriptor = tracksById[entry.trackId] ?: return@forEachIndexed
+                TrackRow(
+                    descriptor = descriptor,
+                    detail = pluralStringResource(Res.plurals.stats_on_days, entry.days, entry.days) + " · " +
+                        pluralStringResource(Res.plurals.privacy_history_listens, entry.plays, entry.plays),
+                    share = entry.weight / top,
+                    accentInk = accentInk,
+                    onClick = { playRows(ids, index) },
+                )
+            }
+        } else if (habits.onRepeatArtists.isNotEmpty()) {
+            StatsTitle(stringResource(Res.string.stats_artists_on_repeat))
+            val top = habits.onRepeatArtists.first().weight
+            habits.onRepeatArtists.forEach { entry ->
+                NameRow(
+                    title = entry.artist.ifBlank { stringResource(Res.string.track_unknown_artist) },
+                    detail = pluralStringResource(Res.plurals.stats_on_days, entry.days, entry.days) + " · " +
+                        pluralStringResource(Res.plurals.privacy_history_listens, entry.plays, entry.plays),
+                    share = entry.weight / top,
+                    accentInk = accentInk,
+                )
+            }
+        }
+        StreakLine(habits)
+    }
+}
+
+@Composable
+private fun StreakLine(habits: HabitInsights) {
+    val days = stringResource(Res.string.stats_days_short)
+    val record = "${stringResource(Res.string.stats_streak_longest)} · ${habits.longestStreakDays} $days"
+    val text = if (habits.currentStreakDays >= 2) {
+        "${stringResource(Res.string.stats_streak_current)} · ${habits.currentStreakDays} $days   $record"
+    } else {
+        // Weekday listeners break a daily streak every weekend; say how regular they are instead.
+        "${stringResource(Res.string.stats_week_days, habits.playDaysLastWeek)}   $record"
+    }
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
+private fun MoreAppearsCard(habits: HabitInsights) {
+    StatsCard {
+        StatsTitle(stringResource(Res.string.stats_more_appears))
+        val repeatShown = habits.onRepeatTracks.isNotEmpty() || habits.onRepeatArtists.isNotEmpty()
+        if (!repeatShown && habits.onRepeatLocked) StatsNote(stringResource(Res.string.stats_unlock_on_repeat))
+        if (habits.slippingAwayLocked) StatsNote(stringResource(Res.string.stats_unlock_slipping))
+    }
+}
+
+// ---- Section 2 ----------------------------------------------------------------------------------
+
+@Composable
+private fun ListeningHero(overview: ListeningOverview, insights: PeriodInsights, period: StatsPeriod) {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
         Text(
             text = (stringResource(Res.string.stats_time_listened) + " · " +
                 stringResource(period.titleRes())).uppercase(),
-            style = MaterialTheme.typography.labelSmall.copy(
-                letterSpacing = 0.5.sp,
-            ),
+            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.5.sp),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
@@ -378,26 +566,32 @@ private fun ListeningHero(overview: ListeningOverview, period: StatsPeriod, acce
             modifier = Modifier.padding(top = 2.dp),
         )
         val previous = overview.previousPeriod
-        if (previous != null && period.days != null) {
-            val comparison = when {
-                previous.playedMs == 0L && overview.playedMs > 0L ->
-                    stringResource(Res.string.stats_comparison_first, period.days)
-                overview.playedMs > previous.playedMs -> stringResource(
-                    Res.string.stats_comparison_more,
-                    formatListenedTime(overview.playedMs - previous.playedMs),
-                    period.days,
-                )
-                overview.playedMs < previous.playedMs -> stringResource(
-                    Res.string.stats_comparison_less,
-                    formatListenedTime(previous.playedMs - overview.playedMs),
-                    period.days,
-                )
-                else -> stringResource(Res.string.stats_comparison_same, period.days)
+        val comparison = when {
+            period.days == null -> {
+                val days = (overview.playedMs / DAY_MS).toInt()
+                if (days >= 1) pluralStringResource(Res.plurals.stats_days_of_music, days, days) else null
             }
+            previous == null -> null
+            // A log younger than the previous window would always compare against nothing.
+            !insights.burnedIn || previous.playedMs == 0L ->
+                stringResource(Res.string.stats_comparison_first, period.days)
+            overview.playedMs > previous.playedMs -> stringResource(
+                Res.string.stats_comparison_more,
+                formatListenedTime(overview.playedMs - previous.playedMs),
+                period.days,
+            )
+            overview.playedMs < previous.playedMs -> stringResource(
+                Res.string.stats_comparison_less,
+                formatListenedTime(previous.playedMs - overview.playedMs),
+                period.days,
+            )
+            else -> stringResource(Res.string.stats_comparison_same, period.days)
+        }
+        if (comparison != null) {
             Text(
                 text = comparison,
                 style = MaterialTheme.typography.bodySmall,
-                color = accentInk,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
@@ -408,8 +602,8 @@ private fun ListeningHero(overview: ListeningOverview, period: StatsPeriod, acce
             maxItemsInEachRow = 3,
         ) {
             HeroMetric(overview.plays.toString(), stringResource(Res.string.stats_plays), Modifier.weight(1f))
-            HeroMetric(overview.distinctTracks.toString(), stringResource(Res.string.stats_distinct_tracks), Modifier.weight(1f))
-            HeroMetric(overview.distinctArtists.toString(), stringResource(Res.string.tab_artists), Modifier.weight(1f))
+            HeroMetric(insights.playedTracks.toString(), stringResource(Res.string.stats_distinct_tracks), Modifier.weight(1f))
+            HeroMetric(insights.playedArtists.toString(), stringResource(Res.string.tab_artists), Modifier.weight(1f))
         }
     }
 }
@@ -425,123 +619,101 @@ private fun HeroMetric(value: String, label: String, modifier: Modifier) {
     }
 }
 
+/** One chart bar, whatever its calendar unit. */
+private class ChartBar(val key: Long, val plays: Int, val playedMs: Long, val label: @Composable () -> String)
+
 @Composable
-private fun ListeningHabits(overview: ListeningOverview) {
+private fun ActivityCard(overview: ListeningOverview, insights: PeriodInsights, accentInk: Color) {
     StatsCard {
-        StatsTitle(stringResource(Res.string.stats_habits))
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
-            maxItemsInEachRow = 2,
-        ) {
-            Metric(
-                value = overview.activeDays.toString(),
-                label = stringResource(Res.string.stats_active_days),
-                modifier = Modifier.weight(1f).widthIn(min = 108.dp),
-            )
-            Metric(
-                value = formatListenedTime(overview.playedMs / overview.activeDays.coerceAtLeast(1)),
-                label = stringResource(Res.string.stats_average_active_day),
-                modifier = Modifier.weight(1f).widthIn(min = 108.dp),
-            )
-            Metric(
-                value = overview.newTracks.toString(),
-                label = stringResource(Res.string.stats_new_tracks),
-                modifier = Modifier.weight(1f).widthIn(min = 108.dp),
-            )
-            Column(modifier = Modifier.weight(1f).widthIn(min = 108.dp)) {
-                val days = stringResource(Res.string.stats_days_short)
-                Metric(
-                    value = "${overview.currentStreakDays} $days",
-                    label = stringResource(Res.string.stats_streak_current),
+        when (insights.activityScale) {
+            ActivityScale.DAY -> {
+                val logStartDay = insights.logStartDay
+                // Days before the log began are not quiet days; they are not drawn.
+                val days = overview.dailyListening.filter { logStartDay == null || it.epochDay >= logStartDay }
+                    .ifEmpty { overview.dailyListening.takeLast(1) }
+                val today = overview.dailyListening.last().epochDay
+                StatsTitle(stringResource(Res.string.stats_activity))
+                StatsNote(stringResource(Res.string.stats_calendar_days, days.size))
+                ActivityBars(
+                    bars = days.map { day ->
+                        ChartBar(day.epochDay, day.plays, day.playedMs) { statsDayLabel((today - day.epochDay).toInt()) }
+                    },
+                    accentInk = accentInk,
                 )
-                Text(
-                    text = "${stringResource(Res.string.stats_streak_longest)} · ${overview.longestStreakDays} $days",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp),
+                if (days.none { it.plays > 0 }) StatsNote(stringResource(Res.string.stats_recent_empty))
+            }
+            ActivityScale.MONTH, ActivityScale.YEAR -> {
+                val months = insights.activityScale == ActivityScale.MONTH
+                StatsTitle(stringResource(Res.string.stats_activity_over_time))
+                StatsNote(
+                    stringResource(if (months) Res.string.stats_activity_months else Res.string.stats_activity_years),
+                )
+                ActivityBars(
+                    bars = insights.activity.map { bucket ->
+                        ChartBar(bucket.key.toLong(), bucket.plays, bucket.playedMs) {
+                            when {
+                                bucket.ago == 0 && months -> stringResource(Res.string.stats_this_month)
+                                bucket.ago == 0 -> stringResource(Res.string.stats_this_year)
+                                months -> pluralStringResource(Res.plurals.stats_months_ago, bucket.ago, bucket.ago)
+                                else -> pluralStringResource(Res.plurals.stats_years_ago, bucket.ago, bucket.ago)
+                            }
+                        }
+                    },
+                    accentInk = accentInk,
                 )
             }
         }
-        StatsNote(stringResource(Res.string.stats_habits_note))
     }
 }
 
 @Composable
-private fun LibraryCoverage(overview: ListeningOverview, librarySize: Int, accentInk: Color) {
-    StatsCard {
-        StatsTitle(stringResource(Res.string.stats_coverage))
-        val share = overview.libraryTracksHeard.toFloat() / librarySize.coerceAtLeast(1)
-        StatsNote(
-            stringResource(
-                Res.string.stats_coverage_detail,
-                overview.libraryTracksHeard,
-                pluralStringResource(Res.plurals.count_tracks, librarySize, librarySize),
-            ),
-        )
-        ProportionBar(share, color = accentInk)
-        ShareMeter(
-            label = stringResource(Res.string.stats_smart_share),
-            share = overview.smartPlays.toFloat() / overview.plays.coerceAtLeast(1),
-            color = MaterialTheme.colorScheme.tertiary,
-            modifier = Modifier.padding(top = 8.dp),
-        )
-        StatsNote(stringResource(Res.string.stats_smart_detail))
-    }
-}
-
-@Composable
-private fun DailyBars(days: List<DailyListening>, accentInk: Color) {
-    if (days.isEmpty()) return
-    val maxDuration = days.maxOf { it.playedMs }.coerceAtLeast(1L)
-    val today = days.last().epochDay
-    var selectedDay by remember(days) { mutableStateOf<Long?>(null) }
-    val selectedIndex = days.indexOfFirst { it.epochDay == selectedDay }.takeIf { it >= 0 } ?: days.lastIndex
-    val selectedEntry = days[selectedIndex]
+private fun ActivityBars(bars: List<ChartBar>, accentInk: Color) {
+    if (bars.isEmpty()) return
+    val maxDuration = bars.maxOf { it.playedMs }.coerceAtLeast(1L)
+    var selectedKey by remember(bars.first().key, bars.size) { mutableStateOf<Long?>(null) }
+    val selectedIndex = bars.indexOfFirst { it.key == selectedKey }.takeIf { it >= 0 } ?: bars.lastIndex
+    val selectedBar = bars[selectedIndex]
     val selectedSummary = stringResource(
         Res.string.stats_chart_day_summary,
-        statsDayLabel((today - selectedEntry.epochDay).toInt()),
-        pluralStringResource(Res.plurals.privacy_history_listens, selectedEntry.plays, selectedEntry.plays),
-        formatListenedTime(selectedEntry.playedMs),
+        selectedBar.label(),
+        pluralStringResource(Res.plurals.privacy_history_listens, selectedBar.plays, selectedBar.plays),
+        formatListenedTime(selectedBar.playedMs),
     )
     Row(
         modifier = Modifier.fillMaxWidth().height(92.dp).semantics {
             stateDescription = selectedSummary
             progressBarRangeInfo = ProgressBarRangeInfo(
-                selectedIndex.toFloat(), 0f..days.lastIndex.toFloat(), (days.size - 2).coerceAtLeast(0),
+                selectedIndex.toFloat(), 0f..bars.lastIndex.toFloat().coerceAtLeast(1f), (bars.size - 2).coerceAtLeast(0),
             )
             setProgress { index ->
                 // The framework's target is arbitrary here: roundToInt() throws on NaN.
                 if (!index.isFinite()) return@setProgress false
-                selectedDay = days[index.roundToInt().coerceIn(0, days.lastIndex)].epochDay
+                selectedKey = bars[index.roundToInt().coerceIn(0, bars.lastIndex)].key
                 true
             }
         },
-        horizontalArrangement = Arrangement.spacedBy(if (days.size <= 7) 8.dp else 3.dp),
+        horizontalArrangement = Arrangement.spacedBy(if (bars.size <= 12) 8.dp else 3.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
-        days.forEach { day ->
-            val isSelected = day.epochDay == selectedDay
+        bars.forEach { bar ->
+            val isSelected = bar.key == selectedKey
             val description = stringResource(
                 Res.string.stats_chart_day_summary,
-                statsDayLabel((today - day.epochDay).toInt()),
-                pluralStringResource(Res.plurals.privacy_history_listens, day.plays, day.plays),
-                formatListenedTime(day.playedMs),
+                bar.label(),
+                pluralStringResource(Res.plurals.privacy_history_listens, bar.plays, bar.plays),
+                formatListenedTime(bar.playedMs),
             )
             // Zero activity is only a quiet baseline, never a visible invented listening amount.
-            val height = if (day.playedMs > 0) {
-                (88f * (day.playedMs.toDouble() / maxDuration).toFloat()).coerceAtLeast(3f)
+            val height = if (bar.playedMs > 0) {
+                (88f * (bar.playedMs.toDouble() / maxDuration).toFloat()).coerceAtLeast(3f)
             } else {
                 2f
             }
             Box(
                 modifier = Modifier.weight(1f).fillMaxHeight()
                     .clip(RoundedCornerShape(4.dp))
-                    .background(
-                        if (isSelected) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent,
-                    )
-                    .clickable(role = Role.Button) { selectedDay = day.epochDay }
+                    .background(if (isSelected) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent)
+                    .clickable(role = Role.Button) { selectedKey = bar.key }
                     .semantics {
                         contentDescription = description
                         selected = isSelected
@@ -553,7 +725,7 @@ private fun DailyBars(days: List<DailyListening>, accentInk: Color) {
                         .background(
                             color = when {
                                 isSelected -> accentInk
-                                day.playedMs == 0L -> MaterialTheme.colorScheme.outlineVariant
+                                bar.playedMs == 0L -> MaterialTheme.colorScheme.outlineVariant
                                 else -> accentInk.copy(alpha = 0.62f)
                             },
                             shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp),
@@ -565,63 +737,515 @@ private fun DailyBars(days: List<DailyListening>, accentInk: Color) {
     }
     Row(modifier = Modifier.fillMaxWidth().clearAndSetSemantics { }) {
         Text(
-            text = statsDayLabel(days.size - 1),
+            text = bars.first().label(),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f),
         )
-        Text(
-            text = stringResource(Res.string.stats_today),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.End,
-            modifier = Modifier.weight(1f),
-        )
+        if (bars.size > 1) {
+            Text(
+                text = bars.last().label(),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.End,
+                modifier = Modifier.weight(1f),
+            )
+        }
     }
-    if (selectedDay != null) {
+    if (selectedKey != null) {
         Text(
             text = selectedSummary,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
-    if (days.none { it.plays > 0 }) StatsNote(stringResource(Res.string.stats_recent_empty))
 }
 
 @Composable
-private fun HourBars(playsByHour: List<Int>, accentInk: Color) {
-    val peakPlays = playsByHour.maxOrNull()?.takeIf { it > 0 } ?: return
-    val peakHour = playsByHour.indexOf(peakPlays)
-    StatsNote(stringResource(Res.string.stats_peak_hour, "${peakHour.toString().padStart(2, '0')}:00"))
+private fun NewAndFamiliarCard(
+    overview: ListeningOverview,
+    insights: PeriodInsights,
+    period: StatsPeriod,
+    accentInk: Color,
+) {
+    StatsCard {
+        StatsTitle(stringResource(Res.string.stats_new_and_familiar))
+        if (overview.plays < PeriodInsights.MIN_NEW_PLAYS_BASE) {
+            StatsNote(
+                pluralStringResource(
+                    Res.plurals.stats_locked_plays,
+                    PeriodInsights.MIN_NEW_PLAYS_BASE,
+                    PeriodInsights.MIN_NEW_PLAYS_BASE,
+                ),
+            )
+            return@StatsCard
+        }
+        val plays = (insights.newPlays + insights.familiarPlays).coerceAtLeast(1)
+        val familiarShare = insights.familiarPlays.toFloat() / plays
+        val familiarText = percent(familiarShare)
+        val newText = "${100 - percentValue(familiarShare)}%"
+        Row(
+            modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) { },
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                "${stringResource(Res.string.stats_familiar)} $familiarText",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                "${stringResource(Res.string.stats_new_tracks)} $newText",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        ProportionBar(familiarShare, color = accentInk)
+        if (period.days != null) {
+            StatsNote(
+                pluralStringResource(Res.plurals.stats_new_tracks_count, insights.newTracks, insights.newTracks) +
+                    " · " +
+                    pluralStringResource(Res.plurals.stats_new_artists_count, insights.newArtists, insights.newArtists),
+            )
+            val previous = insights.previousNewShare
+            if (previous != null) {
+                StatsNote(stringResource(Res.string.stats_new_previous, period.days, percent(previous)))
+            }
+        }
+        if (insights.stuckArtists.isNotEmpty()) {
+            Text(
+                text = stringResource(
+                    if (period.days == null) Res.string.stats_stuck_artists_recent else Res.string.stats_stuck_artists,
+                ),
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            insights.stuckArtists.forEach { artist ->
+                NameRow(
+                    title = artist.name,
+                    detail = pluralStringResource(Res.plurals.privacy_history_listens, artist.plays, artist.plays),
+                )
+            }
+        }
+        insights.logDaysInsidePeriod?.let { days ->
+            StatsNote(pluralStringResource(Res.plurals.stats_log_age, days, days))
+        }
+        StatsNote(stringResource(Res.string.stats_new_note))
+    }
+}
+
+@Composable
+private fun WhenYouListenCard(insights: PeriodInsights, accentInk: Color) {
+    StatsCard {
+        StatsTitle(stringResource(Res.string.stats_when_you_listen))
+        val sessions = insights.sessions
+        if (sessions == null) {
+            StatsNote(stringResource(Res.string.stats_locked_sessions))
+            return@StatsCard
+        }
+        HourBars(insights.listenedMsByHour, accentInk)
+        FlowRow(
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            maxItemsInEachRow = 2,
+        ) {
+            Column(modifier = Modifier.weight(1f).widthIn(min = 120.dp).semantics(mergeDescendants = true) { }) {
+                Metric(formatListenedTime(sessions.medianListenedMs), stringResource(Res.string.stats_typical_session))
+                StatsNote(pluralStringResource(Res.plurals.count_tracks, sessions.medianPlays, sessions.medianPlays))
+            }
+            Column(modifier = Modifier.weight(1f).widthIn(min = 120.dp).semantics(mergeDescendants = true) { }) {
+                Metric(formatListenedTime(sessions.longestListenedMs), stringResource(Res.string.stats_longest_session))
+                val today = localTimePoint(epochMillis()).epochDay
+                StatsNote(statsDayLabel((today - localTimePoint(sessions.longestStartMs).epochDay).toInt()))
+            }
+        }
+    }
+}
+
+@Composable
+private fun HourBars(listenedByHour: List<Long>, accentInk: Color) {
+    val peak = listenedByHour.maxOrNull()?.takeIf { it > 0 } ?: return
+    val total = listenedByHour.sum().coerceAtLeast(1)
+    val dayparts = listOf(
+        Res.string.stats_night to 0,
+        Res.string.stats_morning to 6,
+        Res.string.stats_afternoon to 12,
+        Res.string.stats_evening to 18,
+    ).map { (label, from) -> label to listenedByHour.subList(from, from + 6).sum().toFloat() / total }
+    val (peakLabel, peakShare) = dayparts.maxBy { it.second }
+    val chartDescription = stringResource(Res.string.stats_daypart_peak, stringResource(peakLabel), percent(peakShare))
     Row(
-        modifier = Modifier.fillMaxWidth().height(64.dp),
+        modifier = Modifier.fillMaxWidth().height(64.dp).clearAndSetSemantics { contentDescription = chartDescription },
         verticalAlignment = Alignment.Bottom,
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        playsByHour.forEachIndexed { hour, plays ->
-            val description = "${hour.toString().padStart(2, '0')}:00 · " +
-                pluralStringResource(Res.plurals.privacy_history_listens, plays, plays)
+        listenedByHour.forEach { listened ->
             Box(
                 modifier = Modifier.weight(1f)
-                    .height(if (plays == 0) 2.dp else (60f * plays / peakPlays).coerceAtLeast(3f).dp)
+                    .height(if (listened == 0L) 2.dp else (60f * listened / peak).coerceAtLeast(3f).dp)
                     .background(
-                        color = if (plays == peakPlays) accentInk
-                        else accentInk.copy(alpha = 0.5f),
+                        color = if (listened == peak) accentInk else accentInk.copy(alpha = 0.5f),
                         shape = RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp),
-                    )
-                    .clearAndSetSemantics { contentDescription = description },
+                    ),
             )
         }
     }
     Row(modifier = Modifier.fillMaxWidth().clearAndSetSemantics { }) {
-        listOf("00", "06", "12", "18").forEach { hour ->
-            Text(
-                text = hour,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f),
+        dayparts.forEach { (label, share) ->
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(label),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = percent(share),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (label == peakLabel) MaterialTheme.colorScheme.onSurface
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun YourTopCard(
+    overview: ListeningOverview,
+    insights: PeriodInsights,
+    tracksById: Map<TrackId, TrackDescriptor>,
+    playRows: (List<TrackId>, Int) -> Unit,
+) {
+    var savedKind by rememberSaveable { mutableStateOf(TopKind.ARTISTS.name) }
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val available = buildList {
+        add(TopKind.ARTISTS)
+        if (insights.topAlbums != null) add(TopKind.ALBUMS)
+        if (insights.topGenres != null) add(TopKind.GENRES)
+        add(TopKind.TRACKS)
+    }
+    // A chip missing in this period shows Artists but keeps the listener's choice for later.
+    val kind = TopKind.entries.firstOrNull { it.name == savedKind }?.takeIf { it in available } ?: TopKind.ARTISTS
+    val limit = if (expanded) 10 else 5
+    StatsCard {
+        StatsTitle(stringResource(Res.string.stats_your_top))
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            available.forEach { candidate ->
+                AppChoiceChip(
+                    selected = candidate == kind,
+                    onClick = { savedKind = candidate.name },
+                    label = stringResource(candidate.labelRes()),
+                )
+            }
+        }
+        val count = when (kind) {
+            TopKind.TRACKS -> {
+                val rows = overview.topTracks.filter { it.trackId in tracksById }
+                val ids = rows.map { it.trackId }
+                rows.take(limit).forEachIndexed { index, entry ->
+                    val descriptor = tracksById.getValue(entry.trackId)
+                    RankedRow(
+                        rank = index + 1,
+                        title = descriptor.title?.takeIf { it.isNotBlank() } ?: stringResource(Res.string.track_untitled),
+                        subtitle = descriptor.artist?.takeIf { it.isNotBlank() }
+                            ?: stringResource(Res.string.track_unknown_artist),
+                        artworkUri = descriptor.artworkUri,
+                        showArtwork = true,
+                        plays = entry.plays,
+                        playedMs = entry.playedMs,
+                        onClick = { playRows(ids, index) },
+                    )
+                }
+                rows.size
+            }
+            else -> {
+                val rows: List<RankedName> = when (kind) {
+                    TopKind.ALBUMS -> insights.topAlbums.orEmpty()
+                    TopKind.GENRES -> insights.topGenres.orEmpty()
+                    else -> insights.topArtists
+                }
+                rows.take(limit).forEachIndexed { index, entry ->
+                    RankedRow(
+                        rank = index + 1,
+                        title = entry.name.ifBlank { stringResource(Res.string.track_unknown_artist) },
+                        subtitle = entry.subtitle,
+                        artworkUri = entry.trackId?.let { tracksById[it]?.artworkUri },
+                        showArtwork = kind == TopKind.ALBUMS,
+                        plays = entry.plays,
+                        playedMs = entry.playedMs,
+                    )
+                }
+                rows.size
+            }
+        }
+        if (count > 5) {
+            TextButton(onClick = { expanded = !expanded }, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(stringResource(if (expanded) Res.string.stats_show_less else Res.string.stats_show_more))
+            }
+        }
+    }
+}
+
+private fun TopKind.labelRes() = when (this) {
+    TopKind.ARTISTS -> Res.string.tab_artists
+    TopKind.ALBUMS -> Res.string.tab_albums
+    TopKind.GENRES -> Res.string.tab_genres
+    TopKind.TRACKS -> Res.string.tab_tracks
+}
+
+@Composable
+private fun HowYouListenCard(overview: ListeningOverview, accentInk: Color) {
+    StatsCard {
+        StatsTitle(stringResource(Res.string.stats_listening_style))
+        // The three shares of all starts always add up to 100 after rounding.
+        val finished = percentValue(overview.completionRate)
+        val skipped = percentValue(overview.skipRate)
+        val partly = (100 - finished - skipped).coerceAtLeast(0)
+        ShareMeter(stringResource(Res.string.stats_finished_share), finished, color = accentInk)
+        ShareMeter(stringResource(Res.string.stats_partly_share), partly, color = accentInk)
+        ShareMeter(stringResource(Res.string.stats_skipped_share), skipped, color = accentInk)
+        StatsNote(stringResource(Res.string.stats_finish_note))
+        AppDivider(Modifier.padding(vertical = 4.dp))
+        ShareMeter(
+            label = stringResource(Res.string.stats_smart_mode_share),
+            percent = percentValue(overview.smartPlays.toFloat() / overview.plays.coerceAtLeast(1)),
+            color = MaterialTheme.colorScheme.tertiary,
+        )
+        StatsNote(stringResource(Res.string.stats_smart_detail))
+    }
+}
+
+// ---- Section 3 ----------------------------------------------------------------------------------
+
+@Composable
+private fun SlippingAwayCard(
+    habits: HabitInsights,
+    tracksById: Map<TrackId, TrackDescriptor>,
+    playRows: (List<TrackId>, Int) -> Unit,
+) {
+    StatsCard {
+        StatsTitle(stringResource(Res.string.stats_slipping_away))
+        val ids = habits.slippingAway.map { it.trackId }
+        val now = epochMillis()
+        habits.slippingAway.forEachIndexed { index, entry ->
+            val descriptor = tracksById[entry.trackId] ?: return@forEachIndexed
+            val months = ((now - entry.lastStartMs) / (30 * DAY_MS)).toInt().coerceAtLeast(2)
+            TrackRow(
+                descriptor = descriptor,
+                detail = pluralStringResource(Res.plurals.privacy_history_listens, entry.chosenPlays, entry.chosenPlays) +
+                    " · " + pluralStringResource(Res.plurals.stats_months_ago, months, months),
+                onClick = { playRows(ids, index) },
             )
         }
+        StatsNote(stringResource(Res.string.stats_slipping_note))
+    }
+}
+
+@Composable
+private fun YearAgoCard(
+    habits: HabitInsights,
+    tracksById: Map<TrackId, TrackDescriptor>,
+    playRows: (List<TrackId>, Int) -> Unit,
+) {
+    StatsCard {
+        StatsTitle(stringResource(Res.string.stats_year_ago))
+        val ids = habits.yearAgo.map { it.trackId }
+        habits.yearAgo.forEachIndexed { index, entry ->
+            val descriptor = tracksById[entry.trackId] ?: return@forEachIndexed
+            TrackRow(
+                descriptor = descriptor,
+                detail = pluralStringResource(Res.plurals.privacy_history_listens, entry.plays, entry.plays),
+                onClick = { playRows(ids, index) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun PatternsCard(habits: HabitInsights, tracksById: Map<TrackId, TrackDescriptor>, accentInk: Color) {
+    StatsCard {
+        StatsTitle(stringResource(Res.string.stats_patterns))
+        if (habits.sameArtistShown) {
+            val per100 = percentValue(habits.sameArtistPicks.toFloat() / habits.pickSteps)
+            Column(
+                modifier = Modifier.semantics(mergeDescendants = true) { },
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        stringResource(Res.string.stats_same_artist_picks),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        stringResource(Res.string.stats_of_100_picks, per100),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                ProportionBar(per100 / 100f, color = accentInk)
+            }
+            StatsNote(stringResource(Res.string.stats_same_artist_note))
+        }
+        if (habits.sequences.isNotEmpty()) {
+            Text(
+                text = stringResource(Res.string.stats_picked_next),
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            habits.sequences.forEach { sequence ->
+                val from = tracksById[sequence.from] ?: return@forEach
+                val to = tracksById[sequence.to] ?: return@forEach
+                SequenceRow(from, to, sequence.count, sequence.total)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SequenceRow(from: TrackDescriptor, to: TrackDescriptor, count: Int, total: Int) {
+    val fromTitle = from.title?.takeIf { it.isNotBlank() } ?: stringResource(Res.string.track_untitled)
+    val toTitle = to.title?.takeIf { it.isNotBlank() } ?: stringResource(Res.string.track_untitled)
+    val description = stringResource(Res.string.stats_sequence_description, fromTitle, toTitle, count, total)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).clearAndSetSemantics { contentDescription = description },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(modifier = Modifier.width(52.dp).height(40.dp)) {
+            Artwork(uri = from.artworkUri, size = 32.dp, cornerRadius = 8.dp)
+            Artwork(
+                uri = to.artworkUri,
+                size = 32.dp,
+                cornerRadius = 8.dp,
+                modifier = Modifier.align(Alignment.BottomEnd),
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = fromTitle,
+                style = MaterialTheme.typography.bodyMedium.metadata(),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(14.dp),
+                )
+                Text(
+                    text = toTitle,
+                    style = MaterialTheme.typography.bodyMedium.metadata(),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(start = 4.dp),
+                )
+            }
+        }
+        Text(
+            text = "$count/$total",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun LibraryCard(habits: HabitInsights, accentInk: Color) {
+    StatsCard {
+        StatsTitle(stringResource(Res.string.stats_library))
+        Metric(
+            value = stringResource(
+                Res.string.stats_x_of_y,
+                habits.libraryTracksPlayed.toString(),
+                habits.librarySize.toString(),
+            ),
+            label = stringResource(Res.string.stats_played_once),
+        )
+        if (habits.decades.isNotEmpty()) {
+            Text(
+                text = stringResource(Res.string.stats_decades),
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            val total = habits.decades.sumOf { it.plays }.coerceAtLeast(1)
+            habits.decades.sortedByDescending { it.plays }.take(5).sortedBy { it.decade }.forEach { decade ->
+                ShareMeter(
+                    label = stringResource(Res.string.stats_decade, decade.decade),
+                    percent = percentValue(decade.plays.toFloat() / total),
+                    color = accentInk.copy(alpha = 0.62f),
+                )
+            }
+        }
+    }
+}
+
+// ---- Shared rows and parts -----------------------------------------------------------------------
+
+/** A track that plays when tapped; [share] draws an optional strength bar under it. */
+@Composable
+private fun TrackRow(
+    descriptor: TrackDescriptor,
+    detail: String,
+    onClick: () -> Unit,
+    share: Float? = null,
+    accentInk: Color = MaterialTheme.colorScheme.primary,
+) {
+    val title = descriptor.title?.takeIf { it.isNotBlank() } ?: stringResource(Res.string.track_untitled)
+    val artist = descriptor.artist?.takeIf { it.isNotBlank() } ?: stringResource(Res.string.track_unknown_artist)
+    val playLabel = stringResource(Res.string.action_play)
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClickLabel = playLabel, role = Role.Button, onClick = onClick)
+            .padding(vertical = 4.dp)
+            .semantics(mergeDescendants = true) { },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Artwork(uri = descriptor.artworkUri, size = 40.dp, cornerRadius = 12.dp)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium.metadata(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                "$artist · $detail",
+                style = MaterialTheme.typography.bodySmall.metadata(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (share != null) ProportionBar(share, color = accentInk.copy(alpha = 0.62f), modifier = Modifier.padding(top = 2.dp))
+        }
+    }
+}
+
+/** An artist or other name; not interactive. */
+@Composable
+private fun NameRow(
+    title: String,
+    detail: String,
+    share: Float? = null,
+    accentInk: Color = MaterialTheme.colorScheme.primary,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).semantics(mergeDescendants = true) { },
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(title, style = MaterialTheme.typography.bodyMedium.metadata(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            detail,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (share != null) ProportionBar(share, color = accentInk.copy(alpha = 0.62f), modifier = Modifier.padding(top = 2.dp))
     }
 }
 
@@ -634,11 +1258,20 @@ private fun RankedRow(
     subtitle: String? = null,
     artworkUri: String? = null,
     showArtwork: Boolean = false,
+    onClick: (() -> Unit)? = null,
 ) {
     val listeningSummary = pluralStringResource(Res.plurals.privacy_history_listens, plays, plays) +
         " · " + formatListenedTime(playedMs)
+    val playLabel = stringResource(Res.string.action_play)
+    val interaction = if (onClick != null) {
+        Modifier.clip(RoundedCornerShape(10.dp)).clickable(onClickLabel = playLabel, role = Role.Button, onClick = onClick)
+    } else {
+        Modifier
+    }
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp)
+        modifier = Modifier.fillMaxWidth().heightIn(min = if (onClick != null) 48.dp else 0.dp)
+            .then(interaction)
+            .padding(vertical = 7.dp)
             .semantics(mergeDescendants = true) { },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -724,9 +1357,17 @@ private fun StatsTitle(text: String, modifier: Modifier = Modifier) {
     )
 }
 
+/** A page section's heading; the cards below it belong to it. */
 @Composable
-private fun StatsSectionTitle(text: String) {
-    StatsTitle(text, modifier = Modifier.padding(horizontal = 20.dp).padding(top = 8.dp))
+private fun StatsSectionHeader(text: String, padded: Boolean = true) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleLarge,
+        fontWeight = FontWeight.Medium,
+        modifier = (if (padded) Modifier.padding(horizontal = 20.dp) else Modifier)
+            .padding(top = 12.dp)
+            .semantics { heading() },
+    )
 }
 
 @Composable
@@ -742,7 +1383,7 @@ private fun StatsNote(text: String, modifier: Modifier = Modifier) {
 @Composable
 private fun ShareMeter(
     label: String,
-    share: Float,
+    percent: Int,
     modifier: Modifier = Modifier,
     color: Color = MaterialTheme.colorScheme.primary,
 ) {
@@ -752,9 +1393,9 @@ private fun ShareMeter(
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-            Text(percent(share), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("$percent%", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        ProportionBar(share, color = color)
+        ProportionBar(percent / 100f, color = color)
     }
 }
 
@@ -777,13 +1418,15 @@ private fun ProportionBar(
     }
 }
 
-private fun percent(share: Float): String = "${(share.coerceIn(0f, 1f) * 100).roundToInt()}%"
+private fun percentValue(share: Float): Int = (share.coerceIn(0f, 1f) * 100).roundToInt()
+
+private fun percent(share: Float): String = "${percentValue(share)}%"
 
 @Composable
 private fun statsDayLabel(daysAgo: Int): String = when (daysAgo) {
     0 -> stringResource(Res.string.stats_today)
     1 -> stringResource(Res.string.stats_yesterday)
-    else -> stringResource(Res.string.stats_days_ago, daysAgo)
+    else -> pluralStringResource(Res.plurals.stats_days_ago, daysAgo, daysAgo)
 }
 
 @Composable

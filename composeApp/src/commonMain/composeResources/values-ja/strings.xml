@@ -595,9 +595,6 @@
     <string name="stats_minutes_short">分</string>
     <string name="stats_finished_share">最後まで再生</string>
     <string name="stats_skipped_share">スキップ</string>
-    <string name="stats_by_hour">時間帯別</string>
-    <string name="stats_top_artists">トップアーティスト</string>
-    <string name="stats_top_tracks">トップ曲</string>
     <string name="stats_empty">この期間はまだ何も再生されていません。</string>
     <string name="stats_load_failed">再生統計を読み込めませんでした。</string>
     <string name="settings_normalize_volume">音量ノーマライズ</string>
@@ -704,22 +701,89 @@
     <string name="stats_calendar_days">直近%1$d日間（暦日）・再生時間</string>
     <string name="stats_today">今日</string>
     <string name="stats_yesterday">昨日</string>
-    <string name="stats_days_ago">%1$d日前</string>
-    <string name="stats_habits">リスニングの習慣</string>
-    <string name="stats_active_days">聴いた日数</string>
     <string name="stats_new_tracks">初めて聴いた曲</string>
-    <string name="stats_habits_note">新しい曲とは、保存済みの履歴で初めて聴いた曲です。連続日数は全期間で集計します。</string>
-    <string name="stats_repeat_share">リピート再生</string>
-    <string name="stats_coverage">ライブラリを楽しむ</string>
-    <string name="stats_coverage_detail">この期間に%2$s中%1$d曲を再生</string>
-    <string name="stats_smart_share">SMARTモード</string>
     <string name="stats_smart_detail">SMARTシャッフルが有効な状態で開始した再生の割合</string>
     <string name="stats_listening_style">あなたの聴き方</string>
-    <string name="stats_peak_hour">%1$s頃に最も多く再生</string>
-    <string name="stats_average_active_day">聴いた日あたり</string>
     <string name="stats_recent_empty">この期間にはまだ再生がありません。</string>
-    <string name="stats_history_note">保存済みの履歴に基づき、曲の終了時や切り替え時に更新されます。ランキングはライブラリ内の利用可能な曲が対象です。</string>
+    <string name="stats_history_note">保存済みの履歴に基づき、この端末のタイムゾーンで集計します。曲の終了時や切り替え時に更新されます。リストにはライブラリに残っている曲だけが表示されます。復元したバックアップは見つかった曲だけを保持し、削除した曲でしか知られていないアーティストは新しいアーティストとして表示されることがあります。</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+    <plurals name="stats_days_ago">
+        <item quantity="other">%1$d日前</item>
+    </plurals>
+    <string name="stats_section_lately">最近のあなた</string>
+    <string name="stats_section_numbers">あなたの数字</string>
+    <string name="stats_section_over_time">これまでの推移</string>
+    <string name="stats_on_repeat">最近リピート中</string>
+    <string name="stats_artists_on_repeat">リピート中のアーティスト</string>
+    <plurals name="stats_on_days">
+        <item quantity="other">%1$d日間</item>
+    </plurals>
+    <string name="stats_week_days">直近7日間のうち%1$d日</string>
+    <plurals name="stats_days_of_music">
+        <item quantity="other">約%1$d日分の音楽</item>
+    </plurals>
+    <string name="stats_activity_months">直近12か月・再生時間</string>
+    <string name="stats_activity_years">年別・再生時間</string>
+    <string name="stats_activity_over_time">これまでのリスニングの推移</string>
+    <string name="stats_this_month">今月</string>
+    <string name="stats_this_year">今年</string>
+    <plurals name="stats_months_ago">
+        <item quantity="other">%1$dか月前</item>
+    </plurals>
+    <plurals name="stats_years_ago">
+        <item quantity="other">%1$d年前</item>
+    </plurals>
+    <string name="stats_new_and_familiar">新しい曲と聴き慣れた曲</string>
+    <string name="stats_familiar">聴き慣れた曲</string>
+    <plurals name="stats_new_tracks_count">
+        <item quantity="other">新しい曲 %1$d曲</item>
+    </plurals>
+    <plurals name="stats_new_artists_count">
+        <item quantity="other">新しいアーティスト %1$d組</item>
+    </plurals>
+    <string name="stats_new_previous">その前の%1$d日間：新しい曲 %2$s</string>
+    <string name="stats_stuck_artists">定着した新しいアーティスト</string>
+    <string name="stats_stuck_artists_recent">定着した新しいアーティスト・直近3か月</string>
+    <plurals name="stats_log_age">
+        <item quantity="other">LatentJamが一緒に聴いて%1$d日</item>
+    </plurals>
+    <string name="stats_new_note">初めて聴いた曲 = LatentJamで初めて再生した曲。ライブラリはアプリより古い場合があります。</string>
+    <plurals name="stats_locked_plays">
+        <item quantity="other">この期間に%1$d回再生すると表示されます</item>
+    </plurals>
+    <string name="stats_when_you_listen">聴く時間帯</string>
+    <string name="stats_night">夜中</string>
+    <string name="stats_morning">朝</string>
+    <string name="stats_afternoon">昼</string>
+    <string name="stats_evening">夜</string>
+    <string name="stats_daypart_peak">最も多いのは%1$s（%2$s）</string>
+    <string name="stats_typical_session">一般的なセッション</string>
+    <string name="stats_longest_session">最長のセッション</string>
+    <string name="stats_locked_sessions">この期間に何回か聴くと表示されます</string>
+    <string name="stats_your_top">あなたのトップ</string>
+    <string name="stats_show_more">10件表示</string>
+    <string name="stats_show_less">5件表示</string>
+    <string name="stats_partly_share">途中まで再生</string>
+    <string name="stats_smart_mode_share">SMARTモードで再生</string>
+    <string name="stats_finish_note">すべての再生開始に対する割合。最後まで再生 = 85%まで聴いた曲、スキップ = 最初の30秒以内に離れた曲。</string>
+    <string name="stats_slipping_away">ご無沙汰の曲</string>
+    <string name="stats_slipping_note">自分でよく選んでいたのに、LatentJamで2か月以上再生していないお気に入りの曲です。</string>
+    <string name="stats_year_ago">1年前</string>
+    <string name="stats_patterns">あなたのパターン</string>
+    <string name="stats_same_artist_picks">同じアーティストを続けて選ぶ</string>
+    <string name="stats_of_100_picks">100回中%1$d回</string>
+    <string name="stats_same_artist_note">次の曲を自分で選んだときの割合。アーティストページからの再生も含みます。</string>
+    <string name="stats_picked_next">よく続けて選ぶ曲</string>
+    <string name="stats_sequence_description">%1$sの後に%2$sを選んだ回数：%4$d回中%3$d回</string>
+    <string name="stats_library">あなたのライブラリ</string>
+    <string name="stats_played_once">1回以上再生</string>
+    <string name="stats_x_of_y">%2$s中%1$s</string>
+    <string name="stats_decades">年代</string>
+    <string name="stats_decade">%1$d年代</string>
+    <string name="stats_more_appears">聴くほどに表示される項目が増えます</string>
+    <string name="stats_unlock_on_repeat">最近リピート中 — 1週間聴くと表示</string>
+    <string name="stats_unlock_slipping">ご無沙汰の曲 — 3か月聴くと表示</string>
+    <string name="stats_part_failed">一部の統計を読み込めませんでした。</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">グループ: %1$d · 余分なコピー: %2$d · 空けられる容量: %3$s</string>

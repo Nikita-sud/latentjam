@@ -645,9 +645,6 @@
     <string name="stats_minutes_short">דק׳</string>
     <string name="stats_finished_share">הושלמו</string>
     <string name="stats_skipped_share">דולגו</string>
-    <string name="stats_by_hour">לפי שעה ביום</string>
-    <string name="stats_top_artists">אמנים מובילים</string>
-    <string name="stats_top_tracks">שירים מובילים</string>
     <string name="stats_empty">עדיין לא הושמע שום דבר בתקופה הזו.</string>
     <string name="stats_load_failed">לא ניתן לטעון את נתוני ההאזנה.</string>
     <string name="settings_normalize_volume">איזון עוצמה</string>
@@ -780,22 +777,107 @@
     <string name="stats_calendar_days">%1$d הימים האחרונים · זמן האזנה</string>
     <string name="stats_today">היום</string>
     <string name="stats_yesterday">אתמול</string>
-    <string name="stats_days_ago">לפני %1$d ימים</string>
-    <string name="stats_habits">הרגלי האזנה</string>
-    <string name="stats_active_days">ימים פעילים</string>
     <string name="stats_new_tracks">חדשים בשבילך</string>
-    <string name="stats_habits_note">שירים חדשים הם האזנות ראשונות בהיסטוריה השמורה. הרצפים מחושבים על פני כל הזמן.</string>
-    <string name="stats_repeat_share">השמעות חוזרות</string>
-    <string name="stats_coverage">כמה מהספרייה נשמע</string>
-    <string name="stats_coverage_detail">%1$d מתוך %2$s הושמעו בתקופה הזו</string>
-    <string name="stats_smart_share">מצב SMART</string>
     <string name="stats_smart_detail">שיעור ההשמעות שהתחילו כשערבוב SMART היה פעיל</string>
     <string name="stats_listening_style">סגנון ההאזנה שלך</string>
-    <string name="stats_peak_hour">הכי הרבה השמעות בסביבות %1$s</string>
-    <string name="stats_average_active_day">ליום פעיל</string>
     <string name="stats_recent_empty">עדיין אין האזנות בימים האלה.</string>
-    <string name="stats_history_note">מבוסס על ההיסטוריה השמורה; מתעדכן כששיר מסתיים או מתחלף. הדירוגים כוללים רק שירים שזמינים בספרייה.</string>
+    <string name="stats_history_note">מבוסס על ההיסטוריה השמורה, באזור הזמן של המכשיר הזה; מתעדכן כששיר מסתיים או מתחלף. ברשימות מופיעים רק שירים שעדיין נמצאים בספרייה. גיבוי משוחזר שומר רק שירים שהוא מצליח למצוא, ואמן שמוכר רק משירים שהוסרו עלול להופיע כחדש.</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+    <plurals name="stats_days_ago">
+        <item quantity="one">לפני %1$d יום</item>
+        <item quantity="two">לפני %1$d ימים</item>
+        <item quantity="other">לפני %1$d ימים</item>
+    </plurals>
+    <string name="stats_section_lately">לאחרונה</string>
+    <string name="stats_section_numbers">המספרים שלך</string>
+    <string name="stats_section_over_time">לאורך זמן</string>
+    <string name="stats_on_repeat">על ריפיט עכשיו</string>
+    <string name="stats_artists_on_repeat">אמנים על ריפיט</string>
+    <plurals name="stats_on_days">
+        <item quantity="one">ב־%1$d יום</item>
+        <item quantity="two">ב־%1$d ימים</item>
+        <item quantity="other">ב־%1$d ימים</item>
+    </plurals>
+    <string name="stats_week_days">ב־%1$d מתוך 7 הימים האחרונים</string>
+    <plurals name="stats_days_of_music">
+        <item quantity="one">≈ %1$d יום של מוזיקה</item>
+        <item quantity="two">≈ %1$d ימים של מוזיקה</item>
+        <item quantity="other">≈ %1$d ימים של מוזיקה</item>
+    </plurals>
+    <string name="stats_activity_months">12 החודשים האחרונים · זמן האזנה</string>
+    <string name="stats_activity_years">לפי שנה · זמן האזנה</string>
+    <string name="stats_activity_over_time">ההאזנה שלך לאורך זמן</string>
+    <string name="stats_this_month">החודש</string>
+    <string name="stats_this_year">השנה</string>
+    <plurals name="stats_months_ago">
+        <item quantity="one">לפני %1$d חודש</item>
+        <item quantity="two">לפני %1$d חודשים</item>
+        <item quantity="other">לפני %1$d חודשים</item>
+    </plurals>
+    <plurals name="stats_years_ago">
+        <item quantity="one">לפני %1$d שנה</item>
+        <item quantity="two">לפני %1$d שנים</item>
+        <item quantity="other">לפני %1$d שנים</item>
+    </plurals>
+    <string name="stats_new_and_familiar">חדשים ומוכרים</string>
+    <string name="stats_familiar">מוכרים</string>
+    <plurals name="stats_new_tracks_count">
+        <item quantity="one">%1$d שיר חדש</item>
+        <item quantity="two">%1$d שירים חדשים</item>
+        <item quantity="other">%1$d שירים חדשים</item>
+    </plurals>
+    <plurals name="stats_new_artists_count">
+        <item quantity="one">%1$d אמן חדש</item>
+        <item quantity="two">%1$d אמנים חדשים</item>
+        <item quantity="other">%1$d אמנים חדשים</item>
+    </plurals>
+    <string name="stats_new_previous">%1$d הימים הקודמים: %2$s חדשים</string>
+    <string name="stats_stuck_artists">אמנים חדשים שנשארו</string>
+    <string name="stats_stuck_artists_recent">אמנים חדשים שנשארו · 3 החודשים האחרונים</string>
+    <plurals name="stats_log_age">
+        <item quantity="one">LatentJam מאזין איתך כבר %1$d יום</item>
+        <item quantity="two">LatentJam מאזין איתך כבר %1$d ימים</item>
+        <item quantity="other">LatentJam מאזין איתך כבר %1$d ימים</item>
+    </plurals>
+    <string name="stats_new_note">חדשים בשבילך = הושמעו לראשונה ב־LatentJam. הספרייה שלך עשויה להיות ותיקה יותר מהאפליקציה.</string>
+    <plurals name="stats_locked_plays">
+        <item quantity="one">יופיע אחרי %1$d השמעה בתקופה הזו</item>
+        <item quantity="two">יופיע אחרי %1$d השמעות בתקופה הזו</item>
+        <item quantity="other">יופיע אחרי %1$d השמעות בתקופה הזו</item>
+    </plurals>
+    <string name="stats_when_you_listen">מתי מאזינים</string>
+    <string name="stats_night">לילה</string>
+    <string name="stats_morning">בוקר</string>
+    <string name="stats_afternoon">צהריים</string>
+    <string name="stats_evening">ערב</string>
+    <string name="stats_daypart_peak">הכי הרבה האזנה: %1$s, %2$s</string>
+    <string name="stats_typical_session">האזנה טיפוסית</string>
+    <string name="stats_longest_session">ההאזנה הארוכה ביותר</string>
+    <string name="stats_locked_sessions">יופיע אחרי כמה האזנות בתקופה הזו</string>
+    <string name="stats_your_top">המובילים שלך</string>
+    <string name="stats_show_more">הצגת 10</string>
+    <string name="stats_show_less">הצגת 5</string>
+    <string name="stats_partly_share">נשמעו חלקית</string>
+    <string name="stats_smart_mode_share">הושמעו במצב SMART</string>
+    <string name="stats_finish_note">שיעורים מתוך כל ההפעלות. הושלמו = נשמעו עד 85%, דולגו = ננטשו ב־30 השניות הראשונות.</string>
+    <string name="stats_slipping_away">הולכים ונשכחים</string>
+    <string name="stats_slipping_note">שירים אהובים שבחרת בעצמך לעיתים קרובות, ולא הושמעו ב־LatentJam חודשיים או יותר.</string>
+    <string name="stats_year_ago">לפני שנה</string>
+    <string name="stats_patterns">הדפוסים שלך</string>
+    <string name="stats_same_artist_picks">שוב אותו אמן</string>
+    <string name="stats_of_100_picks">%1$d מתוך 100 בחירות</string>
+    <string name="stats_same_artist_note">כשבוחרים בעצמך את השיר הבא. כולל הפעלה מדף של אמן.</string>
+    <string name="stats_picked_next">נבחרים לעיתים קרובות אחר כך</string>
+    <string name="stats_sequence_description">אחרי %1$s בחרת ב־%2$s %3$d מתוך %4$d פעמים</string>
+    <string name="stats_library">הספרייה שלך</string>
+    <string name="stats_played_once">הושמעו לפחות פעם אחת</string>
+    <string name="stats_x_of_y">%1$s מתוך %2$s</string>
+    <string name="stats_decades">עשורים</string>
+    <string name="stats_decade">שנות ה־%1$d</string>
+    <string name="stats_more_appears">עוד נתונים יופיעו עם ההאזנה</string>
+    <string name="stats_unlock_on_repeat">על ריפיט עכשיו — אחרי שבוע של האזנה</string>
+    <string name="stats_unlock_slipping">הולכים ונשכחים — אחרי שלושה חודשים של האזנה</string>
+    <string name="stats_part_failed">לא ניתן לטעון חלק מהנתונים האלה.</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">קבוצות: %1$d · עותקים עודפים: %2$d · אפשר לפנות: %3$s</string>

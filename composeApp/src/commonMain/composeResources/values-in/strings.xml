@@ -601,9 +601,6 @@
     <string name="stats_minutes_short">mnt</string>
     <string name="stats_finished_share">Selesai</string>
     <string name="stats_skipped_share">Dilewati</string>
-    <string name="stats_by_hour">Menurut waktu dalam sehari</string>
-    <string name="stats_top_artists">Artis teratas</string>
-    <string name="stats_top_tracks">Lagu teratas</string>
     <string name="stats_empty">Belum ada yang diputar dalam periode ini.</string>
     <string name="stats_load_failed">Statistik mendengarkan tidak dapat dimuat.</string>
     <string name="settings_normalize_volume">Normalisasi volume</string>
@@ -710,22 +707,89 @@
     <string name="stats_calendar_days">%1$d hari kalender terakhir · waktu mendengarkan</string>
     <string name="stats_today">Hari ini</string>
     <string name="stats_yesterday">Kemarin</string>
-    <string name="stats_days_ago">%1$d hari lalu</string>
-    <string name="stats_habits">Kebiasaan mendengarkan</string>
-    <string name="stats_active_days">Hari aktif</string>
     <string name="stats_new_tracks">Baru Anda dengar</string>
-    <string name="stats_habits_note">Lagu baru adalah lagu yang pertama kali didengarkan dalam riwayat tersimpan. Rentetan dihitung dari seluruh riwayat.</string>
-    <string name="stats_repeat_share">Pemutaran ulang</string>
-    <string name="stats_coverage">Jelajahi koleksi Anda</string>
-    <string name="stats_coverage_detail">%1$d dari %2$s diputar dalam periode ini</string>
-    <string name="stats_smart_share">Mode SMART</string>
     <string name="stats_smart_detail">Persentase pemutaran yang dimulai saat mode acak SMART aktif</string>
     <string name="stats_listening_style">Cara Anda mendengarkan</string>
-    <string name="stats_peak_hour">Pemutaran terbanyak sekitar pukul %1$s</string>
-    <string name="stats_average_active_day">Per hari aktif</string>
     <string name="stats_recent_empty">Belum ada aktivitas mendengarkan pada hari-hari kalender ini.</string>
-    <string name="stats_history_note">Berdasarkan riwayat tersimpan; diperbarui saat lagu berakhir atau berganti. Peringkat menggunakan lagu yang tersedia di koleksi Anda.</string>
+    <string name="stats_history_note">Berdasarkan riwayat tersimpan, dalam zona waktu perangkat ini; diperbarui saat lagu berakhir atau berganti. Daftar menampilkan lagu yang masih ada di koleksi Anda. Cadangan yang dipulihkan hanya menyimpan lagu yang dapat ditemukannya, dan artis yang hanya dikenal dari lagu yang sudah dihapus dapat muncul sebagai baru.</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+    <plurals name="stats_days_ago">
+        <item quantity="other">%1$d hari lalu</item>
+    </plurals>
+    <string name="stats_section_lately">Anda belakangan ini</string>
+    <string name="stats_section_numbers">Angka Anda</string>
+    <string name="stats_section_over_time">Dari waktu ke waktu</string>
+    <string name="stats_on_repeat">Sering diputar ulang</string>
+    <string name="stats_artists_on_repeat">Artis yang sering diputar ulang</string>
+    <plurals name="stats_on_days">
+        <item quantity="other">pada %1$d hari</item>
+    </plurals>
+    <string name="stats_week_days">Pada %1$d dari 7 hari terakhir</string>
+    <plurals name="stats_days_of_music">
+        <item quantity="other">≈ %1$d hari musik</item>
+    </plurals>
+    <string name="stats_activity_months">12 bulan terakhir · waktu mendengarkan</string>
+    <string name="stats_activity_years">Per tahun · waktu mendengarkan</string>
+    <string name="stats_activity_over_time">Aktivitas mendengarkan Anda dari waktu ke waktu</string>
+    <string name="stats_this_month">Bulan ini</string>
+    <string name="stats_this_year">Tahun ini</string>
+    <plurals name="stats_months_ago">
+        <item quantity="other">%1$d bulan lalu</item>
+    </plurals>
+    <plurals name="stats_years_ago">
+        <item quantity="other">%1$d tahun lalu</item>
+    </plurals>
+    <string name="stats_new_and_familiar">Baru dan akrab</string>
+    <string name="stats_familiar">Akrab</string>
+    <plurals name="stats_new_tracks_count">
+        <item quantity="other">%1$d lagu baru</item>
+    </plurals>
+    <plurals name="stats_new_artists_count">
+        <item quantity="other">%1$d artis baru</item>
+    </plurals>
+    <string name="stats_new_previous">%1$d hari sebelumnya: %2$s baru</string>
+    <string name="stats_stuck_artists">Artis baru yang bertahan</string>
+    <string name="stats_stuck_artists_recent">Artis baru yang bertahan · 3 bulan terakhir</string>
+    <plurals name="stats_log_age">
+        <item quantity="other">LatentJam sudah ikut mendengarkan selama %1$d hari</item>
+    </plurals>
+    <string name="stats_new_note">Baru Anda dengar = pertama kali diputar di LatentJam. Koleksi Anda mungkin lebih tua daripada aplikasinya.</string>
+    <plurals name="stats_locked_plays">
+        <item quantity="other">Muncul setelah %1$d pemutaran dalam periode ini</item>
+    </plurals>
+    <string name="stats_when_you_listen">Kapan Anda mendengarkan</string>
+    <string name="stats_night">Malam</string>
+    <string name="stats_morning">Pagi</string>
+    <string name="stats_afternoon">Siang</string>
+    <string name="stats_evening">Sore</string>
+    <string name="stats_daypart_peak">Paling banyak: %1$s, %2$s</string>
+    <string name="stats_typical_session">Sesi biasa</string>
+    <string name="stats_longest_session">Sesi terpanjang</string>
+    <string name="stats_locked_sessions">Muncul setelah beberapa sesi mendengarkan dalam periode ini</string>
+    <string name="stats_your_top">Teratas Anda</string>
+    <string name="stats_show_more">Tampilkan 10</string>
+    <string name="stats_show_less">Tampilkan 5</string>
+    <string name="stats_partly_share">Didengar sebagian</string>
+    <string name="stats_smart_mode_share">Diputar dalam mode SMART</string>
+    <string name="stats_finish_note">Persentase dari semua pemutaran yang dimulai. Selesai = didengar hingga 85%, dilewati = ditinggalkan dalam 30 detik pertama.</string>
+    <string name="stats_slipping_away">Mulai terlupakan</string>
+    <string name="stats_slipping_note">Favorit yang sering Anda pilih sendiri, tetapi tidak diputar di LatentJam selama dua bulan atau lebih.</string>
+    <string name="stats_year_ago">Setahun lalu</string>
+    <string name="stats_patterns">Pola Anda</string>
+    <string name="stats_same_artist_picks">Memilih artis yang sama lagi</string>
+    <string name="stats_of_100_picks">%1$d dari 100 pilihan</string>
+    <string name="stats_same_artist_note">Saat Anda sendiri memilih lagu berikutnya. Termasuk memulai dari halaman artis.</string>
+    <string name="stats_picked_next">Sering dipilih berikutnya</string>
+    <string name="stats_sequence_description">Setelah %1$s Anda memilih %2$s %3$d dari %4$d kali</string>
+    <string name="stats_library">Koleksi Anda</string>
+    <string name="stats_played_once">Diputar setidaknya sekali</string>
+    <string name="stats_x_of_y">%1$s dari %2$s</string>
+    <string name="stats_decades">Dekade</string>
+    <string name="stats_decade">%1$d-an</string>
+    <string name="stats_more_appears">Akan muncul lebih banyak seiring Anda mendengarkan</string>
+    <string name="stats_unlock_on_repeat">Sering diputar ulang — setelah seminggu mendengarkan</string>
+    <string name="stats_unlock_slipping">Mulai terlupakan — setelah tiga bulan mendengarkan</string>
+    <string name="stats_part_failed">Sebagian statistik ini tidak dapat dimuat.</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">Grup: %1$d · Salinan berlebih: %2$d · Bisa dibebaskan: %3$s</string>
