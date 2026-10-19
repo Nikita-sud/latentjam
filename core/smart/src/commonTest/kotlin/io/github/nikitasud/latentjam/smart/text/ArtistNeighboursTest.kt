@@ -24,7 +24,7 @@ internal class ArtistNeighboursTest {
         for (w in bits) for (b in 0 until 8) u8(((w ushr (8 * b)) and 0xff).toInt())
         for (block in 0 until (space + 511) / 512 + 1) u32(lists.keys.count { it < block * 512 }.toLong())
         var offset = 0L
-        val sorted = lists.toSortedMap()
+        val sorted = lists.entries.sortedBy { it.key }.associate { it.key to it.value }
         u32(0)
         for (list in sorted.values) { offset += list.size; u32(offset) }
         for (list in sorted.values) for ((n, s) in list) { u8(n and 0xff); u8((n ushr 8) and 0xff); u8(n ushr 16); u8(s) }

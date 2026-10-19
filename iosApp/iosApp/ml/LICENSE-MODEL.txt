@@ -9,6 +9,9 @@ Version 2.0, included in the repository root:
   artist_adapter.bin
   text_encoder.onnx
   text_vocab.txt
+  smart_ranker.json
+
+artist_colisten.bin is CC0-1.0 (see below).
 
 Copyright (c) 2026 LatentJam Project
 
@@ -109,6 +112,17 @@ singers and groups from Wikidata that have a Wikipedia article and fall
 outside that list, ranked by article count. MusicBrainz core data and Wikidata
 are both CC0. The index stores only 40-bit name hashes and integer ids, never
 the names themselves.
+
+artist_colisten.bin lists, for about 180,000 artists of music_entities_250k.bin,
+the ten artists most often listened to by the same people, each with an 8-bit
+similarity. It was counted offline from ListenBrainz listens (CC0,
+https://listenbrainz.org), from listeners outside the evaluation sample; it
+holds only entity ids and similarities, no listener data. It is offered under
+CC0-1.0, like its source.
+
+smart_ranker.json holds the weights of a linear ranker LatentJam fitted on
+the same ListenBrainz listens (CC0) to order SMART's candidate tracks; no
+listener's library went into it.
 
 text_encoder.onnx is a three-layer, 256-wide BERT that LatentJam trained to
 reproduce the mean-pooled sentence vectors of
