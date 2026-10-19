@@ -829,10 +829,10 @@
     <string name="stats_on_repeat">Зараз на повторі</string>
     <string name="stats_artists_on_repeat">Виконавці на повторі</string>
     <plurals name="stats_on_days">
-        <item quantity="one">у %1$d день</item>
-        <item quantity="few">у %1$d дні</item>
-        <item quantity="many">у %1$d днів</item>
-        <item quantity="other">у %1$d дня</item>
+        <item quantity="one">%1$d день</item>
+        <item quantity="few">%1$d дні</item>
+        <item quantity="many">%1$d днів</item>
+        <item quantity="other">%1$d дня</item>
     </plurals>
     <string name="stats_week_days">%1$d з останніх 7 днів</string>
     <plurals name="stats_days_of_music">

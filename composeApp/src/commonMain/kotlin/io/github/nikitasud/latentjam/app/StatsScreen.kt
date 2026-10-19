@@ -345,10 +345,11 @@ internal fun ListeningStatsSettings(
             return@FadingLazyColumn
         }
 
-        // 1 · You lately
+        // 1 · You lately. Its heading is always the first item: when this section arrives after the
+        // numbers below, the list keeps its first item in place, so the page still opens at the top.
+        item(key = "lately-title") { StatsSectionHeader(stringResource(Res.string.stats_section_lately)) }
         if (habits != null) {
             val repeatShown = habits.onRepeatTracks.isNotEmpty() || habits.onRepeatArtists.isNotEmpty()
-            item(key = "lately-title") { StatsSectionHeader(stringResource(Res.string.stats_section_lately)) }
             if (!repeatShown && habits.onRepeatLocked) {
                 item(key = "more-appears") { MoreAppearsCard(habits) }
             }
@@ -524,11 +525,12 @@ private fun OnRepeatCard(
 private fun StreakLine(habits: HabitInsights) {
     val days = stringResource(Res.string.stats_days_short)
     val record = "${stringResource(Res.string.stats_streak_longest)} · ${habits.longestStreakDays} $days"
-    val text = if (habits.currentStreakDays >= 2) {
-        "${stringResource(Res.string.stats_streak_current)} · ${habits.currentStreakDays} $days   $record"
-    } else {
+    val text = when {
+        habits.currentStreakDays >= 2 ->
+            "${stringResource(Res.string.stats_streak_current)} · ${habits.currentStreakDays} $days   $record"
         // Weekday listeners break a daily streak every weekend; say how regular they are instead.
-        "${stringResource(Res.string.stats_week_days, habits.playDaysLastWeek)}   $record"
+        habits.playDaysLastWeek > 0 -> "${stringResource(Res.string.stats_week_days, habits.playDaysLastWeek)}   $record"
+        else -> record
     }
     Text(
         text = text,
@@ -1214,8 +1216,15 @@ private fun TrackRow(
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(title, style = MaterialTheme.typography.bodyMedium.metadata(), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                "$artist · $detail",
+                artist,
                 style = MaterialTheme.typography.bodySmall.metadata(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                detail,
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

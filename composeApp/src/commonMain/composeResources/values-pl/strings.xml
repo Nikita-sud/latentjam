@@ -827,10 +827,10 @@
     <string name="stats_on_repeat">Słuchane teraz na okrągło</string>
     <string name="stats_artists_on_repeat">Artyści słuchani na okrągło</string>
     <plurals name="stats_on_days">
-        <item quantity="one">w %1$d dzień</item>
-        <item quantity="few">w %1$d dni</item>
-        <item quantity="many">w %1$d dni</item>
-        <item quantity="other">w %1$d dnia</item>
+        <item quantity="one">%1$d dzień</item>
+        <item quantity="few">%1$d dni</item>
+        <item quantity="many">%1$d dni</item>
+        <item quantity="other">%1$d dnia</item>
     </plurals>
     <string name="stats_week_days">W %1$d z ostatnich 7 dni</string>
     <plurals name="stats_days_of_music">

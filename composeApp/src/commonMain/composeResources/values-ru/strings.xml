@@ -820,10 +820,10 @@
     <string name="stats_on_repeat">Сейчас на повторе</string>
     <string name="stats_artists_on_repeat">Исполнители на повторе</string>
     <plurals name="stats_on_days">
-        <item quantity="one">в %1$d день</item>
-        <item quantity="few">в %1$d дня</item>
-        <item quantity="many">в %1$d дней</item>
-        <item quantity="other">в %1$d дня</item>
+        <item quantity="one">%1$d день</item>
+        <item quantity="few">%1$d дня</item>
+        <item quantity="many">%1$d дней</item>
+        <item quantity="other">%1$d дня</item>
     </plurals>
     <string name="stats_week_days">%1$d из последних 7 дней</string>
     <plurals name="stats_days_of_music">
