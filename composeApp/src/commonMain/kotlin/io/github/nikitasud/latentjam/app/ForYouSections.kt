@@ -396,11 +396,13 @@ object ForYouBuilder {
         val dayIndex = localDayOf(nowMs).toInt()
         val today = localDayOf(nowMs)
         // Shown on a prior day within the demotion window, and on or after the day of the last
-        // play: offered, and not taken. Day granularity is all the impression journal records.
-        val revisitIgnored: (String, Long) -> Boolean = { key, lastPlayedAtMs ->
-            val shown = revisitShownDays[key]
-            shown != null && shown >= today - ForYouRhythm.DEMOTION_DAYS && shown < today &&
-                shown >= localDayOf(lastPlayedAtMs)
+        // play: offered, and not taken — answered with the day it was shown, else null. Day
+        // granularity is all the impression journal records.
+        val revisitIgnored: (String, Long) -> Long? = { key, lastPlayedAtMs ->
+            revisitShownDays[key]?.takeIf { shown ->
+                shown >= today - ForYouRhythm.DEMOTION_DAYS && shown < today &&
+                    shown >= localDayOf(lastPlayedAtMs)
+            }
         }
         val hero = hero(
             byId, stats, recentEvents, nowMs, quietMs, excluded, cooledDiscoveries, dayIndex,
@@ -415,9 +417,10 @@ object ForYouBuilder {
         daypartSection(
             byId, recentEvents, worlds, stats, nowMs, used, localHourOf, cooledDiscoveries, dayIndex,
             daypartIgnored = { key, lastPlayedAtMs ->
-                val shown = daypartShownDays[key]
-                shown != null && shown >= today - ForYouRhythm.DEMOTION_DAYS && shown < today &&
-                    localDayOf(lastPlayedAtMs) < shown
+                daypartShownDays[key]?.takeIf { shown ->
+                    shown >= today - ForYouRhythm.DEMOTION_DAYS && shown < today &&
+                        localDayOf(lastPlayedAtMs) < shown
+                }
             },
         )?.let(sections::add)
         worthRevisiting(byId, stats, nowMs, quietMs, used, playlists, revisitIgnored)?.let(sections::add)
@@ -468,7 +471,7 @@ object ForYouBuilder {
         excluded: Set<TrackId>,
         cooledDiscoveries: Set<TrackId>,
         dayIndex: Int,
-        ignored: (String, Long) -> Boolean,
+        ignored: (String, Long) -> Long?,
     ): ForYouHero? {
         interrupted(byId, recentEvents, nowMs, excluded)?.let { (track, at) ->
             return ForYouHero(track, ForYouKicker.Resume, at)
@@ -491,7 +494,9 @@ object ForYouBuilder {
             )
         val revisit = ForYouRhythm.demoteIgnored(
             ranked,
-            ranked.filterTo(HashSet()) { (id, stat) -> ignored(id.value, stat.lastPlayedAtMs) },
+            ranked.mapNotNull { entry ->
+                ignored(entry.key.value, entry.value.lastPlayedAtMs)?.let { day -> entry to day }
+            }.toMap(),
         ).firstOrNull()
         if (revisit != null) {
             val (id, stat) = revisit
@@ -574,7 +579,7 @@ object ForYouBuilder {
         quietMs: Long,
         used: MutableSet<TrackId>,
         playlists: List<Playlist>,
-        ignored: (String, Long) -> Boolean,
+        ignored: (String, Long) -> Long?,
     ): ForYouSection? {
         val candidates = stats.entries
             .filter { (id, stat) ->
@@ -617,7 +622,7 @@ object ForYouBuilder {
         val ordered = (groups + singleCards).sortedBy(rankOf)
         val cards = ForYouRhythm.demoteIgnored(
             ordered,
-            ordered.filterTo(HashSet()) { ignored(it.impressionKey, lastPlayOf(it)) },
+            ordered.mapNotNull { card -> ignored(card.impressionKey, lastPlayOf(card))?.let { card to it } }.toMap(),
         )
         if (cards.isEmpty()) return null
         return ForYouSection(
@@ -863,7 +868,7 @@ object ForYouBuilder {
         localHourOf: (Long) -> Int,
         cooledDiscoveries: Set<TrackId>,
         dayIndex: Int,
-        daypartIgnored: (String, Long) -> Boolean,
+        daypartIgnored: (String, Long) -> Long?,
     ): ForYouSection? {
         val daypart = ForYouRhythm.daypartOf(localHourOf(nowMs))
         val inPhase = ForYouRhythm.daypartEventCount(recentEvents, daypart, localHourOf)
@@ -890,9 +895,9 @@ object ForYouBuilder {
             recentlyPlayed = stats.entries
                 .filter { nowMs - it.value.lastPlayedAtMs < RECENTLY_PLAYED_MS }
                 .mapTo(HashSet()) { it.key },
-            ignored = affinity.keys.filterTo(HashSet()) { id ->
-                daypartIgnored(id.value, stats[id]?.lastPlayedAtMs ?: 0L)
-            },
+            ignored = affinity.keys.mapNotNull { id ->
+                daypartIgnored(id.value, stats[id]?.lastPlayedAtMs ?: 0L)?.let { id to it }
+            }.toMap(),
             farPick = far?.pick,
         )
         if (row.size < COLLAPSE_MIN) return null
@@ -942,6 +947,8 @@ object ForYouBuilder {
             nowMs = nowMs,
             artistOf = { byId[it]?.artist },
             artistKeyOf = ::primaryArtistKey,
+            // The oldest last-touch across all stats, as adaptiveQuietMs reads the log's age.
+            logStartMs = stats.values.asSequence().map { it.lastPlayedAtMs }.filter { it > 0 }.minOrNull(),
         ) ?: return null
         val cuts = ForYouRhythm.bingeDeepCuts(
             binge = binge,

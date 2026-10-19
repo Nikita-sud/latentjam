@@ -1087,4 +1087,20 @@ class ForYouBuilderTest {
             assertEquals(monday[key], tuesday[key], "mix $key was renumbered overnight")
         }
     }
+
+    @Test
+    fun `when every favourite was offered recently they take turns`() {
+        val tracks = (1..2).map { track("$it", artist = "Artist$it") }
+        val stats = tracks.withIndex().associate { (index, t) ->
+            t.id to stats(plays = 10 - index, last = now - 200 * day)
+        }
+        val today = utcDay(now)
+        fun hero(shown: Map<String, Long>) = ForYouBuilder.build(
+            tracks, stats, emptyList(), now, localDayOf = utcDay, revisitShownDays = shown,
+        ).hero?.track?.id?.value
+        // Both were offered and ignored: the one that has waited longest leads, so a small pool
+        // alternates instead of the strongest favourite returning every other day.
+        assertEquals("1", hero(mapOf("1" to today - 2, "2" to today - 1)))
+        assertEquals("2", hero(mapOf("1" to today - 1, "2" to today - 2)))
+    }
 }

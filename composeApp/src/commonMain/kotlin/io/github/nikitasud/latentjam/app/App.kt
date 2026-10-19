@@ -109,6 +109,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.action_create
 import io.github.nikitasud.latentjam.app.generated.resources.action_rename
@@ -966,11 +969,16 @@ private fun AppShell(
 
         val browsePageVisible = !showSettings && !showSearch && !showNowPlaying && selectedCollection == null
         val forYouPageActive = browsePageVisible && settledTab == StartPage.FOR_YOU
+        // In view means the app is in the foreground too: a listener whose start page is For You
+        // and who comes back to the app hours later has "come back to the page", and must not keep
+        // yesterday's page (and phase header) because the tab itself never changed.
+        val appInForeground by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
+        val forYouPageInView = forYouPageActive && appInForeground.isAtLeast(Lifecycle.State.STARTED)
         val mapPageActive = browsePageVisible && settledTab == StartPage.MAP
 
         LaunchedEffect(
             tracks,
-            forYouPageActive,
+            forYouPageInView,
             libraryWorlds.worlds,
             libraryWorlds.worldLibraryIds,
             discoveryMixLabel,
@@ -981,7 +989,7 @@ private fun AppShell(
             smartExclusionState,
             playlistPresentationIdentity,
         ) {
-            if (!forYouPageActive) {
+            if (!forYouPageInView) {
                 // Off screen: whatever changes now is applied when the page comes back into view.
                 forYouPage.currentSinceShown = false
                 return@LaunchedEffect

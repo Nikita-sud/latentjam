@@ -89,4 +89,30 @@ class ForYouImpressionsTest {
         assertEquals(listOf(9L), shown["hero"]?.get("a"))
         assertEquals(listOf(8L), shown["worth-revisiting"]?.get("collection:p1"))
     }
+
+    @Test
+    fun appendsAfterTheFirstRewriteInsteadOfRewritingEveryTime() = runTest {
+        class AppendingStore : ForYouImpressionStore {
+            var lines = listOf<String>()
+            var writes = 0
+            var appends = 0
+            override suspend fun read(): List<String> = lines
+            override suspend fun write(lines: List<String>) {
+                this.lines = lines
+                writes++
+            }
+            override suspend fun append(lines: List<String>) {
+                this.lines = this.lines + lines
+                appends++
+            }
+        }
+        val store = AppendingStore()
+        val impressions = ForYouImpressions(store)
+        impressions.record(listOf(impression("a", 10)))
+        impressions.record(listOf(impression("b", 10)))
+        impressions.record(listOf(impression("c", 11)))
+        assertEquals(1, store.writes)
+        assertEquals(2, store.appends)
+        assertEquals(3, ForYouImpressions(store).lastShownDays(beforeEpochDay = 12).size)
+    }
 }

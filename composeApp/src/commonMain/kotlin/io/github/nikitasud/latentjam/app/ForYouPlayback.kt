@@ -17,9 +17,10 @@ import io.github.nikitasud.latentjam.smart.TrackId
  * A row is eight to twelve tracks; played as an ordinary queue it ended after them in every mode
  * but SMART, and in SMART mode the row's own order was discarded for the tapped track alone. Now:
  * in SMART mode the rows play in their order and SMART extends the queue after them as usual
- * ([PlaybackController.playInOrder]); in OFF and ON the queue is the rows followed by one SMART
- * continuation from the last of them, [queueLength] long — the same continuation the hero card has
- * always had. ON still shuffles the whole queue, as the listener asked.
+ * ([PlaybackController.playInOrder]); in OFF and ON the rows start at once and one SMART
+ * continuation from the last of them, [queueLength] long, is appended after them when it is ready
+ * ([PlaybackController.appendSmartPlan]) — the length the hero card's continuation has. ON shuffles
+ * the rows; the continuation follows them.
  */
 internal suspend fun playFromForYou(
     playback: PlaybackController,
@@ -37,6 +38,10 @@ internal suspend fun playFromForYou(
         playback.playInOrder(tracks, index)
         return
     }
+    // The rows start at once; the continuation is planned behind them. Waiting for the planner
+    // before play() left a tap silent for seconds and could let a late For You start override
+    // something the listener picked elsewhere in the meantime.
+    playback.play(tracks, index)
     val seed = tracks.last()
     val planned = runCatching {
         engine.smartQueue(
@@ -49,10 +54,13 @@ internal suspend fun playFromForYou(
     }.getOrElse { failure ->
         // A continuation is a courtesy: if SMART cannot plan, the row still plays as itself.
         if (failure is kotlinx.coroutines.CancellationException) throw failure
-        emptyList()
+        return
     }
-    val inRow = tracks.mapTo(HashSet()) { it.id }
+    // Append only to the queue this call started: any other start or edit since then wins.
+    val rowIds = tracks.mapTo(HashSet()) { it.id }
+    val queue = playback.state.value.queue
+    if (queue.size != tracks.size || queue.any { it.id !in rowIds }) return
     val byId = library.associateBy { it.id }
-    val tail = planned.filter { it !in inRow }.mapNotNull(byId::get)
-    playback.play(tracks + tail, index, smartPlanPositions(planned).filterKeys { it !in inRow })
+    val tail = planned.filter { it !in rowIds }.mapNotNull(byId::get)
+    playback.appendSmartPlan(tail, smartPlanPositions(planned).filterKeys { it !in rowIds })
 }

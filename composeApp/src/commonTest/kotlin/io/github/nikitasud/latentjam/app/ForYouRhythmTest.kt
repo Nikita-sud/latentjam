@@ -309,6 +309,14 @@ class ForYouRhythmTest {
         // First week of the log: every artist's lift is infinite, so "phase" would just mean
         // "favourite". The row stays silent until there is a baseline to rise above.
         assertNull(ForYouRhythm.currentBinge(week, now, { artists[it] }, { it.lowercase() }))
+        // A heavy listener's newest events can all fall inside one week; the stats still know the
+        // log is older.
+        assertEquals(
+            "New",
+            ForYouRhythm.currentBinge(
+                week, now, { artists[it] }, { it.lowercase() }, logStartMs = now - 60 * day,
+            )?.artistName,
+        )
         val withHistory = week + event("old", now - 30 * day)
         assertEquals(
             "New",
@@ -319,9 +327,13 @@ class ForYouRhythmTest {
     @Test
     fun demotionKeepsTheRankingAndNeverRemoves() {
         val ordered = listOf("a", "b", "c", "d")
-        assertEquals(listOf("b", "d", "a", "c"), ForYouRhythm.demoteIgnored(ordered, setOf("a", "c")))
-        assertEquals(ordered, ForYouRhythm.demoteIgnored(ordered, emptySet()))
-        assertEquals(ordered, ForYouRhythm.demoteIgnored(ordered, ordered.toSet()))
+        assertEquals(listOf("b", "d", "a", "c"), ForYouRhythm.demoteIgnored(ordered, mapOf("a" to 5L, "c" to 5L)))
+        assertEquals(ordered, ForYouRhythm.demoteIgnored(ordered, emptyMap()))
+        // All shown recently: they take turns, the one that has waited longest leads.
+        assertEquals(
+            listOf("c", "a", "d", "b"),
+            ForYouRhythm.demoteIgnored(ordered, mapOf("a" to 6L, "b" to 9L, "c" to 5L, "d" to 8L)),
+        )
     }
 
     @Test
@@ -345,7 +357,7 @@ class ForYouRhythmTest {
         }
         val affinity = ForYouRhythm.daypartAffinity(events, ForYouDaypart.MORNING, hourOf)
         val stats = proven.associate { it.id to stats(plays = 3) }
-        fun row(recent: Set<TrackId> = emptySet(), ignored: Set<TrackId> = emptySet()) =
+        fun row(recent: Set<TrackId> = emptySet(), ignored: Map<TrackId, Long> = emptyMap()) =
             ForYouRhythm.daypartRow(
                 affinity = affinity,
                 byId = byId,
@@ -360,7 +372,7 @@ class ForYouRhythmTest {
         // Played yesterday: memory, not a pick for this morning.
         assertTrue("p8" !in row(recent = setOf(TrackId("p8"))))
         // Shown and not played: it steps out of the lead, not out of the row.
-        val demoted = row(ignored = setOf(TrackId("p8")))
+        val demoted = row(ignored = mapOf(TrackId("p8") to 1L))
         assertEquals("p7", demoted.first())
         assertTrue("p8" in demoted)
     }
@@ -386,5 +398,27 @@ class ForYouRhythmTest {
         val discoveries = row.filter { !it.startsWith("p") }
         assertEquals(ForYouRhythm.DAYPART_FRESH_SLOTS, discoveries.size)
         assertEquals("far", discoveries.last())
+    }
+
+    @Test
+    fun theFarPickNeverTakesTheFirstDiscoverySlot() {
+        val proven = (1..8).map { track("p$it") }
+        val far = track("far")
+        val byId = (proven + far).associateBy { it.id }
+        val events = proven.flatMapIndexed { index, t ->
+            List(index + 1) { n -> event(t.id.value, atHour(n, 7)) }
+        }
+        // No region offers a time-of-day discovery, so the far pick would be the first unheard
+        // card on screen: it sits out instead.
+        val row = ForYouRhythm.daypartRow(
+            affinity = ForYouRhythm.daypartAffinity(events, ForYouDaypart.MORNING, hourOf),
+            byId = byId,
+            worlds = emptyList(),
+            stats = proven.associate { it.id to stats(plays = 3) },
+            used = emptySet(),
+            dayIndex = 0,
+            farPick = far,
+        ).map { it.id.value }
+        assertTrue("far" !in row, "far pick shown without a time-of-day pick: $row")
     }
 }

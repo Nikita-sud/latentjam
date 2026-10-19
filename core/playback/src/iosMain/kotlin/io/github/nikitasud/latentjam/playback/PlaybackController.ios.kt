@@ -223,6 +223,9 @@ internal class IosPlaybackController(
     private val pendingAdvance = PendingPlaybackAdvance()
 
     private var mode: ShuffleMode = ShuffleMode.OFF
+
+    // The last row of the newest curated start (playInOrder), which a SMART policy change keeps.
+    private var curatedTailId: String? = null
     private var repeat: RepeatMode = RepeatMode.OFF
     private var playing: Boolean = false
 
@@ -313,7 +316,10 @@ internal class IosPlaybackController(
         queueGeneration++
         smartFutureInvalidationPending = true
         if (mode != ShuffleMode.SMART || queue.isEmpty()) return@withContext
-        queue = smartHistoryThroughCurrent(queue, queueIndex)
+        val rows = queue
+        queue = rows.take(
+            smartFutureKeepThrough(rows.size, queueIndex, curatedTailId) { rows[it].id.value } + 1,
+        )
         if (queueIndex !in queue.indices) queueIndex = 0
         smartFutureInvalidationPending = false
         pushState()
@@ -358,6 +364,7 @@ internal class IosPlaybackController(
                 putAll(smartPlanPositions)
             }
             smartRemovedIds.clear()
+            curatedTailId = if (keepOrderInSmart) tracks.last().id.value else null
             // A new queue is a new request: rows that refused to start under the old one get their
             // chance again instead of being skipped by the recovery chain.
             mediaStartRefusedIds.clear()
@@ -687,6 +694,31 @@ internal class IosPlaybackController(
         pushState()
     }
 
+    override suspend fun appendSmartPlan(
+        tracks: List<TrackDescriptor>,
+        smartPlanPositions: Map<TrackId, Int>,
+    ): Unit = withContext(Dispatchers.Main) {
+        if (queue.isEmpty() || tracks.isEmpty()) return@withContext
+        for (track in tracks) {
+            queue = queue + track
+            pool = sourceQueueAfterManualInsert(
+                source = pool,
+                currentId = queue.getOrNull(queueIndex)?.id,
+                track = track,
+                insertion = SourceQueueInsertion.APPEND,
+            )
+            releaseSmartProvenance(
+                this@IosPlaybackController.smartPlanPositions,
+                smartContinuationIds,
+                smartRemovedIds,
+                track.id,
+            )
+            smartPlanPositions[track.id]?.let { this@IosPlaybackController.smartPlanPositions[track.id] = it }
+        }
+        queueGeneration++
+        pushState()
+    }
+
     override suspend fun moveQueueItem(from: Int, to: Int): Unit = withContext(Dispatchers.Main) {
         if (from !in queue.indices || to !in queue.indices || from == to) return@withContext
         queue = queue.toMutableList().apply { add(to, removeAt(from)) }
@@ -801,6 +833,7 @@ internal class IosPlaybackController(
         // A resume installs a new queue, so the removals booked against the old one go with it —
         // exactly as Android's restoreQueue does. Restored rows were never removed from this queue.
         smartRemovedIds.clear()
+        curatedTailId = null
         // Same for the rows whose start failed: none of them is this queue's row.
         mediaStartRefusedIds.clear()
         queueIndex = restorePlan.currentIndex

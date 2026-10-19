@@ -125,8 +125,11 @@ internal object ForYouRhythm {
          * morning is memory, and a row that leads with it is "recently played" by another name.
          */
         recentlyPlayed: Set<TrackId> = emptySet(),
-        /** Proven tracks shown and not played since — they step behind the rest (see [demoteIgnored]). */
-        ignored: Set<TrackId> = emptySet(),
+        /**
+         * Proven tracks shown and not played since, with the day they were shown — they step
+         * behind the rest (see [demoteIgnored]).
+         */
+        ignored: Map<TrackId, Long> = emptyMap(),
         /**
          * One unheard track from a loved region gone quiet (see [wildcard]); it takes the LAST
          * discovery slot, so the first, visible one keeps its time-of-day pick.
@@ -191,7 +194,10 @@ internal object ForYouRhythm {
                 if (fresh.size >= freshSlots) break@outer
             }
         }
-        far?.let(fresh::add)
+        // Only behind at least one time-of-day pick: the first discovery slot — the visible one —
+        // is this phase's, never the far region's. With no such pick the far pick sits out today,
+        // as it does whenever the daypart row itself does not show.
+        if (far != null && fresh.isNotEmpty()) fresh.add(far)
 
         val provenTracks = window.mapNotNull(byId::get)
         // The sandwich leads with its anchors in the row's own order, so a demoted track also
@@ -204,14 +210,17 @@ internal object ForYouRhythm {
     const val DEMOTION_DAYS = 7L
 
     /**
-     * Keeps [ordered] in its ranking but moves [ignored] behind everything else, in their own
-     * relative order. Demotes, never removes: a pool can never empty this way, and the strongest
-     * candidate returns once the others have had their turn.
+     * Keeps [ordered] in its ranking but moves the [ignored] offers behind everything else, the
+     * one shown longest ago first (ties keep their ranking). Demotes, never removes: a pool can never
+     * empty this way, and when every candidate has been shown recently they take turns — the one
+     * that has waited longest leads — instead of the top one returning every day.
+     *
+     * @param ignored each demoted offer with the local day it was last shown.
      */
-    fun <T> demoteIgnored(ordered: List<T>, ignored: Set<T>): List<T> {
+    fun <T> demoteIgnored(ordered: List<T>, ignored: Map<T, Long>): List<T> {
         if (ignored.isEmpty()) return ordered
         val (kept, demoted) = ordered.partition { it !in ignored }
-        return kept + demoted
+        return kept + demoted.sortedBy { ignored.getValue(it) }
     }
 
     /** Distinct days an unheard track must be offered and ignored before it retires. */
@@ -305,9 +314,15 @@ internal object ForYouRhythm {
         nowMs: Long,
         artistOf: (TrackId) -> String?,
         artistKeyOf: (String) -> String,
+        /**
+         * When listening began, if the caller knows better than [events]: those are the newest few
+         * thousand, which a heavy listener fills in under three weeks.
+         */
+        logStartMs: Long? = null,
     ): Binge? {
         val cutoff = nowMs - BINGE_WINDOW_MS
-        val oldest = events.minOfOrNull { it.startedAtMs } ?: return null
+        val oldest = listOfNotNull(events.minOfOrNull { it.startedAtMs }, logStartMs).minOrNull()
+            ?: return null
         if (cutoff - oldest < BINGE_MIN_BASELINE_MS) return null
         val recent = HashMap<String, Pair<String, Int>>() // key -> (display name, plays)
         var recentTotal = 0
