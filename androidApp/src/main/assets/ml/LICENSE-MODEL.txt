@@ -12,7 +12,7 @@ Version 2.0, included in the repository root:
   smart_ranker.json
   artist_lfm.bin
 
-artist_colisten.bin is CC0-1.0 (see below).
+artist_colisten.bin and artist_known.bin are CC0-1.0 (see below).
 
 Copyright (c) 2026 LatentJam Project
 
@@ -120,6 +120,12 @@ similarity. It was counted offline from ListenBrainz listens (CC0,
 https://listenbrainz.org), from listeners outside the evaluation sample; it
 holds only entity ids and similarities, no listener data. It is offered under
 CC0-1.0, like its source.
+
+artist_known.bin lists the artist names, sort names and aliases of
+music_entities_250k.bin's corpus (MusicBrainz core data and Wikidata, both CC0)
+as 64-bit FNV-1a keys of their normalised forms, each with the key of its
+canonical name; the names themselves are not included. SMART splits a credit
+such as "A feat. B & C" into artists with it. It is offered under CC0-1.0.
 
 smart_ranker.json holds the weights of a linear ranker LatentJam fitted on
 the same ListenBrainz listens (CC0) to order SMART's candidate tracks; no
