@@ -515,7 +515,7 @@ internal fun SearchScreen(
                             Text(
                                 text = pluralStringResource(
                                     Res.plurals.count_tracks, shown.results.size, shown.results.size,
-                                ).uppercase(),
+                                ).uppercaseForDisplay(),
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     letterSpacing = 0.4.sp,
                                 ),

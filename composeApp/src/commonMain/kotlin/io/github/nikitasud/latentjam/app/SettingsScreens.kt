@@ -3528,7 +3528,7 @@ private fun LicensesSettings() {
 @Composable
 private fun SettingsGroupTitle(title: String) {
     Text(
-        text = title.uppercase(),
+        text = title.uppercaseForDisplay(),
         style = MaterialTheme.typography.labelSmall,
         letterSpacing = 0.4.sp,
         color = MaterialTheme.colorScheme.onSurfaceVariant,

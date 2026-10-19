@@ -364,7 +364,7 @@ private fun ListeningHero(overview: ListeningOverview, period: StatsPeriod, acce
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
         Text(
             text = (stringResource(Res.string.stats_time_listened) + " · " +
-                stringResource(period.titleRes())).uppercase(),
+                stringResource(period.titleRes())).uppercaseForDisplay(),
             style = MaterialTheme.typography.labelSmall.copy(
                 letterSpacing = 0.5.sp,
             ),
