@@ -1,6 +1,6 @@
 # Statistics page — whole-page spec (v5, 19 October 2026)
 
-Status: **design READY after five adversarial review rounds; awaiting the owner's go. Nothing implemented.** Branch `claude/stats-habits-55f9ee` (from
+Status: **design READY after five adversarial review rounds; IMPLEMENTED 19 October 2026** (see `docs/statistics-validation.md`, "Statistics v2"). Branch `claude/stats-habits-55f9ee` (from
 `release/0.9.2` at 334a36a9). Review log at the end.
 
 Goal (owner): the page should be *interesting and informative* for an ordinary listener, using what the SMART
