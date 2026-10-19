@@ -65,7 +65,8 @@ python3 tools/research/habit_slots/export_golden.py \
    SLOTS5 arm any more (closer to slots_rule, without its top-up); research v2 with flow gates may change it again.
    The golden test still pins the reference list; this filter sits on top of it.
 4b. **Soft flow score (19 Oct, replaces the strict gate of 34f902fc; the owner's "давай").** Real-transition rows
-   are scored s = t − λ·P, λ = 1 (`HabitFlow.LAMBDA`), and up to five with s > 0 go to the slots by s, best first;
+   are scored s = t − λ·P, λ = 2 (`HabitFlow.LAMBDA`; was 1 until the owner's phone still swung between genres — a
+   top-count row with P ≈ 0.875 scored +0.125 and entered), and up to five with s > 0 go to the slots by s, best first;
    empty slots go to SMART. t = ln(1 + c) / ln(1 + max c), c = track count + artist count (a track transition also
    counts as an artist one, so it weighs double). P = mean of four parts in [0, 1]: genre family and pack language
    (0 same, 1 different, 0.5 when either is unknown), artist-descriptor distance (0 at cosine ≥ 0.80, 1 at
@@ -73,7 +74,9 @@ python3 tools/research/habit_slots/export_golden.py \
    cosine ≥ the library's 75th percentile of random-pair cosines, 1 at ≤ its 25th, linear, 0.5 when either track
    has no vector yet; percentiles from 2,000 random pairs, fixed seed, once per library list). So a track without
    pack data can still enter when it sounds close to the seed. All anchors are named constants in `HabitFlow`.
-   Not window-validated (a matching research item is being reviewed for W9). The family is the alias family
+   λ = 2 is the λ* chosen on FIT for the slot layout (`slots3_result.json`, PLAN_ITEM5 v5, research branch
+   commit e892e133). The chain branch had no λ chosen on FIT (M1 0.284 vs 0.282), so on top of the app's chain this
+   stays a test setting until W9 confirms it. Not window-validated. The family is the alias family
    (Genres' table) of the track's *first genre tag value* — the research read the teacher's genres, which the
    app does not ship.
 5. **Candidates** are the tracks SMART may append (its library minus SMART exclusions, already-queued and removed

@@ -47,13 +47,22 @@ class HabitFlowTest {
     }
 
     @Test
-    fun `rows are kept when transition strength outweighs incoherence`() {
+    fun `a strongest habit far from the seed is rejected and a closer one is accepted`() {
+        val rows = listOf(TrackId("far"), TrackId("near"))
+        // Both at the top count, t = 1: 1 - 2 * 0.875 < 0, 1 - 2 * 0.4 = 0.2.
+        val picked = HabitFlow.pick(rows, count = { 3 }, incoherence = mapOf(rows[0] to 0.875, rows[1] to 0.4))
+        assertEquals(listOf(TrackId("near")), picked)
+    }
+
+    @Test
+    fun `rows are kept when transition strength outweighs incoherence at lambda 1`() {
         val counts = mapOf("a" to 4, "b" to 1, "c" to 2)
         val rows = listOf("a", "b", "c").map(::TrackId)
         val picked = HabitFlow.pick(
             rows,
             count = { counts.getValue(it.value) },
             incoherence = mapOf(TrackId("a") to 0.9, TrackId("b") to 0.5, TrackId("c") to 0.0),
+            lambda = 1.0,
         )
         // a: 1 - 0.9 = 0.1; b: ln2/ln5 - 0.5 < 0; c: ln3/ln5 = 0.68.
         assertEquals(listOf(TrackId("c"), TrackId("a")), picked)
