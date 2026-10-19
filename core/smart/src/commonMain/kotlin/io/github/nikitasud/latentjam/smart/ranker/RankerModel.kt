@@ -36,6 +36,11 @@ public class RankerModel(
     public val serving: Serving = Serving(),
     /** Raw-unit weight of the audio cosine; null = §1.3's rule, max(0, the descriptor cosine's raw weight). */
     private val audioWeightOverride: Double? = null,
+    /**
+     * Where the logpop column comes from (`inputs.logpop`): [LOGPOP_NONE] = 0 for every track, [LOGPOP_ARTIST] = the
+     * artist popularity of the track's pack entity, 0 when unknown. Any other value refuses the asset.
+     */
+    public val logpop: String = LOGPOP_NONE,
 ) {
     /**
      * @property wholeLibraryUpTo libraries with at most this many eligible tracks are scored whole (as the research
@@ -75,6 +80,7 @@ public class RankerModel(
         require(seedWeight >= 0.0 && previousWeight >= 0.0 && seedWeight + previousWeight > 0.0)
         require(epsilon.isFinite() && epsilon >= 0.0)
         require(thirdInRowCap.isFinite() && thirdInRowCap >= 0.0)
+        require(logpop == LOGPOP_NONE || logpop == LOGPOP_ARTIST) { "unknown logpop input" }
     }
 
     /** The score of one candidate's full feature row (in [RankerFeatures.NAMES] order). */
@@ -86,7 +92,9 @@ public class RankerModel(
     }
 
     public companion object {
-        /** Null for a missing, malformed or incompatible asset: SMART then keeps its chain. */
+        public const val LOGPOP_NONE: String = "none"
+        public const val LOGPOP_ARTIST: String = "artist_pop"
+
         /**
          * The rule-only path's model (§7.2b): RULE_SET constants in code, never read from an asset. Descriptor and
          * family match, co-listening, language and era, the Balanced run penalty, the 2 : 1 seed / previous mix.
@@ -104,6 +112,7 @@ public class RankerModel(
             audioWeightOverride = 0.0,
         )
 
+        /** Null for a missing, malformed or incompatible asset: SMART then keeps its chain. */
         @Suppress("UNCHECKED_CAST")
         public fun parse(json: String): RankerModel? = runCatching {
             @Suppress("UNCHECKED_CAST")
@@ -137,6 +146,7 @@ public class RankerModel(
                     )
                 } ?: Serving(),
                 audioWeightOverride = (root["audioWeight"] as? Number)?.toDouble(),
+                logpop = (root["inputs"] as? Map<*, *>)?.get("logpop") as? String ?: LOGPOP_NONE,
             )
         }.getOrNull()
     }

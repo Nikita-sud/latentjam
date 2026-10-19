@@ -11,6 +11,7 @@ import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.chain.MetadataRerank
 import io.github.nikitasud.latentjam.smart.text.ArtistKnowledge
 import io.github.nikitasud.latentjam.smart.text.ArtistNeighbours
+import io.github.nikitasud.latentjam.smart.text.ArtistPopularity
 import io.github.nikitasud.latentjam.smart.text.ArtistSets
 import io.github.nikitasud.latentjam.smart.text.ArtistVectors
 import io.github.nikitasud.latentjam.smart.text.KnownArtists
@@ -47,6 +48,8 @@ public object RankerQueue {
         blocked: (row: Int, picks: List<Int>) -> Boolean = { _, _ -> false },
         /** True when the time budget is spent: the loop returns what it has. */
         stop: () -> Boolean = { false },
+        /** Golden-test hook: each hop's scores and choice (reference.py's trace). */
+        trace: ((HopTrace) -> Unit)? = null,
         features: (anchor: Int) -> Array<DoubleArray>,
     ): List<Int> {
         if (poolSize == 0 || length <= 0) return emptyList()
@@ -84,12 +87,14 @@ public object RankerQueue {
             val t = DoubleArray(poolSize) { if (allowed[it]) penalised(it) else Double.NaN }
             var bestScore = Double.NEGATIVE_INFINITY
             for (i in 0 until poolSize) if (allowed[i]) bestScore = maxOf(bestScore, t[i])
-            val floor = bestScore - model.epsilon * spread(t, allowed)
+            val spreadPenalised = spread(t, allowed)
+            val floor = bestScore - model.epsilon * spreadPenalised
             val nearBest = (0 until poolSize)
                 .filter { allowed[it] && t[it] >= floor }
                 .sortedBy { tieOrder[it] }
             var best = if (model.epsilon == 0.0 && nearBest.size == 1) nearBest[0] else choose(picks.size, nearBest)
             if (take != null) best = take(picks.size, best, ::penalised)
+            trace?.invoke(HopTrace(s, t, sd, penalty, runAt, runLength, capped, bestScore, spreadPenalised, floor, nearBest, best))
             open[best] = false
             picks += best
             val artist = artistKeys[best]
@@ -103,6 +108,22 @@ public object RankerQueue {
 
     /** The anchor index [build] passes for the seed. */
     public const val SEED: Int = -1
+
+    /** One hop of [build], as reference.py traces it: scores s, penalised t (NaN = not allowed), the near-best rows. */
+    public class HopTrace(
+        public val s: DoubleArray,
+        public val t: DoubleArray,
+        public val sd: Double,
+        public val penalty: Double,
+        public val runArtist: String,
+        public val runLength: Int,
+        public val capped: Boolean,
+        public val best: Double,
+        public val sdPenalised: Double,
+        public val floor: Double,
+        public val nearBest: List<Int>,
+        public val pick: Int,
+    )
 
     /** Population sd of [s] over the rows [open] marks. */
     private fun spread(s: DoubleArray, open: BooleanArray): Double {
@@ -149,6 +170,37 @@ public class PlanReport(
 )
 
 /**
+ * A track's knowledge as reference.py's fixtures give it (the golden seam): what [SmartRanker]'s `know()` derives
+ * from the tags and the pack — the engine artist key, the artist-set cap key and keys, family, language, decade,
+ * entity, the song-version key (hashed here as in the app) and the raw pack descriptor and LightFM vector.
+ */
+internal class ResolvedTrack(
+    val engineArtist: String,
+    val setArtist: Long,
+    val artists: LongArray,
+    val family: String?,
+    val language: String?,
+    val decade: Int?,
+    val entity: Int,
+    val version: String,
+    val descriptor: FloatArray?,
+    val lfm: FloatArray?,
+)
+
+/** One plan as reference.py traces it (golden tests only). */
+internal class PlanTrace {
+    var query: String = ""
+    var poolHow: String = ""
+    var window: Int = 0
+    var pool: List<TrackId> = emptyList()
+    var seedFeatures: Array<DoubleArray> = emptyArray()
+    val hops: MutableList<RankerQueue.HopTrace> = ArrayList()
+    val draws: MutableList<Long?> = ArrayList()
+    val ladder: MutableList<Pair<TrackId, String>> = ArrayList()
+    var imputedTracks: List<TrackId> = emptyList()
+}
+
+/**
  * SMART's learned ranker (docs/smart-ranker.md, PLAN_FINAL §1, §7, §8): exclusions, candidates (the whole eligible
  * pool when small, else the retrievers' quotas), features with audio-tagger imputation, the [RankerQueue] decoder with
  * song-version dedup and a time budget, then the ladder until the queue is full. Never throws for bad metadata and
@@ -166,6 +218,8 @@ public class SmartRanker(
     private val tagger: AudioTagger? = null,
     private val audio: AudioSource = AudioSource.NONE,
     private val fullModel: RankerModel? = null,
+    /** Artist popularity (LJPOPS1), read only when the active model's `inputs.logpop` is artist_pop. */
+    private val popularity: ArtistPopularity? = null,
 ) {
     /**
      * One track's knowledge. The descriptor and the LightFM vector are read on first use (a 10k library would hold
@@ -214,7 +268,20 @@ public class SmartRanker(
         var imputationTried: Boolean = false
         val descriptor: FloatArray? get() = packDescriptor ?: imputedDescriptor
         val descriptorImputed: Boolean get() = packDescriptor == null && imputedDescriptor != null
+
+        /** The golden seam: the pack descriptor and LightFM vector as given, not read. */
+        fun preset(descriptor: FloatArray?, lfm: FloatArray?) {
+            packDescriptorValue = descriptor?.let(::normalized)
+            lfmValue = if (entity >= 0) lfm?.let(::normalized) else null
+            loaded = 3
+        }
     }
+
+    /** Golden tests: resolved records in place of the pack and the parsers (reference.py's fixtures). */
+    internal var resolver: ((TrackDescriptor) -> ResolvedTrack?)? = null
+
+    /** Golden tests: the next plan's trace. */
+    internal var tracer: PlanTrace? = null
 
     /** One string per distinct artist key across the cache. */
     private val artistStrings = HashMap<String, String>()
@@ -229,6 +296,20 @@ public class SmartRanker(
     public val hasFullModel: Boolean get() = fullModel != null
 
     private fun know(track: TrackDescriptor): Known {
+        resolver?.invoke(track)?.let { r ->
+            return Known(
+                track = track,
+                packFamily = r.family,
+                language = r.language,
+                decade = r.decade,
+                engineArtist = artistStrings.getOrPut(r.engineArtist) { r.engineArtist },
+                setArtist = r.setArtist,
+                artists = r.artists,
+                entity = r.entity,
+                version = ArtistSets.keyHash(r.version),
+                durationMs = track.durationMs?.takeIf { it in 1..MAX_DURATION_MS },
+            ).also { it.preset(r.descriptor, r.lfm) }
+        }
         val primary = track.artists.firstOrNull()
         val facts = runCatching { knowledge?.facts(track.artist, primary) }.getOrNull()
         val entity = runCatching { knowledge?.entity(track.artist, primary) }.getOrNull() ?: -1
@@ -306,6 +387,13 @@ public class SmartRanker(
         val notExcluded = eligibleKnown.filter { it.track.id !in request.exclude }
         // Novelty can empty a small library; then the ladder may still take recently heard tracks.
         val poolSource = notExcluded.ifEmpty { eligibleKnown }
+        val trace = tracer
+        trace?.query = SaltedKey.contentKey(request.seed)
+        trace?.poolHow = when {
+            request.ruleOnly -> "rule-only"
+            poolSource.size <= serving.wholeLibraryUpTo -> "whole"
+            else -> "retrievers"
+        }
         val pool = when {
             request.ruleOnly -> ruleOnlyPool(poolSource, seedKnown, salted)
             poolSource.size <= serving.wholeLibraryUpTo -> poolSource
@@ -322,6 +410,7 @@ public class SmartRanker(
         // Audio vectors for the pool and the seed are read before the (non-suspending) decoder runs.
         val usesAudio = active.features.contains("audio_cos") || active.audioWeight != 0.0
         if (usesAudio) withTimeoutOrNull(AUDIO_BUDGET_MS) { audioOf(seedKnown); for (k in pool) audioOf(k) }
+        val popularityOn = active.logpop == RankerModel.LOGPOP_ARTIST && popularity != null
         val personalRows = if (active.features.any { it in RankerFeatures.PERSONAL }) request.history else null
         val budgetMs = serving.hopBudgetMs * request.length
         // The decoder's own budget: preparation (knowledge, retrieval, imputation) has its own limits above.
@@ -333,21 +422,33 @@ public class SmartRanker(
             seedArtist = artistKeyOf(seedKnown),
             tieOrder = IntArray(pool.size) { it },
             length = request.length,
-            choose = { hop, nearBest -> nearBest[draws.pick(hop + 1, nearBest.size)] },
+            choose = { hop, nearBest ->
+                trace?.draws?.add(draws.output(hop + 1))
+                nearBest[draws.pick(hop + 1, nearBest.size)]
+            },
             blocked = { row, picks ->
                 blockedVersion(pool[row].version, picks.map { pool[it].track.id }, previousIds, window, ::versionOf)
             },
-            stop = { decoding.elapsedNow().inWholeMilliseconds > budgetMs },
+            stop = { decoding.elapsedNow().inWholeMilliseconds > budgetMs && trace == null },
+            trace = trace?.let { t -> { h: RankerQueue.HopTrace -> if (t.draws.size < t.hops.size + 1) t.draws.add(null); t.hops += h } },
         ) { anchor ->
             val a = if (anchor == RankerQueue.SEED) seedKnown else pool[anchor]
-            features(a, pool, artistKeyOf, audioVectors, personalRows, request.seed.id)
+            features(a, pool, artistKeyOf, audioVectors, personalRows, request.seed.id, popularityOn)
         }.map { pool[it].track.id }
         val timedOut = modelPicks.size < minOf(request.length, pool.size) && decoding.elapsedNow().inWholeMilliseconds > budgetMs
         val picks = ArrayList(modelPicks)
         val ladder = Ladder(eligibleKnown, byId, previousIds, window, salted, request.history, ::versionOf)
         while (picks.size < request.length) {
-            val next = ladder.next(picks, audio) ?: break
+            val (next, rung) = ladder.next(picks, audio) ?: break
             picks += next
+            trace?.ladder?.add(next to rung)
+        }
+        if (trace != null) {
+            trace.window = window
+            trace.pool = pool.map { it.track.id }
+            trace.seedFeatures = if (pool.isEmpty()) emptyArray() else features(seedKnown, pool, artistKeyOf, audioVectors, personalRows, request.seed.id, popularityOn)
+            trace.imputedTracks = (pool + seedKnown).filter { it.descriptorImputed || it.familyImputed }.map { it.track.id }
+                .distinct().sortedWith { a, b -> SaltedKey.idOrder.compare(a.value, b.value) }
         }
         return PlanReport(picks, active.name, pool.size, modelPicks.size, picks.size - modelPicks.size, timedOut, imputed)
     }
@@ -369,12 +470,14 @@ public class SmartRanker(
         audioVectors: Map<TrackId, FloatArray?>,
         personal: PersonalHistory?,
         seedId: TrackId,
+        popularityOn: Boolean,
     ): Array<DoubleArray> {
         val related = HashMap<Int, Double>()
         if (anchor.entity >= 0) neighbours?.forEachNeighbour(anchor.entity) { n, s -> related[n] = s.toDouble() }
         val anchorAudio = audioVectors[anchor.track.id]
         val anchorArtists = anchor.artists
         val rows = pool.map { c ->
+            val pop = if (popularityOn && c.entity >= 0) runCatching { popularity?.value(c.entity) }.getOrNull() else null
             RankerRow(
                 cosine = cosine(anchor.descriptor, c.descriptor),
                 family = c.family,
@@ -382,6 +485,8 @@ public class SmartRanker(
                 decade = c.decade,
                 artistKey = artistKeyOf(c),
                 colisten = if (c.entity >= 0) related[c.entity] ?: 0.0 else 0.0,
+                logPopularity = pop ?: 0.0,
+                popularityKnown = pop != null,
                 lfm = cosine(anchor.lfm, c.lfm),
                 durationMs = c.durationMs,
                 descriptorImputed = c.descriptorImputed,
@@ -481,30 +586,32 @@ public class SmartRanker(
         private val history: PersonalHistory,
         private val versionOf: (TrackId) -> Long,
     ) {
-        suspend fun next(picks: List<TrackId>, audio: AudioSource): TrackId? {
+        suspend fun next(picks: List<TrackId>, audio: AudioSource): Pair<TrackId, String>? {
             val taken = picks.toHashSet()
             val previous = picks.lastOrNull() ?: before.last()
             val previousKnown = byId[previous] ?: knownById[previous]
             fun ok(k: Known, dedup: Int) =
                 k.track.id !in taken && !blockedVersion(k.version, picks, before, dedup, versionOf)
             boundedNeighbours(previous, 50, LADDER_AUDIO_BUDGET_MS)
-                .firstNotNullOfOrNull { id -> byId[id]?.takeIf { ok(it, window) } }?.let { return it.track.id }
+                .firstNotNullOfOrNull { id -> byId[id]?.takeIf { ok(it, window) } }?.let { return it.track.id to "audio" }
             previousKnown?.descriptor?.let { d ->
                 // A salted sample bounds the rung's work and memory on a large library.
                 eligible.sortedBy { salted[it.track.id] }.take(LADDER_SAMPLE).filter { it.descriptor != null && ok(it, window) }
                     .maxWithOrNull(compareBy<Known> { cosine(d, it.descriptor) }.thenByDescending { salted[it.track.id] })
-                    ?.let { return it.track.id }
+                    ?.let { return it.track.id to "descriptor" }
             }
             previousKnown?.family?.let { f ->
-                eligible.filter { it.family == f && ok(it, window) }.minByOrNull { salted[it.track.id] ?: 0L }?.let { return it.track.id }
+                eligible.filter { it.family == f && ok(it, window) }.minByOrNull { salted[it.track.id] ?: 0L }?.let { return it.track.id to "family" }
             }
             val recent = (before + picks).takeLast(window).toHashSet()
             fun lastRung(dedup: Int, recency: Set<TrackId>) = eligible
                 .filter { ok(it, dedup) && it.track.id !in recency }
                 .minWithOrNull(compareBy<Known> { history.lastPlayIndex(it.track.id) ?: -1 }.thenBy { salted[it.track.id] })
-            return (lastRung(window, recent) ?: lastRung(1, recent) ?: lastRung(1, setOf(previous))
-                ?: eligible.filter { it.track.id !in taken && it.track.id != previous }.minByOrNull { salted[it.track.id] ?: 0L })
-                ?.track?.id
+            lastRung(window, recent)?.let { return it.track.id to "least-recent" }
+            lastRung(1, recent)?.let { return it.track.id to "least-recent-dedup1" }
+            lastRung(1, setOf(previous))?.let { return it.track.id to "least-recent-recency1" }
+            return eligible.filter { it.track.id !in taken && it.track.id != previous }.minByOrNull { salted[it.track.id] ?: 0L }
+                ?.let { it.track.id to "any" }
         }
     }
 

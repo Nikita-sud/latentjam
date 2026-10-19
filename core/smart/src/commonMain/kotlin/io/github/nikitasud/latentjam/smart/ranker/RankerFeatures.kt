@@ -17,7 +17,9 @@ import kotlin.math.sqrt
  * @property decade pack decade (1990 for the 1990s), null when unknown
  * @property artistKey the artist key the model's same-artist feature uses; empty is no artist
  * @property colisten the anchor artist's co-listening similarity to this track's artist, 0 when unlisted
- * @property logPopularity ln(1 + listeners); 0 when the app has no popularity table
+ * @property logPopularity ln(1 + listeners) of the track's artist (the model's `inputs.logpop`); 0 when unknown or unused
+ * @property popularityKnown the artist popularity table has the track's artist (not a model column; the research
+ *   reference computes the same flag)
  * @property lfm LightFM artist-vector cosine to the anchor; NaN when either has no vector
  * @property durationMs the track's sanitised duration; null when unknown or absurd
  * @property descriptorImputed the descriptor (of this track or the anchor) came from the audio tagger
@@ -35,6 +37,7 @@ public class RankerRow(
     public val artistKey: String = "",
     public val colisten: Double = 0.0,
     public val logPopularity: Double = 0.0,
+    public val popularityKnown: Boolean = false,
     public val lfm: Double = Double.NaN,
     public val durationMs: Long? = null,
     public val descriptorImputed: Boolean = false,

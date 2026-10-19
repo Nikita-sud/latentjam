@@ -61,8 +61,11 @@ public class ArtistVectors private constructor(
         public fun parse(bytes: ByteArray): ArtistVectors? = parse(AssetBytes.of(bytes))
 
         /** Null for a missing, damaged or newer-format asset, so the ranker runs without the feature. */
-        public fun parse(bytes: AssetBytes): ArtistVectors? {
-            if (bytes.size < HEADER || !MAGIC.indices.all { bytes[it] == MAGIC[it] }) return null
+        public fun parse(bytes: AssetBytes): ArtistVectors? = parse(bytes, MAGIC)
+
+        /** The same layout under another magic (LJPOPS1, [ArtistPopularity]). */
+        internal fun parse(bytes: AssetBytes, magic: ByteArray): ArtistVectors? {
+            if (bytes.size < HEADER || !magic.indices.all { bytes[it] == magic[it] }) return null
             fun u8(at: Int): Int = bytes[at].toInt() and 0xff
             fun u16(at: Int): Int = u8(at) or (u8(at + 1) shl 8)
             fun u32(at: Int): Long = (u8(at) or (u8(at + 1) shl 8) or (u8(at + 2) shl 16)).toLong() or (u8(at + 3).toLong() shl 24)
