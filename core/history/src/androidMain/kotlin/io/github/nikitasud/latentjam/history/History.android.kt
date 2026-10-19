@@ -134,6 +134,22 @@ internal class FileSmartExclusionStore(context: Context) : SmartExclusionStore {
     }
 }
 
+internal class FileSmartPressStore(context: Context) : SmartPressStore {
+    private val file = File(context.filesDir, FILE_NAME)
+
+    override suspend fun read(): List<String> = withContext(Dispatchers.IO) {
+        if (file.exists()) file.readLines() else emptyList()
+    }
+
+    override suspend fun write(lines: List<String>): Unit = withContext(Dispatchers.IO) {
+        file.atomicReplaceText(lines.joinToString("\n"))
+    }
+
+    private companion object {
+        const val FILE_NAME = "smart_presses.txt"
+    }
+}
+
 internal class FileForYouImpressionStore(context: Context) : ForYouImpressionStore {
     private val file = File(context.filesDir, FILE_NAME)
 
@@ -182,6 +198,8 @@ public actual fun listeningHistoryModule(): Module = module {
     single<RecentSearches> { DefaultRecentSearches(store = get()) }
     single<SmartExclusionStore> { FileSmartExclusionStore(context = get()) }
     single { SmartExclusions(store = get()) }
+    single<SmartPressStore> { FileSmartPressStore(context = get()) }
+    single { SmartPresses(store = get()) }
     single<FavoritesStore> { FileFavoritesStore(context = get()) }
     single<Favorites> { DefaultFavorites(store = get()) }
     single<ForYouImpressionStore> { FileForYouImpressionStore(context = get()) }

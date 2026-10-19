@@ -183,6 +183,21 @@ internal class FileRecentSearchStore : RecentSearchStore {
     }
 }
 
+internal class FileSmartPressStore : SmartPressStore {
+    override suspend fun read(): List<String> = withContext(Dispatchers.Default) {
+        readLines(appSupportFile(FILE_NAME) ?: error("Application Support is unavailable"))
+    }
+
+    override suspend fun write(lines: List<String>): Unit = withContext(Dispatchers.Default) {
+        val path = appSupportFile(FILE_NAME) ?: error("Application Support is unavailable")
+        writeText(path, lines.joinToString("\n"))
+    }
+
+    private companion object {
+        const val FILE_NAME = "smart_presses.txt"
+    }
+}
+
 internal class FileSmartExclusionStore : SmartExclusionStore {
     override suspend fun read(): List<String> = withContext(Dispatchers.Default) {
         readLines(appSupportFile(FILE_NAME) ?: error("Application Support is unavailable"))
@@ -287,6 +302,8 @@ public actual fun listeningHistoryModule(): Module = module {
     single<RecentSearches> { DefaultRecentSearches(store = get()) }
     single<SmartExclusionStore> { FileSmartExclusionStore() }
     single { SmartExclusions(store = get()) }
+    single<SmartPressStore> { FileSmartPressStore() }
+    single { SmartPresses(store = get()) }
     single<FavoritesStore> { FileFavoritesStore() }
     single<Favorites> { DefaultFavorites(store = get()) }
     single<ForYouImpressionStore> { FileForYouImpressionStore() }

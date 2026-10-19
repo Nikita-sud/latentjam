@@ -28,6 +28,8 @@ public class RankerModel(
     public val anchor: Anchor,
     public val seedWeight: Double = 2.0,
     public val previousWeight: Double = 1.0,
+    /** Near-best width in sds of the hop scores (PLAN_FINAL §8: 0.01); 0 keeps exact ties only. */
+    public val epsilon: Double = 0.0,
 ) {
     public enum class Anchor { SEED, PREVIOUS, MIX }
 
@@ -40,6 +42,7 @@ public class RankerModel(
         require(sd.all { it > 0.0 && it.isFinite() } && mean.all(Double::isFinite) && weights.all(Double::isFinite))
         require(runPenalty.isFinite() && runPenalty >= 0.0)
         require(seedWeight >= 0.0 && previousWeight >= 0.0 && seedWeight + previousWeight > 0.0)
+        require(epsilon.isFinite() && epsilon >= 0.0)
     }
 
     /** The score of one candidate's full feature row (in [RankerFeatures.NAMES] order). */
@@ -70,6 +73,7 @@ public class RankerModel(
                 },
                 seedWeight = (root["seedWeight"] as? Number)?.toDouble() ?: 2.0,
                 previousWeight = (root["previousWeight"] as? Number)?.toDouble() ?: 1.0,
+                epsilon = (root["epsilon"] as? Number)?.toDouble() ?: 0.0,
             )
         }.getOrNull()
     }

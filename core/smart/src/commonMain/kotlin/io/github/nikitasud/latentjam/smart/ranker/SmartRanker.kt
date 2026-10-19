@@ -14,12 +14,14 @@ import io.github.nikitasud.latentjam.smart.text.ArtistVectors
 import kotlin.math.sqrt
 
 /**
- * The hop loop of tools/research/listenbrainz_eval/proto_ranker2.py (`Query.queue`), over pool indices.
+ * The hop loop of tools/research/listenbrainz_eval/proto_ranker2.py (`Query.queue`) with PLAN_FINAL §8's variety rule,
+ * over pool indices.
  *
- * Hop 1 scores the pool against the seed; from hop 2 the anchor is [RankerModel.anchor]: the seed, the previous
- * pick, or both mixed. Each hop picks the best open row of score − p · runLength · sd(open rows' scores) for rows
- * of the artist the queue ends with (the seed counts); ties go to the lower [tieOrder]. Features are always
- * computed over the whole pool, as the research does.
+ * Hop 1 scores the pool against the seed; from hop 2 the anchor is [RankerModel.anchor]: the seed, the previous pick,
+ * or both mixed. Each hop's penalised score is the score − p · runLength · sd(open rows' scores) for rows of the artist
+ * the queue ends with (the seed counts). The open rows within ε = [RankerModel.epsilon] · sd of the best form the
+ * hop's near-best set, ordered by [tieOrder]; [choose] picks one of them (the salted key on device; the first, the
+ * research's lowest-key rule, by default). Features are always computed over the whole pool, as the research does.
  */
 public object RankerQueue {
     public fun build(
@@ -29,7 +31,9 @@ public object RankerQueue {
         seedArtist: String,
         tieOrder: IntArray,
         length: Int,
-        /** Test hook: given the hop, its best row and the penalised scores, the row to take (golden teacher forcing). */
+        /** Picks one of the hop's near-best rows (ordered by [tieOrder]); hop 0 is the first pick. */
+        choose: (hop: Int, nearBest: List<Int>) -> Int = { _, nearBest -> nearBest.first() },
+        /** Test hook: given the hop, its chosen row and the penalised scores, the row to take (golden teacher forcing). */
         take: ((hop: Int, best: Int, scores: (Int) -> Double) -> Int)? = null,
         features: (anchor: Int) -> Array<DoubleArray>,
     ): List<Int> {
@@ -49,23 +53,23 @@ public object RankerQueue {
                     DoubleArray(poolSize) { (model.seedWeight * seedScores[it] + model.previousWeight * previous[it]) / total }
                 }
             }
-            val penalty = if (model.runPenalty > 0.0 && runLength > 0) model.runPenalty * runLength * spread(s, open) else 0.0
-            var best = -1
+            val sd = spread(s, open)
+            val penalty = if (model.runPenalty > 0.0 && runLength > 0) model.runPenalty * runLength * sd else 0.0
+            val runAt = runArtist
+            fun penalised(i: Int) = if (penalty != 0.0 && artistKeys[i] == runAt) s[i] - penalty else s[i]
             var bestScore = Double.NEGATIVE_INFINITY
-            for (i in 0 until poolSize) {
-                if (!open[i]) continue
-                val t = if (penalty != 0.0 && artistKeys[i] == runArtist) s[i] - penalty else s[i]
-                if (best < 0 || t > bestScore || (t == bestScore && tieOrder[i] < tieOrder[best])) {
-                    best = i
-                    bestScore = t
-                }
+            var any = false
+            for (i in 0 until poolSize) if (open[i]) {
+                any = true
+                bestScore = maxOf(bestScore, penalised(i))
             }
-            if (best < 0) return picks
-            if (take != null) {
-                val hopScores = s
-                val runAt = runArtist
-                best = take(picks.size, best) { i -> if (penalty != 0.0 && artistKeys[i] == runAt) hopScores[i] - penalty else hopScores[i] }
-            }
+            if (!any) return picks
+            val floor = bestScore - model.epsilon * sd
+            val nearBest = (0 until poolSize)
+                .filter { open[it] && penalised(it) >= floor }
+                .sortedBy { tieOrder[it] }
+            var best = if (nearBest.size == 1) nearBest[0] else choose(picks.size, nearBest)
+            if (take != null) best = take(picks.size, best, ::penalised)
             open[best] = false
             picks += best
             val artist = artistKeys[best]
@@ -165,20 +169,30 @@ public class SmartRanker(
         candidates: List<TrackDescriptor>,
         exclude: Set<TrackId>,
         length: Int,
+        /** How many SMART starts from this seed came before (the persisted press counter, §1.6). */
+        press: Long = 0,
     ): List<TrackId> {
         val cache = knownOf(library)
         val seedKnown = cache[seed.id] ?: know(seed)
         val pool = candidates.filter { it.id != seed.id && it.id !in exclude }
         val poolKnown = pool.map { cache[it.id] ?: know(it) }
+        val draws = HopDraws(SaltedKey.seed(SaltedKey.SALT, SaltedKey.contentKey(seed), press))
         val picks = RankerQueue.build(
             model = model,
             poolSize = pool.size,
             artistKeys = poolKnown.map { it.artistKey },
             seedArtist = seedKnown.artistKey,
-            tieOrder = IntArray(pool.size) { it },
+            tieOrder = idRanks(pool),
             length = length,
+            choose = { hop, nearBest -> nearBest[draws.pick(hop + 1, nearBest.size)] },
         ) { anchor -> features(if (anchor == RankerQueue.SEED) seedKnown else poolKnown[anchor], poolKnown) }
         return picks.map { pool[it].id }
+    }
+
+    /** Each candidate's rank in the unsigned UTF-8 byte order of its id (§1.6's tie order). */
+    private fun idRanks(pool: List<TrackDescriptor>): IntArray {
+        val order = pool.indices.sortedWith { a, b -> SaltedKey.idOrder.compare(pool[a].id.value, pool[b].id.value) }
+        return IntArray(pool.size).also { ranks -> order.forEachIndexed { rank, i -> ranks[i] = rank } }
     }
 
     private fun features(anchor: Known, pool: List<Known>): Array<DoubleArray> {
@@ -215,6 +229,20 @@ public class SmartRanker(
         for (i in a.indices) dot += a[i] * b[i]
         return dot.toDouble()
     }
+}
+
+/** Hop h's draw is the h-th SplitMix64 output from the press's seed (h = 1 for the first pick). */
+internal class HopDraws(seed: Long) {
+    private val generator = SplitMix64(seed)
+    private val outputs = ArrayList<Long>()
+
+    fun output(hop: Int): Long {
+        while (outputs.size < hop) outputs += generator.next()
+        return outputs[hop - 1]
+    }
+
+    /** An index below [size] from hop [hop]'s output, as an unsigned remainder. */
+    fun pick(hop: Int, size: Int): Int = (output(hop).toULong() % size.toULong()).toInt()
 }
 
 /** Loads the ranker's two assets lazily and fails closed: no model, no ranker (SMART keeps its chain). */

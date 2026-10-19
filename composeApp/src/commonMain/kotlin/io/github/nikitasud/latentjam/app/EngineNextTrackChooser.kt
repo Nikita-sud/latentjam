@@ -9,6 +9,8 @@ import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.playback.NextTrackChooser
 import io.github.nikitasud.latentjam.playback.SmartChoice
 import io.github.nikitasud.latentjam.smart.HabitFlow
+import io.github.nikitasud.latentjam.history.SmartPresses
+import io.github.nikitasud.latentjam.smart.ranker.SaltedKey
 import io.github.nikitasud.latentjam.smart.ranker.SmartRanker
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.SmartHistoryEvent
@@ -52,9 +54,13 @@ class EngineNextTrackChooser(
     /** The "learned ranker" setting: plans come from [ranker] instead of the engine's chain. */
     private val useRanker: () -> Boolean = { false },
     private val ranker: () -> SmartRanker? = { null },
+    /** The persisted press counters; null keeps every start at press 0. */
+    private val presses: SmartPresses? = null,
 ) : NextTrackChooser {
 
     private val mutex = Mutex()
+    /** The press of the SMART queue being served: set when a queue starts from its seed, reused by its top-ups. */
+    private var queuePress = 0L
     /** The unserved rest of the current plan, each id with its index in that plan. */
     private var planned = ArrayDeque<IndexedValue<TrackId>>()
     private var expectedNext: TrackId? = null
@@ -112,7 +118,13 @@ class EngineNextTrackChooser(
             // before carrying a walk; an unrelated seed starts fresh there.
             val learned = if (useRanker()) ranker() else null
             var plan = if (learned != null) {
-                rankerPlan(learned, history, current, candidates, library(), RANKER_LENGTH, seedMs = events.last().startedAtMs)
+                if (recentIds.isEmpty()) {
+                    queuePress = presses?.let { runCatching { it.next(SaltedKey.contentKey(current)) }.getOrNull() } ?: 0L
+                }
+                rankerPlan(
+                    learned, history, current, candidates, library(), RANKER_LENGTH,
+                    seedMs = events.last().startedAtMs, press = queuePress,
+                )
             } else {
                 engine.continueSmartQueue(
                     current, candidates, CHAIN_LENGTH, events, groups, precedingTrackIds = recentIds,

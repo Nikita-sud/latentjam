@@ -30,7 +30,10 @@ class SmartRankerTest {
     fun `the best scored candidates come first and excluded ones never`() {
         val ranker = SmartRanker(model(), null, null)
         val plan = ranker.plan(seed, library, library, exclude = setOf(TrackId("a2")), length = 4).map { it.value }
-        assertEquals(listOf("a1", "a3", "b1", "c1"), plan)
+        // Exact ties (a1 / a3, then c1 / d1) are drawn by the salted key; the score order is not.
+        assertEquals(setOf("a1", "a3"), plan.take(2).toSet())
+        assertEquals("b1", plan[2])
+        assertEquals(true, plan[3] in setOf("c1", "d1"))
     }
 
     @Test
@@ -38,15 +41,19 @@ class SmartRankerTest {
         val ranker = SmartRanker(model(runPenalty = 1.0), null, null)
         // Hop 1: run A (the seed), length 1, spread > 0: a1 (1.5) - spread vs b1 (0.5) ...
         val plan = ranker.plan(seed, library, library, exclude = emptySet(), length = 6).map { it.value }
-        assertEquals(listOf("a1", "b1", "a2", "a3", "c1", "d1"), plan)
+        // A, B, A, A, then the two Pop tracks: the penalty breaks the first run; which A and which Pop track is drawn.
+        assertEquals(listOf("A", "B", "A", "A"), plan.take(4).map { library.first { t -> t.id.value == it }.artist })
+        assertEquals(setOf("c1", "d1"), plan.drop(4).toSet())
     }
 
     @Test
     fun `with the previous pick as anchor the queue follows its last track`() {
         val ranker = SmartRanker(model(anchor = "previous", sameArtist = 0.0, sameFamily = 1.0), null, null)
         val pop = listOf(track("c1", "C", "Pop"), track("r1", "R", "Rock"), track("d1", "D", "Pop"))
-        // Seed Rock -> r1 (Rock); from r1 nothing else is Rock -> first in order, c1 (Pop); from c1, d1 (Pop).
-        assertEquals(listOf("r1", "c1", "d1"), ranker.plan(seed, pop, pop, emptySet(), 3).map { it.value })
+        // Seed Rock -> r1 (Rock); from r1 the two Pop tracks tie; whichever comes, the other follows.
+        val plan = ranker.plan(seed, pop, pop, emptySet(), 3).map { it.value }
+        assertEquals("r1", plan[0])
+        assertEquals(setOf("c1", "d1"), plan.drop(1).toSet())
     }
 
     @Test

@@ -188,6 +188,7 @@ object AppGraph {
                                 learnFromHabits = { false },
                                 useRanker = { settings.smartRanker.value },
                                 ranker = getOrNull<SmartRankerAssets>().let { assets -> { assets?.ranker } },
+                                presses = getOrNull(),
                                 library = { smartLibraryTracks.value },
                                 habitFlow = get<SimilarityEngine>().let { engine ->
                                     HabitFlow(getOrNull(), audio = { id -> engine.embedding(id) })
