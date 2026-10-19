@@ -183,6 +183,7 @@ import io.github.nikitasud.latentjam.history.RepeatPlaylist
 import io.github.nikitasud.latentjam.history.RepeatTrack
 import io.github.nikitasud.latentjam.history.StatsPlaylist
 import io.github.nikitasud.latentjam.library.AutoPlaylistKind
+import io.github.nikitasud.latentjam.library.tags.GenreTags
 import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.history.localTimePoint
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
@@ -279,14 +280,30 @@ internal fun ListeningStatsSettings(
     val recordingHistory by AppGraph.settings.saveListeningHistory.collectAsState()
     val scope = rememberCoroutineScope()
     val snapshots = remember(history, scope) { StatsSnapshots(scope, readEvents = history::allEvents) }
+    // Shared reads run under their own supervisor, so a failure cannot cancel the screen's scope.
+    val supervisor = remember(scope) { SupervisorJob(scope.coroutineContext[Job]) }
     val catalog = remember(tracks, scope) {
-        scope.async(Dispatchers.Default, start = CoroutineStart.LAZY) { tracks.associateBy { it.id } }
+        scope.async(supervisor + Dispatchers.Default, start = CoroutineStart.LAZY) { tracks.associateBy { it.id } }
     }
     var retryRevision by remember { mutableIntStateOf(0) }
-    // "Today" rolls over at midnight while the page stays open.
+    // Both sections attribute plays to the same playlists: read them once per revision, off the main
+    // thread, and again whenever the page is shown (names may have changed meanwhile).
+    val playlistsLoad = remember(scope, historyRevision, tracks, retryRevision, active) {
+        scope.async(supervisor + Dispatchers.Default, start = CoroutineStart.LAZY) {
+            try {
+                loadStatsPlaylists(catalog.await())
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Throwable) {
+                // Playlists only refine the lists; without them the page still tells the truth.
+                emptyList<StatsPlaylist>() to emptyMap()
+            }
+        }
+    }
+    // "Today" rolls over at local midnight while the page stays open.
     val localDay by produceState(localTimePoint(epochMillis()).epochDay) {
         while (true) {
-            delay(10 * 60_000L)
+            delay(msUntilNextLocalDay(epochMillis()))
             value = localTimePoint(epochMillis()).epochDay
         }
     }
@@ -304,13 +321,13 @@ internal fun ListeningStatsSettings(
     }
     // Section 2 follows the chips. New listens refresh it in place; a chip change keeps the old
     // cards dimmed until the new period is ready, so neither the layout nor the scroll jumps.
-    LaunchedEffect(selection, historyRevision, retryRevision, active) {
+    LaunchedEffect(selection, historyRevision, retryRevision, active, localDay) {
         if (!active) return@LaunchedEffect
         try {
             val normalized = snapshots.await(historyRevision, retryRevision)
             val catalogMap = catalog.await()
             tracksById = catalogMap
-            val (statsPlaylists, labels) = loadStatsPlaylists(catalogMap)
+            val (statsPlaylists, labels) = playlistsLoad.await()
             playlistLabels = labels
             val loadContext = currentCoroutineContext()
             val now = epochMillis()
@@ -325,7 +342,10 @@ internal fun ListeningStatsSettings(
                         nowMs = now,
                         includeTrack = catalogMap::containsKey,
                         cancellationCheck = { loadContext.ensureActive() },
-                        chartDays = period.days ?: 30,
+                        // All time on a log younger than two months shows its whole span by day.
+                        chartDays = period.days ?: normalized.logStartMs?.let {
+                            (localTimePoint(now).epochDay - localTimePoint(it).epochDay + 1).toInt().coerceIn(1, 59)
+                        } ?: 30,
                     ),
                     insights = ListeningInsights.period(
                         history = normalized,
@@ -334,6 +354,8 @@ internal fun ListeningStatsSettings(
                         nowMs = now,
                         cancellationCheck = { loadContext.ensureActive() },
                         playlists = statsPlaylists,
+                        // As the Genres tab counts them: "Rock; Pop" is Rock.
+                        genreOf = { GenreTags.split(it.genre).firstOrNull() },
                     ),
                     logEmpty = normalized.size == 0,
                 )
@@ -352,7 +374,7 @@ internal fun ListeningStatsSettings(
             val normalized = snapshots.await(historyRevision, retryRevision)
             val catalogMap = catalog.await()
             tracksById = catalogMap
-            val (statsPlaylists, labels) = loadStatsPlaylists(catalogMap)
+            val (statsPlaylists, labels) = playlistsLoad.await()
             playlistLabels = labels
             val loadContext = currentCoroutineContext()
             habitsLoad = withContext(Dispatchers.Default) {
@@ -412,8 +434,11 @@ internal fun ListeningStatsSettings(
             if (!repeatShown && habits.onRepeatLocked) {
                 item(key = "more-appears") { MoreAppearsCard(habits) }
             }
-            item(key = "on-repeat") {
-                OnRepeatCard(habits, tracksById, playlistLabels, accentInk, playRows)
+            // A log of skips only has nothing to repeat and no record to state.
+            if (repeatShown || habits.longestStreakDays > 0) {
+                item(key = "on-repeat") {
+                    OnRepeatCard(habits, tracksById, playlistLabels, accentInk, playRows)
+                }
             }
         }
 
@@ -444,7 +469,8 @@ internal fun ListeningStatsSettings(
                 }
             }
         }
-        if (periodShown != null) {
+        // A failed chip change must not leave the old period's numbers under the new chip.
+        if (periodShown != null && !(dimmed && periodFailed)) {
             val overview = periodShown.overview
             val insights = periodShown.insights
             val cardModifier = if (dimmed) {
@@ -685,9 +711,10 @@ private fun ListeningHero(overview: ListeningOverview, insights: PeriodInsights,
                 if (days >= 1) pluralStringResource(Res.plurals.stats_days_of_music, days, days) else null
             }
             previous == null -> null
-            // A log younger than the previous window would always compare against nothing.
-            !insights.burnedIn || previous.playedMs == 0L ->
-                stringResource(Res.string.stats_comparison_first, period.days)
+            // A log younger than the previous window has no honest comparison; the New and familiar
+            // card states the log's age instead.
+            !insights.burnedIn -> null
+            previous.playedMs == 0L -> stringResource(Res.string.stats_comparison_first, period.days)
             overview.playedMs > previous.playedMs -> stringResource(
                 Res.string.stats_comparison_more,
                 formatListenedTime(overview.playedMs - previous.playedMs),
@@ -714,9 +741,9 @@ private fun ListeningHero(overview: ListeningOverview, insights: PeriodInsights,
             verticalArrangement = Arrangement.spacedBy(10.dp),
             maxItemsInEachRow = 3,
         ) {
-            HeroMetric(overview.plays.toString(), stringResource(Res.string.stats_plays), Modifier.weight(1f))
-            HeroMetric(insights.playedTracks.toString(), stringResource(Res.string.stats_distinct_tracks), Modifier.weight(1f))
-            HeroMetric(insights.playedArtists.toString(), stringResource(Res.string.tab_artists), Modifier.weight(1f))
+            HeroMetric(formatCount(overview.plays), stringResource(Res.string.stats_plays), Modifier.weight(1f))
+            HeroMetric(formatCount(insights.playedTracks), stringResource(Res.string.stats_distinct_tracks), Modifier.weight(1f))
+            HeroMetric(formatCount(insights.playedArtists), stringResource(Res.string.tab_artists), Modifier.weight(1f))
         }
     }
 }
@@ -896,7 +923,7 @@ private fun NewAndFamiliarCard(
         val plays = (insights.newPlays + insights.familiarPlays).coerceAtLeast(1)
         val familiarShare = insights.familiarPlays.toFloat() / plays
         val familiarText = percent(familiarShare)
-        val newText = "${100 - percentValue(familiarShare)}%"
+        val newText = formatPercent(100 - percentValue(familiarShare))
         Row(
             modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) { },
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -1290,8 +1317,8 @@ private fun LibraryCard(habits: HabitInsights, accentInk: Color) {
         Metric(
             value = stringResource(
                 Res.string.stats_x_of_y,
-                habits.libraryTracksPlayed.toString(),
-                habits.librarySize.toString(),
+                formatCount(habits.libraryTracksPlayed),
+                formatCount(habits.librarySize),
             ),
             label = stringResource(Res.string.stats_played_once),
         )
@@ -1526,7 +1553,7 @@ private fun ShareMeter(
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-            Text("$percent%", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(formatPercent(percent), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         ProportionBar(percent / 100f, color = color)
     }
@@ -1553,7 +1580,19 @@ private fun ProportionBar(
 
 private fun percentValue(share: Float): Int = (share.coerceIn(0f, 1f) * 100).roundToInt()
 
-private fun percent(share: Float): String = "${percentValue(share)}%"
+private fun percent(share: Float): String = formatPercent(percentValue(share))
+
+/** Milliseconds until the device's local date changes after [nowMs] (to within a second). */
+private fun msUntilNextLocalDay(nowMs: Long): Long {
+    val today = localTimePoint(nowMs).epochDay
+    var low = nowMs
+    var high = nowMs + 26L * 60 * 60 * 1000
+    while (high - low > 1_000) {
+        val middle = low + (high - low) / 2
+        if (localTimePoint(middle).epochDay > today) high = middle else low = middle
+    }
+    return (high - nowMs).coerceAtLeast(1_000)
+}
 
 @Composable
 private fun statsDayLabel(daysAgo: Int): String = when (daysAgo) {

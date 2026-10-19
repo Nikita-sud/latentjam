@@ -480,6 +480,8 @@ public object ListeningInsights {
         timePointOf: (Long) -> LocalTimePoint = ::localTimePoint,
         cancellationCheck: () -> Unit = {},
         playlists: List<StatsPlaylist> = emptyList(),
+        /** The genre a track counts under; the app passes the first of its split genre tags. */
+        genreOf: (TrackDescriptor) -> String? = { it.genre },
     ): PeriodInsights {
         cancellationCheck()
         val attribution = PlaylistAttribution(playlists)
@@ -506,10 +508,11 @@ public object ListeningInsights {
         var newPlays = 0
         var previousPlays = 0
         var previousNewPlays = 0
-        val sessionListened = ArrayList<Long>()
-        val sessionPlays = ArrayList<Int>()
-        val sessionStarts = ArrayList<Long>()
-        var currentSession = -1
+        // Session ids rise from 0, so per-session totals fit primitive arrays (no boxing per listen).
+        val sessionCount = if (history.size == 0) 0 else history.sessionIds[history.size - 1] + 1
+        val sessionListened = LongArray(sessionCount)
+        val sessionPlays = IntArray(sessionCount)
+        val sessionStarts = LongArray(sessionCount) { Long.MAX_VALUE }
         val today = timePointOf(nowMs.coerceAtLeast(0)).epochDay
         val buckets = HashMap<Int, BucketTotal>()
         val logStartDay = logStart?.let { timePointOf(it).epochDay }
@@ -526,14 +529,9 @@ public object ListeningInsights {
             val inPeriod = since == null || event.startedAtMs >= since
             val point = timePointOf(event.startedAtMs)
             val session = history.sessionIds[index]
-            if (session != currentSession) {
-                currentSession = session
-                sessionListened += 0L
-                sessionPlays += 0
-                sessionStarts += event.startedAtMs
-            }
+            if (sessionStarts[session] == Long.MAX_VALUE) sessionStarts[session] = event.startedAtMs
             val listened = event.effectiveListenedMs.coerceAtLeast(0)
-            sessionListened[sessionListened.lastIndex] = saturatingDurationAdd(sessionListened.last(), listened)
+            sessionListened[session] = saturatingDurationAdd(sessionListened[session], listened)
             if (inPeriod && point.hourOfDay in 0..23) {
                 hours[point.hourOfDay] = saturatingDurationAdd(hours[point.hourOfDay], listened)
             }
@@ -544,7 +542,7 @@ public object ListeningInsights {
                 buckets.getOrPut(key) { BucketTotal() }.add(if (event.skipped) 0 else 1, listened)
             }
             if (event.skipped) return@forEachIndexed
-            sessionPlays[sessionPlays.lastIndex] = sessionPlays.last() + 1
+            sessionPlays[session]++
 
             val firstPlay = tracks.plays[track] == 0
             tracks.plays[track]++
@@ -592,7 +590,7 @@ public object ListeningInsights {
                     NameTotal(album, subtitle = albumArtist, trackId = event.trackId)
                 }.add(listened)
             }
-            val genre = descriptor.genre?.trim()?.takeIf(String::isNotEmpty)
+            val genre = genreOf(descriptor)?.trim()?.takeIf(String::isNotEmpty)
             if (genre != null) {
                 genreTagged++
                 genreTotals.getOrPut(genre.lowercase()) { NameTotal(genre) }.add(listened)

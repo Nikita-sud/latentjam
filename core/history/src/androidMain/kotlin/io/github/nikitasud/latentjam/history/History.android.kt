@@ -182,13 +182,26 @@ public actual fun listeningHistoryModule(): Module = module {
 
 public actual fun epochMillis(): Long = System.currentTimeMillis()
 
+/**
+ * The default zone, re-read at most once a second. Statistics call [localTimePoint] for every listen
+ * of the log; a new Calendar per call made each pass allocate ~650 bytes per listen (130 MB of garbage
+ * for 200k listens), while the zone changes only when the listener travels or edits it.
+ */
+@Volatile private var cachedZone: java.util.TimeZone? = null
+
+@Volatile private var cachedZoneAtNs = 0L
+
 public actual fun localTimePoint(epochMs: Long): LocalTimePoint {
-    val calendar = java.util.Calendar.getInstance()
-    calendar.timeInMillis = epochMs
-    val zoneOffsetMs = calendar.get(java.util.Calendar.ZONE_OFFSET) +
-        calendar.get(java.util.Calendar.DST_OFFSET)
+    val nowNs = System.nanoTime()
+    val zone = cachedZone?.takeIf { nowNs - cachedZoneAtNs < 1_000_000_000L }
+        ?: java.util.TimeZone.getDefault().also {
+            cachedZone = it
+            cachedZoneAtNs = nowNs
+        }
+    // ZONE_OFFSET + DST_OFFSET at this instant, as Calendar computed it.
+    val local = epochMs + zone.getOffset(epochMs)
     return LocalTimePoint(
-        epochDay = (epochMs + zoneOffsetMs).floorDiv(86_400_000L),
-        hourOfDay = calendar.get(java.util.Calendar.HOUR_OF_DAY),
+        epochDay = local.floorDiv(86_400_000L),
+        hourOfDay = (local.mod(86_400_000L) / 3_600_000L).toInt(),
     )
 }
