@@ -121,7 +121,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_progress
 import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_progress_eta
 import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_title
-import io.github.nikitasud.latentjam.app.generated.resources.foryou_journey_title
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_mix_discovery
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_mix_instrumental
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_mix_meme_viral
@@ -176,7 +175,6 @@ import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.sync.withLock
-import io.github.nikitasud.latentjam.smart.cluster.SonicJourney
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorldSemanticTitle
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorlds
 import io.github.nikitasud.latentjam.smart.cluster.WorldNamingGroups
@@ -945,7 +943,6 @@ private fun AppShell(
         val forYouPage = remember { ForYouPageState() }
         val libraryWorlds = remember { LibraryWorldsState() }
         val discoveryMixLabel = stringResource(Res.string.foryou_mix_discovery)
-        val journeyTitlePattern = stringResource(Res.string.foryou_journey_title)
         val memeViralMixLabel = stringResource(Res.string.foryou_mix_meme_viral)
         val soundEffectsMixLabel = stringResource(Res.string.foryou_mix_sound_effects)
         val spokenAudioMixLabel = stringResource(Res.string.foryou_mix_spoken_audio)
@@ -974,8 +971,6 @@ private fun AppShell(
         LaunchedEffect(
             tracks,
             forYouPageActive,
-            libraryWorlds.journeys,
-            journeyTitlePattern,
             libraryWorlds.worlds,
             libraryWorlds.worldLibraryIds,
             discoveryMixLabel,
@@ -1004,8 +999,6 @@ private fun AppShell(
             if (
                 !forYouPage.forYou.isEmpty &&
                 forYouPage.builtWorlds == requestedWorlds &&
-                forYouPage.builtForYouJourneys == libraryWorlds.journeys &&
-                forYouPage.builtForYouJourneyTitle == journeyTitlePattern &&
                 forYouPage.builtForYouLibraryIds == loadedIds &&
                 forYouPage.builtForYouPlaylistIdentity == playlistPresentationIdentity &&
                 forYouPage.builtForYouExclusions == smartExclusionState &&
@@ -1072,6 +1065,19 @@ private fun AppShell(
                 // may repeat an offer.
                 emptySet()
             }
+            // What each row showed on prior days (see ForYouShownHistory). Like the cooldown, an
+            // optimization: a failed read just means nothing is demoted or retired.
+            val shown = try {
+                ForYouShownHistory.from(
+                    AppGraph.forYouImpressions.shownDaysBySection(beforeEpochDay = today),
+                    stats,
+                    today,
+                )
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                ForYouShownHistory()
+            }
             val rebuiltPage = withContext(Dispatchers.Default) {
                 ForYouBuilder.build(
                     library = loaded,
@@ -1085,8 +1091,9 @@ private fun AppShell(
                     includeNoveltyMixes = includeNoveltyMixes,
                     semanticMixLabels = semanticMixLabels,
                     cooledDiscoveries = cooled,
-                    journeys = libraryWorlds.journeys,
-                    journeyTitlePattern = journeyTitlePattern,
+                    revisitShownDays = shown.revisit,
+                    daypartShownDays = shown.daypart,
+                    retiredDiscoveries = shown.retired,
                 )
             }
             // Commit the page and its input key together. If this effect is cancelled while the
@@ -1097,8 +1104,6 @@ private fun AppShell(
             // discoveryOffers at all. The tab reports what actually reached the viewport instead
             // (see ForYouTab's onCardShown), which is the only honest unit of "shown".
             forYouPage.builtWorlds = requestedWorlds
-            forYouPage.builtForYouJourneys = libraryWorlds.journeys
-            forYouPage.builtForYouJourneyTitle = journeyTitlePattern
             forYouPage.builtForYouLibraryIds = loadedIds
             forYouPage.builtForYouPlaylistIdentity = playlistPresentationIdentity
             forYouPage.builtForYouExclusions = smartExclusionState
@@ -1216,7 +1221,7 @@ private fun AppShell(
             },
         )
 
-        // Library clustering and journeys serve these pages only. Starting playback or browsing
+        // Library clustering serves these pages only. Starting playback or browsing
         // Tracks must not allocate a vector space or run discovery for an unopened/hidden page.
         LaunchedEffect(tracks, playlistPresentationIdentity, includeNoveltyMixes, forYouPageActive, mapPageActive) {
             if (!forYouPageActive && !mapPageActive) return@LaunchedEffect
@@ -1245,8 +1250,7 @@ private fun AppShell(
                             cachedKey.discovery.trackIds == loadedIds &&
                             cachedKey.discovery.source == coverage.source &&
                             cachedKey.discovery.vectorFingerprint == coverage.fingerprint &&
-                            cachedKey.discovery.descriptorIdentity == descriptorIdentity &&
-                            (!forYouPageActive || libraryWorlds.builtJourneysKey == cachedKey.discovery)
+                            cachedKey.discovery.descriptorIdentity == descriptorIdentity
                         ) {
                             // A refused newer population must not hide reusable regions if the
                             // library returns to this cached population. Projection checks its own budget.
@@ -1276,10 +1280,7 @@ private fun AppShell(
                             discovery = discoveryKey,
                             playlistIdentity = playlistPresentationIdentity,
                         )
-                        if (
-                            worldsKey == libraryWorlds.builtWorldsKey &&
-                            (!forYouPageActive || libraryWorlds.builtJourneysKey == discoveryKey)
-                        ) {
+                        if (worldsKey == libraryWorlds.builtWorldsKey) {
                             libraryWorlds.builtWorldNoveltyPreference = includeNoveltyMixes
                             libraryWorlds.builtWorldReadiness = metadataReady to audioReady
                             return@collect
@@ -1293,25 +1294,6 @@ private fun AppShell(
                         }
                         val cachedDiscovery = libraryWorlds.builtDiscoveredWorlds
                             ?.takeIf { libraryWorlds.builtWorldDiscoveryKey == discoveryKey }
-                        // Journeys interpolate over the raw rows, so the session must be built
-                        // BEFORE clustering's one-shot handoff. The session copies what it needs;
-                        // plotting itself can then run on the low-priority lane.
-                        if (forYouPageActive && libraryWorlds.builtJourneysKey != discoveryKey) {
-                            val session = runCatching { SonicJourney.session(features.vectorSpace) }
-                                .getOrNull()
-                            if (session != null) {
-                                val plotted = withContext(AppGraph.mapLayoutDispatcher) {
-                                    ForYouRhythm.sonicJourneys(
-                                        session = session,
-                                        library = loaded,
-                                        stats = AppGraph.history.stats(),
-                                        artistKeyOf = { it?.trim()?.lowercase().orEmpty() },
-                                    )
-                                }
-                                libraryWorlds.journeys = plotted
-                                libraryWorlds.builtJourneysKey = discoveryKey
-                            }
-                        }
                         // Discovery is derived library work, not an interaction prerequisite. Keep it
                         // on the Map's low-priority serial lane so a cold restore cannot make an
                         // immediately opened page compete with clustering at normal CPU priority.

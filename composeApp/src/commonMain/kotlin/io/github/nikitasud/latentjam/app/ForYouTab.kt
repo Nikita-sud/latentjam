@@ -70,13 +70,11 @@ import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_dayp
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_daypart_morning
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_daypart_night
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_on_a_roll
-import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_wildcard
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_empty
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_kicker_never_played
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_kicker_played_times
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_kicker_resume
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_continue
-import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_journey
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_never_played
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_worlds
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_worth_revisiting
@@ -206,7 +204,7 @@ fun ForYouTab(
                         ),
                     ) {
                         Text(
-                            text = section.title().uppercaseForDisplay(),
+                            text = section.title(),
                             style = MaterialTheme.typography.labelSmall.copy(
                                 letterSpacing = 0.4.sp,
                             ),
@@ -234,7 +232,9 @@ fun ForYouTab(
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                             contentPadding = PaddingValues(horizontal = 20.dp),
                         ) {
-                            items(section.cards, key = { it.track.id.value }) { card ->
+                            // Keyed by the card's own identity: a collection or a mix is reported as
+                            // itself, never as an offer of its cover track (ForYouCard.impressionKey).
+                            items(section.cards, key = { it.impressionKey }) { card ->
                                 Box(
                                     modifier = Modifier.animateItem(
                                         fadeInSpec = tween(
@@ -312,13 +312,11 @@ private const val HERO_SECTION = "hero"
  */
 private fun ForYouSectionKind.impressionSection(): String = when (this) {
     ForYouSectionKind.DAYPART -> "daypart"
-    ForYouSectionKind.WILDCARD -> "wildcard"
     ForYouSectionKind.NEVER_PLAYED -> "never-played"
     ForYouSectionKind.CONTINUE -> "continue"
     ForYouSectionKind.WORTH_REVISITING -> "worth-revisiting"
     ForYouSectionKind.ON_A_ROLL -> "on-a-roll"
     ForYouSectionKind.WORLDS -> "worlds"
-    ForYouSectionKind.JOURNEY -> "journey"
 }
 
 /**
@@ -353,8 +351,10 @@ private fun ObserveHeroCard(
 /**
  * Reports the cards of one row as they reach the viewport, each at most once per composition.
  *
- * [reported] is what makes "once" true across rows, rebuilds and returns to the tab; a `null` key
- * belongs to a row that holds no model card (a world cover, a collection) and is not an offer.
+ * [reported] is what makes "once" true across rows, rebuilds and returns to the tab. Each item key
+ * is the card's [ForYouCard.impressionKey]: a track id for a track card, the collection's or mix's
+ * own key otherwise — so showing a collection never counts as offering its cover track. The key
+ * travels in the impression's track-id field; the journal stores ids as free strings.
  */
 @Composable
 private fun ObserveShownCards(
@@ -388,7 +388,7 @@ private fun ObserveShownCards(
  */
 @Composable
 private fun ForYouSection.title(): String = when (kind) {
-    ForYouSectionKind.CONTINUE -> stringResource(Res.string.foryou_section_continue)
+    ForYouSectionKind.CONTINUE -> stringResource(Res.string.foryou_section_continue).uppercaseForDisplay()
     ForYouSectionKind.DAYPART -> stringResource(
         when (daypart) {
             ForYouDaypart.MORNING -> Res.string.foryou_section_daypart_morning
@@ -396,15 +396,19 @@ private fun ForYouSection.title(): String = when (kind) {
             ForYouDaypart.EVENING -> Res.string.foryou_section_daypart_evening
             ForYouDaypart.NIGHT, null -> Res.string.foryou_section_daypart_night
         },
-    )
-    ForYouSectionKind.WORTH_REVISITING -> stringResource(Res.string.foryou_section_worth_revisiting)
-    // The artist IS the headline: "Your Yugo Kanno phase" is the whole recommendation.
-    ForYouSectionKind.ON_A_ROLL ->
-        stringResource(Res.string.foryou_section_on_a_roll, bidiWrap(subject.orEmpty()))
-    ForYouSectionKind.WORLDS -> stringResource(Res.string.foryou_section_worlds)
-    ForYouSectionKind.JOURNEY -> stringResource(Res.string.foryou_section_journey)
-    ForYouSectionKind.NEVER_PLAYED -> stringResource(Res.string.foryou_section_never_played)
-    ForYouSectionKind.WILDCARD -> stringResource(Res.string.foryou_section_wildcard)
+    ).uppercaseForDisplay()
+    ForYouSectionKind.WORTH_REVISITING ->
+        stringResource(Res.string.foryou_section_worth_revisiting).uppercaseForDisplay()
+    // The artist IS the headline. The heading's own words are uppercased like every other header,
+    // the artist's name is not: shouting someone's name reads as an error, and case can be part of it.
+    ForYouSectionKind.ON_A_ROLL -> {
+        val marker = "\uE000"
+        stringResource(Res.string.foryou_section_on_a_roll, marker)
+            .uppercaseForDisplay()
+            .replace(marker, bidiWrap(subject.orEmpty()))
+    }
+    ForYouSectionKind.WORLDS -> stringResource(Res.string.foryou_section_worlds).uppercaseForDisplay()
+    ForYouSectionKind.NEVER_PLAYED -> stringResource(Res.string.foryou_section_never_played).uppercaseForDisplay()
 }
 
 /**

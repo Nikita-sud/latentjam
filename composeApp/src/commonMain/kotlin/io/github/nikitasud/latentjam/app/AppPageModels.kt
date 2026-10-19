@@ -286,8 +286,7 @@ internal class LastMiniPresentation(
 // tools/release/check-dex-registers.py fails a release build that has a method over 255 registers.
 
 /**
- * The worlds the library falls into, the sonic journeys built over the same vectors, and what each
- * was last built from. The two readiness flags say which vector tiers have covered the library.
+ * The worlds the library falls into and what they were last built from. The two readiness flags say which vector tiers have covered the library.
  */
 @Stable
 internal class LibraryWorldsState {
@@ -300,10 +299,6 @@ internal class LibraryWorldsState {
     var builtWorldDiscoveryKey by mutableStateOf<LibraryWorldDiscoveryKey?>(null)
     var builtDiscoveredWorlds by mutableStateOf<List<LibraryWorld>?>(null)
 
-    // Precomputed sonic journeys, keyed like discovery: they need the raw vector rows, which
-    // exist only in this effect and only until clustering's one-shot handoff.
-    var journeys by mutableStateOf<List<List<TrackId>>>(emptyList())
-    var builtJourneysKey by mutableStateOf<LibraryWorldDiscoveryKey?>(null)
     var metadataVectorsReady by mutableStateOf(false)
     var audioVectorsReady by mutableStateOf(false)
 }
@@ -318,8 +313,6 @@ internal class ForYouPageState {
     // and re-entered, so without it the same visible card would be written again on each of
     // those. The day in the key is what lets tomorrow's offer of the same card through.
     var forYouCardsShown by mutableStateOf(emptySet<ForYouImpression>())
-    var builtForYouJourneys by mutableStateOf<List<List<TrackId>>?>(null)
-    var builtForYouJourneyTitle by mutableStateOf<String?>(null)
     var builtWorlds by mutableStateOf<List<LibraryWorld>?>(null)
     var builtForYouLibraryIds by mutableStateOf<List<TrackId>?>(null)
     var builtForYouPlaylistIdentity by mutableStateOf<List<PlaylistPresentationIdentity>?>(null)

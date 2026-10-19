@@ -32,7 +32,7 @@ public interface ForYouImpressionStore {
 }
 
 /**
- * The record of what For You offered, deduplicated per (track, day) and bounded on disk.
+ * The record of what For You offered, deduplicated per (card, section, day) and bounded on disk.
  *
  * A page rebuild is NOT a new offer: the page rebuilds on every history change, and recording
  * each rebuild would both bloat the file and let a pick cool itself down mid-day. One line per
@@ -84,6 +84,26 @@ public class ForYouImpressions(
         result
     }
 
+    /**
+     * Every PRIOR local day each card was shown, by section and card key (a track id, or a
+     * collection's own key such as `collection:…` / `mix:…`), oldest first. Same-day offers are
+     * excluded for the same reason as in [lastShownDays].
+     */
+    public suspend fun shownDaysBySection(
+        beforeEpochDay: Long,
+    ): Map<String, Map<String, List<Long>>> = mutex.withLock {
+        ensureLoaded()
+        val result = HashMap<String, HashMap<String, MutableList<Long>>>()
+        for (line in lines) {
+            val impression = parse(line) ?: continue
+            if (impression.epochDay >= beforeEpochDay) continue
+            result.getOrPut(impression.section) { HashMap() }
+                .getOrPut(impression.trackId.value) { mutableListOf() }
+                .add(impression.epochDay)
+        }
+        result.mapValues { (_, byKey) -> byKey.mapValues { (_, days) -> days.distinct().sorted() } }
+    }
+
     private suspend fun ensureLoaded() {
         if (loaded) return
         lines = store.read().filter { parse(it) != null }.toMutableList()
@@ -93,10 +113,11 @@ public class ForYouImpressions(
 
     private companion object {
         /**
-         * ~28 discovery slots/day × a season. Enough for cooldowns and a first offline eval,
-         * small enough to never matter on disk.
+         * About four months of a heavy listener's offers (~90 lines a day across the day's
+         * phases): long enough for the never-played row's 60-day retirement to outlast its own
+         * evidence, small enough to never matter on disk or in the one parse per page build.
          */
-        const val MAX_LINES = 4000
+        const val MAX_LINES = 12_000
 
         const val FORMAT_V1 = "v1"
 

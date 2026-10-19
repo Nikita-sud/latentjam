@@ -54,11 +54,11 @@ class ForYouImpressionsTest {
         val store = InMemoryStore()
         val impressions = ForYouImpressions(store)
         // Well past the bound, one offer per day.
-        impressions.record((0 until 4500L).map { impression("t$it", it) })
-        assertTrue(store.lines.size <= 4000)
-        val shown = impressions.lastShownDays(beforeEpochDay = 5000)
+        impressions.record((0 until 12_500L).map { impression("t$it", it) })
+        assertTrue(store.lines.size <= 12_000)
+        val shown = impressions.lastShownDays(beforeEpochDay = 13_000)
         assertTrue(TrackId("t0") !in shown, "oldest lines must be the ones dropped")
-        assertTrue(TrackId("t4499") in shown)
+        assertTrue(TrackId("t12499") in shown)
     }
 
     @Test
@@ -70,5 +70,23 @@ class ForYouImpressionsTest {
         val reloaded = ForYouImpressions(store)
         val shown = reloaded.lastShownDays(beforeEpochDay = 13)
         assertEquals(mapOf(TrackId("трек|с|разделителями") to 12L), shown)
+    }
+
+    @Test
+    fun shownDaysAreGroupedBySectionAndExcludeToday() = runTest {
+        val impressions = ForYouImpressions(InMemoryStore())
+        impressions.record(
+            listOf(
+                impression("a", 9, section = "never-played"),
+                impression("a", 7, section = "never-played"),
+                impression("a", 9, section = "hero"),
+                impression("collection:p1", 8, section = "worth-revisiting"),
+                impression("a", 10, section = "never-played"),
+            ),
+        )
+        val shown = impressions.shownDaysBySection(beforeEpochDay = 10)
+        assertEquals(listOf(7L, 9L), shown["never-played"]?.get("a"))
+        assertEquals(listOf(9L), shown["hero"]?.get("a"))
+        assertEquals(listOf(8L), shown["worth-revisiting"]?.get("collection:p1"))
     }
 }

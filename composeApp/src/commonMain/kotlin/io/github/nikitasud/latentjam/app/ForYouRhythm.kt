@@ -9,7 +9,6 @@ import io.github.nikitasud.latentjam.history.TrackStats
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorld
-import io.github.nikitasud.latentjam.smart.cluster.SonicJourney
 
 /**
  * The four listening phases of a day.
@@ -121,16 +120,31 @@ internal object ForYouRhythm {
         used: Set<TrackId>,
         dayIndex: Int,
         cooled: Set<TrackId> = emptySet(),
+        /**
+         * Tracks played in the last 24 hours. They stay out of the proven slots: yesterday's
+         * morning is memory, and a row that leads with it is "recently played" by another name.
+         */
+        recentlyPlayed: Set<TrackId> = emptySet(),
+        /** Proven tracks shown and not played since — they step behind the rest (see [demoteIgnored]). */
+        ignored: Set<TrackId> = emptySet(),
+        /**
+         * One unheard track from a loved region gone quiet (see [wildcard]); it takes the LAST
+         * discovery slot, so the first, visible one keeps its time-of-day pick.
+         */
+        farPick: TrackDescriptor? = null,
     ): List<TrackDescriptor> {
-        val proven = affinity.entries
-            .asSequence()
-            .filter { it.key !in used && byId.containsKey(it.key) }
-            .sortedWith(
-                compareByDescending<Map.Entry<TrackId, DaypartAffinity>> { it.value.weight }
-                    .thenBy { it.key.value },
-            )
-            .map { it.key }
-            .toList()
+        val proven = demoteIgnored(
+            affinity.entries
+                .asSequence()
+                .filter { it.key !in used && it.key !in recentlyPlayed && byId.containsKey(it.key) }
+                .sortedWith(
+                    compareByDescending<Map.Entry<TrackId, DaypartAffinity>> { it.value.weight }
+                        .thenBy { it.key.value },
+                )
+                .map { it.key }
+                .toList(),
+            ignored,
+        )
         if (proven.isEmpty()) return emptyList()
 
         // The row keeps a stable identity head — the phase's strongest tracks, which are the
@@ -156,8 +170,11 @@ internal object ForYouRhythm {
             world to world.tracks.sumOf { affinity[it.id]?.weight ?: 0 }
         }.filter { it.second > 0 }.sortedByDescending { it.second }
 
+        val far = farPick?.takeIf { it.id !in used && byId.containsKey(it.id) }
+        val freshSlots = if (far == null) DAYPART_FRESH_SLOTS else DAYPART_FRESH_SLOTS - 1
         val fresh = ArrayList<TrackDescriptor>(DAYPART_FRESH_SLOTS)
         val freshSeen = HashSet<TrackId>()
+        far?.let { freshSeen.add(it.id) }
         outer@ for ((world, _) in worldAffinity) {
             // Rotate inside each world too, so the fresh slots explore the region over the days
             // instead of retrying the same four strangers forever.
@@ -168,14 +185,61 @@ internal object ForYouRhythm {
                 }
             if (unheard.isEmpty()) continue
             for (candidate in freshRotationOrder(unheard, cooled, dayIndex)) {
+                if (freshSlots == 0) break@outer
                 fresh.add(candidate)
                 freshSeen.add(candidate.id)
-                if (fresh.size >= DAYPART_FRESH_SLOTS) break@outer
+                if (fresh.size >= freshSlots) break@outer
             }
         }
+        far?.let(fresh::add)
 
         val provenTracks = window.mapNotNull(byId::get)
-        return familiaritySandwich(provenTracks + fresh, stats)
+        // The sandwich leads with its anchors in the row's own order, so a demoted track also
+        // steps back from the first visible positions, not only out of the head.
+        val rank = window.withIndex().associate { (index, id) -> id to index }
+        return familiaritySandwich(provenTracks + fresh, stats, anchorRank = { rank[it.id] ?: Int.MAX_VALUE })
+    }
+
+    /** How long a shown-and-ignored offer steps behind the others before it competes again. */
+    const val DEMOTION_DAYS = 7L
+
+    /**
+     * Keeps [ordered] in its ranking but moves [ignored] behind everything else, in their own
+     * relative order. Demotes, never removes: a pool can never empty this way, and the strongest
+     * candidate returns once the others have had their turn.
+     */
+    fun <T> demoteIgnored(ordered: List<T>, ignored: Set<T>): List<T> {
+        if (ignored.isEmpty()) return ordered
+        val (kept, demoted) = ordered.partition { it !in ignored }
+        return kept + demoted
+    }
+
+    /** Distinct days an unheard track must be offered and ignored before it retires. */
+    const val RETIRE_AFTER_SHOWN_DAYS = 3
+
+    /** How long a retired unheard track stays out of "never played". */
+    const val RETIREMENT_DAYS = 60L
+
+    /**
+     * The local day until which an unheard track is retired from "never played", or null.
+     *
+     * Every [RETIRE_AFTER_SHOWN_DAYS] distinct days it was shown there (and stayed unplayed —
+     * the caller passes only unheard tracks) retire it for [RETIREMENT_DAYS] from the last of
+     * them; the count restarts after a retirement ends, so a track the listener keeps passing
+     * over returns rarely instead of daily, and a track they never saw is never retired.
+     */
+    fun retiredUntil(shownDays: List<Long>): Long? {
+        var count = 0
+        var until: Long? = null
+        for (day in shownDays.distinct().sorted()) {
+            if (until != null && day < until) continue
+            count++
+            if (count == RETIRE_AFTER_SHOWN_DAYS) {
+                until = day + RETIREMENT_DAYS
+                count = 0
+            }
+        }
+        return until
     }
 
     /**
@@ -230,6 +294,12 @@ internal object ForYouRhythm {
      */
     const val BINGE_MIN_LIFT = 3.0
 
+    /**
+     * History a listener needs before the window for a "phase" to mean anything. Without it every
+     * artist's lift is infinite, and the first week called the listener's plain favourite a phase.
+     */
+    const val BINGE_MIN_BASELINE_MS = 14L * 24 * 60 * 60 * 1000
+
     fun currentBinge(
         events: List<ListenEvent>,
         nowMs: Long,
@@ -237,6 +307,8 @@ internal object ForYouRhythm {
         artistKeyOf: (String) -> String,
     ): Binge? {
         val cutoff = nowMs - BINGE_WINDOW_MS
+        val oldest = events.minOfOrNull { it.startedAtMs } ?: return null
+        if (cutoff - oldest < BINGE_MIN_BASELINE_MS) return null
         val recent = HashMap<String, Pair<String, Int>>() // key -> (display name, plays)
         var recentTotal = 0
         val baseline = HashMap<String, Int>()
@@ -437,71 +509,6 @@ internal object ForYouRhythm {
         return s.plays + s.completions
     }
 
-    /** How many journeys to precompute; the page rotates through them day by day. */
-    const val JOURNEY_POOL = 3
-
-    /**
-     * The anchors the journey pool starts from: the listener's most-played-back tracks, one per
-     * primary artist, ranked by completions * 10 + plays.
-     *
-     * A track with plays but no completions can outrank finished tracks on that score, and it is
-     * still not an anchor: it was started and abandoned, so it keeps its place in the order but
-     * must not END the search — the completed tracks it outranks are exactly what the pool is for,
-     * and stopping at it left the pool empty and the JOURNEY row missing for the whole session.
-     *
-     * Separate from [sonicJourneys] because only the plotting needs vector geometry.
-     */
-    internal fun journeyAnchors(
-        library: List<TrackDescriptor>,
-        stats: Map<TrackId, TrackStats>,
-        artistKeyOf: (String?) -> String,
-    ): List<TrackId> {
-        val byId = library.associateBy { it.id }
-        val anchors = ArrayList<TrackId>(JOURNEY_POOL)
-        val usedArtists = HashSet<String>()
-        for (
-            (id, stat) in stats.entries
-                .sortedWith(
-                    compareByDescending<Map.Entry<TrackId, TrackStats>> {
-                        it.value.completions * 10 + it.value.plays
-                    }.thenBy { it.key.value },
-                )
-        ) {
-            val track = byId[id] ?: continue
-            if (stat.completions == 0) continue
-            if (!usedArtists.add(artistKeyOf(track.artist))) continue
-            anchors.add(id)
-            if (anchors.size >= JOURNEY_POOL) break
-        }
-        return anchors
-    }
-
-    /**
-     * Plots the journey pool: each starts at one of the listener's most-loved tracks (distinct
-     * primary artists, so three journeys are three different stories) and travels to the unheard
-     * track farthest from it — the most travel the library can offer. Selection lives in
-     * [journeyAnchors]; geometry lives in [SonicJourney].
-     */
-    fun sonicJourneys(
-        session: SonicJourney,
-        library: List<TrackDescriptor>,
-        stats: Map<TrackId, TrackStats>,
-        artistKeyOf: (String?) -> String,
-    ): List<List<TrackId>> {
-        val byId = library.associateBy { it.id }
-        val unheard = library.filter { (stats[it.id]?.plays ?: 0) == 0 }.map { it.id }
-        if (unheard.isEmpty()) return emptyList()
-        val anchors = journeyAnchors(library, stats, artistKeyOf)
-        return anchors.mapNotNull { anchor ->
-            val destination = session.farthestFrom(anchor, unheard) ?: return@mapNotNull null
-            session.plot(
-                from = anchor,
-                to = destination,
-                artistKeyOf = { id -> byId[id]?.artist?.let(artistKeyOf) },
-            )
-        }
-    }
-
     /**
      * Orders a mixed list so it OPENS with the most familiar track and no two unheard tracks sit
      * next to each other while anchors remain — every discovery is wrapped in proof the list
@@ -512,13 +519,17 @@ internal object ForYouRhythm {
     fun familiaritySandwich(
         tracks: List<TrackDescriptor>,
         stats: Map<TrackId, TrackStats>,
+        /** Anchor order when the caller has its own ranking; familiarity otherwise. */
+        anchorRank: ((TrackDescriptor) -> Int)? = null,
     ): List<TrackDescriptor> {
-        if (tracks.size <= 2) return tracks.sortedByDescending { familiarity(stats, it.id) }
-        val (known, unknown) = tracks.partition { (stats[it.id]?.plays ?: 0) > 0 }
-        if (unknown.isEmpty() || known.isEmpty()) {
-            return tracks.sortedByDescending { familiarity(stats, it.id) }
+        val byAnchorOrder: (List<TrackDescriptor>) -> List<TrackDescriptor> = { list ->
+            anchorRank?.let { rank -> list.sortedBy(rank) }
+                ?: list.sortedByDescending { familiarity(stats, it.id) }
         }
-        val anchors = ArrayDeque(known.sortedByDescending { familiarity(stats, it.id) })
+        if (tracks.size <= 2) return byAnchorOrder(tracks)
+        val (known, unknown) = tracks.partition { (stats[it.id]?.plays ?: 0) > 0 }
+        if (unknown.isEmpty() || known.isEmpty()) return byAnchorOrder(tracks)
+        val anchors = ArrayDeque(byAnchorOrder(known))
         val discoveries = ArrayDeque(unknown)
         val out = ArrayList<TrackDescriptor>(tracks.size)
         // Open on the strongest anchor, then alternate while both sides last; when anchors run

@@ -784,91 +784,6 @@ class ForYouBuilderTest {
     }
 
     @Test
-    fun `a journey never carries a track the listener excluded`() {
-        // Journeys are plotted over the whole library, so SMART exclusions have to be applied where
-        // the path is shown; otherwise the card both pictures and plays back a track the listener
-        // asked to keep out of recommendations.
-        val path = (1..7).map { track("j$it", artist = "Journey$it") }
-        val blocked = setOf(path.first().id, path[4].id)
-        val result = ForYouBuilder.build(
-            library = path,
-            // Played, so no history row competes with the journey for the cover.
-            stats = path.associate { it.id to stats(plays = 1, last = now - day) },
-            recentEvents = emptyList(),
-            nowMs = now,
-            excluded = blocked,
-            journeys = listOf(path.map { it.id }),
-        )
-        val card = result.sections.single { it.kind == ForYouSectionKind.JOURNEY }.cards.single()
-        val shown = card.collection?.tracks.orEmpty()
-        assertEquals(5, shown.size)
-        assertTrue(shown.none { it.id in blocked }, "an excluded track stayed in the journey: $shown")
-        assertEquals(path[1].id, card.track.id)
-        // The title names the path that is actually offered, not the one that was plotted.
-        assertEquals("Tj2 → Tj7", card.collection?.title)
-    }
-
-    @Test
-    fun `a journey whose cover is already on the page steps aside for the next one`() {
-        val hero = track("hero", artist = "Hero")
-        val lead = (1..5).map { track("lead$it", artist = "Lead$it") }
-        val spare = (1..6).map { track("spare$it", artist = "Spare$it") }
-        val heroLed = listOf(hero.id) + lead.map { it.id }
-        val spareLed = spare.map { it.id }
-        // Today's rotation leads with the hero's own journey; the row has to fall through to the
-        // next path rather than show the hero's cover on a second card.
-        val journeys = if ((now / day).toInt().mod(2) == 0) {
-            listOf(heroLed, spareLed)
-        } else {
-            listOf(spareLed, heroLed)
-        }
-        val result = ForYouBuilder.build(
-            library = listOf(hero) + lead + spare,
-            stats = (lead + spare).associate { it.id to stats(plays = 1, last = now - day) },
-            recentEvents = listOf(
-                ListenEvent(
-                    trackId = hero.id,
-                    startedAtMs = now - day,
-                    playedMs = 90_000,
-                    trackDurationMs = 900_000,
-                    completed = false,
-                    skipped = false,
-                ),
-            ),
-            nowMs = now,
-            journeys = journeys,
-            localDayOf = utcDay,
-        )
-        val card = result.sections.single { it.kind == ForYouSectionKind.JOURNEY }.cards.single()
-        assertEquals(spare.first().id, card.track.id)
-
-        val covers = result.sections.flatMap { section -> section.cards.map { it.track.id } } +
-            listOfNotNull(result.hero?.track?.id)
-        assertEquals(covers.size, covers.distinct().size, "a cover repeated on the page: $covers")
-    }
-
-    @Test
-    fun `journey anchors walk past a track that was never finished`() {
-        // The anchor score is completions * 10 + plays, so a track started forty times and finished
-        // zero times outranks every finished track below it. The search must step over it instead
-        // of ending on it: stopping there left the pool empty and the JOURNEY row missing for the
-        // whole session.
-        val abandoned = track("abandoned", artist = "Abandoned")
-        val loved = (1..4).map { track("loved$it", artist = "Loved$it") }
-        val anchors = ForYouRhythm.journeyAnchors(
-            library = listOf(abandoned) + loved,
-            stats = mapOf(abandoned.id to stats(plays = 40, completions = 0, last = now - day)) +
-                loved.associate { it.id to stats(plays = 3, last = now - day) },
-            artistKeyOf = { it?.lowercase().orEmpty() },
-        )
-
-        // Three finished tracks, one per artist, in the order the score puts them — not an empty
-        // pool cut short by the abandoned track that leads the ranking.
-        assertEquals(listOf(loved[0].id, loved[1].id, loved[2].id), anchors)
-        assertEquals(ForYouRhythm.JOURNEY_POOL, anchors.size)
-    }
-
-    @Test
     fun `never played walks its strangers before the cooling tail`() {
         val strangers = (1..8).map { track("new$it", artist = "New$it", added = 500) }
         val cooledTracks = (1..8).map { track("cooled$it", artist = "Cooled$it", added = 900) }
@@ -996,7 +911,8 @@ class ForYouBuilderTest {
         val page = ForYouBuilder.build(
             library = listOf(played, cooled) + strangers + bait,
             stats = mapOf(played.id to stats(plays = 12, last = now - day)),
-            // Twelve plays in the phase window with no baseline: the strongest binge signal.
+            // Twelve plays in the phase window and none of this artist before it: the strongest
+            // binge signal, over a log old enough (a month) for a "phase" to mean something.
             recentEvents = (1..12).map { n ->
                 ListenEvent(
                     trackId = played.id,
@@ -1006,7 +922,14 @@ class ForYouBuilderTest {
                     completed = true,
                     skipped = false,
                 )
-            },
+            } + ListenEvent(
+                trackId = TrackId("long-gone"),
+                startedAtMs = now - 30 * day,
+                playedMs = 60_000,
+                trackDurationMs = 120_000,
+                completed = true,
+                skipped = false,
+            ),
             nowMs = now,
             cooledDiscoveries = setOf(cooled.id),
             localDayOf = { 0L },
@@ -1022,5 +945,146 @@ class ForYouBuilderTest {
             firstCooled == newcomerCount,
             "a cooled repeat was shown ahead of a stranger: ${shown.map { it.value }}",
         )
+    }
+
+    @Test
+    fun `a favourite offered yesterday and not taken steps aside for the next one`() {
+        val tracks = (1..4).map { track("$it", artist = "Artist$it") }
+        // Track 1 has the most completions, so it leads the hero's pool.
+        val stats = tracks.withIndex().associate { (index, t) ->
+            t.id to stats(plays = 10 - index, last = now - 200 * day)
+        }
+        val today = utcDay(now)
+        fun hero(shown: Map<String, Long>) = ForYouBuilder.build(
+            tracks, stats, emptyList(), now, localDayOf = utcDay, revisitShownDays = shown,
+        ).hero?.track?.id?.value
+        assertEquals("1", hero(emptyMap()))
+        assertEquals("2", hero(mapOf("1" to today - 1)))
+        // A week later it has had its rest and leads again.
+        assertEquals("1", hero(mapOf("1" to today - 8)))
+    }
+
+    @Test
+    fun `worth revisiting moves an ignored card behind the rest`() {
+        val tracks = (1..7).map { track("$it", artist = "Artist$it") }
+        val stats = tracks.withIndex().associate { (index, t) ->
+            t.id to stats(plays = 20 - index, last = now - 200 * day)
+        }
+        val today = utcDay(now)
+        fun row(shown: Map<String, Long>) = ForYouBuilder.build(
+            tracks, stats, emptyList(), now, localDayOf = utcDay, revisitShownDays = shown,
+        ).sections.first { it.kind == ForYouSectionKind.WORTH_REVISITING }.cards.map { it.track.id.value }
+        val before = row(emptyMap())
+        val lead = before.first()
+        val after = row(mapOf(lead to today - 1))
+        assertTrue(after.first() != lead, "an ignored offer kept the lead: $after")
+        assertEquals(lead, after.last())
+    }
+
+    @Test
+    fun `never played leads with tracks added this month`() {
+        val old = (1..5).map { track("old$it", artist = "Old$it", added = now - (400 + it) * day) }
+        val recent = track("recent", artist = "New", added = now - 3 * day)
+        val result = ForYouBuilder.build(
+            old + recent, emptyMap(), emptyList(), now, localDayOf = utcDay,
+            // Offered yesterday and ignored: a plain cooled track steps back, a recent addition
+            // still leads the row.
+            cooledDiscoveries = setOf(recent.id),
+        )
+        val row = result.sections.first { it.kind == ForYouSectionKind.NEVER_PLAYED }
+        assertEquals("recent", row.cards.first().track.id.value)
+    }
+
+    @Test
+    fun `a mass add date in the last month is not mistaken for new music`() {
+        // A migration stamped the whole library three days ago: "recently added" means nothing.
+        val stamped = (1..6).map { track("t$it", artist = "A$it", added = now - 3 * day) }
+        assertTrue(!ForYouBuilder.addDatesTrusted(stamped, now, utcDay))
+        // Copied long ago, then one album added last week: that addition is real.
+        val copiedLongAgo = (1..6).map { track("t$it", artist = "A$it", added = now - 300 * day) } +
+            track("new", artist = "N", added = now - 7 * day)
+        assertTrue(ForYouBuilder.addDatesTrusted(copiedLongAgo, now, utcDay))
+    }
+
+    @Test
+    fun `a retired unheard track stays off never played`() {
+        val tracks = (1..4).map { track("$it", artist = "Artist$it", added = it.toLong()) }
+        val result = ForYouBuilder.build(
+            tracks, emptyMap(), emptyList(), now, localDayOf = utcDay,
+            retiredDiscoveries = setOf(TrackId("4")),
+        )
+        val shown = result.sections.first { it.kind == ForYouSectionKind.NEVER_PLAYED }
+            .cards.map { it.track.id.value } + listOfNotNull(result.hero?.track?.id?.value)
+        assertTrue("4" !in result.sections.first { it.kind == ForYouSectionKind.NEVER_PLAYED }
+            .cards.map { it.track.id.value }, "retired track offered: $shown")
+    }
+
+    @Test
+    fun `albums of two artists with one title are two albums`() {
+        val a = (1..3).map { track("a$it", artist = "A", album = "Greatest Hits") }
+        val b = (1..3).map { track("b$it", artist = "B", album = "Greatest Hits") }
+        val bait = track("bait", artist = "Z")
+        val all = a + b + bait
+        val result = page(
+            library = all,
+            stats = all.associate { it.id to stats(plays = 6, last = now - 200 * day) } +
+                // The hero takes the strongest single; the bait is it, so both albums keep three.
+                (bait.id to stats(plays = 50, last = now - 200 * day)),
+        )
+        val row = result.sections.first { it.kind == ForYouSectionKind.WORTH_REVISITING }
+        val keys = row.cards.mapNotNull { it.collection?.key }.sorted()
+        assertEquals(listOf("collection:Greatest Hits|a", "collection:Greatest Hits|b"), keys)
+    }
+
+    @Test
+    fun `a catch-all playlist is never offered whole`() {
+        val tracks = (1..30).map { track("$it", artist = "Artist$it") }
+        val result = page(
+            library = tracks,
+            stats = tracks.associate { it.id to stats(plays = 6, last = now - 200 * day) },
+            playlists = listOf(Playlist(id = "all", name = "All music", trackIds = tracks.map { it.id.value })),
+        )
+        val row = result.sections.first { it.kind == ForYouSectionKind.WORTH_REVISITING }
+        assertTrue(row.cards.none { it.collection?.playlistId == "all" })
+    }
+
+    @Test
+    fun `a collection card is recorded under its own key`() {
+        val members = (1..4).map { track("$it", artist = "Artist$it") }
+        val result = page(
+            library = members,
+            stats = members.associate { it.id to stats(plays = 6, last = now - 200 * day) },
+            playlists = listOf(Playlist(id = "p1", name = "Think", trackIds = members.map { it.id.value })),
+        )
+        val card = result.sections.first { it.kind == ForYouSectionKind.WORTH_REVISITING }
+            .cards.first { it.collection != null }
+        assertEquals("collection:p1", card.impressionKey)
+    }
+
+    @Test
+    fun `a generic mix keeps its number from day to day`() {
+        val worlds = (1..7).map { w ->
+            LibraryWorld(
+                "ignored $w",
+                (1..4).map { track("w$w-$it", artist = "W$w-$it") },
+                LibraryWorldNameSource.GENERIC,
+            )
+        }
+        fun titles(dayKey: Long) = ForYouBuilder.build(
+            library = worlds.flatMap { it.tracks },
+            stats = emptyMap(),
+            recentEvents = emptyList(),
+            nowMs = now,
+            worlds = worlds,
+            discoveryMixLabel = "Mix",
+            localDayOf = { dayKey },
+        ).sections.first { it.kind == ForYouSectionKind.WORLDS }
+            .cards.associate { it.impressionKey to it.collection?.title }
+        val monday = titles(100)
+        val tuesday = titles(101)
+        assertTrue(monday.keys.intersect(tuesday.keys).isNotEmpty())
+        for (key in monday.keys.intersect(tuesday.keys)) {
+            assertEquals(monday[key], tuesday[key], "mix $key was renumbered overnight")
+        }
     }
 }
