@@ -295,6 +295,12 @@ object ForYouBuilder {
     /** Normal songs restart cleanly; resuming is useful for mixes, sets and other long recordings. */
     const val MIN_RESUMABLE_DURATION_MS = 8L * 60 * 1000
 
+    /**
+     * How long an interruption stays an open intention. Past two weeks the listener has moved on, and
+     * a stale resume offer would otherwise hold the hero for as long as it sits in the event window.
+     */
+    const val RESUME_WINDOW_MS = 14L * 24 * 60 * 60 * 1000
+
     fun build(
         library: List<TrackDescriptor>,
         stats: Map<TrackId, TrackStats>,
@@ -348,7 +354,7 @@ object ForYouBuilder {
         hero?.let { used.add(it.track.id) }
 
         val sections = mutableListOf<ForYouSection>()
-        continueListening(byId, recentEvents, used)?.let(sections::add)
+        continueListening(byId, recentEvents, nowMs, used)?.let(sections::add)
         // Directly under the resume row: timing is the cheapest magic there is, and this is the
         // one section whose claim is about RIGHT NOW.
         daypartSection(
@@ -404,7 +410,7 @@ object ForYouBuilder {
         cooledDiscoveries: Set<TrackId>,
         dayIndex: Int,
     ): ForYouHero? {
-        interrupted(byId, recentEvents, excluded)?.let { (track, at) ->
+        interrupted(byId, recentEvents, nowMs, excluded)?.let { (track, at) ->
             return ForYouHero(track, ForYouKicker.Resume, at)
         }
         // Rotated among the strongest few rather than pinned to the single maximum: without
@@ -435,22 +441,36 @@ object ForYouBuilder {
     /** How many top candidates the hero cycles through, one per day. */
     const val HERO_ROTATION_POOL = 5
 
-    /** The most recent track abandoned past [MIN_RESUME_MS], with where it stopped. */
-    private fun interrupted(
-        byId: Map<TrackId, TrackDescriptor>,
-        recentEvents: List<ListenEvent>,
-        excluded: Set<TrackId>,
-    ): Pair<TrackDescriptor, Long>? =
+    /**
+     * Tracks whose NEWEST event left them unfinished past [MIN_RESUME_MS], within
+     * [RESUME_WINDOW_MS], newest first.
+     *
+     * Only the newest event of a track decides: an older interruption followed by a full play is a
+     * finished recording, and offering to resume it at the old position reads as the page not
+     * noticing what the listener did. [recentEvents] arrive newest first, so the first event per
+     * track is its newest.
+     */
+    private fun resumable(recentEvents: List<ListenEvent>, nowMs: Long): List<ListenEvent> =
         recentEvents
-            .firstOrNull { event ->
+            .distinctBy { it.trackId }
+            .filter { event ->
                 !event.completed &&
                     event.playedMs >= MIN_RESUME_MS &&
                     (event.trackDurationMs ?: 0) >= MIN_RESUMABLE_DURATION_MS &&
                     // Guard against a stale position past the end of a since-replaced file.
                     (event.trackDurationMs ?: 0) > event.playedMs &&
-                    event.trackId !in excluded &&
-                    byId.containsKey(event.trackId)
+                    nowMs - event.startedAtMs <= RESUME_WINDOW_MS
             }
+
+    /** The most recent track abandoned past [MIN_RESUME_MS], with where it stopped. */
+    private fun interrupted(
+        byId: Map<TrackId, TrackDescriptor>,
+        recentEvents: List<ListenEvent>,
+        nowMs: Long,
+        excluded: Set<TrackId>,
+    ): Pair<TrackDescriptor, Long>? =
+        resumable(recentEvents, nowMs)
+            .firstOrNull { event -> event.trackId !in excluded && byId.containsKey(event.trackId) }
             ?.let { event -> byId.getValue(event.trackId) to event.playedMs }
 
     /**
@@ -460,18 +480,12 @@ object ForYouBuilder {
     private fun continueListening(
         byId: Map<TrackId, TrackDescriptor>,
         recentEvents: List<ListenEvent>,
+        nowMs: Long,
         used: MutableSet<TrackId>,
     ): ForYouSection? {
         val picked = capPerArtist(
-            recentEvents
-                .filter { event ->
-                    !event.completed &&
-                        event.playedMs >= MIN_RESUME_MS &&
-                        (event.trackDurationMs ?: 0) >= MIN_RESUMABLE_DURATION_MS &&
-                        (event.trackDurationMs ?: 0) > event.playedMs &&
-                        event.trackId !in used
-                }
-                .distinctBy { it.trackId }
+            resumable(recentEvents, nowMs)
+                .filter { it.trackId !in used }
                 .mapNotNull { byId[it.trackId] },
         )
         if (picked.isEmpty()) return null

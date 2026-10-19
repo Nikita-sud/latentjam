@@ -195,6 +195,55 @@ class ForYouBuilderTest {
     }
 
     @Test
+    fun `a recording finished after it was abandoned is no longer resumable`() {
+        val set = track("1")
+        val result = page(
+            library = listOf(set),
+            // Newest first, as recentEvents returns them: abandoned two days ago, then played through.
+            events = listOf(
+                ListenEvent(
+                    trackId = set.id,
+                    startedAtMs = now - day,
+                    playedMs = 600_000,
+                    trackDurationMs = 600_000,
+                    completed = true,
+                    skipped = false,
+                ),
+                ListenEvent(
+                    trackId = set.id,
+                    startedAtMs = now - 2 * day,
+                    playedMs = 90_000,
+                    trackDurationMs = 600_000,
+                    completed = false,
+                    skipped = false,
+                ),
+            ),
+        )
+        assertEquals(null, result.hero?.resumeAtMs)
+        assertTrue(result.sections.none { it.kind == ForYouSectionKind.CONTINUE })
+    }
+
+    @Test
+    fun `an interruption older than the resume window is not offered`() {
+        val set = track("1")
+        val result = page(
+            library = listOf(set),
+            events = listOf(
+                ListenEvent(
+                    trackId = set.id,
+                    startedAtMs = now - 15 * day,
+                    playedMs = 90_000,
+                    trackDurationMs = 600_000,
+                    completed = false,
+                    skipped = false,
+                ),
+            ),
+        )
+        assertEquals(null, result.hero?.resumeAtMs)
+        assertTrue(result.sections.none { it.kind == ForYouSectionKind.CONTINUE })
+    }
+
+    @Test
     fun `a track barely started is not offered as resumable`() {
         val auditioned = track("1")
         val result = page(
