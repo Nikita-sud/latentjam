@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.smart.ranker
 
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
@@ -23,14 +24,14 @@ class RankerDecoderTest {
         (0 until 2).map { TrackDescriptor(TrackId("p$it"), title = "p$it", artist = "P$it", genre = "Pop") }
 
     @Test
-    fun withoutEpsilonOnlyExactTiesAreDrawnAndTheWorseNeverWins() {
+    fun withoutEpsilonOnlyExactTiesAreDrawnAndTheWorseNeverWins() = runTest {
         val ranker = SmartRanker(model(0.0), null, null)
         val plan = ranker.plan(seed, library, library, emptySet(), length = 10, press = 0).map { it.value }
         assertEquals((0 until 10).map { "r$it" }.toSet(), plan.toSet())
     }
 
     @Test
-    fun theSamePressRepeatsAndAnotherPressVaries() {
+    fun theSamePressRepeatsAndAnotherPressVaries() = runTest {
         val ranker = SmartRanker(model(0.01), null, null)
         val first = ranker.plan(seed, library, library, emptySet(), length = 5, press = 0)
         assertEquals(first, ranker.plan(seed, library, library, emptySet(), length = 5, press = 0))
@@ -41,7 +42,7 @@ class RankerDecoderTest {
     }
 
     @Test
-    fun libraryOrderDoesNotChangeTheQueue() {
+    fun libraryOrderDoesNotChangeTheQueue() = runTest {
         val ranker = SmartRanker(model(0.01), null, null)
         val a = ranker.plan(seed, library, library, emptySet(), length = 8, press = 2)
         val shuffled = library.reversed()

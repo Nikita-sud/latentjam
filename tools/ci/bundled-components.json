@@ -72,6 +72,22 @@
       "license": "CC0-1.0",
       "provenance": "MusicBrainz core data and Wikidata (CC0) artist names and aliases as 64-bit keys; tools/research/ranker/pack_artist_known.py"
     },
+    "audio_tagger.bin": {
+      "license": "Apache-2.0",
+      "provenance": "audio tagger head trained on FMA tracks under CC BY / CC0 / public domain; tools/research/listenbrainz_eval/audio_tagger.py"
+    },
+    "audio_tagger.json": {
+      "license": "Apache-2.0",
+      "provenance": "the audio tagger head's metadata"
+    },
+    "smart_manifest.json": {
+      "license": "Apache-2.0",
+      "provenance": "sizes and SHA-256 of the ranker assets; tools/research/ranker/write_manifest.py"
+    },
+    "smart_ranker_full.json": {
+      "license": "Apache-2.0",
+      "provenance": "conditional-logit weights fitted on ListenBrainz (CC0) listens, with personal features; tools/research/listenbrainz_eval/proto_ranker.py"
+    },
     "artist_knowledge.bin": {
       "license": "Apache-2.0",
       "provenance": "LICENSE-MODEL.txt; generated descriptions encoded by MiniLM"

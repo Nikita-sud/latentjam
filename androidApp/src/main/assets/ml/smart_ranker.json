@@ -1,6 +1,6 @@
 {
  "name": "CORE+LFM (proto_ranker2.py 6e2fd6ce, FIT 60/40 split, lambda 10, p 2.129)",
- "source": "tools/research/listenbrainz_eval/proto_ranker2.json core_lfm on claude/smart-stage0-eval-f2a727: weights_standardised; mean/sd recomputed with proto_ranker2's own train rows (its refit reproduces the published weights exactly); runPenalty 2.129 calibrated on FIT train listeners to people's Balanced adjacency 0.238; hop k>1 = (2 s(seed) + s(previous)) / 3.",
+ "source": "tools/research/listenbrainz_eval/proto_ranker2.json core_lfm on claude/smart-stage0-eval-f2a727: weights_standardised; mean/sd recomputed with proto_ranker2's own train rows (its refit reproduces the published weights exactly); runPenalty 2.129 calibrated on FIT train listeners to people's Balanced adjacency 0.238; hop k>1 = (2 s(seed) + s(previous)) / 3. epsilon 0.01 and the serving block per PLAN_FINAL \u00a78 / \u00a71.1 / \u00a77.2b (quotas are the plan's defaults until the trained model fixes them).",
  "features": [
   "cos",
   "cos_z",
@@ -72,5 +72,19 @@
  "runPenalty": 2.129,
  "anchor": "mix",
  "seedWeight": 2.0,
- "previousWeight": 1.0
+ "previousWeight": 1.0,
+ "epsilon": 0.01,
+ "serving": {
+  "wholeLibraryUpTo": 600,
+  "quotas": {
+   "audio": 100,
+   "colisten": 150,
+   "artist": 100,
+   "family": 150,
+   "own": 100
+  },
+  "artistKey": "engine",
+  "recentWindow": 50,
+  "hopBudgetMs": 150
+ }
 }

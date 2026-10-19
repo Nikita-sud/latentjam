@@ -78,21 +78,31 @@ public object Sha256 {
         0x748f82ee, 0x78a5636f, -0x7b3787ec, -0x7338fdf8, -0x6f410006, -0x5baf9315, -0x41065c09, -0x398e870e,
     )
 
-    public fun digest(message: ByteArray): ByteArray {
+    public fun digest(message: ByteArray): ByteArray = digest(message.size.toLong()) { message[it.toInt()] }
+
+    /** The digest of [size] bytes read through [byteAt], 64 at a time: a mapped asset is hashed without a copy. */
+    public fun digest(size: Long, byteAt: (Long) -> Byte): ByteArray {
         val h = intArrayOf(
             0x6a09e667, -0x4498517b, 0x3c6ef372, -0x5ab00ac6, 0x510e527f, -0x64fa9774, 0x1f83d9ab, 0x5be0cd19,
         )
-        val bitLength = message.size.toLong() * 8
-        val padded = ByteArray(((message.size + 9 + 63) / 64) * 64)
-        message.copyInto(padded)
-        padded[message.size] = 0x80.toByte()
-        for (i in 0 until 8) padded[padded.size - 1 - i] = (bitLength ushr (8 * i)).toByte()
+        val bitLength = size * 8
+        val total = ((size + 9 + 63) / 64) * 64
+        val block = ByteArray(64)
         val w = IntArray(64)
-        for (block in padded.indices step 64) {
+        var at = 0L
+        while (at < total) {
+            for (i in 0 until 64) {
+                val p = at + i
+                block[i] = when {
+                    p < size -> byteAt(p)
+                    p == size -> 0x80.toByte()
+                    p >= total - 8 -> (bitLength ushr (8 * (total - 1 - p).toInt())).toByte()
+                    else -> 0
+                }
+            }
             for (t in 0 until 16) {
-                val at = block + t * 4
-                w[t] = ((padded[at].toInt() and 0xff) shl 24) or ((padded[at + 1].toInt() and 0xff) shl 16) or
-                    ((padded[at + 2].toInt() and 0xff) shl 8) or (padded[at + 3].toInt() and 0xff)
+                w[t] = ((block[t * 4].toInt() and 0xff) shl 24) or ((block[t * 4 + 1].toInt() and 0xff) shl 16) or
+                    ((block[t * 4 + 2].toInt() and 0xff) shl 8) or (block[t * 4 + 3].toInt() and 0xff)
             }
             for (t in 16 until 64) {
                 val s0 = w[t - 15].rotateRight(7) xor w[t - 15].rotateRight(18) xor (w[t - 15] ushr 3)
@@ -107,6 +117,7 @@ public object Sha256 {
                 hh = g; g = f; f = e; e = d + t1; d = c; c = b; b = a; a = t1 + t2
             }
             h[0] += a; h[1] += b; h[2] += c; h[3] += d; h[4] += e; h[5] += f; h[6] += g; h[7] += hh
+            at += 64
         }
         return ByteArray(32) { (h[it / 4] ushr (24 - 8 * (it % 4))).toByte() }
     }

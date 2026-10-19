@@ -10,7 +10,9 @@ Version 2.0, included in the repository root:
   text_encoder.onnx
   text_vocab.txt
   smart_ranker.json
+  smart_ranker_full.json
   artist_lfm.bin
+  audio_tagger.bin
 
 artist_colisten.bin and artist_known.bin are CC0-1.0 (see below).
 
@@ -130,6 +132,17 @@ such as "A feat. B & C" into artists with it. It is offered under CC0-1.0.
 smart_ranker.json holds the weights of a linear ranker LatentJam fitted on
 the same ListenBrainz listens (CC0) to order SMART's candidate tracks; no
 listener's library went into it.
+
+smart_ranker_full.json holds the same kind of weights with the listener's own
+history as features (heard, how often, how recently, which track followed
+which); it was fitted on ListenBrainz (CC0) listens and reads only the history
+kept on the device.
+
+audio_tagger.bin is a small linear head that LatentJam trained to predict a
+track's genre family and artist descriptor from mnv4_audio.onnx's embedding,
+on Free Music Archive tracks licensed CC BY, CC0 or public domain only (FMA
+metadata CC BY 4.0); its labels come from artist_knowledge.bin. It fills those
+two fields for tracks whose tags and artist say nothing, flagged as imputed.
 
 artist_lfm.bin holds one 32-dimensional vector for about 112,000 artists of
 music_entities_250k.bin: their item embeddings from a LightFM model (Apache-2.0

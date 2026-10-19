@@ -30,7 +30,36 @@ public class RankerModel(
     public val previousWeight: Double = 1.0,
     /** Near-best width in sds of the hop scores (PLAN_FINAL §8: 0.01); 0 keeps exact ties only. */
     public val epsilon: Double = 0.0,
+    /** Candidates, retrieval quotas and the other serving parameters (PLAN_FINAL §1.1, §7.2b). */
+    public val serving: Serving = Serving(),
+    /** Raw-unit weight of the audio cosine; null = §1.3's rule, max(0, the descriptor cosine's raw weight). */
+    private val audioWeightOverride: Double? = null,
 ) {
+    /**
+     * @property wholeLibraryUpTo libraries with at most this many eligible tracks are scored whole (as the research
+     *   scored them); larger ones score the union of the retrievers' quotas
+     * @property quotas per retriever: audio (R1), colisten (R2), artist (R4, same artist set or album), family (R5),
+     *   own (FULL R6 / R7: the listener's favourites and transitions)
+     * @property artistKey "engine" (the old artist key the research trained on) or "artistSet" (the primary of the
+     *   §1.4 artist set) for the same-artist feature and the run penalty
+     * @property recentWindow the song-version dedup and recency window, min(this, n / 2) (§7.2b)
+     * @property hopBudgetMs the per-hop time budget (§7.2b: 150 ms); a plan stops at length × budget and the ladder
+     *   fills the rest
+     */
+    public class Serving(
+        public val wholeLibraryUpTo: Int = 600,
+        public val quotas: Map<String, Int> = mapOf("audio" to 100, "colisten" to 150, "artist" to 100, "family" to 150, "own" to 100),
+        public val artistKey: String = "engine",
+        public val recentWindow: Int = 50,
+        public val hopBudgetMs: Long = 150,
+    )
+
+    /** The audio term's raw weight (§1.3): the override, else max(0, raw weight of "cos"). */
+    public val audioWeight: Double = audioWeightOverride ?: features.indexOf("cos").let { i ->
+        if (i < 0) 0.0 else maxOf(0.0, weights[i] / sd[i])
+    }
+
+    private val audioColumn = RankerFeatures.NAMES.indexOf("audio_cos")
     public enum class Anchor { SEED, PREVIOUS, MIX }
 
     /** Positions of [features] in [RankerFeatures.NAMES]. */
@@ -49,11 +78,29 @@ public class RankerModel(
     public fun score(row: DoubleArray): Double {
         var total = 0.0
         for (i in columns.indices) total += weights[i] * ((row[columns[i]] - mean[i]) / sd[i])
+        if (audioWeight != 0.0 && row.size > audioColumn) total += audioWeight * row[audioColumn]
         return total
     }
 
     public companion object {
         /** Null for a missing, malformed or incompatible asset: SMART then keeps its chain. */
+        /**
+         * The rule-only path's model (§7.2b): RULE_SET constants in code, never read from an asset. Descriptor and
+         * family match, co-listening, language and era, the Balanced run penalty, the 2 : 1 seed / previous mix.
+         */
+        public val RULE_SET: RankerModel = RankerModel(
+            name = "rule-only",
+            features = listOf("cos", "same_family", "same_lang", "decade_dist", "colisten", "audio_cos"),
+            mean = DoubleArray(6),
+            sd = DoubleArray(6) { 1.0 },
+            weights = doubleArrayOf(1.0, 0.5, 0.3, -0.1, 1.0, 1.0),
+            runPenalty = 0.5,
+            anchor = Anchor.MIX,
+            epsilon = 0.01,
+            audioWeightOverride = 0.0,
+        )
+
+        @Suppress("UNCHECKED_CAST")
         public fun parse(json: String): RankerModel? = runCatching {
             @Suppress("UNCHECKED_CAST")
             val root = MiniJson(json).parse() as Map<String, Any?>
@@ -74,6 +121,17 @@ public class RankerModel(
                 seedWeight = (root["seedWeight"] as? Number)?.toDouble() ?: 2.0,
                 previousWeight = (root["previousWeight"] as? Number)?.toDouble() ?: 1.0,
                 epsilon = (root["epsilon"] as? Number)?.toDouble() ?: 0.0,
+                serving = (root["serving"] as? Map<*, *>)?.let { m ->
+                    val d = Serving()
+                    Serving(
+                        wholeLibraryUpTo = (m["wholeLibraryUpTo"] as? Number)?.toInt() ?: d.wholeLibraryUpTo,
+                        quotas = (m["quotas"] as? Map<*, *>)?.entries?.associate { (k, v) -> k as String to (v as Number).toInt() } ?: d.quotas,
+                        artistKey = (m["artistKey"] as? String ?: d.artistKey).also { require(it == "engine" || it == "artistSet") },
+                        recentWindow = (m["recentWindow"] as? Number)?.toInt() ?: d.recentWindow,
+                        hopBudgetMs = (m["hopBudgetMs"] as? Number)?.toLong() ?: d.hopBudgetMs,
+                    )
+                } ?: Serving(),
+                audioWeightOverride = (root["audioWeight"] as? Number)?.toDouble(),
             )
         }.getOrNull()
     }

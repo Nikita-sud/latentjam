@@ -97,5 +97,7 @@ class RankerQueueGoldenTest {
         println("ranker queue golden: $queries queries, ${queries * 20} hops, $tolerated taken differently on an equal score or a margin under 1e-6")
     }
 
+    /** The shipped weights with ε = 0: the reference is plain argmax (PLAN_FINAL §8's salted near-best pick is newer). */
     private fun asset(): String = File("../../androidApp/src/main/assets/ml/smart_ranker.json").readText()
+        .replace(Regex("\"epsilon\":\\s*[0-9.eE+-]+"), "\"epsilon\": 0")
 }

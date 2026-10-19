@@ -1,0 +1,33 @@
+{
+ "version": 1,
+ "assets": {
+  "smart_ranker.json": {
+   "size": 2194,
+   "sha256": "f2aa6717f3d7207f2b11364163c78df9dd8b921386f9f07d7db64f9eb3c64c2f"
+  },
+  "smart_ranker_full.json": {
+   "size": 1739,
+   "sha256": "d7965f64e61491ad01dae091ee64387e16d497f9422db4be03a86e4762df37ad"
+  },
+  "artist_colisten.bin": {
+   "size": 7947962,
+   "sha256": "817f793e46a9fec925bc3cb084a8515a7e1e08d0272f4d1af0034d1664a4acbe"
+  },
+  "artist_lfm.bin": {
+   "size": 14369964,
+   "sha256": "fecc3f17d8b74f22b6747654bf9702d132fc3939cd8b7e16f6d95b28e344a60d"
+  },
+  "artist_known.bin": {
+   "size": 6404144,
+   "sha256": "ba2b4ce1658c9ed1dd7856936c3320e6b63e81a0ca4c02b0f44ed77304f43680"
+  },
+  "audio_tagger.json": {
+   "size": 3260,
+   "sha256": "f4ecd37413b7854b3f2a62acc7ed1dfac3204122852bd737f402bdcf7a3ba9de"
+  },
+  "audio_tagger.bin": {
+   "size": 396920,
+   "sha256": "b48c24f9ff91572cbf3d23dd8dcec7956e55442f4f7148fc72fd18303e612e69"
+  }
+ }
+}

@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.smart.ranker
 
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -27,7 +28,7 @@ class SmartRankerTest {
     )
 
     @Test
-    fun `the best scored candidates come first and excluded ones never`() {
+    fun `the best scored candidates come first and excluded ones never`() = runTest {
         val ranker = SmartRanker(model(), null, null)
         val plan = ranker.plan(seed, library, library, exclude = setOf(TrackId("a2")), length = 4).map { it.value }
         // Exact ties (a1 / a3, then c1 / d1) are drawn by the salted key; the score order is not.
@@ -37,7 +38,7 @@ class SmartRankerTest {
     }
 
     @Test
-    fun `a run of one artist pays runLength spreads of the hop scores`() {
+    fun `a run of one artist pays runLength spreads of the hop scores`() = runTest {
         val ranker = SmartRanker(model(runPenalty = 1.0), null, null)
         // Hop 1: run A (the seed), length 1, spread > 0: a1 (1.5) - spread vs b1 (0.5) ...
         val plan = ranker.plan(seed, library, library, exclude = emptySet(), length = 6).map { it.value }
@@ -47,7 +48,7 @@ class SmartRankerTest {
     }
 
     @Test
-    fun `with the previous pick as anchor the queue follows its last track`() {
+    fun `with the previous pick as anchor the queue follows its last track`() = runTest {
         val ranker = SmartRanker(model(anchor = "previous", sameArtist = 0.0, sameFamily = 1.0), null, null)
         val pop = listOf(track("c1", "C", "Pop"), track("r1", "R", "Rock"), track("d1", "D", "Pop"))
         // Seed Rock -> r1 (Rock); from r1 the two Pop tracks tie; whichever comes, the other follows.
@@ -57,7 +58,7 @@ class SmartRankerTest {
     }
 
     @Test
-    fun `an unknown feature or anchor refuses the asset`() {
+    fun `an unknown feature or anchor refuses the asset`() = runTest {
         assertNull(RankerModel.parse("""{"features": ["mystery"], "mean": [0], "sd": [1], "weights": [1]}"""))
         assertNull(RankerModel.parse("""{"features": ["cos"], "mean": [0], "sd": [1], "weights": [1], "anchor": "x"}"""))
         assertNull(RankerModel.parse("""{"features": ["cos"], "mean": [0], "sd": [0], "weights": [1]}"""))
