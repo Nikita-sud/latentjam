@@ -80,8 +80,8 @@ public object RankerFeatures {
     )
     public val NAMES: List<String> = CORE + LFM + PERSONAL + EXTRA
 
-    /** Tracks shorter than this count as short (skits, interludes); a parameter of the duration features. */
-    public const val SHORT_TRACK_MS: Long = 60_000
+    /** Tracks shorter than this count as short (skits, interludes); a parameter of the duration features (research: 90 s). */
+    public const val SHORT_TRACK_MS: Long = 90_000
 
     /** One row per candidate, in [NAMES] order. [personal], when given, is parallel to [candidates]. */
     public fun of(anchor: RankerRow, candidates: List<RankerRow>, personal: List<PersonalRow>? = null): Array<DoubleArray> {

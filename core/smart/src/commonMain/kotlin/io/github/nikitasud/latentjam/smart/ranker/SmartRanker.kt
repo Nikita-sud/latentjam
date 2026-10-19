@@ -48,6 +48,8 @@ public object RankerQueue {
         blocked: (row: Int, picks: List<Int>) -> Boolean = { _, _ -> false },
         /** True when the time budget is spent: the loop returns what it has. */
         stop: () -> Boolean = { false },
+        /** §7.2b's rule-only path with no features: every seed score ties, so no hop is decoded (the ladder runs). */
+        skipWhenTied: Boolean = false,
         /** Golden-test hook: each hop's scores and choice (reference.py's trace). */
         trace: ((HopTrace) -> Unit)? = null,
         features: (anchor: Int) -> Array<DoubleArray>,
@@ -55,6 +57,7 @@ public object RankerQueue {
         if (poolSize == 0 || length <= 0) return emptyList()
         fun scores(anchor: Int) = features(anchor).let { rows -> DoubleArray(poolSize) { model.score(rows[it]) } }
         val seedScores = scores(SEED)
+        if (skipWhenTied && seedScores.all { it == seedScores[0] }) return emptyList()
         val open = BooleanArray(poolSize) { true }
         val picks = ArrayList<Int>(length)
         var runArtist = seedArtist
@@ -385,6 +388,8 @@ public class SmartRanker(
         val draws = HopDraws(SaltedKey.seed(SaltedKey.SALT, SaltedKey.contentKey(request.seed), request.press))
         val salted = saltedOrder(eligibleKnown, request)
         val notExcluded = eligibleKnown.filter { it.track.id !in request.exclude }
+        // The seed's imputation comes first, so R5 retrieves by an imputed family on the first plan (§1.3).
+        var imputed = impute(listOf(seedKnown))
         // Novelty can empty a small library; then the ladder may still take recently heard tracks.
         val poolSource = notExcluded.ifEmpty { eligibleKnown }
         val trace = tracer
@@ -399,7 +404,7 @@ public class SmartRanker(
             poolSource.size <= serving.wholeLibraryUpTo -> poolSource
             else -> retrieve(poolSource, seedKnown, request, serving, salted)
         }.sortedWith { a, b -> SaltedKey.idOrder.compare(a.track.id.value, b.track.id.value) }
-        val imputed = impute(pool + seedKnown)
+        imputed += impute(pool)
         val window = minOf(serving.recentWindow, n / 2).coerceAtLeast(1)
         val previousIds = request.recentIds + request.seed.id
         fun versionOf(id: TrackId) = (byId[id] ?: cache[id])?.version ?: ArtistSets.keyHash("id:${id.value}")
@@ -430,6 +435,7 @@ public class SmartRanker(
                 blockedVersion(pool[row].version, picks.map { pool[it].track.id }, previousIds, window, ::versionOf)
             },
             stop = { decoding.elapsedNow().inWholeMilliseconds > budgetMs && trace == null },
+            skipWhenTied = request.ruleOnly,
             trace = trace?.let { t -> { h: RankerQueue.HopTrace -> if (t.draws.size < t.hops.size + 1) t.draws.add(null); t.hops += h } },
         ) { anchor ->
             val a = if (anchor == RankerQueue.SEED) seedKnown else pool[anchor]
@@ -437,7 +443,10 @@ public class SmartRanker(
         }.map { pool[it].track.id }
         val timedOut = modelPicks.size < minOf(request.length, pool.size) && decoding.elapsedNow().inWholeMilliseconds > budgetMs
         val picks = ArrayList(modelPicks)
-        val ladder = Ladder(eligibleKnown, byId, previousIds, window, salted, request.history, ::versionOf)
+        val ladder = Ladder(
+            eligibleKnown, byId, previousIds, window, salted, request.history, ::versionOf,
+            artistKeyOf, artistKeyOf(seedKnown), active.thirdInRowCap > 0.0,
+        )
         while (picks.size < request.length) {
             val (next, rung) = ladder.next(picks, audio) ?: break
             picks += next
@@ -574,8 +583,11 @@ public class SmartRanker(
     /**
      * §7.2's ladder: each call adds one track, from the first rung that has one — audio neighbours of the last
      * pick, descriptor neighbours, the same genre family (salted), then the least-recently-played track outside the
-     * recency window; on that last rung the dedup window relaxes to 1, then the recency window to 1. A version of the
-     * previous pick is never taken while any other track exists.
+     * recency window. These keep the decoder's third-in-a-row cap (the seed in the run) as a hard rule; on the last
+     * rung it is relaxed first, then the dedup window shrinks to 1, then the recency window to the previous pick
+     * (§7.2b). When every eligible track is queued, the queue repeats (§7.2b: n = 1 repeats its track, n = 2
+     * alternates, n = 3 cycles): the least recent of the plan, the queue before it and the log, outside the recency
+     * window and never a version of the previous pick while another track exists.
      */
     private inner class Ladder(
         private val eligible: List<Known>,
@@ -585,13 +597,28 @@ public class SmartRanker(
         private val salted: Map<TrackId, Long>,
         private val history: PersonalHistory,
         private val versionOf: (TrackId) -> Long,
+        private val artistKeyOf: (Known) -> String,
+        private val seedArtist: String,
+        private val capOn: Boolean,
     ) {
         suspend fun next(picks: List<TrackId>, audio: AudioSource): Pair<TrackId, String>? {
             val taken = picks.toHashSet()
             val previous = picks.lastOrNull() ?: before.last()
             val previousKnown = byId[previous] ?: knownById[previous]
-            fun ok(k: Known, dedup: Int) =
-                k.track.id !in taken && !blockedVersion(k.version, picks, before, dedup, versionOf)
+            // The run the queue ends with, the seed included (RankerQueue.build's rule).
+            var runArtist = seedArtist
+            var runLength = if (runArtist.isEmpty()) 0 else 1
+            for (id in picks) {
+                val a = byId[id]?.let(artistKeyOf).orEmpty()
+                if (runArtist.isNotEmpty() && a == runArtist) runLength++ else {
+                    runArtist = a
+                    runLength = if (a.isEmpty()) 0 else 1
+                }
+            }
+            val capAt = if (capOn && runLength >= 2) runArtist else ""
+            fun ok(k: Known, dedup: Int, cap: Boolean = true) =
+                k.track.id !in taken && !blockedVersion(k.version, picks, before, dedup, versionOf) &&
+                    !(cap && capAt.isNotEmpty() && artistKeyOf(k) == capAt)
             boundedNeighbours(previous, 50, LADDER_AUDIO_BUDGET_MS)
                 .firstNotNullOfOrNull { id -> byId[id]?.takeIf { ok(it, window) } }?.let { return it.track.id to "audio" }
             previousKnown?.descriptor?.let { d ->
@@ -604,14 +631,24 @@ public class SmartRanker(
                 eligible.filter { it.family == f && ok(it, window) }.minByOrNull { salted[it.track.id] ?: 0L }?.let { return it.track.id to "family" }
             }
             val recent = (before + picks).takeLast(window).toHashSet()
-            fun lastRung(dedup: Int, recency: Set<TrackId>) = eligible
-                .filter { ok(it, dedup) && it.track.id !in recency }
+            fun lastRung(dedup: Int, recency: Set<TrackId>, cap: Boolean) = eligible
+                .filter { ok(it, dedup, cap) && it.track.id !in recency }
                 .minWithOrNull(compareBy<Known> { history.lastPlayIndex(it.track.id) ?: -1 }.thenBy { salted[it.track.id] })
-            lastRung(window, recent)?.let { return it.track.id to "least-recent" }
-            lastRung(1, recent)?.let { return it.track.id to "least-recent-dedup1" }
-            lastRung(1, setOf(previous))?.let { return it.track.id to "least-recent-recency1" }
-            return eligible.filter { it.track.id !in taken && it.track.id != previous }.minByOrNull { salted[it.track.id] ?: 0L }
-                ?.let { it.track.id to "any" }
+            lastRung(window, recent, cap = true)?.let { return it.track.id to "least-recent" }
+            lastRung(window, recent, cap = false)?.let { return it.track.id to "least-recent-nocap" }
+            lastRung(1, recent, cap = false)?.let { return it.track.id to "least-recent-dedup1" }
+            lastRung(1, setOf(previous), cap = false)?.let { return it.track.id to "least-recent-recency1" }
+            eligible.filter { it.track.id !in taken && !blockedVersion(it.version, picks, before, 1, versionOf) }
+                .minByOrNull { salted[it.track.id] ?: 0L }?.let { return it.track.id to "any" }
+            // Everything is queued: repeat the least recent (the log, then the queue before the plan, then the plan).
+            if (eligible.isEmpty()) return null
+            val order = HashMap<TrackId, Int>()
+            val logged = history.size
+            for ((i, id) in (before + picks).withIndex()) order[id] = logged + i
+            fun last(k: Known) = order[k.track.id] ?: history.lastPlayIndex(k.track.id) ?: -1
+            val notPrevious = eligible.filter { !blockedVersion(it.version, picks, before, 1, versionOf) }
+            val repeat = notPrevious.filter { it.track.id !in recent }.ifEmpty { notPrevious }.ifEmpty { eligible }
+            return repeat.minWithOrNull(compareBy<Known> { last(it) }.thenBy { salted[it.track.id] })?.let { it.track.id to "repeat" }
         }
     }
 
@@ -634,22 +671,27 @@ public class SmartRanker(
         return if (candidate.any { it in anchor }) 0.5 else 0.0
     }
 
-    private fun normalized(v: FloatArray): FloatArray? {
-        var norm = 0.0
-        for (x in v) norm += x.toDouble() * x
-        if (!(norm > 0.0) || !norm.isFinite()) return null
-        val scale = 1.0 / sqrt(norm)
-        return FloatArray(v.size) { (v[it] * scale).toFloat() }
-    }
-
-    private fun cosine(a: FloatArray?, b: FloatArray?): Double {
-        if (a == null || b == null || a.size != b.size) return Double.NaN
-        var dot = 0.0f
-        for (i in a.indices) dot += a[i] * b[i]
-        return dot.toDouble()
-    }
-
     public companion object {
+        /** Unit length in float64 accumulation, stored as float32; null for a zero or non-finite vector. */
+        internal fun normalized(v: FloatArray): FloatArray? {
+            var norm = 0.0
+            for (x in v) norm += x.toDouble() * x
+            if (!(norm > 0.0) || !norm.isFinite()) return null
+            val scale = 1.0 / sqrt(norm)
+            return FloatArray(v.size) { (v[it] * scale).toFloat() }
+        }
+
+        /**
+         * Float32 dot product accumulated left to right (reference.py's rule, parity at 1e-9). Kotlin/Native compiles
+         * `dot += a * b` to separate multiply and add (no fused multiply-add): RankerArithmeticTest pins it on JVM and iOS.
+         */
+        internal fun cosine(a: FloatArray?, b: FloatArray?): Double {
+            if (a == null || b == null || a.size != b.size) return Double.NaN
+            var dot = 0.0f
+            for (i in a.indices) dot += a[i] * b[i]
+            return dot.toDouble()
+        }
+
         /** §7.2b's time limits: R1 (100 ms), the ladder's audio rung (20 ms), audio reads for features and imputation. */
         private const val R1_BUDGET_MS = 100L
         private const val LADDER_AUDIO_BUDGET_MS = 20L

@@ -26,7 +26,8 @@ parity on the trained model (§7: no interim builds).
 3. **Knowledge per track**, read once per library list: pack language, decade and entity, the artist set (§1.4, the
    port of artist_sets.py), the song-version key, the sanitised duration; the descriptor and the LightFM vector on
    first use. **Imputation** (§1.3): a track without a descriptor or a genre family gets them from the audio tagger
-   (FMA-trained head on its A0 embedding), flagged `desc_imputed` / `family_imputed`.
+   (FMA-trained head on its A0 embedding), flagged `desc_imputed` / `family_imputed`. The seed is imputed before the
+   retrievers run, so R5 retrieves by an imputed family on the first plan; the pool follows.
 4. **Decoder** (§8): conditional-logit scores over the model's features; hop k > 1 scores against the seed and the
    previous pick, mixed 2 : 1; the artist-run penalty p · runLength · sd(hop scores) (seed in the run); the rows within
    ε = 0.01 · sd of the best form the near-best set, ordered by the UTF-8 bytes of the track id, and hop h takes the
@@ -34,12 +35,16 @@ parity on the trained model (§7: no interim builds).
    from that seed came before — is persisted (`smart_presses.txt`, keyed by §7.2b's content key), so a second start
    gives a fresh queue and a restart keeps the count. **Song-version dedup**: no version of the previous pick or of
    the last min(50, n / 2) picks. **Budget**: 150 ms per hop; past it the plan stops and the ladder fills.
-5. **Ladder** (§7.2), one track per step until the plan is full: audio neighbours of the last pick → descriptor
-   neighbours (a salted 2,000-track sample) → the same genre family (salted) → the least recently played track
-   outside the recency window (log order; never-played first, salted), relaxing the dedup window to 1, then the
-   recency window to 1; a version of the previous pick only when nothing else exists.
+5. **Ladder** (§7.2, §7.2b), one track per step until the plan is full: audio neighbours of the last pick →
+   descriptor neighbours (a salted 2,000-track sample) → the same genre family (salted) → the least recently played
+   track outside the recency window (log order; never-played first, salted). These rungs keep the decoder's
+   third-in-a-row cap as a hard rule (the seed in the run); the last rung relaxes the cap first, then the dedup
+   window to 1, then the recency window to the previous pick, then takes any unqueued track that is not a version of
+   the previous pick. When every eligible track is queued the plan **repeats** — the least recent of the log, the
+   queue before the plan and the plan, outside the recency window, never a version of the previous pick while another
+   song exists: n = 1 repeats its track, n = 2 alternates, n = 3 cycles, and a plan is never short while n ≥ 1.
 6. **Rule-only path** (§7.2b): RULE_SET weights in code, R4 (100) + a 500-track salted sample, the same decoder and
-   ladder. Used when the assets fail their manifest, when the heap headroom is below 2 × the press's memory + 8 MB
+   ladder; with no features (every seed score ties) the decoder is skipped and the ladder plans the queue. Used when the assets fail their manifest, when the heap headroom is below 2 × the press's memory + 8 MB
    (checked up front), and for the rest of a queue after 3 failures or spent budgets (circuit breaker). If a plan still
    throws, the chooser's labelled continuation keeps the music going.
 
@@ -53,6 +58,7 @@ parity on the trained model (§7: no interim builds).
 | `artist_lfm.bin` | 14,369,964 | LightFM artist vectors, 111,902 entity-keyed, float32 (int8 changed 24 of 300 FIT top-10s, float16 7; credit-keyed artists left out) | Apache-2.0 |
 | `artist_known.bin` | 6,404,144 | artist_sets.py's known list as FNV-1a keys: 335,457 canonical, 310,039 aliases (MBID rows not shipped) | CC0-1.0 |
 | `audio_tagger.json` / `.bin` | 3,260 / 396,920 | the §1.3 tagger head, int8 | Apache-2.0 |
+| `artist_pop.bin` (not shipped yet) | ≈ 743 KB | LJPOPS1 artist popularity by pack entity, ln(1 + FIT listeners); read only when a model's `inputs.logpop` is `artist_pop` (no shipped model is) | — |
 
 ## Parity (golden tests against the research code)
 
@@ -64,14 +70,26 @@ parity on the trained model (§7: no interim builds).
   normalisation strings (cases and strings also on the iOS simulator).
 - `AudioTaggerTest`: the head's graph, probabilities within 1e-9.
 - `SaltedKeyTest`: SHA-256 vectors, the seed and SplitMix64 outputs against Python.
-- Still to come: the decoder's salted near-best pick and the retrievers against the Python serving reference the
-  research side is writing for the revised §1.6 / §8; FULL's queues.
+- `DecoderD0GoldenTest`: proto_ranker4's D0 decode loop, 12 queries × 20 hops identical.
+- `ServingReferenceGoldenTest`: the whole plan path against the Python serving reference
+  (tools/research/listenbrainz_eval/serving/reference.py, 3a6f8136): 17 fixtures, 32 requests, each on a new
+  SmartRanker fed the fixture's resolved records (the golden seam: `SmartRanker.resolver`, `tracer`) — ids and
+  counters identical, features, scores, sds and floors within 1e-9. The reference's own goldens matched the app
+  before the rules below changed; the app now runs against goldens regenerated with
+  `tools/research/ranker/reference_app_rules.patch` applied to reference.py (90 s short tracks, seed imputation
+  first, rule-only skip, the ladder's cap and repeats), 8 of 17 fixtures differ from 3a6f8136's. The research side
+  applies the patch and regenerates; `export_serving_fixtures.py` copies the fixtures in.
+- `RankerArithmeticTest` (JVM and iOS simulator): the float32 cosine and the float64 score on cases where a fused
+  multiply-add gives other bits — Kotlin/Native does not fuse them, so parity is exact on both.
+- Still to come: FULL's queues against the reference (it plans CORE only); the tagger on on-device 4-bit A0 vectors.
 
 ## Deviations (app vs research)
 
-- Genre family from the track's own first genre tag (the research used the teacher's genres, not shipped).
-- No popularity table yet: logpop = logpop_z = 0 (CORE+LFM's standardised weights 0.078 / −0.019 are lost) — an
-  entity-keyed artist popularity table is agreed and pending.
+- Genre family from the track's own first genre tag (the research used the teacher's genres, not shipped). The
+  agreed rule "the pack entity's family when the entity resolves" cannot run yet: the knowledge pack stores a
+  descriptor, language and decade per entity, no genre family — it needs an entity → family asset.
+- Popularity: the LJPOPS1 reader is in (`ArtistPopularity`, `inputs.logpop`), the table is not shipped; with today's
+  models (`logpop = none`) logpop = logpop_z = 0. `popularityKnown` is computed beside the value (not a model column).
 - LightFM: entity-keyed vectors only (78 % of the emulator library's tracks have one); the rest read lfm_cos = 0,
   which the model treats as dissimilar.
 - The device reads no artist MBID tags (the parser's MBID rules never fire) and no composer tag (classical cap key =
@@ -80,8 +98,9 @@ parity on the trained model (§7: no interim builds).
   consecutive pair.
 - The audio term follows §1.3's rule, w_audio = max(0, raw weight of the descriptor cosine): CORE+LFM's is negative, so
   the term is 0 with today's weights. Audio still feeds R1, the ladder and imputation.
-- A small library's SMART queue ends when every track is queued once (the app's queues hold a track once; repeat-all
-  loops), where §7.2b lets n = 2 alternate.
+- The ranker plans §7.2b's repeats, but the app's queues hold a track once: the chooser serves only tracks not yet
+  queued, so a small library's SMART queue still ends when every track is queued (repeat-all loops). Letting the
+  controllers queue a track again is a playback change of its own.
 - Marked playlists ("keep together in SMART") are not a ranker feature yet; the old chain still honours them.
 
 ## Tests (app)

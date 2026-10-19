@@ -1,0 +1,117 @@
+--- a/tools/research/listenbrainz_eval/serving/reference.py
++++ b/tools/research/listenbrainz_eval/serving/reference.py
+@@ -67,7 +67,7 @@
+ EXTRA = ['dur_log', 'dur_short', 'dur_known', 'desc_imputed', 'family_imputed', 'audio_cos', 'audio_known', 'artist_overlap']
+ NAMES = CORE + LFM + PERSONAL + EXTRA
+ COL = {n: i for i, n in enumerate(NAMES)}
+-SHORT_TRACK_MS = 60_000
++SHORT_TRACK_MS = 90_000
+ MAX_DURATION_MS = 24 * 3_600_000
+ NON_MUSIC_FOLDERS = {'ringtones', 'notifications', 'alarms', 'recordings', 'call recordings'}
+ LADDER_SAMPLE = 2_000
+@@ -358,10 +358,11 @@
+ 
+ 
+ # ------------------------------------------------------------------------------------------------ decoder
+-def decode(model, pool_size, artist_keys, seed_artist, length, choose, blocked, scores_of, trace):
++def decode(model, pool_size, artist_keys, seed_artist, length, choose, blocked, scores_of, trace, skip_when_tied=False):
+     """RankerQueue.build (PLAN_FINAL §8 D0) over pool indices (pool in id-byte order = the tie order)."""
+     if pool_size == 0 or length <= 0: return []
+     s0 = scores_of(SEED_ANCHOR)
++    if skip_when_tied and all(x == s0[0] for x in s0): return []   # §7.2b: rule-only with no features
+     open_ = [True] * pool_size; picks = []
+     run_artist = seed_artist; run_len = 0 if run_artist == '' else 1
+     for _ in range(min(length, pool_size)):
+@@ -446,6 +447,7 @@
+     trace['query'] = q
+     draws = HopDraws(seed_of(salt, q, press))
+     salted = {k.id: salted_key(salt, q, press, k.id) for k in elig}
++    imputed = impute(F, [seed])   # the seed first, so R5 sees an imputed family on the first plan
+     exclude = set(req.get('exclude') or [])
+     not_ex = [k for k in elig if k.id not in exclude]
+     source = not_ex or elig
+@@ -455,7 +457,7 @@
+     else: pool, how = retrieve(F, source, seed, sv, salted, length), 'retrievers'
+     pool.sort(key=lambda k: id_bytes(k.id))
+     trace['poolHow'] = how
+-    imputed = impute(F, pool + [seed])
++    imputed += impute(F, pool)
+     window = max(1, min(sv['recentWindow'], (window_n if window_n is not None else n) // 2))
+     previous_ids = list(req.get('recentIds') or []) + [seed_id]
+     def version_of(i):
+@@ -480,9 +482,10 @@
+     def blocked(row, picks):
+         return blocked_version(pool[row].version, [pool[p].id for p in picks], previous_ids, window, version_of)
+     hops = []
+-    mp = decode(model, len(pool), [artist_key_of(k) for k in pool], artist_key_of(seed), length, choose, blocked, scores_of, hops)
++    mp = decode(model, len(pool), [artist_key_of(k) for k in pool], artist_key_of(seed), length, choose, blocked, scores_of, hops,
++                skip_when_tied=rule_only)
+     picks = [pool[i].id for i in mp]
+-    ladder = Ladder(F, elig, by_id, cache, previous_ids, window, salted)
++    ladder = Ladder(F, elig, by_id, cache, previous_ids, window, salted, artist_key_of, artist_key_of(seed), model.cap > 0.0)
+     rungs = []
+     while len(picks) < length:
+         nxt, rung = ladder.next(picks)
+@@ -561,9 +564,12 @@
+ 
+ 
+ class Ladder:
+-    """SmartRanker.Ladder: one track per call from the first rung that has one."""
+-    def __init__(self, F, elig, by_id, cache, before, window, salted):
++    """SmartRanker.Ladder: one track per call from the first rung that has one. Rungs keep the third-in-a-row cap
++    (seed in the run) as a hard rule; the last rung relaxes cap -> dedup 1 -> recency {previous}; when every eligible
++    track is taken the queue repeats (§7.2b: n = 1 repeats, n = 2 alternates, n = 3 cycles)."""
++    def __init__(self, F, elig, by_id, cache, before, window, salted, artist_key_of, seed_artist, cap_on):
+         self.F, self.elig, self.by_id, self.cache, self.before, self.window, self.salted = F, elig, by_id, cache, before, window, salted
++        self.akey, self.seed_artist, self.cap_on = artist_key_of, seed_artist, cap_on
+ 
+     def version_of(self, i):
+         k = self.by_id.get(i) or self.cache.get(i)
+@@ -573,7 +579,15 @@
+         taken = set(picks)
+         previous = picks[-1] if picks else self.before[-1]
+         pk = self.by_id.get(previous) or self.cache.get(previous)
+-        def ok(k, dedup): return k.id not in taken and not blocked_version(k.version, picks, self.before, dedup, self.version_of)
++        run_artist = self.seed_artist; run_len = 0 if run_artist == '' else 1
++        for i in picks:
++            a = self.akey(self.by_id[i]) if i in self.by_id else ''
++            if run_artist != '' and a == run_artist: run_len += 1
++            else: run_artist = a; run_len = 0 if a == '' else 1
++        cap_at = run_artist if self.cap_on and run_len >= 2 else ''
++        def ok(k, dedup, cap=True):
++            return (k.id not in taken and not blocked_version(k.version, picks, self.before, dedup, self.version_of)
++                    and not (cap and cap_at != '' and self.akey(k) == cap_at))
+         for i in self.F.audio_neighbours(previous, 50):
+             k = self.by_id.get(i)
+             if k is not None and ok(k, self.window): return k.id, 'audio'
+@@ -591,16 +605,23 @@
+             c = [k for k in self.elig if k.family == pk.family and ok(k, self.window)]
+             if c: return min(c, key=lambda k: self.salted[k.id]).id, 'family'
+         recent = set((list(self.before) + list(picks))[-self.window:])
+-        def last(dedup, rec):
+-            c = [k for k in self.elig if ok(k, dedup) and k.id not in rec]
++        def last(dedup, rec, cap):
++            c = [k for k in self.elig if ok(k, dedup, cap) and k.id not in rec]
+             return min(c, key=lambda k: (self.F.last_index.get(k.id, -1), self.salted[k.id])) if c else None
+-        for rung, (dd, rec) in (('least-recent', (self.window, recent)), ('least-recent-dedup1', (1, recent)),
+-                                ('least-recent-recency1', (1, {previous}))):
+-            k = last(dd, rec)
++        for rung, (dd, rec, cap) in (('least-recent', (self.window, recent, True)), ('least-recent-nocap', (self.window, recent, False)),
++                                     ('least-recent-dedup1', (1, recent, False)), ('least-recent-recency1', (1, {previous}, False))):
++            k = last(dd, rec, cap)
+             if k is not None: return k.id, rung
+-        c = [k for k in self.elig if k.id not in taken and k.id != previous]
++        c = [k for k in self.elig if k.id not in taken and not blocked_version(k.version, picks, self.before, 1, self.version_of)]
+         if c: return min(c, key=lambda k: self.salted[k.id]).id, 'any'
+-        return None, None
++        if not self.elig: return None, None
++        logged = len(self.F.history)
++        order = {}
++        for j, i in enumerate(list(self.before) + list(picks)): order[i] = logged + j
++        lastp = lambda k: order[k.id] if k.id in order else self.F.last_index.get(k.id, -1)
++        not_prev = [k for k in self.elig if not blocked_version(k.version, picks, self.before, 1, self.version_of)]
++        rep = [k for k in not_prev if k.id not in recent] or not_prev or list(self.elig)
++        return min(rep, key=lambda k: (lastp(k), self.salted[k.id])).id, 'repeat'
+ 
+ 
+ # ------------------------------------------------------------------------------------------------ goldens

@@ -17,8 +17,8 @@ import kotlin.test.assertTrue
 
 /**
  * PLAN_FINAL §7.1's scenario matrix on the ranker, with §7.3's invariants checked on every plan: no crash; never an
- * empty plan while an eligible track exists; distinct picks; no track that is a version of the one before it unless
- * every eligible track is; non-music never picked; deterministic for a fixed press; library order changes nothing.
+ * empty plan while an eligible track exists; a full plan (§7.2b: small libraries repeat); no repeat while a track
+ * not yet in the plan could follow; no track that is a version of the one before it unless every eligible track is; non-music never picked; deterministic for a fixed press; library order changes nothing.
  * Models: the shipped CORE+LFM shape (no assets here, so knowledge-based features read "unknown") and RULE_SET.
  */
 class RankerScenarioTest {
@@ -62,8 +62,15 @@ class RankerScenarioTest {
         val plan = ranker.plan(request(base)).ids
         val eligible = candidates.filter { it.id != seed.id && !SmartRanker.isNonMusic(it) }.distinctBy { it.id }
         if (eligible.isNotEmpty() && length > 0) assertTrue(plan.isNotEmpty(), "empty plan with ${eligible.size} eligible")
-        if (expectFull) assertEquals(minOf(length, eligible.size), plan.size, "plan size")
-        assertEquals(plan.size, plan.toSet().size, "distinct picks")
+        if (expectFull && eligible.isNotEmpty()) assertEquals(length, plan.size, "plan size")
+        val eligibleIds = eligible.map { it.id }.toSet()
+        val byIdAll = (library + candidates + seed).associateBy { it.id }
+        for (i in plan.indices) if (plan[i] in plan.subList(0, i)) {
+            // A repeat only once every track not yet queued is a version of the previous pick (§7.2b).
+            val previous = SmartRanker.versionKey(byIdAll.getValue(if (i == 0) seed.id else plan[i - 1]))
+            val waiting = eligible.filter { it.id !in plan.subList(0, i) && SmartRanker.versionKey(it) != previous }
+            assertTrue(waiting.isEmpty(), "a repeat at $i while ${waiting.map { it.id.value }} wait")
+        }
         val byId = (library + candidates + seed).associateBy { it.id }
         assertTrue(plan.all { it in eligible.map(TrackDescriptor::id) }, "only eligible tracks")
         assertFalse(plan.any { SmartRanker.isNonMusic(byId.getValue(it)) }, "non-music picked")
@@ -72,7 +79,8 @@ class RankerScenarioTest {
             val a = SmartRanker.versionKey(byId.getValue(sequence[i - 1]))
             val b = SmartRanker.versionKey(byId.getValue(sequence[i]))
             if (a == b) {
-                val othersExist = eligible.any { it.id !in sequence.take(i + 1) && SmartRanker.versionKey(it) != a }
+                val covered = plan.subList(0, i).containsAll(eligibleIds)
+                val othersExist = eligible.any { (covered || it.id !in sequence.take(i + 1)) && SmartRanker.versionKey(it) != a }
                 assertFalse(othersExist, "same-song adjacency at $i while other songs remain")
             }
         }
@@ -87,6 +95,25 @@ class RankerScenarioTest {
 
     @Test fun emptyLibrary() = runTest {
         assertTrue(ranker().plan(PlanRequest(track("seed"), emptyList(), emptyList(), 20)).ids.isEmpty())
+    }
+
+    @Test fun smallLibrariesRepeatAlternateAndCycle() = runTest {
+        val seed = track("seed", artist = "S")
+        val (a, b, c) = listOf(track("a", artist = "A"), track("b", artist = "B"), track("c", artist = "C"))
+        for (model in listOf(false, true)) {
+            fun plan(vararg others: TrackDescriptor) = suspend {
+                val library = listOf(seed) + others
+                ranker().plan(PlanRequest(seed, library, library, 20, ruleOnly = model)).ids.map { it.value }
+            }
+            assertEquals(List(20) { "a" }, plan(a)(), "n = 1 repeats its track")
+            val two = plan(a, b)()
+            assertEquals(20, two.size)
+            for (i in 1 until two.size) assertTrue(two[i] != two[i - 1], "n = 2 alternates: $two")
+            val three = plan(a, b, c)()
+            assertEquals(20, three.size)
+            for (i in 3 until three.size) assertEquals(three[i - 3], three[i], "n = 3 cycles: $three")
+            assertEquals(3, three.take(3).toSet().size)
+        }
     }
 
     @Test fun oneTrackLibraryHasNothingElseToPlay() = runTest {
@@ -160,7 +187,7 @@ class RankerScenarioTest {
     @Test fun onlyVersionsOfTheSeedStillPlay() = runTest {
         val lib = listOf("Song", "Song (Live)", "Song - Remix", "Song [Demo]").mapIndexed { i, t -> track("v$i", artist = "Band", title = t) }
         val plan = check(lib[0], lib)
-        assertEquals(3, plan.size)
+        assertEquals(setOf("v1", "v2", "v3"), plan.take(3).map { it.value }.toSet(), "every version once, then they repeat")
     }
 
     @Test fun nonMusicFoldersAreNeverPicked() = runTest {

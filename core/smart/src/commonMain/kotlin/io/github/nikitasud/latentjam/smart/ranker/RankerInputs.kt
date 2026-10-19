@@ -56,6 +56,9 @@ public class PersonalHistory(listens: List<HabitListen>, seedMs: Long, artistKey
 
     public val isEmpty: Boolean get() = counts.isEmpty()
 
+    /** Listens in the log (the ladder's repeat order counts after them). */
+    public val size: Int = listens.size
+
     public fun row(track: TrackId, anchor: TrackId, anchorArtist: String): PersonalRow {
         val heard = track in counts
         return PersonalRow(

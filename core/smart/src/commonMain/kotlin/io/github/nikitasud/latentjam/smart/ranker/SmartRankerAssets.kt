@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.smart.ranker
 
 import io.github.nikitasud.latentjam.smart.text.ArtistKnowledge
 import io.github.nikitasud.latentjam.smart.text.ArtistNeighbours
+import io.github.nikitasud.latentjam.smart.text.ArtistPopularity
 import io.github.nikitasud.latentjam.smart.text.ArtistVectors
 import io.github.nikitasud.latentjam.smart.text.AssetBytes
 import io.github.nikitasud.latentjam.smart.text.KnownArtistTable
@@ -15,7 +16,8 @@ import io.github.nikitasud.latentjam.smart.text.KnownArtists
  * The ranker's assets, loaded lazily and checked against `ml/smart_manifest.json` (PLAN_FINAL §7.2: a versioned,
  * checksummed manifest): every listed file must exist with its size and SHA-256. Any failure leaves [healthy] false
  * and the ranker runs the rule-only path (never today's chain, which shares these assets); a missing optional asset
- * (co-listening, LightFM, artist list, tagger, FULL model) only drops its feature.
+ * (co-listening, LightFM, artist list, tagger, FULL model, artist popularity) only drops its feature. The popularity
+ * table is read only when a model's `inputs.logpop` is artist_pop.
  *
  * [read] returns an asset's bytes by its file name under ml/, or null when absent.
  */
@@ -39,6 +41,8 @@ public class SmartRankerAssets(
             val weights = read(TAGGER_WEIGHTS)
             if (meta != null && weights != null) AudioTagger.parse(meta, weights) else null
         }.getOrNull()
+        val full = text(FULL_MODEL)?.let(RankerModel::parse)
+        val wantsPopularity = listOfNotNull(model, full).any { it.logpop == RankerModel.LOGPOP_ARTIST }
         SmartRanker(
             model = model ?: RankerModel.RULE_SET,
             knowledge = knowledge,
@@ -47,7 +51,8 @@ public class SmartRankerAssets(
             known = runCatching { read(KNOWN)?.let(KnownArtistTable::parse) }.getOrNull() ?: KnownArtists.NONE,
             tagger = tagger,
             audio = audio,
-            fullModel = text(FULL_MODEL)?.let(RankerModel::parse),
+            fullModel = full,
+            popularity = if (wantsPopularity) runCatching { read(POPULARITY)?.let(ArtistPopularity::parse) }.getOrNull() else null,
         )
     }
 
@@ -79,5 +84,6 @@ public class SmartRankerAssets(
         public const val KNOWN: String = "artist_known.bin"
         public const val TAGGER_META: String = "audio_tagger.json"
         public const val TAGGER_WEIGHTS: String = "audio_tagger.bin"
+        public const val POPULARITY: String = "artist_pop.bin"
     }
 }
