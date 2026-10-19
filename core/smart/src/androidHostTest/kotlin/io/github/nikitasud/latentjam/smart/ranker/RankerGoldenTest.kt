@@ -4,7 +4,6 @@
  */
 package io.github.nikitasud.latentjam.smart.ranker
 
-import java.io.File
 import java.util.zip.GZIPInputStream
 import kotlin.math.abs
 import kotlin.test.Test
@@ -15,7 +14,8 @@ import kotlin.test.assertTrue
 /**
  * Parity with tools/research/listenbrainz_eval/proto_ranker.py (CORE, a5747d63) on 8 FIT queries
  * (tools/research/ranker/export_golden.py): every candidate's 13 features from the same primitives,
- * and the top 10 by the shipped asset's weights, ties by the track key as proto_ranker.ranked().
+ * and the top 10 by the v1 CORE weights (ranker_core_v1.json, the first test build's asset), ties by the track key as
+ * proto_ranker.ranked().
  */
 class RankerGoldenTest {
     private class Prim(val key: ULong, val row: RankerRow)
@@ -38,7 +38,7 @@ class RankerGoldenTest {
 
     @Test
     fun featuresAndTopTenMatchTheReference() {
-        val model = assertNotNull(RankerModel.parse(asset()))
+        val model = assertNotNull(RankerModel.parse(checkNotNull(javaClass.getResourceAsStream("/ranker_core_v1.json")).reader().readText()))
         val lines = GZIPInputStream(checkNotNull(javaClass.getResourceAsStream("/ranker_golden.tsv.gz")))
             .bufferedReader().readLines().filter(String::isNotEmpty)
         var at = 0
@@ -54,7 +54,7 @@ class RankerGoldenTest {
             val cands = rows.map { prim(it.drop(1)) }
             val expected = rows.map { r -> r.last().split(',').map(String::toDouble) }
             val features = RankerFeatures.of(seed.row, cands.map { it.row })
-            for (i in 0 until n) for (j in RankerFeatures.NAMES.indices) {
+            for (i in 0 until n) for (j in expected[i].indices) {
                 val e = abs(features[i][j] - expected[i][j])
                 maxError = maxOf(maxError, e)
                 assertTrue(e <= 1e-5 * maxOf(1.0, abs(expected[i][j])), "${head[1]} row $i ${RankerFeatures.NAMES[j]}")
@@ -69,11 +69,5 @@ class RankerGoldenTest {
         assertEquals(8, queries)
         assertTrue(colistenRows > 0, "the golden cases exercise co-listening")
         println("ranker golden: $queries queries, max feature error $maxError, co-listening rows $colistenRows")
-    }
-
-    private fun asset(): String {
-        var dir: File? = File("").absoluteFile
-        while (dir != null && !File(dir, "androidApp/src/main/assets/ml/smart_ranker.json").isFile) dir = dir.parentFile
-        return File(checkNotNull(dir), "androidApp/src/main/assets/ml/smart_ranker.json").readText()
     }
 }

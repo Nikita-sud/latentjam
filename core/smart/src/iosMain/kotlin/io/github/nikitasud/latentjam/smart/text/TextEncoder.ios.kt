@@ -134,6 +134,7 @@ public actual fun smartTextEncoderModule(): Module = module {
             knowledge = get(),
             loadModel = { resource("smart_ranker", "json")?.decodeToString() },
             loadNeighbours = { resource("artist_colisten", "bin")?.let(AssetBytes::of) },
+            loadVectors = { resource("artist_lfm", "bin")?.let(AssetBytes::of) },
         )
     }
 }

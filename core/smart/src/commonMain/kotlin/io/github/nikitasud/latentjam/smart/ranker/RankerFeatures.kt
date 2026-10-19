@@ -17,6 +17,7 @@ import kotlin.math.sqrt
  * @property artistKey engine artist key; empty is no artist
  * @property colisten the anchor artist's co-listening similarity to this track's artist, 0 when unlisted
  * @property logPopularity ln(1 + listeners); 0 when the app has no popularity table
+ * @property lfm LightFM artist-vector cosine to the anchor; NaN when either has no vector
  */
 public class RankerRow(
     public val cosine: Double = Double.NaN,
@@ -26,17 +27,19 @@ public class RankerRow(
     public val artistKey: String = "",
     public val colisten: Double = 0.0,
     public val logPopularity: Double = 0.0,
+    public val lfm: Double = Double.NaN,
 )
 
 /**
- * The CORE features of tools/research/listenbrainz_eval/proto_ranker.py (`lib_features`), per
+ * The CORE features of tools/research/listenbrainz_eval/proto_ranker.py (`lib_features`) and the two LightFM ones
+ * of proto_ranker2.py (`Query.X`), per
  * candidate, relative to the anchor; no listening history. RankerGoldenTest pins them
  * against that script's own rows.
  */
 public object RankerFeatures {
     public val NAMES: List<String> = listOf(
         "cos", "cos_z", "desc_known", "same_family", "family_known", "same_lang", "lang_known", "same_artist",
-        "decade_dist", "decade_known", "logpop", "logpop_z", "colisten",
+        "decade_dist", "decade_known", "logpop", "logpop_z", "colisten", "lfm_cos", "lfm_known",
     )
 
     /** One row per candidate, in [NAMES] order. */
@@ -69,6 +72,8 @@ public object RankerFeatures {
                 c.logPopularity,
                 popZ[i],
                 c.colisten,
+                if (c.lfm.isNaN()) 0.0 else c.lfm,
+                b(!c.lfm.isNaN()),
             )
         }
     }

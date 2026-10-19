@@ -133,11 +133,12 @@ internal suspend fun rankerPlan(
     val events = runCatching { history.recentEvents(SMART_HABIT_HISTORY_LIMIT) }.getOrNull().orEmpty()
     val novel = HabitSlots.novelty(habitListens(events.asReversed(), libraryIds, seedMs), seedMs)
     val plan = ranker.plan(seed, library.ifEmpty { candidates }, candidates, novel, length)
-    val (withEntity, listed) = ranker.entityCoverage
+    val (withEntity, listed, withLfm) = ranker.entityCoverage
     // Aggregate on purpose: no title, artist or id leaves the app through the system log.
     println(
         "SMART: ranker ${ranker.modelName} planned ${plan.size} from ${candidates.size} candidates " +
-            "(${novel.size} recent left out; library tracks whose artist has an entity $withEntity, a co-listening list $listed)",
+            "(${novel.size} recent left out; library tracks whose artist has an entity $withEntity, a co-listening list " +
+            "$listed, a LightFM vector $withLfm)",
     )
     plan
 }

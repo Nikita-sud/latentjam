@@ -64,6 +64,10 @@
       "license": "CC0-1.0",
       "provenance": "ListenBrainz listens (CC0), artist co-listening neighbours; tools/research/ranker/pack_colisten.py"
     },
+    "artist_lfm.bin": {
+      "license": "Apache-2.0",
+      "provenance": "LightFM artist vectors trained offline on ListenBrainz (CC0) listens; tools/research/ranker/pack_lfm.py"
+    },
     "artist_knowledge.bin": {
       "license": "Apache-2.0",
       "provenance": "LICENSE-MODEL.txt; generated descriptions encoded by MiniLM"

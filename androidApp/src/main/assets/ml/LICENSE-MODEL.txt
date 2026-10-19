@@ -10,6 +10,7 @@ Version 2.0, included in the repository root:
   text_encoder.onnx
   text_vocab.txt
   smart_ranker.json
+  artist_lfm.bin
 
 artist_colisten.bin is CC0-1.0 (see below).
 
@@ -123,6 +124,12 @@ CC0-1.0, like its source.
 smart_ranker.json holds the weights of a linear ranker LatentJam fitted on
 the same ListenBrainz listens (CC0) to order SMART's candidate tracks; no
 listener's library went into it.
+
+artist_lfm.bin holds one 32-dimensional vector for about 112,000 artists of
+music_entities_250k.bin: their item embeddings from a LightFM model (Apache-2.0
+and MIT, run offline only; none of its code ships) that LatentJam trained on
+which artists the same ListenBrainz listeners (CC0) play, plus each artist's
+genre family, language and decade. It holds no listener data.
 
 text_encoder.onnx is a three-layer, 256-wide BERT that LatentJam trained to
 reproduce the mean-pooled sentence vectors of

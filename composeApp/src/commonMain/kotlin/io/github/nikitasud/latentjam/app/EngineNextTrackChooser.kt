@@ -112,7 +112,7 @@ class EngineNextTrackChooser(
             // before carrying a walk; an unrelated seed starts fresh there.
             val learned = if (useRanker()) ranker() else null
             var plan = if (learned != null) {
-                rankerPlan(learned, history, current, candidates, library(), CHAIN_LENGTH, seedMs = events.last().startedAtMs)
+                rankerPlan(learned, history, current, candidates, library(), RANKER_LENGTH, seedMs = events.last().startedAtMs)
             } else {
                 engine.continueSmartQueue(
                     current, candidates, CHAIN_LENGTH, events, groups, precedingTrackIds = recentIds,
@@ -182,6 +182,9 @@ class EngineNextTrackChooser(
          * still reflects what the listener picked rather than where it drifted.
          */
         const val CHAIN_LENGTH = 12
+
+        /** Tracks the learned ranker plans per call: the 20-row queues it was evaluated on (proto_ranker2.py). */
+        const val RANKER_LENGTH = 20
 
         /** How many continuations must pass before the same artist may continue the queue again. */
         const val CONTINUATION_ARTIST_SPACING = 3

@@ -10,10 +10,12 @@ package io.github.nikitasud.latentjam.smart.ranker
  *
  * ```
  * {"name": "...", "features": ["cos", ...], "mean": [...], "sd": [...], "weights": [...],
- *  "runPenalty": 0.0, "anchor": "seed" | "previous", "source": "..."}
+ *  "runPenalty": 0.0, "anchor": "seed" | "previous" | "mix", "seedWeight": 2, "previousWeight": 1, "source": "..."}
  * ```
  * [runPenalty] is p in score − p · runLength · sd(hop scores) (SmartChain's artistRunPenalty shape);
- * [anchor] is what the features of each hop are relative to: the queue's seed, or the previous pick.
+ * [anchor] is what the features of each hop are relative to: the queue's seed, the previous pick, or both mixed
+ * (seedWeight · s(seed) + previousWeight · s(previous)) / (seedWeight + previousWeight) from hop 2 on
+ * (proto_ranker2.py `Query.queue`: 2 : 1).
  * Every feature must be one [RankerFeatures] computes; anything else refuses the asset.
  */
 public class RankerModel(
@@ -24,8 +26,10 @@ public class RankerModel(
     private val weights: DoubleArray,
     public val runPenalty: Double,
     public val anchor: Anchor,
+    public val seedWeight: Double = 2.0,
+    public val previousWeight: Double = 1.0,
 ) {
-    public enum class Anchor { SEED, PREVIOUS }
+    public enum class Anchor { SEED, PREVIOUS, MIX }
 
     /** Positions of [features] in [RankerFeatures.NAMES]. */
     internal val columns: IntArray = IntArray(features.size) { RankerFeatures.NAMES.indexOf(features[it]) }
@@ -35,6 +39,7 @@ public class RankerModel(
         require(columns.all { it >= 0 }) { "unknown ranker feature" }
         require(sd.all { it > 0.0 && it.isFinite() } && mean.all(Double::isFinite) && weights.all(Double::isFinite))
         require(runPenalty.isFinite() && runPenalty >= 0.0)
+        require(seedWeight >= 0.0 && previousWeight >= 0.0 && seedWeight + previousWeight > 0.0)
     }
 
     /** The score of one candidate's full feature row (in [RankerFeatures.NAMES] order). */
@@ -60,8 +65,11 @@ public class RankerModel(
                 anchor = when (root["anchor"] ?: "seed") {
                     "seed" -> Anchor.SEED
                     "previous" -> Anchor.PREVIOUS
+                    "mix" -> Anchor.MIX
                     else -> error("anchor")
                 },
+                seedWeight = (root["seedWeight"] as? Number)?.toDouble() ?: 2.0,
+                previousWeight = (root["previousWeight"] as? Number)?.toDouble() ?: 1.0,
             )
         }.getOrNull()
     }
