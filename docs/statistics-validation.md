@@ -110,3 +110,17 @@ No Compose UI-test harness exists in the project, so the dimmed-section and retr
 producer's unit tests and by eye on the emulator, not by an automated UI test. Not exercised: iOS runtime, TalkBack
 pass, RTL (he/ar) run, 150 % font, a 200k-event log on a 48 MB heap, and the page on the owner's real history (the
 build is on the phone for that).
+
+## Playlists (Addendum A) — 19 October 2026
+
+A playlist on repeat is one *On repeat now* row (not tappable) without the tracks it carries; *Your top* gets a
+Playlists chip when playlists account for ≥ 20 % of the period's plays; *Slipping away* and *A year ago* take at most
+two tracks carried by one playlist. Attribution needs the queue's source to be the playlist, no SMART plan slot and
+(for user playlists and Favorites) current membership. Design reviewed by one fresh adversarial reviewer (REVISE →
+membership test, playlists qualify on their own, auto playlists included, rows not tappable, coverage threshold);
+the artists fallback no longer replaces a playlist row (found by a host test).
+
+Checks: 2,909 Android host tests green (4 new playlist tests), StringResourceParityTest (two new keys, "Playlist"
+allow-listed where the language writes it so), iOS simulator compilation, lint 0 errors, R8 release max 243
+registers. Not yet seen on screen: the playlist row and chip on a real history (the emulator's synthetic log has no
+playlist sources).
