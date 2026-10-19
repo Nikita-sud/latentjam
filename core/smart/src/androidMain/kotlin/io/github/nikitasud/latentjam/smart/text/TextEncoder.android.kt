@@ -142,8 +142,18 @@ public actual fun smartTextEncoderModule(): Module = module {
             },
         )
     }
+    single {
+        val context = get<Context>()
+        io.github.nikitasud.latentjam.smart.ranker.SmartRankerAssets(
+            knowledge = get(),
+            loadModel = { runCatching { context.assets.open(SMART_RANKER_ASSET).use { it.readBytes().decodeToString() } }.getOrNull() },
+            loadNeighbours = { context.assets.assetBytes(ARTIST_COLISTEN_ASSET) },
+        )
+    }
 }
 
 internal const val MUSIC_ENTITY_ASSET = "ml/music_entities_250k.bin"
+internal const val SMART_RANKER_ASSET = "ml/smart_ranker.json"
+internal const val ARTIST_COLISTEN_ASSET = "ml/artist_colisten.bin"
 internal const val ARTIST_KNOWLEDGE_ASSET = "ml/artist_knowledge.bin"
 internal const val ARTIST_ADAPTER_ASSET = "ml/artist_adapter.bin"

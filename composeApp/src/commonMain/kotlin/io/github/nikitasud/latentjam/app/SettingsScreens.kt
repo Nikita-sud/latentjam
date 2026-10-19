@@ -164,8 +164,8 @@ import io.github.nikitasud.latentjam.app.generated.resources.intelligence_how_ti
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_indexed_of
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_include_novelty_mixes
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_include_novelty_mixes_body
-import io.github.nikitasud.latentjam.app.generated.resources.intelligence_learn_from_habits
-import io.github.nikitasud.latentjam.app.generated.resources.intelligence_learn_from_habits_body
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_smart_ranker
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_smart_ranker_body
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_library
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_manage_exclusions
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_manage_exclusions_body
@@ -1845,7 +1845,7 @@ private fun IntelligenceSettings(
     val queueLength by settings.smartQueueLength.collectAsState()
     val artistVariety by settings.artistVariety.collectAsState()
     val includeNoveltyMixes by settings.includeNoveltyMixes.collectAsState()
-    val learnFromHabits by settings.learnFromHabits.collectAsState()
+    val smartRanker by settings.smartRanker.collectAsState()
     val notificationStatus by permissions.notificationStatus.collectAsState()
     val ids = remember(tracks) { tracks.map(TrackDescriptor::id) }
     val indexingMatchesLibrary = indexing.trackIds == ids
@@ -1959,11 +1959,11 @@ private fun IntelligenceSettings(
                 SettingsBody(stringResource(Res.string.intelligence_queue_length_body))
                 ArtistVarietyRow(level = artistVariety, onLevel = settings::setArtistVariety)
                 SettingsSwitchRow(
-                    title = stringResource(Res.string.intelligence_learn_from_habits),
-                    subtitle = stringResource(Res.string.intelligence_learn_from_habits_body),
-                    checked = learnFromHabits,
+                    title = stringResource(Res.string.intelligence_smart_ranker),
+                    subtitle = stringResource(Res.string.intelligence_smart_ranker_body),
+                    checked = smartRanker,
                     enabled = true,
-                    onCheckedChange = settings::setLearnFromHabits,
+                    onCheckedChange = settings::setSmartRanker,
                 )
                 SettingsSwitchRow(
                     title = stringResource(Res.string.intelligence_include_novelty_mixes),

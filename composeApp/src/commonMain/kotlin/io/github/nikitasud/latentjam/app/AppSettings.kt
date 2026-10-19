@@ -408,6 +408,10 @@ private val DEFAULT_APPEARANCE: StateFlow<Appearance> = kotlinx.coroutines.flow.
 internal const val DEFAULT_LEARN_FROM_HABITS = true
 private val LEARN_FROM_HABITS_DEFAULT_FLOW: StateFlow<Boolean> = MutableStateFlow(DEFAULT_LEARN_FROM_HABITS)
 
+/** The learned SMART ranker is on in this test build until the listener turns it off. */
+internal const val DEFAULT_SMART_RANKER = true
+private val SMART_RANKER_FALLBACK_FLOW: StateFlow<Boolean> = MutableStateFlow(false)
+
 interface AppSettings {
     val themeMode: StateFlow<ThemeMode>
     fun setThemeMode(mode: ThemeMode)
@@ -448,6 +452,13 @@ interface AppSettings {
      */
     val learnFromHabits: StateFlow<Boolean> get() = LEARN_FROM_HABITS_DEFAULT_FLOW
     fun setLearnFromHabits(enabled: Boolean) {}
+
+    /**
+     * Whether SMART plans its queues with the learned ranker (docs/smart-ranker.md) instead of its
+     * chain. Test builds turn it on by default; implementations without the preference keep it off.
+     */
+    val smartRanker: StateFlow<Boolean> get() = SMART_RANKER_FALLBACK_FLOW
+    fun setSmartRanker(enabled: Boolean) {}
 
     /** Whether playback attenuates loud tracks toward a common level. Off by default. */
     val normalizeVolume: StateFlow<Boolean>

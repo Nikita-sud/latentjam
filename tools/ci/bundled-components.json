@@ -60,6 +60,10 @@
       "license": "Apache-2.0",
       "provenance": "LICENSE-MODEL.txt; synthesized artist metadata"
     },
+    "artist_colisten.bin": {
+      "license": "CC0-1.0",
+      "provenance": "ListenBrainz listens (CC0), artist co-listening neighbours; tools/research/ranker/pack_colisten.py"
+    },
     "artist_knowledge.bin": {
       "license": "Apache-2.0",
       "provenance": "LICENSE-MODEL.txt; generated descriptions encoded by MiniLM"
@@ -75,6 +79,10 @@
     "universal_semantic_head.onnx": {
       "license": "Apache-2.0 AND MIT",
       "provenance": "LICENSE-MODEL.txt; training-data rights review pending"
+    },
+    "smart_ranker.json": {
+      "license": "Apache-2.0",
+      "provenance": "conditional-logit weights fitted on ListenBrainz (CC0) listens; tools/research/listenbrainz_eval/proto_ranker.py"
     },
     "text_encoder.onnx": {
       "license": "Apache-2.0",

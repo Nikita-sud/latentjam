@@ -114,3 +114,30 @@ internal fun saltedTieKey(track: TrackId, salt: Long): Double {
 
 /** The SMART history window (EngineNextTrackChooser's smartHistoryFor). */
 private const val SMART_HABIT_HISTORY_LIMIT = 10_000
+
+/**
+ * The learned ranker's plan from [seed] (docs/smart-ranker.md): [candidates] minus what the listener
+ * heard in the last 24 hours or earlier in this session (the novelty rule proto_ranker.py trained with).
+ */
+internal suspend fun rankerPlan(
+    ranker: io.github.nikitasud.latentjam.smart.ranker.SmartRanker,
+    history: ListeningHistory,
+    seed: TrackDescriptor,
+    candidates: List<TrackDescriptor>,
+    library: List<TrackDescriptor>,
+    length: Int,
+    seedMs: Long,
+): List<TrackId> = withContext(Dispatchers.Default) {
+    val libraryIds = library.mapTo(HashSet(library.size + candidates.size)) { it.id }
+    candidates.mapTo(libraryIds) { it.id }
+    val events = runCatching { history.recentEvents(SMART_HABIT_HISTORY_LIMIT) }.getOrNull().orEmpty()
+    val novel = HabitSlots.novelty(habitListens(events.asReversed(), libraryIds, seedMs), seedMs)
+    val plan = ranker.plan(seed, library.ifEmpty { candidates }, candidates, novel, length)
+    val (withEntity, listed) = ranker.entityCoverage
+    // Aggregate on purpose: no title, artist or id leaves the app through the system log.
+    println(
+        "SMART: ranker ${ranker.modelName} planned ${plan.size} from ${candidates.size} candidates " +
+            "(${novel.size} recent left out; library tracks whose artist has an entity $withEntity, a co-listening list $listed)",
+    )
+    plan
+}

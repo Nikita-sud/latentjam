@@ -25,6 +25,7 @@ import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.SmartEngineConfig
 import io.github.nikitasud.latentjam.smart.EngineError
 import io.github.nikitasud.latentjam.smart.HabitFlow
+import io.github.nikitasud.latentjam.smart.ranker.SmartRankerAssets
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.di.smartEngineModule
@@ -183,7 +184,10 @@ object AppGraph {
                                 engine = get(),
                                 history = get(),
                                 companionGroups = { smartCompanionGroups.value },
-                                learnFromHabits = { settings.learnFromHabits.value },
+                                // Habit slots are withdrawn in the ranker test build (docs/smart-ranker.md).
+                                learnFromHabits = { false },
+                                useRanker = { settings.smartRanker.value },
+                                ranker = getOrNull<SmartRankerAssets>().let { assets -> { assets?.ranker } },
                                 library = { smartLibraryTracks.value },
                                 habitFlow = get<SimilarityEngine>().let { engine ->
                                     HabitFlow(getOrNull(), audio = { id -> engine.embedding(id) })

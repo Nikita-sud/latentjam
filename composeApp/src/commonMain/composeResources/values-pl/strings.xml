@@ -497,6 +497,8 @@
     <string name="intelligence_include_novelty_mixes_body">Pokazuj w sekcji Dla Ciebie osobne miksy z memami, viralami i efektami dźwiękowymi.</string>
     <string name="intelligence_learn_from_habits">Ucz się z moich nawyków</string>
     <string name="intelligence_learn_from_habits_body">Co drugi z pierwszych dziesięciu utworów w kolejce SMART to taki, którego zwykle słuchasz po wybranym. Wszystko zostaje na tym urządzeniu.</string>
+    <string name="intelligence_smart_ranker">Wyuczony ranking (test)</string>
+    <string name="intelligence_smart_ranker_body">SMART wybiera każdy kolejny utwór modelem wyuczonym na publicznych danych o słuchaniu (ListenBrainz). Wyłączone: zwykły łańcuch SMART.</string>
     <string name="foryou_mix_meme_viral">Memy i virale</string>
     <string name="foryou_mix_sound_effects">Efekty dźwiękowe</string>
     <string name="foryou_mix_spoken_audio">Słowo mówione</string>

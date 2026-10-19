@@ -52,6 +52,13 @@ public class ArtistKnowledge(
     public fun facts(artist: String?, primaryArtist: String? = null): ArtistFacts? =
         pack?.let { firstKnown(artist, primaryArtist, it::facts) }
 
+    /**
+     * The pack entity [descriptor] and [facts] read for a track tagged [artist], or null when the pack
+     * knows no confident entity for it: the artist's identity for tables keyed by entity (co-listening).
+     */
+    public fun entity(artist: String?, primaryArtist: String? = null): Int? =
+        pack?.let { firstKnown(artist, primaryArtist, it::entityOf) }
+
     private inline fun <T : Any> firstKnown(
         artist: String?,
         primaryArtist: String?,

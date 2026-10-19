@@ -539,6 +539,8 @@
     <string name="intelligence_include_novelty_mixes_body">عرض مزيجات مستقلة للميمات والمقاطع الرائجة والمؤثرات الصوتية في «لك».</string>
     <string name="intelligence_learn_from_habits">التعلّم من عاداتي</string>
     <string name="intelligence_learn_from_habits_body">كل أغنية ثانية من أول عشر أغانٍ في قائمة SMART هي أغنية تستمع إليها عادةً بعد الأغنية التي اخترتها. يبقى كل شيء على هذا الجهاز.</string>
+    <string name="intelligence_smart_ranker">مُرتِّب مُتعلَّم (تجريبي)</string>
+    <string name="intelligence_smart_ranker_body">يختار SMART كل أغنية تالية بنموذج تعلّم من بيانات استماع عامة (ListenBrainz). عند الإيقاف: سلسلة SMART المعتادة.</string>
     <string name="foryou_mix_meme_viral">ميمات ومقاطع رائجة</string>
     <string name="foryou_mix_sound_effects">مؤثرات صوتية</string>
     <string name="foryou_mix_spoken_audio">محتوى منطوق</string>

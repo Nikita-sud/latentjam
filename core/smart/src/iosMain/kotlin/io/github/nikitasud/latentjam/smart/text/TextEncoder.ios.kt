@@ -122,4 +122,18 @@ public actual fun smartTextEncoderModule(): Module = module {
             loadAdapter = { resource("artist_adapter") },
         )
     }
+    single {
+        fun resource(name: String, type: String): ByteArray? {
+            val path = NSBundle.mainBundle.pathForResource(name = name, ofType = type, inDirectory = "ml")
+                ?: NSBundle.mainBundle.pathForResource(name = name, ofType = type)
+            val data = path?.let { NSFileManager.defaultManager.contentsAtPath(it) }
+            val pointer = data?.bytes?.reinterpret<ByteVar>()
+            return if (pointer == null) null else pointer.readBytes(data.length.toInt())
+        }
+        io.github.nikitasud.latentjam.smart.ranker.SmartRankerAssets(
+            knowledge = get(),
+            loadModel = { resource("smart_ranker", "json")?.decodeToString() },
+            loadNeighbours = { resource("artist_colisten", "bin")?.let(AssetBytes::of) },
+        )
+    }
 }

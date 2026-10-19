@@ -9,6 +9,7 @@ import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.playback.NextTrackChooser
 import io.github.nikitasud.latentjam.playback.SmartChoice
 import io.github.nikitasud.latentjam.smart.HabitFlow
+import io.github.nikitasud.latentjam.smart.ranker.SmartRanker
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.SmartHistoryEvent
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
@@ -48,6 +49,9 @@ class EngineNextTrackChooser(
     private val library: () -> List<TrackDescriptor> = { emptyList() },
     /** How far a habit row would pull the queue from its seed; null scores every row coherent. */
     private val habitFlow: HabitFlow? = null,
+    /** The "learned ranker" setting: plans come from [ranker] instead of the engine's chain. */
+    private val useRanker: () -> Boolean = { false },
+    private val ranker: () -> SmartRanker? = { null },
 ) : NextTrackChooser {
 
     private val mutex = Mutex()
@@ -106,12 +110,17 @@ class EngineNextTrackChooser(
             // A top-up can extend this chooser's plan or one the UI requested directly, even
             // after replacing the previous queue. The engine checks the preceding queued tracks
             // before carrying a walk; an unrelated seed starts fresh there.
-            var plan = engine.continueSmartQueue(
-                current, candidates, CHAIN_LENGTH, events, groups, precedingTrackIds = recentIds,
-            )
+            val learned = if (useRanker()) ranker() else null
+            var plan = if (learned != null) {
+                rankerPlan(learned, history, current, candidates, library(), CHAIN_LENGTH, seedMs = events.last().startedAtMs)
+            } else {
+                engine.continueSmartQueue(
+                    current, candidates, CHAIN_LENGTH, events, groups, precedingTrackIds = recentIds,
+                )
+            }
             // A queue SMART starts from a seed is that seed alone (the controllers replace the
             // queue with the tapped track); top-ups of a running queue keep SMART's own order.
-            if (recentIds.isEmpty() && plan.isNotEmpty() && learnFromHabits()) {
+            if (learned == null && recentIds.isEmpty() && plan.isNotEmpty() && learnFromHabits()) {
                 plan = withHabitSlots(
                     history, current, candidates, library(), plan, seedMs = events.last().startedAtMs, flow = habitFlow,
                 )

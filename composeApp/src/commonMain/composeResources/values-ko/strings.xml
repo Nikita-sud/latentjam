@@ -436,6 +436,8 @@
     <string name="intelligence_include_novelty_mixes_body">밈, 바이럴, 효과음 믹스를 추천에 따로 표시합니다.</string>
     <string name="intelligence_learn_from_habits">내 습관에서 배우기</string>
     <string name="intelligence_learn_from_habits_body">SMART 대기열의 처음 10곡 중 한 곡 건너 한 곡은 고른 곡 다음에 자주 듣는 곡입니다. 모든 데이터는 이 기기에만 남습니다.</string>
+    <string name="intelligence_smart_ranker">학습된 랭커 (테스트)</string>
+    <string name="intelligence_smart_ranker_body">SMART가 공개 청취 데이터(ListenBrainz)로 학습한 모델로 다음 곡을 고릅니다. 끄면 기존 SMART 체인을 씁니다.</string>
     <string name="foryou_mix_meme_viral">밈 &amp; 바이럴 오디오</string>
     <string name="foryou_mix_sound_effects">효과음</string>
     <string name="foryou_mix_spoken_audio">음성 콘텐츠</string>

@@ -65,6 +65,9 @@ public class ArtistKnowledgePack private constructor(
         )
     }
 
+    /** The confident entity [descriptor] reads for [artist], or null. */
+    public fun entityOf(entityIds: IntArray, artist: String): Int? = entity(entityIds, artist)
+
     private fun entity(entityIds: IntArray, artist: String): Int? {
         val confident = entityIds.filter { it in 0 until entityCount && confidence(it) >= MIN_CONFIDENCE }
         if (confident.isEmpty()) return null

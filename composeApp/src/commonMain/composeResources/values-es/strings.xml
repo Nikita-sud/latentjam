@@ -462,6 +462,8 @@
     <string name="intelligence_include_novelty_mixes_body">Muestra en Para ti mixes aparte de memes, audios virales y efectos de sonido.</string>
     <string name="intelligence_learn_from_habits">Aprender de mis hábitos</string>
     <string name="intelligence_learn_from_habits_body">Una de cada dos de las primeras diez canciones de una cola SMART es una que sueles poner después de la elegida. Todo queda en este dispositivo.</string>
+    <string name="intelligence_smart_ranker">Clasificador aprendido (prueba)</string>
+    <string name="intelligence_smart_ranker_body">SMART elige cada canción siguiente con un modelo aprendido de datos públicos de escucha (ListenBrainz). Desactivado: la cadena SMART habitual.</string>
     <string name="foryou_mix_meme_viral">Memes y audios virales</string>
     <string name="foryou_mix_sound_effects">Efectos de sonido</string>
     <string name="foryou_mix_spoken_audio">Audio hablado</string>

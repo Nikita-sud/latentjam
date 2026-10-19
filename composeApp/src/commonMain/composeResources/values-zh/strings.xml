@@ -442,6 +442,8 @@
     <string name="intelligence_include_novelty_mixes_body">在“为你推荐”中单独显示表情包梗、网络爆款和音效混合歌单。</string>
     <string name="intelligence_learn_from_habits">从我的习惯中学习</string>
     <string name="intelligence_learn_from_habits_body">SMART 队列前十首中每隔一首，是你通常在所选歌曲之后播放的歌曲。数据只保存在此设备上。</string>
+    <string name="intelligence_smart_ranker">学习型排序器（测试）</string>
+    <string name="intelligence_smart_ranker_body">SMART 用基于公开收听数据（ListenBrainz）训练的模型挑选下一首。关闭：使用原来的 SMART 链。</string>
     <string name="foryou_mix_meme_viral">梗与网络爆款音频</string>
     <string name="foryou_mix_sound_effects">音效</string>
     <string name="foryou_mix_spoken_audio">语音内容</string>
