@@ -31,12 +31,16 @@ internal fun withAlbumArtVersions(tracks: List<TrackDescriptor>): List<TrackDesc
             }
             digest.digest().joinToString("") { (it.toInt() and 0xff).toString(16).padStart(2, '0') }
         }
+    // One versioned album locator per album, not one equal copy per song.
+    val versionedAlbums = HashMap<String, String>()
     return tracks.map { track ->
         val album = track.albumCover() ?: return@map track
         val version = versions.getValue(album)
         track.copy(
             artworkUri = track.artworkUri?.let { MediaStoreArtwork.versioned(it, version) },
-            albumArtworkUri = track.albumArtworkUri?.let { MediaStoreArtwork.versioned(it, version) },
+            albumArtworkUri = track.albumArtworkUri?.let {
+                versionedAlbums.getOrPut(it) { MediaStoreArtwork.versioned(it, version) }
+            },
         )
     }
 }

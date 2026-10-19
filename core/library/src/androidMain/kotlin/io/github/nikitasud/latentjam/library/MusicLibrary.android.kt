@@ -9,6 +9,7 @@ import android.content.Context
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Environment
+import android.os.ParcelFileDescriptor
 import android.os.storage.StorageManager
 import android.provider.MediaStore
 import io.github.nikitasud.latentjam.library.tags.CoverEdit
@@ -58,12 +59,15 @@ internal class MediaStoreMusicLibrary(
     override val preservesRelocatedTrackIds: Boolean get() = true
     private val identityFile = java.io.File(context.filesDir, "track-identities-v1.txt")
     private val identities = AndroidTrackIdentities(
-        read = { if (identityFile.exists()) identityFile.readText() else null },
-        write = { identityFile.atomicReplaceText(it) },
+        read = { if (identityFile.exists()) identityFile.bufferedReader() else null },
+        write = { contents -> identityFile.atomicReplace(contents) },
         readTags = { track ->
             val uri = track.audioUri?.let(Uri::parse)
-            uri?.let { context.contentResolver.openFileDescriptor(it, "r") }?.use {
-                readTrackIdentityTags(ChannelSource(FileInputStream(it.fileDescriptor).channel))
+            uri?.let { context.contentResolver.openFileDescriptor(it, "r") }?.let { descriptor ->
+                // The stream owns the descriptor: one close releases both, nothing left to a finalizer.
+                ParcelFileDescriptor.AutoCloseInputStream(descriptor).use { input ->
+                    readTrackIdentityTags(ChannelSource(input.channel))
+                }
             }
         },
     )
@@ -355,6 +359,10 @@ internal class MediaStoreMusicLibrary(
             }
             val genreColumn = if (genreSupported) cursor.getColumnIndex(MediaStore.Audio.Media.GENRE) else -1
             val albumArtistIndex = cursor.getColumnIndex(ALBUM_ARTIST)
+            // Every row reads its artist, album, genre, folder and volume as a new String; an album's
+            // songs then hold as many equal copies. One instance per value: ~650 KB per 1,000 songs.
+            val pool = HashMap<String, String>()
+            fun String?.shared(): String? = this?.let { pool.getOrPut(it) { it } }
             // Older providers may return album art for the song endpoint. Keep the song id in
             // its locator on every API so a missing thumbnail can still try that file's tags.
             while (cursor.moveToNext()) {
@@ -368,27 +376,27 @@ internal class MediaStoreMusicLibrary(
                 tracks += TrackDescriptor(
                     id = TrackId(id.toString()),
                     title = cursor.getString(titleColumn).knownTagOrNull(),
-                    artist = cursor.getString(artistColumn).knownTagOrNull(),
-                    album = cursor.getString(albumColumn).knownTagOrNull(),
-                    genre = if (genreColumn >= 0) cursor.getString(genreColumn).knownTagOrNull() else null,
-                    albumArtist = if (albumArtistIndex >= 0) cursor.getString(albumArtistIndex).knownTagOrNull() else null,
+                    artist = cursor.getString(artistColumn).knownTagOrNull().shared(),
+                    album = cursor.getString(albumColumn).knownTagOrNull().shared(),
+                    genre = if (genreColumn >= 0) cursor.getString(genreColumn).knownTagOrNull().shared() else null,
+                    albumArtist = if (albumArtistIndex >= 0) cursor.getString(albumArtistIndex).knownTagOrNull().shared() else null,
                     durationMs = cursor.getLong(durationColumn).takeIf { it > 0 },
                     audioUri = ContentUris
                         .withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
                         .toString(),
                     // The song's own cover; its album's, which grouping compares, is the fallback.
                     artworkUri = MediaStoreArtwork.trackCover(id, albumId),
-                    albumArtworkUri = albumId.takeIf { it > 0 }?.let(MediaStoreArtwork::albumCover),
+                    albumArtworkUri = albumId.takeIf { it > 0 }?.let(MediaStoreArtwork::albumCover).shared(),
                     // MediaStore stores DATE_ADDED in epoch seconds.
                     addedAtMs = cursor.getLong(addedColumn).takeIf { it > 0 }?.times(1000),
                     folderPath = mediaStoreFolderPath(
                         cursor.getString(folderColumn),
                         relativePath = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q,
-                    ),
+                    ).shared(),
                     storageVolume = mediaStoreStorageVolume(
                         volumeName = if (volumeColumn >= 0) cursor.getString(volumeColumn) else null,
                         dataPath = if (volumeColumn < 0) cursor.getString(folderColumn) else null,
-                    ),
+                    ).shared(),
                     year = cursor.getInt(yearColumn).takeIf { it > 0 },
                     sizeBytes = cursor.getLong(sizeColumn).takeIf { it > 0 },
                     fileName = if (nameColumn >= 0) cursor.getString(nameColumn).knownOrNull() else null,

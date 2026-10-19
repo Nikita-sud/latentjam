@@ -8,6 +8,8 @@ import io.github.nikitasud.latentjam.library.tags.TrackIdentityTags
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import java.io.IOException
+import java.io.StringReader
+import java.io.StringWriter
 import kotlinx.coroutines.CancellationException
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -32,7 +34,10 @@ internal class AndroidTrackIdentitiesTest {
         val disk = Disk()
         var reads = 0
         var reader: (TrackDescriptor) -> TrackIdentityTags? = { tags }
-        fun fresh() = AndroidTrackIdentities({ disk.payload }, disk::save) { reads++; reader(it) }
+        fun fresh() = AndroidTrackIdentities(
+            { disk.payload?.let(::StringReader) },
+            { contents -> disk.save(StringWriter().also(contents).toString()) },
+        ) { reads++; reader(it) }
         var registry = fresh()
         fun scan(vararg tracks: TrackDescriptor, present: Set<String>? = tracks.map { it.id.value }.toSet(), storage: Boolean = true) =
             registry.resolve(tracks.toList(), present, storage)
@@ -196,5 +201,62 @@ internal class AndroidTrackIdentitiesTest {
         f.reader = { TrackIdentityTags() }
         f.remember()
         assertEquals(TrackId("20"), f.scan(track("20")).single().id)
+    }
+
+    /** The registry's text before it was streamed, verbatim: the file on disk must not change. */
+    private object OldFormat {
+        const val HEADER = "latentjam-track-identities-v1"
+        fun hex(value: String): String = buildString(value.length * 2) {
+            for (byte in value.encodeToByteArray()) {
+                append("0123456789abcdef"[(byte.toInt() and 255) ushr 4])
+                append("0123456789abcdef"[byte.toInt() and 15])
+            }
+        }
+        fun unhex(value: String): String =
+            ByteArray(value.length / 2) { value.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
+                .decodeToString(throwOnInvalidSequence = true)
+        fun digest(text: String): String = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(text.encodeToByteArray()).joinToString("") { "%02x".format(it.toInt() and 255) }
+        fun encode(rows: List<List<String>>): String {
+            val body = rows.sortedBy { it[0] }.joinToString("\n") { it.joinToString("|", transform = ::hex) }
+            return "$HEADER\n${digest(body)}\n$body"
+        }
+        fun decode(payload: String): List<List<String>> {
+            val header = payload.split('\n', limit = 3)
+            check(header.size == 3 && header[0] == HEADER && digest(header[2]) == header[1])
+            return header[2].lineSequence().filter(String::isNotEmpty).map { line -> line.split('|').map(::unhex) }.toList()
+        }
+    }
+
+    @Test fun registryFileStaysByteIdenticalToTheOldFormat() {
+        val f = Fixture(tags)
+        val tracks = (1..40).map { track(it.toString()).copy(fileName = "Söng $it.FLAC", storageVolume = "1A2B-3C4D") }
+        f.scan(*tracks.toTypedArray()); f.remember()
+        f.scan(track("relocated-by-volume"))
+        val payload = f.disk.payload!!
+        val rows = OldFormat.decode(payload)
+        assertEquals(41, rows.size)
+        assertEquals(payload, OldFormat.encode(rows))
+        // And a file the old code wrote reads back the same.
+        f.restart()
+        assertEquals(TrackId("relocated-by-volume"), f.registry.logicalId("relocated-by-volume"))
+        assertEquals("5", f.registry.sourceId(TrackId("5")))
+        f.disk.payload = OldFormat.encode(rows)
+        f.restart()
+        assertEquals(payload, f.disk.payload)
+        assertEquals(listOf(track("relocated-by-volume")), f.scan(track("relocated-by-volume")))
+    }
+
+    @Test fun emptyAndDamagedRegistriesKeepTheirOldOutcomes() {
+        val f = Fixture(tags)
+        f.disk.payload = OldFormat.encode(emptyList())
+        f.restart()
+        assertEquals(listOf(track("1")), f.scan(track("1")))
+        for (damaged in listOf("", OldFormat.HEADER, OldFormat.HEADER + "\nabc", OldFormat.encode(emptyList()) + "\n",
+            OldFormat.encode(listOf(List(10) { "x" })).replace("|", "||"))) {
+            f.disk.payload = damaged
+            f.restart()
+            assertFailsWith<IOException> { f.scan(track("1")) }
+        }
     }
 }
