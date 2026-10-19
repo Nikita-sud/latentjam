@@ -47,6 +47,11 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
     override val artistVariety: StateFlow<Int> = mutableArtistVariety.asStateFlow()
     private val mutableIncludeNoveltyMixes = MutableStateFlow(readNoveltyMixPreference())
     override val includeNoveltyMixes: StateFlow<Boolean> = mutableIncludeNoveltyMixes.asStateFlow()
+    private val mutableLearnFromHabits = MutableStateFlow(
+        runCatching { preferences.getBoolean(KEY_LEARN_FROM_HABITS, DEFAULT_LEARN_FROM_HABITS) }.getOrNull()
+            ?: DEFAULT_LEARN_FROM_HABITS,
+    )
+    override val learnFromHabits: StateFlow<Boolean> = mutableLearnFromHabits.asStateFlow()
     private val mutableNormalizeVolume = MutableStateFlow(
         normalizeVolumePreferenceFromPersisted(
             runCatching { preferences.getBoolean(KEY_NORMALIZE_VOLUME, false) }.getOrNull(),
@@ -139,6 +144,11 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
     override fun setIncludeNoveltyMixes(enabled: Boolean) {
         preferences.edit().putBoolean(KEY_INCLUDE_NOVELTY_MIXES, enabled).apply()
         mutableIncludeNoveltyMixes.value = enabled
+    }
+
+    override fun setLearnFromHabits(enabled: Boolean) {
+        preferences.edit().putBoolean(KEY_LEARN_FROM_HABITS, enabled).apply()
+        mutableLearnFromHabits.value = enabled
     }
 
     override fun setNormalizeVolume(enabled: Boolean) {
@@ -367,6 +377,7 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         const val KEY_PAGE_HEADER_STYLE = "page_header_style"
         const val KEY_SMART_QUEUE_LENGTH = "smart_queue_length"
         const val KEY_INCLUDE_NOVELTY_MIXES = "include_novelty_mixes"
+        const val KEY_LEARN_FROM_HABITS = "learn_from_habits"
         const val KEY_SAVE_HISTORY = "save_listening_history"
         const val KEY_REMEMBER_SEARCHES = "remember_searches"
         const val KEY_RESUME_TRACK = "resume_track_id"

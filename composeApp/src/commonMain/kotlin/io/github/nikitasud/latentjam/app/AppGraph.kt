@@ -106,6 +106,9 @@ object AppGraph {
      * current by the App whenever playlists change; read by every SMART queue planner.
      */
     val smartCompanionGroups = MutableStateFlow<List<Set<TrackId>>>(emptyList())
+
+    /** SMART's eligible library as the App last handed it to playback; read by the habit slots. */
+    val smartLibraryTracks = MutableStateFlow<List<TrackDescriptor>>(emptyList())
     /** Advances after each accepted listening event so For You can apply feedback next time it opens. */
     val historyRevision: StateFlow<Long> = mutableHistoryRevision.asStateFlow()
     private val historyFlushRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -179,6 +182,8 @@ object AppGraph {
                                 engine = get(),
                                 history = get(),
                                 companionGroups = { smartCompanionGroups.value },
+                                learnFromHabits = { settings.learnFromHabits.value },
+                                library = { smartLibraryTracks.value },
                             )
                         }
                     },

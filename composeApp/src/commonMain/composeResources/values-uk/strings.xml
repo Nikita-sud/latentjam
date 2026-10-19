@@ -495,6 +495,8 @@
     <string name="intelligence_artist_variety_max">Максимальна</string>
     <string name="intelligence_include_novelty_mixes">Показувати незвичні мікси</string>
     <string name="intelligence_include_novelty_mixes_body">Показувати в розділі «Для вас» окремі мікси з мемами, вірусними аудіо та звуковими ефектами.</string>
+    <string name="intelligence_learn_from_habits">Враховувати мої звички</string>
+    <string name="intelligence_learn_from_habits_body">Кожен другий трек із перших десяти в черзі SMART — той, що ви зазвичай вмикаєте після вибраного. Усе лишається на пристрої.</string>
     <string name="foryou_mix_meme_viral">Меми й вірусні аудіо</string>
     <string name="foryou_mix_sound_effects">Звукові ефекти</string>
     <string name="foryou_mix_spoken_audio">Розмовне аудіо</string>

@@ -534,6 +534,8 @@
     <string name="intelligence_artist_variety_max">Maximum</string>
     <string name="intelligence_include_novelty_mixes">Include novelty mixes</string>
     <string name="intelligence_include_novelty_mixes_body">Show separately named meme, viral, and sound-effect mixes in For You.</string>
+    <string name="intelligence_learn_from_habits">Learn from my habits</string>
+    <string name="intelligence_learn_from_habits_body">Every other track among the first ten of a SMART queue is one you usually play after the track you started from. Stays on this device.</string>
     <string name="foryou_mix_meme_viral">Meme &amp; Viral Audio</string>
     <string name="foryou_mix_sound_effects">Sound effects</string>
     <string name="foryou_mix_spoken_audio">Spoken audio</string>

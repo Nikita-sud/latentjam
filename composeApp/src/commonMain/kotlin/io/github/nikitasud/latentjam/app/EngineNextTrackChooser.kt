@@ -41,6 +41,10 @@ class EngineNextTrackChooser(
     private val history: ListeningHistory,
     /** Live view of the playlists the listener marked "keep together in SMART". */
     private val companionGroups: () -> List<Set<TrackId>> = { emptyList() },
+    /** The "Learn from my habits" setting: personal slots in queues SMART starts from a seed. */
+    private val learnFromHabits: () -> Boolean = { false },
+    /** SMART's library, whose listens the habit list reads (not only what may still be queued). */
+    private val library: () -> List<TrackDescriptor> = { emptyList() },
 ) : NextTrackChooser {
 
     private val mutex = Mutex()
@@ -99,9 +103,16 @@ class EngineNextTrackChooser(
             // A top-up can extend this chooser's plan or one the UI requested directly, even
             // after replacing the previous queue. The engine checks the preceding queued tracks
             // before carrying a walk; an unrelated seed starts fresh there.
-            val plan = engine.continueSmartQueue(
+            var plan = engine.continueSmartQueue(
                 current, candidates, CHAIN_LENGTH, events, groups, precedingTrackIds = recentIds,
             )
+            // A queue SMART starts from a seed is that seed alone (the controllers replace the
+            // queue with the tapped track); top-ups of a running queue keep SMART's own order.
+            if (recentIds.isEmpty() && plan.isNotEmpty() && learnFromHabits()) {
+                plan = withHabitSlots(
+                    history, current, candidates, library(), plan, seedMs = events.last().startedAtMs,
+                )
+            }
             planned = ArrayDeque(plan.withIndex().toList())
             // Diagnostics stay aggregate on purpose: no title, artist or track id goes to the
             // system log. On Android that log is plain logcat, which other apps could read on

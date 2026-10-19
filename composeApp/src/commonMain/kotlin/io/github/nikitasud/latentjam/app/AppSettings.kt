@@ -8,6 +8,7 @@ import io.github.nikitasud.latentjam.library.AlbumSort
 import io.github.nikitasud.latentjam.library.SongSort
 import io.github.nikitasud.latentjam.library.SongSortDirection
 import io.github.nikitasud.latentjam.library.defaultDirection
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.koin.core.module.Module
 import kotlin.math.abs
@@ -403,6 +404,10 @@ private const val MAX_DECODED_RESUME_QUEUE_IDS = 10_000
  */
 private val DEFAULT_APPEARANCE: StateFlow<Appearance> = kotlinx.coroutines.flow.MutableStateFlow(Appearance())
 
+/** "Learn from my habits" is on until the listener turns it off. */
+internal const val DEFAULT_LEARN_FROM_HABITS = true
+private val LEARN_FROM_HABITS_DEFAULT_FLOW: StateFlow<Boolean> = MutableStateFlow(DEFAULT_LEARN_FROM_HABITS)
+
 interface AppSettings {
     val themeMode: StateFlow<ThemeMode>
     fun setThemeMode(mode: ThemeMode)
@@ -435,6 +440,14 @@ interface AppSettings {
      */
     val includeNoveltyMixes: StateFlow<Boolean>
     fun setIncludeNoveltyMixes(enabled: Boolean)
+
+    /**
+     * Whether a SMART queue started from a track gives every other one of its first ten slots to
+     * what the listener usually plays after it (docs/habit-slots.md). On by default; off leaves
+     * SMART's own queue unchanged. Implementations without the preference keep it on.
+     */
+    val learnFromHabits: StateFlow<Boolean> get() = LEARN_FROM_HABITS_DEFAULT_FLOW
+    fun setLearnFromHabits(enabled: Boolean) {}
 
     /** Whether playback attenuates loud tracks toward a common level. Off by default. */
     val normalizeVolume: StateFlow<Boolean>

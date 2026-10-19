@@ -1089,6 +1089,7 @@ private fun AppShell(
             // subset. SMART is a library journey, so keep its candidate universe independent of
             // whichever small list happened to contain the track the listener tapped.
             playback.setSmartLibrary(smartEligibleTracks)
+            AppGraph.smartLibraryTracks.value = smartEligibleTracks
             val indexing = AppGraph.automaticIndexing.value
             libraryWorlds.metadataVectorsReady =
                 indexing.trackIds == loaded.map(TrackDescriptor::id) && indexing.metadataReady
@@ -2022,7 +2023,9 @@ private fun AppShell(
             // another candidate using the old eligible library.
             try {
                 val state = smartExclusions.state.value
-                playback.setSmartLibrary(tracks.orEmpty().filterNot { state.excludes(it) })
+                val eligible = tracks.orEmpty().filterNot { state.excludes(it) }
+                playback.setSmartLibrary(eligible)
+                AppGraph.smartLibraryTracks.value = eligible
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Throwable) {

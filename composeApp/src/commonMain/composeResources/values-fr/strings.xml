@@ -465,6 +465,8 @@
     <string name="intelligence_artist_variety_max">Maximale</string>
     <string name="intelligence_include_novelty_mixes">Inclure les mixes insolites</string>
     <string name="intelligence_include_novelty_mixes_body">Afficher dans Pour vous des mixes distincts de mèmes, de sons viraux et d’effets sonores.</string>
+    <string name="intelligence_learn_from_habits">Apprendre de mes habitudes</string>
+    <string name="intelligence_learn_from_habits_body">Un titre sur deux parmi les dix premiers d’une file SMART est un titre que vous écoutez souvent après celui choisi. Tout reste sur cet appareil.</string>
     <string name="foryou_mix_meme_viral">Mèmes et sons viraux</string>
     <string name="foryou_mix_sound_effects">Effets sonores</string>
     <string name="foryou_mix_spoken_audio">Contenu parlé</string>

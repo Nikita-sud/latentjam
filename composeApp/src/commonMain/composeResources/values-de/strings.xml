@@ -463,6 +463,8 @@
     <string name="intelligence_artist_variety_max">Maximal</string>
     <string name="intelligence_include_novelty_mixes">Spaß-Mixe einbeziehen</string>
     <string name="intelligence_include_novelty_mixes_body">Eigene Mixe mit Memes, viralen Clips und Soundeffekten in „Für dich“ anzeigen.</string>
+    <string name="intelligence_learn_from_habits">Aus meinen Gewohnheiten lernen</string>
+    <string name="intelligence_learn_from_habits_body">Jeder zweite der ersten zehn Titel einer SMART-Warteschlange ist einer, den du nach dem gewählten Titel meist hörst. Bleibt auf diesem Gerät.</string>
     <string name="foryou_mix_meme_viral">Memes &amp; virale Clips</string>
     <string name="foryou_mix_sound_effects">Soundeffekte</string>
     <string name="foryou_mix_spoken_audio">Gesprochenes</string>

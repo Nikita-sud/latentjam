@@ -479,6 +479,8 @@
     <string name="intelligence_artist_variety_max">מרבי</string>
     <string name="intelligence_include_novelty_mixes">הכללת מיקסים מיוחדים</string>
     <string name="intelligence_include_novelty_mixes_body">הצגת מיקסים נפרדים של ממים, להיטים ויראליים ואפקטים קוליים ב"בשבילך".</string>
+    <string name="intelligence_learn_from_habits">ללמוד מההרגלים שלי</string>
+    <string name="intelligence_learn_from_habits_body">כל שיר שני מתוך עשרת הראשונים בתור SMART הוא שיר שבדרך כלל מושמע אצלך אחרי השיר שבחרת. הכול נשאר במכשיר הזה.</string>
     <string name="foryou_mix_meme_viral">ממים וויראליים</string>
     <string name="foryou_mix_sound_effects">אפקטים קוליים</string>
     <string name="foryou_mix_spoken_audio">תוכן מדובר</string>

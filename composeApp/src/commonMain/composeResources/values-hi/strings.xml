@@ -453,6 +453,8 @@
     <string name="intelligence_artist_variety_max">अधिकतम</string>
     <string name="intelligence_include_novelty_mixes">अनोखे मिक्स शामिल करें</string>
     <string name="intelligence_include_novelty_mixes_body">आपके लिए में मीम, वायरल ऑडियो और साउंड इफ़ेक्ट के अलग मिक्स दिखाएँ।</string>
+    <string name="intelligence_learn_from_habits">मेरी आदतों से सीखें</string>
+    <string name="intelligence_learn_from_habits_body">SMART कतार के पहले दस गानों में हर दूसरा गाना वह होता है जो आप चुने गए गाने के बाद अक्सर सुनते हैं। सब कुछ इसी डिवाइस पर रहता है।</string>
     <string name="foryou_mix_meme_viral">मीम और वायरल ऑडियो</string>
     <string name="foryou_mix_sound_effects">साउंड इफ़ेक्ट</string>
     <string name="foryou_mix_spoken_audio">बोला गया ऑडियो</string>

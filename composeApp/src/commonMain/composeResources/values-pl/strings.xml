@@ -495,6 +495,8 @@
     <string name="intelligence_artist_variety_max">Maksymalna</string>
     <string name="intelligence_include_novelty_mixes">Uwzględniaj nietypowe miksy</string>
     <string name="intelligence_include_novelty_mixes_body">Pokazuj w sekcji Dla Ciebie osobne miksy z memami, viralami i efektami dźwiękowymi.</string>
+    <string name="intelligence_learn_from_habits">Ucz się z moich nawyków</string>
+    <string name="intelligence_learn_from_habits_body">Co drugi z pierwszych dziesięciu utworów w kolejce SMART to taki, którego zwykle słuchasz po wybranym. Wszystko zostaje na tym urządzeniu.</string>
     <string name="foryou_mix_meme_viral">Memy i virale</string>
     <string name="foryou_mix_sound_effects">Efekty dźwiękowe</string>
     <string name="foryou_mix_spoken_audio">Słowo mówione</string>

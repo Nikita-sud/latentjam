@@ -463,6 +463,8 @@
     <string name="intelligence_artist_variety_max">Maximă</string>
     <string name="intelligence_include_novelty_mixes">Include mixurile neobișnuite</string>
     <string name="intelligence_include_novelty_mixes_body">Afișează în Pentru tine mixuri separate cu meme, audio viral și efecte sonore.</string>
+    <string name="intelligence_learn_from_habits">Învață din obiceiurile mele</string>
+    <string name="intelligence_learn_from_habits_body">Una din două dintre primele zece piese ale unei cozi SMART este una pe care o asculți de obicei după cea aleasă. Totul rămâne pe acest dispozitiv.</string>
     <string name="foryou_mix_meme_viral">Meme și audio viral</string>
     <string name="foryou_mix_sound_effects">Efecte sonore</string>
     <string name="foryou_mix_spoken_audio">Audio vorbit</string>

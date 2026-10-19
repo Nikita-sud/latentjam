@@ -434,6 +434,8 @@
     <string name="intelligence_artist_variety_max">最大</string>
     <string name="intelligence_include_novelty_mixes">ネタ系ミックスを含める</string>
     <string name="intelligence_include_novelty_mixes_body">ミーム、バイラル、効果音のミックスを「あなたへ」に別枠で表示します。</string>
+    <string name="intelligence_learn_from_habits">自分の習慣から学ぶ</string>
+    <string name="intelligence_learn_from_habits_body">SMART キューの最初の10曲のうち1曲おきに、選んだ曲のあとによく聴く曲が入ります。データはこの端末から出ません。</string>
     <string name="foryou_mix_meme_viral">ミーム＆バイラル音源</string>
     <string name="foryou_mix_sound_effects">効果音</string>
     <string name="foryou_mix_spoken_audio">トーク・朗読</string>

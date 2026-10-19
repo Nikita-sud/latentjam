@@ -54,6 +54,10 @@ internal class IosAppSettings : AppSettings {
     override val artistVariety: StateFlow<Int> = mutableArtistVariety.asStateFlow()
     private val mutableIncludeNoveltyMixes = MutableStateFlow(readNoveltyMixPreference())
     override val includeNoveltyMixes: StateFlow<Boolean> = mutableIncludeNoveltyMixes.asStateFlow()
+    private val mutableLearnFromHabits = MutableStateFlow(
+        (defaults.objectForKey(KEY_LEARN_FROM_HABITS) as? NSNumber)?.boolValue ?: DEFAULT_LEARN_FROM_HABITS,
+    )
+    override val learnFromHabits: StateFlow<Boolean> = mutableLearnFromHabits.asStateFlow()
     private val mutableNormalizeVolume = MutableStateFlow(
         normalizeVolumePreferenceFromPersisted(
             (defaults.objectForKey(KEY_NORMALIZE_VOLUME) as? NSNumber)?.boolValue,
@@ -146,6 +150,11 @@ internal class IosAppSettings : AppSettings {
     override fun setIncludeNoveltyMixes(enabled: Boolean) {
         defaults.setBool(enabled, KEY_INCLUDE_NOVELTY_MIXES)
         mutableIncludeNoveltyMixes.value = enabled
+    }
+
+    override fun setLearnFromHabits(enabled: Boolean) {
+        defaults.setBool(enabled, KEY_LEARN_FROM_HABITS)
+        mutableLearnFromHabits.value = enabled
     }
 
     override fun setNormalizeVolume(enabled: Boolean) {
@@ -369,6 +378,7 @@ internal class IosAppSettings : AppSettings {
         const val KEY_APPEARANCE = "appearance_v1"
         const val KEY_SMART_QUEUE_LENGTH = "smart_queue_length"
         const val KEY_INCLUDE_NOVELTY_MIXES = "include_novelty_mixes"
+        const val KEY_LEARN_FROM_HABITS = "learn_from_habits"
         const val KEY_SAVE_HISTORY = "save_listening_history"
         const val KEY_REMEMBER_SEARCHES = "remember_searches"
         const val KEY_RESUME_TRACK = "resume_track_id"
