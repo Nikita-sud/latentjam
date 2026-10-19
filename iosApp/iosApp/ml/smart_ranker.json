@@ -1,6 +1,6 @@
 {
  "name": "CORE+LFM (proto_ranker2.py 6e2fd6ce, FIT 60/40 split, lambda 10, p 2.129)",
- "source": "tools/research/listenbrainz_eval/proto_ranker2.json core_lfm on claude/smart-stage0-eval-f2a727: weights_standardised; mean/sd recomputed with proto_ranker2's own train rows (its refit reproduces the published weights exactly); runPenalty 2.129 calibrated on FIT train listeners to people's Balanced adjacency 0.238; hop k>1 = (2 s(seed) + s(previous)) / 3. epsilon 0.01 and the serving block per PLAN_FINAL \u00a78 / \u00a71.1 / \u00a77.2b (quotas are the plan's defaults until the trained model fixes them).",
+ "source": "tools/research/listenbrainz_eval/proto_ranker2.json core_lfm on claude/smart-stage0-eval-f2a727: weights_standardised; mean/sd recomputed with proto_ranker2's own train rows (its refit reproduces the published weights exactly); runPenalty 2.129 calibrated on FIT train listeners to people's Balanced adjacency 0.238; hop k>1 = (2 s(seed) + s(previous)) / 3. epsilon 0.01 and the serving block per PLAN_FINAL \u00a78 / \u00a71.1 / \u00a77.2b (quotas are the plan's defaults until the trained model fixes them). Decoder = PLAN_FINAL \u00a78 D0 (proto_ranker4 b4117980): lambda_run 1.75, eps 0.01 of the penalised sd, -8 third-in-a-row cap; the v2A refit's weights are not shipped (no mean/sd recorded) \u2014 these are the parity-tested v2 weights it was refit from.",
  "features": [
   "cos",
   "cos_z",
@@ -69,7 +69,7 @@
   0.5832839311874112,
   0.0
  ],
- "runPenalty": 2.129,
+ "runPenalty": 1.75,
  "anchor": "mix",
  "seedWeight": 2.0,
  "previousWeight": 1.0,
@@ -86,5 +86,6 @@
   "artistKey": "engine",
   "recentWindow": 50,
   "hopBudgetMs": 150
- }
+ },
+ "thirdInRowCap": 8.0
 }

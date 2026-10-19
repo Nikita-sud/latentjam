@@ -23,10 +23,12 @@ import kotlin.time.TimeSource
  * over pool indices.
  *
  * Hop 1 scores the pool against the seed; from hop 2 the anchor is [RankerModel.anchor]: the seed, the previous pick,
- * or both mixed. Each hop's penalised score is the score − p · runLength · sd(open rows' scores) for rows of the artist
- * the queue ends with (the seed counts). The open, unblocked rows within ε = [RankerModel.epsilon] · sd of the best form
- * the hop's near-best set, ordered by [tieOrder]; [choose] picks one of them (the salted key on device; the first, the
- * research's lowest-key rule, by default). Features are always computed over the whole pool, as the research does. The
+ * or both mixed. As proto_ranker4's D0: rows [blocked] (song-version dedup) leave first; the penalised score is the
+ * score − p · runLength · sd(raw scores of the rows left) for rows of the artist the queue ends with (the seed counts),
+ * minus [RankerModel.thirdInRowCap] for a third track in a row by one artist; the rows within ε =
+ * [RankerModel.epsilon] · sd(penalised scores) of the best form the hop's near-best set, ordered by [tieOrder];
+ * [choose] picks one of them (§1.6 step 5's uniform draw on device; the first, the research's lowest-key rule, when
+ * ε = 0). Features are always computed over the whole pool, as the research does. The
  * loop stops early when no row may be taken or [stop] says the time budget is spent.
  */
 public object RankerQueue {
@@ -65,23 +67,28 @@ public object RankerQueue {
                     DoubleArray(poolSize) { (model.seedWeight * seedScores[it] + model.previousWeight * previous[it]) / total }
                 }
             }
-            val sd = spread(s, open)
+            // proto_ranker4 D0 (PLAN_FINAL §8): dedup first; the penalty uses the sd of the raw scores over what is
+            // left, the third-in-a-row cap follows, and ε uses the sd of those penalised, capped scores.
+            val allowed = BooleanArray(poolSize) { open[it] && s[it].isFinite() && !blocked(it, picks) }
+            if (allowed.none { it }) return picks
+            val sd = spread(s, allowed)
             val penalty = if (model.runPenalty > 0.0 && runLength > 0) model.runPenalty * runLength * sd else 0.0
             val runAt = runArtist
-            fun penalised(i: Int) = if (penalty != 0.0 && artistKeys[i] == runAt) s[i] - penalty else s[i]
-            val allowed = BooleanArray(poolSize) { open[it] && penalised(it).isFinite() && !blocked(it, picks) }
-            var bestScore = Double.NEGATIVE_INFINITY
-            var any = false
-            for (i in 0 until poolSize) if (allowed[i]) {
-                any = true
-                bestScore = maxOf(bestScore, penalised(i))
+            val capped = model.thirdInRowCap > 0.0 && runAt.isNotEmpty() && runLength >= 2
+            fun penalised(i: Int): Double {
+                var t = s[i]
+                if (penalty != 0.0 && artistKeys[i] == runAt) t -= penalty
+                if (capped && artistKeys[i] == runAt) t -= model.thirdInRowCap
+                return t
             }
-            if (!any) return picks
-            val floor = bestScore - model.epsilon * sd
+            val t = DoubleArray(poolSize) { if (allowed[it]) penalised(it) else Double.NaN }
+            var bestScore = Double.NEGATIVE_INFINITY
+            for (i in 0 until poolSize) if (allowed[i]) bestScore = maxOf(bestScore, t[i])
+            val floor = bestScore - model.epsilon * spread(t, allowed)
             val nearBest = (0 until poolSize)
-                .filter { allowed[it] && penalised(it) >= floor }
+                .filter { allowed[it] && t[it] >= floor }
                 .sortedBy { tieOrder[it] }
-            var best = if (nearBest.size == 1) nearBest[0] else choose(picks.size, nearBest)
+            var best = if (model.epsilon == 0.0 && nearBest.size == 1) nearBest[0] else choose(picks.size, nearBest)
             if (take != null) best = take(picks.size, best, ::penalised)
             open[best] = false
             picks += best
@@ -97,6 +104,7 @@ public object RankerQueue {
     /** The anchor index [build] passes for the seed. */
     public const val SEED: Int = -1
 
+    /** Population sd of [s] over the rows [open] marks. */
     private fun spread(s: DoubleArray, open: BooleanArray): Double {
         var n = 0
         var sum = 0.0

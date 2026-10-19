@@ -97,7 +97,12 @@ class RankerQueueGoldenTest {
         println("ranker queue golden: $queries queries, ${queries * 20} hops, $tolerated taken differently on an equal score or a margin under 1e-6")
     }
 
-    /** The shipped weights with ε = 0: the reference is plain argmax (PLAN_FINAL §8's salted near-best pick is newer). */
+    /**
+     * The shipped weights with proto_ranker2's own decoder: ε = 0, p = 2.129, no third-in-a-row cap (the asset now
+     * carries PLAN_FINAL §8's D0 parameters; DecoderD0GoldenTest pins those).
+     */
     private fun asset(): String = File("../../androidApp/src/main/assets/ml/smart_ranker.json").readText()
         .replace(Regex("\"epsilon\":\\s*[0-9.eE+-]+"), "\"epsilon\": 0")
+        .replace(Regex("\"runPenalty\":\\s*[0-9.eE+-]+"), "\"runPenalty\": 2.129")
+        .replace(Regex("\"thirdInRowCap\":\\s*[0-9.eE+-]+"), "\"thirdInRowCap\": 0")
 }

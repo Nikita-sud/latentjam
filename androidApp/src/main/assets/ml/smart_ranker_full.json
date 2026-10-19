@@ -101,5 +101,6 @@
  "anchor": "mix",
  "seedWeight": 2.0,
  "previousWeight": 1.0,
- "epsilon": 0.01
+ "epsilon": 0.01,
+ "thirdInRowCap": 8.0
 }

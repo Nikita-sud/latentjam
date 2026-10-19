@@ -28,8 +28,10 @@ public class RankerModel(
     public val anchor: Anchor,
     public val seedWeight: Double = 2.0,
     public val previousWeight: Double = 1.0,
-    /** Near-best width in sds of the hop scores (PLAN_FINAL §8: 0.01); 0 keeps exact ties only. */
+    /** Near-best width in sds of the penalised hop scores (PLAN_FINAL §8: 0.01); 0 keeps exact ties only. */
     public val epsilon: Double = 0.0,
+    /** Logit units off a candidate that would be the third in a row by one artist (§8.3: 8); 0 = no cap. */
+    public val thirdInRowCap: Double = 0.0,
     /** Candidates, retrieval quotas and the other serving parameters (PLAN_FINAL §1.1, §7.2b). */
     public val serving: Serving = Serving(),
     /** Raw-unit weight of the audio cosine; null = §1.3's rule, max(0, the descriptor cosine's raw weight). */
@@ -72,6 +74,7 @@ public class RankerModel(
         require(runPenalty.isFinite() && runPenalty >= 0.0)
         require(seedWeight >= 0.0 && previousWeight >= 0.0 && seedWeight + previousWeight > 0.0)
         require(epsilon.isFinite() && epsilon >= 0.0)
+        require(thirdInRowCap.isFinite() && thirdInRowCap >= 0.0)
     }
 
     /** The score of one candidate's full feature row (in [RankerFeatures.NAMES] order). */
@@ -97,6 +100,7 @@ public class RankerModel(
             runPenalty = 0.5,
             anchor = Anchor.MIX,
             epsilon = 0.01,
+            thirdInRowCap = 8.0,
             audioWeightOverride = 0.0,
         )
 
@@ -121,6 +125,7 @@ public class RankerModel(
                 seedWeight = (root["seedWeight"] as? Number)?.toDouble() ?: 2.0,
                 previousWeight = (root["previousWeight"] as? Number)?.toDouble() ?: 1.0,
                 epsilon = (root["epsilon"] as? Number)?.toDouble() ?: 0.0,
+                thirdInRowCap = (root["thirdInRowCap"] as? Number)?.toDouble() ?: 0.0,
                 serving = (root["serving"] as? Map<*, *>)?.let { m ->
                     val d = Serving()
                     Serving(
