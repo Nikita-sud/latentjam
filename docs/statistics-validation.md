@@ -74,7 +74,7 @@ your patterns, library and decades). The facts come from `ListeningNormalization
 
 ## Automated checks
 
-- 2,905 Android host tests, 0 failures (new: `ListeningNormalizationTest` 15, `ListeningInsightsTest` 22,
+- 2,905 Android host tests, 0 failures (new: `ListeningNormalizationTest` 15, `ListeningInsightsTest` 23,
   `StatsSnapshotsTest` 3, including the old-vs-normalised overview equivalence, resume joins, restart and
   backward-seek limits, a SMART-only legacy log, and the producer's failure → retry and abandoned-awaiter cases).
 - `StringResourceParityTest` passes for all 21 locale folders (new keys, `stats_days_ago` now a plural,
