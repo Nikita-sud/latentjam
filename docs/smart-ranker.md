@@ -7,7 +7,7 @@ a v2 (hop-by-hop queues, LightGBM) decides the variant and the weights. Until th
 ## What it does
 
 Setting: *Settings → SMART engine → Recommendations → Learned ranker (test)* (`smart_ranker`), **on by default** in this
-build, all locales. Off = SMART's usual chain. The "Learn from my habits" slots are withdrawn (wired off, toggle removed).
+build, all locales. Off = SMART's usual chain, at once for the next queue: switching back needs no reinstall. The "Learn from my habits" slots are withdrawn (wired off, toggle removed).
 
 When SMART plans (a new queue or a top-up), `SmartRanker` plans 12 tracks hop by hop: every candidate the queue may take
 (SMART's library minus queued and removed tracks, minus the seed and minus what was heard in the last 24 hours or
@@ -24,8 +24,9 @@ refuses the asset and SMART keeps its chain.
 
 v1 = `proto_ranker.json` CORE (a5747d63, FIT 60/40 listener split, λ = 10) **in raw units with mean 0 and sd 1**: the
 research file stores standardised and raw-unit weights but not the means; raw units give the same ranking and the
-same hop spread (a constant shift). `runPenalty = 0` and `anchor = seed` — proto_ranker evaluated one static ranking
-from the seed, so v1 is that ranking; v2 chooses p and the anchor.
+same hop spread (a constant shift). `runPenalty = 0.5` — SMART's artistRunPenalty at the **Balanced** artist-variety
+level, chosen for now (the owner asked to install v1 before v2), not fitted — and `anchor = seed`, as proto_ranker
+evaluated one static ranking from the seed; v2 chooses p and the anchor.
 
 ## Features (RankerFeatures.kt = proto_ranker.py `lib_features`, CORE)
 

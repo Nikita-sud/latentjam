@@ -1,6 +1,6 @@
 {
  "name": "CORE-v1 (proto_ranker.py a5747d63, FIT 60/40 split, lambda 10)",
- "source": "tools/research/listenbrainz_eval/proto_ranker.json on claude/smart-stage0-eval-f2a727: weights_raw_units; mean 0 and sd 1 (a constant shift of the standardised score: same ranking, same hop spread). runPenalty 0 and anchor seed until v2 chooses them.",
+ "source": "tools/research/listenbrainz_eval/proto_ranker.json on claude/smart-stage0-eval-f2a727: weights_raw_units; mean 0 and sd 1 (a constant shift of the standardised score: same ranking, same hop spread). runPenalty 0.5 = SMART's artistRunPenalty at the Balanced artist-variety level (owner's call, 19 Oct: install v1 now), anchor seed, until v2 chooses them.",
  "features": [
   "cos",
   "cos_z",
@@ -61,6 +61,6 @@
   0.005085329526900081,
   2.058583898492653
  ],
- "runPenalty": 0.0,
+ "runPenalty": 0.5,
  "anchor": "seed"
 }
