@@ -381,6 +381,30 @@ internal class GenreEnrichmentTest {
         assertEquals("Beyoncé Lumière", enrichment.apply(listOf(track)).single().albumArtist)
     }
 
+    @Test
+    fun theCacheStaysOnStorageInsteadOfInTheHeap() = runTest {
+        val settings = MemorySettings()
+        val enrichment = GenreEnrichment(settings) { facts }
+        enrichment.backfill(listOf(track))
+        assertEquals(listOf(enriched), enrichment.apply(listOf(track)))
+        // A store emptied behind its back is seen at once: nothing was kept resident.
+        settings.trackGenresPayload = ""
+        assertEquals(listOf(track), enrichment.apply(listOf(track)))
+    }
+
+    @Test
+    fun anAlbumsSongsShareOneInstanceOfEachLearnedName() = runTest {
+        val songs = (1..3).map { TrackDescriptor(TrackId("song $it"), genre = "Rock", sourceRevision = "r$it") }
+        val settings = MemorySettings()
+        // Each read returns fresh strings, as decoding a file does.
+        GenreEnrichment(settings) { facts.copy(genres = listOf("Rock", "Pop").map { it.toCharArray().concatToString() },
+            artists = facts.artists.map { it.toCharArray().concatToString() }) }.backfill(songs)
+        val applied = GenreEnrichment(settings) { error("warm") }.apply(songs)
+        assertEquals("Rock; Pop", applied[0].genre)
+        assertTrue(applied.all { it.genre === applied[0].genre })
+        assertTrue(applied.all { it.artists[1] === applied[0].artists[1] && it.albumArtist === applied[0].albumArtist })
+    }
+
     private fun String.hex(): String = encodeToByteArray().joinToString("") {
         (it.toInt() and 0xff).toString(16).padStart(2, '0')
     }

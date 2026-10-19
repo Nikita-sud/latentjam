@@ -496,6 +496,26 @@ interface AppSettings {
     fun readTrackGenresPayload(): String?
     fun writeTrackGenresPayload(payload: String)
 
+    /**
+     * The same genre payload a line at a time, for a cache with a line per song: a platform that
+     * keeps it in a file streams it instead of holding one string of the whole library. Null
+     * when none exists; otherwise what [read] returns, after it has seen every line.
+     */
+    fun <T> readTrackGenreLines(read: (Sequence<String>) -> T): T? =
+        readTrackGenresPayload()?.let { read(it.lineSequence()) }
+
+    /** Replaces the genre payload with the lines [write] emits through its argument, in order. */
+    fun writeTrackGenreLines(write: ((String) -> Unit) -> Unit) {
+        val payload = StringBuilder()
+        var first = true
+        write { line ->
+            if (!first) payload.append('\n')
+            first = false
+            payload.append(line)
+        }
+        writeTrackGenresPayload(payload.toString())
+    }
+
     /** SMART carry-overs from tag edits (see [AudioCarryOverStore]); null when none. */
     fun readAudioCarryOversPayload(): String?
     fun writeAudioCarryOversPayload(payload: String)
