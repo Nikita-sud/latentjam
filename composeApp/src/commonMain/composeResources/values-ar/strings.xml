@@ -1011,6 +1011,8 @@
     <string name="stats_unlock_on_repeat">تستمع إليها بتكرار الآن — بعد أسبوع من الاستماع</string>
     <string name="stats_unlock_slipping">بدأت تُنسى — بعد ثلاثة أشهر من الاستماع</string>
     <string name="stats_part_failed">تعذر تحميل بعض هذه الإحصاءات.</string>
+    <string name="stats_playlist_row">قائمة تشغيل</string>
+    <string name="stats_playlists_note">مرات التشغيل من كل قائمة تشغيل. لا تُحتسب المقاطع التي أضافها SMART ولا الاستماعات السابقة لتسجيل LatentJam لمصدر تشغيل المقطع.</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">المجموعات: %1$d · النسخ الزائدة: %2$d · يمكن تحريره: %3$s</string>

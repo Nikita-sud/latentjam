@@ -8,12 +8,37 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.math.pow
 
-/** A track the listener keeps coming back to lately; [weight] ranks, the counts explain. */
+/** One row of "on repeat now": a track or a whole playlist; [weight] ranks, the counts explain. */
+public sealed interface RepeatRow {
+    public val days: Int
+    public val plays: Int
+    public val weight: Float
+}
+
+/** A track the listener keeps coming back to lately. */
 public data class RepeatTrack(
     public val trackId: TrackId,
-    public val days: Int,
-    public val plays: Int,
-    public val weight: Float,
+    override val days: Int,
+    override val plays: Int,
+    override val weight: Float,
+) : RepeatRow
+
+/** A playlist the listener keeps coming back to lately; the tracks it carries are not listed apart. */
+public data class RepeatPlaylist(
+    public val playlistId: String,
+    override val days: Int,
+    override val plays: Int,
+    override val weight: Float,
+) : RepeatRow
+
+/**
+ * A playlist the log can attribute plays to. [id] is the log's parent id (`playlist:<id>`, `auto:<KIND>`);
+ * [members] are its current tracks, or null when membership changes with every listen (most auto
+ * playlists), in which case plays are attributed without checking it.
+ */
+public data class StatsPlaylist(
+    public val id: String,
+    public val members: Set<TrackId>?,
 )
 
 /** An artist the listener keeps coming back to lately (the fallback when few single tracks repeat). */
@@ -57,7 +82,7 @@ public data class DecadePlays(
  * too young (so the page may promise the card) rather than because nothing qualifies.
  */
 public data class HabitInsights(
-    public val onRepeatTracks: List<RepeatTrack>,
+    public val onRepeat: List<RepeatRow>,
     public val onRepeatArtists: List<RepeatArtist>,
     public val onRepeatLocked: Boolean,
     public val currentStreakDays: Int,
@@ -135,6 +160,8 @@ public data class PeriodInsights(
     public val topArtists: List<RankedName>,
     public val topAlbums: List<RankedName>?,
     public val topGenres: List<RankedName>?,
+    /** Plays that came from each playlist ([RankedName.name] is the playlist id); null when too few did. */
+    public val topPlaylists: List<RankedName>?,
     public val activityScale: ActivityScale,
     public val activity: List<ActivityBucket>,
 ) {
@@ -174,6 +201,8 @@ public object ListeningInsights {
     private const val SEQUENCE_MIN_SHARE = 0.4f
     private const val SEQUENCE_ROWS = 3
     private const val TAG_COVERAGE = 0.6
+    private const val PLAYLIST_COVERAGE = 0.2
+    private const val PER_PLAYLIST = 2
     private const val TOP_LIMIT = 10
     private const val STUCK_BURN_IN_DAYS = 30
     private const val STUCK_ALL_TIME_DAYS = 90
@@ -193,8 +222,14 @@ public object ListeningInsights {
         nowMs: Long,
         timePointOf: (Long) -> LocalTimePoint = ::localTimePoint,
         cancellationCheck: () -> Unit = {},
+        playlists: List<StatsPlaylist> = emptyList(),
     ): HabitInsights {
         cancellationCheck()
+        val attribution = PlaylistAttribution(playlists)
+        val playlistWindow = Array(playlists.size) { ArtistRepeatTotal("") }
+        val windowFrom = HashMap<Long, Int>()
+        val chosenFrom = HashMap<Long, Int>()
+        val yearAgoFrom = HashMap<Long, Int>()
         val events = history.events
         val today = timePointOf(nowMs.coerceAtLeast(0)).epochDay
         val firstRepeatDay = today - (REPEAT_WINDOW_DAYS - 1)
@@ -222,7 +257,9 @@ public object ListeningInsights {
 
             if (playDays.lastOrNull() != day) playDays += day
             tracks.plays[track]++
+            val playlist = attribution.of(event)
             if (event.isChosen()) {
+                if (playlist >= 0) chosenFrom.bump(PairTotal.key(track, playlist))
                 tracks.chosenPlays[track]++
                 if (tracks.lastChosenDay[track] != day) {
                     tracks.chosenDays[track]++
@@ -230,6 +267,10 @@ public object ListeningInsights {
                 }
             }
             if (day in firstRepeatDay..today) {
+                if (playlist >= 0) {
+                    windowFrom.bump(PairTotal.key(track, playlist))
+                    playlistWindow[playlist].addDay(day, today)
+                }
                 tracks.windowPlays[track]++
                 if (tracks.lastWindowDay[track] != day) {
                     tracks.windowDays[track]++
@@ -247,7 +288,10 @@ public object ListeningInsights {
                     }
                 }
             }
-            if (day in (yearAgo - YEAR_AGO_SPREAD)..(yearAgo + YEAR_AGO_SPREAD)) tracks.yearAgoPlays[track]++
+            if (day in (yearAgo - YEAR_AGO_SPREAD)..(yearAgo + YEAR_AGO_SPREAD)) {
+                tracks.yearAgoPlays[track]++
+                if (playlist >= 0) yearAgoFrom.bump(PairTotal.key(track, playlist))
+            }
 
             if (previousPlay >= 0 && event.isPick()) {
                 val from = tracks.indexOf(events[previousPlay].trackId)
@@ -275,19 +319,43 @@ public object ListeningInsights {
         val logStart = history.logStartMs
         val available = { track: Int -> catalog(tracks.ids[track]) != null }
 
-        // L1: what the listener is into right now, by days with a play in the last four weeks.
+        // L1: what the listener is into right now, by days with a play in the last four weeks. A
+        // playlist on repeat is one row, and the tracks it carries are not listed apart.
+        val repeatPlaylists = playlists.indices.filter {
+            playlistWindow[it].plays >= REPEAT_MIN_PLAYS && playlistWindow[it].days >= REPEAT_MIN_DAYS
+        }.toSet()
+        val windowCarrier = { track: Int -> attribution.carrier(track, tracks.windowPlays[track], windowFrom) }
         val repeatCandidates = (0 until tracks.size)
             .filter { tracks.windowPlays[it] >= REPEAT_MIN_PLAYS && tracks.windowDays[it] >= REPEAT_MIN_DAYS }
             .filter(available)
-            .sortedWith(
-                compareByDescending<Int> { tracks.weight[it] }
-                    .thenByDescending { tracks.windowPlays[it] }
-                    .thenByDescending { tracks.lastStartMs[it] },
-            )
-        val onRepeatTracks = varied(repeatCandidates, REPEAT_ROWS, tracks, catalog).map {
-            RepeatTrack(tracks.ids[it], tracks.windowDays[it], tracks.windowPlays[it], tracks.weight[it].toFloat())
+            .filter { windowCarrier(it) !in repeatPlaylists }
+            .map { track -> RepeatCandidate(tracks.weight[track], tracks.windowPlays[track], tracks.lastStartMs[track], track, -1) }
+        val playlistCandidates = repeatPlaylists.map { playlist ->
+            val total = playlistWindow[playlist]
+            RepeatCandidate(total.weight, total.plays, Long.MAX_VALUE, -1, playlist)
         }
-        val onRepeatArtists = if (onRepeatTracks.size >= REPEAT_MIN_TRACK_ROWS) {
+        val ranked = (repeatCandidates + playlistCandidates).sortedWith(
+            compareByDescending<RepeatCandidate> { it.weight }
+                .thenByDescending { it.plays }
+                .thenByDescending { it.lastStartMs },
+        )
+        val repeatRows = varied(ranked, REPEAT_ROWS, tracks, catalog, track = { it.track }, carrier = { null })
+            .map { candidate ->
+                if (candidate.track >= 0) {
+                    RepeatTrack(
+                        tracks.ids[candidate.track],
+                        tracks.windowDays[candidate.track],
+                        tracks.windowPlays[candidate.track],
+                        tracks.weight[candidate.track].toFloat(),
+                    )
+                } else {
+                    val total = playlistWindow[candidate.playlist]
+                    RepeatPlaylist(playlists[candidate.playlist].id, total.days, total.plays, total.weight.toFloat())
+                }
+            }
+        // Few single tracks repeat for a shuffle listener: their artists do. A playlist row already
+        // tells that story, so it is never replaced.
+        val onRepeatArtists = if (repeatRows.size >= REPEAT_MIN_TRACK_ROWS || repeatRows.any { it is RepeatPlaylist }) {
             emptyList()
         } else {
             artists.values
@@ -296,8 +364,8 @@ public object ListeningInsights {
                 .take(REPEAT_ROWS)
                 .map { RepeatArtist(it.name, it.days, it.plays, it.weight.toFloat()) }
         }
-        val shownRepeatTracks = if (onRepeatArtists.isEmpty()) onRepeatTracks else emptyList()
-        val repeatEmpty = shownRepeatTracks.isEmpty() && onRepeatArtists.isEmpty()
+        val shownRepeatRows = if (onRepeatArtists.isEmpty()) repeatRows else emptyList()
+        val repeatEmpty = shownRepeatRows.isEmpty() && onRepeatArtists.isEmpty()
         val onRepeatLocked = repeatEmpty && (logStart == null || logStart > nowMs - REPEAT_LOCK_DAYS * DAY_MS)
 
         // T1: favourites the listener chose, not started for two months, while the log kept recording.
@@ -317,7 +385,11 @@ public object ListeningInsights {
                 .sortedWith(
                     compareByDescending<Int> { tracks.chosenPlays[it] }.thenByDescending { tracks.lastStartMs[it] },
                 )
-            varied(candidates, SLIPPING_ROWS, tracks, catalog).map {
+            varied(
+                candidates, SLIPPING_ROWS, tracks, catalog,
+                track = { it },
+                carrier = { attribution.carrier(it, tracks.chosenPlays[it], chosenFrom) },
+            ).map {
                 SlippingTrack(tracks.ids[it], tracks.chosenPlays[it], tracks.lastStartMs[it])
             }
         }
@@ -332,7 +404,11 @@ public object ListeningInsights {
                 .filter { tracks.yearAgoPlays[it] >= YEAR_AGO_MIN_PLAYS }
                 .filter(available)
                 .sortedByDescending { tracks.yearAgoPlays[it] }
-            varied(candidates, YEAR_AGO_ROWS, tracks, catalog).map { TrackPlays(tracks.ids[it], tracks.yearAgoPlays[it]) }
+            varied(
+                candidates, YEAR_AGO_ROWS, tracks, catalog,
+                track = { it },
+                carrier = { attribution.carrier(it, tracks.yearAgoPlays[it], yearAgoFrom) },
+            ).map { TrackPlays(tracks.ids[it], tracks.yearAgoPlays[it]) }
         }
 
         // T3: what the listener picks right after a track.
@@ -376,7 +452,7 @@ public object ListeningInsights {
 
         val (current, longest) = streaks(playDays, today)
         return HabitInsights(
-            onRepeatTracks = shownRepeatTracks,
+            onRepeat = shownRepeatRows,
             onRepeatArtists = onRepeatArtists,
             onRepeatLocked = onRepeatLocked,
             currentStreakDays = current,
@@ -403,8 +479,12 @@ public object ListeningInsights {
         nowMs: Long,
         timePointOf: (Long) -> LocalTimePoint = ::localTimePoint,
         cancellationCheck: () -> Unit = {},
+        playlists: List<StatsPlaylist> = emptyList(),
     ): PeriodInsights {
         cancellationCheck()
+        val attribution = PlaylistAttribution(playlists)
+        val playlistTotals = LinkedHashMap<String, NameTotal>()
+        var playlistPlays = 0
         val events = history.events
         val since = sinceMs?.coerceAtLeast(0)
         val previousStart = since?.takeIf { it <= nowMs }?.let { (it - (nowMs - it)).coerceAtLeast(0) }
@@ -486,6 +566,11 @@ public object ListeningInsights {
             if (!inPeriod) return@forEachIndexed
 
             plays++
+            val playlist = attribution.of(event)
+            if (playlist >= 0) {
+                playlistPlays++
+                playlistTotals.getOrPut(playlists[playlist].id) { NameTotal(playlists[playlist].id) }.add(listened)
+            }
             if (firstPlay) {
                 newPlays++
                 newTracks += track
@@ -593,31 +678,46 @@ public object ListeningInsights {
             topArtists = artistTotals.ranked(),
             topAlbums = albumTotals.ranked().takeIf { availablePlays > 0 && albumTagged >= TAG_COVERAGE * availablePlays },
             topGenres = genreTotals.ranked().takeIf { availablePlays > 0 && genreTagged >= TAG_COVERAGE * availablePlays },
+            topPlaylists = playlistTotals.ranked().takeIf { plays > 0 && playlistPlays >= PLAYLIST_COVERAGE * plays },
             activityScale = scale,
             activity = activity,
         )
     }
 
-    /** At most one track per album and two per artist, so one album cannot fill a list. */
-    private fun varied(
-        candidates: List<Int>,
+    /**
+     * At most one track per album, two per artist and two carried by one playlist, so one album or
+     * playlist cannot fill a list. Rows without a track (a playlist row) are exempt.
+     */
+    private fun <T> varied(
+        candidates: List<T>,
         limit: Int,
         tracks: TrackTable,
         catalog: (TrackId) -> TrackDescriptor?,
-    ): List<Int> {
+        track: (T) -> Int,
+        carrier: (Int) -> Int?,
+    ): List<T> {
         val albums = HashSet<String>()
         val artists = HashMap<String, Int>()
-        val result = ArrayList<Int>(limit)
-        for (track in candidates) {
+        val carriers = HashMap<Int, Int>()
+        val result = ArrayList<T>(limit)
+        for (candidate in candidates) {
             if (result.size == limit) break
-            val descriptor = catalog(tracks.ids[track])
+            val index = track(candidate)
+            if (index < 0) {
+                result += candidate
+                continue
+            }
+            val descriptor = catalog(tracks.ids[index])
             val album = descriptor?.let(::albumKey)
             if (album != null && album in albums) continue
-            val artist = tracks.artistKey(track, catalog)
+            val artist = tracks.artistKey(index, catalog)
             if (artist.isNotEmpty() && (artists[artist] ?: 0) >= 2) continue
+            val playlist = carrier(index)
+            if (playlist != null && (carriers[playlist] ?: 0) >= PER_PLAYLIST) continue
             if (album != null) albums += album
             if (artist.isNotEmpty()) artists[artist] = (artists[artist] ?: 0) + 1
-            result += track
+            if (playlist != null) carriers[playlist] = (carriers[playlist] ?: 0) + 1
+            result += candidate
         }
         return result
     }
@@ -744,6 +844,60 @@ public object ListeningInsights {
         var days = 0
         var lastDay = Long.MIN_VALUE
         var weight = 0.0
+
+        fun addDay(day: Long, today: Long) {
+            plays++
+            if (lastDay != day) {
+                days++
+                lastDay = day
+                weight += decay(today - day)
+            }
+        }
+    }
+
+    private class RepeatCandidate(
+        val weight: Double,
+        val plays: Int,
+        val lastStartMs: Long,
+        val track: Int,
+        val playlist: Int,
+    )
+
+    /**
+     * Which playlist a play came from: its queue's source is that playlist, SMART did not plan it, and
+     * (when the playlist's members are known) the track still belongs to it — Play next into a playlist
+     * queue keeps the playlist as the source.
+     */
+    private class PlaylistAttribution(private val playlists: List<StatsPlaylist>) {
+        private val index = playlists.withIndex().associate { (position, playlist) -> playlist.id to position }
+
+        fun of(event: ListenEvent): Int {
+            val origin = event.origin ?: return -1
+            if (origin.smartPlanPosition != null) return -1
+            val position = index[origin.parentId ?: return -1] ?: return -1
+            val members = playlists[position].members
+            return if (members == null || event.trackId in members) position else -1
+        }
+
+        /** The playlist with most of [total] plays of [track] when it has more than half; else null. */
+        fun carrier(track: Int, total: Int, from: Map<Long, Int>): Int? {
+            if (total <= 0 || playlists.isEmpty()) return null
+            var best = -1
+            var bestCount = 0
+            var tie = false
+            for (position in playlists.indices) {
+                val count = from[PairTotal.key(track, position)] ?: continue
+                when {
+                    count > bestCount -> { best = position; bestCount = count; tie = false }
+                    count == bestCount -> tie = true
+                }
+            }
+            return best.takeIf { it >= 0 && !tie && bestCount * 2 > total }
+        }
+    }
+
+    private fun HashMap<Long, Int>.bump(key: Long) {
+        this[key] = (this[key] ?: 0) + 1
     }
 
     private class ArtistFirst(val firstMs: Long, val name: String) {

@@ -790,6 +790,8 @@
     <string name="stats_unlock_on_repeat">Sering diputar ulang — setelah seminggu mendengarkan</string>
     <string name="stats_unlock_slipping">Mulai terlupakan — setelah tiga bulan mendengarkan</string>
     <string name="stats_part_failed">Sebagian statistik ini tidak dapat dimuat.</string>
+    <string name="stats_playlist_row">Playlist</string>
+    <string name="stats_playlists_note">Putaran dari setiap playlist. Lagu yang ditambahkan SMART dan dengaran sebelum LatentJam mencatat dari mana lagu diputar tidak dihitung.</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">Grup: %1$d · Salinan berlebih: %2$d · Bisa dibebaskan: %3$s</string>

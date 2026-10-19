@@ -878,6 +878,8 @@
     <string name="stats_unlock_on_repeat">על ריפיט עכשיו — אחרי שבוע של האזנה</string>
     <string name="stats_unlock_slipping">הולכים ונשכחים — אחרי שלושה חודשים של האזנה</string>
     <string name="stats_part_failed">לא ניתן לטעון חלק מהנתונים האלה.</string>
+    <string name="stats_playlist_row">פלייליסט</string>
+    <string name="stats_playlists_note">השמעות מכל פלייליסט. שירים ש־SMART הוסיף והאזנות מלפני ש־LatentJam תיעד מאיפה הופעל שיר אינם נספרים.</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">קבוצות: %1$d · עותקים עודפים: %2$d · אפשר לפנות: %3$s</string>

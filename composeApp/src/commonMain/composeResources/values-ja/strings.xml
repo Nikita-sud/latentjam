@@ -784,6 +784,8 @@
     <string name="stats_unlock_on_repeat">最近リピート中 — 1週間聴くと表示</string>
     <string name="stats_unlock_slipping">ご無沙汰の曲 — 3か月聴くと表示</string>
     <string name="stats_part_failed">一部の統計を読み込めませんでした。</string>
+    <string name="stats_playlist_row">プレイリスト</string>
+    <string name="stats_playlists_note">各プレイリストからの再生回数です。SMART が追加した曲と、LatentJam が再生元を記録する前の再生は含みません。</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">グループ: %1$d · 余分なコピー: %2$d · 空けられる容量: %3$s</string>

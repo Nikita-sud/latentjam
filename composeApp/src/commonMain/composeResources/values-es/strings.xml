@@ -836,6 +836,8 @@
     <string name="stats_unlock_on_repeat">En bucle ahora — tras una semana de escucha</string>
     <string name="stats_unlock_slipping">Casi olvidados — tras tres meses de escucha</string>
     <string name="stats_part_failed">No se pudieron cargar algunas de estas estadísticas.</string>
+    <string name="stats_playlist_row">Lista</string>
+    <string name="stats_playlists_note">Reproducciones de cada lista. No cuentan las canciones que añadió SMART ni las escuchas de antes de que LatentJam registrara desde dónde empezó cada canción.</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">Grupos: %1$d · Copias sobrantes: %2$d · Recuperable: %3$s</string>

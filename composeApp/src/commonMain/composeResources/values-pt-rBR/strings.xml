@@ -836,6 +836,8 @@
     <string name="stats_unlock_on_repeat">No repeat agora — após uma semana de escuta</string>
     <string name="stats_unlock_slipping">Quase esquecidas — após três meses de escuta</string>
     <string name="stats_part_failed">Não foi possível carregar algumas destas estatísticas.</string>
+    <string name="stats_playlist_row">Playlist</string>
+    <string name="stats_playlists_note">Reproduções de cada playlist. Não contam as faixas adicionadas pelo SMART nem as audições de antes de o LatentJam registrar de onde cada faixa foi iniciada.</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">Grupos: %1$d · Cópias extras: %2$d · Recuperável: %3$s</string>

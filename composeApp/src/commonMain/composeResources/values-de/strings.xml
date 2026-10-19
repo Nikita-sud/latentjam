@@ -839,6 +839,8 @@
     <string name="stats_unlock_on_repeat">Gerade in Dauerschleife — nach einer Woche Hören</string>
     <string name="stats_unlock_slipping">Fast vergessen — nach drei Monaten Hören</string>
     <string name="stats_part_failed">Einige dieser Statistiken konnten nicht geladen werden.</string>
+    <string name="stats_playlist_row">Playlist</string>
+    <string name="stats_playlists_note">Wiedergaben aus jeder Playlist. Von SMART ergänzte Titel und Wiedergaben, bevor LatentJam die Quelle eines Titels gespeichert hat, zählen nicht.</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">Gruppen: %1$d · Überzählige Kopien: %2$d · Freigebbar: %3$s</string>

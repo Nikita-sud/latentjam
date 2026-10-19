@@ -50,6 +50,7 @@ internal class ListeningInsightsTest {
         smartPosition: Int? = null,
         legacy: Boolean = false,
         listenedMs: Long = if (skipped) 10_000 else 3 * minute,
+        parent: String? = null,
     ) = ListenEvent(
         trackId = TrackId(track),
         startedAtMs = atMs,
@@ -59,18 +60,23 @@ internal class ListeningInsightsTest {
         skipped = skipped,
         shuffleMode = shuffleMode,
         listenedMs = if (legacy) null else listenedMs,
-        origin = if (legacy) null else ListenOrigin(start = start, smartPlanPosition = smartPosition),
+        origin = if (legacy) null else ListenOrigin(start = start, smartPlanPosition = smartPosition, parentId = parent),
     )
 
     private fun dayAt(daysAgo: Long, hourOfDay: Long = 9, minuteOffset: Long = 0) =
         (today - daysAgo) * day + hourOfDay * hour + minuteOffset * minute
 
-    private fun habits(events: List<ListenEvent>, librarySize: Int = 100) = ListeningInsights.habits(
+    private fun habits(
+        events: List<ListenEvent>,
+        librarySize: Int = 100,
+        playlists: List<StatsPlaylist> = emptyList(),
+    ) = ListeningInsights.habits(
         history = ListeningNormalization.normalize(events, now),
         catalog = catalog,
         librarySize = librarySize,
         nowMs = now,
         timePointOf = utc,
+        playlists = playlists,
     )
 
     private fun period(events: List<ListenEvent>, sinceDays: Long?) = ListeningInsights.period(
@@ -88,8 +94,8 @@ internal class ListeningInsightsTest {
         val steady = (0 until 6).map { play("b-two-1", dayAt(it * 2L)) }
         val third = (0 until 4).map { play("c-three-1", dayAt(it * 3L + 1)) }
         val result = habits(loops + steady + third)
-        assertEquals(listOf("b-two-1", "c-three-1", "a-one-1"), result.onRepeatTracks.map { it.trackId.value })
-        val loop = result.onRepeatTracks.last()
+        assertEquals(listOf("b-two-1", "c-three-1", "a-one-1"), result.onRepeat.filterIsInstance<RepeatTrack>().map { it.trackId.value })
+        val loop = result.onRepeat.filterIsInstance<RepeatTrack>().last()
         assertEquals(3, loop.days)
         assertEquals(14, loop.plays)
         assertTrue(result.onRepeatArtists.isEmpty())
@@ -101,7 +107,7 @@ internal class ListeningInsightsTest {
         val album = (1..3).flatMap { n -> (0 until 3).map { play("b-two-$n", dayAt(it.toLong() + n, minuteOffset = n.toLong())) } }
         val others = listOf("c-three-1", "d-four-1").flatMap { id -> (0 until 3).map { play(id, dayAt(it * 2L)) } }
         val result = habits(oneDay + album + others)
-        val ids = result.onRepeatTracks.map { it.trackId.value }
+        val ids = result.onRepeat.filterIsInstance<RepeatTrack>().map { it.trackId.value }
         assertFalse("a-one-1" in ids)
         assertEquals(1, ids.count { it.startsWith("b-two") })
     }
@@ -111,7 +117,7 @@ internal class ListeningInsightsTest {
         // Forty different tracks of two artists, each played once: no track repeats, artists do.
         val events = (0 until 40).map { n -> play("${if (n % 2 == 0) "a" else "b"}-x-$n", dayAt(n % 20L, minuteOffset = n.toLong())) }
         val result = habits(events)
-        assertTrue(result.onRepeatTracks.isEmpty())
+        assertTrue(result.onRepeat.filterIsInstance<RepeatTrack>().isEmpty())
         assertEquals(listOf("A", "B").toSet(), result.onRepeatArtists.map { it.artist }.toSet())
         assertFalse(result.onRepeatLocked)
     }
@@ -120,7 +126,7 @@ internal class ListeningInsightsTest {
     fun anOldBigLogWhereNothingRepeatsIsNotLocked() {
         val events = (0 until 400).map { n -> play("u$n-x-$n", dayAt(400L - n)) }
         val result = habits(events)
-        assertTrue(result.onRepeatTracks.isEmpty() && result.onRepeatArtists.isEmpty())
+        assertTrue(result.onRepeat.filterIsInstance<RepeatTrack>().isEmpty() && result.onRepeatArtists.isEmpty())
         assertFalse(result.onRepeatLocked)
         assertFalse(result.slippingAwayLocked)
     }
@@ -352,6 +358,59 @@ internal class ListeningInsightsTest {
         assertEquals(ActivityScale.YEAR, years.activityScale)
         assertEquals(1, years.activity.first().plays)
         assertEquals(1, years.activity.last().plays)
+    }
+
+    private val gym = StatsPlaylist("playlist:gym", (1..12).map { TrackId("p$it-x-$it") }.toSet())
+
+    /** A twelve-track playlist played through every other day: each track repeats on its own too. */
+    private fun gymDays(days: List<Long>, start: ListenStart = ListenStart.AUTO_ADVANCE, smart: Int? = null) =
+        days.flatMap { daysAgo ->
+            (1..12).map { n -> play("p$n-x-$n", dayAt(daysAgo, minuteOffset = n * 4L), start = start, smartPosition = smart, parent = "playlist:gym") }
+        }
+
+    @Test
+    fun aPlaylistOnRepeatIsOneRowInsteadOfItsTracks() {
+        val own = (0 until 4).map { play("a-one-1", dayAt(it * 3L + 1)) }
+        val result = habits(gymDays(listOf(1, 3, 5, 7)) + own, playlists = listOf(gym))
+        val rows = result.onRepeat
+        assertEquals(1, rows.filterIsInstance<RepeatPlaylist>().size)
+        assertEquals("playlist:gym", (rows.first() as RepeatPlaylist).playlistId)
+        assertEquals(4, (rows.first() as RepeatPlaylist).days)
+        assertEquals(listOf("a-one-1"), rows.filterIsInstance<RepeatTrack>().map { it.trackId.value })
+        // Without the playlist the gym tracks would fill the list (two per unknown-album artist cap aside).
+        assertTrue(habits(gymDays(listOf(1, 3, 5, 7)) + own).onRepeat.size > 2)
+    }
+
+    @Test
+    fun smartPicksAndQueuedTracksDoNotCountForThePlaylist() {
+        // SMART started from the playlist draws from the whole library: those plays are SMART's.
+        val smart = gymDays(listOf(1, 3, 5, 7), smart = 2)
+        assertTrue(habits(smart, playlists = listOf(gym)).onRepeat.none { it is RepeatPlaylist })
+        // "Play next" into the playlist's queue keeps its source; a non-member is not the playlist's.
+        val queued = (0 until 4).map { play("q-queued-1", dayAt(it * 2L + 1), parent = "playlist:gym") }
+        val result = habits(queued, playlists = listOf(gym))
+        assertTrue(result.onRepeat.none { it is RepeatPlaylist })
+        assertEquals(listOf("Q"), result.onRepeatArtists.map { it.artist })
+    }
+
+    @Test
+    fun anAbandonedPlaylistGivesAtMostTwoSlippingAwayRows() {
+        val old = gymDays((120L..200L step 10).toList(), start = ListenStart.USER_PICK)
+        val keepsRecording = (0 until 20).map { play("f-six-$it", dayAt(it.toLong())) }
+        val result = habits(old + keepsRecording, playlists = listOf(gym))
+        assertEquals(2, result.slippingAway.size)
+        assertEquals(5, habits(old + keepsRecording).slippingAway.size)
+    }
+
+    @Test
+    fun playlistsInYourTopNeedAFifthOfThePlays() {
+        val fromGym = gymDays(listOf(1, 2))
+        val own = (0 until 40).map { play("a-one-$it", dayAt(3, minuteOffset = it.toLong())) }
+        val shown = ListeningInsights.period(ListeningNormalization.normalize(fromGym + own, now), catalog, now - 7 * day, now, utc, playlists = listOf(gym))
+        assertEquals(listOf("playlist:gym"), shown.topPlaylists?.map { it.name })
+        assertEquals(24, shown.topPlaylists?.single()?.plays)
+        val few = ListeningInsights.period(ListeningNormalization.normalize(fromGym.take(5) + own, now), catalog, now - 7 * day, now, utc, playlists = listOf(gym))
+        assertNull(few.topPlaylists)
     }
 
     @Test

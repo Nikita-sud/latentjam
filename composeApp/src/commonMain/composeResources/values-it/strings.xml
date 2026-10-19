@@ -836,6 +836,8 @@
     <string name="stats_unlock_on_repeat">In loop adesso — dopo una settimana di ascolto</string>
     <string name="stats_unlock_slipping">Quasi dimenticati — dopo tre mesi di ascolto</string>
     <string name="stats_part_failed">Non è stato possibile caricare alcune di queste statistiche.</string>
+    <string name="stats_playlist_row">Playlist</string>
+    <string name="stats_playlists_note">Ascolti da ogni playlist. Non contano i brani aggiunti da SMART né gli ascolti precedenti a quando LatentJam registrava da dove partiva un brano.</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">Gruppi: %1$d · Copie in più: %2$d · Recuperabili: %3$s</string>

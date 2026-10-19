@@ -827,6 +827,8 @@
     <string name="stats_unlock_on_repeat">Şu an tekrar tekrar dinlenenler — bir haftalık dinlemeden sonra</string>
     <string name="stats_unlock_slipping">Unutulmaya yüz tutanlar — üç aylık dinlemeden sonra</string>
     <string name="stats_part_failed">Bu istatistiklerin bir kısmı yüklenemedi.</string>
+    <string name="stats_playlist_row">Çalma listesi</string>
+    <string name="stats_playlists_note">Her çalma listesinden yapılan dinlemeler. SMART’ın eklediği parçalar ve LatentJam bir parçanın nereden başlatıldığını kaydetmeden önceki dinlemeler sayılmaz.</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">Gruplar: %1$d · Fazla kopya: %2$d · Boşaltılabilir: %3$s</string>

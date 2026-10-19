@@ -916,6 +916,9 @@
     <string name="stats_unlock_on_repeat">On repeat now — after a week of listening</string>
     <string name="stats_unlock_slipping">Slipping away — after three months of listening</string>
     <string name="stats_part_failed">Some of these statistics could not be loaded.</string>
+    <!-- Under a playlist's name in "On repeat now": the row stands for the whole playlist -->
+    <string name="stats_playlist_row">Playlist</string>
+    <string name="stats_playlists_note">Plays from each playlist. Tracks SMART added and listens from before LatentJam recorded where a track was started do not count.</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">Groups: %1$d · Extra copies: %2$d · Reclaimable: %3$s</string>

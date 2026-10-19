@@ -784,6 +784,8 @@
     <string name="stats_unlock_on_repeat">요즘 반복해서 듣는 곡 — 일주일 감상 후 표시</string>
     <string name="stats_unlock_slipping">멀어지는 곡 — 3개월 감상 후 표시</string>
     <string name="stats_part_failed">일부 통계를 불러오지 못했습니다.</string>
+    <string name="stats_playlist_row">플레이리스트</string>
+    <string name="stats_playlists_note">각 플레이리스트에서 재생한 횟수입니다. SMART가 추가한 곡과 LatentJam이 재생 출처를 기록하기 전의 재생은 포함되지 않습니다.</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">그룹: %1$d · 여분의 사본: %2$d · 확보 가능: %3$s</string>

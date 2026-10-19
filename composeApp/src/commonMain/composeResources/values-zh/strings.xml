@@ -790,6 +790,8 @@
     <string name="stats_unlock_on_repeat">最近循环播放 — 聆听一周后显示</string>
     <string name="stats_unlock_slipping">渐渐淡忘 — 聆听三个月后显示</string>
     <string name="stats_part_failed">部分统计数据无法加载。</string>
+    <string name="stats_playlist_row">歌单</string>
+    <string name="stats_playlists_note">来自每个歌单的播放次数。不计入 SMART 添加的曲目，也不计入 LatentJam 开始记录播放来源之前的收听。</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">分组：%1$d · 多余副本：%2$d · 可释放：%3$s</string>

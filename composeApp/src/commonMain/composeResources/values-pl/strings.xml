@@ -919,6 +919,8 @@
     <string name="stats_unlock_on_repeat">Słuchane teraz na okrągło — po tygodniu słuchania</string>
     <string name="stats_unlock_slipping">Odchodzą w zapomnienie — po trzech miesiącach słuchania</string>
     <string name="stats_part_failed">Nie udało się wczytać części statystyk.</string>
+    <string name="stats_playlist_row">Playlista</string>
+    <string name="stats_playlists_note">Odtworzenia z każdej playlisty. Nie liczą się utwory dodane przez SMART ani odsłuchy sprzed czasu, gdy LatentJam zaczął zapisywać, skąd uruchomiono utwór.</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">Grupy: %1$d · Nadmiarowe kopie: %2$d · Do odzyskania: %3$s</string>

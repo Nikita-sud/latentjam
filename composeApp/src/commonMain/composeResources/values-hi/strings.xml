@@ -827,6 +827,8 @@
     <string name="stats_unlock_on_repeat">अभी बार-बार सुने जा रहे — एक हफ़्ते सुनने के बाद</string>
     <string name="stats_unlock_slipping">छूटते जा रहे — तीन महीने सुनने के बाद</string>
     <string name="stats_part_failed">इनमें से कुछ आँकड़े लोड नहीं हो सके।</string>
+    <string name="stats_playlist_row">प्लेलिस्ट</string>
+    <string name="stats_playlists_note">हर प्लेलिस्ट से हुए प्ले। SMART के जोड़े गए ट्रैक और उससे पहले की सुनवाई जब LatentJam यह दर्ज नहीं करता था कि ट्रैक कहाँ से शुरू हुआ, गिने नहीं जाते।</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">समूह: %1$d · अतिरिक्त प्रतियाँ: %2$d · खाली होने वाली जगह: %3$s</string>

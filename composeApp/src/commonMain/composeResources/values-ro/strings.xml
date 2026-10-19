@@ -864,6 +864,8 @@
     <string name="stats_unlock_on_repeat">Pe repeat acum — după o săptămână de ascultare</string>
     <string name="stats_unlock_slipping">Aproape uitate — după trei luni de ascultare</string>
     <string name="stats_part_failed">Unele dintre aceste statistici nu au putut fi încărcate.</string>
+    <string name="stats_playlist_row">Playlist</string>
+    <string name="stats_playlists_note">Redări din fiecare playlist. Nu se numără piesele adăugate de SMART și nici ascultările de dinainte ca LatentJam să înregistreze de unde a pornit o piesă.</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">Grupuri: %1$d · Copii în plus: %2$d · Se poate elibera: %3$s</string>

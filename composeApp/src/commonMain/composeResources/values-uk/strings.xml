@@ -921,6 +921,8 @@
     <string name="stats_unlock_on_repeat">Зараз на повторі — після тижня прослуховування</string>
     <string name="stats_unlock_slipping">Вислизають — після трьох місяців прослуховування</string>
     <string name="stats_part_failed">Частину статистики не вдалося завантажити.</string>
+    <string name="stats_playlist_row">Плейлист</string>
+    <string name="stats_playlists_note">Прослуховування з кожного плейлиста. Не враховуються треки, додані SMART, і прослуховування до того, як LatentJam почав записувати, звідки запущено трек.</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">Груп: %1$d · Зайвих копій: %2$d · Звільниться: %3$s</string>

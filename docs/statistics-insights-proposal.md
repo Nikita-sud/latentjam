@@ -265,6 +265,41 @@ one iOS runtime look. `testAndroidHostTest`, `compileKotlinIosSimulatorArm64`,
 lint, R8 release APK: dexdump register count of the `App()` lambda before/after plus launch smoke; read-only
 emulator with a fresh and an old log at default and 150 % font; update `docs/statistics-validation.md`.
 
+## Addendum A — playlists (19 October 2026, after one review round)
+
+Owner's question: a playlist played often fills the track lists with its own tracks. The v4 log records the queue's
+source per listen (`origin.parentId`, sampled from the global queue source, `AppGraph.kt:206`): `playlist:<id>` for
+a user playlist, `auto:<KIND>` for an auto playlist, `album:`/`artist:`/`folder…:` for library groups, null for
+journeys, the map, search, For You, the whole library, external controllers (`onExternalQueue` clears the source) and
+every legacy line.
+
+**Attribution.** A play *comes from playlist P* when `parentId` is P's id, `smartPlanPosition == null` (SMART's library
+picks in a queue started from P keep P as parent and are excluded), and — for user playlists and Favorites — the track
+is a current member of P (Play next / Add to queue into a playlist queue keeps the playlist as the source; tracks
+removed from P stop counting). Other auto playlists (Most played, Recently played/added, Never played, Rediscover)
+change with every listen, so they are attributed without the membership check (documented). A deleted playlist's
+plays are ordinary plays.
+
+**Carried.** A track is carried by P within a scope when P is the single playlist with the most of the track's plays in
+that scope and those are more than half of them. Scopes: L1 = the 28-day window; T1 = the track's chosen plays over the
+whole log; T2 = that week.
+
+**A1 · On repeat now.** Pipeline: eligible tracks (unchanged rule) and eligible playlists (≥ 3 plays from P on ≥ 2 days
+in the window, the same day-weight as tracks) → tracks carried by an eligible playlist leave → playlist rows join →
+sort by weight (ties: plays) → variety rule on tracks (playlists exempt) → top 5 → the artists fallback when fewer
+than 3 rows and none of them is a playlist (a playlist row already tells the story). A playlist row and its non-carried tracks may both appear — intended. Playlist rows
+are **not tappable** (playlists open their page everywhere else); row = cover (custom cover, else first member's),
+name, "N days · M plays".
+
+**A2 · Your top → Playlists chip.** Plays in the period that came from each playlist; the chip shows when such plays are
+≥ 20 % of the period's plays. Rows are not tappable. Note: SMART's picks and plays before origin logging do not count.
+
+**A3 · Slipping away and A year ago:** at most 2 tracks carried by the same playlist (variety rule).
+
+**Unchanged on purpose:** Top tracks / artists stay an honest count (the Playlists chip is the answer there); sequences
+and same-artist picks already ignore playlist order (auto-advance is never a pick). Names refresh when the page is
+shown again.
+
 ## Deferred
 - **Comparison with typical listeners.** The k2a1 population figure uses another estimator (sampled seeds, 30-min
   start-to-start sessions, first 10 collapsed pairs, scrobbles incl. radio) and is not comparable with T3; its

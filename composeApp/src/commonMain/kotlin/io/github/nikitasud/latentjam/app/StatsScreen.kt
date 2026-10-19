@@ -163,6 +163,9 @@ import io.github.nikitasud.latentjam.app.generated.resources.stats_your_top
 import io.github.nikitasud.latentjam.app.generated.resources.tab_albums
 import io.github.nikitasud.latentjam.app.generated.resources.tab_artists
 import io.github.nikitasud.latentjam.app.generated.resources.tab_genres
+import io.github.nikitasud.latentjam.app.generated.resources.tab_playlists
+import io.github.nikitasud.latentjam.app.generated.resources.stats_playlist_row
+import io.github.nikitasud.latentjam.app.generated.resources.stats_playlists_note
 import io.github.nikitasud.latentjam.app.generated.resources.tab_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
@@ -176,6 +179,10 @@ import io.github.nikitasud.latentjam.history.ListeningOverviews
 import io.github.nikitasud.latentjam.history.NormalizedHistory
 import io.github.nikitasud.latentjam.history.PeriodInsights
 import io.github.nikitasud.latentjam.history.RankedName
+import io.github.nikitasud.latentjam.history.RepeatPlaylist
+import io.github.nikitasud.latentjam.history.RepeatTrack
+import io.github.nikitasud.latentjam.history.StatsPlaylist
+import io.github.nikitasud.latentjam.library.AutoPlaylistKind
 import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.history.localTimePoint
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
@@ -199,7 +206,52 @@ import org.jetbrains.compose.resources.stringResource
 
 private enum class StatsPeriod(val days: Int?) { WEEK(7), MONTH(30), ALL(null) }
 
-private enum class TopKind { ARTISTS, ALBUMS, GENRES, TRACKS }
+private enum class TopKind { ARTISTS, ALBUMS, GENRES, PLAYLISTS, TRACKS }
+
+/** How the page names and pictures a playlist the log attributes plays to. */
+private class PlaylistLabel(val name: String?, val autoKind: AutoPlaylistKind?, val artworkUri: String?)
+
+/** The listener's playlists as the log can attribute plays to them, with their labels. */
+private suspend fun loadStatsPlaylists(
+    tracksById: Map<TrackId, TrackDescriptor>,
+): Pair<List<StatsPlaylist>, Map<String, PlaylistLabel>> {
+    val attributable = ArrayList<StatsPlaylist>()
+    val labels = HashMap<String, PlaylistLabel>()
+    AppGraph.playlists.all().forEach { playlist ->
+        val id = "playlist:${playlist.id}"
+        val members = playlist.trackIds.map(::TrackId)
+        attributable += StatsPlaylist(id, members.toSet())
+        labels[id] = PlaylistLabel(
+            name = playlist.name,
+            autoKind = null,
+            artworkUri = playlistCoverUri(playlist.customArtworkRef)
+                ?: members.firstNotNullOfOrNull { tracksById[it]?.artworkUri },
+        )
+    }
+    val favorites = AppGraph.favorites.all()
+    AutoPlaylistKind.entries.forEach { kind ->
+        val id = "auto:${kind.name}"
+        // Favorites are a stable set; the other auto playlists change with every listen.
+        attributable += StatsPlaylist(id, if (kind == AutoPlaylistKind.FAVORITES) favorites.toSet() else null)
+        labels[id] = PlaylistLabel(
+            name = null,
+            autoKind = kind,
+            artworkUri = if (kind == AutoPlaylistKind.FAVORITES) {
+                favorites.firstNotNullOfOrNull { tracksById[it]?.artworkUri }
+            } else {
+                null
+            },
+        )
+    }
+    return attributable to labels
+}
+
+@Composable
+private fun PlaylistLabel?.title(): String = when {
+    this == null -> stringResource(Res.string.tab_playlists)
+    autoKind != null -> stringResource(autoKind.titleRes())
+    else -> name.orEmpty()
+}
 
 private const val DAY_MS = 24L * 60 * 60 * 1000
 
@@ -245,6 +297,7 @@ internal fun ListeningStatsSettings(
     var habitsFailed by remember { mutableStateOf(false) }
     // Built once off the main thread; rows read it after the first load.
     var tracksById by remember(tracks) { mutableStateOf<Map<TrackId, TrackDescriptor>>(emptyMap()) }
+    var playlistLabels by remember { mutableStateOf<Map<String, PlaylistLabel>>(emptyMap()) }
 
     LaunchedEffect(active) {
         if (!active) snapshots.cancelInFlight()
@@ -257,6 +310,8 @@ internal fun ListeningStatsSettings(
             val normalized = snapshots.await(historyRevision, retryRevision)
             val catalogMap = catalog.await()
             tracksById = catalogMap
+            val (statsPlaylists, labels) = loadStatsPlaylists(catalogMap)
+            playlistLabels = labels
             val loadContext = currentCoroutineContext()
             val now = epochMillis()
             periodLoad = withContext(Dispatchers.Default) {
@@ -278,6 +333,7 @@ internal fun ListeningStatsSettings(
                         sinceMs = since,
                         nowMs = now,
                         cancellationCheck = { loadContext.ensureActive() },
+                        playlists = statsPlaylists,
                     ),
                     logEmpty = normalized.size == 0,
                 )
@@ -296,6 +352,8 @@ internal fun ListeningStatsSettings(
             val normalized = snapshots.await(historyRevision, retryRevision)
             val catalogMap = catalog.await()
             tracksById = catalogMap
+            val (statsPlaylists, labels) = loadStatsPlaylists(catalogMap)
+            playlistLabels = labels
             val loadContext = currentCoroutineContext()
             habitsLoad = withContext(Dispatchers.Default) {
                 ListeningInsights.habits(
@@ -304,6 +362,7 @@ internal fun ListeningStatsSettings(
                     librarySize = catalogMap.size,
                     nowMs = epochMillis(),
                     cancellationCheck = { loadContext.ensureActive() },
+                    playlists = statsPlaylists,
                 )
             }
             habitsFailed = false
@@ -349,12 +408,12 @@ internal fun ListeningStatsSettings(
         // numbers below, the list keeps its first item in place, so the page still opens at the top.
         item(key = "lately-title") { StatsSectionHeader(stringResource(Res.string.stats_section_lately)) }
         if (habits != null) {
-            val repeatShown = habits.onRepeatTracks.isNotEmpty() || habits.onRepeatArtists.isNotEmpty()
+            val repeatShown = habits.onRepeat.isNotEmpty() || habits.onRepeatArtists.isNotEmpty()
             if (!repeatShown && habits.onRepeatLocked) {
                 item(key = "more-appears") { MoreAppearsCard(habits) }
             }
             item(key = "on-repeat") {
-                OnRepeatCard(habits, tracksById, accentInk, playRows)
+                OnRepeatCard(habits, tracksById, playlistLabels, accentInk, playRows)
             }
         }
 
@@ -405,7 +464,7 @@ internal fun ListeningStatsSettings(
                 item(key = "n2") { Box(cardModifier) { NewAndFamiliarCard(overview, insights, period, accentInk) } }
                 item(key = "n3") { Box(cardModifier) { WhenYouListenCard(insights, accentInk) } }
                 item(key = "n4") {
-                    Box(cardModifier) { YourTopCard(overview, insights, tracksById, playRows) }
+                    Box(cardModifier) { YourTopCard(overview, insights, tracksById, playlistLabels, playRows) }
                 }
                 item(key = "n5") { Box(cardModifier) { HowYouListenCard(overview, accentInk) } }
             }
@@ -426,7 +485,7 @@ internal fun ListeningStatsSettings(
             if (habits.librarySize > 0) {
                 item(key = "t4") { LibraryCard(habits, accentInk) }
             }
-            val repeatShown = habits.onRepeatTracks.isNotEmpty() || habits.onRepeatArtists.isNotEmpty()
+            val repeatShown = habits.onRepeat.isNotEmpty() || habits.onRepeatArtists.isNotEmpty()
             if ((repeatShown || !habits.onRepeatLocked) && habits.slippingAwayLocked) {
                 item(key = "t5") { MoreAppearsCard(habits) }
             }
@@ -485,24 +544,41 @@ private fun EmptyLogCard() {
 private fun OnRepeatCard(
     habits: HabitInsights,
     tracksById: Map<TrackId, TrackDescriptor>,
+    playlistLabels: Map<String, PlaylistLabel>,
     accentInk: Color,
     playRows: (List<TrackId>, Int) -> Unit,
 ) {
     StatsCard {
-        if (habits.onRepeatTracks.isNotEmpty()) {
+        if (habits.onRepeat.isNotEmpty()) {
             StatsTitle(stringResource(Res.string.stats_on_repeat))
-            val top = habits.onRepeatTracks.first().weight
-            val ids = habits.onRepeatTracks.map { it.trackId }
-            habits.onRepeatTracks.forEachIndexed { index, entry ->
-                val descriptor = tracksById[entry.trackId] ?: return@forEachIndexed
-                TrackRow(
-                    descriptor = descriptor,
-                    detail = pluralStringResource(Res.plurals.stats_on_days, entry.days, entry.days) + " · " +
-                        pluralStringResource(Res.plurals.privacy_history_listens, entry.plays, entry.plays),
-                    share = entry.weight / top,
-                    accentInk = accentInk,
-                    onClick = { playRows(ids, index) },
-                )
+            val top = habits.onRepeat.first().weight
+            val ids = habits.onRepeat.filterIsInstance<RepeatTrack>().map { it.trackId }
+            habits.onRepeat.forEach { entry ->
+                val detail = pluralStringResource(Res.plurals.stats_on_days, entry.days, entry.days) + " · " +
+                    pluralStringResource(Res.plurals.privacy_history_listens, entry.plays, entry.plays)
+                when (entry) {
+                    is RepeatTrack -> {
+                        val descriptor = tracksById[entry.trackId] ?: return@forEach
+                        TrackRow(
+                            descriptor = descriptor,
+                            detail = detail,
+                            share = entry.weight / top,
+                            accentInk = accentInk,
+                            onClick = { playRows(ids, ids.indexOf(entry.trackId)) },
+                        )
+                    }
+                    // A playlist opens its page everywhere else, so here it is not a play button.
+                    is RepeatPlaylist -> {
+                        val label = playlistLabels[entry.playlistId]
+                        PlaylistRow(
+                            title = label.title(),
+                            artworkUri = label?.artworkUri,
+                            detail = detail,
+                            share = entry.weight / top,
+                            accentInk = accentInk,
+                        )
+                    }
+                }
             }
         } else if (habits.onRepeatArtists.isNotEmpty()) {
             StatsTitle(stringResource(Res.string.stats_artists_on_repeat))
@@ -518,6 +594,41 @@ private fun OnRepeatCard(
             }
         }
         StreakLine(habits)
+    }
+}
+
+@Composable
+private fun PlaylistRow(
+    title: String,
+    artworkUri: String?,
+    detail: String,
+    share: Float,
+    accentInk: Color,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(vertical = 4.dp)
+            .semantics(mergeDescendants = true) { },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Artwork(uri = artworkUri, size = 40.dp, cornerRadius = 12.dp)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium.metadata(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                stringResource(Res.string.stats_playlist_row),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+            Text(
+                detail,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            ProportionBar(share, color = accentInk.copy(alpha = 0.62f), modifier = Modifier.padding(top = 2.dp))
+        }
     }
 }
 
@@ -543,7 +654,7 @@ private fun StreakLine(habits: HabitInsights) {
 private fun MoreAppearsCard(habits: HabitInsights) {
     StatsCard {
         StatsTitle(stringResource(Res.string.stats_more_appears))
-        val repeatShown = habits.onRepeatTracks.isNotEmpty() || habits.onRepeatArtists.isNotEmpty()
+        val repeatShown = habits.onRepeat.isNotEmpty() || habits.onRepeatArtists.isNotEmpty()
         if (!repeatShown && habits.onRepeatLocked) StatsNote(stringResource(Res.string.stats_unlock_on_repeat))
         if (habits.slippingAwayLocked) StatsNote(stringResource(Res.string.stats_unlock_slipping))
     }
@@ -918,6 +1029,7 @@ private fun YourTopCard(
     overview: ListeningOverview,
     insights: PeriodInsights,
     tracksById: Map<TrackId, TrackDescriptor>,
+    playlistLabels: Map<String, PlaylistLabel>,
     playRows: (List<TrackId>, Int) -> Unit,
 ) {
     var savedKind by rememberSaveable { mutableStateOf(TopKind.ARTISTS.name) }
@@ -926,6 +1038,7 @@ private fun YourTopCard(
         add(TopKind.ARTISTS)
         if (insights.topAlbums != null) add(TopKind.ALBUMS)
         if (insights.topGenres != null) add(TopKind.GENRES)
+        if (insights.topPlaylists != null) add(TopKind.PLAYLISTS)
         add(TopKind.TRACKS)
     }
     // A chip missing in this period shows Artists but keeps the listener's choice for later.
@@ -969,15 +1082,24 @@ private fun YourTopCard(
                 val rows: List<RankedName> = when (kind) {
                     TopKind.ALBUMS -> insights.topAlbums.orEmpty()
                     TopKind.GENRES -> insights.topGenres.orEmpty()
+                    TopKind.PLAYLISTS -> insights.topPlaylists.orEmpty()
                     else -> insights.topArtists
                 }
                 rows.take(limit).forEachIndexed { index, entry ->
+                    val playlist = if (kind == TopKind.PLAYLISTS) playlistLabels[entry.name] else null
                     RankedRow(
                         rank = index + 1,
-                        title = entry.name.ifBlank { stringResource(Res.string.track_unknown_artist) },
+                        title = when {
+                            kind == TopKind.PLAYLISTS -> playlist.title()
+                            else -> entry.name.ifBlank { stringResource(Res.string.track_unknown_artist) }
+                        },
                         subtitle = entry.subtitle,
-                        artworkUri = entry.trackId?.let { tracksById[it]?.artworkUri },
-                        showArtwork = kind == TopKind.ALBUMS,
+                        artworkUri = if (kind == TopKind.PLAYLISTS) {
+                            playlist?.artworkUri
+                        } else {
+                            entry.trackId?.let { tracksById[it]?.artworkUri }
+                        },
+                        showArtwork = kind == TopKind.ALBUMS || kind == TopKind.PLAYLISTS,
                         plays = entry.plays,
                         playedMs = entry.playedMs,
                     )
@@ -985,6 +1107,7 @@ private fun YourTopCard(
                 rows.size
             }
         }
+        if (kind == TopKind.PLAYLISTS) StatsNote(stringResource(Res.string.stats_playlists_note))
         if (count > 5) {
             TextButton(onClick = { expanded = !expanded }, modifier = Modifier.heightIn(min = 48.dp)) {
                 Text(stringResource(if (expanded) Res.string.stats_show_less else Res.string.stats_show_more))
@@ -997,6 +1120,7 @@ private fun TopKind.labelRes() = when (this) {
     TopKind.ARTISTS -> Res.string.tab_artists
     TopKind.ALBUMS -> Res.string.tab_albums
     TopKind.GENRES -> Res.string.tab_genres
+    TopKind.PLAYLISTS -> Res.string.tab_playlists
     TopKind.TRACKS -> Res.string.tab_tracks
 }
 
