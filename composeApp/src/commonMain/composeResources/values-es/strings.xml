@@ -100,7 +100,7 @@
     <string name="foryou_section_never_played">Nunca reproducidas</string>
     <!-- Las dos cosas que se pueden hacer con un mundo, ofrecidas en vez de adivinadas. -->
     <string name="foryou_world_open">Ver las canciones</string>
-    <string name="foryou_world_smart">Iniciar SMART desde aquí</string>
+    <string name="foryou_world_smart">Reproducir similares</string>
     <string name="foryou_kicker_resume">Continúa donde lo dejaste</string>
     <plurals name="foryou_kicker_played_times">
         <item quantity="one">La escuchaste %1$d vez</item>
@@ -719,11 +719,8 @@
     <string name="foryou_section_daypart_day">Tus tardes</string>
     <string name="foryou_section_daypart_evening">Tus noches</string>
     <string name="foryou_section_daypart_night">Tus madrugadas</string>
-    <string name="foryou_section_on_a_roll">Tu fase de %1$s</string>
-    <string name="foryou_section_wildcard">Comodín</string>
-    <string name="foryou_caption_left_turn">Un desvío desde %1$s</string>
-    <string name="foryou_section_journey">Viaje sonoro</string>
-    <string name="foryou_journey_title">De «%1$s» a «%2$s»</string>
+    <string name="foryou_section_on_a_roll">En bucle: %1$s</string>
+    <string name="foryou_caption_left_turn">Si te gusta %1$s</string>
     <string name="settings_pages">Páginas</string>
     <string name="settings_pages_subtitle">Visibilidad, orden y página inicial</string>
     <string name="settings_pages_body">Arrastra para reordenar. Desactiva las páginas que no uses.</string>

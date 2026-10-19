@@ -231,6 +231,32 @@ public interface PlaybackController {
         smartPlanPositions: Map<TrackId, Int> = emptyMap(),
     )
 
+    /**
+     * As [play], but in [ShuffleMode.SMART] [tracks] stay in order as the head of the queue and
+     * SMART continues after the last of them — for curated starts (For You rows, mixes,
+     * collections) whose order is the point. [play] in SMART mode keeps only the tapped track.
+     * OFF and ON behave exactly as [play]; implementations without the distinction may keep the
+     * default.
+     */
+    public suspend fun playInOrder(
+        tracks: List<TrackDescriptor>,
+        startIndex: Int,
+        smartPlanPositions: Map<TrackId, Int> = emptyMap(),
+    ): Unit = play(tracks, startIndex, smartPlanPositions)
+
+    /**
+     * Appends [tracks] after the queue's last row as rows a SMART plan chose — reported in
+     * [NowPlaying.smartPlanPositions] at [smartPlanPositions], unlike [addToQueue], which records
+     * a listener's own pick. For a SMART continuation planned after a queue was started. The default
+     * appends them as ordinary rows.
+     */
+    public suspend fun appendSmartPlan(
+        tracks: List<TrackDescriptor>,
+        smartPlanPositions: Map<TrackId, Int>,
+    ) {
+        tracks.forEach { addToQueue(it) }
+    }
+
     /** Pauses if playing, resumes if paused. No-op with an empty queue. */
     public suspend fun togglePlayPause()
 

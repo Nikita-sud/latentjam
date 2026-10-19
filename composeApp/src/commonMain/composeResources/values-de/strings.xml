@@ -103,7 +103,7 @@
     <string name="foryou_section_never_played">Nie gehört</string>
     <!-- Die zwei Dinge, die man mit einer Welt tun kann — angeboten, nicht erraten. -->
     <string name="foryou_world_open">Titel anzeigen</string>
-    <string name="foryou_world_smart">SMART von hier starten</string>
+    <string name="foryou_world_smart">Ähnliches abspielen</string>
     <string name="foryou_kicker_resume">Mach da weiter, wo du aufgehört hast</string>
     <plurals name="foryou_kicker_played_times">
         <item quantity="one">%1$d Mal gehört</item>
@@ -722,11 +722,8 @@
     <string name="foryou_section_daypart_day">Dein Nachmittag</string>
     <string name="foryou_section_daypart_evening">Dein Abend</string>
     <string name="foryou_section_daypart_night">Deine Nacht</string>
-    <string name="foryou_section_on_a_roll">Deine %1$s-Phase</string>
-    <string name="foryou_section_wildcard">Joker</string>
-    <string name="foryou_caption_left_turn">Ein Abstecher von %1$s</string>
-    <string name="foryou_section_journey">Klangreise</string>
-    <string name="foryou_journey_title">Von „%1$s“ bis „%2$s“</string>
+    <string name="foryou_section_on_a_roll">In Dauerschleife: %1$s</string>
+    <string name="foryou_caption_left_turn">Wenn dir %1$s gefällt</string>
     <string name="settings_pages">Seiten</string>
     <string name="settings_pages_subtitle">Sichtbarkeit, Reihenfolge und Startseite</string>
     <string name="settings_pages_body">Zum Sortieren ziehen. Nicht verwendete Seiten ausschalten.</string>

@@ -93,7 +93,7 @@
     <string name="foryou_section_never_played">कभी नहीं चलाए</string>
     <!-- एक दुनिया के साथ करने योग्य दो काम — अनुमान लगाने के बजाय पूछे गए। -->
     <string name="foryou_world_open">ट्रैक दिखाएँ</string>
-    <string name="foryou_world_smart">यहाँ से SMART शुरू करें</string>
+    <string name="foryou_world_smart">मिलते-जुलते गाने चलाएँ</string>
     <string name="foryou_kicker_resume">जहां छोड़ा था वहीं से सुनें</string>
     <plurals name="foryou_kicker_played_times">
         <item quantity="one">आपने इसे %1$d बार सुना</item>
@@ -712,11 +712,8 @@
     <string name="foryou_section_daypart_day">आपकी दोपहरें</string>
     <string name="foryou_section_daypart_evening">आपकी शामें</string>
     <string name="foryou_section_daypart_night">आपकी रातें</string>
-    <string name="foryou_section_on_a_roll">आपका %1$s दौर</string>
-    <string name="foryou_section_wildcard">वाइल्ड कार्ड</string>
-    <string name="foryou_caption_left_turn">%1$s से एक मोड़</string>
-    <string name="foryou_section_journey">ध्वनि यात्रा</string>
-    <string name="foryou_journey_title">“%1$s” से “%2$s” तक</string>
+    <string name="foryou_section_on_a_roll">इन दिनों बार-बार: %1$s</string>
+    <string name="foryou_caption_left_turn">अगर आपको %1$s पसंद है</string>
     <string name="settings_pages">पेज</string>
     <string name="settings_pages_subtitle">दिखने वाले पेज, क्रम और शुरुआती पेज</string>
     <string name="settings_pages_body">क्रम बदलने के लिए खींचें। जिन पेजों का इस्तेमाल नहीं करते, उन्हें बंद करें।</string>

@@ -89,7 +89,7 @@
     <string name="foryou_section_never_played">从未播放</string>
     <!-- 对一个世界能做的两件事，交给用户选择而不是替他决定。 -->
     <string name="foryou_world_open">显示曲目</string>
-    <string name="foryou_world_smart">从这里开始 SMART</string>
+    <string name="foryou_world_smart">播放相似歌曲</string>
     <string name="foryou_kicker_resume">从上次的位置继续</string>
     <plurals name="foryou_kicker_played_times">
         <item quantity="other">你听过 %1$d 次</item>
@@ -678,11 +678,8 @@
     <string name="foryou_section_daypart_day">你的午后</string>
     <string name="foryou_section_daypart_evening">你的夜晚</string>
     <string name="foryou_section_daypart_night">你的深夜</string>
-    <string name="foryou_section_on_a_roll">你的%1$s时期</string>
-    <string name="foryou_section_wildcard">意外之选</string>
-    <string name="foryou_caption_left_turn">从《%1$s》拐个弯</string>
-    <string name="foryou_section_journey">声音之旅</string>
-    <string name="foryou_journey_title">从《%1$s》到《%2$s》</string>
+    <string name="foryou_section_on_a_roll">最近常听：%1$s</string>
+    <string name="foryou_caption_left_turn">喜欢《%1$s》的话</string>
     <string name="settings_pages">页面</string>
     <string name="settings_pages_subtitle">显示状态、顺序和启动页面</string>
     <string name="settings_pages_body">拖动以调整顺序。关闭不使用的页面。</string>

@@ -117,7 +117,7 @@
     <string name="foryou_section_never_played">لم تُشغَّل قط</string>
     <!-- الشيئان اللذان يمكن فعلهما بعالم، معروضان بدل تخمينهما. -->
     <string name="foryou_world_open">عرض المقاطع</string>
-    <string name="foryou_world_smart">ابدأ SMART من هنا</string>
+    <string name="foryou_world_smart">تشغيل المشابه</string>
     <string name="foryou_kicker_resume">تابع من حيث توقفت</string>
     <plurals name="foryou_kicker_played_times">
         <item quantity="zero">شغّلته %1$d مرة</item>
@@ -860,11 +860,8 @@
     <string name="foryou_section_daypart_day">فترات ظهيرتك</string>
     <string name="foryou_section_daypart_evening">أمسياتك</string>
     <string name="foryou_section_daypart_night">لياليك</string>
-    <string name="foryou_section_on_a_roll">موجتك الحالية: %1$s</string>
-    <string name="foryou_section_wildcard">اختيار مفاجئ</string>
-    <string name="foryou_caption_left_turn">انعطافة من %1$s</string>
-    <string name="foryou_section_journey">رحلة صوتية</string>
-    <string name="foryou_journey_title">من «%1$s» إلى «%2$s»</string>
+    <string name="foryou_section_on_a_roll">يتكرر هذه الأيام: %1$s</string>
+    <string name="foryou_caption_left_turn">إن كنت تحب %1$s</string>
     <string name="settings_pages">الصفحات</string>
     <string name="settings_pages_subtitle">الظهور والترتيب وصفحة البدء</string>
     <string name="settings_pages_body">اسحب لإعادة الترتيب. عطّل الصفحات التي لا تستخدمها.</string>

@@ -59,24 +59,8 @@ enum class ForYouSectionKind {
      */
     WORLDS,
 
-    /**
-     * A mix that travels: interpolated waypoints between a loved track and the unheard track
-     * farthest from it, each snapped to a real library track. The card is a narrative — the
-     * listen goes somewhere — and it walks the listener into unexplored regions on a gradient
-     * instead of a cold drop.
-     */
-    JOURNEY,
-
     /** Owned but never heard. */
     NEVER_PLAYED,
-
-    /**
-     * Exactly one serendipity slot: an unheard track from a region the listener provably loves
-     * but has not touched in a month — relevant AND unexpected, which is the literature's
-     * definition of serendipity. One slot on purpose: measured per-item enjoyment of surprises
-     * is negative, so the dose is the feature.
-     */
-    WILDCARD,
 }
 
 /**
@@ -96,8 +80,8 @@ sealed interface ForYouCaption {
     data class TrackCount(val tracks: Int) : ForYouCaption
 
     /**
-     * The loved track that vouches for a wildcard pick — the receipt that makes one unexpected
-     * card trustworthy instead of random.
+     * The loved track that vouches for the daypart row's one far pick (the former wildcard) — the
+     * receipt that makes one unexpected card trustworthy instead of random.
      */
     data class LeftTurnFrom(val title: String) : ForYouCaption
 }
@@ -128,7 +112,17 @@ data class ForYouCollection(
     val tracks: List<TrackDescriptor>,
     /** Stable owner when this offer represents a user-created playlist. */
     val playlistId: String? = null,
+    /**
+     * The card's own identity — `collection:<playlist id>`, `collection:<album>|<album artist>` or
+     * `mix:<representative track id>` — under which its impressions are recorded. Never the cover's
+     * track id: showing a collection or a mix is not an offer of its cover track.
+     */
+    val key: String = "",
 )
+
+/** What a card's impressions are recorded under: its collection's own key, else its track. */
+val ForYouCard.impressionKey: String
+    get() = collection?.key?.takeIf { it.isNotEmpty() } ?: track.id.value
 
 data class ForYouSection(
     val kind: ForYouSectionKind,
@@ -186,6 +180,49 @@ data class ForYouPage(
     val sections: List<ForYouSection> = emptyList(),
 ) {
     val isEmpty: Boolean get() = hero == null && sections.isEmpty()
+}
+
+/**
+ * What the page showed on prior days, in the shapes [ForYouBuilder.build] takes.
+ *
+ * The hero and "worth revisiting" share one record — a favourite offered in either and not taken
+ * steps back in both — the daypart row keeps its own, and never-played offers passed over on
+ * enough days retire for a while ([ForYouRhythm.retiredUntil]).
+ */
+internal data class ForYouShownHistory(
+    val revisit: Map<String, Long> = emptyMap(),
+    val daypart: Map<String, Long> = emptyMap(),
+    val retired: Set<TrackId> = emptySet(),
+) {
+    companion object {
+        /** [bySection]: section → card key → prior shown days, as the impression journal returns them. */
+        fun from(
+            bySection: Map<String, Map<String, List<Long>>>,
+            stats: Map<TrackId, TrackStats>,
+            today: Long,
+        ): ForYouShownHistory {
+            fun lastShown(vararg sections: String): Map<String, Long> = buildMap {
+                for (section in sections) {
+                    bySection[section]?.forEach { (key, days) ->
+                        val last = days.maxOrNull() ?: return@forEach
+                        if (last > (get(key) ?: Long.MIN_VALUE)) put(key, last)
+                    }
+                }
+            }
+            val retired = bySection["never-played"].orEmpty()
+                .filter { (key, days) ->
+                    (stats[TrackId(key)]?.plays ?: 0) == 0 &&
+                        (ForYouRhythm.retiredUntil(days) ?: Long.MIN_VALUE) > today
+                }
+                .keys
+                .mapTo(HashSet(), ::TrackId)
+            return ForYouShownHistory(
+                revisit = lastShown("hero", "worth-revisiting"),
+                daypart = lastShown("daypart"),
+                retired = retired,
+            )
+        }
+    }
 }
 
 /**
@@ -286,6 +323,13 @@ object ForYouBuilder {
      */
     const val COLLAPSE_MIN = 3
 
+    /** A playlist larger than this is a catch-all, not a unit of taste, and is never offered whole. */
+    const val COLLAPSE_MAX_PLAYLIST_TRACKS = 200
+
+    /** The same, as a share of the library — for playlists big enough for a share to mean anything. */
+    const val COLLAPSE_MAX_PLAYLIST_SHARE = 0.5
+    const val COLLAPSE_SHARE_MIN_TRACKS = 20
+
     /**
      * A part-played track counts as resumable only past this point — before it, the listener was
      * auditioning rather than interrupted, and offering to resume reads as noise.
@@ -294,6 +338,12 @@ object ForYouBuilder {
 
     /** Normal songs restart cleanly; resuming is useful for mixes, sets and other long recordings. */
     const val MIN_RESUMABLE_DURATION_MS = 8L * 60 * 1000
+
+    /**
+     * How long an interruption stays an open intention. Past two weeks the listener has moved on, and
+     * a stale resume offer would otherwise hold the hero for as long as it sits in the event window.
+     */
+    const val RESUME_WINDOW_MS = 14L * 24 * 60 * 60 * 1000
 
     fun build(
         library: List<TrackDescriptor>,
@@ -324,13 +374,15 @@ object ForYouBuilder {
          */
         cooledDiscoveries: Set<TrackId> = emptySet(),
         /**
-         * Precomputed journey paths (see [ForYouRhythm.sonicJourneys]); one shows per day.
-         * Plotted over the whole library, so the section drops [excluded] tracks from the path
-         * itself and skips a path whose cover another row already claimed.
+         * The last PRIOR local day each card was shown as the hero or in "worth revisiting", by
+         * [ForYouCard.impressionKey]. A favourite shown and not played since steps behind the
+         * others for [ForYouRhythm.DEMOTION_DAYS], so these offers move day to day.
          */
-        journeys: List<List<TrackId>> = emptyList(),
-        /** Localized "%1${'$'}s to %2${'$'}s" pattern for the journey card's title. */
-        journeyTitlePattern: String = "%1${'$'}s → %2${'$'}s",
+        revisitShownDays: Map<String, Long> = emptyMap(),
+        /** The same for the daypart row's cards; there a play on or after the shown day cancels it. */
+        daypartShownDays: Map<String, Long> = emptyMap(),
+        /** Unheard tracks offered on several days and passed over (see [ForYouRhythm.retiredUntil]). */
+        retiredDiscoveries: Set<TrackId> = emptySet(),
     ): ForYouPage {
         val byId = library.associateBy { it.id }
         // Accumulates across the page, so a track shown once is not shown again further down.
@@ -342,19 +394,36 @@ object ForYouBuilder {
         // local days, and a page whose rotation disagreed with them by a timezone offset either
         // re-offered what had just cooled or stood still after its own day had ended.
         val dayIndex = localDayOf(nowMs).toInt()
+        val today = localDayOf(nowMs)
+        // Shown on a prior day within the demotion window, and on or after the day of the last
+        // play: offered, and not taken — answered with the day it was shown, else null. Day
+        // granularity is all the impression journal records.
+        val revisitIgnored: (String, Long) -> Long? = { key, lastPlayedAtMs ->
+            revisitShownDays[key]?.takeIf { shown ->
+                shown >= today - ForYouRhythm.DEMOTION_DAYS && shown < today &&
+                    shown >= localDayOf(lastPlayedAtMs)
+            }
+        }
         val hero = hero(
             byId, stats, recentEvents, nowMs, quietMs, excluded, cooledDiscoveries, dayIndex,
+            revisitIgnored,
         )
         hero?.let { used.add(it.track.id) }
 
         val sections = mutableListOf<ForYouSection>()
-        continueListening(byId, recentEvents, used)?.let(sections::add)
+        continueListening(byId, recentEvents, nowMs, used)?.let(sections::add)
         // Directly under the resume row: timing is the cheapest magic there is, and this is the
         // one section whose claim is about RIGHT NOW.
         daypartSection(
             byId, recentEvents, worlds, stats, nowMs, used, localHourOf, cooledDiscoveries, dayIndex,
+            daypartIgnored = { key, lastPlayedAtMs ->
+                daypartShownDays[key]?.takeIf { shown ->
+                    shown >= today - ForYouRhythm.DEMOTION_DAYS && shown < today &&
+                        localDayOf(lastPlayedAtMs) < shown
+                }
+            },
         )?.let(sections::add)
-        worthRevisiting(byId, stats, nowMs, quietMs, used, playlists)?.let(sections::add)
+        worthRevisiting(byId, stats, nowMs, quietMs, used, playlists, revisitIgnored)?.let(sections::add)
         onARoll(library, byId, recentEvents, stats, worlds, nowMs, used, cooledDiscoveries)
             ?.let(sections::add)
         // Above "never played" and below the history rows on purpose. With nothing logged the rows
@@ -373,10 +442,9 @@ object ForYouBuilder {
             semanticMixLabels = semanticMixLabels,
             dayIndex = dayIndex,
         )?.let(sections::add)
-        journeySection(journeys, byId, used, excluded, journeyTitlePattern, dayIndex)
-            ?.let(sections::add)
-        wildcardSection(worlds, stats, nowMs, used, cooledDiscoveries, dayIndex)?.let(sections::add)
-        neverPlayed(library, stats, used, cooledDiscoveries, dayIndex)?.let(sections::add)
+        neverPlayed(
+            library, stats, nowMs, used, cooledDiscoveries, retiredDiscoveries, dayIndex, localDayOf,
+        )?.let(sections::add)
 
         return ForYouPage(hero, sections)
     }
@@ -403,25 +471,36 @@ object ForYouBuilder {
         excluded: Set<TrackId>,
         cooledDiscoveries: Set<TrackId>,
         dayIndex: Int,
+        ignored: (String, Long) -> Long?,
     ): ForYouHero? {
-        interrupted(byId, recentEvents, excluded)?.let { (track, at) ->
+        interrupted(byId, recentEvents, nowMs, excluded)?.let { (track, at) ->
             return ForYouHero(track, ForYouKicker.Resume, at)
         }
-        // Rotated among the strongest few rather than pinned to the single maximum: without
-        // interruptions the hero otherwise shows the same card every day of the week.
-        val revisit = stats.entries
+        // The strongest favourite gone quiet — unless it was the offer on a recent day and was
+        // not taken, in which case it steps behind the others (ForYouRhythm.demoteIgnored). That
+        // moves the hero every day without throwing the ranking away, and the pool never empties.
+        val ranked = stats.entries
             .filter { (id, stat) ->
                 id !in excluded &&
+                    byId.containsKey(id) &&
                     stat.listens >= MIN_PLAYS_TO_COUNT &&
                     stat.lastPlayedAtMs > 0 &&
                     nowMs - stat.lastPlayedAtMs >= quietMs &&
                     stat.completions >= stat.skips
             }
-            .sortedByDescending { it.value.completions }
-            .take(HERO_ROTATION_POOL)
-        if (revisit.isNotEmpty()) {
-            val (id, stat) = revisit[dayIndex.mod(revisit.size)]
-            byId[id]?.let { return ForYouHero(it, ForYouKicker.PlayedTimes(stat.listens)) }
+            .sortedWith(
+                compareByDescending<Map.Entry<TrackId, TrackStats>> { it.value.completions }
+                    .thenBy { it.key.value },
+            )
+        val revisit = ForYouRhythm.demoteIgnored(
+            ranked,
+            ranked.mapNotNull { entry ->
+                ignored(entry.key.value, entry.value.lastPlayedAtMs)?.let { day -> entry to day }
+            }.toMap(),
+        ).firstOrNull()
+        if (revisit != null) {
+            val (id, stat) = revisit
+            return ForYouHero(byId.getValue(id), ForYouKicker.PlayedTimes(stat.listens))
         }
         val unheard = byId.values
             .filter { (stats[it.id]?.plays ?: 0) == 0 }
@@ -435,22 +514,36 @@ object ForYouBuilder {
     /** How many top candidates the hero cycles through, one per day. */
     const val HERO_ROTATION_POOL = 5
 
-    /** The most recent track abandoned past [MIN_RESUME_MS], with where it stopped. */
-    private fun interrupted(
-        byId: Map<TrackId, TrackDescriptor>,
-        recentEvents: List<ListenEvent>,
-        excluded: Set<TrackId>,
-    ): Pair<TrackDescriptor, Long>? =
+    /**
+     * Tracks whose NEWEST event left them unfinished past [MIN_RESUME_MS], within
+     * [RESUME_WINDOW_MS], newest first.
+     *
+     * Only the newest event of a track decides: an older interruption followed by a full play is a
+     * finished recording, and offering to resume it at the old position reads as the page not
+     * noticing what the listener did. [recentEvents] arrive newest first, so the first event per
+     * track is its newest.
+     */
+    private fun resumable(recentEvents: List<ListenEvent>, nowMs: Long): List<ListenEvent> =
         recentEvents
-            .firstOrNull { event ->
+            .distinctBy { it.trackId }
+            .filter { event ->
                 !event.completed &&
                     event.playedMs >= MIN_RESUME_MS &&
                     (event.trackDurationMs ?: 0) >= MIN_RESUMABLE_DURATION_MS &&
                     // Guard against a stale position past the end of a since-replaced file.
                     (event.trackDurationMs ?: 0) > event.playedMs &&
-                    event.trackId !in excluded &&
-                    byId.containsKey(event.trackId)
+                    nowMs - event.startedAtMs <= RESUME_WINDOW_MS
             }
+
+    /** The most recent track abandoned past [MIN_RESUME_MS], with where it stopped. */
+    private fun interrupted(
+        byId: Map<TrackId, TrackDescriptor>,
+        recentEvents: List<ListenEvent>,
+        nowMs: Long,
+        excluded: Set<TrackId>,
+    ): Pair<TrackDescriptor, Long>? =
+        resumable(recentEvents, nowMs)
+            .firstOrNull { event -> event.trackId !in excluded && byId.containsKey(event.trackId) }
             ?.let { event -> byId.getValue(event.trackId) to event.playedMs }
 
     /**
@@ -460,18 +553,12 @@ object ForYouBuilder {
     private fun continueListening(
         byId: Map<TrackId, TrackDescriptor>,
         recentEvents: List<ListenEvent>,
+        nowMs: Long,
         used: MutableSet<TrackId>,
     ): ForYouSection? {
         val picked = capPerArtist(
-            recentEvents
-                .filter { event ->
-                    !event.completed &&
-                        event.playedMs >= MIN_RESUME_MS &&
-                        (event.trackDurationMs ?: 0) >= MIN_RESUMABLE_DURATION_MS &&
-                        (event.trackDurationMs ?: 0) > event.playedMs &&
-                        event.trackId !in used
-                }
-                .distinctBy { it.trackId }
+            resumable(recentEvents, nowMs)
+                .filter { it.trackId !in used }
                 .mapNotNull { byId[it.trackId] },
         )
         if (picked.isEmpty()) return null
@@ -492,6 +579,7 @@ object ForYouBuilder {
         quietMs: Long,
         used: MutableSet<TrackId>,
         playlists: List<Playlist>,
+        ignored: (String, Long) -> Long?,
     ): ForYouSection? {
         val candidates = stats.entries
             .filter { (id, stat) ->
@@ -514,12 +602,28 @@ object ForYouBuilder {
 
         // Groups first, so the tracks they absorb never also appear as singles below them.
         val claimed = HashSet<TrackId>()
-        val groups = collapseToCollections(dormant, playlists, claimed)
-        val singles = capPerArtist(dormant.filterNot { it.id in claimed })
-
-        val cards = groups + singles.map { track ->
-            ForYouCard(track, caption = ForYouCaption.PlayedBefore(statOf[track.id]?.listens ?: 0))
+        val groups = collapseToCollections(dormant, playlists, claimed, byId.size)
+        val singleCards = capPerArtist(dormant.filterNot { it.id in claimed }, limit = Int.MAX_VALUE)
+            .map { track ->
+                ForYouCard(track, caption = ForYouCaption.PlayedBefore(statOf[track.id]?.listens ?: 0))
+            }
+        // One ranking for collections and singles: a collection stands where its strongest member
+        // would, so a playlist no longer takes the row's head just by being a playlist. Then the
+        // offers shown and not taken step behind the rest, the collection under its own key with
+        // its newest member play as "last play".
+        val rank = dormant.withIndex().associate { (index, track) -> track.id to index }
+        val rankOf: (ForYouCard) -> Int = { card ->
+            card.collection?.tracks?.minOf { rank[it.id] ?: Int.MAX_VALUE } ?: rank[card.track.id] ?: Int.MAX_VALUE
         }
+        val lastPlayOf: (ForYouCard) -> Long = { card ->
+            card.collection?.tracks?.maxOf { statOf[it.id]?.lastPlayedAtMs ?: 0L }
+                ?: statOf[card.track.id]?.lastPlayedAtMs ?: 0L
+        }
+        val ordered = (groups + singleCards).sortedBy(rankOf)
+        val cards = ForYouRhythm.demoteIgnored(
+            ordered,
+            ordered.mapNotNull { card -> ignored(card.impressionKey, lastPlayOf(card))?.let { card to it } }.toMap(),
+        )
         if (cards.isEmpty()) return null
         return ForYouSection(
             kind = ForYouSectionKind.WORTH_REVISITING,
@@ -545,11 +649,20 @@ object ForYouBuilder {
         dormant: List<TrackDescriptor>,
         playlists: List<Playlist>,
         claimed: MutableSet<TrackId>,
+        librarySize: Int,
     ): List<ForYouCard> {
         val out = mutableListOf<ForYouCard>()
         val dormantById = dormant.associateBy { it.id }
 
         for (playlist in playlists) {
+            // A catch-all playlist ("All music" imported from an M3U) is not a unit of taste: it
+            // would swallow every dormant track into one card.
+            val size = playlist.trackIds.size
+            if (size > COLLAPSE_MAX_PLAYLIST_TRACKS ||
+                (size >= COLLAPSE_SHARE_MIN_TRACKS && size > librarySize * COLLAPSE_MAX_PLAYLIST_SHARE)
+            ) {
+                continue
+            }
             val members = playlist.trackIds
                 .mapNotNull { id -> dormantById[TrackId(id)] }
                 .filterNot { it.id in claimed }
@@ -559,15 +672,21 @@ object ForYouBuilder {
                 ForYouCard(
                     track = members.first(),
                     caption = ForYouCaption.TrackCount(members.size),
-                    collection = ForYouCollection(playlist.name, members, playlistId = playlist.id),
+                    collection = ForYouCollection(
+                        playlist.name,
+                        members,
+                        playlistId = playlist.id,
+                        key = "collection:${playlist.id}",
+                    ),
                 ),
             )
         }
 
+        // An album is its title AND its artist: two artists' "Greatest Hits" are two albums.
         dormant
             .filterNot { it.id in claimed }
             .filter { !it.album.isNullOrBlank() }
-            .groupBy { it.album!! }
+            .groupBy { it.album!! to (it.albumArtist?.trim()?.lowercase() ?: primaryArtistKey(it)) }
             .filterValues { it.size >= COLLAPSE_MIN }
             .forEach { (album, members) ->
                 members.forEach { claimed.add(it.id) }
@@ -575,7 +694,11 @@ object ForYouBuilder {
                     ForYouCard(
                         track = members.first(),
                         caption = ForYouCaption.TrackCount(members.size),
-                        collection = ForYouCollection(album, members),
+                        collection = ForYouCollection(
+                            album.first,
+                            members,
+                            key = "collection:${album.first}|${album.second}",
+                        ),
                     ),
                 )
             }
@@ -652,8 +775,13 @@ object ForYouBuilder {
         } else {
             List(rotatingTail.size) { rotatingTail[(it + dayIndex).mod(rotatingTail.size)] }
         }
-        val genericCount = sorted.count { it.nameSource == LibraryWorldNameSource.GENERIC }
-        var genericIndex = 0
+        // A generic mix is numbered by its own identity, not by where today's rotation put it: a
+        // number counted in display order made "Discovery mix 2" a different mix every day.
+        val genericNumber = visibleWorlds
+            .filter { it.nameSource == LibraryWorldNameSource.GENERIC }
+            .sortedBy { it.representative.id.value }
+            .withIndex()
+            .associate { (index, world) -> world to index + 1 }
         val cards = sorted
             .mapNotNull { world ->
                 val eligibleTracks = world.tracks.filterNot { it.id in excluded }
@@ -697,11 +825,10 @@ object ForYouBuilder {
                     world.semanticTitle != null ->
                         semanticMixLabels[world.semanticTitle] ?: world.name
                     world.nameSource == LibraryWorldNameSource.GENERIC -> {
-                        genericIndex++
-                        if (genericCount == 1) {
+                        if (genericNumber.size == 1) {
                             discoveryMixLabel
                         } else {
-                            "$discoveryMixLabel $genericIndex"
+                            "$discoveryMixLabel ${genericNumber.getValue(world)}"
                         }
                     }
                     else -> world.name
@@ -710,6 +837,7 @@ object ForYouBuilder {
                     track = cover,
                     caption = ForYouCaption.TrackCount(mixTracks.size),
                     collection = ForYouCollection(
+                        key = "mix:${world.representative.id.value}",
                         title = title,
                         // The cover leads the list too. A card that shows one record and starts on
                         // another is the smallest possible way to look broken.
@@ -740,11 +868,22 @@ object ForYouBuilder {
         localHourOf: (Long) -> Int,
         cooledDiscoveries: Set<TrackId>,
         dayIndex: Int,
+        daypartIgnored: (String, Long) -> Long?,
     ): ForYouSection? {
         val daypart = ForYouRhythm.daypartOf(localHourOf(nowMs))
         val inPhase = ForYouRhythm.daypartEventCount(recentEvents, daypart, localHourOf)
         if (inPhase < ForYouRhythm.DAYPART_MIN_EVENTS) return null
         val affinity = ForYouRhythm.daypartAffinity(recentEvents, daypart, localHourOf)
+        // The former "wildcard" row: one unheard track from a loved region gone quiet, now the
+        // last discovery slot of this row instead of a one-card row of its own.
+        val far = ForYouRhythm.wildcard(
+            worlds = worlds,
+            stats = stats,
+            nowMs = nowMs,
+            used = used,
+            dayIndex = dayIndex,
+            cooled = cooledDiscoveries,
+        )
         val row = ForYouRhythm.daypartRow(
             affinity = affinity,
             byId = byId,
@@ -753,6 +892,13 @@ object ForYouBuilder {
             used = used,
             dayIndex = dayIndex,
             cooled = cooledDiscoveries,
+            recentlyPlayed = stats.entries
+                .filter { nowMs - it.value.lastPlayedAtMs < RECENTLY_PLAYED_MS }
+                .mapTo(HashSet()) { it.key },
+            ignored = affinity.keys.mapNotNull { id ->
+                daypartIgnored(id.value, stats[id]?.lastPlayedAtMs ?: 0L)?.let { id to it }
+            }.toMap(),
+            farPick = far?.pick,
         )
         if (row.size < COLLAPSE_MIN) return null
         return ForYouSection(
@@ -760,15 +906,24 @@ object ForYouBuilder {
             daypart = daypart,
             cards = row.map { track ->
                 // The receipt claims only what the log proves: plays IN this daypart. Unheard
-                // fresh picks carry no caption — the artist line is their honest introduction.
+                // fresh picks carry no caption — the artist line is their honest introduction —
+                // except the far pick, vouched for by the loved track it leads on from.
                 val plays = affinity[track.id]?.plays ?: 0
+                val vouch = far?.takeIf { it.pick.id == track.id }?.anchor
                 ForYouCard(
                     track = track,
-                    caption = if (plays > 0) ForYouCaption.PlayedBefore(plays) else null,
+                    caption = when {
+                        plays > 0 -> ForYouCaption.PlayedBefore(plays)
+                        vouch != null -> (vouch.title ?: vouch.artist)?.let { ForYouCaption.LeftTurnFrom(it) }
+                        else -> null
+                    },
                 )
             }.onEach { used.add(it.track.id) },
         )
     }
+
+    /** Yesterday is memory: tracks played this recently stay out of the history rows' proven slots. */
+    const val RECENTLY_PLAYED_MS = 24L * 60 * 60 * 1000
 
     /**
      * The phase the listener is in RIGHT NOW, answered with the binged artist's unheard tracks.
@@ -792,6 +947,8 @@ object ForYouBuilder {
             nowMs = nowMs,
             artistOf = { byId[it]?.artist },
             artistKeyOf = ::primaryArtistKey,
+            // The oldest last-touch across all stats, as adaptiveQuietMs reads the log's age.
+            logStartMs = stats.values.asSequence().map { it.lastPlayedAtMs }.filter { it > 0 }.minOrNull(),
         ) ?: return null
         val cuts = ForYouRhythm.bingeDeepCuts(
             binge = binge,
@@ -814,113 +971,77 @@ object ForYouBuilder {
     }
 
     /**
-     * One journey per day, rotated through the precomputed pool. Tracks deleted since plotting
-     * fall out of the path; a path that shrinks below a real trip declines the card rather than
-     * over-promising travel.
-     *
-     * The pool is plotted over the whole library (see [ForYouRhythm.sonicJourneys]), so this is
-     * where the page's rules are applied to it. [excluded] — SMART exclusions and the track
-     * already playing — is dropped from the path rather than voiding the journey: the trip still
-     * starts where it says it does, and the listener does not meet that track on the way. A
-     * journey whose cover another row already claimed ([used]) steps aside for the next one in
-     * the rotation, because two identical covers on one page is exactly what that rule is about;
-     * when no candidate survives, the row declines.
-     */
-    private fun journeySection(
-        journeys: List<List<TrackId>>,
-        byId: Map<TrackId, TrackDescriptor>,
-        used: MutableSet<TrackId>,
-        excluded: Set<TrackId>,
-        titlePattern: String,
-        dayIndex: Int,
-    ): ForYouSection? {
-        if (journeys.isEmpty()) return null
-        var found: List<TrackDescriptor>? = null
-        for (offset in journeys.indices) {
-            val candidate = journeys[(dayIndex + offset).mod(journeys.size)]
-                .filterNot { it in excluded }
-                .mapNotNull(byId::get)
-            if (candidate.size < 5) continue
-            if (candidate.first().id in used) continue
-            found = candidate
-            break
-        }
-        val path = found ?: return null
-        val from = path.first()
-        val to = path.last()
-        val title = titlePattern
-            .replace("%1${'$'}s", from.title ?: from.artist.orEmpty())
-            .replace("%2${'$'}s", to.title ?: to.artist.orEmpty())
-        return ForYouSection(
-            kind = ForYouSectionKind.JOURNEY,
-            cards = listOf(
-                ForYouCard(
-                    track = from,
-                    caption = ForYouCaption.TrackCount(path.size),
-                    collection = ForYouCollection(title = title, tracks = path),
-                ),
-            ).onEach { used.add(it.track.id) },
-        )
-    }
-
-    /** One serendipity slot; see [ForYouSectionKind.WILDCARD] for why exactly one. */
-    private fun wildcardSection(
-        worlds: List<LibraryWorld>,
-        stats: Map<TrackId, TrackStats>,
-        nowMs: Long,
-        used: MutableSet<TrackId>,
-        cooledDiscoveries: Set<TrackId>,
-        dayIndex: Int,
-    ): ForYouSection? {
-        val wildcard = ForYouRhythm.wildcard(
-            worlds = worlds,
-            stats = stats,
-            nowMs = nowMs,
-            used = used,
-            dayIndex = dayIndex,
-            cooled = cooledDiscoveries,
-        ) ?: return null
-        val anchorName = wildcard.anchor.title ?: wildcard.anchor.artist
-        return ForYouSection(
-            kind = ForYouSectionKind.WILDCARD,
-            cards = listOf(
-                ForYouCard(
-                    track = wildcard.pick,
-                    caption = anchorName?.let { ForYouCaption.LeftTurnFrom(it) },
-                ),
-            ).onEach { used.add(it.track.id) },
-        )
-    }
-
-    /**
      * Owned but never heard. Newest first, because something added recently and still unplayed is a
      * stronger intention than something that has sat there for years.
      */
     private fun neverPlayed(
         library: List<TrackDescriptor>,
         stats: Map<TrackId, TrackStats>,
+        nowMs: Long,
         used: MutableSet<TrackId>,
         cooledDiscoveries: Set<TrackId>,
+        retired: Set<TrackId>,
         dayIndex: Int,
+        localDayOf: (Long) -> Long,
     ): ForYouSection? {
-        // Offers ignored on recent days step aside before the window is cut, and the day's rotation
-        // then turns among the strangers that remain (see [ForYouRhythm.freshRotationOrder]): a
-        // repeat may fill a leftover slot, but it never leads the row.
-        val fresh = library
-            .filter { it.id !in used && (stats[it.id]?.plays ?: 0) == 0 }
+        val unheard = library.filter {
+            it.id !in used && it.id !in retired && (stats[it.id]?.plays ?: 0) == 0
+        }
+        // Recent additions lead: something added this month and still unplayed is the strongest
+        // intention on the row. Only when the add dates mean something — see [addDatesTrusted].
+        val recentSince = nowMs - RECENT_ADDITION_MS
+        val trusted = addDatesTrusted(library, nowMs, localDayOf)
+        val recent = if (!trusted) {
+            emptyList()
+        } else {
+            unheard
+                .filter { (it.addedAtMs ?: Long.MIN_VALUE) >= recentSince }
+                .sortedWith(
+                    compareBy<TrackDescriptor> { it.id in cooledDiscoveries }
+                        .thenByDescending { it.addedAtMs ?: 0L },
+                )
+        }
+        val recentIds = recent.mapTo(HashSet()) { it.id }
+        // Then the rest as before: offers ignored on recent days step aside before the window is
+        // cut, and the day's rotation turns among the strangers that remain (see
+        // [ForYouRhythm.freshRotationOrder]): a repeat may fill a leftover slot, but never leads.
+        val fresh = unheard
+            .filter { it.id !in recentIds }
             .sortedWith(
                 compareBy<TrackDescriptor> { it.id in cooledDiscoveries }
                     .thenByDescending { it.addedAtMs ?: 0L },
             )
             .take(NEVER_PLAYED_WINDOW)
         val picked = capPerArtist(
-            ForYouRhythm.freshRotationOrder(fresh, cooledDiscoveries, dayIndex),
+            recent + ForYouRhythm.freshRotationOrder(fresh, cooledDiscoveries, dayIndex),
         )
         if (picked.isEmpty()) return null
         return ForYouSection(
             kind = ForYouSectionKind.NEVER_PLAYED,
             cards = picked.map { ForYouCard(it) }.onEach { used.add(it.track.id) },
         )
+    }
+
+    /** "Recently added" for the never-played row. */
+    const val RECENT_ADDITION_MS = 30L * 24 * 60 * 60 * 1000
+
+    /**
+     * Whether add dates describe when the listener added music, rather than when the files reached
+     * this phone. A migration, a restore or a MediaStore rebuild stamps most of the library with one
+     * day; if that day falls inside the "recent" window, "recently added" would mean "everything",
+     * so the boost is skipped. A library copied once, long before, keeps it — its later additions
+     * are real. Missing dates (iOS Music.app) simply never count as recent.
+     */
+    internal fun addDatesTrusted(
+        library: List<TrackDescriptor>,
+        nowMs: Long,
+        localDayOf: (Long) -> Long,
+    ): Boolean {
+        val dated = library.mapNotNull { it.addedAtMs }
+        if (dated.isEmpty()) return true
+        val (massDay, count) = dated.groupingBy(localDayOf).eachCount().maxBy { it.value }
+        if (count * 2 <= library.size) return true
+        return massDay < localDayOf(nowMs - RECENT_ADDITION_MS)
     }
 
     /**
@@ -930,11 +1051,14 @@ object ForYouBuilder {
      * empty artist key and are capped together — one block of "Unknown artist" is exactly the kind
      * of row this is meant to prevent.
      */
-    private fun capPerArtist(tracks: List<TrackDescriptor>): List<TrackDescriptor> {
+    private fun capPerArtist(
+        tracks: List<TrackDescriptor>,
+        limit: Int = ROW_LIMIT,
+    ): List<TrackDescriptor> {
         val perArtist = HashMap<String, Int>()
-        val out = ArrayList<TrackDescriptor>(ROW_LIMIT)
+        val out = ArrayList<TrackDescriptor>(minOf(limit, tracks.size))
         for (track in tracks) {
-            if (out.size >= ROW_LIMIT) break
+            if (out.size >= limit) break
             val key = track.artist.orEmpty()
             val count = perArtist[key] ?: 0
             if (count >= MAX_PER_ARTIST) continue

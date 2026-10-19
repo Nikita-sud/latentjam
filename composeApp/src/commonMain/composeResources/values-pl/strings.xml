@@ -105,7 +105,7 @@
     <string name="foryou_section_never_played">Nigdy nieodtwarzane</string>
     <!-- Dwie rzeczy, które można zrobić ze światem — zaproponowane, nie zgadywane. -->
     <string name="foryou_world_open">Pokaż utwory</string>
-    <string name="foryou_world_smart">Zacznij SMART stąd</string>
+    <string name="foryou_world_smart">Słuchaj podobnych</string>
     <string name="foryou_kicker_resume">Wróć tam, gdzie skończyłeś</string>
     <plurals name="foryou_kicker_played_times">
         <item quantity="one">Słuchałeś tego %1$d raz</item>
@@ -786,11 +786,8 @@
     <string name="foryou_section_daypart_day">Twoje popołudnia</string>
     <string name="foryou_section_daypart_evening">Twoje wieczory</string>
     <string name="foryou_section_daypart_night">Twoje noce</string>
-    <string name="foryou_section_on_a_roll">Twoja faza: %1$s</string>
-    <string name="foryou_section_wildcard">Dżoker</string>
-    <string name="foryou_caption_left_turn">Zwrot od %1$s</string>
-    <string name="foryou_section_journey">Podróż dźwiękowa</string>
-    <string name="foryou_journey_title">Od „%1$s” do „%2$s”</string>
+    <string name="foryou_section_on_a_roll">Teraz często: %1$s</string>
+    <string name="foryou_caption_left_turn">Jeśli lubisz %1$s</string>
     <string name="settings_pages">Strony</string>
     <string name="settings_pages_subtitle">Widoczność, kolejność i strona startowa</string>
     <string name="settings_pages_body">Przeciągnij, aby zmienić kolejność. Wyłącz nieużywane strony.</string>

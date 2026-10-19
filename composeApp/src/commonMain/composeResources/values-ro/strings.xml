@@ -98,7 +98,7 @@
     <string name="foryou_section_never_played">Neascultate încă</string>
     <!-- Cele două lucruri de făcut cu o lume, oferite în loc de ghicite. -->
     <string name="foryou_world_open">Arată piesele</string>
-    <string name="foryou_world_smart">Pornește SMART de aici</string>
+    <string name="foryou_world_smart">Ascultă melodii similare</string>
     <string name="foryou_kicker_resume">Reia de unde ai rămas</string>
     <plurals name="foryou_kicker_played_times">
         <item quantity="one">Ai ascultat-o de %1$d dată</item>
@@ -738,11 +738,8 @@
     <string name="foryou_section_daypart_day">După-amiezile tale</string>
     <string name="foryou_section_daypart_evening">Serile tale</string>
     <string name="foryou_section_daypart_night">Nopțile tale</string>
-    <string name="foryou_section_on_a_roll">Faza ta %1$s</string>
-    <string name="foryou_section_wildcard">Joker</string>
-    <string name="foryou_caption_left_turn">Un ocol de la %1$s</string>
-    <string name="foryou_section_journey">Călătorie sonoră</string>
-    <string name="foryou_journey_title">De la „%1$s” la „%2$s”</string>
+    <string name="foryou_section_on_a_roll">În buclă: %1$s</string>
+    <string name="foryou_caption_left_turn">Dacă îți place %1$s</string>
     <string name="settings_pages">Pagini</string>
     <string name="settings_pages_subtitle">Vizibilitate, ordine și pagina de pornire</string>
     <string name="settings_pages_body">Trage pentru a reordona. Dezactivează paginile pe care nu le folosești.</string>

@@ -145,6 +145,9 @@ internal class AndroidPlaybackController(
     private var poolById: Map<String, TrackDescriptor> = emptyMap()
     private var smartById: Map<String, TrackDescriptor> = emptyMap()
     private var mode: ShuffleMode = ShuffleMode.OFF
+
+    // The last row of the newest curated start (playInOrder), which a SMART policy change keeps.
+    private var curatedTailId: String? = null
     /** Bridges the few milliseconds between a Play-from-cold callback and timeline installation. */
     private var anticipatedResumption: MediaPlaybackResume? = null
 
@@ -576,6 +579,19 @@ internal class AndroidPlaybackController(
         tracks: List<TrackDescriptor>,
         startIndex: Int,
         smartPlanPositions: Map<TrackId, Int>,
+    ): Unit = startQueue(tracks, startIndex, smartPlanPositions, keepOrderInSmart = false)
+
+    override suspend fun playInOrder(
+        tracks: List<TrackDescriptor>,
+        startIndex: Int,
+        smartPlanPositions: Map<TrackId, Int>,
+    ): Unit = startQueue(tracks, startIndex, smartPlanPositions, keepOrderInSmart = true)
+
+    private suspend fun startQueue(
+        tracks: List<TrackDescriptor>,
+        startIndex: Int,
+        smartPlanPositions: Map<TrackId, Int>,
+        keepOrderInSmart: Boolean,
     ) {
         if (tracks.isEmpty()) return
         userInteractionRevision.incrementAndGet()
@@ -588,7 +604,7 @@ internal class AndroidPlaybackController(
             preparePlayback(
                 tracks = tracks,
                 startIndex = startIndex,
-                includeFullQueue = modeAtRequest != ShuffleMode.SMART,
+                includeFullQueue = modeAtRequest != ShuffleMode.SMART || keepOrderInSmart,
             )
         }
 
@@ -602,7 +618,7 @@ internal class AndroidPlaybackController(
 
                 val currentMode = mode
                 val fullQueue = prepared.fullQueue
-                if (currentMode != ShuffleMode.SMART && fullQueue == null) {
+                if ((currentMode != ShuffleMode.SMART || keepOrderInSmart) && fullQueue == null) {
                     // Shuffle mode changed while the selected SMART item was being prepared. Finish
                     // constructing the natural queue on the worker, then revalidate once more.
                     needsFullQueue = true
@@ -627,7 +643,14 @@ internal class AndroidPlaybackController(
                 smartRemovedIds.clear()
                 anticipatedResumption = null
                 AndroidPlaybackStarts.announce(StartCause.USER_PICK, TrackId(prepared.selectedItem.mediaId))
-                if (currentMode == ShuffleMode.SMART) {
+                curatedTailId = if (keepOrderInSmart) tracks.last().id.value else null
+                if (currentMode == ShuffleMode.SMART && keepOrderInSmart) {
+                    // A curated start: its rows play in their own order, and SMART's top-up
+                    // continues from the last of them once the lookahead runs short.
+                    player.setMediaItems(fullQueue!!, prepared.startIndex, 0L)
+                    player.shuffleModeEnabled = false
+                    smartFutureInvalidationPending = false
+                } else if (currentMode == ShuffleMode.SMART) {
                     // SMART owns its queue: start from the tapped track alone and let the chooser
                     // build the path forward. Do not construct hundreds of unused MediaItems.
                     player.setMediaItems(listOf(prepared.selectedItem))
@@ -917,6 +940,34 @@ internal class AndroidPlaybackController(
         pushState()
     }
 
+    override suspend fun appendSmartPlan(
+        tracks: List<TrackDescriptor>,
+        smartPlanPositions: Map<TrackId, Int>,
+    ): Unit = withContext(Dispatchers.Main) {
+        val player = controller ?: return@withContext
+        if (player.mediaItemCount == 0 || tracks.isEmpty()) return@withContext
+        queueGeneration++
+        for (track in tracks) {
+            pool = sourceQueueAfterManualInsert(
+                source = pool,
+                currentId = player.currentMediaItem?.mediaId?.let(::TrackId),
+                track = track,
+                insertion = SourceQueueInsertion.APPEND,
+            )
+            poolById = poolById + (track.id.value to track)
+            releaseSmartProvenance(
+                this@AndroidPlaybackController.smartPlanPositions,
+                smartContinuationIds,
+                smartRemovedIds,
+                track.id,
+            )
+            smartPlanPositions[track.id]?.let { this@AndroidPlaybackController.smartPlanPositions[track.id] = it }
+            enqueueManualQueueEdit(player, track.toMediaItem(), AndroidQueueCommand.APPEND)
+        }
+        rebuildQueueSnapshot()
+        pushState()
+    }
+
     override suspend fun moveQueueItem(from: Int, to: Int): Unit = withContext(Dispatchers.Main) {
         val player = controller ?: return@withContext
         if (player.shuffleModeEnabled) {
@@ -1025,6 +1076,7 @@ internal class AndroidPlaybackController(
                 putAll(prepared.second.smartPlanPositions)
             }
             smartRemovedIds.clear()
+            curatedTailId = null
             anticipatedResumption = null
             val startPositionMs = positionMs.coerceAtLeast(0L)
             player.setMediaItems(live.fullQueue!!, live.startIndex, startPositionMs)
@@ -1241,9 +1293,11 @@ internal class AndroidPlaybackController(
     /** Main-thread only. Keeps physical SMART history/current and removes every later row. */
     private fun removeUnplayedSmartFuture(player: Player) {
         if (player.mediaItemCount == 0) return
-        val keepThrough = player.currentMediaItemIndex
-            .takeIf { it in 0 until player.mediaItemCount }
-            ?: 0
+        val keepThrough = smartFutureKeepThrough(
+            rowCount = player.mediaItemCount,
+            currentRowIndex = player.currentMediaItemIndex,
+            curatedTailId = curatedTailId,
+        ) { player.getMediaItemAt(it).mediaId }
         for (index in player.mediaItemCount - 1 downTo keepThrough + 1) {
             player.removeMediaItem(index)
         }

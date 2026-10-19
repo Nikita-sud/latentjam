@@ -99,7 +99,7 @@
     <string name="foryou_section_never_played">Ещё не слушали</string>
     <!-- Два действия для мира — предложены, а не угаданы. -->
     <string name="foryou_world_open">Показать треки</string>
-    <string name="foryou_world_smart">Запустить SMART отсюда</string>
+    <string name="foryou_world_smart">Слушать похожее</string>
     <string name="foryou_kicker_resume">Продолжить с того же места</string>
     <plurals name="foryou_kicker_played_times">
         <item quantity="one">Вы слушали это %1$d раз</item>
@@ -777,11 +777,8 @@
     <string name="foryou_section_daypart_day">Ваш день</string>
     <string name="foryou_section_daypart_evening">Ваш вечер</string>
     <string name="foryou_section_daypart_night">Ваша ночь</string>
-    <string name="foryou_section_on_a_roll">Ваша фаза: %1$s</string>
-    <string name="foryou_section_wildcard">Сюрприз дня</string>
-    <string name="foryou_caption_left_turn">Поворот от «%1$s»</string>
-    <string name="foryou_section_journey">Звуковое путешествие</string>
-    <string name="foryou_journey_title">От «%1$s» до «%2$s»</string>
+    <string name="foryou_section_on_a_roll">Сейчас часто: %1$s</string>
+    <string name="foryou_caption_left_turn">Если нравится «%1$s»</string>
     <string name="settings_pages">Страницы</string>
     <string name="settings_pages_subtitle">Видимость, порядок и стартовая страница</string>
     <string name="settings_pages_body">Перетащите, чтобы изменить порядок. Отключите ненужные страницы.</string>

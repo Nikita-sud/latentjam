@@ -693,8 +693,10 @@ private fun ListeningHero(overview: ListeningOverview, insights: PeriodInsights,
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
         Text(
             text = (stringResource(Res.string.stats_time_listened) + " · " +
-                stringResource(period.titleRes())).uppercase(),
-            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.5.sp),
+                stringResource(period.titleRes())).uppercaseForDisplay(),
+            style = MaterialTheme.typography.labelSmall.copy(
+                letterSpacing = 0.5.sp,
+            ),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(

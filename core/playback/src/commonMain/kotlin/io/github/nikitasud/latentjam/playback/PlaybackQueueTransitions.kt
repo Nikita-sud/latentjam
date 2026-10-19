@@ -206,6 +206,26 @@ internal fun <T : Any> smartHistoryThroughCurrent(
     return rows.take(keepThrough + 1)
 }
 
+/**
+ * The last row a SMART policy change keeps: the current one — or, while rows of a curated start
+ * ([PlaybackController.playInOrder]) are still ahead, the last of them. The listener chose those
+ * rows and SMART did not plan them, so a moved slider must not delete the rest of a For You row.
+ * [curatedTailId] is the id of the curated start's last row; [idAt] reads a row's id.
+ */
+internal fun smartFutureKeepThrough(
+    rowCount: Int,
+    currentRowIndex: Int,
+    curatedTailId: String?,
+    idAt: (Int) -> String,
+): Int {
+    val current = currentRowIndex.takeIf { it in 0 until rowCount } ?: 0
+    if (curatedTailId == null) return current
+    for (index in rowCount - 1 downTo current + 1) {
+        if (idAt(index) == curatedTailId) return index
+    }
+    return current
+}
+
 /** Whether a restored/active SMART queue is short enough to require another chooser call. */
 internal fun smartQueueNeedsTopUp(
     queueSize: Int,

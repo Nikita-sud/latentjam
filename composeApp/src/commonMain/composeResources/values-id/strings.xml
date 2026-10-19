@@ -95,7 +95,7 @@
     <string name="foryou_section_never_played">Belum pernah diputar</string>
     <!-- Dua hal yang bisa dilakukan dengan sebuah dunia, ditawarkan alih-alih ditebak. -->
     <string name="foryou_world_open">Tampilkan lagu</string>
-    <string name="foryou_world_smart">Mulai SMART dari sini</string>
+    <string name="foryou_world_smart">Putar yang serupa</string>
     <string name="foryou_kicker_resume">Lanjutkan dari tempat kamu berhenti</string>
     <plurals name="foryou_kicker_played_times">
         <item quantity="other">Kamu memutarnya %1$d kali</item>
@@ -684,11 +684,8 @@
     <string name="foryou_section_daypart_day">Siang Anda</string>
     <string name="foryou_section_daypart_evening">Malam Anda</string>
     <string name="foryou_section_daypart_night">Dini hari Anda</string>
-    <string name="foryou_section_on_a_roll">Fase %1$s Anda</string>
-    <string name="foryou_section_wildcard">Kejutan</string>
-    <string name="foryou_caption_left_turn">Belokan dari %1$s</string>
-    <string name="foryou_section_journey">Perjalanan suara</string>
-    <string name="foryou_journey_title">Dari “%1$s” ke “%2$s”</string>
+    <string name="foryou_section_on_a_roll">Sering diputar: %1$s</string>
+    <string name="foryou_caption_left_turn">Jika Anda suka %1$s</string>
     <string name="settings_pages">Halaman</string>
     <string name="settings_pages_subtitle">Visibilitas, urutan, dan halaman awal</string>
     <string name="settings_pages_body">Seret untuk mengubah urutan. Nonaktifkan halaman yang tidak digunakan.</string>

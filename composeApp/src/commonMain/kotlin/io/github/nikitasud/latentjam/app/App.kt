@@ -109,6 +109,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.action_create
 import io.github.nikitasud.latentjam.app.generated.resources.action_rename
@@ -121,7 +124,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_progress
 import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_progress_eta
 import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_title
-import io.github.nikitasud.latentjam.app.generated.resources.foryou_journey_title
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_mix_discovery
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_mix_instrumental
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_mix_meme_viral
@@ -176,7 +178,6 @@ import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.sync.withLock
-import io.github.nikitasud.latentjam.smart.cluster.SonicJourney
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorldSemanticTitle
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorlds
 import io.github.nikitasud.latentjam.smart.cluster.WorldNamingGroups
@@ -945,7 +946,6 @@ private fun AppShell(
         val forYouPage = remember { ForYouPageState() }
         val libraryWorlds = remember { LibraryWorldsState() }
         val discoveryMixLabel = stringResource(Res.string.foryou_mix_discovery)
-        val journeyTitlePattern = stringResource(Res.string.foryou_journey_title)
         val memeViralMixLabel = stringResource(Res.string.foryou_mix_meme_viral)
         val soundEffectsMixLabel = stringResource(Res.string.foryou_mix_sound_effects)
         val spokenAudioMixLabel = stringResource(Res.string.foryou_mix_spoken_audio)
@@ -969,13 +969,16 @@ private fun AppShell(
 
         val browsePageVisible = !showSettings && !showSearch && !showNowPlaying && selectedCollection == null
         val forYouPageActive = browsePageVisible && settledTab == StartPage.FOR_YOU
+        // In view means the app is in the foreground too: a listener whose start page is For You
+        // and who comes back to the app hours later has "come back to the page", and must not keep
+        // yesterday's page (and phase header) because the tab itself never changed.
+        val appInForeground by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
+        val forYouPageInView = forYouPageActive && appInForeground.isAtLeast(Lifecycle.State.STARTED)
         val mapPageActive = browsePageVisible && settledTab == StartPage.MAP
 
         LaunchedEffect(
             tracks,
-            forYouPageActive,
-            libraryWorlds.journeys,
-            journeyTitlePattern,
+            forYouPageInView,
             libraryWorlds.worlds,
             libraryWorlds.worldLibraryIds,
             discoveryMixLabel,
@@ -986,29 +989,44 @@ private fun AppShell(
             smartExclusionState,
             playlistPresentationIdentity,
         ) {
+            if (!forYouPageInView) {
+                // Off screen: whatever changes now is applied when the page comes back into view.
+                forYouPage.currentSinceShown = false
+                return@LaunchedEffect
+            }
             val loaded = tracks ?: return@LaunchedEffect
-            if (!forYouPageActive) return@LaunchedEffect
             val loadedIds = loaded.map(TrackDescriptor::id)
             val requestedWorlds = if (libraryWorlds.worldLibraryIds == loadedIds) libraryWorlds.worlds else emptyList()
-            // Built once, and again only when the worlds arrive — the text index fills in the
-            // background, so on a cold library they are simply not ready at first visit. Never
-            // rebuilt on a mere return to the tab: a page that regroups itself while being read is
-            // indistinguishable from a broken one.
+            val clock = localTimePoint(epochMillis())
+            val pageDaypart = ForYouRhythm.daypartOf(clock.hourOfDay)
+            // Built once, and again only when its inputs change — the worlds arrive later on a cold
+            // library, because the text index fills in the background. What the listener does and
+            // the clock (a listen, a new phase, a new day) never re-lay the page while it is on
+            // screen: a page that regroups itself while being read is indistinguishable from a
+            // broken one. They are applied the next time the page comes into view.
             if (
                 !forYouPage.forYou.isEmpty &&
                 forYouPage.builtWorlds == requestedWorlds &&
-                forYouPage.builtForYouJourneys == libraryWorlds.journeys &&
-                forYouPage.builtForYouJourneyTitle == journeyTitlePattern &&
                 forYouPage.builtForYouLibraryIds == loadedIds &&
                 forYouPage.builtForYouPlaylistIdentity == playlistPresentationIdentity &&
                 forYouPage.builtForYouExclusions == smartExclusionState &&
                 forYouPage.builtIncludeNoveltyMixes == includeNoveltyMixes &&
                 forYouPage.builtPersonalizationRevision == forYouPage.personalizationRevision &&
-                forYouPage.builtHistoryRevision == historyRevision
+                (
+                    forYouPage.currentSinceShown ||
+                        (
+                            forYouPage.builtHistoryRevision == historyRevision &&
+                                forYouPage.builtDay == clock.epochDay &&
+                                forYouPage.builtDaypart == pageDaypart
+                            )
+                    )
             ) {
+                forYouPage.currentSinceShown = true
                 forYouPage.forYouRefreshing = false
+                forYouPage.forYouBuilding = false
                 return@LaunchedEffect
             }
+            forYouPage.forYouBuilding = true
             val historySnapshot = try {
                 AppGraph.history.stats() to
                     AppGraph.history.recentEvents(RECENT_EVENTS_FOR_YOU)
@@ -1020,6 +1038,8 @@ private fun AppShell(
                 // recommendations and mark that false page as successfully built.
                 println("For You: could not load listening history: $failure")
                 forYouPage.forYouRefreshing = false
+                forYouPage.forYouBuilding = false
+                forYouPage.forYouLoadFailed = forYouPage.forYou.isEmpty
                 snackbar.showSnackbar(getString(Res.string.settings_library_manage_failed))
                 return@LaunchedEffect
             }
@@ -1029,6 +1049,13 @@ private fun AppShell(
                     .filter { smartExclusionState.excludes(it) }
                     .mapTo(this) { it.id }
                 currentTrack?.id?.let(::add)
+                // What is already queued to play next is not offered again (for-you-ux.md §8.3) —
+                // only the near part of the queue, so playing the whole library does not empty the page.
+                val now = playback.state.value
+                now.queue.asSequence()
+                    .drop(now.queueIndex + 1)
+                    .take(FOR_YOU_QUEUED_EXCLUSION)
+                    .mapTo(this) { it.id }
             }
             // Discovery offers ignored on recent prior days yield their slots today. Same-day
             // offers never cool anything — the page stays stable within its day.
@@ -1046,6 +1073,19 @@ private fun AppShell(
                 // may repeat an offer.
                 emptySet()
             }
+            // What each row showed on prior days (see ForYouShownHistory). Like the cooldown, an
+            // optimization: a failed read just means nothing is demoted or retired.
+            val shown = try {
+                ForYouShownHistory.from(
+                    AppGraph.forYouImpressions.shownDaysBySection(beforeEpochDay = today),
+                    stats,
+                    today,
+                )
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                ForYouShownHistory()
+            }
             val rebuiltPage = withContext(Dispatchers.Default) {
                 ForYouBuilder.build(
                     library = loaded,
@@ -1059,8 +1099,9 @@ private fun AppShell(
                     includeNoveltyMixes = includeNoveltyMixes,
                     semanticMixLabels = semanticMixLabels,
                     cooledDiscoveries = cooled,
-                    journeys = libraryWorlds.journeys,
-                    journeyTitlePattern = journeyTitlePattern,
+                    revisitShownDays = shown.revisit,
+                    daypartShownDays = shown.daypart,
+                    retiredDiscoveries = shown.retired,
                 )
             }
             // Commit the page and its input key together. If this effect is cancelled while the
@@ -1071,15 +1112,18 @@ private fun AppShell(
             // discoveryOffers at all. The tab reports what actually reached the viewport instead
             // (see ForYouTab's onCardShown), which is the only honest unit of "shown".
             forYouPage.builtWorlds = requestedWorlds
-            forYouPage.builtForYouJourneys = libraryWorlds.journeys
-            forYouPage.builtForYouJourneyTitle = journeyTitlePattern
             forYouPage.builtForYouLibraryIds = loadedIds
             forYouPage.builtForYouPlaylistIdentity = playlistPresentationIdentity
             forYouPage.builtForYouExclusions = smartExclusionState
             forYouPage.builtIncludeNoveltyMixes = includeNoveltyMixes
             forYouPage.builtPersonalizationRevision = forYouPage.personalizationRevision
             forYouPage.builtHistoryRevision = historyRevision
+            forYouPage.builtDay = localTimePoint(nowForPage).epochDay
+            forYouPage.builtDaypart = ForYouRhythm.daypartOf(localTimePoint(nowForPage).hourOfDay)
+            forYouPage.currentSinceShown = true
             forYouPage.forYouRefreshing = false
+            forYouPage.forYouBuilding = false
+            forYouPage.forYouLoadFailed = false
         }
 
         LaunchedEffect(libraryIndexingRequest, smartEligibleTracks) {
@@ -1186,7 +1230,7 @@ private fun AppShell(
             },
         )
 
-        // Library clustering and journeys serve these pages only. Starting playback or browsing
+        // Library clustering serves these pages only. Starting playback or browsing
         // Tracks must not allocate a vector space or run discovery for an unopened/hidden page.
         LaunchedEffect(tracks, playlistPresentationIdentity, includeNoveltyMixes, forYouPageActive, mapPageActive) {
             if (!forYouPageActive && !mapPageActive) return@LaunchedEffect
@@ -1215,8 +1259,7 @@ private fun AppShell(
                             cachedKey.discovery.trackIds == loadedIds &&
                             cachedKey.discovery.source == coverage.source &&
                             cachedKey.discovery.vectorFingerprint == coverage.fingerprint &&
-                            cachedKey.discovery.descriptorIdentity == descriptorIdentity &&
-                            (!forYouPageActive || libraryWorlds.builtJourneysKey == cachedKey.discovery)
+                            cachedKey.discovery.descriptorIdentity == descriptorIdentity
                         ) {
                             // A refused newer population must not hide reusable regions if the
                             // library returns to this cached population. Projection checks its own budget.
@@ -1246,10 +1289,7 @@ private fun AppShell(
                             discovery = discoveryKey,
                             playlistIdentity = playlistPresentationIdentity,
                         )
-                        if (
-                            worldsKey == libraryWorlds.builtWorldsKey &&
-                            (!forYouPageActive || libraryWorlds.builtJourneysKey == discoveryKey)
-                        ) {
+                        if (worldsKey == libraryWorlds.builtWorldsKey) {
                             libraryWorlds.builtWorldNoveltyPreference = includeNoveltyMixes
                             libraryWorlds.builtWorldReadiness = metadataReady to audioReady
                             return@collect
@@ -1263,25 +1303,6 @@ private fun AppShell(
                         }
                         val cachedDiscovery = libraryWorlds.builtDiscoveredWorlds
                             ?.takeIf { libraryWorlds.builtWorldDiscoveryKey == discoveryKey }
-                        // Journeys interpolate over the raw rows, so the session must be built
-                        // BEFORE clustering's one-shot handoff. The session copies what it needs;
-                        // plotting itself can then run on the low-priority lane.
-                        if (forYouPageActive && libraryWorlds.builtJourneysKey != discoveryKey) {
-                            val session = runCatching { SonicJourney.session(features.vectorSpace) }
-                                .getOrNull()
-                            if (session != null) {
-                                val plotted = withContext(AppGraph.mapLayoutDispatcher) {
-                                    ForYouRhythm.sonicJourneys(
-                                        session = session,
-                                        library = loaded,
-                                        stats = AppGraph.history.stats(),
-                                        artistKeyOf = { it?.trim()?.lowercase().orEmpty() },
-                                    )
-                                }
-                                libraryWorlds.journeys = plotted
-                                libraryWorlds.builtJourneysKey = discoveryKey
-                            }
-                        }
                         // Discovery is derived library work, not an interaction prerequisite. Keep it
                         // on the Map's low-priority serial lane so a cold restore cannot make an
                         // immediately opened page compete with clustering at normal CPU priority.
@@ -2589,6 +2610,11 @@ private fun AppShell(
                                             page = shownForYou,
                                             contentPadding = listPadding,
                                             isRefreshing = forYouPage.forYouRefreshing,
+                                            // Never built yet (or emptied by an exclusion change) and
+                                            // not failed: an empty page means "not ready", not "no history".
+                                            isLoading = forYouPage.forYouBuilding ||
+                                                (forYouPage.builtForYouLibraryIds == null && !forYouPage.forYouLoadFailed),
+                                            loadFailed = forYouPage.forYouLoadFailed,
                                             // An offer is recorded when its card is on screen, not
                                             // when the page is assembled: LazyRow composes what
                                             // fits, and the builder's own discoveryOffers — which
@@ -2620,7 +2646,24 @@ private fun AppShell(
                                             onPlay = { list, index ->
                                                 AppGraph.queueSource.value =
                                                     QueueSource(QueueSourceKind.FOR_YOU)
-                                                scope.launch { playback.play(list, index) }
+                                                scope.launch {
+                                                    playFromForYou(
+                                                        playback, engine, AppGraph.history, list, index,
+                                                        smartEligibleTracks, smartQueueLength,
+                                                        AppGraph.smartCompanionGroups.value,
+                                                    )
+                                                }
+                                            },
+                                            onPlayCollection = { collection ->
+                                                AppGraph.queueSource.value =
+                                                    QueueSource(QueueSourceKind.FOR_YOU, name = collection.title)
+                                                scope.launch {
+                                                    playFromForYou(
+                                                        playback, engine, AppGraph.history, collection.tracks, 0,
+                                                        smartEligibleTracks, smartQueueLength,
+                                                        AppGraph.smartCompanionGroups.value,
+                                                    )
+                                                }
                                             },
                                             onPlayHero = { hero ->
                                                 scope.launch {

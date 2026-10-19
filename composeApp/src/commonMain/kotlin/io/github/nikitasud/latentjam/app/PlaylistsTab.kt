@@ -350,7 +350,7 @@ private fun AutoPlaylistKind.title(): String = stringResource(titleRes())
 @Composable
 private fun PlaylistSectionLabel(text: String, modifier: Modifier = Modifier) {
     Text(
-        text = text.uppercase(),
+        text = text.uppercaseForDisplay(),
         style = MaterialTheme.typography.labelSmall.copy(
             letterSpacing = 0.4.sp,
         ),
