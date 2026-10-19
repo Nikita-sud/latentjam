@@ -1,6 +1,6 @@
 # Statistics page — whole-page spec (v5, 19 October 2026)
 
-Status: **design READY after four adversarial review rounds; awaiting the owner's go. Nothing implemented.** Branch `claude/stats-habits-55f9ee` (from
+Status: **design READY after five adversarial review rounds; awaiting the owner's go. Nothing implemented.** Branch `claude/stats-habits-55f9ee` (from
 `release/0.9.2` at 334a36a9). Review log at the end.
 
 Goal (owner): the page should be *interesting and informative* for an ordinary listener, using what the SMART
@@ -118,8 +118,9 @@ Terms:
   "artist · on N days · M plays" (plurals) — the ranked quantity (days) is shown first, so a row can never look
   out of order. No jargon note.
 - **Fallback for shuffle-heavy listeners:** when fewer than 3 tracks qualify, the card shows *Artists on repeat* with
-  the same weight over artist keys (artist rows not tappable). Empty on an old log → hidden silently; locked (T5) only
-  when the log is younger than 7 days. On a locked fresh log T5 renders in section 1's place.
+  the same weight over artist keys (artist rows not tappable). L1 shows whenever something qualifies, however young
+  the log. Nothing qualifies: log younger than 7 days → locked (T5: "On repeat now — after a week of listening");
+  older → hidden silently. On a locked fresh log T5 renders in section 1's place.
 - Under it, one line: current streak and record, computed on play days after normalisation (today a skip-only day
   counts; changed and documented). When the current streak is under 2 days (weekday listeners), the line reads "on N
   of the last 7 days · record M days" instead.
@@ -210,8 +211,8 @@ Visible note: "Finished = heard to 85 %, skipped = left in the first 30 s.".
 shown when ≥ 60 % of plays have a year.
 
 ### T5 More appears as you listen
-One card listing the locked parts of sections 1 and 3 with their unlock condition ("On repeat now — after a few
-plays on two days", "Slipping away — after three months of listening"). Absent when nothing is locked.
+One card listing the locked parts of sections 1 and 3 with their unlock condition ("On repeat now — after a week
+of listening", "Slipping away — after three months of listening"). Absent when nothing is locked.
 
 ### History note (kept)
 Adds the documented limits: time zone, restores dropping unresolved tracks, files re-identified after a move, an
@@ -230,16 +231,17 @@ signature and `App()` stay untouched.
 ## Loading, memory, threading
 - **One snapshot producer** per history revision: a `Deferred<Result<Snapshot>>` launched from a
   `rememberCoroutineScope` owned by the screen (not inside either effect) with
-  `SupervisorJob(parent) + Dispatchers.Default`, keyed by (history, revision) — `history` is already re-keyed on
-  `replacedHistoryEpoch` (`App.kt:2559`). The producer never throws (failures come back as `Result.failure`), so a
+  one `SupervisorJob(parent)` per screen scope (reused, not one per revision) `+ Dispatchers.Default`, keyed by
+  (history, revision); a revision change cancels the superseded in-flight producer. On the main page the whole
+  composable is re-keyed by `replacedHistoryEpoch` (`App.kt:2559`); the Settings entry is not, as today. The producer never throws (failures come back as `Result.failure`), so a
   failure cannot cancel the scope. `active` turning false cancels only an in-flight producer; a finished snapshot
   stays cached across tab-aways. An awaiter that finds the producer cancelled re-creates it once. One Retry re-creates
   the snapshot and restarts both effects (a single Retry card even if both sections failed). Never two `allEvents()`
   copies.
 - **Section 2** effect: keyed by (selection, revision), as today, awaits the snapshot.
-- **Sections 1+3** effect: keyed by (revision, tracks, active, local day — so "today" in L1 and the streak roll over
-  at midnight while the page stays open), awaits the same snapshot, own try/catch; on failure
-  their cards fall back to T5's text, never the dashboard's error. Both keep showing their last result while
+- **Sections 1+3** effect: keyed by (revision, tracks, active, local day — a `produceState` that delays until the next
+  local midnight, so "today" in L1 and the streak roll over while the page stays open), awaits the same snapshot, own
+  try/catch; on failure see the last bullet (neutral note), never the dashboard's error. Both keep showing their last result while
   recomputing (the same `displayed` rule as today), so a new listen never swaps cards to locked and back.
 - Per-track state through one `HashMap<TrackId, Int>`; `IntArray`/`FloatArray` per track; steps in a `LongArray`
   sized by the counted pick steps, packed `(from shl 32) or to`, sorted in place, run-length counted; session totals
@@ -316,3 +318,9 @@ cases of the resume test documented. UX: REVISE on the same memory claim (→ no
 objects, `summarize` unchanged) and on the producer scope (a failed `async` would cancel a plain-`Job` scope → never
 throws, `SupervisorJob` + `Dispatchers.Default`, single Retry, day key, Compose UI tests).
 → v5: all applied. Both REVISE verdicts named these as their only majors and called the spec READY once fixed.
+
+**Round 5 (1 fresh confirmation reviewer).** Both round-4 majors verified fixed against the code (`summarize` reads
+only fields a merged copy carries; the memory budget is right). One contradiction left (failure text for sections 1+3)
+→ removed; minors applied (one reused `SupervisorJob`, superseded producer cancelled, midnight tick via
+`produceState`, precise re-keying note, L1 lock condition aligned with T5). Reviewer: READY once these were applied.
+**Final: READY.**
