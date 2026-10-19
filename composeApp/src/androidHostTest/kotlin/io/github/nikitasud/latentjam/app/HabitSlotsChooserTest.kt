@@ -11,6 +11,7 @@ import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.history.TrackStats
 import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.playback.SmartChoice
+import io.github.nikitasud.latentjam.smart.HabitFlow
 import io.github.nikitasud.latentjam.smart.HabitSlots
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
@@ -23,7 +24,8 @@ import kotlin.test.assertTrue
 
 /** "Learn from my habits" in the chooser: personal slots only in a queue SMART starts from a seed. */
 class HabitSlotsChooserTest {
-    private fun track(id: String) = TrackDescriptor(TrackId(id), title = id, artist = id)
+    // One genre family everywhere, no pack: P = (0 + 0.5 + 0.5) / 3 for every row.
+    private fun track(id: String) = TrackDescriptor(TrackId(id), title = id, artist = id, genre = "Rock")
 
     private val seed = track("seed")
     private val habits = (1..6).map { track("habit-$it") }
@@ -76,9 +78,14 @@ class HabitSlotsChooserTest {
     }
 
     /** Topped up as both controllers do: the last row seeds, the rows before it are the recent window. */
-    private suspend fun queue(enabled: Boolean, events: List<ListenEvent>, rows: Int): List<SmartChoice> {
+    private suspend fun queue(
+        enabled: Boolean,
+        events: List<ListenEvent>,
+        rows: Int,
+        flow: HabitFlow? = HabitFlow(null),
+    ): List<SmartChoice> {
         val chooser = EngineNextTrackChooser(
-            engine(), history(events), learnFromHabits = { enabled }, library = { library },
+            engine(), history(events), learnFromHabits = { enabled }, library = { library }, habitFlow = flow,
         )
         val queue = mutableListOf(seed)
         val served = mutableListOf<SmartChoice>()
@@ -94,14 +101,19 @@ class HabitSlotsChooserTest {
     }
 
     @Test
-    fun `a queue started from a seed gives its first slots to what really followed the seed`() = runTest {
+    fun `a queue started from a seed gives its first slots to habits that outweigh their incoherence`() = runTest {
         val served = queue(enabled = true, events = log(), rows = 20).map { it.track.id.value }
-        // Only habit-1 (twice) and habit-2 (once) followed the seed; the frequent habit-3..6 do not
-        // fill the other slots, SMART does.
-        assertEquals(listOf("habit-1", "habit-2"), listOf(0, 2).map(served::get))
-        assertEquals((1..12).map { "planned-$it" }, served.take(14).filterNot { it.startsWith("habit") })
+        // c: habit-1 = 2 + 0.5 * 2 = 3, habit-2 = 1 + 0.5 = 1.5; P = 1/3 for both.
+        // habit-1: 1 - 2/3 > 0 enters; habit-2: ln 2.5 / ln 4 - 2/3 < 0 stays out; habit-3..6 never followed.
+        assertEquals("habit-1", served[0])
+        assertEquals((1..12).map { "planned-$it" }, served.subList(1, 13))
         // The next plan tops up a running queue: SMART's own order, nothing personal.
-        assertEquals((13..18).map { "planned-$it" }, served.drop(14))
+        assertEquals((13..19).map { "planned-$it" }, served.drop(13))
+    }
+
+    @Test
+    fun `without a flow scorer nothing is placed`() = runTest {
+        assertEquals((1..12).map { "planned-$it" }, queue(enabled = true, events = log(), rows = 12, flow = null).map { it.track.id.value })
     }
 
     @Test
@@ -119,7 +131,7 @@ class HabitSlotsChooserTest {
         val listens = habitListens(auto, library.mapTo(HashSet()) { it.id }, epochMillis())
         val (byTrack, byArtist) = HabitSlots.transitionCounts(listens, seed.id) { it.value }
         assertTrue(habits[0].id !in byTrack && habits[0].id !in byArtist)
-        // habit-1 lost its transitions and its slot; habit-2's pick still counts.
+        // habit-1 lost its transitions and its slot; habit-2 is now the strongest (t = 1) and enters.
         val served = queue(enabled = true, events = auto, rows = 10).map { it.track.id.value }
         assertEquals(listOf("habit-2") + (1..9).map { "planned-$it" }, served)
     }

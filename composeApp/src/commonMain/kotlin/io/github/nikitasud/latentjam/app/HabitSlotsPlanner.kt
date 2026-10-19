@@ -42,11 +42,13 @@ internal suspend fun withHabitSlots(
     val (byTrack, byArtist) = HabitSlots.transitionCounts(listens, seed.id, artistKey)
     val byId = candidates.associateBy(TrackDescriptor::id)
     val score = flow?.incoherence(seed, library)
-    val incoherence = rows.associateWith { id -> score?.let { s -> byId[id]?.let { s(it) } } ?: 0.0 }
-    val personal = HabitFlow.pick(rows, count = { (byTrack[it] ?: 0) + (byArtist[it] ?: 0) }, incoherence)
+    // No flow scorer judges nothing: every part unknown, which λ = 2 never lets through.
+    val incoherence = rows.associateWith { id -> score?.let { s -> byId[id]?.let { s(it) } } ?: HabitFlow.UNKNOWN }
+    val personal = HabitFlow.pick(rows, count = { habitCount(it, byTrack, byArtist) }, incoherence)
     // Aggregate on purpose: no title, artist or id leaves the app through the system log.
     println("SMART: habit slots placed ${personal.size} of ${rows.size} real transitions")
-    if (personal.isEmpty()) chain else HabitSlots.interleave(personal, chain)
+    // As FIT's arm: the chosen rows spread over the first ten slots by their own number (slots.py).
+    if (personal.isEmpty()) chain else HabitSlots.interleave(personal, chain, personalSlots = personal.size)
 }
 
 /**
@@ -96,6 +98,10 @@ internal fun habitRows(
         tieKey = { saltedTieKey(it, salt) },
     )
 }
+
+/** c = track count + [HabitFlow.ARTIST_WEIGHT] · artist count (a direct transition counts in both). */
+internal fun habitCount(track: TrackId, byTrack: Map<TrackId, Int>, byArtist: Map<TrackId, Int>): Double =
+    (byTrack[track] ?: 0) + HabitFlow.ARTIST_WEIGHT * (byArtist[track] ?: 0)
 
 /** A uniform `[0, 1)` key per track, fixed for one plan ([salt]) and different between plans. */
 internal fun saltedTieKey(track: TrackId, salt: Long): Double {

@@ -1,21 +1,24 @@
-# Learn from my habits — personal-transition slots (SLOTS5)
+# Learn from my habits — soft personal slots (FIT arm SOFT, λ = 2)
 
 Test build, 19 October 2026. Not a release and not yet confirmed on a sealed window (W4, November).
 
 ## What it does
 
 When SMART starts a queue from a track, the tracks the listener really played after it (or after its artist)
-take up to the 1-based slots 1, 3, 5, 7 and 9 when their habit outweighs how far they pull the queue from the seed (deviation 4b); SMART's own plan fills the other slots in its order without repeats, and the
-rest of that plan follows. Later top-ups of the running queue are SMART's own walk, unchanged.
+whose habit outweighs how far they would pull the queue from the seed — at most five — are spread over the first
+ten slots at 1-based slots floor(k · 10 / m) + 1 for m chosen rows (5 rows: 1, 3, 5, 7, 9; 2 rows: 1, 6; one row:
+1), as FIT's `slots3.py` does (`interleave(chosen, base, len(chosen))`). SMART's own plan fills the other slots in
+its order without repeats, and the rest of that plan follows. Later top-ups of the running queue are SMART's own
+walk, unchanged. This is the PLAN_ITEM5 v5 arm SOFT(λ = 2) on top of the chain (deviation 4b).
 
 Setting: *Settings → SMART engine → Recommendations → Learn from my habits* (`learn_from_habits`), on by default,
-all locales. Off, or no pick that ever followed the seed or its artist = SMART's queue unchanged.
+all locales. Off, no pick that ever followed the seed or its artist, or no row passing the score = SMART's queue unchanged.
 A change takes effect at the next queue start. Not in local backup yet.
 
 Why: on the ListenBrainz (CC0) FIT set (2,120 listeners, four row orders, scenario A; `slots_result.json` on
 `claude/smart-stage0-eval-f2a727`) SLOTS5 has return Hit@10 0.205 vs chain 0.033 vs blended personal
 weights 0.090, all-target Hit@10 0.145 vs 0.068, first-listen Hit@10 0.068 vs chain 0.095, artist adjacency
-below people's.
+below people's. The layer shipped now is SOFT(λ = 2), chosen on FIT for flow as well (`slots3_result.json`).
 
 ## Code
 
@@ -64,21 +67,26 @@ python3 tools/research/habit_slots/export_golden.py \
    vs chain 16.5 %, descriptor jumps 9.5 % vs 1.1 %, language switches 15 % vs 4 %). This is not the measured
    SLOTS5 arm any more (closer to slots_rule, without its top-up); research v2 with flow gates may change it again.
    The golden test still pins the reference list; this filter sits on top of it.
-4b. **Soft flow score (19 Oct, replaces the strict gate of 34f902fc; the owner's "давай").** Real-transition rows
-   are scored s = t − λ·P, λ = 2 (`HabitFlow.LAMBDA`; was 1 until the owner's phone still swung between genres — a
-   top-count row with P ≈ 0.875 scored +0.125 and entered), and up to five with s > 0 go to the slots by s, best first;
-   empty slots go to SMART. t = ln(1 + c) / ln(1 + max c), c = track count + artist count (a track transition also
-   counts as an artist one, so it weighs double). P = mean of four parts in [0, 1]: genre family and pack language
-   (0 same, 1 different, 0.5 when either is unknown), artist-descriptor distance (0 at cosine ≥ 0.80, 1 at
-   ≤ 0.6037, linear, 0.5 without both pack descriptors), and audio distance on the on-device A0 vectors (0 at
-   cosine ≥ the library's 75th percentile of random-pair cosines, 1 at ≤ its 25th, linear, 0.5 when either track
-   has no vector yet; percentiles from 2,000 random pairs, fixed seed, once per library list). So a track without
-   pack data can still enter when it sounds close to the seed. All anchors are named constants in `HabitFlow`.
-   λ = 2 is the λ* chosen on FIT for the slot layout (`slots3_result.json`, PLAN_ITEM5 v5, research branch
-   commit e892e133). The chain branch had no λ chosen on FIT (M1 0.284 vs 0.282), so on top of the app's chain this
-   stays a test setting until W9 confirms it. Not window-validated. The family is the alias family
-   (Genres' table) of the track's *first genre tag value* — the research read the teacher's genres, which the
-   app does not ship.
+4b. **Soft score = FIT's SOFT(λ = 2) (19 Oct; faithful after an adversarial review).** Real-transition rows (count
+   above zero) are scored s = t − λ·P, λ = 2 (`HabitFlow.LAMBDA`, the λ* of `slots3_result.json`, PLAN_ITEM5 v5,
+   research commit e892e133); up to five with s > 0 enter, by s, ties in transition-list order.
+   t = ln(1 + c) / ln(1 + max c), c = track count + 0.5 · artist count (`ARTIST_WEIGHT`; a direct transition counts
+   in both, ≈ 1.5×, as in PLAN_ITEM5). P = mean of three parts in [0, 1]: genre family and pack language (0 same,
+   1 different, 0.5 when either is unknown) and artist-descriptor distance (0 at cosine ≥ HI = 0.7051427364349365,
+   FIT's median real consecutive different-artist cosine; 1 at ≤ 0.6036645770072937; linear; 0.5 without both pack
+   descriptors). The chain branch had no λ chosen on FIT (M1 0.284 vs 0.282), so on top of the app's chain this
+   remains a test setting until W9 confirms it. Remaining differences from the FIT arm:
+   - **Genre family source:** the alias family (Genres' table) of the track's own first genre tag value; FIT read
+     the teacher's genres, which the app does not ship.
+   - **Audio part (off):** an optional fourth part of P on the on-device audio vectors (0 at cosine ≥ the library's
+     75th percentile of 2,000 fixed-seed random pairs, 1 at ≤ its 25th, 0.5 when unknown) exists behind
+     `HabitFlow.AUDIO_PART = false`; it is not in the FIT arm and not measured.
+   - **No scorer, no slots:** if the app has no flow scorer, every row's P is unknown (0.5), which λ = 2 never lets
+     through (t ≤ 1), so the queue is SMART's own.
+   - Count shrinkage and album/autoplay pair filtering are not implemented (a FIT item is pending).
+   History of this layer on the test build: SLOTS5 (top five of the full list incl. ACT-R filler) → real
+   transitions only → strict coherence gate → soft score λ = 1 with audio → this. Each change answered the owner
+   hearing the queue swing between genres; the FIT flow numbers agree (SLOTS5 genre breaks 28 % vs chain 16.5 %).
 5. **Candidates** are the tracks SMART may append (its library minus SMART exclusions, already-queued and removed
    rows); listens are those of SMART's library. The reference: the whole library minus the seed and novelty set.
 6. **History window.** The newest 10,000 events (the SMART window, skips included before they are dropped), no

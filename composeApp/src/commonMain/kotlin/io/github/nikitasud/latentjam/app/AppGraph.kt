@@ -186,7 +186,7 @@ object AppGraph {
                                 learnFromHabits = { settings.learnFromHabits.value },
                                 library = { smartLibraryTracks.value },
                                 habitFlow = get<SimilarityEngine>().let { engine ->
-                                    HabitFlow(getOrNull()) { id -> engine.embedding(id) }
+                                    HabitFlow(getOrNull(), audio = { id -> engine.embedding(id) })
                                 },
                             )
                         }
