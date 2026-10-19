@@ -32,6 +32,16 @@ for ld in pr.libs_of(pr.SETS[0]):
         q = x['q']; s = q['seed']; cand = x['cand']
         nb = ctx.nbr.get(int(ents[s]), {}) if ents[s] >= 2 else {}
         X = x['X'][:, cols]
+        XF = x["X"][:, [pr.FULL.index(f) for f in pr.PERSONAL]]
+        # personal primitives (proto_ranker's own inputs): visible history at the seed
+        ev, heard, _, _ = pr.query_info(q, ev_all)
+        import collections, score as SC
+        cnt = collections.Counter(); last = {}
+        for r_, ts in ev: cnt[r_] += 1; last[r_] = ts
+        act = SC.activation(ev, q['seed_ts'] * 1000); n_tr, n_ar = SC.transitions(ev, s, ek)
+        def pers(i):
+            age = (q['seed_ts'] * 1000 - last[i]) / 1000 if i in last else float('inf')
+            return [int(i in heard), cnt[i], repr(float(age)), repr(float(act[i])) if i in act else 'nan', n_tr[i], n_ar[i]]
         sc = X.astype(np.float64) @ w
         top = cand[np.lexsort((x['tkey'], -sc))[:10]].tolist()
         def prim(i):
@@ -40,7 +50,8 @@ for ld in pr.libs_of(pr.SETS[0]):
                     repr(nb.get(int(ents[i]), 0) / 255 if ents[i] >= 2 else 0.0), repr(float(np.log1p(ctx.pop.get(int(lib['track'][i]), 0))))]
         lines.append('\t'.join(['case', q['key'], str(len(cand))] + [str(v) for v in prim(s)]))
         for j, i in enumerate(cand):
-            lines.append('\t'.join(['row'] + [str(v) for v in prim(i)] + [','.join(repr(float(v)) for v in X[j])]))
+            lines.append('\t'.join(['row'] + [str(v) for v in prim(i)] + [','.join(repr(float(v)) for v in X[j])]
+                                    + [','.join(str(v) for v in pers(i)), ','.join(repr(float(v)) for v in XF[j])]))
         lines.append('top\t' + ','.join(str(int(lib['track'][i])) for i in top))
         n_q += 1
 with gzip.open(out, 'wt', compresslevel=9) as f: f.write('\n'.join(lines) + '\n')

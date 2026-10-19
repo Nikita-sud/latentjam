@@ -5,19 +5,25 @@
 package io.github.nikitasud.latentjam.smart.ranker
 
 import kotlin.math.abs
+import kotlin.math.ln
 import kotlin.math.sqrt
 
 /**
  * What the ranker knows of one track, relative to the hop's anchor where it says so.
  *
- * @property cosine artist-descriptor cosine to the anchor; NaN when either has no pack descriptor
+ * @property cosine artist-descriptor cosine to the anchor; NaN when either has no descriptor
  * @property family genre family, null when unknown
  * @property language pack language, null when unknown
  * @property decade pack decade (1990 for the 1990s), null when unknown
- * @property artistKey engine artist key; empty is no artist
+ * @property artistKey the artist key the model's same-artist feature uses; empty is no artist
  * @property colisten the anchor artist's co-listening similarity to this track's artist, 0 when unlisted
  * @property logPopularity ln(1 + listeners); 0 when the app has no popularity table
  * @property lfm LightFM artist-vector cosine to the anchor; NaN when either has no vector
+ * @property durationMs the track's sanitised duration; null when unknown or absurd
+ * @property descriptorImputed the descriptor (of this track or the anchor) came from the audio tagger
+ * @property familyImputed the family (of this track or the anchor) came from the audio tagger
+ * @property audio A0 audio-embedding cosine to the anchor; NaN when either is not indexed yet
+ * @property artistOverlap primary-weighted overlap of the artist sets with the anchor's (§1.2), 0..1
  */
 public class RankerRow(
     public val cosine: Double = Double.NaN,
@@ -28,22 +34,51 @@ public class RankerRow(
     public val colisten: Double = 0.0,
     public val logPopularity: Double = 0.0,
     public val lfm: Double = Double.NaN,
+    public val durationMs: Long? = null,
+    public val descriptorImputed: Boolean = false,
+    public val familyImputed: Boolean = false,
+    public val audio: Double = Double.NaN,
+    public val artistOverlap: Double = 0.0,
 )
 
 /**
- * The CORE features of tools/research/listenbrainz_eval/proto_ranker.py (`lib_features`) and the two LightFM ones
- * of proto_ranker2.py (`Query.X`), per
- * candidate, relative to the anchor; no listening history. RankerGoldenTest pins them
- * against that script's own rows.
+ * The FULL model's personal features of one candidate (proto_ranker.py `lib_features`, PERSONAL): from the listener's
+ * own visible history at the seed. [transTrack] / [transArtist] are relative to the hop's anchor.
+ */
+public class PersonalRow(
+    public val heard: Boolean = false,
+    public val count: Int = 0,
+    public val ageSeconds: Double = Double.POSITIVE_INFINITY,
+    public val activation: Double = Double.NaN,
+    public val transTrack: Int = 0,
+    public val transArtist: Int = 0,
+)
+
+/**
+ * The ranker's feature rows: proto_ranker.py's CORE (`lib_features`), proto_ranker2.py's LightFM pair, proto_ranker's
+ * PERSONAL block (FULL), then PLAN_FINAL §1.2's duration / availability / imputed / audio / artist-set features. A model
+ * uses the ones its asset names; the rest are computed and ignored. RankerGoldenTest and RankerQueueGoldenTest pin the
+ * research's features.
  */
 public object RankerFeatures {
-    public val NAMES: List<String> = listOf(
+    public val CORE: List<String> = listOf(
         "cos", "cos_z", "desc_known", "same_family", "family_known", "same_lang", "lang_known", "same_artist",
-        "decade_dist", "decade_known", "logpop", "logpop_z", "colisten", "lfm_cos", "lfm_known",
+        "decade_dist", "decade_known", "logpop", "logpop_z", "colisten",
     )
+    public val LFM: List<String> = listOf("lfm_cos", "lfm_known")
+    public val PERSONAL: List<String> = listOf(
+        "heard", "log_freq", "freq_rank", "recency", "recency_rank", "actr", "actr_rank", "trans_track", "trans_artist",
+    )
+    public val EXTRA: List<String> = listOf(
+        "dur_log", "dur_short", "dur_known", "desc_imputed", "family_imputed", "audio_cos", "audio_known", "artist_overlap",
+    )
+    public val NAMES: List<String> = CORE + LFM + PERSONAL + EXTRA
 
-    /** One row per candidate, in [NAMES] order. */
-    public fun of(anchor: RankerRow, candidates: List<RankerRow>): Array<DoubleArray> {
+    /** Tracks shorter than this count as short (skits, interludes); a parameter of the duration features. */
+    public const val SHORT_TRACK_MS: Long = 60_000
+
+    /** One row per candidate, in [NAMES] order. [personal], when given, is parallel to [candidates]. */
+    public fun of(anchor: RankerRow, candidates: List<RankerRow>, personal: List<PersonalRow>? = null): Array<DoubleArray> {
         val n = candidates.size
         val known = BooleanArray(n) { !candidates[it].cosine.isNaN() }
         // cos_z: unknown cosines take the known mean, the whole pool is z-scored, unknown rows read 0.
@@ -53,11 +88,18 @@ public object RankerFeatures {
         val fill = if (knownCount > 0) knownSum / knownCount else 0.0
         val cosZ = zScores(DoubleArray(n) { if (known[it]) candidates[it].cosine else fill })
         val popZ = zScores(DoubleArray(n) { candidates[it].logPopularity })
+        val freqRank = personal?.let { p -> rank01(DoubleArray(n) { p[it].count.toDouble() }) }
+        val recencyRank = personal?.let { p ->
+            rank01(DoubleArray(n) { if (p[it].heard) -minOf(p[it].ageSeconds, 1e12) else -1e13 })
+        }
+        val actrRank = personal?.let { p -> rank01(DoubleArray(n) { if (p[it].activation.isNaN()) -1e9 else p[it].activation }) }
         return Array(n) { i ->
             val c = candidates[i]
             val familyKnown = anchor.family != null && c.family != null
             val languageKnown = anchor.language != null && c.language != null
             val decadeKnown = anchor.decade != null && c.decade != null
+            val p = personal?.get(i)
+            val duration = c.durationMs
             doubleArrayOf(
                 if (known[i]) c.cosine else 0.0,
                 if (known[i]) cosZ[i] else 0.0,
@@ -74,6 +116,23 @@ public object RankerFeatures {
                 c.colisten,
                 if (c.lfm.isNaN()) 0.0 else c.lfm,
                 b(!c.lfm.isNaN()),
+                b(p?.heard == true),
+                if (p != null) ln(1.0 + p.count) else 0.0,
+                freqRank?.get(i) ?: 0.0,
+                if (p != null && p.heard) -ln(1.0 + minOf(p.ageSeconds, 1e12)) / 10.0 else 0.0,
+                recencyRank?.get(i) ?: 0.0,
+                if (p != null && p.heard && !p.activation.isNaN()) p.activation else 0.0,
+                actrRank?.get(i) ?: 0.0,
+                if (p != null) ln(1.0 + p.transTrack) else 0.0,
+                if (p != null) ln(1.0 + p.transArtist) else 0.0,
+                if (duration != null) ln(duration / 1000.0) else 0.0,
+                b(duration != null && duration < SHORT_TRACK_MS),
+                b(duration != null),
+                b(c.descriptorImputed || anchor.descriptorImputed),
+                b(c.familyImputed || anchor.familyImputed),
+                if (c.audio.isNaN()) 0.0 else c.audio,
+                b(!c.audio.isNaN()),
+                c.artistOverlap,
             )
         }
     }
@@ -88,5 +147,23 @@ public object RankerFeatures {
         for (v in x) squares += (v - mean) * (v - mean)
         val sd = sqrt(squares / x.size)
         return if (sd > 0.0) DoubleArray(x.size) { (x[it] - mean) / sd } else DoubleArray(x.size)
+    }
+
+    /** proto_ranker.rank01: ranks scaled to [0, 1], ties sharing their mean rank; zeros below two rows. */
+    internal fun rank01(x: DoubleArray): DoubleArray {
+        val n = x.size
+        if (n < 2) return DoubleArray(n)
+        // Primitive comparison: compareTo would split -0.0 from 0.0, which numpy's sort ties.
+        val order = x.indices.sortedWith { a, c -> if (x[a] < x[c]) -1 else if (x[a] > x[c]) 1 else 0 }
+        val rank = DoubleArray(n)
+        var i = 0
+        while (i < n) {
+            var j = i
+            while (j + 1 < n && x[order[j + 1]] == x[order[i]]) j++
+            val mean = (i + j) / 2.0
+            for (k in i..j) rank[order[k]] = mean
+            i = j + 1
+        }
+        return DoubleArray(n) { rank[it] / (n - 1) }
     }
 }

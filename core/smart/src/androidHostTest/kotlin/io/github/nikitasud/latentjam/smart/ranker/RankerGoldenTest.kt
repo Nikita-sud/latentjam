@@ -13,7 +13,8 @@ import kotlin.test.assertTrue
 
 /**
  * Parity with tools/research/listenbrainz_eval/proto_ranker.py (CORE, a5747d63) on 8 FIT queries
- * (tools/research/ranker/export_golden.py): every candidate's 13 features from the same primitives,
+ * (tools/research/ranker/export_golden.py): every candidate's 13 CORE and 9 PERSONAL (FULL) features from the same
+ * primitives,
  * and the top 10 by the v1 CORE weights (ranker_core_v1.json, the first test build's asset), ties by the track key as
  * proto_ranker.ranked().
  */
@@ -52,8 +53,22 @@ class RankerGoldenTest {
             val seed = prim(head.drop(3))
             val rows = (0 until n).map { lines[at++].split('\t') }
             val cands = rows.map { prim(it.drop(1)) }
-            val expected = rows.map { r -> r.last().split(',').map(String::toDouble) }
-            val features = RankerFeatures.of(seed.row, cands.map { it.row })
+            val expected = rows.map { r -> r[9].split(',').map(String::toDouble) }
+            val personal = rows.map { r ->
+                val f = r[10].split(',')
+                PersonalRow(
+                    heard = f[0] == "1", count = f[1].toInt(), ageSeconds = if (f[2] == "inf") Double.POSITIVE_INFINITY else f[2].toDouble(),
+                    activation = if (f[3] == "nan") Double.NaN else f[3].toDouble(), transTrack = f[4].toInt(), transArtist = f[5].toInt(),
+                )
+            }
+            val expectedPersonal = rows.map { r -> r[11].split(',').map(String::toDouble) }
+            val features = RankerFeatures.of(seed.row, cands.map { it.row }, personal)
+            val offset = RankerFeatures.NAMES.indexOf("heard")
+            for (i in 0 until n) for (j in expectedPersonal[i].indices) {
+                val e = abs(features[i][offset + j] - expectedPersonal[i][j])
+                maxError = maxOf(maxError, e)
+                assertTrue(e <= 1e-5 * maxOf(1.0, abs(expectedPersonal[i][j])), "${head[1]} row $i ${RankerFeatures.PERSONAL[j]}")
+            }
             for (i in 0 until n) for (j in expected[i].indices) {
                 val e = abs(features[i][j] - expected[i][j])
                 maxError = maxOf(maxError, e)
