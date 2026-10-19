@@ -45,6 +45,8 @@ class EngineNextTrackChooser(
     private val learnFromHabits: () -> Boolean = { false },
     /** SMART's library, whose listens the habit list reads (not only what may still be queued). */
     private val library: () -> List<TrackDescriptor> = { emptyList() },
+    /** Whether a habit row keeps the flow from a seed (HabitCoherence in the app). */
+    private val habitCoherence: (TrackDescriptor) -> (TrackDescriptor) -> Boolean = { { true } },
 ) : NextTrackChooser {
 
     private val mutex = Mutex()
@@ -110,7 +112,7 @@ class EngineNextTrackChooser(
             // queue with the tapped track); top-ups of a running queue keep SMART's own order.
             if (recentIds.isEmpty() && plan.isNotEmpty() && learnFromHabits()) {
                 plan = withHabitSlots(
-                    history, current, candidates, library(), plan, seedMs = events.last().startedAtMs,
+                    history, current, candidates, library(), plan, seedMs = events.last().startedAtMs, coherence = habitCoherence,
                 )
             }
             planned = ArrayDeque(plan.withIndex().toList())

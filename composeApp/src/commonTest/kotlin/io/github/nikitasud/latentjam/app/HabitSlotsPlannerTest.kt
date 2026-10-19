@@ -66,6 +66,13 @@ class HabitSlotsPlannerTest {
             artistKey = { artists[it.value].orEmpty() }, salt = 1L,
         )
         assertEquals(listOf(TrackId("after"), TrackId("after-artist")), rows)
+        // An incoherent row is skipped and leaves its place to the next one.
+        val coherentOnly = habitRows(
+            listens, seed = TrackId("seed"), seedMs = 3 * day,
+            candidates = listOf("x", "favourite", "after-artist", "after").map(::TrackId),
+            artistKey = { artists[it.value].orEmpty() }, salt = 1L, coherent = { it.value != "after" },
+        )
+        assertEquals(listOf(TrackId("after-artist")), coherentOnly)
         assertTrue(habitRows(emptyList(), TrackId("seed"), 3 * day, listOf(TrackId("x")), { "" }, 1L).isEmpty())
     }
 

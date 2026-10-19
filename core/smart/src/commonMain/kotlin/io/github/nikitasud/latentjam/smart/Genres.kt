@@ -51,6 +51,15 @@ public object Genres {
         return raw
     }
 
+    /** The alias family of one genre value, or null when no alias phrase matches (no raw fallback). */
+    public fun aliasFamily(genre: String?): String? {
+        val tokens = tokenize(genre?.lowercase()?.trim().orEmpty())
+        for ((phrase, family) in ALIASES) {
+            if (tokens.containsPhrase(phrase.split(' '))) return family
+        }
+        return null
+    }
+
     /**
      * Every coarse family of a possibly multi-genre tag ("Electronic; Rock; Trip Hop" carries
      * three). For a single-genre tag this is exactly `setOf(normalize(tag))`, so set

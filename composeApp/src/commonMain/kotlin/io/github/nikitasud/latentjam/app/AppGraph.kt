@@ -24,6 +24,7 @@ import io.github.nikitasud.latentjam.smart.IndexStore
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.SmartEngineConfig
 import io.github.nikitasud.latentjam.smart.EngineError
+import io.github.nikitasud.latentjam.smart.HabitCoherence
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.di.smartEngineModule
@@ -184,6 +185,7 @@ object AppGraph {
                                 companionGroups = { smartCompanionGroups.value },
                                 learnFromHabits = { settings.learnFromHabits.value },
                                 library = { smartLibraryTracks.value },
+                                habitCoherence = HabitCoherence(getOrNull())::from,
                             )
                         }
                     },

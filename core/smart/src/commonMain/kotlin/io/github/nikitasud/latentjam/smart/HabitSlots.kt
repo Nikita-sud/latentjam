@@ -5,8 +5,10 @@
 package io.github.nikitasud.latentjam.smart
 
 import io.github.nikitasud.latentjam.smart.chain.MetadataRerank
+import io.github.nikitasud.latentjam.smart.text.ArtistKnowledge
 import kotlin.math.ln
 import kotlin.math.pow
+import kotlin.math.sqrt
 
 /**
  * One listen as the habit list reads it: a play (not a skip) of a track still in the library.
@@ -175,5 +177,56 @@ public object HabitSlots {
         val head = slots.filterNotNull()
         val used = head.toHashSet()
         return head + chain.filter { it !in used }
+    }
+}
+
+/**
+ * Whether a personal row keeps the queue's flow from its seed — the research's coherence filter
+ * (slots2.py `coherent`, threshold frozen in slots2_rule.json), made strict for the test build: a row
+ * is coherent only when both tracks are KNOWN to the artist knowledge pack (both have a descriptor;
+ * the adapter's guesses do not count) and their artist descriptors' cosine is at least
+ * [DESCRIPTOR_FLOOR], their genre families agree when both have one, and their pack languages agree
+ * when both have one. Unknown is not coherent. Without the pack nothing is.
+ *
+ * The genre family is the alias family of the track's first genre tag value ([Genres]' table, the
+ * table the research's `family()` mirrors); the research read it from the teacher's genres, which the
+ * app does not ship (docs/habit-slots.md).
+ */
+public class HabitCoherence(private val knowledge: ArtistKnowledge?) {
+
+    private class Known(val descriptor: FloatArray, val language: String?, val family: String?)
+
+    private fun known(track: TrackDescriptor): Known? {
+        val pack = knowledge ?: return null
+        val raw = pack.descriptor(track.artist, track.artists.firstOrNull(), text = null) ?: return null
+        var norm = 0.0
+        for (value in raw) norm += value.toDouble() * value
+        if (norm <= 0.0 || !norm.isFinite()) return null
+        val scale = 1.0 / sqrt(norm)
+        val descriptor = FloatArray(raw.size) { (raw[it] * scale).toFloat() }
+        return Known(descriptor, pack.facts(track.artist, track.artists.firstOrNull())?.language, family(track.genre))
+    }
+
+    /** A predicate for rows after [seed]; the seed is looked up once. */
+    public fun from(seed: TrackDescriptor): (TrackDescriptor) -> Boolean {
+        val anchor = known(seed) ?: return { false }
+        return predicate@{ row ->
+            val other = known(row) ?: return@predicate false
+            if (anchor.family != null && other.family != null && anchor.family != other.family) return@predicate false
+            if (anchor.language != null && other.language != null && anchor.language != other.language) return@predicate false
+            if (anchor.descriptor.size != other.descriptor.size) return@predicate false
+            var dot = 0.0
+            for (i in anchor.descriptor.indices) dot += anchor.descriptor[i].toDouble() * other.descriptor[i]
+            dot >= DESCRIPTOR_FLOOR
+        }
+    }
+
+    public companion object {
+        /** FIT real-sequence 10th percentile of consecutive artist-descriptor cosines (slots2_rule.json). */
+        public const val DESCRIPTOR_FLOOR: Double = 0.6036645770072937
+
+        /** The alias family of the first genre value, or null when it has none (score.py `family`). */
+        public fun family(genre: String?): String? =
+            Genres.rawList(genre).firstOrNull()?.let(Genres::aliasFamily)
     }
 }

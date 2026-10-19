@@ -26,6 +26,7 @@ internal suspend fun withHabitSlots(
     library: List<TrackDescriptor>,
     chain: List<TrackId>,
     seedMs: Long,
+    coherence: (TrackDescriptor) -> (TrackDescriptor) -> Boolean,
 ): List<TrackId> = withContext(Dispatchers.Default) {
     val events = runCatching { history.recentEvents(SMART_HABIT_HISTORY_LIMIT) }.getOrNull()
         ?: return@withContext chain
@@ -33,6 +34,8 @@ internal suspend fun withHabitSlots(
     for (track in library) artistKeys[track.id] = HabitSlots.artistKey(track)
     artistKeys[seed.id] = HabitSlots.artistKey(seed)
     val listens = habitListens(events.asReversed(), artistKeys.keys, seedMs)
+    val byId = candidates.associateBy(TrackDescriptor::id)
+    val coherentWithSeed = coherence(seed)
     val personal = habitRows(
         listens = listens,
         seed = seed.id,
@@ -40,6 +43,7 @@ internal suspend fun withHabitSlots(
         candidates = candidates.map(TrackDescriptor::id),
         artistKey = { artistKeys[it].orEmpty() },
         salt = seedMs,
+        coherent = { id -> byId[id]?.let(coherentWithSeed) ?: false },
     )
     if (personal.isEmpty()) return@withContext chain
     // Aggregate on purpose: no title, artist or id leaves the app through the system log.
@@ -74,6 +78,8 @@ internal fun habitListens(
  * followed the seed or its artist (a count above zero), in the list's order. Rows the reference
  * ranks only by ACT-R or its random key are left to SMART: overall favourites unrelated to the seed
  * made the queue swing between genres on the owner's phone (FIT: genre breaks 28 % vs 16.5 %).
+ * Of those, only rows [coherent] with the seed (HabitCoherence) are placed, deeper ones moving up:
+ * real transitions alone still broke the queue's flow on FIT (jumps 6.1 % vs chain 0.6 %).
  * Fewer such rows leave their slots to SMART; none leaves SMART's queue unchanged.
  */
 internal fun habitRows(
@@ -83,6 +89,7 @@ internal fun habitRows(
     candidates: List<TrackId>,
     artistKey: (TrackId) -> String,
     salt: Long,
+    coherent: (TrackId) -> Boolean = { true },
 ): List<TrackId> {
     if (listens.isEmpty()) return emptyList()
     val (byTrack, byArtist) = HabitSlots.transitionCounts(listens, seed, artistKey)
@@ -93,8 +100,7 @@ internal fun habitRows(
         listens = listens,
         artistKey = artistKey,
         tieKey = { saltedTieKey(it, salt) },
-        limit = HabitSlots.PERSONAL_SLOTS,
-    )
+    ).asSequence().filter(coherent).take(HabitSlots.PERSONAL_SLOTS).toList()
 }
 
 /** A uniform `[0, 1)` key per track, fixed for one plan ([salt]) and different between plans. */
