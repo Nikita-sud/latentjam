@@ -110,3 +110,20 @@ a restart; an unhealthy manifest and a throwing audio index still fill the queue
   same command, likely because it was not the active session then. Real controllers carry a package name; to be
   checked separately (not in the ranker).
 - **Open**: parity of the audio tagger on on-device (4-bit) A0 vectors waits for a debuggable build.
+
+## 48 MB with 10k tracks (follow-up, 19 October late evening)
+
+- The low-memory fixes asked for (fix/low-memory-launch, fix/smart-press-memory) are **already in this line**, rebased
+  before 0.9.1: 49b1aaeb, 1e49115c, 07812305, fcb7f921, c22c47f6, fe24e12c, e3f9220d (the memory note calling them
+  unmerged is stale).
+- With them, at 48 MB and 10,021 tracks the app still runs out of heap **at idle, before any SMART press**, and
+  restarts (OutOfMemoryError on whatever allocates next). A heap dump at the ceiling: 20,059 TrackDescriptor (two
+  copies of the library list), 90k TrackId, 316k String, 10 MB of byte[]; 35k native cleaners with 3.7k ICU charset
+  decoders and 7k char buffers — the tag-enrichment pass (GenreEnrichment, TrackIdentityTags) reading 10k files. At
+  64 MB it idles stably but is killed when playback starts. 0.9.1 behaves the same. This is the app's library and tag
+  loading, not the ranker; it needs its own item.
+- The ranker's own share, measured on the host for 10,000 tracks with the shipped assets warm (they are mapped on the
+  device): 5.6 MB retained → **2.75 MB (282 B per track)** after compacting its per-track cache (67071d19); a press on
+  a known 10k library takes 22 ms on the host, the first 160 ms. The up-front rule (headroom ≥ 2 × press + 8 MB, press ≈
+  C × 32 features × 24 B + 1 MB ≈ 1.5 MB at C = 600) asks for ≈ 11 MB of headroom; at the 48 MB ceiling seen above the
+  app has none, so the rule would send the press to rule-only — not observed on the device, because the app died first.
