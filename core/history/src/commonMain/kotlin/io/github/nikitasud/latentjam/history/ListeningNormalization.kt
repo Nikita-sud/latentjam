@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.history
 
+import io.github.nikitasud.latentjam.smart.TrackId
+
 /**
  * The listening log as the statistics page reads it: in start order, without exact duplicates, with a
  * pause-and-resume of one playback joined back into one listen, and cut into sessions.
@@ -54,77 +56,85 @@ public object ListeningNormalization {
         cancellationCheck: () -> Unit = {},
     ): NormalizedHistory {
         cancellationCheck()
-        // Out-of-range timestamps are excluded everywhere, as the overview does.
-        val valid = events.filter { it.startedAtMs in 0..nowMs }
-        if (valid.isEmpty()) return NormalizedHistory.EMPTY
-        // The log is appended in end order; restores and merges may interleave. A stable sort keeps
-        // the store's order among equal starts.
-        val sorted = if (valid.zipWithNext().all { (a, b) -> a.startedAtMs <= b.startedAtMs }) {
-            valid
-        } else {
-            valid.sortedBy(ListenEvent::startedAtMs)
+        // Memory matters here: the store already holds every event, so this pass keeps one output list
+        // and primitive side arrays, and copies the input only when it must be filtered or sorted.
+        // Out-of-range timestamps are excluded everywhere, as the overview does. The log is appended in
+        // end order; restores and merges may interleave, and a stable sort keeps the store's order among
+        // equal starts.
+        var inRange = true
+        var ordered = true
+        for (position in events.indices) {
+            val start = events[position].startedAtMs
+            if (start !in 0..nowMs) inRange = false
+            if (position > 0 && start < events[position - 1].startedAtMs) ordered = false
+        }
+        // A primitive comparison: sortedBy would box both starts on every comparison.
+        val byStart = Comparator<ListenEvent> { left, right -> left.startedAtMs.compareTo(right.startedAtMs) }
+        val input = when {
+            inRange && ordered -> events
+            inRange -> events.sortedWith(byStart)
+            else -> events.filter { it.startedAtMs in 0..nowMs }.sortedWith(byStart)
+        }
+        if (input.isEmpty()) return NormalizedHistory.EMPTY
+
+        val joined = ArrayList<ListenEvent>(input.size)
+        val breaks = BooleanArray(input.size)
+        val ends = LongArray(input.size)
+        val sessionIds = IntArray(input.size)
+        var session = 0
+        var lastEnd = Long.MIN_VALUE
+
+        fun accept(event: ListenEvent) {
+            val previous = joined.lastOrNull()
+            // 2. Overlap breaks, judged on uncapped ends.
+            val overlap = previous != null && previous.listenedMs != null && event.listenedMs != null &&
+                event.startedAtMs < lastEnd - OVERLAP_TOLERANCE_MS
+            // 3. A resumed half joins the listen it continues.
+            if (previous != null && !overlap && continuesListen(previous, lastEnd, event)) {
+                joined[joined.lastIndex] = join(previous, event)
+                lastEnd = event.startedAtMs + (event.listenedMs ?: 0)
+                ends[joined.lastIndex] = lastEnd
+                return
+            }
+            val position = joined.size
+            if (previous != null) {
+                // 4. The previous listen is final now: its end, capped at this start, cuts sessions.
+                // A joined listen ends where its resumed half ended, not at its start plus time heard.
+                val previousEnd = minOf(ends[position - 1], event.startedAtMs)
+                if (overlap || event.startedAtMs - previousEnd > SESSION_GAP_MS) session++
+            }
+            joined += event
+            breaks[position] = overlap
+            sessionIds[position] = session
+            lastEnd = event.startedAtMs + event.effectiveListenedMs.coerceAtLeast(0)
+            ends[position] = lastEnd
         }
 
         // 1. Exact duplicates by (track, start): keep the copy that knows its origin, else the first.
-        val deduped = ArrayList<ListenEvent>(sorted.size)
         var index = 0
-        while (index < sorted.size) {
+        while (index < input.size) {
             if (index and CANCELLATION_CHECK_MASK == 0) cancellationCheck()
-            val start = sorted[index].startedAtMs
+            val start = input[index].startedAtMs
             var end = index + 1
-            while (end < sorted.size && sorted[end].startedAtMs == start) end++
+            while (end < input.size && input[end].startedAtMs == start) end++
             if (end - index == 1) {
-                deduped += sorted[index]
+                accept(input[index])
             } else {
-                val group = sorted.subList(index, end)
-                val seen = HashSet<String>()
+                val group = input.subList(index, end)
+                val seen = HashSet<TrackId>()
                 group.forEachIndexed { position, event ->
-                    if (!seen.add(event.trackId.value)) return@forEachIndexed
+                    if (!seen.add(event.trackId)) return@forEachIndexed
                     val withOrigin = group.subList(position, group.size)
                         .firstOrNull { it.trackId == event.trackId && it.origin != null }
-                    deduped += withOrigin ?: event
+                    accept(withOrigin ?: event)
                 }
             }
             index = end
         }
-
-        // 2 + 3. Overlap breaks (judged on uncapped ends), then resumed halves joined into their listen.
-        val joined = ArrayList<ListenEvent>(deduped.size)
-        val breaks = ArrayList<Boolean>(deduped.size)
-        val ends = ArrayList<Long>(deduped.size)
-        var lastEnd = Long.MIN_VALUE
-        deduped.forEachIndexed { position, event ->
-            if (position and CANCELLATION_CHECK_MASK == 0) cancellationCheck()
-            val previous = joined.lastOrNull()
-            val overlap = previous != null && previous.listenedMs != null && event.listenedMs != null &&
-                event.startedAtMs < lastEnd - OVERLAP_TOLERANCE_MS
-            if (previous != null && !overlap && continuesListen(previous, lastEnd, event)) {
-                joined[joined.lastIndex] = join(previous, event)
-                lastEnd = event.startedAtMs + (event.listenedMs ?: 0)
-                ends[ends.lastIndex] = lastEnd
-                return@forEachIndexed
-            }
-            joined += event
-            breaks += overlap
-            lastEnd = event.startedAtMs + event.effectiveListenedMs.coerceAtLeast(0)
-            ends += lastEnd
-        }
-
-        // 4. Ends capped at the next start, then sessions.
-        val sessionIds = IntArray(joined.size)
-        var session = 0
-        for (position in 1 until joined.size) {
-            if (position and CANCELLATION_CHECK_MASK == 0) cancellationCheck()
-            val event = joined[position]
-            // A joined listen ends where its resumed half ended, not at its start plus the time heard.
-            val previousEnd = minOf(ends[position - 1], event.startedAtMs)
-            if (breaks[position] || event.startedAtMs - previousEnd > SESSION_GAP_MS) session++
-            sessionIds[position] = session
-        }
         return NormalizedHistory(
             events = joined,
-            sessionIds = sessionIds,
-            breaksBefore = BooleanArray(joined.size) { breaks[it] },
+            sessionIds = if (joined.size == input.size) sessionIds else sessionIds.copyOf(joined.size),
+            breaksBefore = if (joined.size == input.size) breaks else breaks.copyOf(joined.size),
             logStartMs = joined.first().startedAtMs,
         )
     }

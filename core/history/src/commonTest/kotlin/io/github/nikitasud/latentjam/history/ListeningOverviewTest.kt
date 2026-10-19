@@ -451,7 +451,7 @@ internal class ListeningOverviewTest {
     @Test
     fun allTimeChartsStayBoundedAndDoNotDiscardHistoricalTotals() {
         val events = listOf(event("old", startedAtMs = day), event("today", startedAtMs = 100 * day))
-        for ((requestedDays, expectedDays) in listOf(Int.MAX_VALUE to 30, Int.MIN_VALUE to 1)) {
+        for ((requestedDays, expectedDays) in listOf(Int.MAX_VALUE to 60, Int.MIN_VALUE to 1)) {
             val overview = ListeningOverviews.summarize(
                 events = events,
                 artistOf = { null },

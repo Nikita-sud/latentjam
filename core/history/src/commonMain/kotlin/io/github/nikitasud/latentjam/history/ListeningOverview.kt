@@ -99,7 +99,7 @@ public object ListeningOverviews {
         includeTrack: (TrackId) -> Boolean = { true },
         cancellationCheck: () -> Unit = {},
         /**
-         * Calendar dates shown, clamped to 1..30, ending with today's local date. Buckets contain
+         * Calendar dates shown, clamped to 1..60, ending with today's local date. Buckets contain
          * only selected-period events. A rolling seven-day total can start partway through an
          * eighth calendar date; a seven-date chart deliberately excludes that partial first date.
          * All-time overviews likewise show only these trailing calendar dates in the chart.
@@ -276,5 +276,5 @@ public object ListeningOverviews {
     }
 
     private const val CANCELLATION_CHECK_MASK = 1023
-    private const val MAX_CHART_DAYS = 30
+    private const val MAX_CHART_DAYS = 60
 }

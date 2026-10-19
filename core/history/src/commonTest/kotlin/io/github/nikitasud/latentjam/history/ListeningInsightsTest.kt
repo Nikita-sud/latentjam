@@ -414,6 +414,17 @@ internal class ListeningInsightsTest {
     }
 
     @Test
+    fun genresCountUnderTheGenreTheAppDerives() {
+        val tagged = { id: TrackId -> TrackDescriptor(id = id, artist = "A", genre = if (id.value == "1") "Rock; Pop" else "Rock") }
+        val events = listOf(play("1", dayAt(1)), play("2", dayAt(2)))
+        val history = ListeningNormalization.normalize(events, now)
+        val raw = ListeningInsights.period(history, tagged, null, now, utc)
+        assertEquals(2, raw.topGenres?.size)
+        val split = ListeningInsights.period(history, tagged, null, now, utc, genreOf = { it.genre?.substringBefore(';') })
+        assertEquals(listOf("Rock" to 2), split.topGenres?.map { it.name to it.plays })
+    }
+
+    @Test
     fun civilMonthsMatchTheCalendar() {
         assertEquals(1970 to 1, ListeningInsights.civilYearMonth(0))
         assertEquals(2000 to 2, ListeningInsights.civilYearMonth(11_016)) // 2000-02-29
