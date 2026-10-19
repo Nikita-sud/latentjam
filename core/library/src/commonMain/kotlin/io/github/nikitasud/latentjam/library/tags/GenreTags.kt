@@ -121,6 +121,38 @@ public object GenreTags {
         }
     }
 
+    /**
+     * [embeddedComments] over a file that allows positional reads: identical entries, but an ID3
+     * tag is read frame by frame and only its text frames are loaded (see [Id3FactsPrefix]), so a
+     * song's cover art is never pulled into memory to learn its genres.
+     */
+    public fun embeddedComments(source: RandomAccessSource): List<Pair<String, String>>? {
+        val magic = source.read(0, 3) ?: return null
+        if (Id3Codec.looksLikeTag(magic)) {
+            return Id3FactsPrefix.read(source, MAX_ID3_PREFIX)?.let(::id3Comments)
+        }
+        return embeddedComments(SequentialSource(source))
+    }
+
+    /** Reads a [RandomAccessSource] front to back, as the stream readers expect. */
+    private class SequentialSource(private val source: RandomAccessSource) : ByteSource {
+        private var position = 0L
+
+        override fun read(count: Int): ByteArray? =
+            source.read(position, count)?.also { position += count }
+
+        override fun readUpTo(count: Int): ByteArray {
+            val available = (source.length - position).coerceIn(0L, count.toLong()).toInt()
+            return (source.read(position, available) ?: ByteArray(0)).also { position += it.size }
+        }
+
+        override fun skip(count: Long): Boolean {
+            if (count < 0 || position + count > source.length) return false
+            position += count
+            return true
+        }
+    }
+
     private fun id3Comments(prefix: ByteArray): List<Pair<String, String>>? {
         val info = Id3Tags.read(prefix) ?: return null
         val comments = ArrayList<Pair<String, String>>()

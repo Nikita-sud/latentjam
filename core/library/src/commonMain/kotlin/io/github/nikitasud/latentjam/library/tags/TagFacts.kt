@@ -72,6 +72,12 @@ public object TagFacts {
         return fromComments(comments)
     }
 
+    /** [embedded] over positional reads; an ID3 tag's pictures are never loaded. */
+    public fun embedded(source: RandomAccessSource): EmbeddedTagFacts? {
+        val comments = GenreTags.embeddedComments(source) ?: return null
+        return fromComments(comments)
+    }
+
     /** Facts from decoded `KEY=value`-style entries (Vorbis comments or mapped ID3 frames). */
     internal fun fromComments(comments: List<Pair<String, String>>): EmbeddedTagFacts {
         val genres = ArrayList<String>()
