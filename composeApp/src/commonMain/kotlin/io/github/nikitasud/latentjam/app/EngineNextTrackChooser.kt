@@ -118,7 +118,7 @@ class EngineNextTrackChooser(
             // system log. On Android that log is plain logcat, which other apps could read on
             // older releases, and the app promises that nothing about what is played leaves it.
             println(
-                "SMART: planned ${planned.size} of $CHAIN_LENGTH slots from " +
+                "SMART: planned ${planned.size} slots ($CHAIN_LENGTH-track chain) from " +
                     "${candidates.size} candidates in " +
                     "${started.elapsedNow().inWholeMilliseconds} ms",
             )
