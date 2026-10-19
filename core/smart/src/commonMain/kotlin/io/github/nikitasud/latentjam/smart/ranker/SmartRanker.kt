@@ -177,20 +177,36 @@ public class SmartRanker(
         val language: String?,
         val decade: Int?,
         val engineArtist: String,
-        val setArtist: String,
-        val artists: List<Long>,
+        /** The artist-set cap key (64-bit; 0 = none): compact for 10k-track libraries. */
+        val setArtist: Long,
+        val artists: LongArray,
         val entity: Int,
-        val version: String,
+        /** 64-bit hash of the song-version key. */
+        val version: Long,
         val durationMs: Long?,
     ) {
-        private val packDescriptor: FloatArray? by lazy {
-            runCatching {
-                knowledge?.descriptor(track.artist, track.artists.firstOrNull(), text = null)?.let(::normalized)
-            }.getOrNull()
-        }
-        val lfm: FloatArray? by lazy {
-            if (entity >= 0) runCatching { vectors?.vector(entity)?.let(::normalized) }.getOrNull() else null
-        }
+        // Read on first use; plain fields, not delegates: a 10k library keeps one Known per track.
+        private var loaded = 0
+        private var packDescriptorValue: FloatArray? = null
+        private var lfmValue: FloatArray? = null
+        private val packDescriptor: FloatArray?
+            get() {
+                if (loaded and 1 == 0) {
+                    loaded = loaded or 1
+                    packDescriptorValue = runCatching {
+                        knowledge?.descriptor(track.artist, track.artists.firstOrNull(), text = null)?.let(::normalized)
+                    }.getOrNull()
+                }
+                return packDescriptorValue
+            }
+        val lfm: FloatArray?
+            get() {
+                if (loaded and 2 == 0) {
+                    loaded = loaded or 2
+                    lfmValue = if (entity >= 0) runCatching { vectors?.vector(entity)?.let(::normalized) }.getOrNull() else null
+                }
+                return lfmValue
+            }
         var imputedDescriptor: FloatArray? = null
         var family: String? = packFamily
         var familyImputed: Boolean = false
@@ -200,6 +216,8 @@ public class SmartRanker(
         val descriptorImputed: Boolean get() = packDescriptor == null && imputedDescriptor != null
     }
 
+    /** One string per distinct artist key across the cache. */
+    private val artistStrings = HashMap<String, String>()
     private var knownFor: List<TrackDescriptor>? = null
     private var knownById: Map<TrackId, Known> = emptyMap()
 
@@ -216,23 +234,24 @@ public class SmartRanker(
         val entity = runCatching { knowledge?.entity(track.artist, primary) }.getOrNull() ?: -1
         val family = HabitFlow.family(track.genre)
         val set = runCatching { ArtistSets.parse(track.artist, track.title, known, genreFamily = family) }.getOrNull()
-        val engineArtist = HabitSlots.artistKey(track)
+        val engineArtist = HabitSlots.artistKey(track).let { k -> artistStrings.getOrPut(k) { k } }
         return Known(
             track = track,
             packFamily = family,
             language = facts?.language,
             decade = facts?.decade,
             engineArtist = engineArtist,
-            setArtist = set?.capKey?.toString().orEmpty(),
-            artists = set?.artists.orEmpty(),
+            setArtist = set?.capKey ?: 0L,
+            artists = set?.artists?.toLongArray() ?: EMPTY_ARTISTS,
             entity = entity,
-            version = versionKey(track, engineArtist),
+            version = ArtistSets.keyHash(versionKey(track, engineArtist)),
             durationMs = track.durationMs?.takeIf { it in 1..MAX_DURATION_MS },
         )
     }
 
     private fun knownOf(library: List<TrackDescriptor>): Map<TrackId, Known> {
         if (knownFor !== library) {
+            artistStrings.clear()
             knownById = library.associate { it.id to know(it) }
             knownFor = library
             val values = knownById.values
@@ -295,8 +314,8 @@ public class SmartRanker(
         val imputed = impute(pool + seedKnown)
         val window = minOf(serving.recentWindow, n / 2).coerceAtLeast(1)
         val previousIds = request.recentIds + request.seed.id
-        fun versionOf(id: TrackId) = (byId[id] ?: cache[id])?.version ?: id.value
-        val artistKeyOf = { k: Known -> if (serving.artistKey == "artistSet") k.setArtist else k.engineArtist }
+        fun versionOf(id: TrackId) = (byId[id] ?: cache[id])?.version ?: ArtistSets.keyHash("id:${id.value}")
+        val artistKeyOf = { k: Known -> if (serving.artistKey == "artistSet") (if (k.setArtist == 0L) "" else k.setArtist.toString()) else k.engineArtist }
         val audioVectors = HashMap<TrackId, FloatArray?>()
         suspend fun audioOf(k: Known): FloatArray? =
             if (k.track.id in audioVectors) audioVectors[k.track.id] else runCatching { audio.vector(k.track.id) }.getOrNull()?.let(::normalized).also { audioVectors[k.track.id] = it }
@@ -414,7 +433,7 @@ public class SmartRanker(
                 .map { it.track.id }, quota("colisten"))
         }
         val album = seed.track.album?.takeIf(String::isNotBlank)
-        take(pool.filter { (seed.setArtist.isNotEmpty() && it.setArtist == seed.setArtist) || (album != null && it.track.album == album) }
+        take(pool.filter { (seed.setArtist != 0L && it.setArtist == seed.setArtist) || (album != null && it.track.album == album) }
             .sortedBy { salted[it.track.id] }.map { it.track.id }, quota("artist"))
         if (seed.family != null) take(pool.filter { it.family == seed.family }.sortedBy { salted[it.track.id] }.map { it.track.id }, quota("family"))
         if (request.personal && !request.history.isEmpty) {
@@ -430,7 +449,7 @@ public class SmartRanker(
     private fun ruleOnlyPool(pool: List<Known>, seed: Known, salted: Map<TrackId, Long>): List<Known> {
         val ordered = pool.sortedBy { salted[it.track.id] }
         val sameArtist = ordered.filter {
-            (seed.setArtist.isNotEmpty() && it.setArtist == seed.setArtist) ||
+            (seed.setArtist != 0L && it.setArtist == seed.setArtist) ||
                 (seed.track.album?.isNotBlank() == true && it.track.album == seed.track.album)
         }.take(100)
         return (sameArtist + ordered.take(500)).distinctBy { it.track.id }
@@ -460,7 +479,7 @@ public class SmartRanker(
         private val window: Int,
         private val salted: Map<TrackId, Long>,
         private val history: PersonalHistory,
-        private val versionOf: (TrackId) -> String,
+        private val versionOf: (TrackId) -> Long,
     ) {
         suspend fun next(picks: List<TrackId>, audio: AudioSource): TrackId? {
             val taken = picks.toHashSet()
@@ -493,7 +512,7 @@ public class SmartRanker(
      * Whether a track of [version] may not follow: it is a version of the previous pick, or of one of the last
      * [window] picks (the queue's rows before the plan included).
      */
-    private fun blockedVersion(version: String, picks: List<TrackId>, before: List<TrackId>, window: Int, versionOf: (TrackId) -> String): Boolean {
+    private fun blockedVersion(version: Long, picks: List<TrackId>, before: List<TrackId>, window: Int, versionOf: (TrackId) -> Long): Boolean {
         val recent = (before + picks).takeLast(maxOf(1, window))
         return recent.any { versionOf(it) == version }
     }
@@ -502,7 +521,7 @@ public class SmartRanker(
     private suspend fun boundedNeighbours(id: TrackId, k: Int, budgetMs: Long): List<TrackId> =
         withTimeoutOrNull(budgetMs) { runCatching { audio.neighbours(id, k) }.getOrNull() }.orEmpty()
 
-    private fun overlap(anchor: List<Long>, candidate: List<Long>): Double {
+    private fun overlap(anchor: LongArray, candidate: LongArray): Double {
         if (anchor.isEmpty() || candidate.isEmpty()) return 0.0
         if (anchor[0] == candidate[0]) return 1.0
         return if (candidate.any { it in anchor }) 0.5 else 0.0
@@ -528,6 +547,8 @@ public class SmartRanker(
         private const val R1_BUDGET_MS = 100L
         private const val LADDER_AUDIO_BUDGET_MS = 20L
         private const val AUDIO_BUDGET_MS = 100L
+
+        private val EMPTY_ARTISTS = LongArray(0)
 
         /** Tracks the ladder's descriptor rung compares at most. */
         private const val LADDER_SAMPLE = 2_000
