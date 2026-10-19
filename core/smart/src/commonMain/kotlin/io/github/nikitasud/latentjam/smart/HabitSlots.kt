@@ -181,22 +181,24 @@ public object HabitSlots {
 }
 
 /**
- * How far a personal row would pull the queue away from its seed — the soft flow score of the test
- * build (docs/habit-slots.md, deviation 4b). Incoherence P is the mean of four parts in [0, 1]:
- * genre family and pack language (0 same, 1 different, [UNKNOWN] when either side has none), the
- * artist-descriptor distance (0 at cosine ≥ [DESCRIPTOR_NEAR], 1 at ≤ [DESCRIPTOR_FAR], linear
- * between, [UNKNOWN] without both pack descriptors) and the audio distance on the on-device vectors
- * (0 at cosine ≥ the library's 75th percentile of random-pair cosines, 1 at ≤ its 25th, linear
- * between, [UNKNOWN] when either track has no vector yet). A row with transition strength t is kept
- * when t − [LAMBDA]·P > 0 ([pick]).
+ * How far a personal row would pull the queue away from its seed — the FIT arm SOFT(λ = 2) of
+ * PLAN_ITEM5 v5 (slots3.py `incoherence` and `build`; docs/habit-slots.md, deviation 4b).
+ * Incoherence P is the mean of three parts in [0, 1]: genre family and pack language (0 same,
+ * 1 different, [UNKNOWN] when either side has none) and the artist-descriptor distance (0 at cosine
+ * ≥ [DESCRIPTOR_NEAR], 1 at ≤ [DESCRIPTOR_FAR], linear between, [UNKNOWN] without both pack
+ * descriptors). With [AUDIO_PART] on (off by default: not in the FIT arm) a fourth part joins the
+ * mean, the audio distance on the on-device vectors (0 at cosine ≥ the library's 75th percentile of
+ * random-pair cosines, 1 at ≤ its 25th, [UNKNOWN] when either track has no vector). A row with
+ * transition strength t is kept when t − [LAMBDA]·P > 0 ([pick]).
  *
  * The family is the alias family of the track's first genre tag value ([Genres]' table, which the
  * research's `family()` mirrors); the research read the teacher's genres, which the app does not ship.
- * [audio] returns a track's audio vector or null; the percentiles are drawn once per library list.
+ * [audio] returns a track's audio vector or null; it is read only with [AUDIO_PART] on.
  */
 public class HabitFlow(
     private val knowledge: ArtistKnowledge?,
-    private val audio: suspend (TrackId) -> FloatArray?,
+    private val audioPart: Boolean = AUDIO_PART,
+    private val audio: suspend (TrackId) -> FloatArray? = { null },
 ) {
     private var anchorsFor: List<TrackDescriptor>? = null
     private var anchors: AudioAnchors? = null
@@ -212,7 +214,7 @@ public class HabitFlow(
             descriptor = knowledge?.descriptor(track.artist, primary, text = null),
             language = knowledge?.facts(track.artist, primary)?.language,
             family = family(track.genre),
-            audio = audio(track.id),
+            audio = if (audioPart) audio(track.id) else null,
         )
     }
 
@@ -221,7 +223,7 @@ public class HabitFlow(
         seed: TrackDescriptor,
         library: List<TrackDescriptor>,
     ): suspend (TrackDescriptor) -> Double {
-        if (anchorsFor !== library) {
+        if (audioPart && anchorsFor !== library) {
             anchors = audioAnchors(library)
             anchorsFor = library
         }
@@ -229,16 +231,15 @@ public class HabitFlow(
         val bounds = anchors
         return { track ->
             val row = known(track)
-            val parts = doubleArrayOf(
+            val parts = mutableListOf(
                 differs(from.family, row.family),
                 differs(from.language, row.language),
                 distance(cosine(from.descriptor, row.descriptor), DESCRIPTOR_NEAR, DESCRIPTOR_FAR),
-                bounds?.let { distance(cosine(from.audio, row.audio), it.high, it.low) } ?: UNKNOWN,
             )
+            if (audioPart) parts += bounds?.let { distance(cosine(from.audio, row.audio), it.high, it.low) } ?: UNKNOWN
             parts.average()
         }
     }
-
     private suspend fun audioAnchors(library: List<TrackDescriptor>): AudioAnchors? {
         if (library.size < 2) return null
         val ordered = library.map(TrackDescriptor::id).sortedBy(TrackId::value)
@@ -267,10 +268,17 @@ public class HabitFlow(
         public const val LAMBDA: Double = 2.0
         /** A part neither side can judge. */
         public const val UNKNOWN: Double = 0.5
-        /** Artist-descriptor cosine from which a row is as close as a seed's own neighbours. */
-        public const val DESCRIPTOR_NEAR: Double = 0.80
+        /**
+         * Artist-descriptor cosine from which a row counts as close: the FIT median of real consecutive
+         * different-artist pairs (slots3.py `hi`, HI in slots3_result.json).
+         */
+        public const val DESCRIPTOR_NEAR: Double = 0.7051427364349365
         /** FIT real-sequence 10th percentile of consecutive artist-descriptor cosines (slots2_rule.json). */
         public const val DESCRIPTOR_FAR: Double = 0.6036645770072937
+        /** Whether P has the audio part. Off: the FIT arm has none; on is an untested app extension. */
+        public const val AUDIO_PART: Boolean = false
+        /** Weight of an artist → track transition beside a track → track one (PLAN_ITEM5 v5). */
+        public const val ARTIST_WEIGHT: Double = 0.5
         /** Random pairs drawn per library for the audio anchors, from a fixed seed. */
         public const val AUDIO_PAIRS: Int = 2_000
         public const val AUDIO_SAMPLE_SEED: Int = 20_261_019
@@ -284,16 +292,16 @@ public class HabitFlow(
         /**
          * Rows by score t − [lambda]·P, best first, those above zero, at most [limit]. [rows] are the
          * transition list's rows with a count above zero, in its order (ties keep it);
-         * t = ln(1 + c) / ln(1 + max c).
+         * t = ln(1 + c) / ln(1 + max c) with c = track count + [ARTIST_WEIGHT] · artist count.
          */
         public fun pick(
             rows: List<TrackId>,
-            count: (TrackId) -> Int,
+            count: (TrackId) -> Double,
             incoherence: Map<TrackId, Double>,
             lambda: Double = LAMBDA,
             limit: Int = HabitSlots.PERSONAL_SLOTS,
         ): List<TrackId> {
-            val top = rows.maxOfOrNull(count)?.takeIf { it > 0 } ?: return emptyList()
+            val top = rows.maxOfOrNull(count)?.takeIf { it > 0.0 } ?: return emptyList()
             val scored = rows.map { row ->
                 row to kotlin.math.ln(1.0 + count(row)) / kotlin.math.ln(1.0 + top) - lambda * (incoherence[row] ?: UNKNOWN)
             }

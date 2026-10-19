@@ -70,6 +70,15 @@ class HabitSlotsPlannerTest {
     }
 
     @Test
+    fun `an artist transition weighs half a track transition`() {
+        val byTrack = mapOf(TrackId("direct") to 2)
+        val byArtist = mapOf(TrackId("direct") to 2, TrackId("artist-only") to 3)
+        assertEquals(3.0, habitCount(TrackId("direct"), byTrack, byArtist))
+        assertEquals(1.5, habitCount(TrackId("artist-only"), byTrack, byArtist))
+        assertEquals(0.0, habitCount(TrackId("never"), byTrack, byArtist))
+    }
+
+    @Test
     fun `the tie key is uniform in 0 to 1 and depends on the salt`() {
         val keys = (0 until 1_000).map { saltedTieKey(TrackId("t$it"), 42L) }
         assertTrue(keys.all { it >= 0.0 && it < 1.0 })

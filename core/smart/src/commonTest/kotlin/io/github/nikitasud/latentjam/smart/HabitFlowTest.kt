@@ -28,35 +28,43 @@ class HabitFlowTest {
         TrackDescriptor(TrackId(id), title = id, artist = artist, genre = genre)
 
     @Test
-    fun `incoherence averages family language descriptor and audio`() = runTest {
+    fun `incoherence averages family language and descriptor as the FIT arm does`() = runTest {
+        val library = (0 until 20).map { track("lib$it", "Lib") }
+        val seed = track("seed", "Alpha", "Rock")
+        val twin = track("twin", "Alpha", "Hard Rock")
+        val far = track("far", "Beta", "Pop")
+        val unknown = track("unknown", "Nobody")
+        val p = HabitFlow(knowledge).incoherence(seed, library)
+        assertEquals(0.0, p(twin), 1e-9)
+        assertEquals(1.0, p(far), 1e-9)
+        assertEquals(0.5, p(unknown), 1e-9)
+        // Without the pack only the family can be judged.
+        assertEquals((0.0 + 0.5 + 0.5) / 3, HabitFlow(null).incoherence(seed, library)(twin), 1e-9)
+    }
+
+    @Test
+    fun `the audio part joins only when switched on`() = runTest {
         // The library's audio sits within a few degrees of one direction, so its random pairs are close.
         val library = (0 until 20).map { track("lib$it", "Lib") }
         val audio = HashMap<TrackId, FloatArray>()
         library.forEachIndexed { i, t -> audio[t.id] = floatArrayOf(cos(i * 0.01).toFloat(), sin(i * 0.01).toFloat()) }
         val seed = track("seed", "Alpha", "Rock").also { audio[it.id] = floatArrayOf(1f, 0f) }
-        val twin = track("twin", "Alpha", "Hard Rock").also { audio[it.id] = floatArrayOf(1f, 0f) }
-        val far = track("far", "Beta", "Pop").also { audio[it.id] = floatArrayOf(0f, 1f) }
-        val unknown = track("unknown", "Nobody")
-        val p = HabitFlow(knowledge) { audio[it] }.incoherence(seed, library)
-        assertEquals(0.0, p(twin), 1e-9)
-        assertEquals(1.0, p(far), 1e-9)
-        assertEquals(0.5, p(unknown), 1e-9) // family, language, descriptor and audio all unknown
-        // Without the pack and without audio, only the family can be judged.
-        val bare = HabitFlow(null) { null }.incoherence(seed, library)
-        assertEquals((0.0 + 0.5 + 0.5 + 0.5) / 4, bare(twin), 1e-9)
+        val soundsFar = track("twin", "Alpha", "Hard Rock").also { audio[it.id] = floatArrayOf(0f, 1f) }
+        assertEquals(0.0, HabitFlow(knowledge, audio = { audio[it] }).incoherence(seed, library)(soundsFar), 1e-9)
+        assertEquals(0.25, HabitFlow(knowledge, audioPart = true) { audio[it] }.incoherence(seed, library)(soundsFar), 1e-9)
     }
 
     @Test
     fun `a strongest habit far from the seed is rejected and a closer one is accepted`() {
         val rows = listOf(TrackId("far"), TrackId("near"))
         // Both at the top count, t = 1: 1 - 2 * 0.875 < 0, 1 - 2 * 0.4 = 0.2.
-        val picked = HabitFlow.pick(rows, count = { 3 }, incoherence = mapOf(rows[0] to 0.875, rows[1] to 0.4))
+        val picked = HabitFlow.pick(rows, count = { 3.0 }, incoherence = mapOf(rows[0] to 0.875, rows[1] to 0.4))
         assertEquals(listOf(TrackId("near")), picked)
     }
 
     @Test
     fun `rows are kept when transition strength outweighs incoherence at lambda 1`() {
-        val counts = mapOf("a" to 4, "b" to 1, "c" to 2)
+        val counts = mapOf("a" to 4.0, "b" to 1.0, "c" to 2.0)
         val rows = listOf("a", "b", "c").map(::TrackId)
         val picked = HabitFlow.pick(
             rows,
@@ -66,11 +74,18 @@ class HabitFlowTest {
         )
         // a: 1 - 0.9 = 0.1; b: ln2/ln5 - 0.5 < 0; c: ln3/ln5 = 0.68.
         assertEquals(listOf(TrackId("c"), TrackId("a")), picked)
-        assertEquals(emptyList(), HabitFlow.pick(emptyList(), { 0 }, emptyMap()))
+        assertEquals(emptyList(), HabitFlow.pick(emptyList(), { 0.0 }, emptyMap()))
     }
 
     @Test
     fun `distances and percentiles follow their anchors`() {
+        // The FIT anchors: close from the median real different-artist cosine, far from the 10th percentile.
+        val near = HabitFlow.DESCRIPTOR_NEAR
+        val far = HabitFlow.DESCRIPTOR_FAR
+        assertEquals(0.7051427364349365, near)
+        assertEquals(0.0, HabitFlow.distance(0.71, near, far))
+        assertEquals(0.5, HabitFlow.distance((near + far) / 2, near, far), 1e-9)
+        assertEquals(1.0, HabitFlow.distance(0.60, near, far))
         assertEquals(0.0, HabitFlow.distance(0.9, 0.8, 0.6036645770072937))
         assertEquals(1.0, HabitFlow.distance(0.5, 0.8, 0.6036645770072937))
         assertEquals(0.5, HabitFlow.distance(0.7, 0.8, 0.6), 1e-9)
