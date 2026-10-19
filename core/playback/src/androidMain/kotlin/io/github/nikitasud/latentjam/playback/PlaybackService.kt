@@ -16,8 +16,11 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSourceBitmapLoader
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.source.ShuffleOrder.DefaultShuffleOrder
+import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.session.CommandButton
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
@@ -718,6 +721,12 @@ public class PlaybackService : MediaLibraryService() {
         super.onCreate()
         // The app-owned PCM chain applies tone controls on every local output route.
         val player = ExoPlayer.Builder(this, EqualizerRenderersFactory(this))
+            // Every queue row is a local progressive file. The default factory first infers each
+            // row's container from its URI, which parses all of them when a queue is set: 1.5 MB
+            // more heap for a 10,000-song "play all" (measured), for nothing.
+            .setMediaSourceFactory(
+                ProgressiveMediaSource.Factory(DefaultDataSource.Factory(this), DefaultExtractorsFactory()),
+            )
             .setAudioAttributes(AudioAttributes.DEFAULT, /* handleAudioFocus = */ true)
             .setHandleAudioBecomingNoisy(true)
             .setMaxSeekToPreviousPositionMs(PREVIOUS_RESTART_THRESHOLD_MS)
