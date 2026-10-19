@@ -3,7 +3,8 @@
 
     python3 branding/store/render.py
 
-Writes fastlane/metadata/android/en-US/images/featureGraphic.png (1024x500)
+Writes fastlane/metadata/android/en-US/images/icon.png (512x512, rounded
+corners on transparency, like branding/logo.svg), featureGraphic.png (1024x500)
 and the captioned phoneScreenshots (1080x2340). Needs Google Chrome; the
 headline font is the website's Alsina.
 """
@@ -91,6 +92,13 @@ h1 {{ font-family: Alsina, sans-serif; font-weight: 400; font-size: 84px; line-h
 </body></html>"""
 
 
+def icon_html() -> str:
+    # Store clients draw the icon as it is, without a launcher mask, so the corners stay transparent.
+    return f"""<!doctype html><html><head><meta charset="utf-8"><style>
+* {{ margin: 0; }} html, body {{ background: transparent; }} img {{ display: block; width: 512px; height: 512px; }}
+</style></head><body><img src="{LOGO.as_uri()}"></body></html>"""
+
+
 def render(page: str, out: pathlib.Path, width: int, height: int) -> None:
     with tempfile.TemporaryDirectory() as tmp:
         src = pathlib.Path(tmp) / "page.html"
@@ -98,6 +106,7 @@ def render(page: str, out: pathlib.Path, width: int, height: int) -> None:
         subprocess.run(
             [CHROME, "--headless=new", "--disable-gpu", "--hide-scrollbars",
              "--force-device-scale-factor=1", "--allow-file-access-from-files",
+             "--default-background-color=00000000",
              f"--window-size={width},{height}", "--virtual-time-budget=3000",
              f"--screenshot={out}", src.as_uri()],
             check=True, capture_output=True,
@@ -107,10 +116,11 @@ def render(page: str, out: pathlib.Path, width: int, height: int) -> None:
 def main() -> None:
     shots = OUT / "phoneScreenshots"
     shots.mkdir(parents=True, exist_ok=True)
+    render(icon_html(), OUT / "icon.png", 512, 512)
     render(feature_html(), OUT / "featureGraphic.png", 1024, 500)
     for name, raw, headline, subline in SHOTS:
         render(shot_html(RAW / raw, headline, subline), shots / f"{name}.png", 1080, 2340)
-    print("rendered", 1 + len(SHOTS), "images into", OUT)
+    print("rendered", 2 + len(SHOTS), "images into", OUT)
 
 
 if __name__ == "__main__":
