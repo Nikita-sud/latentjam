@@ -122,6 +122,11 @@ fun ForYouTab(
     onPlayHero: (ForYouHero) -> Unit,
     onTrackMenu: (TrackDescriptor) -> Unit,
     onOpenCollection: (ForYouCollection) -> Unit,
+    /**
+     * Plays a collection or mix card in its order, continuing with SMART after it. The cover's
+     * play button; tapping the card still opens it (see [WorldActionsSheet] for why).
+     */
+    onPlayCollection: (ForYouCollection) -> Unit = {},
     onOpenWorld: (ForYouCard) -> Unit = {},
     /** Current presentation only: changing artwork must not rebuild or reorder recommendations. */
     playlistArtworkUris: Map<String, String> = emptyMap(),
@@ -285,6 +290,9 @@ fun ForYouTab(
                                             { onTrackMenu(card.track) }
                                         } else {
                                             null
+                                        },
+                                        onPlayCollection = card.collection?.let { collection ->
+                                            { onPlayCollection(collection) }
                                         },
                                     )
                                 }
@@ -558,6 +566,8 @@ private fun ForYouCardItem(
     artworkUri: String?,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)?,
+    /** Present for collection and mix cards: plays them without opening them first. */
+    onPlayCollection: (() -> Unit)? = null,
 ) {
     // The whole card is the touch target, but the press ripple is shown only on the cover — a
     // default clickable would paint the entire column, text and all, with a grey rectangle on
@@ -576,14 +586,35 @@ private fun ForYouCardItem(
                 onLongClick = onLongClick,
             ),
     ) {
-        Artwork(
-            uri = artworkUri,
-            size = 132.dp,
-            cornerRadius = 16.dp,
-            modifier = Modifier
-                .clip(RoundedCornerShape(16.dp.corner()))
-                .indication(interaction, ripple()),
-        )
+        Box {
+            Artwork(
+                uri = artworkUri,
+                size = 132.dp,
+                cornerRadius = 16.dp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp.corner()))
+                    .indication(interaction, ripple()),
+            )
+            if (onPlayCollection != null) {
+                // A collection or mix opens on tap — playing a hundred tracks on a touch that
+                // meant "show me" was a mistake already made once — so playing it gets its own
+                // control, on the cover where a play button is expected.
+                FilledIconButton(
+                    onClick = onPlayCollection,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(8.dp)
+                        .size(40.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = playButtonColors(),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.PlayArrow,
+                        contentDescription = stringResource(Res.string.action_play),
+                    )
+                }
+            }
+        }
         Text(
             text = card.collection?.title
                 ?: card.track.title

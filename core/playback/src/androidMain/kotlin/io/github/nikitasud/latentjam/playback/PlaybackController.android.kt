@@ -576,6 +576,19 @@ internal class AndroidPlaybackController(
         tracks: List<TrackDescriptor>,
         startIndex: Int,
         smartPlanPositions: Map<TrackId, Int>,
+    ): Unit = startQueue(tracks, startIndex, smartPlanPositions, keepOrderInSmart = false)
+
+    override suspend fun playInOrder(
+        tracks: List<TrackDescriptor>,
+        startIndex: Int,
+        smartPlanPositions: Map<TrackId, Int>,
+    ): Unit = startQueue(tracks, startIndex, smartPlanPositions, keepOrderInSmart = true)
+
+    private suspend fun startQueue(
+        tracks: List<TrackDescriptor>,
+        startIndex: Int,
+        smartPlanPositions: Map<TrackId, Int>,
+        keepOrderInSmart: Boolean,
     ) {
         if (tracks.isEmpty()) return
         userInteractionRevision.incrementAndGet()
@@ -588,7 +601,7 @@ internal class AndroidPlaybackController(
             preparePlayback(
                 tracks = tracks,
                 startIndex = startIndex,
-                includeFullQueue = modeAtRequest != ShuffleMode.SMART,
+                includeFullQueue = modeAtRequest != ShuffleMode.SMART || keepOrderInSmart,
             )
         }
 
@@ -602,7 +615,7 @@ internal class AndroidPlaybackController(
 
                 val currentMode = mode
                 val fullQueue = prepared.fullQueue
-                if (currentMode != ShuffleMode.SMART && fullQueue == null) {
+                if ((currentMode != ShuffleMode.SMART || keepOrderInSmart) && fullQueue == null) {
                     // Shuffle mode changed while the selected SMART item was being prepared. Finish
                     // constructing the natural queue on the worker, then revalidate once more.
                     needsFullQueue = true
@@ -627,7 +640,13 @@ internal class AndroidPlaybackController(
                 smartRemovedIds.clear()
                 anticipatedResumption = null
                 AndroidPlaybackStarts.announce(StartCause.USER_PICK, TrackId(prepared.selectedItem.mediaId))
-                if (currentMode == ShuffleMode.SMART) {
+                if (currentMode == ShuffleMode.SMART && keepOrderInSmart) {
+                    // A curated start: its rows play in their own order, and SMART's top-up
+                    // continues from the last of them once the lookahead runs short.
+                    player.setMediaItems(fullQueue!!, prepared.startIndex, 0L)
+                    player.shuffleModeEnabled = false
+                    smartFutureInvalidationPending = false
+                } else if (currentMode == ShuffleMode.SMART) {
                     // SMART owns its queue: start from the tapped track alone and let the chooser
                     // build the path forward. Do not construct hundreds of unused MediaItems.
                     player.setMediaItems(listOf(prepared.selectedItem))

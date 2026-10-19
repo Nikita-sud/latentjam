@@ -2635,7 +2635,24 @@ private fun AppShell(
                                             onPlay = { list, index ->
                                                 AppGraph.queueSource.value =
                                                     QueueSource(QueueSourceKind.FOR_YOU)
-                                                scope.launch { playback.play(list, index) }
+                                                scope.launch {
+                                                    playFromForYou(
+                                                        playback, engine, AppGraph.history, list, index,
+                                                        smartEligibleTracks, smartQueueLength,
+                                                        AppGraph.smartCompanionGroups.value,
+                                                    )
+                                                }
+                                            },
+                                            onPlayCollection = { collection ->
+                                                AppGraph.queueSource.value =
+                                                    QueueSource(QueueSourceKind.FOR_YOU, name = collection.title)
+                                                scope.launch {
+                                                    playFromForYou(
+                                                        playback, engine, AppGraph.history, collection.tracks, 0,
+                                                        smartEligibleTracks, smartQueueLength,
+                                                        AppGraph.smartCompanionGroups.value,
+                                                    )
+                                                }
                                             },
                                             onPlayHero = { hero ->
                                                 scope.launch {

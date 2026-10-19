@@ -324,6 +324,19 @@ internal class IosPlaybackController(
         tracks: List<TrackDescriptor>,
         startIndex: Int,
         smartPlanPositions: Map<TrackId, Int>,
+    ): Unit = startQueue(tracks, startIndex, smartPlanPositions, keepOrderInSmart = false)
+
+    override suspend fun playInOrder(
+        tracks: List<TrackDescriptor>,
+        startIndex: Int,
+        smartPlanPositions: Map<TrackId, Int>,
+    ): Unit = startQueue(tracks, startIndex, smartPlanPositions, keepOrderInSmart = true)
+
+    private suspend fun startQueue(
+        tracks: List<TrackDescriptor>,
+        startIndex: Int,
+        smartPlanPositions: Map<TrackId, Int>,
+        keepOrderInSmart: Boolean,
     ): Unit =
         withContext(Dispatchers.Main) {
             if (tracks.isEmpty()) return@withContext
@@ -349,7 +362,12 @@ internal class IosPlaybackController(
             // chance again instead of being skipped by the recovery chain.
             mediaStartRefusedIds.clear()
 
-            when (mode) {
+            // A curated start keeps its rows in order; SMART continues after the last one.
+            if (mode == ShuffleMode.SMART && keepOrderInSmart) {
+                queue = tracks
+                queueIndex = start
+                smartFutureInvalidationPending = false
+            } else when (mode) {
                 // SMART owns its queue: begin with the tapped track alone and let
                 // the chooser build the path forward from it.
                 ShuffleMode.SMART -> {
