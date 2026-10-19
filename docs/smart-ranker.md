@@ -47,9 +47,17 @@ App-side sources and deviations:
 with the fitsample listeners left out, 10 neighbours per artist, sha256 bcd40735…) in the `LJNBRS1` layout read by
 `ArtistNeighbours.kt` (from the Stage 1 branch). Entity ids are already the pack's own: **no remapping needed**.
 179,585 artists with a list, 1,795,776 entries, **7,947,962 B** raw (6.8 MB gzip; stored uncompressed in the APK and
-mapped, like the pack). Match rate: on FIT libraries 72.1 % of tracks have a MusicBrainz entity and 99.6 % of those
+mapped, like the pack; the arm64 reduced-ORT APK grows from 35.7 to 43.3 MB). Match rate: on FIT libraries 72.1 % of tracks have a MusicBrainz entity and 99.6 % of those
 have a list (71.8 % of tracks). In the app the rate depends on name resolution; the log line
 "SMART: ranker … library tracks whose artist has an entity N, a co-listening list M" reports it per library (no names).
+On the read-only Pixel_7_Pro emulator library: 679 of 852 tracks (80 %) resolve to an entity, 669 (79 %) to one with
+a list.
+
+## Speed
+
+Emulator (852 tracks): first plan 141 ms including the per-track knowledge read, a top-up 91 ms. A 10k library was
+not measured; the knowledge read is linear in the library and happens once per library list, a plan is 12 hops
+over the pool (with `anchor = seed` the scores are computed once).
 
 ## Tests
 
