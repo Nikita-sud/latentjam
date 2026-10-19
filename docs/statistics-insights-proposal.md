@@ -1,134 +1,235 @@
-# Statistics insights — proposal (19 October 2026)
+# Statistics page — whole-page spec (draft v3, 19 October 2026)
 
-Status: **design for the owner's review, nothing implemented.** Branch `claude/stats-habits-55f9ee`, cut from
-`release/0.9.2` at 334a36a9.
+Status: **design under adversarial review, nothing implemented.** Branch `claude/stats-habits-55f9ee` (from
+`release/0.9.2` at 334a36a9). Review log at the end.
 
-The current dashboard (`composeApp/.../StatsScreen.kt`, facts in `core/history/.../ListeningOverview.kt`, validated in
-`docs/statistics-validation.md`) answers *how much* you listened: time, plays, streaks, completion/skip, coverage,
-SMART share, hours, top lists. The SMART research measured *how* people listen. This proposal adds five cards that
-answer that question for the user, from their own log only, plus one optional comparison with typical listeners.
+Goal (owner): the page should be *interesting and informative* for an ordinary listener, using what the SMART
+research learned about how people listen. Existing cards may go. Everything is computed on the device from the
+user's own log and library tags; nothing leaves the device; no population data ships.
 
-## What the log gives us
+## Page at a glance
 
-Every card below is computed from `ListenEvent` alone (already in memory as the dashboard's history snapshot):
-`trackId`, `startedAtMs`, `listenedMs`, `completed`, `skipped`, `shuffleMode`, and for v4 lines `origin`
-(`start` = USER_PICK / AUTO_ADVANCE / SKIP_NEXT / SKIP_PREVIOUS / REPEAT, `smartPlanPosition`, `parentId`). Artist and
-album come from the catalog (`TrackDescriptor`); same artist uses the engine key `MetadataRerank.normalizeArtist`.
-Legacy (pre-origin) lines have `origin == null`; every card states how it treats them.
+```
+1 · YOU LATELY                          (no chips — always "now")
+  L1 On repeat now    5 tracks · bar vs top row · "8 plays in 4 weeks"         tap plays
+     Streak 6 days · record 23
+2 · YOUR NUMBERS   [ 7 days | 30 days | All time ]   (chips are this section's header)
+  N0 Hero            32 h 10 min · +4 h vs previous 30 days        (All time: "≈ 9 days of music")
+                     412 plays · 230 tracks · 61 artists
+  N1 Activity        daily bars (7/30 d) · "Last 12 months" monthly bars (All time)
+  N2 New and familiar [■■■■■■■■□□] 78 % familiar · 22 % new to you
+                     31 new tracks · 9 new artists        (counts hidden on All time)
+                     New artists that stuck: ≤ 3 rows
+  N3 When you listen hour bars (listening time) + 4 daypart labels
+                     Typical session 38 min · 9 tracks · Longest 3 h 12 min
+  N4 Your top        chips [Artists | Albums | Genres | Tracks] · 5 rows · "Show 10"
+  N5 How you listen  Finished 64 % · Skipped 12 % · SMART 41 %
+3 · OVER TIME                           (no chips — whole log)
+  T1 Slipping away   ≤ 5 old favourites · "12 plays · 4 months"                 tap plays
+  T2 On this day     what you played a year ago (log > 1 year)                   tap plays
+  T3 Your patterns   Same artist next when you pick: 27 % · sequences X → Y 4/6  (when they exist)
+  T4 Library         heard 312 of 5,000 · decades strip
+  T5 More appears as you listen   (one card listing what is still locked in sections 1 and 3)
+History note
+```
 
-Conventions shared by all cards (same as the existing dashboard): a **play** is a non-skipped start; timestamps outside
-`0..now` are ignored; tracks no longer in the library count in totals but are not shown in lists.
-Two neighbouring plays form a **step** when the second starts ≤ 15 min after the first one ended
-(`startedAtMs + listenedMs`) — the research harness's rule — and an immediate repeat of the same track is collapsed
-(`score.collapse_repeats`). A **session** is a run of plays with gaps ≤ 30 min.
+**Why this order.** The page opens on something about the listener (round 2: the story was back-loaded under four
+screens of period numbers). The chips sit as the header of the only section they govern, so sections 1 and 3 can
+never be read as "7 days".
 
-## The cards
+**Removed from today's page:** the separate Habits card (streak → section 1; active days and "per active day"
+dropped; "New to you" → N2), the *Repeat plays* meter (contradicted N2), the separate SMART/Coverage card (SMART → N5,
+coverage → T4, now all-time only — 7-day coverage read as shaming), the peak-hour sentence (→ daypart labels).
+Ten cards plus hero, about the length of today's page at default font (≈ 3,300 dp; ≈ 4,500 dp at 150 %), top
+lists capped at 5 rows by default.
 
-### 1. Returns and discoveries *(follows the period filter)*
+**Not shown** (rejected in review): an "added recently, not played" list (`addedAtMs` is the copy time on iOS and
+resets on Android migration/rescan; duplicates the Recently added auto playlist), any comparison with other
+listeners (see Deferred).
 
-> **Familiar 78 % · New to you 22 %** — one two-colour bar.
-> "42 first listens, 9 new artists." Trend line under it: "Last 30 days: more new music than the 30 before (22 % vs 15 %)."
+## Normalisation (one pass, `core/history`, pure, clock-injected, host-tested)
 
-- Return = a play of a track that has an earlier play in the saved log; first listen = otherwise. New artist = first
-  play of any track of that artist key. One extra hash set of artist keys next to the existing `tracksBeforePeriod`.
-- Why: the research found re-listening is most of listening and is driven by recency and frequency; people rarely
-  see their own split.
-- Small/fresh histories: "first" means "first since the log started". If the log starts less than 14 days before
-  the period's start, the card says "Counting since 3 October" and skips the trend line. Hidden under 20 plays.
+Applied once per history revision to the sorted snapshot; every card reads its output.
 
-### 2. In heavy rotation / Slipping away *(whole log, ignores the filter — a habit is a fact about now)*
+1. **Exact duplicates** with the same (trackId, startedAtMs) are dropped (backup merge uses full equality,
+   `LocalBackup.kt:1486`, so near-duplicates survive there).
+2. **Overlap** is detected before any capping: two consecutive events that both have `listenedMs`, where the next
+   starts more than 15 s before `start + listenedMs` of the previous, are a break (clock jump, two devices merged):
+   no step or session crosses it.
+3. **Resume fragments.** A v4 event B is merged into the immediately preceding A when `B.start == null`,
+   `B.trackId == A.trackId`, `!A.completed`, and `B.startedAtMs − (A.startedAtMs + A.listenedMs) ≤ 6 h` (a resumed
+   half after a pause is null-start and the gap is the whole pause, `HistorySessionTracker.kt:233-264`). Merged:
+   A's start, origin and shuffle mode; listened = sum; playedMs = max; completed = A ∨ B; skipped = ¬completed ∧
+   listened < 30 s; end = B.startedAtMs + B.listenedMs. Legacy lines are not merged. Finished/Skipped shares change
+   slightly as a result (documented).
+4. **End** = `startedAtMs + effectiveListenedMs`, capped at the next event's start.
+5. **Artist key** = `MetadataRerank.normalizeArtist(first artist)`; an empty key never counts as "same artist" and
+   such steps leave numerator and denominator.
+6. Times use the device's current time zone for the whole log (documented limit).
 
-> **In heavy rotation** — 5 tracks and 3 artists with a strength bar (relative to the first row).
-> **Slipping away** — up to 5 tracks you played a lot and have not heard for a while: "12 plays · last 4 months ago". Tap plays.
+Terms:
+- **Play** = non-skipped event. Skip < 30 s, completed ≥ 85 %, listened time with legacy fallback — unchanged.
+- **Session** = maximal run with gap (next start − previous end) ≤ 30 min and no overlap break. A session belongs to
+  the period of its first event.
+- **Step** X→Y = consecutive plays in one session, X ≠ Y.
+- **Pick** = a play whose `origin.start == USER_PICK` (taps in lists, search, For You, Stats, Play/Shuffle of a
+  collection, external queues with a start index). The tracker clears `smartPlanPosition` for picks
+  (`HistorySessionTracker.kt:242,250`). Skips are not picks (a skip rejects X; in shuffle it draws at random).
+  Legacy lines are never picks.
+- **Chosen play** (for favourites) = a pick, or a completed play that SMART did not plan
+  (`smartPlanPosition == null && shuffleMode != "SMART"`; the shuffle-mode test also covers legacy lines).
+- **Burn-in** for a comparison with the previous window: `logStart ≤ previousStart` (as computed in
+  `ListeningOverview.kt:118-120`). Otherwise the existing "first period" text.
+- **Variety rule** for track lists in sections 1 and 3: at most 1 track per album and 2 per artist, so a whole-album
+  listener does not get one album's track list.
 
-- Heavy rotation is the ACT-R base level (Anderson; `score.activation()`, d = 0.5):
-  `B_i = ln Σ_j max(1 s, now − t_j)^−0.5` over the track's plays. Artists sum over their tracks' plays. Shown as a bar,
-  never as the raw number. It differs from *Top tracks* (counts in the period) because last week's plays weigh more
-  than last year's.
-- Slipping away: ≥ 5 lifetime plays, last play ≥ 60 days ago, ranked by lifetime plays. Gives the dashboard its first action ("play it again") and is honest: these are the user's own
-  favourites, not recommendations.
-- Hidden under 30 plays or 5 distinct tracks; Slipping away hidden until the log spans ≥ 90 days.
+## Section 1 · You lately
 
-### 3. Your sequences *(whole log)*
+### L1 On repeat now (new)
+- Weight per track = Σ over local days **in the last 28** with ≥ 1 play of `0.5^(days ago / 14)`, evaluated at the
+  start of today (one count per day: loops and fragments cannot inflate it).
+- Eligible: ≥ 3 plays on ≥ 2 days in the last 28 days. Variety rule. 5 rows; bar = weight / top weight; subtitle
+  plural "N plays in 4 weeks". Card note: "A play counts fully today, half after two weeks."
+- Under it, one line: current streak and record (all-time, existing code).
+- Not eligible yet → listed in T5.
 
-> **After "Ce seara" you usually play "Dor de tine" — 4 of 6 times.** Up to 3 rows, each tappable (plays the pair).
+## Section 2 · Your numbers (chips)
 
-- Counts steps X → Y (the research's `transitions()`); shows pairs with ≥ 3 occurrences and ≥ 40 % of X's outgoing
-  steps, ranked by count.
-- Honesty filter — a fixed order is not a habit: drop a step whose second play is `AUTO_ADVANCE` with
-  `smartPlanPosition == null` (album or playlist order), and for legacy lines without an origin drop same-album steps.
-  Steps whose second play SMART picked (`smartPlanPosition != null`) are left out too — SMART would be quoting
-  itself. What remains: the user's own picks, skips into their own queue, and legacy cross-album steps.
-- Empty state: "No repeated sequences yet — they appear once you play the same pair a few times."
+The empty-period state covers this section only (one compact card); sections 1 and 3 still render. The full-page
+empty state is only for an empty log. Per-card locked rows exist only here, where chip changes would otherwise make
+cards jump.
 
-### 4. One artist at a time *(follows the period filter; optional comparison)*
+### N0 Hero (changed)
+Listening time, comparison with the previous window after burn-in, plays / tracks / artists. *Tracks* and
+*artists* count only items with ≥ 1 play (today they include skip-only tracks while sitting next to *Plays*). All
+time adds "≈ N days of music" (plural, from listening time).
 
-> **You stay with the same artist in 31 % of track changes.**
-> Optional strip: typical listeners q10–q90 with a dot for "you": "Typical listener: 12 %. Half of listeners are
-> between 2 % and 39 %."
-> Footer link: "SMART's artist-run setting" (the slider whose Low/High/Maximum targets come from these same quartiles).
+### N1 Activity (changed)
+7 d and 30 d: today's DailyBars. All time: titled "Last 12 months", monthly bars. DailyBars becomes generic over a
+bucket type `(key, plays, playedMs)` with a label lambda; endpoint labels only ("12 months ago" … "This month"),
+plural for the selected bar. Buckets before log start are not drawn.
 
-- Same-artist adjacency over steps, excluding steps SMART picked (it measures the user, not the slider).
-- Population numbers: `k2a1_people.json` — 1,720 ListenBrainz listeners (CC0) with ≥ 30 pairs; ship only mean 0.238
-  and raw quantiles 10/25/50/75/90 = 0 %, 2.3 %, 11.9 %, 39.2 %, 70 %. Six constants in code, no listener data, every
-  number backed by ≥ 172 listeners (privacy floor ≥ 10 met by far). Caveat text: "measured on public ListenBrainz
-  listening, roughly comparable".
-- Card hidden under 30 steps (the same floor the population used).
-- If the owner prefers no comparison at all, the card stands on its own; this is the only part that uses external data.
+### N2 New and familiar (new, replaces "New to you" and "Repeat plays")
+- *New to you* = a play that is its track's first non-skipped event in the log; *familiar* = every other play.
+  Two-tone bar. Each new track contributes exactly one new play, so the bar and the counts agree and new tracks ≤
+  hero tracks.
+- *N new tracks / N new artists* = items whose first play falls in the period; hidden on All time (would repeat the
+  hero).
+- *New artists that stuck* = artist keys whose first play is in the period **and ≥ 30 days after log start**, with
+  ≥ 5 plays on ≥ 3 days; ≤ 3 rows (not tappable in v3, see Taps). On All time: first play in the last 90 days.
+- Trend vs previous window only after burn-in. Locked under 20 plays. Footnote when the log starts inside the
+  period: "LatentJam has listened along for 12 days" (plural relative days).
+- Card note: "New to you = first played in LatentJam" (the library may predate the app).
 
-### 5. How you listen in one go *(follows the period filter)*
+### N3 When you listen (changed)
+- Hour bars now in listening time per start hour (skipped listening included, like the hero total); four daypart
+  labels with shares under the axis (Night 0–6, Morning 6–12, Afternoon 12–18, Evening 18–24). TalkBack: one
+  description from a two-argument template (daypart, percent).
+- *Typical session* = median of Σ listened time per session, and median plays per session; *Longest* = max Σ
+  listened time, relative day in the subtitle.
+- Locked under 3 sessions.
 
-> **Typical session 38 min · 9 tracks.** "Longest: 3 h 12 min on 14 October."
-> Four daypart chips with share of listening time — Morning 06–12, Afternoon 12–18, Evening 18–24, Night 00–06 —
-> and "Your longest sessions are in the evening". Sits next to the existing hour chart, which stays.
+### N4 Your top (changed)
+`AppChoiceChip` row `Artists | Albums | Genres | Tracks` (selected chip and "Show 10" in `rememberSaveable`), 5 rows.
+Albums key = (album, albumArtist ?: first artist); Genres = first genre tag; each chip shown only when ≥ 60 % of the
+period's plays carry that tag, otherwise the chip is absent. Counts are plays. Only Tracks rows are tappable.
 
-- Median session duration (first start to last end) and median plays per session; longest session in the period.
-  Daypart by the session's start hour (local time via `localTimePoint`).
-- Why: the research's daypart lift (For You rhythm round) shows when-you-listen is a strong, personal signal.
-- Hidden under 3 sessions; a single-day log shows no daypart sentence.
+### N5 How you listen (changed)
+`ShareMeter`s: Finished, Skipped (definitions unchanged, after normalisation), SMART share (moved here, unchanged).
 
-### 6. (Footer, only once the setting exists) Learn from my habits
+## Section 3 · Over time (whole log)
 
-One line under cards 2–4: "SMART uses your returns and sequences while *Learn from my habits* is on" with a link.
-The owner's toggle is decided but not in the code on `release/0.9.2`, so this line ships only with it.
+### T1 Slipping away (new; the page's first "play it again" action)
+- ≥ 5 chosen plays on ≥ 3 distinct days ever, no play in the last 60 days, ranked by chosen plays; variety rule; ≤ 5.
+- Recording-gap guard: only if the log has events on ≥ 10 of the last 60 days (Privacy can pause recording).
+  Subtitle: "12 plays · 4 months" (plurals); card note "not played in LatentJam since then".
+- Locked (→ T5) until the log spans ≥ 90 days.
 
-## Not proposed (and why)
+### T2 On this day (new)
+- Log spans > 1 year: the tracks with the most plays on the dates within ±3 days of today one year ago (≥ 2 plays
+  in that week, variety rule, ≤ 3 rows), titled "A year ago" (no date formatter needed). Hidden if nothing qualifies.
 
-- Return share vs typical listeners: no validated population aggregate exists for it yet; would need its own
-  measurement round (same privacy floor).
-- Skip-rate per origin ("you skip SMART picks 2× more than your own"): useful for SMART evaluation, confusing as a
-  user statistic, and v4 origins are only a few weeks old on most installs.
-- Genre/era breakdowns: depend on tag quality, not on behaviour; separate topic.
+### T3 Your patterns (new; hidden entirely until it has content, not locked)
+- *Same artist next when you pick* = steps whose Y is a pick and X, Y have the same non-empty artist key, over all
+  steps whose Y is a pick. Shown with ≥ 30 such steps. Card note: "Includes starting an artist's page."
+- *Sequences* X→Y over steps whose Y is a pick; denominator = X's steps whose Y is a pick. Rows when ≥ 3 occurrences
+  from ≥ 3 sessions and ≥ 40 %; ≤ 3 rows: two thumbs, `X` / `→ Y` on two ellipsised lines with
+  `Icons.AutoMirrored.Rounded.ArrowForward` (decorative), trailing "4/6". Not tappable in v3.
+- Pick-based and all-time, so it does not flicker with chips; for logs without v4 picks the card simply is not there.
 
-## Performance and memory
+### T4 Library (changed)
+*Heard* = available tracks with ≥ 1 play / library size. *Decades* strip from `originalYear ?: year` of all plays,
+shown when ≥ 60 % of plays have a year.
 
-All five cards come from **one extra pass** over the already-loaded event snapshot, on `Dispatchers.Default`, with
-the existing cancellation checks every 1,024 events, and are cached with the same history revision.
+### T5 More appears as you listen
+One card listing the locked parts of sections 1 and 3 with their unlock condition ("On repeat now — after a few
+plays on two days", "Slipping away — after three months of listening"). Absent when nothing is locked.
 
-- Activation: one `DoubleArray` per distinct track (indexed through the existing per-track map) — one `pow` per
-  play; 200k events ≈ a few ms.
-- Steps: packed `(fromIndex shl 32) or toIndex` into a `LongArray` of at most n entries, sorted in place, run-length
-  counted — no boxed pair map. 200k events → 1.6 MB transient, freed after the pass.
-- Sessions and dayparts: scalars plus an `IntArray` of session lengths for the medians.
-- Artist keys: one `HashSet<String>` sized to distinct artists.
-For a 10k-track library and a multi-year log this stays well under the event list itself (the largest object the
-dashboard already holds). On 48–96 MB heaps the cards degrade by hiding, not by crashing: an `OutOfMemoryError`
-in the insights pass is caught and the existing cards are still shown (lesson from the SMART press OOM).
+### History note (kept)
+Adds the documented limits: time zone, restores dropping unresolved tracks, files re-identified after a move.
 
-## Implementation outline (after the owner's go)
+## Taps
+Only **track rows** play (L1, T1, T2, N4 Tracks). Artist, album, genre, discovery and sequence rows are not
+interactive in v3: elsewhere in the app such rows open their page, and opening a page from here needs navigation
+wiring through `App()` — a follow-up. A tap does what tapping a track in any list does: `AppGraph.queueSource.value =
+QueueSource(QueueSourceKind.TRACKS)` (label check: if "Playing from Songs" reads wrong, add a STATISTICS kind with a
+`fallbackLabelRes`; an older build restores an unknown kind as no source, acceptable) and
+`AppGraph.playback.play(rows, index)` — so in SMART mode SMART continues from that track, in ON the rows are
+shuffled, in OFF they play in order. Implemented inside StatsScreen.kt (`rememberCoroutineScope`); identical on the
+main page and in Settings (no `playable` flag). Rows: `Role.Button`, 48 dp, description "Play" + title.
 
-1. `core/history`: `ListeningInsights.summarize(events, catalog lookups, sinceMs, nowMs, …)` → pure data class,
-   clock-injected like `ListeningOverviews`; host tests for every formula, edge case and threshold (legacy origin,
-   album order, repeats collapsed, clock skew, empty, single day, cancellation).
-2. `composeApp`: new cards in `StatsScreen.kt` from the existing `StatsCard`/`StatsTitle`/`ShareMeter`/`RankedRow`
-   and the release/0.9.2 shared components and header styles; tap actions through the existing play callbacks.
-   Keep new lambdas out of `App()` (R8 register edge).
-3. Strings: ~25 keys in all 18 bundles (literal `%`, `values-in` identical to `values-id`, plurals for counts).
-4. Checks: `testAndroidHostTest`, `compileKotlinIosSimulatorArm64`, lint, R8 release APK launch smoke, read-only
-   emulator run with an old and a fresh history; update `docs/statistics-validation.md`.
+## Loading, memory, threading
+- **One snapshot producer** per history revision: a memoised `Deferred` with the raw events and the normalised
+  arrays, shared by both effects (never two `allEvents()` copies).
+- **Section 2** effect: keyed by (selection, revision), as today, awaits the snapshot.
+- **Sections 1+3** effect: keyed by (revision, tracks, active), awaits the same snapshot, own try/catch; on failure
+  their cards fall back to T5's text, never the dashboard's error. Both keep showing their last result while
+  recomputing (the same `displayed` rule as today), so a new listen never swaps cards to locked and back.
+- Per-track state through one `HashMap<TrackId, Int>`; `IntArray`/`FloatArray` per track; steps in a `LongArray`
+  sized by the counted pick steps, packed `(from shl 32) or to`, sorted in place, run-length counted; session totals
+  in primitive arrays. Cancellation checks every 1,024 events. ≈ 2–3 MB transient for 200k events. No OOM-catching
+  claim (Kotlin/Native cannot catch it); the budget is the guard.
 
-## Questions for the owner
+## Strings and checks
+~35 keys × 18 bundles, label–value forms (no sentences with track names), plurals for every count (and fix the
+existing `stats_days_ago`, which is a plain string), literal `%`, `values-in` = `values-id`. Host tests for every
+definition (dedup, overlap, fragment merge incl. completed-then-restart not merged, burn-in, pick per origin case,
+legacy logs, SMART-only legacy log → T3 absent and T1 SMART repetition not a favourite, recording gap, variety rule,
+thresholds, cancellation, empty period with non-empty log). `testAndroidHostTest`, `compileKotlinIosSimulatorArm64`,
+lint, R8 release APK: dexdump register count of the `App()` lambda before/after plus launch smoke; read-only
+emulator with a fresh and an old log at default and 150 % font; update `docs/statistics-validation.md`.
 
-1. Ship the typical-listener comparison (card 4 strip), or keep everything purely personal?
-2. Slipping away with tap-to-play — OK as the dashboard's first action?
-3. Card order: proposed after *Habits*: 1, 5, 4, 2, 3, then the existing top lists.
+## Deferred
+- **Comparison with typical listeners.** The k2a1 population figure uses another estimator (sampled seeds, 30-min
+  start-to-start sessions, first 10 collapsed pairs, scrobbles incl. radio) and is not comparable with T3; its
+  slider targets are shrunk-posterior quantiles. Shipping one needs a new offline ListenBrainz (CC0) aggregate
+  measured with T3's exact definition, ≥ 10 listeners per number.
+- Opening artist/album/genre pages from Stats rows (navigation wiring).
+- Albums heard start to finish (needs track numbers, not in `TrackDescriptor`).
+- *Learn from my habits* footer — once the setting exists.
+- History-merge dedup at the store (the normalisation pass already hides it on this page).
+
+## Review log
+
+**Round 1 (3 fresh reviewers: listener value, statistical honesty, UX/feasibility) — all REVISE.**
+Blockers: legacy SMART steps counted as the user's habits; ACT-R `t^-0.5` from now makes the last finished track #1
+and contradicts Slipping away; the population strip compares different estimators; no tap route without new `App()`
+lambdas; two contradictory "new vs repeat" definitions. Majors: 13 cards and mixed filter scopes; daypart chips
+duplicating the hour chart; sentence templates with track names; no date formatter; untrue OOM promise; resume
+fragments and repeat-one; fixed-order skips as sequences; paused recording; no burn-in; album listeners.
+→ v2: sections, merged cards, own-choice rule, half-life weight, population deferred, in-screen taps.
+
+**Round 2 (3 fresh reviewers) — all REVISE, no blockers.**
+Listener: lists repeat each other and collapse to one album; "added recently" wrong after import/restore; sequences
+permanently locked for album and SMART listeners; story back-loaded; missing "on this day", genres, human-units total.
+Honesty: fragment rule missed the real resume path (gap = whole pause) and could merge a restart after completion;
+overlap rule could never fire after capping; N2 counts contradicted the bar and the hero; discoveries without
+burn-in; "completed" let SMART repetition make favourites; SKIP-into-other-parent is not a choice (parent is per
+queue); empty artist keys matched; B2 weight without window.
+UX: SMART/ON modes rewrite tapped lists; artist/album rows play here but open pages elsewhere; two effects without a
+shared snapshot; an empty period hid the all-time section; locked-row clutter; no segmented component; missing
+plurals; U+2192 does not mirror; dexdump register check.
+→ v3: three sections opening on "You lately", variety rule, track-only taps with the app's normal semantics, pick =
+USER_PICK, corrected normalisation order and fragment rule, first-play definitions, shared snapshot producer, T3
+hidden instead of locked, T5 aggregate locked card, B5 recently-added dropped, On this day / Genres / days-of-music
+added.
