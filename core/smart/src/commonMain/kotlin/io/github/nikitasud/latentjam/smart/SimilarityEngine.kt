@@ -160,6 +160,12 @@ public interface SimilarityEngine {
     public suspend fun embedding(trackId: TrackId): FloatArray?
 
     /**
+     * The [k] tracks whose stored audio embedding is closest to [trackId]'s, best first, without it; empty when the
+     * track is not indexed yet. The SMART ranker's audio retriever (R1) and ladder rung.
+     */
+    public suspend fun audioNeighbours(trackId: TrackId, k: Int): List<ScoredTrack> = emptyList()
+
+    /**
      * Builds the strongest covered, one-shot vector space for library-level My Mixes.
      *
      * The engine reads its audio and metadata indexes under one lock and writes directly into one

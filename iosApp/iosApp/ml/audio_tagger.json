@@ -1,0 +1,163 @@
+{
+ "format": "LJ audio tagger head v1",
+ "plan": "PLAN_FINAL.md \u00a71.3",
+ "rule": "audio_tagger_rule.json",
+ "input": {
+  "name": "A0 audio embedding (mnv4_audio.onnx clean A0, the app track vector)",
+  "dim": 960,
+  "preprocess": "x = track embedding L2-normalised; z = (x - input_mean) / input_std"
+ },
+ "family": {
+  "classes": [
+   "classical",
+   "dance",
+   "pop",
+   "rap",
+   "rock",
+   "soundtrack",
+   "other"
+  ],
+  "other_means": "no score.family() family (maps to family = null in the ranker)",
+  "model": "linear",
+  "graph": "logits = fc0(z)",
+  "temperature": 1.7864465280925443,
+  "probabilities": "softmax(logits / temperature)"
+ },
+ "descriptor": {
+  "dim": 384,
+  "method": "blend",
+  "graph": "d = normalize(normalize(p @ family_descriptor_means) + normalize(ridge.weight @ z + ridge.bias))",
+  "space": "artist_knowledge.bin v3 decoded descriptor (score.Pack.vector), unit norm"
+ },
+ "layout": "little-endian; tensors at byte offsets; float32 row-major [out, in] for weights; int8 file: weights int8 [out, in] then float32 per-row scales at scale_offset (w = q * scale[row]); biases, means, stds and tables float32",
+ "tensors_fp32": [
+  {
+   "name": "input_mean",
+   "shape": [
+    960
+   ],
+   "offset": 0,
+   "dtype": "float32"
+  },
+  {
+   "name": "input_std",
+   "shape": [
+    960
+   ],
+   "offset": 3840,
+   "dtype": "float32"
+  },
+  {
+   "name": "fc0.weight",
+   "shape": [
+    7,
+    960
+   ],
+   "offset": 7680,
+   "dtype": "float32"
+  },
+  {
+   "name": "fc0.bias",
+   "shape": [
+    7
+   ],
+   "offset": 34560,
+   "dtype": "float32"
+  },
+  {
+   "name": "family_descriptor_means",
+   "shape": [
+    7,
+    384
+   ],
+   "offset": 34588,
+   "dtype": "float32"
+  },
+  {
+   "name": "ridge.weight",
+   "shape": [
+    384,
+    960
+   ],
+   "offset": 45340,
+   "dtype": "float32"
+  },
+  {
+   "name": "ridge.bias",
+   "shape": [
+    384
+   ],
+   "offset": 1519900,
+   "dtype": "float32"
+  }
+ ],
+ "tensors_int8": [
+  {
+   "name": "input_mean",
+   "shape": [
+    960
+   ],
+   "offset": 0,
+   "dtype": "float32"
+  },
+  {
+   "name": "input_std",
+   "shape": [
+    960
+   ],
+   "offset": 3840,
+   "dtype": "float32"
+  },
+  {
+   "name": "fc0.weight",
+   "shape": [
+    7,
+    960
+   ],
+   "offset": 7680,
+   "dtype": "int8",
+   "scale_offset": 14400
+  },
+  {
+   "name": "fc0.bias",
+   "shape": [
+    7
+   ],
+   "offset": 14428,
+   "dtype": "float32"
+  },
+  {
+   "name": "family_descriptor_means",
+   "shape": [
+    7,
+    384
+   ],
+   "offset": 14456,
+   "dtype": "float32"
+  },
+  {
+   "name": "ridge.weight",
+   "shape": [
+    384,
+    960
+   ],
+   "offset": 25208,
+   "dtype": "int8",
+   "scale_offset": 393848
+  },
+  {
+   "name": "ridge.bias",
+   "shape": [
+    384
+   ],
+   "offset": 395384,
+   "dtype": "float32"
+  }
+ ],
+ "sha256": {
+  "audio_tagger_fp32.bin": "6238bdb9f2eabc7aa745a2599f43c9282f1f10348c9ca982112f508fb653524c",
+  "audio_tagger_int8.bin": "b48c24f9ff91572cbf3d23dd8dcec7956e55442f4f7148fc72fd18303e612e69"
+ },
+ "training_data": "FMA (Defferrard et al. 2017) official training split, tracks under CC BY / CC0 / public domain only; FMA metadata CC BY 4.0; descriptor targets from the shipped artist knowledge pack",
+ "imputed_flag": "every block filled from this head must carry imputed = true in the ranker features"
+}

@@ -484,6 +484,14 @@ internal class DefaultSimilarityEngine(
         mutex.withLock { index.vector(trackId) }
     }
 
+    override suspend fun audioNeighbours(trackId: TrackId, k: Int): List<ScoredTrack> = withContext(dispatcher) {
+        mutex.withLock {
+            if (k <= 0) return@withLock emptyList()
+            val vector = index.vector(trackId) ?: return@withLock emptyList()
+            runCatching { index.nearest(vector, k, exclude = setOf(trackId)) }.getOrDefault(emptyList())
+        }
+    }
+
     override suspend fun libraryMixVectors(ids: List<TrackId>): LibraryVectorSpace? =
         withContext(dispatcher) {
             mutex.withLock {
