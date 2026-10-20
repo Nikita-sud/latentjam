@@ -404,8 +404,12 @@ private const val MAX_DECODED_RESUME_QUEUE_IDS = 10_000
  */
 private val DEFAULT_APPEARANCE: StateFlow<Appearance> = kotlinx.coroutines.flow.MutableStateFlow(Appearance())
 
-/** "Learn from my habits" is on until the listener turns it off. */
-internal const val DEFAULT_LEARN_FROM_HABITS = true
+/**
+ * "Learn from my habits" (the FULL ranker) is OFF in this test build: FULL is known to over-weight heard tracks
+ * (pre-E diagnostics, 2026-10-20) and is being fixed. The toggle still works for comparison. The preference moved to a
+ * new key so a value stored by earlier test builds does not carry over.
+ */
+internal const val DEFAULT_LEARN_FROM_HABITS = false
 private val LEARN_FROM_HABITS_DEFAULT_FLOW: StateFlow<Boolean> = MutableStateFlow(DEFAULT_LEARN_FROM_HABITS)
 
 /** "Use favourites" (under "Learn from my habits") is on until the listener turns it off. */

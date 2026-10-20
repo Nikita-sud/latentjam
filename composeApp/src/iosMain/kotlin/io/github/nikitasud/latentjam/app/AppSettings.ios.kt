@@ -396,7 +396,7 @@ internal class IosAppSettings : AppSettings {
         const val KEY_APPEARANCE = "appearance_v1"
         const val KEY_SMART_QUEUE_LENGTH = "smart_queue_length"
         const val KEY_INCLUDE_NOVELTY_MIXES = "include_novelty_mixes"
-        const val KEY_LEARN_FROM_HABITS = "learn_from_habits"
+        const val KEY_LEARN_FROM_HABITS = "learn_from_habits_l1"
         const val KEY_USE_FAVOURITES = "smart_use_favourites"
         const val KEY_SMART_RANKER = "smart_ranker"
         const val KEY_SAVE_HISTORY = "save_listening_history"

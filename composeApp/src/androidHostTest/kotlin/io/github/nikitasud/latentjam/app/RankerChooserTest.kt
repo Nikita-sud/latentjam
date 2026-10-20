@@ -128,8 +128,8 @@ class RankerChooserTest {
     }
 
     @Test
-    fun `habits and Use favourites are on by default`() {
-        kotlin.test.assertTrue(DEFAULT_LEARN_FROM_HABITS)
+    fun `habits are off and Use favourites on by default in this test build`() {
+        kotlin.test.assertFalse(DEFAULT_LEARN_FROM_HABITS)
         kotlin.test.assertTrue(DEFAULT_USE_FAVOURITES)
     }
 }

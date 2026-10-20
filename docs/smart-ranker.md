@@ -10,7 +10,7 @@ parity on the trained model (§7: no interim builds).
 *Settings → SMART engine → Recommendations*:
 - **Learned ranker (test)** (`smart_ranker`, on by default in this build): off = SMART's usual chain, at once for the
   next queue — switching back needs no reinstall.
-- **Learn from my habits** (`learn_from_habits`, on by default; enabled with the ranker): on = the FULL model (the
+- **Learn from my habits** (`learn_from_habits_l1`, OFF by default in this test build while FULL is fixed; enabled with the ranker): on = the FULL model (the
   listener's own history as features and retrievers), off = CORE. The earlier habit slots are withdrawn.
 - **Use favourites** (`smart_use_favourites`, on by default, nested under habits): on = FULL plans see the listener's
   hearts (`is_favourite`, `favourited_days_ago`). It is greyed out and ignored while habits are off; off or ignored,
