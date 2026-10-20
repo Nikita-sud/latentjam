@@ -25,6 +25,10 @@ REPO = Path(__file__).resolve().parents[2]
 STATE_HOME = Path.home() / 'Documents/LJ/phone-state'
 STAND = STATE_HOME / 'stand'
 SEEDS = STAND / 'seeds.tsv'
+# Fast 3.1's near family pairs (serving/family_near_fast31.json): "near keep" counts these as staying in the mood.
+NEAR = {frozenset(p) for p in [('pop', 'rnb'), ('pop', 'dance'), ('pop', 'rock'), ('pop', 'folk'), ('pop', 'latin'), ('pop', 'reggae'),
+                                ('rnb', 'dance'), ('rnb', 'reggae'), ('rnb', 'jazz'), ('rock', 'metal'), ('rock', 'folk'),
+                                ('dance', 'latin'), ('reggae', 'latin'), ('jazz', 'classical'), ('classical', 'soundtrack')]}
 PROBLEM_SEEDS = [('Nelly', 'Dilemma'), ('Mountain Realm', ''), ('Lady Gaga', 'Bad Romance'), ('Nightcrawlers', 'Push the Feeling On')]
 FAMILY_BUCKETS = ['rap', 'rnb', 'pop', 'rock', 'dance', 'soundtrack', 'classical', 'other']
 KIDS = re.compile(r'kids|children|детск|nursery|lullab|chipmunk|disney|cartoon|мульт', re.I)
@@ -240,6 +244,13 @@ def metrics_of(q, lib, facts, seed):
         seg = picks[a:b]
         if not seg or not sf: return float('nan')
         return sum(1 for i in seg if (facts.get(i) or {}).get('family') == sf) / len(seg)
+    def near_keep(a, b):
+        seg = picks[a:b]
+        if not seg or not sf: return float('nan')
+        def ok(i):
+            f = (facts.get(i) or {}).get('family')
+            return f == sf or (f and frozenset((f, sf)) in NEAR)
+        return sum(1 for i in seg if ok(i)) / len(seg)
     se = (facts.get(seed) or {}).get('e')
     es = [float((facts.get(i) or {}).get('e')) for i in picks if (facts.get(i) or {}).get('e')]
     drift = (sum(es[-10:]) / len(es[-10:]) - float(se)) if (se and len(es) >= 10) else float('nan')
@@ -252,7 +263,7 @@ def metrics_of(q, lib, facts, seed):
     seed_ost = bool(seed_row and (OST.search(seed_row[5] or '') or KIDS.search((seed_row[3] or '') + (seed_row[5] or ''))))
     ost = 0 if seed_ost else sum(1 for r in rows if r and (OST.search(r[5] or '') or KIDS.search((r[3] or '') + ' ' + (r[5] or ''))))
     return {'n': len(picks), 'maxArtistShare': share, 'AxA': axa, 'maxRun': max_run, 'run3': run3, 'keep1_5': keep(0, 5), 'keep8_20': keep(7, 20),
-            'keep21_40': keep(20, 40), 'energyDrift': drift, 'sameSong': same_song, 'short': short, 'long': long_,
+            'keep21_40': keep(20, 40), 'nearKeep1_20': near_keep(0, 20), 'nearKeep21_40': near_keep(20, 40), 'energyDrift': drift, 'sameSong': same_song, 'short': short, 'long': long_,
             'ostInNonOst': ost}
 
 
@@ -266,6 +277,7 @@ def report(out, lib):
     md = [f'# SMART stand — {out.name}', '', 'L1 product check only (what the owner would hear); never fitting / choosing /',
           'gate input. Local; not in git.', '', (out / 'build.txt').read_text().replace('\n', ' · '), '']
     tsv = ['seed\tmode\tpress\t' + '\t'.join(['n', 'maxArtistShare', 'AxA', 'maxRun', 'run3', 'keep1_5', 'keep8_20', 'keep21_40',
+                                                'nearKeep1_20', 'nearKeep21_40',
                                                 'energyDrift', 'sameSong', 'short', 'long', 'ostInNonOst', 'repressOverlap'])]
     agg = collections.defaultdict(lambda: collections.defaultdict(list))
     for (seed, mode), presses in sorted(by.items(), key=lambda kv: (name(kv[0][0]), kv[0][1])):
@@ -292,7 +304,7 @@ def report(out, lib):
             md.append('')
     (out / 'queues.md').write_text('\n'.join(md) + '\n', encoding='utf-8')
     (out / 'metrics.tsv').write_text('\n'.join(tsv) + '\n')
-    cols = ['maxArtistShare', 'AxA', 'maxRun', 'run3', 'keep1_5', 'keep8_20', 'keep21_40', 'energyDrift', 'sameSong', 'short', 'long',
+    cols = ['maxArtistShare', 'AxA', 'maxRun', 'run3', 'keep1_5', 'keep8_20', 'keep21_40', 'nearKeep1_20', 'nearKeep21_40', 'energyDrift', 'sameSong', 'short', 'long',
             'ostInNonOst', 'repressOverlap']
     mm = [f'# Stand metrics — {out.name}', '', 'Means over seeds (L1 product check only).', '',
           '| mode | press | seeds | ' + ' | '.join(cols) + ' |', '|' + '---|' * (3 + len(cols))]
@@ -346,7 +358,8 @@ def fidelity(args):
 
 
 SCORE_COLS = [('maxRun', 'max run'), ('run3', 'runs≥3'), ('AxA', 'A-x-A'), ('keep1_5', 'keep 1–5'), ('keep8_20', 'keep 8–20'),
-              ('keep21_40', 'keep 21–40'), ('energyDrift', 'e drift'), ('ostInNonOst', 'OST in non-OST'),
+              ('keep21_40', 'keep 21–40'), ('nearKeep1_20', 'near keep 1–20'), ('nearKeep21_40', 'near keep 21–40'),
+              ('energyDrift', 'e drift'), ('ostInNonOst', 'OST in non-OST'),
               ('short', 'short'), ('long', 'long'), ('sameSong', 'same song')]
 SAMPLE_SEEDS = PROBLEM_SEEDS
 
