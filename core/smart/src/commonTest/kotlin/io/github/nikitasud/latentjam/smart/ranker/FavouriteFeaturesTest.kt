@@ -22,11 +22,12 @@ class FavouriteFeaturesTest {
         val hearts = mapOf(TrackId("a") to seedMs - 3 * day, TrackId("b") to null, TrackId("c") to seedMs + day)
         val h = PersonalHistory(emptyList(), seedMs, favourites = hearts) { "" }
         val ids = listOf("a", "b", "c", "d").map(::TrackId)
-        val rows = RankerFeatures.of(RankerRow(), ids.map { RankerRow() }, ids.map { h.row(it, TrackId("seed"), "") })
+        val rows = RankerFeatures.of(RankerRow(), ids.map { RankerRow(favourite = h.isFavourite(it), favouritedDaysAgo = h.favouritedDaysAgo(it)) })
         assertEquals(listOf(1.0, 1.0, 1.0, 0.0), rows.map { it[fav] })
         // b's heart time is unknown, c's lies after the seed (a clock change): both read 0.
         assertEquals(listOf(3.0, 0.0, 0.0, 0.0), rows.map { it[ago] })
-        assertEquals(34, RankerFeatures.NAMES.size)
+        // Appended after reference.py's first 32 columns and its pop_known / is_favourite, which keep their indexes.
+        assertEquals(listOf("pop_known", "is_favourite", "favourited_days_ago"), RankerFeatures.NAMES.drop(32))
     }
 
     private fun track(id: String) = TrackDescriptor(TrackId(id), title = id, artist = "Artist $id")

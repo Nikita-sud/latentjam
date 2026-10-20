@@ -102,8 +102,27 @@ class ServingReferenceGoldenTest {
         ranker.resolver = { t -> resolved[t.id.value] }
         val trace = PlanTrace()
         ranker.tracer = trace
-        val history = input.list("history").mapIndexed { i, id -> HabitListen(TrackId(id as String), 1_000_000L + i * 60_000L) }
         val seed = tracks.getValue(external?.get("id") as? String ?: req["seed"] as String)
+        // FULL inputs (reference.py): listens [{id, ms, next}] of the request or the fixture before seedMs, the
+        // request's favourites (ids, or {id: heart ms}); without listens the ladder's order comes from `history` ids.
+        val personal = req["personal"] == true
+        val seedMs = (req["seedMs"] as Number?)?.toLong() ?: 0L
+        val listens = (req["listens"] ?: input["listens"]) as List<*>?
+        val engineArtist = { id: TrackId -> resolved[id.value]?.engineArtist.orEmpty() }
+        val favourites: Map<TrackId, Long?> = when (val f = req["favourites"]) {
+            is List<*> -> f.associate { TrackId(it as String) to null }
+            is Map<*, *> -> f.entries.associate { (k, v) -> TrackId(k as String) to (v as Number?)?.toLong() }
+            else -> emptyMap()
+        }.takeIf { personal }.orEmpty()
+        val personalHistory = if (listens != null) {
+            val plays = listens.map { it as Map<*, *> }
+                .map { HabitListen(TrackId(it["id"] as String), (it["ms"] as Number).toLong(), it["next"] as Boolean? ?: true) }
+                .filter { it.startedAtMs < seedMs }
+            PersonalHistory(plays, seedMs, favourites, engineArtist)
+        } else {
+            val plays = input.list("history").mapIndexed { i, id -> HabitListen(TrackId(id as String), 1_000_000L + i * 60_000L) }
+            PersonalHistory(plays, if (personal) seedMs else 1_000_000L + plays.size * 60_000L, favourites, engineArtist)
+        }
         val request = PlanRequest(
             seed = seed,
             library = library,
@@ -112,7 +131,8 @@ class ServingReferenceGoldenTest {
             exclude = (req["exclude"] as? List<*>).orEmpty().map { TrackId(it as String) }.toSet(),
             recentIds = (req["recentIds"] as? List<*>).orEmpty().map { TrackId(it as String) },
             press = (req["press"] as? Number)?.toLong() ?: 0L,
-            history = PersonalHistory(history, 1_000_000L + history.size * 60_000L) { "" },
+            history = personalHistory,
+            personal = personal,
             ruleOnly = req["ruleOnly"] == true,
         )
         val report = ranker.plan(request)
@@ -150,6 +170,24 @@ class ServingReferenceGoldenTest {
      */
     private fun withoutStops(expected: Map<String, Any?>, got: Map<String, Any?>, bad: MutableList<String>): Map<String, Any?> {
         val trace = expected["trace"] as Map<*, *>
+        // The app's feature rows may run past the reference's (columns appended later): those must read 0 there.
+        (got["trace"] as MutableMap<String, Any?>?)?.let { t ->
+            val width = ((trace["seedFeatures"] as List<*>?)?.firstOrNull() as List<*>?)?.size
+            val rows = t["seedFeatures"] as List<*>?
+            if (width != null && rows != null) {
+                val popKnown = RankerFeatures.NAMES.indexOf("pop_known")
+                val logpop = RankerFeatures.NAMES.indexOf("logpop")
+                t["seedFeatures"] = rows.map { row ->
+                    val r = row as List<*>
+                    for (j in width until r.size) {
+                        // pop_known can be checked against the row itself: a known artist has logpop = ln(1 + listeners) > 0.
+                        val want = if (j == popKnown) (if (r[logpop] != 0.0) 1.0 else 0.0) else 0.0
+                        if (r[j] != want) bad += "trace.seedFeatures: ${RankerFeatures.NAMES[j]} = ${r[j]}, expected $want"
+                    }
+                    r.take(width)
+                }
+            }
+        }
         val hops = trace["hops"] as List<*>? ?: return expected
         val kept = hops.filter { (it as Map<*, *>)["stop"] == null }
         if (kept.size == hops.size) return expected

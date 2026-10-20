@@ -38,6 +38,10 @@ public class RankerRow(
     public val colisten: Double = 0.0,
     public val logPopularity: Double = 0.0,
     public val popularityKnown: Boolean = false,
+    /** The listener has hearted this track (FULL plans only, "Learn from my habits"). */
+    public val favourite: Boolean = false,
+    /** Days since it was hearted; NaN when it is not a favourite or the time is unknown. */
+    public val favouritedDaysAgo: Double = Double.NaN,
     public val lfm: Double = Double.NaN,
     public val durationMs: Long? = null,
     public val descriptorImputed: Boolean = false,
@@ -58,10 +62,6 @@ public class PersonalRow(
     public val activation: Double = Double.NaN,
     public val transTrack: Int = 0,
     public val transArtist: Int = 0,
-    /** The listener has hearted this track. */
-    public val favourite: Boolean = false,
-    /** Days since it was hearted; NaN when it is not a favourite or the time is unknown. */
-    public val favouritedDaysAgo: Double = Double.NaN,
 )
 
 /**
@@ -83,15 +83,14 @@ public object RankerFeatures {
         "dur_log", "dur_short", "dur_known", "desc_imputed", "family_imputed", "audio_cos", "audio_known", "artist_overlap",
     )
     /**
-     * The listener's hearts (FULL only, "Learn from my habits"): is_favourite 1 / 0; favourited_days_ago the days since
-     * the heart, 0 when not a favourite or the time is unknown (hearts from before the time was kept). Weights come
-     * from the model asset (0 until the research sets them).
+     * Appended after the first 32 so their indexes never move (reference.py's TAIL, PLAN_FINAL §9): pop_known — the
+     * artist popularity table has the track's artist (with `inputs.logpop = artist_pop`); is_favourite — the listener
+     * hearted it; favourited_days_ago — days since that heart, 0 when not a favourite or the time is unknown (hearts from
+     * before the time was kept). The two heart columns are set only for FULL plans ("Learn from my habits"); their
+     * weights come from the model asset (0 until the research sets them).
      */
-    public val FAVOURITE: List<String> = listOf("is_favourite", "favourited_days_ago")
-    public val NAMES: List<String> = CORE + LFM + PERSONAL + EXTRA + FAVOURITE
-
-    /** The columns read from the listener's own data (the FULL model's): PERSONAL and FAVOURITE. */
-    public val LISTENER: Set<String> = (PERSONAL + FAVOURITE).toSet()
+    public val TAIL: List<String> = listOf("pop_known", "is_favourite", "favourited_days_ago")
+    public val NAMES: List<String> = CORE + LFM + PERSONAL + EXTRA + TAIL
 
     /** Tracks shorter than this count as short (skits, interludes); a parameter of the duration features (research: 90 s). */
     public const val SHORT_TRACK_MS: Long = 90_000
@@ -153,8 +152,9 @@ public object RankerFeatures {
                 if (c.audio.isNaN()) 0.0 else c.audio,
                 b(!c.audio.isNaN()),
                 c.artistOverlap,
-                b(p?.favourite == true),
-                if (p != null && p.favourite && !p.favouritedDaysAgo.isNaN()) p.favouritedDaysAgo else 0.0,
+                b(c.popularityKnown),
+                b(c.favourite),
+                if (c.favourite && !c.favouritedDaysAgo.isNaN()) c.favouritedDaysAgo else 0.0,
             )
         }
     }

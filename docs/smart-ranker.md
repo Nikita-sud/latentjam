@@ -72,13 +72,13 @@ parity on the trained model (§7: no interim builds).
 - `SaltedKeyTest`: SHA-256 vectors, the seed and SplitMix64 outputs against Python.
 - `DecoderD0GoldenTest`: proto_ranker4's D0 decode loop, 12 queries × 20 hops identical.
 - `ServingReferenceGoldenTest`: the whole plan path against the Python serving reference
-  (tools/research/listenbrainz_eval/serving/reference.py, 3a6f8136): 17 fixtures, 32 requests, each on a new
-  SmartRanker fed the fixture's resolved records (the golden seam: `SmartRanker.resolver`, `tracer`) — ids and
-  counters identical, features, scores, sds and floors within 1e-9. The reference's own goldens matched the app
-  before the rules below changed; the app now runs against goldens regenerated with
-  `tools/research/ranker/reference_app_rules.patch` applied to reference.py (90 s short tracks, seed imputation
-  first, rule-only skip, the ladder's cap and repeats), 8 of 17 fixtures differ from 3a6f8136's. The research side
-  applies the patch and regenerates; `export_serving_fixtures.py` copies the fixtures in.
+  (tools/research/listenbrainz_eval/serving/reference.py): 17 fixtures, 32 requests, each on a new SmartRanker fed the
+  fixture's resolved records (the golden seam: `SmartRanker.resolver`, `tracer`) — ids and counters identical,
+  features, scores, sds and floors within 1e-9. The goldens are the research side's own (b4eb5333, which took over
+  the app's 19 Oct rules; `export_serving_fixtures.py` copies them in). Their rows have 32 columns; the app's
+  appended ones must read 0 there, except `pop_known`, checked against the row's `logpop`. The test already reads
+  the FULL inputs the reference gained in 6e09ccc6 (`personal`, `seedMs`, `listens`, `favourites`); no fixture uses
+  them yet.
 - `RankerArithmeticTest` (JVM and iOS simulator): the float32 cosine and the float64 score on cases where a fused
   multiply-add gives other bits — Kotlin/Native does not fuse them, so parity is exact on both.
 - Still to come: FULL's queues against the reference (it plans CORE only); the tagger on on-device 4-bit A0 vectors.
@@ -102,10 +102,10 @@ parity on the trained model (§7: no interim builds).
   queued, so a small library's SMART queue still ends when every track is queued (repeat-all loops). Letting the
   controllers queue a track again is a playback change of its own.
 - Marked playlists ("keep together in SMART") are not a ranker feature yet; the old chain still honours them.
-- Favourites (FULL only, "Learn from my habits"): `is_favourite`, and `favourited_days_ago` measured from the heart
-  times in `favorite_times.txt` (0 when the time is unknown: hearts from before this build, or after the seed). The
-  reference computes both from an optional fixture `favourites` input; no fixture sets one yet (FULL's PERSONAL
-  block has no reference parity).
+- Columns after the first 32 (reference.py's TAIL, so earlier indexes never move): `pop_known`; `is_favourite`, set
+  only in FULL plans ("Learn from my habits") from the listener's hearts; `favourited_days_ago`, days since the heart
+  from `favorite_times.txt` (0 when the time is unknown: hearts from before this build, or after the seed). The
+  reference has the first two; `favourited_days_ago` is the app's addition, which research still has to add.
 
 ## Tests (app)
 

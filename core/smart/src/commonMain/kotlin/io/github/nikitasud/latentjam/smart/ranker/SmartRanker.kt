@@ -433,7 +433,9 @@ public class SmartRanker(
         val usesAudio = active.features.contains("audio_cos") || active.audioWeight != 0.0
         if (usesAudio) withTimeoutOrNull(AUDIO_BUDGET_MS) { audioOf(seedKnown); for (k in pool) audioOf(k) }
         val popularityOn = active.logpop == RankerModel.LOGPOP_ARTIST && popularity != null
-        val personalRows = if (active.features.any { it in RankerFeatures.LISTENER }) request.history else null
+        val personalRows = if (active.features.any { it in RankerFeatures.PERSONAL }) request.history else null
+        // Hearts count only in a FULL plan ("Learn from my habits"), whatever columns the model names (reference.py).
+        val hearts = if (request.personal) request.history else null
         val budgetMs = serving.hopBudgetMs * request.length
         // The decoder's own budget: preparation (knowledge, retrieval, imputation) has its own limits above.
         val decoding = TimeSource.Monotonic.markNow()
@@ -465,7 +467,7 @@ public class SmartRanker(
             },
         ) { anchor ->
             val a = if (anchor == RankerQueue.SEED) seedKnown else pool[anchor]
-            features(a, pool, artistKeyOf, audioVectors, personalRows, request.seed.id, popularityOn)
+            features(a, pool, artistKeyOf, audioVectors, personalRows, request.seed.id, popularityOn, hearts)
         }.map { pool[it].track.id }
         val timedOut = modelPicks.size < minOf(request.length, pool.size) && decoding.elapsedNow().inWholeMilliseconds > budgetMs
         val picks = ArrayList(modelPicks)
@@ -487,7 +489,7 @@ public class SmartRanker(
         if (trace != null) {
             trace.window = window
             trace.pool = pool.map { it.track.id }
-            trace.seedFeatures = if (pool.isEmpty()) emptyArray() else features(seedKnown, pool, artistKeyOf, audioVectors, personalRows, request.seed.id, popularityOn)
+            trace.seedFeatures = if (pool.isEmpty()) emptyArray() else features(seedKnown, pool, artistKeyOf, audioVectors, personalRows, request.seed.id, popularityOn, hearts)
             trace.imputedTracks = (pool + seedKnown).filter { it.descriptorImputed || it.familyImputed }.map { it.track.id }
                 .distinct().sortedWith { a, b -> SaltedKey.idOrder.compare(a.value, b.value) }
         }
@@ -512,6 +514,7 @@ public class SmartRanker(
         personal: PersonalHistory?,
         seedId: TrackId,
         popularityOn: Boolean,
+        hearts: PersonalHistory?,
     ): Array<DoubleArray> {
         val related = HashMap<Int, Double>()
         if (anchor.entity >= 0) neighbours?.forEachNeighbour(anchor.entity) { n, s -> related[n] = s.toDouble() }
@@ -528,6 +531,8 @@ public class SmartRanker(
                 colisten = if (c.entity >= 0) related[c.entity] ?: 0.0 else 0.0,
                 logPopularity = pop ?: 0.0,
                 popularityKnown = pop != null,
+                favourite = hearts?.isFavourite(c.track.id) == true,
+                favouritedDaysAgo = hearts?.favouritedDaysAgo(c.track.id) ?: Double.NaN,
                 lfm = cosine(anchor.lfm, c.lfm),
                 durationMs = c.durationMs,
                 descriptorImputed = c.descriptorImputed,

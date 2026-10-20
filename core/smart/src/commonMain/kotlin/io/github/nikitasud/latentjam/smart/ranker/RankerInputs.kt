@@ -75,11 +75,15 @@ public class PersonalHistory(
             activation = activation[track] ?: Double.NaN,
             transTrack = fromTrack[anchor]?.get(track) ?: 0,
             transArtist = if (anchorArtist.isEmpty()) 0 else fromArtist[anchorArtist]?.get(track) ?: 0,
-            favourite = track in favourites,
-            // Clamped at 0 like the listen ages: a clock change can date a heart after the seed.
-            favouritedDaysAgo = favourites[track]?.let { maxOf(0.0, (seedAt - it) / 86_400_000.0) } ?: Double.NaN,
         )
     }
+
+    /** Whether the listener hearted [track]. */
+    public fun isFavourite(track: TrackId): Boolean = track in favourites
+
+    /** Days since [track] was hearted, clamped at 0 (a clock change can date a heart after the seed); NaN when unknown. */
+    public fun favouritedDaysAgo(track: TrackId): Double =
+        favourites[track]?.let { maxOf(0.0, (seedAt - it) / 86_400_000.0) } ?: Double.NaN
 
     /** Heard tracks by ACT-R activation, best first (FULL's R6). */
     public fun favourites(): List<TrackId> =
