@@ -34,26 +34,32 @@ internal class AndroidTrackIdentities(
         val source: String,
         val volume: String,
         val extension: String,
-        val duration: Long?,
+        /** The duration, unboxed: [NO_DURATION] for none. */
+        private val durationValue: Long,
         val revision: Revision,
         val checked: Revision?,
         val tags: TrackIdentityTags?,
-    )
+    ) {
+        val duration: Long? get() = durationValue.takeIf { it != NO_DURATION }
+    }
 
     /**
      * What [remember] needs of the last scanned rows: their locator and the revision they were
-     * registered under. Not the rows themselves: the app republishes richer copies of every
-     * descriptor, so a retained list here was a second copy of a 10,000-song library.
+     * registered under, which is each row's (immutable) entry as the scan registered it. Not the rows
+     * themselves: the app republishes richer copies of every descriptor, so a retained list here was a
+     * second copy of a 10,000-song library.
      */
-    private class Row(val source: String, val volume: String, val revision: Revision, private val ownAudioUri: String?) {
-        /** The row's audio URI: MediaStore's own for [source] unless the scan gave another. */
-        val audioUri: String? get() = if (ownAudioUri === MEDIA_STORE_URI) "$MEDIA_STORE_SONGS$source" else ownAudioUri
-    }
+    private var currentRows = emptyArray<Entry>()
+
+    /**
+     * The scanned rows' audio URIs where one is not MediaStore's own for its source (then
+     * [MEDIA_STORE_URI]); null when none is, the usual case.
+     */
+    private var currentAudio: Array<String?>? = null
 
     private var entries: Map<String, Entry>? = null
     /** Source → app ID, only where they differ (a relocated file); everything else maps to itself. */
     private var sourceAliases = emptyMap<String, String>()
-    private var currentRows = emptyArray<Row>()
     /** One instance per distinct volume/extension: 10,000 rows share a handful of these. */
     private val shared = HashMap<String, String>()
 
@@ -108,11 +114,12 @@ internal class AndroidTrackIdentities(
             val key = tags.releaseTrack ?: continue
             val old = oldGroups[key]?.singleOrNull() ?: continue
             val duration = track.durationMs
+            val oldDuration = old.duration
             if (newGroups[key]?.size != 1 || old.source in allAudioIds ||
                 volume(track) in failedVolumes || old.volume.isEmpty() || old.volume != volume(track) ||
                 old.extension.isEmpty() || old.extension != extension(track) ||
-                old.duration == null || duration == null || old.duration <= 0 || duration <= 0 ||
-                kotlin.math.abs(old.duration - duration) > 1_000 ||
+                oldDuration == null || duration == null || oldDuration <= 0 || duration <= 0 ||
+                kotlin.math.abs(oldDuration - duration) > 1_000 ||
                 (old.tags?.recording != null && tags.recording != null && old.tags.recording != tags.recording)
             ) continue
             matches[track.id.value] = old
@@ -121,7 +128,8 @@ internal class AndroidTrackIdentities(
         val next = LinkedHashMap<String, Entry>(previous)
         // IDs taken: every registered one, every current source, and those minted in this pass.
         val minted = HashSet<String>()
-        val rows = arrayOfNulls<Row>(tracks.size)
+        val rows = arrayOfNulls<Entry>(tracks.size)
+        var audio: Array<String?>? = null
         val resolved = tracks.mapIndexed { index, track ->
             cancellationCheck()
             val source = track.id.value
@@ -139,17 +147,25 @@ internal class AndroidTrackIdentities(
             val checked = if (facts[source] != null) revision else old?.checked?.let {
                 if (it == revision) revision else it
             }
-            next[id] = Entry(id, source, volume(track), extension(track), track.durationMs, revision, checked, tags)
-            val audioUri = track.audioUri
-            rows[index] = Row(
-                source, volume(track), revision,
-                if (audioUri == "$MEDIA_STORE_SONGS$source") MEDIA_STORE_URI else audioUri,
+            val entry = Entry(
+                id, source, volume(track), extension(track), track.durationMs ?: NO_DURATION, revision, checked, tags,
             )
+            next[id] = entry
+            rows[index] = entry
+            val audioUri = track.audioUri
+            if (audioUri != "$MEDIA_STORE_SONGS$source") {
+                val own = audio ?: arrayOfNulls<String>(tracks.size).also { created ->
+                    created.fill(MEDIA_STORE_URI)
+                    audio = created
+                }
+                own[index] = audioUri
+            }
             if (id == source) track else track.copy(id = TrackId(id))
         }
         commit(next)
         @Suppress("UNCHECKED_CAST")
-        currentRows = rows as Array<Row>
+        currentRows = rows as Array<Entry>
+        currentAudio = audio
         return resolved
     }
 
@@ -157,16 +173,19 @@ internal class AndroidTrackIdentities(
     fun remember(cancellationCheck: () -> Unit = {}) {
         // Published maps are never mutated, so the snapshot needs no copy.
         val (rows, known, aliases) = synchronized(this) { Triple(currentRows, load(), sourceAliases) }
+        val audio = synchronized(this) { currentAudio }
         val updates = ArrayList<Pair<Entry, TrackIdentityTags>>()
         try {
-            for (row in rows) {
+            for ((index, row) in rows.withIndex()) {
                 cancellationCheck()
                 val old = entryForSource(known, aliases, row.source) ?: continue
                 if (old.volume != row.volume || old.revision != row.revision ||
                     (!old.revision.isEmpty() && old.checked == old.revision)) continue
                 val probe = TrackDescriptor(
                     id = TrackId(row.source),
-                    audioUri = row.audioUri,
+                    audioUri = (audio?.get(index) ?: MEDIA_STORE_URI).let {
+                        if (it === MEDIA_STORE_URI) "$MEDIA_STORE_SONGS${row.source}" else it
+                    },
                     sourceRevision = row.revision.toString(),
                     storageVolume = row.volume,
                 )
@@ -244,8 +263,9 @@ internal class AndroidTrackIdentities(
     private companion object {
         const val HEADER = "latentjam-track-identities-v1"
         private const val MEDIA_STORE_SONGS = "content://media/external/audio/media/"
+        private const val NO_DURATION = Long.MIN_VALUE
 
-        /** Marks a [Row] whose audio URI is MediaStore's own for its source (formed when read, not held). */
+        /** Marks a scanned row whose audio URI is MediaStore's own for its source (formed when read, not held). */
         private val MEDIA_STORE_URI = String(charArrayOf('-'))
 
         fun revision(track: TrackDescriptor): Revision = Revision.of(track.sourceRevision.orEmpty())
@@ -331,7 +351,7 @@ internal class AndroidTrackIdentities(
                 val revision = Revision.of(fields[5])
                 val checked = if (tags == null) null else if (fields[6] == fields[5]) revision else Revision.of(fields[6])
                 result[fields[0]] = Entry(fields[0], fields[1], shared(fields[2]), shared(fields[3]),
-                    fields[4].toLongOrNull(), revision, checked, tags)
+                    fields[4].toLongOrNull() ?: NO_DURATION, revision, checked, tags)
             }
             while (true) {
                 val char = input.read()
