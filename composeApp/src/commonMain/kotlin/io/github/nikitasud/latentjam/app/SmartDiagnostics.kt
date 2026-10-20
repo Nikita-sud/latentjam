@@ -61,6 +61,11 @@ internal suspend fun diagnoseRecentSmartStarts(
     val artistKeys = library.associate { it.id to HabitSlots.artistKey(it) }
     val names = library.associateBy { it.id }
     val out = StringBuilder()
+    // Freshness as the live chooser saw it: every press's plan-0 first rows (SmartLogRecorder), newest first.
+    class Press(val queue: String, val atMs: Long, val ids: Set<TrackId>)
+    val presses = plans.entries.map { (queue, rows) ->
+        Press(queue, rows.minOf { it.atMs }, rows.filter { it.hop <= SmartPlanLog.SHOWN_ROWS }.mapNotNullTo(HashSet()) { byHash[it.track]?.id })
+    }.sortedByDescending { it.atMs }
     val chosen = plans.entries.filter { (_, rows) -> rows.firstOrNull()?.model?.let { it != "chain" && it != "none" } == true }.takeLast(starts)
     for ((queue, rows) in chosen) {
         val parts = queue.split('.')
@@ -76,12 +81,17 @@ internal suspend fun diagnoseRecentSmartStarts(
         val listens = habitListens(oldestFirst, libraryIds, startMs)
         val hearts = if (personal && useFavourites) favourites.filterValues { it == null || it <= startMs } else emptyMap()
         val history = PersonalHistory(listens, startMs, hearts) { artistKeys[it].orEmpty() }
-        val diagnostics = PlanDiagnostics()
+        val diagnostics = PlanDiagnostics(topK = 10)
+        val plannedAt = rows.minOf { it.atMs }
+        val impressions = ranker.freshnessFor(personal, ruleOnly)?.let { f ->
+            val window = f.windowMs ?: (2L * 3_600_000)
+            presses.filter { it.queue != queue && it.atMs < plannedAt && plannedAt - it.atMs <= window }.take(f.presses).map { it.ids }
+        }.orEmpty()
         val report = ranker.plan(
             PlanRequest(
                 seed = seed, library = library, candidates = library.filter { it.id != seed.id }, length = rows.size,
                 exclude = HabitSlots.novelty(listens, startMs), press = press, history = history, personal = personal,
-                ruleOnly = ruleOnly,
+                ruleOnly = ruleOnly, impressions = impressions,
             ),
             diagnostics,
         )
@@ -109,6 +119,8 @@ internal suspend fun diagnoseRecentSmartStarts(
             .append(",\"pool\":").append(diagnostics.poolSize).append(",\"poolHow\":").append(q(diagnostics.poolHow))
             .append(",\"sources\":{").append(diagnostics.sourceCounts.entries.joinToString(",") { (k, v) -> "${q(k)}:$v" }).append("}")
             .append(",\"imputed\":").append(report.imputed)
+            .append(",\"impressionSets\":").append(impressions.size)
+            .append(",\"impressionIds\":").append(impressions.sumOf { it.size })
             .append(",\"audio\":").append(report.audio.let { c ->
                 "{\"seedVector\":${c.seedVector},\"seedEnergy\":${c.seedEnergy},\"poolVectors\":${c.poolVectors}," +
                     "\"poolEnergies\":${c.poolEnergies},\"r1Neighbours\":${c.r1Neighbours}," +
@@ -132,6 +144,7 @@ internal suspend fun diagnoseRecentSmartStarts(
                     "\"p\":${n(e.probability)},\"source\":${q(e.source)},\"artistKey\":${q(e.artistKey)}," +
                     "\"penalty\":${n(e.penalty)},\"cap\":${n(e.cap)},\"reentry\":${n(e.reentry)}," +
                     "\"contrib\":[${e.contributions.joinToString(",") { n(it) }}]," +
+                    "\"terms\":${e.terms?.joinToString(",", "[", "]") { n(it) } ?: "null"}," +
                     "\"row\":[${e.seedRow.joinToString(",") { n(it) }}]}")
             }
             out.append("]}")
@@ -165,6 +178,7 @@ internal suspend fun diagnoseRecentSmartStarts(
         out.append(diagnostics.firstHop.take(40).joinToString(",") { e ->
             "{\"track\":${track(e.id)},\"t\":${n(e.t)},\"source\":${q(e.source)},\"contrib\":[${e.contributions.joinToString(",") { n(it) }}]}"
         })
+        val poolIndex = HashMap<TrackId, Int>().also { m -> diagnostics.poolIds.forEachIndexed { i, id -> m[id] = i } }
         out.append("],\"probe\":[")
         var firstProbe = true
         for ((id, why) in probe) {
@@ -192,7 +206,8 @@ internal suspend fun diagnoseRecentSmartStarts(
                 "\"energyLow\":${n(sem?.probability(io.github.nikitasud.latentjam.smart.SemanticLabel.ENERGY_LOW)?.toDouble() ?: Double.NaN)}," +
                 "\"tender\":${n(sem?.probability(io.github.nikitasud.latentjam.smart.SemanticLabel.MOOD_TENDER)?.toDouble() ?: Double.NaN)}," +
                 "\"e\":${n(runCatching { engine?.energy(id) }.getOrNull() ?: Double.NaN)}," +
-                "\"family\":${q(io.github.nikitasud.latentjam.smart.HabitFlow.family(names[id]?.genre))}," +
+                "\"family\":${q(ranker.familyOf(id))}," +
+                "\"ranks\":[${poolIndex[id]?.let { pi -> diagnostics.hops.joinToString(",") { h -> h.ranks.getOrNull(pi)?.toString() ?: "0" } } ?: ""}]," +
                 "\"contrib\":[${e?.contributions?.joinToString(",") { n(it) } ?: ""}]," +
                 "\"gapToPick\":[${if (e != null && firstPick != null) firstPick.contributions.indices.joinToString(",") { n(firstPick.contributions[it] - e.contributions[it]) } else ""}]}")
         }

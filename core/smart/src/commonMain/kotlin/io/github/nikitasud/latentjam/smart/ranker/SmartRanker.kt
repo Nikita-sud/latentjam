@@ -257,13 +257,21 @@ public object RankerQueue {
                     eSd = maxOf(E_SD_FLOOR, if (n > 0) sqrt(sq / n) else E_SD_FLOOR)
                 }
             }
+            // Diagnostics only: each row's terms (run, freshness + novelty, arm P audio, energy, re-entry).
+            val terms = if (trace != null) Array(5) { DoubleArray(poolSize) } else null
             fun penalised(i: Int): Double {
                 var v = s[i]
                 val ma = if (aKey != null) redundancy(artistKeys[i], creditsOf(i), aKey, anchorCredits, re.credit) else 0.0
                 if (ma > 0.0 && model.runPenalty > 0.0) v -= model.runPenalty * runLength * sd * ma
+                terms?.let { it[0][i] = s[i] - v }
+                var mark = v
                 if (fresh != null && fresh[i] != 0.0) v -= model.freshness!!.lambda * sd * fresh[i]
                 if (novelty != null && novelty[i] != 0.0) v -= model.softNovelty!!.lambda * sd * novelty[i]
+                terms?.let { it[1][i] = mark - v }
+                mark = v
                 if (aPrev != null) v += model.audioWeight * aPrev[i]
+                terms?.let { it[2][i] = v - mark }
+                mark = v
                 if (en != null) {
                     val ei = energies!![i].takeIf { !it.isNaN() } ?: eFill
                     val ref = if (!en.seedHinge) (if (picks.isNotEmpty()) energies[picks.last()].takeIf { !it.isNaN() } else seedEnergy) else seedEnergy
@@ -273,6 +281,8 @@ public object RankerQueue {
                         v -= en.lambda * (if (!en.seedHinge) d else maxOf(0.0, d - en.tau))
                     }
                 }
+                terms?.let { it[3][i] = mark - v }
+                mark = v
                 if (ma == 0.0 && re.lambda != 0.0) {
                     var r = 0.0
                     for (b in backDistance.indices) {
@@ -284,6 +294,7 @@ public object RankerQueue {
                     }
                     if (r != 0.0) v -= re.lambda * sd * r
                 }
+                terms?.let { it[4][i] = mark - v }
                 return v
             }
             val t = DoubleArray(poolSize) { if (allowed[it]) penalised(it) else Double.NaN }
@@ -294,7 +305,7 @@ public object RankerQueue {
             val nearBest = (0 until poolSize).filter { allowed[it] && t[it] >= floor }.sortedBy { tieOrder[it] }
             var best = if (model.epsilon == 0.0 && nearBest.size == 1) nearBest[0] else choose(picks.size, nearBest)
             if (take != null) best = take(picks.size, best, ::penalised)
-            trace?.invoke(HopTrace(s, t, sd, 0.0, aKey.orEmpty(), runLength, false, bestScore, spreadPenalised, floor, nearBest, best))
+            trace?.invoke(HopTrace(s, t, sd, 0.0, aKey.orEmpty(), runLength, false, bestScore, spreadPenalised, floor, nearBest, best, terms))
             open[best] = false
             picks += best
             val key = artistKeys[best]
@@ -335,6 +346,8 @@ public object RankerQueue {
         public val floor: Double,
         public val nearBest: List<Int>,
         public val pick: Int,
+        /** v5 decoder, diagnostics: per row the run, freshness + novelty, arm-P audio (gain), energy and re-entry terms. */
+        public val terms: Array<DoubleArray>? = null,
     )
 
     /** Population sd of [s] over the rows [open] marks. */
@@ -501,6 +514,8 @@ public class PlanDiagnostics(public val topK: Int = 5) {
         public val contributions: DoubleArray,
         /** The row's feature values at the seed anchor, in [RankerFeatures.NAMES] order. */
         public val seedRow: DoubleArray,
+        /** v5: run, freshness + novelty, arm-P audio gain, energy, re-entry (what the row lost / gained); null otherwise. */
+        public val terms: DoubleArray? = null,
     )
 
     public class Hop(
@@ -514,6 +529,8 @@ public class PlanDiagnostics(public val topK: Int = 5) {
         public val nearBestSize: Int,
         public val floor: Double,
         public val entries: List<Entry>,
+        /** Every pool row's rank at this hop by penalised score (1 = best), 0 when the row was not allowed; pool order. */
+        public val ranks: IntArray = IntArray(0),
     )
 
     public var model: String = ""
@@ -654,6 +671,9 @@ public class SmartRanker(
     public val modelName: String get() = model.name
     public val hasFullModel: Boolean get() = fullModel != null
     public val fullModelName: String? get() = fullModel?.name
+
+    /** Diagnostics: the family the ranker resolved for [id] in the last planned library (track tag / artist / tagger). */
+    public fun familyOf(id: TrackId): String? = knownById[id]?.family
 
     /** The freshness block of the model a plan with these flags runs (PLAN_L1 §2c), or null when it has none. */
     public fun freshnessFor(personal: Boolean, ruleOnly: Boolean): RankerModel.Freshness? = when {
@@ -1007,6 +1027,7 @@ public class SmartRanker(
                     reentry = (h.s[i] - (if (same) h.penalty else 0.0) - (if (same && h.capped) model.thirdInRowCap else 0.0) - h.t[i])
                         .let { if (kotlin.math.abs(it) < 1e-12) 0.0 else it },
                     contributions = contributions(i), seedRow = seedRows[i],
+                    terms = h.terms?.let { tm -> DoubleArray(tm.size) { tm[it][i] } },
                 )
             }
         if (d.hops.isEmpty()) d.firstHop += entries
@@ -1015,6 +1036,7 @@ public class SmartRanker(
             hop = d.hops.size + 1, pick = pool[h.pick].track.id, sd = h.sd, penalty = h.penalty, runArtist = h.runArtist,
             runLength = h.runLength, capped = h.capped, nearBestSize = h.nearBest.size, floor = h.floor,
             entries = shown.indices.filter { shown[it] in keep }.map { entries[it] },
+            ranks = IntArray(pool.size).also { rk -> ranked.forEachIndexed { pos, i -> rk[i] = pos + 1 } },
         )
     }
 
