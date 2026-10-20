@@ -202,6 +202,7 @@ internal suspend fun rankerPlan(
                 seed = seed, library = scope, candidates = candidates, length = length, exclude = novel,
                 recentIds = recentIds, press = press, history = personalHistory, personal = personal,
                 ruleOnly = ruleOnly || !fits, impressions = impressions, excludeAgeMs = noveltyAges, engaged = engaged,
+                seedMs = seedMs,
             ),
         )
         val (withEntity, listed, withLfm) = ranker.entityCoverage

@@ -66,6 +66,11 @@ public class RankerModel(
     public val anchorShare: AnchorShare? = null,
     /** Fast 3: −λ when the seed's and the candidate's families are both known and differ. */
     public val familyMismatch: Double? = null,
+    /** Fast 3.1: unordered family pairs that take [familyNearScale] · λ instead of the full familyMismatch λ. */
+    public val familyNear: Set<Set<String>> = emptySet(),
+    public val familyNearScale: Double = 0.0,
+    /** Fast 3.1: −λ for a holiday track when the press is outside 15 Nov – 10 Jan (UTC) and the seed is not one. */
+    public val holidaySeason: Double? = null,
     /** Fast 3: −λ for a candidate in [ClassMismatch.families] when the seed is not. */
     public val classMismatch: ClassMismatch? = null,
     /** Fast 4: seed-anchored continuity on cached audio heads, in head-name order. */
@@ -239,10 +244,11 @@ public class RankerModel(
                 "schema", "name", "source", "provenance", "features", "mean", "sd", "weights", "runPenalty", "anchor",
                 "seedWeight", "previousWeight", "epsilon", "thirdInRowCap", "serving", "inputs", "audioWeight",
                 "artistReentry", "energy", "r1Energy", "audioAnchor", "imputedDescriptor", "seedGate", "freshness", "coreOffset",
-                "audioZ", "softNovelty", "anchorShare", "colistenPrevShare", "familyMismatch", "classMismatch", "continuity",
+                "audioZ", "softNovelty", "anchorShare", "colistenPrevShare", "familyMismatch", "classMismatch", "continuity", "holidaySeason",
             ),
             "anchorShare" to setOf("share", "columns"),
-            "familyMismatch" to setOf("lambda"),
+            "familyMismatch" to setOf("lambda", "near", "nearScale"),
+            "holidaySeason" to setOf("lambda"),
             "classMismatch" to setOf("lambda", "families"),
             "softNovelty" to setOf("lambda", "hardLast"),
             "serving" to setOf("wholeLibraryUpTo", "quotas", "artistKey", "recentWindow", "hopBudgetMs", "l2", "poolTarget", "artistCap", "unknownSeedAudioFill"),
@@ -334,6 +340,10 @@ public class RankerModel(
                     AnchorShare((a["share"] as Number).toDouble(), (a["columns"] as? List<*>)?.map { it as String } ?: listOf("colisten", "lfm_cos"))
                 } ?: (root["colistenPrevShare"] as? Number)?.let { AnchorShare(it.toDouble(), listOf("colisten")) },
                 familyMismatch = (root["familyMismatch"] as? Map<*, *>)?.let { (it["lambda"] as Number).toDouble() },
+                familyNear = ((root["familyMismatch"] as? Map<*, *>)?.get("near") as? List<*>).orEmpty()
+                    .map { p -> (p as List<*>).map { it as String }.toSet() }.toSet(),
+                familyNearScale = ((root["familyMismatch"] as? Map<*, *>)?.get("nearScale") as? Number)?.toDouble() ?: 0.0,
+                holidaySeason = (root["holidaySeason"] as? Map<*, *>)?.let { (it["lambda"] as Number).toDouble() },
                 classMismatch = (root["classMismatch"] as? Map<*, *>)?.let { c ->
                     ClassMismatch((c["lambda"] as Number).toDouble(), ((c["families"] as? List<*>)?.map { it as String } ?: listOf("soundtrack")).toSet())
                 },

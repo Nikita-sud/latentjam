@@ -69,6 +69,8 @@ public object RankerQueue {
         /** Fast 3 mismatch terms: each row's device family and the seed's. */
         families: List<String?>? = null,
         seedFamily: String? = null,
+        /** Fast 3.1 holidaySeason: the rows that lose λ (holiday tracks, out of season, the seed not one); null = none. */
+        holiday: BooleanArray? = null,
         /** Fast 4 continuity: per model head, each row's value (NaN = unknown) and the seed's (null = term off). */
         heads: List<Pair<DoubleArray, Double?>>? = null,
         features: (anchor: Int) -> Array<DoubleArray>,
@@ -88,12 +90,18 @@ public object RankerQueue {
             }
             val sc = DoubleArray(poolSize) { model.score(rows[it]) }
             if (model.audioZ) addAudioZ(model, sc, rows)
+            if (holiday != null) model.holidaySeason?.let { lam -> for (i in 0 until poolSize) if (holiday[i]) sc[i] = sc[i] - lam }
             if (families != null) {
                 model.classMismatch?.let { cm ->
                     if (seedFamily !in cm.families) for (i in 0 until poolSize) if (families[i] in cm.families) sc[i] = sc[i] - cm.lambda
                 }
                 model.familyMismatch?.let { lam ->
-                    if (seedFamily != null) for (i in 0 until poolSize) if (families[i] != null && families[i] != seedFamily) sc[i] = sc[i] - lam
+                    if (seedFamily != null) for (i in 0 until poolSize) {
+                        val f = families[i] ?: continue
+                        if (f == seedFamily) continue
+                        // Fast 3.1: a near pair takes nearScale · λ.
+                        sc[i] = sc[i] - lam * (if (setOf(f, seedFamily) in model.familyNear) model.familyNearScale else 1.0)
+                    }
                 }
             }
             return sc
@@ -469,6 +477,8 @@ public class PlanRequest(
     public val impressions: List<Set<TrackId>> = emptyList(),
     /** Fast track 2 soft novelty: ms since each [exclude] id's last play (absent = 0). */
     public val excludeAgeMs: Map<TrackId, Long> = emptyMap(),
+    /** The press time (epoch ms): fast 3.1's holiday season reads it. */
+    public val seedMs: Long = 0,
     /** Fast 3: tracks the listener played after a press showed them (freshness.engaged = exempt). */
     public val engaged: Set<TrackId> = emptySet(),
 )
@@ -994,6 +1004,8 @@ public class SmartRanker(
             fresh = fresh,
             families = if (active.familyMismatch != null || active.classMismatch != null) pool.map { it.family } else null,
             seedFamily = seedKnown.family,
+            holiday = active.holidaySeason?.takeIf { !Holidays.inSeason(request.seedMs) && !Holidays.isHoliday(seedKnown.track) }
+                ?.let { BooleanArray(pool.size) { i -> Holidays.isHoliday(pool[i].track) } },
             heads = if (active.continuity.isEmpty()) null else active.continuity.map { h ->
                 DoubleArray(pool.size) { i -> headOf(h.name, pool[i].track.id) ?: Double.NaN } to headOf(h.name, seedKnown.track.id)
             },

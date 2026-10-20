@@ -242,7 +242,9 @@
   "lambda": 1.0,
   "delta": 0.5,
   "presses": 5,
-  "windowMs": 1209600000
+  "windowMs": 1209600000,
+  "cap": 0.5,
+  "engaged": "exempt"
  },
  "anchorShare": {
   "share": 0.25,
@@ -252,12 +254,78 @@
   ]
  },
  "familyMismatch": {
-  "lambda": 0.5
+  "lambda": 0.5,
+  "near": [
+   [
+    "pop",
+    "rnb"
+   ],
+   [
+    "pop",
+    "dance"
+   ],
+   [
+    "pop",
+    "rock"
+   ],
+   [
+    "pop",
+    "folk"
+   ],
+   [
+    "pop",
+    "latin"
+   ],
+   [
+    "pop",
+    "reggae"
+   ],
+   [
+    "rnb",
+    "dance"
+   ],
+   [
+    "rnb",
+    "reggae"
+   ],
+   [
+    "rnb",
+    "jazz"
+   ],
+   [
+    "rock",
+    "metal"
+   ],
+   [
+    "rock",
+    "folk"
+   ],
+   [
+    "dance",
+    "latin"
+   ],
+   [
+    "reggae",
+    "latin"
+   ],
+   [
+    "jazz",
+    "classical"
+   ],
+   [
+    "classical",
+    "soundtrack"
+   ]
+  ],
+  "nearScale": 0.0
  },
  "classMismatch": {
   "lambda": 1.0,
   "families": [
    "soundtrack"
   ]
+ },
+ "holidaySeason": {
+  "lambda": 1.0
  }
 }
