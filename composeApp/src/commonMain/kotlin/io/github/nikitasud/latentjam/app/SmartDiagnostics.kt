@@ -109,6 +109,11 @@ internal suspend fun diagnoseRecentSmartStarts(
             .append(",\"pool\":").append(diagnostics.poolSize).append(",\"poolHow\":").append(q(diagnostics.poolHow))
             .append(",\"sources\":{").append(diagnostics.sourceCounts.entries.joinToString(",") { (k, v) -> "${q(k)}:$v" }).append("}")
             .append(",\"imputed\":").append(report.imputed)
+            .append(",\"audio\":").append(report.audio.let { c ->
+                "{\"seedVector\":${c.seedVector},\"seedEnergy\":${c.seedEnergy},\"poolVectors\":${c.poolVectors}," +
+                    "\"poolEnergies\":${c.poolEnergies},\"r1Neighbours\":${c.r1Neighbours}," +
+                    "\"timedOut\":[${c.timedOut.sorted().joinToString(",") { q(it) }}]}"
+            })
             .append(",\"excluded\":").append(HabitSlots.novelty(listens, startMs).size)
             .append(",\"replayMatches\":").append(logged == replayed)
             .append(",\"energyCoverage\":").append(runCatching { engine?.energyCoverage() }.getOrNull()?.let { (i, e) -> "[$i,$e]" } ?: "null")

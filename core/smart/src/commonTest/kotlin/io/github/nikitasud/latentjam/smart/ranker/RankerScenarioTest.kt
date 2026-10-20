@@ -282,6 +282,10 @@ class RankerScenarioTest {
         val report = ranker.plan(PlanRequest(lib[0], lib, lib, 20))
         assertEquals(20, report.ids.size)
         assertTrue(testScheduler.currentTime - start < 2_000, "audio waits are bounded (${testScheduler.currentTime - start} ms)")
+        // The report says so (audit 2026-10-20 audio #2): R1 and the vector reads ran out, the seed had no vector.
+        assertTrue("R1" in report.audio.timedOut && "vectors" in report.audio.timedOut, report.audio.timedOut.toString())
+        assertFalse(report.audio.seedVector)
+        assertEquals(0, report.audio.r1Neighbours)
     }
 
     @Test fun theRuleOnlyPathAndALargeLibraryOverTheRetrievalThreshold() = runTest {

@@ -367,7 +367,36 @@ public class PlanReport(
     public val imputed: Int,
     /** One per id, in plan order. */
     public val picks: List<PlanPick> = emptyList(),
+    /** What audio the plan could read (audit 2026-10-20 audio #2: indexing must not starve it). */
+    public val audio: AudioCoverage = AudioCoverage.NONE,
 )
+
+/**
+ * The audio a plan read: whether the seed had a vector and e, how many pool rows had a vector ([poolVectors], -1 when
+ * the model reads none) and an e ([poolEnergies], -1 likewise), how many audio neighbours R1 got, and which reads ran
+ * out of their budget ([timedOut]: "impute", "vectors", "energy", "R1").
+ */
+public class AudioCoverage(
+    public val seedVector: Boolean,
+    public val seedEnergy: Boolean,
+    public val poolVectors: Int,
+    public val poolEnergies: Int,
+    public val r1Neighbours: Int,
+    public val timedOut: Set<String>,
+) {
+    /** The log form: `seed=v,e pool=12/40v 30/40e r1=50 timeout=R1`. */
+    public fun describe(poolSize: Int): String = buildString {
+        append("seed=").append(if (seedVector) "v" else "-").append(',').append(if (seedEnergy) "e" else "-")
+        if (poolVectors >= 0) append(" pool=").append(poolVectors).append('/').append(poolSize).append('v')
+        if (poolEnergies >= 0) append(' ').append(poolEnergies).append('/').append(poolSize).append('e')
+        append(" r1=").append(r1Neighbours)
+        if (timedOut.isNotEmpty()) append(" timeout=").append(timedOut.sorted().joinToString("+"))
+    }
+
+    public companion object {
+        public val NONE: AudioCoverage = AudioCoverage(false, false, -1, -1, 0, emptySet())
+    }
+}
 
 /**
  * How one planned track was chosen. [score] is the decoder's penalised score at its hop (NaN for a ladder pick);
@@ -616,11 +645,11 @@ public class SmartRanker(
     }
 
     /** Fills a missing descriptor or family from the audio tagger (flagged imputed); counts the tracks it filled. */
-    private suspend fun impute(rows: List<Known>): Int {
+    private suspend fun impute(rows: List<Known>, timeouts: MutableSet<String>? = null): Int {
         val head = tagger ?: return 0
         var filled = 0
         // The audio index may be busy indexing: imputation gets its own budget, what it misses reads as unknown.
-        withTimeoutOrNull(AUDIO_BUDGET_MS) { for (k in rows) {
+        val done = withTimeoutOrNull(AUDIO_BUDGET_MS) { for (k in rows) {
             if (k.imputationTried || (k.descriptor != null && k.family != null)) continue
             val embedding = runCatching { audio.vector(k.track.id) }.getOrNull() ?: continue
             k.imputationTried = true
@@ -633,6 +662,7 @@ public class SmartRanker(
             }
             filled++
         } }
+        if (done == null) timeouts?.add("impute")
         return filled
     }
 
@@ -660,7 +690,9 @@ public class SmartRanker(
         val salted = saltedOrder(eligibleKnown, request)
         val notExcluded = eligibleKnown.filter { it.track.id !in request.exclude }
         // The seed's imputation comes first, so R5 retrieves by an imputed family on the first plan (§1.3).
-        var imputed = impute(listOf(seedKnown))
+        val timeouts = HashSet<String>()
+        var r1Count = 0
+        var imputed = impute(listOf(seedKnown), timeouts)
         // Novelty can empty a small library; then the ladder may still take recently heard tracks.
         val poolSource = notExcluded.ifEmpty { eligibleKnown }
         val trace = tracer
@@ -673,9 +705,12 @@ public class SmartRanker(
         val pool = when {
             request.ruleOnly -> ruleOnlyPool(poolSource, seedKnown, salted, sources)
             poolSource.size <= serving.wholeLibraryUpTo -> poolSource
-            else -> retrieve(poolSource, seedKnown, request, serving, salted, sources, active)
+            else -> retrieve(poolSource, seedKnown, request, serving, salted, sources, active) { got, timedOut ->
+                r1Count = got
+                if (timedOut) timeouts += "R1"
+            }
         }.sortedWith { a, b -> SaltedKey.idOrder.compare(a.track.id.value, b.track.id.value) }
-        imputed += impute(pool)
+        imputed += impute(pool, timeouts)
         val window = minOf(serving.recentWindow, n / 2).coerceAtLeast(1)
         val previousIds = request.recentIds + request.seed.id
         fun versionOf(id: TrackId) = (byId[id] ?: cache[id])?.version ?: ArtistSets.keyHash("id:${id.value}")
@@ -685,10 +720,10 @@ public class SmartRanker(
             if (k.track.id in audioVectors) audioVectors[k.track.id] else runCatching { audio.vector(k.track.id) }.getOrNull()?.let(::normalized).also { audioVectors[k.track.id] = it }
         // Audio vectors for the pool and the seed are read before the (non-suspending) decoder runs.
         val usesAudio = active.features.contains("audio_cos") || active.audioWeight != 0.0
-        if (usesAudio) withTimeoutOrNull(AUDIO_BUDGET_MS) { audioOf(seedKnown); for (k in pool) audioOf(k) }
+        if (usesAudio && withTimeoutOrNull(AUDIO_BUDGET_MS) { audioOf(seedKnown); for (k in pool) audioOf(k) } == null) timeouts += "vectors"
         // PLAN_AUDIO_ON §8.2: e per pool row (NaN = unknown), read before the decoder like the audio vectors.
         val energies = if (active.energy != null) DoubleArray(pool.size) { Double.NaN }.also { e ->
-            withTimeoutOrNull(AUDIO_BUDGET_MS) { for (i in pool.indices) e[i] = energyOf(pool[i].track.id) ?: Double.NaN }
+            if (withTimeoutOrNull(AUDIO_BUDGET_MS) { for (i in pool.indices) e[i] = energyOf(pool[i].track.id) ?: Double.NaN } == null) timeouts += "energy"
         } else null
         val seedEnergy = if (active.energy != null) energyOf(seedKnown.track.id) else null
         // PLAN_L1 §2c: Σ_p delta^p over the presses (newest first) whose plan showed the row.
@@ -793,7 +828,17 @@ public class SmartRanker(
             trace.imputedTracks = (pool + seedKnown).filter { it.descriptorImputed || it.familyImputed }.map { it.track.id }
                 .distinct().sortedWith { a, b -> SaltedKey.idOrder.compare(a.value, b.value) }
         }
-        return PlanReport(picks, active.name, pool.size, modelPicks.size, picks.size - modelPicks.size, timedOut, imputed, planPicks)
+        val seedVector = if (usesAudio) audioVectors[seedKnown.track.id] != null else
+            withTimeoutOrNull(AUDIO_BUDGET_MS) { runCatching { audio.vector(seedKnown.track.id) }.getOrNull() } != null
+        val coverage = AudioCoverage(
+            seedVector = seedVector,
+            seedEnergy = (seedEnergy ?: energyOf(seedKnown.track.id))?.isNaN() == false,
+            poolVectors = if (usesAudio) pool.count { audioVectors[it.track.id] != null } else -1,
+            poolEnergies = energies?.count { !it.isNaN() } ?: -1,
+            r1Neighbours = r1Count,
+            timedOut = timeouts,
+        )
+        return PlanReport(picks, active.name, pool.size, modelPicks.size, picks.size - modelPicks.size, timedOut, imputed, planPicks, coverage)
     }
 
     private fun diagnose(
@@ -953,6 +998,7 @@ public class SmartRanker(
         salted: Map<TrackId, Long>,
         sources: MutableMap<TrackId, String>,
         active: RankerModel,
+        onR1: (neighbours: Int, timedOut: Boolean) -> Unit = { _, _ -> },
     ): List<Known> {
         val byId = pool.associateBy { it.track.id }
         val out = LinkedHashMap<TrackId, Known>()
@@ -968,7 +1014,9 @@ public class SmartRanker(
             }
         }
         val quota = { name: String -> serving.quotas[name] ?: 0 }
-        val nb = boundedNeighbours(seed.track.id, quota("audio") * 2, R1_BUDGET_MS)
+        val nbOrNull = withTimeoutOrNull(R1_BUDGET_MS) { runCatching { audio.neighbours(seed.track.id, quota("audio") * 2) }.getOrNull().orEmpty() }
+        val nb = nbOrNull.orEmpty()
+        onR1(nb.size, nbOrNull == null)
         val es = if (active.r1EnergyTau != null) energyOf(seed.track.id) else null
         if (es != null) {
             // PLAN_AUDIO_ON §8.8.3 R1e: half the quota nearest, half nearest within the seed's energy band; a band

@@ -163,7 +163,7 @@ internal suspend fun rankerPlan(
             "SMART: ranker ${report.model} planned ${report.ids.size} (${report.fromModel} model, ${report.fromLadder} ladder" +
                 "${if (report.timedOut) ", budget spent" else ""}) from ${report.poolSize} of ${candidates.size} candidates " +
                 "at press $press (${novel.size} recent left out, ${report.imputed} imputed; library tracks with an entity " +
-                "$withEntity, a co-listening list $listed, a LightFM vector $withLfm)",
+                "$withEntity, a co-listening list $listed, a LightFM vector $withLfm; audio ${report.audio.describe(report.poolSize)})",
         )
         report
     } catch (cancelled: kotlinx.coroutines.CancellationException) {
