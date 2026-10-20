@@ -152,6 +152,7 @@ class EngineNextTrackChooser(
                         smartLog?.recentPresses(clock(), window, count, excludeQueue = queueId.takeIf { recentIds.isNotEmpty() })
                             .orEmpty()
                     },
+                    engagedKeys = { smartLog?.engagedKeys().orEmpty() },
                 )
                 if (report == null || report.timedOut) queueFailures++
                 picks = report?.picks

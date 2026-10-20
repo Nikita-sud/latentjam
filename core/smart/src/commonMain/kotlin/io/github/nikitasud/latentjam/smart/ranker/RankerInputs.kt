@@ -16,6 +16,9 @@ public interface AudioSource {
     /** e = the semantic head's energy.high − energy.low on the stored A0 vector (PLAN_AUDIO_ON §8.8); null = unknown. */
     public suspend fun energy(id: TrackId): Double? = null
 
+    /** Fast 4: a cached audio head's output (continuity heads, e.g. danceability); null = unknown. */
+    public suspend fun head(name: String, id: TrackId): Double? = null
+
     public companion object {
         /** No audio index (tests, a cold engine). */
         public val NONE: AudioSource = object : AudioSource {

@@ -53,7 +53,7 @@
   0.0,
   0.0
  ],
- "runPenalty": 1.0,
+ "runPenalty": 1.4,
  "anchor": "mix",
  "seedWeight": 2.0,
  "previousWeight": 1.0,
@@ -73,7 +73,8 @@
   "hopBudgetMs": 150,
   "l2": true,
   "poolTarget": 600,
-  "artistCap": 15
+  "artistCap": 15,
+  "unknownSeedAudioFill": true
  },
  "inputs": {
   "logpop": "artist_pop",
@@ -215,7 +216,7 @@
   "rule": "PLAN_L1 \u00a710.1 (v5.2.1)",
   "is_favourite": "RULE_SET 0.485",
   "fast_track": {
-   "decoder": "\u03bb_run 1.0, \u03bb_re 3.0 from grid not finished: provisional \u03bb_run 1.0, \u03bb_re 3.0 (a partial grid is never used)",
+   "decoder": "\u03bb_run CORE 1.65 / FULL 1.4, \u03bb_re 5.0 from fitA run gate (fast 3)",
    "freshness": "\u03bb 1.0 PROVISIONAL",
    "energy_head": "c9ceb0f3 (A0-paired)",
    "energy": "scale pool, \u03bb 0.8, \u03c4 0.25 sd (FMA L1-L4 pick: hop 4-10 drift -0.163 sd, genre -0.010)",
@@ -224,7 +225,7 @@
   }
  },
  "artistReentry": {
-  "lambda": 3.0,
+  "lambda": 5.0,
   "k": 10,
   "gamma": 0.7,
   "credit": 0.5,
@@ -242,5 +243,21 @@
   "delta": 0.5,
   "presses": 5,
   "windowMs": 1209600000
+ },
+ "anchorShare": {
+  "share": 0.25,
+  "columns": [
+   "colisten",
+   "lfm_cos"
+  ]
+ },
+ "familyMismatch": {
+  "lambda": 0.5
+ },
+ "classMismatch": {
+  "lambda": 1.0,
+  "families": [
+   "soundtrack"
+  ]
  }
 }

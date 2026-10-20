@@ -66,18 +66,44 @@ public object RankerQueue {
         audioAgainst: ((anchor: Int) -> DoubleArray)? = null,
         /** Soft novelty: each row's 1 − age / 24 h (0 = not in the soft novelty set); null = no term. */
         novelty: DoubleArray? = null,
+        /** Fast 3 mismatch terms: each row's device family and the seed's. */
+        families: List<String?>? = null,
+        seedFamily: String? = null,
+        /** Fast 4 continuity: per model head, each row's value (NaN = unknown) and the seed's (null = term off). */
+        heads: List<Pair<DoubleArray, Double?>>? = null,
         features: (anchor: Int) -> Array<DoubleArray>,
     ): List<Int> {
         if (poolSize == 0 || length <= 0) return emptyList()
-        fun scores(anchor: Int) = features(anchor).let { rows ->
-            DoubleArray(poolSize) { model.score(rows[it]) }.also { if (model.audioZ) addAudioZ(model, it, rows) }
+        var seedRows: Array<DoubleArray>? = null
+        fun scores(anchor: Int): DoubleArray {
+            var rows = features(anchor)
+            if (anchor == SEED) seedRows = rows
+            val share = model.anchorShare
+            if (anchor != SEED && share != null) {
+                // Fast 3: the listed columns of a previous-pick row lean on the seed's row for the same candidate.
+                val base = seedRows ?: features(SEED).also { seedRows = it }
+                rows = Array(rows.size) { i ->
+                    rows[i].copyOf().also { r -> for (c in share.columnIndexes) r[c] = share.share * r[c] + (1.0 - share.share) * base[i][c] }
+                }
+            }
+            val sc = DoubleArray(poolSize) { model.score(rows[it]) }
+            if (model.audioZ) addAudioZ(model, sc, rows)
+            if (families != null) {
+                model.classMismatch?.let { cm ->
+                    if (seedFamily !in cm.families) for (i in 0 until poolSize) if (families[i] in cm.families) sc[i] = sc[i] - cm.lambda
+                }
+                model.familyMismatch?.let { lam ->
+                    if (seedFamily != null) for (i in 0 until poolSize) if (families[i] != null && families[i] != seedFamily) sc[i] = sc[i] - lam
+                }
+            }
+            return sc
         }
         val seedScores = scores(SEED)
         if (skipWhenTied && seedScores.all { it == seedScores[0] }) return emptyList()
         model.artistReentry?.takeIf { it.creditRun }?.let { re ->
             return buildCreditRun(
                 model, re, poolSize, artistKeys, seedArtist, tieOrder, length, choose, take, blocked, stop, trace,
-                credits, seedCredits, seedScores, ::scores, fresh, energies, seedEnergy, audioAgainst, novelty,
+                credits, seedCredits, seedScores, ::scores, fresh, energies, seedEnergy, audioAgainst, novelty, heads,
             )
         }
         val open = BooleanArray(poolSize) { true }
@@ -198,6 +224,7 @@ public object RankerQueue {
         seedEnergy: Double?,
         audioAgainst: ((anchor: Int) -> DoubleArray)?,
         novelty: DoubleArray?,
+        heads: List<Pair<DoubleArray, Double?>>?,
     ): List<Int> {
         fun creditsOf(i: Int) = credits?.get(i) ?: NO_CREDITS
         val open = BooleanArray(poolSize) { true }
@@ -257,6 +284,25 @@ public object RankerQueue {
                     eSd = maxOf(E_SD_FLOOR, if (n > 0) sqrt(sq / n) else E_SD_FLOOR)
                 }
             }
+            // Fast 4 continuity, per head in name order: the allowed rows' known values give the pool sd (floored) and
+            // the unknown fill (seed + mean |Δ|); a head without the seed's value is off.
+            val cont = ArrayList<HeadTerm>()
+            if (heads != null) for ((hi, spec) in model.continuity.withIndex()) {
+                val (values, seedValue) = heads.getOrNull(hi) ?: continue
+                if (seedValue == null) continue
+                var sum = 0.0
+                var n = 0
+                for (i in 0 until poolSize) if (allowed[i] && !values[i].isNaN()) { sum += values[i]; n++ }
+                val mu = if (n > 0) sum / n else 0.0
+                var sq = 0.0
+                var dsum = 0.0
+                for (i in 0 until poolSize) if (allowed[i] && !values[i].isNaN()) {
+                    sq += (values[i] - mu) * (values[i] - mu)
+                    dsum += kotlin.math.abs(values[i] - seedValue)
+                }
+                val hsd = if (n > 0) maxOf(HEAD_SD_FLOOR, sqrt(sq / n)) else HEAD_SD_FLOOR
+                cont += HeadTerm(spec.lambda, spec.tau, values, seedValue, hsd, seedValue + if (n > 0) dsum / n else 0.0)
+            }
             // Diagnostics only: each row's terms (run, freshness + novelty, arm P audio, energy, re-entry).
             val terms = if (trace != null) Array(5) { DoubleArray(poolSize) } else null
             fun penalised(i: Int): Double {
@@ -265,7 +311,12 @@ public object RankerQueue {
                 if (ma > 0.0 && model.runPenalty > 0.0) v -= model.runPenalty * runLength * sd * ma
                 terms?.let { it[0][i] = s[i] - v }
                 var mark = v
-                if (fresh != null && fresh[i] != 0.0) v -= model.freshness!!.lambda * sd * fresh[i]
+                if (fresh != null && fresh[i] != 0.0) {
+                    val f = model.freshness!!
+                    var pen = f.lambda * fresh[i]
+                    if (f.cap != null) pen = minOf(pen, f.cap)
+                    v -= pen * sd
+                }
                 if (novelty != null && novelty[i] != 0.0) v -= model.softNovelty!!.lambda * sd * novelty[i]
                 terms?.let { it[1][i] = mark - v }
                 mark = v
@@ -280,6 +331,10 @@ public object RankerQueue {
                         val d = kotlin.math.abs(ei - ref) / eSd
                         v -= en.lambda * (if (!en.seedHinge) d else maxOf(0.0, d - en.tau))
                     }
+                }
+                for (h in cont) {
+                    val xi = h.values[i].takeIf { !it.isNaN() } ?: h.fill
+                    v -= h.lambda * maxOf(0.0, kotlin.math.abs(xi - h.seed) / h.sd - h.tau)
                 }
                 terms?.let { it[3][i] = mark - v }
                 mark = v
@@ -354,6 +409,11 @@ public object RankerQueue {
     /** Fast track 2: the floor of the pool's e spread (raw e units). */
     internal const val E_SD_FLOOR: Double = 0.005
 
+    /** Fast 4: the floor of the pool's spread of a continuity head. */
+    internal const val HEAD_SD_FLOOR: Double = 0.01
+
+    private class HeadTerm(val lambda: Double, val tau: Double, val values: DoubleArray, val seed: Double, val sd: Double, val fill: Double)
+
     private val AUDIO_COS = RankerFeatures.NAMES.indexOf("audio_cos")
     private val AUDIO_KNOWN = RankerFeatures.NAMES.indexOf("audio_known")
 
@@ -409,6 +469,8 @@ public class PlanRequest(
     public val impressions: List<Set<TrackId>> = emptyList(),
     /** Fast track 2 soft novelty: ms since each [exclude] id's last play (absent = 0). */
     public val excludeAgeMs: Map<TrackId, Long> = emptyMap(),
+    /** Fast 3: tracks the listener played after a press showed them (freshness.engaged = exempt). */
+    public val engaged: Set<TrackId> = emptySet(),
 )
 
 /** How a plan was made, for the aggregate log line, the circuit breaker and the on-device impression log. */
@@ -877,9 +939,12 @@ public class SmartRanker(
         // PLAN_L1 §2c: Σ_p delta^p over the presses (newest first) whose plan showed the row.
         val fresh = active.freshness?.takeIf { it.lambda != 0.0 && request.impressions.isNotEmpty() }?.let { f ->
             val sets = request.impressions.take(f.presses)
+            // Fast 3: tracks played after being shown take no impression weight (engaged = exempt).
+            val engaged = if (f.engagedExempt) request.engaged else emptySet()
             DoubleArray(pool.size) { i ->
                 var w = 0.0
-                for ((p, shown) in sets.withIndex()) if (pool[i].track.id in shown) w += f.delta.pow(p)
+                val id = pool[i].track.id
+                for ((p, shown) in sets.withIndex()) if (id in shown && id !in engaged) w += f.delta.pow(p)
                 w
             }
         }
@@ -927,6 +992,11 @@ public class SmartRanker(
             credits = if (active.artistReentry != null) pool.map { it.artists } else null,
             seedCredits = seedKnown.artists,
             fresh = fresh,
+            families = if (active.familyMismatch != null || active.classMismatch != null) pool.map { it.family } else null,
+            seedFamily = seedKnown.family,
+            heads = if (active.continuity.isEmpty()) null else active.continuity.map { h ->
+                DoubleArray(pool.size) { i -> headOf(h.name, pool[i].track.id) ?: Double.NaN } to headOf(h.name, seedKnown.track.id)
+            },
             novelty = if (active.softNovelty != null) DoubleArray(pool.size) { i ->
                 noveltyAge[pool[i].track.id]?.let { maxOf(0.0, 1.0 - it.toDouble() / NOVELTY_MS) } ?: 0.0
             } else null,
@@ -1076,6 +1146,8 @@ public class SmartRanker(
     }
 
     private suspend fun energyOf(id: TrackId): Double? = runCatching { audio.energy(id) }.getOrNull()?.takeIf { it.isFinite() }
+
+    private suspend fun headOf(name: String, id: TrackId): Double? = runCatching { audio.head(name, id) }.getOrNull()?.takeIf { it.isFinite() }
 
     /** Back-compatible entry point: the plan's ids. */
     public suspend fun plan(
@@ -1257,6 +1329,13 @@ public class SmartRanker(
         if (serving.l2) {
             // Audit 04 #1 / #11: fill to a fixed target, the seed's family first (capped), then a salted sample.
             val target = minOf(serving.poolTarget, pool.size)
+            if (serving.unknownSeedAudioFill && out.size < target && seed.family == null && seed.packDescriptor == null &&
+                seed.imputedDescriptor == null
+            ) {
+                // Fast 3: a seed with no family and no descriptor fills from its own audio neighbours (nearest first).
+                val near = withTimeoutOrNull(R1_BUDGET_MS) { runCatching { audio.neighbours(seed.track.id, target) }.getOrNull() }.orEmpty()
+                take(near, target - out.size, "fill-audio")
+            }
             if (out.size < target && seed.family != null) {
                 take(pool.filter { it.family == seed.family }.sortedBy { salted[it.track.id] }.map { it.track.id }, target - out.size, "fill-family")
             }

@@ -155,6 +155,8 @@ internal suspend fun rankerPlan(
     favourites: suspend () -> Map<TrackId, Long?> = { emptyMap() },
     /** The recent presses' shown content keys, newest first: (window ms, presses) → sets (SmartPlanLog.recentPresses). */
     presses: suspend (windowMs: Long, count: Int) -> List<Set<String>> = { _, _ -> emptyList() },
+    /** Content keys of shown tracks the listener then played (SmartPlanLog.engagedKeys). */
+    engagedKeys: suspend () -> Set<String> = { emptySet() },
 ): io.github.nikitasud.latentjam.smart.ranker.PlanReport? = withContext(Dispatchers.Default) {
     try {
         val scope = library.ifEmpty { candidates }
@@ -175,7 +177,15 @@ internal suspend fun rankerPlan(
         ) { artistKeys[it].orEmpty() }
         val fits = io.github.nikitasud.latentjam.smart.ranker.rankerFitsInHeap(minOf(candidates.size, 2_000))
         // PLAN_L1 §2c freshness: what recent presses showed (any seed), as candidate ids.
-        val impressions = ranker.freshnessFor(personal, ruleOnly || !fits)?.let { f ->
+        val freshness = ranker.freshnessFor(personal, ruleOnly || !fits)
+        // Fast 3 freshness.engaged = exempt: what the listener played after being shown it keeps no impression weight.
+        val engaged = if (freshness?.engagedExempt == true) {
+            val keys = engagedKeys()
+            if (keys.isEmpty()) emptySet() else candidates.filterTo(ArrayList()) { contentHashOf(it) in keys }.mapTo(HashSet()) { it.id }
+        } else {
+            emptySet()
+        }
+        val impressions = freshness?.let { f ->
             val sets = presses(f.windowMs ?: DEFAULT_FRESHNESS_WINDOW_MS, f.presses)
             if (sets.isEmpty()) emptyList() else {
                 val wanted = sets.flatMapTo(HashSet()) { it }
@@ -191,7 +201,7 @@ internal suspend fun rankerPlan(
             io.github.nikitasud.latentjam.smart.ranker.PlanRequest(
                 seed = seed, library = scope, candidates = candidates, length = length, exclude = novel,
                 recentIds = recentIds, press = press, history = personalHistory, personal = personal,
-                ruleOnly = ruleOnly || !fits, impressions = impressions, excludeAgeMs = noveltyAges,
+                ruleOnly = ruleOnly || !fits, impressions = impressions, excludeAgeMs = noveltyAges, engaged = engaged,
             ),
         )
         val (withEntity, listed, withLfm) = ranker.entityCoverage

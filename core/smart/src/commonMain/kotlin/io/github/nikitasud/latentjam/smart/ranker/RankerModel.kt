@@ -62,10 +62,27 @@ public class RankerModel(
     /** The audio term on the per-pool z of audio_cos (known rows' mean / sd; unknown rows 0), not raw audio_cos. */
     public val audioZ: Boolean = false,
     public val softNovelty: SoftNovelty? = null,
+    /** Fast 3: in a previous-pick score these columns become share · x(prev) + (1 − share) · x(seed). */
+    public val anchorShare: AnchorShare? = null,
+    /** Fast 3: −λ when the seed's and the candidate's families are both known and differ. */
+    public val familyMismatch: Double? = null,
+    /** Fast 3: −λ for a candidate in [ClassMismatch.families] when the seed is not. */
+    public val classMismatch: ClassMismatch? = null,
+    /** Fast 4: seed-anchored continuity on cached audio heads, in head-name order. */
+    public val continuity: List<Continuity> = emptyList(),
 ) {
     /** λ · |Δe| to the previous pick ("prev"), or λ · max(0, |Δe to the seed| − τ) ("seedHinge"). */
     /** [poolScale]: |Δe| in units of the pool's e spread (population sd of the allowed rows' known e, floored). */
     public class Energy(public val lambda: Double, public val seedHinge: Boolean, public val tau: Double, public val poolScale: Boolean = false)
+
+    public class AnchorShare(public val share: Double, public val columns: List<String>) {
+        internal val columnIndexes: IntArray = IntArray(columns.size) { RankerFeatures.NAMES.indexOf(columns[it]).also { i -> require(i >= 0) } }
+    }
+
+    public class ClassMismatch(public val lambda: Double, public val families: Set<String>)
+
+    /** −λ · max(0, |x − x_seed| / pool sd − τ) over the head [name]'s cached value x. */
+    public class Continuity(public val name: String, public val lambda: Double, public val tau: Double)
 
     /** The novelty set beyond its [hardLast] newest stays in the pool, losing λ · sd · (1 − age / 24 h). */
     public class SoftNovelty(public val lambda: Double, public val hardLast: Int)
@@ -91,6 +108,10 @@ public class RankerModel(
         public val presses: Int,
         /** How far back an impression counts (FULL 14 days, CORE 2 hours); null = the device's default. */
         public val windowMs: Long? = null,
+        /** Fast 3: the largest penalty in sd units; null = none. */
+        public val cap: Double? = null,
+        /** Fast 3: tracks played after being shown take no impression weight. */
+        public val engagedExempt: Boolean = false,
     )
 
     /** The audio encoder the model's audio terms were fitted on (`inputs.audioEncoder`); null = undeclared. */
@@ -140,6 +161,8 @@ public class RankerModel(
         public val l2: Boolean = false,
         public val poolTarget: Int = wholeLibraryUpTo,
         public val artistCap: Int = 15,
+        /** Fast 3: a seed with no family and no descriptor fills the L2 pool from its own audio neighbours first. */
+        public val unknownSeedAudioFill: Boolean = false,
     )
 
     /** The audio term's raw weight (§1.3): the override, else max(0, raw weight of "cos"). */
@@ -216,16 +239,19 @@ public class RankerModel(
                 "schema", "name", "source", "provenance", "features", "mean", "sd", "weights", "runPenalty", "anchor",
                 "seedWeight", "previousWeight", "epsilon", "thirdInRowCap", "serving", "inputs", "audioWeight",
                 "artistReentry", "energy", "r1Energy", "audioAnchor", "imputedDescriptor", "seedGate", "freshness", "coreOffset",
-                "audioZ", "softNovelty",
+                "audioZ", "softNovelty", "anchorShare", "colistenPrevShare", "familyMismatch", "classMismatch", "continuity",
             ),
+            "anchorShare" to setOf("share", "columns"),
+            "familyMismatch" to setOf("lambda"),
+            "classMismatch" to setOf("lambda", "families"),
             "softNovelty" to setOf("lambda", "hardLast"),
-            "serving" to setOf("wholeLibraryUpTo", "quotas", "artistKey", "recentWindow", "hopBudgetMs", "l2", "poolTarget", "artistCap"),
+            "serving" to setOf("wholeLibraryUpTo", "quotas", "artistKey", "recentWindow", "hopBudgetMs", "l2", "poolTarget", "artistCap", "unknownSeedAudioFill"),
             "inputs" to setOf("logpop", "colisten", "lfm", "audioEncoder"),
             "artistReentry" to setOf("lambda", "k", "gamma", "credit", "creditRun"),
             "energy" to setOf("lambda", "mode", "tau", "scale"),
             "r1Energy" to setOf("tau", "scale"),
             "seedGate" to setOf("core", "coreSha256", "mu", "sigma", "a", "clip", "columns", "orderR6"),
-            "freshness" to setOf("lambda", "delta", "presses", "windowMs"),
+            "freshness" to setOf("lambda", "delta", "presses", "windowMs", "cap", "engaged"),
         )
 
         /** The first key [root] carries that this app does not implement, or null. */
@@ -285,6 +311,7 @@ public class RankerModel(
                         l2 = m["l2"] == true,
                         poolTarget = (m["poolTarget"] as? Number)?.toInt() ?: (m["wholeLibraryUpTo"] as? Number)?.toInt() ?: d.wholeLibraryUpTo,
                         artistCap = (m["artistCap"] as? Number)?.toInt() ?: 15,
+                        unknownSeedAudioFill = m["unknownSeedAudioFill"] == true,
                     )
                 } ?: Serving(),
                 audioWeightOverride = (root["audioWeight"] as? Number)?.toDouble(),
@@ -303,6 +330,16 @@ public class RankerModel(
                 coreOffset = root["coreOffset"] == true,
                 r1EnergyPoolScale = (root["r1Energy"] as? Map<*, *>)?.get("scale").let { when (it) { null -> false; "pool" -> true; else -> error("r1 scale") } },
                 audioZ = root["audioZ"] == true,
+                anchorShare = (root["anchorShare"] as? Map<*, *>)?.let { a ->
+                    AnchorShare((a["share"] as Number).toDouble(), (a["columns"] as? List<*>)?.map { it as String } ?: listOf("colisten", "lfm_cos"))
+                } ?: (root["colistenPrevShare"] as? Number)?.let { AnchorShare(it.toDouble(), listOf("colisten")) },
+                familyMismatch = (root["familyMismatch"] as? Map<*, *>)?.let { (it["lambda"] as Number).toDouble() },
+                classMismatch = (root["classMismatch"] as? Map<*, *>)?.let { c ->
+                    ClassMismatch((c["lambda"] as Number).toDouble(), ((c["families"] as? List<*>)?.map { it as String } ?: listOf("soundtrack")).toSet())
+                },
+                continuity = (root["continuity"] as? Map<*, *>).orEmpty().entries
+                    .map { (k, v) -> (v as Map<*, *>).let { Continuity(k as String, (it["lambda"] as Number).toDouble(), (it["tau"] as? Number)?.toDouble() ?: 0.25) } }
+                    .sortedBy { it.name },
                 softNovelty = (root["softNovelty"] as? Map<*, *>)?.let { n ->
                     SoftNovelty(lambda = (n["lambda"] as Number).toDouble(), hardLast = (n["hardLast"] as? Number)?.toInt() ?: 10)
                 },
@@ -325,6 +362,8 @@ public class RankerModel(
                         delta = (f["delta"] as? Number)?.toDouble() ?: 0.5,
                         presses = (f["presses"] as? Number)?.toInt() ?: 5,
                         windowMs = (f["windowMs"] as? Number)?.toLong(),
+                        cap = (f["cap"] as? Number)?.toDouble(),
+                        engagedExempt = when (f["engaged"]) { null -> false; "exempt" -> true; else -> error("freshness engaged") },
                     )
                 },
                 artistReentry = (root["artistReentry"] as? Map<*, *>)?.let { m ->

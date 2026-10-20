@@ -47,6 +47,9 @@ interface SmartPlanLog {
      */
     suspend fun recentPresses(nowMs: Long, windowMs: Long, presses: Int, excludeQueue: String? = null): List<Set<String>> = emptyList()
 
+    /** Fast 3 freshness.engaged: the content keys of shown tracks the listener then played (outcome PLAYED). */
+    suspend fun engagedKeys(): Set<String> = emptySet()
+
     companion object {
         const val SHOWN_ROWS: Int = 10
     }
@@ -80,6 +83,7 @@ class SmartLogRecorder(
     private class Press(val queue: String, val atMs: Long, val keys: Set<String>)
     private val pressMutex = Mutex()
     private var pressLog: ArrayDeque<Press>? = null
+    private val engaged = HashSet<String>()
 
     init {
         scope.launch {
@@ -129,8 +133,9 @@ class SmartLogRecorder(
         val byQueue = LinkedHashMap<String, Pair<Long, MutableSet<String>>>()
         runCatching {
             log.forEachLine { line ->
-                if (!line.startsWith("si1|")) return@forEachLine
-                val i = SmartImpressionLog.parse(line) as? SmartImpression ?: return@forEachLine
+                val parsed = SmartImpressionLog.parse(line)
+                if (parsed is SmartOutcome && parsed.kind == io.github.nikitasud.latentjam.history.SmartOutcomeKind.PLAYED) engaged += parsed.track
+                val i = parsed as? SmartImpression ?: return@forEachLine
                 if (i.plan != 0 || i.hop > SmartPlanLog.SHOWN_ROWS || i.track.isEmpty()) return@forEachLine
                 val e = byQueue.getOrPut(i.queue) { i.atMs to HashSet() }
                 e.second += i.track
@@ -141,7 +146,7 @@ class SmartLogRecorder(
     }
 
     /** Clear listening history: the presses go with the log. */
-    suspend fun forgetPresses(): Unit = pressMutex.withLock { pressLog = ArrayDeque() }
+    suspend fun forgetPresses(): Unit = pressMutex.withLock { pressLog = ArrayDeque(); engaged.clear() }
 
     private fun trimPresses() {
         val l = pressLog ?: return
@@ -171,7 +176,16 @@ class SmartLogRecorder(
         emit(mutex.withLock { tracker.onListen(event, clock()) })
     }
 
+    override suspend fun engagedKeys(): Set<String> {
+        if (!enabled()) return emptySet()
+        return pressMutex.withLock { pressesLoaded(); engaged.toSet() }
+    }
+
     private fun emit(outcomes: List<SmartOutcome>) {
+        if (outcomes.any { it.kind == io.github.nikitasud.latentjam.history.SmartOutcomeKind.PLAYED }) {
+            val played = outcomes.filter { it.kind == io.github.nikitasud.latentjam.history.SmartOutcomeKind.PLAYED }.map { it.track }
+            writes.trySend { pressMutex.withLock { engaged += played } }
+        }
         if (outcomes.isNotEmpty()) writes.trySend { log.recordOutcomes(outcomes) }
     }
 
