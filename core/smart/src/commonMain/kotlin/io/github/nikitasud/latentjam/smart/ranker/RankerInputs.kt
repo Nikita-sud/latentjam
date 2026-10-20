@@ -13,6 +13,9 @@ public interface AudioSource {
     public suspend fun vector(id: TrackId): FloatArray?
     public suspend fun neighbours(id: TrackId, k: Int): List<TrackId>
 
+    /** e = the semantic head's energy.high − energy.low on the stored A0 vector (PLAN_AUDIO_ON §8.8); null = unknown. */
+    public suspend fun energy(id: TrackId): Double? = null
+
     public companion object {
         /** No audio index (tests, a cold engine). */
         public val NONE: AudioSource = object : AudioSource {
@@ -80,6 +83,9 @@ public class PersonalHistory(
 
     /** Whether the listener has hearted anything (the plan's favourites; empty without "Use favourites"). */
     public val hasFavourites: Boolean get() = favourites.isNotEmpty()
+
+    /** [track]'s ACT-R activation, or null when never heard (R6's order). */
+    public fun activationOf(track: TrackId): Double? = activation[track]
 
     /** Whether the listener hearted [track]. */
     public fun isFavourite(track: TrackId): Boolean = track in favourites

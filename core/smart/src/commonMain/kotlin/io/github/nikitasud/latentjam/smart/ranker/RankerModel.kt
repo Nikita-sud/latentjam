@@ -43,7 +43,39 @@ public class RankerModel(
     public val logpop: String = LOGPOP_NONE,
     /** PLAN_L1 §2a's artist re-entry term; null = the D0 decoder unchanged. */
     public val artistReentry: ArtistReentry? = null,
+    /** PLAN_AUDIO_ON §8.2's energy-continuity term (credit-run decoder only); null = none. */
+    public val energy: Energy? = null,
+    /** PLAN_AUDIO_ON §8.8.3's energy-band R1 (R1e): the band's |Δe| width; null = plain R1. */
+    public val r1EnergyTau: Double? = null,
+    /** PLAN_AUDIO_ON §8.2 arm P: the audio term scores against the previous pick (the seed at hop 1), in the decoder. */
+    public val audioAgainstPrevious: Boolean = false,
+    /** PLAN_L1 §10.5 RULE: an imputed descriptor reads unknown for cos / cos_z / desc_known; an imputed family serves R5 only. */
+    public val imputedUnknown: Boolean = false,
+    /** PLAN_L1 §2b: FULL's seed gate on the listener's columns; null = ungated. */
+    public val seedGate: SeedGate? = null,
+    /** PLAN_L1 §2c: the impression discount; null = none. */
+    public val freshness: Freshness? = null,
 ) {
+    /** λ · |Δe| to the previous pick ("prev"), or λ · max(0, |Δe to the seed| − τ) ("seedHinge"). */
+    public class Energy(public val lambda: Double, public val seedHinge: Boolean, public val tau: Double)
+
+    /**
+     * g_i = σ(a · clip((CORE logit_i − mu) / sigma, ±clip)) from the seed-anchor rows before gating (the [core] model's
+     * metadata logit, never its audio term) multiplies [columns] of every row; [orderR6] also orders R6 by ACT-R + ln g.
+     */
+    public class SeedGate(
+        public val core: RankerModel,
+        public val mu: Double,
+        public val sigma: Double,
+        public val a: Double,
+        public val clip: Double,
+        public val columns: IntArray,
+        public val orderR6: Boolean,
+    )
+
+    /** Σ_p delta^p · [track shown at the p-th newest press] over the last [presses] presses; t −= λ · sd · that. */
+    public class Freshness(public val lambda: Double, public val delta: Double, public val presses: Int)
+
     /**
      * A candidate that does not continue the run loses λ · sd · Σ_{j=0..} γ^j · m(i, back[1 + j]) over the queue's
      * picks t−2 … t−k (newest first; the seed counts as the oldest pick); m = 1 for the same artist key, [credit] for a
@@ -114,7 +146,7 @@ public class RankerModel(
     public fun contributions(row: DoubleArray): DoubleArray = DoubleArray(columns.size + 1) { i ->
         when {
             i < columns.size -> weights[i] * ((row[columns[i]] - mean[i]) / sd[i])
-            audioWeight != 0.0 && row.size > audioColumn -> audioWeight * row[audioColumn]
+            audioWeight != 0.0 && !audioAgainstPrevious && row.size > audioColumn -> audioWeight * row[audioColumn]
             else -> 0.0
         }
     }
@@ -123,11 +155,15 @@ public class RankerModel(
     public fun score(row: DoubleArray): Double {
         var total = 0.0
         for (i in columns.indices) total += weights[i] * ((row[columns[i]] - mean[i]) / sd[i])
-        if (audioWeight != 0.0 && row.size > audioColumn) total += audioWeight * row[audioColumn]
+        if (audioWeight != 0.0 && !audioAgainstPrevious && row.size > audioColumn) total += audioWeight * row[audioColumn]
         return total
     }
 
     public companion object {
+        /** reference.py GATED: the listener's columns the seed gate scales by default. */
+        public val GATED_COLUMNS: List<String> = listOf(
+            "heard", "log_freq", "freq_rank", "recency", "recency_rank", "actr", "actr_rank", "is_favourite", "favourited_days_ago",
+        )
         public const val LOGPOP_NONE: String = "none"
         public const val LOGPOP_ARTIST: String = "artist_pop"
 
@@ -183,6 +219,36 @@ public class RankerModel(
                 } ?: Serving(),
                 audioWeightOverride = (root["audioWeight"] as? Number)?.toDouble(),
                 logpop = (root["inputs"] as? Map<*, *>)?.get("logpop") as? String ?: LOGPOP_NONE,
+                energy = (root["energy"] as? Map<*, *>)?.let { m ->
+                    Energy(
+                        lambda = (m["lambda"] as Number).toDouble(),
+                        seedHinge = when (m["mode"] ?: "prev") { "prev" -> false; "seedHinge" -> true; else -> error("energy mode") },
+                        tau = (m["tau"] as? Number)?.toDouble() ?: 0.0,
+                    )
+                },
+                r1EnergyTau = (root["r1Energy"] as? Map<*, *>)?.let { (it["tau"] as Number).toDouble() },
+                audioAgainstPrevious = root["audioAnchor"] == "previous",
+                imputedUnknown = root["imputedDescriptor"] == "unknown",
+                seedGate = (root["seedGate"] as? Map<*, *>)?.let { g ->
+                    val coreMap = (g["core"] as Map<*, *>).toMutableMap().also { it["audioWeight"] = 0.0 }
+                    SeedGate(
+                        core = requireNotNull(parse(MiniJson.write(coreMap))) { "seedGate core" },
+                        mu = (g["mu"] as Number).toDouble(),
+                        sigma = (g["sigma"] as Number).toDouble(),
+                        a = (g["a"] as Number).toDouble(),
+                        clip = (g["clip"] as? Number)?.toDouble() ?: 3.0,
+                        columns = ((g["columns"] as? List<*>)?.map { it as String } ?: GATED_COLUMNS)
+                            .map { c -> RankerFeatures.NAMES.indexOf(c).also { require(it >= 0) { "gate column $c" } } }.toIntArray(),
+                        orderR6 = g["orderR6"] == true,
+                    )
+                },
+                freshness = (root["freshness"] as? Map<*, *>)?.let { f ->
+                    Freshness(
+                        lambda = (f["lambda"] as Number).toDouble(),
+                        delta = (f["delta"] as? Number)?.toDouble() ?: 0.5,
+                        presses = (f["presses"] as? Number)?.toInt() ?: 5,
+                    )
+                },
                 artistReentry = (root["artistReentry"] as? Map<*, *>)?.let { m ->
                     ArtistReentry(
                         lambda = (m["lambda"] as Number).toDouble(),
@@ -199,6 +265,23 @@ public class RankerModel(
 
 /** A strict little JSON reader for the ranker asset: objects, arrays, strings, numbers, booleans, null. */
 internal class MiniJson(private val text: String) {
+    companion object {
+        /** Writes what [parse] reads (a nested model block re-parsed by [RankerModel.parse]). */
+        fun write(v: Any?): String = when (v) {
+            null -> "null"
+            is String -> buildString {
+                append('"')
+                for (c in v) when (c) { '"' -> append("\\\""); '\\' -> append("\\\\"); '\n' -> append("\\n"); else -> append(c) }
+                append('"')
+            }
+            is Boolean -> v.toString()
+            is Number -> v.toDouble().let { d -> if (d == kotlin.math.floor(d) && kotlin.math.abs(d) < 1e15) d.toLong().toString() else d.toString() }
+            is Map<*, *> -> v.entries.joinToString(",", "{", "}") { (k, x) -> write(k as String) + ":" + write(x) }
+            is List<*> -> v.joinToString(",", "[", "]") { write(it) }
+            else -> error("json")
+        }
+    }
+
     private var at = 0
 
     fun parse(): Any? = value().also { space(); require(at == text.length) }

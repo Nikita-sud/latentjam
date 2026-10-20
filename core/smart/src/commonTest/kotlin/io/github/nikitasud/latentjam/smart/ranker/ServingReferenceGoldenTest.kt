@@ -49,6 +49,16 @@ class ServingReferenceGoldenTest {
     @Test
     fun plansWithTheShippedModelsMatchTheServingReference() = plansMatch("/serving_fixtures_final.jsonl.gz", fixtures = 21, requests = 41)
 
+    /**
+     * The decoder and feature paths of PLAN_AUDIO_ON §8.2 / §8.8 and PLAN_L1 §2b / §2c / §10.4 / §10.5 on fixtures 10 /
+     * 11 / 18 / 19 / 21 with a synthetic e map (≈ 80 % coverage): the energy term (prev, seedHinge), R1e, arm P, the
+     * imputed-unknown RULE, the seed gate with the gated R6 order, and freshness — re-planned by reference.py at
+     * research a0238ee3 (tools/research/ranker: built in this session; replaced by the research side's fixtures when
+     * they land).
+     */
+    @Test
+    fun theNewPathsMatchTheServingReference() = plansMatch("/serving_fixtures_paths.jsonl.gz", fixtures = 5, requests = 56)
+
     private fun plansMatch(resource: String, fixtures: Int, requests: Int) = runTest {
         val all = fixtures(resource)
         assertEquals(fixtures, all.size)
@@ -93,7 +103,10 @@ class ServingReferenceGoldenTest {
         val audioVectors = (input["audio"] as? Map<String, String?>).orEmpty().mapValues { (_, v) -> v?.let(::floats) }
         @Suppress("UNCHECKED_CAST")
         val audioNeighbours = (input["audioNeighbours"] as? Map<String, List<String>>).orEmpty()
+        @Suppress("UNCHECKED_CAST")
+        val energy = (input["energy"] as? Map<String, Number>).orEmpty().mapValues { it.value.toDouble() }
         val audio = object : AudioSource {
+            override suspend fun energy(id: TrackId): Double? = energy[id.value]
             override suspend fun vector(id: TrackId): FloatArray? = audioVectors[id.value]
             override suspend fun neighbours(id: TrackId, k: Int): List<TrackId> = audioNeighbours[id.value].orEmpty().take(k).map(::TrackId)
         }
@@ -143,6 +156,7 @@ class ServingReferenceGoldenTest {
             history = personalHistory,
             personal = personal,
             ruleOnly = req["ruleOnly"] == true,
+            impressions = (req["impressions"] as? List<*>).orEmpty().map { p -> (p as List<*>).map { TrackId(it as String) }.toSet() },
         )
         val report = ranker.plan(request)
         val rep = mapOf(
