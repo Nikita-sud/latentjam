@@ -503,6 +503,10 @@
     <string name="intelligence_smart_log_export_body">Що пропонував SMART і що сталося з кожним треком; зберігається лише на цьому пристрої. Зберігає копію для перевірки продукту.</string>
     <string name="intelligence_smart_log_exported">Журнал SMART експортовано</string>
     <string name="intelligence_smart_log_failed">Не вдалося експортувати журнал SMART.</string>
+    <string name="intelligence_smart_diagnose">Діагностика останніх запусків SMART (тест)</string>
+    <string name="intelligence_smart_diagnose_body">Наново планує останні вісім черг SMART і зберігає оцінки кожного кроку у файл у теці застосунку на цьому пристрої — для перевірки продукту.</string>
+    <string name="intelligence_smart_diagnose_done">Діагностику SMART збережено</string>
+    <string name="intelligence_smart_diagnose_failed">Не вдалося зберегти діагностику SMART.</string>
     <string name="intelligence_smart_ranker">Навчений ранжувальник (тест)</string>
     <string name="intelligence_smart_ranker_body">SMART обирає кожен наступний трек моделлю, навченою на відкритих даних про прослуховування (ListenBrainz). Вимкнено — звичайний ланцюжок SMART.</string>
     <string name="foryou_mix_meme_viral">Меми й вірусні аудіо</string>

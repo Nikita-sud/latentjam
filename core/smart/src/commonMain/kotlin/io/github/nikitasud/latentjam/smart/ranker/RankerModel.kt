@@ -83,6 +83,18 @@ public class RankerModel(
         require(logpop == LOGPOP_NONE || logpop == LOGPOP_ARTIST) { "unknown logpop input" }
     }
 
+    /**
+     * [score]'s terms for one row: w · (x − mean) / sd per feature in [features] order, then the audio term (0 when
+     * [audioWeight] is 0). They sum to [score] (diagnostics).
+     */
+    public fun contributions(row: DoubleArray): DoubleArray = DoubleArray(columns.size + 1) { i ->
+        when {
+            i < columns.size -> weights[i] * ((row[columns[i]] - mean[i]) / sd[i])
+            audioWeight != 0.0 && row.size > audioColumn -> audioWeight * row[audioColumn]
+            else -> 0.0
+        }
+    }
+
     /** The score of one candidate's full feature row (in [RankerFeatures.NAMES] order). */
     public fun score(row: DoubleArray): Double {
         var total = 0.0

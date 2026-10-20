@@ -442,6 +442,10 @@
     <string name="intelligence_smart_log_export_body">SMART が提案した曲とそれぞれの結果。この端末にのみ保存されます。製品確認用にコピーを保存します。</string>
     <string name="intelligence_smart_log_exported">SMART ログを書き出しました</string>
     <string name="intelligence_smart_log_failed">SMART ログを書き出せませんでした。</string>
+    <string name="intelligence_smart_diagnose">最近の SMART 開始を診断（テスト）</string>
+    <string name="intelligence_smart_diagnose_body">直近 8 件の SMART キューを再計画し、各ステップのスコアをこの端末のアプリ用フォルダーにファイルとして保存します。製品確認用です。</string>
+    <string name="intelligence_smart_diagnose_done">SMART の診断を保存しました</string>
+    <string name="intelligence_smart_diagnose_failed">SMART の診断を保存できませんでした。</string>
     <string name="intelligence_smart_ranker">学習済みランカー（テスト）</string>
     <string name="intelligence_smart_ranker_body">SMART が公開リスニングデータ（ListenBrainz）から学習したモデルで次の曲を選びます。オフ：通常の SMART チェーン。</string>
     <string name="foryou_mix_meme_viral">ミーム＆バイラル音源</string>

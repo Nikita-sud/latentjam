@@ -468,6 +468,10 @@
     <string name="intelligence_smart_log_export_body">Cosa ha proposto SMART e cosa è successo a ogni brano, conservato solo su questo dispositivo. Salva una copia per le verifiche del prodotto.</string>
     <string name="intelligence_smart_log_exported">Registro SMART esportato</string>
     <string name="intelligence_smart_log_failed">Impossibile esportare il registro SMART.</string>
+    <string name="intelligence_smart_diagnose">Diagnostica gli ultimi avvii SMART (test)</string>
+    <string name="intelligence_smart_diagnose_body">Ripianifica le ultime otto code SMART e salva i punteggi di ogni passo in un file nella cartella dell’app su questo dispositivo, per le verifiche del prodotto.</string>
+    <string name="intelligence_smart_diagnose_done">Diagnostica SMART salvata</string>
+    <string name="intelligence_smart_diagnose_failed">Impossibile salvare la diagnostica SMART.</string>
     <string name="intelligence_smart_ranker">Classificatore appreso (test)</string>
     <string name="intelligence_smart_ranker_body">SMART sceglie ogni brano successivo con un modello appreso da dati di ascolto pubblici (ListenBrainz). Disattivato: la solita catena SMART.</string>
     <string name="foryou_mix_meme_viral">Meme e audio virali</string>

@@ -471,6 +471,10 @@
     <string name="intelligence_smart_log_export_body">Was SMART vorgeschlagen hat und was aus jedem Titel wurde, nur auf diesem Gerät gespeichert. Speichert eine Kopie für Produktprüfungen.</string>
     <string name="intelligence_smart_log_exported">SMART-Protokoll exportiert</string>
     <string name="intelligence_smart_log_failed">Das SMART-Protokoll konnte nicht exportiert werden.</string>
+    <string name="intelligence_smart_diagnose">Letzte SMART-Starts diagnostizieren (Test)</string>
+    <string name="intelligence_smart_diagnose_body">Plant die letzten acht SMART-Warteschlangen neu und speichert die Werte jedes Schritts in einer Datei im App-Ordner auf diesem Gerät, für Produktprüfungen.</string>
+    <string name="intelligence_smart_diagnose_done">SMART-Diagnose gespeichert</string>
+    <string name="intelligence_smart_diagnose_failed">Die SMART-Diagnose konnte nicht gespeichert werden.</string>
     <string name="intelligence_smart_ranker">Gelernter Ranker (Test)</string>
     <string name="intelligence_smart_ranker_body">SMART wählt jeden nächsten Titel mit einem Modell, das aus öffentlichen Hördaten (ListenBrainz) gelernt hat. Aus: die übliche SMART-Kette.</string>
     <string name="foryou_mix_meme_viral">Memes &amp; virale Clips</string>

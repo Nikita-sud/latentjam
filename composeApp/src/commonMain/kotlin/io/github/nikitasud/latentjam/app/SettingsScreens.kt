@@ -166,6 +166,10 @@ import io.github.nikitasud.latentjam.app.generated.resources.intelligence_includ
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_include_novelty_mixes_body
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_learn_from_habits
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_learn_from_habits_body
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_smart_diagnose
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_smart_diagnose_body
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_smart_diagnose_done
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_smart_diagnose_failed
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_smart_log_export
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_use_favourites
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_use_favourites_body
@@ -1858,6 +1862,9 @@ private fun IntelligenceSettings(
     val useFavourites by settings.useFavourites.collectAsState()
     val smartLogExported = stringResource(Res.string.intelligence_smart_log_exported)
     val smartLogFailed = stringResource(Res.string.intelligence_smart_log_failed)
+    val diagnoseDone = stringResource(Res.string.intelligence_smart_diagnose_done)
+    val diagnoseFailed = stringResource(Res.string.intelligence_smart_diagnose_failed)
+    var diagnosing by remember { mutableStateOf(false) }
     // Product checks only: the impression log as a text file the listener saves where they choose.
     val smartLogExchange = rememberLocalBackupFileExchange(
         exportMimeType = "text/plain",
@@ -2015,6 +2022,25 @@ private fun IntelligenceSettings(
                             { _ -> exportSmartLogText(log) },
                             "latentjam-smart-log-${io.github.nikitasud.latentjam.history.epochMillis()}.txt",
                         )
+                    },
+                )
+                SettingsRow(
+                    title = stringResource(Res.string.intelligence_smart_diagnose),
+                    subtitle = stringResource(Res.string.intelligence_smart_diagnose_body),
+                    onClick = {
+                        if (diagnosing) return@SettingsRow
+                        diagnosing = true
+                        scope.launch {
+                            val path = try {
+                                withContext(Dispatchers.Default) { AppGraph.diagnoseSmartStarts() }
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (_: Exception) {
+                                null
+                            }
+                            diagnosing = false
+                            snackbarHostState.showSnackbar(if (path != null) diagnoseDone else diagnoseFailed)
+                        }
                     },
                 )
                 SettingsSwitchRow(

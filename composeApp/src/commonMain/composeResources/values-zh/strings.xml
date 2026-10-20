@@ -448,6 +448,10 @@
     <string name="intelligence_smart_log_export_body">SMART 推荐了什么以及每首曲目的结果，仅保存在此设备上。保存一份副本用于产品检查。</string>
     <string name="intelligence_smart_log_exported">已导出 SMART 日志</string>
     <string name="intelligence_smart_log_failed">无法导出 SMART 日志。</string>
+    <string name="intelligence_smart_diagnose">诊断最近的 SMART 启动（测试）</string>
+    <string name="intelligence_smart_diagnose_body">重新规划最近八个 SMART 队列，并把每一步的分数保存到此设备上应用文件夹中的文件，用于产品检查。</string>
+    <string name="intelligence_smart_diagnose_done">已保存 SMART 诊断</string>
+    <string name="intelligence_smart_diagnose_failed">无法保存 SMART 诊断。</string>
     <string name="intelligence_smart_ranker">学习型排序器（测试）</string>
     <string name="intelligence_smart_ranker_body">SMART 用基于公开收听数据（ListenBrainz）训练的模型挑选下一首。关闭：使用原来的 SMART 链。</string>
     <string name="foryou_mix_meme_viral">梗与网络爆款音频</string>

@@ -207,6 +207,49 @@ internal class ResolvedTrack(
     val lfm: FloatArray?,
 )
 
+/**
+ * A plan's decoder, hop by hop, for the debug diagnostics ("Diagnose recent SMART starts"; never on in normal use):
+ * the [topK] best allowed rows by penalised score (and the pick), each with its raw and penalised scores, choice
+ * probability, retriever, the run penalty / cap it took and its per-feature contributions w · z ([RankerModel.contributions],
+ * mixed over the hop's anchors as the score is), plus the ladder's rungs. Rows carry the raw feature values too.
+ */
+public class PlanDiagnostics(public val topK: Int = 5) {
+    public class Entry(
+        public val id: TrackId,
+        public val s: Double,
+        public val t: Double,
+        public val nearBest: Boolean,
+        public val probability: Double,
+        public val source: String,
+        public val artistKey: String,
+        public val penalty: Double,
+        public val cap: Double,
+        public val contributions: DoubleArray,
+        /** The row's feature values at the seed anchor, in [RankerFeatures.NAMES] order. */
+        public val seedRow: DoubleArray,
+    )
+
+    public class Hop(
+        public val hop: Int,
+        public val pick: TrackId,
+        public val sd: Double,
+        public val penalty: Double,
+        public val runArtist: String,
+        public val runLength: Int,
+        public val capped: Boolean,
+        public val nearBestSize: Int,
+        public val floor: Double,
+        public val entries: List<Entry>,
+    )
+
+    public var model: String = ""
+    public var features: List<String> = emptyList()
+    public var poolSize: Int = 0
+    public var poolHow: String = ""
+    public val hops: MutableList<Hop> = ArrayList()
+    public val ladder: MutableList<Pair<TrackId, String>> = ArrayList()
+}
+
 /** One plan as reference.py traces it (golden tests only). */
 internal class PlanTrace {
     var query: String = ""
@@ -316,6 +359,7 @@ public class SmartRanker(
 
     public val modelName: String get() = model.name
     public val hasFullModel: Boolean get() = fullModel != null
+    public val fullModelName: String? get() = fullModel?.name
 
     private fun know(track: TrackDescriptor): Known {
         resolver?.invoke(track)?.let { r ->
@@ -391,7 +435,10 @@ public class SmartRanker(
         return filled
     }
 
-    public suspend fun plan(request: PlanRequest): PlanReport {
+    public suspend fun plan(request: PlanRequest): PlanReport = plan(request, null)
+
+    /** [plan] with [diagnostics] filled (the debug action; the time budget is not applied). */
+    public suspend fun plan(request: PlanRequest, diagnostics: PlanDiagnostics?): PlanReport {
         val active = when {
             request.ruleOnly -> RankerModel.RULE_SET
             request.personal && fullModel != null -> fullModel
@@ -447,6 +494,19 @@ public class SmartRanker(
         val decoding = TimeSource.Monotonic.markNow()
         val hopScores = ArrayList<Double>()
         val hopChoices = ArrayList<Int>()
+        val diagPicks = ArrayList<Int>()
+        val diagRows = HashMap<Int, Array<DoubleArray>>()
+        val artistKeysOfPool = if (diagnostics != null) pool.map(artistKeyOf) else emptyList()
+        diagnostics?.let { d ->
+            d.model = active.name
+            d.features = active.features + "audio"
+            d.poolSize = pool.size
+            d.poolHow = when {
+                request.ruleOnly -> "rule-only"
+                poolSource.size <= serving.wholeLibraryUpTo -> "whole"
+                else -> "retrievers"
+            }
+        }
         val modelPicks = RankerQueue.build(
             model = active,
             poolSize = pool.size,
@@ -461,11 +521,15 @@ public class SmartRanker(
             blocked = { row, picks ->
                 blockedVersion(pool[row].version, picks.map { pool[it].track.id }, previousIds, window, ::versionOf)
             },
-            stop = { decoding.elapsedNow().inWholeMilliseconds > budgetMs && trace == null },
+            stop = { decoding.elapsedNow().inWholeMilliseconds > budgetMs && trace == null && diagnostics == null },
             skipWhenTied = request.ruleOnly,
             trace = { h: RankerQueue.HopTrace ->
                 hopScores += h.t[h.pick]
                 hopChoices += h.nearBest.size
+                if (diagnostics != null) {
+                    diagnose(diagnostics, h, active, pool, sources, artistKeysOfPool, diagPicks, diagRows)
+                    diagPicks += h.pick
+                }
                 if (trace != null) {
                     if (trace.draws.size < trace.hops.size + 1) trace.draws.add(null)
                     trace.hops += h
@@ -474,6 +538,7 @@ public class SmartRanker(
         ) { anchor ->
             val a = if (anchor == RankerQueue.SEED) seedKnown else pool[anchor]
             features(a, pool, artistKeyOf, audioVectors, personalRows, request.seed.id, popularityOn, hearts)
+                .also { if (diagnostics != null) diagRows[anchor] = it }
         }.map { pool[it].track.id }
         val timedOut = modelPicks.size < minOf(request.length, pool.size) && decoding.elapsedNow().inWholeMilliseconds > budgetMs
         val picks = ArrayList(modelPicks)
@@ -490,6 +555,7 @@ public class SmartRanker(
             val (next, rung) = ladder.next(picks, audio) ?: break
             picks += next
             planPicks += PlanPick(Double.NaN, 1.0, false, "ladder:$rung")
+            diagnostics?.ladder?.add(next to rung)
             trace?.ladder?.add(next to rung)
         }
         if (trace != null) {
@@ -500,6 +566,45 @@ public class SmartRanker(
                 .distinct().sortedWith { a, b -> SaltedKey.idOrder.compare(a.value, b.value) }
         }
         return PlanReport(picks, active.name, pool.size, modelPicks.size, picks.size - modelPicks.size, timedOut, imputed, planPicks)
+    }
+
+    private fun diagnose(
+        d: PlanDiagnostics,
+        h: RankerQueue.HopTrace,
+        model: RankerModel,
+        pool: List<Known>,
+        sources: Map<TrackId, String>,
+        artistKeys: List<String>,
+        picks: List<Int>,
+        rows: Map<Int, Array<DoubleArray>>,
+    ) {
+        val seedRows = rows[RankerQueue.SEED] ?: return
+        val prevRows = picks.lastOrNull()?.let { rows[it] }
+        fun contributions(i: Int): DoubleArray {
+            val c0 = model.contributions(seedRows[i])
+            if (picks.isEmpty() || prevRows == null || model.anchor == RankerModel.Anchor.SEED) return c0
+            val c1 = model.contributions(prevRows[i])
+            if (model.anchor == RankerModel.Anchor.PREVIOUS) return c1
+            val total = model.seedWeight + model.previousWeight
+            return DoubleArray(c0.size) { (model.seedWeight * c0[it] + model.previousWeight * c1[it]) / total }
+        }
+        val near = h.nearBest.toHashSet()
+        val ranked = h.t.indices.filter { !h.t[it].isNaN() }.sortedByDescending { h.t[it] }
+        val shown = (ranked.take(d.topK) + h.pick).distinct()
+        d.hops += PlanDiagnostics.Hop(
+            hop = d.hops.size + 1, pick = pool[h.pick].track.id, sd = h.sd, penalty = h.penalty, runArtist = h.runArtist,
+            runLength = h.runLength, capped = h.capped, nearBestSize = h.nearBest.size, floor = h.floor,
+            entries = shown.map { i ->
+                val same = h.runArtist.isNotEmpty() && artistKeys[i] == h.runArtist
+                PlanDiagnostics.Entry(
+                    id = pool[i].track.id, s = h.s[i], t = h.t[i], nearBest = i in near,
+                    probability = if (i in near) 1.0 / h.nearBest.size else 0.0,
+                    source = sources[pool[i].track.id] ?: "whole", artistKey = artistKeys[i],
+                    penalty = if (same) h.penalty else 0.0, cap = if (same && h.capped) model.thirdInRowCap else 0.0,
+                    contributions = contributions(i), seedRow = seedRows[i],
+                )
+            },
+        )
     }
 
     /** Back-compatible entry point: the plan's ids. */

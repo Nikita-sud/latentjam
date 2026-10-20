@@ -442,6 +442,10 @@
     <string name="intelligence_smart_log_export_body">SMART가 제안한 곡과 각 곡의 결과로, 이 기기에만 저장됩니다. 제품 점검용 사본을 저장합니다.</string>
     <string name="intelligence_smart_log_exported">SMART 로그를 내보냈습니다</string>
     <string name="intelligence_smart_log_failed">SMART 로그를 내보낼 수 없습니다.</string>
+    <string name="intelligence_smart_diagnose">최근 SMART 시작 진단(테스트)</string>
+    <string name="intelligence_smart_diagnose_body">최근 SMART 대기열 8개를 다시 계획하고 각 단계의 점수를 이 기기의 앱 폴더에 파일로 저장합니다. 제품 점검용입니다.</string>
+    <string name="intelligence_smart_diagnose_done">SMART 진단을 저장했습니다</string>
+    <string name="intelligence_smart_diagnose_failed">SMART 진단을 저장할 수 없습니다.</string>
     <string name="intelligence_smart_ranker">학습된 랭커 (테스트)</string>
     <string name="intelligence_smart_ranker_body">SMART가 공개 청취 데이터(ListenBrainz)로 학습한 모델로 다음 곡을 고릅니다. 끄면 기존 SMART 체인을 씁니다.</string>
     <string name="foryou_mix_meme_viral">밈 &amp; 바이럴 오디오</string>

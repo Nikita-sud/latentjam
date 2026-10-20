@@ -399,6 +399,28 @@ object AppGraph {
         get() = koin.get()
 
     /** Shell-level user preferences (theme). */
+    /**
+     * The test-only "Diagnose recent SMART starts": re-plans the last eight ranker queues with full diagnostics and
+     * writes them to the app's debug file; its path, or null when there is nothing to diagnose or it failed.
+     */
+    internal suspend fun diagnoseSmartStarts(): String? {
+        val log = smartImpressionLog ?: return null
+        val ranker = koin.getOrNull<SmartRankerAssets>()?.ranker ?: return null
+        val hearts = koin.getOrNull<Favorites>()?.all().orEmpty()
+        val times = koin.getOrNull<FavoriteTimes>()?.all().orEmpty()
+        val text = diagnoseRecentSmartStarts(
+            log = log,
+            ranker = ranker,
+            library = smartLibraryTracks.value,
+            events = history.recentEvents(10_000),
+            favourites = hearts.associateWith { times[it] },
+            useFavourites = settings.useFavourites.value,
+            fullModelName = ranker.fullModelName,
+        )
+        if (text.isEmpty()) return null
+        return writeDebugFile("smart_diagnostics.jsonl", text)
+    }
+
     /** SMART's impression log, for the debug export (null when the platform binds none). */
     internal val smartImpressionLog: SmartImpressionLog?
         get() = koin.getOrNull()

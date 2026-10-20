@@ -468,6 +468,10 @@
     <string name="intelligence_smart_log_export_body">O que o SMART sugeriu e o que aconteceu com cada faixa, guardado só neste aparelho. Salva uma cópia para verificações do produto.</string>
     <string name="intelligence_smart_log_exported">Registro do SMART exportado</string>
     <string name="intelligence_smart_log_failed">Não foi possível exportar o registro do SMART.</string>
+    <string name="intelligence_smart_diagnose">Diagnosticar os últimos inícios do SMART (teste)</string>
+    <string name="intelligence_smart_diagnose_body">Replaneja as últimas oito filas do SMART e salva as pontuações de cada passo em um arquivo na pasta do app neste aparelho, para verificações do produto.</string>
+    <string name="intelligence_smart_diagnose_done">Diagnóstico do SMART salvo</string>
+    <string name="intelligence_smart_diagnose_failed">Não foi possível salvar o diagnóstico do SMART.</string>
     <string name="intelligence_smart_ranker">Classificador aprendido (teste)</string>
     <string name="intelligence_smart_ranker_body">O SMART escolhe cada próxima faixa com um modelo aprendido de dados públicos de audição (ListenBrainz). Desligado: a cadeia SMART de sempre.</string>
     <string name="foryou_mix_meme_viral">Memes e áudios virais</string>

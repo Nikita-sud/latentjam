@@ -461,6 +461,10 @@
     <string name="intelligence_smart_log_export_body">SMART’ın ne önerdiği ve her parçaya ne olduğu, yalnızca bu cihazda saklanır. Ürün kontrolleri için bir kopya kaydeder.</string>
     <string name="intelligence_smart_log_exported">SMART günlüğü dışa aktarıldı</string>
     <string name="intelligence_smart_log_failed">SMART günlüğü dışa aktarılamadı.</string>
+    <string name="intelligence_smart_diagnose">Son SMART başlangıçlarını incele (test)</string>
+    <string name="intelligence_smart_diagnose_body">Son sekiz SMART kuyruğunu yeniden planlar ve her adımın puanlarını bu cihazdaki uygulama klasöründe bir dosyaya kaydeder; ürün kontrolleri içindir.</string>
+    <string name="intelligence_smart_diagnose_done">SMART tanılaması kaydedildi</string>
+    <string name="intelligence_smart_diagnose_failed">SMART tanılaması kaydedilemedi.</string>
     <string name="intelligence_smart_ranker">Öğrenilmiş sıralayıcı (test)</string>
     <string name="intelligence_smart_ranker_body">SMART her sonraki parçayı herkese açık dinleme verilerinden (ListenBrainz) öğrenilmiş bir modelle seçer. Kapalı: alışılmış SMART zinciri.</string>
     <string name="foryou_mix_meme_viral">Komik ve viral sesler</string>

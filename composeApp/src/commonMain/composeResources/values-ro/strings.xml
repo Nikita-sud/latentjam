@@ -471,6 +471,10 @@
     <string name="intelligence_smart_log_export_body">Ce a propus SMART și ce s-a întâmplat cu fiecare piesă, păstrat doar pe acest dispozitiv. Salvează o copie pentru verificările produsului.</string>
     <string name="intelligence_smart_log_exported">Jurnalul SMART a fost exportat</string>
     <string name="intelligence_smart_log_failed">Jurnalul SMART nu a putut fi exportat.</string>
+    <string name="intelligence_smart_diagnose">Diagnostichează ultimele porniri SMART (test)</string>
+    <string name="intelligence_smart_diagnose_body">Replanifică ultimele opt cozi SMART și salvează scorurile fiecărui pas într-un fișier din folderul aplicației pe acest dispozitiv, pentru verificările produsului.</string>
+    <string name="intelligence_smart_diagnose_done">Diagnosticul SMART a fost salvat</string>
+    <string name="intelligence_smart_diagnose_failed">Diagnosticul SMART nu a putut fi salvat.</string>
     <string name="intelligence_smart_ranker">Clasificator învățat (test)</string>
     <string name="intelligence_smart_ranker_body">SMART alege fiecare piesă următoare cu un model învățat din date publice de ascultare (ListenBrainz). Oprit: lanțul SMART obișnuit.</string>
     <string name="foryou_mix_meme_viral">Meme și audio viral</string>

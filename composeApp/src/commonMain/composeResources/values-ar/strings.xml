@@ -545,6 +545,10 @@
     <string name="intelligence_smart_log_export_body">ما اقترحه SMART وما حدث لكل مقطع، محفوظ على هذا الجهاز فقط. يحفظ نسخة لفحوص المنتج.</string>
     <string name="intelligence_smart_log_exported">تم تصدير سجل SMART</string>
     <string name="intelligence_smart_log_failed">تعذّر تصدير سجل SMART.</string>
+    <string name="intelligence_smart_diagnose">تشخيص آخر تشغيلات SMART (تجريبي)</string>
+    <string name="intelligence_smart_diagnose_body">يعيد تخطيط آخر ثماني قوائم SMART ويحفظ درجات كل خطوة في ملف داخل مجلد التطبيق على هذا الجهاز، لفحوص المنتج.</string>
+    <string name="intelligence_smart_diagnose_done">تم حفظ تشخيص SMART</string>
+    <string name="intelligence_smart_diagnose_failed">تعذّر حفظ تشخيص SMART.</string>
     <string name="intelligence_smart_ranker">مُرتِّب مُتعلَّم (تجريبي)</string>
     <string name="intelligence_smart_ranker_body">يختار SMART كل أغنية تالية بنموذج تعلّم من بيانات استماع عامة (ListenBrainz). عند الإيقاف: سلسلة SMART المعتادة.</string>
     <string name="foryou_mix_meme_viral">ميمات ومقاطع رائجة</string>
