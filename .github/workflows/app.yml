@@ -37,6 +37,8 @@ jobs:
         run: python3 -m unittest discover -s tools/taglib -p "test_*.py"
       - name: Fuzz runner regression checks
         run: python3 -m unittest discover -s tools/fuzz -p "test_*.py"
+      - name: AltStore source regression checks
+        run: python3 -m unittest discover -s tools/release -p "test_altstore_source.py"
       - name: APK inventory regression checks
         run: python3 -m unittest discover -s tools/ci -p "test_apk_inventory.py"
       - name: Build plugin regression checks

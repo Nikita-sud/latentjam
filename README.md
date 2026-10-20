@@ -69,8 +69,12 @@ behind, so the newest features may not have arrived there yet. On iPhone, sidelo
   from this source on its own schedule, so it can trail the newest release here; it ships one larger
   APK for every processor type (64 MiB).
 - **iPhone IPA** — not on the App Store or TestFlight. The IPA (about 40 MB) is **unsigned**: install
-  it with AltStore or Sideloadly from a Mac or PC, which re-sign it with your Apple ID; with a free
-  Apple ID the install must be refreshed every 7 days. Requires **iOS 15.1+**. Music comes from files
+  it with AltStore Classic, SideStore or Sideloadly, which re-sign it with your Apple ID; with a free
+  Apple ID the install must be refreshed every 7 days. Requires **iOS 15.1+**. To get new versions in
+  AltStore Classic or SideStore, add this source (Sources → +):
+  `https://raw.githubusercontent.com/Nikita-sud/latentjam/main/website/altstore.json`. It points at
+  the same IPAs as the Releases page. AltStore PAL (the EU marketplace) installs only apps
+  notarized by Apple, so LatentJam is not available there. Music comes from files
   you import through the Files app and from songs downloaded to your Music library. Protected Apple
   Music downloads play and are searchable but can't be analysed by sound, so SMART, the map and the
   mixes work best with imported files or DRM-free purchases.
@@ -82,7 +86,8 @@ If songs are still missing, look for a hidden `.nomedia` file in their folder, w
 to skip it. Settings → Library → Music sources picks which folders appear.
 
 **Updating:** F-Droid updates the app for you. Otherwise install the new APK over the old one (your
-library, history and settings stay), or sideload the new IPA. The app never goes online, so it can't
+library, history and settings stay), or sideload the new IPA (with the source above, AltStore
+Classic and SideStore show it as an update). The app never goes online, so it can't
 announce new versions: watch this repository for releases (Watch → Custom → Releases).
 
 <details>

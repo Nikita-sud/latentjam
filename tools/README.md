@@ -43,6 +43,24 @@ remain in `outputs/apk/release`. Resolve the artifact before installing it; a su
 build does not make a hard-coded `outputs/apk` path current. Verify the installed APK hash against
 the resolved file when validating a phone build. The script does not run ADB or install anything.
 
+## release/altstore-source.py
+
+Writes `website/altstore.json`, the AltStore/SideStore source that README's iPhone section links to.
+It lists every published release that has an IPA attached, newest first, with the IPA's GitHub
+download link and size and the first paragraph of the release notes. The app's name, bundle
+identifier, privacy strings, build number and minimum iOS come from the checkout, so run it on the
+released commit after the IPA is uploaded, then commit the JSON:
+
+```bash
+python3 tools/release/altstore-source.py
+```
+
+It reads the releases with `gh api`; `--releases file.json` uses a saved copy instead. It fails when
+the checkout's `MARKETING_VERSION` is not the newest release with an IPA, or when a release carries
+two IPAs. The IPA is unsigned, so the source lists no entitlements; AltStore checks that against the
+IPA when it installs. The JSON is served from `main` on raw.githubusercontent.com, and
+`tools/build_site.py` also copies it to the site root.
+
 ## release/build-native-eq.py
 
 Builds the vendored C++ equalizer without downloading dependencies. Playback Gradle tasks invoke
