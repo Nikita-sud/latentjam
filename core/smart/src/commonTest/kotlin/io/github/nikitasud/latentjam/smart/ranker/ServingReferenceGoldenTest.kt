@@ -11,9 +11,8 @@ import io.github.nikitasud.latentjam.smart.text.ArtistNeighbours
 import io.github.nikitasud.latentjam.smart.text.ArtistPopularity
 import io.github.nikitasud.latentjam.smart.text.AssetBytes
 import kotlinx.coroutines.test.runTest
-import java.io.File
-import java.util.Base64
-import java.util.zip.GZIPInputStream
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.test.Test
@@ -30,30 +29,30 @@ import kotlin.test.assertTrue
  * relative or 1e-12 absolute.
  */
 class ServingReferenceGoldenTest {
-    private val ml = File("../../androidApp/src/main/assets/ml")
     private val tagger by lazy {
-        AudioTagger.parse(File(ml, "audio_tagger.json").readText(), AssetBytes.of(File(ml, "audio_tagger.bin").readBytes()))!!
+        AudioTagger.parse(GoldenFiles.ml("audio_tagger.json").decodeToString(), AssetBytes.of(GoldenFiles.ml("audio_tagger.bin")))!!
     }
 
     @Suppress("UNCHECKED_CAST")
     private fun fixtures(resource: String): List<Map<String, Any?>> =
-        GZIPInputStream(checkNotNull(javaClass.getResourceAsStream(resource))).reader().readLines()
+        GoldenFiles.gzipText(resource.removePrefix("/")).lines()
             .filter(String::isNotEmpty).map { MiniJson(it).parse() as Map<String, Any?> }
 
     @Test
-    fun plansMatchTheServingReference() = plansMatch("/serving_fixtures.jsonl.gz")
+    fun plansMatchTheServingReference() = plansMatch("/serving_fixtures.jsonl.gz", fixtures = 20, requests = 39)
 
     /**
-     * The same 19 libraries and requests with the final models swapped in (model_core_final.json f9db1ec8 for every
-     * request, model_full_final.json 54fd0a4b for the personal ones; rule-only kept), re-planned by reference.py
-     * (47ae93dc… at 0ec198cb) — the files the app ships.
+     * The same 20 libraries and requests with the shipped models swapped in (model_core_l1.json 060cae9c — the PLAN_L1
+     * decoder with artist re-entry, provisional parameters — for every request, model_full_final.json 54fd0a4b for the
+     * personal ones; rule-only kept), re-planned by reference.py (9ee4901d… at 43ee7fc5).
      */
     @Test
-    fun plansWithTheFinalModelsMatchTheServingReference() = plansMatch("/serving_fixtures_final.jsonl.gz")
+    fun plansWithTheShippedModelsMatchTheServingReference() = plansMatch("/serving_fixtures_final.jsonl.gz", fixtures = 20, requests = 39)
 
-    private fun plansMatch(resource: String) = runTest {
+    private fun plansMatch(resource: String, fixtures: Int, requests: Int) = runTest {
         val all = fixtures(resource)
-        assertEquals(19, all.size)
+        assertEquals(fixtures, all.size)
+        val expectedRequests = requests
         val failures = ArrayList<String>()
         var requests = 0
         for (fx in all) {
@@ -72,7 +71,7 @@ class ServingReferenceGoldenTest {
             }
         }
         assertTrue(failures.isEmpty(), failures.joinToString("\n"))
-        assertEquals(36, requests)
+        assertEquals(expectedRequests, requests)
     }
 
     /** One request on a fresh ranker; the result in the reference's golden shape. */
@@ -234,9 +233,11 @@ class ServingReferenceGoldenTest {
         lfm = (r["lfm"] as String?)?.let(::floats),
     )
 
+    @OptIn(ExperimentalEncodingApi::class)
     private fun floats(b64: String): FloatArray {
-        val b = java.nio.ByteBuffer.wrap(Base64.getDecoder().decode(b64)).order(java.nio.ByteOrder.LITTLE_ENDIAN)
-        return FloatArray(b.remaining() / 4) { b.getFloat() }
+        val b = Base64.decode(b64)
+        fun u8(i: Int) = b[i].toInt() and 0xff
+        return FloatArray(b.size / 4) { Float.fromBits(u8(it * 4) or (u8(it * 4 + 1) shl 8) or (u8(it * 4 + 2) shl 16) or (u8(it * 4 + 3) shl 24)) }
     }
 
     private fun Map<String, Any?>.list(key: String): List<Any?> = (this[key] as List<*>?).orEmpty()
@@ -267,10 +268,10 @@ class ServingReferenceGoldenTest {
     /** The LJNBRS1 layout (pack_colisten.py) from the fixture's lists. */
     private fun neighboursAsset(lists: Map<Int, List<Pair<Int, Int>>>): ByteArray {
         val space = (lists.keys.maxOrNull() ?: 0) + 1
-        val out = java.io.ByteArrayOutputStream()
+        val out = ByteSink()
         fun u8(v: Int) = out.write(v and 0xff)
         fun u32(v: Long) { for (b in 0 until 4) u8(((v ushr (8 * b)) and 0xff).toInt()) }
-        out.write("LJNBRS1\u0000".toByteArray())
+        out.write("LJNBRS1\u0000".encodeToByteArray())
         u32(1); u32(space.toLong()); u32(lists.size.toLong()); u8(4); u8(0)
         val bits = LongArray((space + 63) / 64)
         for (e in lists.keys) bits[e ushr 6] = bits[e ushr 6] or (1L shl (e and 63))
@@ -287,11 +288,11 @@ class ServingReferenceGoldenTest {
     /** The LJPOPS1 layout (serving/artist_pop.py): LJVECS1 with dimension 1. */
     private fun popularityAsset(values: Map<Int, Float>): ByteArray {
         val space = (values.keys.maxOrNull() ?: 0) + 1
-        val out = java.io.ByteArrayOutputStream()
+        val out = ByteSink()
         fun u8(v: Int) = out.write(v and 0xff)
         fun u16(v: Int) { u8(v); u8(v ushr 8) }
         fun u32(v: Long) { for (b in 0 until 4) u8(((v ushr (8 * b)) and 0xff).toInt()) }
-        out.write("LJPOPS1\u0000".toByteArray())
+        out.write("LJPOPS1\u0000".encodeToByteArray())
         u32(1); u32(space.toLong()); u32(values.size.toLong()); u16(1); u16(4)
         val bits = LongArray((space + 63) / 64)
         for (e in values.keys) bits[e ushr 6] = bits[e ushr 6] or (1L shl (e and 63))
@@ -300,4 +301,22 @@ class ServingReferenceGoldenTest {
         for ((_, v) in values.entries.sortedBy { it.key }) u32(v.toRawBits().toLong() and 0xffffffffL)
         return out.toByteArray()
     }
+}
+
+/** A growable byte buffer (common code has no ByteArrayOutputStream). */
+private class ByteSink {
+    private var bytes = ByteArray(1024)
+    private var size = 0
+    fun write(b: Int) {
+        if (size == bytes.size) bytes = bytes.copyOf(size * 2)
+        bytes[size++] = b.toByte()
+    }
+    fun write(b: ByteArray) = b.forEach { write(it.toInt()) }
+    fun toByteArray(): ByteArray = bytes.copyOf(size)
+}
+
+/** The golden fixtures (gzipped, test resources) and the shipped ml/ assets, read per platform. */
+internal expect object GoldenFiles {
+    fun gzipText(name: String): String
+    fun ml(name: String): ByteArray
 }

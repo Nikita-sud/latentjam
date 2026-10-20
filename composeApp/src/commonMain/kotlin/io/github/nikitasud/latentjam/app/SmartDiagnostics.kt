@@ -118,7 +118,7 @@ internal suspend fun diagnoseRecentSmartStarts(
                 if (j > 0) out.append(',')
                 out.append("{\"track\":${track(e.id)},\"s\":${n(e.s)},\"t\":${n(e.t)},\"near\":${e.nearBest}," +
                     "\"p\":${n(e.probability)},\"source\":${q(e.source)},\"artistKey\":${q(e.artistKey)}," +
-                    "\"penalty\":${n(e.penalty)},\"cap\":${n(e.cap)}," +
+                    "\"penalty\":${n(e.penalty)},\"cap\":${n(e.cap)},\"reentry\":${n(e.reentry)}," +
                     "\"contrib\":[${e.contributions.joinToString(",") { n(it) }}]," +
                     "\"row\":[${e.seedRow.joinToString(",") { n(it) }}]}")
             }

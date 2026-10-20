@@ -1,6 +1,6 @@
 {
  "schema": "lj-smart-ranker/2",
- "name": "CORE final (PLAN_FINAL \u00a79)",
+ "name": "CORE L1 decoder (PROVISIONAL: \u03bb_run 0.5, \u03bb_re 2.0 until the PLAN_L1 B1 grid chooses)",
  "features": [
   "cos",
   "cos_z",
@@ -73,12 +73,12 @@
   -0.25135299003068584,
   -0.0671577121758704
  ],
- "runPenalty": 1.5,
+ "runPenalty": 0.5,
  "anchor": "mix",
  "seedWeight": 2.0,
  "previousWeight": 1.0,
  "epsilon": 0.01,
- "thirdInRowCap": 8.0,
+ "thirdInRowCap": 0.0,
  "serving": {
   "wholeLibraryUpTo": 600,
   "quotas": {
@@ -119,6 +119,14 @@
    "weights": "CLEAN_DERIVED (FIT A)",
    "lambda_run, eps": "CALIBRATED (FIT B)",
    "cap 8, quotas, audio weight, is_favourite": "RULE_SET"
-  }
+  },
+  "l1": "PLAN_L1 \u00a72a; parameters provisional (owner: new CORE to the phone as a product check, 2026-10-20)"
+ },
+ "audioWeight": 0.7975,
+ "artistReentry": {
+  "lambda": 2.0,
+  "k": 10,
+  "gamma": 0.7,
+  "credit": 0.5
  }
 }

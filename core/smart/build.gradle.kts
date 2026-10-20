@@ -83,3 +83,10 @@ val mapBuildFlags = tasks.register<GenerateMapBuildFlags>("generateMapBuildFlags
     destination = layout.buildDirectory.dir("generated/mapFlags")
 }
 kotlin.sourceSets.commonMain { kotlin.srcDir(mapBuildFlags) }
+
+// ServingReferenceGoldenTest (common) reads its fixtures and the shipped ml/ assets from the checkout; simctl passes
+// SIMCTL_CHILD_* variables to the simulator test process without the prefix.
+tasks.withType<org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeSimulatorTest>().configureEach {
+    environment("SIMCTL_CHILD_LJ_TEST_RESOURCES", file("src/androidHostTest/resources").absolutePath)
+    environment("SIMCTL_CHILD_LJ_ML_DIR", rootProject.file("androidApp/src/main/assets/ml").absolutePath)
+}

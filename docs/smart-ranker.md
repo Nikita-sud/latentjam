@@ -148,6 +148,19 @@ a restart; an unhealthy manifest and a throwing audio index still fill the queue
 - The first plan was FULL final: 20 picks from the model, a 184-track pool from 1,106 candidates, 1,196 ms
   including the one-time asset load and manifest hashing.
 
+## PLAN_L1 CORE decoder (20 October, test: new CORE decoder, FULL in progress)
+
+- smart_ranker.json = model_core_l1.json (060cae9c…, research 43ee7fc5). The parameters are PROVISIONAL until the
+  PLAN_L1 B1 grid chooses them: λ_run 0.5, no −8 cap, audioWeight 0.7975, artist re-entry λ 2.0, k 10, γ 0.7,
+  credit 0.5.
+- Re-entry (`RankerModel.artistReentry`, in `RankerQueue.build` after the run term and the cap): a candidate that does
+  not continue the run loses λ · sd · Σ γ^j · m over the queue's picks t−2 … t−k. The seed counts as the oldest pick.
+  m = 1 for the same artist key, `credit` for a shared artist-set credit, else 0.
+- The ladder keeps its hard third-in-a-row rule whenever re-entry is on.
+- FULL is still model_full_final.json (54fd0a4b). "Learn from my habits" is OFF by default in this build.
+- Parity: research fixtures 1–20 (39 requests), and the same 20 re-planned with the shipped models, on the JVM and on
+  the iOS simulator (the golden test moved to common code).
+
 ## Diagnostics (test builds)
 
 *Settings → SMART engine → Diagnose recent SMART starts (test)* re-plans the last 16 ranker queues of the impression

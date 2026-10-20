@@ -41,7 +41,25 @@ public class RankerModel(
      * artist popularity of the track's pack entity, 0 when unknown. Any other value refuses the asset.
      */
     public val logpop: String = LOGPOP_NONE,
+    /** PLAN_L1 §2a's artist re-entry term; null = the D0 decoder unchanged. */
+    public val artistReentry: ArtistReentry? = null,
 ) {
+    /**
+     * A candidate that does not continue the run loses λ · sd · Σ_{j=0..} γ^j · m(i, back[1 + j]) over the queue's
+     * picks t−2 … t−k (newest first; the seed counts as the oldest pick); m = 1 for the same artist key, [credit] for a
+     * shared artist-set credit only, else 0 (reference.py `decode`, `redundancy`).
+     */
+    public class ArtistReentry(
+        public val lambda: Double,
+        public val k: Int = 10,
+        public val gamma: Double = 0.7,
+        public val credit: Double = 0.5,
+    ) {
+        init {
+            require(lambda.isFinite() && lambda >= 0.0 && k >= 1 && gamma.isFinite() && gamma >= 0.0 && credit.isFinite() && credit >= 0.0)
+        }
+    }
+
     /**
      * @property wholeLibraryUpTo libraries with at most this many eligible tracks are scored whole (as the research
      *   scored them); larger ones score the union of the retrievers' quotas
@@ -159,6 +177,14 @@ public class RankerModel(
                 } ?: Serving(),
                 audioWeightOverride = (root["audioWeight"] as? Number)?.toDouble(),
                 logpop = (root["inputs"] as? Map<*, *>)?.get("logpop") as? String ?: LOGPOP_NONE,
+                artistReentry = (root["artistReentry"] as? Map<*, *>)?.let { m ->
+                    ArtistReentry(
+                        lambda = (m["lambda"] as Number).toDouble(),
+                        k = (m["k"] as? Number)?.toInt() ?: 10,
+                        gamma = (m["gamma"] as? Number)?.toDouble() ?: 0.7,
+                        credit = (m["credit"] as? Number)?.toDouble() ?: 0.5,
+                    )
+                },
             )
         }.getOrNull()
     }

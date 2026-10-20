@@ -17,6 +17,7 @@ import io.github.nikitasud.latentjam.smart.text.ArtistSets
 import io.github.nikitasud.latentjam.smart.text.ArtistVectors
 import io.github.nikitasud.latentjam.smart.text.KnownArtists
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.pow
 import kotlin.math.sqrt
 import kotlin.time.TimeSource
 
@@ -53,6 +54,9 @@ public object RankerQueue {
         skipWhenTied: Boolean = false,
         /** Golden-test hook: each hop's scores and choice (reference.py's trace). */
         trace: ((HopTrace) -> Unit)? = null,
+        /** Each row's artist-set credits (the re-entry term's shared-credit match); null without [RankerModel.artistReentry]. */
+        credits: List<LongArray>? = null,
+        seedCredits: LongArray = LongArray(0),
         features: (anchor: Int) -> Array<DoubleArray>,
     ): List<Int> {
         if (poolSize == 0 || length <= 0) return emptyList()
@@ -88,7 +92,43 @@ public object RankerQueue {
                 if (capped && artistKeys[i] == runAt) t -= model.thirdInRowCap
                 return t
             }
-            val t = DoubleArray(poolSize) { if (allowed[it]) penalised(it) else Double.NaN }
+            // PLAN_L1 §2a re-entry: the queue so far, newest first, the seed as its oldest pick.
+            val reentry = model.artistReentry?.takeIf { it.lambda != 0.0 }
+            var prevKey = ""
+            var backKeys: List<String> = emptyList()
+            var backCredits: List<LongArray> = emptyList()
+            if (reentry != null) {
+                val keys = picks.asReversed().map { artistKeys[it] } + seedArtist
+                val cr = picks.asReversed().map { credits?.get(it) ?: NO_CREDITS } + seedCredits
+                prevKey = keys[0]
+                val end = minOf(reentry.k, keys.size)
+                backKeys = if (end > 1) keys.subList(1, end) else emptyList()
+                backCredits = if (end > 1) cr.subList(1, end) else emptyList()
+            }
+            fun reentryOf(i: Int): Double {
+                if (reentry == null || (prevKey.isNotEmpty() && artistKeys[i] == prevKey)) return 0.0
+                var r = 0.0
+                val mine = credits?.get(i) ?: NO_CREDITS
+                for (j in backKeys.indices) {
+                    val m = when {
+                        artistKeys[i].isNotEmpty() && artistKeys[i] == backKeys[j] -> 1.0
+                        mine.isNotEmpty() && backCredits[j].isNotEmpty() && mine.any { it in backCredits[j] } -> reentry.credit
+                        else -> 0.0
+                    }
+                    r += reentry.gamma.pow(j) * m
+                }
+                return r
+            }
+            val t = DoubleArray(poolSize) {
+                if (!allowed[it]) Double.NaN else {
+                    var v = penalised(it)
+                    if (reentry != null) {
+                        val r = reentryOf(it)
+                        if (r != 0.0) v -= reentry.lambda * sd * r
+                    }
+                    v
+                }
+            }
             var bestScore = Double.NEGATIVE_INFINITY
             for (i in 0 until poolSize) if (allowed[i]) bestScore = maxOf(bestScore, t[i])
             val spreadPenalised = spread(t, allowed)
@@ -112,6 +152,8 @@ public object RankerQueue {
 
     /** The anchor index [build] passes for the seed. */
     public const val SEED: Int = -1
+
+    private val NO_CREDITS = LongArray(0)
 
     /** One hop of [build], as reference.py traces it: scores s, penalised t (NaN = not allowed), the near-best rows. */
     public class HopTrace(
@@ -224,6 +266,8 @@ public class PlanDiagnostics(public val topK: Int = 5) {
         public val artistKey: String,
         public val penalty: Double,
         public val cap: Double,
+        /** The re-entry term this row lost (PLAN_L1 §2a), 0 without one. */
+        public val reentry: Double,
         public val contributions: DoubleArray,
         /** The row's feature values at the seed anchor, in [RankerFeatures.NAMES] order. */
         public val seedRow: DoubleArray,
@@ -526,6 +570,8 @@ public class SmartRanker(
             },
             stop = { decoding.elapsedNow().inWholeMilliseconds > budgetMs && trace == null && diagnostics == null },
             skipWhenTied = request.ruleOnly,
+            credits = if (active.artistReentry != null) pool.map { it.artists } else null,
+            seedCredits = seedKnown.artists,
             trace = { h: RankerQueue.HopTrace ->
                 hopScores += h.t[h.pick]
                 hopChoices += h.nearBest.size
@@ -552,7 +598,7 @@ public class SmartRanker(
         }
         val ladder = Ladder(
             eligibleKnown, byId, previousIds, window, salted, request.history, ::versionOf,
-            artistKeyOf, artistKeyOf(seedKnown), active.thirdInRowCap > 0.0,
+            artistKeyOf, artistKeyOf(seedKnown), active.thirdInRowCap > 0.0 || active.artistReentry != null,
         )
         while (picks.size < request.length) {
             val (next, rung) = ladder.next(picks, audio) ?: break
@@ -604,6 +650,8 @@ public class SmartRanker(
                     probability = if (i in near) 1.0 / h.nearBest.size else 0.0,
                     source = sources[pool[i].track.id] ?: "whole", artistKey = artistKeys[i],
                     penalty = if (same) h.penalty else 0.0, cap = if (same && h.capped) model.thirdInRowCap else 0.0,
+                    reentry = (h.s[i] - (if (same) h.penalty else 0.0) - (if (same && h.capped) model.thirdInRowCap else 0.0) - h.t[i])
+                        .let { if (kotlin.math.abs(it) < 1e-12) 0.0 else it },
                     contributions = contributions(i), seedRow = seedRows[i],
                 )
             },
