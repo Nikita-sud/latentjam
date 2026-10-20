@@ -16,6 +16,14 @@ public interface AudioSource {
     /** e = the semantic head's energy.high − energy.low on the stored A0 vector (PLAN_AUDIO_ON §8.8); null = unknown. */
     public suspend fun energy(id: TrackId): Double? = null
 
+    /** The vectors of [ids] in one read (absent = not indexed); the default asks [vector] per id. */
+    public suspend fun vectors(ids: Collection<TrackId>): Map<TrackId, FloatArray> =
+        ids.mapNotNull { id -> vector(id)?.let { id to it } }.toMap()
+
+    /** The e of [ids] in one read (absent = unknown); the default asks [energy] per id. */
+    public suspend fun energies(ids: Collection<TrackId>): Map<TrackId, Double> =
+        ids.mapNotNull { id -> energy(id)?.let { id to it } }.toMap()
+
     /** Fast 4: a cached audio head's output (continuity heads, e.g. danceability); null = unknown. */
     public suspend fun head(name: String, id: TrackId): Double? = null
 
@@ -122,4 +130,6 @@ public class EngineAudioSource(private val engine: () -> io.github.nikitasud.lat
     override suspend fun vector(id: TrackId): FloatArray? = engine()?.embedding(id)
     override suspend fun neighbours(id: TrackId, k: Int): List<TrackId> = engine()?.audioNeighbours(id, k).orEmpty().map { it.trackId }
     override suspend fun energy(id: TrackId): Double? = engine()?.energy(id)
+    override suspend fun vectors(ids: Collection<TrackId>): Map<TrackId, FloatArray> = engine()?.audioRows(ids)?.vectors.orEmpty()
+    override suspend fun energies(ids: Collection<TrackId>): Map<TrackId, Double> = engine()?.audioRows(ids)?.energies.orEmpty()
 }

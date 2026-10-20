@@ -172,6 +172,13 @@ public interface SimilarityEngine {
     public suspend fun energy(trackId: TrackId): Double? = null
 
     /**
+     * The stored audio vectors and e of [ids] in one read (audit 05 #5): what the SMART ranker plans a press with,
+     * read at once instead of one engine call per track. Tracks not indexed are absent.
+     */
+    public suspend fun audioRows(ids: Collection<TrackId>): AudioRows =
+        AudioRows(ids.mapNotNull { id -> embedding(id)?.let { id to it } }.toMap(), ids.mapNotNull { id -> energy(id)?.let { id to it } }.toMap())
+
+    /**
      * Computes e for every indexed track that lacks it (the restored library's one-time backfill, and new rows after
      * indexing): loads only the small semantic head, never the audio encoder. Returns how many it added.
      */
@@ -375,3 +382,6 @@ public fun continuesSmartPlan(plannedBefore: List<TrackId>, queuedBefore: List<T
     val planned = plannedBefore.toHashSet()
     return queuedBefore.any { it in planned }
 }
+
+/** [SimilarityEngine.audioRows]: stored audio vectors and e by track. */
+public class AudioRows(public val vectors: Map<TrackId, FloatArray>, public val energies: Map<TrackId, Double>)

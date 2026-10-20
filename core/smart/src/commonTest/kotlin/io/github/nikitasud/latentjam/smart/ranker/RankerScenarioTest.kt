@@ -281,11 +281,37 @@ class RankerScenarioTest {
         val start = testScheduler.currentTime
         val report = ranker.plan(PlanRequest(lib[0], lib, lib, 20))
         assertEquals(20, report.ids.size)
-        assertTrue(testScheduler.currentTime - start < 2_000, "audio waits are bounded (${testScheduler.currentTime - start} ms)")
+        // The batched read's safety cap (2 s) plus R1's budget: bounded, all-or-nothing.
+        assertTrue(testScheduler.currentTime - start < 3_000, "audio waits are bounded (${testScheduler.currentTime - start} ms)")
+        assertEquals(0, report.audio.poolVectors, "all-or-nothing: no partial pool")
         // The report says so (audit 2026-10-20 audio #2): R1 and the vector reads ran out, the seed had no vector.
         assertTrue("R1" in report.audio.timedOut && "vectors" in report.audio.timedOut, report.audio.timedOut.toString())
         assertFalse(report.audio.seedVector)
         assertEquals(0, report.audio.r1Neighbours)
+    }
+
+    @Test fun aSlowAudioIndexGivesTheSamePlanAsAFastOne() = runTest {
+        // Audits 05 #2 / #5: the pool's vectors are read in one batch with no per-row budget, so a busy index (here
+        // 500 ms per batch, five times the old per-row budget) changes how long a plan takes, never what it is.
+        val lib = library(300)
+        val vectors = lib.associate { t -> t.id to FloatArray(8) { i -> ((t.id.value.hashCode() shr i) and 7).toFloat() + 1f } }
+        fun source(slowMs: Long) = object : AudioSource {
+            override suspend fun vector(id: TrackId): FloatArray? = vectors[id]
+            override suspend fun vectors(ids: Collection<TrackId>): Map<TrackId, FloatArray> {
+                delay(slowMs)
+                return ids.mapNotNull { id -> vectors[id]?.let { id to it } }.toMap()
+            }
+            override suspend fun neighbours(id: TrackId, k: Int): List<TrackId> = emptyList()
+        }
+        val audioModel = RankerModel.parse(
+            """{"features": ["same_family", "audio_cos"], "mean": [0, 0], "sd": [1, 1], "weights": [1, 1], "runPenalty": 1,
+               "anchor": "mix", "epsilon": 0.01}""",
+        )!!
+        val fast = SmartRanker(audioModel, null, null, audio = source(0), tagger = null).plan(PlanRequest(lib[0], lib, lib, 20))
+        val slow = SmartRanker(audioModel, null, null, audio = source(500), tagger = null).plan(PlanRequest(lib[0], lib, lib, 20))
+        assertEquals(fast.ids, slow.ids)
+        assertTrue("vectors" !in slow.audio.timedOut, slow.audio.timedOut.toString())
+        assertEquals(slow.poolSize, slow.audio.poolVectors)
     }
 
     @Test fun theRuleOnlyPathAndALargeLibraryOverTheRetrievalThreshold() = runTest {

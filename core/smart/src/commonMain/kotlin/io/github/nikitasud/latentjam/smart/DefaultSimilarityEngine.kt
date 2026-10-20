@@ -519,6 +519,21 @@ internal class DefaultSimilarityEngine(
         mutex.withLock { energies[trackId]?.toDouble() }
     }
 
+    /**
+     * One short lock acquisition for the whole press, on the caller's thread (not the engine dispatcher, which may be
+     * running other work): indexing's inference never holds this lock, so the read waits at most for a bookkeeping
+     * step, never for an encoder batch (audits 05 #2 / #5).
+     */
+    override suspend fun audioRows(ids: Collection<TrackId>): AudioRows = mutex.withLock {
+        val vectors = HashMap<TrackId, FloatArray>(ids.size * 2)
+        val es = HashMap<TrackId, Double>(ids.size * 2)
+        for (id in ids) {
+            index.vector(id)?.let { vectors[id] = it }
+            energies[id]?.let { es[id] = it.toDouble() }
+        }
+        AudioRows(vectors, es)
+    }
+
     override suspend fun energyCoverage(): Pair<Int, Int> = withContext(dispatcher) {
         mutex.withLock { index.size to energies.size }
     }
