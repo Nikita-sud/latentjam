@@ -442,6 +442,8 @@
     <string name="intelligence_include_novelty_mixes_body">在“为你推荐”中单独显示表情包梗、网络爆款和音效混合歌单。</string>
     <string name="intelligence_learn_from_habits">从我的习惯中学习</string>
     <string name="intelligence_learn_from_habits_body">SMART 也会从你的收听中学习：你常听的歌，以及你通常接着播放的歌。数据只保存在此设备上。</string>
+    <string name="intelligence_use_favourites">参考收藏</string>
+    <string name="intelligence_use_favourites_body">你收藏的曲目及收藏时间会计入 SMART 的选择。与“从我的习惯中学习”一起生效。</string>
     <string name="intelligence_smart_log_export">导出 SMART 日志（测试）</string>
     <string name="intelligence_smart_log_export_body">SMART 推荐了什么以及每首曲目的结果，仅保存在此设备上。保存一份副本用于产品检查。</string>
     <string name="intelligence_smart_log_exported">已导出 SMART 日志</string>

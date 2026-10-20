@@ -455,6 +455,8 @@
     <string name="intelligence_include_novelty_mixes_body">आपके लिए में मीम, वायरल ऑडियो और साउंड इफ़ेक्ट के अलग मिक्स दिखाएँ।</string>
     <string name="intelligence_learn_from_habits">मेरी आदतों से सीखें</string>
     <string name="intelligence_learn_from_habits_body">SMART आपके सुनने से भी सीखता है: आप क्या अक्सर सुनते हैं और आमतौर पर आगे क्या बजाते हैं। सब कुछ इसी डिवाइस पर रहता है।</string>
+    <string name="intelligence_use_favourites">पसंदीदा को ध्यान में रखें</string>
+    <string name="intelligence_use_favourites_body">जिन ट्रैक को आपने पसंदीदा बनाया, और कितने समय पहले, वे SMART के चुनाव में गिने जाते हैं। "मेरी आदतों से सीखें" के साथ काम करता है।</string>
     <string name="intelligence_smart_log_export">SMART लॉग एक्सपोर्ट करें (परीक्षण)</string>
     <string name="intelligence_smart_log_export_body">SMART ने क्या सुझाया और हर ट्रैक का क्या हुआ, केवल इसी डिवाइस पर रखा गया। उत्पाद जाँच के लिए एक प्रति सहेजता है।</string>
     <string name="intelligence_smart_log_exported">SMART लॉग एक्सपोर्ट हुआ</string>

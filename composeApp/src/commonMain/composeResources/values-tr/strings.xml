@@ -455,6 +455,8 @@
     <string name="intelligence_include_novelty_mixes_body">Sana özel bölümünde komik, viral ve ses efekti mixlerini ayrı göster.</string>
     <string name="intelligence_learn_from_habits">Alışkanlıklarımdan öğren</string>
     <string name="intelligence_learn_from_habits_body">SMART senin dinlediklerinden de öğrenir: sık dinlediklerin ve genellikle ardından açtıkların. Her şey bu cihazda kalır.</string>
+    <string name="intelligence_use_favourites">Favorileri dikkate al</string>
+    <string name="intelligence_use_favourites_body">Favorilere eklediğin parçalar ve ne zaman eklediğin SMART’ın seçimlerinde hesaba katılır. Alışkanlıklarımdan öğren ile birlikte çalışır.</string>
     <string name="intelligence_smart_log_export">SMART günlüğünü dışa aktar (test)</string>
     <string name="intelligence_smart_log_export_body">SMART’ın ne önerdiği ve her parçaya ne olduğu, yalnızca bu cihazda saklanır. Ürün kontrolleri için bir kopya kaydeder.</string>
     <string name="intelligence_smart_log_exported">SMART günlüğü dışa aktarıldı</string>

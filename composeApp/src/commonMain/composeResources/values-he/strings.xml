@@ -486,6 +486,8 @@
     <string name="intelligence_include_novelty_mixes_body">הצגת מיקסים נפרדים של ממים, להיטים ויראליים ואפקטים קוליים ב"בשבילך".</string>
     <string name="intelligence_learn_from_habits">ללמוד מההרגלים שלי</string>
     <string name="intelligence_learn_from_habits_body">SMART לומד גם מההאזנה שלך: מה שמושמע אצלך הרבה ומה שבדרך כלל מושמע אחר כך. הכול נשאר במכשיר הזה.</string>
+    <string name="intelligence_use_favourites">להתחשב במועדפים</string>
+    <string name="intelligence_use_favourites_body">רצועות שסימנת כמועדפות, ולפני כמה זמן, נלקחות בחשבון בבחירות של SMART. פועל יחד עם „ללמוד מההרגלים שלי”.</string>
     <string name="intelligence_smart_log_export">ייצוא יומן SMART (ניסיוני)</string>
     <string name="intelligence_smart_log_export_body">מה ש-SMART הציע ומה קרה לכל רצועה, נשמר רק במכשיר הזה. שומר עותק לבדיקות מוצר.</string>
     <string name="intelligence_smart_log_exported">יומן SMART יוצא</string>

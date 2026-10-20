@@ -197,6 +197,8 @@ object AppGraph {
                                 ranker = getOrNull<SmartRankerAssets>().let { assets -> { assets?.ranker } },
                                 rankerHealthy = getOrNull<SmartRankerAssets>().let { assets -> { assets?.healthy ?: false } },
                                 personalRanker = { settings.learnFromHabits.value },
+                                // Nested under habits: rankerPlan reads hearts only for personal plans anyway.
+                                useFavourites = { settings.useFavourites.value },
                                 presses = getOrNull(),
                                 smartLog = getOrNull<SmartLogRecorder>(),
                                 favourites = run {

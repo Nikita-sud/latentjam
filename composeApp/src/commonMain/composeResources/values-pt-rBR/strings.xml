@@ -462,6 +462,8 @@
     <string name="intelligence_include_novelty_mixes_body">Mostra em Para você mixes separados de memes, áudios virais e efeitos sonoros.</string>
     <string name="intelligence_learn_from_habits">Aprender com meus hábitos</string>
     <string name="intelligence_learn_from_habits_body">O SMART também aprende com o que você ouve: o que você ouve muito e o que costuma tocar em seguida. Tudo fica neste dispositivo.</string>
+    <string name="intelligence_use_favourites">Considerar os favoritos</string>
+    <string name="intelligence_use_favourites_body">As faixas que você marcou como favoritas, e há quanto tempo, contam nas escolhas do SMART. Funciona com Aprender com meus hábitos.</string>
     <string name="intelligence_smart_log_export">Exportar registro do SMART (teste)</string>
     <string name="intelligence_smart_log_export_body">O que o SMART sugeriu e o que aconteceu com cada faixa, guardado só neste aparelho. Salva uma cópia para verificações do produto.</string>
     <string name="intelligence_smart_log_exported">Registro do SMART exportado</string>

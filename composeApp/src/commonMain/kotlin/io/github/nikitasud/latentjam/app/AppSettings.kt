@@ -408,6 +408,10 @@ private val DEFAULT_APPEARANCE: StateFlow<Appearance> = kotlinx.coroutines.flow.
 internal const val DEFAULT_LEARN_FROM_HABITS = true
 private val LEARN_FROM_HABITS_DEFAULT_FLOW: StateFlow<Boolean> = MutableStateFlow(DEFAULT_LEARN_FROM_HABITS)
 
+/** "Use favourites" (under "Learn from my habits") is on until the listener turns it off. */
+internal const val DEFAULT_USE_FAVOURITES = true
+private val USE_FAVOURITES_DEFAULT_FLOW: StateFlow<Boolean> = MutableStateFlow(DEFAULT_USE_FAVOURITES)
+
 /** The learned SMART ranker is on in this test build until the listener turns it off. */
 internal const val DEFAULT_SMART_RANKER = true
 private val SMART_RANKER_FALLBACK_FLOW: StateFlow<Boolean> = MutableStateFlow(false)
@@ -452,6 +456,13 @@ interface AppSettings {
      */
     val learnFromHabits: StateFlow<Boolean> get() = LEARN_FROM_HABITS_DEFAULT_FLOW
     fun setLearnFromHabits(enabled: Boolean) {}
+
+    /**
+     * "Use favourites", nested under [learnFromHabits]: whether the FULL ranker sees the listener's hearts
+     * (is_favourite, favourited_days_ago). Ignored while habits are off; hearts are still logged locally either way.
+     */
+    val useFavourites: StateFlow<Boolean> get() = USE_FAVOURITES_DEFAULT_FLOW
+    fun setUseFavourites(enabled: Boolean) {}
 
     /**
      * Whether SMART plans its queues with the learned ranker (docs/smart-ranker.md) instead of its

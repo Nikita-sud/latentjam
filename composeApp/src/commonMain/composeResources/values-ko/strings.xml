@@ -436,6 +436,8 @@
     <string name="intelligence_include_novelty_mixes_body">밈, 바이럴, 효과음 믹스를 추천에 따로 표시합니다.</string>
     <string name="intelligence_learn_from_habits">내 습관에서 배우기</string>
     <string name="intelligence_learn_from_habits_body">SMART는 내 청취 기록에서도 배웁니다. 자주 듣는 곡과 다음에 주로 듣는 곡입니다. 모든 데이터는 이 기기에만 남습니다.</string>
+    <string name="intelligence_use_favourites">즐겨찾기 반영</string>
+    <string name="intelligence_use_favourites_body">즐겨찾기한 곡과 그 시점을 SMART의 선택에 반영합니다. "내 습관에서 배우기"와 함께 작동합니다.</string>
     <string name="intelligence_smart_log_export">SMART 로그 내보내기(테스트)</string>
     <string name="intelligence_smart_log_export_body">SMART가 제안한 곡과 각 곡의 결과로, 이 기기에만 저장됩니다. 제품 점검용 사본을 저장합니다.</string>
     <string name="intelligence_smart_log_exported">SMART 로그를 내보냈습니다</string>

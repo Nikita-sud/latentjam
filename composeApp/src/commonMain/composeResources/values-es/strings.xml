@@ -462,6 +462,8 @@
     <string name="intelligence_include_novelty_mixes_body">Muestra en Para ti mixes aparte de memes, audios virales y efectos de sonido.</string>
     <string name="intelligence_learn_from_habits">Aprender de mis hábitos</string>
     <string name="intelligence_learn_from_habits_body">SMART también aprende de lo que escuchas: lo que pones a menudo y lo que sueles poner después. Todo queda en este dispositivo.</string>
+    <string name="intelligence_use_favourites">Tener en cuenta los favoritos</string>
+    <string name="intelligence_use_favourites_body">Las pistas que marcaste como favoritas, y hace cuánto, cuentan en las elecciones de SMART. Funciona con Aprender de mis hábitos.</string>
     <string name="intelligence_smart_log_export">Exportar registro de SMART (prueba)</string>
     <string name="intelligence_smart_log_export_body">Lo que SMART propuso y qué pasó con cada pista, guardado solo en este dispositivo. Guarda una copia para revisiones del producto.</string>
     <string name="intelligence_smart_log_exported">Registro de SMART exportado</string>

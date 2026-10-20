@@ -467,6 +467,8 @@
     <string name="intelligence_include_novelty_mixes_body">Afficher dans Pour vous des mixes distincts de mèmes, de sons viraux et d’effets sonores.</string>
     <string name="intelligence_learn_from_habits">Apprendre de mes habitudes</string>
     <string name="intelligence_learn_from_habits_body">SMART apprend aussi de votre écoute : ce que vous écoutez souvent et ce que vous lancez d’habitude ensuite. Tout reste sur cet appareil.</string>
+    <string name="intelligence_use_favourites">Tenir compte des favoris</string>
+    <string name="intelligence_use_favourites_body">Les titres que vous avez mis en favoris, et depuis quand, comptent dans les choix de SMART. Fonctionne avec Apprendre de mes habitudes.</string>
     <string name="intelligence_smart_log_export">Exporter le journal SMART (test)</string>
     <string name="intelligence_smart_log_export_body">Ce que SMART a proposé et ce qu’il est advenu de chaque titre, conservé uniquement sur cet appareil. Enregistre une copie pour les vérifications du produit.</string>
     <string name="intelligence_smart_log_exported">Journal SMART exporté</string>

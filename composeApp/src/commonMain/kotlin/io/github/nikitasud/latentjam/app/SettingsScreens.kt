@@ -167,6 +167,8 @@ import io.github.nikitasud.latentjam.app.generated.resources.intelligence_includ
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_learn_from_habits
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_learn_from_habits_body
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_smart_log_export
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_use_favourites
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_use_favourites_body
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_smart_log_export_body
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_smart_log_exported
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_smart_log_failed
@@ -1853,6 +1855,7 @@ private fun IntelligenceSettings(
     val includeNoveltyMixes by settings.includeNoveltyMixes.collectAsState()
     val smartRanker by settings.smartRanker.collectAsState()
     val learnFromHabits by settings.learnFromHabits.collectAsState()
+    val useFavourites by settings.useFavourites.collectAsState()
     val smartLogExported = stringResource(Res.string.intelligence_smart_log_exported)
     val smartLogFailed = stringResource(Res.string.intelligence_smart_log_failed)
     // Product checks only: the impression log as a text file the listener saves where they choose.
@@ -1992,6 +1995,15 @@ private fun IntelligenceSettings(
                     checked = learnFromHabits,
                     enabled = smartRanker,
                     onCheckedChange = settings::setLearnFromHabits,
+                )
+                // Nested under habits: greyed out, and ignored by the ranker, while habits are off.
+                SettingsSwitchRow(
+                    title = stringResource(Res.string.intelligence_use_favourites),
+                    subtitle = stringResource(Res.string.intelligence_use_favourites_body),
+                    checked = useFavourites,
+                    enabled = smartRanker && learnFromHabits,
+                    onCheckedChange = settings::setUseFavourites,
+                    nestedIndent = 16.dp,
                 )
                 SettingsRow(
                     title = stringResource(Res.string.intelligence_smart_log_export),
@@ -3408,6 +3420,8 @@ private fun SettingsSwitchRow(
     checked: Boolean,
     enabled: Boolean,
     onCheckedChange: (Boolean) -> Unit,
+    /** Extra start inset for a setting nested under the one above it. */
+    nestedIndent: Dp = 0.dp,
 ) {
     Row(
         modifier = Modifier
@@ -3418,7 +3432,7 @@ private fun SettingsSwitchRow(
                 role = Role.Switch,
                 onValueChange = onCheckedChange,
             )
-            .padding(horizontal = 20.dp, vertical = 14.dp),
+            .padding(start = 20.dp + nestedIndent, end = 20.dp, top = 14.dp, bottom = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {

@@ -52,6 +52,10 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
             ?: DEFAULT_LEARN_FROM_HABITS,
     )
     override val learnFromHabits: StateFlow<Boolean> = mutableLearnFromHabits.asStateFlow()
+    private val mutableUseFavourites = MutableStateFlow(
+        runCatching { preferences.getBoolean(KEY_USE_FAVOURITES, DEFAULT_USE_FAVOURITES) }.getOrNull() ?: DEFAULT_USE_FAVOURITES,
+    )
+    override val useFavourites: StateFlow<Boolean> = mutableUseFavourites.asStateFlow()
     private val mutableSmartRanker = MutableStateFlow(
         runCatching { preferences.getBoolean(KEY_SMART_RANKER, DEFAULT_SMART_RANKER) }.getOrNull() ?: DEFAULT_SMART_RANKER,
     )
@@ -153,6 +157,11 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
     override fun setLearnFromHabits(enabled: Boolean) {
         preferences.edit().putBoolean(KEY_LEARN_FROM_HABITS, enabled).apply()
         mutableLearnFromHabits.value = enabled
+    }
+
+    override fun setUseFavourites(enabled: Boolean) {
+        preferences.edit().putBoolean(KEY_USE_FAVOURITES, enabled).apply()
+        mutableUseFavourites.value = enabled
     }
 
     override fun setSmartRanker(enabled: Boolean) {
@@ -387,6 +396,7 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         const val KEY_SMART_QUEUE_LENGTH = "smart_queue_length"
         const val KEY_INCLUDE_NOVELTY_MIXES = "include_novelty_mixes"
         const val KEY_LEARN_FROM_HABITS = "learn_from_habits"
+        const val KEY_USE_FAVOURITES = "smart_use_favourites"
         const val KEY_SMART_RANKER = "smart_ranker"
         const val KEY_SAVE_HISTORY = "save_listening_history"
         const val KEY_REMEMBER_SEARCHES = "remember_searches"

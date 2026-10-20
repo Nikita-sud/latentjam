@@ -12,6 +12,9 @@ parity on the trained model (§7: no interim builds).
   next queue — switching back needs no reinstall.
 - **Learn from my habits** (`learn_from_habits`, on by default; enabled with the ranker): on = the FULL model (the
   listener's own history as features and retrievers), off = CORE. The earlier habit slots are withdrawn.
+- **Use favourites** (`smart_use_favourites`, on by default, nested under habits): on = FULL plans see the listener's
+  hearts (`is_favourite`, `favourited_days_ago`). It is greyed out and ignored while habits are off; off or ignored,
+  both columns read 0. Hearts are logged locally either way (docs/smart-impression-log.md).
 
 ## One plan (`SmartRanker.plan`, called by `EngineNextTrackChooser` under its lock)
 

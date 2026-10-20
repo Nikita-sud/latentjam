@@ -436,6 +436,8 @@
     <string name="intelligence_include_novelty_mixes_body">ミーム、バイラル、効果音のミックスを「あなたへ」に別枠で表示します。</string>
     <string name="intelligence_learn_from_habits">自分の習慣から学ぶ</string>
     <string name="intelligence_learn_from_habits_body">SMART はあなたの再生履歴からも学びます。よく聴く曲や、次によく再生する曲です。データはこの端末から出ません。</string>
+    <string name="intelligence_use_favourites">お気に入りを反映</string>
+    <string name="intelligence_use_favourites_body">お気に入りにした曲と、その時期を SMART の選曲に反映します。「自分の習慣から学ぶ」と一緒に動作します。</string>
     <string name="intelligence_smart_log_export">SMART ログを書き出す（テスト）</string>
     <string name="intelligence_smart_log_export_body">SMART が提案した曲とそれぞれの結果。この端末にのみ保存されます。製品確認用にコピーを保存します。</string>
     <string name="intelligence_smart_log_exported">SMART ログを書き出しました</string>

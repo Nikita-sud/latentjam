@@ -65,6 +65,8 @@ class EngineNextTrackChooser(
     private val smartLog: SmartPlanLog? = null,
     /** The listener's favourites with their heart times (null = unknown): FULL's is_favourite / favourited_days_ago. */
     private val favourites: suspend () -> Map<TrackId, Long?> = { emptyMap() },
+    /** "Use favourites" (nested under "Learn from my habits"); off, the ranker sees no hearts. */
+    private val useFavourites: () -> Boolean = { true },
 ) : NextTrackChooser {
 
     private val mutex = Mutex()
@@ -143,7 +145,7 @@ class EngineNextTrackChooser(
                     learned, history, current, candidates, library(), RANKER_LENGTH,
                     seedMs = events.last().startedAtMs, press = queuePress, recentIds = recentIds,
                     personal = personalRanker(), ruleOnly = !rankerHealthy() || queueFailures >= BREAKER_LIMIT,
-                    favourites = favourites,
+                    favourites = if (useFavourites()) favourites else NO_FAVOURITES,
                 )
                 if (report == null || report.timedOut) queueFailures++
                 picks = report?.picks
@@ -236,6 +238,8 @@ class EngineNextTrackChooser(
     }
 
     private companion object {
+        val NO_FAVOURITES: suspend () -> Map<TrackId, Long?> = { emptyMap() }
+
         /**
          * Tracks planned per chain. Matches the length the chain's weighting was tuned at: long
          * enough for seed gravity and the artist-spacing rules to matter, short enough that the plan

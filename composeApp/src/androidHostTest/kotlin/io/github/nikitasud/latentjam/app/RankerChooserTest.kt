@@ -100,4 +100,36 @@ class RankerChooserTest {
             io.github.nikitasud.latentjam.smart.ranker.SaltedKey.contentKey(seed)).take(12) + ".0."))
         assertEquals(queue.drop(1).map { it.id }, servedIds)
     }
+
+    @Test
+    fun `hearts reach the ranker only with habits and Use favourites both on`() = runTest {
+        // A model that weights is_favourite: whether the heart reaches it shows in the queue's first pick.
+        val heartModel = RankerModel.parse(
+            """{"features": ["is_favourite"], "mean": [0], "sd": [1], "weights": [5], "runPenalty": 0, "anchor": "seed"}""",
+        )!!
+        suspend fun firstPick(habits: Boolean, useFavourites: Boolean): Pair<String, Int> {
+            var reads = 0
+            val chooser = EngineNextTrackChooser(
+                engine, history(emptyList()), library = { library },
+                useRanker = { true }, ranker = { SmartRanker(heartModel, null, null, fullModel = heartModel) },
+                personalRanker = { habits },
+                favourites = { reads++; mapOf(TrackId("c1") to null) },
+                useFavourites = { useFavourites },
+            )
+            val choice = chooser.choose(seed, emptyList(), library)!!
+            return choice.track.id.value to reads
+        }
+        assertEquals("c1" to 1, firstPick(habits = true, useFavourites = true))
+        val off = firstPick(habits = true, useFavourites = false)
+        assertEquals(0, off.second, "Use favourites off: the hearts are not read")
+        assertEquals(0, firstPick(habits = false, useFavourites = true).second, "habits off: Use favourites is ignored")
+        // Without hearts every row ties at 0, so the pick is the salted draw's, the same both ways.
+        assertEquals(off.first, firstPick(habits = false, useFavourites = false).first)
+    }
+
+    @Test
+    fun `habits and Use favourites are on by default`() {
+        kotlin.test.assertTrue(DEFAULT_LEARN_FROM_HABITS)
+        kotlin.test.assertTrue(DEFAULT_USE_FAVOURITES)
+    }
 }

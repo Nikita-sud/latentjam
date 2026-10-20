@@ -486,6 +486,8 @@
     <string name="intelligence_include_novelty_mixes_body">Показывать в разделе «Для вас» отдельные миксы с мемами, вирусными аудиозаписями и звуковыми эффектами.</string>
     <string name="intelligence_learn_from_habits">Учитывать мои привычки</string>
     <string name="intelligence_learn_from_habits_body">SMART учитывает и ваше прослушивание: что вы часто слушаете и что обычно включаете следом. Всё остаётся на устройстве.</string>
+    <string name="intelligence_use_favourites">Учитывать избранное</string>
+    <string name="intelligence_use_favourites_body">Треки, которые вы добавили в избранное, и как давно, учитываются в выборе SMART. Работает вместе с «Учитывать мои привычки».</string>
     <string name="intelligence_smart_log_export">Экспорт журнала SMART (тест)</string>
     <string name="intelligence_smart_log_export_body">Что предлагал SMART и что стало с каждым треком; хранится только на этом устройстве. Сохраняет копию для проверки продукта.</string>
     <string name="intelligence_smart_log_exported">Журнал SMART экспортирован</string>

@@ -497,6 +497,8 @@
     <string name="intelligence_include_novelty_mixes_body">Pokazuj w sekcji Dla Ciebie osobne miksy z memami, viralami i efektami dźwiękowymi.</string>
     <string name="intelligence_learn_from_habits">Ucz się z moich nawyków</string>
     <string name="intelligence_learn_from_habits_body">SMART uczy się też z twojego słuchania: czego często słuchasz i co zwykle włączasz potem. Wszystko zostaje na tym urządzeniu.</string>
+    <string name="intelligence_use_favourites">Uwzględniaj ulubione</string>
+    <string name="intelligence_use_favourites_body">Utwory oznaczone jako ulubione, i jak dawno temu, liczą się w wyborach SMART. Działa razem z „Ucz się z moich nawyków”.</string>
     <string name="intelligence_smart_log_export">Eksportuj dziennik SMART (test)</string>
     <string name="intelligence_smart_log_export_body">Co SMART zaproponował i co stało się z każdym utworem, przechowywane tylko na tym urządzeniu. Zapisuje kopię do kontroli produktu.</string>
     <string name="intelligence_smart_log_exported">Dziennik SMART wyeksportowany</string>

@@ -465,6 +465,8 @@
     <string name="intelligence_include_novelty_mixes_body">Afișează în Pentru tine mixuri separate cu meme, audio viral și efecte sonore.</string>
     <string name="intelligence_learn_from_habits">Învață din obiceiurile mele</string>
     <string name="intelligence_learn_from_habits_body">SMART învață și din ce asculți: ce asculți des și ce pui de obicei după. Totul rămâne pe acest dispozitiv.</string>
+    <string name="intelligence_use_favourites">Ține cont de favorite</string>
+    <string name="intelligence_use_favourites_body">Piesele marcate ca favorite, și de cât timp, contează în alegerile SMART. Funcționează împreună cu Învață din obiceiurile mele.</string>
     <string name="intelligence_smart_log_export">Exportă jurnalul SMART (test)</string>
     <string name="intelligence_smart_log_export_body">Ce a propus SMART și ce s-a întâmplat cu fiecare piesă, păstrat doar pe acest dispozitiv. Salvează o copie pentru verificările produsului.</string>
     <string name="intelligence_smart_log_exported">Jurnalul SMART a fost exportat</string>

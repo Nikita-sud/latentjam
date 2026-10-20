@@ -465,6 +465,8 @@
     <string name="intelligence_include_novelty_mixes_body">Eigene Mixe mit Memes, viralen Clips und Soundeffekten in „Für dich“ anzeigen.</string>
     <string name="intelligence_learn_from_habits">Aus meinen Gewohnheiten lernen</string>
     <string name="intelligence_learn_from_habits_body">SMART lernt auch aus deinem Hören: was du oft hörst und was du meist danach spielst. Bleibt auf diesem Gerät.</string>
+    <string name="intelligence_use_favourites">Favoriten berücksichtigen</string>
+    <string name="intelligence_use_favourites_body">Titel, die du als Favoriten markiert hast, und wie lange das her ist, fließen in die Auswahl von SMART ein. Wirkt zusammen mit „Aus meinen Gewohnheiten lernen“.</string>
     <string name="intelligence_smart_log_export">SMART-Protokoll exportieren (Test)</string>
     <string name="intelligence_smart_log_export_body">Was SMART vorgeschlagen hat und was aus jedem Titel wurde, nur auf diesem Gerät gespeichert. Speichert eine Kopie für Produktprüfungen.</string>
     <string name="intelligence_smart_log_exported">SMART-Protokoll exportiert</string>

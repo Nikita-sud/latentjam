@@ -536,6 +536,8 @@
     <string name="intelligence_include_novelty_mixes_body">Show separately named meme, viral, and sound-effect mixes in For You.</string>
     <string name="intelligence_learn_from_habits">Learn from my habits</string>
     <string name="intelligence_learn_from_habits_body">SMART also learns from your own listening: what you play often and what you usually play next. Stays on this device.</string>
+    <string name="intelligence_use_favourites">Use favourites</string>
+    <string name="intelligence_use_favourites_body">Tracks you hearted, and how long ago, count in SMART's choices. Works with Learn from my habits.</string>
     <string name="intelligence_smart_log_export">Export SMART log (test)</string>
     <string name="intelligence_smart_log_export_body">What SMART offered and what became of each track, kept only on this device. Saves a copy for product checks.</string>
     <string name="intelligence_smart_log_exported">SMART log exported</string>
