@@ -79,6 +79,10 @@ public class RankerModel(
     public val unknownSeedAnchor: Boolean = false,
     /** The artist-set rules the model was trained with: "as2" (audit 07 #4 / #7 / #10) or as1 (absent). */
     public val artistSetsAs2: Boolean = false,
+    /** The genre taxonomy the model was trained on ("2.1", "2.2"); null = whichever genre_families.json ships. */
+    public val taxonomy: String? = null,
+    /** The song-version key: v2 keeps a part / volume / piece bracket in the title (the FIT rebuild), v1 (absent) drops every bracket. */
+    public val versionKeyV2: Boolean = false,
     /** Fast 3: −λ for a candidate in [ClassMismatch.families] when the seed is not. */
     public val classMismatch: ClassMismatch? = null,
     /** Fast 4: seed-anchored continuity on cached audio heads, in head-name order. */
@@ -263,6 +267,9 @@ public class RankerModel(
             audioWeightOverride = 0.0,
         )
 
+        /** A model's "taxonomy" and the number of families its genre_families.json must carry. */
+        public val TAXONOMY_FAMILIES: Map<String, Int> = mapOf("2.1" to 12, "2.2" to 14)
+
         /** The keys a model file may carry (audit 2026-10-20 #12): any other key refuses the file. */
         private val KEYS = mapOf(
             "" to setOf(
@@ -271,6 +278,7 @@ public class RankerModel(
                 "artistReentry", "energy", "r1Energy", "audioAnchor", "imputedDescriptor", "seedGate", "freshness", "coreOffset",
                 "audioZ", "softNovelty", "anchorShare", "colistenPrevShare", "familyMismatch", "classMismatch", "continuity", "holidaySeason",
                 "durationRule", "titleFlags", "unknownSeedAnchor", "artistSets",
+                "taxonomy", "versionKey",
             ),
             "anchorShare" to setOf("share", "columns"),
             "familyMismatch" to setOf("lambda", "near", "nearScale"),
@@ -382,6 +390,8 @@ public class RankerModel(
                 titleFlags = (root["titleFlags"] as? Map<*, *>)?.let { (it["lambda"] as Number).toDouble() },
                 unknownSeedAnchor = root["unknownSeedAnchor"] == "seed",
                 artistSetsAs2 = when (root["artistSets"]) { null, "as1" -> false; "as2" -> true; else -> error("artistSets") },
+                taxonomy = (root["taxonomy"] as String?)?.also { require(it in TAXONOMY_FAMILIES) { "taxonomy" } },
+                versionKeyV2 = when (root["versionKey"]) { null, "v1" -> false; "v2" -> true; else -> error("versionKey") },
                 classMismatch = (root["classMismatch"] as? Map<*, *>)?.let { c ->
                     ClassMismatch((c["lambda"] as Number).toDouble(), ((c["families"] as? List<*>)?.map { it as String } ?: listOf("soundtrack")).toSet())
                 },

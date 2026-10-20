@@ -78,15 +78,24 @@ public class SmartRankerAssets(
         val l2 = listOfNotNull(model, full).any { it.serving.l2 }
         val taxonomy = if (l2) text(GENRE_FAMILIES)?.let(GenreFamilies::parse) else null
         if (l2 && taxonomy == null && problem == null) problem = "$GENRE_FAMILIES missing or invalid"
+        // A model trained on one taxonomy reads family codes by position: another family list would shift them.
+        fun taxonomyFits(m: RankerModel?) = m?.taxonomy == null || taxonomy?.families?.size == RankerModel.TAXONOMY_FAMILIES[m.taxonomy]
+        val core = model?.takeIf { taxonomyFits(it) }
+        if (model != null && core == null && problem == null) problem = "$MODEL trained on taxonomy ${model.taxonomy}, $GENRE_FAMILIES has ${taxonomy?.families?.size} families"
+        val fullFit = full?.takeIf { taxonomyFits(it) }
+        if (full != null && fullFit == null) {
+            fullProblem = "trained on taxonomy ${full.taxonomy}, $GENRE_FAMILIES has ${taxonomy?.families?.size} families"
+            println("SMART: $FULL_MODEL refused ($fullProblem); Learn from my habits plans with the core model")
+        }
         SmartRanker(
-            model = model ?: RankerModel.RULE_SET,
+            model = core ?: RankerModel.RULE_SET,
             knowledge = knowledge,
             neighbours = runCatching { read(COLISTEN)?.let(ArtistNeighbours::parse) }.getOrNull(),
             vectors = runCatching { read(LFM)?.let(ArtistVectors::parse) }.getOrNull(),
             known = runCatching { read(KNOWN)?.let(KnownArtistTable::parse) }.getOrNull() ?: KnownArtists.NONE,
             tagger = tagger,
             audio = audio,
-            fullModel = full,
+            fullModel = fullFit,
             popularity = if (wantsPopularity) runCatching { read(POPULARITY)?.let(ArtistPopularity::parse) }.getOrNull() else null,
             families = runCatching {
                 if (taxonomy != null) read(FAMILIES_L2)?.let { ArtistFamilies.parse(it, taxonomy.families) } else read(FAMILIES)?.let(ArtistFamilies::parse)

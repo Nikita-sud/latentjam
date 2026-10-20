@@ -37,6 +37,57 @@ class MetadataRerankTest {
     }
 
     @Test
+    fun `the v2 version key keeps a part or piece bracket like reference strip_brackets`() {
+        // Expected values from the research fixtures.normalize_title at 1c66b8c8 with LJ_VERSION_V2=1.
+        for ((title, expected) in listOf<Pair<String?, String>>(
+            "Song (Pt. 2)" to "song pt. 2",
+            "Song (pt. 1)" to "song pt. 1",
+            "Song (Part II)" to "song part ii",
+            "Song [Vol.3]" to "song vol.3",
+            "Song (Volume 12) - Remastered 2011" to "song volume 12",
+            "Symphony No. 5 (Movement 4)" to "symphony no. 5 movement 4",
+            "Song (Mvt. iv)" to "song mvt. iv",
+            "Track (Intro)" to "track intro",
+            "Track (Interlude)" to "track interlude",
+            "Track (Outro) [Live]" to "track outro",
+            "Song (Reprise)" to "song reprise",
+            "Prelude (Overture)" to "prelude overture",
+            "Skit (skit)" to "skit skit",
+            "Song (Remix)" to "song",
+            "Song (Live at Wembley)" to "song",
+            "Song (feat. X) (Pt. 3)" to "song pt. 3",
+            "Song (Part 2\u00e9)" to "song",
+            "Song (part2)" to "song part2",
+            "Song (apart 2)" to "song",
+            "Song (Act 1, Scene 2)" to "song act 1, scene 2",
+            "Song (Chapter 7) - Radio Edit" to "song chapter 7",
+            "Song (Chap. 3)" to "song chap. 3",
+            "Song (intro mix)" to "song intro mix",
+            "Song (introduction)" to "song",
+            "Song (Partial 2)" to "song",
+            "Song (pt 2) - Live" to "song pt 2",
+            "Song\u00a0(Pt. 2)\u00a0" to "song pt. 2",
+            "Song (Part X)" to "song part x",
+            "Song (Part XI)" to "song part xi",
+            "Song (Part 2_)" to "song",
+            "(Pt. 1)" to "pt. 1",
+            "(Remix)" to "",
+            "Song (vol. iii) [bonus]" to "song vol. iii",
+            "Song (Movement \u0663)" to "song",
+            "Song (outro)  - acoustic version" to "song outro",
+            "\u041f\u0435\u0441\u043d\u044f (\u0447\u0430\u0441\u0442\u044c 2)" to "\u043f\u0435\u0441\u043d\u044f",
+            "Song (Act IV)" to "song act iv",
+            "Song ((Pt. 2))" to "song ( pt. 2 )",
+            "" to "",
+            null to "",
+        )) {
+            assertEquals(expected, MetadataRerank.normalizeTitle(title, keepParts = true), title)
+        }
+        // v1 (the shipped models) still drops every bracket.
+        assertEquals("song", MetadataRerank.normalizeTitle("Song (Pt. 2)"))
+    }
+
+    @Test
     fun `supported seed family softly penalizes an early cross-family candidate`() {
         val seedGenre = Genres.families("Brazilian Phonk")
         val pool = List(6) { meta(genre = "Phonk") } + meta(genre = "House")

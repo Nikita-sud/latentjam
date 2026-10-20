@@ -109,4 +109,48 @@ class SmartRankerAssetsTest {
         assertFalse(RankerModel.parse(core.replaceFirst("{", "{\"artistSets\": \"as1\", "))!!.artistSetsAs2)
         assertNull(RankerModel.parse(core.replaceFirst("{", "{\"artistSets\": \"as3\", ")))
     }
+    @Test
+    fun theTaxonomyAndVersionKeysAreParsedAndAWrongTaxonomyFallsBackToRules() = runTest {
+        val core = File(ml, "smart_ranker.json").readText()
+        assertNull(RankerModel.parse(core)!!.taxonomy)
+        assertFalse(RankerModel.parse(core)!!.versionKeyV2)
+        assertEquals("2.2", RankerModel.parse(core.replaceFirst("{", "{\"taxonomy\": \"2.2\", "))!!.taxonomy)
+        assertNull(RankerModel.parse(core.replaceFirst("{", "{\"taxonomy\": \"2.3\", ")))
+        assertTrue(RankerModel.parse(core.replaceFirst("{", "{\"versionKey\": \"v2\", "))!!.versionKeyV2)
+        assertNull(RankerModel.parse(core.replaceFirst("{", "{\"versionKey\": \"v3\", ")))
+        // The shipped genre_families.json has the twelve v2.1 families: a v2.2 model reads codes it does not have.
+        for ((taxonomy, fits) in listOf("2.1" to true, "2.2" to false)) {
+            val ranker = SmartRankerAssets(null, { name ->
+                if (name == "smart_ranker.json" || name == "smart_ranker_full.json") {
+                    AssetBytes.of(File(ml, name).readText().replaceFirst("{", "{\"taxonomy\": \"$taxonomy\", ").encodeToByteArray())
+                } else read(name)
+            }).ranker
+            assertEquals(fits, ranker.modelName != RankerModel.RULE_SET.name, taxonomy)
+            assertEquals(fits, ranker.hasFullModel, taxonomy)
+        }
+    }
+
+    @Test
+    fun as2GivesAPlaceholderCreditNoEngineArtistAndDropsSpokenWordFolders() = runTest {
+        val tracks = (0 until 12).map {
+            TrackDescriptor(
+                TrackId("p$it"), title = "Song $it", artist = if (it < 6) "Unknown Artist" else "Singer ${it % 3}", genre = "Rock",
+                folderPath = if (it == 11) "Music/Podcasts/Show" else "Music", durationMs = 200_000L,
+            )
+        }
+        val col = RankerFeatures.NAMES.indexOf("same_artist")
+        for (as2 in listOf(false, true)) {
+            val ranker = SmartRankerAssets(null, ::read, artistSetsAs2 = as2).ranker
+            val trace = PlanTrace()
+            ranker.tracer = trace
+            ranker.plan(PlanRequest(tracks[0], tracks, tracks, length = 5))
+            val row = { id: String -> trace.seedFeatures[trace.pool.indexOf(TrackId(id))] }
+            assertEquals(if (as2) 0.0 else 1.0, row("p1")[col], "as2=$as2: two Unknown Artist tracks")
+            assertEquals(as2, TrackId("p11") !in trace.pool, "as2=$as2: a podcasts folder")
+        }
+        assertFalse(SmartRanker.isNonMusic(tracks[11]))
+        assertTrue(SmartRanker.isNonMusic(tracks[11].copy(folderPath = "WhatsApp/Media/WhatsApp Voice Notes/2026"), as2 = true))
+        assertTrue(SmartRanker.isNonMusic(tracks[11].copy(folderPath = "Call_rec"), as2 = true))
+        assertFalse(SmartRanker.isNonMusic(tracks[11].copy(folderPath = "Music/Podcast Remixes"), as2 = true))
+    }
 }

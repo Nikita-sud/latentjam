@@ -74,6 +74,18 @@ internal object MetadataRerank {
     private val BRACKETED = Regex("\\s*[\\(\\[][^()\\[\\]]*[\\)\\]]\\s*")
     private val WHITESPACE = Regex("\\s+")
 
+    // reference.strip_brackets (the version-key fix, "versionKey": "v2"), with Python's Unicode \s and \b spelled out.
+    private const val PY_SPACE = "[\\t\\n\\u000b\\f\\r\\u001c-\\u001f \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]"
+    private const val PY_NOT_WORD_BEFORE = "(?<![\\p{L}\\p{N}_])"
+    private const val PY_NOT_WORD_AFTER = "(?![\\p{L}\\p{N}_])"
+    private val BRACKET_GROUP = Regex("$PY_SPACE*[\\(\\[]([^()\\[\\]]*)[\\)\\]]$PY_SPACE*")
+
+    /** A bracket naming a part / volume / chapter / act / movement number or a distinct piece keeps its words ("song (pt. 2)"). */
+    private val KEEP_BRACKET = Regex(
+        "$PY_NOT_WORD_BEFORE(?:pt\\.?|part|vol\\.?|volume|chapter|chap\\.?|act|movement|mvt\\.?)$PY_SPACE*(?:[0-9]+|[ivxlc]+)$PY_NOT_WORD_AFTER|" +
+            "$PY_NOT_WORD_BEFORE(?:intro|interlude|outro|reprise|prelude|overture|skit)$PY_NOT_WORD_AFTER",
+    )
+
     /**
      * A trailing " - qualifier" naming a version of the song ("- Radio Edit", "- Remastered 2011",
      * "- Dirty South Remix", "- From 'Grease'"). A qualifier without a version word, such as a
@@ -89,8 +101,11 @@ internal object MetadataRerank {
      * Title with bracketed qualifiers and trailing version qualifiers stripped, for duplicate detection
      * across releases and versions of one song.
      */
-    fun normalizeTitle(title: String?): String {
-        var normalized = title.orEmpty().lowercase().replace(BRACKETED, " ").replace(WHITESPACE, " ").trim()
+    fun normalizeTitle(title: String?, keepParts: Boolean = false): String {
+        val lower = title.orEmpty().lowercase()
+        val unbracketed = if (keepParts) lower.replace(BRACKET_GROUP) { if (KEEP_BRACKET.containsMatchIn(it.groupValues[1])) " ${it.groupValues[1]} " else " " }
+            else lower.replace(BRACKETED, " ")
+        var normalized = unbracketed.replace(WHITESPACE, " ").trim()
         while (true) {
             val stripped = normalized.replace(VERSION_SUFFIX, "").trim()
             if (stripped == normalized || stripped.isEmpty()) return normalized

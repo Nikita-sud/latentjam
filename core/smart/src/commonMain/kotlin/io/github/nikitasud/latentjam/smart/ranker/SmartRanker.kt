@@ -721,6 +721,7 @@ public class SmartRanker(
 ) {
     /** as2 when the caller asks for it or the shipped model was trained with it (`"artistSets": "as2"`). */
     private val artistSetsAs2: Boolean = artistSetsAs2 || model.artistSetsAs2 || fullModel?.artistSetsAs2 == true
+    private val versionKeyV2: Boolean = model.versionKeyV2 || fullModel?.versionKeyV2 == true
     private val l2Tracks: Boolean = taxonomy != null && (model.serving.l2 || fullModel?.serving?.l2 == true)
 
     /**
@@ -851,7 +852,9 @@ public class SmartRanker(
             genreFamily = if (artistSetsAs2 && taxonomy != null) taxonomy.familyOfTag(track.genre) else tagFamily,
             as2 = artistSetsAs2,
         ) }.getOrNull()
-        val engineArtist = HabitSlots.artistKey(track).let { k -> artistStrings.getOrPut(k) { k } }
+        // as2 (audit 07 #7): a placeholder credit ("Unknown Artist", "Various Artists", localised forms) is no artist.
+        val engineArtist = (if (artistSetsAs2 && ArtistSets.isPlaceholder(track.artists.firstOrNull() ?: track.artist.orEmpty(), as2 = true)) ""
+            else HabitSlots.artistKey(track)).let { k -> artistStrings.getOrPut(k) { k } }
         return Known(
             track = track,
             packFamily = family,
@@ -861,7 +864,7 @@ public class SmartRanker(
             setArtist = set?.capKey ?: 0L,
             artists = set?.artists?.toLongArray() ?: EMPTY_ARTISTS,
             entity = entity,
-            version = ArtistSets.keyHash(versionKey(track, engineArtist)),
+            version = ArtistSets.keyHash(versionKey(track, engineArtist, versionKeyV2)),
             durationMs = track.durationMs?.takeIf { it in 1..MAX_DURATION_MS },
             year = if (l2Tracks) (track.originalYear ?: track.year)?.takeIf { it > 0 } else null,
             albumKey = if (l2Tracks) AlbumKeys.albumKey(track.album, track.albumArtist, track.artist) else "",
@@ -962,7 +965,7 @@ public class SmartRanker(
         val preSet = prefixIds.toHashSet()
         val prefixKnown = prefixIds.lastOrNull()?.let { cache[it] }
         val eligible = request.candidates
-            .filter { it.id != request.seed.id && it.id !in preSet && !isNonMusic(it) }
+            .filter { it.id != request.seed.id && it.id !in preSet && !isNonMusic(it, artistSetsAs2) }
             .distinctBy { it.id }
         val n = eligible.size
         if (n == 0 || request.length <= 0) return PlanReport(emptyList(), active.name, 0, 0, 0, false, 0)
@@ -1618,13 +1621,19 @@ public class SmartRanker(
 
         private val NON_MUSIC_FOLDERS = setOf("ringtones", "notifications", "alarms", "recordings", "call recordings")
 
+        /** as2 (audit 07 #5, with the rebuild): voice and spoken-word folders too. */
+        private val NON_MUSIC_FOLDERS_AS2 = NON_MUSIC_FOLDERS +
+            setOf("podcasts", "audiobooks", "voice recorder", "whatsapp voice notes", "call_rec", "sound_recorder")
+
         /** §7.2's non-music filter: ringtone, notification, alarm and recording folders (MediaStore IS_MUSIC is upstream). */
-        public fun isNonMusic(track: TrackDescriptor): Boolean =
-            track.folderPath.orEmpty().split('/', '\\').any { it.trim().lowercase() in NON_MUSIC_FOLDERS }
+        public fun isNonMusic(track: TrackDescriptor, as2: Boolean = false): Boolean {
+            val folders = if (as2) NON_MUSIC_FOLDERS_AS2 else NON_MUSIC_FOLDERS
+            return track.folderPath.orEmpty().split('/', '\\').any { it.trim().lowercase() in folders }
+        }
 
         /** The app's song-version key: the artist key and the title without version qualifiers; a track is a version of itself. */
-        public fun versionKey(track: TrackDescriptor, artistKey: String = HabitSlots.artistKey(track)): String {
-            val title = MetadataRerank.normalizeTitle(track.title)
+        public fun versionKey(track: TrackDescriptor, artistKey: String = HabitSlots.artistKey(track), v2: Boolean = false): String {
+            val title = MetadataRerank.normalizeTitle(track.title, keepParts = v2)
             return if (title.isEmpty() || artistKey.isEmpty()) "id:${track.id.value}" else "$artistKey|$title"
         }
     }
