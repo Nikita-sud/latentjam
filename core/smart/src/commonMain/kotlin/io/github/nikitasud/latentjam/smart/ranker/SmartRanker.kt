@@ -63,6 +63,12 @@ public object RankerQueue {
         fun scores(anchor: Int) = features(anchor).let { rows -> DoubleArray(poolSize) { model.score(rows[it]) } }
         val seedScores = scores(SEED)
         if (skipWhenTied && seedScores.all { it == seedScores[0] }) return emptyList()
+        model.artistReentry?.takeIf { it.creditRun }?.let { re ->
+            return buildCreditRun(
+                model, re, poolSize, artistKeys, seedArtist, tieOrder, length, choose, take, blocked, stop, trace,
+                credits, seedCredits, seedScores, ::scores,
+            )
+        }
         val open = BooleanArray(poolSize) { true }
         val picks = ArrayList<Int>(length)
         var runArtist = seedArtist
@@ -145,6 +151,114 @@ public object RankerQueue {
             if (runArtist.isNotEmpty() && artist == runArtist) runLength++ else {
                 runArtist = artist
                 runLength = if (artist.isEmpty()) 0 else 1
+            }
+        }
+        return picks
+    }
+
+    /** m(i, j) of PLAN_L1: 1 for the same non-empty artist key, [credit] for intersecting artist-set credits, else 0. */
+    private fun redundancy(aKey: String, aCredits: LongArray, bKey: String, bCredits: LongArray, credit: Double): Double = when {
+        aKey.isNotEmpty() && aKey == bKey -> 1.0
+        aCredits.isNotEmpty() && bCredits.isNotEmpty() && aCredits.any { it in bCredits } -> credit
+        else -> 0.0
+    }
+
+    /** [build] with PLAN_L1 §10.3's credit-aware run and re-entry (reference.py `decode_v5`). */
+    private fun buildCreditRun(
+        model: RankerModel,
+        re: RankerModel.ArtistReentry,
+        poolSize: Int,
+        artistKeys: List<String>,
+        seedArtist: String,
+        tieOrder: IntArray,
+        length: Int,
+        choose: (hop: Int, nearBest: List<Int>) -> Int,
+        take: ((hop: Int, best: Int, scores: (Int) -> Double) -> Int)?,
+        blocked: (row: Int, picks: List<Int>) -> Boolean,
+        stop: () -> Boolean,
+        trace: ((HopTrace) -> Unit)?,
+        credits: List<LongArray>?,
+        seedCredits: LongArray,
+        seedScores: DoubleArray,
+        scores: (Int) -> DoubleArray,
+    ): List<Int> {
+        fun creditsOf(i: Int) = credits?.get(i) ?: NO_CREDITS
+        val open = BooleanArray(poolSize) { true }
+        val picks = ArrayList<Int>(length)
+        // Oldest first: the seed, then the picks.
+        val histKeys = arrayListOf(seedArtist)
+        val histCredits = arrayListOf(seedCredits)
+        var anchorKey: String? = if (seedArtist.isNotEmpty() || seedCredits.isNotEmpty()) seedArtist else null
+        var anchorCredits = seedCredits
+        var runLength = if (anchorKey != null) 1 else 0
+        repeat(minOf(length, poolSize)) {
+            if (picks.isNotEmpty() && stop()) return picks
+            val s = when {
+                picks.isEmpty() || model.anchor == RankerModel.Anchor.SEED -> seedScores
+                model.anchor == RankerModel.Anchor.PREVIOUS -> scores(picks.last())
+                else -> {
+                    val previous = scores(picks.last())
+                    val total = model.seedWeight + model.previousWeight
+                    DoubleArray(poolSize) { (model.seedWeight * seedScores[it] + model.previousWeight * previous[it]) / total }
+                }
+            }
+            val allowed = BooleanArray(poolSize) { open[it] && s[it].isFinite() && !blocked(it, picks) }
+            if (allowed.none { it }) return picks
+            val sd = spread(s, allowed)
+            // The picks before the current run, newest first, at distance runLength + 1, + 2, … ≤ k.
+            val beforeSize = if (runLength > 0) histKeys.size - runLength else histKeys.size
+            val dist0 = if (runLength > 0) runLength else 0
+            val backDistance = ArrayList<Int>()
+            val backIndex = ArrayList<Int>()
+            for (jj in 0 until beforeSize) {
+                val d = dist0 + 1 + jj
+                if (d > re.k) continue
+                backDistance += d
+                backIndex += beforeSize - 1 - jj
+            }
+            val aKey = anchorKey
+            fun penalised(i: Int): Double {
+                var v = s[i]
+                val ma = if (aKey != null) redundancy(artistKeys[i], creditsOf(i), aKey, anchorCredits, re.credit) else 0.0
+                if (ma > 0.0 && model.runPenalty > 0.0) v -= model.runPenalty * runLength * sd * ma
+                if (ma == 0.0 && re.lambda != 0.0) {
+                    var r = 0.0
+                    for (b in backDistance.indices) {
+                        val d = backDistance[b]
+                        if (d >= 2) {
+                            val h = backIndex[b]
+                            r += re.gamma.pow(d - 2) * redundancy(artistKeys[i], creditsOf(i), histKeys[h], histCredits[h], re.credit)
+                        }
+                    }
+                    if (r != 0.0) v -= re.lambda * sd * r
+                }
+                return v
+            }
+            val t = DoubleArray(poolSize) { if (allowed[it]) penalised(it) else Double.NaN }
+            var bestScore = Double.NEGATIVE_INFINITY
+            for (i in 0 until poolSize) if (allowed[i]) bestScore = maxOf(bestScore, t[i])
+            val spreadPenalised = spread(t, allowed)
+            val floor = bestScore - model.epsilon * spreadPenalised
+            val nearBest = (0 until poolSize).filter { allowed[it] && t[it] >= floor }.sortedBy { tieOrder[it] }
+            var best = if (model.epsilon == 0.0 && nearBest.size == 1) nearBest[0] else choose(picks.size, nearBest)
+            if (take != null) best = take(picks.size, best, ::penalised)
+            trace?.invoke(HopTrace(s, t, sd, 0.0, aKey.orEmpty(), runLength, false, bestScore, spreadPenalised, floor, nearBest, best))
+            open[best] = false
+            picks += best
+            val key = artistKeys[best]
+            val cr = creditsOf(best)
+            histKeys += key
+            histCredits += cr
+            if (aKey != null && redundancy(key, cr, aKey, anchorCredits, re.credit) > 0.0) {
+                runLength++
+            } else if (key.isNotEmpty() || cr.isNotEmpty()) {
+                anchorKey = key
+                anchorCredits = cr
+                runLength = 1
+            } else {
+                anchorKey = null
+                anchorCredits = NO_CREDITS
+                runLength = 0
             }
         }
         return picks

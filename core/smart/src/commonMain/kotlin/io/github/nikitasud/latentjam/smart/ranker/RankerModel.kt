@@ -54,6 +54,12 @@ public class RankerModel(
         public val k: Int = 10,
         public val gamma: Double = 0.7,
         public val credit: Double = 0.5,
+        /**
+         * PLAN_L1 §10.3's decoder (reference.py `decode_v5`): the run is anchored on its first item and a pick sharing
+         * a credit with it (m > 0) continues it; the run term is λ_run · L · sd · m(i, anchor); re-entry applies only
+         * when m(i, anchor) = 0, over the picks before the current run at distance 2 … k. No cap.
+         */
+        public val creditRun: Boolean = false,
     ) {
         init {
             require(lambda.isFinite() && lambda >= 0.0 && k >= 1 && gamma.isFinite() && gamma >= 0.0 && credit.isFinite() && credit >= 0.0)
@@ -183,6 +189,7 @@ public class RankerModel(
                         k = (m["k"] as? Number)?.toInt() ?: 10,
                         gamma = (m["gamma"] as? Number)?.toDouble() ?: 0.7,
                         credit = (m["credit"] as? Number)?.toDouble() ?: 0.5,
+                        creditRun = m["creditRun"] == true,
                     )
                 },
             )

@@ -158,6 +158,11 @@ a restart; an unhealthy manifest and a throwing audio index still fill the queue
   m = 1 for the same artist key, `credit` for a shared artist-set credit, else 0.
 - The ladder keeps its hard third-in-a-row rule whenever re-entry is on.
 - FULL is still model_full_final.json (54fd0a4b). "Learn from my habits" is OFF by default in this build.
+- v5 kernel (research b6e710fc, PLAN_L1 §10.3; `artistReentry.creditRun`, smart_ranker.json 6c23bd6c): the run is
+  anchored on its first item, and a pick sharing a credit with it (m > 0) continues it, so "Usher feat. Ludacris"
+  continues a Ludacris run at m = 0.5. The run term is λ_run · L · sd · m(i, anchor). Re-entry applies only when
+  m = 0, over the picks before the current run at distance 2 … k, so no pick is charged twice. There is no cap. In
+  diagnostics, `reentry` is then the whole decoder deduction (run and re-entry terms together).
 - Parity: research fixtures 1–20 (39 requests), and the same 20 re-planned with the shipped models, on the JVM and on
   the iOS simulator (the golden test moved to common code).
 

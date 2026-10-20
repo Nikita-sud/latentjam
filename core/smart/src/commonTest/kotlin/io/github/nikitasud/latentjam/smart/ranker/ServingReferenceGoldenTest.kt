@@ -39,15 +39,15 @@ class ServingReferenceGoldenTest {
             .filter(String::isNotEmpty).map { MiniJson(it).parse() as Map<String, Any?> }
 
     @Test
-    fun plansMatchTheServingReference() = plansMatch("/serving_fixtures.jsonl.gz", fixtures = 20, requests = 39)
+    fun plansMatchTheServingReference() = plansMatch("/serving_fixtures.jsonl.gz", fixtures = 21, requests = 41)
 
     /**
-     * The same 20 libraries and requests with the shipped models swapped in (model_core_l1.json 060cae9c — the PLAN_L1
-     * decoder with artist re-entry, provisional parameters — for every request, model_full_final.json 54fd0a4b for the
-     * personal ones; rule-only kept), re-planned by reference.py (9ee4901d… at 43ee7fc5).
+     * The same 21 libraries and requests with the shipped models swapped in (model_core_l1.json 6c23bd6c — the PLAN_L1 v5
+     * credit-run decoder, provisional parameters — for every request, model_full_final.json 54fd0a4b for the
+     * personal ones; rule-only kept), re-planned by reference.py (3e659ff8… at b6e710fc).
      */
     @Test
-    fun plansWithTheShippedModelsMatchTheServingReference() = plansMatch("/serving_fixtures_final.jsonl.gz", fixtures = 20, requests = 39)
+    fun plansWithTheShippedModelsMatchTheServingReference() = plansMatch("/serving_fixtures_final.jsonl.gz", fixtures = 21, requests = 41)
 
     private fun plansMatch(resource: String, fixtures: Int, requests: Int) = runTest {
         val all = fixtures(resource)

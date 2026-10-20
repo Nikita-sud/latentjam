@@ -2,8 +2,8 @@
  "version": 1,
  "assets": {
   "smart_ranker.json": {
-   "size": 3286,
-   "sha256": "060cae9cad009d665e99b10fe9624ebf0c63d639367394f459e872effdbc8609"
+   "size": 3317,
+   "sha256": "6c23bd6cd05f76e6afe4a699ccd8c053cc47707c1499ddd943da16d82f8d402c"
   },
   "smart_ranker_full.json": {
    "size": 3787,
