@@ -197,7 +197,7 @@ internal data class TrackMeta(
     val normalizedTitle: String = MetadataRerank.normalizeTitle(title)
     val isHub: Boolean = MetadataRerank.isHubGenre(genre)
     /** Immutable metadata is normalized once instead of reparsed for every candidate at every hop. */
-    val genreFamilies: Set<String> = Genres.families(genre)
+    val genreFamilies: Set<String> = sharedFamilies(genre)
 
     /**
      * Artist under the chain's spacing and cap rules. An empty key supplies no artist identity
@@ -211,4 +211,22 @@ internal data class TrackMeta(
 
     /** What era this track belongs to: the recording's year, not the edition's. */
     val eraYear: Int? get() = originalYear ?: year
+
+    private companion object {
+        /**
+         * One genre-family set per distinct genre tag, shared by every track that has it: a pure function of one
+         * string, and a snapshot of 50,000 songs held a set per song. Copy-on-write and bounded (genre tags are few);
+         * a race only computes a set twice.
+         */
+        @kotlin.concurrent.Volatile private var families: Map<String?, Set<String>> = emptyMap()
+        private const val SHARED_LIMIT = 512
+
+        fun sharedFamilies(genre: String?): Set<String> {
+            families[genre]?.let { return it }
+            val value = Genres.families(genre)
+            val current = families
+            if (current.size < SHARED_LIMIT) families = HashMap(current).apply { put(genre, value) }
+            return value
+        }
+    }
 }
