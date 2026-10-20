@@ -472,7 +472,7 @@
     <string name="intelligence_smart_log_exported">SMART-Protokoll exportiert</string>
     <string name="intelligence_smart_log_failed">Das SMART-Protokoll konnte nicht exportiert werden.</string>
     <string name="intelligence_smart_diagnose">Letzte SMART-Starts diagnostizieren (Test)</string>
-    <string name="intelligence_smart_diagnose_body">Plant die letzten acht SMART-Warteschlangen neu und speichert die Werte jedes Schritts in einer Datei im App-Ordner auf diesem Gerät, für Produktprüfungen.</string>
+    <string name="intelligence_smart_diagnose_body">Plant die letzten SMART-Warteschlangen neu und speichert die Werte jedes Schritts in einer Datei im App-Ordner auf diesem Gerät, für Produktprüfungen.</string>
     <string name="intelligence_smart_diagnose_done">SMART-Diagnose gespeichert</string>
     <string name="intelligence_smart_diagnose_failed">Die SMART-Diagnose konnte nicht gespeichert werden.</string>
     <string name="intelligence_smart_ranker">Gelernter Ranker (Test)</string>

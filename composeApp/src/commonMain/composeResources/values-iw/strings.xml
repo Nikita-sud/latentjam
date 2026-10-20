@@ -488,7 +488,7 @@
     <string name="intelligence_smart_log_exported">יומן SMART יוצא</string>
     <string name="intelligence_smart_log_failed">לא ניתן לייצא את יומן SMART.</string>
     <string name="intelligence_smart_diagnose">אבחון הפעלות SMART אחרונות (ניסיוני)</string>
-    <string name="intelligence_smart_diagnose_body">מתכנן מחדש את שמונה תורי SMART האחרונים ושומר את הציונים של כל שלב בקובץ בתיקיית האפליקציה במכשיר הזה, לבדיקות מוצר.</string>
+    <string name="intelligence_smart_diagnose_body">מתכנן מחדש את תורי SMART האחרונים ושומר את הציונים של כל שלב בקובץ בתיקיית האפליקציה במכשיר הזה, לבדיקות מוצר.</string>
     <string name="intelligence_smart_diagnose_done">אבחון SMART נשמר</string>
     <string name="intelligence_smart_diagnose_failed">לא ניתן לשמור את אבחון SMART.</string>
     <string name="intelligence_smart_ranker">מדרג נלמד (ניסוי)</string>

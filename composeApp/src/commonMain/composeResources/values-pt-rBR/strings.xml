@@ -469,7 +469,7 @@
     <string name="intelligence_smart_log_exported">Registro do SMART exportado</string>
     <string name="intelligence_smart_log_failed">Não foi possível exportar o registro do SMART.</string>
     <string name="intelligence_smart_diagnose">Diagnosticar os últimos inícios do SMART (teste)</string>
-    <string name="intelligence_smart_diagnose_body">Replaneja as últimas oito filas do SMART e salva as pontuações de cada passo em um arquivo na pasta do app neste aparelho, para verificações do produto.</string>
+    <string name="intelligence_smart_diagnose_body">Replaneja as filas recentes do SMART e salva as pontuações de cada passo em um arquivo na pasta do app neste aparelho, para verificações do produto.</string>
     <string name="intelligence_smart_diagnose_done">Diagnóstico do SMART salvo</string>
     <string name="intelligence_smart_diagnose_failed">Não foi possível salvar o diagnóstico do SMART.</string>
     <string name="intelligence_smart_ranker">Classificador aprendido (teste)</string>

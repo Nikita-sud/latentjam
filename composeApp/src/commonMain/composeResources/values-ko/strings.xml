@@ -443,7 +443,7 @@
     <string name="intelligence_smart_log_exported">SMART 로그를 내보냈습니다</string>
     <string name="intelligence_smart_log_failed">SMART 로그를 내보낼 수 없습니다.</string>
     <string name="intelligence_smart_diagnose">최근 SMART 시작 진단(테스트)</string>
-    <string name="intelligence_smart_diagnose_body">최근 SMART 대기열 8개를 다시 계획하고 각 단계의 점수를 이 기기의 앱 폴더에 파일로 저장합니다. 제품 점검용입니다.</string>
+    <string name="intelligence_smart_diagnose_body">최근 SMART 대기열을 다시 계획하고 각 단계의 점수를 이 기기의 앱 폴더에 파일로 저장합니다. 제품 점검용입니다.</string>
     <string name="intelligence_smart_diagnose_done">SMART 진단을 저장했습니다</string>
     <string name="intelligence_smart_diagnose_failed">SMART 진단을 저장할 수 없습니다.</string>
     <string name="intelligence_smart_ranker">학습된 랭커 (테스트)</string>

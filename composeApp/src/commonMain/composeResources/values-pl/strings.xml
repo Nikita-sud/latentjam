@@ -504,7 +504,7 @@
     <string name="intelligence_smart_log_exported">Dziennik SMART wyeksportowany</string>
     <string name="intelligence_smart_log_failed">Nie udało się wyeksportować dziennika SMART.</string>
     <string name="intelligence_smart_diagnose">Diagnozuj ostatnie starty SMART (test)</string>
-    <string name="intelligence_smart_diagnose_body">Planuje ponownie osiem ostatnich kolejek SMART i zapisuje wyniki każdego kroku w pliku w folderze aplikacji na tym urządzeniu, do kontroli produktu.</string>
+    <string name="intelligence_smart_diagnose_body">Planuje ponownie ostatnie kolejki SMART i zapisuje wyniki każdego kroku w pliku w folderze aplikacji na tym urządzeniu, do kontroli produktu.</string>
     <string name="intelligence_smart_diagnose_done">Diagnoza SMART zapisana</string>
     <string name="intelligence_smart_diagnose_failed">Nie udało się zapisać diagnozy SMART.</string>
     <string name="intelligence_smart_ranker">Wyuczony ranking (test)</string>

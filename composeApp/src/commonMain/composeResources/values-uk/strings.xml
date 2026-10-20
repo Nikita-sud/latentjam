@@ -504,7 +504,7 @@
     <string name="intelligence_smart_log_exported">Журнал SMART експортовано</string>
     <string name="intelligence_smart_log_failed">Не вдалося експортувати журнал SMART.</string>
     <string name="intelligence_smart_diagnose">Діагностика останніх запусків SMART (тест)</string>
-    <string name="intelligence_smart_diagnose_body">Наново планує останні вісім черг SMART і зберігає оцінки кожного кроку у файл у теці застосунку на цьому пристрої — для перевірки продукту.</string>
+    <string name="intelligence_smart_diagnose_body">Наново планує останні черги SMART і зберігає оцінки кожного кроку у файл у теці застосунку на цьому пристрої — для перевірки продукту.</string>
     <string name="intelligence_smart_diagnose_done">Діагностику SMART збережено</string>
     <string name="intelligence_smart_diagnose_failed">Не вдалося зберегти діагностику SMART.</string>
     <string name="intelligence_smart_ranker">Навчений ранжувальник (тест)</string>

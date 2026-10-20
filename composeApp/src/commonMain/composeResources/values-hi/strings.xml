@@ -462,7 +462,7 @@
     <string name="intelligence_smart_log_exported">SMART लॉग एक्सपोर्ट हुआ</string>
     <string name="intelligence_smart_log_failed">SMART लॉग एक्सपोर्ट नहीं हो सका।</string>
     <string name="intelligence_smart_diagnose">हाल के SMART प्रारंभ का निदान (परीक्षण)</string>
-    <string name="intelligence_smart_diagnose_body">पिछली आठ SMART कतारों को फिर से योजना बनाता है और हर चरण के स्कोर इस डिवाइस पर ऐप के फ़ोल्डर की एक फ़ाइल में सहेजता है, उत्पाद जाँच के लिए।</string>
+    <string name="intelligence_smart_diagnose_body">हाल की SMART कतारों की फिर से योजना बनाता है और हर चरण के स्कोर इस डिवाइस पर ऐप के फ़ोल्डर की एक फ़ाइल में सहेजता है, उत्पाद जाँच के लिए।</string>
     <string name="intelligence_smart_diagnose_done">SMART निदान सहेजा गया</string>
     <string name="intelligence_smart_diagnose_failed">SMART निदान सहेजा नहीं जा सका।</string>
     <string name="intelligence_smart_ranker">सीखा हुआ रैंकर (परीक्षण)</string>

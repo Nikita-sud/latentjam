@@ -493,7 +493,7 @@
     <string name="intelligence_smart_log_exported">Журнал SMART экспортирован</string>
     <string name="intelligence_smart_log_failed">Не удалось экспортировать журнал SMART.</string>
     <string name="intelligence_smart_diagnose">Диагностика последних запусков SMART (тест)</string>
-    <string name="intelligence_smart_diagnose_body">Заново планирует последние восемь очередей SMART и сохраняет оценки каждого шага в файл в папке приложения на этом устройстве — для проверки продукта.</string>
+    <string name="intelligence_smart_diagnose_body">Заново планирует последние очереди SMART и сохраняет оценки каждого шага в файл в папке приложения на этом устройстве — для проверки продукта.</string>
     <string name="intelligence_smart_diagnose_done">Диагностика SMART сохранена</string>
     <string name="intelligence_smart_diagnose_failed">Не удалось сохранить диагностику SMART.</string>
     <string name="intelligence_smart_ranker">Обученный ранжировщик (тест)</string>

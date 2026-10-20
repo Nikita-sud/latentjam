@@ -36,7 +36,7 @@ internal suspend fun diagnoseRecentSmartStarts(
     favourites: Map<TrackId, Long?>,
     useFavourites: Boolean,
     fullModelName: String?,
-    starts: Int = 16,
+    starts: Int = 40,
     /** The audio index and semantic head, for the per-seed library probe (A0 neighbours, energy, mood). */
     engine: io.github.nikitasud.latentjam.smart.SimilarityEngine? = null,
 ): String {

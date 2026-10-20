@@ -443,7 +443,7 @@
     <string name="intelligence_smart_log_exported">SMART ログを書き出しました</string>
     <string name="intelligence_smart_log_failed">SMART ログを書き出せませんでした。</string>
     <string name="intelligence_smart_diagnose">最近の SMART 開始を診断（テスト）</string>
-    <string name="intelligence_smart_diagnose_body">直近 8 件の SMART キューを再計画し、各ステップのスコアをこの端末のアプリ用フォルダーにファイルとして保存します。製品確認用です。</string>
+    <string name="intelligence_smart_diagnose_body">最近の SMART キューを再計画し、各ステップのスコアをこの端末のアプリ用フォルダーにファイルとして保存します。製品確認用です。</string>
     <string name="intelligence_smart_diagnose_done">SMART の診断を保存しました</string>
     <string name="intelligence_smart_diagnose_failed">SMART の診断を保存できませんでした。</string>
     <string name="intelligence_smart_ranker">学習済みランカー（テスト）</string>

@@ -543,7 +543,7 @@
     <string name="intelligence_smart_log_exported">SMART log exported</string>
     <string name="intelligence_smart_log_failed">Could not export the SMART log.</string>
     <string name="intelligence_smart_diagnose">Diagnose recent SMART starts (test)</string>
-    <string name="intelligence_smart_diagnose_body">Re-plans the last eight SMART queues and saves every hop’s scores to a file in the app’s folder on this device, for product checks.</string>
+    <string name="intelligence_smart_diagnose_body">Re-plans recent SMART queues and saves every hop’s scores to a file in the app’s folder on this device, for product checks.</string>
     <string name="intelligence_smart_diagnose_done">SMART diagnostics saved</string>
     <string name="intelligence_smart_diagnose_failed">Could not save the SMART diagnostics.</string>
     <string name="intelligence_smart_ranker">Learned ranker (test)</string>
