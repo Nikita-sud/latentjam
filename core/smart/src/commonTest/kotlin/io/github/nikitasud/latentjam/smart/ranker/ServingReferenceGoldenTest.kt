@@ -56,10 +56,18 @@ class ServingReferenceGoldenTest {
      * research a0238ee3 (tools/research/ranker: built in this session; replaced by the research side's fixtures when
      * they land).
      */
+    /**
+     * Audits 04 #2 / 05 #5: the same research plans with the tagger's output computed beforehand, persisted, read
+     * back into a fresh cache and only read at plan time — the cached imputation must give the reference's plans.
+     */
+    @Test
+    fun plansWithTheCachedImputationMatchTheServingReference() =
+        plansMatch("/serving_fixtures.jsonl.gz", fixtures = 24, requests = 48, cachedImputation = true)
+
     @Test
     fun theNewPathsMatchTheServingReference() = plansMatch("/serving_fixtures_paths.jsonl.gz", fixtures = 5, requests = 56)
 
-    private fun plansMatch(resource: String, fixtures: Int, requests: Int) = runTest {
+    private fun plansMatch(resource: String, fixtures: Int, requests: Int, cachedImputation: Boolean = false) = runTest {
         val all = fixtures(resource)
         assertEquals(fixtures, all.size)
         val expectedRequests = requests
@@ -74,7 +82,7 @@ class ServingReferenceGoldenTest {
             val reqs = input.list("requests").map { it as Map<*, *> }
             for ((i, req) in reqs.withIndex()) {
                 requests++
-                val got = run(input, req)
+                val got = run(input, req, cachedImputation)
                 val bad = ArrayList<String>()
                 compare(got, withoutStops(expected[i], got, bad), "", bad)
                 if (bad.isNotEmpty()) failures += "$name[$i]: " + bad.take(6).joinToString("; ")
@@ -85,7 +93,7 @@ class ServingReferenceGoldenTest {
     }
 
     /** One request on a fresh ranker; the result in the reference's golden shape. */
-    private suspend fun run(input: Map<String, Any?>, req: Map<*, *>): Map<String, Any?> {
+    private suspend fun run(input: Map<String, Any?>, req: Map<*, *>, cachedImputation: Boolean = false): Map<String, Any?> {
         val records = input.list("library").map { it as Map<*, *> }
         val external = (req["seed"] as? Map<*, *>)
         val tracks = LinkedHashMap<String, TrackDescriptor>()
@@ -120,6 +128,15 @@ class ServingReferenceGoldenTest {
             tagger = if (input["tagger"] == true) tagger else null,
             audio = audio,
             popularity = pop?.let { ArtistPopularity.parse(popularityAsset(it)) },
+            imputations = if (cachedImputation && input["tagger"] == true) {
+                // Computed, written, then read back by a fresh cache: the plan sees only the stored outputs.
+                val store = io.github.nikitasud.latentjam.smart.FakeIndexStore()
+                val writer = ImputationCache(tagger, store, "golden")
+                writer.backfill((records + listOfNotNull(external)).map { TrackId(it["id"] as String) }) { audio.vector(it) }
+                ImputationCache(tagger, store, "golden").also { assertEquals(audioVectors.count { it.value != null }, it.size()) }
+            } else {
+                null
+            },
         )
         ranker.resolver = { t -> resolved[t.id.value] }
         val trace = PlanTrace()
@@ -159,6 +176,7 @@ class ServingReferenceGoldenTest {
             impressions = (req["impressions"] as? List<*>).orEmpty().map { p -> (p as List<*>).map { TrackId(it as String) }.toSet() },
         )
         val report = ranker.plan(request)
+        if (cachedImputation && input["tagger"] == true) assertEquals(0, report.audio.imputeFallbacks, "every imputation read from the cache")
         val rep = mapOf(
             "ids" to report.ids.map { it.value }, "model" to report.model, "poolSize" to report.poolSize,
             "fromModel" to report.fromModel, "fromLadder" to report.fromLadder, "imputed" to report.imputed,

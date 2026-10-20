@@ -37,6 +37,21 @@ public class AudioTagger private constructor(
 
     public val inputDim: Int get() = inputMean.size
 
+    /** The number of classes ("other" included): [Imputed.probabilities]' length. */
+    public val classCount: Int get() = classes.size
+
+    /** [Imputed.descriptor]'s length. */
+    public val descriptorDim: Int get() = ridgeBias.size
+
+    /** The [Imputed] that [impute] returns for these exact [probabilities] and [descriptor] ([ImputationCache]'s read). */
+    public fun fromProbabilities(probabilities: DoubleArray, descriptor: FloatArray): Imputed? {
+        if (probabilities.size != classes.size) return null
+        var best = 0
+        for (c in probabilities.indices) if (probabilities[c] > probabilities[best]) best = c
+        val named = buildMap { classes.forEachIndexed { c, name -> if (name != null) put(name, probabilities[c]) } }
+        return Imputed(classes[best], probabilities, descriptor, named)
+    }
+
     public fun impute(embedding: FloatArray): Imputed? {
         if (embedding.size != inputMean.size) return null
         var norm = 0.0

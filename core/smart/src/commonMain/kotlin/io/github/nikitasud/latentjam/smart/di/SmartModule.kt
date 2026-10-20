@@ -50,6 +50,9 @@ public val smartLayoutQualifier: StringQualifier = named("smart-layout-index")
 /** The cached semantic-head energy e per track (PLAN_AUDIO_ON §8.8). */
 public val smartEnergyQualifier: StringQualifier = named("smart-energy")
 
+/** The audio tagger's per-track output (SmartRankerAssets' ImputationCache), beside the vectors and e. */
+public val smartImputationQualifier: StringQualifier = named("smart-imputation")
+
 /**
  * Koin module providing the SMART similarity engine.
  *
@@ -115,6 +118,7 @@ public val smartEngineModule: Module = module {
     single<IndexStore>(smartTextIndexQualifier) { NoopIndexStore() }
     single<IndexStore>(smartLayoutQualifier) { NoopIndexStore() }
     single<IndexStore>(smartEnergyQualifier) { NoopIndexStore() }
+    single<IndexStore>(smartImputationQualifier) { NoopIndexStore() }
 
     single<SimilarityEngine> {
         DefaultSimilarityEngine(

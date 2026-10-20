@@ -385,6 +385,8 @@ public class AudioCoverage(
     public val poolEnergies: Int,
     public val r1Neighbours: Int,
     public val timedOut: Set<String>,
+    /** Rows the imputation cache did not hold yet (computed under the budget instead); -1 without a cache. */
+    public val imputeFallbacks: Int = -1,
 ) {
     /** The log form: `seed=v,e pool=12/40v 30/40e r1=50 timeout=R1`. */
     public fun describe(poolSize: Int): String = buildString {
@@ -392,6 +394,7 @@ public class AudioCoverage(
         if (poolVectors >= 0) append(" pool=").append(poolVectors).append('/').append(poolSize).append('v')
         if (poolEnergies >= 0) append(' ').append(poolEnergies).append('/').append(poolSize).append('e')
         append(" r1=").append(r1Neighbours)
+        if (imputeFallbacks >= 0) append(" imputeUncached=").append(imputeFallbacks)
         if (timedOut.isNotEmpty()) append(" timeout=").append(timedOut.sorted().joinToString("+"))
     }
 
@@ -526,6 +529,8 @@ public class SmartRanker(
      * its artist's on the same taxonomy ([families] must then be the L2 table); year / album key / compilation are read.
      */
     private val taxonomy: GenreFamilies? = null,
+    /** The tagger's output computed at indexing (audits 04 #2 / 05 #5); plans read it and fall back to the budget. */
+    private val imputations: ImputationCache? = null,
 ) {
     private val l2Tracks: Boolean = taxonomy != null && (model.serving.l2 || fullModel?.serving?.l2 == true)
 
@@ -689,26 +694,53 @@ public class SmartRanker(
     }
 
     /** Fills a missing descriptor or family from the audio tagger (flagged imputed); counts the tracks it filled. */
-    private suspend fun impute(rows: List<Known>, timeouts: MutableSet<String>? = null): Int {
+    private suspend fun impute(rows: List<Known>, timeouts: MutableSet<String>? = null, fallbacks: IntArray? = null): Int {
         val head = tagger ?: return 0
         var filled = 0
-        // The audio index may be busy indexing: imputation gets its own budget, what it misses reads as unknown.
+        // The cached outputs first: a plain read, no budget, the same result on every phone and at every moment.
+        val missing = ArrayList<Pair<Known, FloatArray>>()
+        for (k in rows) {
+            if (k.imputationTried || (k.descriptor != null && k.family != null)) continue
+            val cache = imputations ?: break
+            val embedding = runCatching { audio.vector(k.track.id) }.getOrNull() ?: continue
+            val hit = cache.cached(k.track.id, embedding)
+            if (!hit.hit) { missing += k to embedding; continue }
+            k.imputationTried = true
+            if (apply(k, hit.imputed ?: continue)) filled++
+        }
+        if (imputations != null) {
+            fallbacks?.let { it[0] += missing.size }
+            if (missing.isEmpty()) return filled
+        }
+        // Not backfilled yet (or no cache): computed here within its own budget; what it misses reads as unknown.
         val done = withTimeoutOrNull(AUDIO_BUDGET_MS) { for (k in rows) {
             if (k.imputationTried || (k.descriptor != null && k.family != null)) continue
             val embedding = runCatching { audio.vector(k.track.id) }.getOrNull() ?: continue
             k.imputationTried = true
-            val out = head.impute(embedding) ?: continue
-            if (k.descriptor == null) k.imputedDescriptor = out.descriptor
-            if (k.family == null) {
-                k.family = out.family
-                k.familyImputed = true
-                k.familyProbabilities = out.familyProbabilities
-            }
-            filled++
+            val out = (if (imputations != null) imputations.compute(k.track.id, embedding) else head.impute(embedding)) ?: continue
+            if (apply(k, out)) filled++
         } }
         if (done == null) timeouts?.add("impute")
         return filled
     }
+
+    /** Fills [k]'s missing descriptor / family from the tagger's [out] (flagged imputed). */
+    private fun apply(k: Known, out: AudioTagger.Imputed): Boolean {
+        if (k.descriptor == null) k.imputedDescriptor = out.descriptor
+        if (k.family == null) {
+            k.family = out.family
+            k.familyImputed = true
+            k.familyProbabilities = out.familyProbabilities
+        }
+        return true
+    }
+
+    /**
+     * Audits 04 #2 / 05 #5: the tagger's output for every [library] track with a vector, computed once and kept (no
+     * budget). Returns how many were computed; 0 without a tagger or a cache.
+     */
+    public suspend fun backfillImputations(library: List<TrackDescriptor>): Int =
+        imputations?.backfill(library.map { it.id }) { id -> runCatching { audio.vector(id) }.getOrNull() } ?: 0
 
     public suspend fun plan(request: PlanRequest): PlanReport = plan(request, null)
 
@@ -736,7 +768,8 @@ public class SmartRanker(
         // The seed's imputation comes first, so R5 retrieves by an imputed family on the first plan (§1.3).
         val timeouts = HashSet<String>()
         var r1Count = 0
-        var imputed = impute(listOf(seedKnown), timeouts)
+        val imputeFallbacks = IntArray(1)
+        var imputed = impute(listOf(seedKnown), timeouts, imputeFallbacks)
         // Novelty can empty a small library; then the ladder may still take recently heard tracks.
         val poolSource = notExcluded.ifEmpty { eligibleKnown }
         val trace = tracer
@@ -754,7 +787,7 @@ public class SmartRanker(
                 if (timedOut) timeouts += "R1"
             }
         }.sortedWith { a, b -> SaltedKey.idOrder.compare(a.track.id.value, b.track.id.value) }
-        imputed += impute(pool, timeouts)
+        imputed += impute(pool, timeouts, imputeFallbacks)
         val window = minOf(serving.recentWindow, n / 2).coerceAtLeast(1)
         val previousIds = request.recentIds + request.seed.id
         fun versionOf(id: TrackId) = (byId[id] ?: cache[id])?.version ?: ArtistSets.keyHash("id:${id.value}")
@@ -881,6 +914,7 @@ public class SmartRanker(
             poolEnergies = energies?.count { !it.isNaN() } ?: -1,
             r1Neighbours = r1Count,
             timedOut = timeouts,
+            imputeFallbacks = if (imputations != null) imputeFallbacks[0] else -1,
         )
         return PlanReport(picks, active.name, pool.size, modelPicks.size, picks.size - modelPicks.size, timedOut, imputed, planPicks, coverage)
     }

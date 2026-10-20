@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.smart
 import io.github.nikitasud.latentjam.smart.chain.IosBatchDotProducts
 import io.github.nikitasud.latentjam.smart.chain.BatchDotProducts
 import io.github.nikitasud.latentjam.smart.di.smartEnergyQualifier
+import io.github.nikitasud.latentjam.smart.di.smartImputationQualifier
 import io.github.nikitasud.latentjam.smart.di.smartLayoutQualifier
 import io.github.nikitasud.latentjam.smart.di.smartTextIndexQualifier
 import org.koin.core.module.Module
@@ -146,6 +147,9 @@ public actual fun smartEngineBackendModule(): Module = module {
     }
     single<IndexStore>(smartLayoutQualifier) {
         IosFileIndexStore(fileName = "map_layout.bin")
+    }
+    single<IndexStore>(smartImputationQualifier) {
+        IosFileIndexStore(fileName = "smart_imputation.bin")
     }
     single<IndexStore>(smartEnergyQualifier) {
         IosFileIndexStore(fileName = "smart_energy.bin")

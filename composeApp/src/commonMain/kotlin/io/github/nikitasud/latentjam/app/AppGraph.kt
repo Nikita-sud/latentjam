@@ -638,6 +638,20 @@ object AppGraph {
                 } catch (failure: Exception) {
                     println("SMART: energy pass failed (${failure::class.simpleName})")
                 }
+                // Audits 04 #2 / 05 #5: the audio tagger's output for every indexed track, once (no plan-time budget).
+                try {
+                    val ranker = koin.getOrNull<SmartRankerAssets>()?.ranker
+                    if (ranker != null) {
+                        val computed = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                            ranker.backfillImputations(smartLibraryTracks.value)
+                        }
+                        if (computed > 0) println("SMART: tagger output kept for $computed tracks")
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (failure: Exception) {
+                    println("SMART: tagger backfill failed (${failure::class.simpleName})")
+                }
                 mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
                     running = false,
                     complete = true,

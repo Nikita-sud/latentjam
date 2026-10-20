@@ -14,6 +14,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.Process
 import io.github.nikitasud.latentjam.smart.di.smartEnergyQualifier
+import io.github.nikitasud.latentjam.smart.di.smartImputationQualifier
 import io.github.nikitasud.latentjam.smart.di.smartLayoutQualifier
 import io.github.nikitasud.latentjam.smart.di.smartTextIndexQualifier
 import io.github.nikitasud.latentjam.smart.text.readExactly
@@ -461,6 +462,9 @@ public actual fun smartEngineBackendModule(): Module = module {
         FileIndexStore(context = get(), fileName = "map_layout.bin")
     }
 
+    single<IndexStore>(smartImputationQualifier) {
+        FileIndexStore(context = get(), fileName = "smart_imputation.bin")
+    }
     single<IndexStore>(smartEnergyQualifier) {
         FileIndexStore(context = get(), fileName = "smart_energy.bin")
     }

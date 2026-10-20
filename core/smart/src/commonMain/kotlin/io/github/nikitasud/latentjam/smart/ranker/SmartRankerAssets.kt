@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.smart.ranker
 
 import io.github.nikitasud.latentjam.smart.AUDIO_MODEL_VERSION
+import io.github.nikitasud.latentjam.smart.IndexStore
 import io.github.nikitasud.latentjam.smart.text.ArtistKnowledge
 import io.github.nikitasud.latentjam.smart.text.ArtistFamilies
 import io.github.nikitasud.latentjam.smart.text.ArtistNeighbours
@@ -33,6 +34,8 @@ public class SmartRankerAssets(
     private val read: (name: String) -> AssetBytes?,
     private val audio: AudioSource = AudioSource.NONE,
     private val audioEncoder: String = AUDIO_MODEL_VERSION,
+    /** Where the tagger's per-track output is kept (audits 04 #2 / 05 #5); null keeps it in memory only. */
+    private val imputationStore: IndexStore? = null,
 ) {
     /** Why the manifest check failed, or null when every listed asset matched. */
     public var problem: String? = null
@@ -51,10 +54,15 @@ public class SmartRankerAssets(
                 else -> "$MODEL fitted on audio encoder ${parsed.first?.audioEncoder}, the app runs $audioEncoder"
             }
         }
+        var taggerVersion = ""
         val tagger = runCatching {
             val meta = text(TAGGER_META)
             val weights = read(TAGGER_WEIGHTS)
-            if (meta != null && weights != null) AudioTagger.parse(meta, weights) else null
+            if (meta != null && weights != null) {
+                taggerVersion = Sha256.digest(weights.size.toLong()) { weights[it.toInt()] }
+                    .take(8).joinToString("") { (it.toInt() and 0xff).toString(16).padStart(2, '0') }
+                AudioTagger.parse(meta, weights)
+            } else null
         }.getOrNull()
         val fullParsed = text(FULL_MODEL)?.let(RankerModel::parseOrProblem)
         val full = fullParsed?.first?.takeIf { it.audioEncoder == null || it.audioEncoder == audioEncoder }
@@ -82,6 +90,8 @@ public class SmartRankerAssets(
                 if (taxonomy != null) read(FAMILIES_L2)?.let { ArtistFamilies.parse(it, taxonomy.families) } else read(FAMILIES)?.let(ArtistFamilies::parse)
             }.getOrNull(),
             taxonomy = taxonomy,
+            // Keyed by the encoder and the tagger's weights: either changing discards the kept outputs.
+            imputations = tagger?.let { ImputationCache(it, imputationStore, "tagger-$taggerVersion-$audioEncoder") },
         )
     }
 

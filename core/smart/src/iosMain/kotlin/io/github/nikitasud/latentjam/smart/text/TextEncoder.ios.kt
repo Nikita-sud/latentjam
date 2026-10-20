@@ -137,6 +137,7 @@ public actual fun smartTextEncoderModule(): Module = module {
             knowledge = get(),
             read = { name -> resource(name)?.let(AssetBytes::of) },
             audio = io.github.nikitasud.latentjam.smart.ranker.EngineAudioSource { koin.getOrNull() },
+            imputationStore = koin.getOrNull(io.github.nikitasud.latentjam.smart.di.smartImputationQualifier),
         )
     }
 }
