@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.history.FavoriteTimes
 import io.github.nikitasud.latentjam.history.Favorites
 import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.history.RecentSearches
@@ -26,6 +27,7 @@ import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.SmartEngineConfig
 import io.github.nikitasud.latentjam.smart.EngineError
 import io.github.nikitasud.latentjam.smart.HabitFlow
+import io.github.nikitasud.latentjam.smart.ranker.SaltedKey
 import io.github.nikitasud.latentjam.smart.ranker.SmartRankerAssets
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
@@ -197,6 +199,15 @@ object AppGraph {
                                 personalRanker = { settings.learnFromHabits.value },
                                 presses = getOrNull(),
                                 smartLog = getOrNull<SmartLogRecorder>(),
+                                favourites = run {
+                                    val hearts = getOrNull<Favorites>()
+                                    val heartTimes = getOrNull<FavoriteTimes>()
+                                    suspend {
+                                        val ids = hearts?.all().orEmpty()
+                                        val at = heartTimes?.all().orEmpty()
+                                        ids.associateWith { at[it] }
+                                    }
+                                },
                                 library = { smartLibraryTracks.value },
                                 habitFlow = get<SimilarityEngine>().let { engine ->
                                     HabitFlow(getOrNull(), audio = { id -> engine.embedding(id) })
@@ -231,6 +242,20 @@ object AppGraph {
                 onSnapshot = { now -> smartLog?.onNowPlaying(now) },
                 onListen = { event -> smartLog?.onListen(event) },
             )
+            // Hearts: their times for FULL's favourite features, and the events for SMART's impression log.
+            koin.getOrNull<FavoriteTimes>()?.let { heartTimes ->
+                appScope.launchFavoriteRecorder(
+                    favorites = favorites,
+                    times = heartTimes,
+                    log = koin.getOrNull(),
+                    logEnabled = { settings.saveListeningHistory.value },
+                    trackKey = { ids ->
+                        val wanted = ids.toHashSet()
+                        smartLibraryTracks.value.filter { it.id in wanted }
+                            .associate { it.id to SaltedKey.contentHash(SaltedKey.contentKey(it)) }
+                    },
+                )
+            }
             // Remembers where listening stood, so the next launch reopens with the same track
             // parked in the player and the same shuffle mode — SMART stays on across restarts.
             // Ignore the empty launch state until playback has a session to restore or create.

@@ -53,7 +53,7 @@ parity on the trained model (§7: no interim builds).
 | File | Bytes | Content | Licence |
 |---|---|---|---|
 | `smart_ranker.json` | ≈ 2.6 KB | CORE+LFM (proto_ranker2 6e2fd6ce): standardised weights, mean / sd recomputed from its training rows (refit = published, max diff 0.0), p 2.129, anchor mix 2 : 1, ε 0.01, serving block | Apache-2.0 |
-| `smart_ranker_full.json` | ≈ 1.5 KB | FULL (proto_ranker a5747d63 raw weights, proto_ranker2's FULL p 1.9015), anchor mix, ε 0.01 | Apache-2.0 |
+| `smart_ranker_full.json` | ≈ 1.9 KB | FULL (proto_ranker a5747d63 raw weights, proto_ranker2's FULL p 1.9015), anchor mix, ε 0.01; `is_favourite` / `favourited_days_ago` at weight 0 until the research sets them | Apache-2.0 |
 | `artist_colisten.bin` | 7,947,962 | pop_k10 co-listening, 179,585 artists, pack entity ids | CC0-1.0 |
 | `artist_lfm.bin` | 14,369,964 | LightFM artist vectors, 111,902 entity-keyed, float32 (int8 changed 24 of 300 FIT top-10s, float16 7; credit-keyed artists left out) | Apache-2.0 |
 | `artist_known.bin` | 6,404,144 | artist_sets.py's known list as FNV-1a keys: 335,457 canonical, 310,039 aliases (MBID rows not shipped) | CC0-1.0 |
@@ -102,6 +102,10 @@ parity on the trained model (§7: no interim builds).
   queued, so a small library's SMART queue still ends when every track is queued (repeat-all loops). Letting the
   controllers queue a track again is a playback change of its own.
 - Marked playlists ("keep together in SMART") are not a ranker feature yet; the old chain still honours them.
+- Favourites (FULL only, "Learn from my habits"): `is_favourite`, and `favourited_days_ago` measured from the heart
+  times in `favorite_times.txt` (0 when the time is unknown: hearts from before this build, or after the seed). The
+  reference computes both from an optional fixture `favourites` input; no fixture sets one yet (FULL's PERSONAL
+  block has no reference parity).
 
 ## Tests (app)
 

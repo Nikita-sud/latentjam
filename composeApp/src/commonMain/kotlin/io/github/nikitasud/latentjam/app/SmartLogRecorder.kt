@@ -138,3 +138,54 @@ internal fun exportSmartLogText(log: SmartImpressionLog): String = kotlinx.corou
         log.forEachLine { append(it).append('\n') }
     }
 }
+
+/** What a favourites change added and removed, in [after]'s / [before]'s order. */
+internal fun favoriteChanges(before: Collection<TrackId>, after: Collection<TrackId>): Pair<List<TrackId>, List<TrackId>> {
+    val was = before.toHashSet()
+    val now = after.toHashSet()
+    return after.filter { it !in was }.distinct() to before.filter { it !in now }.distinct()
+}
+
+/**
+ * Follows the favourites through every path that changes them (the heart, the notification, bulk edits, duplicate
+ * merges, a backup restore): each durable change is diffed against the last list seen, the heart times are kept in
+ * [times] (FULL's favourited_days_ago), and the hearts go to SMART's impression log while [logEnabled] (the history
+ * setting). The first list seen is the baseline: it records nothing, and drops times of tracks no longer hearted.
+ */
+fun CoroutineScope.launchFavoriteRecorder(
+    favorites: io.github.nikitasud.latentjam.history.Favorites,
+    times: io.github.nikitasud.latentjam.history.FavoriteTimes,
+    log: SmartImpressionLog?,
+    logEnabled: () -> Boolean,
+    trackKey: (List<TrackId>) -> Map<TrackId, String>,
+    clock: () -> Long = ::epochMillis,
+): kotlinx.coroutines.Job = launch {
+    var previous: List<TrackId>? = null
+    favorites.revision.collect {
+        val current = try {
+            favorites.all()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            return@collect
+        }
+        val before = previous
+        previous = current
+        if (before == null) {
+            val stale = times.all().keys - current.toHashSet()
+            if (stale.isNotEmpty()) times.update(emptyList(), stale, clock())
+            return@collect
+        }
+        val (added, removed) = favoriteChanges(before, current)
+        if (added.isEmpty() && removed.isEmpty()) return@collect
+        val at = clock()
+        times.update(added, removed, at)
+        if (log != null && logEnabled()) {
+            val keys = trackKey(added + removed)
+            log.recordFavorites(
+                added.map { io.github.nikitasud.latentjam.history.SmartFavoriteEvent(at, keys[it].orEmpty(), true) } +
+                    removed.map { io.github.nikitasud.latentjam.history.SmartFavoriteEvent(at, keys[it].orEmpty(), false) },
+            )
+        }
+    }
+}

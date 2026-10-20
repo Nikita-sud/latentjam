@@ -280,6 +280,21 @@ internal class FileForYouImpressionStore : ForYouImpressionStore {
     }
 }
 
+internal class FileFavoriteTimeStore : FavoriteTimeStore {
+    override suspend fun read(): List<String> = withContext(Dispatchers.Default) {
+        readLines(appSupportFile(FILE_NAME) ?: error("Application Support is unavailable"))
+    }
+
+    override suspend fun write(lines: List<String>): Unit = withContext(Dispatchers.Default) {
+        val path = appSupportFile(FILE_NAME) ?: error("Application Support is unavailable")
+        writeText(path, lines.joinToString("\n"))
+    }
+
+    private companion object {
+        const val FILE_NAME = "favorite_times.txt"
+    }
+}
+
 internal class FileFavoritesStore : FavoritesStore {
     override suspend fun read(): List<String> = withContext(Dispatchers.Default) {
         readLines(appSupportFile(FILE_NAME) ?: error("Application Support is unavailable"))
@@ -310,6 +325,8 @@ public actual fun listeningHistoryModule(): Module = module {
     single { ForYouImpressions(store = get()) }
     single<SmartLogStore> { FileSmartLogStore() }
     single { SmartImpressionLog(store = get()) }
+    single<FavoriteTimeStore> { FileFavoriteTimeStore() }
+    single { FavoriteTimes(store = get()) }
 }
 
 public actual fun epochMillis(): Long = (NSDate().timeIntervalSince1970 * 1000).toLong()

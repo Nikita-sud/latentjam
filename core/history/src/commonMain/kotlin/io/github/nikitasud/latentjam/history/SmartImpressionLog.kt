@@ -69,6 +69,13 @@ public enum class SmartOutcomeKind {
     UNREACHED,
 }
 
+/** The listener hearted ([favourite] true) or un-hearted [track] (content-key hash, empty when not in the library). */
+public data class SmartFavoriteEvent(
+    public val atMs: Long,
+    public val track: String,
+    public val favourite: Boolean,
+)
+
 /** The outcome of the impression ([queue], [plan], [hop], [track]). */
 public data class SmartOutcome(
     public val atMs: Long,
@@ -90,7 +97,8 @@ public data class SmartOutcome(
  * Every write is best effort: a failing store costs log lines, never a queue.
  *
  * Lines: `si1|at|queue|plan|hop|track|rank|score|probability|tie|source|model` and
- * `so1|at|queue|plan|hop|track|OUTCOME|elapsedMs|fraction` (empty = unknown, NaN score = none).
+ * `so1|at|queue|plan|hop|track|OUTCOME|elapsedMs|fraction` (empty = unknown, NaN score = none), and the listener's
+ * hearts `sf1|at|track|1` (favourite) / `sf1|at|track|0` (removed).
  */
 public class SmartImpressionLog(
     private val store: SmartLogStore,
@@ -106,6 +114,8 @@ public class SmartImpressionLog(
     public suspend fun recordImpressions(impressions: List<SmartImpression>): Unit = write(impressions.map { serialize(it) })
 
     public suspend fun recordOutcomes(outcomes: List<SmartOutcome>): Unit = write(outcomes.map { serialize(it) })
+
+    public suspend fun recordFavorites(events: List<SmartFavoriteEvent>): Unit = write(events.map { serialize(it) })
 
     /** Streams every line, oldest first (the debug export). */
     public suspend fun forEachLine(line: (String) -> Unit): Unit = mutex.withLock {
@@ -129,6 +139,10 @@ public class SmartImpressionLog(
         public const val DEFAULT_KEEP_BYTES: Long = 3L * 1024 * 1024
         private const val IMPRESSION = "si1"
         private const val OUTCOME = "so1"
+        private const val FAVORITE = "sf1"
+
+        public fun serialize(f: SmartFavoriteEvent): String =
+            listOf(FAVORITE, f.atMs.toString(), token(f.track), if (f.favourite) "1" else "0").joinToString("|")
 
         public fun serialize(i: SmartImpression): String = listOf(
             IMPRESSION, i.atMs.toString(), token(i.queue), i.plan.toString(), i.hop.toString(), token(i.track),
@@ -140,7 +154,7 @@ public class SmartImpressionLog(
             o.elapsedMs?.toString() ?: "", o.fraction?.let(::number) ?: "",
         ).joinToString("|")
 
-        /** A parsed line: a [SmartImpression], a [SmartOutcome], or null for a torn or foreign one. */
+        /** A parsed line: a [SmartImpression], a [SmartOutcome], a [SmartFavoriteEvent], or null for a torn or foreign one. */
         public fun parse(line: String): Any? = runCatching {
             val p = line.split('|')
             when {
@@ -152,6 +166,8 @@ public class SmartImpressionLog(
                     p[1].toLong(), p[2], p[3].toInt(), p[4].toInt(), p[5], SmartOutcomeKind.valueOf(p[6]),
                     p[7].takeIf(String::isNotEmpty)?.toLong(), p[8].takeIf(String::isNotEmpty)?.toDouble(),
                 )
+                p[0] == FAVORITE && p.size == 4 && (p[3] == "1" || p[3] == "0") ->
+                    SmartFavoriteEvent(p[1].toLong(), p[2], p[3] == "1")
                 else -> null
             }
         }.getOrNull()

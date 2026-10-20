@@ -1,6 +1,6 @@
 {
  "name": "FULL (proto_ranker.py a5747d63 weights, proto_ranker2.py 6e2fd6ce queue and p)",
- "source": "proto_ranker.json models.FULL.weights_raw_units (mean 0, sd 1: a constant shift); runPenalty = proto_ranker2's FULL calibration (FIT train listeners, people's Balanced adjacency 0.238); hop k>1 = (2 s(seed) + s(previous)) / 3; epsilon 0.01 (PLAN_FINAL \u00a78). Personal transitions count the listener's own picks (docs/smart-ranker.md).",
+ "source": "proto_ranker.json models.FULL.weights_raw_units (mean 0, sd 1: a constant shift); runPenalty = proto_ranker2's FULL calibration (FIT train listeners, people's Balanced adjacency 0.238); hop k>1 = (2 s(seed) + s(previous)) / 3; epsilon 0.01 (PLAN_FINAL \u00a78). Personal transitions count the listener's own picks (docs/smart-ranker.md). is_favourite / favourited_days_ago: weight 0 until the research side sets them.",
  "features": [
   "cos",
   "cos_z",
@@ -23,9 +23,13 @@
   "actr",
   "actr_rank",
   "trans_track",
-  "trans_artist"
+  "trans_artist",
+  "is_favourite",
+  "favourited_days_ago"
  ],
  "mean": [
+  0.0,
+  0.0,
   0.0,
   0.0,
   0.0,
@@ -71,6 +75,8 @@
   1.0,
   1.0,
   1.0,
+  1.0,
+  1.0,
   1.0
  ],
  "weights": [
@@ -95,7 +101,9 @@
   1.551941686314728,
   -3.0240900834951696,
   2.464510770734663,
-  -0.012086639378350248
+  -0.012086639378350248,
+  0.0,
+  0.0
  ],
  "runPenalty": 1.9015,
  "anchor": "mix",

@@ -433,7 +433,7 @@ public class SmartRanker(
         val usesAudio = active.features.contains("audio_cos") || active.audioWeight != 0.0
         if (usesAudio) withTimeoutOrNull(AUDIO_BUDGET_MS) { audioOf(seedKnown); for (k in pool) audioOf(k) }
         val popularityOn = active.logpop == RankerModel.LOGPOP_ARTIST && popularity != null
-        val personalRows = if (active.features.any { it in RankerFeatures.PERSONAL }) request.history else null
+        val personalRows = if (active.features.any { it in RankerFeatures.LISTENER }) request.history else null
         val budgetMs = serving.hopBudgetMs * request.length
         // The decoder's own budget: preparation (knowledge, retrieval, imputation) has its own limits above.
         val decoding = TimeSource.Monotonic.markNow()

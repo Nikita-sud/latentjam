@@ -133,6 +133,8 @@ internal suspend fun rankerPlan(
     recentIds: List<TrackId> = emptyList(),
     personal: Boolean = false,
     ruleOnly: Boolean = false,
+    /** The listener's favourites with their heart times (null = unknown), read only for [personal] plans. */
+    favourites: suspend () -> Map<TrackId, Long?> = { emptyMap() },
 ): io.github.nikitasud.latentjam.smart.ranker.PlanReport? = withContext(Dispatchers.Default) {
     try {
         val scope = library.ifEmpty { candidates }
@@ -143,7 +145,10 @@ internal suspend fun rankerPlan(
         val novel = HabitSlots.novelty(listens, seedMs)
         val artistKeys = HashMap<TrackId, String>(scope.size + 1)
         for (t in scope) artistKeys[t.id] = HabitSlots.artistKey(t)
-        val personalHistory = io.github.nikitasud.latentjam.smart.ranker.PersonalHistory(listens, seedMs) { artistKeys[it].orEmpty() }
+        // Hearts count only for the FULL model ("Learn from my habits").
+        val personalHistory = io.github.nikitasud.latentjam.smart.ranker.PersonalHistory(
+            listens, seedMs, favourites = if (personal) favourites() else emptyMap(),
+        ) { artistKeys[it].orEmpty() }
         val fits = io.github.nikitasud.latentjam.smart.ranker.rankerFitsInHeap(minOf(candidates.size, 2_000))
         val report = ranker.plan(
             io.github.nikitasud.latentjam.smart.ranker.PlanRequest(

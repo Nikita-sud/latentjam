@@ -174,6 +174,23 @@ internal class FileForYouImpressionStore(context: Context) : ForYouImpressionSto
     }
 }
 
+internal class FileFavoriteTimeStore internal constructor(private val file: File) : FavoriteTimeStore {
+
+    constructor(context: Context) : this(File(context.filesDir, FILE_NAME))
+
+    override suspend fun read(): List<String> = withContext(Dispatchers.IO) {
+        if (file.exists()) file.readLines() else emptyList()
+    }
+
+    override suspend fun write(lines: List<String>): Unit = withContext(Dispatchers.IO) {
+        file.atomicReplaceText(lines.joinToString("\n"))
+    }
+
+    private companion object {
+        const val FILE_NAME = "favorite_times.txt"
+    }
+}
+
 internal class FileFavoritesStore internal constructor(private val file: File) : FavoritesStore {
 
     constructor(context: Context) : this(File(context.filesDir, FILE_NAME))
@@ -206,6 +223,8 @@ public actual fun listeningHistoryModule(): Module = module {
     single { ForYouImpressions(store = get()) }
     single<SmartLogStore> { FileSmartLogStore(context = get()) }
     single { SmartImpressionLog(store = get()) }
+    single<FavoriteTimeStore> { FileFavoriteTimeStore(context = get()) }
+    single { FavoriteTimes(store = get()) }
 }
 
 public actual fun epochMillis(): Long = System.currentTimeMillis()

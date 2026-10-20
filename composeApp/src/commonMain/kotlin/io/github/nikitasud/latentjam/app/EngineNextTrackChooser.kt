@@ -63,6 +63,8 @@ class EngineNextTrackChooser(
     private val presses: SmartPresses? = null,
     /** The on-device impression log (local only; nothing in ranking reads it). */
     private val smartLog: SmartPlanLog? = null,
+    /** The listener's favourites with their heart times (null = unknown): FULL's is_favourite / favourited_days_ago. */
+    private val favourites: suspend () -> Map<TrackId, Long?> = { emptyMap() },
 ) : NextTrackChooser {
 
     private val mutex = Mutex()
@@ -141,6 +143,7 @@ class EngineNextTrackChooser(
                     learned, history, current, candidates, library(), RANKER_LENGTH,
                     seedMs = events.last().startedAtMs, press = queuePress, recentIds = recentIds,
                     personal = personalRanker(), ruleOnly = !rankerHealthy() || queueFailures >= BREAKER_LIMIT,
+                    favourites = favourites,
                 )
                 if (report == null || report.timedOut) queueFailures++
                 picks = report?.picks

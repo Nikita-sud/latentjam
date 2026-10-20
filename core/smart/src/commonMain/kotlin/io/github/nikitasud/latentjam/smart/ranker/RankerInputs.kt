@@ -28,7 +28,13 @@ public interface AudioSource {
  * transition when the two listens are at most 15 minutes apart, differ, and b [HabitListen.countsAsNext] — the
  * listener's own pick (the Statistics page's rule; the research counted every pair, it had no origins).
  */
-public class PersonalHistory(listens: List<HabitListen>, seedMs: Long, artistKey: (TrackId) -> String) {
+public class PersonalHistory(
+    listens: List<HabitListen>,
+    seedMs: Long,
+    /** The listener's favourites, each with its heart time (null = unknown); empty without "Learn from my habits". */
+    private val favourites: Map<TrackId, Long?> = emptyMap(),
+    artistKey: (TrackId) -> String,
+) {
     private val counts = HashMap<TrackId, Int>()
     private val lastAt = HashMap<TrackId, Long>()
     /** The position of each track's last play in the log (the ladder's recency order, independent of the clock). */
@@ -69,6 +75,9 @@ public class PersonalHistory(listens: List<HabitListen>, seedMs: Long, artistKey
             activation = activation[track] ?: Double.NaN,
             transTrack = fromTrack[anchor]?.get(track) ?: 0,
             transArtist = if (anchorArtist.isEmpty()) 0 else fromArtist[anchorArtist]?.get(track) ?: 0,
+            favourite = track in favourites,
+            // Clamped at 0 like the listen ages: a clock change can date a heart after the seed.
+            favouritedDaysAgo = favourites[track]?.let { maxOf(0.0, (seedAt - it) / 86_400_000.0) } ?: Double.NaN,
         )
     }
 

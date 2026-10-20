@@ -58,6 +58,10 @@ public class PersonalRow(
     public val activation: Double = Double.NaN,
     public val transTrack: Int = 0,
     public val transArtist: Int = 0,
+    /** The listener has hearted this track. */
+    public val favourite: Boolean = false,
+    /** Days since it was hearted; NaN when it is not a favourite or the time is unknown. */
+    public val favouritedDaysAgo: Double = Double.NaN,
 )
 
 /**
@@ -78,7 +82,16 @@ public object RankerFeatures {
     public val EXTRA: List<String> = listOf(
         "dur_log", "dur_short", "dur_known", "desc_imputed", "family_imputed", "audio_cos", "audio_known", "artist_overlap",
     )
-    public val NAMES: List<String> = CORE + LFM + PERSONAL + EXTRA
+    /**
+     * The listener's hearts (FULL only, "Learn from my habits"): is_favourite 1 / 0; favourited_days_ago the days since
+     * the heart, 0 when not a favourite or the time is unknown (hearts from before the time was kept). Weights come
+     * from the model asset (0 until the research sets them).
+     */
+    public val FAVOURITE: List<String> = listOf("is_favourite", "favourited_days_ago")
+    public val NAMES: List<String> = CORE + LFM + PERSONAL + EXTRA + FAVOURITE
+
+    /** The columns read from the listener's own data (the FULL model's): PERSONAL and FAVOURITE. */
+    public val LISTENER: Set<String> = (PERSONAL + FAVOURITE).toSet()
 
     /** Tracks shorter than this count as short (skits, interludes); a parameter of the duration features (research: 90 s). */
     public const val SHORT_TRACK_MS: Long = 90_000
@@ -140,6 +153,8 @@ public object RankerFeatures {
                 if (c.audio.isNaN()) 0.0 else c.audio,
                 b(!c.audio.isNaN()),
                 c.artistOverlap,
+                b(p?.favourite == true),
+                if (p != null && p.favourite && !p.favouritedDaysAgo.isNaN()) p.favouritedDaysAgo else 0.0,
             )
         }
     }

@@ -12,6 +12,7 @@ One line per record, ASCII:
 ```
 si1|atMs|queue|plan|hop|track|rank|score|probability|tie|source|model     one offered track
 so1|atMs|queue|plan|hop|track|OUTCOME|elapsedMs|fraction                 what became of it
+sf1|atMs|track|1 / 0                                                      a heart added / removed
 ```
 
 - **queue**: `<12 hex of the seed's content-key hash>.<press>.<start ms>` (`c` instead of the press for the old
@@ -35,6 +36,17 @@ so1|atMs|queue|plan|hop|track|OUTCOME|elapsedMs|fraction                 what be
 
 Outcomes are classified from the playback snapshots the history recorder sees. That is the same service-side state
 (`NowPlaying.playbackStart`, queue) the v4 origin logging uses, never a MediaController's view.
+
+## Hearts
+
+`launchFavoriteRecorder` diffs the favourites list on every durable change: the heart, the notification, bulk edits,
+duplicate merges and a backup restore. Each change appends an `sf1` line (only while history is on) and updates
+`favorite_times.txt` (`ft1|hex id|ms`, one line per current favourite).
+
+The times feed the FULL ranker's `is_favourite` and `favourited_days_ago`, only with "Learn from my habits" on:
+- Their weights live in `smart_ranker_full.json`, at 0 until the research side sets them.
+- Hearts from before this build have no time, so they read `favourited_days_ago` = 0.
+- A restored backup dates its hearts to the restore.
 
 ## Limits and safety
 
@@ -65,7 +77,8 @@ Under "What the app reads on your device", after *Listening history*:
 
 > - **What the recommendations offered** — for each queue the recommendations build, the tracks they proposed, their
 >   place in the queue, how strongly each was scored and the chance it had of being picked, and what became of it
->   (played, skipped and when, removed, replaced by music you chose, or never reached). Only the most recent few
+>   (played, skipped and when, removed, replaced by music you chose, or never reached), and when you heart or un-heart
+>   a track. Only the most recent few
 >   megabytes are kept. It is recorded only while *Save listening history* is on and is cleared with the history.
 >   Nothing uses it to choose music yet; it lets future versions of the recommendations be checked on your device.
 

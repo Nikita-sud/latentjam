@@ -1,15 +1,40 @@
 --- a/tools/research/listenbrainz_eval/serving/reference.py
 +++ b/tools/research/listenbrainz_eval/serving/reference.py
-@@ -67,7 +67,7 @@
+@@ -65,9 +65,14 @@
+ LFM = ['lfm_cos', 'lfm_known']
+ PERSONAL = ['heard', 'log_freq', 'freq_rank', 'recency', 'recency_rank', 'actr', 'actr_rank', 'trans_track', 'trans_artist']
  EXTRA = ['dur_log', 'dur_short', 'dur_known', 'desc_imputed', 'family_imputed', 'audio_cos', 'audio_known', 'artist_overlap']
- NAMES = CORE + LFM + PERSONAL + EXTRA
+-NAMES = CORE + LFM + PERSONAL + EXTRA
++# The listener's hearts (FULL only, "Learn from my habits"): is_favourite 1 / 0; favourited_days_ago = (seedMs - heart ms)
++# / 86,400,000 clamped at 0, 0 when not a favourite or the heart time is unknown. Fixture input `favourites` {id: ms or
++# null} and request `personal` + `seedMs`; read only when the request is personal and the model names a listener column.
++FAVOURITE = ['is_favourite', 'favourited_days_ago']
++NAMES = CORE + LFM + PERSONAL + EXTRA + FAVOURITE
++LISTENER = set(PERSONAL + FAVOURITE)
  COL = {n: i for i, n in enumerate(NAMES)}
 -SHORT_TRACK_MS = 60_000
 +SHORT_TRACK_MS = 90_000
  MAX_DURATION_MS = 24 * 3_600_000
  NON_MUSIC_FOLDERS = {'ringtones', 'notifications', 'alarms', 'recordings', 'call recordings'}
  LADDER_SAMPLE = 2_000
-@@ -358,10 +358,11 @@
+@@ -305,7 +310,7 @@
+     return 0.5 if any(x in a for x in c) else 0.0
+ 
+ 
+-def features(anchor, pool, artist_key_of, audio_vecs, colisten):
++def features(anchor, pool, artist_key_of, audio_vecs, colisten, hearts=None, seed_ms=0):
+     """SmartRanker.features + RankerFeatures.of (personal = null: PERSONAL columns 0). One row per pool track."""
+     related = {}
+     if anchor.entity >= 0:
+@@ -354,14 +359,19 @@
+         r[COL['audio_cos']] = 0.0 if math.isnan(au) else au
+         r[COL['audio_known']] = float(not math.isnan(au))
+         r[COL['artist_overlap']] = overlap(anchor.artists, c.artists)
++        if hearts is not None and c.id in hearts:
++            r[COL['is_favourite']] = 1.0
++            at = hearts[c.id]
++            r[COL['favourited_days_ago']] = max(0.0, (seed_ms - at) / 86_400_000.0) if at is not None else 0.0
+     return rows
  
  
  # ------------------------------------------------------------------------------------------------ decoder
@@ -22,7 +47,15 @@
      open_ = [True] * pool_size; picks = []
      run_artist = seed_artist; run_len = 0 if run_artist == '' else 1
      for _ in range(min(length, pool_size)):
-@@ -446,6 +447,7 @@
+@@ -415,6 +425,7 @@
+         self.last_index = {}
+         for i, t in enumerate(self.history): self.last_index[t] = i
+         self.tagger = tagger if fx.get('tagger') else None
++        self.favourites = fx.get('favourites')
+ 
+     def audio_neighbours(self, tid, k): return list(self.audio_nb.get(tid, []))[:k]
+ 
+@@ -446,6 +457,7 @@
      trace['query'] = q
      draws = HopDraws(seed_of(salt, q, press))
      salted = {k.id: salted_key(salt, q, press, k.id) for k in elig}
@@ -30,7 +63,7 @@
      exclude = set(req.get('exclude') or [])
      not_ex = [k for k in elig if k.id not in exclude]
      source = not_ex or elig
-@@ -455,7 +457,7 @@
+@@ -455,7 +467,7 @@
      else: pool, how = retrieve(F, source, seed, sv, salted, length), 'retrievers'
      pool.sort(key=lambda k: id_bytes(k.id))
      trace['poolHow'] = how
@@ -39,7 +72,21 @@
      window = max(1, min(sv['recentWindow'], (window_n if window_n is not None else n) // 2))
      previous_ids = list(req.get('recentIds') or []) + [seed_id]
      def version_of(i):
-@@ -480,9 +482,10 @@
+@@ -465,11 +477,12 @@
+     if 'audio_cos' in model.features or model.audio_weight != 0.0:
+         for k in [seed] + pool:
+             if k.id not in audio_vecs: audio_vecs[k.id] = normalized(F.audio.get(k.id))
++    hearts = F.favourites if (req.get('personal') and F.favourites is not None and LISTENER & set(model.features)) else None
+     feats_cache = {}
+     def rows_of(anchor):
+         if anchor not in feats_cache:
+             a = seed if anchor == SEED_ANCHOR else pool[anchor]
+-            feats_cache[anchor] = features(a, pool, artist_key_of, audio_vecs, F.colisten)
++            feats_cache[anchor] = features(a, pool, artist_key_of, audio_vecs, F.colisten, hearts, int(req.get('seedMs', 0)))
+         return feats_cache[anchor]
+     score_cache = {}
+     def scores_of(anchor):
+@@ -480,9 +493,10 @@
      def blocked(row, picks):
          return blocked_version(pool[row].version, [pool[p].id for p in picks], previous_ids, window, version_of)
      hops = []
@@ -52,7 +99,7 @@
      rungs = []
      while len(picks) < length:
          nxt, rung = ladder.next(picks)
-@@ -561,9 +564,12 @@
+@@ -561,9 +575,12 @@
  
  
  class Ladder:
@@ -67,7 +114,7 @@
  
      def version_of(self, i):
          k = self.by_id.get(i) or self.cache.get(i)
-@@ -573,7 +579,15 @@
+@@ -573,7 +590,15 @@
          taken = set(picks)
          previous = picks[-1] if picks else self.before[-1]
          pk = self.by_id.get(previous) or self.cache.get(previous)
@@ -84,7 +131,7 @@
          for i in self.F.audio_neighbours(previous, 50):
              k = self.by_id.get(i)
              if k is not None and ok(k, self.window): return k.id, 'audio'
-@@ -591,16 +605,23 @@
+@@ -591,16 +616,23 @@
              c = [k for k in self.elig if k.family == pk.family and ok(k, self.window)]
              if c: return min(c, key=lambda k: self.salted[k.id]).id, 'family'
          recent = set((list(self.before) + list(picks))[-self.window:])

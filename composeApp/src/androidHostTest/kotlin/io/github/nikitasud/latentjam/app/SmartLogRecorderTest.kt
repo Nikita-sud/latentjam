@@ -65,4 +65,11 @@ class SmartLogRecorderTest {
         runCurrent()
         assertTrue(store.text.isEmpty())
     }
+
+    @Test
+    fun favouriteChangesAreTheDifferenceOfTwoLists() {
+        val (added, removed) = favoriteChanges(listOf(TrackId("a"), TrackId("b")), listOf(TrackId("c"), TrackId("a"), TrackId("c")))
+        assertEquals(listOf(TrackId("c")), added)
+        assertEquals(listOf(TrackId("b")), removed)
+    }
 }
