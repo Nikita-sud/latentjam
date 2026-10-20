@@ -70,9 +70,25 @@ internal class DefaultSimilarityEngine(
     private val batchDotProducts: BatchDotProducts = BatchDotProducts.Portable,
     /** Where e (PLAN_AUDIO_ON §8.8) persists: one-float rows keyed with the audio vector's identity; null = memory only. */
     private val energyStore: IndexStore? = null,
+    /**
+     * Where indexing runs its (blocking, native) inference: a thread of its own, so [dispatcher] stays free for the
+     * reads SMART plans make meanwhile.
+     */
+    private val inferenceDispatcher: CoroutineDispatcher = dispatcher,
 ) : SimilarityEngine {
 
     private val mutex = Mutex()
+
+    /**
+     * Serialises the native backend (load, embed, classify, close). Audio indexing runs inference under this lock
+     * alone, never under [mutex], so reads (embedding, audioNeighbours, energy: the SMART ranker's audio inputs) are
+     * never stuck behind a chunk of inference. Lock order is always [mutex] then [inference], and indexing never holds
+     * both.
+     */
+    private val inference = Mutex()
+
+    /** Advances when the index is cleared or released: inference results from an older generation are dropped. */
+    private var generation = 0L
 
     @Volatile
     private var artistRunPenalty = config.artistRunPenalty.coerceAtLeast(0f)
@@ -174,7 +190,7 @@ internal class DefaultSimilarityEngine(
      */
     private suspend fun ensureAudioModel(): Result<Unit> {
         if (audioModelLoaded) return Result.success(Unit)
-        return backend.loadModel().onSuccess {
+        return inference.withLock { backend.loadModel() }.onSuccess {
             audioModelLoaded = true
             println("SMART: audio model loaded on first use")
         }
@@ -183,7 +199,7 @@ internal class DefaultSimilarityEngine(
     /** Loads the small semantic head without paying for the audio encoder on restored libraries. */
     private suspend fun ensureSemanticModel(): Result<Unit> {
         if (semanticModelLoaded) return Result.success(Unit)
-        return backend.loadSemanticModel().onSuccess {
+        return inference.withLock { backend.loadSemanticModel() }.onSuccess {
             semanticModelLoaded = true
             println("SMART: semantic model loaded for mix classification")
         }
@@ -199,15 +215,10 @@ internal class DefaultSimilarityEngine(
         tracks: List<TrackDescriptor>,
         persistAfterBatch: Boolean,
     ): IndexReport = withContext(dispatcher) {
-        mutex.withLock {
+        // Phase 1, under the engine lock: partition, remember known failures, load the model.
+        val prepared = mutex.withLock {
             rememberTracks(tracks)
-            if (mutableState.value !is EngineState.Ready) {
-                return@withLock IndexReport(
-                    indexed = 0,
-                    failed = tracks.size,
-                    errors = tracks.associate { it.id to EngineError.ModelUnavailable },
-                )
-            }
+            if (mutableState.value !is EngineState.Ready) return@withLock null
             // Resumability: tracks already in the index keep their embedding. A file that the
             // decoder could not open is also skipped while its exact content identity is
             // unchanged. This partition happens before ensureAudioModel(), which is the key to
@@ -228,7 +239,6 @@ internal class DefaultSimilarityEngine(
             val toEmbed = tracks.filter {
                 it.id !in index && it.id !in rememberedFailureIds && it.id !in missingAudioIds
             }
-            var indexed = 0
             val errors = LinkedHashMap<TrackId, EngineError>()
             rememberedFailures.forEach { track ->
                 errors[track.id] = EngineError.InvalidAudio()
@@ -242,31 +252,45 @@ internal class DefaultSimilarityEngine(
             } else {
                 ensureAudioModel().exceptionOrNull()?.toEngineError()
             }
-            if (modelFailure != null) {
-                for (track in toEmbed) errors[track.id] = modelFailure
-            } else {
-                backend.embedEach(toEmbed) { track, result ->
-                    result.fold(
-                        onSuccess = { vector ->
-                            val rejection = validateAndUpsert(track, vector)
-                            if (rejection == null) indexed++ else errors[track.id] = rejection
-                        },
-                        onFailure = { throwable ->
-                            val error = throwable.toEngineError()
-                            errors[track.id] = error
-                            if (error is EngineError.InvalidAudio) {
-                                rememberAudioFailure(track)
-                            } else {
-                                forgetAudioFailure(track.id)
-                            }
-                        },
-                    )
-                    // Let foreground dispatchers run between independent tracks. Native inference
-                    // is still serialized, but indexing no longer behaves like one unbroken CPU
-                    // task.
+            if (modelFailure != null) for (track in toEmbed) errors[track.id] = modelFailure
+            PreparedIndexing(alreadyIndexed, errors, if (modelFailure == null) toEmbed else emptyList(), generation)
+        } ?: return@withContext IndexReport(indexed = 0, failed = tracks.size, errors = tracks.associate { it.id to EngineError.ModelUnavailable })
+        // Phase 2, outside the engine lock: inference only (decoding and the model), results kept aside.
+        val results = ArrayList<Pair<TrackDescriptor, Result<FloatArray>>>(prepared.toEmbed.size)
+        if (prepared.toEmbed.isNotEmpty()) {
+            inference.withLock {
+                withContext(inferenceDispatcher) { backend.embedEach(prepared.toEmbed) { track, result ->
+                    results += track to result
+                    // Let foreground dispatchers run between independent tracks.
                     yield()
-                }
+                } }
             }
+        }
+        // Phase 3, under the engine lock again: install what is still wanted, encode text, persist.
+        mutex.withLock {
+            val errors = prepared.errors
+            var indexed = 0
+            val current = prepared.generation == generation && mutableState.value is EngineState.Ready
+            for ((track, result) in results) {
+                // A track removed or changed meanwhile (sync, rescan, release) keeps no stale vector.
+                if (!current || knownTracks[track.id]?.audioVectorIdentity() != track.audioVectorIdentity()) continue
+                result.fold(
+                    onSuccess = { vector ->
+                        val rejection = validateAndUpsert(track, vector)
+                        if (rejection == null) indexed++ else errors[track.id] = rejection
+                    },
+                    onFailure = { throwable ->
+                        val error = throwable.toEngineError()
+                        errors[track.id] = error
+                        if (error is EngineError.InvalidAudio) {
+                            rememberAudioFailure(track)
+                        } else {
+                            forgetAudioFailure(track.id)
+                        }
+                    },
+                )
+            }
+            val alreadyIndexed = prepared.alreadyIndexed
             // Text is encoded here rather than at query time: the encoder costs milliseconds per track,
             // but a whole library of it would stall the first SMART press for seconds.
             //
@@ -450,7 +474,7 @@ internal class DefaultSimilarityEngine(
                     ensureAudioModel().onFailure { throwable ->
                         return@withLock NextTrackResult.Failure(throwable.toEngineError())
                     }
-                    backend.embed(seed).getOrElse { throwable ->
+                    inference.withLock { backend.embed(seed) }.getOrElse { throwable ->
                         val error = throwable.toEngineError()
                         if (error is EngineError.InvalidAudio) {
                             rememberAudioFailure(seed)
@@ -507,7 +531,7 @@ internal class DefaultSimilarityEngine(
             var added = 0
             for (batch in missing.chunked(SEMANTIC_BATCH_SIZE)) {
                 val rows = batch.mapNotNull { id -> index.vector(id)?.let { id to it } }
-                val outputs = backend.classify(rows.map { it.second }).getOrNull()?.takeIf { it.size == rows.size } ?: continue
+                val outputs = inference.withLock { backend.classify(rows.map { it.second }) }.getOrNull()?.takeIf { it.size == rows.size } ?: continue
                 for (r in rows.indices) {
                     val out = outputs[r]
                     if (out.size <= ENERGY_HIGH_INDEX) continue
@@ -781,7 +805,7 @@ internal class DefaultSimilarityEngine(
                     )
                 }
                 val vector = ensureAudioModel().getOrNull()?.let {
-                    backend.embed(seed).fold(
+                    inference.withLock { backend.embed(seed) }.fold(
                         onSuccess = { it },
                         onFailure = { throwable ->
                             if (throwable.toEngineError() is EngineError.InvalidAudio) {
@@ -1057,6 +1081,7 @@ internal class DefaultSimilarityEngine(
                     throwAnalysisClearFailure(failures)
                 }
 
+                generation++
                 index.clear()
                 textIndex?.clear()
                 knownTracks.clear()
@@ -1084,7 +1109,8 @@ internal class DefaultSimilarityEngine(
     override suspend fun release() {
         withContext(dispatcher) {
             mutex.withLock {
-                backend.close()
+                generation++
+                inference.withLock { backend.close() }
                 predictor?.close()
                 textEncoder?.close()
                 index.clear()
@@ -1503,7 +1529,7 @@ internal class DefaultSimilarityEngine(
     /** Classifies [missing] audio vectors into [semanticCache]; rows the head rejects stay absent. */
     private suspend fun cacheSemantics(missing: List<Pair<TrackId, FloatArray>>) {
         for (batch in missing.chunked(SEMANTIC_BATCH_SIZE)) {
-            val outputs = backend.classify(batch.map { it.second }).getOrNull()
+            val outputs = inference.withLock { backend.classify(batch.map { it.second }) }.getOrNull()
                 ?.takeIf { it.size == batch.size }
                 ?: continue
             for (row in batch.indices) {
@@ -1540,6 +1566,14 @@ internal class DefaultSimilarityEngine(
         textIndex,
         history,
         companionGroups,
+    )
+
+    /** Phase 1 of indexing, handed to the inference phase outside the engine lock. */
+    private class PreparedIndexing(
+        val alreadyIndexed: List<TrackDescriptor>,
+        val errors: LinkedHashMap<TrackId, EngineError>,
+        val toEmbed: List<TrackDescriptor>,
+        val generation: Long,
     )
 
     /** [semanticCount] rebuilds the snapshot once more tracks have semantics, and so energy. */

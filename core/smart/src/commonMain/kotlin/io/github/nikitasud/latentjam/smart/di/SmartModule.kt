@@ -130,6 +130,8 @@ public val smartEngineModule: Module = module {
             clock = getOrNull<SmartClock>() ?: SmartClock,
             batchDotProducts = getOrNull<BatchDotProducts>() ?: BatchDotProducts.Portable,
             energyStore = getOrNull<IndexStore>(smartEnergyQualifier),
+            // A second engine-priority thread: indexing's inference never holds the one reads use.
+            inferenceDispatcher = createPlatformSmartEngineDispatcher(),
         )
     }
 }

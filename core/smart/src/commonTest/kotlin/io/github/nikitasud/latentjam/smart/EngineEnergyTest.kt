@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.smart
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -26,6 +27,7 @@ class EngineEnergyTest {
     private val far = TrackDescriptor(id = TrackId("far"), audioUri = "test://far")
 
     private fun engine(backend: EmbeddingBackend, store: IndexStore, energyStore: IndexStore) = DefaultSimilarityEngine(
+        inferenceDispatcher = Dispatchers.Default.limitedParallelism(1, "energy-inference"),
         backend = backend,
         index = InMemoryVectorIndex(dim = 3),
         store = store,
@@ -70,5 +72,47 @@ class EngineEnergyTest {
         assertNull(second.energy(near.id))
         assertEquals(1, second.ensureEnergies())
         assertEquals(3 to 3, second.energyCoverage())
+    }
+
+    /** A backend whose inference waits on [gate] (indexing in the middle of a chunk). */
+    private class SlowBackend(val fake: FakeEmbeddingBackend = FakeEmbeddingBackend()) : EmbeddingBackend by fake {
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val entered = kotlinx.coroutines.CompletableDeferred<Unit>()
+        var slow = false
+        override suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray> {
+            if (slow) { entered.complete(Unit); gate.await() }
+            return fake.embed(descriptor)
+        }
+
+        override suspend fun embedEach(
+            tracks: List<TrackDescriptor>,
+            onResult: suspend (TrackDescriptor, Result<FloatArray>) -> Unit,
+        ) {
+            for (track in tracks) onResult(track, embed(track))
+        }
+    }
+
+    @Test
+    fun audioReadsAreNotBlockedWhileIndexingRunsInference() = kotlinx.coroutines.runBlocking(Dispatchers.Default) {
+        val backend = SlowBackend()
+        backend.fake.vectors[seed.id] = floatArrayOf(1f, 0f, 0f)
+        backend.fake.vectors[near.id] = floatArrayOf(0.9f, 0.1f, 0f)
+        backend.fake.vectors[far.id] = floatArrayOf(0f, 1f, 0f)
+        val engine = engine(backend, FakeIndexStore(), FakeIndexStore())
+        engine.initialize().getOrThrow()
+        engine.indexLibrary(listOf(seed, near))
+        backend.slow = true
+        val indexing = launch(Dispatchers.Default) { engine.indexLibrary(listOf(seed, near, far)) }
+        kotlinx.coroutines.withTimeout(10_000) { backend.entered.await() }
+        // Inference is stuck on far; the ranker's reads must still answer at once.
+        val read = kotlinx.coroutines.withTimeoutOrNull(2_000) {
+            engine.embedding(near.id) to engine.audioNeighbours(seed.id, 2)
+        }
+        kotlin.test.assertNotNull(read, "audio reads waited behind indexing inference")
+        kotlin.test.assertNotNull(read.first)
+        assertEquals(listOf(near.id), read.second.map { it.trackId })
+        backend.gate.complete(Unit)
+        indexing.join()
+        assertEquals(3, engine.audioNeighbours(seed.id, 5).size + 1)
     }
 }
