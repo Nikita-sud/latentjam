@@ -148,6 +148,20 @@ a restart; an unhealthy manifest and a throwing audio index still fill the queue
 - The first plan was FULL final: 20 picks from the model, a 184-track pool from 1,106 candidates, 1,196 ms
   including the one-time asset load and manifest hashing.
 
+## Diagnostics (test builds)
+
+*Settings → SMART engine → Diagnose recent SMART starts (test)* re-plans the last 16 ranker queues of the impression
+log from each one's seed, press, start time and model, on the history before that time. It writes JSON lines to the
+app's external files dir (`smart_diagnostics.jsonl`; `adb pull` works without run-as):
+- per hop, the five best rows and the pick, with raw and penalised scores, choice probability, retriever, run
+  penalty and cap, w · z contributions (`RankerModel.contributions`, mixed over the hop's anchors) and feature rows;
+- per track, play counts split by SMART plan origin and own picks;
+- whether the replay matches the logged picks (replays made while R1 or imputation hit their time budgets can
+  differ).
+
+Findings of the first run (20 October, pre-E) are in the session notes, not here: they are a product check, not
+evidence.
+
 ## 48 MB with 10k tracks (follow-up, 19 October late evening)
 
 - The low-memory fixes asked for (fix/low-memory-launch, fix/smart-press-memory) are **already in this line**, rebased
