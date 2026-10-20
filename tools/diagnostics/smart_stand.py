@@ -189,6 +189,15 @@ def metrics_of(q, lib, facts, seed):
     cnt = collections.Counter(a for a in arts if a)
     share = max(cnt.values()) / len(arts) if cnt and arts else 0.0
     axa = sum(1 for i in range(2, len(arts)) if arts[i] and arts[i] == arts[i - 2] and arts[i - 1] != arts[i])
+    # Same-artist runs, the seed counting as the queue's start (what the listener hears).
+    seq = [artist(lib.get(seed))] + arts
+    runs, cur = [], 1
+    for i in range(1, len(seq)):
+        if seq[i] and seq[i] == seq[i - 1]: cur += 1
+        else: runs.append(cur); cur = 1
+    runs.append(cur)
+    max_run = max(runs) if runs else 0
+    run3 = sum(1 for x in runs if x >= 3)
     sf = (facts.get(seed) or {}).get('family') or ''
     def keep(a, b):
         seg = picks[a:b]
@@ -205,7 +214,7 @@ def metrics_of(q, lib, facts, seed):
     seed_row = lib.get(seed)
     seed_ost = bool(seed_row and (OST.search(seed_row[5] or '') or KIDS.search((seed_row[3] or '') + (seed_row[5] or ''))))
     ost = 0 if seed_ost else sum(1 for r in rows if r and (OST.search(r[5] or '') or KIDS.search((r[3] or '') + ' ' + (r[5] or ''))))
-    return {'n': len(picks), 'maxArtistShare': share, 'AxA': axa, 'keep1_5': keep(0, 5), 'keep8_20': keep(7, 20),
+    return {'n': len(picks), 'maxArtistShare': share, 'AxA': axa, 'maxRun': max_run, 'run3': run3, 'keep1_5': keep(0, 5), 'keep8_20': keep(7, 20),
             'keep21_40': keep(20, 40), 'energyDrift': drift, 'sameSong': same_song, 'short': short, 'long': long_,
             'ostInNonOst': ost}
 
@@ -219,7 +228,7 @@ def report(out, lib):
         r = lib.get(i); return f"{r[2] or '?'} – {r[1] or '?'}" if r else i
     md = [f'# SMART stand — {out.name}', '', 'L1 product check only (what the owner would hear); never fitting / choosing /',
           'gate input. Local; not in git.', '', (out / 'build.txt').read_text().replace('\n', ' · '), '']
-    tsv = ['seed\tmode\tpress\t' + '\t'.join(['n', 'maxArtistShare', 'AxA', 'keep1_5', 'keep8_20', 'keep21_40',
+    tsv = ['seed\tmode\tpress\t' + '\t'.join(['n', 'maxArtistShare', 'AxA', 'maxRun', 'run3', 'keep1_5', 'keep8_20', 'keep21_40',
                                                 'energyDrift', 'sameSong', 'short', 'long', 'ostInNonOst', 'repressOverlap'])]
     agg = collections.defaultdict(lambda: collections.defaultdict(list))
     for (seed, mode), presses in sorted(by.items(), key=lambda kv: (name(kv[0][0]), kv[0][1])):
@@ -236,6 +245,7 @@ def report(out, lib):
             tsv.append(f'{seed}\t{mode}\t{k}\t' + '\t'.join(f'{m[c]:.3f}' if isinstance(m[c], float) else str(m[c])
                                                           for c in tsv[0].split('\t')[3:]))
             md.append(f"**press {k}** (`{q['model']}`) · artist share {m['maxArtistShare']:.2f} · A-x-A {m['AxA']} · "
+                      f"max run {m['maxRun']} · runs≥3 {m['run3']} · "
                       f"keep {m['keep1_5']:.2f}/{m['keep8_20']:.2f}/{m['keep21_40']:.2f} · e drift {m['energyDrift']:+.3f} · "
                       f"same song {m['sameSong']} · short {m['short']} long {m['long']} · OST {m['ostInNonOst']}"
                       + (f" · re-press overlap {m['repressOverlap']:.2f}" if k else ''))
@@ -245,7 +255,7 @@ def report(out, lib):
             md.append('')
     (out / 'queues.md').write_text('\n'.join(md) + '\n', encoding='utf-8')
     (out / 'metrics.tsv').write_text('\n'.join(tsv) + '\n')
-    cols = ['maxArtistShare', 'AxA', 'keep1_5', 'keep8_20', 'keep21_40', 'energyDrift', 'sameSong', 'short', 'long',
+    cols = ['maxArtistShare', 'AxA', 'maxRun', 'run3', 'keep1_5', 'keep8_20', 'keep21_40', 'energyDrift', 'sameSong', 'short', 'long',
             'ostInNonOst', 'repressOverlap']
     mm = [f'# Stand metrics — {out.name}', '', 'Means over seeds (L1 product check only).', '',
           '| mode | press | seeds | ' + ' | '.join(cols) + ' |', '|' + '---|' * (3 + len(cols))]
@@ -298,6 +308,12 @@ def fidelity(args):
     return exact, total
 
 
+def rereport(args):
+    """Recomputes queues.md / metrics from a run's queues.jsonl (after a metrics change), with no re-planning."""
+    lib = {l.split('\t')[0]: l.split('\t') for l in (STAND / 'input/library.tsv').read_text().splitlines() if l}
+    report(STAND / args.build, lib)
+
+
 def diff(args):
     a, b = STAND / args.a, STAND / args.b
     lib = {l.split('\t')[0]: l.split('\t') for l in (STAND / 'input/library.tsv').read_text().splitlines() if l}
@@ -325,11 +341,12 @@ def main():
     sub = ap.add_subparsers(dest='cmd', required=True)
     r = sub.add_parser('run'); r.add_argument('--state'); r.add_argument('--build-id')
     d = sub.add_parser('diff'); d.add_argument('a'); d.add_argument('b')
+    rr = sub.add_parser('rereport'); rr.add_argument('build')
     f = sub.add_parser('fidelity'); f.add_argument('--state')
     f.add_argument('--since', type=int, default=0, help='only presses at or after this epoch ms (the build install time: '
                    'earlier builds may share the model name)')
     a = ap.parse_args()
-    {'run': run, 'diff': diff, 'fidelity': fidelity}[a.cmd](a)
+    {'run': run, 'diff': diff, 'fidelity': fidelity, 'rereport': rereport}[a.cmd](a)
 
 
 if __name__ == '__main__':
