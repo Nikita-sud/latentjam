@@ -57,9 +57,18 @@ public class RankerModel(
     public val freshness: Freshness? = null,
     /** FULL L2 (audit 06 #4): the score adds the embedded [seedGate] core's metadata logit (no audio). */
     public val coreOffset: Boolean = false,
+    /** R1e's band τ is in units of the retrieval source's e spread. */
+    public val r1EnergyPoolScale: Boolean = false,
+    /** The audio term on the per-pool z of audio_cos (known rows' mean / sd; unknown rows 0), not raw audio_cos. */
+    public val audioZ: Boolean = false,
+    public val softNovelty: SoftNovelty? = null,
 ) {
     /** λ · |Δe| to the previous pick ("prev"), or λ · max(0, |Δe to the seed| − τ) ("seedHinge"). */
-    public class Energy(public val lambda: Double, public val seedHinge: Boolean, public val tau: Double)
+    /** [poolScale]: |Δe| in units of the pool's e spread (population sd of the allowed rows' known e, floored). */
+    public class Energy(public val lambda: Double, public val seedHinge: Boolean, public val tau: Double, public val poolScale: Boolean = false)
+
+    /** The novelty set beyond its [hardLast] newest stays in the pool, losing λ · sd · (1 − age / 24 h). */
+    public class SoftNovelty(public val lambda: Double, public val hardLast: Int)
 
     /**
      * g_i = σ(a · clip((CORE logit_i − mu) / sigma, ±clip)) from the seed-anchor rows before gating (the [core] model's
@@ -171,7 +180,7 @@ public class RankerModel(
     public fun score(row: DoubleArray): Double {
         var total = 0.0
         for (i in columns.indices) total += weights[i] * ((row[columns[i]] - mean[i]) / sd[i])
-        if (audioWeight != 0.0 && !audioAgainstPrevious && row.size > audioColumn) total += audioWeight * row[audioColumn]
+        if (audioWeight != 0.0 && !audioAgainstPrevious && !audioZ && row.size > audioColumn) total += audioWeight * row[audioColumn]
         if (coreOffset) seedGate?.let { total += it.core.score(row) }
         return total
     }
@@ -207,12 +216,14 @@ public class RankerModel(
                 "schema", "name", "source", "provenance", "features", "mean", "sd", "weights", "runPenalty", "anchor",
                 "seedWeight", "previousWeight", "epsilon", "thirdInRowCap", "serving", "inputs", "audioWeight",
                 "artistReentry", "energy", "r1Energy", "audioAnchor", "imputedDescriptor", "seedGate", "freshness", "coreOffset",
+                "audioZ", "softNovelty",
             ),
+            "softNovelty" to setOf("lambda", "hardLast"),
             "serving" to setOf("wholeLibraryUpTo", "quotas", "artistKey", "recentWindow", "hopBudgetMs", "l2", "poolTarget", "artistCap"),
             "inputs" to setOf("logpop", "colisten", "lfm", "audioEncoder"),
             "artistReentry" to setOf("lambda", "k", "gamma", "credit", "creditRun"),
-            "energy" to setOf("lambda", "mode", "tau"),
-            "r1Energy" to setOf("tau"),
+            "energy" to setOf("lambda", "mode", "tau", "scale"),
+            "r1Energy" to setOf("tau", "scale"),
             "seedGate" to setOf("core", "coreSha256", "mu", "sigma", "a", "clip", "columns", "orderR6"),
             "freshness" to setOf("lambda", "delta", "presses", "windowMs"),
         )
@@ -283,12 +294,18 @@ public class RankerModel(
                         lambda = (m["lambda"] as Number).toDouble(),
                         seedHinge = when (m["mode"] ?: "prev") { "prev" -> false; "seedHinge" -> true; else -> error("energy mode") },
                         tau = (m["tau"] as? Number)?.toDouble() ?: 0.0,
+                        poolScale = when (m["scale"]) { null -> false; "pool" -> true; else -> error("energy scale") },
                     )
                 },
                 r1EnergyTau = (root["r1Energy"] as? Map<*, *>)?.let { (it["tau"] as Number).toDouble() },
                 audioAgainstPrevious = root["audioAnchor"] == "previous",
                 imputedUnknown = root["imputedDescriptor"] == "unknown",
                 coreOffset = root["coreOffset"] == true,
+                r1EnergyPoolScale = (root["r1Energy"] as? Map<*, *>)?.get("scale").let { when (it) { null -> false; "pool" -> true; else -> error("r1 scale") } },
+                audioZ = root["audioZ"] == true,
+                softNovelty = (root["softNovelty"] as? Map<*, *>)?.let { n ->
+                    SoftNovelty(lambda = (n["lambda"] as Number).toDouble(), hardLast = (n["hardLast"] as? Number)?.toInt() ?: 10)
+                },
                 seedGate = (root["seedGate"] as? Map<*, *>)?.let { g ->
                     val coreMap = (g["core"] as Map<*, *>).toMutableMap().also { it["audioWeight"] = 0.0 }
                     SeedGate(

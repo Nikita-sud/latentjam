@@ -140,9 +140,11 @@
   "fit": "FIT A, L2 by B NLL, bounds per audit 01 #1",
   "L2": 10,
   "fast_track": {
-   "decoder": "\u03bb_run 1.0, \u03bb_re 3.0 from no grid point scored yet: provisional \u03bb_run 1.0, \u03bb_re 3.0",
+   "decoder": "\u03bb_run 1.0, \u03bb_re 3.0 from grid not finished: provisional \u03bb_run 1.0, \u03bb_re 3.0 (a partial grid is never used)",
    "freshness": "\u03bb 1.0 PROVISIONAL",
    "energy_head": "c9ceb0f3 (A0-paired)",
+   "energy": "scale pool, \u03bb 0.8, \u03c4 0.25 sd (FMA L1-L4 pick: hop 4-10 drift -0.163 sd, genre -0.010)",
+   "not_shipped": "audioZ (genre -0.02..-0.08 on FMA); softNovelty (B1 FULL conthit10 -0.025..-0.046)",
    "claim": "product check only; trained on the leaky FIT (audit 02 #1)"
   }
  },
@@ -154,9 +156,10 @@
   "creditRun": true
  },
  "energy": {
-  "lambda": 0.7636,
+  "lambda": 0.8,
   "mode": "seedHinge",
-  "tau": 0.02482
+  "tau": 0.25,
+  "scale": "pool"
  },
  "audioWeight": 0.7975,
  "freshness": {

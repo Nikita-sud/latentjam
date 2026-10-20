@@ -163,6 +163,10 @@ internal suspend fun rankerPlan(
         val events = runCatching { history.recentEvents(SMART_HABIT_HISTORY_LIMIT) }.getOrNull().orEmpty()
         val listens = habitListens(events.asReversed(), libraryIds, seedMs)
         val novel = HabitSlots.novelty(listens, seedMs)
+        // Fast track 2 soft novelty: ms since each novelty id's last play (read only by a model with softNovelty).
+        val lastPlay = HashMap<TrackId, Long>(novel.size * 2)
+        for (l in listens) if (l.trackId in novel) lastPlay[l.trackId] = maxOf(lastPlay[l.trackId] ?: Long.MIN_VALUE, l.startedAtMs)
+        val noveltyAges = lastPlay.mapValues { (_, at) -> maxOf(0L, seedMs - at) }
         val artistKeys = HashMap<TrackId, String>(scope.size + 1)
         for (t in scope) artistKeys[t.id] = HabitSlots.artistKey(t)
         // Hearts count only for the FULL model ("Learn from my habits").
@@ -187,7 +191,7 @@ internal suspend fun rankerPlan(
             io.github.nikitasud.latentjam.smart.ranker.PlanRequest(
                 seed = seed, library = scope, candidates = candidates, length = length, exclude = novel,
                 recentIds = recentIds, press = press, history = personalHistory, personal = personal,
-                ruleOnly = ruleOnly || !fits, impressions = impressions,
+                ruleOnly = ruleOnly || !fits, impressions = impressions, excludeAgeMs = noveltyAges,
             ),
         )
         val (withEntity, listed, withLfm) = ranker.entityCoverage
