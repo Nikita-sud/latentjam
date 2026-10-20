@@ -35,8 +35,8 @@ internal class AndroidTrackIdentities(
         val volume: String,
         val extension: String,
         val duration: Long?,
-        val revision: String,
-        val checked: String?,
+        val revision: Revision,
+        val checked: Revision?,
         val tags: TrackIdentityTags?,
     )
 
@@ -45,7 +45,7 @@ internal class AndroidTrackIdentities(
      * registered under. Not the rows themselves: the app republishes richer copies of every
      * descriptor, so a retained list here was a second copy of a 10,000-song library.
      */
-    private class Row(val source: String, val volume: String, val revision: String, private val ownAudioUri: String?) {
+    private class Row(val source: String, val volume: String, val revision: Revision, private val ownAudioUri: String?) {
         /** The row's audio URI: MediaStore's own for [source] unless the scan gave another. */
         val audioUri: String? get() = if (ownAudioUri === MEDIA_STORE_URI) "$MEDIA_STORE_SONGS$source" else ownAudioUri
     }
@@ -90,8 +90,9 @@ internal class AndroidTrackIdentities(
             for (track in tracks) {
                 cancellationCheck()
                 val old = bySource(track.id.value)
+                val current = revision(track)
                 val tags = if (old?.volume == volume(track) && old.checked != null &&
-                    revision(track).isNotEmpty() && old.checked == revision(track)) old.tags
+                    !current.isEmpty() && old.checked == current) old.tags
                 else safelyRead(track)
                 facts[track.id.value] = tags
                 if (tags == null) failedVolumes += volume(track)
@@ -162,11 +163,11 @@ internal class AndroidTrackIdentities(
                 cancellationCheck()
                 val old = entryForSource(known, aliases, row.source) ?: continue
                 if (old.volume != row.volume || old.revision != row.revision ||
-                    (old.revision.isNotEmpty() && old.checked == old.revision)) continue
+                    (!old.revision.isEmpty() && old.checked == old.revision)) continue
                 val probe = TrackDescriptor(
                     id = TrackId(row.source),
                     audioUri = row.audioUri,
-                    sourceRevision = row.revision,
+                    sourceRevision = row.revision.toString(),
                     storageVolume = row.volume,
                 )
                 val facts = safelyRead(probe) ?: continue
@@ -247,7 +248,7 @@ internal class AndroidTrackIdentities(
         /** Marks a [Row] whose audio URI is MediaStore's own for its source (formed when read, not held). */
         private val MEDIA_STORE_URI = String(charArrayOf('-'))
 
-        fun revision(track: TrackDescriptor): String = track.sourceRevision.orEmpty()
+        fun revision(track: TrackDescriptor): Revision = Revision.of(track.sourceRevision.orEmpty())
 
         /** The registered entry whose source is [source]: sources are unique across entries. */
         fun entryForSource(known: Map<String, Entry>, aliases: Map<String, String>, source: String): Entry? =
@@ -255,7 +256,7 @@ internal class AndroidTrackIdentities(
 
         fun line(it: Entry): String = buildString {
             val fields = arrayOf(it.id, it.source, it.volume, it.extension, it.duration?.toString().orEmpty(),
-                it.revision, it.checked.orEmpty(), if (it.tags != null) "1" else "0",
+                it.revision.toString(), it.checked?.toString().orEmpty(), if (it.tags != null) "1" else "0",
                 it.tags?.releaseTrack.orEmpty(), it.tags?.recording.orEmpty())
             for ((index, field) in fields.withIndex()) {
                 if (index > 0) append('|')
@@ -327,8 +328,10 @@ internal class AndroidTrackIdentities(
                 val tags = if (fields[7] == "1") TrackIdentityTags(
                     fields[8].ifEmpty { null }, fields[9].ifEmpty { null },
                 ) else null
+                val revision = Revision.of(fields[5])
+                val checked = if (tags == null) null else if (fields[6] == fields[5]) revision else Revision.of(fields[6])
                 result[fields[0]] = Entry(fields[0], fields[1], shared(fields[2]), shared(fields[3]),
-                    fields[4].toLongOrNull(), fields[5], if (tags != null) fields[6] else null, tags)
+                    fields[4].toLongOrNull(), revision, checked, tags)
             }
             while (true) {
                 val char = input.read()
@@ -354,6 +357,58 @@ internal class AndroidTrackIdentities(
                 throw IOException("Unreadable track identity registry; preserving the original")
             }
             return result
+        }
+    }
+}
+
+/**
+ * A song's source revision as the registry keeps it: MediaStore's `android-mediastore-v1:<size>:<modified>:<generation>`
+ * as its three numbers, any other string as itself. Parsing is canonical (a number is kept only when it prints back
+ * as written), so two revisions are equal exactly when their strings are, and [toString] is the string.
+ */
+internal class Revision private constructor(
+    private val size: Long,
+    private val modified: Long,
+    private val generation: Long,
+    private val text: String?,
+) {
+    fun isEmpty(): Boolean = text != null && text.isEmpty()
+
+    override fun toString(): String = text ?: buildString {
+        append(PREFIX)
+        append(part(size)); append(':'); append(part(modified)); append(':'); append(part(generation))
+    }
+
+    override fun equals(other: Any?): Boolean = other is Revision &&
+        other.size == size && other.modified == modified && other.generation == generation && other.text == text
+
+    override fun hashCode(): Int =
+        ((size.hashCode() * 31 + modified.hashCode()) * 31 + generation.hashCode()) * 31 + (text?.hashCode() ?: 0)
+
+    companion object {
+        private const val PREFIX = "android-mediastore-v1:"
+        private const val ABSENT = Long.MIN_VALUE
+        private val EMPTY = Revision(0, 0, 0, "")
+
+        private fun part(value: Long): String = if (value == ABSENT) "-" else value.toString()
+
+        /** The number [part] prints as itself, [ABSENT] for "-", null for anything else. */
+        private fun number(part: String): Long? {
+            if (part == "-") return ABSENT
+            val value = part.toLongOrNull() ?: return null
+            return value.takeIf { it != ABSENT && it.toString() == part }
+        }
+
+        fun of(text: String): Revision {
+            if (text.isEmpty()) return EMPTY
+            if (!text.startsWith(PREFIX)) return Revision(0, 0, 0, text)
+            val parts = text.substring(PREFIX.length).split(':')
+            if (parts.size != 3) return Revision(0, 0, 0, text)
+            val size = number(parts[0])
+            val modified = number(parts[1])
+            val generation = number(parts[2])
+            if (size == null || modified == null || generation == null) return Revision(0, 0, 0, text)
+            return Revision(size, modified, generation, null)
         }
     }
 }
