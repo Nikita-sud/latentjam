@@ -27,7 +27,7 @@ class TrackL2Test {
             }
             checked++
         }
-        assertEquals(61, checked)
+        assertEquals(103, checked)
         assertEquals(12, taxonomy.families.size)
     }
 

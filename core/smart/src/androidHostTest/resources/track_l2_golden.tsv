@@ -1,4 +1,34 @@
-# kind	input...	expected (serving/taxonomy.py family_of_tag; l2_features.album_key)
+# kind	input...	expected (serving/taxonomy.py v2.1 family_of_tag; l2_features.album_key)
+family	Hardcore Punk	rock
+family	Garage Rock	rock
+family	Post-Hardcore	rock
+family	Dub Techno	dance
+family	Blues Rock	rock
+family	Funk Rock	rock
+family	Soul Jazz	jazz
+family	Indie Pop	pop
+family	Dream Pop	rock
+family	Funk Carioca	latin
+family	Hip-Hop/Rap	rap
+family	R&B/Soul	rnb
+family	(13)	pop
+family	(17)Rock	rock
+family	Pop/Rock	pop
+family	Rock/Pop	rock
+family	60s	
+family	80s pop	pop
+family	2 step	dance
+family	Forró	latin
+family	Рэп	rap
+family	Screamo	rock
+family	Hardcore	
+family	Contemporary R&B	rnb
+family	Slow Jams	rnb
+family	dungeon synth	soundtrack
+family	grime	rap
+family	Christmas	
+family	Хип-хоп	rap
+family	Ёлка	
 family	Hip-Hop	rap
 family	R&B	rnb
 family	Rhythm & Blues	rnb
@@ -7,11 +37,10 @@ family	Synthpop	pop
 family	Electropop	pop
 family	k-pop	pop
 family	Drum & Bass	dance
-family	drum and bass	dance
 family	Symphonic Metal	metal
 family	Symphony	classical
+family	Symphonic Rock	rock
 family	Reggaeton	latin
-family	Slow Jams	rnb
 family	Classical; Opera	classical
 family	Unknown	
 family		
@@ -31,17 +60,30 @@ family	Death Metal	metal
 family	Bossa Nova	latin
 family	J-Pop	pop
 family	Чанс	
-family	Поп	
+family	Поп	pop
+family	Музыка	
 family	Eurodance	dance
-family	Soundtrack	soundtrack
 family	Video Game Music	soundtrack
 family	Anime	soundtrack
-family	Hardstyle	dance
-family	acid breaks	dance
-family	2-step	dance
-family	Abhang	classical
-family	Cantopop	pop
-family	Dubstep	dance
+family	Hardcore; Hip Hop	rap
+family	(0)	jazz
+family	(255)	
+family	7	rap
+family	42	rnb
+family	Contemporary R&B; Hip Hop; Pop	rnb
+family	Crunk; Hip Hop; Contemporary R&B	rap
+family	Dancehall	reggae
+family	Contemporary R&B; New Jack Swing	rnb
+family	Pop Soul	rnb
+family	Sophisti-Pop	pop
+family	Gangsta Rap	rap
+family	West Coast Hip Hop	rap
+family	G-Funk	rap
+family	Christian Hip-Hop	rap
+family	Norteño	latin
+family	Axé	latin
+family	Manele	pop
+family	Muzică populară	folk
 family	Other	
 family	Speech	
 album	Thriller (Deluxe Edition)		Michael Jackson	thriller|michael jackson

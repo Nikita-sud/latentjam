@@ -8,32 +8,62 @@ import io.github.nikitasud.latentjam.smart.text.UnicodeForm
 import io.github.nikitasud.latentjam.smart.text.normalizeUnicode
 
 /**
- * PLAN_L2's genre families (serving/taxonomy.py, asset `genre_families.json`): one function for MusicBrainz genre
- * names, pack artist genres and the file's genre tag, so training and serving map a genre the same way. Twelve
- * families; a genre maps to the family of the first phrase found on its word tokens (specific phrases first), else a
- * suffix rule on one word (synthpop, glitchhop, …), else the MusicBrainz genre tree's nearest mapped ancestor.
+ * PLAN_L2's genre families (serving/taxonomy.py v2.1, asset `genre_families.json` lj-genre-families/3): one function for
+ * MusicBrainz genre names, pack artist genres and the file's genre tag, so training and serving map a genre the same way.
+ * Per genre: an ID3v1 code ("(13)", "(17)Rock", bare "13") is decoded; then the override table (an override may be
+ * null: ambiguous alone, the artist decides), MusicBrainz's curated family for the exact name, the longest phrase span
+ * on the word tokens (a tie goes to the rightmost, the head noun: "garage rock"), a single-word suffix rule, the tree.
  */
 public class GenreFamilies private constructor(
     /** The families in code order (artist_family_l2.bin's float codes index this list). */
     public val families: List<String>,
     private val phrases: List<Pair<List<String>, String>>,
     private val suffixes: List<Pair<String, String>>,
+    private val overrides: Map<String, String?>,
+    private val mbFamily: Map<String, String>,
     private val tree: Map<String, String>,
+    private val id3v1: List<String>,
 ) {
     /** taxonomy.family: the family of one genre string, or null. */
     public fun family(genre: String?): String? {
-        val t = tokens(genre)
+        var g = (genre ?: "").trim()
+        (ID3_CODE.matchEntire(g) ?: ID3_BARE.matchEntire(g))?.let { m ->
+            val code = m.groupValues[1].toInt()
+            if (code < id3v1.size) g = m.groupValues.getOrNull(2)?.trim()?.ifEmpty { null } ?: id3v1[code]
+        }
+        val t = tokens(g)
         if (t.isEmpty()) return null
+        val key = t.joinToString(" ")
+        if (key in overrides) return overrides[key]
+        mbFamily[key]?.let { return it }
+        phraseFamily(t)?.let { return it }
+        for (w in t) for ((suffix, f) in suffixes) if (w.endsWith(suffix) && w.length > suffix.length) return f
+        return tree[key]
+    }
+
+    /** The longest phrase span; a tie goes to the span ending rightmost (taxonomy._phrase_family). */
+    private fun phraseFamily(t: List<String>): String? {
+        var bestLength = -1
+        var bestEnd = -1
+        var best: String? = null
         for ((p, f) in phrases) {
             val n = p.size
-            if (p.last().endsWith("symphon")) {
-                if (t.any { it.startsWith("symphon") }) return f
-                continue
+            val symphon = p.last().endsWith("symphon")
+            for (i in 0..t.size - n) {
+                val hit = if (symphon) {
+                    t.subList(i, i + n - 1) == p.subList(0, n - 1) && t[i + n - 1].startsWith("symphon")
+                } else {
+                    t.subList(i, i + n) == p
+                }
+                // Python's max keeps the first of equal keys: replace only on a strictly larger (length, end).
+                if (hit && (n > bestLength || (n == bestLength && i + n > bestEnd))) {
+                    bestLength = n
+                    bestEnd = i + n
+                    best = f
+                }
             }
-            for (i in 0..t.size - n) if (t.subList(i, i + n) == p) return f
         }
-        for (w in t) for ((suffix, f) in suffixes) if (w.endsWith(suffix) && w.length > suffix.length) return f
-        return tree[t.joinToString(" ")]
+        return best
     }
 
     /** taxonomy.family_of_tag: a file genre tag split on ; / , | — the family of the first part that maps. */
@@ -43,8 +73,16 @@ public class GenreFamilies private constructor(
     }
 
     public companion object {
-        /** taxonomy.tokens: lowercase, & → and, apostrophes dropped, anything not a letter or digit splits. */
-        internal fun tokens(s: String?): List<String> = tokensOf((s ?: "").lowercase().replace("&", " and ").replace("'", ""))
+        private val ID3_CODE = Regex("\\((\\d{1,3})\\)(.*)")
+        private val ID3_BARE = Regex("(\\d{1,3})")
+
+        /** taxonomy.tokens: NFKD with combining marks dropped, lowercase, & → and, apostrophes dropped, non-alphanumerics split. */
+        internal fun tokens(s: String?): List<String> {
+            val folded = buildString {
+                for (c in normalizeUnicode(s ?: "", UnicodeForm.NFKD)) if (c.category != CharCategory.NON_SPACING_MARK) append(c)
+            }
+            return tokensOf(folded.lowercase().replace("&", " and ").replace("'", ""))
+        }
 
         /** The runs of letters and digits in [text]. */
         internal fun tokensOf(text: String): List<String> {
@@ -57,15 +95,20 @@ public class GenreFamilies private constructor(
             return out
         }
 
-        /** Null for a missing or malformed asset: the L2 track family then stays unknown. */
+        /** Null for a missing, malformed or older-layout asset: the L2 track family then stays unknown. */
         @Suppress("UNCHECKED_CAST")
         public fun parse(json: String): GenreFamilies? = runCatching {
             val root = MiniJson(json).parse() as Map<String, Any?>
+            require((root["version"] as String).startsWith("lj-genre-families/3"))
+            fun pairs(key: String) = (root[key] as List<*>).map { e -> (e as List<*>).let { it[0] as String to it[1] as String } }
             GenreFamilies(
                 families = (root["families"] as List<*>).map { it as String },
-                phrases = (root["phrases"] as List<*>).map { e -> (e as List<*>).let { tokens(it[0] as String) to it[1] as String } },
-                suffixes = (root["suffixes"] as List<*>).map { e -> (e as List<*>).let { it[0] as String to it[1] as String } },
+                phrases = pairs("phrases").map { (p, f) -> p.split(' ') to f },
+                suffixes = pairs("suffixes"),
+                overrides = (root["overrides"] as Map<*, *>).entries.associate { (k, v) -> k as String to v as String? },
+                mbFamily = (root["mb_family"] as Map<*, *>).entries.associate { (k, v) -> k as String to v as String },
                 tree = (root["tree"] as Map<*, *>).entries.associate { (k, v) -> k as String to v as String },
+                id3v1 = (root["id3v1"] as List<*>).map { it as String },
             ).takeIf { it.families.isNotEmpty() && it.phrases.isNotEmpty() }
         }.getOrNull()
     }
