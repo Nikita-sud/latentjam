@@ -21,6 +21,9 @@ internal class TrackTable {
 
     operator fun contains(id: TrackId): Boolean = id in cells
 
+    /** The id string this table holds for [value] (the library's own instance), or null. */
+    fun canonicalId(value: String): String? = cells.storedKey(value)
+
     operator fun set(id: TrackId, track: TrackDescriptor) {
         val existing = cells[id]
         if (existing != null) {

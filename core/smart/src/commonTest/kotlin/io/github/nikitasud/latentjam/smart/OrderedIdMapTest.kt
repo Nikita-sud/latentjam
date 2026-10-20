@@ -43,4 +43,17 @@ internal class OrderedIdMapTest {
         assertEquals(0, map.size)
         assertEquals(null, map[TrackId("t1")])
     }
+
+    @Test
+    fun sharedKeysAreTheGivenInstancesAndStillFound() {
+        val map = OrderedIdMap()
+        repeat(100) { map.put(TrackId(buildString { append("id"); append(it) }), it) }
+        val canonical = (0 until 100).associate { val s = "id$it"; s to s }
+        map.shareKeys { canonical[it] }
+        repeat(100) {
+            val slot = (0 until map.slotCount).first { slot -> map.keyAt(slot) == "id$it" }
+            kotlin.test.assertSame(canonical.getValue("id$it"), map.keyAt(slot))
+            assertEquals(it, map[TrackId("id$it")])
+        }
+    }
 }

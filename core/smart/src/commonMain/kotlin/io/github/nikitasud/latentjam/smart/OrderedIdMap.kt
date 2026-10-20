@@ -100,6 +100,24 @@ internal class OrderedIdMap {
         }
     }
 
+    /** The key instance stored for [key], or null when absent. */
+    fun storedKey(key: String): String? {
+        val slot = find(key)
+        return if (slot < 0) null else keys[slot]
+    }
+
+    /**
+     * Replaces each stored key by the equal instance [canonical] gives, so that tables filled from a checkpoint hold
+     * the library's own id strings instead of copies. Equal strings hash alike, so lookups are unchanged.
+     */
+    fun shareKeys(canonical: (String) -> String?) {
+        for (slot in 0 until used) {
+            val key = keys[slot] ?: continue
+            val shared = canonical(key) ?: continue
+            if (shared !== key && shared == key) keys[slot] = shared
+        }
+    }
+
     private fun find(key: String): Int {
         val mask = table.size - 1
         var at = mix(key.hashCode()) and mask

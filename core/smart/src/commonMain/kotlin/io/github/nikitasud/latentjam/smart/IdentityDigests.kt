@@ -58,6 +58,9 @@ internal class IdentityDigests {
         cellCount = 0
     }
 
+    /** See [OrderedIdMap.shareKeys]. */
+    fun shareIds(canonical: (String) -> String?) = cells.shareKeys(canonical)
+
     fun ids(): List<TrackId> {
         val out = ArrayList<TrackId>(cells.size)
         cells.forEachEntry { id, _, _ -> out += id }

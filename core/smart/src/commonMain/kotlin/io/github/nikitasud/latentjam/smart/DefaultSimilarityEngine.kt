@@ -483,6 +483,7 @@ internal class DefaultSimilarityEngine(
                 persistAudioIndex()
                 persistTextIndex()
                 rememberTracks(library)
+                shareLibraryIds()
                 mutableState.value = EngineState.Ready(indexedCount = index.size)
                 (staleAudio + changedAudio).distinct().size
             }
@@ -1380,6 +1381,19 @@ internal class DefaultSimilarityEngine(
         indexRevision++
         snapshotCache = null
         return null
+    }
+
+    /**
+     * Ids restored from checkpoints are strings of their own, one copy per table; once the library is known every
+     * table holds the library's instances instead (equal strings, so nothing reads differently).
+     */
+    private fun shareLibraryIds() {
+        val canonical = knownTracks::canonicalId
+        (index as? InMemoryVectorIndex)?.shareIds(canonical)
+        (textIndex as? InMemoryVectorIndex)?.shareIds(canonical)
+        audioVectorIdentities.shareIds(canonical)
+        audioFailureIdentities.shareIds(canonical)
+        textVectorIdentities.shareIds(canonical)
     }
 
     private fun rememberTracks(tracks: List<TrackDescriptor>) {

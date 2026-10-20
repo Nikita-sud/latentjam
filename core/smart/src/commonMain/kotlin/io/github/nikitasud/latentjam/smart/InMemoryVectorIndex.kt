@@ -119,6 +119,9 @@ public class InMemoryVectorIndex(
 
     override fun storedRow(id: TrackId): StoredVectorRow? = vectors[id]?.let(store::row)
 
+    /** Holds [canonical]'s id strings instead of equal copies (ids restored from a checkpoint); see OrderedIdMap. */
+    internal fun shareIds(canonical: (String) -> String?) = vectors.shareKeys(canonical)
+
     override fun remove(id: TrackId): Boolean {
         val row = vectors.remove(id) ?: return false
         store.release(row)
