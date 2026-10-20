@@ -180,6 +180,7 @@ internal class AndroidTrackIdentities(
         val (rows, known, aliases) = synchronized(this) { Triple(currentRows, load(), sourceAliases) }
         val audio = synchronized(this) { currentAudio }
         val updates = ArrayList<Pair<Entry, TrackIdentityTags>>()
+        val updatedRows = ArrayList<Int>()
         // Committed every REMEMBER_CHUNK reads and at the end, including completed reads before
         // cancellation. Do not hold the registry monitor across file reads or rewrite a large registry
         // per track; neither hold a first pass's reads for the whole library (~100 bytes a song).
@@ -192,8 +193,13 @@ internal class AndroidTrackIdentities(
                     if (current[old.id] == old) changes[old.id] = old.copy(tags = facts, checked = old.revision)
                 }
                 commitInPlace(changes)
+                // The scanned rows read the entries now registered, so the replaced ones can go.
+                if (rows === currentRows) {
+                    for ((k, index) in updatedRows.withIndex()) changes[updates[k].first.id]?.let { rows[index] = it }
+                }
             }
             updates.clear()
+            updatedRows.clear()
         }
         try {
             for ((index, row) in rows.withIndex()) {
@@ -211,6 +217,7 @@ internal class AndroidTrackIdentities(
                 )
                 val facts = safelyRead(probe) ?: continue
                 updates += old to facts
+                updatedRows += index
                 if (updates.size >= REMEMBER_CHUNK) commitUpdates()
             }
         } finally {
