@@ -46,7 +46,7 @@ class SmartDiagnosticsTest {
             TrackDescriptor(TrackId("t$it"), title = "Song $it", artist = "Artist ${it % 5}", genre = listOf("Rock", "Pop")[it % 2],
                 folderPath = "Music", fileName = "t$it.mp3", sizeBytes = 1000L + it, durationMs = 200_000)
         }
-        val ranker = SmartRanker(model("CORE", false), null, null, fullModel = model("FULL", true))
+        val ranker = SmartRanker(model("CORE", false), null, null, fullModel = model("FULL §9", true))
         val startMs = 50_000_000L
         val events = (0 until 30).map { i ->
             ListenEvent(TrackId("t${(i * 7) % 40}"), 1_000_000L + i * 300_000L, 200_000, 200_000, completed = true, skipped = false,
@@ -67,7 +67,7 @@ class SmartDiagnosticsTest {
                 SmartImpression(startMs, queue, 0, i + 1, SaltedKey.contentHash(SaltedKey.contentKey(t)), i + 1, 0.0, 1.0, false, "x", report.model)
             })
         }
-        val text = diagnoseRecentSmartStarts(log, ranker, library, events, hearts, useFavourites = true, fullModelName = "FULL")
+        val text = diagnoseRecentSmartStarts(log, ranker, library, events, hearts, useFavourites = true, fullModelName = "FULL §9")
         val lines = text.lines().filter(String::isNotEmpty)
         assertEquals(2, lines.size)
         for (line in lines) {
@@ -75,7 +75,7 @@ class SmartDiagnosticsTest {
             assertTrue("\"hops\":[{\"hop\":1," in line)
             assertTrue("\"contrib\":[" in line && "\"smartPlays\":" in line)
         }
-        assertTrue("\"personal\":true" in lines[0] && "\"model\":\"FULL\"" in lines[0])
+        assertTrue("\"personal\":true" in lines[0] && "\"model\":\"FULL §9\"" in lines[0])
         assertTrue("\"personal\":false" in lines[1] && "\"model\":\"CORE\"" in lines[1])
     }
 }

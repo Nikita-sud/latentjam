@@ -36,8 +36,11 @@ internal suspend fun diagnoseRecentSmartStarts(
     favourites: Map<TrackId, Long?>,
     useFavourites: Boolean,
     fullModelName: String?,
-    starts: Int = 8,
+    starts: Int = 16,
 ): String {
+    // The log keeps labels as ASCII tokens (SmartImpressionLog): compare model names the same way.
+    fun token(s: String?) = s?.map { c -> if (c == '|' || c.code < 0x20 || c.code > 0x7e) '_' else c }?.joinToString("")
+    val fullToken = token(fullModelName)
     val plans = LinkedHashMap<String, MutableList<SmartImpression>>()
     log.forEachLine { line ->
         val i = SmartImpressionLog.parse(line) as? SmartImpression ?: return@forEachLine
@@ -62,7 +65,7 @@ internal suspend fun diagnoseRecentSmartStarts(
             out.append("{\"queue\":").append(q(queue)).append(",\"error\":\"seed not in the library\"}\n")
             continue
         }
-        val personal = rows.first().model == fullModelName
+        val personal = fullToken != null && rows.first().model == fullToken
         val ruleOnly = rows.first().model == "rule-only"
         val listens = habitListens(oldestFirst, libraryIds, startMs)
         val hearts = if (personal && useFavourites) favourites.filterValues { it == null || it <= startMs } else emptyMap()
@@ -98,6 +101,8 @@ internal suspend fun diagnoseRecentSmartStarts(
             .append(",\"personal\":").append(personal).append(",\"press\":").append(press)
             .append(",\"startMs\":").append(startMs).append(",\"seed\":").append(track(seed.id))
             .append(",\"pool\":").append(diagnostics.poolSize).append(",\"poolHow\":").append(q(diagnostics.poolHow))
+            .append(",\"sources\":{").append(diagnostics.sourceCounts.entries.joinToString(",") { (k, v) -> "${q(k)}:$v" }).append("}")
+            .append(",\"imputed\":").append(report.imputed)
             .append(",\"excluded\":").append(HabitSlots.novelty(listens, startMs).size)
             .append(",\"replayMatches\":").append(logged == replayed)
             .append(",\"loggedOverlap\":").append(logged.zip(replayed).count { (a, b) -> a == b })

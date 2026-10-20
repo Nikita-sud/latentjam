@@ -246,6 +246,8 @@ public class PlanDiagnostics(public val topK: Int = 5) {
     public var features: List<String> = emptyList()
     public var poolSize: Int = 0
     public var poolHow: String = ""
+    /** How many pool tracks each retriever proposed. */
+    public val sourceCounts: MutableMap<String, Int> = LinkedHashMap()
     public val hops: MutableList<Hop> = ArrayList()
     public val ladder: MutableList<Pair<TrackId, String>> = ArrayList()
 }
@@ -501,6 +503,7 @@ public class SmartRanker(
             d.model = active.name
             d.features = active.features + "audio"
             d.poolSize = pool.size
+            for (k in pool) d.sourceCounts[sources[k.track.id] ?: "whole"] = (d.sourceCounts[sources[k.track.id] ?: "whole"] ?: 0) + 1
             d.poolHow = when {
                 request.ruleOnly -> "rule-only"
                 poolSource.size <= serving.wholeLibraryUpTo -> "whole"
