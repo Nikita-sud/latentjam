@@ -76,3 +76,14 @@ private class TrackIdList(private val values: Array<String>) : AbstractList<Trac
     override val size: Int get() = values.size
     override fun get(index: Int): TrackId = TrackId(values[index])
 }
+
+/** Position of each id in a library-sized list (the last one for a repeated id), compactly; see [idIndex]. */
+public class TrackIdIndex internal constructor(private val positions: OrderedIdMap) {
+    public val size: Int get() = positions.size
+
+    /** The list position of [id], or -1. */
+    public fun positionOf(id: String): Int = positions[TrackId(id)] ?: -1
+}
+
+/** A [TrackIdIndex] of this list: ~20 bytes a song instead of a map entry, a boxed key and a boxed Int. */
+public fun List<TrackDescriptor>.idIndex(): TrackIdIndex = TrackIdIndex(positions(this))

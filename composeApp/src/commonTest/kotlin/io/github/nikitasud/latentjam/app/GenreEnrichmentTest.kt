@@ -68,6 +68,29 @@ internal class GenreEnrichmentTest {
     }
 
     @Test
+    fun aLargePassSavesAsItGoesAndALaterPassReadsNothing() = runTest {
+        val settings = MemorySettings()
+        var reads = 0
+        val enrichment = GenreEnrichment(settings) { reads++; facts }
+        val library = (0 until 9_000).map { TrackDescriptor(TrackId("t$it"), genre = "Rock", sourceRevision = "r$it") }
+
+        assertTrue(enrichment.backfill(library))
+        assertEquals(9_000, reads)
+        // Saved in chunks along the way (nine: eight of 1,024 + the rest), every song in the end.
+        assertEquals(9, settings.writeAttempts)
+        val restarted = GenreEnrichment(settings) { error("every file was saved") }
+        assertFalse(restarted.backfill(library))
+        assertEquals(library.map { it.id }, restarted.apply(library).map { it.id })
+        assertEquals("Rock; Pop", restarted.apply(library).last().genre)
+
+        // A changed revision is read again; the rest stay warm.
+        val changed = library.mapIndexed { index, track -> if (index == 4_500) track.copy(sourceRevision = "new") else track }
+        val again = GenreEnrichment(settings) { reads++; facts }
+        again.backfill(changed)
+        assertEquals(9_001, reads)
+    }
+
+    @Test
     fun cancellationIsNeverSwallowedByCachePersistence() = runTest {
         val settings = MemorySettings().apply { cancelWrites = true }
         val enrichment = GenreEnrichment(settings) { facts }

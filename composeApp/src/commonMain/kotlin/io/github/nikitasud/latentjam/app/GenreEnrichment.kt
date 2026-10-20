@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.smart.idIndex
 import io.github.nikitasud.latentjam.library.tags.EmbeddedTagFacts
 import io.github.nikitasud.latentjam.library.tags.GenreTags
 import io.github.nikitasud.latentjam.library.tags.TextRepair
@@ -157,26 +158,36 @@ internal class GenreEnrichment(
      * politeness: yields between files so a first launch over a big library never owns a core.
      */
     suspend fun backfill(library: List<TrackDescriptor>): Boolean {
-        // Only the revision each song was read at: what decides whether its file is read again.
-        val known = mutex.withLock {
+        // Which songs were read at their current revision: a flag per song, not a map of every id and
+        // revision string (~150 bytes a song at 100,000 songs).
+        val positions = library.idIndex()
+        val upToDate = mutex.withLock {
             withContext(Dispatchers.Default) {
-                val revisions = HashMap<String, String>()
+                val current = BooleanArray(library.size)
                 settings.readTrackGenreLines { lines ->
                     for (line in lines) {
                         val id = idOf(line) ?: continue
+                        val position = positions.positionOf(id)
+                        if (position < 0) continue
                         // A line that does not decode, or is stale, is no entry: its file is read again.
-                        decode(line)?.takeIf { !it.stale }?.let { revisions[id] = it.revision }
+                        decode(line)?.takeIf { !it.stale }?.let {
+                            current[position] = it.revision == library[position].revisionKey()
+                        }
                     }
                 }
-                for ((id, stored) in unsaved) revisions[id] = stored.revision
-                revisions
+                for ((id, stored) in unsaved) {
+                    val position = positions.positionOf(id)
+                    if (position >= 0) current[position] = stored.revision == library[position].revisionKey()
+                }
+                current
             }
         }
         var learnedSomething = false
         val updates = HashMap<String, Stored>()
         for (track in library) {
+            // The last song of a repeated id is the one the flags describe, as the map they replace did.
+            if (upToDate[positions.positionOf(track.id.value)]) continue
             val revision = track.revisionKey()
-            if (known[track.id.value] == revision) continue
             val facts = readFacts(track) ?: continue
             // The same repair MediaStore's text gets (issue #7): an older tagger's UTF-8 read as a
             // Windows codepage is in the file itself, and must not reach the library as "BeyoncÃ©".
