@@ -39,4 +39,15 @@ internal class TrackLookupTest {
         assertNull(actual["z"])
         assertEquals(expected + ("e" to tracks[0]), actual + ("e" to tracks[0]))
     }
+
+    @Test
+    fun idListEqualsTheMappedList() {
+        val expected = tracks.map { it.id }
+        val actual = tracks.idList()
+        assertEquals(expected, actual)
+        assertEquals(actual, expected)
+        assertEquals(expected.hashCode(), actual.hashCode())
+        assertEquals(TrackId("b"), actual[2])
+        assertFalse(actual == tracks.drop(1).map { it.id })
+    }
 }

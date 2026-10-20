@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.history.FavoriteTimes
+import io.github.nikitasud.latentjam.smart.idList
 import io.github.nikitasud.latentjam.history.Favorites
 import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.history.RecentSearches
@@ -530,7 +531,7 @@ object AppGraph {
             tracks = tracks,
             librarySnapshotAuthoritative = librarySnapshotAuthoritative,
         )
-        val trackIds = tracks.map(TrackDescriptor::id)
+        val trackIds = tracks.idList()
         val existing = automaticIndexingJob
         if (!force &&
             automaticIndexingKey == key &&

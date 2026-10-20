@@ -8,6 +8,7 @@ import io.github.nikitasud.latentjam.smart.Genres
 import io.github.nikitasud.latentjam.smart.SemanticLabel
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import io.github.nikitasud.latentjam.smart.idList
 import io.github.nikitasud.latentjam.smart.TrackSemantics
 
 /**
@@ -339,7 +340,7 @@ public object LibraryWorlds {
         return worlds(
             library = library,
             clusters = TrackClustering.cluster(
-                library.map { it.id },
+                library.idList(),
                 vectors,
                 dim,
                 k = k,

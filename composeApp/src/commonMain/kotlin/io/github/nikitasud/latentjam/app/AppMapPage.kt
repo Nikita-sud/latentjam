@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.smart.idList
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -82,7 +83,7 @@ internal fun rememberMapPageModel(
             mapPage.mapState = MapPageState.MemoryLimited
             return@LaunchedEffect
         }
-        val loadedIds = loaded.map(TrackDescriptor::id)
+        val loadedIds = loaded.idList()
         val layoutStore = AppGraph.layoutStore
 
         // Coverage is a cached fingerprint/population lookup, not the fused vector matrix.

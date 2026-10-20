@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.smart.idList
 import io.github.nikitasud.latentjam.smart.associateById
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Animatable
@@ -1045,7 +1046,7 @@ private fun AppShell(
                 return@LaunchedEffect
             }
             val loaded = tracks ?: return@LaunchedEffect
-            val loadedIds = loaded.map(TrackDescriptor::id)
+            val loadedIds = loaded.idList()
             val requestedWorlds = if (libraryWorlds.worldLibraryIds == loadedIds) libraryWorlds.worlds else emptyList()
             val clock = localTimePoint(epochMillis())
             val pageDaypart = ForYouRhythm.daypartOf(clock.hourOfDay)
@@ -1190,9 +1191,9 @@ private fun AppShell(
             AppGraph.smartLibraryTracks.value = smartEligibleTracks
             val indexing = AppGraph.automaticIndexing.value
             libraryWorlds.metadataVectorsReady =
-                indexing.trackIds == loaded.map(TrackDescriptor::id) && indexing.metadataReady
+                indexing.trackIds == loaded.idList() && indexing.metadataReady
             libraryWorlds.audioVectorsReady =
-                indexing.trackIds == loaded.map(TrackDescriptor::id) && indexing.complete
+                indexing.trackIds == loaded.idList() && indexing.complete
             val notificationTitle = getString(Res.string.indexing_notification_title)
             AppGraph.ensureAutomaticIndexing(
                 tracks = loaded,
@@ -1217,7 +1218,7 @@ private fun AppShell(
         LaunchedEffect(libraryIndexingRequest, smartEligibleTracks) {
             val loaded = libraryIndexingRequest?.tracks ?: return@LaunchedEffect
             val eligible = smartEligibleTracks
-            val trackIds = loaded.map(TrackDescriptor::id)
+            val trackIds = loaded.idList()
             AppGraph.automaticIndexing.collect { indexing ->
                 if (indexing.trackIds != trackIds) return@collect
                 if (libraryWorlds.metadataVectorsReady != indexing.metadataReady) {
@@ -1289,7 +1290,7 @@ private fun AppShell(
         LaunchedEffect(tracks, playlistPresentationIdentity, includeNoveltyMixes, forYouPageActive, mapPageActive) {
             if (!forYouPageActive && !mapPageActive) return@LaunchedEffect
             val loaded = tracks ?: return@LaunchedEffect
-            val loadedIds = loaded.map(TrackDescriptor::id)
+            val loadedIds = loaded.idList()
             // Observe the readiness tier, not a boolean OR. Metadata becomes ready first; when
             // audio later completes, `true || true` is still true and used to suppress the fused
             // rebuild forever.
@@ -1328,7 +1329,7 @@ private fun AppShell(
 
         var catalog by remember { mutableStateOf<LibraryCatalog?>(null) }
         // SMART colours follow the library: fit its colour axes as tracks are indexed.
-        val paletteIds = remember(catalog) { catalog?.songs?.map { it.id }.orEmpty() }
+        val paletteIds = remember(catalog) { catalog?.songs?.idList().orEmpty() }
         LatentPaletteUpdater(engine, paletteIds)
         var albumBrowse by remember { mutableStateOf<AlbumBrowseDerivation?>(null) }
         var songsBrowse by remember { mutableStateOf<SongsBrowseDerivation?>(null) }

@@ -59,3 +59,20 @@ private class TrackLookup<K, T : TrackDescriptor>(
         override fun hashCode(): Int = (key?.hashCode() ?: 0) xor (value?.hashCode() ?: 0)
     }
 }
+
+/**
+ * `map { it.id }` for a library-sized list: the ids' own strings in one array (4 bytes a song) instead of a boxed
+ * TrackId each (~20). Equal, element for element, to the list `map` returns; it does not keep the descriptors.
+ */
+public fun List<TrackDescriptor>.idList(): List<TrackId> {
+    val values = arrayOfNulls<String>(size)
+    var index = 0
+    for (track in this) values[index++] = track.id.value
+    @Suppress("UNCHECKED_CAST")
+    return TrackIdList(values as Array<String>)
+}
+
+private class TrackIdList(private val values: Array<String>) : AbstractList<TrackId>(), RandomAccess {
+    override val size: Int get() = values.size
+    override fun get(index: Int): TrackId = TrackId(values[index])
+}
