@@ -442,6 +442,10 @@ internal fun zeroSuccessfulAudioWindowsError(
 
 public actual fun smartEngineBackendModule(): Module = module {
     single<BatchDotProducts> { AndroidBatchDotProducts }
+    single<RowStoreFactory> {
+        val context = get<Context>()
+        RowStoreFactory { dim, name -> MappedRowStore.forIndex(context, dim, name) }
+    }
     single<EmbeddingBackend> { OnnxEmbeddingBackend(context = get(), config = get()) }
     // Overrides the common NoopIndexStore (this module is listed after
     // smartEngineModule; Koin last-definition-wins).

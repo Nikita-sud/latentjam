@@ -14,6 +14,7 @@ import io.github.nikitasud.latentjam.smart.SmartClock
 import io.github.nikitasud.latentjam.smart.SmartEngineConfig
 import io.github.nikitasud.latentjam.smart.VectorIndex
 import io.github.nikitasud.latentjam.smart.text.ArtistKnowledge
+import io.github.nikitasud.latentjam.smart.RowStoreFactory
 import io.github.nikitasud.latentjam.smart.text.TextEncoder
 import kotlinx.coroutines.CoroutineDispatcher
 import org.koin.core.module.Module
@@ -138,6 +139,7 @@ public val smartEngineModule: Module = module {
             energyStore = getOrNull<IndexStore>(smartEnergyQualifier),
             // A second engine-priority thread: indexing's inference never holds the one reads use.
             inferenceDispatcher = createPlatformSmartEngineDispatcher(),
+            scratchRows = getOrNull<RowStoreFactory>() ?: RowStoreFactory.Heap,
         )
     }
 }

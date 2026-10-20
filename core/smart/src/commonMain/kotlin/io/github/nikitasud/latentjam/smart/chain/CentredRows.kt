@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.smart.chain
 
+import io.github.nikitasud.latentjam.smart.RowStore
+
 /**
  * A centred, renormalised space of the snapshot, read row by row instead of held as one matrix.
  *
@@ -142,15 +144,18 @@ internal class RecomputedCentredRows(
 /**
  * Centred rows stored once per distinct vector: [index] maps a row to its stored row, −1 for a row without one.
  * Equal input vectors give equal centred rows (same floats, same operations), so many songs of one artist cost one row.
+ * The rows live in [store] (off the Java heap on Android); a row is read where it is, or copied when it is not an array.
  */
 internal class IndexedCentredRows(
-    private val unique: FloatArray,
+    private val store: RowStore,
     dim: Int,
     private val index: IntArray,
     has: BooleanArray,
 ) : CentredRows(index.size, dim, has) {
     /** Distinct rows actually held. */
-    val storedRows: Int get() = unique.size / dim
+    val storedRows: Int get() = store.rowCount
+
+    private fun values(u: Int): FloatArray = store.heapArray(u) ?: store.row(u).toFloatArray()
 
     override fun copyRow(row: Int, out: FloatArray, offset: Int) {
         val u = index[row]
@@ -158,17 +163,17 @@ internal class IndexedCentredRows(
             out.fill(0f, offset, offset + dim)
             return
         }
-        unique.copyInto(out, offset, u * dim, (u + 1) * dim)
+        store.row(u).copyInto(out, offset)
     }
 
     override fun dot(rowA: Int, rowB: Int): Float {
         val a = index[rowA]
         val b = index[rowB]
         if (a < 0 || b < 0) return 0f
+        val va = values(a)
+        val vb = if (b == a) va else values(b)
         var dot = 0f
-        val baseA = a * dim
-        val baseB = b * dim
-        for (d in 0 until dim) dot += unique[baseA + d] * unique[baseB + d]
+        for (d in 0 until dim) dot += va[d] * vb[d]
         return dot
     }
 
@@ -179,8 +184,8 @@ internal class IndexedCentredRows(
             for (d in 0 until dim) dot += query[d] * 0f
             return dot
         }
-        val base = u * dim
-        for (d in 0 until dim) dot += query[d] * unique[base + d]
+        val v = values(u)
+        for (d in 0 until dim) dot += query[d] * v[d]
         return dot
     }
 }

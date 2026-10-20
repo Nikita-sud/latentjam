@@ -61,6 +61,21 @@ public interface RowStore {
     public fun compact(rows: IntArray)
 
     public fun clear()
+
+    /**
+     * No more rows will be appended: a store may give back what it needs only for writing (Android's mapped store
+     * closes its file). Rows stay readable.
+     */
+    public fun seal() {}
+}
+
+/** Makes the scratch [RowStore]s a snapshot build keeps its own rows in: off the Java heap where the platform can. */
+public fun interface RowStoreFactory {
+    public fun create(dim: Int, name: String): RowStore
+
+    public companion object {
+        public val Heap: RowStoreFactory = RowStoreFactory { dim, _ -> HeapRowStore(dim) }
+    }
 }
 
 /** The Java-heap [RowStore]: the arrays themselves. */

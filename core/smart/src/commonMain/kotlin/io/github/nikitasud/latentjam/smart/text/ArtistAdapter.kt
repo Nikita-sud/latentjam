@@ -21,14 +21,15 @@ import kotlin.math.tanh
  * per matrix its codes, packed from each byte's low bits up, and one fp16 length per group of a row,
  * each followed by its fp16 bias. A group of weights is `(levels[codes] * length) · H`, H the
  * normalised Walsh-Hadamard matrix of the group size; since H is its own inverse, the adapter keeps the
- * matrices as `levels[codes] * length` and rotates its inputs instead, a few butterflies per call.
+ * matrices as `levels[codes] * length` and rotates its inputs instead, a few butterflies per call. It keeps them
+ * packed, too: each weight is that product, formed when it is used (2.4 MB of floats would otherwise sit on the heap).
  */
 public class ArtistAdapter private constructor(
     public val width: Int,
     private val hidden: Int,
-    private val w1: FloatArray,
+    private val w1: Weights,
     private val b1: FloatArray,
-    private val w2: FloatArray,
+    private val w2: Weights,
     private val b2: FloatArray,
     /** Version 2: the Hadamard group size the matrices are stored rotated by; 0 for plain weights. */
     private val rotation: Int = 0,
@@ -37,25 +38,76 @@ public class ArtistAdapter private constructor(
     public fun descriptor(text: FloatArray): FloatArray? {
         if (text.size != width) return null
         val x = if (rotation > 0) rotate(text.copyOf(), rotation) else text
-        val h = FloatArray(hidden) { j ->
-            var sum = b1[j]
-            val row = j * width
-            for (i in 0 until width) sum += w1[row + i] * x[i]
-            gelu(sum)
-        }
+        val h = FloatArray(hidden) { j -> gelu(w1.accumulate(j, x, b1[j])) }
         val hr = if (rotation > 0) rotate(h.copyOf(), rotation) else h
-        val out = FloatArray(width) { i ->
-            var sum = b2[i] + text[i]
-            val row = i * hidden
-            for (j in 0 until hidden) sum += w2[row + j] * hr[j]
-            sum
-        }
+        val out = FloatArray(width) { i -> w2.accumulate(i, hr, b2[i] + text[i]) }
         var norm = 0.0
         for (value in out) norm += value.toDouble() * value
         if (norm <= 0.0) return null
         val scale = (1.0 / sqrt(norm)).toFloat()
         for (i in out.indices) out[i] *= scale
         return out
+    }
+
+    /** A weight matrix [rows, inputs]: `start + Σ w[row][i] · x[i]`, i ascending. */
+    private interface Weights {
+        fun accumulate(row: Int, x: FloatArray, start: Float): Float
+    }
+
+    private class DenseWeights(private val w: FloatArray, private val inputs: Int) : Weights {
+        override fun accumulate(row: Int, x: FloatArray, start: Float): Float {
+            var sum = start
+            val base = row * inputs
+            for (i in 0 until inputs) sum += w[base + i] * x[i]
+            return sum
+        }
+    }
+
+    /**
+     * CQ codes as stored: weight `[row][i]` is `levels[code] * length` of its group, the float the eager decode
+     * stored, so every sum is the same.
+     */
+    private class PackedWeights(
+        private val inputs: Int,
+        private val bits: Int,
+        private val group: Int,
+        private val levels: FloatArray,
+        private val codes: ByteArray,
+        private val lengths: FloatArray,
+    ) : Weights {
+        private val groups = inputs / group
+        private val perByte = 8 / bits
+        private val mask = (1 shl bits) - 1
+
+        override fun accumulate(row: Int, x: FloatArray, start: Float): Float {
+            var sum = start
+            val scaled = FloatArray(levels.size)
+            for (g in 0 until groups) {
+                val length = lengths[row * groups + g]
+                for (level in levels.indices) scaled[level] = levels[level] * length
+                val k = row * inputs + g * group
+                var i = g * group
+                val stop = i + group
+                if (bits == 4) {
+                    var at = k / 2
+                    while (i < stop) {
+                        val byte = codes[at++].toInt()
+                        sum += scaled[byte and 15] * x[i++]
+                        sum += scaled[(byte ushr 4) and 15] * x[i++]
+                    }
+                } else {
+                    var at = k / perByte
+                    while (i < stop) {
+                        var byte = codes[at++].toInt() and 0xff
+                        for (slot in 0 until perByte) {
+                            sum += scaled[byte and mask] * x[i++]
+                            byte = byte ushr bits
+                        }
+                    }
+                }
+            }
+            return sum
+        }
     }
 
     public companion object {
@@ -86,47 +138,20 @@ public class ArtistAdapter private constructor(
             if (levels.any { !it.isFinite() }) return null
 
             /** One CQ matrix [rows, inputs] and its fp16 bias [rows]; null when the file is too short. */
-            fun matrix(rows: Int, inputs: Int): Pair<FloatArray, FloatArray>? {
+            fun matrix(rows: Int, inputs: Int): Pair<Weights, FloatArray>? {
                 val codeBytes = (rows * inputs * bits + 7) / 8
                 val groups = inputs / group
                 val end = offset + codeBytes + rows * groups * 2 + rows * 2
                 if (end > bytes.size) return null
                 val codesAt = offset
                 val lengthsAt = codesAt + codeBytes
-                val out = FloatArray(rows * inputs)
-                val mask = (1 shl bits) - 1
-                val perByte = 8 / bits
-                val scaled = FloatArray(levelCount)
-                for (row in 0 until rows) {
-                    for (g in 0 until groups) {
-                        val length = ArtistKnowledgePack.halfToFloat(u16(lengthsAt + (row * groups + g) * 2))
-                        if (!length.isFinite()) return null
-                        for (level in 0 until levelCount) scaled[level] = levels[level] * length
-                        // Codes are packed from each byte's low bits up; a group starts on a byte boundary.
-                        var at = codesAt + (row * inputs + g * group) / perByte
-                        var k = row * inputs + g * group
-                        val stop = k + group
-                        if (bits == 4) {
-                            while (k < stop) {
-                                val byte = bytes[at++].toInt()
-                                out[k++] = scaled[byte and 15]
-                                out[k++] = scaled[(byte ushr 4) and 15]
-                            }
-                        } else {
-                            while (k < stop) {
-                                var byte = bytes[at++].toInt() and 0xff
-                                for (slot in 0 until perByte) {
-                                    out[k++] = scaled[byte and mask]
-                                    byte = byte ushr bits
-                                }
-                            }
-                        }
-                    }
-                }
+                val lengths = FloatArray(rows * groups) { ArtistKnowledgePack.halfToFloat(u16(lengthsAt + it * 2)) }
+                if (lengths.any { !it.isFinite() }) return null
+                val codes = bytes.copyOfRange(codesAt, lengthsAt)
                 val biasAt = lengthsAt + rows * groups * 2
                 val bias = FloatArray(rows) { ArtistKnowledgePack.halfToFloat(u16(biasAt + 2 * it)) }
                 offset = end
-                return out to bias
+                return PackedWeights(inputs, bits, group, levels, codes, lengths) to bias
             }
             val (w1, b1) = matrix(hidden, width) ?: return null
             val (w2, b2) = matrix(width, hidden) ?: return null
@@ -177,7 +202,11 @@ public class ArtistAdapter private constructor(
             val tensors = sizes.map { size ->
                 FloatArray(size) { ArtistKnowledgePack.halfToFloat(u16(offset + 2 * it)) }.also { offset += 2 * size }
             }
-            return ArtistAdapter(width, hidden, tensors[0], tensors[1], tensors[2], tensors[3])
+            return ArtistAdapter(
+                width, hidden,
+                DenseWeights(tensors[0], width), tensors[1],
+                DenseWeights(tensors[2], hidden), tensors[3],
+            )
         }
     }
 }

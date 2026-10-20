@@ -4,6 +4,9 @@
  */
 package io.github.nikitasud.latentjam.smart.chain
 
+import io.github.nikitasud.latentjam.smart.CopyingRowStore
+import io.github.nikitasud.latentjam.smart.RowStoreFactory
+import io.github.nikitasud.latentjam.smart.StoredVectorRow
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.math.sqrt
 import kotlin.random.Random
@@ -43,8 +46,40 @@ class SmartSnapshotMatrixFreeTest {
     }
 
     @Test
-    fun everyCentredFloatHubPenaltyAndScanMatchesTheDenseBuild() {
-        val snapshot = assertNotNull(SmartSnapshot.build(tracks))
+    fun everyCentredFloatHubPenaltyAndScanMatchesTheDenseBuild() = matchesTheDenseBuild(assertNotNull(SmartSnapshot.build(tracks)))
+
+    /**
+     * The same with every row read the way Android reads them: index rows and the snapshot's own scratch rows
+     * (distinct descriptors, hub anchors) in stores that hand out no arrays.
+     */
+    @Test
+    fun offHeapRowsAndScratchStoresMatchTheDenseBuild() {
+        val scratch = RowStoreFactory { dim, _ -> CopyingRowStore(dim) }
+        val offHeap = tracks.map { track ->
+            track.copy(audioRow = copying(track.audio), textRow = track.text?.let(::copying))
+        }
+        matchesTheDenseBuild(assertNotNull(SmartSnapshot.build(offHeap, scratch = scratch)))
+    }
+
+    /** Rows with equal keys take the first one's descriptor without asking for it again: the same snapshot. */
+    @Test
+    fun descriptorKeysSkipRepeatsAndChangeNothing() {
+        var calls = 0
+        val keyed = assertNotNull(
+            SmartSnapshot.build(
+                tracks,
+                descriptorKeyOf = { track -> track.descriptor?.toList() },
+            ) { track -> calls++; track.descriptor },
+        )
+        val distinctKeys = tracks.mapNotNull { it.descriptor?.toList() }.toSet().size
+        // One call per distinct key, plus the width probe's first call and the null-descriptor rows.
+        assertTrue(calls <= distinctKeys + 1 + tracks.count { it.descriptor == null }, "calls $calls")
+        matchesTheDenseBuild(keyed)
+    }
+
+    private fun copying(values: FloatArray): StoredVectorRow = CopyingRowStore(values.size).let { it.row(it.append(values)) }
+
+    private fun matchesTheDenseBuild(snapshot: SmartSnapshot) {
         val reference = DenseReference(tracks)
         assertEquals(n, snapshot.size)
 

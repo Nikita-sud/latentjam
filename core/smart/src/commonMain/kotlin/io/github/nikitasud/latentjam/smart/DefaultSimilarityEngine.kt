@@ -76,6 +76,8 @@ internal class DefaultSimilarityEngine(
      * reads SMART plans make meanwhile.
      */
     private val inferenceDispatcher: CoroutineDispatcher = dispatcher,
+    /** Where a snapshot keeps the rows it computes (Android: mapped scratch files, off the Java heap). */
+    private val scratchRows: RowStoreFactory = RowStoreFactory.Heap,
 ) : SimilarityEngine {
 
     private val mutex = Mutex()
@@ -1653,7 +1655,16 @@ internal class DefaultSimilarityEngine(
         }
         // Descriptors are decoded inside the build, one row at a time, rather than all held in the rows
         // until it ends. A history row the library no longer lists has no tags to look one up by.
-        val snapshot = SmartSnapshot.build(withEnergy(rows), batchDotProducts) { row ->
+        // A descriptor depends only on the artist credits and the text vector, so songs that share all three (an
+        // album, mostly) take the first one's instead of decoding it again.
+        val snapshot = SmartSnapshot.build(
+            withEnergy(rows),
+            batchDotProducts,
+            scratchRows,
+            descriptorKeyOf = { row ->
+                knownTracks[row.id]?.let { track -> DescriptorKey(track.artist, track.artists.firstOrNull(), row.textRow) }
+            },
+        ) { row ->
             knownTracks[row.id]?.let { track ->
                 artistKnowledge?.descriptor(track.artist, track.artists.firstOrNull(), row.text)
             }
@@ -1725,6 +1736,27 @@ internal class DefaultSimilarityEngine(
         val toEmbed: List<TrackDescriptor>,
         val generation: Long,
     )
+    /** Everything a snapshot row's descriptor is read from; the text row compares by its exact floats. */
+    private class DescriptorKey(val artist: String?, val primaryArtist: String?, val text: StoredVectorRow?) {
+        private val hash: Int = run {
+            var h = (artist?.hashCode() ?: 0) * 31 + (primaryArtist?.hashCode() ?: 0)
+            if (text != null) for (d in 0 until text.size) h = 31 * h + text[d].toRawBits()
+            h
+        }
+
+        override fun hashCode(): Int = hash
+
+        override fun equals(other: Any?): Boolean {
+            if (other !is DescriptorKey || other.hash != hash) return false
+            if (other.artist != artist || other.primaryArtist != primaryArtist) return false
+            val a = text
+            val b = other.text
+            if (a == null || b == null) return a == null && b == null
+            if (a.size != b.size) return false
+            for (d in 0 until a.size) if (a[d].toRawBits() != b[d].toRawBits()) return false
+            return true
+        }
+    }
 
     /** [semanticCount] rebuilds the snapshot once more tracks have semantics, and so energy. */
     private data class SnapshotCache(

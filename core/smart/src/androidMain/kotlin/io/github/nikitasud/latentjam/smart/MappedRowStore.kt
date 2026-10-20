@@ -45,10 +45,12 @@ internal class MappedRowStore(
     private var file: RandomAccessFile = openScratch()
     private val segments = ArrayList<FloatBuffer>()
     private var rows = 0
+    private var sealed = false
 
     override val rowCount: Int get() = rows
 
     override fun append(values: FloatArray): Int {
+        check(!sealed) { "Store is sealed" }
         require(values.size == dim) { "Row has dimension ${values.size}, expected $dim" }
         val row = rows
         val segment = row / SEGMENT_ROWS
@@ -79,12 +81,18 @@ internal class MappedRowStore(
         restart()
     }
 
+    override fun seal() {
+        sealed = true
+        runCatching { file.close() }
+    }
+
     /** Moves to a fresh file; the old one's mappings stay valid for the rows already handed out. */
     private fun restart() {
         val old = file
         file = openScratch()
         segments.clear()
         rows = 0
+        sealed = false
         runCatching { old.close() }
     }
 

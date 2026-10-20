@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.smart.chain
 
 import io.github.nikitasud.latentjam.smart.ArrayVectorRow
+import io.github.nikitasud.latentjam.smart.RowStoreFactory
 import io.github.nikitasud.latentjam.smart.StoredVectorRow
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.math.sqrt
@@ -182,10 +183,19 @@ internal class SmartSnapshot private constructor(
          * [descriptorOf] reads a row's descriptor; the engine decodes it there, so that one row's decoded
          * descriptor is alive at a time instead of the whole library's. It is called at most twice per
          * row and must return the same values each time.
+         *
+         * [scratch] makes the stores for the rows the snapshot computes itself (distinct descriptors, hub anchors);
+         * the engine passes Android's mapped stores so they stay off the Java heap.
+         *
+         * [descriptorKeyOf], when given, names everything [descriptorOf] reads for a row (equal keys must give equal
+         * descriptors); a row whose key was already seen takes that row's result without calling [descriptorOf].
+         * Null keys are always computed.
          */
         fun build(
             tracks: List<SmartTrack>,
             batchDotProducts: BatchDotProducts = BatchDotProducts.Portable,
+            scratch: RowStoreFactory = RowStoreFactory.Heap,
+            descriptorKeyOf: ((SmartTrack) -> Any?)? = null,
             descriptorOf: (SmartTrack) -> FloatArray? = SmartTrack::descriptor,
         ): SmartSnapshot? {
             val usable = tracks.filter { it.audioRow.size == AUDIO_DIM && norm(it.audioRow) >= DEGENERATE_NORM_EPS }
@@ -247,14 +257,15 @@ internal class SmartSnapshot private constructor(
             val descriptorDim = usable.firstNotNullOfOrNull { track ->
                 descriptorOf(track)?.takeIf { it.isNotEmpty() && norm(it) > 1e-9f }?.size
             } ?: DESCRIPTOR_DIM
-            val descriptor = centredDistinct(usable, descriptorDim, descriptorOf)
+            val descriptor = centredDistinct(usable, descriptorDim, scratch, descriptorKeyOf, descriptorOf)
+            val hubPenalty = computeHubPenalty(centered, scratch = scratch, kernel = batchDotProducts)
 
             return SmartSnapshot(
                 tracks = usable.map { SnapshotTrack(it.id, it.energy, it.meta) },
                 batchDotProducts = batchDotProducts,
                 rawAudio = raw,
                 centeredAudio = centered,
-                hubPenalty = computeHubPenalty(centered),
+                hubPenalty = hubPenalty,
                 typicality = computeTypicality(raw, mean, n),
                 centeredText = text,
                 hasText = hasText,
@@ -335,12 +346,17 @@ internal class SmartSnapshot private constructor(
         }
 
         /**
-         * [computeHubPenalty] over rows read one at a time: the anchors (at most [HUB_ANCHOR_SAMPLE] rows, 3.9 MB) are
-         * centred once into a block and each row against them, the same products in the same order as the matrix.
+         * [computeHubPenalty] over rows read a block at a time: the anchors (at most [HUB_ANCHOR_SAMPLE] rows) are
+         * centred once into a [scratch] store, and [HUB_ROW_BLOCK] rows at a time are scored against them. Each row
+         * still meets the anchors in the same order, with the same products summed in the same order, so every top-k
+         * slot and every penalty is the matrix loop's float. A block's products with one anchor go through [kernel]
+         * (each row summed in d order, as [batchDots] does), which is what makes the 10,000 × 1,024 products affordable.
          */
         internal fun computeHubPenalty(
             centered: CentredRows,
             anchorLimit: Int = HUB_ANCHOR_SAMPLE,
+            scratch: RowStoreFactory = RowStoreFactory.Heap,
+            kernel: BatchDotProducts = BatchDotProducts.Portable,
         ): FloatArray {
             val n = centered.size
             val dim = centered.dim
@@ -362,26 +378,49 @@ internal class SmartSnapshot private constructor(
             val candidates = anchors?.size ?: n
             val k = HUB_TOPK.coerceAtMost(candidates - 1)
             if (k <= 0) return penalty
-            val anchorRows = FloatArray(candidates * dim)
-            for (c in 0 until candidates) centered.copyRow(anchors?.get(c) ?: c, anchorRows, c * dim)
-            val rowI = FloatArray(dim)
-            val top = FloatArray(k)
-            for (i in 0 until n) {
-                top.fill(Float.NEGATIVE_INFINITY)
-                centered.copyRow(i, rowI)
+            val anchorRows = scratch.create(dim, "hub")
+            try {
+                val row = FloatArray(dim)
                 for (c in 0 until candidates) {
-                    val j = anchors?.get(c) ?: c
-                    if (j == i) continue
-                    var dot = 0f
-                    val baseJ = c * dim
-                    for (d in 0 until dim) dot += rowI[d] * anchorRows[baseJ + d]
-                    var minIdx = 0
-                    for (t in 1 until k) if (top[t] < top[minIdx]) minIdx = t
-                    if (dot > top[minIdx]) top[minIdx] = dot
+                    centered.copyRow(anchors?.get(c) ?: c, row)
+                    anchorRows.append(row.copyOf())
                 }
-                var sum = 0f
-                for (t in 0 until k) sum += top[t]
-                penalty[i] = sum / k
+                anchorRows.seal()
+                val block = minOf(HUB_ROW_BLOCK, n)
+                val rows = FloatArray(block * dim)
+                val top = FloatArray(block * k)
+                val anchor = FloatArray(dim)
+                val local = IntArray(block) { it }
+                val dots = FloatArray(block)
+                var start = 0
+                while (start < n) {
+                    val count = minOf(block, n - start)
+                    for (r in 0 until count) centered.copyRow(start + r, rows, r * dim)
+                    top.fill(Float.NEGATIVE_INFINITY, 0, count * k)
+                    for (c in 0 until candidates) {
+                        val j = anchors?.get(c) ?: c
+                        val values = anchorRows.heapArray(c) ?: anchor.also { anchorRows.row(c).copyInto(it) }
+                        if (!kernel.compute(rows, dim, values, 0, local, count, dots)) {
+                            batchDots(rows, dim, values, 0, local, count, dots)
+                        }
+                        for (r in 0 until count) {
+                            if (j == start + r) continue
+                            val dot = dots[r]
+                            val t0 = r * k
+                            var minIdx = 0
+                            for (t in 1 until k) if (top[t0 + t] < top[t0 + minIdx]) minIdx = t
+                            if (dot > top[t0 + minIdx]) top[t0 + minIdx] = dot
+                        }
+                    }
+                    for (r in 0 until count) {
+                        var sum = 0f
+                        for (t in 0 until k) sum += top[r * k + t]
+                        penalty[start + r] = sum / k
+                    }
+                    start += count
+                }
+            } finally {
+                anchorRows.seal()
             }
             var mean = 0f
             for (v in penalty) mean += v
@@ -389,6 +428,9 @@ internal class SmartSnapshot private constructor(
             for (i in 0 until n) penalty[i] -= mean
             return penalty
         }
+
+        /** Rows scored against the anchors per pass of [computeHubPenalty]: 128 × 960 floats, half a megabyte. */
+        internal const val HUB_ROW_BLOCK = 128
 
         /**
          * Libraries at or under this size take the exact all-pairs path (byte-identical to the
@@ -435,21 +477,40 @@ internal class SmartSnapshot private constructor(
          * Centred, renormalised rows of a space whose vectors are not kept anywhere else (descriptors are decoded per
          * row), stored once per distinct unit vector: equal vectors centre to equal rows, so one row serves every song
          * of an artist. The mean still sums every present row in row order, so every value matches the full matrix.
-         * Each row is read once.
+         * Each row is read once. The distinct unit rows, then their centred rows, go to [scratch] stores; the lookup
+         * keeps only a hash and a row number per distinct vector.
          */
         private inline fun centredDistinct(
             tracks: List<SmartTrack>,
             dim: Int,
+            scratch: RowStoreFactory,
+            noinline keyOf: ((SmartTrack) -> Any?)?,
             select: (SmartTrack) -> FloatArray?,
         ): IndexedCentredRows? {
             val n = tracks.size
             val has = BooleanArray(n)
             val index = IntArray(n) { -1 }
             var present = 0
-            val distinct = HashMap<UnitRowKey, Int>()
-            var unique = FloatArray(0)
-            var uniqueCount = 0
+            val units = scratch.create(dim, "descriptor-units")
+            // Hash of a unit row's bit patterns → the distinct rows with that hash.
+            val byHash = HashMap<Int, IntArray>()
+            // A seen key → the stored row its descriptor went to, or -1 when it had none.
+            val byKey = HashMap<Any, Int>()
+            val probe = FloatArray(dim)
             for (i in 0 until n) {
+                val key = keyOf?.invoke(tracks[i])
+                if (key != null) {
+                    val seen = byKey[key]
+                    if (seen != null) {
+                        if (seen >= 0) {
+                            has[i] = true
+                            present++
+                            index[i] = seen
+                        }
+                        continue
+                    }
+                    byKey[key] = -1
+                }
                 val v = select(tracks[i])
                 if (v == null || v.size != dim) continue
                 val length = norm(v)
@@ -458,45 +519,52 @@ internal class SmartSnapshot private constructor(
                 present++
                 val scale = 1f / length.coerceAtLeast(1e-12f)
                 val unit = FloatArray(dim) { v[it] * scale }
-                val key = UnitRowKey(unit)
-                index[i] = distinct.getOrPut(key) {
-                    if ((uniqueCount + 1) * dim > unique.size) unique = unique.copyOf(maxOf(dim * 64, unique.size * 2))
-                    unit.copyInto(unique, uniqueCount * dim)
-                    uniqueCount++
+                val hash = unit.fold(17) { h, x -> 31 * h + x.toRawBits() }
+                val sameHash = byHash[hash]
+                var found = -1
+                if (sameHash != null) {
+                    for (u in sameHash) {
+                        val stored = units.heapArray(u) ?: probe.also { units.row(u).copyInto(it) }
+                        var equal = true
+                        for (d in 0 until dim) if (stored[d].toRawBits() != unit[d].toRawBits()) { equal = false; break }
+                        if (equal) { found = u; break }
+                    }
                 }
+                if (found < 0) {
+                    found = units.append(unit)
+                    byHash[hash] = if (sameHash == null) intArrayOf(found) else sameHash + found
+                }
+                index[i] = found
+                if (key != null) byKey[key] = found
             }
+            units.seal()
+            byKey.clear()
             if (present == 0) return null
-            unique = unique.copyOf(uniqueCount * dim)
+            byHash.clear()
 
             val mean = FloatArray(dim)
+            val row = FloatArray(dim)
             for (i in 0 until n) if (has[i]) {
-                val base = index[i] * dim
-                for (d in 0 until dim) mean[d] += unique[base + d]
+                val stored = units.heapArray(index[i]) ?: row.also { units.row(index[i]).copyInto(it) }
+                for (d in 0 until dim) mean[d] += stored[d]
             }
             for (d in 0 until dim) mean[d] /= present
-            for (u in 0 until uniqueCount) {
-                val base = u * dim
+            val centred = scratch.create(dim, "descriptor")
+            for (u in 0 until units.rowCount) {
+                val values = FloatArray(dim)
+                units.row(u).copyInto(values)
                 var sumSq = 0.0
                 for (d in 0 until dim) {
-                    val v = unique[base + d] - mean[d]
-                    unique[base + d] = v
+                    val v = values[d] - mean[d]
+                    values[d] = v
                     sumSq += v.toDouble() * v
                 }
                 val scale = 1f / sqrt(sumSq).toFloat().coerceAtLeast(1e-12f)
-                for (d in 0 until dim) unique[base + d] *= scale
+                for (d in 0 until dim) values[d] *= scale
+                centred.append(values)
             }
-            return IndexedCentredRows(unique, dim, index, has)
-        }
-
-        /** A unit row compared by its exact floats (bit patterns), for [centredDistinct]. */
-        private class UnitRowKey(val values: FloatArray) {
-            private val hash = values.fold(17) { h, x -> 31 * h + x.toRawBits() }
-            override fun hashCode(): Int = hash
-            override fun equals(other: Any?): Boolean {
-                if (other !is UnitRowKey || other.hash != hash || other.values.size != values.size) return false
-                for (i in values.indices) if (values[i].toRawBits() != other.values[i].toRawBits()) return false
-                return true
-            }
+            centred.seal()
+            return IndexedCentredRows(centred, dim, index, has)
         }
 
         private fun norm(v: FloatArray): Float {
