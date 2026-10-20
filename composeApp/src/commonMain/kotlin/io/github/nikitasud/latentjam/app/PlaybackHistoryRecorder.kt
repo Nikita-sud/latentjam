@@ -48,6 +48,10 @@ fun CoroutineScope.launchPlaybackHistoryRecorder(
      */
     parentId: () -> String? = { null },
     onRecorded: () -> Unit = {},
+    /** Each snapshot while history is on (SMART's impression log follows the queue and the playhead). */
+    onSnapshot: suspend (NowPlaying) -> Unit = {},
+    /** Each listen once recorded. */
+    onListen: suspend (ListenEvent) -> Unit = {},
 ): Job = launch {
     val gate = PlaybackHistoryGate(initiallyEnabled = enabled.value)
     // One merged stream, one collector: snapshots and flushes are serialized through the same
@@ -58,6 +62,7 @@ fun CoroutineScope.launchPlaybackHistoryRecorder(
         },
         flushRequests.map { HistoryCommand.Flush(epochMillis()) },
     ).collect { command ->
+        if (command is HistoryCommand.Snapshot && command.enabled) runCatching { onSnapshot(command.now) }
         val finished = when (command) {
             is HistoryCommand.Snapshot ->
                 gate.onSnapshot(command.now, command.enabled, epochMillis(), command.parentId)
@@ -72,6 +77,7 @@ fun CoroutineScope.launchPlaybackHistoryRecorder(
             try {
                 history.record(event)
                 onRecorded()
+                runCatching { onListen(event) }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Throwable) {

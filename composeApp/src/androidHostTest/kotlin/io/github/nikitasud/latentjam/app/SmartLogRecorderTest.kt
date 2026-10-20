@@ -1,0 +1,68 @@
+/*
+ * Copyright (c) 2026 LatentJam Project
+ * SPDX-License-Identifier: Apache-2.0
+ */
+package io.github.nikitasud.latentjam.app
+
+import io.github.nikitasud.latentjam.history.ListenEvent
+import io.github.nikitasud.latentjam.history.SmartImpression
+import io.github.nikitasud.latentjam.history.SmartImpressionLog
+import io.github.nikitasud.latentjam.history.SmartLogStore
+import io.github.nikitasud.latentjam.history.SmartOutcome
+import io.github.nikitasud.latentjam.history.SmartOutcomeKind
+import io.github.nikitasud.latentjam.playback.NowPlaying
+import io.github.nikitasud.latentjam.playback.PlaybackStart
+import io.github.nikitasud.latentjam.playback.StartCause
+import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import io.github.nikitasud.latentjam.smart.TrackId
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+
+class SmartLogRecorderTest {
+    private class Lines : SmartLogStore {
+        val text = StringBuilder()
+        override suspend fun append(text: String) { this.text.append(text) }
+        override suspend fun size(): Long = text.length.toLong()
+        override suspend fun keepTail(maxBytes: Long) = Unit
+        override suspend fun forEachLine(line: (String) -> Unit) = text.lines().filter(String::isNotEmpty).forEach(line)
+        override suspend fun clear() { text.clear() }
+    }
+
+    private fun t(id: String) = TrackDescriptor(TrackId(id), title = id, artist = "A")
+    private fun row(id: String) = SmartPlanRow(TrackId(id), "k$id", 1.0, 0.5, true, "R1")
+
+    @Test
+    fun aPlanItsListensAndItsLeftoversReachTheLog() = runTest {
+        val store = Lines()
+        val recorder = SmartLogRecorder(SmartImpressionLog(store), backgroundScope, clock = { 42L })
+        recorder.planned("q.0.1", 0, rankOffset = 0, model = "core", rows = listOf(row("a"), row("b"), row("c")))
+        recorder.served(TrackId("a"))
+        val queue = listOf(t("seed"), t("a"))
+        recorder.onNowPlaying(NowPlaying(track = t("seed"), queue = queue))
+        recorder.onNowPlaying(NowPlaying(track = t("a"), queue = queue, playbackStart = PlaybackStart(2, TrackId("a"), StartCause.AUTO_ADVANCE)))
+        recorder.onListen(ListenEvent(TrackId("a"), 0, 12_000, 240_000, completed = false, skipped = true, listenedMs = 12_000))
+        // The listener starts other music: b and c never come.
+        recorder.onNowPlaying(NowPlaying(track = t("x"), queue = listOf(t("x")), playbackStart = PlaybackStart(3, TrackId("x"), StartCause.USER_PICK)))
+        runCurrent()
+        val parsed = store.text.lines().filter(String::isNotEmpty).map { SmartImpressionLog.parse(it) }
+        assertEquals(3, parsed.count { it is SmartImpression })
+        assertEquals((parsed[0] as SmartImpression).rank, 1)
+        val outcomes = parsed.filterIsInstance<SmartOutcome>()
+        assertEquals(listOf(SmartOutcomeKind.SKIPPED, SmartOutcomeKind.REPLACED, SmartOutcomeKind.REPLACED), outcomes.map { it.kind })
+        assertEquals(0.05, outcomes[0].fraction)
+        assertEquals(listOf("ka", "kb", "kc"), outcomes.map { it.track })
+    }
+
+    @Test
+    fun nothingIsLoggedWhileHistoryIsOff() = runTest {
+        val store = Lines()
+        val recorder = SmartLogRecorder(SmartImpressionLog(store), backgroundScope, enabled = { false })
+        recorder.planned("q", 0, 0, "core", listOf(row("a")))
+        recorder.onNowPlaying(NowPlaying(track = t("a"), queue = listOf(t("a"))))
+        runCurrent()
+        assertTrue(store.text.isEmpty())
+    }
+}

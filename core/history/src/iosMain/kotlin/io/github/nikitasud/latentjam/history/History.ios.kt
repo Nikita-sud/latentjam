@@ -48,7 +48,7 @@ import platform.posix.memcpy
  * cost more than it saves.
  */
 @OptIn(ExperimentalForeignApi::class)
-private fun appSupportFile(name: String): String? {
+internal fun appSupportFile(name: String): String? {
     val base = NSSearchPathForDirectoriesInDomains(
         NSApplicationSupportDirectory,
         NSUserDomainMask,
@@ -308,6 +308,8 @@ public actual fun listeningHistoryModule(): Module = module {
     single<Favorites> { DefaultFavorites(store = get()) }
     single<ForYouImpressionStore> { FileForYouImpressionStore() }
     single { ForYouImpressions(store = get()) }
+    single<SmartLogStore> { FileSmartLogStore() }
+    single { SmartImpressionLog(store = get()) }
 }
 
 public actual fun epochMillis(): Long = (NSDate().timeIntervalSince1970 * 1000).toLong()

@@ -539,6 +539,10 @@
     <string name="intelligence_include_novelty_mixes_body">عرض مزيجات مستقلة للميمات والمقاطع الرائجة والمؤثرات الصوتية في «لك».</string>
     <string name="intelligence_learn_from_habits">التعلّم من عاداتي</string>
     <string name="intelligence_learn_from_habits_body">يتعلّم SMART أيضًا من استماعك: ما تستمع إليه كثيرًا وما تشغّله عادةً بعده. يبقى كل شيء على هذا الجهاز.</string>
+    <string name="intelligence_smart_log_export">تصدير سجل SMART (تجريبي)</string>
+    <string name="intelligence_smart_log_export_body">ما اقترحه SMART وما حدث لكل مقطع، محفوظ على هذا الجهاز فقط. يحفظ نسخة لفحوص المنتج.</string>
+    <string name="intelligence_smart_log_exported">تم تصدير سجل SMART</string>
+    <string name="intelligence_smart_log_failed">تعذّر تصدير سجل SMART.</string>
     <string name="intelligence_smart_ranker">مُرتِّب مُتعلَّم (تجريبي)</string>
     <string name="intelligence_smart_ranker_body">يختار SMART كل أغنية تالية بنموذج تعلّم من بيانات استماع عامة (ListenBrainz). عند الإيقاف: سلسلة SMART المعتادة.</string>
     <string name="foryou_mix_meme_viral">ميمات ومقاطع رائجة</string>

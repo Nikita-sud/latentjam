@@ -59,7 +59,16 @@ class RankerScenarioTest {
         expectFull: Boolean = true,
     ): List<TrackId> {
         val base = PlanRequest(seed, library, candidates, length, press = 3)
-        val plan = ranker.plan(request(base)).ids
+        val report = ranker.plan(request(base))
+        val plan = report.ids
+        // The impression log's per-pick record: one per id, a propensity in (0, 1], a score for decoder picks.
+        assertEquals(plan.size, report.picks.size, "one pick record per id")
+        report.picks.forEachIndexed { i, p ->
+            assertTrue(p.probability > 0.0 && p.probability <= 1.0, "propensity at $i")
+            assertEquals(p.tie, p.probability < 1.0, "tie flag at $i")
+            assertEquals(i >= report.fromModel, p.source.startsWith("ladder:"), "source at $i")
+            if (i < report.fromModel) assertTrue(p.score.isFinite(), "score at $i")
+        }
         val eligible = candidates.filter { it.id != seed.id && !SmartRanker.isNonMusic(it) }.distinctBy { it.id }
         if (eligible.isNotEmpty() && length > 0) assertTrue(plan.isNotEmpty(), "empty plan with ${eligible.size} eligible")
         if (expectFull && eligible.isNotEmpty()) assertEquals(length, plan.size, "plan size")

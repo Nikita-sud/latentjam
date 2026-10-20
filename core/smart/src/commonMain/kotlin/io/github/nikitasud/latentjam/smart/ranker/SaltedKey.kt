@@ -42,6 +42,13 @@ public object SaltedKey {
         return "v1|${track.storageVolume.orEmpty()}|$relative|$size|$duration"
     }
 
+    /**
+     * A 64-bit hash of [contentKey] as 16 hex digits: the first 8 bytes of SHA-256 of its UTF-8 bytes. Compact and
+     * stable across rescans; the on-device impression log names tracks by it.
+     */
+    public fun contentHash(contentKey: String): String =
+        Sha256.digest(contentKey.encodeToByteArray()).take(8).joinToString("") { (it.toInt() and 0xff).toString(16).padStart(2, '0') }
+
     /** Unsigned order of the UTF-8 bytes of a track id: the tie-break order of §1.6. */
     public val idOrder: Comparator<String> = Comparator { a, b ->
         val x = a.encodeToByteArray()

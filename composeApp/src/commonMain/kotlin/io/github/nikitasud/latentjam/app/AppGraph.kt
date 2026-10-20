@@ -9,6 +9,7 @@ import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.history.RecentSearches
 import io.github.nikitasud.latentjam.history.ForYouImpressions
 import io.github.nikitasud.latentjam.history.SmartExclusions
+import io.github.nikitasud.latentjam.history.SmartImpressionLog
 import io.github.nikitasud.latentjam.history.listeningHistoryModule
 import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.library.Playlists
@@ -178,6 +179,10 @@ object AppGraph {
                                 artistRunPenalty = ARTIST_VARIETY_PENALTIES[DEFAULT_ARTIST_VARIETY],
                             )
                         }
+                        // SMART's on-device impression and outcome log: local only, read by nothing in ranking.
+                        single {
+                            SmartLogRecorder(log = get(), scope = appScope, enabled = { settings.saveListeningHistory.value })
+                        }
                         // The single point where playback meets the engine.
                         single<NextTrackChooser> {
                             EngineNextTrackChooser(
@@ -191,6 +196,7 @@ object AppGraph {
                                 rankerHealthy = getOrNull<SmartRankerAssets>().let { assets -> { assets?.healthy ?: false } },
                                 personalRanker = { settings.learnFromHabits.value },
                                 presses = getOrNull(),
+                                smartLog = getOrNull<SmartLogRecorder>(),
                                 library = { smartLibraryTracks.value },
                                 habitFlow = get<SimilarityEngine>().let { engine ->
                                     HabitFlow(getOrNull(), audio = { id -> engine.embedding(id) })
@@ -214,6 +220,7 @@ object AppGraph {
                 }
             }
             // History observes playback for the app's whole lifetime.
+            val smartLog = koin.getOrNull<SmartLogRecorder>()
             appScope.launchPlaybackHistoryRecorder(
                 playback = playback,
                 history = history,
@@ -221,6 +228,8 @@ object AppGraph {
                 flushRequests = historyFlushRequests,
                 parentId = { queueSource.value?.parentCollectionId() },
                 onRecorded = { mutableHistoryRevision.value += 1L },
+                onSnapshot = { now -> smartLog?.onNowPlaying(now) },
+                onListen = { event -> smartLog?.onListen(event) },
             )
             // Remembers where listening stood, so the next launch reopens with the same track
             // parked in the player and the same shuffle mode — SMART stays on across restarts.
@@ -363,6 +372,10 @@ object AppGraph {
         get() = koin.get()
 
     /** Shell-level user preferences (theme). */
+    /** SMART's impression log, for the debug export (null when the platform binds none). */
+    internal val smartImpressionLog: SmartImpressionLog?
+        get() = koin.getOrNull()
+
     val settings: AppSettings
         get() = koin.get()
 

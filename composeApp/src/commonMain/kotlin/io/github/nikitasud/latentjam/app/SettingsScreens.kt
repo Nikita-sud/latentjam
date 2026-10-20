@@ -166,6 +166,10 @@ import io.github.nikitasud.latentjam.app.generated.resources.intelligence_includ
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_include_novelty_mixes_body
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_learn_from_habits
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_learn_from_habits_body
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_smart_log_export
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_smart_log_export_body
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_smart_log_exported
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_smart_log_failed
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_smart_ranker
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_smart_ranker_body
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_library
@@ -1849,6 +1853,20 @@ private fun IntelligenceSettings(
     val includeNoveltyMixes by settings.includeNoveltyMixes.collectAsState()
     val smartRanker by settings.smartRanker.collectAsState()
     val learnFromHabits by settings.learnFromHabits.collectAsState()
+    val smartLogExported = stringResource(Res.string.intelligence_smart_log_exported)
+    val smartLogFailed = stringResource(Res.string.intelligence_smart_log_failed)
+    // Product checks only: the impression log as a text file the listener saves where they choose.
+    val smartLogExchange = rememberLocalBackupFileExchange(
+        exportMimeType = "text/plain",
+        onExportResult = { result ->
+            when (result) {
+                is LocalBackupFileResult.Success -> scope.launch { snackbarHostState.showSnackbar(smartLogExported) }
+                is LocalBackupFileResult.Failure -> scope.launch { snackbarHostState.showSnackbar(smartLogFailed) }
+                LocalBackupFileResult.Cancelled -> Unit
+            }
+        },
+        onImportResult = {},
+    )
     val notificationStatus by permissions.notificationStatus.collectAsState()
     val ids = remember(tracks) { tracks.map(TrackDescriptor::id) }
     val indexingMatchesLibrary = indexing.trackIds == ids
@@ -1974,6 +1992,18 @@ private fun IntelligenceSettings(
                     checked = learnFromHabits,
                     enabled = smartRanker,
                     onCheckedChange = settings::setLearnFromHabits,
+                )
+                SettingsRow(
+                    title = stringResource(Res.string.intelligence_smart_log_export),
+                    subtitle = stringResource(Res.string.intelligence_smart_log_export_body),
+                    onClick = {
+                        val log = AppGraph.smartImpressionLog
+                        if (log == null || smartLogExchange.inProgress) return@SettingsRow
+                        smartLogExchange.exportTo(
+                            { _ -> exportSmartLogText(log) },
+                            "latentjam-smart-log-${io.github.nikitasud.latentjam.history.epochMillis()}.txt",
+                        )
+                    },
                 )
                 SettingsSwitchRow(
                     title = stringResource(Res.string.intelligence_include_novelty_mixes),

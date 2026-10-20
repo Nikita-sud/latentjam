@@ -462,6 +462,10 @@
     <string name="intelligence_include_novelty_mixes_body">Mostra in Per te mix separati di meme, audio virali ed effetti sonori.</string>
     <string name="intelligence_learn_from_habits">Impara dalle mie abitudini</string>
     <string name="intelligence_learn_from_habits_body">SMART impara anche dai tuoi ascolti: cosa ascolti spesso e cosa metti di solito dopo. Tutto resta su questo dispositivo.</string>
+    <string name="intelligence_smart_log_export">Esporta registro SMART (test)</string>
+    <string name="intelligence_smart_log_export_body">Cosa ha proposto SMART e cosa è successo a ogni brano, conservato solo su questo dispositivo. Salva una copia per le verifiche del prodotto.</string>
+    <string name="intelligence_smart_log_exported">Registro SMART esportato</string>
+    <string name="intelligence_smart_log_failed">Impossibile esportare il registro SMART.</string>
     <string name="intelligence_smart_ranker">Classificatore appreso (test)</string>
     <string name="intelligence_smart_ranker_body">SMART sceglie ogni brano successivo con un modello appreso da dati di ascolto pubblici (ListenBrainz). Disattivato: la solita catena SMART.</string>
     <string name="foryou_mix_meme_viral">Meme e audio virali</string>

@@ -65,4 +65,39 @@ class RankerChooserTest {
         assertEquals(listOf("a1", "b1", "c1"), served)
         assertEquals(emptyList(), engineCalls)
     }
+
+    @Test
+    fun `every plan reaches the impression log with one row per track and the served rows marked`() = runTest {
+        class Planned(val queue: String, val plan: Int, val rankOffset: Int, val model: String, val rows: List<SmartPlanRow>)
+        val plans = ArrayList<Planned>()
+        val servedIds = ArrayList<TrackId>()
+        val log = object : SmartPlanLog {
+            override suspend fun planned(queue: String, plan: Int, rankOffset: Int, model: String, rows: List<SmartPlanRow>) {
+                plans += Planned(queue, plan, rankOffset, model, rows)
+            }
+            override suspend fun served(id: TrackId) { servedIds += id }
+        }
+        val chooser = EngineNextTrackChooser(
+            engine, history(emptyList()), library = { library },
+            useRanker = { true }, ranker = { SmartRanker(model, null, null) }, smartLog = log,
+        )
+        val queue = mutableListOf(seed)
+        repeat(4) {
+            val queued = queue.mapTo(HashSet()) { it.id }
+            val choice = chooser.choose(queue.last(), queue.dropLast(1).map { it.id }, library.filter { it.id !in queued })!!
+            queue += choice.track
+        }
+        val first = plans.first()
+        assertEquals(0, first.plan)
+        assertEquals(0, first.rankOffset)
+        assertEquals("ranker", first.model)
+        // A whole small library is scored; four eligible tracks repeat to the plan's length (§7.2b).
+        assertEquals(20, first.rows.size)
+        assertEquals(List(4) { "whole" }, first.rows.take(4).map { it.source })
+        kotlin.test.assertTrue(first.rows.drop(4).all { it.source == "ladder:repeat" })
+        kotlin.test.assertTrue(first.rows.all { it.trackKey.length == 16 && it.probability > 0.0 && it.probability <= 1.0 })
+        kotlin.test.assertTrue(first.queue.startsWith(io.github.nikitasud.latentjam.smart.ranker.SaltedKey.contentHash(
+            io.github.nikitasud.latentjam.smart.ranker.SaltedKey.contentKey(seed)).take(12) + ".0."))
+        assertEquals(queue.drop(1).map { it.id }, servedIds)
+    }
 }

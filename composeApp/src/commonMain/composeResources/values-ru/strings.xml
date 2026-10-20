@@ -486,6 +486,10 @@
     <string name="intelligence_include_novelty_mixes_body">Показывать в разделе «Для вас» отдельные миксы с мемами, вирусными аудиозаписями и звуковыми эффектами.</string>
     <string name="intelligence_learn_from_habits">Учитывать мои привычки</string>
     <string name="intelligence_learn_from_habits_body">SMART учитывает и ваше прослушивание: что вы часто слушаете и что обычно включаете следом. Всё остаётся на устройстве.</string>
+    <string name="intelligence_smart_log_export">Экспорт журнала SMART (тест)</string>
+    <string name="intelligence_smart_log_export_body">Что предлагал SMART и что стало с каждым треком; хранится только на этом устройстве. Сохраняет копию для проверки продукта.</string>
+    <string name="intelligence_smart_log_exported">Журнал SMART экспортирован</string>
+    <string name="intelligence_smart_log_failed">Не удалось экспортировать журнал SMART.</string>
     <string name="intelligence_smart_ranker">Обученный ранжировщик (тест)</string>
     <string name="intelligence_smart_ranker_body">SMART выбирает каждый следующий трек моделью, обученной на открытых данных о прослушиваниях (ListenBrainz). Выключено — обычная цепочка SMART.</string>
     <string name="foryou_mix_meme_viral">Мемы и вирусные аудиозаписи</string>

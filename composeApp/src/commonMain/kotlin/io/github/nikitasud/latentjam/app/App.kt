@@ -4642,6 +4642,7 @@ private fun AppShell(
                 },
                 onClearListeningHistory = {
                     AppGraph.history.clear()
+                    AppGraph.smartImpressionLog?.clear()
                     forYouPage.forYou = ForYouPage()
                     forYouPage.builtWorlds = null
                     forYouPage.builtForYouLibraryIds = null

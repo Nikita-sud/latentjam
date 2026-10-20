@@ -10,6 +10,7 @@ import io.github.nikitasud.latentjam.playback.NextTrackChooser
 import io.github.nikitasud.latentjam.playback.SmartChoice
 import io.github.nikitasud.latentjam.smart.HabitFlow
 import io.github.nikitasud.latentjam.history.SmartPresses
+import io.github.nikitasud.latentjam.smart.ranker.PlanPick
 import io.github.nikitasud.latentjam.smart.ranker.SaltedKey
 import io.github.nikitasud.latentjam.smart.ranker.SmartRanker
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
@@ -60,6 +61,8 @@ class EngineNextTrackChooser(
     private val personalRanker: () -> Boolean = { false },
     /** The persisted press counters; null keeps every start at press 0. */
     private val presses: SmartPresses? = null,
+    /** The on-device impression log (local only; nothing in ranking reads it). */
+    private val smartLog: SmartPlanLog? = null,
 ) : NextTrackChooser {
 
     private val mutex = Mutex()
@@ -67,6 +70,9 @@ class EngineNextTrackChooser(
     private var queuePress = 0L
     /** Ranker failures and spent budgets in this SMART queue; at [BREAKER_LIMIT] the queue runs rule-only (§7.2). */
     private var queueFailures = 0
+    /** The impression log's name for the SMART queue being served, and how many plans it has had. */
+    private var queueId = ""
+    private var plansInQueue = 0
     /** The unserved rest of the current plan, each id with its index in that plan. */
     private var planned = ArrayDeque<IndexedValue<TrackId>>()
     private var expectedNext: TrackId? = null
@@ -100,10 +106,11 @@ class EngineNextTrackChooser(
             plannedWithGroups = groups
             planned.clear()
         }
-        fun nextPlanned(): SmartChoice? {
+        suspend fun nextPlanned(): SmartChoice? {
             while (planned.isNotEmpty()) {
                 val (index, id) = planned.removeFirst()
                 val chosen = candidates.firstOrNull { it.id == id } ?: continue
+                smartLog?.served(chosen.id)
                 expectedNext = chosen.id
                 servedAfter = current.id
                 expectedPrecedingIds = (recentIds + current.id).takeLast(CHAIN_LENGTH)
@@ -123,6 +130,8 @@ class EngineNextTrackChooser(
             // after replacing the previous queue. The engine checks the preceding queued tracks
             // before carrying a walk; an unrelated seed starts fresh there.
             val learned = if (useRanker()) ranker() else null
+            var picks: List<PlanPick>? = null
+            var model = "chain"
             var plan = if (learned != null) {
                 if (recentIds.isEmpty()) {
                     queuePress = presses?.let { runCatching { it.next(SaltedKey.contentKey(current)) }.getOrNull() } ?: 0L
@@ -134,6 +143,8 @@ class EngineNextTrackChooser(
                     personal = personalRanker(), ruleOnly = !rankerHealthy() || queueFailures >= BREAKER_LIMIT,
                 )
                 if (report == null || report.timedOut) queueFailures++
+                picks = report?.picks
+                model = report?.model ?: "none"
                 report?.ids.orEmpty()
             } else {
                 engine.continueSmartQueue(
@@ -148,6 +159,30 @@ class EngineNextTrackChooser(
                 )
             }
             planned = ArrayDeque(plan.withIndex().toList())
+            smartLog?.let { log ->
+                if (recentIds.isEmpty() || queueId.isEmpty()) {
+                    val seedHash = SaltedKey.contentHash(SaltedKey.contentKey(current)).take(12)
+                    queueId = "$seedHash.${if (learned != null) queuePress.toString() else "c"}.${epochMillis()}"
+                    plansInQueue = 0
+                } else {
+                    plansInQueue++
+                }
+                val wanted = plan.toHashSet()
+                val keys = HashMap<TrackId, String>(plan.size * 2)
+                for (t in candidates) if (t.id in wanted) keys[t.id] = SaltedKey.contentHash(SaltedKey.contentKey(t))
+                val rows = plan.mapIndexed { i, id ->
+                    val pick = picks?.getOrNull(i)
+                    SmartPlanRow(
+                        trackId = id,
+                        trackKey = keys[id] ?: "",
+                        score = pick?.score ?: Double.NaN,
+                        probability = pick?.probability ?: 1.0,
+                        tie = pick?.tie ?: false,
+                        source = pick?.source ?: model,
+                    )
+                }
+                log.planned(queueId, plansInQueue, rankOffset = recentIds.size, model = model, rows = rows)
+            }
             // Diagnostics stay aggregate on purpose: no title, artist or track id goes to the
             // system log. On Android that log is plain logcat, which other apps could read on
             // older releases, and the app promises that nothing about what is played leaves it.

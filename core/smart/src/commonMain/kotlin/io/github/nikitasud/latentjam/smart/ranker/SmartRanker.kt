@@ -161,7 +161,7 @@ public class PlanRequest(
     public val ruleOnly: Boolean = false,
 )
 
-/** How a plan was made, for the aggregate log line and the circuit breaker. */
+/** How a plan was made, for the aggregate log line, the circuit breaker and the on-device impression log. */
 public class PlanReport(
     public val ids: List<TrackId>,
     public val model: String,
@@ -170,6 +170,22 @@ public class PlanReport(
     public val fromLadder: Int,
     public val timedOut: Boolean,
     public val imputed: Int,
+    /** One per id, in plan order. */
+    public val picks: List<PlanPick> = emptyList(),
+)
+
+/**
+ * How one planned track was chosen. [score] is the decoder's penalised score at its hop (NaN for a ladder pick);
+ * [probability] the chance the salted draw had of choosing it — 1 / the near-best set's size (§8: a uniform draw), 1
+ * for a ladder pick or a sole best; [tie] whether other rows shared the near-best set; [source] the retriever that
+ * proposed it (R1 audio, R2 co-listening, R4 artist, R5 family, R6 favourites, R7 transitions, topup, whole,
+ * rule-R4, rule-sample) or the ladder rung ("ladder:audio", …).
+ */
+public class PlanPick(
+    public val score: Double,
+    public val probability: Double,
+    public val tie: Boolean,
+    public val source: String,
 )
 
 /**
@@ -383,6 +399,7 @@ public class SmartRanker(
             .distinctBy { it.id }
         val n = eligible.size
         if (n == 0 || request.length <= 0) return PlanReport(emptyList(), active.name, 0, 0, 0, false, 0)
+        val sources = HashMap<TrackId, String>()
         val eligibleKnown = eligible.map { cache[it.id] ?: know(it) }
         val byId = eligibleKnown.associateBy { it.track.id }
         val draws = HopDraws(SaltedKey.seed(SaltedKey.SALT, SaltedKey.contentKey(request.seed), request.press))
@@ -400,9 +417,9 @@ public class SmartRanker(
             else -> "retrievers"
         }
         val pool = when {
-            request.ruleOnly -> ruleOnlyPool(poolSource, seedKnown, salted)
+            request.ruleOnly -> ruleOnlyPool(poolSource, seedKnown, salted, sources)
             poolSource.size <= serving.wholeLibraryUpTo -> poolSource
-            else -> retrieve(poolSource, seedKnown, request, serving, salted)
+            else -> retrieve(poolSource, seedKnown, request, serving, salted, sources)
         }.sortedWith { a, b -> SaltedKey.idOrder.compare(a.track.id.value, b.track.id.value) }
         imputed += impute(pool)
         val window = minOf(serving.recentWindow, n / 2).coerceAtLeast(1)
@@ -420,6 +437,8 @@ public class SmartRanker(
         val budgetMs = serving.hopBudgetMs * request.length
         // The decoder's own budget: preparation (knowledge, retrieval, imputation) has its own limits above.
         val decoding = TimeSource.Monotonic.markNow()
+        val hopScores = ArrayList<Double>()
+        val hopChoices = ArrayList<Int>()
         val modelPicks = RankerQueue.build(
             model = active,
             poolSize = pool.size,
@@ -436,13 +455,25 @@ public class SmartRanker(
             },
             stop = { decoding.elapsedNow().inWholeMilliseconds > budgetMs && trace == null },
             skipWhenTied = request.ruleOnly,
-            trace = trace?.let { t -> { h: RankerQueue.HopTrace -> if (t.draws.size < t.hops.size + 1) t.draws.add(null); t.hops += h } },
+            trace = { h: RankerQueue.HopTrace ->
+                hopScores += h.t[h.pick]
+                hopChoices += h.nearBest.size
+                if (trace != null) {
+                    if (trace.draws.size < trace.hops.size + 1) trace.draws.add(null)
+                    trace.hops += h
+                }
+            },
         ) { anchor ->
             val a = if (anchor == RankerQueue.SEED) seedKnown else pool[anchor]
             features(a, pool, artistKeyOf, audioVectors, personalRows, request.seed.id, popularityOn)
         }.map { pool[it].track.id }
         val timedOut = modelPicks.size < minOf(request.length, pool.size) && decoding.elapsedNow().inWholeMilliseconds > budgetMs
         val picks = ArrayList(modelPicks)
+        val planPicks = ArrayList<PlanPick>(request.length)
+        for ((h, id) in modelPicks.withIndex()) {
+            val size = hopChoices[h]
+            planPicks += PlanPick(hopScores[h], 1.0 / size, size > 1, sources[id] ?: "whole")
+        }
         val ladder = Ladder(
             eligibleKnown, byId, previousIds, window, salted, request.history, ::versionOf,
             artistKeyOf, artistKeyOf(seedKnown), active.thirdInRowCap > 0.0,
@@ -450,6 +481,7 @@ public class SmartRanker(
         while (picks.size < request.length) {
             val (next, rung) = ladder.next(picks, audio) ?: break
             picks += next
+            planPicks += PlanPick(Double.NaN, 1.0, false, "ladder:$rung")
             trace?.ladder?.add(next to rung)
         }
         if (trace != null) {
@@ -459,7 +491,7 @@ public class SmartRanker(
             trace.imputedTracks = (pool + seedKnown).filter { it.descriptorImputed || it.familyImputed }.map { it.track.id }
                 .distinct().sortedWith { a, b -> SaltedKey.idOrder.compare(a.value, b.value) }
         }
-        return PlanReport(picks, active.name, pool.size, modelPicks.size, picks.size - modelPicks.size, timedOut, imputed)
+        return PlanReport(picks, active.name, pool.size, modelPicks.size, picks.size - modelPicks.size, timedOut, imputed, planPicks)
     }
 
     /** Back-compatible entry point: the plan's ids. */
@@ -527,46 +559,53 @@ public class SmartRanker(
         request: PlanRequest,
         serving: RankerModel.Serving,
         salted: Map<TrackId, Long>,
+        sources: MutableMap<TrackId, String>,
     ): List<Known> {
         val byId = pool.associateBy { it.track.id }
         val out = LinkedHashMap<TrackId, Known>()
-        fun take(ids: List<TrackId>, quota: Int) {
+        fun take(ids: List<TrackId>, quota: Int, source: String) {
             var added = 0
             for (id in ids) {
                 if (added >= quota) break
                 val k = byId[id] ?: continue
-                if (out.put(id, k) == null) added++
+                if (out.put(id, k) == null) {
+                    added++
+                    sources[id] = source
+                }
             }
         }
         val quota = { name: String -> serving.quotas[name] ?: 0 }
-        take(boundedNeighbours(seed.track.id, quota("audio") * 2, R1_BUDGET_MS), quota("audio"))
+        take(boundedNeighbours(seed.track.id, quota("audio") * 2, R1_BUDGET_MS), quota("audio"), "R1")
         if (seed.entity >= 0 && neighbours != null) {
             val rank = HashMap<Int, Double>()
             neighbours.forEachNeighbour(seed.entity) { e, s -> rank[e] = s.toDouble() }
             take(pool.filter { it.entity in rank }.sortedWith(compareByDescending<Known> { rank[it.entity] ?: 0.0 }.thenBy { salted[it.track.id] })
-                .map { it.track.id }, quota("colisten"))
+                .map { it.track.id }, quota("colisten"), "R2")
         }
         val album = seed.track.album?.takeIf(String::isNotBlank)
         take(pool.filter { (seed.setArtist != 0L && it.setArtist == seed.setArtist) || (album != null && it.track.album == album) }
-            .sortedBy { salted[it.track.id] }.map { it.track.id }, quota("artist"))
-        if (seed.family != null) take(pool.filter { it.family == seed.family }.sortedBy { salted[it.track.id] }.map { it.track.id }, quota("family"))
+            .sortedBy { salted[it.track.id] }.map { it.track.id }, quota("artist"), "R4")
+        if (seed.family != null) take(pool.filter { it.family == seed.family }.sortedBy { salted[it.track.id] }.map { it.track.id }, quota("family"), "R5")
         if (request.personal && !request.history.isEmpty) {
-            take(request.history.followers(seed.track.id), quota("own") / 2)
-            take(request.history.favourites(), quota("own") - quota("own") / 2)
+            take(request.history.followers(seed.track.id), quota("own") / 2, "R7")
+            take(request.history.favourites(), quota("own") - quota("own") / 2, "R6")
         }
         // Too few retrieved for a full queue: a salted sample tops the pool up (never a smaller pool than needed).
-        if (out.size < request.length * 2) take(pool.sortedBy { salted[it.track.id] }.map { it.track.id }, request.length * 2)
+        if (out.size < request.length * 2) take(pool.sortedBy { salted[it.track.id] }.map { it.track.id }, request.length * 2, "topup")
         return out.values.toList()
     }
 
     /** §7.2b's rule-only candidates: R4 from tags (quota 100) plus a 500-track sample in salted order. */
-    private fun ruleOnlyPool(pool: List<Known>, seed: Known, salted: Map<TrackId, Long>): List<Known> {
+    private fun ruleOnlyPool(pool: List<Known>, seed: Known, salted: Map<TrackId, Long>, sources: MutableMap<TrackId, String>): List<Known> {
         val ordered = pool.sortedBy { salted[it.track.id] }
         val sameArtist = ordered.filter {
             (seed.setArtist != 0L && it.setArtist == seed.setArtist) ||
                 (seed.track.album?.isNotBlank() == true && it.track.album == seed.track.album)
         }.take(100)
-        return (sameArtist + ordered.take(500)).distinctBy { it.track.id }
+        for (k in sameArtist) sources[k.track.id] = "rule-R4"
+        val sample = ordered.take(500)
+        for (k in sample) sources.getOrPut(k.track.id) { "rule-sample" }
+        return (sameArtist + sample).distinctBy { it.track.id }
     }
 
     /** Salted order key per track: the first 8 bytes of SHA-256(salt|query|press|id) (§7.2b). */

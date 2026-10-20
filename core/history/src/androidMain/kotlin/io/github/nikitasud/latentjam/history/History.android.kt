@@ -204,6 +204,8 @@ public actual fun listeningHistoryModule(): Module = module {
     single<Favorites> { DefaultFavorites(store = get()) }
     single<ForYouImpressionStore> { FileForYouImpressionStore(context = get()) }
     single { ForYouImpressions(store = get()) }
+    single<SmartLogStore> { FileSmartLogStore(context = get()) }
+    single { SmartImpressionLog(store = get()) }
 }
 
 public actual fun epochMillis(): Long = System.currentTimeMillis()

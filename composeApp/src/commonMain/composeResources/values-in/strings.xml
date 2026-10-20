@@ -442,6 +442,10 @@
     <string name="intelligence_include_novelty_mixes_body">Tampilkan mix terpisah berisi meme, audio viral, dan efek suara di Untuk kamu.</string>
     <string name="intelligence_learn_from_habits">Belajar dari kebiasaan saya</string>
     <string name="intelligence_learn_from_habits_body">SMART juga belajar dari yang kamu dengarkan: lagu yang sering kamu putar dan yang biasa kamu putar sesudahnya. Semua tetap di perangkat ini.</string>
+    <string name="intelligence_smart_log_export">Ekspor log SMART (uji)</string>
+    <string name="intelligence_smart_log_export_body">Apa yang ditawarkan SMART dan apa yang terjadi pada setiap lagu, hanya disimpan di perangkat ini. Menyimpan salinan untuk pemeriksaan produk.</string>
+    <string name="intelligence_smart_log_exported">Log SMART diekspor</string>
+    <string name="intelligence_smart_log_failed">Tidak dapat mengekspor log SMART.</string>
     <string name="intelligence_smart_ranker">Pemeringkat terlatih (uji)</string>
     <string name="intelligence_smart_ranker_body">SMART memilih setiap lagu berikutnya dengan model yang dilatih dari data dengar publik (ListenBrainz). Mati: rantai SMART biasa.</string>
     <string name="foryou_mix_meme_viral">Meme &amp; audio viral</string>
