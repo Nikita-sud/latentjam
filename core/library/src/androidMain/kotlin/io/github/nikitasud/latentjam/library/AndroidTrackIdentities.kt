@@ -45,7 +45,10 @@ internal class AndroidTrackIdentities(
      * registered under. Not the rows themselves: the app republishes richer copies of every
      * descriptor, so a retained list here was a second copy of a 10,000-song library.
      */
-    private class Row(val source: String, val volume: String, val revision: String, val audioUri: String?)
+    private class Row(val source: String, val volume: String, val revision: String, private val ownAudioUri: String?) {
+        /** The row's audio URI: MediaStore's own for [source] unless the scan gave another. */
+        val audioUri: String? get() = if (ownAudioUri === MEDIA_STORE_URI) "$MEDIA_STORE_SONGS$source" else ownAudioUri
+    }
 
     private var entries: Map<String, Entry>? = null
     /** Source → app ID, only where they differ (a relocated file); everything else maps to itself. */
@@ -130,11 +133,17 @@ internal class AndroidTrackIdentities(
             // A source number reappearing on a different volume must not steal an old app ID.
             bySource(source)?.takeIf { it.id != id }?.let { next[it.id] = it.copy(source = "") }
             val tags = if (facts.containsKey(source)) facts[source] else old?.tags
-            val checked = if (facts[source] != null) revision(track) else old?.checked?.let {
-                if (it == revision(track)) revision(track) else it
+            // One instance for the entry, its check mark and the row: a compact descriptor forms a new string per read.
+            val revision = revision(track)
+            val checked = if (facts[source] != null) revision else old?.checked?.let {
+                if (it == revision) revision else it
             }
-            next[id] = Entry(id, source, volume(track), extension(track), track.durationMs, revision(track), checked, tags)
-            rows[index] = Row(source, volume(track), revision(track), track.audioUri)
+            next[id] = Entry(id, source, volume(track), extension(track), track.durationMs, revision, checked, tags)
+            val audioUri = track.audioUri
+            rows[index] = Row(
+                source, volume(track), revision,
+                if (audioUri == "$MEDIA_STORE_SONGS$source") MEDIA_STORE_URI else audioUri,
+            )
             if (id == source) track else track.copy(id = TrackId(id))
         }
         commit(next)
@@ -233,6 +242,11 @@ internal class AndroidTrackIdentities(
 
     private companion object {
         const val HEADER = "latentjam-track-identities-v1"
+        private const val MEDIA_STORE_SONGS = "content://media/external/audio/media/"
+
+        /** Marks a [Row] whose audio URI is MediaStore's own for its source (formed when read, not held). */
+        private val MEDIA_STORE_URI = String(charArrayOf('-'))
+
         fun revision(track: TrackDescriptor): String = track.sourceRevision.orEmpty()
 
         /** The registered entry whose source is [source]: sources are unique across entries. */

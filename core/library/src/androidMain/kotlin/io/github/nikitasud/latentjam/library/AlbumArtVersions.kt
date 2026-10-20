@@ -36,6 +36,11 @@ internal fun withAlbumArtVersions(tracks: List<TrackDescriptor>): List<TrackDesc
     return tracks.map { track ->
         val album = track.albumCover() ?: return@map track
         val version = versions.getValue(album)
+        val versionedAlbum = track.albumArtworkUri?.let {
+            versionedAlbums.getOrPut(it) { MediaStoreArtwork.versioned(it, version) }
+        }
+        // A scanned song keeps its cover locator as numbers and this (shared) version.
+        (track as? MediaStoreTrackDescriptor)?.withArtVersion(version, versionedAlbum)?.let { return@map it }
         track.copy(
             artworkUri = track.artworkUri?.let { MediaStoreArtwork.versioned(it, version) },
             albumArtworkUri = track.albumArtworkUri?.let {

@@ -373,19 +373,17 @@ internal class MediaStoreMusicLibrary(
                 } else {
                     TrackPosition()
                 }
-                tracks += TrackDescriptor(
-                    id = TrackId(id.toString()),
+                // A compact descriptor: its URI, cover locator and revision are formed from these numbers when read.
+                tracks += MediaStoreTrackDescriptor.fromMediaStore(
+                    sourceId = id,
+                    albumId = albumId,
                     title = cursor.getString(titleColumn).knownTagOrNull(),
                     artist = cursor.getString(artistColumn).knownTagOrNull().shared(),
                     album = cursor.getString(albumColumn).knownTagOrNull().shared(),
                     genre = if (genreColumn >= 0) cursor.getString(genreColumn).knownTagOrNull().shared() else null,
                     albumArtist = if (albumArtistIndex >= 0) cursor.getString(albumArtistIndex).knownTagOrNull().shared() else null,
                     durationMs = cursor.getLong(durationColumn).takeIf { it > 0 },
-                    audioUri = ContentUris
-                        .withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
-                        .toString(),
-                    // The song's own cover; its album's, which grouping compares, is the fallback.
-                    artworkUri = MediaStoreArtwork.trackCover(id, albumId),
+                    // The song's own cover (the descriptor's artworkUri); its album's, which grouping compares, is the fallback.
                     albumArtworkUri = albumId.takeIf { it > 0 }?.let(MediaStoreArtwork::albumCover).shared(),
                     // MediaStore stores DATE_ADDED in epoch seconds.
                     addedAtMs = cursor.getLong(addedColumn).takeIf { it > 0 }?.times(1000),
@@ -402,15 +400,13 @@ internal class MediaStoreMusicLibrary(
                     fileName = if (nameColumn >= 0) cursor.getString(nameColumn).knownOrNull() else null,
                     trackNumber = position.trackNumber,
                     discNumber = position.discNumber,
-                    sourceRevision = androidMediaSourceRevision(
-                        sizeBytes = cursor.getLong(sizeColumn).takeIf { it >= 0 },
-                        modifiedAtSeconds = cursor.getLong(modifiedColumn).takeIf { it > 0 },
-                        generationModified = if (generationColumn >= 0) {
-                            cursor.getLong(generationColumn).takeIf { it > 0 }
-                        } else {
-                            null
-                        },
-                    ),
+                    revisionSize = cursor.getLong(sizeColumn).takeIf { it >= 0 },
+                    revisionModified = cursor.getLong(modifiedColumn).takeIf { it > 0 },
+                    revisionGeneration = if (generationColumn >= 0) {
+                        cursor.getLong(generationColumn).takeIf { it > 0 }
+                    } else {
+                        null
+                    },
                 )
             }
         }
