@@ -100,6 +100,42 @@ def revisions_from_identities(path):
     return out
 
 
+def read_ljix(path):
+    """FileIndexStore's LJIX v2/v3 snapshot: (model version, [(id, float32 vector)]) in file order."""
+    import struct
+    b = Path(path).read_bytes(); o = 0
+    def i32():
+        nonlocal o; v = struct.unpack_from('>i', b, o)[0]; o += 4; return v
+    def utf():
+        nonlocal o; n = i32()
+        if n < 0: return None
+        v = b[o:o + n].decode('utf-8'); o += n; return v
+    assert i32() == 0x4C4A4958 and i32() in (2, 3), path
+    version = utf(); dim = i32(); count = i32()
+    rows = []
+    for _ in range(count):
+        tid = utf(); vec = struct.unpack_from(f'>{dim}f', b, o); o += 4 * dim; utf()
+        rows.append((tid, vec))
+    return version, rows
+
+
+def semantics(state, work):
+    """semantics.tsv: the shipped semantic head (universal_semantic_head.onnx) on every indexed vector, as the phone's
+    engine computes it (the chain stand's backend serves these)."""
+    out = work / 'semantics.tsv'
+    head = REPO / 'androidApp/src/main/assets/ml/universal_semantic_head.onnx'
+    stamp = hashlib.sha256(head.read_bytes() + (state / 'files/smart_index.bin').read_bytes()).hexdigest()[:16]
+    if out.is_file() and (work / 'semantics.stamp').is_file() and (work / 'semantics.stamp').read_text() == stamp: return
+    import numpy as np, onnxruntime as ort
+    _, rows = read_ljix(state / 'files/smart_index.bin')
+    x = np.array([v for _, v in rows], dtype=np.float32)
+    x = x / np.maximum(np.linalg.norm(x, axis=1, keepdims=True), 1e-12)   # the engine's stored unit vectors
+    sess = ort.InferenceSession(str(head))
+    y = sess.run(None, {'embedding': x})[0]
+    out.write_text(''.join(t + '\t' + '\t'.join(repr(float(v)) for v in r) + '\n' for (t, _), r in zip(rows, y)))
+    (work / 'semantics.stamp').write_text(stamp)
+
+
 def script(s):
     s = s or ''
     if re.search(r'[Ѐ-ӿ]', s): return 'cyrillic'
@@ -156,7 +192,7 @@ def read_facts(path):
 
 def run(args):
     state = Path(args.state) if args.state else newest_state()
-    bid = args.build_id or build_id()
+    bid = args.build_id or (('v0.9.1-chain-' if args.engine == 'chain' else '') + build_id())
     out = STAND / bid
     work = STAND / 'input'
     lib = prepare(state, work)
@@ -168,14 +204,15 @@ def run(args):
         SEEDS.write_text('\n'.join(choose_seeds(lib, facts)) + '\n')
         print(f'seed set fixed: {SEEDS} ({len(SEEDS.read_text().split())} seeds)')
     (work / 'seeds.tsv').write_text(SEEDS.read_text())
-    gradle(work, out)
+    if args.engine == 'chain': semantics(state, work)
+    gradle(work, out, engine=args.engine)
     (out / 'state.txt').write_text(f'state {state}\nbuild {bid}\nran {datetime.datetime.now().isoformat(timespec="seconds")}\n')
     report(out, lib)
     print(f'stand -> {out}')
 
 
-def gradle(work, out):
-    env = dict(os.environ, LJ_STAND_DIR=str(work), LJ_STAND_OUT=str(out))
+def gradle(work, out, engine='ranker'):
+    env = dict(os.environ, LJ_STAND_DIR=str(work), LJ_STAND_OUT=str(out), LJ_STAND_ENGINE=engine)
     r = subprocess.run(['./gradlew', '--no-daemon', '--offline', '-q', ':composeApp:testAndroidHostTest',
                         '--tests', '*SmartStandRunner*', '--rerun'], cwd=REPO, env=env)
     if r.returncode != 0: raise SystemExit('stand runner failed (see the gradle output above)')
@@ -308,6 +345,62 @@ def fidelity(args):
     return exact, total
 
 
+SCORE_COLS = [('maxRun', 'max run'), ('run3', 'runs≥3'), ('AxA', 'A-x-A'), ('keep1_5', 'keep 1–5'), ('keep8_20', 'keep 8–20'),
+              ('keep21_40', 'keep 21–40'), ('energyDrift', 'e drift'), ('ostInNonOst', 'OST in non-OST'),
+              ('short', 'short'), ('long', 'long'), ('sameSong', 'same song')]
+SAMPLE_SEEDS = PROBLEM_SEEDS
+
+
+def scoreboard(args):
+    """SCOREBOARD.md: one row per registered build (stand/scoreboard.json, oldest first) on the fixed seeds, CORE and
+    FULL press-0 means plus re-press overlap, and the first 15 picks of the problem seeds per build."""
+    reg = STAND / 'scoreboard.json'
+    builds = json.loads(reg.read_text()) if reg.is_file() else []
+    if args.add:
+        label, run_ = args.add
+        builds = [b for b in builds if b['run'] != run_] + [{'label': label, 'run': run_}]
+        reg.write_text(json.dumps(builds, indent=1) + '\n')
+    lib = {l.split('\t')[0]: l.split('\t') for l in (STAND / 'input/library.tsv').read_text().splitlines() if l}
+    def means(run_):
+        rows = [l.split('\t') for l in (STAND / run_ / 'metrics.tsv').read_text().splitlines()]
+        head, rows = rows[0], rows[1:]
+        out = collections.defaultdict(lambda: collections.defaultdict(list))
+        for r in rows:
+            d = dict(zip(head, r))
+            for c, _ in SCORE_COLS + [('repressOverlap', '')]:
+                v = float(d[c])
+                if not math.isnan(v): out[(d['mode'], d['press'])][c].append(v)
+        return {k: {c: sum(v) / len(v) for c, v in d.items() if v} for k, d in out.items()}
+    md = ['# SMART stand scoreboard', '', 'L1 product check only (what the owner would hear on his own library); never fitting /',
+          'choosing / gate input. Same 139 fixed seeds for every build; press-0 means over 40-row queues; re-press = top-20',
+          'overlap of presses 2 and 3 with press 1 (lower = fresher). Local file, not in git.', '']
+    for mode in ('CORE', 'FULL'):
+        md += [f'## {mode}', '', '| build | ' + ' | '.join(n for _, n in SCORE_COLS) + ' | re-press 2 / 3 |',
+               '|---|' + '---|' * (len(SCORE_COLS) + 1)]
+        for b in builds:
+            m = means(b['run'])
+            p0 = m.get((mode, '0'))
+            if not p0: continue
+            rp = ' / '.join(f"{m.get((mode, k), {}).get('repressOverlap', float('nan')):.2f}" for k in ('1', '2'))
+            md.append(f"| {b['label']} | " + ' | '.join(f'{p0.get(c, float("nan")):.2f}' for c, _ in SCORE_COLS) + f' | {rp} |')
+        md.append('')
+    md += ['## Listener samples (CORE, press 1, first 15)', '']
+    seed_ids = []
+    for artist, title in SAMPLE_SEEDS:
+        for tid, row in sorted(lib.items()):
+            if artist.lower() in row[2].lower() and title.lower() in row[1].lower(): seed_ids.append(tid); break
+    for sid in seed_ids:
+        md += [f"### {lib[sid][2]} – {lib[sid][1]}", '']
+        for b in builds:
+            q = next((json.loads(l) for l in (STAND / b['run'] / 'queues.jsonl').read_text().splitlines()
+                      if l and json.loads(l)['seed'] == sid and json.loads(l)['mode'] == 'CORE' and json.loads(l)['press'] == 0), None)
+            if q is None: continue
+            picks = [f"{lib[p['id']][2]} – {lib[p['id']][1]}" if p['id'] in lib else p['id'] for p in q['picks'][:15]]
+            md += [f"**{b['label']}**", ''] + [f'{i + 1}. {t}' for i, t in enumerate(picks)] + ['']
+    (STAND / 'SCOREBOARD.md').write_text('\n'.join(md) + '\n', encoding='utf-8')
+    print(f"scoreboard: {len(builds)} builds -> {STAND / 'SCOREBOARD.md'}")
+
+
 def rereport(args):
     """Recomputes queues.md / metrics from a run's queues.jsonl (after a metrics change), with no re-planning."""
     lib = {l.split('\t')[0]: l.split('\t') for l in (STAND / 'input/library.tsv').read_text().splitlines() if l}
@@ -340,13 +433,16 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest='cmd', required=True)
     r = sub.add_parser('run'); r.add_argument('--state'); r.add_argument('--build-id')
+    r.add_argument('--engine', choices=['ranker', 'chain'], default='ranker',
+                   help='chain = the learned ranker off: the judged chain, the v0.9.1 engine (closest runnable equivalent)')
     d = sub.add_parser('diff'); d.add_argument('a'); d.add_argument('b')
     rr = sub.add_parser('rereport'); rr.add_argument('build')
+    sb = sub.add_parser('scoreboard'); sb.add_argument('--add', nargs=2, metavar=('LABEL', 'RUN'))
     f = sub.add_parser('fidelity'); f.add_argument('--state')
     f.add_argument('--since', type=int, default=0, help='only presses at or after this epoch ms (the build install time: '
                    'earlier builds may share the model name)')
     a = ap.parse_args()
-    {'run': run, 'diff': diff, 'fidelity': fidelity, 'rereport': rereport}[a.cmd](a)
+    {'run': run, 'diff': diff, 'fidelity': fidelity, 'rereport': rereport, 'scoreboard': scoreboard}[a.cmd](a)
 
 
 if __name__ == '__main__':

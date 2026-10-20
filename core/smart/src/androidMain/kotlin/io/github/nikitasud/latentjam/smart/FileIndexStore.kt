@@ -177,6 +177,29 @@ internal class FileIndexStore private constructor(
 public suspend fun readIndexSnapshotFile(file: File, modelVersion: String): StoredIndexSnapshot? =
     FileIndexStore(file.absoluteFile.parentFile, file.name, maximumSnapshotBytes = Long.MAX_VALUE - 1).loadSnapshot(modelVersion)
 
+/**
+ * Host tools (the offline product-check stand): the phone's similarity engine as DI builds it (in-memory audio and text
+ * indexes restored from [store] / [textStore], the e cache from [energyStore]) around a host [backend].
+ */
+public fun createHostSimilarityEngine(
+    config: SmartEngineConfig,
+    backend: EmbeddingBackend,
+    store: IndexStore,
+    textStore: IndexStore?,
+    energyStore: IndexStore?,
+    artistKnowledge: io.github.nikitasud.latentjam.smart.text.ArtistKnowledge?,
+): SimilarityEngine = DefaultSimilarityEngine(
+    backend = backend,
+    index = InMemoryVectorIndex(config.embeddingDim),
+    store = store,
+    config = config,
+    dispatcher = kotlinx.coroutines.Dispatchers.Default,
+    artistKnowledge = artistKnowledge,
+    textIndex = InMemoryVectorIndex(io.github.nikitasud.latentjam.smart.text.TextEncoder.TEXT_DIM),
+    textStore = textStore,
+    energyStore = energyStore,
+)
+
 /** Versioned decoder; v1 has vectors only, v2 adds identities, and v3 adds failure identities. */
 internal fun decodeStoredIndexSnapshot(
     input: DataInputStream,

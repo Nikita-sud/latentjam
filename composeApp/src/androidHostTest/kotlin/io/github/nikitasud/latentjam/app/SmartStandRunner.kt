@@ -110,6 +110,9 @@ class SmartStandRunner {
             }
             return
         }
+        // The v0.9.1-equivalent engine: the learned ranker off, the judged chain of the phone's engine (LJ_STAND_ENGINE=chain).
+        val chain = System.getenv("LJ_STAND_ENGINE") == "chain"
+        val chainEngine = if (chain) chainEngine(dir, files, knowledge, library) else null
         val queues = StringBuilder()
         for (seed in seeds) {
             for (full in listOf(false, true)) {
@@ -125,10 +128,11 @@ class SmartStandRunner {
                         recorder.planned(queue, plan, rankOffset, model, rows)
                     }
                 }
+                if (chain && full) continue
                 val chooser = EngineNextTrackChooser(
-                    engine = NoEngine.instance, history = history, library = { library },
-                    useRanker = { true }, ranker = { ranker }, rankerHealthy = { assets.healthy },
-                    learnFromHabits = { full }, personalRanker = { full },
+                    engine = chainEngine ?: NoEngine.instance, history = history, library = { library },
+                    useRanker = { !chain }, ranker = { ranker }, rankerHealthy = { assets.healthy },
+                    learnFromHabits = { full && !chain }, personalRanker = { full },
                     presses = SmartPresses(MemoryPresses()), smartLog = log,
                     favourites = { favourites }, useFavourites = { true }, clock = { now },
                 )
@@ -204,6 +208,51 @@ class SmartStandRunner {
         }
         scope.cancel()
         target.writeText(queue.drop(1).joinToString("\n") { it.id.value } + "\n")
+    }
+
+    /**
+     * The phone's DefaultSimilarityEngine with the app's chain config (judged scoring, default artist variety), restored
+     * from the copied audio / text indexes and e cache. The audio encoder never runs (every library track is indexed);
+     * the semantic head's outputs come from semantics.tsv, computed from the same vectors by tools/diagnostics.
+     */
+    private suspend fun chainEngine(
+        dir: File, files: File, knowledge: ArtistKnowledge, library: List<TrackDescriptor>,
+    ): io.github.nikitasud.latentjam.smart.SimilarityEngine {
+        fun store(name: String) = object : io.github.nikitasud.latentjam.smart.IndexStore {
+            override suspend fun load(modelVersion: String) = loadSnapshot(modelVersion)?.entries
+            override suspend fun loadSnapshot(modelVersion: String) = readIndexSnapshotFile(File(files, name), modelVersion)
+            override suspend fun save(modelVersion: String, entries: Map<TrackId, FloatArray>) = Unit
+            override suspend fun saveSnapshot(modelVersion: String, snapshot: io.github.nikitasud.latentjam.smart.StoredIndexSnapshot) = Unit
+            override suspend fun clear() = Unit
+        }
+        val semantics = File(dir, "semantics.tsv").readLines().filter(String::isNotEmpty).associate { l ->
+            val f = l.split('\t')
+            f[0] to FloatArray(f.size - 1) { f[it + 1].toFloat() }
+        }
+        val vectors = checkNotNull(readIndexSnapshotFile(File(files, "smart_index.bin"), AUDIO_MODEL_VERSION))
+        // The engine hands the head its stored (unit) vectors: matched back to the track by the vector's bits.
+        val byVector = HashMap<List<Int>, String>()
+        val probe = InMemoryVectorIndex(vectors.entries.values.first().size)
+        for ((id, v) in vectors.entries) { probe.adopt(id, v.copyOf()); byVector[probe.vector(id)!!.map { it.toRawBits() }] = id.value }
+        val backend = object : io.github.nikitasud.latentjam.smart.EmbeddingBackend {
+            override suspend fun loadModel(): Result<Unit> = Result.success(Unit)
+            override suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray> = Result.failure(IllegalStateException("stand: no encoder"))
+            override suspend fun classify(embeddings: List<FloatArray>): Result<List<FloatArray>> = runCatching {
+                embeddings.map { e -> checkNotNull(semantics[byVector[e.map { it.toRawBits() }]]) { "stand: no semantics for a vector" } }
+            }
+            override fun close() = Unit
+        }
+        val config = io.github.nikitasud.latentjam.smart.SmartEngineConfig(
+            embeddingDim = 960, modelLocator = "ml/mnv4_audio.onnx", modelVersion = AUDIO_MODEL_VERSION, typicalityWeight = 0f,
+            continueAfterExhaustion = true, judgedScoring = true,
+            artistRunPenalty = ARTIST_VARIETY_PENALTIES[DEFAULT_ARTIST_VARIETY],
+        )
+        val engine = io.github.nikitasud.latentjam.smart.createHostSimilarityEngine(
+            config, backend, store("smart_index.bin"), store("smart_text_index.bin"), store("smart_energy.bin"), knowledge,
+        )
+        engine.initialize().getOrThrow()
+        engine.synchronizeLibrary(library = library, pruneMissing = false)
+        return engine
     }
 
     private fun q(s: String?) = if (s == null) "null" else buildString {
