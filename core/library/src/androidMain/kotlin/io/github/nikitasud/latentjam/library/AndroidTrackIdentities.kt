@@ -175,6 +175,20 @@ internal class AndroidTrackIdentities(
         val (rows, known, aliases) = synchronized(this) { Triple(currentRows, load(), sourceAliases) }
         val audio = synchronized(this) { currentAudio }
         val updates = ArrayList<Pair<Entry, TrackIdentityTags>>()
+        // Committed every REMEMBER_CHUNK reads and at the end, including completed reads before
+        // cancellation. Do not hold the registry monitor across file reads or rewrite a large registry
+        // per track; neither hold a first pass's reads for the whole library (~100 bytes a song).
+        fun commitUpdates() {
+            if (updates.isEmpty()) return
+            synchronized(this) {
+                val next = LinkedHashMap(load())
+                for ((old, facts) in updates) {
+                    if (next[old.id] == old) next[old.id] = old.copy(tags = facts, checked = old.revision)
+                }
+                commit(next)
+            }
+            updates.clear()
+        }
         try {
             for ((index, row) in rows.withIndex()) {
                 cancellationCheck()
@@ -191,17 +205,10 @@ internal class AndroidTrackIdentities(
                 )
                 val facts = safelyRead(probe) ?: continue
                 updates += old to facts
+                if (updates.size >= REMEMBER_CHUNK) commitUpdates()
             }
         } finally {
-            // One atomic write per pass, including completed reads before cancellation. Do not
-            // hold the registry monitor across file reads or rewrite a large registry per track.
-            synchronized(this) {
-                val next = LinkedHashMap(load())
-                for ((old, facts) in updates) {
-                    if (next[old.id] == old) next[old.id] = old.copy(tags = facts, checked = old.revision)
-                }
-                commit(next)
-            }
+            commitUpdates()
         }
     }
 
@@ -264,6 +271,9 @@ internal class AndroidTrackIdentities(
         const val HEADER = "latentjam-track-identities-v1"
         private const val MEDIA_STORE_SONGS = "content://media/external/audio/media/"
         private const val NO_DURATION = Long.MIN_VALUE
+
+        /** Tag reads per registry commit in [remember]. */
+        private const val REMEMBER_CHUNK = 16_384
 
         /** Marks a scanned row whose audio URI is MediaStore's own for its source (formed when read, not held). */
         private val MEDIA_STORE_URI = String(charArrayOf('-'))
