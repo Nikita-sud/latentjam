@@ -1,5 +1,6 @@
 {
  "version": 1,
+ "audioEncoder": "mnv4-960-clean-a0-fma-v1-p50q4aq",
  "assets": {
   "smart_ranker.json": {
    "size": 3317,

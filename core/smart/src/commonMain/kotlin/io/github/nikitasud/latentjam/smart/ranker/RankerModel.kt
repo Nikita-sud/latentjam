@@ -74,7 +74,17 @@ public class RankerModel(
     )
 
     /** Σ_p delta^p · [track shown at the p-th newest press] over the last [presses] presses; t −= λ · sd · that. */
-    public class Freshness(public val lambda: Double, public val delta: Double, public val presses: Int)
+    public class Freshness(
+        public val lambda: Double,
+        public val delta: Double,
+        public val presses: Int,
+        /** How far back an impression counts (FULL 14 days, CORE 2 hours); null = the device's default. */
+        public val windowMs: Long? = null,
+    )
+
+    /** The audio encoder the model's audio terms were fitted on (`inputs.audioEncoder`); null = undeclared. */
+    public var audioEncoder: String? = null
+        internal set
 
     /**
      * A candidate that does not continue the run loses λ · sd · Σ_{j=0..} γ^j · m(i, back[1 + j]) over the queue's
@@ -184,11 +194,50 @@ public class RankerModel(
             audioWeightOverride = 0.0,
         )
 
-        /** Null for a missing, malformed or incompatible asset: SMART then keeps its chain. */
+        /** The keys a model file may carry (audit 2026-10-20 #12): any other key refuses the file. */
+        private val KEYS = mapOf(
+            "" to setOf(
+                "schema", "name", "source", "provenance", "features", "mean", "sd", "weights", "runPenalty", "anchor",
+                "seedWeight", "previousWeight", "epsilon", "thirdInRowCap", "serving", "inputs", "audioWeight",
+                "artistReentry", "energy", "r1Energy", "audioAnchor", "imputedDescriptor", "seedGate", "freshness",
+            ),
+            "serving" to setOf("wholeLibraryUpTo", "quotas", "artistKey", "recentWindow", "hopBudgetMs"),
+            "inputs" to setOf("logpop", "colisten", "lfm", "audioEncoder"),
+            "artistReentry" to setOf("lambda", "k", "gamma", "credit", "creditRun"),
+            "energy" to setOf("lambda", "mode", "tau"),
+            "r1Energy" to setOf("tau"),
+            "seedGate" to setOf("core", "coreSha256", "mu", "sigma", "a", "clip", "columns", "orderR6"),
+            "freshness" to setOf("lambda", "delta", "presses", "windowMs"),
+        )
+
+        /** The first key [root] carries that this app does not implement, or null. */
+        internal fun unknownKey(root: Map<*, *>): String? {
+            fun check(path: String, m: Map<*, *>): String? {
+                val allowed = KEYS[path] ?: return null
+                for (k in m.keys) {
+                    val key = k as? String ?: return "$path.?"
+                    if (key !in allowed) return if (path.isEmpty()) key else "$path.$key"
+                    val v = m[key]
+                    if (v is Map<*, *>) check(if (path.isEmpty()) key else "$path.$key", v)?.let { return it }
+                }
+                return null
+            }
+            return check("", root)
+        }
+
+        /** [parse], with why a file is refused (an unknown key, a malformed value). */
+        public fun parseOrProblem(json: String): Pair<RankerModel?, String?> {
+            val root = runCatching { MiniJson(json).parse() as Map<*, *> }.getOrNull() ?: return null to "not a JSON object"
+            unknownKey(root)?.let { return null to "unknown model key '$it'" }
+            return parse(json)?.let { it to null } ?: (null to "invalid model")
+        }
+
+        /** Null for a missing, malformed or incompatible asset (an unknown key included): SMART then keeps its chain. */
         @Suppress("UNCHECKED_CAST")
         public fun parse(json: String): RankerModel? = runCatching {
             @Suppress("UNCHECKED_CAST")
             val root = MiniJson(json).parse() as Map<String, Any?>
+            require(unknownKey(root) == null) { "unknown model key" }
             fun numbers(key: String) = (root.getValue(key) as List<*>).map { (it as Number).toDouble() }.toDoubleArray()
             RankerModel(
                 name = root["name"] as? String ?: "ranker",
@@ -247,6 +296,7 @@ public class RankerModel(
                         lambda = (f["lambda"] as Number).toDouble(),
                         delta = (f["delta"] as? Number)?.toDouble() ?: 0.5,
                         presses = (f["presses"] as? Number)?.toInt() ?: 5,
+                        windowMs = (f["windowMs"] as? Number)?.toLong(),
                     )
                 },
                 artistReentry = (root["artistReentry"] as? Map<*, *>)?.let { m ->
@@ -258,7 +308,7 @@ public class RankerModel(
                         creditRun = m["creditRun"] == true,
                     )
                 },
-            )
+            ).also { m -> m.audioEncoder = (root["inputs"] as? Map<*, *>)?.get("audioEncoder") as? String }
         }.getOrNull()
     }
 }

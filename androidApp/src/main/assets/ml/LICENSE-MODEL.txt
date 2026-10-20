@@ -19,55 +19,28 @@ artist_colisten.bin, artist_known.bin and artist_pop.bin are CC0-1.0 (see below)
 
 Copyright (c) 2026 LatentJam Project
 
-mnv4_audio.onnx is a pruned copy of a 960-dimensional MobileNetV4-Conv-M
-student initialized from the previous EfficientAT MN10 distillation, then
-retrieval-distilled with MN10 preservation, EfficientAT DyMN20 relational
-supervision, and public playlist-transition supervision. This experimental
-weight file has not yet passed the training-data rights review required for a
-public release.
-The pruned copy keeps half of the expanded channels of each of its 21
-inverted-residual blocks and half of the head convolution's 1,280 hidden
-units: those with the largest mean activation on calibration audio, weighted
-by the size of the weights that read them. Its log-mel DFT is computed as a
-four-step FFT (two 32-point stages of matrix products) instead of a
-convolution over stored kernels; the math is the same. Its 45 pointwise
-convolutions and its final projection hold symmetric 4-bit weights and run on
-LatentJam's own operator (core/ort-ops): the 44 convolutions over time and
-frequency with a float scale per output channel over a clipping range learned
-in training, the head convolution and the projection, which run once per
-window, in blocks of 32 inputs with a bfloat16 scale each. The pruned network
-was trained by quantization-aware distillation, learning to reproduce the
-unpruned float encoder's embeddings of 10 s windows from 8,222 Free Music
-Archive tracks released under CC BY, CC0 or public domain (no share-alike or
-no-derivatives licence), then fine-tuned for five epochs against the same
-float encoder with the graph's INT8 convolutions and uint8 activations
-simulated, on one 10 s crop from each of 15,000 tracks: 1,734 Free Music
-Archive tracks under the same licences and 13,266 Million Playlist Dataset
-preview clips outside the evaluation libraries. The graph is built from it by
-tools/research/model_diet/qat_audio.py, distill_audio_cached.py and
-make_q4_encoder.py. Its other convolution weights are INT8 (per-channel); its
-activation ranges are the ones learned in that fine-tune where the training
-simulates them, and otherwise calibrated on the first 10 s of 200 Free Music
-Archive tracks under CC BY, CC BY-SA, CC0 or public domain; no audio is stored
-in the model. Its track embeddings sit at a mean cosine of 0.992 to the
-unpruned float encoder's, against 0.997 for the previous, unpruned 4-bit
-graph.
-universal_semantic_head.onnx is a compact 27-label routing head over those
-960-dimensional embeddings. It preserves the calibrated FMA genre branch and
-the EfficientAT MN10 hidden projection while pruning the AudioSet teacher from
-527 outputs to the 59 source concepts needed for genre, mood, energy, speech,
-sound effects, novelty-proxy, and instrumental scores. Its FMA-derived branch
-has not passed the source-audio rights review required for public
-redistribution. The novelty output is only a weak acoustic proxy and the app
-requires metadata corroboration before naming a meme/viral mix. Its two
-largest matrices are 4-bit blocks (ONNX Runtime's MatMulNBits), fine-tuned to
-reproduce the FP16 head's outputs on audio vectors of libraries assembled from
-Million Playlist Dataset playlists and their preview audio, and of Free Music
-Archive tracks. That preview audio, like the music encoder's training data,
-has not passed the rights review required for a public release.
-universal_semantic_head.onnx combines parameters trained by LatentJam, licensed
-Apache-2.0, with parameters copied from the EfficientAT MN10 checkpoint, licensed
-MIT as reproduced below.
+mnv4_audio.onnx is the A0 MobileNetV4-Conv-M student from the 2026-10-10
+clean-data experiment. It was randomly initialized at the pruned p50 shape,
+then distilled from EfficientAT MN10 on 6,311 FMA tracks whose recorded
+licences are CC BY, CC0 or public domain (256.98 hours). No MPD preview audio,
+playlist labels, previous student weights or generated audio trained A0.
+Its 46 pointwise/projection operators use LatentJam Q4Conv1x1; other
+convolutions are INT8. Export calibration uses 200 windows from the same
+licence-filtered FMA training set. The contract is waveform [1,320000] to
+embedding [1,960]. The teacher itself was pretrained on AudioSet; the
+student's data filtering does not assert independent rights clearance of
+the teacher's original training corpus.
+
+universal_semantic_head.onnx is the A0-nosyn head: 27 logistic regressions
+with freshly fitted coefficients, trained on clean FMA embeddings and
+EfficientAT MN10 targets, plus the FMA genre labels. It uses no synthetic
+clips and no MPD-fitted weights. The output order remains the 27-label
+semantic_scores contract. The routing scores are not general probabilities
+of a listener's preference. Both replacement weight files are licensed
+Apache-2.0 by LatentJam. The older SMART chain, used only when the learned
+ranker is switched off, still carries constants fitted on the Million Playlist
+Dataset; the learned ranker and its assets use none.
+
 The student implementation used PyTorch Image Models (timm), licensed
 Apache-2.0. EfficientAT code and published weights are licensed MIT:
 

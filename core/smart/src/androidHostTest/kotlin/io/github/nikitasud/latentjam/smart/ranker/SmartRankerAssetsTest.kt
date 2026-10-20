@@ -50,4 +50,30 @@ class SmartRankerAssetsTest {
             assertEquals("rule-only", plan.model, broken)
         }
     }
+
+    @Test
+    fun anotherAudioEncoderIsRefusedVisibly() = runTest {
+        val assets = SmartRankerAssets(null, ::read, audioEncoder = "mnv4-960-retrieval-distill-v1-p50q4aq")
+        assets.ranker
+        assertFalse(assets.healthy)
+        assertTrue(assets.problem!!.contains("embedding_version.txt"), assets.problem)
+        val head = SmartRankerAssets(null, { name ->
+            if (name == "semantic_version.txt") AssetBytes.of("x\nencoder=other\n".encodeToByteArray()) else read(name)
+        })
+        head.ranker
+        assertTrue(head.problem!!.contains("semantic_version.txt"), head.problem)
+    }
+
+    @Test
+    fun aModelWithAKeyTheAppDoesNotImplementIsRefused() = runTest {
+        val core = File(ml, "smart_ranker.json").readText()
+        assertTrue(RankerModel.parse(core) != null)
+        val unknown = core.replaceFirst("{", "{\"coreOffset\": 0.5, ")
+        assertNull(RankerModel.parse(unknown))
+        assertEquals("unknown model key 'coreOffset'", RankerModel.parseOrProblem(unknown).second)
+        val nested = core.replaceFirst("\"serving\": {", "\"serving\": {\"poolTarget\": 400, ")
+        assertEquals("unknown model key 'serving.poolTarget'", RankerModel.parseOrProblem(nested).second)
+        val declared = core.replaceFirst("\"inputs\": {", "\"inputs\": {\"audioEncoder\": \"other\", ")
+        assertEquals("other", RankerModel.parse(declared)?.audioEncoder)
+    }
 }

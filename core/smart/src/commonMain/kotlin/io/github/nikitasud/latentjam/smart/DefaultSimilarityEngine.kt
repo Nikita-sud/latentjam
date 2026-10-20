@@ -549,7 +549,7 @@ internal class DefaultSimilarityEngine(
     }
 
     private suspend fun restoreEnergies() {
-        val stored = runCatching { energyStore?.loadSnapshot(ENERGY_VERSION) }.getOrNull() ?: return
+        val stored = runCatching { energyStore?.loadSnapshot(energyVersion(config.modelVersion)) }.getOrNull() ?: return
         for ((id, v) in stored.entries) {
             // Only e computed from the vector the index holds now.
             val identity = stored.identities[id] ?: continue
@@ -563,7 +563,7 @@ internal class DefaultSimilarityEngine(
         val target = energyStore ?: return
         runCatching {
             target.saveSnapshot(
-                ENERGY_VERSION,
+                energyVersion(config.modelVersion),
                 StoredIndexSnapshot(
                     entries = energies.mapValues { (_, e) -> floatArrayOf(e) },
                     identities = energyIdentities.toMap(),
@@ -1623,6 +1623,9 @@ internal class DefaultSimilarityEngine(
 
         /** The e store's version key: the semantic head's output on this encoder's vectors. */
         const val ENERGY_VERSION = "semantic-energy-v1"
+
+        /** The e cache is keyed by the encoder that produced the vectors as well as the head that read them. */
+        fun energyVersion(encoder: String): String = "$ENERGY_VERSION-$encoder"
 
         const val AUDIO_IDENTITY_VERSION = "audio-v1"
         // v2 deliberately invalidates markers written before transient and deterministic audio

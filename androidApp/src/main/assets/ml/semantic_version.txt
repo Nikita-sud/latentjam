@@ -1,3 +1,4 @@
-universal-semantic-v1-nbits4
+semantic-27-clean-a0-nosyn-lr-v1
 labels=27
-sha256=3f248153d0f2edfa2e6c1e8d1c61942b14624769906c59094bbd2b9738d3c34a
+sha256=c9ceb0f32cc8b765a64261242893ac6eb29e0b49c9dbdc742f2d265f70b34f47
+encoder=mnv4-960-clean-a0-fma-v1-p50q4aq

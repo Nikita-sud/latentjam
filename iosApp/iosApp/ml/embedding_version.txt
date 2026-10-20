@@ -1,1 +1,1 @@
-mnv4-960-retrieval-distill-v1-p50q4aq
+mnv4-960-clean-a0-fma-v1-p50q4aq

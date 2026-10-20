@@ -106,11 +106,11 @@
     },
     "mnv4_audio.onnx": {
       "license": "Apache-2.0",
-      "provenance": "LICENSE-MODEL.txt; training-data rights review pending"
+      "provenance": "LICENSE-MODEL.txt; clean A0 student (mnv4-960-clean-a0-fma-v1-p50q4aq), distilled on CC BY / CC0 / public-domain FMA tracks; teacher's AudioSet pretraining not independently cleared"
     },
     "universal_semantic_head.onnx": {
-      "license": "Apache-2.0 AND MIT",
-      "provenance": "LICENSE-MODEL.txt; training-data rights review pending"
+      "license": "Apache-2.0",
+      "provenance": "LICENSE-MODEL.txt; A0-nosyn head (sha256 c9ceb0f3), fitted on clean FMA embeddings, no synthetic clips, no MPD-fitted weights"
     },
     "smart_ranker.json": {
       "license": "Apache-2.0",

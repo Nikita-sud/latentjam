@@ -103,6 +103,12 @@ internal class OnnxEmbeddingBackend(
     override suspend fun loadSemanticModel(): Result<Unit> {
         if (semanticSession != null) return Result.success(Unit)
         return try {
+            // The head must be the one fitted on this encoder's vectors (audit 2026-10-20 #1).
+            val fittedOn = context.assets.open(SEMANTIC_VERSION_PATH).bufferedReader().use { r ->
+                r.readLines().firstOrNull { it.startsWith("encoder=") }?.removePrefix("encoder=")?.trim()
+            }
+            val encoder = context.assets.open(EMBEDDING_VERSION_PATH).bufferedReader().use { it.readLine()?.trim() }
+            check(fittedOn == encoder) { "semantic head fitted on encoder $fittedOn, the bundled encoder is $encoder" }
             val semanticBytes = context.assets.open(SEMANTIC_ASSET_PATH).use { it.readExactly() }
             semanticSession = createOrtSession(semanticBytes)
             Result.success(Unit)
@@ -415,6 +421,8 @@ internal class OnnxEmbeddingBackend(
         const val INPUT_NAME = "waveform"
         const val DEFAULT_ASSET_PATH = "ml/mnv4_audio.onnx"
         const val SEMANTIC_ASSET_PATH = "ml/universal_semantic_head.onnx"
+        const val SEMANTIC_VERSION_PATH = "ml/semantic_version.txt"
+        const val EMBEDDING_VERSION_PATH = "ml/embedding_version.txt"
         const val SEMANTIC_INPUT_NAME = "embedding"
         val WINDOW_POSITIONS = listOf(0.2, 0.5, 0.8)
         val INFERENCE_GAINS = listOf(1f, 0.5f, 0.25f)

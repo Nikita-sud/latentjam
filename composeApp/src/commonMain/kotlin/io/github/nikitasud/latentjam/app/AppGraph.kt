@@ -152,7 +152,9 @@ object AppGraph {
                                 // Must match assets/ml/embedding_version.txt;
                                 // keys the persisted index snapshot, so a new encoder
                                 // re-indexes the library instead of mixing two spaces.
-                                modelVersion = "mnv4-960-retrieval-distill-v1-p50q4aq",
+                                // The FMA-only A0 encoder (no MPD audio or labels): every audio asset the ranker
+                                // uses (tagger, semantic head, audioWeight, the energy constants) was fitted on it.
+                                modelVersion = io.github.nikitasud.latentjam.smart.AUDIO_MODEL_VERSION,
                                 // EXPERIMENT CONCLUDED, off. Two weeks live at 0.3f
                                 // (2026-07-27 → 08-12): SMART skip rate 0.469 pre vs 0.463
                                 // post over 783/363 events, Fisher p=0.90, with the

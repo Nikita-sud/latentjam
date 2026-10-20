@@ -9,7 +9,9 @@ from pathlib import Path
 ASSETS = ['smart_ranker.json', 'smart_ranker_full.json', 'artist_colisten.bin', 'artist_lfm.bin', 'artist_known.bin',
           'audio_tagger.json', 'audio_tagger.bin', 'artist_pop.bin', 'artist_family.bin']
 d = Path(sys.argv[1])
-out = {'version': 1, 'assets': {n: {'size': (d / n).stat().st_size, 'sha256': hashlib.sha256((d / n).read_bytes()).hexdigest()}
+# Every audio-derived asset is fitted on one encoder (audit 2026-10-20 #1); the app refuses a different one.
+encoder = (d / 'embedding_version.txt').read_text().splitlines()[0].strip()
+out = {'version': 1, 'audioEncoder': encoder, 'assets': {n: {'size': (d / n).stat().st_size, 'sha256': hashlib.sha256((d / n).read_bytes()).hexdigest()}
                                 for n in ASSETS}}
 (d / 'smart_manifest.json').write_text(json.dumps(out, indent=1) + '\n')
 print(json.dumps(out, indent=1))
