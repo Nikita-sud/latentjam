@@ -319,7 +319,7 @@ internal class MediaStoreMusicLibrary(
         val cursor = context.contentResolver.query(
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
             projection,
-            "${MediaStore.Audio.Media.IS_MUSIC} != 0",
+            MUSIC_SELECTION,
             null,
             "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC",
         ) ?: return null
@@ -429,7 +429,7 @@ internal class MediaStoreMusicLibrary(
         context.contentResolver.query(
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
             arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.ALBUM_ID),
-            "${MediaStore.Audio.Media.IS_MUSIC} != 0",
+            MUSIC_SELECTION,
             null,
             null,
         )?.use { cursor ->
@@ -649,6 +649,22 @@ internal class MediaStoreMusicLibrary(
     private fun String?.knownTagOrNull(): String? = knownOrNull()?.let(TextRepair::repair)
 
     private companion object {
+        /**
+         * Music only (audit 07 #5): IS_MUSIC, and none of the system's podcast / audiobook / recording flags where the
+         * platform has them (IS_PODCAST always, IS_AUDIOBOOK from API 29, IS_RECORDING from API 31). A NULL flag is
+         * "not marked".
+         */
+        val MUSIC_SELECTION: String = buildString {
+            append("${MediaStore.Audio.Media.IS_MUSIC} != 0")
+            append(" AND (${MediaStore.Audio.Media.IS_PODCAST} IS NULL OR ${MediaStore.Audio.Media.IS_PODCAST} = 0)")
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                append(" AND (${MediaStore.Audio.Media.IS_AUDIOBOOK} IS NULL OR ${MediaStore.Audio.Media.IS_AUDIOBOOK} = 0)")
+            }
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                append(" AND (${MediaStore.Audio.Media.IS_RECORDING} IS NULL OR ${MediaStore.Audio.Media.IS_RECORDING} = 0)")
+            }
+        }
+
         /** MediaStore.Audio.AudioColumns.ALBUM_ARTIST, whose constant is hidden below API 30. */
         const val ALBUM_ARTIST = "album_artist"
         const val HIDDEN_FILE_NAME = "hidden_tracks.txt"
