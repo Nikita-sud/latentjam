@@ -138,6 +138,16 @@ a restart; an unhealthy manifest and a throwing audio index still fill the queue
   checked separately (not in the ranker).
 - **Open**: parity of the audio tagger on on-device (4-bit) A0 vectors waits for a debuggable build.
 
+## Final models on the phone (20 October, PRE-E product check)
+
+- a6e01704 ships model_core_final.json (f9db1ec8) as smart_ranker.json and model_full_final.json (54fd0a4b) as
+  smart_ranker_full.json, with artist_pop.bin and artist_family.bin. This is not the formal hand-off; the E gates
+  are running.
+- Installed on the owner's phone 13:30 as an update (APK d5c56529…; notes beside the APK in
+  ~/Documents/LJ/releases/test-builds/2026-10-20/). Launch OK.
+- The first plan was FULL final: 20 picks from the model, a 184-track pool from 1,106 candidates, 1,196 ms
+  including the one-time asset load and manifest hashing.
+
 ## 48 MB with 10k tracks (follow-up, 19 October late evening)
 
 - The low-memory fixes asked for (fix/low-memory-launch, fix/smart-press-memory) are **already in this line**, rebased
