@@ -92,6 +92,7 @@ public class SmartRankerAssets(
             taxonomy = taxonomy,
             // Keyed by the encoder and the tagger's weights: either changing discards the kept outputs.
             imputations = tagger?.let { ImputationCache(it, imputationStore, "tagger-$taggerVersion-$audioEncoder") },
+            linearHeads = text(HEADS)?.let(LinearHeads::parse),
         )
     }
 
@@ -142,6 +143,7 @@ public class SmartRankerAssets(
         public const val FAMILIES: String = "artist_family.bin"
         public const val FAMILIES_L2: String = "artist_family_l2.bin"
         public const val GENRE_FAMILIES: String = "genre_families.json"
+        public const val HEADS: String = "heads.json"
         public const val EMBEDDING_VERSION: String = "embedding_version.txt"
         public const val SEMANTIC_VERSION: String = "semantic_version.txt"
     }

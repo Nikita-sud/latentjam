@@ -38,3 +38,76 @@ internal object Holidays {
         return m to d
     }
 }
+
+/** Fast 3.2 rule penalties (reference.py rule_penalties): seed-dependent, subtracted in the decoder after the spread. */
+internal object RulePenalties {
+    private val FLAG_WORDS = listOf("intro", "outro", "skit", "interlude", "reprise", "интро", "скит")
+
+    /** Python's `\w`: a letter, digit or underscore (Unicode). */
+    private fun wordChar(c: Char) = c.isLetterOrDigit() || c == '_'
+
+    /** reference.title_flagged: a flag word with word boundaries on both sides, or "(short)", in the lower-cased title. */
+    fun titleFlagged(title: String?): Boolean {
+        val t = title.orEmpty().lowercase()
+        if ("(short)" in t) return true
+        for (w in FLAG_WORDS) {
+            var at = t.indexOf(w)
+            while (at >= 0) {
+                val before = at == 0 || !wordChar(t[at - 1])
+                val end = at + w.length
+                val after = end == t.length || !wordChar(t[end])
+                if (before && after) return true
+                at = t.indexOf(w, at + 1)
+            }
+        }
+        return false
+    }
+
+    /** Per pool row: the duration rule and the title flags; null when every row is 0. */
+    fun of(model: RankerModel, seedDurationMs: Long?, seedTitle: String?, durations: List<Long?>, titles: List<String?>): DoubleArray? {
+        val out = DoubleArray(durations.size)
+        model.durationRule?.let { r ->
+            for (j in durations.indices) {
+                val d = durations[j] ?: continue
+                if (d > r.longMs && !(seedDurationMs != null && seedDurationMs >= r.seedLongMs)) out[j] += r.longLambda
+                if (d < r.shortMs && !(seedDurationMs != null && seedDurationMs < r.shortMs)) out[j] += r.shortLambda
+            }
+        }
+        model.titleFlags?.let { lam ->
+            if (!titleFlagged(seedTitle)) for (j in titles.indices) if (titleFlagged(titles[j])) out[j] += lam
+        }
+        return out.takeIf { o -> o.any { it != 0.0 } }
+    }
+}
+
+/**
+ * Fast 3.2 linear audio heads (heads_fast32.json, lj-fast4-heads/1): y = Σ (x_i − mean_in_i) · W_i + mean_out over the
+ * L2-normalised A0 track vector. A pure function of the stored vector, so it is computed from the press's batched read.
+ */
+public class LinearHeads private constructor(private val heads: Map<String, Triple<DoubleArray, DoubleArray, Double>>) {
+    public val names: Set<String> get() = heads.keys
+
+    public fun value(name: String, unitVector: FloatArray): Double? {
+        val (mean, w, out) = heads[name] ?: return null
+        if (unitVector.size != mean.size) return null
+        var y = 0.0
+        for (i in mean.indices) y += (unitVector[i] - mean[i]) * w[i]
+        return y + out
+    }
+
+    public companion object {
+        @Suppress("UNCHECKED_CAST")
+        public fun parse(json: String): LinearHeads? = runCatching {
+            val root = MiniJson(json).parse() as Map<String, Any?>
+            require((root["schema"] as String).startsWith("lj-fast4-heads/1"))
+            LinearHeads((root["heads"] as Map<String, Any?>).mapValues { (_, v) ->
+                val h = v as Map<String, Any?>
+                require(h["kind"] == "linear")
+                val mean = (h["mean_in"] as List<*>).map { (it as Number).toDouble() }.toDoubleArray()
+                val w = (h["W"] as List<*>).map { ((it as List<*>)[0] as Number).toDouble() }.toDoubleArray()
+                require(mean.size == w.size)
+                Triple(mean, w, ((h["mean_out"] as List<*>)[0] as Number).toDouble())
+            })
+        }.getOrNull()
+    }
+}

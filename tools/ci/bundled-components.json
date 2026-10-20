@@ -76,6 +76,10 @@
       "license": "Apache-2.0 AND CC0-1.0",
       "provenance": "PLAN_L2 genre taxonomy (tools/research/listenbrainz_eval/serving/taxonomy.py); MusicBrainz genre tree (CC0)"
     },
+    "heads.json": {
+      "license": "Apache-2.0",
+      "provenance": "LICENSE-MODEL.txt; fast 3.2 linear audio heads (instrumentalness) on the clean A0 vectors of licence-filtered FMA tracks"
+    },
     "artist_colisten.bin": {
       "license": "CC0-1.0",
       "provenance": "ListenBrainz listens (CC0), artist co-listening neighbours; tools/research/ranker/pack_colisten.py"

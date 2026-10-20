@@ -39,4 +39,39 @@ class TrackL2Test {
         assertFalse(AlbumKeys.isVarious("Vanessa"))
         assertFalse(AlbumKeys.isVarious(null))
     }
+
+    @Test
+    fun titleFlagsUsePythonWordBoundaries() {
+        // reference.TITLE_FLAG_RE on the lower-cased title (Python's Unicode \b).
+        assertTrue(RulePenalties.titleFlagged("Intro"))
+        assertTrue(RulePenalties.titleFlagged("Skit (Interlude)"))
+        assertTrue(RulePenalties.titleFlagged("Song (Short)"))
+        assertTrue(RulePenalties.titleFlagged("Интро"))
+        assertTrue(RulePenalties.titleFlagged("часть 2: скит"))
+        assertFalse(RulePenalties.titleFlagged("Introduction"))
+        assertFalse(RulePenalties.titleFlagged("Reprised"))
+        assertFalse(RulePenalties.titleFlagged("Интровертный"))
+        assertFalse(RulePenalties.titleFlagged(null))
+    }
+
+    @Test
+    fun theShippedInstrumentalnessHeadParses() {
+        val heads = assertNotNull(LinearHeads.parse(File("../../androidApp/src/main/assets/ml/heads.json").readText()))
+        assertEquals(setOf("instrumentalness"), heads.names)
+        val v = FloatArray(960) { 1f / kotlin.math.sqrt(960f) }
+        assertTrue(heads.value("instrumentalness", v)!!.isFinite())
+    }
+
+    @Test
+    fun theInstrumentalnessHeadMatchesNumpy() {
+        // heads_fast32.json's formula in numpy on the tagger golden's (public) vectors, L2-normalised as the index stores them.
+        val heads = assertNotNull(LinearHeads.parse(File("../../androidApp/src/main/assets/ml/heads.json").readText()))
+        val expected = listOf(0.6755881633445623, 0.6108707534541727, 0.7410859069679542, 0.57757338796027, 0.6572518849331415, 0.7924251286062861)
+        val rows = javaClass.getResource("/audio_tagger_golden.tsv")!!.readText().lines().filter(String::isNotEmpty)
+        for ((i, line) in rows.withIndex()) {
+            val x = line.split('\t')[0].split(',').map(String::toFloat).toFloatArray()
+            val unit = assertNotNull(SmartRanker.normalized(x))
+            assertEquals(expected[i], heads.value("instrumentalness", unit)!!, 1e-6)
+        }
+    }
 }

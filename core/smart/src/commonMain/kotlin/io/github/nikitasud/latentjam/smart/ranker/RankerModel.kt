@@ -71,6 +71,12 @@ public class RankerModel(
     public val familyNearScale: Double = 0.0,
     /** Fast 3.1: −λ for a holiday track when the press is outside 15 Nov – 10 Jan (UTC) and the seed is not one. */
     public val holidaySeason: Double? = null,
+    /** Fast 3.2 decoder rule penalties (subtracted after the spread): long / short tracks against the seed's length. */
+    public val durationRule: DurationRule? = null,
+    /** Fast 3.2: −λ for an intro / outro / skit / interlude / reprise / "(short)" title unless the seed has one. */
+    public val titleFlags: Double? = null,
+    /** Fast 3.2 (off in the shipped models): a seed with no family and no descriptor scores on the seed only. */
+    public val unknownSeedAnchor: Boolean = false,
     /** Fast 3: −λ for a candidate in [ClassMismatch.families] when the seed is not. */
     public val classMismatch: ClassMismatch? = null,
     /** Fast 4: seed-anchored continuity on cached audio heads, in head-name order. */
@@ -86,8 +92,25 @@ public class RankerModel(
 
     public class ClassMismatch(public val lambda: Double, public val families: Set<String>)
 
-    /** −λ · max(0, |x − x_seed| / pool sd − τ) over the head [name]'s cached value x. */
-    public class Continuity(public val name: String, public val lambda: Double, public val tau: Double)
+    /**
+     * −λ · max(0, |x − x_seed| / pool sd − τ) over the head [name]'s cached value x; with [seedFamilies], only for a
+     * seed of those families; with [seedMin], only when the seed's own value is at least it.
+     */
+    public class Continuity(
+        public val name: String,
+        public val lambda: Double,
+        public val tau: Double,
+        public val seedFamilies: Set<String>? = null,
+        public val seedMin: Double? = null,
+    )
+
+    public class DurationRule(
+        public val longMs: Long,
+        public val longLambda: Double,
+        public val seedLongMs: Long,
+        public val shortMs: Long,
+        public val shortLambda: Double,
+    )
 
     /** The novelty set beyond its [hardLast] newest stays in the pool, losing λ · sd · (1 − age / 24 h). */
     public class SoftNovelty(public val lambda: Double, public val hardLast: Int)
@@ -245,10 +268,13 @@ public class RankerModel(
                 "seedWeight", "previousWeight", "epsilon", "thirdInRowCap", "serving", "inputs", "audioWeight",
                 "artistReentry", "energy", "r1Energy", "audioAnchor", "imputedDescriptor", "seedGate", "freshness", "coreOffset",
                 "audioZ", "softNovelty", "anchorShare", "colistenPrevShare", "familyMismatch", "classMismatch", "continuity", "holidaySeason",
+                "durationRule", "titleFlags", "unknownSeedAnchor",
             ),
             "anchorShare" to setOf("share", "columns"),
             "familyMismatch" to setOf("lambda", "near", "nearScale"),
             "holidaySeason" to setOf("lambda"),
+            "durationRule" to setOf("longMs", "longLambda", "seedLongMs", "shortMs", "shortLambda"),
+            "titleFlags" to setOf("lambda"),
             "classMismatch" to setOf("lambda", "families"),
             "softNovelty" to setOf("lambda", "hardLast"),
             "serving" to setOf("wholeLibraryUpTo", "quotas", "artistKey", "recentWindow", "hopBudgetMs", "l2", "poolTarget", "artistCap", "unknownSeedAudioFill"),
@@ -344,11 +370,28 @@ public class RankerModel(
                     .map { p -> (p as List<*>).map { it as String }.toSet() }.toSet(),
                 familyNearScale = ((root["familyMismatch"] as? Map<*, *>)?.get("nearScale") as? Number)?.toDouble() ?: 0.0,
                 holidaySeason = (root["holidaySeason"] as? Map<*, *>)?.let { (it["lambda"] as Number).toDouble() },
+                durationRule = (root["durationRule"] as? Map<*, *>)?.let { d ->
+                    DurationRule(
+                        longMs = (d["longMs"] as? Number)?.toLong() ?: 900_000, longLambda = (d["longLambda"] as? Number)?.toDouble() ?: 0.0,
+                        seedLongMs = (d["seedLongMs"] as? Number)?.toLong() ?: 600_000, shortMs = (d["shortMs"] as? Number)?.toLong() ?: 90_000,
+                        shortLambda = (d["shortLambda"] as? Number)?.toDouble() ?: 0.0,
+                    )
+                },
+                titleFlags = (root["titleFlags"] as? Map<*, *>)?.let { (it["lambda"] as Number).toDouble() },
+                unknownSeedAnchor = root["unknownSeedAnchor"] == "seed",
                 classMismatch = (root["classMismatch"] as? Map<*, *>)?.let { c ->
                     ClassMismatch((c["lambda"] as Number).toDouble(), ((c["families"] as? List<*>)?.map { it as String } ?: listOf("soundtrack")).toSet())
                 },
                 continuity = (root["continuity"] as? Map<*, *>).orEmpty().entries
-                    .map { (k, v) -> (v as Map<*, *>).let { Continuity(k as String, (it["lambda"] as Number).toDouble(), (it["tau"] as? Number)?.toDouble() ?: 0.25) } }
+                    .map { (k, v) ->
+                        (v as Map<*, *>).let {
+                            Continuity(
+                                k as String, (it["lambda"] as Number).toDouble(), (it["tau"] as? Number)?.toDouble() ?: 0.25,
+                                seedFamilies = (it["seedFamilies"] as? List<*>)?.takeIf { l -> l.isNotEmpty() }?.map { f -> f as String }?.toSet(),
+                                seedMin = (it["seedMin"] as? Number)?.toDouble(),
+                            )
+                        }
+                    }
                     .sortedBy { it.name },
                 softNovelty = (root["softNovelty"] as? Map<*, *>)?.let { n ->
                     SoftNovelty(lambda = (n["lambda"] as Number).toDouble(), hardLast = (n["hardLast"] as? Number)?.toInt() ?: 10)

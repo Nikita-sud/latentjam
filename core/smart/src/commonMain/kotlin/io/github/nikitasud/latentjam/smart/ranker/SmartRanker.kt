@@ -73,6 +73,10 @@ public object RankerQueue {
         holiday: BooleanArray? = null,
         /** Fast 4 continuity: per model head, each row's value (NaN = unknown) and the seed's (null = term off). */
         heads: List<Pair<DoubleArray, Double?>>? = null,
+        /** Fast 3.2 rule penalties per row (duration, title flags), subtracted after the spread; null = none. */
+        rulePenalties: DoubleArray? = null,
+        /** Fast 3.2 unknownSeedAnchor: the seed has no family and no descriptor. */
+        seedUnknown: Boolean = false,
         features: (anchor: Int) -> Array<DoubleArray>,
     ): List<Int> {
         if (poolSize == 0 || length <= 0) return emptyList()
@@ -112,6 +116,7 @@ public object RankerQueue {
             return buildCreditRun(
                 model, re, poolSize, artistKeys, seedArtist, tieOrder, length, choose, take, blocked, stop, trace,
                 credits, seedCredits, seedScores, ::scores, fresh, energies, seedEnergy, audioAgainst, novelty, heads,
+                seedFamily, rulePenalties, seedUnknown,
             )
         }
         val open = BooleanArray(poolSize) { true }
@@ -233,6 +238,9 @@ public object RankerQueue {
         audioAgainst: ((anchor: Int) -> DoubleArray)?,
         novelty: DoubleArray?,
         heads: List<Pair<DoubleArray, Double?>>?,
+        seedFamily: String?,
+        rulePenalties: DoubleArray?,
+        seedUnknown: Boolean,
     ): List<Int> {
         fun creditsOf(i: Int) = credits?.get(i) ?: NO_CREDITS
         val open = BooleanArray(poolSize) { true }
@@ -246,7 +254,7 @@ public object RankerQueue {
         repeat(minOf(length, poolSize)) {
             if (picks.isNotEmpty() && stop()) return picks
             val s = when {
-                picks.isEmpty() || model.anchor == RankerModel.Anchor.SEED -> seedScores
+                picks.isEmpty() || model.anchor == RankerModel.Anchor.SEED || (model.unknownSeedAnchor && seedUnknown) -> seedScores
                 model.anchor == RankerModel.Anchor.PREVIOUS -> scores(picks.last())
                 else -> {
                     val previous = scores(picks.last())
@@ -298,6 +306,9 @@ public object RankerQueue {
             if (heads != null) for ((hi, spec) in model.continuity.withIndex()) {
                 val (values, seedValue) = heads.getOrNull(hi) ?: continue
                 if (seedValue == null) continue
+                // Fast 3.2 gates: the seed's family, and the seed's own value.
+                if (spec.seedFamilies != null && seedFamily !in spec.seedFamilies) continue
+                if (spec.seedMin != null && seedValue < spec.seedMin) continue
                 var sum = 0.0
                 var n = 0
                 for (i in 0 until poolSize) if (allowed[i] && !values[i].isNaN()) { sum += values[i]; n++ }
@@ -326,6 +337,7 @@ public object RankerQueue {
                     v -= pen * sd
                 }
                 if (novelty != null && novelty[i] != 0.0) v -= model.softNovelty!!.lambda * sd * novelty[i]
+                if (rulePenalties != null && rulePenalties[i] != 0.0) v -= rulePenalties[i]
                 terms?.let { it[1][i] = mark - v }
                 mark = v
                 if (aPrev != null) v += model.audioWeight * aPrev[i]
@@ -660,6 +672,8 @@ public class SmartRanker(
     private val taxonomy: GenreFamilies? = null,
     /** The tagger's output computed at indexing (audits 04 #2 / 05 #5); plans read it and fall back to the budget. */
     private val imputations: ImputationCache? = null,
+    /** Fast 3.2 continuity heads computed from the press's vectors; null = the AudioSource's cached values. */
+    private val linearHeads: LinearHeads? = null,
 ) {
     private val l2Tracks: Boolean = taxonomy != null && (model.serving.l2 || fullModel?.serving?.l2 == true)
 
@@ -1021,8 +1035,13 @@ public class SmartRanker(
             holiday = active.holidaySeason?.takeIf { !Holidays.inSeason(request.seedMs) && !Holidays.isHoliday(seedKnown.track) }
                 ?.let { BooleanArray(pool.size) { i -> Holidays.isHoliday(pool[i].track) } },
             heads = if (active.continuity.isEmpty()) null else active.continuity.map { h ->
-                DoubleArray(pool.size) { i -> headOf(h.name, pool[i].track.id) ?: Double.NaN } to headOf(h.name, seedKnown.track.id)
+                DoubleArray(pool.size) { i -> headValue(h.name, pool[i].track.id, rawVectors) ?: Double.NaN } to
+                    headValue(h.name, seedKnown.track.id, rawVectors)
             },
+            rulePenalties = if (active.durationRule == null && active.titleFlags == null) null else RulePenalties.of(
+                active, seedKnown.durationMs, seedKnown.track.title, pool.map { it.durationMs }, pool.map { it.track.title },
+            ),
+            seedUnknown = seedKnown.family == null && seedKnown.packDescriptor == null && seedKnown.imputedDescriptor == null,
             novelty = if (active.softNovelty != null) DoubleArray(pool.size) { i ->
                 noveltyAge[pool[i].track.id]?.let { maxOf(0.0, 1.0 - it.toDouble() / NOVELTY_MS) } ?: 0.0
             } else null,
@@ -1170,6 +1189,13 @@ public class SmartRanker(
     }
 
     private suspend fun energyOf(id: TrackId): Double? = runCatching { audio.energy(id) }.getOrNull()?.takeIf { it.isFinite() }
+
+    /** A continuity head's value: computed from the press's vectors when the ranker has the heads, else the source's. */
+    private suspend fun headValue(name: String, id: TrackId, vectors: Map<TrackId, FloatArray>): Double? {
+        val h = linearHeads
+        if (h != null && name in h.names) return vectors[id]?.let { v -> normalized(v)?.let { h.value(name, it) } }?.takeIf { it.isFinite() }
+        return headOf(name, id)
+    }
 
     private suspend fun headOf(name: String, id: TrackId): Double? = runCatching { audio.head(name, id) }.getOrNull()?.takeIf { it.isFinite() }
 
