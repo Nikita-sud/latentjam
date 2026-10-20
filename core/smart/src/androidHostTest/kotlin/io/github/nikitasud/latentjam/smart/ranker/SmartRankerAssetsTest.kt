@@ -100,4 +100,13 @@ class SmartRankerAssetsTest {
         assertEquals(0.0, row("c2")[col("same_album")])
         assertEquals(0.0, row("c4")[col("same_compilation")], "one artist on that key: not a compilation")
     }
+
+    @Test
+    fun theArtistSetsKeySelectsAs2AndAnUnknownValueIsRefused() = runTest {
+        val core = File(ml, "smart_ranker.json").readText()
+        assertFalse(RankerModel.parse(core)!!.artistSetsAs2)
+        assertTrue(RankerModel.parse(core.replaceFirst("{", "{\"artistSets\": \"as2\", "))!!.artistSetsAs2)
+        assertFalse(RankerModel.parse(core.replaceFirst("{", "{\"artistSets\": \"as1\", "))!!.artistSetsAs2)
+        assertNull(RankerModel.parse(core.replaceFirst("{", "{\"artistSets\": \"as3\", ")))
+    }
 }

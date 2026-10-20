@@ -77,6 +77,8 @@ public class RankerModel(
     public val titleFlags: Double? = null,
     /** Fast 3.2 (off in the shipped models): a seed with no family and no descriptor scores on the seed only. */
     public val unknownSeedAnchor: Boolean = false,
+    /** The artist-set rules the model was trained with: "as2" (audit 07 #4 / #7 / #10) or as1 (absent). */
+    public val artistSetsAs2: Boolean = false,
     /** Fast 3: −λ for a candidate in [ClassMismatch.families] when the seed is not. */
     public val classMismatch: ClassMismatch? = null,
     /** Fast 4: seed-anchored continuity on cached audio heads, in head-name order. */
@@ -268,7 +270,7 @@ public class RankerModel(
                 "seedWeight", "previousWeight", "epsilon", "thirdInRowCap", "serving", "inputs", "audioWeight",
                 "artistReentry", "energy", "r1Energy", "audioAnchor", "imputedDescriptor", "seedGate", "freshness", "coreOffset",
                 "audioZ", "softNovelty", "anchorShare", "colistenPrevShare", "familyMismatch", "classMismatch", "continuity", "holidaySeason",
-                "durationRule", "titleFlags", "unknownSeedAnchor",
+                "durationRule", "titleFlags", "unknownSeedAnchor", "artistSets",
             ),
             "anchorShare" to setOf("share", "columns"),
             "familyMismatch" to setOf("lambda", "near", "nearScale"),
@@ -379,6 +381,7 @@ public class RankerModel(
                 },
                 titleFlags = (root["titleFlags"] as? Map<*, *>)?.let { (it["lambda"] as Number).toDouble() },
                 unknownSeedAnchor = root["unknownSeedAnchor"] == "seed",
+                artistSetsAs2 = when (root["artistSets"]) { null, "as1" -> false; "as2" -> true; else -> error("artistSets") },
                 classMismatch = (root["classMismatch"] as? Map<*, *>)?.let { c ->
                     ClassMismatch((c["lambda"] as Number).toDouble(), ((c["families"] as? List<*>)?.map { it as String } ?: listOf("soundtrack")).toSet())
                 },
