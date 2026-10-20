@@ -408,6 +408,9 @@ public class PlanDiagnostics(public val topK: Int = 5) {
     public val sourceCounts: MutableMap<String, Int> = LinkedHashMap()
     public val hops: MutableList<Hop> = ArrayList()
     public val ladder: MutableList<Pair<TrackId, String>> = ArrayList()
+    /** The pool, and every allowed row at hop 1 best first (the seed anchor alone), for "was it there, and why did it lose". */
+    public var poolIds: List<TrackId> = emptyList()
+    public val firstHop: MutableList<Entry> = ArrayList()
 }
 
 /** One plan as reference.py traces it (golden tests only). */
@@ -753,11 +756,9 @@ public class SmartRanker(
         }
         val near = h.nearBest.toHashSet()
         val ranked = h.t.indices.filter { !h.t[it].isNaN() }.sortedByDescending { h.t[it] }
-        val shown = (ranked.take(d.topK) + h.pick).distinct()
-        d.hops += PlanDiagnostics.Hop(
-            hop = d.hops.size + 1, pick = pool[h.pick].track.id, sd = h.sd, penalty = h.penalty, runArtist = h.runArtist,
-            runLength = h.runLength, capped = h.capped, nearBestSize = h.nearBest.size, floor = h.floor,
-            entries = shown.map { i ->
+        if (d.hops.isEmpty()) d.poolIds = pool.map { it.track.id }
+        val shown = (if (d.hops.isEmpty()) ranked else ranked.take(d.topK) + h.pick).distinct()
+        val entries = shown.map { i ->
                 val same = h.runArtist.isNotEmpty() && artistKeys[i] == h.runArtist
                 PlanDiagnostics.Entry(
                     id = pool[i].track.id, s = h.s[i], t = h.t[i], nearBest = i in near,
@@ -768,7 +769,13 @@ public class SmartRanker(
                         .let { if (kotlin.math.abs(it) < 1e-12) 0.0 else it },
                     contributions = contributions(i), seedRow = seedRows[i],
                 )
-            },
+            }
+        if (d.hops.isEmpty()) d.firstHop += entries
+        val keep = ranked.take(d.topK).toHashSet().also { it += h.pick }
+        d.hops += PlanDiagnostics.Hop(
+            hop = d.hops.size + 1, pick = pool[h.pick].track.id, sd = h.sd, penalty = h.penalty, runArtist = h.runArtist,
+            runLength = h.runLength, capped = h.capped, nearBestSize = h.nearBest.size, floor = h.floor,
+            entries = shown.indices.filter { shown[it] in keep }.map { entries[it] },
         )
     }
 

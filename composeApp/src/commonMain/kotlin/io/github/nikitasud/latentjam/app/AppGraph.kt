@@ -416,6 +416,7 @@ object AppGraph {
             favourites = hearts.associateWith { times[it] },
             useFavourites = settings.useFavourites.value,
             fullModelName = ranker.fullModelName,
+            engine = koin.getOrNull(),
         )
         if (text.isEmpty()) return null
         return writeDebugFile("smart_diagnostics.jsonl", text)

@@ -37,7 +37,13 @@ internal suspend fun diagnoseRecentSmartStarts(
     useFavourites: Boolean,
     fullModelName: String?,
     starts: Int = 16,
+    /** The audio index and semantic head, for the per-seed library probe (A0 neighbours, energy, mood). */
+    engine: io.github.nikitasud.latentjam.smart.SimilarityEngine? = null,
 ): String {
+    // Semantic-head energy / mood per track, read once (cached semantics only: no model is loaded for this).
+    val semantics = runCatching { engine?.libraryMixFeatures(library.map { it.id })?.semantics }.getOrNull().orEmpty()
+    val energyHigh = library.mapNotNull { semantics[it.id]?.probability(io.github.nikitasud.latentjam.smart.SemanticLabel.ENERGY_HIGH) }.sorted()
+    val lowTercile = energyHigh.getOrNull(energyHigh.size / 3)
     // The log keeps labels as ASCII tokens (SmartImpressionLog): compare model names the same way.
     fun token(s: String?) = s?.map { c -> if (c == '|' || c.code < 0x20 || c.code > 0x7e) '_' else c }?.joinToString("")
     val fullToken = token(fullModelName)
@@ -124,7 +130,67 @@ internal suspend fun diagnoseRecentSmartStarts(
             }
             out.append("]}")
         }
-        out.append("],\"ladder\":[")
+        // The library probe: tracks a listener might expect after this seed, and what became of each in this plan.
+        val poolIds = diagnostics.poolIds.toHashSet()
+        val excluded = HabitSlots.novelty(listens, startMs)
+        val firstRank = HashMap<TrackId, Int>()
+        diagnostics.firstHop.forEachIndexed { r, e -> firstRank[e.id] = r + 1 }
+        val firstPick = diagnostics.firstHop.firstOrNull { it.id == diagnostics.hops.firstOrNull()?.pick }
+        val seedVector = runCatching { engine?.embedding(seed.id) }.getOrNull()
+        val audioNb = runCatching { engine?.audioNeighbours(seed.id, 40) }.getOrNull().orEmpty()
+        val audioRank = HashMap<TrackId, Int>().also { m -> audioNb.forEachIndexed { r, s -> m[s.trackId] = r + 1 } }
+        val tagRe = Regex("r&b|rnb|r'n'b|soul|slow jam|ballad", RegexOption.IGNORE_CASE)
+        val probe = LinkedHashMap<TrackId, MutableSet<String>>()
+        fun add(id: TrackId, why: String) { if (id != seed.id) probe.getOrPut(id) { LinkedHashSet() } += why }
+        val seedAlbum = seed.album?.takeIf(String::isNotBlank)
+        for (t in library) {
+            if (seedAlbum != null && t.album == seedAlbum) add(t.id, "album")
+            if (seed.folderPath != null && t.folderPath == seed.folderPath) add(t.id, "folder")
+            if (t.genre?.let(tagRe::containsMatchIn) == true) add(t.id, "tag")
+        }
+        audioNb.take(25).forEach { add(it.trackId, "audio") }
+        if (lowTercile != null) {
+            library.filter { t ->
+                val e = semantics[t.id]?.probability(io.github.nikitasud.latentjam.smart.SemanticLabel.ENERGY_HIGH)
+                e != null && e <= lowTercile && (io.github.nikitasud.latentjam.smart.HabitFlow.family(t.genre) == "rap" || t.genre?.let(tagRe::containsMatchIn) == true)
+            }.forEach { add(it.id, "lowEnergyRnbHipHop") }
+        }
+        out.append("],\"firstHopTop\":[")
+        out.append(diagnostics.firstHop.take(40).joinToString(",") { e ->
+            "{\"track\":${track(e.id)},\"t\":${n(e.t)},\"source\":${q(e.source)},\"contrib\":[${e.contributions.joinToString(",") { n(it) }}]}"
+        })
+        out.append("],\"probe\":[")
+        var firstProbe = true
+        for ((id, why) in probe) {
+            if (!firstProbe) out.append(',')
+            firstProbe = false
+            val e = diagnostics.firstHop.firstOrNull { it.id == id }
+            val sem = semantics[id]
+            val v = runCatching { engine?.embedding(id) }.getOrNull()
+            val cos = if (seedVector != null && v != null && v.size == seedVector.size) {
+                var dot = 0.0; var na = 0.0; var nb = 0.0
+                for (i in v.indices) { dot += v[i] * seedVector[i]; na += v[i] * v[i]; nb += seedVector[i] * seedVector[i] }
+                if (na > 0 && nb > 0) dot / kotlin.math.sqrt(na * nb) else Double.NaN
+            } else Double.NaN
+            val status = when {
+                id in poolIds && e != null -> "pool"
+                id in poolIds -> "pool-blocked"
+                id in excluded -> "excluded-recent"
+                library.none { it.id == id } -> "not-in-library"
+                else -> "not-retrieved"
+            }
+            out.append("{\"track\":${track(id)},\"album\":${q(names[id]?.album)},\"why\":[${why.joinToString(",") { q(it) }}]," +
+                "\"status\":${q(status)},\"source\":${q(e?.source)},\"rank1\":${firstRank[id] ?: "null"},\"t1\":${n(e?.t ?: Double.NaN)}," +
+                "\"audioCos\":${n(cos)},\"audioRank\":${audioRank[id] ?: "null"}," +
+                "\"energyHigh\":${n(sem?.probability(io.github.nikitasud.latentjam.smart.SemanticLabel.ENERGY_HIGH)?.toDouble() ?: Double.NaN)}," +
+                "\"energyLow\":${n(sem?.probability(io.github.nikitasud.latentjam.smart.SemanticLabel.ENERGY_LOW)?.toDouble() ?: Double.NaN)}," +
+                "\"tender\":${n(sem?.probability(io.github.nikitasud.latentjam.smart.SemanticLabel.MOOD_TENDER)?.toDouble() ?: Double.NaN)}," +
+                "\"family\":${q(io.github.nikitasud.latentjam.smart.HabitFlow.family(names[id]?.genre))}," +
+                "\"contrib\":[${e?.contributions?.joinToString(",") { n(it) } ?: ""}]," +
+                "\"gapToPick\":[${if (e != null && firstPick != null) firstPick.contributions.indices.joinToString(",") { n(firstPick.contributions[it] - e.contributions[it]) } else ""}]}")
+        }
+        out.append("],\"lowEnergyCut\":").append(n(lowTercile?.toDouble() ?: Double.NaN))
+        out.append(",\"ladder\":[")
         out.append(diagnostics.ladder.joinToString(",") { (id, rung) -> "{\"track\":${track(id)},\"rung\":${q(rung)}}" })
         out.append("]}\n")
     }
