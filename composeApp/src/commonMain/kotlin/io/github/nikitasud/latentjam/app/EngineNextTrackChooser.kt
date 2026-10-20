@@ -76,6 +76,13 @@ class EngineNextTrackChooser(
     private var queuePress = 0L
     /** Ranker failures and spent budgets in this SMART queue; at [BREAKER_LIMIT] the queue runs rule-only (§7.2). */
     private var queueFailures = 0
+    /**
+     * Audit 06 #11: "Learn from my habits" and "Use favourites" as they were at the press. Top-ups of one queue keep
+     * them, so a queue never mixes CORE and FULL plans (a toggle takes effect at the next press).
+     */
+    private var queuePersonal = false
+    private var queueFavourites = true
+    private var queueModeSet = false
     /** The impression log's name for the SMART queue being served, and how many plans it has had. */
     private var queueId = ""
     private var plansInQueue = 0
@@ -142,12 +149,21 @@ class EngineNextTrackChooser(
                 if (recentIds.isEmpty()) {
                     queuePress = presses?.let { runCatching { it.next(SaltedKey.contentKey(current)) }.getOrNull() } ?: 0L
                     queueFailures = 0
+                    queuePersonal = personalRanker()
+                    queueFavourites = useFavourites()
+                    queueModeSet = true
+                }
+                if (!queueModeSet) {
+                    // A top-up of a queue this chooser did not start (a restored session): the toggles as they are now.
+                    queuePersonal = personalRanker()
+                    queueFavourites = useFavourites()
+                    queueModeSet = true
                 }
                 val report = rankerPlan(
                     learned, history, current, candidates, library(), RANKER_LENGTH,
                     seedMs = events.last().startedAtMs, press = queuePress, recentIds = recentIds,
-                    personal = personalRanker(), ruleOnly = !rankerHealthy() || queueFailures >= BREAKER_LIMIT,
-                    favourites = if (useFavourites()) favourites else NO_FAVOURITES,
+                    personal = queuePersonal, ruleOnly = !rankerHealthy() || queueFailures >= BREAKER_LIMIT,
+                    favourites = if (queueFavourites) favourites else NO_FAVOURITES,
                     presses = { window, count ->
                         smartLog?.recentPresses(clock(), window, count, excludeQueue = queueId.takeIf { recentIds.isNotEmpty() })
                             .orEmpty()

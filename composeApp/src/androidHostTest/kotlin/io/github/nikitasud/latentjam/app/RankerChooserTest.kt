@@ -19,6 +19,7 @@ import java.lang.reflect.Proxy
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /** The learned ranker in the chooser: it plans instead of the engine, and leaves out what was just heard. */
 class RankerChooserTest {
@@ -131,5 +132,42 @@ class RankerChooserTest {
     fun `habits are off and Use favourites on by default in this test build`() {
         kotlin.test.assertFalse(DEFAULT_LEARN_FROM_HABITS)
         kotlin.test.assertTrue(DEFAULT_USE_FAVOURITES)
+    }
+
+    @Test
+    fun `a toggle flipped mid-queue takes effect at the next press, never inside a queue`() = runTest {
+        // Audit 06 #11: one queueId never mixes CORE and FULL plans.
+        val big = (0 until 60).map { track("t$it", "Artist ${it % 9}") }
+        val full = RankerModel.parse(
+            """{"name": "FULL test", "features": ["same_artist"], "mean": [0], "sd": [1], "weights": [1], "runPenalty": 0, "anchor": "seed"}""",
+        )!!
+        val models = ArrayList<Pair<String, String>>()
+        val log = object : SmartPlanLog {
+            override suspend fun planned(queue: String, plan: Int, rankOffset: Int, model: String, rows: List<SmartPlanRow>) {
+                models += queue to model
+            }
+            override suspend fun served(id: TrackId) = Unit
+        }
+        var habits = false
+        val chooser = EngineNextTrackChooser(
+            engine, history(emptyList()), learnFromHabits = { habits }, personalRanker = { habits }, library = { big },
+            useRanker = { true }, ranker = { SmartRanker(model, null, null, fullModel = full) }, smartLog = log,
+        )
+        suspend fun press(rows: Int) {
+            val queue = mutableListOf(big[0])
+            repeat(rows) {
+                val queued = queue.mapTo(HashSet()) { it.id }
+                val choice = chooser.choose(queue.last(), queue.dropLast(1).takeLast(10).map { it.id }, big.filter { it.id !in queued })!!
+                queue += choice.track
+                if (it == 0) habits = !habits
+            }
+        }
+        press(30)
+        val first = models.map { it.first }.distinct().single()
+        assertTrue(models.size >= 2, "the queue was topped up")
+        assertEquals(setOf("ranker"), models.filter { it.first == first }.map { it.second }.toSet())
+        models.clear()
+        press(1)
+        assertEquals("FULL test", models.single().second, "the next press reads the toggle")
     }
 }
