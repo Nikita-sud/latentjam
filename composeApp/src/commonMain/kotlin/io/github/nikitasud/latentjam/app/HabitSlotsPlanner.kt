@@ -13,6 +13,7 @@ import io.github.nikitasud.latentjam.smart.HabitSlots
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
@@ -115,6 +116,23 @@ internal fun saltedTieKey(track: TrackId, salt: Long): Double {
 /** The SMART history window (EngineNextTrackChooser's smartHistoryFor). */
 private const val SMART_HABIT_HISTORY_LIMIT = 10_000
 
+/** Freshness window when the model names none (the CORE default, PLAN_L1 §2c). */
+private const val DEFAULT_FRESHNESS_WINDOW_MS = 2L * 3_600_000
+
+/** Content key → its hash ([SaltedKey.contentHash]), kept across presses: a 10k library is hashed once, not per press. */
+private val contentHashes = HashMap<String, String>()
+private val contentHashLock = kotlinx.coroutines.sync.Mutex()
+
+private suspend fun contentHashOf(t: TrackDescriptor): String {
+    val key = io.github.nikitasud.latentjam.smart.ranker.SaltedKey.contentKey(t)
+    return contentHashLock.withLock {
+        contentHashes.getOrPut(key) {
+            if (contentHashes.size >= 50_000) contentHashes.clear()
+            io.github.nikitasud.latentjam.smart.ranker.SaltedKey.contentHash(key)
+        }
+    }
+}
+
 /**
  * The learned ranker's plan from [seed] (docs/smart-ranker.md): [candidates] minus what the listener heard in the
  * last 24 hours or earlier in this session (the novelty rule the models trained with), the queue's [recentIds] as the
@@ -135,6 +153,8 @@ internal suspend fun rankerPlan(
     ruleOnly: Boolean = false,
     /** The listener's favourites with their heart times (null = unknown), read only for [personal] plans. */
     favourites: suspend () -> Map<TrackId, Long?> = { emptyMap() },
+    /** The recent presses' shown content keys, newest first: (window ms, presses) → sets (SmartPlanLog.recentPresses). */
+    presses: suspend (windowMs: Long, count: Int) -> List<Set<String>> = { _, _ -> emptyList() },
 ): io.github.nikitasud.latentjam.smart.ranker.PlanReport? = withContext(Dispatchers.Default) {
     try {
         val scope = library.ifEmpty { candidates }
@@ -150,11 +170,24 @@ internal suspend fun rankerPlan(
             listens, seedMs, favourites = if (personal) favourites() else emptyMap(),
         ) { artistKeys[it].orEmpty() }
         val fits = io.github.nikitasud.latentjam.smart.ranker.rankerFitsInHeap(minOf(candidates.size, 2_000))
+        // PLAN_L1 §2c freshness: what recent presses showed (any seed), as candidate ids.
+        val impressions = ranker.freshnessFor(personal, ruleOnly || !fits)?.let { f ->
+            val sets = presses(f.windowMs ?: DEFAULT_FRESHNESS_WINDOW_MS, f.presses)
+            if (sets.isEmpty()) emptyList() else {
+                val wanted = sets.flatMapTo(HashSet()) { it }
+                val ids = HashMap<String, TrackId>()
+                for (t in candidates) {
+                    val k = contentHashOf(t)
+                    if (k in wanted) ids[k] = t.id
+                }
+                sets.map { s -> s.mapNotNullTo(HashSet()) { ids[it] } }
+            }
+        }.orEmpty()
         val report = ranker.plan(
             io.github.nikitasud.latentjam.smart.ranker.PlanRequest(
                 seed = seed, library = scope, candidates = candidates, length = length, exclude = novel,
                 recentIds = recentIds, press = press, history = personalHistory, personal = personal,
-                ruleOnly = ruleOnly || !fits,
+                ruleOnly = ruleOnly || !fits, impressions = impressions,
             ),
         )
         val (withEntity, listed, withLfm) = ranker.entityCoverage

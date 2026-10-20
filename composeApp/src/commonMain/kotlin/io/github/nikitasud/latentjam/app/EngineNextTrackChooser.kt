@@ -146,6 +146,10 @@ class EngineNextTrackChooser(
                     seedMs = events.last().startedAtMs, press = queuePress, recentIds = recentIds,
                     personal = personalRanker(), ruleOnly = !rankerHealthy() || queueFailures >= BREAKER_LIMIT,
                     favourites = if (useFavourites()) favourites else NO_FAVOURITES,
+                    presses = { window, count ->
+                        smartLog?.recentPresses(epochMillis(), window, count, excludeQueue = queueId.takeIf { recentIds.isNotEmpty() })
+                            .orEmpty()
+                    },
                 )
                 if (report == null || report.timedOut) queueFailures++
                 picks = report?.picks

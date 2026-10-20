@@ -49,6 +49,14 @@ public class RankerRow(
     public val audio: Double = Double.NaN,
     public val artistOverlap: Double = 0.0,
     public val familyProbabilities: Map<String, Double>? = null,
+    /** PLAN_L2: the track's original year (else its year), null when unknown. */
+    public val year: Int? = null,
+    /** PLAN_L2: normalised album title + album artist; empty for no or an unknown album. */
+    public val albumKey: String = "",
+    /** PLAN_L2: the album is a compilation (Various Artists, or three or more artists on it in the library). */
+    public val compilation: Boolean = false,
+    /** PLAN_L2: the family came from the track's own genre tag, not its artist. */
+    public val familyFromTrack: Boolean = false,
 )
 
 /**
@@ -90,13 +98,22 @@ public object RankerFeatures {
      * weights come from the model asset (0 until the research sets them).
      */
     public val TAIL: List<String> = listOf("pop_known", "is_favourite", "favourited_days_ago")
-    public val NAMES: List<String> = CORE + LFM + PERSONAL + EXTRA + TAIL
+
+    /**
+     * PLAN_L2's track columns, appended (reference.py L2COLS): year distance / known, same album / known, same
+     * compilation, the family came from the track's tag, and |ln(duration ratio)| to the anchor.
+     */
+    public val L2: List<String> = listOf("year_dist", "year_known", "same_album", "album_known", "same_compilation", "family_is_track", "dur_rel")
+    public val NAMES: List<String> = CORE + LFM + PERSONAL + EXTRA + TAIL + L2
 
     /** Tracks shorter than this count as short (skits, interludes); a parameter of the duration features (research: 90 s). */
     public const val SHORT_TRACK_MS: Long = 90_000
 
-    /** One row per candidate, in [NAMES] order. [personal], when given, is parallel to [candidates]. */
-    public fun of(anchor: RankerRow, candidates: List<RankerRow>, personal: List<PersonalRow>? = null): Array<DoubleArray> {
+    /**
+     * One row per candidate, in [NAMES] order. [personal], when given, is parallel to [candidates]. [l2]: an unknown
+     * popularity takes the pool mean of the known ones (audit 01 #4), as cos_z fills.
+     */
+    public fun of(anchor: RankerRow, candidates: List<RankerRow>, personal: List<PersonalRow>? = null, l2: Boolean = false): Array<DoubleArray> {
         val n = candidates.size
         val known = BooleanArray(n) { !candidates[it].cosine.isNaN() }
         // cos_z: unknown cosines take the known mean, the whole pool is z-scored, unknown rows read 0.
@@ -105,7 +122,15 @@ public object RankerFeatures {
         for (i in 0 until n) if (known[i]) { knownSum += candidates[i].cosine; knownCount++ }
         val fill = if (knownCount > 0) knownSum / knownCount else 0.0
         val cosZ = zScores(DoubleArray(n) { if (known[it]) candidates[it].cosine else fill })
-        val popZ = zScores(DoubleArray(n) { candidates[it].logPopularity })
+        val pop = DoubleArray(n) { candidates[it].logPopularity }
+        if (l2) {
+            var popSum = 0.0
+            var popCount = 0
+            for (i in 0 until n) if (candidates[i].popularityKnown) { popSum += pop[i]; popCount++ }
+            val popFill = if (popCount > 0) popSum / popCount else 0.0
+            for (i in 0 until n) if (!candidates[i].popularityKnown) pop[i] = popFill
+        }
+        val popZ = zScores(pop.copyOf())
         // audio_cos of a candidate without a vector (not indexed yet) = the mean of the known ones in this pool, 0 when
         // none is known: the uncentred audio term then neither buries nor lifts an unindexed track (reference.py).
         var audioSum = 0.0
@@ -125,6 +150,9 @@ public object RankerFeatures {
             val decadeKnown = anchor.decade != null && c.decade != null
             val p = personal?.get(i)
             val duration = c.durationMs
+            val yearKnown = anchor.year != null && c.year != null
+            val albumKnown = anchor.albumKey.isNotEmpty() && c.albumKey.isNotEmpty()
+            val sameAlbum = c.albumKey == anchor.albumKey
             doubleArrayOf(
                 if (known[i]) c.cosine else 0.0,
                 if (known[i]) cosZ[i] else 0.0,
@@ -136,7 +164,7 @@ public object RankerFeatures {
                 b(anchor.artistKey.isNotEmpty() && c.artistKey == anchor.artistKey),
                 if (decadeKnown) abs(c.decade!! - anchor.decade!!) / 10.0 else 0.0,
                 b(decadeKnown),
-                c.logPopularity,
+                pop[i],
                 popZ[i],
                 c.colisten,
                 if (c.lfm.isNaN()) 0.0 else c.lfm,
@@ -161,6 +189,13 @@ public object RankerFeatures {
                 b(c.popularityKnown),
                 b(c.favourite),
                 if (c.favourite && !c.favouritedDaysAgo.isNaN()) c.favouritedDaysAgo else 0.0,
+                if (yearKnown) abs(c.year!! - anchor.year!!) / 10.0 else 0.0,
+                b(yearKnown),
+                b(albumKnown && sameAlbum),
+                b(albumKnown),
+                b(albumKnown && sameAlbum && (c.compilation || anchor.compilation)),
+                b(c.familyFromTrack),
+                if (duration != null && anchor.durationMs != null) abs(ln(duration.toDouble() / anchor.durationMs.toDouble())) else 0.0,
             )
         }
     }

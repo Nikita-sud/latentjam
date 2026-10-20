@@ -3,12 +3,12 @@
  "audioEncoder": "mnv4-960-clean-a0-fma-v1-p50q4aq",
  "assets": {
   "smart_ranker.json": {
-   "size": 3317,
-   "sha256": "6c23bd6cd05f76e6afe4a699ccd8c053cc47707c1499ddd943da16d82f8d402c"
+   "size": 3276,
+   "sha256": "cf005e70eea52a3443ac8d39269eb574f8bd704f071b95898a1e0d5a5e6c88e9"
   },
   "smart_ranker_full.json": {
-   "size": 3787,
-   "sha256": "54fd0a4b6e21ef2480ce2228f7ca5c0df02e6ffa18dea1a5d53d832409c8a28f"
+   "size": 4929,
+   "sha256": "116065b89890359af98cb481e4652897e44e21c06e35eb05dccd04cee28fe148"
   },
   "artist_colisten.bin": {
    "size": 7947962,
@@ -37,6 +37,14 @@
   "artist_family.bin": {
    "size": 465176,
    "sha256": "4ba49c2423a04a59b0b7c0b0358c57faf196c9b3b8e06bfb8a4c6cabf85a7818"
+  },
+  "artist_family_l2.bin": {
+   "size": 780852,
+   "sha256": "00488d44be3146a5ddb628765085eb607c25be51e8d8e1330984616aba1b1382"
+  },
+  "genre_families.json": {
+   "size": 19639,
+   "sha256": "d87822e3636caffa8d602830988c8c7f946800881c136379b3fd21550d6136f4"
   }
  }
 }

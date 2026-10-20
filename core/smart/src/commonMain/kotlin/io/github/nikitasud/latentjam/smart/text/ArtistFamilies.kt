@@ -11,12 +11,12 @@ package io.github.nikitasud.latentjam.smart.text
  *
  * Layout: [ArtistVectors]'s, magic "LJFAMS1\0", dimension 1, float32 codes into [CODES].
  */
-public class ArtistFamilies private constructor(private val table: ArtistVectors) {
+public class ArtistFamilies private constructor(private val table: ArtistVectors, private val codes: List<String>) {
     /** [entity]'s family, or null when it has none. */
     public fun family(entity: Int): String? {
         val code = table.vector(entity)?.get(0) ?: return null
         val i = code.toInt()
-        return if (i.toFloat() == code && i in CODES.indices) CODES[i] else null
+        return if (i.toFloat() == code && i in codes.indices) codes[i] else null
     }
 
     public companion object {
@@ -27,7 +27,10 @@ public class ArtistFamilies private constructor(private val table: ArtistVectors
         public fun parse(bytes: ByteArray): ArtistFamilies? = parse(AssetBytes.of(bytes))
 
         /** Null for a missing, damaged or newer-format asset: families then come from the genre tags alone. */
-        public fun parse(bytes: AssetBytes): ArtistFamilies? =
-            ArtistVectors.parse(bytes, MAGIC)?.takeIf { it.dimension == 1 }?.let(::ArtistFamilies)
+        public fun parse(bytes: AssetBytes): ArtistFamilies? = parse(bytes, CODES)
+
+        /** A table whose codes index [codes] (artist_family_l2.bin: PLAN_L2's twelve families, GenreFamilies.families). */
+        public fun parse(bytes: AssetBytes, codes: List<String>): ArtistFamilies? =
+            ArtistVectors.parse(bytes, MAGIC)?.takeIf { it.dimension == 1 }?.let { ArtistFamilies(it, codes) }
     }
 }

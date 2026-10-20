@@ -14,6 +14,7 @@ Version 2.0, included in the repository root:
   artist_lfm.bin
   audio_tagger.bin
   artist_family.bin
+  artist_family_l2.bin
 
 artist_colisten.bin, artist_known.bin and artist_pop.bin are CC0-1.0 (see below).
 
@@ -115,6 +116,15 @@ the coarse genre family (classical, dance, pop, rap, rock, soundtrack) of the
 first genre in the artist's knowledge-pack attributes, from the same offline
 generation as artist_knowledge.bin. SMART uses it in place of a track's own
 genre tag when the artist resolves.
+
+artist_family_l2.bin holds, for about 184,000 artists of the knowledge pack,
+the genre family on SMART's twelve-family taxonomy (classical, dance, pop, rap,
+rnb, rock, metal, jazz, folk, reggae, latin, soundtrack), mapped from the
+artist's pack genres. genre_families.json is that taxonomy: LatentJam's
+phrase and suffix rules, plus a table of MusicBrainz genre names (CC0) mapped to
+their nearest family through MusicBrainz's "subgenre of" relations. With the
+current ranker a track's family is its own genre tag's on this taxonomy, and
+the artist's only when the tag maps to none.
 
 smart_ranker.json holds the weights of a linear ranker LatentJam fitted on
 the same ListenBrainz listens (CC0) to order SMART's candidate tracks; no

@@ -1,0 +1,1215 @@
+{
+"version": "lj-genre-families/1 (PLAN_L2 fast track)",
+"families": [
+"classical",
+"dance",
+"pop",
+"rap",
+"rnb",
+"rock",
+"metal",
+"jazz",
+"folk",
+"reggae",
+"latin",
+"soundtrack"
+],
+"phrases": [
+[
+"r and b",
+"rnb"
+],
+[
+"r b",
+"rnb"
+],
+[
+"rnb",
+"rnb"
+],
+[
+"rhythm and blues",
+"rnb"
+],
+[
+"neo soul",
+"rnb"
+],
+[
+"soul",
+"rnb"
+],
+[
+"funk",
+"rnb"
+],
+[
+"gospel",
+"rnb"
+],
+[
+"new jack swing",
+"rnb"
+],
+[
+"quiet storm",
+"rnb"
+],
+[
+"slow jam",
+"rnb"
+],
+[
+"slow jams",
+"rnb"
+],
+[
+"motown",
+"rnb"
+],
+[
+"doo wop",
+"rnb"
+],
+[
+"disco",
+"dance"
+],
+[
+"hip hop",
+"rap"
+],
+[
+"hiphop",
+"rap"
+],
+[
+"rap",
+"rap"
+],
+[
+"trap",
+"rap"
+],
+[
+"phonk",
+"rap"
+],
+[
+"grime",
+"rap"
+],
+[
+"drill",
+"rap"
+],
+[
+"boom bap",
+"rap"
+],
+[
+"crunk",
+"rap"
+],
+[
+"reggaeton",
+"latin"
+],
+[
+"latin",
+"latin"
+],
+[
+"salsa",
+"latin"
+],
+[
+"bachata",
+"latin"
+],
+[
+"cumbia",
+"latin"
+],
+[
+"merengue",
+"latin"
+],
+[
+"bossa nova",
+"latin"
+],
+[
+"samba",
+"latin"
+],
+[
+"tango",
+"latin"
+],
+[
+"flamenco",
+"latin"
+],
+[
+"mariachi",
+"latin"
+],
+[
+"ranchera",
+"latin"
+],
+[
+"corrido",
+"latin"
+],
+[
+"forro",
+"latin"
+],
+[
+"mpb",
+"latin"
+],
+[
+"reggae",
+"reggae"
+],
+[
+"ska",
+"reggae"
+],
+[
+"dancehall",
+"reggae"
+],
+[
+"dub",
+"reggae"
+],
+[
+"rocksteady",
+"reggae"
+],
+[
+"metal",
+"metal"
+],
+[
+"metalcore",
+"metal"
+],
+[
+"deathcore",
+"metal"
+],
+[
+"grindcore",
+"metal"
+],
+[
+"djent",
+"metal"
+],
+[
+"jazz",
+"jazz"
+],
+[
+"blues",
+"jazz"
+],
+[
+"swing",
+"jazz"
+],
+[
+"bebop",
+"jazz"
+],
+[
+"big band",
+"jazz"
+],
+[
+"ragtime",
+"jazz"
+],
+[
+"country",
+"folk"
+],
+[
+"folk",
+"folk"
+],
+[
+"bluegrass",
+"folk"
+],
+[
+"americana",
+"folk"
+],
+[
+"singer songwriter",
+"folk"
+],
+[
+"chanson",
+"folk"
+],
+[
+"celtic",
+"folk"
+],
+[
+"polka",
+"folk"
+],
+[
+"soundtrack",
+"soundtrack"
+],
+[
+"film score",
+"soundtrack"
+],
+[
+"score",
+"soundtrack"
+],
+[
+"video game",
+"soundtrack"
+],
+[
+"anime",
+"soundtrack"
+],
+[
+"ambient",
+"soundtrack"
+],
+[
+"dungeon synth",
+"soundtrack"
+],
+[
+"new age",
+"soundtrack"
+],
+[
+"drone",
+"soundtrack"
+],
+[
+"musical",
+"soundtrack"
+],
+[
+"classical",
+"classical"
+],
+[
+"orchestral",
+"classical"
+],
+[
+"baroque",
+"classical"
+],
+[
+"opera",
+"classical"
+],
+[
+"romantic era",
+"classical"
+],
+[
+"chamber music",
+"classical"
+],
+[
+"symphon",
+"classical"
+],
+[
+"choral",
+"classical"
+],
+[
+"minimalism",
+"classical"
+],
+[
+"drum and bass",
+"dance"
+],
+[
+"dnb",
+"dance"
+],
+[
+"dubstep",
+"dance"
+],
+[
+"house",
+"dance"
+],
+[
+"techno",
+"dance"
+],
+[
+"trance",
+"dance"
+],
+[
+"edm",
+"dance"
+],
+[
+"electro",
+"dance"
+],
+[
+"electronic",
+"dance"
+],
+[
+"electronica",
+"dance"
+],
+[
+"eurodance",
+"dance"
+],
+[
+"hi nrg",
+"dance"
+],
+[
+"breakbeat",
+"dance"
+],
+[
+"garage",
+"dance"
+],
+[
+"hardstyle",
+"dance"
+],
+[
+"hardcore",
+"dance"
+],
+[
+"idm",
+"dance"
+],
+[
+"synthwave",
+"dance"
+],
+[
+"dance",
+"dance"
+],
+[
+"club",
+"dance"
+],
+[
+"jungle",
+"dance"
+],
+[
+"downtempo",
+"dance"
+],
+[
+"trip hop",
+"dance"
+],
+[
+"lo fi",
+"dance"
+],
+[
+"rock",
+"rock"
+],
+[
+"punk",
+"rock"
+],
+[
+"grunge",
+"rock"
+],
+[
+"emo",
+"rock"
+],
+[
+"shoegaze",
+"rock"
+],
+[
+"post rock",
+"rock"
+],
+[
+"indie",
+"rock"
+],
+[
+"alternative",
+"rock"
+],
+[
+"new wave",
+"rock"
+],
+[
+"britpop",
+"rock"
+],
+[
+"pop",
+"pop"
+],
+[
+"europop",
+"pop"
+],
+[
+"k pop",
+"pop"
+],
+[
+"j pop",
+"pop"
+],
+[
+"schlager",
+"pop"
+],
+[
+"easy listening",
+"pop"
+],
+[
+"estrada",
+"pop"
+],
+[
+"chart",
+"pop"
+]
+],
+"suffixes": [
+[
+"pop",
+"pop"
+],
+[
+"hop",
+"rap"
+],
+[
+"step",
+"dance"
+],
+[
+"house",
+"dance"
+],
+[
+"wave",
+"dance"
+],
+[
+"gaze",
+"rock"
+]
+],
+"tree": {
+"2 step": "dance",
+"2 tone": "reggae",
+"3 step": "dance",
+"aak": "classical",
+"abhang": "classical",
+"aboio": "folk",
+"acid breaks": "dance",
+"acidcore": "dance",
+"acousmatic": "dance",
+"afroswing": "rap",
+"aggrotech": "dance",
+"akishibu kei": "pop",
+"algorave": "dance",
+"amapiano": "dance",
+"ambrosian chant": "classical",
+"american primitive guitar": "folk",
+"amigacore": "dance",
+"aor": "rock",
+"aquacrunk": "dance",
+"ars antiqua": "classical",
+"ars nova": "classical",
+"ars subtilior": "classical",
+"art song": "classical",
+"artcore": "dance",
+"autonomic": "dance",
+"avant prog": "rock",
+"avtorskaya pesnya": "folk",
+"bacardi": "dance",
+"bachatón": "latin",
+"bagad": "folk",
+"bagatelle": "classical",
+"baguala": "folk",
+"baisha xiyue": "classical",
+"bakersfield sound": "folk",
+"balani show": "dance",
+"balearic beat": "dance",
+"balinese gamelan": "classical",
+"ballet": "classical",
+"ballet de cour": "classical",
+"barber beats": "dance",
+"bardcore": "pop",
+"bassline": "dance",
+"batida": "dance",
+"batidão romântico": "rnb",
+"battle record": "rap",
+"beach music": "rnb",
+"beat bolha": "rnb",
+"beat bruxaria": "rnb",
+"beat fino": "rnb",
+"beat music": "rock",
+"beneventan chant": "classical",
+"berlin school": "dance",
+"big beat": "dance",
+"biraha": "folk",
+"birmingham sound": "dance",
+"bit music": "dance",
+"black midi": "dance",
+"black n roll": "metal",
+"blackened crust": "rock",
+"bolero beat": "pop",
+"bongo flava": "rap",
+"boogaloo": "latin",
+"boogie": "dance",
+"boogie woogie": "jazz",
+"bounce": "rap",
+"bounce beat": "rnb",
+"brass band": "classical",
+"brazilian bass": "dance",
+"breakcore": "dance",
+"briddim": "dance",
+"brill building": "pop",
+"britcore": "rap",
+"british brass band": "classical",
+"broken beat": "dance",
+"broken transmission": "dance",
+"brutal prog": "rock",
+"bubblegum bass": "dance",
+"bubbling": "dance",
+"budots": "dance",
+"bulería": "latin",
+"burmese stereo": "rock",
+"burning spirits": "dance",
+"bytebeat": "dance",
+"c86": "rock",
+"ca trù": "classical",
+"cabaret": "soundtrack",
+"cachaca": "latin",
+"canción melódica": "pop",
+"cantata": "classical",
+"canterbury scene": "rock",
+"canzona": "classical",
+"cape breton fiddling": "folk",
+"capriccio": "classical",
+"changa tuki": "dance",
+"chap hop": "rap",
+"character piece": "classical",
+"chicago bop": "rap",
+"chicha": "latin",
+"chillsynth": "dance",
+"chiptune": "dance",
+"chopped and screwed": "rap",
+"chopper": "rap",
+"chèo": "soundtrack",
+"circus march": "classical",
+"close harmony": "folk",
+"cocktail nation": "pop",
+"colour bass": "dance",
+"comfy synth": "soundtrack",
+"complextro": "dance",
+"comédie ballet": "classical",
+"concert band": "classical",
+"concertina band": "classical",
+"concerto": "classical",
+"concerto for orchestra": "classical",
+"concerto grosso": "classical",
+"contemporary christian": "pop",
+"countrypolitan": "folk",
+"coupé décalé": "dance",
+"cowpunk": "rock",
+"crossover prog": "rock",
+"cruise": "dance",
+"csárdás": "folk",
+"cubatón": "latin",
+"cuddlecore": "pop",
+"cumbiatón": "latin",
+"cybergrind": "metal",
+"d beat": "dance",
+"dangak": "classical",
+"danmono": "classical",
+"dansband": "pop",
+"dansktop": "pop",
+"dariacore": "dance",
+"dark plugg": "rap",
+"dark psytrance": "dance",
+"darkcore": "dance",
+"darksynth": "dance",
+"death n roll": "metal",
+"deathrock": "rock",
+"dechovka": "classical",
+"deejay": "reggae",
+"deep tech": "dance",
+"denpa": "pop",
+"dhrupad": "classical",
+"digicore": "rap",
+"digital fusion": "dance",
+"dirty south": "rap",
+"divertissement": "classical",
+"dixieland": "jazz",
+"doble paso": "latin",
+"dongjing": "classical",
+"donk": "dance",
+"donosti sound": "rock",
+"doomcore": "dance",
+"dreampunk": "dance",
+"drinking song": "folk",
+"drumfunk": "dance",
+"dubstyle": "dance",
+"dubwise": "dance",
+"dunedin sound": "rock",
+"dungeon chip": "soundtrack",
+"dungeon sound": "dance",
+"dutch trancecore": "dance",
+"easycore": "rock",
+"eccojams": "dance",
+"electroacoustic": "dance",
+"electroclash": "dance",
+"electropunk": "rock",
+"eleki": "rock",
+"eletrofunk": "rnb",
+"emocore": "rock",
+"emoviolence": "dance",
+"english pastoral school": "classical",
+"eurobeat": "dance",
+"euskal kantagintza berria": "folk",
+"exotica": "pop",
+"expressionism": "classical",
+"extratone": "dance",
+"fahrtenlied": "folk",
+"falak": "folk",
+"fantasia": "classical",
+"festejo": "folk",
+"fijiri": "folk",
+"filk": "folk",
+"flashcore": "dance",
+"florida breaks": "dance",
+"fm synthesis": "dance",
+"folktronica": "dance",
+"fon leb": "classical",
+"footwork": "dance",
+"forest psytrance": "dance",
+"frapcore": "dance",
+"freakbeat": "rock",
+"free car music": "rap",
+"free tekno": "dance",
+"freestyle": "dance",
+"frenchcore": "dance",
+"frenchtek": "dance",
+"fugue": "classical",
+"full on": "dance",
+"funeral march": "classical",
+"funkot": "dance",
+"funktronica": "dance",
+"funky breaks": "dance",
+"future bass": "dance",
+"future bounce": "dance",
+"future core": "dance",
+"future rave": "dance",
+"future riddim": "dance",
+"futurism": "classical",
+"gabber": "dance",
+"gagaku": "classical",
+"gagok": "classical",
+"gallican chant": "classical",
+"gamelan": "classical",
+"gamelan angklung": "classical",
+"gamelan beleganjur": "classical",
+"gamelan degung": "classical",
+"gamelan gambang": "classical",
+"gamelan gender wayang": "classical",
+"gamelan gong gede": "classical",
+"gamelan gong kebyar": "classical",
+"gamelan jegog": "classical",
+"gamelan joged bumbung": "classical",
+"gamelan salendro": "classical",
+"gamelan sekaten": "classical",
+"gamelan selunding": "classical",
+"gamelan semar pegulingan": "classical",
+"gamelan siteran": "classical",
+"gamelan surakarta": "classical",
+"genge": "rap",
+"gengetone": "rap",
+"ghettotech": "dance",
+"glitch": "dance",
+"go go": "rnb",
+"gommance": "reggae",
+"goregrind": "metal",
+"gorenoise": "metal",
+"gqom": "dance",
+"graphical sound": "dance",
+"grebo": "rock",
+"gregorian chant": "classical",
+"group sounds": "rock",
+"gufeng": "pop",
+"guoyue": "classical",
+"género chico": "classical",
+"género grande": "classical",
+"halftime": "dance",
+"hamburger schule": "rock",
+"hands up": "dance",
+"haozi": "folk",
+"hard bop": "jazz",
+"hard drum": "dance",
+"hard nrg": "dance",
+"hard renaissance": "dance",
+"hardbag": "dance",
+"hardbass": "dance",
+"hardtekk": "dance",
+"hardvapour": "dance",
+"heavy psych": "rock",
+"heikyoku": "classical",
+"hexd": "dance",
+"hi tech": "dance",
+"hi tech full on": "dance",
+"hipco": "rap",
+"hiplife": "rap",
+"honky tonk": "folk",
+"honkyoku": "classical",
+"horror synth": "dance",
+"horrorcore": "rap",
+"hot rod music": "rock",
+"houston sound": "rap",
+"hyangak": "classical",
+"hypertechno": "dance",
+"hyphy": "rap",
+"hát tuồng": "classical",
+"idol kayō": "pop",
+"illbient": "dance",
+"impressionism": "classical",
+"impromptu": "classical",
+"indeterminacy": "classical",
+"indietronica": "dance",
+"indorock": "rock",
+"integral serialism": "classical",
+"iraqi maqam": "classical",
+"isa": "folk",
+"islamic modal music": "classical",
+"j core": "dance",
+"j euro": "dance",
+"jam band": "rock",
+"jamgrass": "folk",
+"javanese gamelan": "classical",
+"jawaiian": "reggae",
+"jeongak": "classical",
+"jerk": "rap",
+"jersey sound": "dance",
+"jesus music": "pop",
+"jiuta": "classical",
+"jovem guarda": "rock",
+"jubilee": "rap",
+"jug band": "jazz",
+"juke": "dance",
+"jump up": "dance",
+"jumpstyle": "dance",
+"jōruri": "classical",
+"kacapi suling": "classical",
+"kankyō ongaku": "soundtrack",
+"kawaii future bass": "dance",
+"kayōkyoku": "pop",
+"keller synth": "soundtrack",
+"khrueang sai": "classical",
+"khyal": "classical",
+"klasik": "classical",
+"kleinkunst": "folk",
+"konnakol": "classical",
+"korean ballad": "pop",
+"krautrock": "rock",
+"krushclub": "dance",
+"kréyol djaz": "jazz",
+"kuduro": "dance",
+"kulintang": "classical",
+"kumiuta": "classical",
+"kunqu": "classical",
+"kwaito": "dance",
+"könsrock": "rock",
+"landó": "folk",
+"leftfield": "dance",
+"lento violento": "dance",
+"levenslied": "pop",
+"lied": "classical",
+"liedermacher": "folk",
+"liquid riddim": "dance",
+"livetronica": "rock",
+"lolicore": "dance",
+"loud kei": "rock",
+"lounge": "pop",
+"lowend": "rap",
+"lute song": "classical",
+"ländlermusik": "folk",
+"madchester": "dance",
+"madrigal": "classical",
+"mahori": "classical",
+"makina": "dance",
+"malay gamelan": "classical",
+"mallsoft": "dance",
+"malouf": "classical",
+"mambo urbano": "latin",
+"manele": "folk",
+"mangue beat": "rock",
+"manila sound": "rock",
+"manyao": "dance",
+"marabi": "jazz",
+"march": "classical",
+"marinera": "folk",
+"marinera norteña": "folk",
+"mashcore": "dance",
+"mass": "classical",
+"mathcore": "metal",
+"mbaqanga": "jazz",
+"medieval": "classical",
+"medieval lyric poetry": "classical",
+"meiji shinkyoku": "classical",
+"melbourne bounce": "dance",
+"melodic bass": "dance",
+"merseybeat": "rock",
+"miami bass": "rap",
+"microfunk": "dance",
+"microsound": "dance",
+"midtempo bass": "dance",
+"military cadence": "folk",
+"minatory": "dance",
+"mincecore": "metal",
+"minimal synth": "dance",
+"minimal wave": "dance",
+"minneapolis sound": "rnb",
+"minnesang": "classical",
+"minstrelsy": "soundtrack",
+"mobb music": "rap",
+"mod": "rock",
+"mod revival": "rock",
+"modern creative": "jazz",
+"modern hardtek": "dance",
+"moe song": "pop",
+"monodrama": "classical",
+"mood kayō": "pop",
+"moogsploitation": "dance",
+"moombahcore": "dance",
+"moombahton": "dance",
+"motet": "classical",
+"mozarabic chant": "classical",
+"mugham": "classical",
+"mulatós": "pop",
+"murga": "soundtrack",
+"murga uruguaya": "soundtrack",
+"music hall": "soundtrack",
+"musique concrète": "dance",
+"musique concrète instrumentale": "classical",
+"mélodie": "classical",
+"música cebolla": "pop",
+"música criolla": "folk",
+"música de intervenção": "folk",
+"música festera": "classical",
+"nagauta": "classical",
+"nanguan": "classical",
+"narcocorrido": "latin",
+"nashville sound": "folk",
+"natya sangeet": "classical",
+"nederbeat": "rock",
+"neo acoustic": "pop",
+"neo bop": "jazz",
+"neo rave": "dance",
+"neo rockabilly": "rock",
+"neoclassicism": "classical",
+"neocrust": "rock",
+"neofolk": "folk",
+"neofolklore": "folk",
+"neoperreo": "latin",
+"neoromanticism": "classical",
+"nepali lok geet": "folk",
+"nerdcore": "rap",
+"neue deutsche härte": "metal",
+"neue deutsche welle": "rock",
+"neurofunk": "dance",
+"new complexity": "classical",
+"new mexico music": "folk",
+"new rave": "dance",
+"new romantic": "rock",
+"night full on": "dance",
+"nightcore": "dance",
+"nintendocore": "dance",
+"nitzhonot": "dance",
+"no wave": "rock",
+"nocturne": "classical",
+"noh": "classical",
+"noisecore": "dance",
+"noisegrind": "metal",
+"nortec": "dance",
+"nova cançó": "folk",
+"novelty piano": "jazz",
+"nu skool breaks": "dance",
+"nu style gabber": "dance",
+"nueva canción": "folk",
+"nueva canción chilena": "folk",
+"nueva canción española": "folk",
+"nuevo cancionero": "folk",
+"nustyle": "dance",
+"nwobhm": "metal",
+"nyū myūjikku": "pop",
+"néo trad": "folk",
+"nóta": "folk",
+"oi": "rock",
+"old roman chant": "classical",
+"old time": "folk",
+"operetta": "classical",
+"opm": "pop",
+"opéra comique": "classical",
+"oratorio": "classical",
+"ori deck": "dance",
+"oriental ballad": "pop",
+"outrun": "dance",
+"overture": "classical",
+"pagode": "latin",
+"pagode romântico": "latin",
+"pagodão": "latin",
+"palingsound": "pop",
+"paramaribop": "jazz",
+"partido alto": "latin",
+"partyschlager": "pop",
+"passion setting": "classical",
+"phleng phuea chiwit": "folk",
+"pigfuck": "rock",
+"pinpeat": "classical",
+"piphat": "classical",
+"pizzica": "folk",
+"plainchant": "classical",
+"plugg": "rap",
+"pluggnb": "rap",
+"polca criolla": "folk",
+"porn groove": "rnb",
+"pornogrind": "metal",
+"post bop": "jazz",
+"powerstomp": "dance",
+"powerviolence": "dance",
+"praise and worship": "pop",
+"praise break": "rnb",
+"prelude": "classical",
+"process music": "classical",
+"progressive breaks": "dance",
+"progressive psytrance": "dance",
+"psybient": "dance",
+"psybreaks": "dance",
+"psycore": "dance",
+"psystyle": "dance",
+"psytrance": "dance",
+"pumpcore": "dance",
+"purple sound": "dance",
+"pásztordal": "folk",
+"pìobaireachd": "classical",
+"queercore": "rock",
+"rabbit song": "folk",
+"rage": "rap",
+"ragga": "reggae",
+"raggacore": "dance",
+"raggatek": "dance",
+"rasteirinha": "rnb",
+"ratchet music": "rap",
+"rautalanka": "rock",
+"rave": "dance",
+"rawphoric": "dance",
+"rawstyle": "dance",
+"red dirt": "folk",
+"regalia": "rap",
+"renaissance": "classical",
+"reparto": "latin",
+"requiem": "classical",
+"revue": "soundtrack",
+"rhumba": "latin",
+"ricercar": "classical",
+"riot grrrl": "rock",
+"ritmada": "rnb",
+"rkt": "latin",
+"rockaballad": "rock",
+"rockabilly": "rock",
+"rom kbach": "pop",
+"romanian popcorn": "dance",
+"romantic flow": "latin",
+"romantische oper": "classical",
+"rominimal": "dance",
+"rumba flamenca": "latin",
+"russian romance": "classical",
+"rustic stomp": "folk",
+"sacred steel": "rnb",
+"saluang klasik": "classical",
+"sambalanço": "latin",
+"sambass": "rnb",
+"sampledelia": "dance",
+"sarum chant": "classical",
+"sasscore": "dance",
+"sawt": "classical",
+"schottische": "folk",
+"schranz": "dance",
+"screamo": "dance",
+"scrumpy and western": "folk",
+"sea shanty": "folk",
+"sean nós": "folk",
+"seapunk": "dance",
+"seguidilla": "folk",
+"serenade": "classical",
+"serialism": "classical",
+"sevdalinka": "folk",
+"sevillanas": "folk",
+"shange": "folk",
+"shashmaqam": "classical",
+"shatta": "reggae",
+"shibuya kei": "pop",
+"shōmyō": "classical",
+"sigilkore": "rap",
+"sinfonia concertante": "classical",
+"singeli": "dance",
+"singspiel": "classical",
+"sissy bounce": "rap",
+"sitarsploitation": "pop",
+"skacore": "reggae",
+"skiffle": "folk",
+"skweee": "dance",
+"slimepunk": "dance",
+"slowcore": "rock",
+"snap": "rap",
+"soft visual": "rock",
+"sonata": "classical",
+"sonorism": "classical",
+"spacesynth": "dance",
+"spectralism": "classical",
+"speedcore": "dance",
+"spiritual art song": "classical",
+"splittercore": "dance",
+"stenchcore": "rock",
+"stochastic music": "classical",
+"stomp and holler": "folk",
+"stornello": "folk",
+"stride": "jazz",
+"string quartet": "classical",
+"sufiana kalam": "classical",
+"suomisaundi": "dance",
+"surf": "rock",
+"sutartinės": "folk",
+"swancore": "dance",
+"sōkyoku": "classical",
+"tajaraste": "folk",
+"talempong": "classical",
+"talempong goyang": "pop",
+"tallava": "folk",
+"tamborzão": "rnb",
+"tammurriata": "folk",
+"tappa": "classical",
+"tarana": "classical",
+"tarantella": "folk",
+"tearout": "dance",
+"technoid": "dance",
+"tecnocumbia": "latin",
+"tecnomerengue": "latin",
+"tecnorumba": "dance",
+"tembang cianjuran": "classical",
+"terror plugg": "rap",
+"terrorcore": "dance",
+"tex mex": "rock",
+"thall": "metal",
+"theme and variations": "classical",
+"thrashcore": "dance",
+"thumri": "classical",
+"timba": "latin",
+"tin pan alley": "pop",
+"toccata": "classical",
+"tonada asturiana": "folk",
+"totalism": "classical",
+"township bubblegum": "dance",
+"tragédie en musique": "classical",
+"trampská hudba": "folk",
+"trapfunk": "rnb",
+"tread": "rap",
+"tribal guarachero": "dance",
+"trikitixa": "folk",
+"troubadour song": "classical",
+"turntablism": "rap",
+"twerk": "rap",
+"udigrudi": "folk",
+"uk funky": "dance",
+"uk jackin": "dance",
+"uk82": "dance",
+"urban cowboy": "folk",
+"utopian virtual": "dance",
+"uyghur muqam": "classical",
+"vals criollo": "folk",
+"vapornoise": "dance",
+"vaportrap": "dance",
+"vaudeville": "soundtrack",
+"verismo": "classical",
+"visa": "folk",
+"visual kei": "rock",
+"vocal surf": "rock",
+"vocalese": "jazz",
+"volkstümliche musik": "pop",
+"wa euro": "pop",
+"waulking song": "folk",
+"wave": "dance",
+"weightless": "rap",
+"west coast breaks": "dance",
+"western": "folk",
+"white voice": "folk",
+"winter synth": "soundtrack",
+"wong shadow": "pop",
+"work song": "folk",
+"xian psych": "rock",
+"xtra raw": "dance",
+"xuc": "folk",
+"yakousei": "rock",
+"yanyue": "classical",
+"yayue": "classical",
+"yodeling": "folk",
+"yé yé": "pop",
+"zamrock": "rock",
+"zarzuela": "classical",
+"zarzuela barroca": "classical",
+"zeitoper": "classical",
+"zenonesque": "dance",
+"zess": "reggae",
+"zeuhl": "rock",
+"zeybek": "folk",
+"zhongguo feng": "pop",
+"zolo": "rock",
+"étude": "classical"
+},
+"source": "MusicBrainz genre + l_genre_genre \"subgenre\" (CC0), fullexport 20261017-002244",
+"rule": "family_of_tag(tag): split on ; / , | ; for each part: tokens = lowercase, & -> and, drop apostrophes, non-alnum -> space; first PHRASES match on a token span; else suffix rule on a single word; else tree[joined tokens]; first part that maps wins"
+}

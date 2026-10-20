@@ -1,0 +1,62 @@
+# kind	input...	expected (serving/taxonomy.py family_of_tag; l2_features.album_key)
+family	Hip-Hop	rap
+family	R&B	rnb
+family	Rhythm & Blues	rnb
+family	Soul/Funk	rnb
+family	Synthpop	pop
+family	Electropop	pop
+family	k-pop	pop
+family	Drum & Bass	dance
+family	drum and bass	dance
+family	Symphonic Metal	metal
+family	Symphony	classical
+family	Reggaeton	latin
+family	Slow Jams	rnb
+family	Classical; Opera	classical
+family	Unknown	
+family		
+family	Trip Hop	dance
+family	Glitch-hop	
+family	Deep House	dance
+family	Lo-Fi	dance
+family	Darkstep	dance
+family	Neo-Soul	rnb
+family	Rock 'n' Roll	rock
+family	Post-Rock	rock
+family	Shoegaze	rock
+family	Vaporwave	dance
+family	Country, Folk	folk
+family	Ambient | Drone	soundtrack
+family	Death Metal	metal
+family	Bossa Nova	latin
+family	J-Pop	pop
+family	Чанс	
+family	Поп	
+family	Eurodance	dance
+family	Soundtrack	soundtrack
+family	Video Game Music	soundtrack
+family	Anime	soundtrack
+family	Hardstyle	dance
+family	acid breaks	dance
+family	2-step	dance
+family	Abhang	classical
+family	Cantopop	pop
+family	Dubstep	dance
+family	Other	
+family	Speech	
+album	Thriller (Deluxe Edition)		Michael Jackson	thriller|michael jackson
+album	The Wall	Pink Floyd		wall|pink floyd
+album	Now That’s What I Call Music! 45	Various Artists	Aqua	now thats what i call music 45|various artists
+album	Unknown Album		X	
+album			X	
+album	Untitled	A	B	
+album	Café del Mar - Volumen Uno	VA		cafe del mar|va
+album	Live [2004 Remaster]	The Beatles	The Beatles	live|beatles
+album	Песни о любви	Земфира		песни о любви|земфира
+album	Song feat. Someone		Ludacris & Nelly	song|ludacris and nelly
+album	Ñandú	Señor Ñ		nandu|senor n
+album	  		X	
+album	Slow Jams	Various	Usher	slow jams|various
+album	アルバム	宇多田ヒカル		アルハム|宇多田ヒカル
+album	Rock & Roll_Hits	AC/DC		rock and roll hits|ac dc
+album	Ｆｕｌｌｗｉｄｔｈ		Ｂａｎｄ	fullwidth|band

@@ -424,6 +424,11 @@ object AppGraph {
         return writeDebugFile("smart_diagnostics.jsonl", text)
     }
 
+    /** Clear listening history: SMART's in-memory press list (freshness) is cleared with the log. */
+    internal suspend fun forgetSmartPresses() {
+        koin.getOrNull<SmartLogRecorder>()?.forgetPresses()
+    }
+
     /** SMART's impression log, for the debug export (null when the platform binds none). */
     internal val smartImpressionLog: SmartImpressionLog?
         get() = koin.getOrNull()

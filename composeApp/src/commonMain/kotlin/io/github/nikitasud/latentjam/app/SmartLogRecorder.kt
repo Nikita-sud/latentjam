@@ -39,6 +39,17 @@ interface SmartPlanLog {
     suspend fun planned(queue: String, plan: Int, rankOffset: Int, model: String, rows: List<SmartPlanRow>)
 
     suspend fun served(id: TrackId)
+
+    /**
+     * PLAN_L1 §2c freshness: the content keys each recent press showed (the first [SHOWN_ROWS] rows of its plan 0),
+     * newest first, across every seed: at most [presses] presses from the last [windowMs] before [nowMs], leaving
+     * out queue [excludeQueue] (a top-up's own queue).
+     */
+    suspend fun recentPresses(nowMs: Long, windowMs: Long, presses: Int, excludeQueue: String? = null): List<Set<String>> = emptyList()
+
+    companion object {
+        const val SHOWN_ROWS: Int = 10
+    }
 }
 
 /**
@@ -65,6 +76,11 @@ class SmartLogRecorder(
     private var queueRef: List<TrackDescriptor>? = null
     private var queueIds: Set<TrackId> = emptySet()
 
+    /** Recent presses (plan 0's shown rows), newest first; read back from the log once per process. */
+    private class Press(val queue: String, val atMs: Long, val keys: Set<String>)
+    private val pressMutex = Mutex()
+    private var pressLog: ArrayDeque<Press>? = null
+
     init {
         scope.launch {
             for (write in writes) {
@@ -86,6 +102,10 @@ class SmartLogRecorder(
             r.trackId to SmartImpression(at, queue, plan, i + 1, r.trackKey, rankOffset + i + 1, r.score, r.probability, r.tie, r.source, model)
         }
         val outcomes = mutex.withLock { tracker.onPlan(impressions, at) }
+        if (plan == 0) {
+            val keys = rows.take(SmartPlanLog.SHOWN_ROWS).mapNotNullTo(HashSet()) { it.trackKey.takeIf(String::isNotEmpty) }
+            pressMutex.withLock { pressesLoaded().addFirst(Press(queue, at, keys)); trimPresses() }
+        }
         val lines = impressions.map { it.second }
         writes.trySend {
             if (outcomes.isNotEmpty()) log.recordOutcomes(outcomes)
@@ -94,6 +114,39 @@ class SmartLogRecorder(
     }
 
     override suspend fun served(id: TrackId): Unit = mutex.withLock { tracker.onServed(id) }
+
+    override suspend fun recentPresses(nowMs: Long, windowMs: Long, presses: Int, excludeQueue: String?): List<Set<String>> {
+        if (!enabled() || presses <= 0) return emptyList()
+        return pressMutex.withLock {
+            pressesLoaded().asSequence()
+                .filter { it.queue != excludeQueue && it.atMs <= nowMs && nowMs - it.atMs <= windowMs }
+                .take(presses).map { it.keys }.toList()
+        }
+    }
+
+    /** The press list, read from the log on first use (plan-0 rows within the first shown rows, grouped by queue). */
+    private suspend fun pressesLoaded(): ArrayDeque<Press> = pressLog ?: run {
+        val byQueue = LinkedHashMap<String, Pair<Long, MutableSet<String>>>()
+        runCatching {
+            log.forEachLine { line ->
+                if (!line.startsWith("si1|")) return@forEachLine
+                val i = SmartImpressionLog.parse(line) as? SmartImpression ?: return@forEachLine
+                if (i.plan != 0 || i.hop > SmartPlanLog.SHOWN_ROWS || i.track.isEmpty()) return@forEachLine
+                val e = byQueue.getOrPut(i.queue) { i.atMs to HashSet() }
+                e.second += i.track
+            }
+        }
+        ArrayDeque(byQueue.entries.sortedByDescending { it.value.first }.take(MAX_PRESSES).map { Press(it.key, it.value.first, it.value.second) })
+            .also { pressLog = it }
+    }
+
+    /** Clear listening history: the presses go with the log. */
+    suspend fun forgetPresses(): Unit = pressMutex.withLock { pressLog = ArrayDeque() }
+
+    private fun trimPresses() {
+        val l = pressLog ?: return
+        while (l.size > MAX_PRESSES) l.removeLast()
+    }
 
     /** Every playback snapshot the history recorder sees (~2 per second while playing). */
     suspend fun onNowPlaying(now: NowPlaying) {
@@ -124,6 +177,7 @@ class SmartLogRecorder(
 
     private companion object {
         const val WRITE_BUFFER = 256
+        const val MAX_PRESSES = 32
     }
 }
 

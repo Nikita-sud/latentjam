@@ -57,6 +57,27 @@ class SmartLogRecorderTest {
     }
 
     @Test
+    fun recentPressesAreTheFirstTenRowsOfEachPlanZeroNewestFirst() = runTest {
+        val store = Lines()
+        var now = 1_000L
+        val recorder = SmartLogRecorder(SmartImpressionLog(store), backgroundScope, clock = { now })
+        recorder.planned("q1", 0, 0, "m", (1..12).map { row("a$it") })
+        now = 2_000L
+        recorder.planned("q1", 1, 12, "m", listOf(row("topup")))
+        recorder.planned("q2", 0, 0, "m", listOf(row("b1")))
+        val got = recorder.recentPresses(nowMs = 2_500L, windowMs = 10_000L, presses = 5)
+        assertEquals(listOf(setOf("kb1"), (1..10).map { "ka$it" }.toSet()), got)
+        assertEquals(listOf(setOf("kb1")), recorder.recentPresses(2_500L, 1_000L, 5), "the window drops q1")
+        assertEquals(listOf((1..10).map { "ka$it" }.toSet()), recorder.recentPresses(2_500L, 10_000L, 5, excludeQueue = "q2"))
+        runCurrent()
+        // A new process reads the same presses back from the log.
+        val again = SmartLogRecorder(SmartImpressionLog(store), backgroundScope, clock = { now })
+        assertEquals(got, again.recentPresses(2_500L, 10_000L, 5))
+        again.forgetPresses()
+        assertEquals(emptyList(), again.recentPresses(2_500L, 10_000L, 5))
+    }
+
+    @Test
     fun nothingIsLoggedWhileHistoryIsOff() = runTest {
         val store = Lines()
         val recorder = SmartLogRecorder(SmartImpressionLog(store), backgroundScope, enabled = { false })

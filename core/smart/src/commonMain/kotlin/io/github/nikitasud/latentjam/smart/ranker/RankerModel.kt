@@ -55,6 +55,8 @@ public class RankerModel(
     public val seedGate: SeedGate? = null,
     /** PLAN_L1 §2c: the impression discount; null = none. */
     public val freshness: Freshness? = null,
+    /** FULL L2 (audit 06 #4): the score adds the embedded [seedGate] core's metadata logit (no audio). */
+    public val coreOffset: Boolean = false,
 ) {
     /** λ · |Δe| to the previous pick ("prev"), or λ · max(0, |Δe to the seed| − τ) ("seedHinge"). */
     public class Energy(public val lambda: Double, public val seedHinge: Boolean, public val tau: Double)
@@ -125,6 +127,10 @@ public class RankerModel(
         public val artistKey: String = "engine",
         public val recentWindow: Int = 50,
         public val hopBudgetMs: Long = 150,
+        /** PLAN_L2: pool-mean popularity fill, per-artist cap per retriever, fill to [poolTarget]. */
+        public val l2: Boolean = false,
+        public val poolTarget: Int = wholeLibraryUpTo,
+        public val artistCap: Int = 15,
     )
 
     /** The audio term's raw weight (§1.3): the override, else max(0, raw weight of "cos"). */
@@ -166,6 +172,7 @@ public class RankerModel(
         var total = 0.0
         for (i in columns.indices) total += weights[i] * ((row[columns[i]] - mean[i]) / sd[i])
         if (audioWeight != 0.0 && !audioAgainstPrevious && row.size > audioColumn) total += audioWeight * row[audioColumn]
+        if (coreOffset) seedGate?.let { total += it.core.score(row) }
         return total
     }
 
@@ -199,9 +206,9 @@ public class RankerModel(
             "" to setOf(
                 "schema", "name", "source", "provenance", "features", "mean", "sd", "weights", "runPenalty", "anchor",
                 "seedWeight", "previousWeight", "epsilon", "thirdInRowCap", "serving", "inputs", "audioWeight",
-                "artistReentry", "energy", "r1Energy", "audioAnchor", "imputedDescriptor", "seedGate", "freshness",
+                "artistReentry", "energy", "r1Energy", "audioAnchor", "imputedDescriptor", "seedGate", "freshness", "coreOffset",
             ),
-            "serving" to setOf("wholeLibraryUpTo", "quotas", "artistKey", "recentWindow", "hopBudgetMs"),
+            "serving" to setOf("wholeLibraryUpTo", "quotas", "artistKey", "recentWindow", "hopBudgetMs", "l2", "poolTarget", "artistCap"),
             "inputs" to setOf("logpop", "colisten", "lfm", "audioEncoder"),
             "artistReentry" to setOf("lambda", "k", "gamma", "credit", "creditRun"),
             "energy" to setOf("lambda", "mode", "tau"),
@@ -264,6 +271,9 @@ public class RankerModel(
                         artistKey = (m["artistKey"] as? String ?: d.artistKey).also { require(it == "engine" || it == "artistSet") },
                         recentWindow = (m["recentWindow"] as? Number)?.toInt() ?: d.recentWindow,
                         hopBudgetMs = (m["hopBudgetMs"] as? Number)?.toLong() ?: d.hopBudgetMs,
+                        l2 = m["l2"] == true,
+                        poolTarget = (m["poolTarget"] as? Number)?.toInt() ?: (m["wholeLibraryUpTo"] as? Number)?.toInt() ?: d.wholeLibraryUpTo,
+                        artistCap = (m["artistCap"] as? Number)?.toInt() ?: 15,
                     )
                 } ?: Serving(),
                 audioWeightOverride = (root["audioWeight"] as? Number)?.toDouble(),
@@ -278,6 +288,7 @@ public class RankerModel(
                 r1EnergyTau = (root["r1Energy"] as? Map<*, *>)?.let { (it["tau"] as Number).toDouble() },
                 audioAgainstPrevious = root["audioAnchor"] == "previous",
                 imputedUnknown = root["imputedDescriptor"] == "unknown",
+                coreOffset = root["coreOffset"] == true,
                 seedGate = (root["seedGate"] as? Map<*, *>)?.let { g ->
                     val coreMap = (g["core"] as Map<*, *>).toMutableMap().also { it["audioWeight"] = 0.0 }
                     SeedGate(

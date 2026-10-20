@@ -39,7 +39,7 @@ class ServingReferenceGoldenTest {
             .filter(String::isNotEmpty).map { MiniJson(it).parse() as Map<String, Any?> }
 
     @Test
-    fun plansMatchTheServingReference() = plansMatch("/serving_fixtures.jsonl.gz", fixtures = 21, requests = 41)
+    fun plansMatchTheServingReference() = plansMatch("/serving_fixtures.jsonl.gz", fixtures = 24, requests = 48)
 
     /**
      * The same 21 libraries and requests with the shipped models swapped in (model_core_l1.json 6c23bd6c — the PLAN_L1 v5
@@ -47,7 +47,7 @@ class ServingReferenceGoldenTest {
      * personal ones; rule-only kept), re-planned by reference.py (3e659ff8… at b6e710fc).
      */
     @Test
-    fun plansWithTheShippedModelsMatchTheServingReference() = plansMatch("/serving_fixtures_final.jsonl.gz", fixtures = 21, requests = 41)
+    fun plansWithTheShippedModelsMatchTheServingReference() = plansMatch("/serving_fixtures_final.jsonl.gz", fixtures = 24, requests = 48)
 
     /**
      * The decoder and feature paths of PLAN_AUDIO_ON §8.2 / §8.8 and PLAN_L1 §2b / §2c / §10.4 / §10.5 on fixtures 10 /
@@ -245,6 +245,10 @@ class ServingReferenceGoldenTest {
         version = r["version"] as String,
         descriptor = (r["descriptor"] as String?)?.let(::floats),
         lfm = (r["lfm"] as String?)?.let(::floats),
+        year = (r["year"] as Number?)?.toInt(),
+        albumKey = r["albumKey"] as String? ?: "",
+        compilation = r["compilation"] == true,
+        familyFromTrack = r["familySource"] == "track",
     )
 
     @OptIn(ExperimentalEncodingApi::class)

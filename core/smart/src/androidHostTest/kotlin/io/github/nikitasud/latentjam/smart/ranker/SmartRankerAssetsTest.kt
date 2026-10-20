@@ -29,7 +29,7 @@ class SmartRankerAssetsTest {
         assertNull(assets.problem, assets.problem)
         assertTrue(assets.healthy)
         assertTrue(ranker.hasFullModel)
-        assertTrue(ranker.modelName.startsWith("CORE L1"), ranker.modelName)
+        assertTrue(ranker.modelName.startsWith("CORE L2"), ranker.modelName)
         assertEquals(20, ranker.plan(PlanRequest(library[0], library, library, length = 20)).ids.size)
     }
 
@@ -68,12 +68,36 @@ class SmartRankerAssetsTest {
     fun aModelWithAKeyTheAppDoesNotImplementIsRefused() = runTest {
         val core = File(ml, "smart_ranker.json").readText()
         assertTrue(RankerModel.parse(core) != null)
-        val unknown = core.replaceFirst("{", "{\"coreOffset\": 0.5, ")
+        val unknown = core.replaceFirst("{", "{\"mystery\": 0.5, ")
         assertNull(RankerModel.parse(unknown))
-        assertEquals("unknown model key 'coreOffset'", RankerModel.parseOrProblem(unknown).second)
-        val nested = core.replaceFirst("\"serving\": {", "\"serving\": {\"poolTarget\": 400, ")
-        assertEquals("unknown model key 'serving.poolTarget'", RankerModel.parseOrProblem(nested).second)
+        assertEquals("unknown model key 'mystery'", RankerModel.parseOrProblem(unknown).second)
+        val nested = core.replaceFirst("\"serving\": {", "\"serving\": {\"maxPool\": 400, ")
+        assertEquals("unknown model key 'serving.maxPool'", RankerModel.parseOrProblem(nested).second)
         val declared = core.replaceFirst("\"inputs\": {", "\"inputs\": {\"audioEncoder\": \"other\", ")
         assertEquals("other", RankerModel.parse(declared)?.audioEncoder)
+    }
+
+    @Test
+    fun l2TrackFieldsComeFromTheFileTags() = runTest {
+        val tracks = (0 until 12).map {
+            TrackDescriptor(
+                TrackId("c$it"), title = "Song $it", artist = "Singer ${it % 4}", album = if (it < 6) "Slow Jams" else "Other LP",
+                albumArtist = if (it < 6) null else "Singer 1", genre = if (it % 2 == 0) "R&B" else "Unknown",
+                year = 2001, originalYear = if (it == 0) 1994 else null, durationMs = 200_000L + it,
+            )
+        }
+        val ranker = SmartRankerAssets(null, ::read).ranker
+        val trace = PlanTrace()
+        ranker.tracer = trace
+        ranker.plan(PlanRequest(tracks[0], tracks, tracks, length = 5))
+        val col = { name: String -> RankerFeatures.NAMES.indexOf(name) }
+        val row = { id: String -> trace.seedFeatures[trace.pool.indexOf(TrackId(id))] }
+        assertEquals(1.0, row("c2")[col("family_is_track")], "an R&B tag maps on the twelve families")
+        assertEquals(0.0, row("c1")[col("family_is_track")])
+        assertEquals(0.7, row("c2")[col("year_dist")], 1e-12, "the seed's original year, the candidate's year")
+        // "Slow Jams" without an album artist keys on each track artist: c4 shares the seed's (Singer 0), c2 does not.
+        assertEquals(1.0, row("c4")[col("same_album")])
+        assertEquals(0.0, row("c2")[col("same_album")])
+        assertEquals(0.0, row("c4")[col("same_compilation")], "one artist on that key: not a compilation")
     }
 }

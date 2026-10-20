@@ -252,10 +252,12 @@ public object RankerQueue {
                 if (aPrev != null) v += model.audioWeight * aPrev[i]
                 if (en != null) {
                     val ei = energies!![i].takeIf { !it.isNaN() } ?: eFill
-                    val ref = (if (!en.seedHinge) (if (picks.isNotEmpty()) energies[picks.last()].takeIf { !it.isNaN() } else seedEnergy) else seedEnergy)
-                        ?: eFillRef
-                    val d = kotlin.math.abs(ei - ref)
-                    v -= en.lambda * (if (!en.seedHinge) d else maxOf(0.0, d - en.tau))
+                    val ref = if (!en.seedHinge) (if (picks.isNotEmpty()) energies[picks.last()].takeIf { !it.isNaN() } else seedEnergy) else seedEnergy
+                    // Audit 05 #4: an unknown anchor energy switches the term off at this hop.
+                    if (ref != null) {
+                        val d = kotlin.math.abs(ei - ref)
+                        v -= en.lambda * (if (!en.seedHinge) d else maxOf(0.0, d - en.tau))
+                    }
                 }
                 if (ma == 0.0 && re.lambda != 0.0) {
                     var r = 0.0
@@ -428,6 +430,10 @@ internal class ResolvedTrack(
     val version: String,
     val descriptor: FloatArray?,
     val lfm: FloatArray?,
+    val year: Int? = null,
+    val albumKey: String = "",
+    val compilation: Boolean = false,
+    val familyFromTrack: Boolean = false,
 )
 
 /**
@@ -515,7 +521,14 @@ public class SmartRanker(
     private val popularity: ArtistPopularity? = null,
     /** The pack entities' genre families (LJFAMS1): a resolved entity's family wins over the genre tag's (§9). */
     private val families: ArtistFamilies? = null,
+    /**
+     * PLAN_L2's genre taxonomy. With it and an L2 model, a track's family is its genre tag's (familyFromTrack), else
+     * its artist's on the same taxonomy ([families] must then be the L2 table); year / album key / compilation are read.
+     */
+    private val taxonomy: GenreFamilies? = null,
 ) {
+    private val l2Tracks: Boolean = taxonomy != null && (model.serving.l2 || fullModel?.serving?.l2 == true)
+
     /**
      * One track's knowledge. The descriptor and the LightFM vector are read on first use (a 10k library would hold
      * ~15 MB of descriptors otherwise); imputed blocks replace missing ones and carry their flag.
@@ -533,7 +546,13 @@ public class SmartRanker(
         /** 64-bit hash of the song-version key. */
         val version: Long,
         val durationMs: Long?,
+        /** PLAN_L2 track fields: the original year (else the year), the album key, compilation, family from the tag. */
+        val year: Int? = null,
+        val albumKey: String = "",
+        val familyFromTrack: Boolean = false,
     ) {
+        /** Set once per library (it needs every track's album key), see [knownOf]. */
+        var compilation: Boolean = false
         // Read on first use; plain fields, not delegates: a 10k library keeps one Known per track.
         private var loaded = 0
         private var packDescriptorValue: FloatArray? = null
@@ -591,6 +610,13 @@ public class SmartRanker(
     public val hasFullModel: Boolean get() = fullModel != null
     public val fullModelName: String? get() = fullModel?.name
 
+    /** The freshness block of the model a plan with these flags runs (PLAN_L1 §2c), or null when it has none. */
+    public fun freshnessFor(personal: Boolean, ruleOnly: Boolean): RankerModel.Freshness? = when {
+        ruleOnly -> null
+        personal && fullModel != null -> fullModel.freshness
+        else -> model.freshness
+    }?.takeIf { it.lambda != 0.0 }
+
     private fun know(track: TrackDescriptor): Known {
         resolver?.invoke(track)?.let { r ->
             return Known(
@@ -604,15 +630,24 @@ public class SmartRanker(
                 entity = r.entity,
                 version = ArtistSets.keyHash(r.version),
                 durationMs = track.durationMs?.takeIf { it in 1..MAX_DURATION_MS },
-            ).also { it.preset(r.descriptor, r.lfm) }
+                year = r.year,
+                albumKey = r.albumKey,
+                familyFromTrack = r.familyFromTrack,
+            ).also {
+                it.preset(r.descriptor, r.lfm)
+                it.compilation = r.compilation
+            }
         }
         val primary = track.artists.firstOrNull()
         val facts = runCatching { knowledge?.facts(track.artist, primary) }.getOrNull()
         val entity = runCatching { knowledge?.entity(track.artist, primary) }.getOrNull() ?: -1
         val tagFamily = HabitFlow.family(track.genre)
-        // PLAN_FINAL §9: the pack entity's family when the entity resolves, else the genre tag's. The artist-set
-        // parser keeps the tag's family (its classical-composer rule reads the file's own genre, as the research did).
-        val family = (if (entity >= 0) runCatching { families?.family(entity) }.getOrNull() else null) ?: tagFamily
+        val artistFamily = if (entity >= 0) runCatching { families?.family(entity) }.getOrNull() else null
+        // PLAN_L2: the track's own tag family on the twelve-family taxonomy first, else the artist's. Before L2
+        // (PLAN_FINAL §9): the pack entity's family when the entity resolves, else the genre tag's. The artist-set
+        // parser keeps the old tag family either way (its classical-composer rule reads the file's own genre).
+        val trackFamily = if (l2Tracks) taxonomy?.familyOfTag(track.genre) else null
+        val family = if (l2Tracks) trackFamily ?: artistFamily else artistFamily ?: tagFamily
         val set = runCatching { ArtistSets.parse(track.artist, track.title, known, genreFamily = tagFamily) }.getOrNull()
         val engineArtist = HabitSlots.artistKey(track).let { k -> artistStrings.getOrPut(k) { k } }
         return Known(
@@ -626,7 +661,10 @@ public class SmartRanker(
             entity = entity,
             version = ArtistSets.keyHash(versionKey(track, engineArtist)),
             durationMs = track.durationMs?.takeIf { it in 1..MAX_DURATION_MS },
-        )
+            year = if (l2Tracks) (track.originalYear ?: track.year)?.takeIf { it > 0 } else null,
+            albumKey = if (l2Tracks) AlbumKeys.albumKey(track.album, track.albumArtist, track.artist) else "",
+            familyFromTrack = trackFamily != null,
+        ).also { if (l2Tracks) it.compilation = AlbumKeys.isVarious(track.albumArtist) }
     }
 
     private fun knownOf(library: List<TrackDescriptor>): Map<TrackId, Known> {
@@ -634,6 +672,12 @@ public class SmartRanker(
             artistStrings.clear()
             knownById = library.associate { it.id to know(it) }
             knownFor = library
+            if (l2Tracks && resolver == null) {
+                // PLAN_L2: an album key three or more artists share in the library is a compilation.
+                val artistsOn = HashMap<String, MutableSet<String>>()
+                for (k in knownById.values) if (k.albumKey.isNotEmpty()) artistsOn.getOrPut(k.albumKey) { HashSet() } += k.engineArtist
+                for (k in knownById.values) if (k.albumKey.isNotEmpty() && (artistsOn[k.albumKey]?.size ?: 0) >= 3) k.compilation = true
+            }
             val values = knownById.values
             entityCoverage = Triple(
                 values.count { it.entity >= 0 },
@@ -903,7 +947,7 @@ public class SmartRanker(
         model: RankerModel,
         gate: (DoubleArray?) -> DoubleArray?,
     ): Array<DoubleArray> {
-        fun raw(a: Known) = features(a, pool, artistKeyOf, audioVectors, personalRows, seedId, popularityOn, hearts, model.imputedUnknown)
+        fun raw(a: Known) = features(a, pool, artistKeyOf, audioVectors, personalRows, seedId, popularityOn, hearts, model.imputedUnknown, model.serving.l2)
         val rows = raw(if (anchor == RankerQueue.SEED) seedKnown else pool[anchor])
         val g = model.seedGate ?: return rows
         val values = gate(null) ?: gate(gateValuesOf(g, if (anchor == RankerQueue.SEED) rows else raw(seedKnown)))!!
@@ -943,6 +987,7 @@ public class SmartRanker(
         popularityOn: Boolean,
         hearts: PersonalHistory?,
         imputedUnknown: Boolean = false,
+        l2: Boolean = false,
     ): Array<DoubleArray> {
         val related = HashMap<Int, Double>()
         // PLAN_L1 §10.5 RULE: an imputed descriptor is unknown for the descriptor columns, an imputed family for the
@@ -972,6 +1017,10 @@ public class SmartRanker(
                 audio = cosine(anchorAudio, audioVectors[c.track.id]),
                 artistOverlap = overlap(anchorArtists, c.artists),
                 familyProbabilities = probabilitiesOf(c),
+                year = c.year,
+                albumKey = c.albumKey,
+                compilation = c.compilation,
+                familyFromTrack = c.familyFromTrack,
             )
         }
         val personalRows = personal?.let { h ->
@@ -983,9 +1032,11 @@ public class SmartRanker(
                 family = familyOf(anchor), language = anchor.language, decade = anchor.decade, artistKey = artistKeyOf(anchor),
                 descriptorImputed = anchor.descriptorImputed, familyImputed = anchor.familyImputed,
                 familyProbabilities = probabilitiesOf(anchor),
+                durationMs = anchor.durationMs, year = anchor.year, albumKey = anchor.albumKey, compilation = anchor.compilation,
             ),
             rows,
             personalRows,
+            l2,
         )
     }
 
@@ -1002,15 +1053,24 @@ public class SmartRanker(
     ): List<Known> {
         val byId = pool.associateBy { it.track.id }
         val out = LinkedHashMap<TrackId, Known>()
-        fun take(ids: List<TrackId>, quota: Int, source: String) {
+        val capKey = artistKeyOfServing(serving)
+        // PLAN_L2 (audit 04 #9): at most artistCap new tracks per artist from one retriever; R4 and the fills are exempt.
+        fun take(ids: List<TrackId>, quota: Int, source: String, capped: Boolean = true) {
             var added = 0
+            val perArtist = if (serving.l2 && capped) HashMap<String, Int>() else null
             for (id in ids) {
                 if (added >= quota) break
                 val k = byId[id] ?: continue
-                if (out.put(id, k) == null) {
-                    added++
-                    sources[id] = source
+                if (id in out) continue
+                if (perArtist != null) {
+                    val a = capKey(k)
+                    val c = perArtist[a] ?: 0
+                    if (a.isNotEmpty() && c >= serving.artistCap) continue
+                    perArtist[a] = c + 1
                 }
+                out[id] = k
+                added++
+                sources[id] = source
             }
         }
         val quota = { name: String -> serving.quotas[name] ?: 0 }
@@ -1038,24 +1098,36 @@ public class SmartRanker(
                 .map { it.track.id }, quota("colisten"), "R2")
         }
         val album = seed.track.album?.takeIf(String::isNotBlank)
-        take(pool.filter { (seed.setArtist != 0L && it.setArtist == seed.setArtist) || (album != null && it.track.album == album) }
-            .sortedBy { salted[it.track.id] }.map { it.track.id }, quota("artist"), "R4")
+        // PLAN_L2 §3.1b: the album key (title + album artist) when the seed has one, else the raw album string.
+        val sameAlbum: (Known) -> Boolean = if (seed.albumKey.isNotEmpty()) { k -> k.albumKey == seed.albumKey } else { k -> album != null && k.track.album == album }
+        take(pool.filter { (seed.setArtist != 0L && it.setArtist == seed.setArtist) || sameAlbum(it) }
+            .sortedBy { salted[it.track.id] }.map { it.track.id }, quota("artist"), "R4", capped = false)
         if (seed.family != null) take(pool.filter { it.family == seed.family }.sortedBy { salted[it.track.id] }.map { it.track.id }, quota("family"), "R5")
         if (request.personal && (!request.history.isEmpty || request.history.hasFavourites)) {
             take(request.history.followers(seed.track.id), quota("own") / 2, "R7")
             // R6: the tracks the listener hearted first (id-byte order; a heart never played has no activation), then
             // the ACT-R order (reference.py, PLAN_E_GATES §10).
-            val hearted = pool.filter { request.history.isFavourite(it.track.id) }.map { it.track.id }
+            var hearted = pool.filter { request.history.isFavourite(it.track.id) }.map { it.track.id }
                 .sortedWith { a, b -> SaltedKey.idOrder.compare(a.value, b.value) }
             var favs = request.history.favourites()
             val gate = active.seedGate?.takeIf { it.orderR6 }
+            // The seed gate over a set of tracks (their rows are z-scored among themselves, as reference.py's r6g).
+            fun gateOver(ids: List<TrackId>): Map<TrackId, Double> {
+                val ks = ids.mapNotNull { byId[it] }.sortedWith { a, b -> SaltedKey.idOrder.compare(a.track.id.value, b.track.id.value) }
+                if (ks.isEmpty() || gate == null) return emptyMap()
+                val rows = features(seed, ks, artistKeyOfServing(serving), emptyMap(), null, seed.track.id, popularityOnFor(active), null, active.imputedUnknown, active.serving.l2)
+                val gv = gateValuesOf(gate, rows)
+                return HashMap<TrackId, Double>().also { m -> ks.forEachIndexed { i, k -> m[k.track.id] = gv[i] } }
+            }
+            if (serving.l2 && gate != null && hearted.isNotEmpty()) {
+                // Audit 06 #1: hearts in the gated order (−ln g), ties by salted key.
+                val gm = gateOver(hearted)
+                hearted = hearted.sortedWith(compareBy<TrackId> { -kotlin.math.ln(gm[it] ?: 0.5) }.thenBy { salted[it] })
+            }
             if (gate != null) {
                 // PLAN_L1 §10.4: ACT-R + ln g, g the seed gate over the heard rows in the pool (no audio, no personal rows).
-                val ks = favs.mapNotNull { byId[it] }.sortedWith { a, b -> SaltedKey.idOrder.compare(a.track.id.value, b.track.id.value) }
-                if (ks.isNotEmpty()) {
-                    val rows = features(seed, ks, artistKeyOfServing(serving), emptyMap(), null, seed.track.id, popularityOnFor(active), null, active.imputedUnknown)
-                    val gv = gateValuesOf(gate, rows)
-                    val g = HashMap<TrackId, Double>().also { m -> ks.forEachIndexed { i, k -> m[k.track.id] = gv[i] } }
+                val g = gateOver(favs.filter { it in byId })
+                if (g.isNotEmpty()) {
                     favs = favs.filter { it in g }.sortedWith(
                         compareByDescending<TrackId> { (request.history.activationOf(it) ?: 0.0) + kotlin.math.ln(g.getValue(it)) }
                             .thenComparator { a, b -> SaltedKey.idOrder.compare(a.value, b.value) },
@@ -1064,8 +1136,16 @@ public class SmartRanker(
             }
             take(hearted + favs, quota("own") - quota("own") / 2, "R6")
         }
+        if (serving.l2) {
+            // Audit 04 #1 / #11: fill to a fixed target, the seed's family first (capped), then a salted sample.
+            val target = minOf(serving.poolTarget, pool.size)
+            if (out.size < target && seed.family != null) {
+                take(pool.filter { it.family == seed.family }.sortedBy { salted[it.track.id] }.map { it.track.id }, target - out.size, "fill-family")
+            }
+            if (out.size < target) take(pool.sortedBy { salted[it.track.id] }.map { it.track.id }, target - out.size, "fill", capped = false)
+        }
         // Too few retrieved for a full queue: a salted sample tops the pool up (never a smaller pool than needed).
-        if (out.size < request.length * 2) take(pool.sortedBy { salted[it.track.id] }.map { it.track.id }, request.length * 2, "topup")
+        if (out.size < request.length * 2) take(pool.sortedBy { salted[it.track.id] }.map { it.track.id }, request.length * 2, "topup", capped = false)
         return out.values.toList()
     }
 

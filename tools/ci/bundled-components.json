@@ -68,6 +68,14 @@
       "license": "Apache-2.0",
       "provenance": "LICENSE-MODEL.txt; genre family of the knowledge pack's artist attributes; tools/research/listenbrainz_eval/serving/artist_family.py"
     },
+    "artist_family_l2.bin": {
+      "license": "Apache-2.0",
+      "provenance": "LICENSE-MODEL.txt; PLAN_L2 twelve-family genre family of the knowledge pack's artist genres; tools/research/listenbrainz_eval/serving/artist_family.py"
+    },
+    "genre_families.json": {
+      "license": "Apache-2.0 AND CC0-1.0",
+      "provenance": "PLAN_L2 genre taxonomy (tools/research/listenbrainz_eval/serving/taxonomy.py); MusicBrainz genre tree (CC0)"
+    },
     "artist_colisten.bin": {
       "license": "CC0-1.0",
       "provenance": "ListenBrainz listens (CC0), artist co-listening neighbours; tools/research/ranker/pack_colisten.py"

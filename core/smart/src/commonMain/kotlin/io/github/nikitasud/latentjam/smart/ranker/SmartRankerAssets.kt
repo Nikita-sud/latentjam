@@ -64,6 +64,10 @@ public class SmartRankerAssets(
         }
         problem?.let { println("SMART: ranker assets refused ($it); planning rule-only") }
         val wantsPopularity = listOfNotNull(model, full).any { it.logpop == RankerModel.LOGPOP_ARTIST }
+        // PLAN_L2: the twelve-family taxonomy and the artist families on it; older models keep the six-family table.
+        val l2 = listOfNotNull(model, full).any { it.serving.l2 }
+        val taxonomy = if (l2) text(GENRE_FAMILIES)?.let(GenreFamilies::parse) else null
+        if (l2 && taxonomy == null && problem == null) problem = "$GENRE_FAMILIES missing or invalid"
         SmartRanker(
             model = model ?: RankerModel.RULE_SET,
             knowledge = knowledge,
@@ -74,7 +78,10 @@ public class SmartRankerAssets(
             audio = audio,
             fullModel = full,
             popularity = if (wantsPopularity) runCatching { read(POPULARITY)?.let(ArtistPopularity::parse) }.getOrNull() else null,
-            families = runCatching { read(FAMILIES)?.let(ArtistFamilies::parse) }.getOrNull(),
+            families = runCatching {
+                if (taxonomy != null) read(FAMILIES_L2)?.let { ArtistFamilies.parse(it, taxonomy.families) } else read(FAMILIES)?.let(ArtistFamilies::parse)
+            }.getOrNull(),
+            taxonomy = taxonomy,
         )
     }
 
@@ -123,6 +130,8 @@ public class SmartRankerAssets(
         public const val TAGGER_WEIGHTS: String = "audio_tagger.bin"
         public const val POPULARITY: String = "artist_pop.bin"
         public const val FAMILIES: String = "artist_family.bin"
+        public const val FAMILIES_L2: String = "artist_family_l2.bin"
+        public const val GENRE_FAMILIES: String = "genre_families.json"
         public const val EMBEDDING_VERSION: String = "embedding_version.txt"
         public const val SEMANTIC_VERSION: String = "semantic_version.txt"
     }
