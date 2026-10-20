@@ -80,7 +80,8 @@ class SmartStandRunner {
             MusicEntityResolver { read("music_entities_250k.bin") },
             loadAdapter = { File(ml, "artist_adapter.bin").takeIf { it.isFile }?.readBytes() },
         ) { read("artist_knowledge.bin") }
-        val assets = SmartRankerAssets(knowledge, ::read, audio = audio)
+        // LJ_STAND_AS2=1: artist_sets.py's as2 rules (audit 07 #4 / #7 / #10), to preview them before the FIT rebuild.
+        val assets = SmartRankerAssets(knowledge, ::read, audio = audio, artistSetsAs2 = System.getenv("LJ_STAND_AS2") == "1")
         val ranker = assets.ranker
         check(assets.problem == null) { "ranker assets: ${assets.problem}" }
         ranker.backfillImputations(library)

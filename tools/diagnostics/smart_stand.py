@@ -196,7 +196,8 @@ def read_facts(path):
 
 def run(args):
     state = Path(args.state) if args.state else newest_state()
-    bid = args.build_id or (('v0.9.1-chain-' if args.engine == 'chain' else '') + build_id())
+    bid = args.build_id or (('v0.9.1-chain-' if args.engine == 'chain' else '') + build_id() + ('-as2' if args.as2 else ''))
+    if args.as2: os.environ['LJ_STAND_AS2'] = '1'
     out = STAND / bid
     work = STAND / 'input'
     lib = prepare(state, work)
@@ -448,6 +449,7 @@ def main():
     r = sub.add_parser('run'); r.add_argument('--state'); r.add_argument('--build-id')
     r.add_argument('--engine', choices=['ranker', 'chain'], default='ranker',
                    help='chain = the learned ranker off: the judged chain, the v0.9.1 engine (closest runnable equivalent)')
+    r.add_argument('--as2', action='store_true', help="preview artist_sets.py's as2 rules (off in the shipped build)")
     d = sub.add_parser('diff'); d.add_argument('a'); d.add_argument('b')
     rr = sub.add_parser('rereport'); rr.add_argument('build')
     sb = sub.add_parser('scoreboard'); sb.add_argument('--add', nargs=2, metavar=('LABEL', 'RUN'))

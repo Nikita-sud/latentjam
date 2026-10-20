@@ -36,6 +36,8 @@ public class SmartRankerAssets(
     private val audioEncoder: String = AUDIO_MODEL_VERSION,
     /** Where the tagger's per-track output is kept (audits 04 #2 / 05 #5); null keeps it in memory only. */
     private val imputationStore: IndexStore? = null,
+    /** artist_sets.py's as2 rules; on with the models trained on them (the FIT rebuild), off until then. */
+    private val artistSetsAs2: Boolean = false,
 ) {
     /** Why the manifest check failed, or null when every listed asset matched. */
     public var problem: String? = null
@@ -93,6 +95,7 @@ public class SmartRankerAssets(
             // Keyed by the encoder and the tagger's weights: either changing discards the kept outputs.
             imputations = tagger?.let { ImputationCache(it, imputationStore, "tagger-$taggerVersion-$audioEncoder") },
             linearHeads = text(HEADS)?.let(LinearHeads::parse),
+            artistSetsAs2 = artistSetsAs2,
         )
     }
 

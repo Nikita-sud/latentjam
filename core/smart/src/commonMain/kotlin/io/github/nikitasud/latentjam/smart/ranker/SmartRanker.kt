@@ -716,6 +716,8 @@ public class SmartRanker(
     private val imputations: ImputationCache? = null,
     /** Fast 3.2 continuity heads computed from the press's vectors; null = the AudioSource's cached values. */
     private val linearHeads: LinearHeads? = null,
+    /** artist_sets.py's as2 rules (audit 07 #4 / #7 / #10): on with the models trained on them (the FIT rebuild). */
+    private val artistSetsAs2: Boolean = false,
 ) {
     private val l2Tracks: Boolean = taxonomy != null && (model.serving.l2 || fullModel?.serving?.l2 == true)
 
@@ -841,7 +843,7 @@ public class SmartRanker(
         // parser keeps the old tag family either way (its classical-composer rule reads the file's own genre).
         val trackFamily = if (l2Tracks) taxonomy?.familyOfTag(track.genre) else null
         val family = if (l2Tracks) trackFamily ?: artistFamily else artistFamily ?: tagFamily
-        val set = runCatching { ArtistSets.parse(track.artist, track.title, known, genreFamily = tagFamily) }.getOrNull()
+        val set = runCatching { ArtistSets.parse(track.artist, track.title, known, genreFamily = tagFamily, as2 = artistSetsAs2) }.getOrNull()
         val engineArtist = HabitSlots.artistKey(track).let { k -> artistStrings.getOrPut(k) { k } }
         return Known(
             track = track,

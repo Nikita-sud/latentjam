@@ -28,15 +28,18 @@ class ArtistSetsGoldenTest {
 
     private fun keys(field: String) = if (field.isEmpty()) emptyList() else field.split(',').map(String::toLong)
 
-    private val lines by lazy {
-        GZIPInputStream(checkNotNull(javaClass.getResourceAsStream("/artist_sets_golden.tsv.gz"))).reader(Charsets.UTF_8)
-            .readLines().filter(String::isNotEmpty).map { it.split('\t') }
-    }
+    private fun golden(name: String) = GZIPInputStream(checkNotNull(javaClass.getResourceAsStream(name))).reader(Charsets.UTF_8)
+        .readLines().filter(String::isNotEmpty).map { it.split('\t') }
 
-    private fun check(kind: String, known: KnownArtists): Int {
+    private val lines by lazy { golden("/artist_sets_golden.tsv.gz") }
+
+    /** artist_sets.py with LJ_AS2=1 (audit 07 #4 / #7 / #10), research HEAD 5faa2926. */
+    private val linesAs2 by lazy { golden("/artist_sets_golden_as2.tsv.gz") }
+
+    private fun check(kind: String, known: KnownArtists, as2: Boolean = false): Int {
         var n = 0
-        for (f in lines.filter { it[0] == kind }) {
-            val set = ArtistSets.parse(unescape(f[1]), unescape(f[2]), known)
+        for (f in (if (as2) linesAs2 else lines).filter { it[0] == kind }) {
+            val set = ArtistSets.parse(unescape(f[1]), unescape(f[2]), known, as2 = as2)
             assertEquals(keys(f[3]), set.artists, "$kind '${f[1]}' / '${f[2]}' ${set.rules}")
             assertEquals(keys(f[4]).toSet(), set.featured, "$kind featured '${f[1]}'")
             n++
@@ -47,7 +50,7 @@ class ArtistSetsGoldenTest {
     @Test
     fun hardCasesMatchTheReference() {
         val map = lines.filter { it[0] == "list" }.associate { it[1].toLong() to it[2].toLong() }
-        assertEquals(47, check("case") { map[it] })
+        assertEquals(47, check("case", KnownArtists { map[it] }))
     }
 
     @Test
@@ -65,5 +68,18 @@ class ArtistSetsGoldenTest {
             n++
         }
         assertTrue(n >= 30)
+    }
+
+    @Test
+    fun as2HardCasesMatchTheReference() {
+        val map = linesAs2.filter { it[0] == "list" }.associate { it[1].toLong() to it[2].toLong() }
+        assertEquals(47, check("case", KnownArtists { map[it] }, as2 = true))
+    }
+
+    @Test
+    fun as2RealCreditsMatchTheReferenceOnTheShippedList() {
+        val bytes = File("../../androidApp/src/main/assets/ml/artist_known.bin").readBytes()
+        val table = assertNotNull(KnownArtistTable.parse(AssetBytes.of(bytes)))
+        assertEquals(3000, check("real", table, as2 = true))
     }
 }

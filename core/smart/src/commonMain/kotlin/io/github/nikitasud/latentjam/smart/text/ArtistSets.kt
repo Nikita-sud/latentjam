@@ -48,6 +48,21 @@ public object ArtistSets {
         "anonymous", "anon", "anonym", "anonyme", "anonimo", "anónimo", "аноним", "no artist", "not specified",
     )
 
+    /**
+     * as2 (metadata audit 07 #7, artist_sets.py behind LJ_AS2=1): localised "unknown artist" names, placeholders too.
+     * Off until the FIT rebuild ships models trained on it.
+     */
+    public val PLACEHOLDERS_AS2: Set<String> = PLACEHOLDERS + setOf(
+        "unbekannter kunstler", "unbekannter künstler", "artiste inconnu", "artista desconocido", "不明なアーティスト",
+        "невідомий виконавець", "artist necunoscut", "artista sconosciuto",
+    )
+
+    /** as2 (audit 07 #4): words a conditional split must not turn into artists. */
+    private val GENERIC_AS2: Set<String> = setOf(
+        "amp", "friends", "i", "v", "nature", "orchestra", "band", "karaoke", "ost", "live", "remix", "intro", "the", "and",
+        "feat", "ft", "featuring",
+    )
+
     /** MusicBrainz special-purpose names that are words too: placeholders only in brackets. */
     public val BRACKET_ONLY: Set<String> = setOf(
         "data", "dialogue", "nature sounds", "church chimes", "language instruction", "christmas music", "theatre",
@@ -61,6 +76,9 @@ public object ArtistSets {
     private const val WORD = "[\\p{L}\\p{N}_]"
     private val FEAT = Regex("(?i)$WS*[\\(\\[（［]?$WS*(?<!$WORD)(?:feat\\.?|ft\\.?|featuring)(?:$WS+|(?<=\\.))")
     private val COND = Regex("(?i)$WS*(?:[,;，；、／＆&+×])$WS*|$WS+(?:with|vs\\.?|x)$WS+")
+
+    /** as2 (audit 07 #10): "/" is a conditional separator too (a known whole name such as AC/DC never splits). */
+    private val COND_AS2 = Regex("(?i)$WS*(?:[,;，；、／＆&+×/])$WS*|$WS+(?:with|vs\\.?|x)$WS+")
     private val TITLE = Regex("(?i)[\\(\\[（［]$WS*(?:feat\\.?|ft\\.?|featuring)$WS+([^\\)\\]）］]+)[\\)\\]）］]")
     private const val BRACKETS = " \t()[]（）［］"
 
@@ -109,10 +127,13 @@ public object ArtistSets {
         return h
     }
 
-    public fun isPlaceholder(raw: String): Boolean {
+    public fun isPlaceholder(raw: String, as2: Boolean = false): Boolean {
         val k = normalize(raw)
-        return k in PLACEHOLDERS || (raw.trim().startsWith('[') && k in BRACKET_ONLY)
+        return k in (if (as2) PLACEHOLDERS_AS2 else PLACEHOLDERS) || (raw.trim().startsWith('[') && k in BRACKET_ONLY)
     }
+
+    /** as2 (audit 07 #4): a segment that is a generic word or shorter than two characters is not an artist. */
+    private fun generic(raw: String): Boolean = normalize(raw).let { it in GENERIC_AS2 || it.length < 2 }
 
     /** artist_sets.parse on the string rules (no MBIDs on device). */
     public fun parse(
@@ -121,14 +142,19 @@ public object ArtistSets {
         known: KnownArtists = KnownArtists.NONE,
         composer: String? = null,
         genreFamily: String? = null,
+        /** artist_sets.py's as2 rules (audit 07 #4 / #7 / #10); off until the FIT rebuild. */
+        as2: Boolean = false,
     ): ArtistSet {
         val rules = LinkedHashSet<String>()
         val main = ArrayList<String>()
         val featured = ArrayList<String>()
-        stringRules(artist.orEmpty(), known, rules, main, featured)
-        for (m in TITLE.findAll(title.orEmpty())) {
+        // as2 (audit 07 #4): HTML entities are decoded before splitting ("Simon &amp; Garfunkel").
+        val a = if (as2) HtmlEntities.unescape(artist.orEmpty()) else artist.orEmpty()
+        val t = if (as2) HtmlEntities.unescape(title.orEmpty()) else title.orEmpty()
+        stringRules(a, known, rules, main, featured, as2)
+        for (m in TITLE.findAll(t)) {
             rules += "title_feat"
-            featured += part(m.groupValues[1], known, rules)
+            featured += part(m.groupValues[1], known, rules, as2)
         }
         val keys = ArrayList<Long>()
         val feat = LinkedHashSet<Long>()
@@ -141,7 +167,7 @@ public object ArtistSets {
                 }
             }
         }
-        val composerKey = if (composer != null && genreFamily == "classical") parse(composer, known = known).primary else null
+        val composerKey = if (composer != null && genreFamily == "classical") parse(composer, known = known, as2 = as2).primary else null
         return ArtistSet(keys, feat, composerKey, rules)
     }
 
@@ -154,29 +180,33 @@ public object ArtistSets {
 
     private fun strip(part: String): String = part.trim { it in BRACKETS }
 
-    private fun stringRules(artist: String, known: KnownArtists, rules: MutableSet<String>, main: MutableList<String>, featured: MutableList<String>) {
+    private fun stringRules(
+        artist: String, known: KnownArtists, rules: MutableSet<String>, main: MutableList<String>, featured: MutableList<String>,
+        as2: Boolean,
+    ) {
         val a = artist.trim(::isPythonSpace)
         if (a.isEmpty()) { rules += "empty"; return }
-        if (isPlaceholder(a)) { rules += "placeholder"; return }
+        if (isPlaceholder(a, as2)) { rules += "placeholder"; return }
         if (known(strip(a), known)) { rules += "whole_known"; main += strip(a); return }
         val pieces = FEAT.split(a)
         if (pieces.size > 1) rules += "feat_split"
-        main += part(pieces[0], known, rules)
-        for (t in pieces.drop(1)) featured += part(t, known, rules)
+        main += part(pieces[0], known, rules, as2)
+        for (t in pieces.drop(1)) featured += part(t, known, rules, as2)
     }
 
-    private fun part(raw: String, known: KnownArtists, rules: MutableSet<String>): List<String> {
+    private fun part(raw: String, known: KnownArtists, rules: MutableSet<String>, as2: Boolean = false): List<String> {
         val part = strip(raw)
-        if (part.isEmpty() || isPlaceholder(part)) return emptyList()
+        if (part.isEmpty() || isPlaceholder(part, as2)) return emptyList()
+        if (as2 && generic(part)) return emptyList()
         if (known(part, known)) return listOf(part)
-        condSplit(part, known)?.let { rules += "cond_split"; return it }
+        condSplit(part, known, as2)?.let { rules += "cond_split"; return it }
         rules += "unresolved"
         return listOf(part)
     }
 
     /** Fewest-segment segmentation at COND cuts into known artists, longest first segment on ties; null = whole. */
-    private fun condSplit(part: String, known: KnownArtists): List<String>? {
-        val cuts = COND.findAll(part).filter { it.range.first > 0 && it.range.last + 1 < part.length }.toList()
+    private fun condSplit(part: String, known: KnownArtists, as2: Boolean = false): List<String>? {
+        val cuts = (if (as2) COND_AS2 else COND).findAll(part).filter { it.range.first > 0 && it.range.last + 1 < part.length }.toList()
         if (cuts.isEmpty()) return null
         val bounds = listOf(0) + cuts.map { it.range.last + 1 }
         val ends = cuts.map { it.range.first } + part.length
@@ -187,7 +217,8 @@ public object ArtistSets {
             for (j in n - 1 downTo i) {
                 val rest = best[j + 1] ?: continue
                 val seg = strip(part.substring(bounds[i], ends[j]))
-                if (seg.isEmpty() || !known(seg, known) || isPlaceholder(seg)) continue
+                if (seg.isEmpty() || !known(seg, known) || isPlaceholder(seg, as2)) continue
+                if (as2 && generic(seg)) continue
                 val candidate = listOf(seg) + rest
                 if (best[i] == null || candidate.size < best[i]!!.size) best[i] = candidate
             }
