@@ -77,6 +77,10 @@ public object RankerQueue {
         rulePenalties: DoubleArray? = null,
         /** Fast 3.2 unknownSeedAnchor: the seed has no family and no descriptor. */
         seedUnknown: Boolean = false,
+        /** Audit 03 #1: the queue a top-up continues, oldest first, as (artist key, credits); null = a fresh plan. */
+        prefix: List<Pair<String, LongArray>>? = null,
+        /** The prefix's last track's e (the 'prev' energy reference of the first hop). */
+        prefixEnergy: Double? = null,
         features: (anchor: Int) -> Array<DoubleArray>,
     ): List<Int> {
         if (poolSize == 0 || length <= 0) return emptyList()
@@ -116,7 +120,7 @@ public object RankerQueue {
             return buildCreditRun(
                 model, re, poolSize, artistKeys, seedArtist, tieOrder, length, choose, take, blocked, stop, trace,
                 credits, seedCredits, seedScores, ::scores, fresh, energies, seedEnergy, audioAgainst, novelty, heads,
-                seedFamily, rulePenalties, seedUnknown,
+                seedFamily, rulePenalties, seedUnknown, prefix, prefixEnergy,
             )
         }
         val open = BooleanArray(poolSize) { true }
@@ -241,6 +245,8 @@ public object RankerQueue {
         seedFamily: String?,
         rulePenalties: DoubleArray?,
         seedUnknown: Boolean,
+        prefix: List<Pair<String, LongArray>>?,
+        prefixEnergy: Double?,
     ): List<Int> {
         fun creditsOf(i: Int) = credits?.get(i) ?: NO_CREDITS
         val open = BooleanArray(poolSize) { true }
@@ -251,13 +257,32 @@ public object RankerQueue {
         var anchorKey: String? = if (seedArtist.isNotEmpty() || seedCredits.isNotEmpty()) seedArtist else null
         var anchorCredits = seedCredits
         var runLength = if (anchorKey != null) 1 else 0
+        // Audit 03 #1: a top-up continues the session: the prefix replays the run / re-entry state as picks would.
+        for ((key, cr) in prefix.orEmpty()) {
+            histKeys += key
+            histCredits += cr
+            val a = anchorKey
+            if (a != null && redundancy(key, cr, a, anchorCredits, re.credit) > 0.0) {
+                runLength++
+            } else if (key.isNotEmpty() || cr.isNotEmpty()) {
+                anchorKey = key
+                anchorCredits = cr
+                runLength = 1
+            } else {
+                anchorKey = null
+                anchorCredits = NO_CREDITS
+                runLength = 0
+            }
+        }
+        val npre = prefix?.size ?: 0
         repeat(minOf(length, poolSize)) {
             if (picks.isNotEmpty() && stop()) return picks
+            val prevAnchor = picks.lastOrNull() ?: if (npre > 0) PREFIX else null
             val s = when {
-                picks.isEmpty() || model.anchor == RankerModel.Anchor.SEED || (model.unknownSeedAnchor && seedUnknown) -> seedScores
-                model.anchor == RankerModel.Anchor.PREVIOUS -> scores(picks.last())
+                prevAnchor == null || model.anchor == RankerModel.Anchor.SEED || (model.unknownSeedAnchor && seedUnknown) -> seedScores
+                model.anchor == RankerModel.Anchor.PREVIOUS -> scores(prevAnchor)
                 else -> {
-                    val previous = scores(picks.last())
+                    val previous = scores(prevAnchor)
                     val total = model.seedWeight + model.previousWeight
                     DoubleArray(poolSize) { (model.seedWeight * seedScores[it] + model.previousWeight * previous[it]) / total }
                 }
@@ -277,14 +302,18 @@ public object RankerQueue {
                 backIndex += beforeSize - 1 - jj
             }
             val aKey = anchorKey
-            val aPrev = audioAgainst?.invoke(picks.lastOrNull() ?: SEED)
+            val aPrev = audioAgainst?.invoke(picks.lastOrNull() ?: if (npre > 0) PREFIX else SEED)
             // PLAN_AUDIO_ON §8.2: a row without e takes the pool mean of |Δe| as its |Δe|.
             val en = model.energy?.takeIf { energies != null }
             var eFill = 0.0
             var eFillRef = 0.0
             var eSd = 1.0
             if (en != null) {
-                val ref0 = if (!en.seedHinge) (if (picks.isNotEmpty()) energies!![picks.last()].takeIf { !it.isNaN() } else seedEnergy) else seedEnergy
+                val ref0 = if (!en.seedHinge) {
+                    if (picks.isNotEmpty()) energies!![picks.last()].takeIf { !it.isNaN() } else if (npre > 0) prefixEnergy else seedEnergy
+                } else {
+                    seedEnergy
+                }
                 var sum = 0.0
                 var n = 0
                 for (i in 0 until poolSize) if (allowed[i] && !energies!![i].isNaN()) { sum += energies[i]; n++ }
@@ -345,7 +374,11 @@ public object RankerQueue {
                 mark = v
                 if (en != null) {
                     val ei = energies!![i].takeIf { !it.isNaN() } ?: eFill
-                    val ref = if (!en.seedHinge) (if (picks.isNotEmpty()) energies[picks.last()].takeIf { !it.isNaN() } else seedEnergy) else seedEnergy
+                    val ref = if (!en.seedHinge) {
+                        if (picks.isNotEmpty()) energies[picks.last()].takeIf { !it.isNaN() } else if (npre > 0) prefixEnergy else seedEnergy
+                    } else {
+                        seedEnergy
+                    }
                     // Audit 05 #4: an unknown anchor energy switches the term off at this hop.
                     if (ref != null) {
                         val d = kotlin.math.abs(ei - ref) / eSd
@@ -378,7 +411,8 @@ public object RankerQueue {
             val spreadPenalised = spread(t, allowed)
             val floor = bestScore - model.epsilon * spreadPenalised
             val nearBest = (0 until poolSize).filter { allowed[it] && t[it] >= floor }.sortedBy { tieOrder[it] }
-            var best = if (model.epsilon == 0.0 && nearBest.size == 1) nearBest[0] else choose(picks.size, nearBest)
+            // Audit 03 #1: the hop draws continue after the prefix, so a top-up never repeats a plan's salts.
+            var best = if (model.epsilon == 0.0 && nearBest.size == 1) nearBest[0] else choose(npre + picks.size, nearBest)
             if (take != null) best = take(picks.size, best, ::penalised)
             trace?.invoke(HopTrace(s, t, sd, 0.0, aKey.orEmpty(), runLength, false, bestScore, spreadPenalised, floor, nearBest, best, terms))
             open[best] = false
@@ -404,6 +438,9 @@ public object RankerQueue {
 
     /** The anchor index [build] passes for the seed. */
     public const val SEED: Int = -1
+
+    /** Audit 03 #1: a top-up's last queued track (the request's prefix) as the previous-pick anchor of its first hop. */
+    public const val PREFIX: Int = -2
 
     private val NO_CREDITS = LongArray(0)
 
@@ -489,6 +526,11 @@ public class PlanRequest(
     public val impressions: List<Set<TrackId>> = emptyList(),
     /** Fast track 2 soft novelty: ms since each [exclude] id's last play (absent = 0). */
     public val excludeAgeMs: Map<TrackId, Long> = emptyMap(),
+    /**
+     * Audit 03 #1: the queue a top-up continues — its tracks after [seed], oldest first. The seed stays the anchor; the
+     * prefix leaves the candidates and the decoder starts from it as from its own earlier picks. Empty = a fresh plan.
+     */
+    public val prefix: List<TrackId> = emptyList(),
     /** The press time (epoch ms): fast 3.1's holiday season reads it. */
     public val seedMs: Long = 0,
     /** Fast 3: tracks the listener played after a press showed them (freshness.engaged = exempt). */
@@ -907,8 +949,11 @@ public class SmartRanker(
         val serving = active.serving
         val cache = knownOf(request.library)
         val seedKnown = cache[request.seed.id] ?: know(request.seed)
+        val prefixIds = request.prefix.filter { it in cache }
+        val preSet = prefixIds.toHashSet()
+        val prefixKnown = prefixIds.lastOrNull()?.let { cache[it] }
         val eligible = request.candidates
-            .filter { it.id != request.seed.id && !isNonMusic(it) }
+            .filter { it.id != request.seed.id && it.id !in preSet && !isNonMusic(it) }
             .distinctBy { it.id }
         val n = eligible.size
         if (n == 0 || request.length <= 0) return PlanReport(emptyList(), active.name, 0, 0, 0, false, 0)
@@ -953,7 +998,10 @@ public class SmartRanker(
         }.sortedWith { a, b -> SaltedKey.idOrder.compare(a.track.id.value, b.track.id.value) }
         // Audits 05 #2 / #5: the seed's and the pool's vectors and e in one batched read before anything uses them: no
         // per-row budget, so a plan never depends on how busy the phone is; all-or-nothing under a safety cap.
-        val readIds = (pool.map { it.track.id } + seedKnown.track.id).distinct()
+        // The prefix's last track is read for its e only: reference.py gives the prefix anchor no audio vector (its
+        // audio_cos reads unknown), and the device mirrors it.
+        val readIds = (pool.map { it.track.id } + seedKnown.track.id + listOfNotNull(prefixKnown?.track?.id)).distinct()
+        val audioIds = (pool.map { it.track.id } + seedKnown.track.id).distinct()
         val rawVectors: Map<TrackId, FloatArray> = withTimeoutOrNull(AUDIO_BATCH_CAP_MS) {
             runCatching { audio.vectors(readIds) }.getOrNull().orEmpty()
         } ?: emptyMap<TrackId, FloatArray>().also { timeouts += "vectors" }
@@ -965,12 +1013,12 @@ public class SmartRanker(
         }
         imputed += impute(pool, timeouts, imputeFallbacks, rawVectors)
         val window = minOf(serving.recentWindow, n / 2).coerceAtLeast(1)
-        val previousIds = request.recentIds + request.seed.id
+        val previousIds = request.recentIds + prefixIds.filter { it !in request.recentIds } + request.seed.id
         fun versionOf(id: TrackId) = (byId[id] ?: cache[id])?.version ?: ArtistSets.keyHash("id:${id.value}")
         val artistKeyOf = { k: Known -> if (serving.artistKey == "artistSet") (if (k.setArtist == 0L) "" else k.setArtist.toString()) else k.engineArtist }
         val audioVectors = HashMap<TrackId, FloatArray?>()
         val usesAudio = active.features.contains("audio_cos") || active.audioWeight != 0.0
-        if (usesAudio) for (id in readIds) audioVectors[id] = rawVectors[id]?.let(::normalized)
+        if (usesAudio) for (id in audioIds) audioVectors[id] = rawVectors[id]?.let(::normalized)
         // PLAN_AUDIO_ON §8.2: e per pool row (NaN = unknown), from the same batched read.
         val energies = if (active.energy != null) DoubleArray(pool.size) { i -> rawEnergies[pool[i].track.id]?.takeIf { it.isFinite() } ?: Double.NaN } else null
         val seedEnergy = if (active.energy != null) rawEnergies[seedKnown.track.id]?.takeIf { it.isFinite() } else null
@@ -1042,6 +1090,8 @@ public class SmartRanker(
                 active, seedKnown.durationMs, seedKnown.track.title, pool.map { it.durationMs }, pool.map { it.track.title },
             ),
             seedUnknown = seedKnown.family == null && seedKnown.packDescriptor == null && seedKnown.imputedDescriptor == null,
+            prefix = prefixIds.map { id -> cache.getValue(id).let { k -> artistKeyOf(k) to k.artists } }.ifEmpty { null },
+            prefixEnergy = prefixKnown?.let { rawEnergies[it.track.id]?.takeIf { e -> e.isFinite() } },
             novelty = if (active.softNovelty != null) DoubleArray(pool.size) { i ->
                 noveltyAge[pool[i].track.id]?.let { maxOf(0.0, 1.0 - it.toDouble() / NOVELTY_MS) } ?: 0.0
             } else null,
@@ -1049,7 +1099,7 @@ public class SmartRanker(
             seedEnergy = seedEnergy,
             audioAgainst = if (active.audioAgainstPrevious && active.audioWeight != 0.0) { anchor: Int ->
                 val col = RankerFeatures.NAMES.indexOf("audio_cos")
-                val rows = gatedRows(anchor, seedKnown, pool, artistKeyOf, audioVectors, personalRows, request.seed.id, popularityOn, hearts, active) { gateValues = it ?: gateValues; gateValues }
+                val rows = gatedRows(anchor, seedKnown, pool, artistKeyOf, audioVectors, personalRows, request.seed.id, popularityOn, hearts, active, prefixKnown) { gateValues = it ?: gateValues; gateValues }
                 DoubleArray(pool.size) { rows[it][col] }
             } else null,
             trace = { h: RankerQueue.HopTrace ->
@@ -1065,7 +1115,7 @@ public class SmartRanker(
                 }
             },
         ) { anchor ->
-            gatedRows(anchor, seedKnown, pool, artistKeyOf, audioVectors, personalRows, request.seed.id, popularityOn, hearts, active) { gateValues = it ?: gateValues; gateValues }
+            gatedRows(anchor, seedKnown, pool, artistKeyOf, audioVectors, personalRows, request.seed.id, popularityOn, hearts, active, prefixKnown) { gateValues = it ?: gateValues; gateValues }
                 .also { if (diagnostics != null) diagRows[anchor] = it }
         }.map { pool[it].track.id }
         val timedOut = modelPicks.size < minOf(request.length, pool.size) && decoding.elapsedNow().inWholeMilliseconds > budgetMs
@@ -1090,7 +1140,7 @@ public class SmartRanker(
             trace.window = window
             trace.pool = pool.map { it.track.id }
             trace.seedFeatures = if (pool.isEmpty()) emptyArray() else
-                gatedRows(RankerQueue.SEED, seedKnown, pool, artistKeyOf, audioVectors, personalRows, request.seed.id, popularityOn, hearts, active) { gateValues = it ?: gateValues; gateValues }
+                gatedRows(RankerQueue.SEED, seedKnown, pool, artistKeyOf, audioVectors, personalRows, request.seed.id, popularityOn, hearts, active, prefixKnown) { gateValues = it ?: gateValues; gateValues }
             trace.imputedTracks = (pool + seedKnown).filter { it.descriptorImputed || it.familyImputed }.map { it.track.id }
                 .distinct().sortedWith { a, b -> SaltedKey.idOrder.compare(a.value, b.value) }
         }
@@ -1168,10 +1218,17 @@ public class SmartRanker(
         popularityOn: Boolean,
         hearts: PersonalHistory?,
         model: RankerModel,
+        prefixKnown: Known? = null,
         gate: (DoubleArray?) -> DoubleArray?,
     ): Array<DoubleArray> {
         fun raw(a: Known) = features(a, pool, artistKeyOf, audioVectors, personalRows, seedId, popularityOn, hearts, model.imputedUnknown, model.serving.l2)
-        val rows = raw(if (anchor == RankerQueue.SEED) seedKnown else pool[anchor])
+        val rows = raw(
+            when (anchor) {
+                RankerQueue.SEED -> seedKnown
+                RankerQueue.PREFIX -> checkNotNull(prefixKnown) { "the prefix anchor without a prefix" }
+                else -> pool[anchor]
+            },
+        )
         val g = model.seedGate ?: return rows
         val values = gate(null) ?: gate(gateValuesOf(g, if (anchor == RankerQueue.SEED) rows else raw(seedKnown)))!!
         for (i in rows.indices) for (c in g.columns) rows[i][c] = rows[i][c] * values[i]

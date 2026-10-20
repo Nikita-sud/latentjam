@@ -83,6 +83,12 @@ class EngineNextTrackChooser(
     private var queuePersonal = false
     private var queueFavourites = true
     private var queueModeSet = false
+    /**
+     * Audit 03 #1: the session a top-up continues — the queue's pressed seed and every row served from its plans since,
+     * oldest first. A top-up on plan keeps the seed as its anchor and hands these rows to the ranker as its prefix.
+     */
+    private var queueSeedTrack: TrackDescriptor? = null
+    private val servedInQueue = ArrayList<TrackId>()
     /** The impression log's name for the SMART queue being served, and how many plans it has had. */
     private var queueId = ""
     private var plansInQueue = 0
@@ -124,6 +130,7 @@ class EngineNextTrackChooser(
                 val (index, id) = planned.removeFirst()
                 val chosen = candidates.firstOrNull { it.id == id } ?: continue
                 smartLog?.served(chosen.id)
+                servedInQueue += chosen.id
                 expectedNext = chosen.id
                 servedAfter = current.id
                 expectedPrecedingIds = (recentIds + current.id).takeLast(CHAIN_LENGTH)
@@ -135,6 +142,8 @@ class EngineNextTrackChooser(
         }
         // Eligibility can change without the playhead moving. Exhaust an obsolete cached plan
         // before deciding whether to replan, so available tracks are considered in this call.
+        // On plan: the queue's last row is the one this chooser served last, in the same queue.
+        val continuing = recentIds.isNotEmpty() && sameQueue && current.id == expectedNext && queueSeedTrack != null
         nextPlanned()?.let { return@withLock it }
         if (candidates.isNotEmpty()) {
             val started = TimeSource.Monotonic.markNow()
@@ -152,6 +161,12 @@ class EngineNextTrackChooser(
                     queuePersonal = personalRanker()
                     queueFavourites = useFavourites()
                     queueModeSet = true
+                    queueSeedTrack = current
+                    servedInQueue.clear()
+                } else if (!continuing) {
+                    // The listener moved the queue somewhere this plan did not go: that track seeds a fresh chain.
+                    queueSeedTrack = current
+                    servedInQueue.clear()
                 }
                 if (!queueModeSet) {
                     // A top-up of a queue this chooser did not start (a restored session): the toggles as they are now.
@@ -159,8 +174,9 @@ class EngineNextTrackChooser(
                     queueFavourites = useFavourites()
                     queueModeSet = true
                 }
+                val sessionSeed = if (continuing) queueSeedTrack ?: current else current
                 val report = rankerPlan(
-                    learned, history, current, candidates, library(), RANKER_LENGTH,
+                    learned, history, sessionSeed, candidates, library(), RANKER_LENGTH,
                     seedMs = events.last().startedAtMs, press = queuePress, recentIds = recentIds,
                     personal = queuePersonal, ruleOnly = !rankerHealthy() || queueFailures >= BREAKER_LIMIT,
                     favourites = if (queueFavourites) favourites else NO_FAVOURITES,
@@ -169,6 +185,7 @@ class EngineNextTrackChooser(
                             .orEmpty()
                     },
                     engagedKeys = { smartLog?.engagedKeys().orEmpty() },
+                    prefix = if (continuing) servedInQueue.toList() else emptyList(),
                 )
                 if (report == null || report.timedOut) queueFailures++
                 picks = report?.picks

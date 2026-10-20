@@ -39,7 +39,7 @@ class ServingReferenceGoldenTest {
             .filter(String::isNotEmpty).map { MiniJson(it).parse() as Map<String, Any?> }
 
     @Test
-    fun plansMatchTheServingReference() = plansMatch("/serving_fixtures.jsonl.gz", fixtures = 32, requests = REQUESTS)
+    fun plansMatchTheServingReference() = plansMatch("/serving_fixtures.jsonl.gz", fixtures = 33, requests = REQUESTS)
 
     /**
      * The same 21 libraries and requests with the shipped models swapped in (model_core_l1.json 6c23bd6c — the PLAN_L1 v5
@@ -47,7 +47,7 @@ class ServingReferenceGoldenTest {
      * personal ones; rule-only kept), re-planned by reference.py (3e659ff8… at b6e710fc).
      */
     @Test
-    fun plansWithTheShippedModelsMatchTheServingReference() = plansMatch("/serving_fixtures_final.jsonl.gz", fixtures = 32, requests = REQUESTS)
+    fun plansWithTheShippedModelsMatchTheServingReference() = plansMatch("/serving_fixtures_final.jsonl.gz", fixtures = 33, requests = REQUESTS)
 
     /**
      * The decoder and feature paths of PLAN_AUDIO_ON §8.2 / §8.8 and PLAN_L1 §2b / §2c / §10.4 / §10.5 on fixtures 10 /
@@ -62,14 +62,14 @@ class ServingReferenceGoldenTest {
      */
     @Test
     fun plansWithTheCachedImputationMatchTheServingReference() =
-        plansMatch("/serving_fixtures.jsonl.gz", fixtures = 32, requests = REQUESTS, cachedImputation = true)
+        plansMatch("/serving_fixtures.jsonl.gz", fixtures = 33, requests = REQUESTS, cachedImputation = true)
 
     @Test
     fun theNewPathsMatchTheServingReference() = plansMatch("/serving_fixtures_paths.jsonl.gz", fixtures = 5, requests = 56)
 
     private companion object {
-        /** Fixtures 1–32 requests (research a8f2c56a). */
-        const val REQUESTS = 66
+        /** Fixtures 1–33 requests (research 45f7d16d). */
+        const val REQUESTS = 69
     }
 
     private fun plansMatch(resource: String, fixtures: Int, requests: Int, cachedImputation: Boolean = false) = runTest {
@@ -183,6 +183,7 @@ class ServingReferenceGoldenTest {
             ruleOnly = req["ruleOnly"] == true,
             impressions = (req["impressions"] as? List<*>).orEmpty().map { p -> (p as List<*>).map { TrackId(it as String) }.toSet() },
             seedMs = seedMs,
+            prefix = (req["prefix"] as? List<*>).orEmpty().map { TrackId(it as String) },
             engaged = (req["engaged"] as? List<*>).orEmpty().map { TrackId(it as String) }.toSet(),
             excludeAgeMs = (req["excludeAgeMs"] as? Map<*, *>).orEmpty().entries.associate { (k, v) -> TrackId(k as String) to (v as Number).toLong() },
         )
@@ -192,7 +193,8 @@ class ServingReferenceGoldenTest {
             "ids" to report.ids.map { it.value }, "model" to report.model, "poolSize" to report.poolSize,
             "fromModel" to report.fromModel, "fromLadder" to report.fromLadder, "imputed" to report.imputed,
         )
-        val n = request.candidates.filter { it.id != seed.id && !SmartRanker.isNonMusic(it) }.distinctBy { it.id }.size
+        val prefixIds = request.prefix.filter { p -> library.any { it.id == p } }.toSet()
+        val n = request.candidates.filter { it.id != seed.id && it.id !in prefixIds && !SmartRanker.isNonMusic(it) }.distinctBy { it.id }.size
         val tr = LinkedHashMap<String, Any?>(mapOf("model" to report.model, "n" to n))
         if (n > 0 && request.length > 0) {
             val pool = trace.pool
