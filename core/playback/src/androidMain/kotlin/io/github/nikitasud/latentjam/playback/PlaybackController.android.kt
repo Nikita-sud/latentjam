@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.playback
 
+import io.github.nikitasud.latentjam.smart.associateById
 import io.github.nikitasud.latentjam.smart.associateByIdValue
 import android.content.ComponentName
 import android.content.Context
@@ -348,7 +349,7 @@ internal class AndroidPlaybackController(
                 emptyMap()
             }
             smartLibrary = prepared.first
-            smartById = prepared.second + retainedHistory
+            smartById = if (retainedHistory.isEmpty()) prepared.second else prepared.second.plusTracks(retainedHistory.values)
             smartLibrarySupplied = true
             queueGeneration++
             if (mode == ShuffleMode.SMART && player != null) {
@@ -740,22 +741,22 @@ internal class AndroidPlaybackController(
         if (!removed) return@withContext
         queueGeneration++
         pool = pool.filter { it.id.value in keep }
-        poolById = poolById.filterKeys { it in keep }
+        poolById = poolById.values.filter { it.id.value in keep }.associateByIdValue()
         rebuildQueueSnapshot()
         pushState()
     }
 
     override suspend fun refreshTracks(tracks: List<TrackDescriptor>): Unit = withContext(Dispatchers.Main.immediate) {
         if (tracks.isEmpty()) return@withContext
-        val updates = tracks.associateBy { it.id }
+        val updates = tracks.associateById()
         // Capture before swapping or yielding: publishing a fresh library can schedule an update
         // of smartById too. The queue's old URI is needed if MediaController hides its source.
         val previousTracks = updates.keys.associateWith { trackById(it.value) }
         val previousArtworkUris = previousTracks.mapValues { it.value?.artworkUri }
         refreshedTracks(pool, updates)?.let { pool = it }
         refreshedTracks(smartLibrary, updates)?.let { smartLibrary = it }
-        poolById = poolById.mapValues { (id, track) -> updates[TrackId(id)] ?: track }
-        smartById = smartById.mapValues { (id, track) -> updates[TrackId(id)] ?: track }
+        poolById = poolById.values.map { updates[it.id] ?: it }.associateByIdValue()
+        smartById = smartById.values.map { updates[it.id] ?: it }.associateByIdValue()
         // Not refreshed on purpose: `anticipatedResumption` and the registry's active resumption
         // only bridge the moments before Media3 installs a restored queue and are dropped once it
         // has; the durable resume snapshot stores ids and is resolved against the live library.
@@ -785,7 +786,7 @@ internal class AndroidPlaybackController(
             track = track,
             insertion = SourceQueueInsertion.PLAY_NEXT,
         )
-        poolById = poolById + (track.id.value to track)
+        poolById = poolById.plusTracks(listOf(track))
         releaseSmartProvenance(smartPlanPositions, smartContinuationIds, smartRemovedIds, track.id)
         AndroidPlaybackStarts.queuedByHand(track.id)
         val item = track.toMediaItem()
@@ -814,7 +815,7 @@ internal class AndroidPlaybackController(
             track = track,
             insertion = SourceQueueInsertion.APPEND,
         )
-        poolById = poolById + (track.id.value to track)
+        poolById = poolById.plusTracks(listOf(track))
         releaseSmartProvenance(smartPlanPositions, smartContinuationIds, smartRemovedIds, track.id)
         AndroidPlaybackStarts.queuedByHand(track.id)
         if (player.mediaItemCount == 0) {
@@ -842,7 +843,7 @@ internal class AndroidPlaybackController(
                 track = track,
                 insertion = SourceQueueInsertion.APPEND,
             )
-            poolById = poolById + (track.id.value to track)
+            poolById = poolById.plusTracks(listOf(track))
             releaseSmartProvenance(
                 this@AndroidPlaybackController.smartPlanPositions,
                 smartContinuationIds,
@@ -902,7 +903,7 @@ internal class AndroidPlaybackController(
         // queue occurrence, mirroring retainQueue.
         if (!stillQueued) {
             pool = pool.filter { it.id.value != removedId }
-            poolById = poolById - removedId
+            poolById = poolById.values.filter { it.id.value != removedId }.associateByIdValue()
             AndroidPlaybackStarts.unqueued(TrackId(removedId))
         }
         rebuildQueueSnapshot()
@@ -950,7 +951,7 @@ internal class AndroidPlaybackController(
                 includeFullQueue = true,
             )
             val source = restorePlan.sourceQueue
-            Triple(live, restorePlan, source.associateBy { it.id.value } + live.byId)
+            Triple(live, restorePlan, source.associateByIdValue().plusTracks(live.byId.values))
         }
         withContext(Dispatchers.Main.immediate) {
             if (playRequestGeneration.get() != requestGeneration) return@withContext
@@ -1040,7 +1041,7 @@ internal class AndroidPlaybackController(
                     val current = sourceOrder.tracks[sourceOrder.currentIndex]
                     smartContinuationIds.retainAll(setOf(current.id))
                     smartPlanPositions.keys.retainAll(setOf(current.id))
-                    poolById = poolById + (current.id.value to current)
+                    poolById = poolById.plusTracks(listOf(current))
                     player.shuffleModeEnabled = false
                     if (!replaceQueueAroundCurrent(player, sourceOrder)) {
                         // Defensive mismatch fallback (for an externally replaced media session).
@@ -1740,3 +1741,10 @@ public actual fun playbackModule(): Module = module {
         AndroidPlaybackController(context = get(), chooser = get(), engine = get())
     }
 }
+
+/**
+ * `this + extra.associateBy { it.id.value }`, kept compact: keys in first-occurrence order, an extra track replacing the
+ * one of the same id. Every map it is used on is keyed by its tracks' ids.
+ */
+private fun Map<String, TrackDescriptor>.plusTracks(extra: Collection<TrackDescriptor>): Map<String, TrackDescriptor> =
+    (values + extra).associateByIdValue()
