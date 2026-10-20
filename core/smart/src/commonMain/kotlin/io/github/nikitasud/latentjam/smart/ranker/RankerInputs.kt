@@ -118,4 +118,5 @@ public class PersonalHistory(
 public class EngineAudioSource(private val engine: () -> io.github.nikitasud.latentjam.smart.SimilarityEngine?) : AudioSource {
     override suspend fun vector(id: TrackId): FloatArray? = engine()?.embedding(id)
     override suspend fun neighbours(id: TrackId, k: Int): List<TrackId> = engine()?.audioNeighbours(id, k).orEmpty().map { it.trackId }
+    override suspend fun energy(id: TrackId): Double? = engine()?.energy(id)
 }

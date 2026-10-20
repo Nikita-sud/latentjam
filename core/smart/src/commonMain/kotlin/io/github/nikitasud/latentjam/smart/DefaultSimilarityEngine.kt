@@ -68,6 +68,8 @@ internal class DefaultSimilarityEngine(
     private val textStore: IndexStore? = null,
     private val clock: SmartClock = SmartClock.Unknown,
     private val batchDotProducts: BatchDotProducts = BatchDotProducts.Portable,
+    /** Where e (PLAN_AUDIO_ON §8.8) persists: one-float rows keyed with the audio vector's identity; null = memory only. */
+    private val energyStore: IndexStore? = null,
 ) : SimilarityEngine {
 
     private val mutex = Mutex()
@@ -108,6 +110,9 @@ internal class DefaultSimilarityEngine(
     private var audioModelLoaded = false
     private var semanticModelLoaded = false
     private val semanticCache = LinkedHashMap<TrackId, TrackSemantics>()
+    /** e per indexed track, and the audio-vector identity it was computed from. */
+    private val energies = HashMap<TrackId, Float>()
+    private val energyIdentities = HashMap<TrackId, String>()
 
     override val state: StateFlow<EngineState> = mutableState.asStateFlow()
 
@@ -117,6 +122,7 @@ internal class DefaultSimilarityEngine(
             if (mutableState.value is EngineState.Ready) return@withLock Result.success(Unit)
             mutableState.value = EngineState.Initializing
             restorePersistedIndex()
+            restoreEnergies()
             // The chain's models are best-effort: a missing predictor or text encoder costs
             // queue quality, not the ability to shuffle, so none of this can fail startup.
             predictorLoaded = predictor?.let {
@@ -388,6 +394,7 @@ internal class DefaultSimilarityEngine(
                 (staleAudioFailures + changedAudioFailures).forEach(audioFailureIdentities::remove)
                 (staleText + changedText).forEach(textVectorIdentities::remove)
                 (staleAudio + changedAudio).forEach(semanticCache::remove)
+                (staleAudio + changedAudio).forEach { energies.remove(it); energyIdentities.remove(it) }
                 if (pruneMissing) knownTracks.keys.retainAll(liveIds)
 
                 if (
@@ -482,6 +489,63 @@ internal class DefaultSimilarityEngine(
 
     override suspend fun embedding(trackId: TrackId): FloatArray? = withContext(dispatcher) {
         mutex.withLock { index.vector(trackId) }
+    }
+
+    override suspend fun energy(trackId: TrackId): Double? = withContext(dispatcher) {
+        mutex.withLock { energies[trackId]?.toDouble() }
+    }
+
+    override suspend fun energyCoverage(): Pair<Int, Int> = withContext(dispatcher) {
+        mutex.withLock { index.size to energies.size }
+    }
+
+    override suspend fun ensureEnergies(): Int = withContext(dispatcher) {
+        mutex.withLock {
+            if (mutableState.value !is EngineState.Ready) return@withLock 0
+            val missing = audioVectorIdentities.keys.filter { it !in energies }
+            if (missing.isEmpty() || ensureSemanticModel().isFailure) return@withLock 0
+            var added = 0
+            for (batch in missing.chunked(SEMANTIC_BATCH_SIZE)) {
+                val rows = batch.mapNotNull { id -> index.vector(id)?.let { id to it } }
+                val outputs = backend.classify(rows.map { it.second }).getOrNull()?.takeIf { it.size == rows.size } ?: continue
+                for (r in rows.indices) {
+                    val out = outputs[r]
+                    if (out.size <= ENERGY_HIGH_INDEX) continue
+                    val e = out[ENERGY_HIGH_INDEX] - out[ENERGY_LOW_INDEX]
+                    if (!e.isFinite()) continue
+                    energies[rows[r].first] = e
+                    audioVectorIdentities[rows[r].first]?.let { energyIdentities[rows[r].first] = it }
+                    added++
+                }
+                yield()
+            }
+            if (added > 0) persistEnergies()
+            added
+        }
+    }
+
+    private suspend fun restoreEnergies() {
+        val stored = runCatching { energyStore?.loadSnapshot(ENERGY_VERSION) }.getOrNull() ?: return
+        for ((id, v) in stored.entries) {
+            // Only e computed from the vector the index holds now.
+            val identity = stored.identities[id] ?: continue
+            if (v.size != 1 || !v[0].isFinite() || audioVectorIdentities[id] != identity) continue
+            energies[id] = v[0]
+            energyIdentities[id] = identity
+        }
+    }
+
+    private suspend fun persistEnergies() {
+        val target = energyStore ?: return
+        runCatching {
+            target.saveSnapshot(
+                ENERGY_VERSION,
+                StoredIndexSnapshot(
+                    entries = energies.mapValues { (_, e) -> floatArrayOf(e) },
+                    identities = energyIdentities.toMap(),
+                ),
+            )
+        }
     }
 
     override suspend fun audioNeighbours(trackId: TrackId, k: Int): List<ScoredTrack> = withContext(dispatcher) {
@@ -1004,6 +1068,8 @@ internal class DefaultSimilarityEngine(
                 audioEnvelopeRefusal.reset()
                 textEnvelopeRefusal.reset()
                 semanticCache.clear()
+                energies.clear()
+                energyIdentities.clear()
                 mixCoverageCache = null
                 snapshotCache = null
                 indexRevision++
@@ -1032,6 +1098,8 @@ internal class DefaultSimilarityEngine(
                 audioEnvelopeRefusal.reset()
                 textEnvelopeRefusal.reset()
                 semanticCache.clear()
+                energies.clear()
+                energyIdentities.clear()
                 mixCoverageCache = null
                 snapshotCache = null
                 indexRevision++
@@ -1129,6 +1197,8 @@ internal class DefaultSimilarityEngine(
         audioFailureIdentities.remove(id)
         audioIndexDirty = true
         semanticCache.remove(id)
+        energies.remove(id)
+        energyIdentities.remove(id)
         indexRevision++
         snapshotCache = null
         return null
@@ -1512,6 +1582,13 @@ internal class DefaultSimilarityEngine(
         const val MIN_AUDIO_CORPUS_FLOOR = 24
 
         const val SEMANTIC_BATCH_SIZE = 128
+
+        /** universal_semantic_head's ENERGY_HIGH / ENERGY_LOW outputs (SemanticLabel). */
+        const val ENERGY_HIGH_INDEX = 6
+        const val ENERGY_LOW_INDEX = 5
+
+        /** The e store's version key: the semantic head's output on this encoder's vectors. */
+        const val ENERGY_VERSION = "semantic-energy-v1"
 
         const val AUDIO_IDENTITY_VERSION = "audio-v1"
         // v2 deliberately invalidates markers written before transient and deterministic audio

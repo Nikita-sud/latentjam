@@ -618,6 +618,19 @@ object AppGraph {
                 }
                 // Completion is published only after the short final checkpoint is durable.
                 checkpointCadence.flush(engine::persistPendingAnalysis)
+                // PLAN_AUDIO_ON §8.8: e for every indexed track that lacks it — new rows, and a restored library's
+                // one-time backfill. Only the small semantic head runs, on the stored vectors.
+                try {
+                    val added = engine.ensureEnergies()
+                    if (added > 0) {
+                        val (indexed, withEnergy) = engine.energyCoverage()
+                        println("SMART: energy for $added tracks ($withEnergy of $indexed indexed)")
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (failure: Exception) {
+                    println("SMART: energy pass failed (${failure::class.simpleName})")
+                }
                 mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
                     running = false,
                     complete = true,

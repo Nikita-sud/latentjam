@@ -47,6 +47,9 @@ public val smartTextIndexQualifier: StringQualifier = named("smart-text-index")
  */
 public val smartLayoutQualifier: StringQualifier = named("smart-layout-index")
 
+/** The cached semantic-head energy e per track (PLAN_AUDIO_ON §8.8). */
+public val smartEnergyQualifier: StringQualifier = named("smart-energy")
+
 /**
  * Koin module providing the SMART similarity engine.
  *
@@ -111,6 +114,7 @@ public val smartEngineModule: Module = module {
     single<IndexStore> { NoopIndexStore() }
     single<IndexStore>(smartTextIndexQualifier) { NoopIndexStore() }
     single<IndexStore>(smartLayoutQualifier) { NoopIndexStore() }
+    single<IndexStore>(smartEnergyQualifier) { NoopIndexStore() }
 
     single<SimilarityEngine> {
         DefaultSimilarityEngine(
@@ -125,6 +129,7 @@ public val smartEngineModule: Module = module {
             textStore = get<IndexStore>(smartTextIndexQualifier),
             clock = getOrNull<SmartClock>() ?: SmartClock,
             batchDotProducts = getOrNull<BatchDotProducts>() ?: BatchDotProducts.Portable,
+            energyStore = getOrNull<IndexStore>(smartEnergyQualifier),
         )
     }
 }

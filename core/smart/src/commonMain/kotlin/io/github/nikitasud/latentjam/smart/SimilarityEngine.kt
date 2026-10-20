@@ -166,6 +166,21 @@ public interface SimilarityEngine {
     public suspend fun audioNeighbours(trackId: TrackId, k: Int): List<ScoredTrack> = emptyList()
 
     /**
+     * e = the universal semantic head's energy.high − energy.low on [trackId]'s stored A0 vector (PLAN_AUDIO_ON §8.8),
+     * cached per track; null when not computed yet or not indexed.
+     */
+    public suspend fun energy(trackId: TrackId): Double? = null
+
+    /**
+     * Computes e for every indexed track that lacks it (the restored library's one-time backfill, and new rows after
+     * indexing): loads only the small semantic head, never the audio encoder. Returns how many it added.
+     */
+    public suspend fun ensureEnergies(): Int = 0
+
+    /** Indexed tracks and how many of them have e (the coverage gate: the two must match). */
+    public suspend fun energyCoverage(): Pair<Int, Int> = 0 to 0
+
+    /**
      * Builds the strongest covered, one-shot vector space for library-level My Mixes.
      *
      * The engine reads its audio and metadata indexes under one lock and writes directly into one

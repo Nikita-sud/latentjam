@@ -111,6 +111,7 @@ internal suspend fun diagnoseRecentSmartStarts(
             .append(",\"imputed\":").append(report.imputed)
             .append(",\"excluded\":").append(HabitSlots.novelty(listens, startMs).size)
             .append(",\"replayMatches\":").append(logged == replayed)
+            .append(",\"energyCoverage\":").append(runCatching { engine?.energyCoverage() }.getOrNull()?.let { (i, e) -> "[$i,$e]" } ?: "null")
             .append(",\"loggedOverlap\":").append(logged.zip(replayed).count { (a, b) -> a == b })
             .append(",\"features\":[").append(diagnostics.features.joinToString(",") { q(it) }).append("]")
             .append(",\"rowNames\":[").append(RankerFeatures.NAMES.joinToString(",") { q(it) }).append("]")
@@ -185,6 +186,7 @@ internal suspend fun diagnoseRecentSmartStarts(
                 "\"energyHigh\":${n(sem?.probability(io.github.nikitasud.latentjam.smart.SemanticLabel.ENERGY_HIGH)?.toDouble() ?: Double.NaN)}," +
                 "\"energyLow\":${n(sem?.probability(io.github.nikitasud.latentjam.smart.SemanticLabel.ENERGY_LOW)?.toDouble() ?: Double.NaN)}," +
                 "\"tender\":${n(sem?.probability(io.github.nikitasud.latentjam.smart.SemanticLabel.MOOD_TENDER)?.toDouble() ?: Double.NaN)}," +
+                "\"e\":${n(runCatching { engine?.energy(id) }.getOrNull() ?: Double.NaN)}," +
                 "\"family\":${q(io.github.nikitasud.latentjam.smart.HabitFlow.family(names[id]?.genre))}," +
                 "\"contrib\":[${e?.contributions?.joinToString(",") { n(it) } ?: ""}]," +
                 "\"gapToPick\":[${if (e != null && firstPick != null) firstPick.contributions.indices.joinToString(",") { n(firstPick.contributions[it] - e.contributions[it]) } else ""}]}")
