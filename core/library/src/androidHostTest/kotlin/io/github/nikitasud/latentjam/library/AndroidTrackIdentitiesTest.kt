@@ -152,6 +152,26 @@ internal class AndroidTrackIdentitiesTest {
         assertEquals(listOf(TrackId("20"), TrackId("21")), f.scan(track("20"), track("21")).map { it.id })
     }
 
+    @Test fun aFailedTagPassWriteChangesNothingAndTheNextPassRetries() {
+        val f = Fixture(tags)
+        val tracks = (1..20).map { track(it.toString()) }.toTypedArray()
+        f.scan(*tracks)
+        val baseline = f.disk.payload
+        f.disk.fail = true
+        assertFailsWith<IOException> { f.remember() }
+        assertEquals(baseline, f.disk.payload)
+        f.restart()
+        f.disk.fail = false
+        f.scan(*tracks)
+        val readsBefore = f.reads
+        f.remember()
+        assertEquals(readsBefore + 20, f.reads, "nothing was recorded as read")
+        val written = f.disk.payload
+        f.restart(); f.scan(*tracks); f.remember()
+        assertEquals(written, f.disk.payload)
+        assertEquals(readsBefore + 20, f.reads)
+    }
+
     @Test fun cancellationAndFailedCommitDoNotPublishOrPersistARelocation() {
         val f = Fixture(tags)
         f.scan(track("10")); f.remember()

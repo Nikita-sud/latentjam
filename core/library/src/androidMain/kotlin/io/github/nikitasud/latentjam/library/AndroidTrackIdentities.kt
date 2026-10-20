@@ -57,7 +57,11 @@ internal class AndroidTrackIdentities(
      */
     private var currentAudio: Array<String?>? = null
 
-    private var entries: Map<String, Entry>? = null
+    /**
+     * The published registry. Replaced by a new map on every scan; [remember] updates entries in place, under the
+     * registry's monitor and only after they are on storage (see [commitInPlace]).
+     */
+    private var entries: MutableMap<String, Entry>? = null
     /** Source → app ID, only where they differ (a relocated file); everything else maps to itself. */
     private var sourceAliases = emptyMap<String, String>()
     /** One instance per distinct volume/extension: 10,000 rows share a handful of these. */
@@ -171,7 +175,8 @@ internal class AndroidTrackIdentities(
 
     /** Cheap launch first; learn metadata in the existing background enrichment phase. */
     fun remember(cancellationCheck: () -> Unit = {}) {
-        // Published maps are never mutated, so the snapshot needs no copy.
+        // No copy of the published map: scans replace it with a new one, and only this pass's own
+        // commits (on this thread, under the monitor) change it in place.
         val (rows, known, aliases) = synchronized(this) { Triple(currentRows, load(), sourceAliases) }
         val audio = synchronized(this) { currentAudio }
         val updates = ArrayList<Pair<Entry, TrackIdentityTags>>()
@@ -181,11 +186,12 @@ internal class AndroidTrackIdentities(
         fun commitUpdates() {
             if (updates.isEmpty()) return
             synchronized(this) {
-                val next = LinkedHashMap(load())
+                val current = load()
+                val changes = HashMap<String, Entry>()
                 for ((old, facts) in updates) {
-                    if (next[old.id] == old) next[old.id] = old.copy(tags = facts, checked = old.revision)
+                    if (current[old.id] == old) changes[old.id] = old.copy(tags = facts, checked = old.revision)
                 }
-                commit(next)
+                commitInPlace(changes)
             }
             updates.clear()
         }
@@ -229,22 +235,34 @@ internal class AndroidTrackIdentities(
         null
     }
 
-    private fun load(): Map<String, Entry> {
+    private fun load(): MutableMap<String, Entry> {
         entries?.let { return it }
-        return (read()?.use { decode(it, ::shared) } ?: emptyMap()).also(::publish)
+        return (read()?.use { decode(it, ::shared) } ?: LinkedHashMap()).also(::publish)
     }
 
-    /** [next] must be a map this registry owns and never mutates again. */
-    private fun commit(next: Map<String, Entry>) {
+    /**
+     * Stores [changes] (entries of ids already registered, with their ids and sources unchanged) and only then
+     * replaces them in the published map, in place: a full copy of a 100,000-song registry per commit was as large
+     * as the registry itself. Callers hold the monitor.
+     */
+    private fun commitInPlace(changes: Map<String, Entry>) {
+        if (changes.isEmpty()) return
+        val current = load()
+        write { writer -> encode(current.values.map { changes[it.id] ?: it }, writer) }
+        for ((id, entry) in changes) current[id] = entry
+    }
+
+    /** [next] must be a map this registry owns; only [commitInPlace] changes it afterwards. */
+    private fun commit(next: MutableMap<String, Entry>) {
         // Publication follows durable storage. A failed save must never expose aliases that
         // disappear after a restart, or rewrite any of the user's other stores.
-        if (next != entries) write { writer -> encode(next, writer) }
+        if (next != entries) write { writer -> encode(next.values, writer) }
         // Published even when unchanged: these entries share their strings with the scan's rows,
         // where the decoded ones held a private copy of every ID, volume and revision.
         publish(next)
     }
 
-    private fun publish(next: Map<String, Entry>) {
+    private fun publish(next: MutableMap<String, Entry>) {
         entries = next
         val aliases = HashMap<String, String>()
         for (entry in next.values) if (entry.source.isNotEmpty() && entry.source != entry.id) aliases[entry.source] = entry.id
@@ -311,8 +329,8 @@ internal class AndroidTrackIdentities(
          * `HEADER \n sha256(body) \n body`, body = one line per entry joined by `\n`, sorted by ID.
          * Two passes over the entries (digest, then text) instead of the whole text in memory.
          */
-        fun encode(values: Map<String, Entry>, writer: Writer) {
-            val sorted = values.values.sortedBy { it.id }
+        fun encode(values: Collection<Entry>, writer: Writer) {
+            val sorted = values.sortedBy { it.id }
             val digest = MessageDigest.getInstance("SHA-256")
             for ((index, entry) in sorted.withIndex()) {
                 if (index > 0) digest.update('\n'.code.toByte())
@@ -332,7 +350,7 @@ internal class AndroidTrackIdentities(
          * Streams the registry: lines split on `\n` only, the body digested as it is read, each
          * field decoded in place. Any damage, including a digest mismatch, is an IOException.
          */
-        fun decode(reader: Reader, shared: (String) -> String): Map<String, Entry> {
+        fun decode(reader: Reader, shared: (String) -> String): MutableMap<String, Entry> {
             val input = if (reader is BufferedReader) reader else BufferedReader(reader, 16 * 1024)
             val digest = MessageDigest.getInstance("SHA-256")
             val result = LinkedHashMap<String, Entry>()
