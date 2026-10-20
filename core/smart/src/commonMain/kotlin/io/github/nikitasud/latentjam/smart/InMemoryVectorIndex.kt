@@ -40,8 +40,8 @@ public class InMemoryVectorIndex(
         require(store.dim == dim) { "Row store dimension ${store.dim} does not match $dim" }
     }
 
-    /** Row of each id in [store]. LinkedHashMap keeps iteration deterministic (insertion order). */
-    private val vectors = LinkedHashMap<TrackId, Int>()
+    /** Row of each id in [store], in insertion order (deterministic iteration), as a compact map. */
+    private val vectors = OrderedIdMap()
 
     /** Rows of [store] no id refers to any more (removed or replaced ids); reclaimed by [compactIfSparse]. */
     private var deadRows = 0
@@ -74,10 +74,17 @@ public class InMemoryVectorIndex(
 
     override fun contains(id: TrackId): Boolean = id in vectors
 
-    override fun entries(): Map<TrackId, FloatArray> =
-        vectors.entries.associate { (id, row) -> id to store.row(row).toFloatArray() }
+    override fun entries(): Map<TrackId, FloatArray> {
+        val out = LinkedHashMap<TrackId, FloatArray>(vectors.size)
+        vectors.forEachEntry { id, row, _ -> out[id] = store.row(row).toFloatArray() }
+        return out
+    }
 
-    override fun ids(): Set<TrackId> = vectors.keys.toSet()
+    override fun ids(): Set<TrackId> {
+        val out = LinkedHashSet<TrackId>(vectors.size)
+        vectors.forEachEntry { id, _, _ -> out += id }
+        return out
+    }
 
     /**
      * A read-only view in iteration order. Over the heap store its values are the stored arrays themselves; over
@@ -94,12 +101,12 @@ public class InMemoryVectorIndex(
             get() = object : AbstractSet<Map.Entry<TrackId, FloatArray>>() {
                 override val size: Int get() = vectors.size
                 override fun iterator(): Iterator<Map.Entry<TrackId, FloatArray>> {
-                    val source = vectors.entries.iterator()
+                    val source = vectors.slots()
                     return object : Iterator<Map.Entry<TrackId, FloatArray>> {
                         override fun hasNext(): Boolean = source.hasNext()
                         override fun next(): Map.Entry<TrackId, FloatArray> {
-                            val (id, row) = source.next()
-                            return Entry(id, stored(row))
+                            val slot = source.nextInt()
+                            return Entry(TrackId(vectors.keyAt(slot)!!), stored(vectors.valueAt(slot)))
                         }
                     }
                 }
@@ -125,9 +132,9 @@ public class InMemoryVectorIndex(
         if (deadRows < 1_024 || deadRows < vectors.size) return
         val live = IntArray(vectors.size)
         var i = 0
-        for (entry in vectors.entries) {
-            live[i] = entry.value
-            entry.setValue(i)
+        vectors.forEachEntry { _, row, slot ->
+            live[i] = row
+            vectors.setValue(slot, i)
             i++
         }
         store.compact(live)
@@ -139,19 +146,21 @@ public class InMemoryVectorIndex(
             "Query vector has dimension ${query.size}, expected $dim"
         }
         require(query.all(Float::isFinite)) { "Query contains a non-finite component" }
-        if (k <= 0 || vectors.isEmpty()) return emptyList()
+        if (k <= 0 || vectors.size == 0) return emptyList()
         val normalizedQuery = l2Normalized(query)
         // A worst-first heap keeps only k candidates. The ordinal makes ties agree with the
         // old stable sort, including upserts (which retain their LinkedHashMap position).
         val limit = minOf(k, vectors.size)
         val heap = ArrayList<RankedTrack>(limit)
         val scratch = FloatArray(dim)
-        for ((ordinal, entry) in vectors.entries.withIndex()) {
-            if (entry.key in exclude) continue
-            val values = store.heapArray(entry.value) ?: scratch.also { store.row(entry.value).copyInto(it) }
+        var ordinal = -1
+        vectors.forEachEntry { id, row, _ ->
+            ordinal++
+            if (id in exclude) return@forEachEntry
+            val values = store.heapArray(row) ?: scratch.also { store.row(row).copyInto(it) }
             val score = dot(normalizedQuery, values)
-            if (heap.size == limit && score.compareTo(heap[0].track.score) <= 0) continue
-            val candidate = RankedTrack(ScoredTrack(entry.key, score), ordinal)
+            if (heap.size == limit && score.compareTo(heap[0].track.score) <= 0) return@forEachEntry
+            val candidate = RankedTrack(ScoredTrack(id, score), ordinal)
             if (heap.size < limit) {
                 heap.add(candidate)
                 var child = heap.lastIndex

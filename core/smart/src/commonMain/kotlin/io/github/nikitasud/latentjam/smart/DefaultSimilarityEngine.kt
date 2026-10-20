@@ -101,12 +101,12 @@ internal class DefaultSimilarityEngine(
     }
     private val mutableState = MutableStateFlow<EngineState>(EngineState.Uninitialized)
     private val knownTracks = LinkedHashMap<TrackId, TrackDescriptor>()
-    /** Identity of the descriptor used to create each in-memory/persisted audio vector. */
-    private val audioVectorIdentities = LinkedHashMap<TrackId, String>()
+    /** Identity of the descriptor used to create each in-memory/persisted audio vector (as digests). */
+    private val audioVectorIdentities = IdentityDigests()
     /** Track-local audio failures that should not wake the model again for unchanged media. */
-    private val audioFailureIdentities = LinkedHashMap<TrackId, String>()
+    private val audioFailureIdentities = IdentityDigests()
     /** Identity of the descriptor used to create each in-memory/persisted metadata vector. */
-    private val textVectorIdentities = LinkedHashMap<TrackId, String>()
+    private val textVectorIdentities = IdentityDigests()
     /**
      * In-memory mutations remain dirty until the corresponding snapshot save returns normally.
      * This matters after an I/O failure: the next operation may find every vector already present,
@@ -174,7 +174,7 @@ internal class DefaultSimilarityEngine(
                 val restored = try {
                     textStore?.loadRows(TEXT_INDEX_VERSION) { id, vector, identity ->
                         runCatching { textIndex.adopt(id, vector) }
-                            .onSuccess { identity?.let { textVectorIdentities[id] = it } }
+                            .onSuccess { identity?.let { textVectorIdentities.putPersisted(id, it) } }
                     }
                 } catch (cancelled: CancellationException) {
                     textIndex.clear()
@@ -362,7 +362,7 @@ internal class DefaultSimilarityEngine(
             if (mutableState.value !is EngineState.Ready) return@withLock 0
             var cleared = 0
             for (id in ids.toSet()) {
-                if (audioFailureIdentities.remove(id) != null) {
+                if (audioFailureIdentities.remove(id)) {
                     audioIndexDirty = true
                     cleared++
                 }
@@ -390,9 +390,9 @@ internal class DefaultSimilarityEngine(
                 settled += carry.trackId
                 // The identity the vector was made under, had the file kept its old revision.
                 val before = track.copy(sourceRevision = carry.oldRevision).audioVectorIdentity()
-                val unchanged = carry.trackId in index && audioVectorIdentities[carry.trackId] == before
+                val unchanged = carry.trackId in index && audioVectorIdentities.matches(carry.trackId, before)
                 if (unchanged && track.sizeBytes == carry.newLength) {
-                    audioVectorIdentities[carry.trackId] = track.audioVectorIdentity()
+                    audioVectorIdentities.put(carry.trackId, track.audioVectorIdentity())
                     applied += carry.trackId
                 }
             }
@@ -425,7 +425,7 @@ internal class DefaultSimilarityEngine(
                     emptyList()
                 }
                 val staleAudioFailures = if (pruneMissing) {
-                    audioFailureIdentities.keys.filterNot(liveIds::contains)
+                    audioFailureIdentities.ids().filterNot(liveIds::contains)
                 } else {
                     emptyList()
                 }
@@ -436,17 +436,17 @@ internal class DefaultSimilarityEngine(
                 val changedText = library.mapNotNull { track ->
                     track.id.takeIf { id ->
                         textIndex?.contains(id) == true &&
-                            textVectorIdentities[id] != track.textVectorIdentity()
+                            !textVectorIdentities.matches(id, track.textVectorIdentity())
                     }
                 }
                 val changedAudio = library.mapNotNull { track ->
                     track.id.takeIf { id ->
-                        id in index && audioVectorIdentities[id] != track.audioVectorIdentity()
+                        id in index && !audioVectorIdentities.matches(id, track.audioVectorIdentity())
                     }
                 }
                 val changedAudioFailures = library.mapNotNull { track ->
                     track.id.takeIf { id ->
-                        audioFailureIdentities[id]?.let { it != track.audioFailureIdentity() } == true
+                        id in audioFailureIdentities && !audioFailureIdentities.matches(id, track.audioFailureIdentity())
                     }
                 }
 
@@ -1298,7 +1298,7 @@ internal class DefaultSimilarityEngine(
                 runCatching { index.adopt(id, vector) }
                     .onSuccess {
                         adopted += id
-                        identity?.let { audioVectorIdentities[id] = it }
+                        identity?.let { audioVectorIdentities.putPersisted(id, it) }
                     }
             }
         } catch (cancelled: CancellationException) {
@@ -1318,7 +1318,7 @@ internal class DefaultSimilarityEngine(
         }
         for ((id, identity) in failed) {
             if (id !in index && id !in audioFailureIdentities && identity.isNotBlank()) {
-                audioFailureIdentities[id] = identity
+                audioFailureIdentities.putPersisted(id, identity)
             }
         }
         if (index.size > 0) indexRevision++
@@ -1339,7 +1339,7 @@ internal class DefaultSimilarityEngine(
         if (vector.size != TextEncoder.TEXT_DIM) return false
         return runCatching { target.upsert(track.id, vector) }
             .onSuccess {
-                textVectorIdentities[track.id] = track.textVectorIdentity()
+                textVectorIdentities.put(track.id, track.textVectorIdentity())
                 textIndexDirty = true
                 indexRevision++
                 snapshotCache = null
@@ -1371,7 +1371,7 @@ internal class DefaultSimilarityEngine(
             )
         }
         index.upsert(id, vector)
-        audioVectorIdentities[id] = track.audioVectorIdentity()
+        audioVectorIdentities.put(id, track.audioVectorIdentity())
         audioFailureIdentities.remove(id)
         audioIndexDirty = true
         semanticCache.remove(id)
@@ -1443,17 +1443,17 @@ internal class DefaultSimilarityEngine(
     private fun TrackDescriptor.textVectorIdentity(): String = vectorIdentity(TEXT_IDENTITY_VERSION, textString())
 
     private fun hasRememberedAudioFailure(track: TrackDescriptor): Boolean =
-        audioFailureIdentities[track.id] == track.audioFailureIdentity()
+        audioFailureIdentities.matches(track.id, track.audioFailureIdentity())
 
     private fun rememberAudioFailure(track: TrackDescriptor) {
         val identity = track.audioFailureIdentity()
-        if (audioFailureIdentities.put(track.id, identity) != identity) {
+        if (audioFailureIdentities.put(track.id, identity)) {
             audioIndexDirty = true
         }
     }
 
     private fun forgetAudioFailure(id: TrackId) {
-        if (audioFailureIdentities.remove(id) != null) audioIndexDirty = true
+        if (audioFailureIdentities.remove(id)) audioIndexDirty = true
     }
 
     private suspend fun persistAudioIndex() {
@@ -1578,8 +1578,8 @@ internal class DefaultSimilarityEngine(
         val entries = index.storedEntries()
         return StoredIndexSnapshot(
             entries = entries,
-            identities = audioVectorIdentities.filterKeys(entries::containsKey),
-            failedIdentities = audioFailureIdentities.filterKeys { it !in entries },
+            identities = audioVectorIdentities.persisted(entries::containsKey),
+            failedIdentities = audioFailureIdentities.persisted { it !in entries },
         )
     }
 
@@ -1588,7 +1588,7 @@ internal class DefaultSimilarityEngine(
         val entries = textIndex?.storedEntries().orEmpty()
         return StoredIndexSnapshot(
             entries = entries,
-            identities = textVectorIdentities.filterKeys(entries::containsKey),
+            identities = textVectorIdentities.persisted(entries::containsKey),
         )
     }
 
