@@ -67,6 +67,8 @@ class EngineNextTrackChooser(
     private val favourites: suspend () -> Map<TrackId, Long?> = { emptyMap() },
     /** "Use favourites" (nested under "Learn from my habits"); off, the ranker sees no hearts. */
     private val useFavourites: () -> Boolean = { true },
+    /** Wall time; the offline product-check stand plans at a fixed simulated time. */
+    private val clock: () -> Long = ::epochMillis,
 ) : NextTrackChooser {
 
     private val mutex = Mutex()
@@ -129,7 +131,7 @@ class EngineNextTrackChooser(
         nextPlanned()?.let { return@withLock it }
         if (candidates.isNotEmpty()) {
             val started = TimeSource.Monotonic.markNow()
-            val events = smartHistoryFor(history, current)
+            val events = smartHistoryFor(history, current, clock)
             // A top-up can extend this chooser's plan or one the UI requested directly, even
             // after replacing the previous queue. The engine checks the preceding queued tracks
             // before carrying a walk; an unrelated seed starts fresh there.
@@ -147,7 +149,7 @@ class EngineNextTrackChooser(
                     personal = personalRanker(), ruleOnly = !rankerHealthy() || queueFailures >= BREAKER_LIMIT,
                     favourites = if (useFavourites()) favourites else NO_FAVOURITES,
                     presses = { window, count ->
-                        smartLog?.recentPresses(epochMillis(), window, count, excludeQueue = queueId.takeIf { recentIds.isNotEmpty() })
+                        smartLog?.recentPresses(clock(), window, count, excludeQueue = queueId.takeIf { recentIds.isNotEmpty() })
                             .orEmpty()
                     },
                 )
@@ -171,7 +173,7 @@ class EngineNextTrackChooser(
             smartLog?.let { log ->
                 if (recentIds.isEmpty() || queueId.isEmpty()) {
                     val seedHash = SaltedKey.contentHash(SaltedKey.contentKey(current)).take(12)
-                    queueId = "$seedHash.${if (learned != null) queuePress.toString() else "c"}.${epochMillis()}"
+                    queueId = "$seedHash.${if (learned != null) queuePress.toString() else "c"}.${clock()}"
                     plansInQueue = 0
                 } else {
                     plansInQueue++
@@ -302,6 +304,7 @@ internal fun smartPlanPositions(plan: List<TrackId>): Map<TrackId, Int> =
 internal suspend fun smartHistoryFor(
     history: ListeningHistory,
     current: TrackDescriptor,
+    clock: () -> Long = ::epochMillis,
 ): List<SmartHistoryEvent> = withContext(Dispatchers.Default) {
     // This can project up to 10k persisted events. Queue top-up is launched by the playback
     // controller's main-thread scope, so doing the copy/map before the engine's own dispatcher is
@@ -325,7 +328,7 @@ internal suspend fun smartHistoryFor(
     }
     // The history recorder emits only when playback leaves a track. Queue planning happens while
     // [current] is still playing, so add it as the latest positive intent explicitly.
-    val now = maxOf(epochMillis(), (observed.lastOrNull()?.startedAtMs ?: Long.MIN_VALUE) + 1)
+    val now = maxOf(clock(), (observed.lastOrNull()?.startedAtMs ?: Long.MIN_VALUE) + 1)
     observed + SmartHistoryEvent(
         trackId = current.id,
         startedAtMs = now,

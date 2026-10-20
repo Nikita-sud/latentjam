@@ -170,6 +170,13 @@ internal class FileIndexStore private constructor(
     }
 }
 
+/**
+ * Host tools (the offline product-check stand): reads one of this store's snapshot files without a Context, or null
+ * when the file is missing, damaged or of another [modelVersion].
+ */
+public suspend fun readIndexSnapshotFile(file: File, modelVersion: String): StoredIndexSnapshot? =
+    FileIndexStore(file.absoluteFile.parentFile, file.name, maximumSnapshotBytes = Long.MAX_VALUE - 1).loadSnapshot(modelVersion)
+
 /** Versioned decoder; v1 has vectors only, v2 adds identities, and v3 adds failure identities. */
 internal fun decodeStoredIndexSnapshot(
     input: DataInputStream,
