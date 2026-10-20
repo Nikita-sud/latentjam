@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.playback
 
+import io.github.nikitasud.latentjam.smart.associateByIdValue
 import android.content.ComponentName
 import android.content.Context
 import android.content.res.Configuration
@@ -323,7 +324,7 @@ internal class AndroidPlaybackController(
     override suspend fun setSmartLibrary(tracks: List<TrackDescriptor>) {
         val prepared = withContext(Dispatchers.Default) {
             tracks.distinctBy { it.id }.let { distinct ->
-                distinct to distinct.associateBy { it.id.value }
+                distinct to distinct.associateByIdValue()
             }
         }
         withContext(Dispatchers.Main.immediate) {
@@ -1396,7 +1397,7 @@ internal class AndroidPlaybackController(
         val source = resume.sourceTracks ?: resume.tracks
         pool = source
         // The live SMART queue can contain generated rows absent from its canonical source.
-        poolById = (source + resume.tracks).associateBy { it.id.value }
+        poolById = (source + resume.tracks).associateByIdValue()
         mode = resume.shuffleMode
         smartContinuationIds.clear()
         val resumedIds = resume.tracks.mapTo(HashSet()) { it.id }
@@ -1561,7 +1562,7 @@ internal class AndroidPlaybackController(
                 pool = (0 until built.mediaItemCount).mapNotNull { index ->
                     built.getMediaItemAt(index).toProvisionalTrack()
                 }
-                poolById = pool.associateBy { it.id.value }
+                poolById = pool.associateByIdValue()
             }
             // A listener only observes future events. Import the already-running service session
             // now so Auto/resumption playback is visible immediately.
@@ -1670,7 +1671,7 @@ internal class AndroidPlaybackController(
         val fullQueue = if (includeFullQueue) stableTracks.map { it.toMediaItem() } else null
         return PreparedPlayback(
             tracks = stableTracks,
-            byId = stableTracks.associateBy { it.id.value },
+            byId = stableTracks.associateByIdValue(),
             startIndex = safeStartIndex,
             selectedItem = fullQueue?.get(safeStartIndex) ?: stableTracks[safeStartIndex].toMediaItem(),
             fullQueue = fullQueue,

@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.smart.associateById
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.testTag
 import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_progress_eta
@@ -1347,7 +1348,7 @@ internal fun mapFallbackRegions(
     // this -- an empty `worlds` list means either "clustering found nothing" (this function's job)
     // or "clustering has not reported on this library yet" (not this function's job), and this
     // function has no way to tell those apart on its own.
-    val byId = library.associateBy(TrackDescriptor::id)
+    val byId = library.associateById()
     val tracks = laidOutIds.mapNotNull(byId::get)
     if (tracks.isEmpty()) return emptyList()
     return listOf(

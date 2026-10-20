@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.smart.associateByIdValue
 import io.github.nikitasud.latentjam.history.Favorites
 import io.github.nikitasud.latentjam.history.ListenEvent
 import io.github.nikitasud.latentjam.history.ListenOrigin
@@ -1045,7 +1046,7 @@ internal class LocalBackupService(
         val exclusions = smartExclusions.load()
         val hearts = favorites.all()
         val verdicts = DuplicateDismissals.verdicts(settings.readDuplicateDismissalsPayload())
-        val descriptors = library.allKnownTracks().associateBy { it.id.value }
+        val descriptors = library.allKnownTracks().associateByIdValue()
         val referencedIds = linkedSetOf<String>().apply {
             storedPlaylists.forEach { addAll(it.trackIds) }
             chronologicalEvents.forEach { add(it.trackId.value) }

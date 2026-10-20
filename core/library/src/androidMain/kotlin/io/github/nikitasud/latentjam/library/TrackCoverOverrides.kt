@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.library
 
+import io.github.nikitasud.latentjam.smart.associateByIdValue
 import io.github.nikitasud.latentjam.library.tags.CoverEdit
 import io.github.nikitasud.latentjam.library.tags.CoverPicture
 import io.github.nikitasud.latentjam.library.tags.Crc32
@@ -184,7 +185,7 @@ internal class TrackCoverOverrides(
         }
         if (entries.isEmpty()) return tracks
         val kept = HashMap<String, Entry>(entries.size)
-        val byId = tracks.associateBy { it.id.value }
+        val byId = tracks.associateByIdValue()
         val scannedAt = now()
         for ((id, entry) in entries) {
             if (entry.fileName != null && !File(directory, entry.fileName).isFile) continue

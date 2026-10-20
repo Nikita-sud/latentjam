@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.smart.associateByIdValue
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.rounded.Settings
@@ -197,7 +198,7 @@ internal fun resolveResumeSourceQueue(
     /** Listens per track, for a playlist sorted by plays; see [playsForResume]. */
     plays: Map<TrackId, Int> = emptyMap(),
 ): List<TrackDescriptor>? {
-    val byId = library.associateBy { it.id.value }
+    val byId = library.associateByIdValue()
     return when {
         saved.sourceQueuePersisted -> saved.sourceQueueTrackIds.mapNotNull(byId::get)
         saved.sourceKind == QueueSourceKind.TRACKS.name -> library

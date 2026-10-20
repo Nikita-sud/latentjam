@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.smart.associateByIdValue
 import androidx.compose.runtime.*
 import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.playback.PlaybackController
@@ -56,7 +57,7 @@ internal fun PlaybackRestoreEffect(
         // Prefer the queue that was ACTUALLY playing — a playlist stays that playlist across
         // a restart. Tracks deleted meanwhile drop out; if the saved track itself is gone or
         // no queue was saved, fall back to wrapping the track in the whole library.
-        val byId = loaded.associateBy { it.id.value }
+        val byId = loaded.associateByIdValue()
         val resolvedSavedQueue = saved.queueTrackIds.mapIndexedNotNull { persistedIndex, id ->
             byId[id]?.let { persistedIndex to it }
         }

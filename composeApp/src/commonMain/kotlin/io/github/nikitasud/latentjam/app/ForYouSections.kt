@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.smart.associateById
 import io.github.nikitasud.latentjam.history.ListenEvent
 import io.github.nikitasud.latentjam.history.localTimePoint
 import io.github.nikitasud.latentjam.history.TrackStats
@@ -389,7 +390,7 @@ object ForYouBuilder {
          */
         logStartMs: Long? = null,
     ): ForYouPage {
-        val byId = library.associateBy { it.id }
+        val byId = library.associateById()
         // Accumulates across the page, so a track shown once is not shown again further down.
         val used = HashSet<TrackId>(excluded)
 
@@ -657,7 +658,7 @@ object ForYouBuilder {
         librarySize: Int,
     ): List<ForYouCard> {
         val out = mutableListOf<ForYouCard>()
-        val dormantById = dormant.associateBy { it.id }
+        val dormantById = dormant.associateById()
 
         for (playlist in playlists) {
             // A catch-all playlist ("All music" imported from an M3U) is not a unit of taste: it

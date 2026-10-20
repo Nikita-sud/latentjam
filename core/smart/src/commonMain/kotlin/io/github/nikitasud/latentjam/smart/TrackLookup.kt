@@ -1,0 +1,61 @@
+/*
+ * Copyright (c) 2026 LatentJam Project
+ * SPDX-License-Identifier: Apache-2.0
+ */
+package io.github.nikitasud.latentjam.smart
+
+/**
+ * `associateBy { it.id }` for a library-sized list, without a map entry and a boxed id per song: the list itself plus
+ * a compact id → position table (~20 bytes a song instead of ~56). Reads like the LinkedHashMap it replaces: keys in
+ * first-occurrence order, the last song of a repeated id as its value. The list must not change afterwards.
+ */
+public fun <T : TrackDescriptor> List<T>.associateById(): Map<TrackId, T> =
+    TrackLookup(this, positions(this)) { it }
+
+/** [associateById] keyed by the id's string, for maps keyed that way (the playback controller's). */
+public fun <T : TrackDescriptor> List<T>.associateByIdValue(): Map<String, T> =
+    TrackLookup(this, positions(this)) { it.value }
+
+private fun positions(tracks: List<TrackDescriptor>): OrderedIdMap {
+    val positions = OrderedIdMap()
+    for ((index, track) in tracks.withIndex()) positions.put(track.id, index)
+    return positions
+}
+
+private class TrackLookup<K, T : TrackDescriptor>(
+    private val tracks: List<T>,
+    private val positions: OrderedIdMap,
+    private val keyOf: (TrackId) -> K,
+) : AbstractMap<K, T>() {
+    override val size: Int get() = positions.size
+
+    private fun idOf(key: Any?): TrackId? = when (key) {
+        is TrackId -> key
+        is String -> TrackId(key)
+        else -> null
+    }?.takeIf { keyOf(it) == key }
+
+    override fun containsKey(key: K): Boolean = idOf(key)?.let { it in positions } == true
+
+    override fun get(key: K): T? = idOf(key)?.let { id -> positions[id]?.let(tracks::get) }
+
+    override val entries: Set<Map.Entry<K, T>>
+        get() = object : AbstractSet<Map.Entry<K, T>>() {
+            override val size: Int get() = positions.size
+            override fun iterator(): Iterator<Map.Entry<K, T>> {
+                val slots = positions.slots()
+                return object : Iterator<Map.Entry<K, T>> {
+                    override fun hasNext(): Boolean = slots.hasNext()
+                    override fun next(): Map.Entry<K, T> {
+                        val slot = slots.nextInt()
+                        return Entry(keyOf(TrackId(positions.keyAt(slot)!!)), tracks[positions.valueAt(slot)])
+                    }
+                }
+            }
+        }
+
+    private class Entry<K, T>(override val key: K, override val value: T) : Map.Entry<K, T> {
+        override fun equals(other: Any?): Boolean = other is Map.Entry<*, *> && other.key == key && other.value == value
+        override fun hashCode(): Int = (key?.hashCode() ?: 0) xor (value?.hashCode() ?: 0)
+    }
+}

@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.library
 
+import io.github.nikitasud.latentjam.smart.associateById
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 
@@ -54,7 +55,7 @@ public object AutoPlaylists {
         /** Current wall time; null omits the playlists that need an age judgment. */
         nowMs: Long? = null,
     ): List<AutoPlaylist> {
-        val byId = tracks.associateBy { it.id }
+        val byId = tracks.associateById()
 
         // The store's order IS the playlist's order; ids whose tracks left the device drop out.
         val hearted = favorites.mapNotNull { byId[it] }

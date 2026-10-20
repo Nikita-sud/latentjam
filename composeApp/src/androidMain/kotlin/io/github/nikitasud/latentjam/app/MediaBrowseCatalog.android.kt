@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.smart.associateByIdValue
 import android.content.Context
 import io.github.nikitasud.latentjam.app.shared.R
 import io.github.nikitasud.latentjam.playback.MediaBrowseCatalog
@@ -27,7 +28,7 @@ internal fun installMediaBrowseCatalog(context: Context) {
     MediaBrowseRegistry.catalog = {
         try {
             val tracks = AppGraph.library.tracks().filter { !it.audioUri.isNullOrBlank() }
-            val byId = tracks.associateBy { it.id.value }
+            val byId = tracks.associateByIdValue()
             val orders = AppGraph.settings.playlistSortOrders.value
             val playlists = AppGraph.playlists.all()
             val plays = playsWhenSortedByPlays(orders, playlists.map { it.id })
@@ -88,7 +89,7 @@ private suspend fun buildMediaPlaybackResume(): MediaPlaybackResume? {
     if (library.isEmpty()) return null
     val mode = ShuffleMode.entries.firstOrNull { it.name == saved.shuffleMode }
         ?: ShuffleMode.OFF
-    val byId = library.associateBy { it.id.value }
+    val byId = library.associateByIdValue()
     val playlists = AppGraph.playlists.all()
     val orders = AppGraph.settings.playlistSortOrders.value
     val source = resolveResumeSourceQueue(

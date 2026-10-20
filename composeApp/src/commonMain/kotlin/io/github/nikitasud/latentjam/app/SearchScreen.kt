@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.smart.associateById
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
@@ -1133,7 +1134,7 @@ private class SearchIndex private constructor(
                     libraryOrder = index,
                 )
             }
-            return SearchIndex(songs, documents, songs.associateBy { it.id })
+            return SearchIndex(songs, documents, songs.associateById())
         }
     }
 }

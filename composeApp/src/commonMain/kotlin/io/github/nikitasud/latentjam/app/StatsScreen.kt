@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.smart.associateById
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -333,7 +334,7 @@ internal fun ListeningStatsSettings(
     // The caller's own map when it has one: a second map of the whole library is a cost of its own.
     val catalog: Deferred<Map<TrackId, TrackDescriptor>> = remember(tracks, scope, knownTracksById) {
         knownTracksById?.let { CompletableDeferred(it) }
-            ?: scope.async(supervisor + Dispatchers.Default, start = CoroutineStart.LAZY) { tracks.associateBy { it.id } }
+            ?: scope.async(supervisor + Dispatchers.Default, start = CoroutineStart.LAZY) { tracks.associateById() }
     }
     var retryRevision by remember { mutableIntStateOf(0) }
     // Both sections attribute plays to the same playlists: read them once per revision, off the main

@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.smart.associateById
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.AnimatedContent
@@ -1247,7 +1248,7 @@ private fun AppShell(
                             smartHistoryFor(AppGraph.history, seed),
                             AppGraph.smartCompanionGroups.value,
                         )
-                        val byId = eligible.associateBy { it.id }
+                        val byId = eligible.associateById()
                         val recommendations = queue.mapNotNull(byId::get)
                             .joinToString(" | ") { track ->
                                 "${track.artist.orEmpty()} — ${track.title.orEmpty()}"
@@ -1380,7 +1381,7 @@ private fun AppShell(
             if (catalog === current && settings.songSort.value == requested) songsBrowse = prepared
         }
         val groupOrderedCatalog = remember(catalog, groupSortOrders) { catalog?.inGroupOrder(groupSortOrders) }
-        val tracksById = remember(catalog) { catalog?.songs?.associateBy { it.id }.orEmpty() }
+        val tracksById = remember(catalog) { catalog?.songs?.associateById().orEmpty() }
         // A queued song whose cover changed after it was queued (the tag pass learning that it
         // names no album, issue #12) takes its new descriptor as it starts to play: one player
         // command per song, beyond the rows the tag pass refreshes at once.
@@ -2671,7 +2672,7 @@ private fun AppShell(
                                                         smartHistoryFor(AppGraph.history, hero.track),
                                                         AppGraph.smartCompanionGroups.value,
                                                     )
-                                                    val byId = visibleCatalog.songs.associateBy { it.id }
+                                                    val byId = visibleCatalog.songs.associateById()
                                                     val tail = queue.mapNotNull(byId::get)
                                                     AppGraph.queueSource.value =
                                                         QueueSource(QueueSourceKind.FOR_YOU)
@@ -4245,7 +4246,7 @@ private fun AppShell(
                             smartHistoryFor(AppGraph.history, target.track),
                             AppGraph.smartCompanionGroups.value,
                         )
-                        val byId = songs.associateBy { it.id }
+                        val byId = songs.associateById()
                         AppGraph.queueSource.value = QueueSource(QueueSourceKind.FOR_YOU)
                         playback.play(
                             listOf(target.track) + queue.mapNotNull(byId::get),

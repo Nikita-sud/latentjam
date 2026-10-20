@@ -100,7 +100,7 @@ internal class DefaultSimilarityEngine(
         artistRunPenalty = penalty.coerceAtLeast(0f)
     }
     private val mutableState = MutableStateFlow<EngineState>(EngineState.Uninitialized)
-    private val knownTracks = LinkedHashMap<TrackId, TrackDescriptor>()
+    private val knownTracks = TrackTable()
     /** Identity of the descriptor used to create each in-memory/persisted audio vector (as digests). */
     private val audioVectorIdentities = IdentityDigests()
     /** Track-local audio failures that should not wake the model again for unchanged media. */
@@ -459,7 +459,7 @@ internal class DefaultSimilarityEngine(
                 (staleText + changedText).forEach(textVectorIdentities::remove)
                 (staleAudio + changedAudio).forEach(semanticCache::remove)
                 (staleAudio + changedAudio).forEach { energies.remove(it); energyIdentities.remove(it) }
-                if (pruneMissing) knownTracks.keys.retainAll(liveIds)
+                if (pruneMissing) knownTracks.retainAll(liveIds::contains)
 
                 if (
                     staleAudio.isNotEmpty() || changedAudio.isNotEmpty() ||
@@ -1640,7 +1640,7 @@ internal class DefaultSimilarityEngine(
         // raw rows (see ScaledRows), which is safe because every change to either index drops the
         // cached snapshot, so it never reads a vector the index has since replaced.
         // Rows read in place (storedRow): on Android they stay in the index's mapped file, off the Java heap.
-        val rows = knownTracks.values.mapNotNull { track ->
+        val rows = knownTracks.values().mapNotNull { track ->
             track.toSmartTrack(audio = index.storedRow(track.id) ?: return@mapNotNull null, text = textIndex?.storedRow(track.id))
         }.toMutableList()
         val knownIds = rows.mapTo(HashSet()) { it.id }

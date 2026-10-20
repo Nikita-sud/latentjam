@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.smart.associateById
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.border
 import androidx.compose.material.icons.outlined.VisibilityOff
@@ -2161,7 +2162,7 @@ private fun actionableIndexingFailures(
     failures: Map<TrackId, EngineError>,
     tracks: List<TrackDescriptor>,
 ): Map<TrackId, EngineError> {
-    val byId = tracks.associateBy(TrackDescriptor::id)
+    val byId = tracks.associateById()
     return failures.filterNot { (id, error) ->
         // Music-library providers can expose playable protected items without a file URL. Their
         // metadata still participates in search, mixes and SMART ranking, so repeatedly presenting
@@ -2192,7 +2193,7 @@ private fun IntelligenceProblemsSettings(
         emptyMap()
     }
     val failureEntries = remember(failures) { failures.entries.toList() }
-    val byId = remember(tracks) { tracks.associateBy(TrackDescriptor::id) }
+    val byId = remember(tracks) { tracks.associateById() }
     val stall = rememberAnalysisStall(engine, indexing)
     var removing by remember { mutableStateOf<TrackId?>(null) }
     val manageFailed = stringResource(Res.string.settings_library_manage_failed)
@@ -2309,7 +2310,7 @@ private fun DuplicatesSettings(
                     currentCoroutineContext().ensureActive()
                     AppGraph.engine.embedding(track.id)?.let { vectors[track.id] = it }
                 }
-                val byId = tracks.associateBy(TrackDescriptor::id)
+                val byId = tracks.associateById()
                 val durations = tracks.associate { track -> track.id to track.durationMs }
                 val dismissed = DuplicateDismissals.decode(settings.readDuplicateDismissalsPayload())
                 val stats = history.stats()
@@ -2830,7 +2831,7 @@ private fun SmartExclusionsSettings(
     }
 
     LaunchedEffect(library, visibleTracks) { loadTracks() }
-    val byId = remember(allTracks) { allTracks.associateBy(TrackDescriptor::id) }
+    val byId = remember(allTracks) { allTracks.associateById() }
 
     fun update(key: String, action: suspend () -> Unit) {
         scope.launch {
