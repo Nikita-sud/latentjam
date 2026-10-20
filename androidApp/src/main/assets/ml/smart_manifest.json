@@ -2,12 +2,12 @@
  "version": 1,
  "assets": {
   "smart_ranker.json": {
-   "size": 2471,
-   "sha256": "5ec3a6920dcb68a319020845c9da34659bf4df7e1b8df2d1d9d72a2f76026ede"
+   "size": 3001,
+   "sha256": "f9db1ec89422d791d767449d48e63b6a3e9f4d486b1480151d3b381c1936cae3"
   },
   "smart_ranker_full.json": {
-   "size": 1927,
-   "sha256": "9da16f1c08e23d4db34d3d20cfdf8f235b3312a5aa964de5a2f6bff335af4454"
+   "size": 3787,
+   "sha256": "54fd0a4b6e21ef2480ce2228f7ca5c0df02e6ffa18dea1a5d53d832409c8a28f"
   },
   "artist_colisten.bin": {
    "size": 7947962,

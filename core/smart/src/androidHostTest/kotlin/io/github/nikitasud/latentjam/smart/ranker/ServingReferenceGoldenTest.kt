@@ -36,13 +36,23 @@ class ServingReferenceGoldenTest {
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun fixtures(): List<Map<String, Any?>> =
-        GZIPInputStream(checkNotNull(javaClass.getResourceAsStream("/serving_fixtures.jsonl.gz"))).reader().readLines()
+    private fun fixtures(resource: String): List<Map<String, Any?>> =
+        GZIPInputStream(checkNotNull(javaClass.getResourceAsStream(resource))).reader().readLines()
             .filter(String::isNotEmpty).map { MiniJson(it).parse() as Map<String, Any?> }
 
     @Test
-    fun plansMatchTheServingReference() = runTest {
-        val all = fixtures()
+    fun plansMatchTheServingReference() = plansMatch("/serving_fixtures.jsonl.gz")
+
+    /**
+     * The same 19 libraries and requests with the final models swapped in (model_core_final.json f9db1ec8 for every
+     * request, model_full_final.json 54fd0a4b for the personal ones; rule-only kept), re-planned by reference.py
+     * (47ae93dc… at 0ec198cb) — the files the app ships.
+     */
+    @Test
+    fun plansWithTheFinalModelsMatchTheServingReference() = plansMatch("/serving_fixtures_final.jsonl.gz")
+
+    private fun plansMatch(resource: String) = runTest {
+        val all = fixtures(resource)
         assertEquals(19, all.size)
         val failures = ArrayList<String>()
         var requests = 0

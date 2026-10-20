@@ -101,7 +101,8 @@ class RankerQueueGoldenTest {
      * The shipped weights with proto_ranker2's own decoder: ε = 0, p = 2.129, no third-in-a-row cap (the asset now
      * carries PLAN_FINAL §8's D0 parameters; DecoderD0GoldenTest pins those).
      */
-    private fun asset(): String = File("../../androidApp/src/main/assets/ml/smart_ranker.json").readText()
+    /** proto_ranker2's CORE+LFM asset as it shipped before the final model (the queues it pins were its own). */
+    private fun asset(): String = checkNotNull(javaClass.getResourceAsStream("/ranker_core_lfm_v2.json")).reader().readText()
         .replace(Regex("\"epsilon\":\\s*[0-9.eE+-]+"), "\"epsilon\": 0")
         .replace(Regex("\"runPenalty\":\\s*[0-9.eE+-]+"), "\"runPenalty\": 2.129")
         .replace(Regex("\"thirdInRowCap\":\\s*[0-9.eE+-]+"), "\"thirdInRowCap\": 0")

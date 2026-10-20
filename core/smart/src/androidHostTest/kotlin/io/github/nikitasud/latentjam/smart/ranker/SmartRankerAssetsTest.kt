@@ -29,7 +29,7 @@ class SmartRankerAssetsTest {
         assertNull(assets.problem, assets.problem)
         assertTrue(assets.healthy)
         assertTrue(ranker.hasFullModel)
-        assertTrue(ranker.modelName.startsWith("CORE+LFM"))
+        assertTrue(ranker.modelName.startsWith("CORE final"), ranker.modelName)
         assertEquals(20, ranker.plan(PlanRequest(library[0], library, library, length = 20)).ids.size)
     }
 
