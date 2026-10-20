@@ -13,8 +13,9 @@ Version 2.0, included in the repository root:
   smart_ranker_full.json
   artist_lfm.bin
   audio_tagger.bin
+  artist_family.bin
 
-artist_colisten.bin and artist_known.bin are CC0-1.0 (see below).
+artist_colisten.bin, artist_known.bin and artist_pop.bin are CC0-1.0 (see below).
 
 Copyright (c) 2026 LatentJam Project
 
@@ -128,6 +129,19 @@ music_entities_250k.bin's corpus (MusicBrainz core data and Wikidata, both CC0)
 as 64-bit FNV-1a keys of their normalised forms, each with the key of its
 canonical name; the names themselves are not included. SMART splits a credit
 such as "A feat. B & C" into artists with it. It is offered under CC0-1.0.
+
+artist_pop.bin holds, for about 174,000 artists of music_entities_250k.bin,
+ln(1 + the number of distinct ListenBrainz listeners) of the artist, counted
+offline from ListenBrainz listens (CC0) of listeners outside the evaluation
+sample; artists with fewer than ten listeners are left out. It holds only
+entity ids and those values, no listener data. It is offered under CC0-1.0,
+like its source.
+
+artist_family.bin holds, for about 105,000 artists of artist_knowledge.bin,
+the coarse genre family (classical, dance, pop, rap, rock, soundtrack) of the
+first genre in the artist's knowledge-pack attributes, from the same offline
+generation as artist_knowledge.bin. SMART uses it in place of a track's own
+genre tag when the artist resolves.
 
 smart_ranker.json holds the weights of a linear ranker LatentJam fitted on
 the same ListenBrainz listens (CC0) to order SMART's candidate tracks; no

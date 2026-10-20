@@ -60,6 +60,14 @@
       "license": "Apache-2.0",
       "provenance": "LICENSE-MODEL.txt; synthesized artist metadata"
     },
+    "artist_pop.bin": {
+      "license": "CC0-1.0",
+      "provenance": "ListenBrainz listens (CC0), ln(1 + distinct listeners) per artist entity; tools/research/listenbrainz_eval/serving/artist_pop.py"
+    },
+    "artist_family.bin": {
+      "license": "Apache-2.0",
+      "provenance": "LICENSE-MODEL.txt; genre family of the knowledge pack's artist attributes; tools/research/listenbrainz_eval/serving/artist_family.py"
+    },
     "artist_colisten.bin": {
       "license": "CC0-1.0",
       "provenance": "ListenBrainz listens (CC0), artist co-listening neighbours; tools/research/ranker/pack_colisten.py"

@@ -43,7 +43,7 @@ class ServingReferenceGoldenTest {
     @Test
     fun plansMatchTheServingReference() = runTest {
         val all = fixtures()
-        assertEquals(17, all.size)
+        assertEquals(19, all.size)
         val failures = ArrayList<String>()
         var requests = 0
         for (fx in all) {
@@ -62,7 +62,7 @@ class ServingReferenceGoldenTest {
             }
         }
         assertTrue(failures.isEmpty(), failures.joinToString("\n"))
-        assertEquals(32, requests)
+        assertEquals(36, requests)
     }
 
     /** One request on a fresh ranker; the result in the reference's golden shape. */

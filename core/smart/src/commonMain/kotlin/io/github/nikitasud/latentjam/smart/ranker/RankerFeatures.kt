@@ -106,6 +106,12 @@ public object RankerFeatures {
         val fill = if (knownCount > 0) knownSum / knownCount else 0.0
         val cosZ = zScores(DoubleArray(n) { if (known[it]) candidates[it].cosine else fill })
         val popZ = zScores(DoubleArray(n) { candidates[it].logPopularity })
+        // audio_cos of a candidate without a vector (not indexed yet) = the mean of the known ones in this pool, 0 when
+        // none is known: the uncentred audio term then neither buries nor lifts an unindexed track (reference.py).
+        var audioSum = 0.0
+        var audioCount = 0
+        for (i in 0 until n) if (!candidates[i].audio.isNaN()) { audioSum += candidates[i].audio; audioCount++ }
+        val audioFill = if (audioCount > 0) audioSum / audioCount else 0.0
         val freqRank = personal?.let { p -> rank01(DoubleArray(n) { p[it].count.toDouble() }) }
         val recencyRank = personal?.let { p ->
             rank01(DoubleArray(n) { if (p[it].heard) -minOf(p[it].ageSeconds, 1e12) else -1e13 })
@@ -149,7 +155,7 @@ public object RankerFeatures {
                 b(duration != null),
                 b(c.descriptorImputed || anchor.descriptorImputed),
                 b(c.familyImputed || anchor.familyImputed),
-                if (c.audio.isNaN()) 0.0 else c.audio,
+                if (c.audio.isNaN()) audioFill else c.audio,
                 b(!c.audio.isNaN()),
                 c.artistOverlap,
                 b(c.popularityKnown),

@@ -28,6 +28,14 @@
   "audio_tagger.bin": {
    "size": 396920,
    "sha256": "b48c24f9ff91572cbf3d23dd8dcec7956e55442f4f7148fc72fd18303e612e69"
+  },
+  "artist_pop.bin": {
+   "size": 742692,
+   "sha256": "c48ee032bafbafe36ff48b092fab4027f9ee39939f73417f7e9a0ef5a7d90579"
+  },
+  "artist_family.bin": {
+   "size": 465176,
+   "sha256": "4ba49c2423a04a59b0b7c0b0358c57faf196c9b3b8e06bfb8a4c6cabf85a7818"
   }
  }
 }

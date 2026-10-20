@@ -78,6 +78,9 @@ public class PersonalHistory(
         )
     }
 
+    /** Whether the listener has hearted anything (the plan's favourites; empty without "Use favourites"). */
+    public val hasFavourites: Boolean get() = favourites.isNotEmpty()
+
     /** Whether the listener hearted [track]. */
     public fun isFavourite(track: TrackId): Boolean = track in favourites
 

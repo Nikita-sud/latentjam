@@ -61,7 +61,8 @@ parity on the trained model (§7: no interim builds).
 | `artist_lfm.bin` | 14,369,964 | LightFM artist vectors, 111,902 entity-keyed, float32 (int8 changed 24 of 300 FIT top-10s, float16 7; credit-keyed artists left out) | Apache-2.0 |
 | `artist_known.bin` | 6,404,144 | artist_sets.py's known list as FNV-1a keys: 335,457 canonical, 310,039 aliases (MBID rows not shipped) | CC0-1.0 |
 | `audio_tagger.json` / `.bin` | 3,260 / 396,920 | the §1.3 tagger head, int8 | Apache-2.0 |
-| `artist_pop.bin` (not shipped yet) | ≈ 743 KB | LJPOPS1 artist popularity by pack entity, ln(1 + FIT listeners); read only when a model's `inputs.logpop` is `artist_pop` (no shipped model is) | — |
+| `artist_pop.bin` | 742,692 | LJPOPS1 artist popularity by pack entity, ln(1 + FIT listeners), 174,044 artists (c48ee032); read only when a model's `inputs.logpop` is `artist_pop` (the final models; not today's shipped ones) | CC0-1.0 |
+| `artist_family.bin` | 465,176 | LJFAMS1 genre family per pack entity, 104,665 artists (4ba49c24): a resolved entity's family wins over the genre tag's (§9) | Apache-2.0 |
 
 ## Parity (golden tests against the research code)
 
@@ -75,22 +76,20 @@ parity on the trained model (§7: no interim builds).
 - `SaltedKeyTest`: SHA-256 vectors, the seed and SplitMix64 outputs against Python.
 - `DecoderD0GoldenTest`: proto_ranker4's D0 decode loop, 12 queries × 20 hops identical.
 - `ServingReferenceGoldenTest`: the whole plan path against the Python serving reference
-  (tools/research/listenbrainz_eval/serving/reference.py): 17 fixtures, 32 requests, each on a new SmartRanker fed the
-  fixture's resolved records (the golden seam: `SmartRanker.resolver`, `tracer`) — ids and counters identical,
-  features, scores, sds and floors within 1e-9. The goldens are the research side's own (b4eb5333, which took over
-  the app's 19 Oct rules; `export_serving_fixtures.py` copies them in). Their rows have 32 columns; the app's
-  appended ones must read 0 there, except `pop_known`, checked against the row's `logpop`. The test already reads
-  the FULL inputs the reference gained in 6e09ccc6 (`personal`, `seedMs`, `listens`, `favourites`); no fixture uses
-  them yet.
+  (tools/research/listenbrainz_eval/serving/reference.py, research commit 0ec198cb): 19 fixtures, 36 requests, each on
+  a new SmartRanker fed the fixture's resolved records (the golden seam: `SmartRanker.resolver`, `tracer`) — ids and
+  counters identical, all 35 feature columns, scores, sds and floors within 1e-9. It includes FULL with listens and
+  favourites (fixture 18: the PERSONAL block, R6 hearts first, is_favourite, favourited_days_ago) and CORE with partly
+  indexed audio (fixture 19: the missing-vector mean fill). `export_serving_fixtures.py` copies the research
+  goldens in; appended columns the goldens may lack must read 0 (pop_known: agree with logpop).
 - `RankerArithmeticTest` (JVM and iOS simulator): the float32 cosine and the float64 score on cases where a fused
   multiply-add gives other bits — Kotlin/Native does not fuse them, so parity is exact on both.
 - Still to come: FULL's queues against the reference (it plans CORE only); the tagger on on-device 4-bit A0 vectors.
 
 ## Deviations (app vs research)
 
-- Genre family from the track's own first genre tag (the research used the teacher's genres, not shipped). The
-  agreed rule "the pack entity's family when the entity resolves" cannot run yet: the knowledge pack stores a
-  descriptor, language and decade per entity, no genre family — it needs an entity → family asset.
+- Genre family (§9): the pack entity's family from `artist_family.bin` when the artist resolves, else the track's first
+  genre tag's; the artist-set parser keeps the tag's family for its classical-composer rule.
 - Popularity: the LJPOPS1 reader is in (`ArtistPopularity`, `inputs.logpop`), the table is not shipped; with today's
   models (`logpop = none`) logpop = logpop_z = 0. `popularityKnown` is computed beside the value (not a model column).
 - LightFM: entity-keyed vectors only (78 % of the emulator library's tracks have one); the rest read lfm_cos = 0,
@@ -99,6 +98,8 @@ parity on the trained model (§7: no interim builds).
   the primary artist).
 - FULL's personal transitions count only the listener's own picks (Addendum A's rule); the research counted every
   consecutive pair.
+- audio_cos of a candidate without an audio vector = the mean of the pool's known audio cosines (0 when none):
+  an unindexed track is neither buried nor lifted by the uncentred audio term.
 - The audio term follows §1.3's rule, w_audio = max(0, raw weight of the descriptor cosine): CORE+LFM's is negative, so
   the term is 0 with today's weights. Audio still feeds R1, the ladder and imputation.
 - The ranker plans §7.2b's repeats, but the app's queues hold a track once: the chooser serves only tracks not yet

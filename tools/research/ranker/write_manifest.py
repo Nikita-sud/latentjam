@@ -7,7 +7,7 @@ import hashlib, json, sys
 from pathlib import Path
 
 ASSETS = ['smart_ranker.json', 'smart_ranker_full.json', 'artist_colisten.bin', 'artist_lfm.bin', 'artist_known.bin',
-          'audio_tagger.json', 'audio_tagger.bin']
+          'audio_tagger.json', 'audio_tagger.bin', 'artist_pop.bin', 'artist_family.bin']
 d = Path(sys.argv[1])
 out = {'version': 1, 'assets': {n: {'size': (d / n).stat().st_size, 'sha256': hashlib.sha256((d / n).read_bytes()).hexdigest()}
                                 for n in ASSETS}}

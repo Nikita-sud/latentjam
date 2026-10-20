@@ -113,7 +113,7 @@ android {
     // on the smallest devices (core/smart's assetBytes). Only an uncompressed entry can be mapped;
     // storing these two costs the APK about 1.1 MB.
     androidResources {
-        noCompress += listOf("music_entities_250k.bin", "artist_knowledge.bin", "artist_colisten.bin", "artist_lfm.bin", "artist_known.bin", "audio_tagger.bin")
+        noCompress += listOf("music_entities_250k.bin", "artist_knowledge.bin", "artist_colisten.bin", "artist_lfm.bin", "artist_known.bin", "audio_tagger.bin", "artist_pop.bin", "artist_family.bin")
     }
 
     splits {

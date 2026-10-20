@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.smart.ranker
 
 import io.github.nikitasud.latentjam.smart.text.ArtistKnowledge
+import io.github.nikitasud.latentjam.smart.text.ArtistFamilies
 import io.github.nikitasud.latentjam.smart.text.ArtistNeighbours
 import io.github.nikitasud.latentjam.smart.text.ArtistPopularity
 import io.github.nikitasud.latentjam.smart.text.ArtistVectors
@@ -16,7 +17,7 @@ import io.github.nikitasud.latentjam.smart.text.KnownArtists
  * The ranker's assets, loaded lazily and checked against `ml/smart_manifest.json` (PLAN_FINAL §7.2: a versioned,
  * checksummed manifest): every listed file must exist with its size and SHA-256. Any failure leaves [healthy] false
  * and the ranker runs the rule-only path (never today's chain, which shares these assets); a missing optional asset
- * (co-listening, LightFM, artist list, tagger, FULL model, artist popularity) only drops its feature. The popularity
+ * (co-listening, LightFM, artist list, tagger, FULL model, artist popularity, artist families) only drops its feature. The popularity
  * table is read only when a model's `inputs.logpop` is artist_pop.
  *
  * [read] returns an asset's bytes by its file name under ml/, or null when absent.
@@ -53,6 +54,7 @@ public class SmartRankerAssets(
             audio = audio,
             fullModel = full,
             popularity = if (wantsPopularity) runCatching { read(POPULARITY)?.let(ArtistPopularity::parse) }.getOrNull() else null,
+            families = runCatching { read(FAMILIES)?.let(ArtistFamilies::parse) }.getOrNull(),
         )
     }
 
@@ -85,5 +87,6 @@ public class SmartRankerAssets(
         public const val TAGGER_META: String = "audio_tagger.json"
         public const val TAGGER_WEIGHTS: String = "audio_tagger.bin"
         public const val POPULARITY: String = "artist_pop.bin"
+        public const val FAMILIES: String = "artist_family.bin"
     }
 }

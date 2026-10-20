@@ -10,6 +10,7 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.chain.MetadataRerank
 import io.github.nikitasud.latentjam.smart.text.ArtistKnowledge
+import io.github.nikitasud.latentjam.smart.text.ArtistFamilies
 import io.github.nikitasud.latentjam.smart.text.ArtistNeighbours
 import io.github.nikitasud.latentjam.smart.text.ArtistPopularity
 import io.github.nikitasud.latentjam.smart.text.ArtistSets
@@ -239,6 +240,8 @@ public class SmartRanker(
     private val fullModel: RankerModel? = null,
     /** Artist popularity (LJPOPS1), read only when the active model's `inputs.logpop` is artist_pop. */
     private val popularity: ArtistPopularity? = null,
+    /** The pack entities' genre families (LJFAMS1): a resolved entity's family wins over the genre tag's (§9). */
+    private val families: ArtistFamilies? = null,
 ) {
     /**
      * One track's knowledge. The descriptor and the LightFM vector are read on first use (a 10k library would hold
@@ -332,8 +335,11 @@ public class SmartRanker(
         val primary = track.artists.firstOrNull()
         val facts = runCatching { knowledge?.facts(track.artist, primary) }.getOrNull()
         val entity = runCatching { knowledge?.entity(track.artist, primary) }.getOrNull() ?: -1
-        val family = HabitFlow.family(track.genre)
-        val set = runCatching { ArtistSets.parse(track.artist, track.title, known, genreFamily = family) }.getOrNull()
+        val tagFamily = HabitFlow.family(track.genre)
+        // PLAN_FINAL §9: the pack entity's family when the entity resolves, else the genre tag's. The artist-set
+        // parser keeps the tag's family (its classical-composer rule reads the file's own genre, as the research did).
+        val family = (if (entity >= 0) runCatching { families?.family(entity) }.getOrNull() else null) ?: tagFamily
+        val set = runCatching { ArtistSets.parse(track.artist, track.title, known, genreFamily = tagFamily) }.getOrNull()
         val engineArtist = HabitSlots.artistKey(track).let { k -> artistStrings.getOrPut(k) { k } }
         return Known(
             track = track,
@@ -591,9 +597,13 @@ public class SmartRanker(
         take(pool.filter { (seed.setArtist != 0L && it.setArtist == seed.setArtist) || (album != null && it.track.album == album) }
             .sortedBy { salted[it.track.id] }.map { it.track.id }, quota("artist"), "R4")
         if (seed.family != null) take(pool.filter { it.family == seed.family }.sortedBy { salted[it.track.id] }.map { it.track.id }, quota("family"), "R5")
-        if (request.personal && !request.history.isEmpty) {
+        if (request.personal && (!request.history.isEmpty || request.history.hasFavourites)) {
             take(request.history.followers(seed.track.id), quota("own") / 2, "R7")
-            take(request.history.favourites(), quota("own") - quota("own") / 2, "R6")
+            // R6: the tracks the listener hearted first (id-byte order; a heart never played has no activation), then
+            // the ACT-R order (reference.py, PLAN_E_GATES §10).
+            val hearted = pool.filter { request.history.isFavourite(it.track.id) }.map { it.track.id }
+                .sortedWith { a, b -> SaltedKey.idOrder.compare(a.value, b.value) }
+            take(hearted + request.history.favourites(), quota("own") - quota("own") / 2, "R6")
         }
         // Too few retrieved for a full queue: a salted sample tops the pool up (never a smaller pool than needed).
         if (out.size < request.length * 2) take(pool.sortedBy { salted[it.track.id] }.map { it.track.id }, request.length * 2, "topup")
