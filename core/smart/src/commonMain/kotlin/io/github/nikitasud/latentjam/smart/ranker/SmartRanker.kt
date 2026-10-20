@@ -998,10 +998,9 @@ public class SmartRanker(
         }.sortedWith { a, b -> SaltedKey.idOrder.compare(a.track.id.value, b.track.id.value) }
         // Audits 05 #2 / #5: the seed's and the pool's vectors and e in one batched read before anything uses them: no
         // per-row budget, so a plan never depends on how busy the phone is; all-or-nothing under a safety cap.
-        // The prefix's last track is read for its e only: reference.py gives the prefix anchor no audio vector (its
-        // audio_cos reads unknown), and the device mirrors it.
+        // The prefix's last track (the first top-up hop's previous anchor) has its vector and e too.
         val readIds = (pool.map { it.track.id } + seedKnown.track.id + listOfNotNull(prefixKnown?.track?.id)).distinct()
-        val audioIds = (pool.map { it.track.id } + seedKnown.track.id).distinct()
+        val audioIds = readIds
         val rawVectors: Map<TrackId, FloatArray> = withTimeoutOrNull(AUDIO_BATCH_CAP_MS) {
             runCatching { audio.vectors(readIds) }.getOrNull().orEmpty()
         } ?: emptyMap<TrackId, FloatArray>().also { timeouts += "vectors" }
@@ -1012,6 +1011,8 @@ public class SmartRanker(
             emptyMap()
         }
         imputed += impute(pool, timeouts, imputeFallbacks, rawVectors)
+        // The prefix anchor is imputed like the seed (reference.py: after the pool).
+        if (prefixKnown != null) imputed += impute(listOf(prefixKnown), timeouts, imputeFallbacks, rawVectors)
         val window = minOf(serving.recentWindow, n / 2).coerceAtLeast(1)
         val previousIds = request.recentIds + prefixIds.filter { it !in request.recentIds } + request.seed.id
         fun versionOf(id: TrackId) = (byId[id] ?: cache[id])?.version ?: ArtistSets.keyHash("id:${id.value}")
