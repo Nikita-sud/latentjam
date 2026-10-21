@@ -171,4 +171,21 @@ class SmartRankerAssetsTest {
         val core = plan(personal = false, playlists = listOf(playlist))
         assertEquals(plan(personal = false, playlists = emptyList()).ids, core.ids, "CORE ignores playlists")
     }
+    @Test
+    fun theArtistVarietyScaleMovesOnlyTheArtistTerms() = runTest {
+        // Ten artists with 60 tracks each: the run and re-entry terms are what keep one artist from taking the queue.
+        val tracks = (0 until 600).map {
+            TrackDescriptor(TrackId("v$it"), title = "Song $it", artist = "Artist ${it % 10}", genre = "Rock", durationMs = 200_000L)
+        }
+        val ranker = SmartRankerAssets(null, ::read).ranker
+        suspend fun plan(scale: Double) = ranker.plan(PlanRequest(tracks[0], tracks, tracks, length = 20, varietyScale = scale)).ids
+        fun sameAsPrevious(ids: List<TrackId>): Int {
+            val artists = (listOf(tracks[0].id) + ids).map { id -> tracks.first { it.id == id }.artist }
+            return (1 until artists.size).count { artists[it] == artists[it - 1] }
+        }
+        assertEquals(ranker.plan(PlanRequest(tracks[0], tracks, tracks, length = 20)).ids, plan(1.0), "1 = the tuned values")
+        val free = sameAsPrevious(plan(0.0))
+        val high = sameAsPrevious(plan(1.5))
+        assertTrue(free > high, "free $free vs high $high back-to-back same-artist picks")
+    }
 }

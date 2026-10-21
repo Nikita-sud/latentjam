@@ -141,6 +141,12 @@ val SMART_QUEUE_LENGTH_OPTIONS: List<Int> = listOf(10, DEFAULT_SMART_QUEUE_LENGT
 val ARTIST_VARIETY_PENALTIES: List<Float> = listOf(0f, 0.25f, 0.5f, 1f, 2f)
 const val DEFAULT_ARTIST_VARIETY: Int = 2
 
+/**
+ * The same levels for the learned ranker: a multiplier on its tuned artist terms (run, re-entry, third in a row).
+ * Free = none, the default = the tuned values; the hard rule terms (duration, titles, holidays) never move.
+ */
+val ARTIST_VARIETY_RANKER_SCALES: List<Double> = listOf(0.0, 0.5, 1.0, 1.5, 2.0)
+
 internal fun sanitizeArtistVariety(level: Int): Int = level.coerceIn(0, ARTIST_VARIETY_PENALTIES.lastIndex)
 
 internal fun artistVarietyFromPersisted(value: Int?): Int = value?.let(::sanitizeArtistVariety) ?: DEFAULT_ARTIST_VARIETY

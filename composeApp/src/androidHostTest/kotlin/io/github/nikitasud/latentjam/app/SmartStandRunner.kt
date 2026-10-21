@@ -10,6 +10,8 @@ import io.github.nikitasud.latentjam.history.SmartImpressionLog
 import io.github.nikitasud.latentjam.history.SmartLogStore
 import io.github.nikitasud.latentjam.history.SmartPressStore
 import io.github.nikitasud.latentjam.history.SmartPresses
+import io.github.nikitasud.latentjam.library.DefaultPlaylists
+import io.github.nikitasud.latentjam.library.PlaylistStore
 import io.github.nikitasud.latentjam.smart.InMemoryVectorIndex
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
@@ -62,6 +64,8 @@ class SmartStandRunner {
         val library = GenreEnrichment(settings) { null }.apply(File(dir, "library.tsv").readLines().filter(String::isNotEmpty).map(::track))
         val byId = library.associateBy { it.id }
         val seeds = File(dir, "seeds.tsv").readLines().map(String::trim).filter(String::isNotEmpty).mapNotNull { byId[TrackId(it)] }
+            // LJ_STAND_SEEDS=n: the first n of the fixed seed set (spot checks).
+            .let { all -> System.getenv("LJ_STAND_SEEDS")?.toInt()?.let(all::take) ?: all }
         val files = File(dir, "files")
 
         // The phone's audio index, e cache and their order, as the engine restores them.
@@ -104,10 +108,19 @@ class SmartStandRunner {
         val lastListen = history.recentEvents(1).firstOrNull()?.startedAtMs ?: 0L
         val favourites = File(files, "favorites.txt").takeIf { it.isFile }?.readLines()
             ?.map(String::trim)?.filter(String::isNotEmpty)?.associate { TrackId(it) to null as Long? }.orEmpty()
+        // Fast 3.3: the copy's own playlists reach FULL plans as on the phone (LJ_STAND_PLAYLISTS=0 leaves them out).
+        val playlistLines = File(files, "playlists.txt").takeIf { it.isFile && System.getenv("LJ_STAND_PLAYLISTS") != "0" }?.readLines().orEmpty()
+        val userPlaylists = DefaultPlaylists(object : PlaylistStore {
+            override suspend fun read(): List<String> = playlistLines
+            override suspend fun write(lines: List<String>) = Unit
+        }).all().smartUserPlaylists()
+        println("SMART stand: ${userPlaylists.size} playlists")
+        // The artist-variety setting as the ranker sees it (LJ_STAND_VARIETY, default 1 = the tuned values).
+        val varietyScale = System.getenv("LJ_STAND_VARIETY")?.toDouble() ?: 1.0
 
         System.getenv("LJ_STAND_REPLAY")?.let { specs ->
             for ((i, spec) in specs.split(',').withIndex()) {
-                replay(spec, byId, library, ranker, assets, historyLines, favourites, files, File(out, "replay-$i.txt"))
+                replay(spec, byId, library, ranker, assets, historyLines, favourites, userPlaylists, files, File(out, "replay-$i.txt"))
             }
             return
         }
@@ -135,7 +148,8 @@ class SmartStandRunner {
                     useRanker = { !chain }, ranker = { ranker }, rankerHealthy = { assets.healthy },
                     learnFromHabits = { full && !chain }, personalRanker = { full },
                     presses = SmartPresses(MemoryPresses()), smartLog = log,
-                    favourites = { favourites }, useFavourites = { true }, clock = { now },
+                    favourites = { favourites }, useFavourites = { true }, clock = { now }, userPlaylists = { userPlaylists },
+                    varietyScale = { varietyScale },
                 )
                 for (press in 0 until PRESSES) {
                     val queue = mutableListOf(seed)
@@ -171,7 +185,7 @@ class SmartStandRunner {
     private suspend fun replay(
         spec: String, byId: Map<TrackId, TrackDescriptor>, library: List<TrackDescriptor>,
         ranker: io.github.nikitasud.latentjam.smart.ranker.SmartRanker, assets: SmartRankerAssets,
-        historyLines: List<String>, favourites: Map<TrackId, Long?>, files: File, target: File,
+        historyLines: List<String>, favourites: Map<TrackId, Long?>, userPlaylists: List<List<TrackId>>, files: File, target: File,
     ) {
         val (seedId, startText, pressText, fullText) = spec.split(':')
         val start = startText.toLong()
@@ -198,7 +212,7 @@ class SmartStandRunner {
             useRanker = { true }, ranker = { ranker }, rankerHealthy = { assets.healthy },
             learnFromHabits = { full }, personalRanker = { full },
             presses = SmartPresses(presses), smartLog = recorder,
-            favourites = { favourites }, useFavourites = { true }, clock = { start },
+            favourites = { favourites }, useFavourites = { true }, clock = { start }, userPlaylists = { userPlaylists },
         )
         val queue = mutableListOf(seed)
         repeat(20) {

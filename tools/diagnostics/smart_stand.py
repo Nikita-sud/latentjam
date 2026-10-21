@@ -196,8 +196,13 @@ def read_facts(path):
 
 def run(args):
     state = Path(args.state) if args.state else newest_state()
-    bid = args.build_id or (('v0.9.1-chain-' if args.engine == 'chain' else '') + build_id() + ('-as2' if args.as2 else ''))
+    bid = args.build_id or (('v0.9.1-chain-' if args.engine == 'chain' else '') + build_id() + ('-as2' if args.as2 else '')
+                            + ('-nopl' if args.no_playlists else '') + (f'-v{args.variety:g}' if args.variety is not None else '')
+                            + (f'-s{args.seeds}' if args.seeds else ''))
     if args.as2: os.environ['LJ_STAND_AS2'] = '1'
+    if args.no_playlists: os.environ['LJ_STAND_PLAYLISTS'] = '0'
+    if args.variety is not None: os.environ['LJ_STAND_VARIETY'] = str(args.variety)
+    if args.seeds: os.environ['LJ_STAND_SEEDS'] = str(args.seeds)
     out = STAND / bid
     work = STAND / 'input'
     lib = prepare(state, work)
@@ -450,6 +455,9 @@ def main():
     r.add_argument('--engine', choices=['ranker', 'chain'], default='ranker',
                    help='chain = the learned ranker off: the judged chain, the v0.9.1 engine (closest runnable equivalent)')
     r.add_argument('--as2', action='store_true', help="preview artist_sets.py's as2 rules (off in the shipped build)")
+    r.add_argument('--no-playlists', action='store_true', help="leave the copy's playlists out of FULL plans (fast 3.3 off)")
+    r.add_argument('--seeds', type=int, help='only the first N fixed seeds (a spot check)')
+    r.add_argument('--variety', type=float, help='the artist-variety multiplier on the ranker (default 1 = tuned)')
     d = sub.add_parser('diff'); d.add_argument('a'); d.add_argument('b')
     rr = sub.add_parser('rereport'); rr.add_argument('build')
     sb = sub.add_parser('scoreboard'); sb.add_argument('--add', nargs=2, metavar=('LABEL', 'RUN'))

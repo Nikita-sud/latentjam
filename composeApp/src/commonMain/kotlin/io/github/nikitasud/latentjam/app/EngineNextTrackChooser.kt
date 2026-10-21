@@ -69,6 +69,8 @@ class EngineNextTrackChooser(
     private val useFavourites: () -> Boolean = { true },
     /** The listener's own playlists (app and imported M3U), each in its order: FULL plans only (fast 3.3). */
     private val userPlaylists: () -> List<List<TrackId>> = { emptyList() },
+    /** The artist-variety setting for the learned ranker (ARTIST_VARIETY_RANKER_SCALES; 1 = the tuned values). */
+    private val varietyScale: () -> Double = { 1.0 },
     /** Wall time; the offline product-check stand plans at a fixed simulated time. */
     private val clock: () -> Long = ::epochMillis,
 ) : NextTrackChooser {
@@ -189,6 +191,7 @@ class EngineNextTrackChooser(
                     engagedKeys = { smartLog?.engagedKeys().orEmpty() },
                     prefix = if (continuing) servedInQueue.toList() else emptyList(),
                     playlists = userPlaylists,
+                    varietyScale = varietyScale(),
                 )
                 if (report == null || report.timedOut) queueFailures++
                 picks = report?.picks

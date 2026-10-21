@@ -161,6 +161,8 @@ internal suspend fun rankerPlan(
     prefix: List<TrackId> = emptyList(),
     /** Fast 3.3: the listener's own playlists (app and imported M3U), read only for [personal] plans. */
     playlists: () -> List<List<TrackId>> = { emptyList() },
+    /** The artist-variety setting as the ranker's multiplier on its artist terms. */
+    varietyScale: Double = 1.0,
 ): io.github.nikitasud.latentjam.smart.ranker.PlanReport? = withContext(Dispatchers.Default) {
     try {
         val scope = library.ifEmpty { candidates }
@@ -207,6 +209,7 @@ internal suspend fun rankerPlan(
                 recentIds = recentIds, press = press, history = personalHistory, personal = personal,
                 ruleOnly = ruleOnly || !fits, impressions = impressions, excludeAgeMs = noveltyAges, engaged = engaged,
                 seedMs = seedMs, prefix = prefix, playlists = if (personal) playlists() else emptyList(),
+                varietyScale = varietyScale,
             ),
         )
         val (withEntity, listed, withLfm) = ranker.entityCoverage

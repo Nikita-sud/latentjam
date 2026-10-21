@@ -85,6 +85,8 @@ public object RankerQueue {
         playlistBonus: ((anchor: Int) -> DoubleArray?)? = null,
         /** PLAN_DECODER2 NOREPEAT: the run term takes [RankerModel.NoRepeat.lambdaStart] instead of λ_run. */
         noRepeat: Boolean = false,
+        /** The artist-variety setting: × λ_run (or λ_start), λ_re and the third-in-row cap; 0 = no artist-variety terms. */
+        varietyScale: Double = 1.0,
         features: (anchor: Int) -> Array<DoubleArray>,
     ): List<Int> {
         if (poolSize == 0 || length <= 0) return emptyList()
@@ -130,9 +132,12 @@ public object RankerQueue {
             return buildCreditRun(
                 model, re, poolSize, artistKeys, seedArtist, tieOrder, length, choose, take, blocked, stop, trace,
                 credits, seedCredits, seedScores, ::scores, fresh, energies, seedEnergy, audioAgainst, novelty, heads,
-                seedFamily, rulePenalties, seedUnknown, prefix, prefixEnergy, noRepeat,
+                seedFamily, rulePenalties, seedUnknown, prefix, prefixEnergy, noRepeat, varietyScale,
             )
         }
+        val lambdaRun = model.runPenalty * varietyScale
+        val thirdCap = model.thirdInRowCap * varietyScale
+        val lambdaRe = (model.artistReentry?.lambda ?: 0.0) * varietyScale
         val open = BooleanArray(poolSize) { true }
         val picks = ArrayList<Int>(length)
         var runArtist = seedArtist
@@ -153,18 +158,18 @@ public object RankerQueue {
             val allowed = BooleanArray(poolSize) { open[it] && s[it].isFinite() && !blocked(it, picks) }
             if (allowed.none { it }) return picks
             val sd = spread(s, allowed)
-            val penalty = if (model.runPenalty > 0.0 && runLength > 0) model.runPenalty * runLength * sd else 0.0
+            val penalty = if (lambdaRun > 0.0 && runLength > 0) lambdaRun * runLength * sd else 0.0
             val runAt = runArtist
-            val capped = model.thirdInRowCap > 0.0 && runAt.isNotEmpty() && runLength >= 2
+            val capped = thirdCap > 0.0 && runAt.isNotEmpty() && runLength >= 2
             fun penalised(i: Int): Double {
                 var t = s[i]
                 if (penalty != 0.0 && artistKeys[i] == runAt) t -= penalty
-                if (capped && artistKeys[i] == runAt) t -= model.thirdInRowCap
+                if (capped && artistKeys[i] == runAt) t -= thirdCap
                 if (fresh != null && fresh[i] != 0.0) t -= model.freshness!!.lambda * sd * fresh[i]
                 return t
             }
             // PLAN_L1 §2a re-entry: the queue so far, newest first, the seed as its oldest pick.
-            val reentry = model.artistReentry?.takeIf { it.lambda != 0.0 }
+            val reentry = model.artistReentry?.takeIf { lambdaRe != 0.0 }
             var prevKey = ""
             var backKeys: List<String> = emptyList()
             var backCredits: List<LongArray> = emptyList()
@@ -195,7 +200,7 @@ public object RankerQueue {
                     var v = penalised(it)
                     if (reentry != null) {
                         val r = reentryOf(it)
-                        if (r != 0.0) v -= reentry.lambda * sd * r
+                        if (r != 0.0) v -= lambdaRe * sd * r
                     }
                     v
                 }
@@ -258,8 +263,10 @@ public object RankerQueue {
         prefix: List<Pair<String, LongArray>>?,
         prefixEnergy: Double?,
         noRepeat: Boolean,
+        varietyScale: Double,
     ): List<Int> {
-        val lambdaRun = if (noRepeat) model.noRepeat!!.lambdaStart else model.runPenalty
+        val lambdaRun = (if (noRepeat) model.noRepeat!!.lambdaStart else model.runPenalty) * varietyScale
+        val lambdaRe = re.lambda * varietyScale
         fun creditsOf(i: Int) = credits?.get(i) ?: NO_CREDITS
         val open = BooleanArray(poolSize) { true }
         val picks = ArrayList<Int>(length)
@@ -403,7 +410,7 @@ public object RankerQueue {
                 }
                 terms?.let { it[3][i] = mark - v }
                 mark = v
-                if (ma == 0.0 && re.lambda != 0.0) {
+                if (ma == 0.0 && lambdaRe != 0.0) {
                     var r = 0.0
                     for (b in backDistance.indices) {
                         val d = backDistance[b]
@@ -412,7 +419,7 @@ public object RankerQueue {
                             r += re.gamma.pow(d - 2) * redundancy(artistKeys[i], creditsOf(i), histKeys[h], histCredits[h], re.credit)
                         }
                     }
-                    if (r != 0.0) v -= re.lambda * sd * r
+                    if (r != 0.0) v -= lambdaRe * sd * r
                 }
                 terms?.let { it[4][i] = mark - v }
                 return v
@@ -551,6 +558,8 @@ public class PlanRequest(
     public val playlists: List<List<TrackId>> = emptyList(),
     /** How the seed was started ("playlist", "search", "album" or "other"): PLAN_DECODER2's NOREPEAT origin rules. */
     public val origin: String = "other",
+    /** The artist-variety setting as a multiplier on the decoder's artist terms (1 = the model's tuned values, 0 = none). */
+    public val varietyScale: Double = 1.0,
 )
 
 /** How a plan was made, for the aggregate log line, the circuit breaker and the on-device impression log. */
@@ -1154,6 +1163,7 @@ public class SmartRanker(
                     )?.let { it < nr.rho } ?: false
                 }
             } ?: false,
+            varietyScale = request.varietyScale,
             novelty = if (active.softNovelty != null) DoubleArray(pool.size) { i ->
                 noveltyAge[pool[i].track.id]?.let { maxOf(0.0, 1.0 - it.toDouble() / NOVELTY_MS) } ?: 0.0
             } else null,

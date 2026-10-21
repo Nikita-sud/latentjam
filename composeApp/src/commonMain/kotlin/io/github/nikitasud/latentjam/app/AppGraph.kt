@@ -217,6 +217,7 @@ object AppGraph {
                                 },
                                 library = { smartLibraryTracks.value },
                                 userPlaylists = { smartUserPlaylists.value },
+                                varietyScale = { ARTIST_VARIETY_RANKER_SCALES[sanitizeArtistVariety(settings.artistVariety.value)] },
                                 habitFlow = get<SimilarityEngine>().let { engine ->
                                     HabitFlow(getOrNull(), audio = { id -> engine.embedding(id) })
                                 },
