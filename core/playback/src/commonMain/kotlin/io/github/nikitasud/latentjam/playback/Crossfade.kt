@@ -107,6 +107,45 @@ internal fun crossfadeUpdateDelayMs(
     }
 }
 
+/**
+ * Keeps the boundary fade continuous when its edges change under a playing track.
+ *
+ * Which edges fade depends on the live queue, so an edit inside a fade window (removing or adding
+ * the album's next track) flips the envelope between full volume and the fade's current depth.
+ * The factor then glides from the last value it applied to the new envelope over [rampMs].
+ * Main-thread only; [reset] at every item change or seek, where the envelope starts over.
+ */
+internal class FadeEdgeSmoother(private val rampMs: Long = FADE_EDGE_RAMP_MS) {
+    private var edges: Pair<Boolean, Boolean>? = null
+    private var lastFactor = 1f
+    private var rampFrom = 1f
+    private var rampStartedAtMs = -1L
+
+    val ramping: Boolean get() = rampStartedAtMs >= 0L
+
+    fun reset() {
+        edges = null
+        rampStartedAtMs = -1L
+    }
+
+    fun factor(edges: Pair<Boolean, Boolean>, envelope: Float, nowMs: Long): Float {
+        val previous = this.edges
+        this.edges = edges
+        if (previous != null && previous != edges) {
+            rampFrom = lastFactor
+            rampStartedAtMs = nowMs
+        }
+        val elapsed = nowMs - rampStartedAtMs
+        val result = when {
+            !ramping -> envelope
+            elapsed >= rampMs -> envelope.also { rampStartedAtMs = -1L }
+            else -> rampFrom + (envelope - rampFrom) * elapsed.coerceAtLeast(0L) / rampMs
+        }
+        lastFactor = result
+        return result
+    }
+}
+
 /** dB-linear interpolation avoids a newly measured track dropping several dB in one audio buffer. */
 internal fun normalizationRampVolume(
     from: Float,
@@ -127,3 +166,6 @@ internal fun normalizationRampVolume(
 }
 
 private const val UNKNOWN_DURATION_RECHECK_MS: Long = 500L
+
+/** Long enough that a fade edge changing under the music is not a step, short enough to follow it. */
+private const val FADE_EDGE_RAMP_MS: Long = 400L

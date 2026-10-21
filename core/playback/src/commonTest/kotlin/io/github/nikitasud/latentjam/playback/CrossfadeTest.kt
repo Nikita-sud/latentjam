@@ -104,6 +104,33 @@ internal class CrossfadeTest {
     }
 
     @Test
+    fun aQueueEditInsideTheFadeWindowGlidesInsteadOfJumping() {
+        val smoother = FadeEdgeSmoother(rampMs = 400)
+        val continued = true to false
+        val faded = true to true
+        // Two seconds before the end of a 4 s fade-out that was not fading: the album continued.
+        assertEquals(1f, smoother.factor(continued, envelope = 1f, nowMs = 0))
+        // The next track is removed: the envelope now says 0.5, the gain starts from 1.
+        assertEquals(1f, smoother.factor(faded, envelope = 0.5f, nowMs = 20))
+        assertTrue(smoother.ramping)
+        assertEquals(0.75f, smoother.factor(faded, envelope = 0.5f, nowMs = 220))
+        assertEquals(0.45f, smoother.factor(faded, envelope = 0.45f, nowMs = 420))
+        assertFalse(smoother.ramping)
+        // And back: a continuation restored mid-fade rises from where the fade had got to.
+        assertEquals(0.45f, smoother.factor(continued, envelope = 1f, nowMs = 440))
+        assertEquals(1f, smoother.factor(continued, envelope = 1f, nowMs = 840))
+    }
+
+    @Test
+    fun aResetStartsTheNextItemOnItsOwnEnvelope() {
+        val smoother = FadeEdgeSmoother(rampMs = 400)
+        smoother.factor(true to false, envelope = 1f, nowMs = 0)
+        smoother.reset()
+        assertEquals(0f, smoother.factor(true to true, envelope = 0f, nowMs = 20))
+        assertFalse(smoother.ramping)
+    }
+
+    @Test
     fun aContinuedEdgeStaysAtFullVolume() {
         val duration = 180_000L
         val fade = 4_000L
