@@ -75,7 +75,10 @@ internal fun BoxScope.ScrollToTopButton(
             fadeOut(tween(Motion.REPLACE_MS)) + scaleOut(tween(Motion.REPLACE_MS), targetScale = 0.8f)
         },
     ) {
+        val press = rememberPressSource()
         SmallFloatingActionButton(
+            modifier = Modifier.scaleOnPress(press, Motion.BUTTON_PRESS_SCALE),
+            interactionSource = press,
             onClick = {
                 scope.launch {
                     if (reduceMotion) {

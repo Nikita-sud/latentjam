@@ -3399,7 +3399,9 @@ private fun AppShell(
                                 scaleOut(tween(Motion.QUICK_MS), targetScale = 0.86f)
                         },
                     ) {
+                        val shufflePress = rememberPressSource()
                         FilledIconButton(
+                            interactionSource = shufflePress,
                             onClick = {
                                 val songs = catalog?.songs.orEmpty()
                                 if (songs.isNotEmpty()) scope.launch {
@@ -3409,7 +3411,9 @@ private fun AppShell(
                                     playback.play(songs, songs.indices.random())
                                 }
                             },
-                            modifier = Modifier.size(56.dp).inactiveForMotion(!showShuffle),
+                            modifier = Modifier.size(56.dp)
+                                .scaleOnPress(shufflePress, Motion.BUTTON_PRESS_SCALE)
+                                .inactiveForMotion(!showShuffle),
                             colors = playButtonColors(),
                         ) {
                             Icon(Icons.Rounded.Shuffle,

@@ -156,6 +156,7 @@ import org.jetbrains.compose.resources.getPluralString
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
+import androidx.compose.foundation.LocalIndication
 
 @Composable
 internal fun EmptyLibraryPage(
@@ -891,7 +892,21 @@ internal fun SharedSettingsButton(
 /** The shared browse-group gesture: tap, plus [TrackRow]'s long-press haptic when selectable. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun Modifier.groupClickable(onClick: () -> Unit, onLongClick: (() -> Unit)?): Modifier {
+internal fun Modifier.groupClickable(
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)?,
+    /** A card sinks under the finger like the For You cards; rows keep the ripple alone. */
+    pressScale: Float? = null,
+): Modifier {
+    if (pressScale != null) {
+        val press = rememberPressSource()
+        return scaleOnPress(press, pressScale).combinedClickable(
+            interactionSource = press,
+            indication = LocalIndication.current,
+            onClick = onClick,
+            onLongClick = onLongClick,
+        )
+    }
     return combinedClickable(
         onClick = onClick,
         // combinedClickable provides the long-press haptic once the hold is recognized.
@@ -1023,7 +1038,7 @@ internal fun AlbumCard(
                     Modifier
                 },
             )
-            .groupClickable(onClick = onClick, onLongClick = onLongClick)
+            .groupClickable(onClick = onClick, onLongClick = onLongClick, pressScale = Motion.PRESS_SCALE)
             .padding(8.dp),
     ) {
         Box(
@@ -1318,7 +1333,12 @@ internal fun MiniPlayerPill(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
                             if (showPrevious) {
-                                IconButton(onClick = onPrevious) {
+                                val previousPress = rememberPressSource()
+                                IconButton(
+                                    onClick = onPrevious,
+                                    interactionSource = previousPress,
+                                    modifier = Modifier.scaleOnPress(previousPress, Motion.BUTTON_PRESS_SCALE),
+                                ) {
                                     Icon(
                                         imageVector = Icons.Rounded.SkipPrevious,
                                         contentDescription = previousDescription,
@@ -1328,9 +1348,13 @@ internal fun MiniPlayerPill(
                             val playPauseDescription = stringResource(
                                 if (isPlaying) Res.string.action_pause else Res.string.action_play,
                             )
+                            val playPress = rememberPressSource()
                             IconButton(
                                 onClick = onTogglePlayPause,
-                                modifier = Modifier.semantics { contentDescription = playPauseDescription },
+                                interactionSource = playPress,
+                                modifier = Modifier
+                                    .scaleOnPress(playPress, Motion.BUTTON_PRESS_SCALE)
+                                    .semantics { contentDescription = playPauseDescription },
                             ) {
                                 AnimatedContent(
                                     targetState = isPlaying,
@@ -1343,7 +1367,12 @@ internal fun MiniPlayerPill(
                                 )
                                 }
                             }
-                            IconButton(onClick = onNext) {
+                            val nextPress = rememberPressSource()
+                            IconButton(
+                                onClick = onNext,
+                                interactionSource = nextPress,
+                                modifier = Modifier.scaleOnPress(nextPress, Motion.BUTTON_PRESS_SCALE),
+                            ) {
                                 Icon(
                                     imageVector = Icons.Rounded.SkipNext,
                                     contentDescription = stringResource(Res.string.action_next),

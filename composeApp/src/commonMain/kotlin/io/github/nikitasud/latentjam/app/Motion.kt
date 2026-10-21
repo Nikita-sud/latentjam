@@ -42,6 +42,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.remember
 
 /**
  * The app's shared motion vocabulary.
@@ -239,6 +240,10 @@ internal fun Modifier.inactiveForMotion(inactive: Boolean): Modifier = if (!inac
             }
         }
 }
+
+/** One press source for a control and its [scaleOnPress]: pass the same instance to both. */
+@Composable
+internal fun rememberPressSource(): MutableInteractionSource = remember { MutableInteractionSource() }
 
 /**
  * Press feedback: a scale under the finger, alongside the ripple. Asymmetric on purpose: the

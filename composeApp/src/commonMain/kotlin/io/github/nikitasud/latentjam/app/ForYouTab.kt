@@ -599,12 +599,15 @@ private fun ForYouCardItem(
                 // A collection or mix opens on tap — playing a hundred tracks on a touch that
                 // meant "show me" was a mistake already made once — so playing it gets its own
                 // control, on the cover where a play button is expected.
+                val playPress = rememberPressSource()
                 FilledIconButton(
                     onClick = onPlayCollection,
+                    interactionSource = playPress,
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(8.dp)
-                        .size(40.dp),
+                        .size(40.dp)
+                        .scaleOnPress(playPress, Motion.BUTTON_PRESS_SCALE),
                     shape = RoundedCornerShape(20.dp),
                     colors = playButtonColors(),
                 ) {
@@ -722,9 +725,11 @@ private fun HeroCard(hero: ForYouHero, accent: TrackAccent?, onPlay: () -> Unit)
             }
             // Icon-only and fixed size: a labelled button here clips under translation and large
             // font scales, which is a mistake this project has already made three times.
+            val playPress = rememberPressSource()
             FilledIconButton(
                 onClick = onPlay,
-                modifier = Modifier.size(48.dp),
+                interactionSource = playPress,
+                modifier = Modifier.size(48.dp).scaleOnPress(playPress, Motion.BUTTON_PRESS_SCALE),
                 shape = RoundedCornerShape(24.dp),
                 colors = playButtonColors(),
             ) {
