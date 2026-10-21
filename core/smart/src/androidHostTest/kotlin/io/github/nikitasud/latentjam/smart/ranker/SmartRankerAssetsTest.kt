@@ -153,4 +153,22 @@ class SmartRankerAssetsTest {
         assertTrue(SmartRanker.isNonMusic(tracks[11].copy(folderPath = "Call_rec"), as2 = true))
         assertFalse(SmartRanker.isNonMusic(tracks[11].copy(folderPath = "Music/Podcast Remixes"), as2 = true))
     }
+    @Test
+    fun theUsersPlaylistsReachOnlyFullPlans() = runTest {
+        // Fast 3.3: 900 tracks (over FULL's whole-library bound), a 30-track playlist with the seed in it.
+        val tracks = (0 until 900).map {
+            TrackDescriptor(TrackId("u$it"), title = "Song $it", artist = "Artist ${it % 90}", genre = listOf("Rock", "Jazz", "Pop")[it % 3], durationMs = 200_000L)
+        }
+        val playlist = listOf(tracks[0].id) + (1..29).map { tracks[it * 29 + 7].id }
+        val ranker = SmartRankerAssets(null, ::read).ranker
+        val inPlaylist = playlist.toSet()
+        suspend fun plan(personal: Boolean, playlists: List<List<TrackId>>) =
+            ranker.plan(PlanRequest(tracks[0], tracks, tracks, length = 20, personal = personal, playlists = playlists))
+        val full = plan(personal = true, playlists = listOf(playlist))
+        assertTrue(full.picks.any { it.source == "R8" }, "R8 retrieved")
+        val fullWithout = plan(personal = true, playlists = emptyList())
+        assertTrue(full.ids.count { it in inPlaylist } > fullWithout.ids.count { it in inPlaylist }, "the bonus pulls playlist tracks in")
+        val core = plan(personal = false, playlists = listOf(playlist))
+        assertEquals(plan(personal = false, playlists = emptyList()).ids, core.ids, "CORE ignores playlists")
+    }
 }

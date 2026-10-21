@@ -347,5 +347,10 @@
     "classical"
    ]
   }
+ },
+ "playlistBonus": {
+  "lambda": 1.5,
+  "quota": 50,
+  "artistCap": 15
  }
 }

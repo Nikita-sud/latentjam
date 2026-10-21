@@ -81,6 +81,10 @@ public object RankerQueue {
         prefix: List<Pair<String, LongArray>>? = null,
         /** The prefix's last track's e (the 'prev' energy reference of the first hop). */
         prefixEnergy: Double? = null,
+        /** Fast 3.3: each row's max 1 / log2(2 + size) over the user playlists it shares with the anchor; null = none. */
+        playlistBonus: ((anchor: Int) -> DoubleArray?)? = null,
+        /** PLAN_DECODER2 NOREPEAT: the run term takes [RankerModel.NoRepeat.lambdaStart] instead of λ_run. */
+        noRepeat: Boolean = false,
         features: (anchor: Int) -> Array<DoubleArray>,
     ): List<Int> {
         if (poolSize == 0 || length <= 0) return emptyList()
@@ -103,6 +107,12 @@ public object RankerQueue {
                 model.classMismatch?.let { cm ->
                     if (seedFamily !in cm.families) for (i in 0 until poolSize) if (families[i] in cm.families) sc[i] = sc[i] - cm.lambda
                 }
+            }
+            // reference.py's order: class mismatch, the playlist bonus, then family mismatch.
+            model.playlistBonus?.let { pb ->
+                playlistBonus?.invoke(anchor)?.let { b -> for (i in 0 until poolSize) sc[i] = sc[i] + pb.lambda * b[i] }
+            }
+            if (families != null) {
                 model.familyMismatch?.let { lam ->
                     if (seedFamily != null) for (i in 0 until poolSize) {
                         val f = families[i] ?: continue
@@ -120,7 +130,7 @@ public object RankerQueue {
             return buildCreditRun(
                 model, re, poolSize, artistKeys, seedArtist, tieOrder, length, choose, take, blocked, stop, trace,
                 credits, seedCredits, seedScores, ::scores, fresh, energies, seedEnergy, audioAgainst, novelty, heads,
-                seedFamily, rulePenalties, seedUnknown, prefix, prefixEnergy,
+                seedFamily, rulePenalties, seedUnknown, prefix, prefixEnergy, noRepeat,
             )
         }
         val open = BooleanArray(poolSize) { true }
@@ -247,7 +257,9 @@ public object RankerQueue {
         seedUnknown: Boolean,
         prefix: List<Pair<String, LongArray>>?,
         prefixEnergy: Double?,
+        noRepeat: Boolean,
     ): List<Int> {
+        val lambdaRun = if (noRepeat) model.noRepeat!!.lambdaStart else model.runPenalty
         fun creditsOf(i: Int) = credits?.get(i) ?: NO_CREDITS
         val open = BooleanArray(poolSize) { true }
         val picks = ArrayList<Int>(length)
@@ -356,7 +368,7 @@ public object RankerQueue {
             fun penalised(i: Int): Double {
                 var v = s[i]
                 val ma = if (aKey != null) redundancy(artistKeys[i], creditsOf(i), aKey, anchorCredits, re.credit) else 0.0
-                if (ma > 0.0 && model.runPenalty > 0.0) v -= model.runPenalty * runLength * sd * ma
+                if (ma > 0.0 && lambdaRun > 0.0) v -= lambdaRun * runLength * sd * ma
                 terms?.let { it[0][i] = s[i] - v }
                 var mark = v
                 if (fresh != null && fresh[i] != 0.0) {
@@ -535,6 +547,10 @@ public class PlanRequest(
     public val seedMs: Long = 0,
     /** Fast 3: tracks the listener played after a press showed them (freshness.engaged = exempt). */
     public val engaged: Set<TrackId> = emptySet(),
+    /** Fast 3.3 (FULL only): the listener's own playlists (M3U files, app playlists), each in its order. */
+    public val playlists: List<List<TrackId>> = emptyList(),
+    /** How the seed was started ("playlist", "search", "album" or "other"): PLAN_DECODER2's NOREPEAT origin rules. */
+    public val origin: String = "other",
 )
 
 /** How a plan was made, for the aggregate log line, the circuit breaker and the on-device impression log. */
@@ -974,6 +990,14 @@ public class SmartRanker(
         val byId = eligibleKnown.associateBy { it.track.id }
         val draws = HopDraws(SaltedKey.seed(SaltedKey.SALT, SaltedKey.contentKey(request.seed), request.press))
         val salted = saltedOrder(eligibleKnown, request)
+        // Fast 3.3 (FULL only): the user's own playlists, each track -> (playlist index, distinct size).
+        val playlistsOf = HashMap<TrackId, MutableList<Pair<Int, Int>>>()
+        if (active.playlistBonus != null && request.personal) {
+            for ((p, list) in request.playlists.withIndex()) {
+                val distinct = list.distinct()
+                for (id in distinct) playlistsOf.getOrPut(id) { ArrayList(1) } += p to distinct.size
+            }
+        }
         // Fast track 2 soft novelty: only the hardLast newest of the novelty set stay excluded (ties by id bytes); the
         // rest join the source and lose λ_n · sd · (1 − age / 24 h) in the decoder.
         var exclude = request.exclude
@@ -1003,7 +1027,7 @@ public class SmartRanker(
         val pool = when {
             request.ruleOnly -> ruleOnlyPool(poolSource, seedKnown, salted, sources)
             poolSource.size <= serving.wholeLibraryUpTo -> poolSource
-            else -> retrieve(poolSource, seedKnown, request, serving, salted, sources, active) { got, timedOut ->
+            else -> retrieve(poolSource, seedKnown, request, serving, salted, sources, active, playlistsOf) { got, timedOut ->
                 r1Count = got
                 if (timedOut) timeouts += "R1"
             }
@@ -1105,6 +1129,31 @@ public class SmartRanker(
             seedUnknown = seedKnown.family == null && seedKnown.packDescriptor == null && seedKnown.imputedDescriptor == null,
             prefix = prefixIds.map { id -> cache.getValue(id).let { k -> artistKeyOf(k) to k.artists } }.ifEmpty { null },
             prefixEnergy = prefixKnown?.let { rawEnergies[it.track.id]?.takeIf { e -> e.isFinite() } },
+            playlistBonus = if (playlistsOf.isEmpty()) null else { anchor: Int ->
+                val anchorId = when (anchor) {
+                    RankerQueue.SEED -> request.seed.id
+                    RankerQueue.PREFIX -> prefixIds.last()
+                    else -> pool[anchor].track.id
+                }
+                val anchorLists = playlistsOf[anchorId]?.associate { it }
+                if (anchorLists.isNullOrEmpty()) null else DoubleArray(pool.size) { i ->
+                    var best = 0.0
+                    for ((p, size) in playlistsOf[pool[i].track.id].orEmpty()) {
+                        if (p in anchorLists) best = maxOf(best, 1.0 / kotlin.math.log2(2.0 + size))
+                    }
+                    best
+                }
+            },
+            noRepeat = active.noRepeat?.let { nr ->
+                // PLAN_DECODER2 v4.2 (FULL only): a playlist start repeats nothing; search / album starts run free.
+                request.personal && when (request.origin) {
+                    "playlist" -> true
+                    "search", "album" -> false
+                    else -> request.history.preSessionShare(
+                        request.seedMs, { id -> cache[id]?.let(artistKeyOf) ?: "" }, artistKeyOf(seedKnown), nr.minPlays,
+                    )?.let { it < nr.rho } ?: false
+                }
+            } ?: false,
             novelty = if (active.softNovelty != null) DoubleArray(pool.size) { i ->
                 noveltyAge[pool[i].track.id]?.let { maxOf(0.0, 1.0 - it.toDouble() / NOVELTY_MS) } ?: 0.0
             } else null,
@@ -1351,6 +1400,7 @@ public class SmartRanker(
         salted: Map<TrackId, Long>,
         sources: MutableMap<TrackId, String>,
         active: RankerModel,
+        playlistsOf: Map<TrackId, List<Pair<Int, Int>>>,
         onR1: (neighbours: Int, timedOut: Boolean) -> Unit = { _, _ -> },
     ): List<Known> {
         val byId = pool.associateBy { it.track.id }
@@ -1445,6 +1495,27 @@ public class SmartRanker(
                 }
             }
             take(hearted + favs, quota("own") - quota("own") / 2, "R6")
+        }
+        val r8 = active.playlistBonus
+        val seedPlaylists = playlistsOf[seed.track.id]
+        if (r8 != null && !seedPlaylists.isNullOrEmpty()) {
+            // R8 (fast 3.3, FULL): tracks sharing a user playlist with the seed, salted order, its own per-artist cap.
+            val shared = seedPlaylists.mapTo(HashSet()) { it.first }
+            val ids = playlistsOf.entries.filter { (id, lists) -> id != seed.track.id && lists.any { it.first in shared } }
+                .map { it.key }.sortedBy { salted[it] ?: 0L }
+            val perArtist = HashMap<String, Int>()
+            val got = ArrayList<TrackId>()
+            for (id in ids) {
+                val k = byId[id] ?: continue
+                if (id in out) continue
+                val a = capKey(k)
+                val c = perArtist[a] ?: 0
+                if (a.isNotEmpty() && c >= r8.artistCap) continue
+                perArtist[a] = c + 1
+                got += id
+                if (got.size >= r8.quota) break
+            }
+            take(got, r8.quota, "R8", capped = false)
         }
         if (serving.l2) {
             // Audit 04 #1 / #11: fill to a fixed target, the seed's family first (capped), then a salted sample.

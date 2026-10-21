@@ -159,6 +159,8 @@ internal suspend fun rankerPlan(
     engagedKeys: suspend () -> Set<String> = { emptySet() },
     /** Audit 03 #1: the rows a top-up continues after [seed], oldest first (empty = a fresh plan). */
     prefix: List<TrackId> = emptyList(),
+    /** Fast 3.3: the listener's own playlists (app and imported M3U), read only for [personal] plans. */
+    playlists: () -> List<List<TrackId>> = { emptyList() },
 ): io.github.nikitasud.latentjam.smart.ranker.PlanReport? = withContext(Dispatchers.Default) {
     try {
         val scope = library.ifEmpty { candidates }
@@ -204,7 +206,7 @@ internal suspend fun rankerPlan(
                 seed = seed, library = scope, candidates = candidates, length = length, exclude = novel,
                 recentIds = recentIds, press = press, history = personalHistory, personal = personal,
                 ruleOnly = ruleOnly || !fits, impressions = impressions, excludeAgeMs = noveltyAges, engaged = engaged,
-                seedMs = seedMs, prefix = prefix,
+                seedMs = seedMs, prefix = prefix, playlists = if (personal) playlists() else emptyList(),
             ),
         )
         val (withEntity, listed, withLfm) = ranker.entityCoverage

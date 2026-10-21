@@ -108,6 +108,10 @@ internal fun List<Playlist>.presentationIdentity(): List<PlaylistPresentationIde
 }
 
 /** Membership policy consumed by both foreground and background SMART planners. */
+/** Every playlist's ordered ids for the FULL ranker's playlist bonus and R8 (fast 3.3); one-track lists share nothing. */
+internal fun List<Playlist>.smartUserPlaylists(): List<List<TrackId>> =
+    map { playlist -> playlist.trackIds.map(::TrackId) }.filter { it.distinct().size >= 2 }
+
 internal fun List<Playlist>.smartCompanionMemberships(): List<Set<TrackId>> {
     val normalized = asSequence()
         .filter(Playlist::includeInSmart)

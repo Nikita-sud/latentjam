@@ -79,6 +79,27 @@ public class PersonalHistory(
     /** Listens in the log (the ladder's repeat order counts after them). */
     public val size: Int = listens.size
 
+    private val plays: List<HabitListen> = listens
+
+    /**
+     * PLAN_DECODER2 §7 (reference.pre_session_share): the seed artist's share of the plays BEFORE the current session
+     * (plays chained back from [seedMs] with gaps ≤ [HabitSlots.SESSION_GAP_MS]); null with fewer than [minPlays] such
+     * plays or no seed artist.
+     */
+    public fun preSessionShare(seedMs: Long, artistOf: (TrackId) -> String, seedArtist: String, minPlays: Int): Double? {
+        if (seedArtist.isEmpty()) return null
+        var edge = seedMs
+        var i = plays.size
+        while (i > 0 && edge - plays[i - 1].startedAtMs <= HabitSlots.SESSION_GAP_MS) {
+            i--
+            edge = plays[i].startedAtMs
+        }
+        if (i < minPlays) return null
+        var same = 0
+        for (j in 0 until i) if (artistOf(plays[j].trackId) == seedArtist) same++
+        return same.toDouble() / i
+    }
+
     public fun row(track: TrackId, anchor: TrackId, anchorArtist: String): PersonalRow {
         val heard = track in counts
         return PersonalRow(

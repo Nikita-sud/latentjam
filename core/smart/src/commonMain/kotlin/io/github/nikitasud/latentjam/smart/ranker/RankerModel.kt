@@ -83,11 +83,20 @@ public class RankerModel(
     public val taxonomy: String? = null,
     /** The song-version key: v2 keeps a part / volume / piece bracket in the title (the FIT rebuild), v1 (absent) drops every bracket. */
     public val versionKeyV2: Boolean = false,
+    /** Fast 3.3 (FULL): +λ · max 1 / log2(2 + size) over the user playlists a candidate shares with the anchor; R8's quota and cap. */
+    public val playlistBonus: PlaylistBonus? = null,
+    /** PLAN_DECODER2 NOREPEAT (FULL): λ_start on runs when the seed artist's pre-session share is below ρ. */
+    public val noRepeat: NoRepeat? = null,
     /** Fast 3: −λ for a candidate in [ClassMismatch.families] when the seed is not. */
     public val classMismatch: ClassMismatch? = null,
     /** Fast 4: seed-anchored continuity on cached audio heads, in head-name order. */
     public val continuity: List<Continuity> = emptyList(),
 ) {
+    public class PlaylistBonus(public val lambda: Double, public val quota: Int, public val artistCap: Int)
+
+    /** NOREPEAT: λ_start replaces λ_run; on when the share is below [rho] over at least [minPlays] pre-session plays. */
+    public class NoRepeat(public val lambdaStart: Double, public val rho: Double, public val minPlays: Int)
+
     /** λ · |Δe| to the previous pick ("prev"), or λ · max(0, |Δe to the seed| − τ) ("seedHinge"). */
     /** [poolScale]: |Δe| in units of the pool's e spread (population sd of the allowed rows' known e, floored). */
     public class Energy(public val lambda: Double, public val seedHinge: Boolean, public val tau: Double, public val poolScale: Boolean = false)
@@ -278,8 +287,10 @@ public class RankerModel(
                 "artistReentry", "energy", "r1Energy", "audioAnchor", "imputedDescriptor", "seedGate", "freshness", "coreOffset",
                 "audioZ", "softNovelty", "anchorShare", "colistenPrevShare", "familyMismatch", "classMismatch", "continuity", "holidaySeason",
                 "durationRule", "titleFlags", "unknownSeedAnchor", "artistSets",
-                "taxonomy", "versionKey",
+                "taxonomy", "versionKey", "playlistBonus", "noRepeat",
             ),
+            "playlistBonus" to setOf("lambda", "quota", "artistCap"),
+            "noRepeat" to setOf("lambdaStart", "rho", "minPlays"),
             "anchorShare" to setOf("share", "columns"),
             "familyMismatch" to setOf("lambda", "near", "nearScale"),
             "holidaySeason" to setOf("lambda"),
@@ -391,6 +402,12 @@ public class RankerModel(
                 unknownSeedAnchor = root["unknownSeedAnchor"] == "seed",
                 artistSetsAs2 = when (root["artistSets"]) { null, "as1" -> false; "as2" -> true; else -> error("artistSets") },
                 taxonomy = (root["taxonomy"] as String?)?.also { require(it in TAXONOMY_FAMILIES) { "taxonomy" } },
+                playlistBonus = (root["playlistBonus"] as? Map<*, *>)?.let {
+                    PlaylistBonus((it["lambda"] as Number).toDouble(), (it["quota"] as? Number)?.toInt() ?: 50, (it["artistCap"] as? Number)?.toInt() ?: 15)
+                },
+                noRepeat = (root["noRepeat"] as? Map<*, *>)?.let {
+                    NoRepeat((it["lambdaStart"] as Number).toDouble(), (it["rho"] as Number).toDouble(), (it["minPlays"] as? Number)?.toInt() ?: 10)
+                },
                 versionKeyV2 = when (root["versionKey"]) { null, "v1" -> false; "v2" -> true; else -> error("versionKey") },
                 classMismatch = (root["classMismatch"] as? Map<*, *>)?.let { c ->
                     ClassMismatch((c["lambda"] as Number).toDouble(), ((c["families"] as? List<*>)?.map { it as String } ?: listOf("soundtrack")).toSet())

@@ -488,6 +488,7 @@ private fun AppShell(
             // On first hydration, publish the planning policy before allowing queue resume. A
             // short saved SMART queue may top itself up immediately; letting restore win this race
             // would generate that future with an empty policy and then preserve it as “initial”.
+            AppGraph.smartUserPlaylists.value = value.smartUserPlaylists()
             if (!playlistsState.playlistsLoaded) {
                 AppGraph.smartCompanionGroups.value = value.smartCompanionMemberships()
                 playlistsState.companionGroupsInitialized = true
@@ -1547,6 +1548,7 @@ private fun AppShell(
             // future. Treat it as launch state, not as a user edit: pruning the saved lookahead at
             // this point would defeat exact resume and could load the lazy model for no reason.
             if (!playlistsState.playlistsLoaded) return@LaunchedEffect
+            AppGraph.smartUserPlaylists.value = playlistsState.playlists.smartUserPlaylists()
             // Not against the empty list a failed launch read leaves: that would forget every order.
             AppGraph.settings.forgetDeletedPlaylistOrders(playlistsState.completePlaylists)
             val groups = playlistsState.playlists.smartCompanionMemberships()

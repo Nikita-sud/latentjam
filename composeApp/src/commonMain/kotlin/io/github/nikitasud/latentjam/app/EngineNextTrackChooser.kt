@@ -67,6 +67,8 @@ class EngineNextTrackChooser(
     private val favourites: suspend () -> Map<TrackId, Long?> = { emptyMap() },
     /** "Use favourites" (nested under "Learn from my habits"); off, the ranker sees no hearts. */
     private val useFavourites: () -> Boolean = { true },
+    /** The listener's own playlists (app and imported M3U), each in its order: FULL plans only (fast 3.3). */
+    private val userPlaylists: () -> List<List<TrackId>> = { emptyList() },
     /** Wall time; the offline product-check stand plans at a fixed simulated time. */
     private val clock: () -> Long = ::epochMillis,
 ) : NextTrackChooser {
@@ -186,6 +188,7 @@ class EngineNextTrackChooser(
                     },
                     engagedKeys = { smartLog?.engagedKeys().orEmpty() },
                     prefix = if (continuing) servedInQueue.toList() else emptyList(),
+                    playlists = userPlaylists,
                 )
                 if (report == null || report.timedOut) queueFailures++
                 picks = report?.picks
