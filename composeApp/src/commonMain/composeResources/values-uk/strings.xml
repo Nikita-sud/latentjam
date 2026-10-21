@@ -919,7 +919,7 @@
     <string name="stats_of_100_picks">%1$d зі 100 виборів</string>
     <string name="stats_same_artist_note">Коли ви самі обираєте наступний трек. Включно із запуском зі сторінки виконавця.</string>
     <string name="stats_picked_next">Часто обираєте слідом</string>
-    <string name="stats_sequence_description">Після %1$s ви обирали %2$s %3$d раз із %4$d</string>
+    <string name="stats_sequence_description">Після %1$s ви обирали %2$s у %3$d з %4$d випадків</string>
     <string name="stats_library">Ваша медіатека</string>
     <string name="stats_played_once">Відтворено хоча б раз</string>
     <string name="stats_x_of_y">%1$s з %2$s</string>

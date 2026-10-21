@@ -910,7 +910,7 @@
     <string name="stats_of_100_picks">%1$d из 100 выборов</string>
     <string name="stats_same_artist_note">Когда вы сами выбираете следующий трек. Включая запуск со страницы исполнителя.</string>
     <string name="stats_picked_next">Часто выбираете следом</string>
-    <string name="stats_sequence_description">После %1$s вы выбирали %2$s %3$d раз из %4$d</string>
+    <string name="stats_sequence_description">После %1$s вы выбирали %2$s в %3$d из %4$d случаев</string>
     <string name="stats_library">Ваша медиатека</string>
     <string name="stats_played_once">Сыграно хотя бы раз</string>
     <string name="stats_x_of_y">%1$s из %2$s</string>

@@ -716,7 +716,7 @@
     <string name="stats_on_repeat">最近リピート中</string>
     <string name="stats_artists_on_repeat">リピート中のアーティスト</string>
     <plurals name="stats_on_days">
-        <item quantity="other">%1$d日間</item>
+        <item quantity="other">再生日数 %1$d日</item>
     </plurals>
     <string name="stats_week_days">直近7日間のうち%1$d日</string>
     <plurals name="stats_days_of_music">

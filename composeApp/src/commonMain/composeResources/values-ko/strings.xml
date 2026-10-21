@@ -716,7 +716,7 @@
     <string name="stats_on_repeat">요즘 반복해서 듣는 곡</string>
     <string name="stats_artists_on_repeat">요즘 반복해서 듣는 아티스트</string>
     <plurals name="stats_on_days">
-        <item quantity="other">%1$d일 동안</item>
+        <item quantity="other">재생한 날 %1$d일</item>
     </plurals>
     <string name="stats_week_days">최근 7일 중 %1$d일</string>
     <plurals name="stats_days_of_music">
