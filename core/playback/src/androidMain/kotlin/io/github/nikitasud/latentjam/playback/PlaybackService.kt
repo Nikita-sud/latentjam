@@ -721,6 +721,12 @@ public class PlaybackService : MediaLibraryService() {
             .setHandleAudioBecomingNoisy(true)
             .setMaxSeekToPreviousPositionMs(PREVIOUS_RESTART_THRESHOLD_MS)
             .build()
+        // Media3 dispatches session commands on the player's looper. A command whose caller has
+        // no package name would crash there before any callback below could refuse it.
+        val blackBoxDir = filesDir
+        NamelessControllerGuard.install(player.applicationLooper) {
+            MediaBlackBox.record(blackBoxDir, "? rejected: controller without a package name")
+        }
         // The listener's persisted repeat choice belongs to the transport this service is about to
         // host: the widget and the player screen show it again as soon as the app connects (see
         // [initialPlaybackModes]), and until now only the shuffle half reached a player. Applied
