@@ -722,7 +722,9 @@
     <plurals name="stats_days_of_music">
         <item quantity="other">약 %1$d일 분량의 음악</item>
     </plurals>
-    <string name="stats_activity_months">최근 12개월 · 감상 시간</string>
+    <plurals name="stats_activity_last_months">
+        <item quantity="other">최근 %1$d개월 · 감상 시간</item>
+    </plurals>
     <string name="stats_activity_years">연도별 · 감상 시간</string>
     <string name="stats_activity_over_time">시간에 따른 나의 감상</string>
     <string name="stats_this_month">이번 달</string>

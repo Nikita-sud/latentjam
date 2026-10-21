@@ -844,7 +844,11 @@
         <item quantity="one">≈ %1$d day of music</item>
         <item quantity="other">≈ %1$d days of music</item>
     </plurals>
-    <string name="stats_activity_months">Last 12 months · listening time</string>
+    <!-- Over the monthly listening chart: %1$d is how many months it shows (fewer than 12 for a log under a year old) -->
+    <plurals name="stats_activity_last_months">
+        <item quantity="one">Last %1$d month · listening time</item>
+        <item quantity="other">Last %1$d months · listening time</item>
+    </plurals>
     <string name="stats_activity_years">By year · listening time</string>
     <string name="stats_activity_over_time">Your listening over time</string>
     <string name="stats_this_month">This month</string>

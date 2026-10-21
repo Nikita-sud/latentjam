@@ -774,7 +774,10 @@
         <item quantity="one">≈ %1$d jour de musique</item>
         <item quantity="other">≈ %1$d jours de musique</item>
     </plurals>
-    <string name="stats_activity_months">12 derniers mois · durée d’écoute</string>
+    <plurals name="stats_activity_last_months">
+        <item quantity="one">%1$d dernier mois · durée d’écoute</item>
+        <item quantity="other">%1$d derniers mois · durée d’écoute</item>
+    </plurals>
     <string name="stats_activity_years">Par année · durée d’écoute</string>
     <string name="stats_activity_over_time">Vos écoutes au fil du temps</string>
     <string name="stats_this_month">Ce mois-ci</string>

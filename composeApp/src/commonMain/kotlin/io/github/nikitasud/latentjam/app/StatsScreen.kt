@@ -71,7 +71,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.action_retry
 import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.privacy_history_listens
 import io.github.nikitasud.latentjam.app.generated.resources.stats_activity
-import io.github.nikitasud.latentjam.app.generated.resources.stats_activity_months
+import io.github.nikitasud.latentjam.app.generated.resources.stats_activity_last_months
 import io.github.nikitasud.latentjam.app.generated.resources.stats_activity_over_time
 import io.github.nikitasud.latentjam.app.generated.resources.stats_activity_years
 import io.github.nikitasud.latentjam.app.generated.resources.stats_afternoon
@@ -786,7 +786,16 @@ private fun ActivityCard(overview: ListeningOverview, insights: PeriodInsights, 
                 val months = insights.activityScale == ActivityScale.MONTH
                 StatsTitle(stringResource(Res.string.stats_activity_over_time))
                 StatsNote(
-                    stringResource(if (months) Res.string.stats_activity_months else Res.string.stats_activity_years),
+                    // A log under a year old shows fewer than twelve months: say how many it shows.
+                    if (months) {
+                        pluralStringResource(
+                            Res.plurals.stats_activity_last_months,
+                            insights.activity.size,
+                            insights.activity.size,
+                        )
+                    } else {
+                        stringResource(Res.string.stats_activity_years)
+                    },
                 )
                 ActivityBars(
                     bars = insights.activity.map { bucket ->

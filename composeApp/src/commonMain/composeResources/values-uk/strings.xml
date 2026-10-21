@@ -844,7 +844,12 @@
         <item quantity="many">≈ %1$d днів музики</item>
         <item quantity="other">≈ %1$d дня музики</item>
     </plurals>
-    <string name="stats_activity_months">Останні 12 місяців · час прослуховування</string>
+    <plurals name="stats_activity_last_months">
+        <item quantity="one">Останній %1$d місяць · час прослуховування</item>
+        <item quantity="few">Останні %1$d місяці · час прослуховування</item>
+        <item quantity="many">Останні %1$d місяців · час прослуховування</item>
+        <item quantity="other">Останні %1$d місяця · час прослуховування</item>
+    </plurals>
     <string name="stats_activity_years">За роками · час прослуховування</string>
     <string name="stats_activity_over_time">Ваше прослуховування з часом</string>
     <string name="stats_this_month">Цей місяць</string>

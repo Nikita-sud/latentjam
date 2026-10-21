@@ -728,7 +728,9 @@
     <plurals name="stats_days_of_music">
         <item quantity="other">≈ %1$d hari musik</item>
     </plurals>
-    <string name="stats_activity_months">12 bulan terakhir · waktu mendengarkan</string>
+    <plurals name="stats_activity_last_months">
+        <item quantity="other">%1$d bulan terakhir · waktu mendengarkan</item>
+    </plurals>
     <string name="stats_activity_years">Per tahun · waktu mendengarkan</string>
     <string name="stats_activity_over_time">Aktivitas mendengarkan Anda dari waktu ke waktu</string>
     <string name="stats_this_month">Bulan ini</string>

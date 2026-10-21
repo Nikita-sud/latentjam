@@ -722,7 +722,9 @@
     <plurals name="stats_days_of_music">
         <item quantity="other">≈ %1$d 天的音乐</item>
     </plurals>
-    <string name="stats_activity_months">最近 12 个月 · 聆听时长</string>
+    <plurals name="stats_activity_last_months">
+        <item quantity="other">最近 %1$d 个月 · 聆听时长</item>
+    </plurals>
     <string name="stats_activity_years">按年 · 聆听时长</string>
     <string name="stats_activity_over_time">你的聆听随时间的变化</string>
     <string name="stats_this_month">本月</string>
