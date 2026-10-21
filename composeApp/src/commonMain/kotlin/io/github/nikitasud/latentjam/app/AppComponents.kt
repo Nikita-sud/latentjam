@@ -72,6 +72,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -101,6 +102,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.collapse
+import androidx.compose.ui.semantics.expand
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
@@ -555,21 +558,26 @@ internal fun BrowseCarousel(
                 .browseHeaderSwipe(pagerState, enabled = pages.size > 1),
             content = {
                 pages.forEachIndexed { index, page ->
+                    val interactionSource = remember { MutableInteractionSource() }
                     val label = Modifier
                         .testTag("latentjam_page_${page.name.lowercase()}")
-                        .selectable(
-                            selected = index == pagerState.currentPage,
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            role = Role.Tab,
-                            onClick = {
-                                if (style == PageHeaderStyle.MENU && index == pagerState.currentPage) {
-                                    menuOpen = true
-                                } else {
-                                    onSelect(page)
-                                }
+                        .then(
+                            // In Menu style the current title opens the list of pages: a drop-down,
+                            // not a selected tab, and it says whether the list is open.
+                            if (style == PageHeaderStyle.MENU && index == pagerState.currentPage) {
+                                Modifier.pageMenuAnchor(menuOpen, interactionSource) { menuOpen = it }
+                            } else {
+                                Modifier.selectable(
+                                    selected = index == pagerState.currentPage,
+                                    interactionSource = interactionSource,
+                                    indication = null,
+                                    role = Role.Tab,
+                                    onClick = { onSelect(page) },
+                                )
                             },
                         )
+                        // A full 48 dp to hit; the drawn pill or title stays its own size, centred.
+                        .minimumInteractiveComponentSize()
                     when (style) {
                         PageHeaderStyle.PILLS -> Text(
                             text = stringResource(page.titleResource()),
@@ -624,7 +632,14 @@ internal fun BrowseCarousel(
             val fade = PageEdgeFade.toPx()
             val spacing = if (style == PageHeaderStyle.PILLS) PagePillGap.toPx() else 0f
             val top = if (dots) {
-                (PageTitleTop - PageTitlePadding).roundToPx()
+                // The 48 dp hit area is taller than the title; keep the title itself where it was.
+                val natural = if (titleStyle.lineHeight.isSp) {
+                    titleStyle.lineHeight.toPx() + 2 * PageTitlePadding.toPx()
+                } else {
+                    Float.MAX_VALUE
+                }
+                val grown = ((labels.maxOfOrNull { it.height } ?: 0) - natural).coerceAtLeast(0f)
+                (PageTitleTop - PageTitlePadding).roundToPx() - (grown / 2f).roundToInt()
             } else {
                 (constraints.maxHeight - (labels.maxOfOrNull { it.height } ?: 0)) / 2
             }
@@ -713,6 +728,20 @@ internal fun BrowseCarousel(
             }
         }
     }
+}
+
+/** The Menu style's current title: a drop-down anchor that reports and toggles [open]. */
+private fun Modifier.pageMenuAnchor(
+    open: Boolean,
+    interactionSource: MutableInteractionSource,
+    onOpenChange: (Boolean) -> Unit,
+): Modifier = clickable(
+    interactionSource = interactionSource,
+    indication = null,
+    role = Role.DropdownList,
+    onClick = { onOpenChange(true) },
+).semantics {
+    if (open) collapse { onOpenChange(false); true } else expand { onOpenChange(true); true }
 }
 
 private val PageRowEdgeFade = 24.dp
