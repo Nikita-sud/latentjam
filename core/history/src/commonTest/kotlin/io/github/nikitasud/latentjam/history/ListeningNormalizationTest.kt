@@ -58,6 +58,24 @@ internal class ListeningNormalizationTest {
     }
 
     @Test
+    fun aListenFromAnUnsetClockDoesNotMarkTheLogStart() {
+        val floor = ListeningNormalization.PLAUSIBLE_START_MS
+        val unset = event("a", 3 * day)
+        val first = event("b", floor + 10 * day)
+        val second = event("c", floor + 11 * day)
+        val result = ListeningNormalization.normalize(listOf(first, unset, second), floor + 20 * day)
+        // Still a listen, in start order; only the log's start ignores it.
+        assertEquals(listOf("a", "b", "c"), result.events.map { it.trackId.value })
+        assertEquals(floor + 10 * day, result.logStartMs)
+    }
+
+    @Test
+    fun aLogEntirelyFromAnUnsetClockStillHasAStart() {
+        val result = ListeningNormalization.normalize(listOf(event("a", 7 * day), event("b", 9 * day)), now)
+        assertEquals(7 * day, result.logStartMs)
+    }
+
+    @Test
     fun exactDuplicatesKeepTheCopyThatKnowsItsOrigin() {
         val legacy = event("a", 10 * day, legacy = true)
         val known = event("a", 10 * day, start = ListenStart.USER_PICK)
