@@ -12,6 +12,8 @@ import kotlinx.coroutines.ensureActive
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collectLatest
@@ -110,7 +112,16 @@ internal class LoudnessNormalizer(
     private val measured = MutableStateFlow<Map<String, StoredTrackLoudness>>(emptyMap())
     private val failedThisSession = mutableSetOf<String>()
 
+    /**
+     * Decodes in flight by attempt identity, in the app scope rather than the per-track block: the
+     * next track's scan carries on when that track starts instead of starting over. Only the
+     * measuring blocks below touch it, and they never run concurrently.
+     */
+    private val inFlight = mutableMapOf<String, Deferred<IntegratedLoudness?>>()
+    private lateinit var measureScope: CoroutineScope
+
     fun start(scope: CoroutineScope) {
+        measureScope = scope
         measured.value = decodeTrackLoudness(settings.readTrackLoudnessPayload().orEmpty())
         scope.launch {
             combine(measured, settings.normalizeVolume, ::normalizationVolumes)
@@ -123,6 +134,7 @@ internal class LoudnessNormalizer(
                 settings.normalizeVolume,
             ) { track, enabled -> track to enabled }
                 .collectLatest { (track, enabled) ->
+                    keepMeasuring(track.takeIf { enabled })
                     if (!enabled || track == null) {
                         onStatus(NormalizationStatus(if (enabled) NormalizationPhase.WAITING else NormalizationPhase.OFF))
                         return@collectLatest
@@ -135,6 +147,7 @@ internal class LoudnessNormalizer(
                     // sounds at the right level instead of dipping once a mid-song scan finishes.
                     // Its own key: SMART appending the next row must not restart the scan above.
                     playback.state.map { it.upcomingTrack() }.distinctUntilChanged().collectLatest { upcoming ->
+                        keepMeasuring(track, upcoming)
                         if (upcoming != null && upcoming.id != track.id) ensureMeasured(upcoming, reportsProgress = false)
                     }
                 }
@@ -150,7 +163,7 @@ internal class LoudnessNormalizer(
     private suspend fun ensureMeasured(track: TrackDescriptor, reportsProgress: Boolean): Measured {
         val id = track.id.value
         val audioIdentity = track.loudnessAudioIdentity()
-        val attemptIdentity = "$id|$audioIdentity"
+        val attemptIdentity = track.loudnessAttempt()
         val existing = measured.value[id]
         if (existing?.audioIdentity == audioIdentity) return Measured.Ready(existing.measurement)
         if (existing != null) {
@@ -160,13 +173,14 @@ internal class LoudnessNormalizer(
         }
         if (attemptIdentity in failedThisSession) return Measured.Unavailable
         if (reportsProgress) onStatus(NormalizationStatus(NormalizationPhase.MEASURING))
+        val job = inFlight[attemptIdentity]?.takeUnless { it.isCancelled }
+            ?: measureScope.async { measureOrNull(track) }.also { inFlight[attemptIdentity] = it }
         val measurement = try {
-            meter.measure(track)
+            job.await()
         } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (failure: Throwable) {
-            println("Loudness: measurement failed: $failure")
-            null
+            // Our own cancellation rethrows; a scan dropped under us is simply not available now.
+            currentCoroutineContext().ensureActive()
+            return Measured.Unavailable
         }
         currentCoroutineContext().ensureActive()
         if (measurement == null || !measurement.isValid()) {
@@ -175,6 +189,27 @@ internal class LoudnessNormalizer(
         }
         publish(measured.value + (id to StoredTrackLoudness(measurement, audioIdentity)))
         return Measured.Ready(measurement)
+    }
+
+    private suspend fun measureOrNull(track: TrackDescriptor): IntegratedLoudness? = try {
+        meter.measure(track)
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (failure: Throwable) {
+        println("Loudness: measurement failed: $failure")
+        null
+    }
+
+    /** Scans for anything but the playing and the next track are no longer wanted. */
+    private fun keepMeasuring(vararg tracks: TrackDescriptor?) {
+        val keep = tracks.mapNotNullTo(HashSet()) { it?.loudnessAttempt() }
+        val entries = inFlight.entries.iterator()
+        while (entries.hasNext()) {
+            val (identity, job) = entries.next()
+            if (identity in keep && !job.isCompleted) continue
+            job.cancel()
+            entries.remove()
+        }
     }
 
     private fun reportReady(measurement: IntegratedLoudness) {
@@ -189,6 +224,8 @@ internal class LoudnessNormalizer(
             .onFailure { failure -> println("Loudness: persistence failed: $failure") }
     }
 }
+
+private fun TrackDescriptor.loudnessAttempt(): String = "${id.value}|${loudnessAudioIdentity()}"
 
 private fun String.encodeLoudnessHex(): String = encodeToByteArray().joinToString("") { byte ->
     (byte.toInt() and 0xff).toString(16).padStart(2, '0')
