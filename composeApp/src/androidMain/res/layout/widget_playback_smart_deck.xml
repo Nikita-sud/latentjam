@@ -142,9 +142,10 @@
             android:layout_weight="1">
             <ImageButton
                 android:id="@+id/widget_repeat"
+                android:stateListAnimator="@animator/widget_press"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
-                android:background="@android:color/transparent"
+                android:background="@drawable/widget_icon_button"
                 android:contentDescription="@string/widget_repeat"
                 android:padding="11dp"
                 android:src="@drawable/ic_widget_repeat"
@@ -157,9 +158,10 @@
             android:layout_weight="1">
             <ImageButton
                 android:id="@+id/widget_previous"
+                android:stateListAnimator="@animator/widget_press"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
-                android:background="@android:color/transparent"
+                android:background="@drawable/widget_icon_button"
                 android:contentDescription="@string/widget_previous"
                 android:padding="12dp"
                 android:src="@drawable/ic_widget_previous_light"
@@ -172,6 +174,7 @@
             android:layout_weight="1">
             <ImageButton
                 android:id="@+id/widget_play_pause"
+                android:stateListAnimator="@animator/widget_press"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:background="@drawable/widget_play_button"
@@ -187,9 +190,10 @@
             android:layout_weight="1">
             <ImageButton
                 android:id="@+id/widget_next"
+                android:stateListAnimator="@animator/widget_press"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
-                android:background="@android:color/transparent"
+                android:background="@drawable/widget_icon_button"
                 android:contentDescription="@string/widget_next"
                 android:padding="12dp"
                 android:src="@drawable/ic_widget_next_light"
@@ -202,9 +206,10 @@
             android:layout_weight="1">
             <ImageButton
                 android:id="@+id/widget_shuffle"
+                android:stateListAnimator="@animator/widget_press"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
-                android:background="@android:color/transparent"
+                android:background="@drawable/widget_icon_button"
                 android:contentDescription="@string/widget_shuffle"
                 android:padding="11dp"
                 android:src="@drawable/ic_widget_shuffle"
