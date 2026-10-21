@@ -134,6 +134,10 @@ class SmartStandRunner {
             albumCheck(seeds, library, ranker, historyLines, favourites, File(out, "album_check.tsv"))
             return
         }
+        if (System.getenv("LJ_STAND_HABIT") == "1") {
+            habit(byId, library, ranker, historyLines, favourites, userPlaylists, File(out, "habit.tsv"))
+            return
+        }
         System.getenv("LJ_STAND_PROBE")?.let { spec ->
             probe(spec, byId, library, ranker, historyLines, favourites, File(out, "probe.jsonl"))
             return
@@ -244,6 +248,52 @@ class SmartStandRunner {
      * L1 mechanism probe ("seedId:full"): one press planned at the stand's clock with every pool row's terms at every
      * hop (PlanDiagnostics), each row's source, pack language and family. Product check only.
      */
+    /** Night 2026-10-21 habit gate: every A with a follower B played ≥ 2 times right after it; B's rank in FULL / CORE press 0. */
+    private suspend fun habit(
+        byId: Map<TrackId, TrackDescriptor>, library: List<TrackDescriptor>,
+        ranker: io.github.nikitasud.latentjam.smart.ranker.SmartRanker,
+        historyLines: List<String>, favourites: Map<TrackId, Long?>, playlists: List<List<TrackId>>, target: File,
+    ) {
+        val history = DefaultListeningHistory(object : HistoryStore {
+            override suspend fun append(line: String) = Unit
+            override suspend fun readAll(): List<String> = historyLines
+            override suspend fun clear() = Unit
+        })
+        val events = history.recentEvents(10_000)
+        val start = (events.firstOrNull()?.startedAtMs ?: 0L) + 60_000
+        val ids = library.mapTo(HashSet()) { it.id }
+        val listens = habitListens(events.asReversed(), ids, start)
+        val artistKeys = library.associate { it.id to io.github.nikitasud.latentjam.smart.HabitSlots.artistKey(it) }
+        val personal = io.github.nikitasud.latentjam.smart.ranker.PersonalHistory(
+            listens, start, favourites, extraTransitions = habitSkipTransitions(events.asReversed(), ids, start),
+        ) { artistKeys[it].orEmpty() }
+        val exclude = io.github.nikitasud.latentjam.smart.HabitSlots.novelty(listens, start)
+        val pairs = ArrayList<Triple<TrackId, TrackId, Int>>()
+        for (a in listens.map { it.trackId }.distinct()) {
+            if (a !in byId) continue
+            for (b in personal.followers(a)) {
+                val c = personal.followCount(a, b)
+                if (c >= (System.getenv("LJ_STAND_HABIT_MIN")?.toInt() ?: 2) && b in byId) pairs += Triple(a, b, c)
+            }
+        }
+        val sb = StringBuilder("seed\tfollower\tcount\texcluded\tfullRank\tcoreRank\n")
+        for ((a, b, c) in pairs.sortedByDescending { it.third }.take(60)) {
+            val seed = byId.getValue(a)
+            suspend fun rank(full: Boolean): Int {
+                val r = ranker.plan(
+                    io.github.nikitasud.latentjam.smart.ranker.PlanRequest(
+                        seed = seed, library = library, candidates = library.filter { it.id != seed.id }, length = 20,
+                        exclude = exclude, press = 0, history = personal, personal = full, seedMs = start,
+                        playlists = if (full) playlists else emptyList(),
+                    ),
+                )
+                return r.ids.indexOf(b).let { if (it < 0) -1 else it + 1 }
+            }
+            sb.append("${a.value}\t${b.value}\t$c\t${b in exclude}\t${rank(true)}\t${rank(false)}\n")
+        }
+        target.writeText(sb.toString())
+    }
+
     private suspend fun probe(
         spec: String, byId: Map<TrackId, TrackDescriptor>, library: List<TrackDescriptor>,
         ranker: io.github.nikitasud.latentjam.smart.ranker.SmartRanker,

@@ -76,6 +76,29 @@ internal fun habitListens(
 }.sortedBy(HabitListen::startedAtMs) // the log is in recording order; a merged or restored one may not be
 
 /**
+ * vc20 (owner's deliberate test: play A a few seconds, then pick B): consecutive log entries A → B where B is a pick
+ * (ListenStart.USER_PICK) started at most [HabitSlots.PAIR_GAP_MS] after A started and A or B was skipped — the pairs
+ * [habitListens] leaves out, so FULL's transitions count them too.
+ */
+internal fun habitSkipTransitions(
+    oldestFirst: List<ListenEvent>,
+    libraryIds: Set<TrackId>,
+    seedMs: Long,
+): List<Pair<TrackId, TrackId>> {
+    val events = oldestFirst.filter { it.startedAtMs < seedMs && it.trackId in libraryIds }.sortedBy(ListenEvent::startedAtMs)
+    val out = ArrayList<Pair<TrackId, TrackId>>()
+    for (i in 1 until events.size) {
+        val a = events[i - 1]
+        val b = events[i]
+        if (a.trackId == b.trackId || b.origin?.start != ListenStart.USER_PICK) continue
+        if (!a.skipped && !b.skipped) continue
+        if (b.startedAtMs - a.startedAtMs > HabitSlots.PAIR_GAP_MS) continue
+        out += a.trackId to b.trackId
+    }
+    return out
+}
+
+/**
  * The transition list's rows among [candidates] that really followed the seed or its artist (a count
  * above zero), in the list's order. Rows the reference ranks only by ACT-R or its random key are left
  * to SMART: overall favourites unrelated to the seed made the queue swing between genres on the
@@ -215,6 +238,7 @@ internal suspend fun rankerPlan(
         // Hearts count only for the FULL model ("Learn from my habits").
         val personalHistory = io.github.nikitasud.latentjam.smart.ranker.PersonalHistory(
             listens, seedMs, favourites = if (personal) favourites() else emptyMap(),
+            extraTransitions = habitSkipTransitions(events.asReversed(), libraryIds, seedMs),
         ) { artistKeys[it].orEmpty() }
         val fits = io.github.nikitasud.latentjam.smart.ranker.rankerFitsInHeap(minOf(candidates.size, 2_000))
         // PLAN_L1 §2c freshness: what recent presses showed (any seed), as candidate ids.

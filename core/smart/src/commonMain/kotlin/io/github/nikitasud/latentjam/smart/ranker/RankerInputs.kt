@@ -50,6 +50,8 @@ public class PersonalHistory(
     seedMs: Long,
     /** The listener's favourites, each with its heart time (null = unknown); empty without "Learn from my habits". */
     private val favourites: Map<TrackId, Long?> = emptyMap(),
+    /** vc20: A → B picks the listens leave out (A or B skipped; habitSkipTransitions), counted as transitions too. */
+    extraTransitions: List<Pair<TrackId, TrackId>> = emptyList(),
     artistKey: (TrackId) -> String,
 ) {
     private val counts = HashMap<TrackId, Int>()
@@ -74,6 +76,12 @@ public class PersonalHistory(
             fromTrack.getOrPut(a.trackId) { HashMap() }.let { it[b.trackId] = (it[b.trackId] ?: 0) + 1 }
             val key = artistKey(a.trackId)
             if (key.isNotEmpty()) fromArtist.getOrPut(key) { HashMap() }.let { it[b.trackId] = (it[b.trackId] ?: 0) + 1 }
+        }
+        for ((a, b) in extraTransitions) {
+            if (a == b) continue
+            fromTrack.getOrPut(a) { HashMap() }.let { it[b] = (it[b] ?: 0) + 1 }
+            val key = artistKey(a)
+            if (key.isNotEmpty()) fromArtist.getOrPut(key) { HashMap() }.let { it[b] = (it[b] ?: 0) + 1 }
         }
     }
 
@@ -134,6 +142,9 @@ public class PersonalHistory(
         activation.entries.sortedWith(compareByDescending<Map.Entry<TrackId, Double>> { it.value }.thenComparator { a, b ->
             SaltedKey.idOrder.compare(a.key.value, b.key.value)
         }).map { it.key }
+
+    /** How often [follower] was picked right after [track]. */
+    public fun followCount(track: TrackId, follower: TrackId): Int = fromTrack[track]?.get(follower) ?: 0
 
     /** What followed [track] (FULL's R7), most often first. */
     public fun followers(track: TrackId): List<TrackId> =

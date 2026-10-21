@@ -1058,6 +1058,11 @@ public class SmartRanker(
         // Fast track 2 soft novelty: only the hardLast newest of the novelty set stay excluded (ties by id bytes); the
         // rest join the source and lose λ_n · sd · (1 − age / 24 h) in the decoder.
         var exclude = request.exclude
+        // vc20 (FULL): the seed's habitual followers (≥ followMin picks right after it) skip the 24 h exclusion.
+        active.followerExemptMin?.takeIf { request.personal && exclude.isNotEmpty() }?.let { fm ->
+            val keep = request.history.followers(request.seed.id).filter { request.history.followCount(request.seed.id, it) >= fm }.toSet()
+            if (keep.isNotEmpty()) exclude = exclude - keep
+        }
         var noveltyAge: Map<TrackId, Long> = emptyMap()
         active.softNovelty?.takeIf { exclude.isNotEmpty() }?.let { sn ->
             val ages = request.excludeAgeMs

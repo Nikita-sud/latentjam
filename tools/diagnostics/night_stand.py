@@ -20,7 +20,7 @@ import smart_stand as SS, night_metrics as NM
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument('label'); ap.add_argument('core'); ap.add_argument('full')
-    ap.add_argument('--engine', default='ranker'); a = ap.parse_args()
+    ap.add_argument('--engine', default='ranker'); ap.add_argument('--habit', action='store_true'); ap.add_argument('--work', default=str(WORK)); a = ap.parse_args()
     ml = REPO / 'androidApp/src/main/assets/ml'
     shutil.copyfile(a.core, ml / 'smart_ranker.json'); shutil.copyfile(a.full, ml / 'smart_ranker_full.json')
     import hashlib, json
@@ -28,14 +28,20 @@ def main():
     for n in ('smart_ranker.json', 'smart_ranker_full.json'):
         raw = (ml / n).read_bytes(); man['assets'][n] = {'size': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()}
     (ml / 'smart_manifest.json').write_text(json.dumps(man, indent=1) + '\n')
-    out = STAND / f'night-{a.label}'
+    out = STAND / (f'night-{a.label}' + ('-habit' if a.habit else '') + ('-fresh' if 'fresh' in a.work else ''))
     if out.exists(): shutil.rmtree(out)
-    env = dict(os.environ, LJ_STAND_DIR=str(WORK), LJ_STAND_OUT=str(out), LJ_STAND_ENGINE=a.engine)
+    env = dict(os.environ, LJ_STAND_DIR=str(a.work), LJ_STAND_OUT=str(out), LJ_STAND_ENGINE=a.engine)
+    if a.habit: env['LJ_STAND_HABIT'] = '1'
     r = subprocess.run(['./gradlew', '--no-daemon', '--offline', '-q', ':composeApp:testAndroidHostTest',
                         '--tests', '*SmartStandRunner*', '--rerun'], cwd=REPO, env=env)
     if r.returncode != 0: raise SystemExit('stand runner failed')
+    if a.habit:
+        rows = [l.split('\t') for l in (out / 'habit.tsv').read_text().splitlines()[1:] if l]
+        def share(col, k): return sum(1 for r in rows if 0 < int(r[col]) <= k) / max(1, len(rows))
+        print(f"habit {a.label}: pairs {len(rows)} excluded {sum(r[3] == 'true' for r in rows)} | FULL top3 {share(4, 3):.2f} top10 {share(4, 10):.2f} | CORE top3 {share(5, 3):.2f} top10 {share(5, 10):.2f}")
+        return
     (out / 'state.txt').write_text(f'night {a.label}\ncore {a.core}\nfull {a.full}\n')
-    lib = {l.split('\t')[0]: l.split('\t') for l in (WORK / 'library.tsv').read_text(encoding='utf-8').splitlines() if l}
+    lib = {l.split('\t')[0]: l.split('\t') for l in (Path(a.work) / 'library.tsv').read_text(encoding='utf-8').splitlines() if l}
     SS.report(out, lib)
     sys.argv = ['night_metrics.py', str(out)]; NM.main()
 

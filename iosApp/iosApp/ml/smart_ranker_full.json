@@ -1,6 +1,6 @@
 {
  "schema": "lj-smart-ranker/2",
- "name": "FULL L2 fast track (product check) night-r4b",
+ "name": "FULL L2 fast track (product check) night-r4e",
  "features": [
   "heard",
   "log_freq",
@@ -472,8 +472,8 @@
   "lambda": 3.0
  },
  "transBonus": {
-  "track": 3.0,
-  "artist": 0.5
+  "track": 10.0,
+  "artist": 1.5
  },
  "playlistBonus": {
   "lambda": 1.5,
@@ -482,5 +482,8 @@
  },
  "prevFamilyJump": {
   "lambda": 2.0
+ },
+ "followerExempt": {
+  "followMin": 2
  }
 }

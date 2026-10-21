@@ -115,6 +115,8 @@ public class RankerModel(
     public val queueArtistCap: QueueArtistCap? = null,
     /** Night r4 (seed-specific intent): + track · trans_track + artist · trans_artist (raw log(1 + count)) in every anchor's score. */
     public val transBonus: Pair<Double, Double>? = null,
+    /** vc20 (FULL): the seed's followers picked right after it at least this many times skip the 24 h exclusion; null = off. */
+    public val followerExemptMin: Int? = null,
 ) {
     public class QueueArtistCap(public val cap: Int, public val window: Int, public val lambda: Double)
 
@@ -357,12 +359,13 @@ public class RankerModel(
                 "audioZ", "softNovelty", "anchorShare", "colistenPrevShare", "familyMismatch", "classMismatch", "continuity", "holidaySeason",
                 "durationRule", "titleFlags", "unknownSeedAnchor", "artistSets",
                 "taxonomy", "versionKey", "playlistBonus", "noRepeat", "langScript", "semChain",
-                "hubPenalty", "hubGenreDamp", "scorerSquash", "tagClasses", "prevFamilyJump", "songDedup", "queueArtistCap", "transBonus",
+                "hubPenalty", "hubGenreDamp", "scorerSquash", "tagClasses", "prevFamilyJump", "songDedup", "queueArtistCap", "transBonus", "followerExempt",
             ),
             "tagClasses" to setOf("classes"),
             "songDedup" to setOf("minChars"),
             "queueArtistCap" to setOf("cap", "window", "lambda"),
             "transBonus" to setOf("track", "artist"),
+            "followerExempt" to setOf("followMin"),
             "prevFamilyJump" to setOf("lambda"),
             "playlistBonus" to setOf("lambda", "quota", "artistCap"),
             "noRepeat" to setOf("lambdaStart", "rho", "minPlays"),
@@ -523,6 +526,7 @@ public class RankerModel(
                 queueArtistCap = (root["queueArtistCap"] as? Map<*, *>)?.let {
                     QueueArtistCap((it["cap"] as? Number)?.toInt() ?: 3, (it["window"] as? Number)?.toInt() ?: 10, (it["lambda"] as Number).toDouble())
                 },
+                followerExemptMin = (root["followerExempt"] as? Map<*, *>)?.let { (it["followMin"] as? Number)?.toInt() ?: 2 },
                 transBonus = (root["transBonus"] as? Map<*, *>)?.let {
                     ((it["track"] as? Number)?.toDouble() ?: 0.0) to ((it["artist"] as? Number)?.toDouble() ?: 0.0)
                 },

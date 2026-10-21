@@ -1,6 +1,6 @@
 {
  "schema": "lj-smart-ranker/2",
- "name": "CORE L2 fast track (product check) night-r4b",
+ "name": "CORE L2 fast track (product check) night-r4e",
  "features": [
   "cos",
   "cos_z",
