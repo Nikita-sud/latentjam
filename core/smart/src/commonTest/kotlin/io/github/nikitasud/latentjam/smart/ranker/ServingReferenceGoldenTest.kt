@@ -168,10 +168,10 @@ class ServingReferenceGoldenTest {
             val plays = listens.map { it as Map<*, *> }
                 .map { HabitListen(TrackId(it["id"] as String), (it["ms"] as Number).toLong(), it["next"] as Boolean? ?: true) }
                 .filter { it.startedAtMs < seedMs }
-            PersonalHistory(plays, seedMs, favourites, engineArtist)
+            PersonalHistory(plays, seedMs, favourites, artistKey = engineArtist)
         } else {
             val plays = input.list("history").mapIndexed { i, id -> HabitListen(TrackId(id as String), 1_000_000L + i * 60_000L) }
-            PersonalHistory(plays, if (personal) seedMs else 1_000_000L + plays.size * 60_000L, favourites, engineArtist)
+            PersonalHistory(plays, if (personal) seedMs else 1_000_000L + plays.size * 60_000L, favourites, artistKey = engineArtist)
         }
         val request = PlanRequest(
             seed = seed,
