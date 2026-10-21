@@ -304,7 +304,7 @@ public object RankerQueue {
             val prevAnchor = picks.lastOrNull() ?: if (npre > 0) PREFIX else null
             // Cold fix: semChain's terms against this hop's anchor (the seed at hop 1).
             val semT = semTerms?.invoke(prevAnchor ?: SEED)
-            val s = when {
+            val combined = when {
                 prevAnchor == null || model.anchor == RankerModel.Anchor.SEED || (model.unknownSeedAnchor && seedUnknown) -> seedScores
                 model.anchor == RankerModel.Anchor.PREVIOUS -> scores(prevAnchor)
                 else -> {
@@ -313,6 +313,10 @@ public object RankerQueue {
                     DoubleArray(poolSize) { (model.seedWeight * seedScores[it] + model.previousWeight * previous[it]) / total }
                 }
             }
+            // 0.9.1 chain skeleton: the ranker as a squashed scorer term (non-finite scores pass through).
+            val s = model.scorerSquash?.let { (scale, temp) ->
+                DoubleArray(poolSize) { val x = combined[it]; if (x.isFinite()) scale * kotlin.math.tanh(x / temp) else x }
+            } ?: combined
             val allowed = BooleanArray(poolSize) { open[it] && s[it].isFinite() && !blocked(it, picks) }
             if (allowed.none { it }) return picks
             val sd = spread(s, allowed)
@@ -1165,9 +1169,17 @@ public class SmartRanker(
                 DoubleArray(pool.size) { i -> headValue(h.name, pool[i].track.id, rawVectors) ?: Double.NaN } to
                     headValue(h.name, seedKnown.track.id, rawVectors)
             },
-            rulePenalties = if (active.durationRule == null && active.titleFlags == null) null else RulePenalties.of(
+            rulePenalties = (if (active.durationRule == null && active.titleFlags == null) null else RulePenalties.of(
                 active, seedKnown.durationMs, seedKnown.track.title, pool.map { it.durationMs }, pool.map { it.track.title },
-            ),
+            )).let { rp ->
+                // Cold fix round 2: the hub terms join the rule penalties (reference.py: rule_pen + hub_pen).
+                val hub = hubPenalties(active, seedKnown, pool, cache.values, rawVectors)
+                when {
+                    hub == null -> rp
+                    rp == null -> hub
+                    else -> DoubleArray(pool.size) { rp[it] + hub[it] }
+                }
+            },
             seedUnknown = seedKnown.family == null && seedKnown.packDescriptor == null && seedKnown.imputedDescriptor == null,
             prefix = prefixIds.map { id -> cache.getValue(id).let { k -> artistKeyOf(k) to k.artists } }.ifEmpty { null },
             prefixEnergy = prefixKnown?.let { rawEnergies[it.track.id]?.takeIf { e -> e.isFinite() } },
@@ -1291,6 +1303,83 @@ public class SmartRanker(
         )
     }
 
+    /** Per-library CSLS hub scores (0.9.1 SmartSnapshot.computeHubPenalty), kept until the library or its audio changes. */
+    private var hubCache: Pair<Long, Map<TrackId, Double>>? = null
+
+    /** β · hub(i) plus the hub-genre damp per pool row; null when the model has neither. */
+    private suspend fun hubPenalties(
+        model: RankerModel,
+        seed: Known,
+        pool: List<Known>,
+        library: Collection<Known>,
+        poolVectors: Map<TrackId, FloatArray>,
+    ): DoubleArray? {
+        val spec = model.hubPenalty
+        val damp = model.hubGenreDamp
+        if (spec == null && damp == null) return null
+        var out: DoubleArray? = null
+        if (spec != null) {
+            val hubs = hubScores(spec, library, poolVectors)
+            out = DoubleArray(pool.size) { spec.beta * (hubs[pool[it].track.id] ?: 0.0) }
+        }
+        if (damp != null) {
+            val seedHub = genreIsHub(seed.track.genre)
+            val gp = DoubleArray(pool.size) { if (genreIsHub(pool[it].track.genre) && !seedHub) -kotlin.math.ln(damp) else 0.0 }
+            out = out?.let { o -> DoubleArray(pool.size) { o[it] + gp[it] } } ?: gp
+        }
+        return out
+    }
+
+    private suspend fun hubScores(spec: RankerModel.HubPenalty, library: Collection<Known>, poolVectors: Map<TrackId, FloatArray>): Map<TrackId, Double> {
+        val ids = ArrayList<TrackId>(library.size)
+        val units = ArrayList<FloatArray>(library.size)
+        for (chunk in library.map { it.track.id }.chunked(SEM_BATCH)) {
+            val rows = runCatching { audio.vectors(chunk) }.getOrNull().orEmpty()
+            for (id in chunk) (poolVectors[id] ?: rows[id])?.let(::normalized)?.let { ids += id; units += it }
+        }
+        var key = ids.size.toLong()
+        for (id in ids) key = key * 31 + id.value.hashCode()
+        hubCache?.takeIf { it.first == key }?.let { return it.second }
+        if (ids.size < 2 || ids.size > HUB_MAX_TRACKS) return emptyMap<TrackId, Double>().also { hubCache = key to it }
+        val dim = units[0].size
+        val mu = DoubleArray(dim)
+        for (u in units) for (d in 0 until dim) mu[d] += u[d].toDouble()
+        val m = Array(units.size) { i ->
+            val r = DoubleArray(dim) { d -> units[i][d].toDouble() - mu[d] / units.size }
+            var nn = 0.0
+            for (x in r) nn += x * x
+            nn = sqrt(nn)
+            val div = if (nn > 0.0) nn else 1.0
+            for (d in 0 until dim) r[d] = r[d] / div
+            r
+        }
+        val ref = ids.indices.sortedWith { a, b -> SaltedKey.idOrder.compare(ids[a].value, ids[b].value) }.take(spec.sample)
+        val k = minOf(spec.topk, ref.size - 1)
+        val h = DoubleArray(m.size)
+        val row = DoubleArray(ref.size)
+        for (i in m.indices) {
+            for ((col, j) in ref.withIndex()) {
+                if (j == i) { row[col] = Double.NEGATIVE_INFINITY; continue }
+                var dot = 0.0
+                val a = m[i]
+                val b = m[j]
+                for (d in 0 until dim) dot += a[d] * b[d]
+                row[col] = dot
+            }
+            val sorted = row.sortedArray()
+            var sum = 0.0
+            for (t in sorted.size - k until sorted.size) sum += sorted[t]
+            h[i] = sum / k
+        }
+        var mean = 0.0
+        for (x in h) mean += x
+        mean /= h.size
+        val out = HashMap<TrackId, Double>(ids.size * 2)
+        for (i in ids.indices) out[ids[i]] = h[i] - mean
+        hubCache = key to out
+        return out
+    }
+
     /** The cold fix's SemChain over the library's centred audio, pack-descriptor and metadata-text spaces. */
     private suspend fun semChainFor(
         spec: RankerModel.SemChainSpec,
@@ -1406,7 +1495,7 @@ public class SmartRanker(
         albumPrefix: Boolean = false,
         gate: (DoubleArray?) -> DoubleArray?,
     ): Array<DoubleArray> {
-        fun raw(a: Known) = features(a, pool, artistKeyOf, audioVectors, personalRows, seedId, popularityOn, hearts, model.imputedUnknown, model.serving.l2, albumPrefix, model.langScript)
+        fun raw(a: Known) = features(a, pool, artistKeyOf, audioVectors, personalRows, seedId, popularityOn, hearts, model.imputedUnknown, model.serving.l2, albumPrefix, model.langScript, model.langScriptLatin)
         val rows = raw(
             when (anchor) {
                 RankerQueue.SEED -> seedKnown
@@ -1418,9 +1507,10 @@ public class SmartRanker(
             val values = gate(null) ?: gate(gateValuesOf(g, if (anchor == RankerQueue.SEED) rows else raw(seedKnown)))!!
             for (i in rows.indices) for (c in g.columns) rows[i][c] = rows[i][c] * values[i]
         }
-        // Cold fix: FULL's personal block is scaled down when the seed has no pack entity (after the gate).
-        val scale = model.semChain?.personalScale
-        if (scale != null && seedKnown.entity < 0) {
+        // Cold fix: FULL's personal block is scaled down when the seed has no pack entity (after the gate); round 2
+        // optionally on warm seeds too.
+        val scale = if (seedKnown.entity < 0) model.semChain?.personalScale else model.semChain?.personalScaleWarm
+        if (scale != null) {
             val j0 = RankerFeatures.NAMES.indexOf("heard")
             for (r in rows) for (j in j0 until j0 + RankerFeatures.PERSONAL.size) r[j] = r[j] * scale
         }
@@ -1471,9 +1561,10 @@ public class SmartRanker(
         l2: Boolean = false,
         albumPrefix: Boolean = false,
         langScript: Boolean = false,
+        langScriptLatin: Boolean = false,
     ): Array<DoubleArray> {
         val related = HashMap<Int, Double>()
-        fun languageOf(k: Known) = if (langScript) ScriptLanguage.effective(k.language, k.track.title, k.track.artist) else k.language
+        fun languageOf(k: Known) = if (langScript) ScriptLanguage.effective(k.language, k.track.title, k.track.artist, langScriptLatin) else k.language
         // PLAN_L1 §10.5 RULE: an imputed descriptor is unknown for the descriptor columns, an imputed family for the
         // family columns (it still serves R5); the imputed flags themselves stay.
         fun familyOf(k: Known) = if (imputedUnknown && k.familyImputed) null else k.family
@@ -1662,10 +1753,16 @@ public class SmartRanker(
                 val near = withTimeoutOrNull(R1_BUDGET_MS) { runCatching { audio.neighbours(seed.track.id, target) }.getOrNull() }.orEmpty()
                 take(near, target - out.size, "fill-audio")
             }
+            // Cold fix round 3: like 0.9.1 (no fill), a seed without a pack entity fills from its own audio neighbours.
+            val coldNoFill = serving.coldAudioFill && seed.entity < 0
+            if (coldNoFill && out.size < target) {
+                val near = withTimeoutOrNull(R1_BUDGET_MS) { runCatching { audio.neighbours(seed.track.id, target) }.getOrNull() }.orEmpty()
+                take(near, target - out.size, "fill-audio")
+            }
             if (out.size < target && seed.family != null) {
                 take(pool.filter { it.family == seed.family }.sortedBy { salted[it.track.id] }.map { it.track.id }, target - out.size, "fill-family")
             }
-            if (out.size < target) take(pool.sortedBy { salted[it.track.id] }.map { it.track.id }, target - out.size, "fill", capped = false)
+            if (out.size < target && !coldNoFill) take(pool.sortedBy { salted[it.track.id] }.map { it.track.id }, target - out.size, "fill", capped = false)
         }
         // Too few retrieved for a full queue: a salted sample tops the pool up (never a smaller pool than needed).
         if (out.size < request.length * 2) take(pool.sortedBy { salted[it.track.id] }.map { it.track.id }, request.length * 2, "topup", capped = false)
@@ -1791,6 +1888,16 @@ public class SmartRanker(
         /** Unit length in float64 accumulation, stored as float32; null for a zero or non-finite vector. */
         /** Library rows per audio read when semChain takes the library mean. */
         private const val SEM_BATCH = 256
+
+        /** Above this many tracks with audio the hub scores are skipped (all-pairs memory and time on a phone). */
+        private const val HUB_MAX_TRACKS = 6_000
+
+        private val HUB_TOKENS = setOf("ost", "soundtrack", "score", "anime", "cinematic", "orchestral", "game", "ambient", "library", "western")
+        private val HUB_SPLIT = Regex("[^a-zа-яё]+")
+
+        /** 0.9.1 Genres.isHub: any [^a-zа-яё]+ token of the lower-cased genre tag is a hub token. */
+        internal fun genreIsHub(genre: String?): Boolean =
+            !genre.isNullOrEmpty() && genre.lowercase().split(HUB_SPLIT).any { it in HUB_TOKENS }
 
         internal fun normalized(v: FloatArray): FloatArray? {
             var norm = 0.0

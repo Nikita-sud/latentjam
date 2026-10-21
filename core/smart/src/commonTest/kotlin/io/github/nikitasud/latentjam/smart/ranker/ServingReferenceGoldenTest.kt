@@ -39,7 +39,7 @@ class ServingReferenceGoldenTest {
             .filter(String::isNotEmpty).map { MiniJson(it).parse() as Map<String, Any?> }
 
     @Test
-    fun plansMatchTheServingReference() = plansMatch("/serving_fixtures.jsonl.gz", fixtures = 38, requests = REQUESTS)
+    fun plansMatchTheServingReference() = plansMatch("/serving_fixtures.jsonl.gz", fixtures = 39, requests = REQUESTS)
 
     /**
      * The same 21 libraries and requests with the shipped models swapped in (model_core_l1.json 6c23bd6c — the PLAN_L1 v5
@@ -47,7 +47,7 @@ class ServingReferenceGoldenTest {
      * personal ones; rule-only kept), re-planned by reference.py (3e659ff8… at b6e710fc).
      */
     @Test
-    fun plansWithTheShippedModelsMatchTheServingReference() = plansMatch("/serving_fixtures_final.jsonl.gz", fixtures = 38, requests = REQUESTS)
+    fun plansWithTheShippedModelsMatchTheServingReference() = plansMatch("/serving_fixtures_final.jsonl.gz", fixtures = 39, requests = REQUESTS)
 
     /**
      * The decoder and feature paths of PLAN_AUDIO_ON §8.2 / §8.8 and PLAN_L1 §2b / §2c / §10.4 / §10.5 on fixtures 10 /
@@ -62,14 +62,14 @@ class ServingReferenceGoldenTest {
      */
     @Test
     fun plansWithTheCachedImputationMatchTheServingReference() =
-        plansMatch("/serving_fixtures.jsonl.gz", fixtures = 38, requests = REQUESTS, cachedImputation = true)
+        plansMatch("/serving_fixtures.jsonl.gz", fixtures = 39, requests = REQUESTS, cachedImputation = true)
 
     @Test
     fun theNewPathsMatchTheServingReference() = plansMatch("/serving_fixtures_paths.jsonl.gz", fixtures = 5, requests = 56)
 
     private companion object {
-        /** Fixtures 1–38 requests (research 9e5339bf). */
-        const val REQUESTS = 86
+        /** Fixtures 1–39 requests (research 5b0f4d80; 40 waits on the lang_group code fix). */
+        const val REQUESTS = 88
     }
 
     private fun plansMatch(resource: String, fixtures: Int, requests: Int, cachedImputation: Boolean = false) = runTest {

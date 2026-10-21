@@ -38,20 +38,30 @@ internal object ScriptLanguage {
         "arm" to { c -> c in '԰'..'֏' },
     )
 
-    fun scriptOf(title: String?, artist: String?): String? {
+    /** Pack languages written in Latin script (langScript "latin" groups them as "lat"). */
+    private val LATIN_LANGS = setOf(
+        "en", "ro", "es", "pt", "fr", "de", "it", "tr", "pl", "hr", "nl", "sv", "fi", "no", "da", "cs", "hu", "id", "vi", "tl",
+        "az", "uz", "la",
+    )
+
+    private fun latinLetter(c: Char) = c in 'A'..'Z' || c in 'a'..'z' || c in '\u00c0'..'\u024f'
+
+    /** [latin]: a Latin-letter string with no other script is "lat" (langScript "latin"), else unknown. */
+    fun scriptOf(title: String?, artist: String?, latin: Boolean = false): String? {
         val text = title.orEmpty() + " " + artist.orEmpty()
         for ((group, inScript) in SCRIPTS) if (text.any(inScript)) return group
+        if (latin && text.any(::latinLetter)) return "lat"
         return null
     }
 
     /** The pack language, else "script:<group>" from the title and artist, else null. */
-    fun effective(language: String?, title: String?, artist: String?): String? =
-        language ?: scriptOf(title, artist)?.let { "script:$it" }
+    fun effective(language: String?, title: String?, artist: String?, latin: Boolean = false): String? =
+        language ?: scriptOf(title, artist, latin)?.let { "script:$it" }
 
     private fun group(code: String): String? {
         if (code.startsWith("script:")) return code.removePrefix("script:")
         val pack = code.toIntOrNull()?.let { PACK_LANGS.getOrNull(it - 1) } ?: code
-        return GROUP[pack]
+        return GROUP[pack] ?: if (pack in LATIN_LANGS) "lat" else null
     }
 
     fun same(a: String?, c: String?): Boolean {

@@ -73,6 +73,14 @@ public class RankerModel(
     public val familyColdLambda: Double? = null,
     /** Cold fix: a track with no pack language takes its title / artist script group (Latin stays unknown). */
     public val langScript: Boolean = false,
+    /** langScript "latin": a Latin-letter title / artist is the "lat" group too (0.9.1 detected Latin as English). */
+    public val langScriptLatin: Boolean = false,
+    /** Cold fix round 2: − β · CSLS hub score (0.9.1 SmartSnapshot.computeHubPenalty) as a decoder rule penalty. */
+    public val hubPenalty: HubPenalty? = null,
+    /** 0.9.1 HUB_CHAIN_DAMP: −ln(mult) for a hub-genre candidate when the seed's genre is not a hub genre. */
+    public val hubGenreDamp: Double? = null,
+    /** 0.9.1 chain skeleton: the decoder's score s becomes scale · tanh(s / temp) before the chain terms. */
+    public val scorerSquash: Pair<Double, Double>? = null,
     /** Cold fix: 0.9.1's chain terms as a decoder rule term (scope cold = only for a seed without a pack entity). */
     public val semChain: SemChainSpec? = null,
     /** Fast 3.1: −λ for a holiday track when the press is outside 15 Nov – 10 Jan (UTC) and the seed is not one. */
@@ -98,6 +106,8 @@ public class RankerModel(
     /** Fast 4: seed-anchored continuity on cached audio heads, in head-name order. */
     public val continuity: List<Continuity> = emptyList(),
 ) {
+    public class HubPenalty(public val beta: Double, public val topk: Int, public val sample: Int)
+
     public class SemChainSpec(
         public val coldOnly: Boolean,
         public val audioPrev: Double,
@@ -106,6 +116,8 @@ public class RankerModel(
         public val semPrev: Double,
         /** FULL's personal columns × this on a cold seed; null = unchanged. */
         public val personalScale: Double?,
+        /** The same on a warm seed (round 2, against personal-favourite hubs); null = unchanged. */
+        public val personalScaleWarm: Double? = null,
     )
 
     public class PlaylistBonus(public val lambda: Double, public val quota: Int, public val artistCap: Int)
@@ -222,6 +234,8 @@ public class RankerModel(
         public val artistCap: Int = 15,
         /** Fast 3: a seed with no family and no descriptor fills the L2 pool from its own audio neighbours first. */
         public val unknownSeedAudioFill: Boolean = false,
+        /** Cold fix round 3: a seed without a pack entity fills from its own audio neighbours, never from the salted sample. */
+        public val coldAudioFill: Boolean = false,
     )
 
     /** The audio term's raw weight (§1.3): the override, else max(0, raw weight of "cos"). */
@@ -304,18 +318,22 @@ public class RankerModel(
                 "audioZ", "softNovelty", "anchorShare", "colistenPrevShare", "familyMismatch", "classMismatch", "continuity", "holidaySeason",
                 "durationRule", "titleFlags", "unknownSeedAnchor", "artistSets",
                 "taxonomy", "versionKey", "playlistBonus", "noRepeat", "langScript", "semChain",
+                "hubPenalty", "hubGenreDamp", "scorerSquash",
             ),
             "playlistBonus" to setOf("lambda", "quota", "artistCap"),
             "noRepeat" to setOf("lambdaStart", "rho", "minPlays"),
             "anchorShare" to setOf("share", "columns"),
             "familyMismatch" to setOf("lambda", "near", "nearScale", "coldLambda"),
-            "semChain" to setOf("scope", "audioPrev", "audioSeed", "semSeed", "semPrev", "personalScale"),
+            "semChain" to setOf("scope", "audioPrev", "audioSeed", "semSeed", "semPrev", "personalScale", "personalScaleWarm"),
+            "hubPenalty" to setOf("beta", "topk", "sample"),
+            "hubGenreDamp" to setOf("mult"),
+            "scorerSquash" to setOf("scale", "temp"),
             "holidaySeason" to setOf("lambda"),
             "durationRule" to setOf("longMs", "longLambda", "seedLongMs", "shortMs", "shortLambda"),
             "titleFlags" to setOf("lambda"),
             "classMismatch" to setOf("lambda", "families"),
             "softNovelty" to setOf("lambda", "hardLast"),
-            "serving" to setOf("wholeLibraryUpTo", "quotas", "artistKey", "recentWindow", "hopBudgetMs", "l2", "poolTarget", "artistCap", "unknownSeedAudioFill"),
+            "serving" to setOf("wholeLibraryUpTo", "quotas", "artistKey", "recentWindow", "hopBudgetMs", "l2", "poolTarget", "artistCap", "unknownSeedAudioFill", "coldAudioFill"),
             "inputs" to setOf("logpop", "colisten", "lfm", "audioEncoder"),
             "artistReentry" to setOf("lambda", "k", "gamma", "credit", "creditRun"),
             "energy" to setOf("lambda", "mode", "tau", "scale"),
@@ -382,6 +400,7 @@ public class RankerModel(
                         poolTarget = (m["poolTarget"] as? Number)?.toInt() ?: (m["wholeLibraryUpTo"] as? Number)?.toInt() ?: d.wholeLibraryUpTo,
                         artistCap = (m["artistCap"] as? Number)?.toInt() ?: 15,
                         unknownSeedAudioFill = m["unknownSeedAudioFill"] == true,
+                        coldAudioFill = m["coldAudioFill"] == true,
                     )
                 } ?: Serving(),
                 audioWeightOverride = (root["audioWeight"] as? Number)?.toDouble(),
@@ -408,13 +427,22 @@ public class RankerModel(
                     .map { p -> (p as List<*>).map { it as String }.toSet() }.toSet(),
                 familyNearScale = ((root["familyMismatch"] as? Map<*, *>)?.get("nearScale") as? Number)?.toDouble() ?: 0.0,
                 familyColdLambda = ((root["familyMismatch"] as? Map<*, *>)?.get("coldLambda") as? Number)?.toDouble(),
-                langScript = root["langScript"] == true,
+                langScript = when (root["langScript"]) { null, false -> false; true, "latin" -> true; else -> error("langScript") },
+                langScriptLatin = root["langScript"] == "latin",
+                hubPenalty = (root["hubPenalty"] as? Map<*, *>)?.let {
+                    HubPenalty((it["beta"] as? Number)?.toDouble() ?: 4.0, (it["topk"] as? Number)?.toInt() ?: 10, (it["sample"] as? Number)?.toInt() ?: 1024)
+                },
+                hubGenreDamp = (root["hubGenreDamp"] as? Map<*, *>)?.let { (it["mult"] as? Number)?.toDouble() ?: 0.6 },
+                scorerSquash = (root["scorerSquash"] as? Map<*, *>)?.let {
+                    ((it["scale"] as? Number)?.toDouble() ?: 1.5) to ((it["temp"] as? Number)?.toDouble() ?: 2.0)
+                },
                 semChain = (root["semChain"] as? Map<*, *>)?.let {
                     SemChainSpec(
                         coldOnly = when (it["scope"] ?: "cold") { "cold" -> true; "all" -> false; else -> error("semChain.scope") },
                         audioPrev = (it["audioPrev"] as? Number)?.toDouble() ?: 3.0, audioSeed = (it["audioSeed"] as? Number)?.toDouble() ?: 4.0,
                         semSeed = (it["semSeed"] as? Number)?.toDouble() ?: 3.0, semPrev = (it["semPrev"] as? Number)?.toDouble() ?: 0.5,
                         personalScale = (it["personalScale"] as? Number)?.toDouble(),
+                        personalScaleWarm = (it["personalScaleWarm"] as? Number)?.toDouble(),
                     )
                 },
                 holidaySeason = (root["holidaySeason"] as? Map<*, *>)?.let { (it["lambda"] as Number).toDouble() },
