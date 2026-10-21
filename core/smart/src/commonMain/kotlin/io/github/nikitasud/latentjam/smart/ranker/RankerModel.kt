@@ -111,6 +111,10 @@ public class RankerModel(
     public val prevFamilyJump: Double? = null,
     /** Night r4: a pick whose normalised title (brackets, " - …" suffix, punctuation dropped) is already the seed's, the prefix's or a pick's is excluded (titles of at least [songDedupMinChars] chars). */
     public val songDedupMinChars: Int? = null,
+    /** vc22: titles of at least this many chars also match a longer title that starts with them plus a space ("X" / "X but it's epic version"); null = off. */
+    public val songDedupPrefixChars: Int? = null,
+    /** vc22: −λ for a candidate whose album core (album words minus generic soundtrack / volume words) already has ≥ cap of the last window − 1 items. */
+    public val queueAlbumCap: QueueArtistCap? = null,
     /** Night r4: −λ for a candidate whose artist key already has ≥ cap of the last window − 1 queue items (seed included). */
     public val queueArtistCap: QueueArtistCap? = null,
     /** Night r4 (seed-specific intent): + track · trans_track + artist · trans_artist (raw log(1 + count)) in every anchor's score. */
@@ -380,10 +384,11 @@ public class RankerModel(
                 "audioZ", "softNovelty", "anchorShare", "colistenPrevShare", "familyMismatch", "classMismatch", "continuity", "holidaySeason",
                 "durationRule", "titleFlags", "unknownSeedAnchor", "artistSets",
                 "taxonomy", "versionKey", "playlistBonus", "noRepeat", "langScript", "semChain",
-                "hubPenalty", "hubGenreDamp", "scorerSquash", "tagClasses", "prevFamilyJump", "songDedup", "queueArtistCap", "transBonus", "followerExempt", "personalNudge",
+                "hubPenalty", "hubGenreDamp", "scorerSquash", "tagClasses", "prevFamilyJump", "songDedup", "queueAlbumCap", "queueArtistCap", "transBonus", "followerExempt", "personalNudge",
             ),
             "tagClasses" to setOf("classes"),
-            "songDedup" to setOf("minChars"),
+            "songDedup" to setOf("minChars", "prefixChars"),
+            "queueAlbumCap" to setOf("cap", "window", "lambda"),
             "queueArtistCap" to setOf("cap", "window", "lambda"),
             "transBonus" to setOf("track", "artist"),
             "followerExempt" to setOf("followMin"),
@@ -546,6 +551,10 @@ public class RankerModel(
                 },
                 prevFamilyJump = (root["prevFamilyJump"] as? Map<*, *>)?.let { (it["lambda"] as Number).toDouble() },
                 songDedupMinChars = (root["songDedup"] as? Map<*, *>)?.let { (it["minChars"] as? Number)?.toInt() ?: 6 },
+                songDedupPrefixChars = ((root["songDedup"] as? Map<*, *>)?.get("prefixChars") as? Number)?.toInt(),
+                queueAlbumCap = (root["queueAlbumCap"] as? Map<*, *>)?.let {
+                    QueueArtistCap((it["cap"] as? Number)?.toInt() ?: 3, (it["window"] as? Number)?.toInt() ?: 10, (it["lambda"] as Number).toDouble())
+                },
                 queueArtistCap = (root["queueArtistCap"] as? Map<*, *>)?.let {
                     QueueArtistCap((it["cap"] as? Number)?.toInt() ?: 3, (it["window"] as? Number)?.toInt() ?: 10, (it["lambda"] as Number).toDouble())
                 },

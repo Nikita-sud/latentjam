@@ -91,6 +91,9 @@ public object RankerQueue {
         semTerms: ((anchor: Int) -> DoubleArray)? = null,
         /** Cold fix: familyMismatch's λ for this plan (coldLambda on a seed without a pack entity); null = the model's. */
         familyMismatchLambda: Double? = null,
+        /** vc22 queueAlbumCap: each row's album core and the seed's ("" = none). */
+        albumKeys: List<String>? = null,
+        seedAlbum: String = "",
         features: (anchor: Int) -> Array<DoubleArray>,
     ): List<Int> {
         if (poolSize == 0 || length <= 0) return emptyList()
@@ -168,6 +171,7 @@ public object RankerQueue {
                 model, re, poolSize, artistKeys, seedArtist, tieOrder, length, choose, take, blocked, stop, trace,
                 credits, seedCredits, seedScores, ::scores, fresh, energies, seedEnergy, audioAgainst, novelty, heads,
                 seedFamily, rulePenalties, seedUnknown, prefix, prefixEnergy, noRepeat, varietyScale, semTerms, families, nudge,
+                albumKeys, seedAlbum,
             )
         }
         val lambdaRun = model.runPenalty * varietyScale
@@ -302,6 +306,8 @@ public object RankerQueue {
         semTerms: ((anchor: Int) -> DoubleArray)?,
         families: List<String?>?,
         nudge: ((Int) -> DoubleArray)?,
+        albumKeys: List<String>?,
+        seedAlbum: String,
     ): List<Int> {
         val lambdaRun = (if (noRepeat) model.noRepeat!!.lambdaStart else model.runPenalty) * varietyScale
         val lambdaRe = re.lambda * varietyScale
@@ -430,6 +436,14 @@ public object RankerQueue {
                 }
                 if (novelty != null && novelty[i] != 0.0) v -= model.softNovelty!!.lambda * sd * novelty[i]
                 if (rulePenalties != null && rulePenalties[i] != 0.0) v -= rulePenalties[i]
+                // vc22: the same cap on the album core (one soundtrack under several artist spellings / volumes).
+                model.queueAlbumCap?.let { qc ->
+                    val key = albumKeys?.get(i).orEmpty()
+                    if (key.isNotEmpty()) {
+                        val recent = (listOf(seedAlbum) + picks.map { albumKeys!![it] }).takeLast(maxOf(1, qc.window - 1))
+                        if (recent.count { it == key } >= qc.cap) v -= qc.lambda
+                    }
+                }
                 // Night r4: a soft per-queue artist cap over the last window − 1 items (the seed included).
                 model.queueArtistCap?.let { qc ->
                     val key = artistKeys[i]
@@ -1218,6 +1232,8 @@ public class SmartRanker(
             poolSize = pool.size,
             artistKeys = pool.map(artistKeyOf),
             seedArtist = artistKeyOf(seedKnown),
+            albumKeys = if (active.queueAlbumCap == null) null else pool.map { AlbumCore.of(it.track.album) },
+            seedAlbum = if (active.queueAlbumCap == null) "" else AlbumCore.of(seedKnown.track.album),
             tieOrder = IntArray(pool.size) { it },
             length = request.length,
             choose = { hop, nearBest ->
@@ -1226,7 +1242,11 @@ public class SmartRanker(
             },
             blocked = { row, picks ->
                 blockedVersion(pool[row].version, picks.map { pool[it].track.id }, previousIds, window, ::versionOf) ||
-                    (songKeys != null && songKeys[row] != null && (songKeys[row] in songBase || picks.any { songKeys[it] == songKeys[row] }))
+                    (songKeys != null && songKeys[row] != null && (songKeys[row] in songBase || picks.any { songKeys[it] == songKeys[row] } ||
+                        active.songDedupPrefixChars?.let { pc ->
+                            val k = songKeys[row]!!
+                            songBase.any { SongKey.prefixMatch(it, k, pc) } || picks.any { p -> songKeys[p]?.let { SongKey.prefixMatch(it, k, pc) } == true }
+                        } == true))
             },
             stop = { decoding.elapsedNow().inWholeMilliseconds > budgetMs && trace == null && diagnostics == null },
             skipWhenTied = request.ruleOnly,

@@ -1,6 +1,6 @@
 {
  "schema": "lj-smart-ranker/2",
- "name": "FULL L2 fast track (product check) night-r5c",
+ "name": "FULL L2 fast track (product check) night-r6a",
  "features": [
   "heard",
   "log_freq",
@@ -459,11 +459,23 @@
      "comedy"
     ],
     "lambda": 3.0
+   },
+   {
+    "name": "karaoke",
+    "genre": [
+     "karaoke"
+    ],
+    "text": [
+     "karaoke",
+     "originally performed by"
+    ],
+    "lambda": 3.0
    }
   ]
  },
  "songDedup": {
-  "minChars": 6
+  "minChars": 6,
+  "prefixChars": 12
  },
  "queueArtistCap": {
   "cap": 3,
@@ -486,5 +498,10 @@
   "favourite": 0.3,
   "frequency": 0.15,
   "followMin": 2
+ },
+ "queueAlbumCap": {
+  "cap": 3,
+  "window": 10,
+  "lambda": 8.0
  }
 }

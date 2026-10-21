@@ -27,4 +27,24 @@ internal object SongKey {
         val key = out.toString().split(' ').filter { it.isNotEmpty() }.joinToString(" ")
         return key.takeIf { it.length >= minChars }
     }
+
+    /** vc22: the shorter key (at least [minChars]) begins the longer one followed by a space. */
+    fun prefixMatch(a: String, b: String, minChars: Int): Boolean {
+        val (short, long) = if (a.length <= b.length) a to b else b to a
+        return short.length >= minChars && long.length > short.length && long.startsWith("$short ")
+    }
+}
+
+/** vc22 (reference.py album_core): the album's words minus generic soundtrack / volume words; "" when nothing is left. */
+internal object AlbumCore {
+    private val GENERIC = setOf(
+        "original", "soundtrack", "ost", "tv", "animation", "anime", "volume", "vol", "disc", "cd", "the", "music", "score",
+        "motion", "picture", "series", "edition", "deluxe", "remastered", "collection", "best", "of", "and", "a", "version",
+    )
+
+    fun of(album: String?): String {
+        val out = StringBuilder()
+        for (c in album.orEmpty().lowercase()) out.append(if (c.isLetterOrDigit()) c else ' ')
+        return out.toString().split(' ').filter { it.isNotEmpty() && it !in GENERIC && !it.all(Char::isDigit) }.joinToString(" ")
+    }
 }
