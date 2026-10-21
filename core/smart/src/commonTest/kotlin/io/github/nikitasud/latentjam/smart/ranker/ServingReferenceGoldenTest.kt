@@ -187,7 +187,6 @@ class ServingReferenceGoldenTest {
             engaged = (req["engaged"] as? List<*>).orEmpty().map { TrackId(it as String) }.toSet(),
             excludeAgeMs = (req["excludeAgeMs"] as? Map<*, *>).orEmpty().entries.associate { (k, v) -> TrackId(k as String) to (v as Number).toLong() },
             playlists = (req["playlists"] as? List<*>).orEmpty().map { p -> (p as List<*>).map { TrackId(it as String) } },
-            origin = req["origin"] as? String ?: "other",
             varietyScale = (req["varietyScale"] as? Number)?.toDouble() ?: 1.0,
         )
         val report = ranker.plan(request)

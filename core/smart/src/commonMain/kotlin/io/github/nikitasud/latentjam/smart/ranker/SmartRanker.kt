@@ -556,8 +556,6 @@ public class PlanRequest(
     public val engaged: Set<TrackId> = emptySet(),
     /** Fast 3.3 (FULL only): the listener's own playlists (M3U files, app playlists), each in its order. */
     public val playlists: List<List<TrackId>> = emptyList(),
-    /** How the seed was started ("playlist", "search", "album" or "other"): PLAN_DECODER2's NOREPEAT origin rules. */
-    public val origin: String = "other",
     /** The artist-variety setting as a multiplier on the decoder's artist terms (1 = the model's tuned values, 0 = none). */
     public val varietyScale: Double = 1.0,
 )
@@ -1157,14 +1155,10 @@ public class SmartRanker(
                 }
             },
             noRepeat = active.noRepeat?.let { nr ->
-                // PLAN_DECODER2 v4.2 (FULL only): a playlist start repeats nothing; search / album starts run free.
-                request.personal && when (request.origin) {
-                    "playlist" -> true
-                    "search", "album" -> false
-                    else -> request.history.preSessionShare(
-                        request.seedMs, { id -> cache[id]?.let(artistKeyOf) ?: "" }, artistKeyOf(seedKnown), nr.minPlays,
-                    )?.let { it < nr.rho } ?: false
-                }
+                // PLAN_DECODER2 v4.6 (FULL only): by the pre-session seed-artist share alone; how the seed started is never read.
+                request.personal && request.history.preSessionShare(
+                    request.seedMs, { id -> cache[id]?.let(artistKeyOf) ?: "" }, artistKeyOf(seedKnown), nr.minPlays,
+                )?.let { it < nr.rho } ?: false
             } ?: false,
             varietyScale = request.varietyScale,
             novelty = if (active.softNovelty != null) DoubleArray(pool.size) { i ->
