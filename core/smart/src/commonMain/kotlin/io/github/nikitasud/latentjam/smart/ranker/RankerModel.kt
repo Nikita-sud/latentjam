@@ -69,6 +69,12 @@ public class RankerModel(
     /** Fast 3.1: unordered family pairs that take [familyNearScale] · λ instead of the full familyMismatch λ. */
     public val familyNear: Set<Set<String>> = emptySet(),
     public val familyNearScale: Double = 0.0,
+    /** Cold fix: familyMismatch's λ when the seed has no pack entity (null = the usual λ). */
+    public val familyColdLambda: Double? = null,
+    /** Cold fix: a track with no pack language takes its title / artist script group (Latin stays unknown). */
+    public val langScript: Boolean = false,
+    /** Cold fix: 0.9.1's chain terms as a decoder rule term (scope cold = only for a seed without a pack entity). */
+    public val semChain: SemChainSpec? = null,
     /** Fast 3.1: −λ for a holiday track when the press is outside 15 Nov – 10 Jan (UTC) and the seed is not one. */
     public val holidaySeason: Double? = null,
     /** Fast 3.2 decoder rule penalties (subtracted after the spread): long / short tracks against the seed's length. */
@@ -92,6 +98,16 @@ public class RankerModel(
     /** Fast 4: seed-anchored continuity on cached audio heads, in head-name order. */
     public val continuity: List<Continuity> = emptyList(),
 ) {
+    public class SemChainSpec(
+        public val coldOnly: Boolean,
+        public val audioPrev: Double,
+        public val audioSeed: Double,
+        public val semSeed: Double,
+        public val semPrev: Double,
+        /** FULL's personal columns × this on a cold seed; null = unchanged. */
+        public val personalScale: Double?,
+    )
+
     public class PlaylistBonus(public val lambda: Double, public val quota: Int, public val artistCap: Int)
 
     /** NOREPEAT: λ_start replaces λ_run; on when the share is below [rho] over at least [minPlays] pre-session plays. */
@@ -287,12 +303,13 @@ public class RankerModel(
                 "artistReentry", "energy", "r1Energy", "audioAnchor", "imputedDescriptor", "seedGate", "freshness", "coreOffset",
                 "audioZ", "softNovelty", "anchorShare", "colistenPrevShare", "familyMismatch", "classMismatch", "continuity", "holidaySeason",
                 "durationRule", "titleFlags", "unknownSeedAnchor", "artistSets",
-                "taxonomy", "versionKey", "playlistBonus", "noRepeat",
+                "taxonomy", "versionKey", "playlistBonus", "noRepeat", "langScript", "semChain",
             ),
             "playlistBonus" to setOf("lambda", "quota", "artistCap"),
             "noRepeat" to setOf("lambdaStart", "rho", "minPlays"),
             "anchorShare" to setOf("share", "columns"),
-            "familyMismatch" to setOf("lambda", "near", "nearScale"),
+            "familyMismatch" to setOf("lambda", "near", "nearScale", "coldLambda"),
+            "semChain" to setOf("scope", "audioPrev", "audioSeed", "semSeed", "semPrev", "personalScale"),
             "holidaySeason" to setOf("lambda"),
             "durationRule" to setOf("longMs", "longLambda", "seedLongMs", "shortMs", "shortLambda"),
             "titleFlags" to setOf("lambda"),
@@ -390,6 +407,16 @@ public class RankerModel(
                 familyNear = ((root["familyMismatch"] as? Map<*, *>)?.get("near") as? List<*>).orEmpty()
                     .map { p -> (p as List<*>).map { it as String }.toSet() }.toSet(),
                 familyNearScale = ((root["familyMismatch"] as? Map<*, *>)?.get("nearScale") as? Number)?.toDouble() ?: 0.0,
+                familyColdLambda = ((root["familyMismatch"] as? Map<*, *>)?.get("coldLambda") as? Number)?.toDouble(),
+                langScript = root["langScript"] == true,
+                semChain = (root["semChain"] as? Map<*, *>)?.let {
+                    SemChainSpec(
+                        coldOnly = when (it["scope"] ?: "cold") { "cold" -> true; "all" -> false; else -> error("semChain.scope") },
+                        audioPrev = (it["audioPrev"] as? Number)?.toDouble() ?: 3.0, audioSeed = (it["audioSeed"] as? Number)?.toDouble() ?: 4.0,
+                        semSeed = (it["semSeed"] as? Number)?.toDouble() ?: 3.0, semPrev = (it["semPrev"] as? Number)?.toDouble() ?: 0.5,
+                        personalScale = (it["personalScale"] as? Number)?.toDouble(),
+                    )
+                },
                 holidaySeason = (root["holidaySeason"] as? Map<*, *>)?.let { (it["lambda"] as Number).toDouble() },
                 durationRule = (root["durationRule"] as? Map<*, *>)?.let { d ->
                     DurationRule(

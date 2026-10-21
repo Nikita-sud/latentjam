@@ -87,6 +87,10 @@ public object RankerQueue {
         noRepeat: Boolean = false,
         /** The artist-variety setting: × λ_run (or λ_start), λ_re and the third-in-row cap; 0 = no artist-variety terms. */
         varietyScale: Double = 1.0,
+        /** Cold fix: semChain's per-row term for a hop's anchor (SEED, PREFIX or a pool row); null = none. */
+        semTerms: ((anchor: Int) -> DoubleArray)? = null,
+        /** Cold fix: familyMismatch's λ for this plan (coldLambda on a seed without a pack entity); null = the model's. */
+        familyMismatchLambda: Double? = null,
         features: (anchor: Int) -> Array<DoubleArray>,
     ): List<Int> {
         if (poolSize == 0 || length <= 0) return emptyList()
@@ -115,7 +119,7 @@ public object RankerQueue {
                 playlistBonus?.invoke(anchor)?.let { b -> for (i in 0 until poolSize) sc[i] = sc[i] + pb.lambda * b[i] }
             }
             if (families != null) {
-                model.familyMismatch?.let { lam ->
+                (familyMismatchLambda ?: model.familyMismatch)?.takeIf { model.familyMismatch != null }?.let { lam ->
                     if (seedFamily != null) for (i in 0 until poolSize) {
                         val f = families[i] ?: continue
                         if (f == seedFamily) continue
@@ -132,7 +136,7 @@ public object RankerQueue {
             return buildCreditRun(
                 model, re, poolSize, artistKeys, seedArtist, tieOrder, length, choose, take, blocked, stop, trace,
                 credits, seedCredits, seedScores, ::scores, fresh, energies, seedEnergy, audioAgainst, novelty, heads,
-                seedFamily, rulePenalties, seedUnknown, prefix, prefixEnergy, noRepeat, varietyScale,
+                seedFamily, rulePenalties, seedUnknown, prefix, prefixEnergy, noRepeat, varietyScale, semTerms,
             )
         }
         val lambdaRun = model.runPenalty * varietyScale
@@ -264,6 +268,7 @@ public object RankerQueue {
         prefixEnergy: Double?,
         noRepeat: Boolean,
         varietyScale: Double,
+        semTerms: ((anchor: Int) -> DoubleArray)?,
     ): List<Int> {
         val lambdaRun = (if (noRepeat) model.noRepeat!!.lambdaStart else model.runPenalty) * varietyScale
         val lambdaRe = re.lambda * varietyScale
@@ -297,6 +302,8 @@ public object RankerQueue {
         repeat(minOf(length, poolSize)) {
             if (picks.isNotEmpty() && stop()) return picks
             val prevAnchor = picks.lastOrNull() ?: if (npre > 0) PREFIX else null
+            // Cold fix: semChain's terms against this hop's anchor (the seed at hop 1).
+            val semT = semTerms?.invoke(prevAnchor ?: SEED)
             val s = when {
                 prevAnchor == null || model.anchor == RankerModel.Anchor.SEED || (model.unknownSeedAnchor && seedUnknown) -> seedScores
                 model.anchor == RankerModel.Anchor.PREVIOUS -> scores(prevAnchor)
@@ -387,6 +394,7 @@ public object RankerQueue {
                 if (novelty != null && novelty[i] != 0.0) v -= model.softNovelty!!.lambda * sd * novelty[i]
                 if (rulePenalties != null && rulePenalties[i] != 0.0) v -= rulePenalties[i]
                 terms?.let { it[1][i] = mark - v }
+                if (semT != null) v += semT[i]
                 mark = v
                 if (aPrev != null) v += model.audioWeight * aPrev[i]
                 terms?.let { it[2][i] = v - mark }
@@ -713,6 +721,7 @@ internal class PlanTrace {
     val ladder: MutableList<Pair<TrackId, String>> = ArrayList()
     var imputedTracks: List<TrackId> = emptyList()
     var albumPrefix: Boolean = false
+    var semChain: Boolean = false
 }
 
 /**
@@ -840,6 +849,9 @@ public class SmartRanker(
 
     /** The pack language a planned track carries (null = unknown to the ranker); diagnostics only. */
     public fun languageOf(id: TrackId): String? = knownById[id]?.language
+
+    /** The pack entity a planned track's artist resolved to (-1 = none, null = not planned yet); diagnostics only. */
+    public fun entityOf(id: TrackId): Int? = knownById[id]?.entity
 
     /** The freshness block of the model a plan with these flags runs (PLAN_L1 §2c), or null when it has none. */
     public fun freshnessFor(personal: Boolean, ruleOnly: Boolean): RankerModel.Freshness? = when {
@@ -1119,6 +1131,12 @@ public class SmartRanker(
                 else -> "retrievers"
             }
         }
+        // Cold fix: semChain for a seed the pack does not know (scope cold), centred on the library's means.
+        val sem = active.semChain?.takeIf { !it.coldOnly || seedKnown.entity < 0 }?.let { spec ->
+            withTimeoutOrNull(AUDIO_BATCH_CAP_MS) { semChainFor(spec, seedKnown, prefixKnown, pool, cache.values, rawVectors) }
+                ?: null.also { timeouts += "semChain" }
+        }
+        trace?.semChain = sem != null
         var seedRowsSeen: Array<DoubleArray>? = null
         val modelPicks = RankerQueue.build(
             model = active,
@@ -1175,6 +1193,18 @@ public class SmartRanker(
                 )?.let { it < nr.rho } ?: false
             } ?: false,
             varietyScale = request.varietyScale,
+            semTerms = sem?.let { chain ->
+                { anchor: Int ->
+                    chain.terms(
+                        when (anchor) {
+                            RankerQueue.SEED -> null
+                            RankerQueue.PREFIX -> prefixKnown!!.track.id
+                            else -> pool[anchor].track.id
+                        },
+                    )
+                }
+            },
+            familyMismatchLambda = if (seedKnown.entity < 0) active.familyColdLambda else null,
             novelty = if (active.softNovelty != null) DoubleArray(pool.size) { i ->
                 noveltyAge[pool[i].track.id]?.let { maxOf(0.0, 1.0 - it.toDouble() / NOVELTY_MS) } ?: 0.0
             } else null,
@@ -1261,6 +1291,55 @@ public class SmartRanker(
         )
     }
 
+    /** The cold fix's SemChain over the library's centred audio, pack-descriptor and metadata-text spaces. */
+    private suspend fun semChainFor(
+        spec: RankerModel.SemChainSpec,
+        seed: Known,
+        prefix: Known?,
+        pool: List<Known>,
+        library: Collection<Known>,
+        poolVectors: Map<TrackId, FloatArray>,
+    ): SemChain {
+        val ids = library.map { it.track.id }
+        val needed = (pool.map { it.track.id } + seed.track.id + listOfNotNull(prefix?.track?.id)).toHashSet()
+        // Audio: the library mean streamed in batches (no whole-library copy); the needed rows kept as unit vectors.
+        var audioMean: SemChain.Companion.Mean? = null
+        val audioUnit = HashMap<TrackId, FloatArray>()
+        for (chunk in ids.chunked(SEM_BATCH)) {
+            val rows = runCatching { audio.vectors(chunk) }.getOrNull().orEmpty()
+            for (id in chunk) {
+                val u = (poolVectors[id] ?: rows[id])?.let(::normalized) ?: continue
+                (audioMean ?: SemChain.Companion.Mean(u.size).also { audioMean = it }).add(u)
+                if (id in needed) audioUnit[id] = u
+            }
+        }
+        val texts = runCatching { audio.textVectors(ids) }.getOrNull().orEmpty()
+        var textMean: SemChain.Companion.Mean? = null
+        val textUnit = HashMap<TrackId, FloatArray>()
+        for (id in ids) {
+            val u = texts[id]?.let(::normalized) ?: continue
+            (textMean ?: SemChain.Companion.Mean(u.size).also { textMean = it }).add(u)
+            if (id in needed) textUnit[id] = u
+        }
+        var descMean: SemChain.Companion.Mean? = null
+        val descUnit = HashMap<TrackId, FloatArray>()
+        for (k in library) {
+            val u = k.packDescriptor ?: continue
+            (descMean ?: SemChain.Companion.Mean(u.size).also { descMean = it }).add(u)
+            if (k.track.id in needed) descUnit[k.track.id] = u
+        }
+        fun centredMap(unit: Map<TrackId, FloatArray>, mean: SemChain.Companion.Mean?): Map<TrackId, DoubleArray> {
+            val mu = mean?.mean() ?: return emptyMap()
+            val out = HashMap<TrackId, DoubleArray>()
+            for ((id, u) in unit) SemChain.centred(u, mu)?.let { out[id] = it }
+            return out
+        }
+        return SemChain(
+            spec, seed.track.id, pool.map { it.track.id },
+            centredMap(audioUnit, audioMean), centredMap(descUnit, descMean), centredMap(textUnit, textMean),
+        )
+    }
+
     private fun diagnose(
         d: PlanDiagnostics,
         h: RankerQueue.HopTrace,
@@ -1327,7 +1406,7 @@ public class SmartRanker(
         albumPrefix: Boolean = false,
         gate: (DoubleArray?) -> DoubleArray?,
     ): Array<DoubleArray> {
-        fun raw(a: Known) = features(a, pool, artistKeyOf, audioVectors, personalRows, seedId, popularityOn, hearts, model.imputedUnknown, model.serving.l2, albumPrefix)
+        fun raw(a: Known) = features(a, pool, artistKeyOf, audioVectors, personalRows, seedId, popularityOn, hearts, model.imputedUnknown, model.serving.l2, albumPrefix, model.langScript)
         val rows = raw(
             when (anchor) {
                 RankerQueue.SEED -> seedKnown
@@ -1335,9 +1414,16 @@ public class SmartRanker(
                 else -> pool[anchor]
             },
         )
-        val g = model.seedGate ?: return rows
-        val values = gate(null) ?: gate(gateValuesOf(g, if (anchor == RankerQueue.SEED) rows else raw(seedKnown)))!!
-        for (i in rows.indices) for (c in g.columns) rows[i][c] = rows[i][c] * values[i]
+        model.seedGate?.let { g ->
+            val values = gate(null) ?: gate(gateValuesOf(g, if (anchor == RankerQueue.SEED) rows else raw(seedKnown)))!!
+            for (i in rows.indices) for (c in g.columns) rows[i][c] = rows[i][c] * values[i]
+        }
+        // Cold fix: FULL's personal block is scaled down when the seed has no pack entity (after the gate).
+        val scale = model.semChain?.personalScale
+        if (scale != null && seedKnown.entity < 0) {
+            val j0 = RankerFeatures.NAMES.indexOf("heard")
+            for (r in rows) for (j in j0 until j0 + RankerFeatures.PERSONAL.size) r[j] = r[j] * scale
+        }
         return rows
     }
 
@@ -1384,8 +1470,10 @@ public class SmartRanker(
         imputedUnknown: Boolean = false,
         l2: Boolean = false,
         albumPrefix: Boolean = false,
+        langScript: Boolean = false,
     ): Array<DoubleArray> {
         val related = HashMap<Int, Double>()
+        fun languageOf(k: Known) = if (langScript) ScriptLanguage.effective(k.language, k.track.title, k.track.artist) else k.language
         // PLAN_L1 §10.5 RULE: an imputed descriptor is unknown for the descriptor columns, an imputed family for the
         // family columns (it still serves R5); the imputed flags themselves stay.
         fun familyOf(k: Known) = if (imputedUnknown && k.familyImputed) null else k.family
@@ -1398,7 +1486,7 @@ public class SmartRanker(
             RankerRow(
                 cosine = if (imputedUnknown) cosine(anchor.packDescriptor, c.packDescriptor) else cosine(anchor.descriptor, c.descriptor),
                 family = familyOf(c),
-                language = c.language,
+                language = languageOf(c),
                 decade = c.decade,
                 artistKey = artistKeyOf(c),
                 colisten = if (c.entity >= 0) related[c.entity] ?: 0.0 else 0.0,
@@ -1425,7 +1513,7 @@ public class SmartRanker(
         }
         return RankerFeatures.of(
             RankerRow(
-                family = familyOf(anchor), language = anchor.language, decade = anchor.decade, artistKey = artistKeyOf(anchor),
+                family = familyOf(anchor), language = languageOf(anchor), decade = anchor.decade, artistKey = artistKeyOf(anchor),
                 descriptorImputed = anchor.descriptorImputed, familyImputed = anchor.familyImputed,
                 familyProbabilities = probabilitiesOf(anchor),
                 durationMs = anchor.durationMs, year = anchor.year, albumKey = anchor.albumKey, compilation = anchor.compilation,
@@ -1434,6 +1522,7 @@ public class SmartRanker(
             personalRows,
             l2,
             albumPrefix,
+            langScript,
         )
     }
 
@@ -1700,6 +1789,9 @@ public class SmartRanker(
 
     public companion object {
         /** Unit length in float64 accumulation, stored as float32; null for a zero or non-finite vector. */
+        /** Library rows per audio read when semChain takes the library mean. */
+        private const val SEM_BATCH = 256
+
         internal fun normalized(v: FloatArray): FloatArray? {
             var norm = 0.0
             for (x in v) norm += x.toDouble() * x

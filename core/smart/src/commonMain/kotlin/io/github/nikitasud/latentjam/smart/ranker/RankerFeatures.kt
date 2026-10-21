@@ -126,6 +126,8 @@ public object RankerFeatures {
         l2: Boolean = false,
         /** The album-session prefix (the session's last two plays before the press on the seed's album key). */
         albumPrefix: Boolean = false,
+        /** Cold fix (langScript): languages may be "script:<group>" codes, matched by ScriptLanguage.same. */
+        langScript: Boolean = false,
     ): Array<DoubleArray> {
         val n = candidates.size
         val known = BooleanArray(n) { !candidates[it].cosine.isNaN() }
@@ -172,7 +174,7 @@ public object RankerFeatures {
                 b(known[i]),
                 if (familyKnown) familyMatch(anchor, c) else 0.0,
                 b(familyKnown),
-                b(languageKnown && c.language == anchor.language),
+                b(languageKnown && (if (langScript) ScriptLanguage.same(anchor.language, c.language) else c.language == anchor.language)),
                 b(languageKnown),
                 b(anchor.artistKey.isNotEmpty() && c.artistKey == anchor.artistKey),
                 if (decadeKnown) abs(c.decade!! - anchor.decade!!) / 10.0 else 0.0,

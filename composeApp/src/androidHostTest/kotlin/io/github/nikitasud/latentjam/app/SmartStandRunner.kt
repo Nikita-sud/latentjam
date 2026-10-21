@@ -74,7 +74,11 @@ class SmartStandRunner {
         for ((id, v) in vectors.entries) index.adopt(id, v.copyOf())
         val energies = readIndexSnapshotFile(versioned(files, "smart_energy", "semantic-energy-v1-$AUDIO_MODEL_VERSION"), "semantic-energy-v1-$AUDIO_MODEL_VERSION")
             ?.entries?.mapValues { it.value[0].toDouble() }.orEmpty()
+        // The stored metadata-text vectors (the engine's text index), for the cold fix's semChain.
+        val texts = readIndexSnapshotFile(File(files, "smart_text_index.bin"), "student-s256x3m-emb4-int8-trusted-v1")?.entries.orEmpty()
+        println("SMART stand: ${texts.size} text vectors")
         val audio = object : AudioSource {
+            override suspend fun textVectors(ids: Collection<TrackId>): Map<TrackId, FloatArray> = ids.mapNotNull { id -> texts[id]?.let { id to it } }.toMap()
             override suspend fun vector(id: TrackId): FloatArray? = index.vector(id)
             override suspend fun neighbours(id: TrackId, k: Int): List<TrackId> =
                 index.vector(id)?.let { v -> index.nearest(v, k, exclude = setOf(id)).map { it.trackId } }.orEmpty()
@@ -118,6 +122,14 @@ class SmartStandRunner {
         // The artist-variety setting as the ranker sees it (LJ_STAND_VARIETY, default 1 = the tuned values).
         val varietyScale = System.getenv("LJ_STAND_VARIETY")?.toDouble() ?: 1.0
 
+        if (System.getenv("LJ_STAND_ENTITIES") == "1") {
+            // Which seeds the pack resolves (cold seeds = entity -1): one plan fills the ranker's per-track knowledge.
+            ranker.plan(io.github.nikitasud.latentjam.smart.ranker.PlanRequest(seeds.first(), library, library, length = 1))
+            File(out, "seed_entities.tsv").writeText(seeds.joinToString("") { s ->
+                "${s.id.value}\t${ranker.entityOf(s.id)}\t${ranker.languageOf(s.id)}\t${ranker.familyOf(s.id)}\n"
+            })
+            return
+        }
         if (System.getenv("LJ_STAND_ALBUM") == "1") {
             albumCheck(seeds, library, ranker, historyLines, favourites, File(out, "album_check.tsv"))
             return

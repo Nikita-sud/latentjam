@@ -27,6 +27,9 @@ public interface AudioSource {
     /** Fast 4: a cached audio head's output (continuity heads, e.g. danceability); null = unknown. */
     public suspend fun head(name: String, id: TrackId): Double? = null
 
+    /** The stored metadata-text vectors of [ids] (the cold fix's semChain); empty without a text index. */
+    public suspend fun textVectors(ids: Collection<TrackId>): Map<TrackId, FloatArray> = emptyMap()
+
     public companion object {
         /** No audio index (tests, a cold engine). */
         public val NONE: AudioSource = object : AudioSource {
@@ -153,4 +156,8 @@ public class EngineAudioSource(private val engine: () -> io.github.nikitasud.lat
     override suspend fun energy(id: TrackId): Double? = engine()?.energy(id)
     override suspend fun vectors(ids: Collection<TrackId>): Map<TrackId, FloatArray> = engine()?.audioRows(ids)?.vectors.orEmpty()
     override suspend fun energies(ids: Collection<TrackId>): Map<TrackId, Double> = engine()?.audioRows(ids)?.energies.orEmpty()
+    override suspend fun textVectors(ids: Collection<TrackId>): Map<TrackId, FloatArray> {
+        val wanted = ids.toHashSet()
+        return engine()?.metadataVectors().orEmpty().filterKeys { it in wanted }
+    }
 }
