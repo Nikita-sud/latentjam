@@ -182,7 +182,7 @@ internal class LocalBackupTest {
     }
 
     @Test
-    fun appearanceSurvivesBackupRestoreAndOlderVersionsRestoreTheDefaultLook() = runTest {
+    fun appearanceSurvivesBackupRestoreAndOlderVersionsLeaveTheLookAlone() = runTest {
         val look = Appearance(
             customAccent = CUSTOM_ACCENT_PALETTE[6],
             pureBlack = true,
@@ -206,13 +206,14 @@ internal class LocalBackupTest {
         assertEquals(PageHeaderStyle.PILLS, destination.settings.pageHeaderStyle.value)
         assertEquals(TrackColorMode.CUSTOM, destination.settings.trackColorMode.value)
 
-        // A v10 file has no look record: restoring it brings back the default look.
+        // A v10 file has no look record: it knows nothing of the look, so restoring it keeps the
+        // one chosen since, as an older file leaves favourites alone.
         val legacy = emptySnapshot().copy(formatVersion = 10)
         val legacyEncoded = LocalBackupCodec.encode(legacy)
         assertFalse(legacyEncoded.lineSequence().any { it.startsWith("K\t") })
         destination.service.importEncoded(legacyEncoded, LocalBackupRestoreMode.REPLACE)
-        assertEquals(Appearance(), destination.settings.appearance.value)
-        assertEquals(PageHeaderStyle.DOTS, destination.settings.pageHeaderStyle.value)
+        assertEquals(look, destination.settings.appearance.value)
+        assertEquals(PageHeaderStyle.PILLS, destination.settings.pageHeaderStyle.value)
         assertEquals(TrackColorMode.DYNAMIC, destination.settings.trackColorMode.value)
         // An older build would refuse "custom" or simply lose the look, so v10 cannot carry them.
         for (settings in listOf(
@@ -240,7 +241,6 @@ internal class LocalBackupTest {
         val fields = record.split('\t')
         for (bad in listOf(
             "K\t${fields[1]}",
-            "K\t${fields[1]}\tunknown",
             "K\ts${"not an appearance".hex()}\tdots",
             "K\tsnot-hex\tdots",
             "$record\n$record",
@@ -265,6 +265,9 @@ internal class LocalBackupTest {
         val decoded = LocalBackupCodec.decode(encoded.replace(record, "K\ts${foreign.hex()}\ttabs"))
         assertEquals(Appearance(pureBlack = true, shape = ShapeStyle.SHARP), decoded.settings.appearance)
         assertEquals(PageHeaderStyle.TABS, decoded.settings.pageHeaderStyle)
+        // A header style from a later build falls back to the default, not a refused restore.
+        val laterStyle = LocalBackupCodec.decode(encoded.replace(record, "K\ts${foreign.hex()}\tcarousel3d"))
+        assertEquals(PageHeaderStyle.DOTS, laterStyle.settings.pageHeaderStyle)
     }
 
     @Test

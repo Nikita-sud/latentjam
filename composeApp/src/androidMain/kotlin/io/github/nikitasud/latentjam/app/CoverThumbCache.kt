@@ -41,9 +41,7 @@ internal class CoverThumbCache(context: Context) {
     /** A stored cover decoded straight to [target] px, the "no cover" marker, or nothing yet. */
     fun read(uri: String, bucket: Int, target: Int): Lookup {
         val file = fileFor(uri, bucket)
-        if (!file.exists()) {
-            return if (markerFor(uri).exists()) Lookup.Missing else Lookup.Unknown
-        }
+        if (!file.exists()) return if (markerIsFresh(uri)) Lookup.Missing else Lookup.Unknown
         val stored = BitmapFactory.decodeFile(file.path)
         if (stored == null) {
             file.delete()
@@ -67,7 +65,11 @@ internal class CoverThumbCache(context: Context) {
     }
 
     fun markMissing(uri: String) {
-        runCatching { markerFor(uri).createNewFile() }
+        runCatching {
+            val marker = markerFor(uri)
+            // A fresh time on every miss: the day of grace counts from the latest failure.
+            if (!marker.createNewFile()) marker.setLastModified(System.currentTimeMillis())
+        }
         afterWrite()
     }
 
@@ -84,6 +86,19 @@ internal class CoverThumbCache(context: Context) {
     private fun fileFor(uri: String, bucket: Int) = File(directory, "${digest(uri)}-$bucket.jpg")
 
     private fun markerFor(uri: String) = File(directory, "${digest(uri)}.none")
+
+    /**
+     * "No cover" is remembered for a day only. A read can fail for reasons that pass with the URI
+     * unchanged — an SD card unmounted, a provider thumbnail not generated yet, a folder.jpg added
+     * without retagging — and a permanent marker would hide that cover for good.
+     */
+    private fun markerIsFresh(uri: String): Boolean {
+        val marker = markerFor(uri)
+        if (!marker.exists()) return false
+        if (System.currentTimeMillis() - marker.lastModified() <= MISSING_TTL_MS) return true
+        marker.delete()
+        return false
+    }
 
     /** Least-recently-used order without a write per scroll: refresh a file's time once a day. */
     private fun touch(file: File) {
@@ -116,6 +131,7 @@ internal class CoverThumbCache(context: Context) {
         private const val MAX_BYTES = 64L * 1024 * 1024
         private const val PRUNE_EVERY = 64
         private const val TOUCH_INTERVAL_MS = 24L * 60 * 60 * 1000
+        private const val MISSING_TTL_MS = 24L * 60 * 60 * 1000
 
         @Volatile private var instance: CoverThumbCache? = null
 
