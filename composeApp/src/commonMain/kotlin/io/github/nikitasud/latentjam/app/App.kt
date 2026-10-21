@@ -1028,8 +1028,11 @@ private fun AppShell(
             }
             forYouPage.forYouBuilding = true
             val historySnapshot = try {
-                AppGraph.history.stats() to
-                    AppGraph.history.recentEvents(RECENT_EVENTS_FOR_YOU)
+                Triple(
+                    AppGraph.history.stats(),
+                    AppGraph.history.recentEvents(RECENT_EVENTS_FOR_YOU),
+                    AppGraph.history.firstListenAtMs(),
+                )
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Throwable) {
@@ -1043,7 +1046,7 @@ private fun AppShell(
                 snackbar.showSnackbar(getString(Res.string.settings_library_manage_failed))
                 return@LaunchedEffect
             }
-            val (stats, recentEvents) = historySnapshot
+            val (stats, recentEvents, firstListenAtMs) = historySnapshot
             val excluded = buildSet {
                 loaded.asSequence()
                     .filter { smartExclusionState.excludes(it) }
@@ -1102,6 +1105,7 @@ private fun AppShell(
                     revisitShownDays = shown.revisit,
                     daypartShownDays = shown.daypart,
                     retiredDiscoveries = shown.retired,
+                    logStartMs = firstListenAtMs,
                 )
             }
             // Commit the page and its input key together. If this effect is cancelled while the
