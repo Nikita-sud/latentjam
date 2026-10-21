@@ -1,6 +1,6 @@
 {
  "schema": "lj-smart-ranker/2",
- "name": "CORE L2 fast track (product check) night-r7c",
+ "name": "CORE L2 fast track (product check) night-r8e",
  "features": [
   "cos",
   "cos_z",
@@ -273,9 +273,9 @@
   "longLambda": 4.0,
   "seedLongMs": 600000,
   "shortMs": 90000,
-  "shortLambda": 2.0,
+  "shortLambda": 3.0,
   "veryShortMs": 75000,
-  "veryShortLambda": 3.0
+  "veryShortLambda": 6.0
  },
  "titleFlags": {
   "lambda": 1.0
@@ -321,14 +321,17 @@
      "nursery",
      "lullab",
      "детск",
-     "animation ost"
+     "animation ost",
+     "kid-friendly",
+     "kid friendly"
     ],
     "text": [
      "смешарик",
      "smeshariki",
-     "мультфильм"
+     "мультфильм",
+     "birthday"
     ],
-    "lambda": 3.0
+    "lambda": 6.0
    },
    {
     "name": "meme",
@@ -354,7 +357,8 @@
      "comedy",
      "comedy rock",
      "parody",
-     "chastushka"
+     "chastushka",
+     "novelty"
     ],
     "text": [
      "частушк"
@@ -368,12 +372,13 @@
      "revolutionary song",
      "soviet song",
      "political",
-     "military"
+     "military",
+     "patriotic folk"
     ],
     "text": [
      "донбасс"
     ],
-    "lambda": 3.0
+    "lambda": 6.0
    },
    {
     "name": "chanson",
@@ -408,13 +413,23 @@
      "speech",
      "jingle",
      "comedy sketch",
-     "interview"
+     "interview",
+     "spoken weird",
+     "sound poetry",
+     "radio art",
+     "audio collage",
+     "sound collage",
+     "musique concrete",
+     "sound art"
     ],
     "text": [
      "field recording",
      "audiobook"
     ],
-    "lambda": 3.0
+    "lambda": 3.0,
+    "tokens": [
+     "radio"
+    ]
    }
   ]
  },
@@ -438,6 +453,6 @@
  "queueArtistBudget": {
   "cap": 6,
   "window": 40,
-  "lambda": 3.0
+  "lambda": 8.0
  }
 }

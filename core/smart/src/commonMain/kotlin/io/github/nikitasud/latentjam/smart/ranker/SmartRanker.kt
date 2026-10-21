@@ -460,6 +460,17 @@ public object RankerQueue {
                         if (recent.count { it == key } >= qc.cap) v -= qc.lambda
                     }
                 }
+                // vc23: cumulative tail drift — off the seed's family after k consecutive off-family picks.
+                model.familyDrift?.let { lam ->
+                    if (families != null && seedFamily != null) {
+                        val f = families[i]
+                        if (f != null && f != seedFamily) {
+                            var k = 0
+                            for (p in picks.indices.reversed()) { val fp = families[picks[p]]; if (fp != null && fp != seedFamily) k++ else break }
+                            if (k > 0) v -= lam * k
+                        }
+                    }
+                }
                 // Night 2026-10-21: a one-track genre jump (the family differs from the previous pick's and the seed's).
                 model.prevFamilyJump?.let { lam ->
                     val last = picks.lastOrNull()

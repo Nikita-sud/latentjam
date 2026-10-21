@@ -109,6 +109,8 @@ public class RankerModel(
     public val tagClasses: List<TagClass> = emptyList(),
     /** Night 2026-10-21: −λ for a candidate whose family differs from both the previous pick's and the seed's (one-track jumps). */
     public val prevFamilyJump: Double? = null,
+    /** vc23: −λ · k for a candidate off the seed's family, k = the consecutive off-family picks just before it (tail drift). */
+    public val familyDrift: Double? = null,
     /** Night r4: a pick whose normalised title (brackets, " - …" suffix, punctuation dropped) is already the seed's, the prefix's or a pick's is excluded (titles of at least [songDedupMinChars] chars). */
     public val songDedupMinChars: Int? = null,
     /** vc22: titles of at least this many chars also match a longer title that starts with them plus a space ("X" / "X but it's epic version"); null = off. */
@@ -386,7 +388,7 @@ public class RankerModel(
                 "audioZ", "softNovelty", "anchorShare", "colistenPrevShare", "familyMismatch", "classMismatch", "continuity", "holidaySeason",
                 "durationRule", "titleFlags", "unknownSeedAnchor", "artistSets",
                 "taxonomy", "versionKey", "playlistBonus", "noRepeat", "langScript", "semChain",
-                "hubPenalty", "hubGenreDamp", "scorerSquash", "tagClasses", "prevFamilyJump", "songDedup", "queueAlbumCap", "queueArtistBudget", "queueArtistCap", "transBonus", "followerExempt", "personalNudge",
+                "hubPenalty", "hubGenreDamp", "scorerSquash", "tagClasses", "prevFamilyJump", "familyDrift", "songDedup", "queueAlbumCap", "queueArtistBudget", "queueArtistCap", "transBonus", "followerExempt", "personalNudge",
             ),
             "tagClasses" to setOf("classes"),
             "songDedup" to setOf("minChars", "prefixChars"),
@@ -397,6 +399,7 @@ public class RankerModel(
             "followerExempt" to setOf("followMin"),
             "personalNudge" to setOf("delta", "track", "artist", "playlist", "favourite", "frequency", "followMin"),
             "prevFamilyJump" to setOf("lambda"),
+            "familyDrift" to setOf("lambda"),
             "playlistBonus" to setOf("lambda", "quota", "artistCap"),
             "noRepeat" to setOf("lambdaStart", "rho", "minPlays"),
             "anchorShare" to setOf("share", "columns"),
@@ -553,6 +556,7 @@ public class RankerModel(
                     TagClass(m["name"] as String, strs("genre"), strs("tokens").toSet(), strs("text"), (m["lambda"] as Number).toDouble(), strs("seedIn").toSet())
                 },
                 prevFamilyJump = (root["prevFamilyJump"] as? Map<*, *>)?.let { (it["lambda"] as Number).toDouble() },
+                familyDrift = (root["familyDrift"] as? Map<*, *>)?.let { (it["lambda"] as Number).toDouble() },
                 songDedupMinChars = (root["songDedup"] as? Map<*, *>)?.let { (it["minChars"] as? Number)?.toInt() ?: 6 },
                 songDedupPrefixChars = ((root["songDedup"] as? Map<*, *>)?.get("prefixChars") as? Number)?.toInt(),
                 queueArtistBudget = (root["queueArtistBudget"] as? Map<*, *>)?.let {
