@@ -21,6 +21,9 @@ import io.github.nikitasud.latentjam.smart.ranker.SmartRanker
 /** Writes a debug file where `adb pull` reaches it without run-as (Android: the app's external files dir); its path. */
 internal expect fun writeDebugFile(name: String, text: String): String?
 
+/** Appends one line to a debug file beside [writeDebugFile]'s (rotated past a few MB); false where unsupported. */
+internal expect fun appendDebugLine(name: String, line: String): Boolean
+
 /**
  * "Diagnose recent SMART starts" (a test-only settings action, product checks): re-plans the last [starts] ranker
  * queues the impression log recorded, each from its own seed, press, start time and model (FULL when the log names

@@ -37,8 +37,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import smart_queues as SQ    # MediaStore parsing, content keys
 
 
+def index_file(state):
+    """The copy's audio index: the per-encoder file (VersionedIndexStore, `smart_index.<version>.bin`) when there is one
+    for the app's encoder, else the legacy single file."""
+    version = (REPO / 'androidApp/src/main/assets/ml/embedding_version.txt').read_text().strip()
+    name = 'smart_index.' + ''.join(c if (c.isalnum() or c in '-_.') else '_' for c in version) + '.bin'
+    p = state / 'files' / name
+    return p if p.is_file() else state / 'files/smart_index.bin'
+
+
 def newest_state():
-    copies = sorted(p for p in STATE_HOME.glob('*/') if (p / 'files/smart_index.bin').is_file())
+    copies = sorted(p for p in STATE_HOME.glob('*/') if index_file(p).is_file())
     if not copies: raise SystemExit(f'no phone-state copy with files/ under {STATE_HOME}')
     return copies[-1]
 
@@ -128,10 +137,10 @@ def semantics(state, work):
     engine computes it (the chain stand's backend serves these)."""
     out = work / 'semantics.tsv'
     head = REPO / 'androidApp/src/main/assets/ml/universal_semantic_head.onnx'
-    stamp = hashlib.sha256(head.read_bytes() + (state / 'files/smart_index.bin').read_bytes()).hexdigest()[:16]
+    stamp = hashlib.sha256(head.read_bytes() + index_file(state).read_bytes()).hexdigest()[:16]
     if out.is_file() and (work / 'semantics.stamp').is_file() and (work / 'semantics.stamp').read_text() == stamp: return
     import numpy as np, onnxruntime as ort
-    _, rows = read_ljix(state / 'files/smart_index.bin')
+    _, rows = read_ljix(index_file(state))
     x = np.array([v for _, v in rows], dtype=np.float32)
     x = x / np.maximum(np.linalg.norm(x, axis=1, keepdims=True), 1e-12)   # the engine's stored unit vectors
     sess = ort.InferenceSession(str(head))

@@ -452,7 +452,9 @@ public actual fun smartEngineBackendModule(): Module = module {
     single<EmbeddingBackend> { OnnxEmbeddingBackend(context = get(), config = get()) }
     // Overrides the common NoopIndexStore (this module is listed after
     // smartEngineModule; Koin last-definition-wins).
-    single<IndexStore> { FileIndexStore(context = get()) }
+    // One audio-vector file per encoder (VersionedIndexStore): a test build on another encoder never wipes the
+    // release build's vectors, and the other way round.
+    single<IndexStore> { VersionedIndexStore("smart_index") { name -> FileIndexStore(context = get(), fileName = name) } }
 
     single<IndexStore>(smartTextIndexQualifier) {
         FileIndexStore(context = get(), fileName = "smart_text_index.bin")
@@ -466,6 +468,6 @@ public actual fun smartEngineBackendModule(): Module = module {
         FileIndexStore(context = get(), fileName = "smart_imputation.bin")
     }
     single<IndexStore>(smartEnergyQualifier) {
-        FileIndexStore(context = get(), fileName = "smart_energy.bin")
+        VersionedIndexStore("smart_energy") { name -> FileIndexStore(context = get(), fileName = name) }
     }
 }

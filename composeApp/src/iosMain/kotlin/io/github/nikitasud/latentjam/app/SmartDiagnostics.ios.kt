@@ -22,3 +22,6 @@ internal actual fun writeDebugFile(name: String, text: String): String? {
     val ok = (NSString.create(string = text)).writeToFile(path, atomically = true, encoding = NSUTF8StringEncoding, error = null)
     return if (ok) path else null
 }
+
+/** The per-press diagnostics log is an Android test-build tool. */
+internal actual fun appendDebugLine(name: String, line: String): Boolean = false

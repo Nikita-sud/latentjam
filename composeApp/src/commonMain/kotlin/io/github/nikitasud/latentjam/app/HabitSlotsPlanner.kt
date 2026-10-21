@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.app
 import io.github.nikitasud.latentjam.history.ListenEvent
 import io.github.nikitasud.latentjam.history.ListenStart
 import io.github.nikitasud.latentjam.history.ListeningHistory
+import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.smart.HabitFlow
 import io.github.nikitasud.latentjam.smart.HabitListen
 import io.github.nikitasud.latentjam.smart.HabitSlots
@@ -116,6 +117,37 @@ internal fun saltedTieKey(track: TrackId, salt: Long): Double {
 /** The SMART history window (EngineNextTrackChooser's smartHistoryFor). */
 private const val SMART_HABIT_HISTORY_LIMIT = 10_000
 
+/** The per-press diagnostics log (Android external files dir): `adb pull` reaches it without run-as. */
+internal const val SMART_PRESS_DIAG = "smart_press_diag.jsonl"
+
+private fun pressDiagnostics(
+    seed: TrackDescriptor,
+    report: io.github.nikitasud.latentjam.smart.ranker.PlanReport,
+    seedMs: Long,
+    press: Long,
+    personal: Boolean,
+    ruleOnly: Boolean,
+    varietyScale: Double,
+    playlists: () -> List<List<TrackId>>,
+    listens: Int,
+): String = buildString {
+    fun q(s: String) = "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+    val a = report.audio
+    append("{\"atMs\":").append(epochMillis()).append(",\"seedMs\":").append(seedMs).append(",\"seed\":").append(q(seed.id.value))
+    append(",\"press\":").append(press).append(",\"personal\":").append(personal).append(",\"ruleOnly\":").append(ruleOnly)
+    append(",\"model\":").append(q(report.model)).append(",\"varietyScale\":").append(varietyScale)
+    append(",\"playlists\":").append(if (personal) playlists().size else 0).append(",\"listens\":").append(listens)
+    append(",\"poolSize\":").append(report.poolSize).append(",\"fromModel\":").append(report.fromModel)
+    append(",\"fromLadder\":").append(report.fromLadder).append(",\"timedOut\":").append(report.timedOut).append(",\"imputed\":").append(report.imputed)
+    append(",\"audio\":{\"seedVector\":").append(a.seedVector).append(",\"seedEnergy\":").append(a.seedEnergy)
+    append(",\"poolVectors\":").append(a.poolVectors).append(",\"poolEnergies\":").append(a.poolEnergies)
+    append(",\"r1\":").append(a.r1Neighbours).append(",\"timeouts\":[").append(a.timedOut.sorted().joinToString(",") { q(it) }).append("]}")
+    append(",\"sources\":{").append(report.sourceCounts.entries.joinToString(",") { (k, v) -> "${q(k)}:$v" }).append("}")
+    append(",\"stats\":{").append(report.stats.entries.joinToString(",") { (k, v) -> "${q(k)}:$v" }).append("}")
+    append(",\"picks\":[").append(report.ids.joinToString(",") { q(it.value) }).append("]")
+    append(",\"pickSources\":[").append(report.picks.joinToString(",") { q(it.source) }).append("]}")
+}
+
 /** Plays handed to the ranker as the album-session context (it reads only the last two within 30 min). */
 private const val RECENT_PLAYS = 8
 
@@ -217,6 +249,8 @@ internal suspend fun rankerPlan(
                 recentPlays = listens.takeLast(RECENT_PLAYS).map { it.trackId to it.startedAtMs },
             ),
         )
+        // Test builds: one aggregate line per press in the app's external files dir (ids only; nothing leaves the phone).
+        appendDebugLine(SMART_PRESS_DIAG, pressDiagnostics(seed, report, seedMs, press, personal, ruleOnly || !fits, varietyScale, playlists, listens.size))
         val (withEntity, listed, withLfm) = ranker.entityCoverage
         // Aggregate on purpose: no title, artist or id leaves the app through the system log.
         println(

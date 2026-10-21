@@ -575,6 +575,10 @@ public class PlanReport(
     public val picks: List<PlanPick> = emptyList(),
     /** What audio the plan could read (audit 2026-10-20 audio #2: indexing must not starve it). */
     public val audio: AudioCoverage = AudioCoverage.NONE,
+    /** Aggregate counts for the per-press diagnostics log (pool family / language / album coverage, non-zero columns). */
+    public val stats: Map<String, Int> = emptyMap(),
+    /** Pool rows per retriever. */
+    public val sourceCounts: Map<String, Int> = emptyMap(),
 )
 
 /**
@@ -1115,6 +1119,7 @@ public class SmartRanker(
                 else -> "retrievers"
             }
         }
+        var seedRowsSeen: Array<DoubleArray>? = null
         val modelPicks = RankerQueue.build(
             model = active,
             poolSize = pool.size,
@@ -1195,6 +1200,7 @@ public class SmartRanker(
         ) { anchor ->
             gatedRows(anchor, seedKnown, pool, artistKeyOf, audioVectors, personalRows, request.seed.id, popularityOn, hearts, active, prefixKnown, albumPrefix) { gateValues = it ?: gateValues; gateValues }
                 .also { if (diagnostics != null) diagRows[anchor] = it }
+                .also { if (anchor == RankerQueue.SEED && seedRowsSeen == null) seedRowsSeen = it }
         }.map { pool[it].track.id }
         val timedOut = modelPicks.size < minOf(request.length, pool.size) && decoding.elapsedNow().inWholeMilliseconds > budgetMs
         val picks = ArrayList(modelPicks)
@@ -1231,7 +1237,28 @@ public class SmartRanker(
             timedOut = timeouts,
             imputeFallbacks = if (imputations != null) imputeFallbacks[0] else -1,
         )
-        return PlanReport(picks, active.name, pool.size, modelPicks.size, picks.size - modelPicks.size, timedOut, imputed, planPicks, coverage)
+        // Per-press diagnostics (the phone's smart_press_diag log): how the family, album and language columns filled.
+        val stats = LinkedHashMap<String, Int>()
+        stats["poolWithFamily"] = pool.count { it.family != null }
+        stats["poolFamilyFromTrack"] = pool.count { it.familyFromTrack }
+        stats["poolWithLanguage"] = pool.count { it.language != null }
+        stats["poolWithAlbumKey"] = pool.count { it.albumKey.isNotEmpty() }
+        stats["taxonomyFamilies"] = taxonomy?.families?.size ?: 0
+        stats["albumPrefix"] = if (albumPrefix) 1 else 0
+        stats["seedFamilyKnown"] = if (seedKnown.family != null) 1 else 0
+        stats["seedLanguageKnown"] = if (seedKnown.language != null) 1 else 0
+        seedRowsSeen?.let { rows ->
+            for (name in listOf("same_family", "family_known", "family_is_track", "same_lang", "lang_known", "colisten", "lfm_cos", "album_session")) {
+                val c = RankerFeatures.NAMES.indexOf(name)
+                if (c >= 0) stats["nz_$name"] = rows.count { it.size > c && it[c] != 0.0 }
+            }
+        }
+        val sourceCounts = LinkedHashMap<String, Int>()
+        for (k in pool) sourceCounts[sources[k.track.id] ?: "whole"] = (sourceCounts[sources[k.track.id] ?: "whole"] ?: 0) + 1
+        return PlanReport(
+            picks, active.name, pool.size, modelPicks.size, picks.size - modelPicks.size, timedOut, imputed, planPicks, coverage,
+            stats = stats, sourceCounts = sourceCounts,
+        )
     }
 
     private fun diagnose(

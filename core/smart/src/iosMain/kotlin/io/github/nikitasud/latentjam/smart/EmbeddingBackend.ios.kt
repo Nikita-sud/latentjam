@@ -141,7 +141,7 @@ internal class IosEmbeddingBackend(
 public actual fun smartEngineBackendModule(): Module = module {
     single<BatchDotProducts> { IosBatchDotProducts }
     single<EmbeddingBackend> { IosEmbeddingBackend(config = get()) }
-    single<IndexStore> { IosFileIndexStore(fileName = "smart_index.bin") }
+    single<IndexStore> { VersionedIndexStore("smart_index") { name -> IosFileIndexStore(fileName = name) } }
     single<IndexStore>(smartTextIndexQualifier) {
         IosFileIndexStore(fileName = "smart_text_index.bin")
     }
@@ -152,6 +152,6 @@ public actual fun smartEngineBackendModule(): Module = module {
         IosFileIndexStore(fileName = "smart_imputation.bin")
     }
     single<IndexStore>(smartEnergyQualifier) {
-        IosFileIndexStore(fileName = "smart_energy.bin")
+        VersionedIndexStore("smart_energy") { name -> IosFileIndexStore(fileName = name) }
     }
 }

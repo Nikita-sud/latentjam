@@ -69,10 +69,10 @@ class SmartStandRunner {
         val files = File(dir, "files")
 
         // The phone's audio index, e cache and their order, as the engine restores them.
-        val vectors = checkNotNull(readIndexSnapshotFile(File(files, "smart_index.bin"), AUDIO_MODEL_VERSION)) { "smart_index.bin" }
+        val vectors = checkNotNull(readIndexSnapshotFile(versioned(files, "smart_index", AUDIO_MODEL_VERSION), AUDIO_MODEL_VERSION)) { "smart_index" }
         val index = InMemoryVectorIndex(vectors.entries.values.first().size)
         for ((id, v) in vectors.entries) index.adopt(id, v.copyOf())
-        val energies = readIndexSnapshotFile(File(files, "smart_energy.bin"), "semantic-energy-v1-$AUDIO_MODEL_VERSION")
+        val energies = readIndexSnapshotFile(versioned(files, "smart_energy", "semantic-energy-v1-$AUDIO_MODEL_VERSION"), "semantic-energy-v1-$AUDIO_MODEL_VERSION")
             ?.entries?.mapValues { it.value[0].toDouble() }.orEmpty()
         val audio = object : AudioSource {
             override suspend fun vector(id: TrackId): FloatArray? = index.vector(id)
@@ -343,7 +343,7 @@ class SmartStandRunner {
             val f = l.split('\t')
             f[0] to FloatArray(f.size - 1) { f[it + 1].toFloat() }
         }
-        val vectors = checkNotNull(readIndexSnapshotFile(File(files, "smart_index.bin"), AUDIO_MODEL_VERSION))
+        val vectors = checkNotNull(readIndexSnapshotFile(versioned(files, "smart_index", AUDIO_MODEL_VERSION), AUDIO_MODEL_VERSION))
         // The engine hands the head its stored (unit) vectors: matched back to the track by the vector's bits.
         val byVector = HashMap<List<Int>, String>()
         val probe = InMemoryVectorIndex(vectors.entries.values.first().size)
@@ -362,7 +362,8 @@ class SmartStandRunner {
             artistRunPenalty = ARTIST_VARIETY_PENALTIES[DEFAULT_ARTIST_VARIETY],
         )
         val engine = io.github.nikitasud.latentjam.smart.createHostSimilarityEngine(
-            config, backend, store("smart_index.bin"), store("smart_text_index.bin"), store("smart_energy.bin"), knowledge,
+            config, backend, store(versioned(files, "smart_index", AUDIO_MODEL_VERSION).name), store("smart_text_index.bin"),
+            store(versioned(files, "smart_energy", "semantic-energy-v1-$AUDIO_MODEL_VERSION").name), knowledge,
         )
         engine.initialize().getOrThrow()
         engine.synchronizeLibrary(library = library, pruneMissing = false)
@@ -377,6 +378,10 @@ class SmartStandRunner {
         }
         append('"')
     }
+
+    /** The per-encoder snapshot file (VersionedIndexStore) when the copy has one, else the legacy single file. */
+    private fun versioned(files: File, base: String, version: String): File =
+        File(files, io.github.nikitasud.latentjam.smart.VersionedIndexStore.fileNameFor(base, version)).takeIf { it.isFile } ?: File(files, "$base.bin")
 
     private fun track(line: String): TrackDescriptor {
         val f = line.split('\t').map { it.ifEmpty { null } }
