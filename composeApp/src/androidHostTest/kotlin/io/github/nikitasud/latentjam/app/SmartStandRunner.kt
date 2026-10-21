@@ -118,6 +118,10 @@ class SmartStandRunner {
         // The artist-variety setting as the ranker sees it (LJ_STAND_VARIETY, default 1 = the tuned values).
         val varietyScale = System.getenv("LJ_STAND_VARIETY")?.toDouble() ?: 1.0
 
+        System.getenv("LJ_STAND_PROBE")?.let { spec ->
+            probe(spec, byId, library, ranker, historyLines, favourites, File(out, "probe.jsonl"))
+            return
+        }
         System.getenv("LJ_STAND_REPLAY")?.let { specs ->
             for ((i, spec) in specs.split(',').withIndex()) {
                 replay(spec, byId, library, ranker, assets, historyLines, favourites, userPlaylists, files, File(out, "replay-$i.txt"))
@@ -176,6 +180,55 @@ class SmartStandRunner {
                 "library ${library.size}\nvectors ${vectors.entries.size}\nenergies ${energies.size}\nseeds ${seeds.size}\n",
         )
         println("stand: ${seeds.size} seeds -> $out")
+    }
+
+    /**
+     * L1 mechanism probe ("seedId:full"): one press planned at the stand's clock with every pool row's terms at every
+     * hop (PlanDiagnostics), each row's source, pack language and family. Product check only.
+     */
+    private suspend fun probe(
+        spec: String, byId: Map<TrackId, TrackDescriptor>, library: List<TrackDescriptor>,
+        ranker: io.github.nikitasud.latentjam.smart.ranker.SmartRanker,
+        historyLines: List<String>, favourites: Map<TrackId, Long?>, target: File,
+    ) {
+        val (seedId, fullText) = spec.split(':')
+        val seed = checkNotNull(byId[TrackId(seedId)]) { "probe seed $seedId" }
+        val full = fullText == "1"
+        val history = DefaultListeningHistory(object : HistoryStore {
+            override suspend fun append(line: String) = Unit
+            override suspend fun readAll(): List<String> = historyLines
+            override suspend fun clear() = Unit
+        })
+        val events = history.recentEvents(10_000)
+        val start = (events.firstOrNull()?.startedAtMs ?: 0L) + 60_000
+        val ids = library.mapTo(HashSet()) { it.id }
+        val listens = habitListens(events.asReversed(), ids, start)
+        val artistKeys = library.associate { it.id to io.github.nikitasud.latentjam.smart.HabitSlots.artistKey(it) }
+        val personal = io.github.nikitasud.latentjam.smart.ranker.PersonalHistory(listens, start, if (full) favourites else emptyMap()) { artistKeys[it].orEmpty() }
+        val d = io.github.nikitasud.latentjam.smart.ranker.PlanDiagnostics(topK = 100_000)
+        val report = ranker.plan(
+            io.github.nikitasud.latentjam.smart.ranker.PlanRequest(
+                seed = seed, library = library, candidates = library.filter { it.id != seed.id }, length = 20,
+                exclude = io.github.nikitasud.latentjam.smart.HabitSlots.novelty(listens, start), press = 0, history = personal,
+                personal = full, seedMs = start,
+            ),
+            d,
+        )
+        fun q(s: String?) = if (s == null) "null" else "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+        fun n(x: Double) = if (x.isFinite()) x.toString() else "null"
+        val sb = StringBuilder()
+        sb.append("{\"seed\":${q(seed.id.value)},\"model\":${q(d.model)},\"features\":[${d.features.joinToString(",") { q(it) }}],")
+            .append("\"rowNames\":[${io.github.nikitasud.latentjam.smart.ranker.RankerFeatures.NAMES.joinToString(",") { q(it) }}],")
+            .append("\"seedLanguage\":${q(ranker.languageOf(seed.id))},\"seedFamily\":${q(ranker.familyOf(seed.id))},")
+            .append("\"picks\":[${report.ids.joinToString(",") { q(it.value) }}],\"sources\":{${d.sourceCounts.entries.joinToString(",") { (k, v) -> "${q(k)}:$v" }}}}\n")
+        for (h in d.hops.take(5)) for (e in h.entries) {
+            sb.append("{\"hop\":${h.hop},\"pickOfHop\":${e.id == h.pick},\"id\":${q(e.id.value)},\"s\":${n(e.s)},\"t\":${n(e.t)},")
+                .append("\"source\":${q(e.source)},\"lang\":${q(ranker.languageOf(e.id))},\"family\":${q(ranker.familyOf(e.id))},")
+                .append("\"penalty\":${n(e.penalty)},\"reentry\":${n(e.reentry)},")
+                .append("\"terms\":${e.terms?.joinToString(",", "[", "]") { n(it) } ?: "null"},")
+                .append("\"contrib\":[${e.contributions.joinToString(",") { n(it) }}],\"row\":[${e.seedRow.joinToString(",") { n(it) }}]}\n")
+        }
+        target.writeText(sb.toString())
     }
 
     /**

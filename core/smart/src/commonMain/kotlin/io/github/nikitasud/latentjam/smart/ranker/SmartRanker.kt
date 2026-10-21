@@ -833,6 +833,9 @@ public class SmartRanker(
     /** Diagnostics: the family the ranker resolved for [id] in the last planned library (track tag / artist / tagger). */
     public fun familyOf(id: TrackId): String? = knownById[id]?.family
 
+    /** The pack language a planned track carries (null = unknown to the ranker); diagnostics only. */
+    public fun languageOf(id: TrackId): String? = knownById[id]?.language
+
     /** The freshness block of the model a plan with these flags runs (PLAN_L1 §2c), or null when it has none. */
     public fun freshnessFor(personal: Boolean, ruleOnly: Boolean): RankerModel.Freshness? = when {
         ruleOnly -> null
