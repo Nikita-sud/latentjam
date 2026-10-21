@@ -25,6 +25,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlin.time.Duration.Companion.minutes
 
 /** Owns map effects and cache lifetime independently of the player shell. */
 @Composable
@@ -174,6 +175,7 @@ internal fun rememberMapPageModel(
                             )
                         }
                     },
+                    reuseRecentFor = MAP_LAYOUT_REUSE,
                 ) ?: return@withLock null
                 mapPageCache.page(
                     layout = layout,
@@ -220,3 +222,6 @@ internal fun rememberMapPageModel(
     }
     return mapPage
 }
+
+/** How long a layout computed during an analysis is shown again before the Map recomputes it. */
+private val MAP_LAYOUT_REUSE = 5.minutes

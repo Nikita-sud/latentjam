@@ -206,7 +206,9 @@ internal class LoudnessNormalizer(
         val entries = inFlight.entries.iterator()
         while (entries.hasNext()) {
             val (identity, job) = entries.next()
-            if (identity in keep && !job.isCompleted) continue
+            // A finished scan stays too: its result may not be published yet, and dropping it would
+            // decode the track again from the start.
+            if (identity in keep && !job.isCancelled) continue
             job.cancel()
             entries.remove()
         }
