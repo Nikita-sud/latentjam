@@ -1,6 +1,6 @@
 {
  "schema": "lj-smart-ranker/2",
- "name": "CORE L2 fast track (product check)",
+ "name": "CORE L2 fast track (product check) night-r3b",
  "features": [
   "cos",
   "cos_z",
@@ -113,7 +113,7 @@
   0.1102728495426678,
   0.12498789476652424
  ],
- "runPenalty": 1.65,
+ "runPenalty": 2.64,
  "anchor": "mix",
  "seedWeight": 2.0,
  "previousWeight": 1.0,
@@ -134,7 +134,8 @@
   "l2": true,
   "poolTarget": 600,
   "artistCap": 15,
-  "unknownSeedAudioFill": true
+  "unknownSeedAudioFill": true,
+  "coldAudioFill": "all"
  },
  "inputs": {
   "logpop": "artist_pop",
@@ -145,10 +146,10 @@
   "fit": "FIT A, L2 by B NLL, bounds per audit 01 #1",
   "L2": 10.0,
   "fast_track": {
-   "decoder": "\u03bb_run CORE 1.65 / FULL 1.4, \u03bb_re 5.0 from fitA run gate (fast 3)",
-   "freshness": "\u03bb 1.0 PROVISIONAL",
+   "decoder": "λ_run CORE 1.65 / FULL 1.4, λ_re 5.0 from fitA run gate (fast 3)",
+   "freshness": "λ 1.0 PROVISIONAL",
    "energy_head": "c9ceb0f3 (A0-paired)",
-   "energy": "scale pool, \u03bb 0.8, \u03c4 0.25 sd (FMA L1-L4 pick: hop 4-10 drift -0.163 sd, genre -0.010)",
+   "energy": "scale pool, λ 0.8, τ 0.25 sd (FMA L1-L4 pick: hop 4-10 drift -0.163 sd, genre -0.010)",
    "not_shipped": "audioZ (genre -0.02..-0.08 on FMA); softNovelty (B1 FULL conthit10 -0.025..-0.046)",
    "claim": "product check only; trained on the leaky FIT (audit 02 #1)"
   }
@@ -254,11 +255,13 @@
     "soundtrack"
    ]
   ],
-  "nearScale": 0.0
+  "nearScale": 0.0,
+  "coldLambda": 1.0
  },
  "classMismatch": {
   "lambda": 1.0,
   "families": [
+   "children",
    "soundtrack"
   ]
  },
@@ -270,7 +273,7 @@
   "longLambda": 2.0,
   "seedLongMs": 600000,
   "shortMs": 90000,
-  "shortLambda": 1.0
+  "shortLambda": 2.0
  },
  "titleFlags": {
   "lambda": 1.0
@@ -287,5 +290,89 @@
  },
  "artistSets": "as2",
  "taxonomy": "2.2",
- "versionKey": "v2"
+ "versionKey": "v2",
+ "langScript": "latin",
+ "semChain": {
+  "scope": "all",
+  "audioPrev": 3.0,
+  "audioSeed": 4.0,
+  "semSeed": 3.0,
+  "semPrev": 0.5,
+  "personalScale": 0.3
+ },
+ "hubPenalty": {
+  "beta": 1.0,
+  "topk": 10,
+  "sample": 1024
+ },
+ "hubGenreDamp": {
+  "mult": 0.6
+ },
+ "scorerSquash": {
+  "scale": 1.5,
+  "temp": 2.0
+ },
+ "tagClasses": {
+  "classes": [
+   {
+    "name": "kids",
+    "genre": [
+     "children",
+     "kids",
+     "nursery",
+     "lullab",
+     "детск",
+     "animation ost"
+    ],
+    "text": [
+     "смешарик",
+     "smeshariki",
+     "мультфильм"
+    ],
+    "lambda": 4.0
+   },
+   {
+    "name": "meme",
+    "genre": [
+     "meme",
+     "sound effect",
+     "tiktok",
+     "voice recording",
+     "ringtone",
+     "game audio"
+    ],
+    "text": [
+     "meme",
+     "-мем",
+     " мем",
+     "sound effect"
+    ],
+    "lambda": 4.0
+   },
+   {
+    "name": "comedy",
+    "tokens": [
+     "comedy",
+     "comedy rock",
+     "parody"
+    ],
+    "lambda": 4.0
+   },
+   {
+    "name": "chanson",
+    "genre": [
+     "chanson",
+     "шансон"
+    ],
+    "seedIn": [
+     "meme",
+     "comedy"
+    ],
+    "lambda": 4.0
+   }
+  ]
+ },
+ "prevFamilyJump": {
+  "lambda": 2.0
+ }
 }

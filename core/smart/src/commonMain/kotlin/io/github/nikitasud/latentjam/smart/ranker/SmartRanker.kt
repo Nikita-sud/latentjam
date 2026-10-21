@@ -136,7 +136,7 @@ public object RankerQueue {
             return buildCreditRun(
                 model, re, poolSize, artistKeys, seedArtist, tieOrder, length, choose, take, blocked, stop, trace,
                 credits, seedCredits, seedScores, ::scores, fresh, energies, seedEnergy, audioAgainst, novelty, heads,
-                seedFamily, rulePenalties, seedUnknown, prefix, prefixEnergy, noRepeat, varietyScale, semTerms,
+                seedFamily, rulePenalties, seedUnknown, prefix, prefixEnergy, noRepeat, varietyScale, semTerms, families,
             )
         }
         val lambdaRun = model.runPenalty * varietyScale
@@ -269,6 +269,7 @@ public object RankerQueue {
         noRepeat: Boolean,
         varietyScale: Double,
         semTerms: ((anchor: Int) -> DoubleArray)?,
+        families: List<String?>?,
     ): List<Int> {
         val lambdaRun = (if (noRepeat) model.noRepeat!!.lambdaStart else model.runPenalty) * varietyScale
         val lambdaRe = re.lambda * varietyScale
@@ -397,6 +398,15 @@ public object RankerQueue {
                 }
                 if (novelty != null && novelty[i] != 0.0) v -= model.softNovelty!!.lambda * sd * novelty[i]
                 if (rulePenalties != null && rulePenalties[i] != 0.0) v -= rulePenalties[i]
+                // Night 2026-10-21: a one-track genre jump (the family differs from the previous pick's and the seed's).
+                model.prevFamilyJump?.let { lam ->
+                    val last = picks.lastOrNull()
+                    if (families != null && last != null && seedFamily != null) {
+                        val f = families[i]
+                        val fp = families[last]
+                        if (f != null && fp != null && f != fp && f != seedFamily) v -= lam
+                    }
+                }
                 terms?.let { it[1][i] = mark - v }
                 if (semT != null) v += semT[i]
                 mark = v
@@ -1179,6 +1189,19 @@ public class SmartRanker(
                     rp == null -> hub
                     else -> DoubleArray(pool.size) { rp[it] + hub[it] }
                 }
+            }.let { rp ->
+                // Night 2026-10-21: the lexicon classes join the rule penalties.
+                val classes = active.tagClasses
+                if (classes.isEmpty()) rp else {
+                    val seedIn = classes.filter { it.matches(seedKnown.track) }.map { it.name }.toSet()
+                    val out = rp?.copyOf() ?: DoubleArray(pool.size)
+                    for (c in classes) {
+                        if (c.name in seedIn) continue
+                        if (c.seedIn.isNotEmpty() && c.seedIn.none { it in seedIn }) continue
+                        for (i in pool.indices) if (c.matches(pool[i].track)) out[i] += c.lambda
+                    }
+                    out.takeIf { o -> o.any { it != 0.0 } }
+                }
             },
             seedUnknown = seedKnown.family == null && seedKnown.packDescriptor == null && seedKnown.imputedDescriptor == null,
             prefix = prefixIds.map { id -> cache.getValue(id).let { k -> artistKeyOf(k) to k.artists } }.ifEmpty { null },
@@ -1754,7 +1777,7 @@ public class SmartRanker(
                 take(near, target - out.size, "fill-audio")
             }
             // Cold fix round 3: like 0.9.1 (no fill), a seed without a pack entity fills from its own audio neighbours.
-            val coldNoFill = serving.coldAudioFill && seed.entity < 0
+            val coldNoFill = serving.coldAudioFill && (serving.audioFillAll || seed.entity < 0)
             if (coldNoFill && out.size < target) {
                 val near = withTimeoutOrNull(R1_BUDGET_MS) { runCatching { audio.neighbours(seed.track.id, target) }.getOrNull() }.orEmpty()
                 take(near, target - out.size, "fill-audio")

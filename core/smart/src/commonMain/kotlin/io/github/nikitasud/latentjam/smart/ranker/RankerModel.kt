@@ -105,7 +105,34 @@ public class RankerModel(
     public val classMismatch: ClassMismatch? = null,
     /** Fast 4: seed-anchored continuity on cached audio heads, in head-name order. */
     public val continuity: List<Continuity> = emptyList(),
+    /** Night 2026-10-21: soft lexicon classes (children, meme, comedy, …): −λ for a candidate in a class the seed is not in. */
+    public val tagClasses: List<TagClass> = emptyList(),
+    /** Night 2026-10-21: −λ for a candidate whose family differs from both the previous pick's and the seed's (one-track jumps). */
+    public val prevFamilyJump: Double? = null,
 ) {
+    /**
+     * A lexicon class over lower-cased tags: [genre] substrings of the genre, exact ';'-separated genre [tokens], [text]
+     * substrings of title + artist + album. The penalty applies when the seed is not in the class and, with [seedIn]
+     * non-empty, the seed is in one of the listed classes.
+     */
+    public class TagClass(
+        public val name: String,
+        public val genre: List<String>,
+        public val tokens: Set<String>,
+        public val text: List<String>,
+        public val lambda: Double,
+        public val seedIn: Set<String>,
+    ) {
+        public fun matches(t: io.github.nikitasud.latentjam.smart.TrackDescriptor): Boolean {
+            val g = t.genre.orEmpty().lowercase()
+            if (genre.any { it in g }) return true
+            if (tokens.isNotEmpty() && g.split(';').any { it.trim() in tokens }) return true
+            if (text.isEmpty()) return false
+            val s = listOf(t.title, t.artist, t.album).joinToString(" | ") { it.orEmpty() }.lowercase()
+            return text.any { it in s }
+        }
+    }
+
     public class HubPenalty(public val beta: Double, public val topk: Int, public val sample: Int)
 
     public class SemChainSpec(
@@ -236,6 +263,8 @@ public class RankerModel(
         public val unknownSeedAudioFill: Boolean = false,
         /** Cold fix round 3: a seed without a pack entity fills from its own audio neighbours, never from the salted sample. */
         public val coldAudioFill: Boolean = false,
+        /** Night 2026-10-21: coldAudioFill "all" = every seed fills from its audio neighbours, never salted. */
+        public val audioFillAll: Boolean = false,
     )
 
     /** The audio term's raw weight (§1.3): the override, else max(0, raw weight of "cos"). */
@@ -318,8 +347,10 @@ public class RankerModel(
                 "audioZ", "softNovelty", "anchorShare", "colistenPrevShare", "familyMismatch", "classMismatch", "continuity", "holidaySeason",
                 "durationRule", "titleFlags", "unknownSeedAnchor", "artistSets",
                 "taxonomy", "versionKey", "playlistBonus", "noRepeat", "langScript", "semChain",
-                "hubPenalty", "hubGenreDamp", "scorerSquash",
+                "hubPenalty", "hubGenreDamp", "scorerSquash", "tagClasses", "prevFamilyJump",
             ),
+            "tagClasses" to setOf("classes"),
+            "prevFamilyJump" to setOf("lambda"),
             "playlistBonus" to setOf("lambda", "quota", "artistCap"),
             "noRepeat" to setOf("lambdaStart", "rho", "minPlays"),
             "anchorShare" to setOf("share", "columns"),
@@ -400,7 +431,8 @@ public class RankerModel(
                         poolTarget = (m["poolTarget"] as? Number)?.toInt() ?: (m["wholeLibraryUpTo"] as? Number)?.toInt() ?: d.wholeLibraryUpTo,
                         artistCap = (m["artistCap"] as? Number)?.toInt() ?: 15,
                         unknownSeedAudioFill = m["unknownSeedAudioFill"] == true,
-                        coldAudioFill = m["coldAudioFill"] == true,
+                        coldAudioFill = m["coldAudioFill"] == true || m["coldAudioFill"] == "all",
+                        audioFillAll = m["coldAudioFill"] == "all",
                     )
                 } ?: Serving(),
                 audioWeightOverride = (root["audioWeight"] as? Number)?.toDouble(),
@@ -467,6 +499,12 @@ public class RankerModel(
                 classMismatch = (root["classMismatch"] as? Map<*, *>)?.let { c ->
                     ClassMismatch((c["lambda"] as Number).toDouble(), ((c["families"] as? List<*>)?.map { it as String } ?: listOf("soundtrack")).toSet())
                 },
+                tagClasses = ((root["tagClasses"] as? Map<*, *>)?.get("classes") as? List<*>).orEmpty().map { c ->
+                    val m = c as Map<*, *>
+                    fun strs(k: String) = (m[k] as? List<*>).orEmpty().map { (it as String).lowercase() }
+                    TagClass(m["name"] as String, strs("genre"), strs("tokens").toSet(), strs("text"), (m["lambda"] as Number).toDouble(), strs("seedIn").toSet())
+                },
+                prevFamilyJump = (root["prevFamilyJump"] as? Map<*, *>)?.let { (it["lambda"] as Number).toDouble() },
                 continuity = (root["continuity"] as? Map<*, *>).orEmpty().entries
                     .map { (k, v) ->
                         (v as Map<*, *>).let {
