@@ -244,6 +244,14 @@
    [
     "classical",
     "soundtrack"
+   ],
+   [
+    "electronic",
+    "dance"
+   ],
+   [
+    "electronic",
+    "soundtrack"
    ]
   ],
   "nearScale": 0.0
@@ -262,7 +270,7 @@
   "longLambda": 2.0,
   "seedLongMs": 600000,
   "shortMs": 90000,
-  "shortLambda": 0.5
+  "shortLambda": 1.0
  },
  "titleFlags": {
   "lambda": 1.0
