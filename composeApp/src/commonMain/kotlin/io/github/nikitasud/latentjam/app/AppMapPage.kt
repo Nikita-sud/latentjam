@@ -143,7 +143,15 @@ internal fun rememberMapPageModel(
                             throw MapComputationUnavailable("Insufficient memory for map projection", memoryLimited = true)
                         }
                         val rows = engine.libraryMixRows(loadedIds)
-                        val computed = if (rows == null || rows.fingerprint != coverage.fingerprint) {
+                        // Vectors analysed since `coverage` was taken do not discard the run: the
+                        // effect is not keyed on them, so nothing would retry it before the analysis
+                        // ends. The layout is filed under `coverage.fingerprint`, which then no longer
+                        // matches, so the next visit redraws it from the newer vectors.
+                        val computed = if (
+                            rows == null ||
+                            rows.trackIds != coverage.trackIds ||
+                            rows.source != coverage.source
+                        ) {
                             null
                         } else {
                             LibraryLayout.compute(
@@ -152,7 +160,7 @@ internal fun rememberMapPageModel(
                             )
                         }
                         if (computed == null) {
-                            null // Index changed while waiting or reading; the new discovery run will retry.
+                            null // The population changed; a library change or the end of the analysis re-runs this.
                         } else {
                             kotlinx.coroutines.currentCoroutineContext().ensureActive()
                             layoutStore.saveMapLayoutBestEffort(computed, coverage.fingerprint)
