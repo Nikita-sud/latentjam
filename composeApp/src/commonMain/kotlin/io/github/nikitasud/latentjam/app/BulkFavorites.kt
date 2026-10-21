@@ -100,6 +100,12 @@ internal suspend fun Favorites.applyBulk(
 internal suspend fun Favorites.undoBulk(change: FavoritesChange): Boolean =
     change.changed && replaceIfUnchanged(expected = change.after, replacement = change.before)
 
+/** How many of the distinct [ids] were already among the favorites ([before]) when hearted again. */
+internal fun alreadyFavoriteCount(ids: List<TrackId>, before: List<TrackId>): Int {
+    val hearted = before.toSet()
+    return ids.distinct().count { it in hearted }
+}
+
 /**
  * A bulk heart edit with its feedback: the write, a snackbar saying how many tracks it changed,
  * and Undo for an edit that changed anything. [onPublished] gets every list the store settles on —
@@ -108,12 +114,6 @@ internal suspend fun Favorites.undoBulk(change: FavoritesChange): Boolean =
  *
  * @return false when the write failed; the hearts are then exactly as they were.
  */
-/** How many of the distinct [ids] were already among the favorites ([before]) when hearted again. */
-internal fun alreadyFavoriteCount(ids: List<TrackId>, before: List<TrackId>): Int {
-    val hearted = before.toSet()
-    return ids.distinct().count { it in hearted }
-}
-
 internal suspend fun runBulkFavoriteEdit(
     favorites: Favorites,
     action: SelectionFavoriteAction,
