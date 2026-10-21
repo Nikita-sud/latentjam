@@ -138,7 +138,7 @@ public class RankerModel(
         public val favourite: Double, public val frequency: Double, public val followMin: Int,
     )
 
-    /** [sdUnits]: λ is in units of the hop's score spread (like the run penalty), so it scales with the library. */
+    /** [sdUnits] (scale "maxsd"): λ · max(1, the hop's score spread), so it scales up on libraries whose scores spread wide. */
     public class QueueArtistCap(public val cap: Int, public val window: Int, public val lambda: Double, public val sdUnits: Boolean = false)
 
     /**
@@ -564,13 +564,13 @@ public class RankerModel(
                 songDedupMinChars = (root["songDedup"] as? Map<*, *>)?.let { (it["minChars"] as? Number)?.toInt() ?: 6 },
                 songDedupPrefixChars = ((root["songDedup"] as? Map<*, *>)?.get("prefixChars") as? Number)?.toInt(),
                 queueArtistBudget = (root["queueArtistBudget"] as? Map<*, *>)?.let {
-                    QueueArtistCap((it["cap"] as? Number)?.toInt() ?: 6, (it["window"] as? Number)?.toInt() ?: 40, (it["lambda"] as Number).toDouble(), it["scale"] == "sd")
+                    QueueArtistCap((it["cap"] as? Number)?.toInt() ?: 6, (it["window"] as? Number)?.toInt() ?: 40, (it["lambda"] as Number).toDouble(), it["scale"] == "sd" || it["scale"] == "maxsd")
                 },
                 queueAlbumCap = (root["queueAlbumCap"] as? Map<*, *>)?.let {
-                    QueueArtistCap((it["cap"] as? Number)?.toInt() ?: 3, (it["window"] as? Number)?.toInt() ?: 10, (it["lambda"] as Number).toDouble(), it["scale"] == "sd")
+                    QueueArtistCap((it["cap"] as? Number)?.toInt() ?: 3, (it["window"] as? Number)?.toInt() ?: 10, (it["lambda"] as Number).toDouble(), it["scale"] == "sd" || it["scale"] == "maxsd")
                 },
                 queueArtistCap = (root["queueArtistCap"] as? Map<*, *>)?.let {
-                    QueueArtistCap((it["cap"] as? Number)?.toInt() ?: 3, (it["window"] as? Number)?.toInt() ?: 10, (it["lambda"] as Number).toDouble(), it["scale"] == "sd")
+                    QueueArtistCap((it["cap"] as? Number)?.toInt() ?: 3, (it["window"] as? Number)?.toInt() ?: 10, (it["lambda"] as Number).toDouble(), it["scale"] == "sd" || it["scale"] == "maxsd")
                 },
                 followerExemptMin = (root["followerExempt"] as? Map<*, *>)?.let { (it["followMin"] as? Number)?.toInt() ?: 2 },
                 personalNudge = (root["personalNudge"] as? Map<*, *>)?.let {
