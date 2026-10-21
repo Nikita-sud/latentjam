@@ -12,7 +12,6 @@ import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -31,7 +30,6 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.focus.focusProperties
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -43,6 +41,11 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.remember
+import androidx.compose.animation.core.Animatable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.interaction.PressInteraction
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 /**
  * The app's shared motion vocabulary.
@@ -250,6 +253,10 @@ internal fun rememberPressSource(): MutableInteractionSource = remember { Mutabl
  * press arrives in [Motion.PRESS_IN_MS] and the release eases back over [Motion.PRESS_OUT_MS], so
  * the response is immediate and the recovery soft; a symmetric spring felt late on a tap.
  *
+ * A press always reaches its full depth before it eases back. Inside a scrolling container Compose
+ * holds a press back until it knows the touch is not a scroll, so a quick tap delivers press and
+ * release in the same frame; following the pressed state then showed nothing at all.
+ *
  * The caller owns the [MutableInteractionSource] and passes the same instance to `clickable`,
  * so scale and ripple always agree about what is being pressed.
  */
@@ -258,20 +265,44 @@ internal fun Modifier.scaleOnPress(
     interactionSource: MutableInteractionSource,
     pressedScale: Float = Motion.PRESS_SCALE,
 ): Modifier {
-    val pressed by interactionSource.collectIsPressedAsState()
     val reduceMotion = rememberReduceMotion()
-    val scale by animateFloatAsState(
-        targetValue = if (pressed && !reduceMotion) pressedScale else 1f,
-        animationSpec = when {
-            reduceMotion -> snap()
-            pressed -> tween(Motion.PRESS_IN_MS, easing = LinearOutSlowInEasing)
-            else -> tween(Motion.PRESS_OUT_MS, easing = Motion.NavigationEasing)
-        },
-        label = "press-scale",
-    )
+    val scale = remember { Animatable(1f) }
+    LaunchedEffect(interactionSource, pressedScale, reduceMotion) {
+        if (reduceMotion) {
+            scale.snapTo(1f)
+            return@LaunchedEffect
+        }
+        var pressing: Job? = null
+        val held = HashSet<PressInteraction.Press>()
+        interactionSource.interactions.collect { interaction ->
+            when (interaction) {
+                is PressInteraction.Press -> {
+                    held += interaction
+                    pressing = launch {
+                        scale.animateTo(pressedScale, tween(Motion.PRESS_IN_MS, easing = LinearOutSlowInEasing))
+                    }
+                }
+                is PressInteraction.Release, is PressInteraction.Cancel -> {
+                    val press = (interaction as? PressInteraction.Release)?.press
+                        ?: (interaction as PressInteraction.Cancel).press
+                    held -= press
+                    if (held.isEmpty()) {
+                        val landing = pressing
+                        launch {
+                            // Let the press land first, then ease back: the tap is always seen.
+                            landing?.join()
+                            if (held.isEmpty()) {
+                                scale.animateTo(1f, tween(Motion.PRESS_OUT_MS, easing = Motion.NavigationEasing))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
     return graphicsLayer {
-        scaleX = scale
-        scaleY = scale
+        scaleX = scale.value
+        scaleY = scale.value
     }
 }
 
