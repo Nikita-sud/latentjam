@@ -444,11 +444,19 @@ public object RankerQueue {
                         if (recent.count { it == key } >= qc.cap) v -= qc.lambda
                     }
                 }
+                // vc23: the whole-queue artist budget (the same rule over a long window).
+                model.queueArtistBudget?.let { qc ->
+                    val key = artistKeys[i]
+                    if (key.isNotEmpty()) {
+                        val recent = histKeys.takeLast(maxOf(1, qc.window - 1))
+                        if (recent.count { it == key } >= qc.cap) v -= qc.lambda
+                    }
+                }
                 // Night r4: a soft per-queue artist cap over the last window − 1 items (the seed included).
                 model.queueArtistCap?.let { qc ->
                     val key = artistKeys[i]
                     if (key.isNotEmpty()) {
-                        val recent = (listOf(seedArtist) + picks.map { artistKeys[it] }).takeLast(maxOf(1, qc.window - 1))
+                        val recent = histKeys.takeLast(maxOf(1, qc.window - 1))
                         if (recent.count { it == key } >= qc.cap) v -= qc.lambda
                     }
                 }

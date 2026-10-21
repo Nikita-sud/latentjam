@@ -1,6 +1,6 @@
 {
  "schema": "lj-smart-ranker/2",
- "name": "CORE L2 fast track (product check) night-r6a",
+ "name": "CORE L2 fast track (product check) night-r7a",
  "features": [
   "cos",
   "cos_z",
@@ -270,7 +270,7 @@
  },
  "durationRule": {
   "longMs": 900000,
-  "longLambda": 2.0,
+  "longLambda": 4.0,
   "seedLongMs": 600000,
   "shortMs": 90000,
   "shortLambda": 2.0,
@@ -397,6 +397,24 @@
      "originally performed by"
     ],
     "lambda": 3.0
+   },
+   {
+    "name": "spoken",
+    "genre": [
+     "spoken word",
+     "field recording",
+     "audiobook",
+     "podcast",
+     "speech",
+     "jingle",
+     "comedy sketch",
+     "interview"
+    ],
+    "text": [
+     "field recording",
+     "audiobook"
+    ],
+    "lambda": 3.0
    }
   ]
  },
@@ -416,5 +434,10 @@
   "cap": 3,
   "window": 10,
   "lambda": 8.0
+ },
+ "queueArtistBudget": {
+  "cap": 6,
+  "window": 40,
+  "lambda": 3.0
  }
 }

@@ -22,12 +22,13 @@ def main():
     ap = argparse.ArgumentParser(); ap.add_argument('label'); ap.add_argument('core'); ap.add_argument('full')
     ap.add_argument('--engine', default='ranker'); ap.add_argument('--habit', action='store_true'); ap.add_argument('--work', default=str(WORK)); a = ap.parse_args()
     ml = REPO / 'androidApp/src/main/assets/ml'
-    shutil.copyfile(a.core, ml / 'smart_ranker.json'); shutil.copyfile(a.full, ml / 'smart_ranker_full.json')
     import hashlib, json
-    man = json.loads((ml / 'smart_manifest.json').read_text())
-    for n in ('smart_ranker.json', 'smart_ranker_full.json'):
-        raw = (ml / n).read_bytes(); man['assets'][n] = {'size': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()}
-    (ml / 'smart_manifest.json').write_text(json.dumps(man, indent=1) + '\n')
+    for d in (ml, REPO / 'iosApp/iosApp/ml'):      # both copies: the asset tests compare them byte for byte
+        shutil.copyfile(a.core, d / 'smart_ranker.json'); shutil.copyfile(a.full, d / 'smart_ranker_full.json')
+        man = json.loads((d / 'smart_manifest.json').read_text())
+        for n in ('smart_ranker.json', 'smart_ranker_full.json'):
+            raw = (d / n).read_bytes(); man['assets'][n] = {'size': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()}
+        (d / 'smart_manifest.json').write_text(json.dumps(man, indent=1) + '\n')
     out = STAND / (f'night-{a.label}' + ('-habit' if a.habit else '') + ('-fresh' if 'fresh' in a.work else ''))
     if out.exists(): shutil.rmtree(out)
     env = dict(os.environ, LJ_STAND_DIR=str(a.work), LJ_STAND_OUT=str(out), LJ_STAND_ENGINE=a.engine)

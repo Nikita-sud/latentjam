@@ -3,12 +3,12 @@
  "audioEncoder": "mnv4-960-clean-a0-fma-v1-p50q4aq",
  "assets": {
   "smart_ranker.json": {
-   "size": 6854,
-   "sha256": "fa67904d99e22efc534b68267c42d22bf7d9d0f98578a4d0b6d627686b01266d"
+   "size": 7208,
+   "sha256": "1ddcaee48f14c210d0f0886ab2d1c3ad4374f7e83e8ce20cb0e5d793d01e3118"
   },
   "smart_ranker_full.json": {
-   "size": 8685,
-   "sha256": "fe132fd0b05b6b2d79facdcbe6978f8521a96057827261edf43fc6afc32a4cc7"
+   "size": 9039,
+   "sha256": "b464543cf0813bcb6cb54b1ae766ddbdfe0a3dd64a195b8ab3d23ee9de47b07f"
   },
   "artist_colisten.bin": {
    "size": 7947962,
