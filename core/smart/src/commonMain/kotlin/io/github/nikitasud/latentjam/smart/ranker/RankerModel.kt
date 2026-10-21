@@ -117,7 +117,19 @@ public class RankerModel(
     public val transBonus: Pair<Double, Double>? = null,
     /** vc20 (FULL): the seed's followers picked right after it at least this many times skip the 24 h exclusion; null = off. */
     public val followerExemptMin: Int? = null,
+    /**
+     * Night r5 (owner: personalisation only nudges between near-equals): the score leaves the personal columns at their
+     * means; at each hop a candidate within delta · sd of the best gains delta · sd · n (n ≤ 1, the ranked personal
+     * signals: trans_track, trans_artist, playlist with the anchor, favourite, play frequency); the seed's followers with
+     * at least followMin plays after it skip the 24 h exclusion.
+     */
+    public val personalNudge: PersonalNudge? = null,
 ) {
+    public class PersonalNudge(
+        public val delta: Double, public val track: Double, public val artist: Double, public val playlist: Double,
+        public val favourite: Double, public val frequency: Double, public val followMin: Int,
+    )
+
     public class QueueArtistCap(public val cap: Int, public val window: Int, public val lambda: Double)
 
     /**
@@ -313,6 +325,13 @@ public class RankerModel(
         }
     }
 
+    /** Night r5: [score] with the listed columns at the model's means (no contribution). */
+    internal fun scoreWithoutPersonal(row: DoubleArray, personal: Set<Int>): Double {
+        val r = row.copyOf()
+        for (k in columns.indices) if (columns[k] in personal) r[columns[k]] = mean[k]
+        return score(r)
+    }
+
     /** The score of one candidate's full feature row (in [RankerFeatures.NAMES] order). */
     public fun score(row: DoubleArray): Double {
         var total = 0.0
@@ -359,13 +378,14 @@ public class RankerModel(
                 "audioZ", "softNovelty", "anchorShare", "colistenPrevShare", "familyMismatch", "classMismatch", "continuity", "holidaySeason",
                 "durationRule", "titleFlags", "unknownSeedAnchor", "artistSets",
                 "taxonomy", "versionKey", "playlistBonus", "noRepeat", "langScript", "semChain",
-                "hubPenalty", "hubGenreDamp", "scorerSquash", "tagClasses", "prevFamilyJump", "songDedup", "queueArtistCap", "transBonus", "followerExempt",
+                "hubPenalty", "hubGenreDamp", "scorerSquash", "tagClasses", "prevFamilyJump", "songDedup", "queueArtistCap", "transBonus", "followerExempt", "personalNudge",
             ),
             "tagClasses" to setOf("classes"),
             "songDedup" to setOf("minChars"),
             "queueArtistCap" to setOf("cap", "window", "lambda"),
             "transBonus" to setOf("track", "artist"),
             "followerExempt" to setOf("followMin"),
+            "personalNudge" to setOf("delta", "track", "artist", "playlist", "favourite", "frequency", "followMin"),
             "prevFamilyJump" to setOf("lambda"),
             "playlistBonus" to setOf("lambda", "quota", "artistCap"),
             "noRepeat" to setOf("lambdaStart", "rho", "minPlays"),
@@ -527,6 +547,11 @@ public class RankerModel(
                     QueueArtistCap((it["cap"] as? Number)?.toInt() ?: 3, (it["window"] as? Number)?.toInt() ?: 10, (it["lambda"] as Number).toDouble())
                 },
                 followerExemptMin = (root["followerExempt"] as? Map<*, *>)?.let { (it["followMin"] as? Number)?.toInt() ?: 2 },
+                personalNudge = (root["personalNudge"] as? Map<*, *>)?.let {
+                    fun d(k: String, v: Double) = (it[k] as? Number)?.toDouble() ?: v
+                    PersonalNudge(d("delta", 0.5), d("track", 1.0), d("artist", 0.5), d("playlist", 0.4), d("favourite", 0.3), d("frequency", 0.15),
+                        (it["followMin"] as? Number)?.toInt() ?: 2)
+                },
                 transBonus = (root["transBonus"] as? Map<*, *>)?.let {
                     ((it["track"] as? Number)?.toDouble() ?: 0.0) to ((it["artist"] as? Number)?.toDouble() ?: 0.0)
                 },

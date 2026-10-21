@@ -106,7 +106,10 @@ public object RankerQueue {
                     rows[i].copyOf().also { r -> for (c in share.columnIndexes) r[c] = share.share * r[c] + (1.0 - share.share) * base[i][c] }
                 }
             }
-            val sc = DoubleArray(poolSize) { model.score(rows[it]) }
+            val sc = if (model.personalNudge == null) DoubleArray(poolSize) { model.score(rows[it]) } else {
+                // Night r5: the personal columns sit at the model's means (no contribution); they act only as the nudge.
+                DoubleArray(poolSize) { model.scoreWithoutPersonal(rows[it], PERSONAL_COLUMNS) }
+            }
             if (model.audioZ) addAudioZ(model, sc, rows)
             model.transBonus?.let { (lt, la) ->
                 // Night r4: "after A this person plays B" as seed-specific intent, outside the learned weights.
@@ -121,7 +124,7 @@ public object RankerQueue {
                 }
             }
             // reference.py's order: class mismatch, the playlist bonus, then family mismatch.
-            model.playlistBonus?.let { pb ->
+            model.playlistBonus?.takeIf { model.personalNudge == null }?.let { pb ->
                 playlistBonus?.invoke(anchor)?.let { b -> for (i in 0 until poolSize) sc[i] = sc[i] + pb.lambda * b[i] }
             }
             if (families != null) {
@@ -138,11 +141,33 @@ public object RankerQueue {
         }
         val seedScores = scores(SEED)
         if (skipWhenTied && seedScores.all { it == seedScores[0] }) return emptyList()
+        // Night r5: each row's personal nudge n in [0, 1] against an anchor (the ranked signals, saturating).
+        val nudgeCache = HashMap<Int, DoubleArray>()
+        fun nudgeOf(anchor: Int): DoubleArray = nudgeCache.getOrPut(anchor) {
+            val pn = model.personalNudge!!
+            val rows = features(anchor)
+            val pl = playlistBonus?.invoke(anchor)
+            val jt = RankerFeatures.NAMES.indexOf("trans_track")
+            val ja = RankerFeatures.NAMES.indexOf("trans_artist")
+            val jf = RankerFeatures.NAMES.indexOf("is_favourite")
+            val jq = RankerFeatures.NAMES.indexOf("log_freq")
+            DoubleArray(poolSize) { i ->
+                val r = rows[i]
+                val x = pn.track * minOf(1.0, r[jt] / LN4) + pn.artist * minOf(1.0, r[ja] / LN4) +
+                    pn.playlist * minOf(1.0, 2.0 * (pl?.get(i) ?: 0.0)) + pn.favourite * minOf(1.0, maxOf(0.0, r[jf])) +
+                    pn.frequency * minOf(1.0, r[jq] / LN21)
+                minOf(1.0, maxOf(0.0, x))
+            }
+        }
+        val nudge: ((Int) -> DoubleArray)? = if (model.personalNudge == null) null else { anchor ->
+            val a = nudgeOf(SEED)
+            if (anchor == SEED) a else { val b = nudgeOf(anchor); DoubleArray(poolSize) { maxOf(a[it], b[it]) } }
+        }
         model.artistReentry?.takeIf { it.creditRun }?.let { re ->
             return buildCreditRun(
                 model, re, poolSize, artistKeys, seedArtist, tieOrder, length, choose, take, blocked, stop, trace,
                 credits, seedCredits, seedScores, ::scores, fresh, energies, seedEnergy, audioAgainst, novelty, heads,
-                seedFamily, rulePenalties, seedUnknown, prefix, prefixEnergy, noRepeat, varietyScale, semTerms, families,
+                seedFamily, rulePenalties, seedUnknown, prefix, prefixEnergy, noRepeat, varietyScale, semTerms, families, nudge,
             )
         }
         val lambdaRun = model.runPenalty * varietyScale
@@ -276,6 +301,7 @@ public object RankerQueue {
         varietyScale: Double,
         semTerms: ((anchor: Int) -> DoubleArray)?,
         families: List<String?>?,
+        nudge: ((Int) -> DoubleArray)?,
     ): List<Int> {
         val lambdaRun = (if (noRepeat) model.noRepeat!!.lambdaStart else model.runPenalty) * varietyScale
         val lambdaRe = re.lambda * varietyScale
@@ -463,6 +489,14 @@ public object RankerQueue {
             val t = DoubleArray(poolSize) { if (allowed[it]) penalised(it) else Double.NaN }
             var bestScore = Double.NEGATIVE_INFINITY
             for (i in 0 until poolSize) if (allowed[i]) bestScore = maxOf(bestScore, t[i])
+            if (nudge != null) {
+                // Night r5: the bounded personal tie-breaker among the near-best (never lifts a clearly worse row).
+                val nd = nudge(prevAnchor ?: SEED)
+                val delta = model.personalNudge!!.delta * spread(t, allowed)
+                val top = bestScore
+                for (i in 0 until poolSize) if (allowed[i] && t[i] >= top - delta && nd[i] > 0.0) t[i] = t[i] + delta * nd[i]
+                for (i in 0 until poolSize) if (allowed[i]) bestScore = maxOf(bestScore, t[i])
+            }
             val spreadPenalised = spread(t, allowed)
             val floor = bestScore - model.epsilon * spreadPenalised
             val nearBest = (0 until poolSize).filter { allowed[it] && t[it] >= floor }.sortedBy { tieOrder[it] }
@@ -490,6 +524,10 @@ public object RankerQueue {
         }
         return picks
     }
+
+    private val LN4 = kotlin.math.ln(4.0)
+    private val LN21 = kotlin.math.ln(21.0)
+    private val PERSONAL_COLUMNS: Set<Int> = (RankerFeatures.PERSONAL + listOf("is_favourite", "favourited_days_ago")).map { RankerFeatures.NAMES.indexOf(it) }.toSet()
 
     /** The anchor index [build] passes for the seed. */
     public const val SEED: Int = -1
@@ -1058,8 +1096,8 @@ public class SmartRanker(
         // Fast track 2 soft novelty: only the hardLast newest of the novelty set stay excluded (ties by id bytes); the
         // rest join the source and lose λ_n · sd · (1 − age / 24 h) in the decoder.
         var exclude = request.exclude
-        // vc20 (FULL): the seed's habitual followers (≥ followMin picks right after it) skip the 24 h exclusion.
-        active.followerExemptMin?.takeIf { request.personal && exclude.isNotEmpty() }?.let { fm ->
+        // vc20 / r5: the seed's habitual followers (≥ followMin picks right after it) skip the 24 h exclusion (FULL).
+        (active.followerExemptMin ?: active.personalNudge?.followMin)?.takeIf { request.personal && exclude.isNotEmpty() }?.let { fm ->
             val keep = request.history.followers(request.seed.id).filter { request.history.followCount(request.seed.id, it) >= fm }.toSet()
             if (keep.isNotEmpty()) exclude = exclude - keep
         }
