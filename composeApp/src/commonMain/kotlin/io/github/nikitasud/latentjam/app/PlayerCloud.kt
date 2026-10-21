@@ -173,6 +173,32 @@ internal fun tintForLightSurface(colour: Color): Color {
     )
 }
 
+/**
+ * The listener's accent as the ink of controls on a light [surface]: the same hue, darkened
+ * until it holds [CONTROL_INK_MIN_CONTRAST] against the floor. [tintForLightSurface] is a cloud
+ * pastel; as a switch, a slider or a Play disc it all but vanished (yellow came out at 1.3:1),
+ * and a Play disc in the cloud's own colour melted into the blob behind it.
+ */
+internal fun inkForLightSurface(colour: Color, surface: Color): Color {
+    val hsl = colour.toHsl()
+    val hue = hsl?.first ?: 0f
+    val saturation = hsl?.second ?: 0f
+    var lightness = minOf(hsl?.third ?: colour.red, CONTROL_INK_MAX_LIGHTNESS)
+    var ink = Color.hsl(hue, saturation, lightness, colour.alpha)
+    while (contrastRatio(ink, surface) < CONTROL_INK_MIN_CONTRAST && lightness > 0f) {
+        lightness = (lightness - 0.02f).coerceAtLeast(0f)
+        ink = Color.hsl(hue, saturation, lightness, colour.alpha)
+    }
+    return ink
+}
+
+/** WCAG contrast between two opaque colours, 1..21. */
+internal fun contrastRatio(a: Color, b: Color): Float {
+    val la = a.luminance()
+    val lb = b.luminance()
+    return (maxOf(la, lb) + 0.05f) / (minOf(la, lb) + 0.05f)
+}
+
 /** Hue in degrees, saturation and lightness in 0..1; null for a grey, which has no hue. */
 private fun Color.toHsl(): Triple<Float, Float, Float>? {
     val max = maxOf(red, green, blue)
@@ -199,6 +225,8 @@ private const val LIGHT_BLOB_RADIUS_SCALE = 1.15f
 private const val CLOUD_ALPHA_DARK = 0.7f
 private const val DARK_MIN_LIGHTNESS = 0.45f
 private const val DARK_MIN_SATURATION = 0.45f
+private const val CONTROL_INK_MIN_CONTRAST = 3f
+private const val CONTROL_INK_MAX_LIGHTNESS = 0.5f
 private const val COMPANION_HUE_SHIFT = 28f
 private const val BREATH_DEPTH = 0.04f
 private const val BREATH_PERIOD_S = 0.86f

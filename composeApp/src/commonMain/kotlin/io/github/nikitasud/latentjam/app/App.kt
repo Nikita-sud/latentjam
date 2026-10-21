@@ -230,7 +230,7 @@ fun App(
     // The listener's own accent also inks the controls; any other colour mode keeps them neutral.
     val controlInk = if (trackColorMode == TrackColorMode.CUSTOM) {
         val custom = Color(appearance.customAccent)
-        if (darkTheme) liftForDarkSurface(custom) else tintForLightSurface(custom)
+        if (darkTheme) liftForDarkSurface(custom) else inkForLightSurface(custom, scheme.surface)
     } else null
     CompositionLocalProvider(
         LocalReduceMotion provides rememberPlatformReduceMotion(),

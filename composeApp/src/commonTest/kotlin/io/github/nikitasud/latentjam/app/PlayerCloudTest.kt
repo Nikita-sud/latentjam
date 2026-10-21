@@ -53,6 +53,32 @@ class PlayerCloudTest {
     }
 
     @Test
+    fun everyCustomAccentInksControlsReadablyOnBothFloors() {
+        val lightFloor = Color(0xFFFAFAFA)
+        for (entry in CUSTOM_ACCENT_PALETTE) {
+            val accent = Color(entry)
+            val lightInk = inkForLightSurface(accent, lightFloor)
+            assertTrue(contrastRatio(lightInk, lightFloor) >= 3f, "light ink ${entry.toString(16)}")
+            // The Play disc sits on the cloud; it must not be the cloud's own pastel.
+            assertTrue(contrastRatio(lightInk, tintForLightSurface(accent)) >= 1.5f, "disc on cloud ${entry.toString(16)}")
+            val darkInk = liftForDarkSurface(accent)
+            for (darkFloor in listOf(Color(0xFF0B0B0B), Color.Black)) {
+                assertTrue(contrastRatio(darkInk, darkFloor) >= 3f, "dark ink ${entry.toString(16)}")
+            }
+        }
+    }
+
+    @Test
+    fun lightInkKeepsTheHueOfItsAccent() {
+        val yellow = Color(0xFFD9C23A)
+        val ink = inkForLightSurface(yellow, Color(0xFFFAFAFA))
+        assertTrue(ink.red > ink.blue && ink.green > ink.blue)
+        // A neutral accent stays a neutral, darker grey.
+        val grey = inkForLightSurface(Color(0.9f, 0.9f, 0.9f), Color(0xFFFAFAFA))
+        assertTrue(abs(grey.red - grey.blue) < 0.01f && grey.red < 0.6f)
+    }
+
+    @Test
     fun cloudNeverRequestsMoreThanTwentyAnimationUpdatesPerSecondAndStopsOnCancel() = runTest {
         var frameRequests = 0
         val clock = object : MonotonicFrameClock {
