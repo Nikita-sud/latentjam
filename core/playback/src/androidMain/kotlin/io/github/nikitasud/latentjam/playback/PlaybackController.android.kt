@@ -205,7 +205,7 @@ internal class AndroidPlaybackController(
             pendingAdvance.invalidate()
             if (controller?.mediaItemCount != 0) anticipatedResumption = null
             controller?.let(::adoptActiveResumption)
-            snapNormalizationToCurrentTrack()
+            installNormalizationForTransition(mediaItem, reason)
             updateGainLoop(controller?.isPlaying == true)
             rebuildQueueSnapshot()
             pushState()
@@ -411,6 +411,9 @@ internal class AndroidPlaybackController(
     private var normalizationRampStartedAtMs: Long = 0L
     private var normalizationRampActive: Boolean = false
 
+    /** The item whose normalization value the gain stage carries, to judge the next seam. */
+    private var normalizedTrackId: String? = null
+
     /**
      * Main-thread-owned pause/resume fade, 1 when idle. A pause lets the sound leave over
      * [TRANSPORT_FADE_OUT_MS] before the player actually pauses; a resume brings it back over
@@ -513,9 +516,19 @@ internal class AndroidPlaybackController(
     private fun desiredNormalizationVolume(player: Player): Float =
         player.currentMediaItem?.mediaId?.let(trackVolumes::get) ?: 1f
 
-    /** A track boundary is already a gain discontinuity; install that track's base before it sounds. */
-    private fun snapNormalizationToCurrentTrack() {
+    /**
+     * A track boundary is usually already a gain discontinuity: install that track's base before it
+     * sounds. A segued album seam plays on without one, so there the change ramps instead.
+     */
+    private fun installNormalizationForTransition(mediaItem: MediaItem?, reason: Int) {
         val player = controller ?: return
+        val previous = normalizedTrackId?.let(::trackById)
+        val current = mediaItem?.mediaId?.let(::trackById)
+        normalizedTrackId = mediaItem?.mediaId
+        if (rampsNormalizationAcross(previous, current, reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO)) {
+            rampNormalizationTo(desiredNormalizationVolume(player), player.isPlaying)
+            return
+        }
         normalizationRampTarget = desiredNormalizationVolume(player)
         normalizationVolume = normalizationRampTarget
         normalizationRampActive = false

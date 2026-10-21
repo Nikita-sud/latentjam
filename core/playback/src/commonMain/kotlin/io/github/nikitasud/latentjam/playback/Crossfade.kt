@@ -70,6 +70,13 @@ internal fun continuesAlbum(previous: TrackDescriptor?, next: TrackDescriptor?):
 }
 
 /**
+ * True when the normalization change at a track change must ramp rather than snap: the player
+ * moved on by itself across a [continuesAlbum] seam, which no fade or gap hides.
+ */
+internal fun rampsNormalizationAcross(previous: TrackDescriptor?, next: TrackDescriptor?, automatic: Boolean): Boolean =
+    automatic && continuesAlbum(previous, next)
+
+/**
  * Delay until the fade envelope needs another sample.
  *
  * Boundary ramps use a 20 ms cadence; a boundary that does not fade needs none. The middle of a known track sleeps until fade-out begins,

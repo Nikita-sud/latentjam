@@ -96,6 +96,14 @@ internal class CrossfadeTest {
     }
 
     @Test
+    fun normalizationRampsOnlyAcrossASeamThePlayerCrossedByItself() {
+        assertTrue(rampsNormalizationAcross(track("a", 3), track("b", 4), automatic = true))
+        assertFalse(rampsNormalizationAcross(track("a", 3), track("b", 4), automatic = false), "a skip is a seek")
+        assertFalse(rampsNormalizationAcross(track("a", 3), track("b", 5), automatic = true), "a faded seam")
+        assertFalse(rampsNormalizationAcross(null, track("b", 1), automatic = true), "the first item")
+    }
+
+    @Test
     fun aContinuedEdgeStaysAtFullVolume() {
         val duration = 180_000L
         val fade = 4_000L
