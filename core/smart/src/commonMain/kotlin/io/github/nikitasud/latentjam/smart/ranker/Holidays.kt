@@ -73,6 +73,8 @@ internal object RulePenalties {
                 if (d < r.shortMs && !(seedDurationMs != null && seedDurationMs < r.shortMs)) out[j] += r.shortLambda
                 // vc21: a cue under veryShortMs pays extra unless the seed is one too (the owner's film-score queue).
                 if (d < r.veryShortMs && !(seedDurationMs != null && seedDurationMs < r.veryShortMs)) out[j] += r.veryShortLambda
+                // vc24: a 25-minute-plus set pays extra unless the seed is one too.
+                if (d > r.veryLongMs && !(seedDurationMs != null && seedDurationMs > r.veryLongMs)) out[j] += r.veryLongLambda
             }
         }
         model.titleFlags?.let { lam ->

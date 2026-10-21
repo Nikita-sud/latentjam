@@ -138,7 +138,8 @@ public class RankerModel(
         public val favourite: Double, public val frequency: Double, public val followMin: Int,
     )
 
-    public class QueueArtistCap(public val cap: Int, public val window: Int, public val lambda: Double)
+    /** [sdUnits]: λ is in units of the hop's score spread (like the run penalty), so it scales with the library. */
+    public class QueueArtistCap(public val cap: Int, public val window: Int, public val lambda: Double, public val sdUnits: Boolean = false)
 
     /**
      * A lexicon class over lower-cased tags: [genre] substrings of the genre, exact ';'-separated genre [tokens], [text]
@@ -214,6 +215,8 @@ public class RankerModel(
         public val shortLambda: Double,
         public val veryShortMs: Long = 75_000,
         public val veryShortLambda: Double = 0.0,
+        public val veryLongMs: Long = 1_500_000,
+        public val veryLongLambda: Double = 0.0,
     )
 
     /** The novelty set beyond its [hardLast] newest stays in the pool, losing λ · sd · (1 − age / 24 h). */
@@ -392,9 +395,9 @@ public class RankerModel(
             ),
             "tagClasses" to setOf("classes"),
             "songDedup" to setOf("minChars", "prefixChars"),
-            "queueAlbumCap" to setOf("cap", "window", "lambda"),
-            "queueArtistBudget" to setOf("cap", "window", "lambda"),
-            "queueArtistCap" to setOf("cap", "window", "lambda"),
+            "queueAlbumCap" to setOf("cap", "window", "lambda", "scale"),
+            "queueArtistBudget" to setOf("cap", "window", "lambda", "scale"),
+            "queueArtistCap" to setOf("cap", "window", "lambda", "scale"),
             "transBonus" to setOf("track", "artist"),
             "followerExempt" to setOf("followMin"),
             "personalNudge" to setOf("delta", "track", "artist", "playlist", "favourite", "frequency", "followMin"),
@@ -409,7 +412,7 @@ public class RankerModel(
             "hubGenreDamp" to setOf("mult"),
             "scorerSquash" to setOf("scale", "temp"),
             "holidaySeason" to setOf("lambda"),
-            "durationRule" to setOf("longMs", "longLambda", "seedLongMs", "shortMs", "shortLambda", "veryShortMs", "veryShortLambda"),
+            "durationRule" to setOf("longMs", "longLambda", "seedLongMs", "shortMs", "shortLambda", "veryShortMs", "veryShortLambda", "veryLongMs", "veryLongLambda"),
             "titleFlags" to setOf("lambda"),
             "classMismatch" to setOf("lambda", "families"),
             "softNovelty" to setOf("lambda", "hardLast"),
@@ -534,6 +537,7 @@ public class RankerModel(
                         seedLongMs = (d["seedLongMs"] as? Number)?.toLong() ?: 600_000, shortMs = (d["shortMs"] as? Number)?.toLong() ?: 90_000,
                         shortLambda = (d["shortLambda"] as? Number)?.toDouble() ?: 0.0,
                         veryShortMs = (d["veryShortMs"] as? Number)?.toLong() ?: 75_000, veryShortLambda = (d["veryShortLambda"] as? Number)?.toDouble() ?: 0.0,
+                        veryLongMs = (d["veryLongMs"] as? Number)?.toLong() ?: 1_500_000, veryLongLambda = (d["veryLongLambda"] as? Number)?.toDouble() ?: 0.0,
                     )
                 },
                 titleFlags = (root["titleFlags"] as? Map<*, *>)?.let { (it["lambda"] as Number).toDouble() },
@@ -560,13 +564,13 @@ public class RankerModel(
                 songDedupMinChars = (root["songDedup"] as? Map<*, *>)?.let { (it["minChars"] as? Number)?.toInt() ?: 6 },
                 songDedupPrefixChars = ((root["songDedup"] as? Map<*, *>)?.get("prefixChars") as? Number)?.toInt(),
                 queueArtistBudget = (root["queueArtistBudget"] as? Map<*, *>)?.let {
-                    QueueArtistCap((it["cap"] as? Number)?.toInt() ?: 6, (it["window"] as? Number)?.toInt() ?: 40, (it["lambda"] as Number).toDouble())
+                    QueueArtistCap((it["cap"] as? Number)?.toInt() ?: 6, (it["window"] as? Number)?.toInt() ?: 40, (it["lambda"] as Number).toDouble(), it["scale"] == "sd")
                 },
                 queueAlbumCap = (root["queueAlbumCap"] as? Map<*, *>)?.let {
-                    QueueArtistCap((it["cap"] as? Number)?.toInt() ?: 3, (it["window"] as? Number)?.toInt() ?: 10, (it["lambda"] as Number).toDouble())
+                    QueueArtistCap((it["cap"] as? Number)?.toInt() ?: 3, (it["window"] as? Number)?.toInt() ?: 10, (it["lambda"] as Number).toDouble(), it["scale"] == "sd")
                 },
                 queueArtistCap = (root["queueArtistCap"] as? Map<*, *>)?.let {
-                    QueueArtistCap((it["cap"] as? Number)?.toInt() ?: 3, (it["window"] as? Number)?.toInt() ?: 10, (it["lambda"] as Number).toDouble())
+                    QueueArtistCap((it["cap"] as? Number)?.toInt() ?: 3, (it["window"] as? Number)?.toInt() ?: 10, (it["lambda"] as Number).toDouble(), it["scale"] == "sd")
                 },
                 followerExemptMin = (root["followerExempt"] as? Map<*, *>)?.let { (it["followMin"] as? Number)?.toInt() ?: 2 },
                 personalNudge = (root["personalNudge"] as? Map<*, *>)?.let {

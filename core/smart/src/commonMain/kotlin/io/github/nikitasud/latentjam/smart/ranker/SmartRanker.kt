@@ -441,7 +441,7 @@ public object RankerQueue {
                     val key = albumKeys?.get(i).orEmpty()
                     if (key.isNotEmpty()) {
                         val recent = (listOf(seedAlbum) + picks.map { albumKeys!![it] }).takeLast(maxOf(1, qc.window - 1))
-                        if (recent.count { it == key } >= qc.cap) v -= qc.lambda
+                        if (recent.count { it == key } >= qc.cap) v -= qc.lambda * (if (qc.sdUnits) sd else 1.0)
                     }
                 }
                 // vc23: the whole-queue artist budget (the same rule over a long window).
@@ -449,7 +449,7 @@ public object RankerQueue {
                     val key = artistKeys[i]
                     if (key.isNotEmpty()) {
                         val recent = histKeys.takeLast(maxOf(1, qc.window - 1))
-                        if (recent.count { it == key } >= qc.cap) v -= qc.lambda
+                        if (recent.count { it == key } >= qc.cap) v -= qc.lambda * (if (qc.sdUnits) sd else 1.0)
                     }
                 }
                 // Night r4: a soft per-queue artist cap over the last window − 1 items (the seed included).
@@ -457,7 +457,7 @@ public object RankerQueue {
                     val key = artistKeys[i]
                     if (key.isNotEmpty()) {
                         val recent = histKeys.takeLast(maxOf(1, qc.window - 1))
-                        if (recent.count { it == key } >= qc.cap) v -= qc.lambda
+                        if (recent.count { it == key } >= qc.cap) v -= qc.lambda * (if (qc.sdUnits) sd else 1.0)
                     }
                 }
                 // vc23: cumulative tail drift — off the seed's family after k consecutive off-family picks.

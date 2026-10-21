@@ -1,6 +1,6 @@
 {
  "schema": "lj-smart-ranker/2",
- "name": "FULL L2 fast track (product check) night-r8e",
+ "name": "FULL L2 fast track (product check) night-r7d",
  "features": [
   "heard",
   "log_freq",
@@ -348,9 +348,9 @@
   "longLambda": 4.0,
   "seedLongMs": 600000,
   "shortMs": 90000,
-  "shortLambda": 3.0,
+  "shortLambda": 2.0,
   "veryShortMs": 75000,
-  "veryShortLambda": 6.0
+  "veryShortLambda": 3.0
  },
  "titleFlags": {
   "lambda": 1.0
@@ -404,7 +404,7 @@
      "мультфильм",
      "birthday"
     ],
-    "lambda": 6.0
+    "lambda": 3.0
    },
    {
     "name": "meme",
@@ -445,13 +445,12 @@
      "revolutionary song",
      "soviet song",
      "political",
-     "military",
-     "patriotic folk"
+     "military"
     ],
     "text": [
      "донбасс"
     ],
-    "lambda": 6.0
+    "lambda": 3.0
    },
    {
     "name": "chanson",
