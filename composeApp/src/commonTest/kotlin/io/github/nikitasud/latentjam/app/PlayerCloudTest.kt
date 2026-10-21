@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.app
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.runtime.MonotonicFrameClock
 import kotlin.math.abs
 import kotlin.test.Test
@@ -140,5 +141,19 @@ class PlayerCloudTest {
         runCurrent()
         assertTrue(elapsed.single() in 0f..0.1f)
         job.cancel()
+    }
+
+    @Test
+    fun aPaleCoverStaysReadableWhereTwoDarkCloudBlobsOverlap() {
+        val floor = Color(0xFF0B0B0B)
+        val text = Color(0xFFF2F2F2)
+        for (alpha in listOf(0.35f, 0.7f, 1f)) {
+            val coverage = darkCloudCoverage(alpha)
+            for (cover in listOf(Color(0xFFFFF4B0), Color(0xFFE8F4FF), Color(0xFFFFFFFF))) {
+                val lifted = liftForDarkCloud(cover, coverage, floor, text)
+                val blob = lerp(floor, lifted, coverage)
+                assertTrue(contrastRatio(text, blob) >= 3f, "alpha $alpha, cover $cover")
+            }
+        }
     }
 }
