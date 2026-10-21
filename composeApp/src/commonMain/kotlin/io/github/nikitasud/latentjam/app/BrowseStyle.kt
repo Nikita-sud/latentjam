@@ -20,9 +20,19 @@ import androidx.compose.ui.unit.dp
 internal fun Modifier.browseCloud(accent: TrackAccent?): Modifier {
     val strength = LocalAppearance.current.cloud.alphaScale
     if (accent == null || strength == 0f) return this
-    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val color = if (dark) liftForDarkSurface(accent.vivid) else tintForLightSurface(accent.vivid)
-    val companionColor = if (dark) lerp(color, Color.White, 0.16f) else rotateHue(color, 12f)
+    val colors = MaterialTheme.colorScheme
+    val dark = colors.surface.luminance() < 0.5f
+    val color = if (dark) {
+        liftForDarkCloud(accent.vivid, (0.30f * strength).coerceAtMost(1f), colors.surface, colors.onSurface)
+    } else {
+        tintForLightSurface(accent.vivid)
+    }
+    val companionColor = if (dark) {
+        val companionAlpha = (0.20f * strength).coerceAtMost(1f)
+        liftForDarkCloud(lerp(color, Color.White, 0.16f), companionAlpha, colors.surface, colors.onSurface)
+    } else {
+        rotateHue(color, 12f)
+    }
     return drawWithCache {
         // Keep the song recognisable across the whole light header. Radial clouds alone fade
         // nearly to white between their centres; this broad wash dissolves into the list floor.

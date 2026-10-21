@@ -230,7 +230,7 @@ fun App(
     // The listener's own accent also inks the controls; any other colour mode keeps them neutral.
     val controlInk = if (trackColorMode == TrackColorMode.CUSTOM) {
         val custom = Color(appearance.customAccent)
-        if (darkTheme) liftForDarkSurface(custom) else tintForLightSurface(custom)
+        if (darkTheme) liftForDarkSurface(custom) else inkForLightSurface(custom, scheme.surface)
     } else null
     CompositionLocalProvider(
         LocalReduceMotion provides rememberPlatformReduceMotion(),
@@ -3379,16 +3379,16 @@ private fun AppShell(
                         }
                     }
 
-                    val leftHanded = LocalAppearance.current.leftHanded
+                    val shuffleAtStart = handControlsAtStart()
                     val showShuffle = !selectionMode && !railScrubbing && !searchOverlayActive && !collectionOverlayActive &&
                         selectedTab.showsShuffleAll() &&
                         catalog?.songs?.isNotEmpty() == true
                     AnimatedVisibility(
                         visible = showShuffle,
-                        modifier = Modifier.align(if (leftHanded) Alignment.BottomStart else Alignment.BottomEnd)
+                        modifier = Modifier.align(if (shuffleAtStart) Alignment.BottomStart else Alignment.BottomEnd)
                             // Selection adds its own toolbar inset, but an exiting Shuffle
                             // button must keep its original anchor while it fades away.
-                            .padding(start = if (leftHanded) 42.dp else 0.dp, end = if (leftHanded) 0.dp else 42.dp, bottom = navBottom +
+                            .padding(start = if (shuffleAtStart) 42.dp else 0.dp, end = if (shuffleAtStart) 0.dp else 42.dp, bottom = navBottom +
                                 (if (currentTrack != null) miniPlayerHeight else 12.dp) + 20.dp),
                         enter = if (reduceMotion) fadeIn(tween(Motion.REDUCED_MS)) else {
                             fadeIn(tween(Motion.APPEAR_MS)) +

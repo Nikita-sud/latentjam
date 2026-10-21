@@ -127,8 +127,8 @@ internal fun CollectionSectionHeader(bucket: String, horizontalPadding: Dp = 20.
 }
 
 /**
- * Two fingers resize the album grid a column at a time (2 to 4); one finger still scrolls, and the
- * pager still swipes. The pinch is claimed the way the Map claims it, before the grid's own scroll
+ * Two fingers resize the album grid a column at a time (2 to 4, or back to the adaptive grid when a
+ * wide screen fits more); one finger still scrolls, and the pager still swipes. The pinch is claimed the way the Map claims it, before the grid's own scroll
  * can take the second finger.
  */
 @Composable
@@ -139,23 +139,45 @@ internal fun AlbumGridPinch(
 ) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val adaptive = ((maxWidth - 24.dp) / AlbumGridMinCellWidth).toInt().coerceAtLeast(1)
-        val shown by rememberUpdatedState(if (columns > 0) columns else adaptive)
+        val chosen by rememberUpdatedState(columns)
+        val fits by rememberUpdatedState(adaptive)
         val change by rememberUpdatedState(onColumnsChange)
         Box(
             Modifier.fillMaxSize().pointerInput(Unit) {
                 var zoom = 1f
-                detectMapTransformGestures { _, _, step ->
+                // Each pinch starts afresh: a spread left over from the last one no longer
+                // counts toward the next.
+                detectMapTransformGestures(onGestureStart = { zoom = 1f }) { _, _, step ->
                     zoom *= step
-                    val next = when {
-                        zoom > PINCH_STEP -> shown - 1
-                        zoom < 1f / PINCH_STEP -> shown + 1
+                    val spread = when {
+                        zoom > PINCH_STEP -> true
+                        zoom < 1f / PINCH_STEP -> false
                         else -> return@detectMapTransformGestures
-                    }.coerceIn(ALBUM_COLUMN_CHOICES.first(), ALBUM_COLUMN_CHOICES.last())
+                    }
                     zoom = 1f
-                    if (next != shown) change(next)
+                    albumColumnsAfterPinch(chosen, fits, spread)?.let(change)
                 }
             },
         ) { content() }
+    }
+}
+
+/**
+ * The album grid's column setting after one pinch step, or null when it stays: spreading the fingers
+ * ([spread]) shows fewer, larger covers, closing them more. [columns] is the setting (0 = adaptive)
+ * and [adaptive] what the screen fits. A wide screen's adaptive grid can show more than the largest
+ * fixed choice; pinching in from there moves toward fewer columns, never jumping past the start,
+ * and pinching for more past the largest choice returns to that adaptive grid.
+ */
+internal fun albumColumnsAfterPinch(columns: Int, adaptive: Int, spread: Boolean): Int? {
+    val shown = if (columns > 0) columns else adaptive
+    val fewest = ALBUM_COLUMN_CHOICES.first()
+    val most = ALBUM_COLUMN_CHOICES.last()
+    return when {
+        spread -> (shown - 1).coerceIn(fewest, most).takeIf { it < shown }
+        shown < most -> (shown + 1).coerceAtLeast(fewest)
+        columns > 0 && adaptive > shown -> 0
+        else -> null
     }
 }
 

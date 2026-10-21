@@ -53,6 +53,53 @@ class PlayerCloudTest {
     }
 
     @Test
+    fun everyCustomAccentInksControlsReadablyOnBothFloors() {
+        val lightFloor = Color(0xFFFAFAFA)
+        for (entry in CUSTOM_ACCENT_PALETTE) {
+            val accent = Color(entry)
+            val lightInk = inkForLightSurface(accent, lightFloor)
+            assertTrue(contrastRatio(lightInk, lightFloor) >= 3f, "light ink ${entry.toString(16)}")
+            // The Play disc sits on the cloud; it must not be the cloud's own pastel.
+            assertTrue(contrastRatio(lightInk, tintForLightSurface(accent)) >= 1.5f, "disc on cloud ${entry.toString(16)}")
+            val darkInk = liftForDarkSurface(accent)
+            for (darkFloor in listOf(Color(0xFF0B0B0B), Color.Black)) {
+                assertTrue(contrastRatio(darkInk, darkFloor) >= 3f, "dark ink ${entry.toString(16)}")
+            }
+        }
+    }
+
+    @Test
+    fun lightInkKeepsTheHueOfItsAccent() {
+        val yellow = Color(0xFFD9C23A)
+        val ink = inkForLightSurface(yellow, Color(0xFFFAFAFA))
+        assertTrue(ink.red > ink.blue && ink.green > ink.blue)
+        // A neutral accent stays a neutral, darker grey.
+        val grey = inkForLightSurface(Color(0.9f, 0.9f, 0.9f), Color(0xFFFAFAFA))
+        assertTrue(abs(grey.red - grey.blue) < 0.01f && grey.red < 0.6f)
+    }
+
+    @Test
+    fun aPaleCoverInAVividDarkCloudLeavesThePlayerTextReadable() {
+        val text = Color(0xFFF2F2F2)
+        val pale = listOf(Color(0.98f, 0.95f, 0.70f), Color(0.80f, 0.96f, 0.98f), Color(0.94f, 0.94f, 0.94f))
+        for (floor in listOf(Color(0xFF0B0B0B), Color.Black)) {
+            for (strength in CloudStrength.entries.filter { it.alphaScale > 0f }) {
+                val alpha = (0.7f * strength.alphaScale).coerceAtMost(1f)
+                for (cover in pale) {
+                    val cloud = liftForDarkCloud(cover, alpha, floor, text)
+                    assertTrue(contrastRatio(text, cloud.over(floor, alpha)) >= 3f, "$cover at $strength")
+                }
+            }
+        }
+    }
+
+    @Test
+    fun aCoverThatAlreadyReadsKeepsItsDarkCloudColour() {
+        val deepBlue = Color(0.15f, 0.25f, 0.75f)
+        assertEquals(liftForDarkSurface(deepBlue), liftForDarkCloud(deepBlue, 1f, Color.Black, Color(0xFFF2F2F2)))
+    }
+
+    @Test
     fun cloudNeverRequestsMoreThanTwentyAnimationUpdatesPerSecondAndStopsOnCancel() = runTest {
         var frameRequests = 0
         val clock = object : MonotonicFrameClock {

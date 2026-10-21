@@ -41,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -87,6 +88,19 @@ import org.jetbrains.compose.resources.stringResource
 /** Compact index column; normal list scrolling remains the larger gesture target. */
 internal val RailWidth = 30.dp
 internal val RailGap = 4.dp
+
+/**
+ * Whether the rail and the Shuffle button sit on the layout's start side. Left-handed promises
+ * the physical left edge (and right-handed the right), so in a right-to-left layout such as
+ * Arabic or Hebrew, where start is the right, the answer flips.
+ */
+@Composable
+@ReadOnlyComposable
+internal fun handControlsAtStart(): Boolean =
+    handControlsAtStart(LocalAppearance.current.leftHanded, LocalLayoutDirection.current)
+
+internal fun handControlsAtStart(leftHanded: Boolean, layoutDirection: LayoutDirection): Boolean =
+    leftHanded == (layoutDirection == LayoutDirection.Ltr)
 private val RailPillWidth = 26.dp
 private val BubbleSize = 56.dp
 /** Clear space between rail and bubble, so the thumb on the rail does not cover the letter. */
@@ -297,8 +311,8 @@ internal fun ListWithRail(
         }
     }
     val layoutDirection = LocalLayoutDirection.current
-    // Left-handed puts the rail, and so its gutter, on the start side.
-    val railAtStart = LocalAppearance.current.leftHanded
+    // The rail, and so its gutter, sits on the listener's hand side.
+    val railAtStart = handControlsAtStart()
     val railGutter = if (showRail) RailWidth + RailGap else 0.dp
     val inset = PaddingValues(
         start = contentPadding.calculateStartPadding(layoutDirection) + if (railAtStart) railGutter else 0.dp,
@@ -441,8 +455,8 @@ internal fun GridListWithRail(
         }
     }
     val layoutDirection = LocalLayoutDirection.current
-    // Left-handed puts the rail, and so its gutter, on the start side.
-    val railAtStart = LocalAppearance.current.leftHanded
+    // The rail, and so its gutter, sits on the listener's hand side.
+    val railAtStart = handControlsAtStart()
     val railGutter = if (showRail) RailWidth + RailGap else 0.dp
     val inset = PaddingValues(
         start = contentPadding.calculateStartPadding(layoutDirection) + if (railAtStart) railGutter else 0.dp,
@@ -567,7 +581,7 @@ internal fun BoxScope.StandaloneAlphabetRailOverlay(
     onScrubbingChange: (Boolean) -> Unit = {},
     interactive: Boolean = true,
 ) {
-    val railAtStart = LocalAppearance.current.leftHanded
+    val railAtStart = handControlsAtStart()
     var previewIndex by remember(catalogKey) { mutableStateOf<Int?>(null) }
     var settlingIndex by remember(catalogKey) { mutableStateOf<Int?>(null) }
     var touchY by remember { mutableStateOf(0f) }
@@ -578,7 +592,6 @@ internal fun BoxScope.StandaloneAlphabetRailOverlay(
     val latestOnJump by rememberUpdatedState(onJump)
     val latestOnScrubbingChange by rememberUpdatedState(onScrubbingChange)
     val scope = rememberCoroutineScope()
-    val layoutDirection = LocalLayoutDirection.current
     val density = LocalDensity.current
     val bubbleDiameter = maxOf(
         BubbleSize,
@@ -700,13 +713,13 @@ internal fun BoxScope.StandaloneAlphabetRailOverlay(
                     val localTop = (touchY - bubblePx / 2f)
                         .roundToInt()
                         .coerceIn(0, (railHeightPx - bubblePx).coerceAtLeast(0))
-                    // The bubble sits beside the rail, on the side facing the content.
-                    val towardContent = (layoutDirection == LayoutDirection.Ltr) != railAtStart
+                    // The bubble sits beside the rail, on the side facing the content. offset {}
+                    // already mirrors x in a right-to-left layout, so only the rail's side counts.
                     IntOffset(
-                        x = if (towardContent) {
-                            -(RailWidth + BubbleGap).roundToPx()
-                        } else {
+                        x = if (railAtStart) {
                             (RailWidth + BubbleGap).roundToPx()
+                        } else {
+                            -(RailWidth + BubbleGap).roundToPx()
                         },
                         y = railTopPx.roundToInt() + localTop,
                     )

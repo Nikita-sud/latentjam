@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.ui.unit.LayoutDirection
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
@@ -322,5 +323,14 @@ internal class AlphabetRailTest {
         advanceTimeBy(1L)
         runCurrent()
         assertTrue(revealed)
+    }
+
+    @Test
+    fun leftHandedMeansThePhysicalLeftInEitherReadingDirection() {
+        // Start is the left edge in a left-to-right layout and the right edge in Arabic or Hebrew.
+        assertTrue(handControlsAtStart(leftHanded = true, layoutDirection = LayoutDirection.Ltr))
+        assertFalse(handControlsAtStart(leftHanded = true, layoutDirection = LayoutDirection.Rtl))
+        assertFalse(handControlsAtStart(leftHanded = false, layoutDirection = LayoutDirection.Ltr))
+        assertTrue(handControlsAtStart(leftHanded = false, layoutDirection = LayoutDirection.Rtl))
     }
 }
