@@ -136,10 +136,14 @@ internal fun rememberMapPageModel(
                         }
                         // Streamed: rows are read from the engine per chunk, so the fused
                         // n x dim input (54 MB at 10,000) is never held, and budgeted without it.
+                        // Measured once, before the rows allocate their chunk buffer: the budget
+                        // already counts that chunk, so a second reading after it exists would
+                        // charge it twice.
                         val streamedBytes = MapMemoryBudget.projectionStreamedBytes(
                             coverage.size, 1344, LibraryLayout.experimentalBackend,
                         )
-                        if (!mapWorkFits(streamedBytes)) {
+                        val workBudget = mapWorkBytes(streamedBytes)
+                        if (workBudget < streamedBytes) {
                             throw MapComputationUnavailable("Insufficient memory for map projection", memoryLimited = true)
                         }
                         val rows = engine.libraryMixRows(loadedIds)
@@ -156,7 +160,7 @@ internal fun rememberMapPageModel(
                         } else {
                             LibraryLayout.compute(
                                 rows, previous.positions, isActive = { isActive },
-                                workBudgetBytes = availableMapWorkBytes(),
+                                workBudgetBytes = workBudget,
                             )
                         }
                         if (computed == null) {

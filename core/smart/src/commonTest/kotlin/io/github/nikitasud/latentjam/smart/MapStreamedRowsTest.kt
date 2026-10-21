@@ -5,6 +5,8 @@
 package io.github.nikitasud.latentjam.smart
 
 import io.github.nikitasud.latentjam.smart.cluster.LibraryLayout
+import io.github.nikitasud.latentjam.smart.cluster.MapComputationUnavailable
+import io.github.nikitasud.latentjam.smart.cluster.MapMemoryBudget
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorRows
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorSource
 import io.github.nikitasud.latentjam.smart.text.TextEncoder
@@ -13,6 +15,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -130,6 +133,20 @@ internal class MapStreamedRowsTest {
         val redrawn = assertNotNull(LibraryLayout.compute(settled))
         assertTrue(settled.isCurrent())
         assertEquals(LibraryLayout.compute(assertNotNull(engine.libraryMixVectors(ids))), redrawn)
+    }
+
+    @Test
+    fun aBudgetMeasuredBeforeTheRowsExistAlreadyCoversTheirChunk() = runTest {
+        // The page measures free memory once, before the rows allocate their chunk buffer, and
+        // hands that figure on. It must suffice exactly: the requirement counts the chunk itself.
+        val engine = hybridEngine()
+        val rows = assertNotNull(engine.libraryMixRows(ids))
+        val required = MapMemoryBudget.projectionStreamedBytes(rows.size, rows.dim, LibraryLayout.experimentalBackend)
+        assertNotNull(LibraryLayout.compute(rows, workBudgetBytes = required))
+        val refused = assertFailsWith<MapComputationUnavailable> {
+            LibraryLayout.compute(assertNotNull(engine.libraryMixRows(ids)), workBudgetBytes = required - 1)
+        }
+        assertTrue(refused.memoryLimited)
     }
 
     @Test
