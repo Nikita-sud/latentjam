@@ -205,7 +205,8 @@ internal class AndroidPlaybackController(
             pendingAdvance.invalidate()
             if (controller?.mediaItemCount != 0) anticipatedResumption = null
             controller?.let(::adoptActiveResumption)
-            snapNormalizationToCurrentTrack()
+            installNormalizationForTransition(mediaItem, reason)
+            fadeEdges.reset()
             updateGainLoop(controller?.isPlaying == true)
             rebuildQueueSnapshot()
             pushState()
@@ -219,6 +220,8 @@ internal class AndroidPlaybackController(
             if (controller?.mediaItemCount != 0) anticipatedResumption = null
             controller?.let(::adoptActiveResumption)
             rebuildQueueSnapshot()
+            // A queue edit can change which edges of the playing track fade; follow it now.
+            updateGainLoop(controller?.isPlaying == true)
             pushState()
         }
 
@@ -308,6 +311,7 @@ internal class AndroidPlaybackController(
             reason: Int,
         ) {
             pendingAdvance.invalidate()
+            fadeEdges.reset()
             // System UI and Bluetooth controllers can seek while paused, when the ticker is off.
             // Recompute gain too: while paused the fade loop is off, so otherwise resuming after a
             // seek to a boundary can emit one full-volume buffer before its first scheduled tick.
@@ -403,6 +407,7 @@ internal class AndroidPlaybackController(
     /** Main-thread-owned crossfade width; 0 keeps hard track boundaries. */
     private var crossfadeMs: Long = 0
     private var gainJob: Job? = null
+    private val fadeEdges = FadeEdgeSmoother()
 
     /** Current/target normalization multiplier; transitions snap, mid-track discoveries ramp. */
     private var normalizationVolume: Float = 1f
@@ -410,6 +415,9 @@ internal class AndroidPlaybackController(
     private var normalizationRampTarget: Float = 1f
     private var normalizationRampStartedAtMs: Long = 0L
     private var normalizationRampActive: Boolean = false
+
+    /** The item whose normalization value the gain stage carries, to judge the next seam. */
+    private var normalizedTrackId: String? = null
 
     /**
      * Main-thread-owned pause/resume fade, 1 when idle. A pause lets the sound leave over
@@ -449,15 +457,17 @@ internal class AndroidPlaybackController(
         val player = controller ?: return
         val base = currentNormalizationVolume(SystemClock.elapsedRealtime())
         val fade = if (crossfadeMs > 0) {
-            val (fadeIn, fadeOut) = boundaryFades(player)
-            crossfadeFactor(
+            val edges = boundaryFades(player)
+            val envelope = crossfadeFactor(
                 positionMs = player.currentPosition,
                 durationMs = player.duration.takeIf { it != C.TIME_UNSET } ?: 0L,
                 fadeMs = crossfadeMs,
-                fadeIn = fadeIn,
-                fadeOut = fadeOut,
+                fadeIn = edges.first,
+                fadeOut = edges.second,
             )
+            fadeEdges.factor(edges, envelope, SystemClock.elapsedRealtime())
         } else {
+            fadeEdges.reset()
             1f
         }
         val transport = transportFade.gainAt(SystemClock.elapsedRealtime())
@@ -476,7 +486,7 @@ internal class AndroidPlaybackController(
             while (isActive) {
                 applyEffectiveVolume()
                 val player = controller ?: break
-                val rampDelay = if (normalizationRampActive || transportFade.active) {
+                val rampDelay = if (normalizationRampActive || transportFade.active || fadeEdges.ramping) {
                     GAIN_RAMP_TICK_MS
                 } else {
                     Long.MAX_VALUE
@@ -513,9 +523,19 @@ internal class AndroidPlaybackController(
     private fun desiredNormalizationVolume(player: Player): Float =
         player.currentMediaItem?.mediaId?.let(trackVolumes::get) ?: 1f
 
-    /** A track boundary is already a gain discontinuity; install that track's base before it sounds. */
-    private fun snapNormalizationToCurrentTrack() {
+    /**
+     * A track boundary is usually already a gain discontinuity: install that track's base before it
+     * sounds. A segued album seam plays on without one, so there the change ramps instead.
+     */
+    private fun installNormalizationForTransition(mediaItem: MediaItem?, reason: Int) {
         val player = controller ?: return
+        val previous = normalizedTrackId?.let(::trackById)
+        val current = mediaItem?.mediaId?.let(::trackById)
+        normalizedTrackId = mediaItem?.mediaId
+        if (rampsNormalizationAcross(previous, current, reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO)) {
+            rampNormalizationTo(desiredNormalizationVolume(player), player.isPlaying)
+            return
+        }
         normalizationRampTarget = desiredNormalizationVolume(player)
         normalizationVolume = normalizationRampTarget
         normalizationRampActive = false
