@@ -27,6 +27,11 @@ internal class EqualizerAudioProcessor(
     private val readSettings: () -> SoftwareEqualizerSettings,
 ) : BaseAudioProcessor() {
     private var equalizer: NativeEqualizer? = null
+    /**
+     * DefaultAudioSink flushes the chain again once the new AudioTrack exists, so one reposition
+     * reaches onFlush twice; the fade waits for the first PCM instead of riding on a single flush.
+     */
+    private var fadePending = false
 
     override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
         if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT || inputAudioFormat.channelCount <= 0 ||
@@ -37,10 +42,13 @@ internal class EqualizerAudioProcessor(
     override fun onFlush(streamMetadata: StreamMetadata) {
         equalizer?.close()
         equalizer = NativeEqualizer(inputAudioFormat.sampleRate, inputAudioFormat.channelCount, readSettings())
-            .also { if (restart.getAndSet(false)) it.fadeIn() }
+            .also {
+                if (restart.getAndSet(false)) fadePending = true
+                if (fadePending) it.fadeIn()
+            }
     }
 
-    override fun onReset() { equalizer?.close(); equalizer = null }
+    override fun onReset() { equalizer?.close(); equalizer = null; fadePending = false }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
         if (!inputBuffer.hasRemaining()) return
@@ -48,6 +56,7 @@ internal class EqualizerAudioProcessor(
         dsp.update(readSettings())
         val output = replaceOutputBuffer(inputBuffer.remaining())
         dsp.processPcm16(inputBuffer, output)
+        fadePending = false
         output.flip()
         meter?.report(inputAudioFormat.sampleRate, dsp.takeMeterGain())
     }
