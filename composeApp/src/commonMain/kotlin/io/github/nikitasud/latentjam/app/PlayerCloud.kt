@@ -75,9 +75,10 @@ internal fun Modifier.playerCloud(accent: TrackAccent, playing: Boolean): Modifi
     val colors = MaterialTheme.colorScheme
     val dark = colors.surface.luminance() < 0.5f
     val alpha = ((if (dark) CLOUD_ALPHA_DARK else CLOUD_ALPHA_LIGHT) * strength).coerceAtMost(1f)
-    // Blobs drift over each other: where two overlap the cloud covers 1 - (1 - alpha)^2 of the
-    // floor, so the titles' contrast is checked against that, not against one blob.
-    val coverage = 1f - (1f - alpha) * (1f - alpha)
+    // Blobs drift over each other, but their anchors keep the nearest two about 87 dp apart even
+    // on a small screen, so at the worst point the second adds about a third of its strength
+    // (0.77 at Normal, 0.42 at Soft). The titles' contrast is checked against that coverage.
+    val coverage = 1f - (1f - alpha) * (1f - alpha / 3f)
     val primary = if (dark) {
         liftForDarkCloud(accent.vivid, coverage, colors.surface, colors.onSurface)
     } else {

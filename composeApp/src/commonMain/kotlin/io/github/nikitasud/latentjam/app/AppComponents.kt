@@ -160,7 +160,7 @@ import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.LocalIndication
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.layout.layout
 
 @Composable
 internal fun EmptyLibraryPage(
@@ -581,7 +581,7 @@ internal fun BrowseCarousel(
                         // Pills grow in height only: their widths drive the sliding fill, which
                         // must stay as wide as a one-glyph pill such as Japanese 曲.
                         .then(
-                            if (style == PageHeaderStyle.PILLS) Modifier.heightIn(min = 48.dp)
+                            if (style == PageHeaderStyle.PILLS) Modifier.minimumTouchHeight()
                             else Modifier.minimumInteractiveComponentSize(),
                         )
                     when (style) {
@@ -1500,4 +1500,15 @@ internal fun MiniPlayerProgress(
             )
         }
     }
+}
+
+/**
+ * A 48 dp tall hit area around content that keeps its own drawn size: the content is measured
+ * without the minimum and centred in the taller slot, as minimumInteractiveComponentSize does for
+ * both axes. A plain heightIn would stretch a fixed-height pill and its outline instead.
+ */
+internal fun Modifier.minimumTouchHeight(): Modifier = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints.copy(minHeight = 0))
+    val height = maxOf(placeable.height, 48.dp.roundToPx()).coerceIn(constraints.minHeight, constraints.maxHeight)
+    layout(placeable.width, height) { placeable.place(0, (height - placeable.height) / 2) }
 }

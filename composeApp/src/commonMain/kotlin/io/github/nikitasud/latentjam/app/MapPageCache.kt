@@ -24,8 +24,9 @@ import kotlin.time.TimeSource
 internal class MapPageCache(private val timeSource: TimeSource = TimeSource.Monotonic) {
     private val mutex = Mutex()
     private var stored: StoredLibraryLayout? = null
-    /** When [stored] was last computed here; null when it came from disk. */
+    /** When [stored] was last computed here, and from which vectors; null when it came from disk. */
     private var computedAt: TimeMark? = null
+    private var computedSource: Any? = null
     private var pageKey: PageKey? = null
     private var cachedPage: MapPage? = null
 
@@ -41,11 +42,13 @@ internal class MapPageCache(private val timeSource: TimeSource = TimeSource.Mono
          * its whole projection after each track.
          */
         reuseRecentFor: Duration = Duration.ZERO,
+        /** The vectors the layout is drawn from; a layout from another source is never reused. */
+        source: Any? = null,
     ): StoredLibraryLayout? = mutex.withLock {
         fun StoredLibraryLayout.matches() = this.fingerprint == fingerprint &&
             LibraryLayout.covers(positions, trackIds)
         stored?.takeIf { it.matches() }?.let { return@withLock it }
-        val recent = computedAt?.let { it.elapsedNow() < reuseRecentFor } == true
+        val recent = computedAt?.let { it.elapsedNow() < reuseRecentFor } == true && computedSource == source
         stored?.takeIf { recent && it.positions.size == trackIds.size && LibraryLayout.covers(it.positions, trackIds) }
             ?.let { return@withLock it }
         val disk = load()
@@ -62,6 +65,7 @@ internal class MapPageCache(private val timeSource: TimeSource = TimeSource.Mono
         if (!built.matches()) return@withLock null
         stored = built
         computedAt = timeSource.markNow()
+        computedSource = source
         built
     }
 

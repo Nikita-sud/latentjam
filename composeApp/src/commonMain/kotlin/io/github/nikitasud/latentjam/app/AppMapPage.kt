@@ -25,6 +25,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 
 /** Owns map effects and cache lifetime independently of the player shell. */
@@ -52,6 +53,7 @@ internal fun rememberMapPageModel(
         libraryWorlds.worldLibraryIds,
         libraryWorlds.builtWorldsKey,
         libraryWorlds.memoryLimited,
+        libraryWorlds.audioVectorsReady,
         mapPageActive,
         historyRevision,
         discoveryMixLabel,
@@ -175,7 +177,10 @@ internal fun rememberMapPageModel(
                             )
                         }
                     },
-                    reuseRecentFor = MAP_LAYOUT_REUSE,
+                    // Only while the analysis runs, and only for the same kind of vectors: once it
+                    // ends (this effect re-runs on that) the Map is drawn from the final vectors.
+                    reuseRecentFor = if (libraryWorlds.audioVectorsReady) Duration.ZERO else MAP_LAYOUT_REUSE,
+                    source = coverage.source,
                 ) ?: return@withLock null
                 mapPageCache.page(
                     layout = layout,
@@ -223,5 +228,5 @@ internal fun rememberMapPageModel(
     return mapPage
 }
 
-/** How long a layout computed during an analysis is shown again before the Map recomputes it. */
+/** How long a layout computed while an analysis runs is shown again before the Map recomputes it. */
 private val MAP_LAYOUT_REUSE = 5.minutes

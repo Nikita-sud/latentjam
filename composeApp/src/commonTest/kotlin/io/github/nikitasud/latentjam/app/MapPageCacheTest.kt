@@ -135,5 +135,12 @@ class MapPageCacheTest {
         assertEquals(2, computes)
         assertEquals(null, cache.layout(listOf(a), 13, { missing }, { computes++; null }, reuseRecentFor = 5.minutes))
         assertEquals(3, computes)
+        // Vectors of another kind (metadata only, then audio too) are never drawn from the old layout.
+        val metadata = cache.layout(listOf(a, b), 14, { missing }, { computes++; layout(fingerprint = 14) }, reuseRecentFor = 5.minutes, source = "metadata")!!
+        clock += 1.minutes
+        assertSame(metadata, cache.layout(listOf(a, b), 15, { missing }, compute, reuseRecentFor = 5.minutes, source = "metadata"))
+        val before = computes
+        cache.layout(listOf(a, b), 16, { missing }, { computes++; layout(fingerprint = 16) }, reuseRecentFor = 5.minutes, source = "fused")
+        assertEquals(before + 1, computes)
     }
 }
