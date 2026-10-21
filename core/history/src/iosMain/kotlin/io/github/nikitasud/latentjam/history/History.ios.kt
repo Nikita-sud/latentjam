@@ -16,12 +16,17 @@ import kotlinx.cinterop.usePinned
 import kotlinx.cinterop.value
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.concurrent.Volatile
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
 import org.koin.core.module.Module
 import org.koin.dsl.module
 import platform.Foundation.NSApplicationSupportDirectory
 import platform.Foundation.NSData
 import platform.Foundation.NSDate
 import platform.Foundation.NSTimeIntervalSince1970
+import platform.Foundation.NSTimeZone
+import platform.Foundation.localTimeZone
 import platform.Foundation.NSError
 import platform.Foundation.NSFileHandle
 import platform.Foundation.NSFileManager
@@ -295,12 +300,26 @@ public actual fun listeningHistoryModule(): Module = module {
 
 public actual fun epochMillis(): Long = (NSDate().timeIntervalSince1970 * 1000).toLong()
 
+/** The local zone and when it was read; one object, so a reader never pairs one with the other's age. */
+private class LocalZone(val zone: NSTimeZone, val readAt: TimeSource.Monotonic.ValueTimeMark)
+
+/**
+ * The local zone, re-read at most once a second, as on Android. Statistics call [localTimePoint] for
+ * every listen of the log; a calendar per call (`NSCalendar.currentCalendar` hands out a new one)
+ * plus its hour component made a 200k-listen pass about 600k Objective-C allocations, while the
+ * zone changes only when the listener travels or edits it.
+ */
+@Volatile private var cachedLocalZone: LocalZone? = null
+
 public actual fun localTimePoint(epochMs: Long): LocalTimePoint {
+    val zone = cachedLocalZone?.takeIf { it.readAt.elapsedNow() < 1.seconds }
+        ?: LocalZone(NSTimeZone.localTimeZone, TimeSource.Monotonic.markNow()).also { cachedLocalZone = it }
     val date = NSDate(timeIntervalSinceReferenceDate = epochMs / 1000.0 - NSTimeIntervalSince1970)
-    val calendar = platform.Foundation.NSCalendar.currentCalendar
-    val zoneOffsetMs = calendar.timeZone.secondsFromGMTForDate(date) * 1000L
+    // The zone's offset at this instant, DST included, as the calendar applied it; the day and the
+    // hour then follow arithmetically, exactly as the calendar's components did.
+    val local = epochMs + zone.zone.secondsFromGMTForDate(date) * 1000L
     return LocalTimePoint(
-        epochDay = (epochMs + zoneOffsetMs).floorDiv(86_400_000L),
-        hourOfDay = calendar.component(platform.Foundation.NSCalendarUnitHour, fromDate = date).toInt(),
+        epochDay = local.floorDiv(86_400_000L),
+        hourOfDay = (local.mod(86_400_000L) / 3_600_000L).toInt(),
     )
 }
