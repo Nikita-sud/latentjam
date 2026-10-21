@@ -72,10 +72,19 @@ internal fun Modifier.playerCloud(accent: TrackAccent, playing: Boolean): Modifi
     val density = LocalDensity.current
     // A dark surface needs a lifted cover colour; a light one needs a bounded pastel of the
     // same hue. Reusing the already-whitened container washed pale covers almost to white.
-    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val primary = if (dark) liftForDarkSurface(accent.vivid) else tintForLightSurface(accent.vivid)
-    val companion = rotateHue(primary, if (dark) COMPANION_HUE_SHIFT else 12f)
+    val colors = MaterialTheme.colorScheme
+    val dark = colors.surface.luminance() < 0.5f
     val alpha = ((if (dark) CLOUD_ALPHA_DARK else CLOUD_ALPHA_LIGHT) * strength).coerceAtMost(1f)
+    val primary = if (dark) {
+        liftForDarkCloud(accent.vivid, alpha, colors.surface, colors.onSurface)
+    } else {
+        tintForLightSurface(accent.vivid)
+    }
+    val companion = if (dark) {
+        liftForDarkCloud(rotateHue(primary, COMPANION_HUE_SHIFT), alpha, colors.surface, colors.onSurface)
+    } else {
+        rotateHue(primary, 12f)
+    }
     return drawWithCache {
         // A nearly neutral light floor lets each drifting cloud remain distinct. A stronger
         // same-hue floor erases the visible movement, even while the cloud clock is advancing.
@@ -157,6 +166,31 @@ internal fun liftForDarkSurface(colour: Color): Color {
 }
 
 /**
+ * [liftForDarkSurface] for a cloud drawn at [alpha] on the dark [floor]: where a blob is densest,
+ * [text] still holds [DARK_CLOUD_MIN_TEXT_CONTRAST]. A lift never capped a pale cover, and at
+ * Vivid's full alpha the player's white titles fell to about 1.4:1 on it. Covers that already
+ * leave the text readable keep their colour.
+ */
+internal fun liftForDarkCloud(colour: Color, alpha: Float, floor: Color, text: Color): Color {
+    val lifted = liftForDarkSurface(colour)
+    val (hue, saturation, start) = lifted.toHsl() ?: Triple(0f, 0f, lifted.red)
+    var lightness = start
+    var cloud = lifted
+    while (contrastRatio(text, cloud.over(floor, alpha)) < DARK_CLOUD_MIN_TEXT_CONTRAST && lightness > 0f) {
+        lightness = (lightness - 0.02f).coerceAtLeast(0f)
+        cloud = Color.hsl(hue, saturation, lightness, colour.alpha)
+    }
+    return cloud
+}
+
+/** This colour drawn at [alpha] over an opaque [floor]. */
+internal fun Color.over(floor: Color, alpha: Float): Color = Color(
+    red = red * alpha + floor.red * (1f - alpha),
+    green = green * alpha + floor.green * (1f - alpha),
+    blue = blue * alpha + floor.blue * (1f - alpha),
+)
+
+/**
  * A clearly coloured light surface, including very pale and very dark sampled covers.
  * At L=.80/S<=.72 every RGB channel is at least .656. Even arbitrary cloud overlaps followed
  * by a 10% black current-row wash retain over 4.5:1 with the light theme's #2E2E2E secondary ink.
@@ -226,6 +260,7 @@ private const val CLOUD_ALPHA_DARK = 0.7f
 private const val DARK_MIN_LIGHTNESS = 0.45f
 private const val DARK_MIN_SATURATION = 0.45f
 private const val CONTROL_INK_MIN_CONTRAST = 3f
+private const val DARK_CLOUD_MIN_TEXT_CONTRAST = 3f
 private const val CONTROL_INK_MAX_LIGHTNESS = 0.5f
 private const val COMPANION_HUE_SHIFT = 28f
 private const val BREATH_DEPTH = 0.04f

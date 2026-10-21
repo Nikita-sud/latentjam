@@ -79,6 +79,27 @@ class PlayerCloudTest {
     }
 
     @Test
+    fun aPaleCoverInAVividDarkCloudLeavesThePlayerTextReadable() {
+        val text = Color(0xFFF2F2F2)
+        val pale = listOf(Color(0.98f, 0.95f, 0.70f), Color(0.80f, 0.96f, 0.98f), Color(0.94f, 0.94f, 0.94f))
+        for (floor in listOf(Color(0xFF0B0B0B), Color.Black)) {
+            for (strength in CloudStrength.entries.filter { it.alphaScale > 0f }) {
+                val alpha = (0.7f * strength.alphaScale).coerceAtMost(1f)
+                for (cover in pale) {
+                    val cloud = liftForDarkCloud(cover, alpha, floor, text)
+                    assertTrue(contrastRatio(text, cloud.over(floor, alpha)) >= 3f, "$cover at $strength")
+                }
+            }
+        }
+    }
+
+    @Test
+    fun aCoverThatAlreadyReadsKeepsItsDarkCloudColour() {
+        val deepBlue = Color(0.15f, 0.25f, 0.75f)
+        assertEquals(liftForDarkSurface(deepBlue), liftForDarkCloud(deepBlue, 1f, Color.Black, Color(0xFFF2F2F2)))
+    }
+
+    @Test
     fun cloudNeverRequestsMoreThanTwentyAnimationUpdatesPerSecondAndStopsOnCancel() = runTest {
         var frameRequests = 0
         val clock = object : MonotonicFrameClock {
