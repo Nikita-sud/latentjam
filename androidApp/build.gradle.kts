@@ -47,7 +47,7 @@ android {
         applicationId = "io.github.nikitasud.latentjam.kmp"
         minSdk = 24
         targetSdk = 36
-        versionCode = 15
+        versionCode = 17
         versionName = "0.9.1"
     }
 
