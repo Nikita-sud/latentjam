@@ -44,9 +44,11 @@ internal class MapGestureSession {
 
 /** Single-finger drags scroll the page; two fingers own the map, including the final finger-up. */
 internal suspend fun PointerInputScope.detectMapTransformGestures(
+    onGestureStart: () -> Unit = {},
     onTransform: (centroid: Offset, pan: Offset, zoom: Float) -> Unit,
 ) = awaitEachGesture {
     awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+    onGestureStart()
     val session = MapGestureSession()
     do {
         // Claim a second finger before the parent scroll/tap detectors see it. Waiting for Main

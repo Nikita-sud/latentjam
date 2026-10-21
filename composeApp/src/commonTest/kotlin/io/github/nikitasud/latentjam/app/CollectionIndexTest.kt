@@ -1,6 +1,8 @@
 package io.github.nikitasud.latentjam.app
 
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -36,5 +38,25 @@ class CollectionIndexTest {
             assertFalse(collectionNeedsAlphabetIndex(100, 10, 1, 72f, height))
         }
         assertFalse(collectionNeedsAlphabetIndex(100, 10, 0, 72f, 600f))
+    }
+
+    @Test fun pinchingAWideAdaptiveGridMovesTheWayTheFingersMove() {
+        // A tablet's adaptive grid shows six columns; closing the fingers asks for more.
+        assertNull(albumColumnsAfterPinch(columns = 0, adaptive = 6, spread = false))
+        assertEquals(4, albumColumnsAfterPinch(columns = 0, adaptive = 6, spread = true))
+        assertEquals(3, albumColumnsAfterPinch(columns = 4, adaptive = 6, spread = true))
+    }
+
+    @Test fun pinchingForMorePastTheLargestChoiceReturnsToTheAdaptiveGrid() {
+        assertEquals(0, albumColumnsAfterPinch(columns = 4, adaptive = 6, spread = false))
+        // A phone fits fewer than four: four stays four.
+        assertNull(albumColumnsAfterPinch(columns = 4, adaptive = 2, spread = false))
+    }
+
+    @Test fun aPhoneGridStepsBetweenTwoAndFourColumns() {
+        assertEquals(3, albumColumnsAfterPinch(columns = 0, adaptive = 2, spread = false))
+        assertEquals(2, albumColumnsAfterPinch(columns = 3, adaptive = 2, spread = true))
+        assertNull(albumColumnsAfterPinch(columns = 2, adaptive = 2, spread = true))
+        assertNull(albumColumnsAfterPinch(columns = 0, adaptive = 1, spread = true))
     }
 }

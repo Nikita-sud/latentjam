@@ -532,7 +532,7 @@ fun MapTab(
                             transform(centroid, pan, gestureZoom)
                         }
                     } else {
-                        detectMapTransformGestures(transform)
+                        detectMapTransformGestures(onTransform = transform)
                     }
                 }
 
