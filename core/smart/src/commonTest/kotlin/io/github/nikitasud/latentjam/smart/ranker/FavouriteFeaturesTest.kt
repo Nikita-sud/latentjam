@@ -28,7 +28,7 @@ class FavouriteFeaturesTest {
         assertEquals(listOf(3.0, 0.0, 0.0, 0.0), rows.map { it[ago] })
         // Appended after reference.py's first 32 columns and its pop_known / is_favourite, which keep their indexes.
         assertEquals(listOf("pop_known", "is_favourite", "favourited_days_ago"), RankerFeatures.NAMES.subList(32, 35))
-        assertEquals(RankerFeatures.L2, RankerFeatures.NAMES.drop(35))
+        assertEquals(RankerFeatures.L2 + RankerFeatures.ALBUM, RankerFeatures.NAMES.drop(35))
     }
 
     private fun track(id: String) = TrackDescriptor(TrackId(id), title = id, artist = "Artist $id")

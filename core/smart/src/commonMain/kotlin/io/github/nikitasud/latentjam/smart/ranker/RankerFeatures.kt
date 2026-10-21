@@ -104,7 +104,13 @@ public object RankerFeatures {
      * compilation, the family came from the track's tag, and |ln(duration ratio)| to the anchor.
      */
     public val L2: List<String> = listOf("year_dist", "year_known", "same_album", "album_known", "same_compilation", "family_is_track", "dur_rel")
-    public val NAMES: List<String> = CORE + LFM + PERSONAL + EXTRA + TAIL + L2
+
+    /**
+     * PLAN_DECODER2 §19 AS (owner-adopted 2026-10-21, reference.py ALBCOLS): same album as the anchor while the session's
+     * last two plays before the press were on the seed's album.
+     */
+    public val ALBUM: List<String> = listOf("album_session")
+    public val NAMES: List<String> = CORE + LFM + PERSONAL + EXTRA + TAIL + L2 + ALBUM
 
     /** Tracks shorter than this count as short (skits, interludes); a parameter of the duration features (research: 90 s). */
     public const val SHORT_TRACK_MS: Long = 90_000
@@ -113,7 +119,14 @@ public object RankerFeatures {
      * One row per candidate, in [NAMES] order. [personal], when given, is parallel to [candidates]. [l2]: an unknown
      * popularity takes the pool mean of the known ones (audit 01 #4), as cos_z fills.
      */
-    public fun of(anchor: RankerRow, candidates: List<RankerRow>, personal: List<PersonalRow>? = null, l2: Boolean = false): Array<DoubleArray> {
+    public fun of(
+        anchor: RankerRow,
+        candidates: List<RankerRow>,
+        personal: List<PersonalRow>? = null,
+        l2: Boolean = false,
+        /** The album-session prefix (the session's last two plays before the press on the seed's album key). */
+        albumPrefix: Boolean = false,
+    ): Array<DoubleArray> {
         val n = candidates.size
         val known = BooleanArray(n) { !candidates[it].cosine.isNaN() }
         // cos_z: unknown cosines take the known mean, the whole pool is z-scored, unknown rows read 0.
@@ -196,6 +209,7 @@ public object RankerFeatures {
                 b(albumKnown && sameAlbum && (c.compilation || anchor.compilation)),
                 b(c.familyFromTrack),
                 if (duration != null && anchor.durationMs != null) abs(ln(duration.toDouble() / anchor.durationMs.toDouble())) else 0.0,
+                b(albumPrefix && albumKnown && sameAlbum),
             )
         }
     }

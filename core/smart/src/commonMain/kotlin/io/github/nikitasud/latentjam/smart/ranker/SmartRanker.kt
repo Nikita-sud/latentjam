@@ -558,6 +558,8 @@ public class PlanRequest(
     public val playlists: List<List<TrackId>> = emptyList(),
     /** The artist-variety setting as a multiplier on the decoder's artist terms (1 = the model's tuned values, 0 = none). */
     public val varietyScale: Double = 1.0,
+    /** PLAN_DECODER2 §19 AS: the current session's plays before the press as (track, start ms), any order (CORE and FULL). */
+    public val recentPlays: List<Pair<TrackId, Long>> = emptyList(),
 )
 
 /** How a plan was made, for the aggregate log line, the circuit breaker and the on-device impression log. */
@@ -706,6 +708,7 @@ internal class PlanTrace {
     val draws: MutableList<Long?> = ArrayList()
     val ladder: MutableList<Pair<TrackId, String>> = ArrayList()
     var imputedTracks: List<TrackId> = emptyList()
+    var albumPrefix: Boolean = false
 }
 
 /**
@@ -1061,6 +1064,12 @@ public class SmartRanker(
         if (prefixKnown != null) imputed += impute(listOf(prefixKnown), timeouts, imputeFallbacks, rawVectors)
         val window = minOf(serving.recentWindow, n / 2).coerceAtLeast(1)
         val previousIds = request.recentIds + prefixIds.filter { it !in request.recentIds } + request.seed.id
+        // PLAN_DECODER2 §19 AS: the session's last two plays within 30 min before the press, both on the seed's album key.
+        val albumPrefix = seedKnown.albumKey.isNotEmpty() && request.recentPlays
+            .filter { (_, ms) -> request.seedMs - HabitSlots.SESSION_GAP_MS <= ms && ms < request.seedMs }
+            .sortedBy { it.second }.takeLast(2)
+            .let { last -> last.size == 2 && last.all { (id, _) -> cache[id]?.albumKey == seedKnown.albumKey } }
+        trace?.albumPrefix = albumPrefix
         fun versionOf(id: TrackId) = (byId[id] ?: cache[id])?.version ?: ArtistSets.keyHash("id:${id.value}")
         val artistKeyOf = { k: Known -> if (serving.artistKey == "artistSet") (if (k.setArtist == 0L) "" else k.setArtist.toString()) else k.engineArtist }
         val audioVectors = HashMap<TrackId, FloatArray?>()
@@ -1168,7 +1177,7 @@ public class SmartRanker(
             seedEnergy = seedEnergy,
             audioAgainst = if (active.audioAgainstPrevious && active.audioWeight != 0.0) { anchor: Int ->
                 val col = RankerFeatures.NAMES.indexOf("audio_cos")
-                val rows = gatedRows(anchor, seedKnown, pool, artistKeyOf, audioVectors, personalRows, request.seed.id, popularityOn, hearts, active, prefixKnown) { gateValues = it ?: gateValues; gateValues }
+                val rows = gatedRows(anchor, seedKnown, pool, artistKeyOf, audioVectors, personalRows, request.seed.id, popularityOn, hearts, active, prefixKnown, albumPrefix) { gateValues = it ?: gateValues; gateValues }
                 DoubleArray(pool.size) { rows[it][col] }
             } else null,
             trace = { h: RankerQueue.HopTrace ->
@@ -1184,7 +1193,7 @@ public class SmartRanker(
                 }
             },
         ) { anchor ->
-            gatedRows(anchor, seedKnown, pool, artistKeyOf, audioVectors, personalRows, request.seed.id, popularityOn, hearts, active, prefixKnown) { gateValues = it ?: gateValues; gateValues }
+            gatedRows(anchor, seedKnown, pool, artistKeyOf, audioVectors, personalRows, request.seed.id, popularityOn, hearts, active, prefixKnown, albumPrefix) { gateValues = it ?: gateValues; gateValues }
                 .also { if (diagnostics != null) diagRows[anchor] = it }
         }.map { pool[it].track.id }
         val timedOut = modelPicks.size < minOf(request.length, pool.size) && decoding.elapsedNow().inWholeMilliseconds > budgetMs
@@ -1209,7 +1218,7 @@ public class SmartRanker(
             trace.window = window
             trace.pool = pool.map { it.track.id }
             trace.seedFeatures = if (pool.isEmpty()) emptyArray() else
-                gatedRows(RankerQueue.SEED, seedKnown, pool, artistKeyOf, audioVectors, personalRows, request.seed.id, popularityOn, hearts, active, prefixKnown) { gateValues = it ?: gateValues; gateValues }
+                gatedRows(RankerQueue.SEED, seedKnown, pool, artistKeyOf, audioVectors, personalRows, request.seed.id, popularityOn, hearts, active, prefixKnown, albumPrefix) { gateValues = it ?: gateValues; gateValues }
             trace.imputedTracks = (pool + seedKnown).filter { it.descriptorImputed || it.familyImputed }.map { it.track.id }
                 .distinct().sortedWith { a, b -> SaltedKey.idOrder.compare(a.value, b.value) }
         }
@@ -1288,9 +1297,10 @@ public class SmartRanker(
         hearts: PersonalHistory?,
         model: RankerModel,
         prefixKnown: Known? = null,
+        albumPrefix: Boolean = false,
         gate: (DoubleArray?) -> DoubleArray?,
     ): Array<DoubleArray> {
-        fun raw(a: Known) = features(a, pool, artistKeyOf, audioVectors, personalRows, seedId, popularityOn, hearts, model.imputedUnknown, model.serving.l2)
+        fun raw(a: Known) = features(a, pool, artistKeyOf, audioVectors, personalRows, seedId, popularityOn, hearts, model.imputedUnknown, model.serving.l2, albumPrefix)
         val rows = raw(
             when (anchor) {
                 RankerQueue.SEED -> seedKnown
@@ -1346,6 +1356,7 @@ public class SmartRanker(
         hearts: PersonalHistory?,
         imputedUnknown: Boolean = false,
         l2: Boolean = false,
+        albumPrefix: Boolean = false,
     ): Array<DoubleArray> {
         val related = HashMap<Int, Double>()
         // PLAN_L1 §10.5 RULE: an imputed descriptor is unknown for the descriptor columns, an imputed family for the
@@ -1395,6 +1406,7 @@ public class SmartRanker(
             rows,
             personalRows,
             l2,
+            albumPrefix,
         )
     }
 

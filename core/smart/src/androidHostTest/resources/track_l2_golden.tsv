@@ -1,4 +1,4 @@
-# kind	input...	expected (serving/taxonomy.py v2.1 family_of_tag; l2_features.album_key)
+# kind	input...	expected (serving/taxonomy.py v2.2 family_of_tag (409f9f91, genre_families_v22.json tables); l2_features.album_key)
 family	Hardcore Punk	rock
 family	Garage Rock	rock
 family	Post-Hardcore	rock
@@ -44,16 +44,16 @@ family	Reggaeton	latin
 family	Classical; Opera	classical
 family	Unknown	
 family		
-family	Trip Hop	dance
-family	Glitch-hop	
+family	Trip Hop	electronic
+family	Glitch-hop	electronic
 family	Deep House	dance
-family	Lo-Fi	dance
+family	Lo-Fi	electronic
 family	Darkstep	dance
 family	Neo-Soul	rnb
 family	Rock 'n' Roll	rock
 family	Post-Rock	rock
 family	Shoegaze	rock
-family	Vaporwave	dance
+family	Vaporwave	electronic
 family	Country, Folk	folk
 family	Ambient | Drone	soundtrack
 family	Death Metal	metal

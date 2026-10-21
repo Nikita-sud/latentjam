@@ -103,26 +103,25 @@ class SmartRankerAssetsTest {
 
     @Test
     fun theArtistSetsKeySelectsAs2AndAnUnknownValueIsRefused() = runTest {
+        // The shipped models (d43_2 + AS) carry the rebuild switches.
         val core = File(ml, "smart_ranker.json").readText()
-        assertFalse(RankerModel.parse(core)!!.artistSetsAs2)
-        assertTrue(RankerModel.parse(core.replaceFirst("{", "{\"artistSets\": \"as2\", "))!!.artistSetsAs2)
-        assertFalse(RankerModel.parse(core.replaceFirst("{", "{\"artistSets\": \"as1\", "))!!.artistSetsAs2)
-        assertNull(RankerModel.parse(core.replaceFirst("{", "{\"artistSets\": \"as3\", ")))
+        assertTrue(RankerModel.parse(core)!!.artistSetsAs2)
+        assertFalse(RankerModel.parse(core.replace("\"artistSets\": \"as2\"", "\"artistSets\": \"as1\""))!!.artistSetsAs2)
+        assertNull(RankerModel.parse(core.replace("\"artistSets\": \"as2\"", "\"artistSets\": \"as3\"")))
     }
     @Test
     fun theTaxonomyAndVersionKeysAreParsedAndAWrongTaxonomyFallsBackToRules() = runTest {
         val core = File(ml, "smart_ranker.json").readText()
-        assertNull(RankerModel.parse(core)!!.taxonomy)
-        assertFalse(RankerModel.parse(core)!!.versionKeyV2)
-        assertEquals("2.2", RankerModel.parse(core.replaceFirst("{", "{\"taxonomy\": \"2.2\", "))!!.taxonomy)
-        assertNull(RankerModel.parse(core.replaceFirst("{", "{\"taxonomy\": \"2.3\", ")))
-        assertTrue(RankerModel.parse(core.replaceFirst("{", "{\"versionKey\": \"v2\", "))!!.versionKeyV2)
-        assertNull(RankerModel.parse(core.replaceFirst("{", "{\"versionKey\": \"v3\", ")))
-        // The shipped genre_families.json has the twelve v2.1 families: a v2.2 model reads codes it does not have.
-        for ((taxonomy, fits) in listOf("2.1" to true, "2.2" to false)) {
+        assertEquals("2.2", RankerModel.parse(core)!!.taxonomy)
+        assertTrue(RankerModel.parse(core)!!.versionKeyV2)
+        assertNull(RankerModel.parse(core.replace("\"taxonomy\": \"2.2\"", "\"taxonomy\": \"2.3\"")))
+        assertFalse(RankerModel.parse(core.replace("\"versionKey\": \"v2\"", "\"versionKey\": \"v1\""))!!.versionKeyV2)
+        assertNull(RankerModel.parse(core.replace("\"versionKey\": \"v2\"", "\"versionKey\": \"v3\"")))
+        // The shipped genre_families.json has the fourteen v2.2 families: a v2.1 model would read codes shifted.
+        for ((taxonomy, fits) in listOf("2.2" to true, "2.1" to false)) {
             val ranker = SmartRankerAssets(null, { name ->
                 if (name == "smart_ranker.json" || name == "smart_ranker_full.json") {
-                    AssetBytes.of(File(ml, name).readText().replaceFirst("{", "{\"taxonomy\": \"$taxonomy\", ").encodeToByteArray())
+                    AssetBytes.of(File(ml, name).readText().replace("\"taxonomy\": \"2.2\"", "\"taxonomy\": \"$taxonomy\"").encodeToByteArray())
                 } else read(name)
             }).ranker
             assertEquals(fits, ranker.modelName != RankerModel.RULE_SET.name, taxonomy)
@@ -140,7 +139,12 @@ class SmartRankerAssetsTest {
         }
         val col = RankerFeatures.NAMES.indexOf("same_artist")
         for (as2 in listOf(false, true)) {
-            val ranker = SmartRankerAssets(null, ::read, artistSetsAs2 = as2).ranker
+            // The shipped models say as2; "as1" in their files is the old rules.
+            val ranker = SmartRankerAssets(null, { name ->
+                if (!as2 && (name == "smart_ranker.json" || name == "smart_ranker_full.json")) {
+                    AssetBytes.of(File(ml, name).readText().replace("\"artistSets\": \"as2\"", "\"artistSets\": \"as1\"").encodeToByteArray())
+                } else read(name)
+            }).ranker
             val trace = PlanTrace()
             ranker.tracer = trace
             ranker.plan(PlanRequest(tracks[0], tracks, tracks, length = 5))

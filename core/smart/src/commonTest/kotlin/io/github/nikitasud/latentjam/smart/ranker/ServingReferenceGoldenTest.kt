@@ -39,7 +39,7 @@ class ServingReferenceGoldenTest {
             .filter(String::isNotEmpty).map { MiniJson(it).parse() as Map<String, Any?> }
 
     @Test
-    fun plansMatchTheServingReference() = plansMatch("/serving_fixtures.jsonl.gz", fixtures = 36, requests = REQUESTS)
+    fun plansMatchTheServingReference() = plansMatch("/serving_fixtures.jsonl.gz", fixtures = 37, requests = REQUESTS)
 
     /**
      * The same 21 libraries and requests with the shipped models swapped in (model_core_l1.json 6c23bd6c — the PLAN_L1 v5
@@ -47,7 +47,7 @@ class ServingReferenceGoldenTest {
      * personal ones; rule-only kept), re-planned by reference.py (3e659ff8… at b6e710fc).
      */
     @Test
-    fun plansWithTheShippedModelsMatchTheServingReference() = plansMatch("/serving_fixtures_final.jsonl.gz", fixtures = 36, requests = REQUESTS)
+    fun plansWithTheShippedModelsMatchTheServingReference() = plansMatch("/serving_fixtures_final.jsonl.gz", fixtures = 37, requests = REQUESTS)
 
     /**
      * The decoder and feature paths of PLAN_AUDIO_ON §8.2 / §8.8 and PLAN_L1 §2b / §2c / §10.4 / §10.5 on fixtures 10 /
@@ -62,14 +62,14 @@ class ServingReferenceGoldenTest {
      */
     @Test
     fun plansWithTheCachedImputationMatchTheServingReference() =
-        plansMatch("/serving_fixtures.jsonl.gz", fixtures = 36, requests = REQUESTS, cachedImputation = true)
+        plansMatch("/serving_fixtures.jsonl.gz", fixtures = 37, requests = REQUESTS, cachedImputation = true)
 
     @Test
     fun theNewPathsMatchTheServingReference() = plansMatch("/serving_fixtures_paths.jsonl.gz", fixtures = 5, requests = 56)
 
     private companion object {
-        /** Fixtures 1–36 requests (research e8891fd3). */
-        const val REQUESTS = 79
+        /** Fixtures 1–37 requests (research 409f9f91). */
+        const val REQUESTS = 82
     }
 
     private fun plansMatch(resource: String, fixtures: Int, requests: Int, cachedImputation: Boolean = false) = runTest {
@@ -188,6 +188,7 @@ class ServingReferenceGoldenTest {
             excludeAgeMs = (req["excludeAgeMs"] as? Map<*, *>).orEmpty().entries.associate { (k, v) -> TrackId(k as String) to (v as Number).toLong() },
             playlists = (req["playlists"] as? List<*>).orEmpty().map { p -> (p as List<*>).map { TrackId(it as String) } },
             varietyScale = (req["varietyScale"] as? Number)?.toDouble() ?: 1.0,
+            recentPlays = (req["recentPlays"] as? List<*>).orEmpty().map { p -> (p as Map<*, *>).let { TrackId(it["id"] as String) to (it["ms"] as Number).toLong() } },
         )
         val report = ranker.plan(request)
         if (cachedImputation && input["tagger"] == true) assertEquals(0, report.audio.imputeFallbacks, "every imputation read from the cache")
@@ -216,6 +217,7 @@ class ServingReferenceGoldenTest {
             }
             tr["ladder"] = trace.ladder.map { (id, rung) -> mapOf("pick" to id.value, "rung" to rung) }
             tr["imputedTracks"] = trace.imputedTracks.map { it.value }
+            tr["albumPrefix"] = trace.albumPrefix
         }
         return mapOf("report" to rep, "trace" to tr)
     }

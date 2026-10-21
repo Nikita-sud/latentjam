@@ -116,6 +116,9 @@ internal fun saltedTieKey(track: TrackId, salt: Long): Double {
 /** The SMART history window (EngineNextTrackChooser's smartHistoryFor). */
 private const val SMART_HABIT_HISTORY_LIMIT = 10_000
 
+/** Plays handed to the ranker as the album-session context (it reads only the last two within 30 min). */
+private const val RECENT_PLAYS = 8
+
 /** Freshness window when the model names none (the CORE default, PLAN_L1 §2c). */
 private const val DEFAULT_FRESHNESS_WINDOW_MS = 2L * 3_600_000
 
@@ -210,6 +213,8 @@ internal suspend fun rankerPlan(
                 ruleOnly = ruleOnly || !fits, impressions = impressions, excludeAgeMs = noveltyAges, engaged = engaged,
                 seedMs = seedMs, prefix = prefix, playlists = if (personal) playlists() else emptyList(),
                 varietyScale = varietyScale,
+                // §19 AS: the session's plays before the press (the ranker reads the last two within 30 min).
+                recentPlays = listens.takeLast(RECENT_PLAYS).map { it.trackId to it.startedAtMs },
             ),
         )
         val (withEntity, listed, withLfm) = ranker.entityCoverage
