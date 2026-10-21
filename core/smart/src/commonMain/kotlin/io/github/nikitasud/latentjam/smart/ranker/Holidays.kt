@@ -71,6 +71,8 @@ internal object RulePenalties {
                 val d = durations[j] ?: continue
                 if (d > r.longMs && !(seedDurationMs != null && seedDurationMs >= r.seedLongMs)) out[j] += r.longLambda
                 if (d < r.shortMs && !(seedDurationMs != null && seedDurationMs < r.shortMs)) out[j] += r.shortLambda
+                // vc21: a cue under veryShortMs pays extra unless the seed is one too (the owner's film-score queue).
+                if (d < r.veryShortMs && !(seedDurationMs != null && seedDurationMs < r.veryShortMs)) out[j] += r.veryShortLambda
             }
         }
         model.titleFlags?.let { lam ->

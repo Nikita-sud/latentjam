@@ -204,6 +204,8 @@ public class RankerModel(
         public val seedLongMs: Long,
         public val shortMs: Long,
         public val shortLambda: Double,
+        public val veryShortMs: Long = 75_000,
+        public val veryShortLambda: Double = 0.0,
     )
 
     /** The novelty set beyond its [hardLast] newest stays in the pool, losing λ · sd · (1 − age / 24 h). */
@@ -396,7 +398,7 @@ public class RankerModel(
             "hubGenreDamp" to setOf("mult"),
             "scorerSquash" to setOf("scale", "temp"),
             "holidaySeason" to setOf("lambda"),
-            "durationRule" to setOf("longMs", "longLambda", "seedLongMs", "shortMs", "shortLambda"),
+            "durationRule" to setOf("longMs", "longLambda", "seedLongMs", "shortMs", "shortLambda", "veryShortMs", "veryShortLambda"),
             "titleFlags" to setOf("lambda"),
             "classMismatch" to setOf("lambda", "families"),
             "softNovelty" to setOf("lambda", "hardLast"),
@@ -520,6 +522,7 @@ public class RankerModel(
                         longMs = (d["longMs"] as? Number)?.toLong() ?: 900_000, longLambda = (d["longLambda"] as? Number)?.toDouble() ?: 0.0,
                         seedLongMs = (d["seedLongMs"] as? Number)?.toLong() ?: 600_000, shortMs = (d["shortMs"] as? Number)?.toLong() ?: 90_000,
                         shortLambda = (d["shortLambda"] as? Number)?.toDouble() ?: 0.0,
+                        veryShortMs = (d["veryShortMs"] as? Number)?.toLong() ?: 75_000, veryShortLambda = (d["veryShortLambda"] as? Number)?.toDouble() ?: 0.0,
                     )
                 },
                 titleFlags = (root["titleFlags"] as? Map<*, *>)?.let { (it["lambda"] as Number).toDouble() },

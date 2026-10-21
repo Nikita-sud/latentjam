@@ -1,6 +1,6 @@
 {
  "schema": "lj-smart-ranker/2",
- "name": "FULL L2 fast track (product check) night-r4e",
+ "name": "FULL L2 fast track (product check) night-r5c",
  "features": [
   "heard",
   "log_freq",
@@ -348,7 +348,9 @@
   "longLambda": 2.0,
   "seedLongMs": 600000,
   "shortMs": 90000,
-  "shortLambda": 2.0
+  "shortLambda": 2.0,
+  "veryShortMs": 75000,
+  "veryShortLambda": 3.0
  },
  "titleFlags": {
   "lambda": 1.0
@@ -372,10 +374,7 @@
   "audioPrev": 3.0,
   "audioSeed": 4.0,
   "semSeed": 3.0,
-  "semPrev": 0.5,
-  "personalScale": 0.3,
-  "transExempt": true,
-  "personalScaleWarm": 0.6
+  "semPrev": 0.5
  },
  "hubPenalty": {
   "beta": 1.0,
@@ -469,11 +468,7 @@
  "queueArtistCap": {
   "cap": 3,
   "window": 10,
-  "lambda": 3.0
- },
- "transBonus": {
-  "track": 10.0,
-  "artist": 1.5
+  "lambda": 8.0
  },
  "playlistBonus": {
   "lambda": 1.5,
@@ -483,7 +478,13 @@
  "prevFamilyJump": {
   "lambda": 2.0
  },
- "followerExempt": {
+ "personalNudge": {
+  "delta": 1.0,
+  "track": 1.0,
+  "artist": 0.5,
+  "playlist": 0.4,
+  "favourite": 0.3,
+  "frequency": 0.15,
   "followMin": 2
  }
 }

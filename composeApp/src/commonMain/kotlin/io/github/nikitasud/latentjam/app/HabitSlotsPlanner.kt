@@ -76,9 +76,13 @@ internal fun habitListens(
 }.sortedBy(HabitListen::startedAtMs) // the log is in recording order; a merged or restored one may not be
 
 /**
- * vc20 (owner's deliberate test: play A a few seconds, then pick B): consecutive log entries A → B where B is a pick
- * (ListenStart.USER_PICK) started at most [HabitSlots.PAIR_GAP_MS] after A started and A or B was skipped — the pairs
- * [habitListens] leaves out, so FULL's transitions count them too.
+ * vc21 (the owner's deliberate A → B tests, read from the phone's log): extra transitions [habitListens] misses, for B a
+ * pick (ListenStart.USER_PICK):
+ * - A → B when A is B's immediate predecessor, A was skipped and B started at most [HabitSlots.PAIR_GAP_MS] after A;
+ * - A → B when A is the last real play before B (at least [BRIDGE_PLAY_MS] heard and not skipped), every play between
+ *   them was skipped or shorter than that (quick skips, brief auto-advances), and B started at most [BRIDGE_GAP_MS]
+ *   after A ended.
+ * A pair [habitListens] already counts (B's previous real listen, both not skipped) is left out.
  */
 internal fun habitSkipTransitions(
     oldestFirst: List<ListenEvent>,
@@ -87,16 +91,30 @@ internal fun habitSkipTransitions(
 ): List<Pair<TrackId, TrackId>> {
     val events = oldestFirst.filter { it.startedAtMs < seedMs && it.trackId in libraryIds }.sortedBy(ListenEvent::startedAtMs)
     val out = ArrayList<Pair<TrackId, TrackId>>()
-    for (i in 1 until events.size) {
-        val a = events[i - 1]
-        val b = events[i]
-        if (a.trackId == b.trackId || b.origin?.start != ListenStart.USER_PICK) continue
-        if (!a.skipped && !b.skipped) continue
-        if (b.startedAtMs - a.startedAtMs > HabitSlots.PAIR_GAP_MS) continue
-        out += a.trackId to b.trackId
+    for (j in 1 until events.size) {
+        val b = events[j]
+        if (b.origin?.start != ListenStart.USER_PICK) continue
+        // What habitListens already pairs: B's previous non-skipped listen, when B itself is not skipped.
+        val normal = if (b.skipped) null else (j - 1 downTo 0).firstOrNull { !events[it].skipped }?.let { events[it] }
+            ?.takeIf { b.startedAtMs - it.startedAtMs <= HabitSlots.PAIR_GAP_MS }?.trackId
+        val found = LinkedHashSet<TrackId>()
+        val p = events[j - 1]
+        if (p.skipped && b.startedAtMs - p.startedAtMs <= HabitSlots.PAIR_GAP_MS) found += p.trackId
+        var i = j - 1
+        while (i >= 0 && (events[i].skipped || events[i].effectiveListenedMs < BRIDGE_PLAY_MS)) i--
+        if (i >= 0) {
+            val a = events[i]
+            val end = a.startedAtMs + a.effectiveListenedMs
+            if (b.startedAtMs - end <= BRIDGE_GAP_MS) found += a.trackId
+        }
+        for (x in found) if (x != b.trackId && x != normal) out += x to b.trackId
     }
     return out
 }
+
+/** vc21: a play shorter than this (or skipped) bridges A → B; B within [BRIDGE_GAP_MS] of A's end. */
+internal const val BRIDGE_PLAY_MS: Long = 45_000L
+internal const val BRIDGE_GAP_MS: Long = 3L * 60L * 1_000L
 
 /**
  * The transition list's rows among [candidates] that really followed the seed or its artist (a count
