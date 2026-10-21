@@ -263,6 +263,11 @@
         <item quantity="two">%1$d פלייליסטים</item>
         <item quantity="other">%1$d פלייליסטים</item>
     </plurals>
+    <plurals name="m3u_import_skipped_files">
+        <item quantity="one">לא ניתן היה לקרוא %1$d קובץ</item>
+        <item quantity="two">לא ניתן היה לקרוא %1$d קבצים</item>
+        <item quantity="other">לא ניתן היה לקרוא %1$d קבצים</item>
+    </plurals>
     <plurals name="playlist_new_count">
         <item quantity="one">%1$d פלייליסט חדש</item>
         <item quantity="two">%1$d פלייליסטים חדשים</item>
@@ -801,7 +806,11 @@
         <item quantity="two">≈ %1$d ימים של מוזיקה</item>
         <item quantity="other">≈ %1$d ימים של מוזיקה</item>
     </plurals>
-    <string name="stats_activity_months">12 החודשים האחרונים · זמן האזנה</string>
+    <plurals name="stats_activity_last_months">
+        <item quantity="one">%1$d חודש אחרון · זמן האזנה</item>
+        <item quantity="two">%1$d החודשים האחרונים · זמן האזנה</item>
+        <item quantity="other">%1$d החודשים האחרונים · זמן האזנה</item>
+    </plurals>
     <string name="stats_activity_years">לפי שנה · זמן האזנה</string>
     <string name="stats_activity_over_time">ההאזנה שלך לאורך זמן</string>
     <string name="stats_this_month">החודש</string>

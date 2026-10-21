@@ -253,6 +253,10 @@
         <item quantity="one">%1$d lista de reproducción</item>
         <item quantity="other">%1$d listas de reproducción</item>
     </plurals>
+    <plurals name="m3u_import_skipped_files">
+        <item quantity="one">No se pudo leer %1$d archivo</item>
+        <item quantity="other">No se pudieron leer %1$d archivos</item>
+    </plurals>
     <plurals name="playlist_new_count">
         <item quantity="one">%1$d lista de reproducción nueva</item>
         <item quantity="other">%1$d listas de reproducción nuevas</item>
@@ -765,7 +769,10 @@
         <item quantity="one">≈ %1$d día de música</item>
         <item quantity="other">≈ %1$d días de música</item>
     </plurals>
-    <string name="stats_activity_months">Últimos 12 meses · tiempo de escucha</string>
+    <plurals name="stats_activity_last_months">
+        <item quantity="one">Último %1$d mes · tiempo de escucha</item>
+        <item quantity="other">Últimos %1$d meses · tiempo de escucha</item>
+    </plurals>
     <string name="stats_activity_years">Por año · tiempo de escucha</string>
     <string name="stats_activity_over_time">Tu escucha a lo largo del tiempo</string>
     <string name="stats_this_month">Este mes</string>

@@ -948,6 +948,35 @@ class ForYouBuilderTest {
     }
 
     @Test
+    fun `a heavy listener with an old log gets the on a roll row from its real start`() {
+        val played = track("played", artist = "Kanno")
+        val cuts = (1..3).map { track("cut$it", artist = "Kanno") }
+        val bait = track("bait", artist = "Bait", added = 900)
+        // Everything the listener plays was played this week, and the recent events reach back
+        // only days: neither says that the log is a year old.
+        fun page(logStartMs: Long?) = ForYouBuilder.build(
+            library = listOf(played) + cuts + bait,
+            stats = mapOf(played.id to stats(plays = 12, last = now - day)),
+            recentEvents = (1..12).map { n ->
+                ListenEvent(
+                    trackId = played.id,
+                    startedAtMs = now - (n % 6) * day - n * hour,
+                    playedMs = 60_000,
+                    trackDurationMs = 120_000,
+                    completed = true,
+                    skipped = false,
+                )
+            },
+            nowMs = now,
+            localDayOf = { 0L },
+            logStartMs = logStartMs,
+        )
+
+        assertTrue(page(logStartMs = null).sections.none { it.kind == ForYouSectionKind.ON_A_ROLL })
+        assertTrue(page(logStartMs = now - 365 * day).sections.any { it.kind == ForYouSectionKind.ON_A_ROLL })
+    }
+
+    @Test
     fun `a favourite offered yesterday and not taken steps aside for the next one`() {
         val tracks = (1..4).map { track("$it", artist = "Artist$it") }
         // Track 1 has the most completions, so it leads the hero's pool.

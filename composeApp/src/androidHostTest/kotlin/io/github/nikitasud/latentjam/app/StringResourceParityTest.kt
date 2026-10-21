@@ -266,7 +266,7 @@ class StringResourceParityTest {
                     "unit_megabytes", "settings_crossfade_value", "sort_name",
                 ),
                 "values-es" to kbpsAndMegabytes + latinTimeUnits + setOf("equalizer_preset_vocal", "stats_days_short"),
-                "values-fr" to latinTimeUnits + setOf(
+                "values-fr" to latinTimeUnits + setOf("stats_playlist_row",
                     "action_pause", "count_albums", "count_genres", "details_format", "info_album", "info_genre",
                     "settings_pages", "settings_section_navigation", "settings_version",
                     "sleep_timer_minutes", "stats_streak_longest", "tab_albums", "tab_genres", "tab_playlists",

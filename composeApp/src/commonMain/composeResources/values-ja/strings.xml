@@ -230,6 +230,9 @@
     <plurals name="m3u_import_playlists">
         <item quantity="other">%1$d個のプレイリスト</item>
     </plurals>
+    <plurals name="m3u_import_skipped_files">
+        <item quantity="other">%1$d個のファイルを読み込めませんでした</item>
+    </plurals>
     <plurals name="playlist_new_count">
         <item quantity="other">%1$d個の新規プレイリスト</item>
     </plurals>
@@ -713,13 +716,15 @@
     <string name="stats_on_repeat">最近リピート中</string>
     <string name="stats_artists_on_repeat">リピート中のアーティスト</string>
     <plurals name="stats_on_days">
-        <item quantity="other">%1$d日間</item>
+        <item quantity="other">再生日数 %1$d日</item>
     </plurals>
     <string name="stats_week_days">直近7日間のうち%1$d日</string>
     <plurals name="stats_days_of_music">
         <item quantity="other">約%1$d日分の音楽</item>
     </plurals>
-    <string name="stats_activity_months">直近12か月・再生時間</string>
+    <plurals name="stats_activity_last_months">
+        <item quantity="other">直近%1$dか月・再生時間</item>
+    </plurals>
     <string name="stats_activity_years">年別・再生時間</string>
     <string name="stats_activity_over_time">これまでのリスニングの推移</string>
     <string name="stats_this_month">今月</string>

@@ -42,6 +42,14 @@ public interface ListeningHistory {
         recentEvents(Int.MAX_VALUE).asReversed()
 
     /**
+     * When listening began: the earliest start at or after
+     * [ListeningNormalization.PLAUSIBLE_START_MS], or null when no listen has one. [recentEvents]
+     * cannot say, since a heavy listener fills any fixed count within weeks.
+     */
+    public suspend fun firstListenAtMs(): Long? =
+        allEvents().firstPlausibleStartMs()
+
+    /**
      * Replaces the complete local log with [events], ordered oldest first.
      *
      * This is intentionally a bulk operation for local backup restore: implementations can write
@@ -155,6 +163,12 @@ public class DefaultListeningHistory(
         events.toList()
     }
 
+    override suspend fun firstListenAtMs(): Long? = mutex.withLock {
+        ensureLoaded()
+        // A scan rather than first(): restores and merges may leave the log out of start order.
+        events.firstPlausibleStartMs()
+    }
+
     override suspend fun replace(events: List<ListenEvent>): Unit = mutex.withLock {
         ensureLoaded()
         writeAll(events.toList())
@@ -257,3 +271,12 @@ public expect fun listeningHistoryModule(): Module
 
 /** Wall-clock epoch milliseconds (no kotlinx-datetime dependency needed yet). */
 public expect fun epochMillis(): Long
+
+private fun List<ListenEvent>.firstPlausibleStartMs(): Long? {
+    var first = Long.MAX_VALUE
+    for (event in this) {
+        val start = event.startedAtMs
+        if (start >= ListeningNormalization.PLAUSIBLE_START_MS && start < first) first = start
+    }
+    return first.takeIf { it != Long.MAX_VALUE }
+}

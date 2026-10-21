@@ -246,6 +246,10 @@
         <item quantity="one">%1$d प्लेलिस्ट</item>
         <item quantity="other">%1$d प्लेलिस्ट</item>
     </plurals>
+    <plurals name="m3u_import_skipped_files">
+        <item quantity="one">%1$d फ़ाइल पढ़ी नहीं जा सकी</item>
+        <item quantity="other">%1$d फ़ाइलें पढ़ी नहीं जा सकीं</item>
+    </plurals>
     <plurals name="playlist_new_count">
         <item quantity="one">%1$d नई प्लेलिस्ट</item>
         <item quantity="other">%1$d नई प्लेलिस्ट</item>
@@ -756,7 +760,10 @@
         <item quantity="one">≈ %1$d दिन का संगीत</item>
         <item quantity="other">≈ %1$d दिनों का संगीत</item>
     </plurals>
-    <string name="stats_activity_months">पिछले 12 महीने · सुनने का समय</string>
+    <plurals name="stats_activity_last_months">
+        <item quantity="one">पिछला %1$d महीना · सुनने का समय</item>
+        <item quantity="other">पिछले %1$d महीने · सुनने का समय</item>
+    </plurals>
     <string name="stats_activity_years">साल के अनुसार · सुनने का समय</string>
     <string name="stats_activity_over_time">समय के साथ आपका सुनना</string>
     <string name="stats_this_month">इस महीने</string>

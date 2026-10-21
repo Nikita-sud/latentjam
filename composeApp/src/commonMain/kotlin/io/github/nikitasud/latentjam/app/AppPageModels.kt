@@ -338,6 +338,9 @@ internal class ForYouPageState {
 
     // The last history read failed and no page exists to keep; the snackbar says why.
     var forYouLoadFailed by mutableStateOf(false)
+
+    // Row, mix and collection taps: a new one cancels the previous one's pending continuation.
+    val playbackLauncher = ForYouPlaybackLauncher()
 }
 
 /** The library as scanned and what Settings says about it. */

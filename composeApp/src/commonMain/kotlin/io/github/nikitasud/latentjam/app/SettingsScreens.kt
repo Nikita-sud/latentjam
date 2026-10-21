@@ -2857,7 +2857,7 @@ private fun BackupSettings(
             when (result) {
                 is LocalBackupFileResult.Success -> {
                     selectedSections = LocalBackupSections()
-                    pendingImport = result.value.first().text
+                    pendingImport = result.value.documents.first().text
                 }
                 LocalBackupFileResult.Cancelled -> Unit
                 is LocalBackupFileResult.Failure -> show(failedMessage)

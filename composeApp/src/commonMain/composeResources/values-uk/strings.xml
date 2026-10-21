@@ -282,6 +282,12 @@
         <item quantity="many">%1$d плейлистів</item>
         <item quantity="other">%1$d плейлиста</item>
     </plurals>
+    <plurals name="m3u_import_skipped_files">
+        <item quantity="one">Не вдалося прочитати %1$d файл</item>
+        <item quantity="few">Не вдалося прочитати %1$d файли</item>
+        <item quantity="many">Не вдалося прочитати %1$d файлів</item>
+        <item quantity="other">Не вдалося прочитати %1$d файлу</item>
+    </plurals>
     <plurals name="playlist_new_count">
         <item quantity="one">%1$d новий плейлист</item>
         <item quantity="few">%1$d нові плейлисти</item>
@@ -838,7 +844,12 @@
         <item quantity="many">≈ %1$d днів музики</item>
         <item quantity="other">≈ %1$d дня музики</item>
     </plurals>
-    <string name="stats_activity_months">Останні 12 місяців · час прослуховування</string>
+    <plurals name="stats_activity_last_months">
+        <item quantity="one">Останній %1$d місяць · час прослуховування</item>
+        <item quantity="few">Останні %1$d місяці · час прослуховування</item>
+        <item quantity="many">Останні %1$d місяців · час прослуховування</item>
+        <item quantity="other">Останні %1$d місяця · час прослуховування</item>
+    </plurals>
     <string name="stats_activity_years">За роками · час прослуховування</string>
     <string name="stats_activity_over_time">Ваше прослуховування з часом</string>
     <string name="stats_this_month">Цей місяць</string>
@@ -908,7 +919,7 @@
     <string name="stats_of_100_picks">%1$d зі 100 виборів</string>
     <string name="stats_same_artist_note">Коли ви самі обираєте наступний трек. Включно із запуском зі сторінки виконавця.</string>
     <string name="stats_picked_next">Часто обираєте слідом</string>
-    <string name="stats_sequence_description">Після %1$s ви обирали %2$s %3$d раз із %4$d</string>
+    <string name="stats_sequence_description">Після %1$s ви обирали %2$s у %3$d з %4$d випадків</string>
     <string name="stats_library">Ваша медіатека</string>
     <string name="stats_played_once">Відтворено хоча б раз</string>
     <string name="stats_x_of_y">%1$s з %2$s</string>

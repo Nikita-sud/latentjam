@@ -17,7 +17,8 @@ import io.github.nikitasud.latentjam.smart.TrackId
  *   previous end) are at most [SESSION_GAP_MS] and that no [breaksBefore] interrupts. Ids rise with time.
  * @property breaksBefore True where the event starts well before the previous one ended: a clock jump,
  *   or two devices' logs merged from a backup. No session or step crosses it.
- * @property logStartMs Start of the first valid event, or null for an empty log.
+ * @property logStartMs Start of the first valid event at or after [ListeningNormalization.PLAUSIBLE_START_MS]
+ *   (of the first event when none is), or null for an empty log.
  */
 public class NormalizedHistory internal constructor(
     public val events: List<ListenEvent>,
@@ -35,6 +36,14 @@ public class NormalizedHistory internal constructor(
 /** Builds [NormalizedHistory]; pure, so every figure is reproducible from a log snapshot. */
 public object ListeningNormalization {
 
+    /**
+     * 2020-01-01 UTC. A listen logged before it comes from a clock that was not set (a phone back at
+     * 1970 after a dead battery), never from LatentJam: it still counts, but it does not mark where
+     * the log began, or one such listen would stretch the yearly chart back to 1970 and unlock
+     * "a year ago" on a log days old.
+     */
+    public const val PLAUSIBLE_START_MS: Long = 1_577_836_800_000L
+
     /** Longest pause inside one session, measured from the previous listen's end. */
     public const val SESSION_GAP_MS: Long = 30L * 60 * 1000
 
@@ -49,6 +58,13 @@ public object ListeningNormalization {
 
     private const val SKIP_THRESHOLD_MS = 30_000L
     private const val CANCELLATION_CHECK_MASK = 1023
+
+    /** The first start at or after [PLAUSIBLE_START_MS] in the start-ordered [events], else the first. */
+    private fun logStartOf(events: List<ListenEvent>): Long {
+        val first = events.first().startedAtMs
+        if (first >= PLAUSIBLE_START_MS) return first
+        return events.firstOrNull { it.startedAtMs >= PLAUSIBLE_START_MS }?.startedAtMs ?: first
+    }
 
     public fun normalize(
         events: List<ListenEvent>,
@@ -135,7 +151,7 @@ public object ListeningNormalization {
             events = joined,
             sessionIds = if (joined.size == input.size) sessionIds else sessionIds.copyOf(joined.size),
             breaksBefore = if (joined.size == input.size) breaks else breaks.copyOf(joined.size),
-            logStartMs = joined.first().startedAtMs,
+            logStartMs = logStartOf(joined),
         )
     }
 

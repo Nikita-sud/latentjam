@@ -5,6 +5,8 @@
 package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.app.generated.resources.Res
+import io.github.nikitasud.latentjam.app.generated.resources.playlist_new_count
+import io.github.nikitasud.latentjam.app.generated.resources.settings_library_manage_failed
 import io.github.nikitasud.latentjam.app.generated.resources.snack_m3u_imported_all
 import io.github.nikitasud.latentjam.app.generated.resources.snack_m3u_imported_partial
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
@@ -13,6 +15,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.getPluralString
+import org.jetbrains.compose.resources.getString
 
 /** What one M3U file came to against the library. */
 internal class M3uImport(
@@ -59,6 +62,68 @@ internal suspend fun importM3u(
         )
     }
 }
+
+/**
+ * [importM3u] for every picked document, in order. The library's paths are asked for once for all
+ * of them, and only when a file has rows: on Android each ask is a full MediaStore query.
+ */
+internal suspend fun importM3uFiles(
+    documents: List<ImportedLocalDocument>,
+    library: List<TrackDescriptor>,
+    filePaths: suspend (List<TrackId>) -> Map<TrackId, String>,
+): List<M3uImport> {
+    var paths: Map<TrackId, String>? = null
+    val pathsOnce: suspend (List<TrackId>) -> Map<TrackId, String> = { ids ->
+        paths ?: try {
+            filePaths(ids)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // As in importM3u: a failed lookup costs the volume part of path matching, once.
+            emptyMap()
+        }.also { paths = it }
+    }
+    return documents.map { document -> importM3u(document.text, library, document.displayName, pathsOnce) }
+}
+
+/** How [createM3uPlaylists] went: the playlists made, and whether it stopped on a failure. */
+internal class M3uPlaylistsCreated(val created: Int, val failed: Boolean)
+
+/**
+ * One playlist per file of [offer] that found tracks, in order, through [create]. A failure stops
+ * the run but keeps what was made: the count says how far it got.
+ */
+internal suspend fun createM3uPlaylists(
+    offer: M3uImportOffer,
+    fallbackName: String,
+    create: suspend (name: String, ids: List<TrackId>) -> Unit,
+): M3uPlaylistsCreated {
+    var created = 0
+    for (import in offer.playlists) {
+        try {
+            create(import.name ?: fallbackName, import.tracks.map { it.id })
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Throwable) {
+            println("Playlists: could not create an imported playlist: $failure")
+            return M3uPlaylistsCreated(created, failed = true)
+        }
+        created++
+    }
+    return M3uPlaylistsCreated(created, failed = false)
+}
+
+/**
+ * The snackbar after [createM3uPlaylists]: [m3uImportedMessage] when every playlist was made, the
+ * failure when none was, and the failure with how many were made when it stopped part-way.
+ */
+internal suspend fun m3uPlaylistsCreatedMessage(offer: M3uImportOffer, result: M3uPlaylistsCreated): String =
+    when {
+        !result.failed -> m3uImportedMessage(offer)
+        result.created == 0 -> getString(Res.string.settings_library_manage_failed)
+        else -> getString(Res.string.settings_library_manage_failed) + " · " +
+            getPluralString(Res.plurals.playlist_new_count, result.created, result.created)
+    }
 
 /** Keep dots and other extensions in the title; only an M3U suffix is format metadata. */
 private fun m3uFileName(displayName: String?): String? {

@@ -1028,8 +1028,11 @@ private fun AppShell(
             }
             forYouPage.forYouBuilding = true
             val historySnapshot = try {
-                AppGraph.history.stats() to
-                    AppGraph.history.recentEvents(RECENT_EVENTS_FOR_YOU)
+                Triple(
+                    AppGraph.history.stats(),
+                    AppGraph.history.recentEvents(RECENT_EVENTS_FOR_YOU),
+                    AppGraph.history.firstListenAtMs(),
+                )
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Throwable) {
@@ -1043,7 +1046,7 @@ private fun AppShell(
                 snackbar.showSnackbar(getString(Res.string.settings_library_manage_failed))
                 return@LaunchedEffect
             }
-            val (stats, recentEvents) = historySnapshot
+            val (stats, recentEvents, firstListenAtMs) = historySnapshot
             val excluded = buildSet {
                 loaded.asSequence()
                     .filter { smartExclusionState.excludes(it) }
@@ -1102,6 +1105,7 @@ private fun AppShell(
                     revisitShownDays = shown.revisit,
                     daypartShownDays = shown.daypart,
                     retiredDiscoveries = shown.retired,
+                    logStartMs = firstListenAtMs,
                 )
             }
             // Commit the page and its input key together. If this effect is cancelled while the
@@ -1725,20 +1729,20 @@ private fun AppShell(
             onImportResult = { result ->
                 when (result) {
                     is LocalBackupFileResult.Success -> scope.launch {
-                        val imports = result.value.map { document ->
-                            importM3u(
-                                text = document.text,
-                                library = catalog?.songs.orEmpty(),
-                                displayName = document.displayName,
-                                filePaths = library::filePaths,
-                            )
-                        }.filter { it.entryCount > 0 }
+                        val imports = importM3uFiles(
+                            result.value.documents,
+                            catalog?.songs.orEmpty(),
+                            library::filePaths,
+                        ).filter { it.entryCount > 0 }
                         if (imports.none { it.tracks.isNotEmpty() }) {
                             snackbar.showSnackbar(getString(Res.string.snack_m3u_import_failed))
                             return@launch
                         }
                         // New playlists, or Favorites: chosen knowing how much of the files was found.
-                        sheets.m3uImportOffer = M3uImportOffer(imports)
+                        sheets.m3uImportOffer = M3uImportOffer(
+                            imports,
+                            skippedFiles = result.value.documents.size + result.value.unreadableCount - imports.size,
+                        )
                     }
                     is LocalBackupFileResult.Failure -> scope.launch {
                         snackbar.showSnackbar(getString(Res.string.snack_m3u_import_failed))
@@ -1748,15 +1752,13 @@ private fun AppShell(
             },
         )
         suspend fun importM3uAsPlaylists(offer: M3uImportOffer) {
-            val fallbackName = getString(Res.string.playlist_imported_name)
-            val created = runPlaylistMutation {
-                for (import in offer.playlists) {
-                    AppGraph.playlists.create(import.name ?: fallbackName, import.tracks.map { it.id })
-                }
+            val created = createM3uPlaylists(offer, getString(Res.string.playlist_imported_name)) { name, ids ->
+                AppGraph.playlists.create(name, ids)
             }
-            // A failure part-way still leaves the earlier files' playlists: show them either way.
+            // A failure part-way still leaves the earlier files' playlists: show them either way,
+            // and say how many were made.
             refreshPlaylistMembershipsBestEffort()
-            if (created) snackbar.showSnackbar(m3uImportedMessage(offer))
+            snackbar.showSnackbar(m3uPlaylistsCreatedMessage(offer, created))
         }
         // A playlist, or Favorites newest first: one exporter, one relative-paths setting.
         fun exportAsM3u(name: String, tracks: () -> List<TrackDescriptor>) {
@@ -2643,22 +2645,22 @@ private fun AppShell(
                                             onPlay = { list, index ->
                                                 AppGraph.queueSource.value =
                                                     QueueSource(QueueSourceKind.FOR_YOU)
-                                                scope.launch {
+                                                forYouPage.playbackLauncher.launch(scope) { isCurrent ->
                                                     playFromForYou(
                                                         playback, engine, AppGraph.history, list, index,
                                                         smartEligibleTracks, smartQueueLength,
-                                                        AppGraph.smartCompanionGroups.value,
+                                                        AppGraph.smartCompanionGroups.value, isCurrent,
                                                     )
                                                 }
                                             },
                                             onPlayCollection = { collection ->
                                                 AppGraph.queueSource.value =
                                                     QueueSource(QueueSourceKind.FOR_YOU, name = collection.title)
-                                                scope.launch {
+                                                forYouPage.playbackLauncher.launch(scope) { isCurrent ->
                                                     playFromForYou(
                                                         playback, engine, AppGraph.history, collection.tracks, 0,
                                                         smartEligibleTracks, smartQueueLength,
-                                                        AppGraph.smartCompanionGroups.value,
+                                                        AppGraph.smartCompanionGroups.value, isCurrent,
                                                     )
                                                 }
                                             },

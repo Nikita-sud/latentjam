@@ -258,6 +258,10 @@
         <item quantity="one">%1$d playlist</item>
         <item quantity="other">%1$d playlists</item>
     </plurals>
+    <plurals name="m3u_import_skipped_files">
+        <item quantity="one">%1$d fichier illisible</item>
+        <item quantity="other">%1$d fichiers illisibles</item>
+    </plurals>
     <plurals name="playlist_new_count">
         <item quantity="one">%1$d nouvelle playlist</item>
         <item quantity="other">%1$d nouvelles playlists</item>
@@ -770,7 +774,10 @@
         <item quantity="one">≈ %1$d jour de musique</item>
         <item quantity="other">≈ %1$d jours de musique</item>
     </plurals>
-    <string name="stats_activity_months">12 derniers mois · durée d’écoute</string>
+    <plurals name="stats_activity_last_months">
+        <item quantity="one">%1$d dernier mois · durée d’écoute</item>
+        <item quantity="other">%1$d derniers mois · durée d’écoute</item>
+    </plurals>
     <string name="stats_activity_years">Par année · durée d’écoute</string>
     <string name="stats_activity_over_time">Vos écoutes au fil du temps</string>
     <string name="stats_this_month">Ce mois-ci</string>
@@ -838,8 +845,8 @@
     <string name="stats_unlock_on_repeat">En boucle en ce moment — après une semaine d’écoute</string>
     <string name="stats_unlock_slipping">Un peu oubliés — après trois mois d’écoute</string>
     <string name="stats_part_failed">Certaines de ces statistiques n’ont pas pu être chargées.</string>
-    <string name="stats_playlist_row">Liste de lecture</string>
-    <string name="stats_playlists_note">Écoutes venues de chaque liste de lecture. Les titres ajoutés par SMART et les écoutes antérieures à l’enregistrement de leur origine par LatentJam ne comptent pas.</string>
+    <string name="stats_playlist_row">Playlist</string>
+    <string name="stats_playlists_note">Écoutes venues de chaque playlist. Les titres ajoutés par SMART et les écoutes antérieures à l’enregistrement de leur origine par LatentJam ne comptent pas.</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">Groupes : %1$d · Copies en trop : %2$d · Récupérable : %3$s</string>
