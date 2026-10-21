@@ -1,0 +1,1 @@
+Reproductor de música local con recomendador en el móvil. Sin cuenta ni red.

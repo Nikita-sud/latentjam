@@ -19,6 +19,7 @@ def main():
     assets.mkdir(exist_ok=True)
     for name in ("index.html", "styles.css", "script.js"):
         shutil.copyfile(ROOT / "website" / name, OUTPUT / name)
+    shutil.copyfile(ROOT / "website" / "altstore.json", OUTPUT / "altstore.json")
     shutil.copyfile(ROOT / "branding" / "logo.svg", assets / "logo.svg")
     for name in MEDIA:
         shutil.copyfile(ROOT / "docs" / "media" / name, assets / name)
