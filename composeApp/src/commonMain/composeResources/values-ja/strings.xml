@@ -230,6 +230,9 @@
     <plurals name="m3u_import_playlists">
         <item quantity="other">%1$d個のプレイリスト</item>
     </plurals>
+    <plurals name="m3u_import_skipped_files">
+        <item quantity="other">%1$d個のファイルを読み込めませんでした</item>
+    </plurals>
     <plurals name="playlist_new_count">
         <item quantity="other">%1$d個の新規プレイリスト</item>
     </plurals>

@@ -1725,7 +1725,7 @@ private fun AppShell(
             onImportResult = { result ->
                 when (result) {
                     is LocalBackupFileResult.Success -> scope.launch {
-                        val imports = result.value.map { document ->
+                        val imports = result.value.documents.map { document ->
                             importM3u(
                                 text = document.text,
                                 library = catalog?.songs.orEmpty(),
@@ -1738,7 +1738,10 @@ private fun AppShell(
                             return@launch
                         }
                         // New playlists, or Favorites: chosen knowing how much of the files was found.
-                        sheets.m3uImportOffer = M3uImportOffer(imports)
+                        sheets.m3uImportOffer = M3uImportOffer(
+                            imports,
+                            skippedFiles = result.value.documents.size + result.value.unreadableCount - imports.size,
+                        )
                     }
                     is LocalBackupFileResult.Failure -> scope.launch {
                         snackbar.showSnackbar(getString(Res.string.snack_m3u_import_failed))

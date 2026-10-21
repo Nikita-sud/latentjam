@@ -256,6 +256,11 @@
         <item quantity="few">%1$d playlisturi</item>
         <item quantity="other">%1$d de playlisturi</item>
     </plurals>
+    <plurals name="m3u_import_skipped_files">
+        <item quantity="one">%1$d fișier nu a putut fi citit</item>
+        <item quantity="few">%1$d fișiere nu au putut fi citite</item>
+        <item quantity="other">%1$d de fișiere nu au putut fi citite</item>
+    </plurals>
     <plurals name="playlist_new_count">
         <item quantity="one">%1$d playlist nou</item>
         <item quantity="few">%1$d playlisturi noi</item>

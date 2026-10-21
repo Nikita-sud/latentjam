@@ -309,6 +309,11 @@
         <item quantity="one">%1$d playlist</item>
         <item quantity="other">%1$d playlists</item>
     </plurals>
+    <!-- After "Found 12 of 20 tracks" when several M3U files were picked: %1$d of them were left out (unreadable, not a text file, or too large) -->
+    <plurals name="m3u_import_skipped_files">
+        <item quantity="one">%1$d file could not be read</item>
+        <item quantity="other">%1$d files could not be read</item>
+    </plurals>
     <!-- The choice that makes one playlist per picked file. -->
     <plurals name="playlist_new_count">
         <item quantity="one">%1$d new playlist</item>

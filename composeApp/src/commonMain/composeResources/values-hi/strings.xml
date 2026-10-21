@@ -246,6 +246,10 @@
         <item quantity="one">%1$d प्लेलिस्ट</item>
         <item quantity="other">%1$d प्लेलिस्ट</item>
     </plurals>
+    <plurals name="m3u_import_skipped_files">
+        <item quantity="one">%1$d फ़ाइल पढ़ी नहीं जा सकी</item>
+        <item quantity="other">%1$d फ़ाइलें पढ़ी नहीं जा सकीं</item>
+    </plurals>
     <plurals name="playlist_new_count">
         <item quantity="one">%1$d नई प्लेलिस्ट</item>
         <item quantity="other">%1$d नई प्लेलिस्ट</item>

@@ -256,6 +256,10 @@
         <item quantity="one">%1$d Playlist</item>
         <item quantity="other">%1$d Playlists</item>
     </plurals>
+    <plurals name="m3u_import_skipped_files">
+        <item quantity="one">%1$d Datei konnte nicht gelesen werden</item>
+        <item quantity="other">%1$d Dateien konnten nicht gelesen werden</item>
+    </plurals>
     <plurals name="playlist_new_count">
         <item quantity="one">%1$d neue Playlist</item>
         <item quantity="other">%1$d neue Playlists</item>

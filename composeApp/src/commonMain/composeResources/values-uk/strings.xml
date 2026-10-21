@@ -282,6 +282,12 @@
         <item quantity="many">%1$d плейлистів</item>
         <item quantity="other">%1$d плейлиста</item>
     </plurals>
+    <plurals name="m3u_import_skipped_files">
+        <item quantity="one">Не вдалося прочитати %1$d файл</item>
+        <item quantity="few">Не вдалося прочитати %1$d файли</item>
+        <item quantity="many">Не вдалося прочитати %1$d файлів</item>
+        <item quantity="other">Не вдалося прочитати %1$d файлу</item>
+    </plurals>
     <plurals name="playlist_new_count">
         <item quantity="one">%1$d новий плейлист</item>
         <item quantity="few">%1$d нові плейлисти</item>
