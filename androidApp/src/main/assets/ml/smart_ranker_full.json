@@ -1,6 +1,6 @@
 {
  "schema": "lj-smart-ranker/2",
- "name": "FULL L2 fast track (product check) night-r7a",
+ "name": "FULL L2 fast track (product check) night-r7c",
  "features": [
   "heard",
   "log_freq",
@@ -506,7 +506,7 @@
   "artistCap": 15
  },
  "prevFamilyJump": {
-  "lambda": 2.0
+  "lambda": 4.0
  },
  "personalNudge": {
   "delta": 1.0,

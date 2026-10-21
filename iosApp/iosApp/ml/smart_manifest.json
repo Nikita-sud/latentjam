@@ -4,11 +4,11 @@
  "assets": {
   "smart_ranker.json": {
    "size": 7208,
-   "sha256": "1ddcaee48f14c210d0f0886ab2d1c3ad4374f7e83e8ce20cb0e5d793d01e3118"
+   "sha256": "160bbb6b4e65d8df047d6c3f26b91dd3a4fad8c35f21e8c9497ee755f1013f61"
   },
   "smart_ranker_full.json": {
    "size": 9039,
-   "sha256": "b464543cf0813bcb6cb54b1ae766ddbdfe0a3dd64a195b8ab3d23ee9de47b07f"
+   "sha256": "287f24a34d1bb77cd76d52ec8fa2612132fc824bc9ad84b2b8ba8b03442f6e35"
   },
   "artist_colisten.bin": {
    "size": 7947962,
