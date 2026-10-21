@@ -160,6 +160,7 @@ import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.layout.heightIn
 
 @Composable
 internal fun EmptyLibraryPage(
@@ -577,7 +578,12 @@ internal fun BrowseCarousel(
                             },
                         )
                         // A full 48 dp to hit; the drawn pill or title stays its own size, centred.
-                        .minimumInteractiveComponentSize()
+                        // Pills grow in height only: their widths drive the sliding fill, which
+                        // must stay as wide as a one-glyph pill such as Japanese 曲.
+                        .then(
+                            if (style == PageHeaderStyle.PILLS) Modifier.heightIn(min = 48.dp)
+                            else Modifier.minimumInteractiveComponentSize(),
+                        )
                     when (style) {
                         PageHeaderStyle.PILLS -> Text(
                             text = stringResource(page.titleResource()),
