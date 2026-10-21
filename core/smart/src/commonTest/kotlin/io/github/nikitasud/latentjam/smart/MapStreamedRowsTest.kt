@@ -5,6 +5,8 @@
 package io.github.nikitasud.latentjam.smart
 
 import io.github.nikitasud.latentjam.smart.cluster.LibraryLayout
+import io.github.nikitasud.latentjam.smart.cluster.MapComputationUnavailable
+import io.github.nikitasud.latentjam.smart.cluster.MapMemoryBudget
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorRows
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorSource
 import io.github.nikitasud.latentjam.smart.text.TextEncoder
@@ -13,6 +15,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -71,7 +74,7 @@ internal class MapStreamedRowsTest {
     }
 
     @Test
-    fun aLibraryChangeDuringTheReadDiscardsTheLayout() = runTest {
+    fun aPopulationChangeDuringTheReadDiscardsTheLayout() = runTest {
         val engine = hybridEngine()
         val rows = assertNotNull(engine.libraryMixRows(ids))
         val row = FloatArray(rows.dim)
@@ -80,7 +83,70 @@ internal class MapStreamedRowsTest {
         // A track disappears between chunks: its row would read as zeros.
         engine.synchronizeLibrary(tracks.drop(1))
         assertFalse(rows.isCurrent())
+        assertFalse(rows.keepsPopulation())
         assertNull(LibraryLayout.compute(rows), "Rows read across an index change must not be laid out")
+    }
+
+    @Test
+    fun vectorsAnalysedDuringTheReadStillGiveALayout() = runTest {
+        // The last stretch of an analysis: the space is already hybrid and audio keeps arriving
+        // for tracks that have metadata, faster than one read of the rows. Every chunk read here
+        // is followed by one more analysed track, so no read ever sees a still index.
+        val pending = 8
+        val backend = FakeEmbeddingBackend()
+        val engine = hybridEngine(backend, withoutAudio = pending)
+        val planned = assertNotNull(engine.libraryMixRows(ids))
+        assertEquals(LibraryVectorSource.AUDIO_AND_METADATA, planned.source)
+        var analysed = 0
+        val scratch = FloatArray(planned.dim)
+        val rows = LibraryVectorRows(
+            trackIds = planned.trackIds,
+            dim = planned.dim,
+            source = planned.source,
+            fingerprint = planned.fingerprint,
+            readChunk = { start, count, out ->
+                for (slot in 0 until count) {
+                    planned.read(start + slot, scratch)
+                    scratch.copyInto(out, slot * planned.dim)
+                }
+                if (analysed < pending) {
+                    val id = tracks[analysed++].id
+                    backend.vectors[id] = FloatArray(AUDIO_DIM) { d -> if (d == analysed % AUDIO_DIM) 1f else 0.1f }
+                    engine.retryFailedTracks(listOf(id))
+                    engine.indexLibrary(tracks)
+                }
+            },
+            verify = planned::isCurrent,
+            verifyPopulation = planned::keepsPopulation,
+        )
+
+        val layout = assertNotNull(LibraryLayout.compute(rows), "Analysis progress must not discard the map")
+        assertEquals(ids.toSet(), layout.map { it.trackId }.toSet())
+        assertTrue(layout.all { it.x.isFinite() && it.y.isFinite() })
+        assertTrue(analysed > 1, "The index must have moved during the read")
+        assertFalse(rows.isCurrent(), "The layout is filed under a fingerprint the next visit no longer matches")
+        assertTrue(rows.keepsPopulation())
+
+        // Once the index is still, the next visit's rows are current and lay out exactly as held.
+        val settled = assertNotNull(engine.libraryMixRows(ids))
+        assertTrue(settled.fingerprint != planned.fingerprint)
+        val redrawn = assertNotNull(LibraryLayout.compute(settled))
+        assertTrue(settled.isCurrent())
+        assertEquals(LibraryLayout.compute(assertNotNull(engine.libraryMixVectors(ids))), redrawn)
+    }
+
+    @Test
+    fun aBudgetMeasuredBeforeTheRowsExistAlreadyCoversTheirChunk() = runTest {
+        // The page measures free memory once, before the rows allocate their chunk buffer, and
+        // hands that figure on. It must suffice exactly: the requirement counts the chunk itself.
+        val engine = hybridEngine()
+        val rows = assertNotNull(engine.libraryMixRows(ids))
+        val required = MapMemoryBudget.projectionStreamedBytes(rows.size, rows.dim, LibraryLayout.experimentalBackend)
+        assertNotNull(LibraryLayout.compute(rows, workBudgetBytes = required))
+        val refused = assertFailsWith<MapComputationUnavailable> {
+            LibraryLayout.compute(assertNotNull(engine.libraryMixRows(ids)), workBudgetBytes = required - 1)
+        }
+        assertTrue(refused.memoryLimited)
     }
 
     @Test
@@ -107,15 +173,18 @@ internal class MapStreamedRowsTest {
         assertTrue(rows.isCurrent())
     }
 
-    private suspend fun TestScope.hybridEngine(): DefaultSimilarityEngine {
+    private suspend fun TestScope.hybridEngine(
+        backend: FakeEmbeddingBackend = FakeEmbeddingBackend(),
+        withoutAudio: Int = 1,
+    ): DefaultSimilarityEngine {
         var state = 0x5EEDL
         fun next(): Float {
             state = state * 6364136223846793005L + 1442695040888963407L
             return ((state ushr 33).toInt() % 2000) / 1000f - 1f
         }
-        val audio = tracks.drop(1).associate { it.id to FloatArray(AUDIO_DIM) { next() } }
+        tracks.drop(withoutAudio).forEach { backend.vectors[it.id] = FloatArray(AUDIO_DIM) { next() } }
         val engine = DefaultSimilarityEngine(
-            backend = FakeEmbeddingBackend(audio.toMutableMap()),
+            backend = backend,
             index = InMemoryVectorIndex(AUDIO_DIM),
             store = FakeIndexStore(),
             config = SmartEngineConfig(embeddingDim = AUDIO_DIM, modelVersion = "map-stream-test"),

@@ -170,8 +170,16 @@ public object LibraryLayout {
      *
      * @param workBudgetBytes free heap measured before the call; compared against
      *   [MapMemoryBudget.projectionStreamedBytes]
-     * @return null when [rows] stopped being current while they were read (the index changed);
-     *   nothing is laid out from the mixed rows and the caller retries on the new library
+     * Vectors the indexer adds or replaces while the rows are read do not discard the result. Once
+     * the space is hybrid every added audio vector moves the fingerprint, more often than a large
+     * library's read takes, so a layout that waited for a still index would wait for the end of
+     * the analysis, and nothing would ask for it again before then. Each
+     * row is still a real vector of its track, so the map is a picture of the library as it was
+     * during the read, as a held matrix was a picture of it at its build; the caller files it under
+     * [LibraryVectorRows.fingerprint], which no longer matches, so the next visit redraws it.
+     *
+     * @return null when the population changed while the rows were read (a track gained or lost
+     *   its last vector, or the space changed modality); nothing is laid out from the mixed rows
      * @throws kotlinx.coroutines.CancellationException when [isActive] becomes false
      * @throws MapComputationUnavailable before unsafe allocation or when a backend fails
      * @throws IllegalArgumentException if `rows.size` exceeds [MAX_TRACKS]
@@ -194,13 +202,13 @@ public object LibraryLayout {
             throw MapComputationUnavailable("Insufficient memory for map projection", memoryLimited = true)
         }
         return computeStreamed(
-            ids, rows::read, rows.dim, previous, isActive, isCurrent = rows::isCurrent,
+            ids, rows::read, rows.dim, previous, isActive, keepsPopulation = rows::keepsPopulation,
         )
     }
 
     /**
      * Streamed [compute] over any [source]; also the device-test entry point.
-     * [isCurrent] runs once, after the last row is read and before the embedding.
+     * [keepsPopulation] runs once, after the last row is read and before the embedding.
      */
     internal suspend fun computeStreamed(
         ids: List<TrackId>,
@@ -209,7 +217,7 @@ public object LibraryLayout {
         previous: Map<TrackId, FloatArray> = emptyMap(),
         isActive: () -> Boolean = { true },
         onPhase: (String) -> Unit = {},
-        isCurrent: suspend () -> Boolean = { true },
+        keepsPopulation: suspend () -> Boolean = { true },
         backend: MapEmbeddingBackend = backendFor(ids.size),
     ): List<LayoutPoint>? {
         val n = ids.size
@@ -218,7 +226,7 @@ public object LibraryLayout {
         val reduced = SampledTsne.reduce(source, n, dim, null, COMPONENTS, SEED, isActive)
             ?: throw kotlinx.coroutines.CancellationException("Map cancelled during PCA")
         onPhase("reduced")
-        if (!isCurrent()) return null
+        if (!keepsPopulation()) return null
         val warm = warmStart(ids, previous, n)
         var embedded = when (val result = backend.embed(reduced, n, reduced.size / n, warm, isActive)) {
             is MapEmbeddingResult.Complete -> result.coordinates

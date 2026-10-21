@@ -187,7 +187,9 @@ public interface SimilarityEngine {
      * several times but never all at once: at 10,000 tracks this avoids a 54 MB matrix. Each row
      * equals the corresponding row of [libraryMixVectors]' space bit for bit. The engine lock is
      * taken per chunk, not for the whole read, so callers must check
-     * [LibraryVectorRows.isCurrent] after their last read and discard the result when it is false.
+     * [LibraryVectorRows.keepsPopulation] after their last read and discard the result when it is
+     * false. Vectors may still have moved under the read ([LibraryVectorRows.isCurrent]), so what
+     * they build belongs under [LibraryVectorRows.fingerprint], never a fingerprint taken later.
      *
      * The default serves rows from a built space, so it saves nothing; [DefaultSimilarityEngine]
      * reads its indexes instead.

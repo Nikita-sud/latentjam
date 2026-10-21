@@ -12,10 +12,22 @@ internal expect fun availableMapWorkBytes(): Long
  * the matrix region discovery has just released (54 MB at 10,000 tracks), so a reading that falls
  * short is retried once after a collection. Call only from the background map lane.
  */
-internal fun mapWorkFits(required: Long): Boolean {
-    if (availableMapWorkBytes() >= required) return true
-    collectMapGarbage()
-    return availableMapWorkBytes() >= required
+internal fun mapWorkFits(required: Long): Boolean = mapWorkBytes(required) >= required
+
+/**
+ * The free map work bytes, read as [mapWorkFits] reads them: once more after a collection when
+ * the first reading falls short of [required]. For a caller that checks [required] now and hands
+ * the same figure to work that would otherwise measure again after its own buffers exist.
+ */
+internal fun mapWorkBytes(
+    required: Long,
+    available: () -> Long = ::availableMapWorkBytes,
+    collect: () -> Unit = ::collectMapGarbage,
+): Long {
+    val first = available()
+    if (first >= required) return first
+    collect()
+    return available()
 }
 
 internal expect fun collectMapGarbage()
