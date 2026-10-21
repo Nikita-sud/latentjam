@@ -658,9 +658,6 @@
     <string name="stats_minutes_short">мин</string>
     <string name="stats_finished_share">Дослушано</string>
     <string name="stats_skipped_share">Пропущено</string>
-    <string name="stats_by_hour">По времени суток</string>
-    <string name="stats_top_artists">Топ исполнителей</string>
-    <string name="stats_top_tracks">Топ треков</string>
     <string name="stats_empty">За этот период пока ничего не сыграно.</string>
     <string name="stats_load_failed">Не удалось загрузить статистику прослушивания.</string>
     <string name="settings_normalize_volume">Выравнивание громкости</string>
@@ -802,22 +799,118 @@
     <string name="stats_calendar_days">Последние %1$d календарных дн. · время прослушивания</string>
     <string name="stats_today">Сегодня</string>
     <string name="stats_yesterday">Вчера</string>
-    <string name="stats_days_ago">%1$d дн. назад</string>
-    <string name="stats_habits">Привычки прослушивания</string>
-    <string name="stats_active_days">Активные дни</string>
     <string name="stats_new_tracks">Первые прослушивания</string>
-    <string name="stats_habits_note">Новые треки — впервые прослушанные в сохранённой истории. Серии учитывают всю историю.</string>
-    <string name="stats_repeat_share">Повторные прослушивания</string>
-    <string name="stats_coverage">Исследуйте медиатеку</string>
-    <string name="stats_coverage_detail">Прослушано %1$d из %2$s за этот период</string>
-    <string name="stats_smart_share">Режим SMART</string>
     <string name="stats_smart_detail">Доля прослушиваний, начатых с включённым перемешиванием SMART</string>
     <string name="stats_listening_style">Как вы слушаете</string>
-    <string name="stats_peak_hour">Больше всего прослушиваний около %1$s</string>
-    <string name="stats_average_active_day">На активный день</string>
     <string name="stats_recent_empty">В эти календарные дни прослушиваний пока нет.</string>
-    <string name="stats_history_note">На основе сохранённой истории; обновляется по окончании или смене трека. В рейтингах учитываются доступные треки медиатеки.</string>
+    <string name="stats_history_note">На основе сохранённой истории, в часовом поясе этого устройства; обновляется по окончании или смене трека. В списках — только треки, которые есть в медиатеке. Восстановленная резервная копия сохраняет лишь те треки, которые удалось найти, а исполнитель, известный только по удалённым трекам, может показаться новым.</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+    <plurals name="stats_days_ago">
+        <item quantity="one">%1$d день назад</item>
+        <item quantity="few">%1$d дня назад</item>
+        <item quantity="many">%1$d дней назад</item>
+        <item quantity="other">%1$d дня назад</item>
+    </plurals>
+    <string name="stats_section_lately">Вы в последнее время</string>
+    <string name="stats_section_numbers">Ваши цифры</string>
+    <string name="stats_section_over_time">Со временем</string>
+    <string name="stats_on_repeat">Сейчас на повторе</string>
+    <string name="stats_artists_on_repeat">Исполнители на повторе</string>
+    <plurals name="stats_on_days">
+        <item quantity="one">%1$d день</item>
+        <item quantity="few">%1$d дня</item>
+        <item quantity="many">%1$d дней</item>
+        <item quantity="other">%1$d дня</item>
+    </plurals>
+    <string name="stats_week_days">%1$d из последних 7 дней</string>
+    <plurals name="stats_days_of_music">
+        <item quantity="one">≈ %1$d день музыки</item>
+        <item quantity="few">≈ %1$d дня музыки</item>
+        <item quantity="many">≈ %1$d дней музыки</item>
+        <item quantity="other">≈ %1$d дня музыки</item>
+    </plurals>
+    <string name="stats_activity_months">Последние 12 месяцев · время прослушивания</string>
+    <string name="stats_activity_years">По годам · время прослушивания</string>
+    <string name="stats_activity_over_time">Ваше прослушивание со временем</string>
+    <string name="stats_this_month">Этот месяц</string>
+    <string name="stats_this_year">Этот год</string>
+    <plurals name="stats_months_ago">
+        <item quantity="one">%1$d месяц назад</item>
+        <item quantity="few">%1$d месяца назад</item>
+        <item quantity="many">%1$d месяцев назад</item>
+        <item quantity="other">%1$d месяца назад</item>
+    </plurals>
+    <plurals name="stats_years_ago">
+        <item quantity="one">%1$d год назад</item>
+        <item quantity="few">%1$d года назад</item>
+        <item quantity="many">%1$d лет назад</item>
+        <item quantity="other">%1$d года назад</item>
+    </plurals>
+    <string name="stats_new_and_familiar">Новое и знакомое</string>
+    <string name="stats_familiar">Знакомое</string>
+    <plurals name="stats_new_tracks_count">
+        <item quantity="one">%1$d новый трек</item>
+        <item quantity="few">%1$d новых трека</item>
+        <item quantity="many">%1$d новых треков</item>
+        <item quantity="other">%1$d нового трека</item>
+    </plurals>
+    <plurals name="stats_new_artists_count">
+        <item quantity="one">%1$d новый исполнитель</item>
+        <item quantity="few">%1$d новых исполнителя</item>
+        <item quantity="many">%1$d новых исполнителей</item>
+        <item quantity="other">%1$d нового исполнителя</item>
+    </plurals>
+    <string name="stats_new_previous">Предыдущие %1$d дн.: %2$s нового</string>
+    <string name="stats_stuck_artists">Новые исполнители, которые прижились</string>
+    <string name="stats_stuck_artists_recent">Новые исполнители, которые прижились · последние 3 месяца</string>
+    <plurals name="stats_log_age">
+        <item quantity="one">LatentJam слушает вместе с вами %1$d день</item>
+        <item quantity="few">LatentJam слушает вместе с вами %1$d дня</item>
+        <item quantity="many">LatentJam слушает вместе с вами %1$d дней</item>
+        <item quantity="other">LatentJam слушает вместе с вами %1$d дня</item>
+    </plurals>
+    <string name="stats_new_note">Первое прослушивание = впервые сыграно в LatentJam. Ваша медиатека может быть старше приложения.</string>
+    <plurals name="stats_locked_plays">
+        <item quantity="one">Появится после %1$d прослушивания за этот период</item>
+        <item quantity="few">Появится после %1$d прослушиваний за этот период</item>
+        <item quantity="many">Появится после %1$d прослушиваний за этот период</item>
+        <item quantity="other">Появится после %1$d прослушивания за этот период</item>
+    </plurals>
+    <string name="stats_when_you_listen">Когда вы слушаете</string>
+    <string name="stats_night">Ночь</string>
+    <string name="stats_morning">Утро</string>
+    <string name="stats_afternoon">День</string>
+    <string name="stats_evening">Вечер</string>
+    <string name="stats_daypart_peak">Больше всего слушаете: %1$s, %2$s</string>
+    <string name="stats_typical_session">Обычная сессия</string>
+    <string name="stats_longest_session">Самая длинная сессия</string>
+    <string name="stats_locked_sessions">Появится после нескольких сессий прослушивания за этот период</string>
+    <string name="stats_your_top">Ваш топ</string>
+    <string name="stats_show_more">Показать 10</string>
+    <string name="stats_show_less">Показать 5</string>
+    <string name="stats_partly_share">Прослушано частично</string>
+    <string name="stats_smart_mode_share">В режиме SMART</string>
+    <string name="stats_finish_note">Доли от всех запусков. Дослушано = до 85%, пропущено = переключено в первые 30 с.</string>
+    <string name="stats_slipping_away">Ускользают</string>
+    <string name="stats_slipping_note">Любимые треки, которые вы часто выбирали сами, но не слушали в LatentJam два месяца и больше.</string>
+    <string name="stats_year_ago">Год назад</string>
+    <string name="stats_patterns">Ваши привычки</string>
+    <string name="stats_same_artist_picks">Снова тот же исполнитель</string>
+    <string name="stats_of_100_picks">%1$d из 100 выборов</string>
+    <string name="stats_same_artist_note">Когда вы сами выбираете следующий трек. Включая запуск со страницы исполнителя.</string>
+    <string name="stats_picked_next">Часто выбираете следом</string>
+    <string name="stats_sequence_description">После %1$s вы выбирали %2$s %3$d раз из %4$d</string>
+    <string name="stats_library">Ваша медиатека</string>
+    <string name="stats_played_once">Сыграно хотя бы раз</string>
+    <string name="stats_x_of_y">%1$s из %2$s</string>
+    <string name="stats_decades">Десятилетия</string>
+    <string name="stats_decade">%1$d-е</string>
+    <string name="stats_more_appears">Больше появится по мере прослушивания</string>
+    <string name="stats_unlock_on_repeat">Сейчас на повторе — через неделю прослушивания</string>
+    <string name="stats_unlock_slipping">Ускользают — через три месяца прослушивания</string>
+    <string name="stats_part_failed">Часть статистики не удалось загрузить.</string>
+    <string name="stats_playlist_row">Плейлист</string>
+    <string name="stats_playlists_note">Прослушивания из каждого плейлиста. Не учитываются треки, добавленные SMART, и прослушивания до того, как LatentJam начал записывать, откуда запущен трек.</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">Групп: %1$d · Лишних копий: %2$d · Освободится: %3$s</string>

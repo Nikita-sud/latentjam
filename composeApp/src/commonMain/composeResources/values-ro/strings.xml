@@ -631,9 +631,6 @@
     <string name="stats_minutes_short">min</string>
     <string name="stats_finished_share">Ascultate până la capăt</string>
     <string name="stats_skipped_share">Sărite</string>
-    <string name="stats_by_hour">După ora zilei</string>
-    <string name="stats_top_artists">Top artiști</string>
-    <string name="stats_top_tracks">Top piese</string>
     <string name="stats_empty">Nimic redat încă în această perioadă.</string>
     <string name="stats_load_failed">Statisticile de ascultare nu au putut fi încărcate.</string>
     <string name="settings_normalize_volume">Egalizarea volumului</string>
@@ -763,22 +760,109 @@
     <string name="stats_calendar_days">Ultimele %1$d zile calendaristice · timp de audiție</string>
     <string name="stats_today">Azi</string>
     <string name="stats_yesterday">Ieri</string>
-    <string name="stats_days_ago">Acum %1$d zile</string>
-    <string name="stats_habits">Obiceiuri de ascultare</string>
-    <string name="stats_active_days">Zile active</string>
     <string name="stats_new_tracks">Prime audiții</string>
-    <string name="stats_habits_note">Piesele noi sunt ascultate pentru prima dată în istoricul salvat. Seriile folosesc întregul istoric.</string>
-    <string name="stats_repeat_share">Redări repetate</string>
-    <string name="stats_coverage">Explorează biblioteca</string>
-    <string name="stats_coverage_detail">%1$d din %2$s ascultate în această perioadă</string>
-    <string name="stats_smart_share">Modul SMART</string>
     <string name="stats_smart_detail">Proporția redărilor începute cu modul aleatoriu SMART activat</string>
     <string name="stats_listening_style">Cum asculți</string>
-    <string name="stats_peak_hour">Cele mai multe redări în jurul orei %1$s</string>
-    <string name="stats_average_active_day">Pe zi activă</string>
     <string name="stats_recent_empty">Încă nu există audiții în aceste zile calendaristice.</string>
-    <string name="stats_history_note">Pe baza istoricului salvat; se actualizează când o piesă se termină sau se schimbă. Clasamentele folosesc piesele disponibile în bibliotecă.</string>
+    <string name="stats_history_note">Pe baza istoricului salvat, în fusul orar al acestui dispozitiv; se actualizează când o piesă se termină sau se schimbă. Listele arată piesele care sunt încă în bibliotecă. O copie de rezervă restaurată păstrează doar piesele pe care le găsește, iar un artist cunoscut doar din piese eliminate poate apărea ca nou.</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+    <plurals name="stats_days_ago">
+        <item quantity="one">Acum %1$d zi</item>
+        <item quantity="few">Acum %1$d zile</item>
+        <item quantity="other">Acum %1$d de zile</item>
+    </plurals>
+    <string name="stats_section_lately">Tu în ultima vreme</string>
+    <string name="stats_section_numbers">Cifrele tale</string>
+    <string name="stats_section_over_time">În timp</string>
+    <string name="stats_on_repeat">Pe repeat acum</string>
+    <string name="stats_artists_on_repeat">Artiști pe repeat</string>
+    <plurals name="stats_on_days">
+        <item quantity="one">în %1$d zi</item>
+        <item quantity="few">în %1$d zile</item>
+        <item quantity="other">în %1$d de zile</item>
+    </plurals>
+    <string name="stats_week_days">În %1$d din ultimele 7 zile</string>
+    <plurals name="stats_days_of_music">
+        <item quantity="one">≈ %1$d zi de muzică</item>
+        <item quantity="few">≈ %1$d zile de muzică</item>
+        <item quantity="other">≈ %1$d de zile de muzică</item>
+    </plurals>
+    <string name="stats_activity_months">Ultimele 12 luni · timp de audiție</string>
+    <string name="stats_activity_years">Pe ani · timp de audiție</string>
+    <string name="stats_activity_over_time">Audițiile tale în timp</string>
+    <string name="stats_this_month">Luna aceasta</string>
+    <string name="stats_this_year">Anul acesta</string>
+    <plurals name="stats_months_ago">
+        <item quantity="one">Acum %1$d lună</item>
+        <item quantity="few">Acum %1$d luni</item>
+        <item quantity="other">Acum %1$d de luni</item>
+    </plurals>
+    <plurals name="stats_years_ago">
+        <item quantity="one">Acum %1$d an</item>
+        <item quantity="few">Acum %1$d ani</item>
+        <item quantity="other">Acum %1$d de ani</item>
+    </plurals>
+    <string name="stats_new_and_familiar">Noi și cunoscute</string>
+    <string name="stats_familiar">Cunoscute</string>
+    <plurals name="stats_new_tracks_count">
+        <item quantity="one">%1$d piesă nouă</item>
+        <item quantity="few">%1$d piese noi</item>
+        <item quantity="other">%1$d de piese noi</item>
+    </plurals>
+    <plurals name="stats_new_artists_count">
+        <item quantity="one">%1$d artist nou</item>
+        <item quantity="few">%1$d artiști noi</item>
+        <item quantity="other">%1$d de artiști noi</item>
+    </plurals>
+    <string name="stats_new_previous">Precedentele %1$d zile: %2$s noi</string>
+    <string name="stats_stuck_artists">Artiști noi care au rămas</string>
+    <string name="stats_stuck_artists_recent">Artiști noi care au rămas · ultimele 3 luni</string>
+    <plurals name="stats_log_age">
+        <item quantity="one">LatentJam ascultă alături de tine de %1$d zi</item>
+        <item quantity="few">LatentJam ascultă alături de tine de %1$d zile</item>
+        <item quantity="other">LatentJam ascultă alături de tine de %1$d de zile</item>
+    </plurals>
+    <string name="stats_new_note">Primă audiție = redată prima dată în LatentJam. Biblioteca ta poate fi mai veche decât aplicația.</string>
+    <plurals name="stats_locked_plays">
+        <item quantity="one">Apare după %1$d redare în această perioadă</item>
+        <item quantity="few">Apare după %1$d redări în această perioadă</item>
+        <item quantity="other">Apare după %1$d de redări în această perioadă</item>
+    </plurals>
+    <string name="stats_when_you_listen">Când asculți</string>
+    <string name="stats_night">Noapte</string>
+    <string name="stats_morning">Dimineață</string>
+    <string name="stats_afternoon">După-amiază</string>
+    <string name="stats_evening">Seară</string>
+    <string name="stats_daypart_peak">Cel mai mult: %1$s, %2$s</string>
+    <string name="stats_typical_session">Sesiune obișnuită</string>
+    <string name="stats_longest_session">Cea mai lungă sesiune</string>
+    <string name="stats_locked_sessions">Apare după câteva sesiuni de ascultare în această perioadă</string>
+    <string name="stats_your_top">Topul tău</string>
+    <string name="stats_show_more">Arată 10</string>
+    <string name="stats_show_less">Arată 5</string>
+    <string name="stats_partly_share">Ascultate parțial</string>
+    <string name="stats_smart_mode_share">Redate în modul SMART</string>
+    <string name="stats_finish_note">Proporții din toate pornirile. Până la capăt = ascultată până la 85%, sărită = părăsită în primele 30 s.</string>
+    <string name="stats_slipping_away">Aproape uitate</string>
+    <string name="stats_slipping_note">Piese preferate pe care le alegeai des singur, neredate în LatentJam de cel puțin două luni.</string>
+    <string name="stats_year_ago">Acum un an</string>
+    <string name="stats_patterns">Obiceiurile tale</string>
+    <string name="stats_same_artist_picks">Din nou același artist</string>
+    <string name="stats_of_100_picks">%1$d din 100 de alegeri</string>
+    <string name="stats_same_artist_note">Când alegi singur următoarea piesă. Include pornirea de pe pagina unui artist.</string>
+    <string name="stats_picked_next">Alese des după</string>
+    <string name="stats_sequence_description">După %1$s ai ales %2$s de %3$d ori din %4$d</string>
+    <string name="stats_library">Biblioteca ta</string>
+    <string name="stats_played_once">Redate cel puțin o dată</string>
+    <string name="stats_x_of_y">%1$s din %2$s</string>
+    <string name="stats_decades">Decenii</string>
+    <string name="stats_decade">Anii %1$d</string>
+    <string name="stats_more_appears">Mai multe apar pe măsură ce asculți</string>
+    <string name="stats_unlock_on_repeat">Pe repeat acum — după o săptămână de ascultare</string>
+    <string name="stats_unlock_slipping">Aproape uitate — după trei luni de ascultare</string>
+    <string name="stats_part_failed">Unele dintre aceste statistici nu au putut fi încărcate.</string>
+    <string name="stats_playlist_row">Playlist</string>
+    <string name="stats_playlists_note">Redări din fiecare playlist. Nu se numără piesele adăugate de SMART și nici ascultările de dinainte ca LatentJam să înregistreze de unde a pornit o piesă.</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">Grupuri: %1$d · Copii în plus: %2$d · Se poate elibera: %3$s</string>

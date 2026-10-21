@@ -624,9 +624,6 @@
     <string name="stats_minutes_short">min</string>
     <string name="stats_finished_share">Completadas</string>
     <string name="stats_skipped_share">Saltadas</string>
-    <string name="stats_by_hour">Por hora del día</string>
-    <string name="stats_top_artists">Artistas más escuchados</string>
-    <string name="stats_top_tracks">Pistas más escuchadas</string>
     <string name="stats_empty">Todavía no se ha reproducido nada en este período.</string>
     <string name="stats_load_failed">No se pudieron cargar las estadísticas de escucha.</string>
     <string name="settings_normalize_volume">Normalización de volumen</string>
@@ -744,22 +741,100 @@
     <string name="stats_calendar_days">Últimos %1$d días naturales · tiempo de escucha</string>
     <string name="stats_today">Hoy</string>
     <string name="stats_yesterday">Ayer</string>
-    <string name="stats_days_ago">Hace %1$d días</string>
-    <string name="stats_habits">Hábitos de escucha</string>
-    <string name="stats_active_days">Días activos</string>
     <string name="stats_new_tracks">Primeras escuchas</string>
-    <string name="stats_habits_note">Los temas nuevos se han escuchado por primera vez según el historial guardado. Las rachas usan todo el historial.</string>
-    <string name="stats_repeat_share">Reproducciones repetidas</string>
-    <string name="stats_coverage">Explora tu biblioteca</string>
-    <string name="stats_coverage_detail">%1$d de %2$s reproducidos en este período</string>
-    <string name="stats_smart_share">Modo SMART</string>
     <string name="stats_smart_detail">Porcentaje de reproducciones iniciadas con el modo aleatorio SMART activado</string>
     <string name="stats_listening_style">Cómo escuchas</string>
-    <string name="stats_peak_hour">Más reproducciones sobre las %1$s</string>
-    <string name="stats_average_active_day">Por día activo</string>
     <string name="stats_recent_empty">Todavía no hay escuchas en estos días naturales.</string>
-    <string name="stats_history_note">Basado en el historial guardado; se actualiza cuando termina o cambia un tema. Las clasificaciones usan los temas disponibles en tu biblioteca.</string>
+    <string name="stats_history_note">Basado en el historial guardado, en la zona horaria de este dispositivo; se actualiza cuando termina o cambia un tema. Las listas muestran temas que siguen en tu biblioteca. Una copia de seguridad restaurada solo conserva los temas que encuentra, y un artista conocido solo por temas eliminados puede aparecer como nuevo.</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+    <plurals name="stats_days_ago">
+        <item quantity="one">Hace %1$d día</item>
+        <item quantity="other">Hace %1$d días</item>
+    </plurals>
+    <string name="stats_section_lately">Tú últimamente</string>
+    <string name="stats_section_numbers">Tus cifras</string>
+    <string name="stats_section_over_time">A lo largo del tiempo</string>
+    <string name="stats_on_repeat">En bucle ahora</string>
+    <string name="stats_artists_on_repeat">Artistas en bucle</string>
+    <plurals name="stats_on_days">
+        <item quantity="one">en %1$d día</item>
+        <item quantity="other">en %1$d días</item>
+    </plurals>
+    <string name="stats_week_days">%1$d de los últimos 7 días</string>
+    <plurals name="stats_days_of_music">
+        <item quantity="one">≈ %1$d día de música</item>
+        <item quantity="other">≈ %1$d días de música</item>
+    </plurals>
+    <string name="stats_activity_months">Últimos 12 meses · tiempo de escucha</string>
+    <string name="stats_activity_years">Por año · tiempo de escucha</string>
+    <string name="stats_activity_over_time">Tu escucha a lo largo del tiempo</string>
+    <string name="stats_this_month">Este mes</string>
+    <string name="stats_this_year">Este año</string>
+    <plurals name="stats_months_ago">
+        <item quantity="one">Hace %1$d mes</item>
+        <item quantity="other">Hace %1$d meses</item>
+    </plurals>
+    <plurals name="stats_years_ago">
+        <item quantity="one">Hace %1$d año</item>
+        <item quantity="other">Hace %1$d años</item>
+    </plurals>
+    <string name="stats_new_and_familiar">Nuevo y conocido</string>
+    <string name="stats_familiar">Conocido</string>
+    <plurals name="stats_new_tracks_count">
+        <item quantity="one">%1$d tema nuevo</item>
+        <item quantity="other">%1$d temas nuevos</item>
+    </plurals>
+    <plurals name="stats_new_artists_count">
+        <item quantity="one">%1$d artista nuevo</item>
+        <item quantity="other">%1$d artistas nuevos</item>
+    </plurals>
+    <string name="stats_new_previous">%1$d días anteriores: %2$s nuevo</string>
+    <string name="stats_stuck_artists">Artistas nuevos que se quedaron</string>
+    <string name="stats_stuck_artists_recent">Artistas nuevos que se quedaron · últimos 3 meses</string>
+    <plurals name="stats_log_age">
+        <item quantity="one">LatentJam lleva %1$d día escuchando contigo</item>
+        <item quantity="other">LatentJam lleva %1$d días escuchando contigo</item>
+    </plurals>
+    <string name="stats_new_note">Primera escucha = primera reproducción en LatentJam. Tu biblioteca puede ser más antigua que la app.</string>
+    <plurals name="stats_locked_plays">
+        <item quantity="one">Aparece tras %1$d reproducción en este periodo</item>
+        <item quantity="other">Aparece tras %1$d reproducciones en este periodo</item>
+    </plurals>
+    <string name="stats_when_you_listen">Cuándo escuchas</string>
+    <string name="stats_night">Madrugada</string>
+    <string name="stats_morning">Mañana</string>
+    <string name="stats_afternoon">Tarde</string>
+    <string name="stats_evening">Noche</string>
+    <string name="stats_daypart_peak">Más escucha: %1$s, %2$s</string>
+    <string name="stats_typical_session">Sesión típica</string>
+    <string name="stats_longest_session">Sesión más larga</string>
+    <string name="stats_locked_sessions">Aparece tras unas cuantas sesiones de escucha en este periodo</string>
+    <string name="stats_your_top">Tu top</string>
+    <string name="stats_show_more">Mostrar 10</string>
+    <string name="stats_show_less">Mostrar 5</string>
+    <string name="stats_partly_share">Escuchadas en parte</string>
+    <string name="stats_smart_mode_share">Reproducidas en modo SMART</string>
+    <string name="stats_finish_note">Porcentajes de todos los inicios. Completada = escuchada hasta el 85%, saltada = abandonada en los primeros 30 s.</string>
+    <string name="stats_slipping_away">Casi olvidados</string>
+    <string name="stats_slipping_note">Favoritos que solías elegir tú mismo y que no suenan en LatentJam desde hace dos meses o más.</string>
+    <string name="stats_year_ago">Hace un año</string>
+    <string name="stats_patterns">Tus patrones</string>
+    <string name="stats_same_artist_picks">Repetir el mismo artista</string>
+    <string name="stats_of_100_picks">%1$d de cada 100 elecciones</string>
+    <string name="stats_same_artist_note">Cuando eliges tú la siguiente pista. Incluye empezar desde la página de un artista.</string>
+    <string name="stats_picked_next">A menudo elegido después</string>
+    <string name="stats_sequence_description">Después de %1$s elegiste %2$s %3$d de %4$d veces</string>
+    <string name="stats_library">Tu biblioteca</string>
+    <string name="stats_played_once">Reproducido al menos una vez</string>
+    <string name="stats_x_of_y">%1$s de %2$s</string>
+    <string name="stats_decades">Décadas</string>
+    <string name="stats_decade">Años %1$d</string>
+    <string name="stats_more_appears">Aparecerá más a medida que escuches</string>
+    <string name="stats_unlock_on_repeat">En bucle ahora — tras una semana de escucha</string>
+    <string name="stats_unlock_slipping">Casi olvidados — tras tres meses de escucha</string>
+    <string name="stats_part_failed">No se pudieron cargar algunas de estas estadísticas.</string>
+    <string name="stats_playlist_row">Lista</string>
+    <string name="stats_playlists_note">Reproducciones de cada lista. No cuentan las canciones que añadió SMART ni las escuchas de antes de que LatentJam registrara desde dónde empezó cada canción.</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">Grupos: %1$d · Copias sobrantes: %2$d · Recuperable: %3$s</string>

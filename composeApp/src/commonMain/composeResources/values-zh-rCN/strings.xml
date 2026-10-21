@@ -595,9 +595,6 @@
     <string name="stats_minutes_short">分钟</string>
     <string name="stats_finished_share">完整播放</string>
     <string name="stats_skipped_share">跳过</string>
-    <string name="stats_by_hour">按时段</string>
-    <string name="stats_top_artists">最常听的艺术家</string>
-    <string name="stats_top_tracks">最常听的曲目</string>
     <string name="stats_empty">此时段还没有播放记录。</string>
     <string name="stats_load_failed">无法加载收听统计信息。</string>
     <string name="settings_normalize_volume">音量均衡</string>
@@ -701,22 +698,91 @@
     <string name="stats_calendar_days">最近 %1$d 个自然日 · 聆听时长</string>
     <string name="stats_today">今天</string>
     <string name="stats_yesterday">昨天</string>
-    <string name="stats_days_ago">%1$d 天前</string>
-    <string name="stats_habits">聆听习惯</string>
-    <string name="stats_active_days">聆听天数</string>
     <string name="stats_new_tracks">初次聆听</string>
-    <string name="stats_habits_note">新曲目指在已保存的历史记录中首次聆听的曲目。连续聆听天数按全部历史记录计算。</string>
-    <string name="stats_repeat_share">重复播放</string>
-    <string name="stats_coverage">探索你的音乐库</string>
-    <string name="stats_coverage_detail">本时段已播放 %2$s 中的 %1$d 首</string>
-    <string name="stats_smart_share">SMART 模式</string>
     <string name="stats_smart_detail">开启 SMART 随机播放时开始的播放次数占比</string>
     <string name="stats_listening_style">你的聆听方式</string>
-    <string name="stats_peak_hour">%1$s 左右播放次数最多</string>
-    <string name="stats_average_active_day">每个聆听日</string>
     <string name="stats_recent_empty">这些自然日内还没有聆听记录。</string>
-    <string name="stats_history_note">基于已保存的历史记录，在曲目结束或切换时更新。排行仅包含音乐库中可用的曲目。</string>
+    <string name="stats_history_note">基于已保存的历史记录，按本设备的时区统计，在曲目结束或切换时更新。列表仅显示仍在音乐库中的曲目。恢复的备份只保留能找到的曲目；仅通过已移除曲目认识的艺术家可能会显示为新艺术家。</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+    <plurals name="stats_days_ago">
+        <item quantity="other">%1$d 天前</item>
+    </plurals>
+    <string name="stats_section_lately">最近的你</string>
+    <string name="stats_section_numbers">你的数据</string>
+    <string name="stats_section_over_time">随时间变化</string>
+    <string name="stats_on_repeat">最近循环播放</string>
+    <string name="stats_artists_on_repeat">循环播放的艺术家</string>
+    <plurals name="stats_on_days">
+        <item quantity="other">%1$d 天里</item>
+    </plurals>
+    <string name="stats_week_days">最近 7 天中有 %1$d 天</string>
+    <plurals name="stats_days_of_music">
+        <item quantity="other">≈ %1$d 天的音乐</item>
+    </plurals>
+    <string name="stats_activity_months">最近 12 个月 · 聆听时长</string>
+    <string name="stats_activity_years">按年 · 聆听时长</string>
+    <string name="stats_activity_over_time">你的聆听随时间的变化</string>
+    <string name="stats_this_month">本月</string>
+    <string name="stats_this_year">今年</string>
+    <plurals name="stats_months_ago">
+        <item quantity="other">%1$d 个月前</item>
+    </plurals>
+    <plurals name="stats_years_ago">
+        <item quantity="other">%1$d 年前</item>
+    </plurals>
+    <string name="stats_new_and_familiar">新鲜与熟悉</string>
+    <string name="stats_familiar">熟悉的曲目</string>
+    <plurals name="stats_new_tracks_count">
+        <item quantity="other">%1$d 首新曲目</item>
+    </plurals>
+    <plurals name="stats_new_artists_count">
+        <item quantity="other">%1$d 位新艺术家</item>
+    </plurals>
+    <string name="stats_new_previous">之前 %1$d 天：%2$s 为新曲目</string>
+    <string name="stats_stuck_artists">留下来的新艺术家</string>
+    <string name="stats_stuck_artists_recent">留下来的新艺术家 · 最近 3 个月</string>
+    <plurals name="stats_log_age">
+        <item quantity="other">LatentJam 已陪你聆听 %1$d 天</item>
+    </plurals>
+    <string name="stats_new_note">初次聆听 = 在 LatentJam 中首次播放。你的音乐库可能比这个应用更早。</string>
+    <plurals name="stats_locked_plays">
+        <item quantity="other">此期间播放 %1$d 次后显示</item>
+    </plurals>
+    <string name="stats_when_you_listen">你何时聆听</string>
+    <string name="stats_night">深夜</string>
+    <string name="stats_morning">上午</string>
+    <string name="stats_afternoon">下午</string>
+    <string name="stats_evening">晚上</string>
+    <string name="stats_daypart_peak">聆听最多：%1$s，%2$s</string>
+    <string name="stats_typical_session">典型的一次聆听</string>
+    <string name="stats_longest_session">最长的一次聆听</string>
+    <string name="stats_locked_sessions">此期间聆听几次后显示</string>
+    <string name="stats_your_top">你的排行</string>
+    <string name="stats_show_more">显示 10 项</string>
+    <string name="stats_show_less">显示 5 项</string>
+    <string name="stats_partly_share">部分收听</string>
+    <string name="stats_smart_mode_share">以 SMART 模式播放</string>
+    <string name="stats_finish_note">占所有开始播放的比例。完整播放 = 听到 85%，跳过 = 在前 30 秒内离开。</string>
+    <string name="stats_slipping_away">渐渐淡忘</string>
+    <string name="stats_slipping_note">你常亲自选择的心头好，但已在 LatentJam 中两个月或更久没有播放。</string>
+    <string name="stats_year_ago">一年前</string>
+    <string name="stats_patterns">你的习惯</string>
+    <string name="stats_same_artist_picks">再次选择同一位艺术家</string>
+    <string name="stats_of_100_picks">每 100 次选择中有 %1$d 次</string>
+    <string name="stats_same_artist_note">指你亲自选择下一首曲目时。包括从艺术家页面开始播放。</string>
+    <string name="stats_picked_next">常接着选择</string>
+    <string name="stats_sequence_description">在 %1$s 之后，你在 %4$d 次中有 %3$d 次选择了 %2$s</string>
+    <string name="stats_library">你的音乐库</string>
+    <string name="stats_played_once">至少播放过一次</string>
+    <string name="stats_x_of_y">%1$s / %2$s</string>
+    <string name="stats_decades">年代</string>
+    <string name="stats_decade">%1$d 年代</string>
+    <string name="stats_more_appears">随着聆听，会显示更多内容</string>
+    <string name="stats_unlock_on_repeat">最近循环播放 — 聆听一周后显示</string>
+    <string name="stats_unlock_slipping">渐渐淡忘 — 聆听三个月后显示</string>
+    <string name="stats_part_failed">部分统计数据无法加载。</string>
+    <string name="stats_playlist_row">歌单</string>
+    <string name="stats_playlists_note">来自每个歌单的播放次数。不计入 SMART 添加的曲目，也不计入 LatentJam 开始记录播放来源之前的收听。</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">分组：%1$d · 多余副本：%2$d · 可释放：%3$s</string>

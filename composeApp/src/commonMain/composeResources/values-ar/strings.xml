@@ -717,9 +717,6 @@
     <string name="stats_minutes_short">د</string>
     <string name="stats_finished_share">مكتملة</string>
     <string name="stats_skipped_share">متخطاة</string>
-    <string name="stats_by_hour">حسب وقت اليوم</string>
-    <string name="stats_top_artists">أكثر الفنانين استماعًا</string>
-    <string name="stats_top_tracks">أكثر المقاطع استماعًا</string>
     <string name="stats_empty">لم يتم تشغيل أي شيء في هذه الفترة بعد.</string>
     <string name="stats_load_failed">تعذر تحميل إحصاءات الاستماع.</string>
     <string name="settings_normalize_volume">موازنة مستوى الصوت</string>
@@ -883,22 +880,136 @@
     <string name="stats_calendar_days">آخر %1$d يومًا تقويميًا · مدة الاستماع</string>
     <string name="stats_today">اليوم</string>
     <string name="stats_yesterday">أمس</string>
-    <string name="stats_days_ago">قبل %1$d يومًا</string>
-    <string name="stats_habits">عادات الاستماع</string>
-    <string name="stats_active_days">أيام الاستماع</string>
     <string name="stats_new_tracks">مقاطع جديدة عليك</string>
-    <string name="stats_habits_note">المقاطع الجديدة هي التي استمعت إليها للمرة الأولى في سجلك المحفوظ. تُحسب سلاسل أيام الاستماع المتتالية عبر كل الوقت.</string>
-    <string name="stats_repeat_share">مرات إعادة التشغيل</string>
-    <string name="stats_coverage">استكشف مكتبتك</string>
-    <string name="stats_coverage_detail">تم تشغيل %1$d من أصل %2$s خلال هذه الفترة</string>
-    <string name="stats_smart_share">وضع SMART</string>
     <string name="stats_smart_detail">نسبة مرات التشغيل التي بدأت مع تفعيل التشغيل العشوائي SMART</string>
     <string name="stats_listening_style">كيف تستمع</string>
-    <string name="stats_peak_hour">أكثر مرات التشغيل قرب الساعة %1$s</string>
-    <string name="stats_average_active_day">لكل يوم استماع</string>
     <string name="stats_recent_empty">لم تسجّل أي استماع في هذه الأيام التقويمية بعد.</string>
-    <string name="stats_history_note">تستند إلى السجل المحفوظ وتُحدّث عند انتهاء المقطع أو تغييره. تشمل التصنيفات المقاطع المتاحة في مكتبتك.</string>
+    <string name="stats_history_note">تستند إلى السجل المحفوظ وبحسب المنطقة الزمنية لهذا الجهاز، وتُحدّث عند انتهاء المقطع أو تغييره. تعرض القوائم المقاطع التي ما زالت في مكتبتك. النسخة الاحتياطية المستعادة تحتفظ فقط بالمقاطع التي تعثر عليها، وقد يظهر فنان لا يُعرف إلا من مقاطع محذوفة على أنه جديد.</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+    <plurals name="stats_days_ago">
+        <item quantity="zero">قبل %1$d يوم</item>
+        <item quantity="one">قبل %1$d يوم</item>
+        <item quantity="two">قبل %1$d يومين</item>
+        <item quantity="few">قبل %1$d أيام</item>
+        <item quantity="many">قبل %1$d يومًا</item>
+        <item quantity="other">قبل %1$d يوم</item>
+    </plurals>
+    <string name="stats_section_lately">أنت مؤخرًا</string>
+    <string name="stats_section_numbers">أرقامك</string>
+    <string name="stats_section_over_time">عبر الزمن</string>
+    <string name="stats_on_repeat">تستمع إليها بتكرار الآن</string>
+    <string name="stats_artists_on_repeat">فنانون تستمع إليهم بتكرار</string>
+    <plurals name="stats_on_days">
+        <item quantity="zero">في %1$d يوم</item>
+        <item quantity="one">في %1$d يوم</item>
+        <item quantity="two">في %1$d يومين</item>
+        <item quantity="few">في %1$d أيام</item>
+        <item quantity="many">في %1$d يومًا</item>
+        <item quantity="other">في %1$d يوم</item>
+    </plurals>
+    <string name="stats_week_days">في %1$d من آخر 7 أيام</string>
+    <plurals name="stats_days_of_music">
+        <item quantity="zero">≈ %1$d يوم من الموسيقى</item>
+        <item quantity="one">≈ %1$d يوم من الموسيقى</item>
+        <item quantity="two">≈ %1$d يومان من الموسيقى</item>
+        <item quantity="few">≈ %1$d أيام من الموسيقى</item>
+        <item quantity="many">≈ %1$d يومًا من الموسيقى</item>
+        <item quantity="other">≈ %1$d يوم من الموسيقى</item>
+    </plurals>
+    <string name="stats_activity_months">آخر 12 شهرًا · مدة الاستماع</string>
+    <string name="stats_activity_years">حسب السنة · مدة الاستماع</string>
+    <string name="stats_activity_over_time">استماعك عبر الزمن</string>
+    <string name="stats_this_month">هذا الشهر</string>
+    <string name="stats_this_year">هذا العام</string>
+    <plurals name="stats_months_ago">
+        <item quantity="zero">قبل %1$d شهر</item>
+        <item quantity="one">قبل %1$d شهر</item>
+        <item quantity="two">قبل %1$d شهرين</item>
+        <item quantity="few">قبل %1$d أشهر</item>
+        <item quantity="many">قبل %1$d شهرًا</item>
+        <item quantity="other">قبل %1$d شهر</item>
+    </plurals>
+    <plurals name="stats_years_ago">
+        <item quantity="zero">قبل %1$d سنة</item>
+        <item quantity="one">قبل %1$d سنة</item>
+        <item quantity="two">قبل %1$d سنتين</item>
+        <item quantity="few">قبل %1$d سنوات</item>
+        <item quantity="many">قبل %1$d سنة</item>
+        <item quantity="other">قبل %1$d سنة</item>
+    </plurals>
+    <string name="stats_new_and_familiar">جديد ومألوف</string>
+    <string name="stats_familiar">مألوفة</string>
+    <plurals name="stats_new_tracks_count">
+        <item quantity="zero">%1$d مقطع جديد</item>
+        <item quantity="one">%1$d مقطع جديد</item>
+        <item quantity="two">%1$d مقطعان جديدان</item>
+        <item quantity="few">%1$d مقاطع جديدة</item>
+        <item quantity="many">%1$d مقطعًا جديدًا</item>
+        <item quantity="other">%1$d مقطع جديد</item>
+    </plurals>
+    <plurals name="stats_new_artists_count">
+        <item quantity="zero">%1$d فنان جديد</item>
+        <item quantity="one">%1$d فنان جديد</item>
+        <item quantity="two">%1$d فنانان جديدان</item>
+        <item quantity="few">%1$d فنانين جدد</item>
+        <item quantity="many">%1$d فنانًا جديدًا</item>
+        <item quantity="other">%1$d فنان جديد</item>
+    </plurals>
+    <string name="stats_new_previous">الأيام الـ %1$d السابقة: %2$s جديدة</string>
+    <string name="stats_stuck_artists">فنانون جدد بقوا معك</string>
+    <string name="stats_stuck_artists_recent">فنانون جدد بقوا معك · آخر 3 أشهر</string>
+    <plurals name="stats_log_age">
+        <item quantity="zero">يستمع LatentJam معك منذ %1$d يوم</item>
+        <item quantity="one">يستمع LatentJam معك منذ %1$d يوم</item>
+        <item quantity="two">يستمع LatentJam معك منذ %1$d يومين</item>
+        <item quantity="few">يستمع LatentJam معك منذ %1$d أيام</item>
+        <item quantity="many">يستمع LatentJam معك منذ %1$d يومًا</item>
+        <item quantity="other">يستمع LatentJam معك منذ %1$d يوم</item>
+    </plurals>
+    <string name="stats_new_note">جديدة عليك = شُغّلت لأول مرة في LatentJam. قد تكون مكتبتك أقدم من التطبيق.</string>
+    <plurals name="stats_locked_plays">
+        <item quantity="zero">تظهر بعد %1$d مرة تشغيل في هذه الفترة</item>
+        <item quantity="one">تظهر بعد %1$d مرة تشغيل في هذه الفترة</item>
+        <item quantity="two">تظهر بعد %1$d مرتي تشغيل في هذه الفترة</item>
+        <item quantity="few">تظهر بعد %1$d مرات تشغيل في هذه الفترة</item>
+        <item quantity="many">تظهر بعد %1$d مرة تشغيل في هذه الفترة</item>
+        <item quantity="other">تظهر بعد %1$d مرة تشغيل في هذه الفترة</item>
+    </plurals>
+    <string name="stats_when_you_listen">متى تستمع</string>
+    <string name="stats_night">الليل</string>
+    <string name="stats_morning">الصباح</string>
+    <string name="stats_afternoon">بعد الظهر</string>
+    <string name="stats_evening">المساء</string>
+    <string name="stats_daypart_peak">أكثر استماع: %1$s، %2$s</string>
+    <string name="stats_typical_session">جلسة معتادة</string>
+    <string name="stats_longest_session">أطول جلسة</string>
+    <string name="stats_locked_sessions">تظهر بعد بضع جلسات استماع في هذه الفترة</string>
+    <string name="stats_your_top">الأكثر استماعًا لديك</string>
+    <string name="stats_show_more">عرض 10</string>
+    <string name="stats_show_less">عرض 5</string>
+    <string name="stats_partly_share">مسموعة جزئيًا</string>
+    <string name="stats_smart_mode_share">مشغّلة في وضع SMART</string>
+    <string name="stats_finish_note">نسب من كل مرات البدء. مكتملة = سُمعت حتى 85%، متخطاة = تُركت خلال أول 30 ثانية.</string>
+    <string name="stats_slipping_away">بدأت تُنسى</string>
+    <string name="stats_slipping_note">مقاطع مفضلة كنت تختارها بنفسك كثيرًا، ولم تُشغَّل في LatentJam منذ شهرين أو أكثر.</string>
+    <string name="stats_year_ago">قبل عام</string>
+    <string name="stats_patterns">أنماطك</string>
+    <string name="stats_same_artist_picks">اختيار الفنان نفسه مجددًا</string>
+    <string name="stats_of_100_picks">%1$d من كل 100 اختيار</string>
+    <string name="stats_same_artist_note">عندما تختار المقطع التالي بنفسك. يشمل ذلك البدء من صفحة فنان.</string>
+    <string name="stats_picked_next">غالبًا ما تختاره بعده</string>
+    <string name="stats_sequence_description">بعد %1$s اخترت %2$s %3$d من %4$d مرات</string>
+    <string name="stats_library">مكتبتك</string>
+    <string name="stats_played_once">شُغّلت مرة واحدة على الأقل</string>
+    <string name="stats_x_of_y">%1$s من %2$s</string>
+    <string name="stats_decades">العقود</string>
+    <string name="stats_decade">عقد %1$d</string>
+    <string name="stats_more_appears">سيظهر المزيد كلما استمعت</string>
+    <string name="stats_unlock_on_repeat">تستمع إليها بتكرار الآن — بعد أسبوع من الاستماع</string>
+    <string name="stats_unlock_slipping">بدأت تُنسى — بعد ثلاثة أشهر من الاستماع</string>
+    <string name="stats_part_failed">تعذر تحميل بعض هذه الإحصاءات.</string>
+    <string name="stats_playlist_row">قائمة تشغيل</string>
+    <string name="stats_playlists_note">مرات التشغيل من كل قائمة تشغيل. لا تُحتسب المقاطع التي أضافها SMART ولا الاستماعات السابقة لتسجيل LatentJam لمصدر تشغيل المقطع.</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">المجموعات: %1$d · النسخ الزائدة: %2$d · يمكن تحريره: %3$s</string>

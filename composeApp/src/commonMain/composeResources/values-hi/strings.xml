@@ -617,9 +617,6 @@
     <string name="stats_minutes_short">मि</string>
     <string name="stats_finished_share">पूरे सुने</string>
     <string name="stats_skipped_share">छोड़े गए</string>
-    <string name="stats_by_hour">दिन के समय के अनुसार</string>
-    <string name="stats_top_artists">शीर्ष कलाकार</string>
-    <string name="stats_top_tracks">शीर्ष ट्रैक</string>
     <string name="stats_empty">इस अवधि में अभी तक कुछ नहीं चलाया गया।</string>
     <string name="stats_load_failed">सुनने के आँकड़े लोड नहीं किए जा सके।</string>
     <string name="settings_normalize_volume">वॉल्यूम सामान्यीकरण</string>
@@ -735,22 +732,100 @@
     <string name="stats_calendar_days">पिछले %1$d कैलेंडर दिन · सुनने का समय</string>
     <string name="stats_today">आज</string>
     <string name="stats_yesterday">कल</string>
-    <string name="stats_days_ago">%1$d दिन पहले</string>
-    <string name="stats_habits">सुनने की आदतें</string>
-    <string name="stats_active_days">सुनने वाले दिन</string>
     <string name="stats_new_tracks">पहली बार सुने गए</string>
-    <string name="stats_habits_note">नए ट्रैक वे हैं जिन्हें आपके सहेजे गए इतिहास में पहली बार सुना गया है। लगातार सुनने के दिनों की गणना पूरे इतिहास से होती है।</string>
-    <string name="stats_repeat_share">दोबारा सुने गए</string>
-    <string name="stats_coverage">अपनी लाइब्रेरी को जानें</string>
-    <string name="stats_coverage_detail">इस अवधि में %2$s में से %1$d सुने गए</string>
-    <string name="stats_smart_share">SMART मोड</string>
     <string name="stats_smart_detail">SMART शफ़ल चालू होने पर शुरू हुए प्ले का हिस्सा</string>
     <string name="stats_listening_style">आप कैसे सुनते हैं</string>
-    <string name="stats_peak_hour">सबसे ज़्यादा प्ले करीब %1$s बजे</string>
-    <string name="stats_average_active_day">प्रति सुनने वाले दिन</string>
     <string name="stats_recent_empty">इन कैलेंडर दिनों में अभी तक कुछ नहीं सुना गया है।</string>
-    <string name="stats_history_note">सहेजे गए इतिहास पर आधारित; ट्रैक खत्म होने या बदलने पर अपडेट होता है। रैंकिंग में आपकी लाइब्रेरी में उपलब्ध ट्रैक शामिल हैं।</string>
+    <string name="stats_history_note">सहेजे गए इतिहास पर आधारित, इस डिवाइस के समय क्षेत्र में; ट्रैक खत्म होने या बदलने पर अपडेट होता है। सूचियों में वही ट्रैक दिखते हैं जो अब भी आपकी लाइब्रेरी में हैं। रीस्टोर किया गया बैकअप सिर्फ़ वही ट्रैक रखता है जो उसे मिल पाते हैं, और सिर्फ़ हटाए गए ट्रैक से जाना गया कलाकार नया दिख सकता है।</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+    <plurals name="stats_days_ago">
+        <item quantity="one">%1$d दिन पहले</item>
+        <item quantity="other">%1$d दिन पहले</item>
+    </plurals>
+    <string name="stats_section_lately">हाल में आप</string>
+    <string name="stats_section_numbers">आपके आँकड़े</string>
+    <string name="stats_section_over_time">समय के साथ</string>
+    <string name="stats_on_repeat">अभी बार-बार सुने जा रहे</string>
+    <string name="stats_artists_on_repeat">बार-बार सुने जा रहे कलाकार</string>
+    <plurals name="stats_on_days">
+        <item quantity="one">%1$d दिन में</item>
+        <item quantity="other">%1$d दिनों में</item>
+    </plurals>
+    <string name="stats_week_days">पिछले 7 में से %1$d दिन</string>
+    <plurals name="stats_days_of_music">
+        <item quantity="one">≈ %1$d दिन का संगीत</item>
+        <item quantity="other">≈ %1$d दिनों का संगीत</item>
+    </plurals>
+    <string name="stats_activity_months">पिछले 12 महीने · सुनने का समय</string>
+    <string name="stats_activity_years">साल के अनुसार · सुनने का समय</string>
+    <string name="stats_activity_over_time">समय के साथ आपका सुनना</string>
+    <string name="stats_this_month">इस महीने</string>
+    <string name="stats_this_year">इस साल</string>
+    <plurals name="stats_months_ago">
+        <item quantity="one">%1$d महीने पहले</item>
+        <item quantity="other">%1$d महीने पहले</item>
+    </plurals>
+    <plurals name="stats_years_ago">
+        <item quantity="one">%1$d साल पहले</item>
+        <item quantity="other">%1$d साल पहले</item>
+    </plurals>
+    <string name="stats_new_and_familiar">नए और जाने-पहचाने</string>
+    <string name="stats_familiar">जाने-पहचाने</string>
+    <plurals name="stats_new_tracks_count">
+        <item quantity="one">%1$d नया ट्रैक</item>
+        <item quantity="other">%1$d नए ट्रैक</item>
+    </plurals>
+    <plurals name="stats_new_artists_count">
+        <item quantity="one">%1$d नया कलाकार</item>
+        <item quantity="other">%1$d नए कलाकार</item>
+    </plurals>
+    <string name="stats_new_previous">पिछले %1$d दिन: %2$s नए</string>
+    <string name="stats_stuck_artists">नए कलाकार जो पसंद आ गए</string>
+    <string name="stats_stuck_artists_recent">नए कलाकार जो पसंद आ गए · पिछले 3 महीने</string>
+    <plurals name="stats_log_age">
+        <item quantity="one">LatentJam %1$d दिन से आपके साथ सुन रहा है</item>
+        <item quantity="other">LatentJam %1$d दिनों से आपके साथ सुन रहा है</item>
+    </plurals>
+    <string name="stats_new_note">पहली बार सुने गए = LatentJam में पहली बार चलाए गए। आपकी लाइब्रेरी ऐप से पुरानी हो सकती है।</string>
+    <plurals name="stats_locked_plays">
+        <item quantity="one">इस अवधि में %1$d प्ले के बाद दिखेगा</item>
+        <item quantity="other">इस अवधि में %1$d प्ले के बाद दिखेगा</item>
+    </plurals>
+    <string name="stats_when_you_listen">आप कब सुनते हैं</string>
+    <string name="stats_night">रात</string>
+    <string name="stats_morning">सुबह</string>
+    <string name="stats_afternoon">दोपहर</string>
+    <string name="stats_evening">शाम</string>
+    <string name="stats_daypart_peak">सबसे ज़्यादा सुनना: %1$s, %2$s</string>
+    <string name="stats_typical_session">आम सेशन</string>
+    <string name="stats_longest_session">सबसे लंबा सेशन</string>
+    <string name="stats_locked_sessions">इस अवधि में कुछ सेशन सुनने के बाद दिखेगा</string>
+    <string name="stats_your_top">आपके टॉप</string>
+    <string name="stats_show_more">10 दिखाएँ</string>
+    <string name="stats_show_less">5 दिखाएँ</string>
+    <string name="stats_partly_share">आंशिक रूप से सुने</string>
+    <string name="stats_smart_mode_share">SMART मोड में चलाए गए</string>
+    <string name="stats_finish_note">सभी शुरुआतों का हिस्सा। पूरे सुने = 85% तक सुने गए, छोड़े गए = पहले 30 सेकंड में छोड़े गए।</string>
+    <string name="stats_slipping_away">छूटते जा रहे</string>
+    <string name="stats_slipping_note">पसंदीदा ट्रैक जिन्हें आप अक्सर खुद चुनते थे, पर LatentJam में दो महीने या उससे ज़्यादा से नहीं चले।</string>
+    <string name="stats_year_ago">एक साल पहले</string>
+    <string name="stats_patterns">आपके पैटर्न</string>
+    <string name="stats_same_artist_picks">फिर से वही कलाकार चुनना</string>
+    <string name="stats_of_100_picks">100 में से %1$d चुनाव</string>
+    <string name="stats_same_artist_note">जब आप अगला ट्रैक खुद चुनते हैं। किसी कलाकार के पेज से शुरू करना भी शामिल है।</string>
+    <string name="stats_picked_next">अक्सर इसके बाद चुने गए</string>
+    <string name="stats_sequence_description">%1$s के बाद आपने %4$d में से %3$d बार %2$s चुना</string>
+    <string name="stats_library">आपकी लाइब्रेरी</string>
+    <string name="stats_played_once">कम से कम एक बार चले</string>
+    <string name="stats_x_of_y">%2$s में से %1$s</string>
+    <string name="stats_decades">दशक</string>
+    <string name="stats_decade">%1$d का दशक</string>
+    <string name="stats_more_appears">जैसे-जैसे आप सुनेंगे, और जानकारी दिखेगी</string>
+    <string name="stats_unlock_on_repeat">अभी बार-बार सुने जा रहे — एक हफ़्ते सुनने के बाद</string>
+    <string name="stats_unlock_slipping">छूटते जा रहे — तीन महीने सुनने के बाद</string>
+    <string name="stats_part_failed">इनमें से कुछ आँकड़े लोड नहीं हो सके।</string>
+    <string name="stats_playlist_row">प्लेलिस्ट</string>
+    <string name="stats_playlists_note">हर प्लेलिस्ट से हुए प्ले। SMART के जोड़े गए ट्रैक और उससे पहले की सुनवाई जब LatentJam यह दर्ज नहीं करता था कि ट्रैक कहाँ से शुरू हुआ, गिने नहीं जाते।</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">समूह: %1$d · अतिरिक्त प्रतियाँ: %2$d · खाली होने वाली जगह: %3$s</string>

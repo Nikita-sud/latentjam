@@ -617,9 +617,6 @@
     <string name="stats_minutes_short">dk</string>
     <string name="stats_finished_share">Tamamlanan</string>
     <string name="stats_skipped_share">Atlanan</string>
-    <string name="stats_by_hour">Günün saatine göre</string>
-    <string name="stats_top_artists">En çok dinlenen sanatçılar</string>
-    <string name="stats_top_tracks">En çok dinlenen parçalar</string>
     <string name="stats_empty">Bu dönemde henüz hiçbir şey çalınmadı.</string>
     <string name="stats_load_failed">Dinleme istatistikleri yüklenemedi.</string>
     <string name="settings_normalize_volume">Ses normalleştirme</string>
@@ -735,22 +732,100 @@
     <string name="stats_calendar_days">Son %1$d takvim günü · dinleme süresi</string>
     <string name="stats_today">Bugün</string>
     <string name="stats_yesterday">Dün</string>
-    <string name="stats_days_ago">%1$d gün önce</string>
-    <string name="stats_habits">Dinleme alışkanlıkları</string>
-    <string name="stats_active_days">Dinlenen günler</string>
     <string name="stats_new_tracks">İlk kez dinledikleriniz</string>
-    <string name="stats_habits_note">Yeni parçalar, kayıtlı geçmişinizde ilk kez dinlediğiniz parçalardır. Kesintisiz dinleme serileri tüm geçmişe göre hesaplanır.</string>
-    <string name="stats_repeat_share">Tekrar dinlemeler</string>
-    <string name="stats_coverage">Arşivinizi keşfedin</string>
-    <string name="stats_coverage_detail">Bu dönemde %2$s içinden %1$d parça çalındı</string>
-    <string name="stats_smart_share">SMART modu</string>
     <string name="stats_smart_detail">SMART karışık çalma açıkken başlatılan çalmaların oranı</string>
     <string name="stats_listening_style">Nasıl dinliyorsunuz</string>
-    <string name="stats_peak_hour">En çok %1$s civarında çalındı</string>
-    <string name="stats_average_active_day">Dinlenen gün başına</string>
     <string name="stats_recent_empty">Bu takvim günlerinde henüz dinleme yok.</string>
-    <string name="stats_history_note">Kayıtlı geçmişe dayanır; parça bittiğinde veya değiştiğinde güncellenir. Sıralamalarda arşivinizde bulunan parçalar kullanılır.</string>
+    <string name="stats_history_note">Kayıtlı geçmişe dayanır ve bu cihazın saat dilimini kullanır; parça bittiğinde veya değiştiğinde güncellenir. Listelerde yalnızca arşivinizde hâlâ bulunan parçalar gösterilir. Geri yüklenen bir yedek yalnızca bulabildiği parçaları korur; yalnızca kaldırılmış parçalardan bilinen bir sanatçı yeni görünebilir.</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+    <plurals name="stats_days_ago">
+        <item quantity="one">%1$d gün önce</item>
+        <item quantity="other">%1$d gün önce</item>
+    </plurals>
+    <string name="stats_section_lately">Son zamanlarda siz</string>
+    <string name="stats_section_numbers">Rakamlarınız</string>
+    <string name="stats_section_over_time">Zaman içinde</string>
+    <string name="stats_on_repeat">Şu an tekrar tekrar dinlenenler</string>
+    <string name="stats_artists_on_repeat">Tekrar tekrar dinlenen sanatçılar</string>
+    <plurals name="stats_on_days">
+        <item quantity="one">%1$d günde</item>
+        <item quantity="other">%1$d günde</item>
+    </plurals>
+    <string name="stats_week_days">Son 7 günün %1$d gününde</string>
+    <plurals name="stats_days_of_music">
+        <item quantity="one">≈ %1$d günlük müzik</item>
+        <item quantity="other">≈ %1$d günlük müzik</item>
+    </plurals>
+    <string name="stats_activity_months">Son 12 ay · dinleme süresi</string>
+    <string name="stats_activity_years">Yıllara göre · dinleme süresi</string>
+    <string name="stats_activity_over_time">Zaman içinde dinlemeleriniz</string>
+    <string name="stats_this_month">Bu ay</string>
+    <string name="stats_this_year">Bu yıl</string>
+    <plurals name="stats_months_ago">
+        <item quantity="one">%1$d ay önce</item>
+        <item quantity="other">%1$d ay önce</item>
+    </plurals>
+    <plurals name="stats_years_ago">
+        <item quantity="one">%1$d yıl önce</item>
+        <item quantity="other">%1$d yıl önce</item>
+    </plurals>
+    <string name="stats_new_and_familiar">Yeni ve tanıdık</string>
+    <string name="stats_familiar">Tanıdık</string>
+    <plurals name="stats_new_tracks_count">
+        <item quantity="one">%1$d yeni parça</item>
+        <item quantity="other">%1$d yeni parça</item>
+    </plurals>
+    <plurals name="stats_new_artists_count">
+        <item quantity="one">%1$d yeni sanatçı</item>
+        <item quantity="other">%1$d yeni sanatçı</item>
+    </plurals>
+    <string name="stats_new_previous">Önceki %1$d gün: %2$s yeni</string>
+    <string name="stats_stuck_artists">Kalıcı olan yeni sanatçılar</string>
+    <string name="stats_stuck_artists_recent">Kalıcı olan yeni sanatçılar · son 3 ay</string>
+    <plurals name="stats_log_age">
+        <item quantity="one">LatentJam %1$d gündür sizinle birlikte dinliyor</item>
+        <item quantity="other">LatentJam %1$d gündür sizinle birlikte dinliyor</item>
+    </plurals>
+    <string name="stats_new_note">İlk kez dinlenen = LatentJam’de ilk kez çalınan. Arşiviniz uygulamadan daha eski olabilir.</string>
+    <plurals name="stats_locked_plays">
+        <item quantity="one">Bu dönemde %1$d çalmadan sonra görünür</item>
+        <item quantity="other">Bu dönemde %1$d çalmadan sonra görünür</item>
+    </plurals>
+    <string name="stats_when_you_listen">Ne zaman dinliyorsunuz</string>
+    <string name="stats_night">Gece</string>
+    <string name="stats_morning">Sabah</string>
+    <string name="stats_afternoon">Öğleden sonra</string>
+    <string name="stats_evening">Akşam</string>
+    <string name="stats_daypart_peak">En çok dinleme: %1$s, %2$s</string>
+    <string name="stats_typical_session">Tipik oturum</string>
+    <string name="stats_longest_session">En uzun oturum</string>
+    <string name="stats_locked_sessions">Bu dönemde birkaç dinleme oturumundan sonra görünür</string>
+    <string name="stats_your_top">Zirvedekileriniz</string>
+    <string name="stats_show_more">10 tane göster</string>
+    <string name="stats_show_less">5 tane göster</string>
+    <string name="stats_partly_share">Kısmen dinlenen</string>
+    <string name="stats_smart_mode_share">SMART modunda çalınan</string>
+    <string name="stats_finish_note">Tüm başlatmalar içindeki oranlar. Tamamlanan = %85’ine kadar dinlenen, atlanan = ilk 30 sn içinde bırakılan.</string>
+    <string name="stats_slipping_away">Unutulmaya yüz tutanlar</string>
+    <string name="stats_slipping_note">Sık sık kendiniz seçtiğiniz, ancak iki ay veya daha uzun süredir LatentJam’de çalınmayan favoriler.</string>
+    <string name="stats_year_ago">Bir yıl önce</string>
+    <string name="stats_patterns">Alışkanlıklarınız</string>
+    <string name="stats_same_artist_picks">Yine aynı sanatçıyı seçmek</string>
+    <string name="stats_of_100_picks">100 seçimden %1$d</string>
+    <string name="stats_same_artist_note">Sonraki parçayı kendiniz seçtiğinizde. Bir sanatçı sayfasından başlatmak da dahildir.</string>
+    <string name="stats_picked_next">Sık sık ardından seçilen</string>
+    <string name="stats_sequence_description">%1$s sonrasında %4$d seferin %3$d tanesinde %2$s parçasını seçtiniz</string>
+    <string name="stats_library">Arşiviniz</string>
+    <string name="stats_played_once">En az bir kez çalınan</string>
+    <string name="stats_x_of_y">%2$s içinden %1$s</string>
+    <string name="stats_decades">On yıllar</string>
+    <string name="stats_decade">%1$d yılları</string>
+    <string name="stats_more_appears">Dinledikçe daha fazlası görünür</string>
+    <string name="stats_unlock_on_repeat">Şu an tekrar tekrar dinlenenler — bir haftalık dinlemeden sonra</string>
+    <string name="stats_unlock_slipping">Unutulmaya yüz tutanlar — üç aylık dinlemeden sonra</string>
+    <string name="stats_part_failed">Bu istatistiklerin bir kısmı yüklenemedi.</string>
+    <string name="stats_playlist_row">Çalma listesi</string>
+    <string name="stats_playlists_note">Her çalma listesinden yapılan dinlemeler. SMART’ın eklediği parçalar ve LatentJam bir parçanın nereden başlatıldığını kaydetmeden önceki dinlemeler sayılmaz.</string>
 
     <!-- Duplicate finder -->
     <string name="duplicates_summary">Gruplar: %1$d · Fazla kopya: %2$d · Boşaltılabilir: %3$s</string>
