@@ -109,7 +109,15 @@ public class RankerModel(
     public val tagClasses: List<TagClass> = emptyList(),
     /** Night 2026-10-21: −λ for a candidate whose family differs from both the previous pick's and the seed's (one-track jumps). */
     public val prevFamilyJump: Double? = null,
+    /** Night r4: a pick whose normalised title (brackets, " - …" suffix, punctuation dropped) is already the seed's, the prefix's or a pick's is excluded (titles of at least [songDedupMinChars] chars). */
+    public val songDedupMinChars: Int? = null,
+    /** Night r4: −λ for a candidate whose artist key already has ≥ cap of the last window − 1 queue items (seed included). */
+    public val queueArtistCap: QueueArtistCap? = null,
+    /** Night r4 (seed-specific intent): + track · trans_track + artist · trans_artist (raw log(1 + count)) in every anchor's score. */
+    public val transBonus: Pair<Double, Double>? = null,
 ) {
+    public class QueueArtistCap(public val cap: Int, public val window: Int, public val lambda: Double)
+
     /**
      * A lexicon class over lower-cased tags: [genre] substrings of the genre, exact ';'-separated genre [tokens], [text]
      * substrings of title + artist + album. The penalty applies when the seed is not in the class and, with [seedIn]
@@ -145,6 +153,8 @@ public class RankerModel(
         public val personalScale: Double?,
         /** The same on a warm seed (round 2, against personal-favourite hubs); null = unchanged. */
         public val personalScaleWarm: Double? = null,
+        /** Night r4: the scale leaves trans_track / trans_artist (seed-specific intent) unscaled. */
+        public val transExempt: Boolean = false,
     )
 
     public class PlaylistBonus(public val lambda: Double, public val quota: Int, public val artistCap: Int)
@@ -347,15 +357,18 @@ public class RankerModel(
                 "audioZ", "softNovelty", "anchorShare", "colistenPrevShare", "familyMismatch", "classMismatch", "continuity", "holidaySeason",
                 "durationRule", "titleFlags", "unknownSeedAnchor", "artistSets",
                 "taxonomy", "versionKey", "playlistBonus", "noRepeat", "langScript", "semChain",
-                "hubPenalty", "hubGenreDamp", "scorerSquash", "tagClasses", "prevFamilyJump",
+                "hubPenalty", "hubGenreDamp", "scorerSquash", "tagClasses", "prevFamilyJump", "songDedup", "queueArtistCap", "transBonus",
             ),
             "tagClasses" to setOf("classes"),
+            "songDedup" to setOf("minChars"),
+            "queueArtistCap" to setOf("cap", "window", "lambda"),
+            "transBonus" to setOf("track", "artist"),
             "prevFamilyJump" to setOf("lambda"),
             "playlistBonus" to setOf("lambda", "quota", "artistCap"),
             "noRepeat" to setOf("lambdaStart", "rho", "minPlays"),
             "anchorShare" to setOf("share", "columns"),
             "familyMismatch" to setOf("lambda", "near", "nearScale", "coldLambda"),
-            "semChain" to setOf("scope", "audioPrev", "audioSeed", "semSeed", "semPrev", "personalScale", "personalScaleWarm"),
+            "semChain" to setOf("scope", "audioPrev", "audioSeed", "semSeed", "semPrev", "personalScale", "personalScaleWarm", "transExempt"),
             "hubPenalty" to setOf("beta", "topk", "sample"),
             "hubGenreDamp" to setOf("mult"),
             "scorerSquash" to setOf("scale", "temp"),
@@ -475,6 +488,7 @@ public class RankerModel(
                         semSeed = (it["semSeed"] as? Number)?.toDouble() ?: 3.0, semPrev = (it["semPrev"] as? Number)?.toDouble() ?: 0.5,
                         personalScale = (it["personalScale"] as? Number)?.toDouble(),
                         personalScaleWarm = (it["personalScaleWarm"] as? Number)?.toDouble(),
+                        transExempt = it["transExempt"] == true,
                     )
                 },
                 holidaySeason = (root["holidaySeason"] as? Map<*, *>)?.let { (it["lambda"] as Number).toDouble() },
@@ -505,6 +519,13 @@ public class RankerModel(
                     TagClass(m["name"] as String, strs("genre"), strs("tokens").toSet(), strs("text"), (m["lambda"] as Number).toDouble(), strs("seedIn").toSet())
                 },
                 prevFamilyJump = (root["prevFamilyJump"] as? Map<*, *>)?.let { (it["lambda"] as Number).toDouble() },
+                songDedupMinChars = (root["songDedup"] as? Map<*, *>)?.let { (it["minChars"] as? Number)?.toInt() ?: 6 },
+                queueArtistCap = (root["queueArtistCap"] as? Map<*, *>)?.let {
+                    QueueArtistCap((it["cap"] as? Number)?.toInt() ?: 3, (it["window"] as? Number)?.toInt() ?: 10, (it["lambda"] as Number).toDouble())
+                },
+                transBonus = (root["transBonus"] as? Map<*, *>)?.let {
+                    ((it["track"] as? Number)?.toDouble() ?: 0.0) to ((it["artist"] as? Number)?.toDouble() ?: 0.0)
+                },
                 continuity = (root["continuity"] as? Map<*, *>).orEmpty().entries
                     .map { (k, v) ->
                         (v as Map<*, *>).let {

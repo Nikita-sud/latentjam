@@ -108,6 +108,12 @@ public object RankerQueue {
             }
             val sc = DoubleArray(poolSize) { model.score(rows[it]) }
             if (model.audioZ) addAudioZ(model, sc, rows)
+            model.transBonus?.let { (lt, la) ->
+                // Night r4: "after A this person plays B" as seed-specific intent, outside the learned weights.
+                val jt = RankerFeatures.NAMES.indexOf("trans_track")
+                val ja = RankerFeatures.NAMES.indexOf("trans_artist")
+                for (i in 0 until poolSize) sc[i] = sc[i] + lt * rows[i][jt] + la * rows[i][ja]
+            }
             if (holiday != null) model.holidaySeason?.let { lam -> for (i in 0 until poolSize) if (holiday[i]) sc[i] = sc[i] - lam }
             if (families != null) {
                 model.classMismatch?.let { cm ->
@@ -398,6 +404,14 @@ public object RankerQueue {
                 }
                 if (novelty != null && novelty[i] != 0.0) v -= model.softNovelty!!.lambda * sd * novelty[i]
                 if (rulePenalties != null && rulePenalties[i] != 0.0) v -= rulePenalties[i]
+                // Night r4: a soft per-queue artist cap over the last window − 1 items (the seed included).
+                model.queueArtistCap?.let { qc ->
+                    val key = artistKeys[i]
+                    if (key.isNotEmpty()) {
+                        val recent = (listOf(seedArtist) + picks.map { artistKeys[it] }).takeLast(maxOf(1, qc.window - 1))
+                        if (recent.count { it == key } >= qc.cap) v -= qc.lambda
+                    }
+                }
                 // Night 2026-10-21: a one-track genre jump (the family differs from the previous pick's and the seed's).
                 model.prevFamilyJump?.let { lam ->
                     val last = picks.lastOrNull()
@@ -1152,6 +1166,10 @@ public class SmartRanker(
         }
         trace?.semChain = sem != null
         var seedRowsSeen: Array<DoubleArray>? = null
+        // Night r4: same-song dedup on the normalised title (seed, prefix and picks).
+        val songKeys = active.songDedupMinChars?.let { mc -> pool.map { SongKey.of(it.track.title, mc) } }
+        val songBase = if (songKeys == null) emptySet() else
+            (listOf(seedKnown.track.title) + prefixIds.map { cache.getValue(it).track.title }).mapNotNull { SongKey.of(it, active.songDedupMinChars!!) }.toSet()
         val modelPicks = RankerQueue.build(
             model = active,
             poolSize = pool.size,
@@ -1164,7 +1182,8 @@ public class SmartRanker(
                 nearBest[draws.pick(hop + 1, nearBest.size)]
             },
             blocked = { row, picks ->
-                blockedVersion(pool[row].version, picks.map { pool[it].track.id }, previousIds, window, ::versionOf)
+                blockedVersion(pool[row].version, picks.map { pool[it].track.id }, previousIds, window, ::versionOf) ||
+                    (songKeys != null && songKeys[row] != null && (songKeys[row] in songBase || picks.any { songKeys[it] == songKeys[row] }))
             },
             stop = { decoding.elapsedNow().inWholeMilliseconds > budgetMs && trace == null && diagnostics == null },
             skipWhenTied = request.ruleOnly,
@@ -1535,7 +1554,8 @@ public class SmartRanker(
         val scale = if (seedKnown.entity < 0) model.semChain?.personalScale else model.semChain?.personalScaleWarm
         if (scale != null) {
             val j0 = RankerFeatures.NAMES.indexOf("heard")
-            for (r in rows) for (j in j0 until j0 + RankerFeatures.PERSONAL.size) r[j] = r[j] * scale
+            val keep = if (model.semChain?.transExempt == true) setOf(RankerFeatures.NAMES.indexOf("trans_track"), RankerFeatures.NAMES.indexOf("trans_artist")) else emptySet()
+            for (r in rows) for (j in j0 until j0 + RankerFeatures.PERSONAL.size) if (j !in keep) r[j] = r[j] * scale
         }
         return rows
     }

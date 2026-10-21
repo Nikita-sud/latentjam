@@ -83,6 +83,15 @@ def metrics(d, lib, eg, seedsets):
                 for k in range(1, len(seq)):
                     cur = cur + 1 if seq[k] and seq[k] == seq[k - 1] else 1; best = max(best, cur)
                 agg['maxRun'].append(best)
+                import re as _re
+                def _sk(t):
+                    t = _re.sub(r'[\(\[].*?[\)\]]', '', (t or '').lower()); t = _re.split(r' [-–—] ', t)[0]
+                    return ' '.join(''.join(c if c.isalnum() else ' ' for c in t).split())
+                ks = [_sk(sr[1] if sr else '')] + [_sk(r[1]) if r else '' for r in pr]
+                ks = [x for x in ks if len(x) >= 6]
+                agg['sameSong'].append(len(ks) - len(set(ks)))
+                ac = collections.Counter(artist(r) for r in pr if artist(r))
+                agg['artist4'].append(int(bool(ac) and max(ac.values()) >= 4))
             out = {k: round(sum(v) / len(v), 3) for k, v in agg.items() if v}
             out['hub'] = hub.most_common(1)[0][1] if hub else 0
             out['hubArtist'] = hub.most_common(1)[0][0] if hub else ''
@@ -94,7 +103,7 @@ def metrics(d, lib, eg, seedsets):
 def main():
     lib, eg = load_lib()
     warm = set((STAND / 'seeds.tsv').read_text().split()); cold = set((STAND / 'cold_seeds.tsv').read_text().split())
-    cols = ['n', 'fam', 'cyr', 'fill', 'hub', 'kids', 'meme', 'comedy', 'chansonAfterMeme', 'short', 'jumps', 'maxRun']
+    cols = ['n', 'fam', 'cyr', 'fill', 'hub', 'kids', 'meme', 'comedy', 'chansonAfterMeme', 'short', 'jumps', 'maxRun', 'sameSong', 'artist4']
     print('| run | set | ' + ' | '.join(cols) + ' | hubArtist |'); print('|' + '---|' * (len(cols) + 3))
     for d in sys.argv[1:]:
         r = metrics(d, lib, eg, {'warm': warm, 'cold': cold})

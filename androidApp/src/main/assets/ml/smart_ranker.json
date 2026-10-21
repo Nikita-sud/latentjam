@@ -1,6 +1,6 @@
 {
  "schema": "lj-smart-ranker/2",
- "name": "CORE L2 fast track (product check) night-r3b",
+ "name": "CORE L2 fast track (product check) night-r4b",
  "features": [
   "cos",
   "cos_z",
@@ -298,7 +298,8 @@
   "audioSeed": 4.0,
   "semSeed": 3.0,
   "semPrev": 0.5,
-  "personalScale": 0.3
+  "personalScale": 0.3,
+  "transExempt": true
  },
  "hubPenalty": {
   "beta": 1.0,
@@ -307,10 +308,6 @@
  },
  "hubGenreDamp": {
   "mult": 0.6
- },
- "scorerSquash": {
-  "scale": 1.5,
-  "temp": 2.0
  },
  "tagClasses": {
   "classes": [
@@ -329,7 +326,7 @@
      "smeshariki",
      "мультфильм"
     ],
-    "lambda": 4.0
+    "lambda": 3.0
    },
    {
     "name": "meme",
@@ -347,16 +344,34 @@
      " мем",
      "sound effect"
     ],
-    "lambda": 4.0
+    "lambda": 3.0
    },
    {
     "name": "comedy",
     "tokens": [
      "comedy",
      "comedy rock",
-     "parody"
+     "parody",
+     "chastushka"
     ],
-    "lambda": 4.0
+    "text": [
+     "частушк"
+    ],
+    "lambda": 3.0
+   },
+   {
+    "name": "political",
+    "genre": [
+     "patriotic",
+     "revolutionary song",
+     "soviet song",
+     "political",
+     "military"
+    ],
+    "text": [
+     "донбасс"
+    ],
+    "lambda": 3.0
    },
    {
     "name": "chanson",
@@ -368,9 +383,17 @@
      "meme",
      "comedy"
     ],
-    "lambda": 4.0
+    "lambda": 3.0
    }
   ]
+ },
+ "songDedup": {
+  "minChars": 6
+ },
+ "queueArtistCap": {
+  "cap": 3,
+  "window": 10,
+  "lambda": 3.0
  },
  "prevFamilyJump": {
   "lambda": 2.0
