@@ -254,9 +254,10 @@
         <item quantity="other">%1$d listas de reproducción</item>
     </plurals>
     <plurals name="m3u_import_skipped_files">
-        <item quantity="one">No se pudo leer %1$d archivo</item>
-        <item quantity="other">No se pudieron leer %1$d archivos</item>
+        <item quantity="one">%1$d archivo omitido</item>
+        <item quantity="other">%1$d archivos omitidos</item>
     </plurals>
+    <string name="m3u_import_playlists_partial">Listas de reproducción creadas: %1$d de %2$d. El resto no se pudo guardar.</string>
     <plurals name="playlist_new_count">
         <item quantity="one">%1$d lista de reproducción nueva</item>
         <item quantity="other">%1$d listas de reproducción nuevas</item>

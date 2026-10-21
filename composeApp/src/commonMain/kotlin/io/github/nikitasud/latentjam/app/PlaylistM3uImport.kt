@@ -5,7 +5,7 @@
 package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.app.generated.resources.Res
-import io.github.nikitasud.latentjam.app.generated.resources.playlist_new_count
+import io.github.nikitasud.latentjam.app.generated.resources.m3u_import_playlists_partial
 import io.github.nikitasud.latentjam.app.generated.resources.settings_library_manage_failed
 import io.github.nikitasud.latentjam.app.generated.resources.snack_m3u_imported_all
 import io.github.nikitasud.latentjam.app.generated.resources.snack_m3u_imported_partial
@@ -121,8 +121,9 @@ internal suspend fun m3uPlaylistsCreatedMessage(offer: M3uImportOffer, result: M
     when {
         !result.failed -> m3uImportedMessage(offer)
         result.created == 0 -> getString(Res.string.settings_library_manage_failed)
-        else -> getString(Res.string.settings_library_manage_failed) + " · " +
-            getPluralString(Res.plurals.playlist_new_count, result.created, result.created)
+        // A dedicated line, not "try again": importing the same files again would make the first
+        // playlists a second time.
+        else -> getString(Res.string.m3u_import_playlists_partial, result.created, offer.playlists.size)
     }
 
 /** Keep dots and other extensions in the title; only an M3U suffix is format metadata. */

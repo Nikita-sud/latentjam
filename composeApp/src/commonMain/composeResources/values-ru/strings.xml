@@ -270,11 +270,12 @@
         <item quantity="other">%1$d плейлиста</item>
     </plurals>
     <plurals name="m3u_import_skipped_files">
-        <item quantity="one">Не удалось прочитать %1$d файл</item>
-        <item quantity="few">Не удалось прочитать %1$d файла</item>
-        <item quantity="many">Не удалось прочитать %1$d файлов</item>
-        <item quantity="other">Не удалось прочитать %1$d файла</item>
+        <item quantity="one">Пропущен %1$d файл</item>
+        <item quantity="few">Пропущено %1$d файла</item>
+        <item quantity="many">Пропущено %1$d файлов</item>
+        <item quantity="other">Пропущено %1$d файла</item>
     </plurals>
+    <string name="m3u_import_playlists_partial">Создано плейлистов: %1$d из %2$d. Остальные не удалось сохранить.</string>
     <plurals name="playlist_new_count">
         <item quantity="one">%1$d новый плейлист</item>
         <item quantity="few">%1$d новых плейлиста</item>
@@ -910,7 +911,7 @@
     <string name="stats_of_100_picks">%1$d из 100 выборов</string>
     <string name="stats_same_artist_note">Когда вы сами выбираете следующий трек. Включая запуск со страницы исполнителя.</string>
     <string name="stats_picked_next">Часто выбираете следом</string>
-    <string name="stats_sequence_description">После %1$s вы выбирали %2$s в %3$d из %4$d случаев</string>
+    <string name="stats_sequence_description">После %1$s вы выбирали %2$s: %3$d из %4$d</string>
     <string name="stats_library">Ваша медиатека</string>
     <string name="stats_played_once">Сыграно хотя бы раз</string>
     <string name="stats_x_of_y">%1$s из %2$s</string>

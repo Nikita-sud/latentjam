@@ -311,9 +311,11 @@
     </plurals>
     <!-- After "Found 12 of 20 tracks" when several M3U files were picked: %1$d of them were left out (unreadable, not a text file, or too large) -->
     <plurals name="m3u_import_skipped_files">
-        <item quantity="one">%1$d file could not be read</item>
-        <item quantity="other">%1$d files could not be read</item>
+        <item quantity="one">%1$d file skipped</item>
+        <item quantity="other">%1$d files skipped</item>
     </plurals>
+    <!-- After a multi-file import stopped part-way: %1$d playlists were made of the %2$d it meant to make. -->
+    <string name="m3u_import_playlists_partial">Playlists made: %1$d of %2$d. The rest could not be saved.</string>
     <!-- The choice that makes one playlist per picked file. -->
     <plurals name="playlist_new_count">
         <item quantity="one">%1$d new playlist</item>

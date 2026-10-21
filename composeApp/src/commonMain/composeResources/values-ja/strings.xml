@@ -231,8 +231,9 @@
         <item quantity="other">%1$d個のプレイリスト</item>
     </plurals>
     <plurals name="m3u_import_skipped_files">
-        <item quantity="other">%1$d個のファイルを読み込めませんでした</item>
+        <item quantity="other">%1$d個のファイルをスキップしました</item>
     </plurals>
+    <string name="m3u_import_playlists_partial">作成したプレイリスト: %2$d個中%1$d個。残りは保存できませんでした。</string>
     <plurals name="playlist_new_count">
         <item quantity="other">%1$d個の新規プレイリスト</item>
     </plurals>

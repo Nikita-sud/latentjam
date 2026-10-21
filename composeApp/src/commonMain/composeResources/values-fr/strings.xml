@@ -259,9 +259,10 @@
         <item quantity="other">%1$d playlists</item>
     </plurals>
     <plurals name="m3u_import_skipped_files">
-        <item quantity="one">%1$d fichier illisible</item>
-        <item quantity="other">%1$d fichiers illisibles</item>
+        <item quantity="one">%1$d fichier ignoré</item>
+        <item quantity="other">%1$d fichiers ignorés</item>
     </plurals>
+    <string name="m3u_import_playlists_partial">Playlists créées : %1$d sur %2$d. Les autres n’ont pas pu être enregistrées.</string>
     <plurals name="playlist_new_count">
         <item quantity="one">%1$d nouvelle playlist</item>
         <item quantity="other">%1$d nouvelles playlists</item>

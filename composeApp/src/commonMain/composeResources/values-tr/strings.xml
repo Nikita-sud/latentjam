@@ -247,9 +247,10 @@
         <item quantity="other">%1$d çalma listesi</item>
     </plurals>
     <plurals name="m3u_import_skipped_files">
-        <item quantity="one">%1$d dosya okunamadı</item>
-        <item quantity="other">%1$d dosya okunamadı</item>
+        <item quantity="one">%1$d dosya atlandı</item>
+        <item quantity="other">%1$d dosya atlandı</item>
     </plurals>
+    <string name="m3u_import_playlists_partial">Oluşturulan çalma listeleri: %1$d / %2$d. Diğerleri kaydedilemedi.</string>
     <plurals name="playlist_new_count">
         <item quantity="one">%1$d yeni çalma listesi</item>
         <item quantity="other">%1$d yeni çalma listesi</item>

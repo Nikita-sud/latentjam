@@ -237,8 +237,9 @@
         <item quantity="other">%1$d playlist</item>
     </plurals>
     <plurals name="m3u_import_skipped_files">
-        <item quantity="other">%1$d file tidak dapat dibaca</item>
+        <item quantity="other">%1$d file dilewati</item>
     </plurals>
+    <string name="m3u_import_playlists_partial">Playlist dibuat: %1$d dari %2$d. Sisanya tidak dapat disimpan.</string>
     <plurals name="playlist_new_count">
         <item quantity="other">%1$d playlist baru</item>
     </plurals>

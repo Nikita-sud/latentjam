@@ -319,13 +319,14 @@
         <item quantity="other">%1$d قائمة تشغيل</item>
     </plurals>
     <plurals name="m3u_import_skipped_files">
-        <item quantity="zero">تعذّرت قراءة %1$d ملف</item>
-        <item quantity="one">تعذّرت قراءة %1$d ملف</item>
-        <item quantity="two">تعذّرت قراءة %1$d ملفين</item>
-        <item quantity="few">تعذّرت قراءة %1$d ملفات</item>
-        <item quantity="many">تعذّرت قراءة %1$d ملفًا</item>
-        <item quantity="other">تعذّرت قراءة %1$d ملف</item>
+        <item quantity="zero">تم تخطي %1$d ملف</item>
+        <item quantity="one">تم تخطي %1$d ملف</item>
+        <item quantity="two">تم تخطي %1$d ملفين</item>
+        <item quantity="few">تم تخطي %1$d ملفات</item>
+        <item quantity="many">تم تخطي %1$d ملفًا</item>
+        <item quantity="other">تم تخطي %1$d ملف</item>
     </plurals>
+    <string name="m3u_import_playlists_partial">قوائم التشغيل التي أُنشئت: %1$d من %2$d. تعذّر حفظ الباقي.</string>
     <plurals name="playlist_new_count">
         <item quantity="zero">%1$d قائمة تشغيل جديدة</item>
         <item quantity="one">%1$d قائمة تشغيل جديدة</item>

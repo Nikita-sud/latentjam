@@ -231,8 +231,9 @@
         <item quantity="other">플레이리스트 %1$d개</item>
     </plurals>
     <plurals name="m3u_import_skipped_files">
-        <item quantity="other">파일 %1$d개를 읽을 수 없음</item>
+        <item quantity="other">파일 %1$d개를 건너뛰었습니다</item>
     </plurals>
+    <string name="m3u_import_playlists_partial">만든 플레이리스트: %2$d개 중 %1$d개. 나머지는 저장하지 못했습니다.</string>
     <plurals name="playlist_new_count">
         <item quantity="other">새 플레이리스트 %1$d개</item>
     </plurals>
