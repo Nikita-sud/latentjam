@@ -60,4 +60,46 @@ class RailLetterMotionTest {
         assertEquals(atRest.size, scrolled.size)
         assertEquals(atRest.values.sorted(), scrolled.values.sorted())
     }
+
+    @Test fun touchingAShownLetterSelectsThatLetter() {
+        val labels = (0..39).map { "letter-$it" }
+        for (active in listOf(null, "letter-0", "letter-13", "letter-39")) {
+            val positions = railLetterPositions(labels, active, 500f, 18f, 6f)
+            val anchors = railTouchAnchors(labels, active, 500f, 18f, 6f)
+            for ((label, y) in positions) {
+                assertEquals(labels.indexOf(label), railBucketIndexAt(y, anchors), "$label with $active")
+                assertEquals(labels.indexOf(label), railBucketIndexAt(y + 4f, anchors), "below $label")
+                assertEquals(labels.indexOf(label), railBucketIndexAt(y - 4f, anchors), "above $label")
+            }
+        }
+    }
+
+    @Test fun aThinnedRailStillReachesEveryLetterInOrder() {
+        val labels = (0..199).map { "letter-$it" }
+        val anchors = railTouchAnchors(labels, "letter-77", 400f, 18f, 6f)
+        val reached = (0..4000).mapNotNull { railBucketIndexAt(it / 10f, anchors) }
+        assertEquals(labels.indices.toList(), reached.distinct())
+        assertTrue(reached.zipWithNext().all { (a, b) -> b >= a })
+    }
+
+    @Test fun theEndsOfTheAlphabetStayReachableWhenTheCurrentLetterTakesTheirSlot() {
+        val labels = (0..39).map { "letter-$it" }
+        val anchors = railTouchAnchors(labels, "letter-1", 500f, 18f, 6f)
+        assertEquals(0, railBucketIndexAt(0f, anchors))
+        assertEquals(39, railBucketIndexAt(500f, anchors))
+    }
+
+    @Test fun aBucketsPlaceMapsBackToThatBucket() {
+        val labels = (0..59).map { "letter-$it" }
+        val anchors = railTouchAnchors(labels, "letter-30", 450f, 18f, 6f)
+        for (index in labels.indices) {
+            assertEquals(index, railBucketIndexAt(railYOfBucket(index, anchors)!!, anchors))
+        }
+    }
+
+    @Test fun unmeasuredRailsHaveNoTouchMap() {
+        assertTrue(railTouchAnchors(listOf("A", "B"), null, 0f, 18f, 6f).isEmpty())
+        assertEquals(null, railBucketIndexAt(10f, emptyList()))
+        assertEquals(null, railYOfBucket(0, emptyList()))
+    }
 }

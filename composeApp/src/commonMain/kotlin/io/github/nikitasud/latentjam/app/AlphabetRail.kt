@@ -89,6 +89,8 @@ internal val RailWidth = 30.dp
 internal val RailGap = 4.dp
 private val RailPillWidth = 26.dp
 private val BubbleSize = 56.dp
+/** Clear space between rail and bubble, so the thumb on the rail does not cover the letter. */
+private val BubbleGap = 12.dp
 private val RailLabelHeight = 18.dp
 
 internal data class RailFinalJump(
@@ -173,12 +175,6 @@ internal fun railIndexOf(names: List<String?>): RailIndex {
         }
     }
     return RailIndex(buckets, starts)
-}
-
-/** Maps a local rail position to one stable bucket, clamping drags beyond either end. */
-internal fun railBucketIndexAt(y: Float, height: Int, bucketCount: Int): Int? {
-    if (height <= 0 || bucketCount <= 0) return null
-    return ((y / height) * bucketCount).toInt().coerceIn(0, bucketCount - 1)
 }
 
 /** Bucket whose first item is at or before the viewport, with the final bucket pinned at list end. */
@@ -673,6 +669,7 @@ internal fun BoxScope.StandaloneAlphabetRailOverlay(
         interactive = interactive,
         gestureKey = catalogKey,
         activeBucket = previewBucket ?: settlingBucket ?: activeBucket,
+        scrubbing = previewIndex != null || settlingIndex != null,
         modifier = Modifier
             .align(if (railAtStart) Alignment.CenterStart else Alignment.CenterEnd)
             .fillMaxHeight()
@@ -690,9 +687,11 @@ internal fun BoxScope.StandaloneAlphabetRailOverlay(
 
     // Finger position remains immediate; all animation lives inside this small overlay.
     key(catalogKey) {
+        // The bubble stays through the settle, until the real list is back: a tap no longer
+        // flashes it for a single frame, and it leaves together with the preview it labels.
         RailLetterBubble(
-            bucket = previewBucket,
-            bucketIndex = previewIndex,
+            bucket = previewBucket ?: settlingBucket,
+            bucketIndex = previewIndex ?: settlingIndex,
             reduceMotion = reduceMotion,
             modifier = Modifier
                 .align(if (railAtStart) Alignment.TopStart else Alignment.TopEnd)
@@ -705,9 +704,9 @@ internal fun BoxScope.StandaloneAlphabetRailOverlay(
                     val towardContent = (layoutDirection == LayoutDirection.Ltr) != railAtStart
                     IntOffset(
                         x = if (towardContent) {
-                            -(RailWidth + RailGap).roundToPx()
+                            -(RailWidth + BubbleGap).roundToPx()
                         } else {
-                            (RailWidth + RailGap).roundToPx()
+                            (RailWidth + BubbleGap).roundToPx()
                         },
                         y = railTopPx.roundToInt() + localTop,
                     )
@@ -806,6 +805,7 @@ private fun AlphabetRail(
     interactive: Boolean,
     gestureKey: Any,
     activeBucket: String?,
+    scrubbing: Boolean,
     modifier: Modifier = Modifier,
     onSelectionStart: () -> Unit,
     onSelect: (index: Int, y: Float) -> Unit,
@@ -824,6 +824,14 @@ private fun AlphabetRail(
     val labelHeight = maxOf(
         RailLabelHeight,
         with(density) { MaterialTheme.typography.labelSmall.fontSize.toDp() * 1.45f },
+    )
+    val labelPx = with(density) { labelHeight.toPx() }
+    val paddingPx = with(density) { RailLetterPadding.toPx() }
+    val latestActiveBucket by rememberUpdatedState(activeBucket)
+    // The letters as drawn right now. A gesture freezes this at touch-down: the current letter
+    // takes over a slot as it changes, and a map that followed it would shift under the finger.
+    fun shownAnchors() = railTouchAnchors(
+        buckets, latestActiveBucket, railHeightPx.toFloat(), labelPx, paddingPx,
     )
     val railPillWidth = maxOf(
         RailPillWidth,
@@ -850,22 +858,27 @@ private fun AlphabetRail(
                         haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
                     }
                     onSelectionStart()
-                    onSelect(index, (index + 0.5f) / buckets.size * railHeightPx)
+                    onSelect(
+                        index,
+                        railYOfBucket(index, shownAnchors())
+                            ?: ((index + 0.5f) / buckets.size * railHeightPx),
+                    )
                     onSelectionEnd()
                     true
                 }
             }
             // One recognizer owns down/move/up. Separate tap and drag detectors race each other
             // and the surrounding pager, especially at Samsung's back-gesture edge.
-            .pointerInput(buckets, gestureKey, haptics) {
+            .pointerInput(buckets, gestureKey, haptics, labelPx, paddingPx) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
+                    val anchors = shownAnchors()
                     val feedback = RailHapticState()
                     var released = false
                     down.consume()
                     latestOnSelectionStart()
                     try {
-                        railBucketIndexAt(down.position.y, railHeightPx, buckets.size)?.let {
+                        railBucketIndexAt(down.position.y, anchors)?.let {
                             if (feedback.select(it, down.uptimeMillis)) {
                                 haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
                             }
@@ -874,11 +887,7 @@ private fun AlphabetRail(
                         while (true) {
                             val event = awaitPointerEvent()
                             val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                            railBucketIndexAt(
-                                change.position.y,
-                                railHeightPx,
-                                buckets.size,
-                            )?.let {
+                            railBucketIndexAt(change.position.y, anchors)?.let {
                                 if (feedback.select(it, change.uptimeMillis)) {
                                     haptics.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
                                 }
@@ -918,6 +927,7 @@ private fun AlphabetRail(
                 activeBucket = activeBucket,
                 railHeightPx = railHeightPx,
                 labelHeight = labelHeight,
+                scrubbing = scrubbing,
             )
         }
     }
