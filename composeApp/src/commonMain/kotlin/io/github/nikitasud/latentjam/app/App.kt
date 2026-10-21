@@ -2641,22 +2641,22 @@ private fun AppShell(
                                             onPlay = { list, index ->
                                                 AppGraph.queueSource.value =
                                                     QueueSource(QueueSourceKind.FOR_YOU)
-                                                scope.launch {
+                                                forYouPage.playbackLauncher.launch(scope) { isCurrent ->
                                                     playFromForYou(
                                                         playback, engine, AppGraph.history, list, index,
                                                         smartEligibleTracks, smartQueueLength,
-                                                        AppGraph.smartCompanionGroups.value,
+                                                        AppGraph.smartCompanionGroups.value, isCurrent,
                                                     )
                                                 }
                                             },
                                             onPlayCollection = { collection ->
                                                 AppGraph.queueSource.value =
                                                     QueueSource(QueueSourceKind.FOR_YOU, name = collection.title)
-                                                scope.launch {
+                                                forYouPage.playbackLauncher.launch(scope) { isCurrent ->
                                                     playFromForYou(
                                                         playback, engine, AppGraph.history, collection.tracks, 0,
                                                         smartEligibleTracks, smartQueueLength,
-                                                        AppGraph.smartCompanionGroups.value,
+                                                        AppGraph.smartCompanionGroups.value, isCurrent,
                                                     )
                                                 }
                                             },
