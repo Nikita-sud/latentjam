@@ -664,4 +664,16 @@ internal class PlaybackQueueTransitionsTest {
             ),
         )
     }
+
+    @Test
+    fun policyChangeKeepsTheRestOfACuratedStart() {
+        val rows = listOf("r1", "r2", "r3", "s1", "s2")
+        // Playing r1 of a For You row (r1..r3) with SMART rows s1, s2 after it: only SMART's own
+        // future goes, the row the listener picked stays.
+        assertEquals(2, smartFutureKeepThrough(rows.size, 0, "r3") { rows[it] })
+        // Once the row is behind the playhead, a policy change prunes from the current row as usual.
+        assertEquals(3, smartFutureKeepThrough(rows.size, 3, "r3") { rows[it] })
+        assertEquals(0, smartFutureKeepThrough(rows.size, 0, null) { rows[it] })
+        assertEquals(0, smartFutureKeepThrough(rows.size, -1, "missing") { rows[it] })
+    }
 }

@@ -8,6 +8,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.intl.LocaleList
+import androidx.compose.ui.text.toUpperCase
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.LayoutDirection
@@ -169,3 +171,10 @@ internal fun bidiWrap(text: String): String = bidiWrap(text, LocalLayoutDirectio
 @ReadOnlyComposable
 internal fun joinBidiWrapped(parts: Iterable<String>, separator: String = " · "): String =
     joinBidiWrapped(parts, LocalLayoutDirection.current, separator)
+
+/**
+ * Uppercase for interface text in the reader's language. Kotlin's plain `uppercase()` uses the
+ * invariant locale, which turns Turkish "i" into "I" instead of "İ"; headings are localised strings,
+ * so they are uppercased with the device's own locale rules.
+ */
+internal fun String.uppercaseForDisplay(): String = toUpperCase(LocaleList.current)

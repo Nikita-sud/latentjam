@@ -99,7 +99,7 @@
     <string name="foryou_mix_discovery">מיקס גילויים</string>
     <string name="foryou_section_never_played">לא הושמעו אף פעם</string>
     <string name="foryou_world_open">הצגת השירים</string>
-    <string name="foryou_world_smart">התחלת SMART מכאן</string>
+    <string name="foryou_world_smart">השמעת דומים</string>
     <string name="foryou_kicker_resume">להמשיך מאיפה שעצרת</string>
     <plurals name="foryou_kicker_played_times">
         <item quantity="one">השמעת את זה %1$d פעם</item>
@@ -748,11 +748,8 @@
     <string name="foryou_section_daypart_day">הצהריים שלך</string>
     <string name="foryou_section_daypart_evening">הערבים שלך</string>
     <string name="foryou_section_daypart_night">הלילות שלך</string>
-    <string name="foryou_section_on_a_roll">תקופת ה־%1$s שלך</string>
-    <string name="foryou_section_wildcard">הפתעה</string>
-    <string name="foryou_caption_left_turn">תפנית מ־%1$s</string>
-    <string name="foryou_section_journey">מסע צלילים</string>
-    <string name="foryou_journey_title">מ"%1$s" אל "%2$s"</string>
+    <string name="foryou_section_on_a_roll">הרבה לאחרונה: %1$s</string>
+    <string name="foryou_caption_left_turn">אם אהבת את %1$s</string>
     <string name="settings_pages">עמודים</string>
     <string name="settings_pages_subtitle">הצגה, סדר ועמוד פתיחה</string>
     <string name="settings_pages_body">גוררים כדי לשנות את הסדר. אפשר לכבות עמודים שלא משתמשים בהם.</string>

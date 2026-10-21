@@ -70,13 +70,11 @@ import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_dayp
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_daypart_morning
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_daypart_night
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_on_a_roll
-import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_wildcard
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_empty
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_kicker_never_played
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_kicker_played_times
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_kicker_resume
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_continue
-import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_journey
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_never_played
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_worlds
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_worth_revisiting
@@ -116,10 +114,19 @@ fun ForYouTab(
     contentPadding: PaddingValues,
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
+    /** The page is being built; an empty page then means "not ready yet", not "no history". */
+    isLoading: Boolean = false,
+    /** The history could not be read and no page exists; the caller's snackbar says why. */
+    loadFailed: Boolean = false,
     onPlay: (List<TrackDescriptor>, Int) -> Unit,
     onPlayHero: (ForYouHero) -> Unit,
     onTrackMenu: (TrackDescriptor) -> Unit,
     onOpenCollection: (ForYouCollection) -> Unit,
+    /**
+     * Plays a collection or mix card in its order, continuing with SMART after it. The cover's
+     * play button; tapping the card still opens it (see [WorldActionsSheet] for why).
+     */
+    onPlayCollection: (ForYouCollection) -> Unit = {},
     onOpenWorld: (ForYouCard) -> Unit = {},
     /** Current presentation only: changing artwork must not rebuild or reorder recommendations. */
     playlistArtworkUris: Map<String, String> = emptyMap(),
@@ -148,11 +155,18 @@ fun ForYouTab(
                 modifier = Modifier.fillMaxSize().padding(32.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = stringResource(Res.string.foryou_empty),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                // The empty-history invitation is only true once a build has finished and found
+                // nothing; shown while loading it told listeners with years of history to "play a
+                // few tracks". A failed read leaves the space blank — the snackbar explains it.
+                when {
+                    isLoading -> AppSpinner(modifier = Modifier.size(32.dp), strokeWidth = 3.dp)
+                    loadFailed -> Unit
+                    else -> Text(
+                        text = stringResource(Res.string.foryou_empty),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         } else {
             FadingLazyColumn(
@@ -195,7 +209,7 @@ fun ForYouTab(
                         ),
                     ) {
                         Text(
-                            text = section.title().uppercase(),
+                            text = section.title(),
                             style = MaterialTheme.typography.labelSmall.copy(
                                 letterSpacing = 0.4.sp,
                             ),
@@ -223,7 +237,9 @@ fun ForYouTab(
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                             contentPadding = PaddingValues(horizontal = 20.dp),
                         ) {
-                            items(section.cards, key = { it.track.id.value }) { card ->
+                            // Keyed by the card's own identity: a collection or a mix is reported as
+                            // itself, never as an offer of its cover track (ForYouCard.impressionKey).
+                            items(section.cards, key = { it.impressionKey }) { card ->
                                 Box(
                                     modifier = Modifier.animateItem(
                                         fadeInSpec = tween(
@@ -275,6 +291,9 @@ fun ForYouTab(
                                         } else {
                                             null
                                         },
+                                        onPlayCollection = card.collection?.let { collection ->
+                                            { onPlayCollection(collection) }
+                                        },
                                     )
                                 }
                             }
@@ -301,13 +320,11 @@ private const val HERO_SECTION = "hero"
  */
 private fun ForYouSectionKind.impressionSection(): String = when (this) {
     ForYouSectionKind.DAYPART -> "daypart"
-    ForYouSectionKind.WILDCARD -> "wildcard"
     ForYouSectionKind.NEVER_PLAYED -> "never-played"
     ForYouSectionKind.CONTINUE -> "continue"
     ForYouSectionKind.WORTH_REVISITING -> "worth-revisiting"
     ForYouSectionKind.ON_A_ROLL -> "on-a-roll"
     ForYouSectionKind.WORLDS -> "worlds"
-    ForYouSectionKind.JOURNEY -> "journey"
 }
 
 /**
@@ -342,8 +359,10 @@ private fun ObserveHeroCard(
 /**
  * Reports the cards of one row as they reach the viewport, each at most once per composition.
  *
- * [reported] is what makes "once" true across rows, rebuilds and returns to the tab; a `null` key
- * belongs to a row that holds no model card (a world cover, a collection) and is not an offer.
+ * [reported] is what makes "once" true across rows, rebuilds and returns to the tab. Each item key
+ * is the card's [ForYouCard.impressionKey]: a track id for a track card, the collection's or mix's
+ * own key otherwise — so showing a collection never counts as offering its cover track. The key
+ * travels in the impression's track-id field; the journal stores ids as free strings.
  */
 @Composable
 private fun ObserveShownCards(
@@ -377,7 +396,7 @@ private fun ObserveShownCards(
  */
 @Composable
 private fun ForYouSection.title(): String = when (kind) {
-    ForYouSectionKind.CONTINUE -> stringResource(Res.string.foryou_section_continue)
+    ForYouSectionKind.CONTINUE -> stringResource(Res.string.foryou_section_continue).uppercaseForDisplay()
     ForYouSectionKind.DAYPART -> stringResource(
         when (daypart) {
             ForYouDaypart.MORNING -> Res.string.foryou_section_daypart_morning
@@ -385,15 +404,19 @@ private fun ForYouSection.title(): String = when (kind) {
             ForYouDaypart.EVENING -> Res.string.foryou_section_daypart_evening
             ForYouDaypart.NIGHT, null -> Res.string.foryou_section_daypart_night
         },
-    )
-    ForYouSectionKind.WORTH_REVISITING -> stringResource(Res.string.foryou_section_worth_revisiting)
-    // The artist IS the headline: "Your Yugo Kanno phase" is the whole recommendation.
-    ForYouSectionKind.ON_A_ROLL ->
-        stringResource(Res.string.foryou_section_on_a_roll, bidiWrap(subject.orEmpty()))
-    ForYouSectionKind.WORLDS -> stringResource(Res.string.foryou_section_worlds)
-    ForYouSectionKind.JOURNEY -> stringResource(Res.string.foryou_section_journey)
-    ForYouSectionKind.NEVER_PLAYED -> stringResource(Res.string.foryou_section_never_played)
-    ForYouSectionKind.WILDCARD -> stringResource(Res.string.foryou_section_wildcard)
+    ).uppercaseForDisplay()
+    ForYouSectionKind.WORTH_REVISITING ->
+        stringResource(Res.string.foryou_section_worth_revisiting).uppercaseForDisplay()
+    // The artist IS the headline. The heading's own words are uppercased like every other header,
+    // the artist's name is not: shouting someone's name reads as an error, and case can be part of it.
+    ForYouSectionKind.ON_A_ROLL -> {
+        val marker = "\uE000"
+        stringResource(Res.string.foryou_section_on_a_roll, marker)
+            .uppercaseForDisplay()
+            .replace(marker, bidiWrap(subject.orEmpty()))
+    }
+    ForYouSectionKind.WORLDS -> stringResource(Res.string.foryou_section_worlds).uppercaseForDisplay()
+    ForYouSectionKind.NEVER_PLAYED -> stringResource(Res.string.foryou_section_never_played).uppercaseForDisplay()
 }
 
 /**
@@ -543,6 +566,8 @@ private fun ForYouCardItem(
     artworkUri: String?,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)?,
+    /** Present for collection and mix cards: plays them without opening them first. */
+    onPlayCollection: (() -> Unit)? = null,
 ) {
     // The whole card is the touch target, but the press ripple is shown only on the cover — a
     // default clickable would paint the entire column, text and all, with a grey rectangle on
@@ -561,14 +586,35 @@ private fun ForYouCardItem(
                 onLongClick = onLongClick,
             ),
     ) {
-        Artwork(
-            uri = artworkUri,
-            size = 132.dp,
-            cornerRadius = 16.dp,
-            modifier = Modifier
-                .clip(RoundedCornerShape(16.dp.corner()))
-                .indication(interaction, ripple()),
-        )
+        Box {
+            Artwork(
+                uri = artworkUri,
+                size = 132.dp,
+                cornerRadius = 16.dp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp.corner()))
+                    .indication(interaction, ripple()),
+            )
+            if (onPlayCollection != null) {
+                // A collection or mix opens on tap — playing a hundred tracks on a touch that
+                // meant "show me" was a mistake already made once — so playing it gets its own
+                // control, on the cover where a play button is expected.
+                FilledIconButton(
+                    onClick = onPlayCollection,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(8.dp)
+                        .size(40.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = playButtonColors(),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.PlayArrow,
+                        contentDescription = stringResource(Res.string.action_play),
+                    )
+                }
+            }
+        }
         Text(
             text = card.collection?.title
                 ?: card.track.title
@@ -650,7 +696,7 @@ private fun HeroCard(hero: ForYouHero, accent: TrackAccent?, onPlay: () -> Unit)
             Artwork(uri = hero.track.artworkUri, size = 92.dp, cornerRadius = 16.dp)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = hero.kicker.text().uppercase(),
+                    text = hero.kicker.text().uppercaseForDisplay(),
                     style = MaterialTheme.typography.labelSmall.copy(
                         letterSpacing = 0.5.sp,
                     ),

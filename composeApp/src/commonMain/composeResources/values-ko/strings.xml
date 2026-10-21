@@ -89,7 +89,7 @@
     <string name="foryou_section_never_played">한 번도 안 들은 곡</string>
     <!-- 월드로 할 수 있는 두 가지. 추측하지 않고 물어본다. -->
     <string name="foryou_world_open">트랙 보기</string>
-    <string name="foryou_world_smart">여기서 SMART 시작</string>
+    <string name="foryou_world_smart">비슷한 곡 재생</string>
     <string name="foryou_kicker_resume">이어서 재생하기</string>
     <plurals name="foryou_kicker_played_times">
         <item quantity="other">%1$d번 재생했어요</item>
@@ -679,11 +679,8 @@
     <string name="foryou_section_daypart_day">당신의 낮</string>
     <string name="foryou_section_daypart_evening">당신의 저녁</string>
     <string name="foryou_section_daypart_night">당신의 밤</string>
-    <string name="foryou_section_on_a_roll">요즘은 %1$s</string>
-    <string name="foryou_section_wildcard">와일드카드</string>
-    <string name="foryou_caption_left_turn">%1$s에서 벗어난 한 곡</string>
-    <string name="foryou_section_journey">사운드 여행</string>
-    <string name="foryou_journey_title">“%1$s”에서 “%2$s”까지</string>
+    <string name="foryou_section_on_a_roll">요즘 자주 듣는: %1$s</string>
+    <string name="foryou_caption_left_turn">%1$s 좋아하신다면</string>
     <string name="settings_pages">페이지</string>
     <string name="settings_pages_subtitle">표시 여부, 순서 및 시작 페이지</string>
     <string name="settings_pages_body">드래그하여 순서를 변경하세요. 사용하지 않는 페이지는 끄세요.</string>

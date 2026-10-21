@@ -5,8 +5,10 @@
 package io.github.nikitasud.latentjam.history
 
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /**
  * One discovery offer the For You page actually made: which unheard track, in which section, on
@@ -29,10 +31,18 @@ public data class ForYouImpression(
 public interface ForYouImpressionStore {
     public suspend fun read(): List<String>
     public suspend fun write(lines: List<String>)
+
+    /**
+     * Adds [lines] after the existing ones. Platform stores append in place; the default rewrites
+     * the file, which is only acceptable for stores that are small or in memory.
+     */
+    public suspend fun append(lines: List<String>) {
+        write(read() + lines)
+    }
 }
 
 /**
- * The record of what For You offered, deduplicated per (track, day) and bounded on disk.
+ * The record of what For You offered, deduplicated per (card, section, day) and bounded on disk.
  *
  * A page rebuild is NOT a new offer: the page rebuilds on every history change, and recording
  * each rebuild would both bloat the file and let a pick cool itself down mid-day. One line per
@@ -44,25 +54,39 @@ public class ForYouImpressions(
     private val mutex = Mutex()
     private var loaded = false
     private var lines = mutableListOf<String>()
+
+    // The same records parsed once, in file order: a page build reads them, and re-parsing up to
+    // MAX_LINES hex-encoded lines on every build was measurable on a low-end phone.
+    private var entries = mutableListOf<ForYouImpression>()
     private var seen = HashSet<String>()
+
+    // The first write after loading rewrites the file once — dropping lines that no longer parse
+    // and normalising an older file's ending — and every later one appends.
+    private var rewritten = false
 
     /** Records today's offers, skipping (track, day) pairs already on file. */
     public suspend fun record(impressions: List<ForYouImpression>): Unit = mutex.withLock {
         ensureLoaded()
-        var appended = false
+        val added = ArrayList<String>()
         for (impression in impressions) {
             val line = serialize(impression)
             if (!seen.add(line)) continue
             lines.add(line)
-            appended = true
+            entries.add(impression)
+            added.add(line)
         }
-        if (!appended) return
-        if (lines.size > MAX_LINES) {
-            val dropped = lines.subList(0, lines.size - MAX_LINES)
-            dropped.forEach(seen::remove)
-            dropped.clear()
+        if (added.isEmpty()) return
+        if (!rewritten || lines.size > MAX_LINES + TRIM_SLACK) {
+            // Trimmed in one go with some slack, so the file is rewritten once per ~TRIM_SLACK new
+            // offers rather than on every card that scrolls into view.
+            val excess = (lines.size - MAX_LINES).coerceAtLeast(0)
+            lines.subList(0, excess).also { dropped -> dropped.forEach(seen::remove) }.clear()
+            entries.subList(0, excess).clear()
+            store.write(lines.toList())
+            rewritten = true
+        } else {
+            store.append(added)
         }
-        store.write(lines)
     }
 
     /**
@@ -72,31 +96,70 @@ public class ForYouImpressions(
      */
     public suspend fun lastShownDays(beforeEpochDay: Long): Map<TrackId, Long> = mutex.withLock {
         ensureLoaded()
+        withContext(Dispatchers.Default) { lastShownDaysOf(beforeEpochDay) }
+    }
+
+    private fun lastShownDaysOf(beforeEpochDay: Long): Map<TrackId, Long> {
         val result = HashMap<TrackId, Long>()
-        for (line in lines) {
-            val impression = parse(line) ?: continue
+        for (impression in entries) {
             if (impression.epochDay >= beforeEpochDay) continue
             val prior = result[impression.trackId]
             if (prior == null || impression.epochDay > prior) {
                 result[impression.trackId] = impression.epochDay
             }
         }
-        result
+        return result
+    }
+
+    /**
+     * Every PRIOR local day each card was shown, by section and card key (a track id, or a
+     * collection's own key such as `collection:…` / `mix:…`), oldest first. Same-day offers are
+     * excluded for the same reason as in [lastShownDays].
+     */
+    public suspend fun shownDaysBySection(
+        beforeEpochDay: Long,
+    ): Map<String, Map<String, List<Long>>> = mutex.withLock {
+        ensureLoaded()
+        withContext(Dispatchers.Default) {
+            val result = HashMap<String, HashMap<String, MutableList<Long>>>()
+            for (impression in entries) {
+                if (impression.epochDay >= beforeEpochDay) continue
+                result.getOrPut(impression.section) { HashMap() }
+                    .getOrPut(impression.trackId.value) { mutableListOf() }
+                    .add(impression.epochDay)
+            }
+            result.mapValues { (_, byKey) -> byKey.mapValues { (_, days) -> days.distinct().sorted() } }
+        }
     }
 
     private suspend fun ensureLoaded() {
         if (loaded) return
-        lines = store.read().filter { parse(it) != null }.toMutableList()
-        seen = lines.toHashSet()
+        val raw = store.read()
+        withContext(Dispatchers.Default) {
+            val keptLines = mutableListOf<String>()
+            val keptEntries = mutableListOf<ForYouImpression>()
+            for (line in raw) {
+                val impression = parse(line) ?: continue
+                keptLines.add(line)
+                keptEntries.add(impression)
+            }
+            lines = keptLines
+            entries = keptEntries
+            seen = keptLines.toHashSet()
+        }
         loaded = true
     }
 
     private companion object {
         /**
-         * ~28 discovery slots/day × a season. Enough for cooldowns and a first offline eval,
-         * small enough to never matter on disk.
+         * About four months of a heavy listener's offers (~90 lines a day across the day's
+         * phases): long enough for the never-played row's 60-day retirement to outlast its own
+         * evidence, small enough to never matter on disk or in the one parse per page build.
          */
-        const val MAX_LINES = 4000
+        const val MAX_LINES = 12_000
+
+        /** Lines allowed past [MAX_LINES] before the file is trimmed and rewritten. */
+        const val TRIM_SLACK = 2_000
 
         const val FORMAT_V1 = "v1"
 

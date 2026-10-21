@@ -136,48 +136,9 @@ private fun requireFileOperation(
  */
 internal class FileHistoryStore : HistoryStore {
 
-    @OptIn(ExperimentalForeignApi::class)
     override suspend fun append(line: String): Unit = withContext(Dispatchers.Default) {
         val path = appSupportFile(FILE_NAME) ?: error("Application Support is unavailable")
-        val manager = NSFileManager.defaultManager
-        if (!manager.fileExistsAtPath(path)) {
-            check(manager.createFileAtPath(path, NSData(), null)) {
-                "Could not create private history data"
-            }
-        }
-        val handle = NSFileHandle.fileHandleForWritingAtPath(path)
-            ?: error("Could not open private history data for append")
-        var primaryFailure: Throwable? = null
-        try {
-            requireFileOperation("Could not seek private history data") { error ->
-                handle.seekToEndReturningOffset(null, error)
-            }
-            requireFileOperation("Could not append private history data") { error ->
-                handle.writeData((line + "\n").encodeToByteArray().toNSData(), error)
-            }
-            // A record is not acknowledged to DefaultListeningHistory until the kernel has
-            // durably synchronized it. Otherwise an apparently successful play can disappear
-            // after a crash or power loss while remaining visible in this process's aggregates.
-            requireFileOperation("Could not synchronize private history data") { error ->
-                handle.synchronizeAndReturnError(error)
-            }
-        } catch (failure: Throwable) {
-            primaryFailure = failure
-            throw failure
-        } finally {
-            try {
-                requireFileOperation("Could not close private history data") { error ->
-                    handle.closeAndReturnError(error)
-                }
-            } catch (closeFailure: Throwable) {
-                val original = primaryFailure
-                if (original != null) {
-                    original.addSuppressed(closeFailure)
-                } else {
-                    throw closeFailure
-                }
-            }
-        }
+        durableAppend(path, line + "\n", what = "private history data")
     }
 
     override suspend fun readAll(): List<String> = withContext(Dispatchers.Default) {
@@ -237,6 +198,51 @@ internal class FileSmartExclusionStore : SmartExclusionStore {
     }
 }
 
+/**
+ * Appends [text] at the end of the file at [path], creating it if needed, and does not return
+ * until the kernel has durably synchronized it — a real append via [NSFileHandle] rather than a
+ * read-modify-write. [what] names the file in error messages.
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal fun durableAppend(path: String, text: String, what: String) {
+    val manager = NSFileManager.defaultManager
+    if (!manager.fileExistsAtPath(path)) {
+        check(manager.createFileAtPath(path, NSData(), null)) { "Could not create $what" }
+    }
+    val handle = NSFileHandle.fileHandleForWritingAtPath(path)
+        ?: error("Could not open $what for append")
+    var primaryFailure: Throwable? = null
+    try {
+        requireFileOperation("Could not seek $what") { error ->
+            handle.seekToEndReturningOffset(null, error)
+        }
+        requireFileOperation("Could not append $what") { error ->
+            handle.writeData(text.encodeToByteArray().toNSData(), error)
+        }
+        // A record is not acknowledged until the kernel has durably synchronized it. Otherwise an
+        // apparently successful write can disappear after a crash or power loss.
+        requireFileOperation("Could not synchronize $what") { error ->
+            handle.synchronizeAndReturnError(error)
+        }
+    } catch (failure: Throwable) {
+        primaryFailure = failure
+        throw failure
+    } finally {
+        try {
+            requireFileOperation("Could not close $what") { error ->
+                handle.closeAndReturnError(error)
+            }
+        } catch (closeFailure: Throwable) {
+            val original = primaryFailure
+            if (original != null) {
+                original.addSuppressed(closeFailure)
+            } else {
+                throw closeFailure
+            }
+        }
+    }
+}
+
 internal class FileForYouImpressionStore : ForYouImpressionStore {
     override suspend fun read(): List<String> = withContext(Dispatchers.Default) {
         readLines(appSupportFile(FILE_NAME) ?: error("Application Support is unavailable"))
@@ -244,7 +250,14 @@ internal class FileForYouImpressionStore : ForYouImpressionStore {
 
     override suspend fun write(lines: List<String>): Unit = withContext(Dispatchers.Default) {
         val path = appSupportFile(FILE_NAME) ?: error("Application Support is unavailable")
-        writeText(path, lines.joinToString("\n"))
+        // Ends with a line feed so an append can start straight after it.
+        writeText(path, lines.joinToString(separator = "\n", postfix = if (lines.isEmpty()) "" else "\n"))
+    }
+
+    override suspend fun append(lines: List<String>): Unit = withContext(Dispatchers.Default) {
+        if (lines.isEmpty()) return@withContext
+        val path = appSupportFile(FILE_NAME) ?: error("Application Support is unavailable")
+        durableAppend(path, lines.joinToString(separator = "\n", postfix = "\n"), what = "For You offers")
     }
 
     private companion object {

@@ -145,6 +145,14 @@ internal class FileForYouImpressionStore(context: Context) : ForYouImpressionSto
         file.atomicReplaceText(lines.joinToString("\n"))
     }
 
+    override suspend fun append(lines: List<String>): Unit = withContext(Dispatchers.IO) {
+        if (lines.isEmpty()) return@withContext
+        // The rewrite above leaves no final line feed; neither may a torn append. Either way the
+        // new lines must start on a line of their own.
+        val separator = if (file.endsInsideALine()) "\n" else ""
+        file.durableAppendText(separator + lines.joinToString("\n") + "\n")
+    }
+
     private companion object {
         const val FILE_NAME = "foryou_impressions.txt"
     }

@@ -286,8 +286,7 @@ internal class LastMiniPresentation(
 // tools/release/check-dex-registers.py fails a release build that has a method over 255 registers.
 
 /**
- * The worlds the library falls into, the sonic journeys built over the same vectors, and what each
- * was last built from. The two readiness flags say which vector tiers have covered the library.
+ * The worlds the library falls into and what they were last built from. The two readiness flags say which vector tiers have covered the library.
  */
 @Stable
 internal class LibraryWorldsState {
@@ -300,10 +299,6 @@ internal class LibraryWorldsState {
     var builtWorldDiscoveryKey by mutableStateOf<LibraryWorldDiscoveryKey?>(null)
     var builtDiscoveredWorlds by mutableStateOf<List<LibraryWorld>?>(null)
 
-    // Precomputed sonic journeys, keyed like discovery: they need the raw vector rows, which
-    // exist only in this effect and only until clustering's one-shot handoff.
-    var journeys by mutableStateOf<List<List<TrackId>>>(emptyList())
-    var builtJourneysKey by mutableStateOf<LibraryWorldDiscoveryKey?>(null)
     var metadataVectorsReady by mutableStateOf(false)
     var audioVectorsReady by mutableStateOf(false)
 }
@@ -318,8 +313,6 @@ internal class ForYouPageState {
     // and re-entered, so without it the same visible card would be written again on each of
     // those. The day in the key is what lets tomorrow's offer of the same card through.
     var forYouCardsShown by mutableStateOf(emptySet<ForYouImpression>())
-    var builtForYouJourneys by mutableStateOf<List<List<TrackId>>?>(null)
-    var builtForYouJourneyTitle by mutableStateOf<String?>(null)
     var builtWorlds by mutableStateOf<List<LibraryWorld>?>(null)
     var builtForYouLibraryIds by mutableStateOf<List<TrackId>?>(null)
     var builtForYouPlaylistIdentity by mutableStateOf<List<PlaylistPresentationIdentity>?>(null)
@@ -328,7 +321,23 @@ internal class ForYouPageState {
     var personalizationRevision by mutableStateOf(0)
     var builtPersonalizationRevision by mutableStateOf(-1)
     var builtHistoryRevision by mutableStateOf(-1L)
+
+    // The local day and phase the page was built in: a new day or phase is a reason to rebuild,
+    // applied the next time the page comes into view rather than under the reader.
+    var builtDay by mutableStateOf(Long.MIN_VALUE)
+    var builtDaypart by mutableStateOf<ForYouDaypart?>(null)
+
+    // True once the page has been built (or confirmed current) since it last came into view. While
+    // it stays true, a listen does not rebuild the page on screen; it is cleared whenever the page
+    // leaves the screen, and an interrupted build leaves it false so the next run still rebuilds.
+    var currentSinceShown by mutableStateOf(false)
     var forYouRefreshing by mutableStateOf(false)
+
+    // A build is running: an empty page then means "not ready yet", never "no history".
+    var forYouBuilding by mutableStateOf(false)
+
+    // The last history read failed and no page exists to keep; the snackbar says why.
+    var forYouLoadFailed by mutableStateOf(false)
 }
 
 /** The library as scanned and what Settings says about it. */
