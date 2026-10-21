@@ -592,7 +592,6 @@ internal fun BoxScope.StandaloneAlphabetRailOverlay(
     val latestOnJump by rememberUpdatedState(onJump)
     val latestOnScrubbingChange by rememberUpdatedState(onScrubbingChange)
     val scope = rememberCoroutineScope()
-    val layoutDirection = LocalLayoutDirection.current
     val density = LocalDensity.current
     val bubbleDiameter = maxOf(
         BubbleSize,
@@ -714,13 +713,13 @@ internal fun BoxScope.StandaloneAlphabetRailOverlay(
                     val localTop = (touchY - bubblePx / 2f)
                         .roundToInt()
                         .coerceIn(0, (railHeightPx - bubblePx).coerceAtLeast(0))
-                    // The bubble sits beside the rail, on the side facing the content.
-                    val towardContent = (layoutDirection == LayoutDirection.Ltr) != railAtStart
+                    // The bubble sits beside the rail, on the side facing the content. offset {}
+                    // already mirrors x in a right-to-left layout, so only the rail's side counts.
                     IntOffset(
-                        x = if (towardContent) {
-                            -(RailWidth + BubbleGap).roundToPx()
-                        } else {
+                        x = if (railAtStart) {
                             (RailWidth + BubbleGap).roundToPx()
+                        } else {
+                            -(RailWidth + BubbleGap).roundToPx()
                         },
                         y = railTopPx.roundToInt() + localTop,
                     )
