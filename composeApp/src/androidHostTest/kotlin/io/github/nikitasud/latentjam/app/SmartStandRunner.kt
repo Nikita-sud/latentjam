@@ -100,12 +100,14 @@ class SmartStandRunner {
         // One warm plan resolves every library track (family, imputation): the facts the seed set is stratified by.
         ranker.plan(io.github.nikitasud.latentjam.smart.ranker.PlanRequest(library[0], library, library, 1))
         File(out, "facts.tsv").writeText(buildString {
-            append("id\tfamily\te\thasVector\n")
+            append("id\tfamily\te\thasVector\tlanguage\n")
             for (t in library) {
                 append(t.id.value).append('\t').append(ranker.familyOf(t.id).orEmpty()).append('\t')
-                    .append(energies[t.id]?.toString().orEmpty()).append('\t').append(index.contains(t.id)).append('\n')
+                    .append(energies[t.id]?.toString().orEmpty()).append('\t').append(index.contains(t.id))
+                    .append('\t').append(ranker.languageOf(t.id).orEmpty()).append('\n')
             }
         })
+        if (System.getenv("LJ_STAND_FACTS_ONLY") == "1") return
 
         val historyLines = File(files, "listening_history.log").readLines().filter(String::isNotEmpty)
         val history = DefaultListeningHistory(object : HistoryStore {
