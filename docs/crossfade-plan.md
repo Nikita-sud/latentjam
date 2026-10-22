@@ -80,6 +80,33 @@ it — the same "switch at the end of the overlap" semantics and the same ledger
 Android. Apple Music (MPMusicPlayerController) items cannot be mixed: no overlap there (plain switch).
 This also makes the slider do something on iOS for the first time.
 
+## Prior art (searched 2026-10-22, at the owner's request)
+
+Nothing below was copied; GPL projects informed ideas only.
+
+| Where | Approach | Got right | Pitfalls | Licence |
+|---|---|---|---|---|
+| Media3 itself — [androidx/media#2](https://github.com/androidx/media/issues/2), dup of [google/ExoPlayer#3438](https://github.com/google/ExoPlayer/issues/3438) | None built in; open since 2017, "no current plans". A Media3 engineer sketched a [processor design](https://github.com/google/ExoPlayer/issues/3438#issuecomment-970557233): fade like gapless trimming, crossfade by mixing the end buffer with the next track's start inside the pipeline | Same family as ours: one player, one timeline | Their variant buffers the outgoing END, so the position jumps to the next track when the overlap begins; maintainers warned a multi-renderer hack gives a "messy Timeline" | Apache-2.0 |
+| Same thread, Tolriq (Symfonium) | Tried fades in an AudioProcessor | — | The processor runs ahead of the speaker, so a fade for pause or skip cannot be done there; asked for VolumeShaper access to the AudioTrack | — |
+| [react-native-track-player fork](https://github.com/lovegaoshi/react-native-track-player/pull/38) | Two ExoPlayers that rotate behind a copied 1 220-line ForwardingPlayer; both kept on the same queue; iOS: two AVPlayers, delegate swapped on rotation | Works with any format; metadata flips at the start | Author: "a whole spaghetti of player control problems"; both queues must be kept in sync; the app must call prepare/crossfade itself | Apache-2.0 (reusable, but the approach is what we rejected) |
+| [SimpMusic](https://simpmusic.org/docs/dev/playback-engine) | One ExoPlayer per track behind a forwarding player with its own playlist; a processor sweeps low-/high-pass filters across the transition (DJ-style) | The filter sweep makes a busy overlap less muddy | Owns its queue outside ExoPlayer; streams excluded | GPL-3.0 (ideas only) |
+| RetroMusic `CrossFadePlayer` | Two framework MediaPlayers, the next started N s before the end with volume animators | Simple | No gapless, coarse timing, no album rule | GPL-3.0 (ideas only) |
+| Namida | Overlap N s before the end; also on manual skips; crossfade beats gapless | Crossfade on Next as an option | Notes extra memory for buffering both tracks | custom/unclear (ideas only) |
+| Auxio, Gramophone, Metrolist, InnerTune | No overlapping crossfade found (Auxio closed its request) | — | — | GPL-3.0 |
+| iOS: Apple AVAEMixerSample; dev-forum threads | Two AVAudioPlayerNodes into one mixer, per-node volume | The standard AVAudioEngine shape — ours | Two nodes can drift if started separately; schedule both on one engine | Apple sample licence |
+
+**Verdict: the design does not change.** The only design the Media3 team has sketched is ours (mix inside one
+player's pipeline). Ours pre-decodes the incoming opening instead of holding back the outgoing end, so the position
+stays on the playing track and flips at the end. Every two-player implementation found has to own the queue
+outside ExoPlayer (a forwarding player, two synced queues). For us that would rewire the SMART top-ups, the ledger
+and Android Auto. The Tolriq pitfall is already handled: pause/resume stays on player volume, not in the
+processor.
+
+Ideas worth offering later, not in this round:
+- a SimpMusic-style filter sweep during the overlap;
+- crossfade on manual Next, as in Namida (today Next during an overlap carries on, otherwise it cuts);
+- sample-accurate `AVAudioTime` start of the second node on iOS (today a 20 ms ticker).
+
 ## Tests
 
 - commonTest: curves, overlap-window planning (when to pre-roll, when to fall back), album rule.
