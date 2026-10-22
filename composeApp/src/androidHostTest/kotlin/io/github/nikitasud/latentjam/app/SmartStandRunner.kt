@@ -67,7 +67,9 @@ class SmartStandRunner {
         } as AppSettings
         val library = GenreEnrichment(settings) { null }.apply(File(dir, "library.tsv").readLines().filter(String::isNotEmpty).map(::track))
         val byId = library.associateBy { it.id }
-        val seeds = File(dir, "seeds.tsv").readLines().map(String::trim).filter(String::isNotEmpty).mapNotNull { byId[TrackId(it)] }
+        // LJ_STAND_SEEDS_DIR: the seeds come from <that dir>/<library folder name>.tsv instead of the library's seeds.tsv.
+        val seedFile = System.getenv("LJ_STAND_SEEDS_DIR")?.let { File(it, dir.name + ".tsv") } ?: File(dir, "seeds.tsv")
+        val seeds = seedFile.readLines().map(String::trim).filter(String::isNotEmpty).mapNotNull { byId[TrackId(it)] }
             // LJ_STAND_SEEDS=n: the first n of the fixed seed set (spot checks).
             .let { all -> System.getenv("LJ_STAND_SEEDS")?.toInt()?.let(all::take) ?: all }
         val files = File(dir, "files")
@@ -100,11 +102,11 @@ class SmartStandRunner {
         // One warm plan resolves every library track (family, imputation): the facts the seed set is stratified by.
         ranker.plan(io.github.nikitasud.latentjam.smart.ranker.PlanRequest(library[0], library, library, 1))
         File(out, "facts.tsv").writeText(buildString {
-            append("id\tfamily\te\thasVector\tlanguage\n")
+            append("id\tfamily\te\thasVector\tlanguage\tlfmKnown\n")
             for (t in library) {
                 append(t.id.value).append('\t').append(ranker.familyOf(t.id).orEmpty()).append('\t')
                     .append(energies[t.id]?.toString().orEmpty()).append('\t').append(index.contains(t.id))
-                    .append('\t').append(ranker.languageOf(t.id).orEmpty()).append('\n')
+                    .append('\t').append(ranker.languageOf(t.id).orEmpty()).append('\t').append(ranker.lfmKnownOf(t.id)).append('\n')
             }
         })
         if (System.getenv("LJ_STAND_FACTS_ONLY") == "1") return

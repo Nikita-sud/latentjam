@@ -959,6 +959,9 @@ public class SmartRanker(
     /** The pack language a planned track carries (null = unknown to the ranker); diagnostics only. */
     public fun languageOf(id: TrackId): String? = knownById[id]?.language
 
+    /** Whether a planned track's artist has a LightFM vector (the lfm_known feature); diagnostics only. */
+    public fun lfmKnownOf(id: TrackId): Boolean = knownById[id]?.lfm != null
+
     /** The pack entity a planned track's artist resolved to (-1 = none, null = not planned yet); diagnostics only. */
     public fun entityOf(id: TrackId): Int? = knownById[id]?.entity
 
