@@ -1,6 +1,6 @@
 {
  "schema": "lj-smart-ranker/2",
- "name": "CORE L2 fast track (product check) night-r9c",
+ "name": "CORE L2 fast track (product check) night-r10c",
  "features": [
   "cos",
   "cos_z",
@@ -435,6 +435,61 @@
     "tokens": [
      "radio"
     ]
+   },
+   {
+    "name": "calm",
+    "genre": [
+     "ambient",
+     "downtempo",
+     "chill",
+     "lo-fi",
+     "lofi",
+     "new age",
+     "drone",
+     "dungeon synth",
+     "trip hop",
+     "trip-hop",
+     "meditation",
+     "sleep",
+     "minimalism"
+    ],
+    "lambda": 0.0
+   },
+   {
+    "name": "energetic",
+    "genre": [
+     "electro house",
+     "big room",
+     "dubstep",
+     "drum and bass",
+     "drum & bass",
+     "dnb",
+     "trance",
+     "hardstyle",
+     "techno",
+     "eurodance",
+     "breakbeat",
+     "edm",
+     "future bass",
+     "hardcore",
+     "phonk",
+     "dance-pop",
+     "deep house",
+     "tech house",
+     "progressive house",
+     "future house",
+     "bass house"
+    ],
+    "tokens": [
+     "electro",
+     "house",
+     "dance",
+     "electronic dance music"
+    ],
+    "seedIn": [
+     "calm"
+    ],
+    "lambda": 8.0
    }
   ]
  },
