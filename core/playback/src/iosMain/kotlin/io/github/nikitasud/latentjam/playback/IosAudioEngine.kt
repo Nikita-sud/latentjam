@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import platform.AVFAudio.AVAudioEngine
 import platform.AVFAudio.AVAudioFile
+import platform.AVFAudio.AVAudioMixerNode
 import platform.AVFAudio.AVAudioPlayerNode
 import platform.AVFAudio.AVAudioPlayerNodeCompletionDataPlayedBack
 import platform.Foundation.NSURL
@@ -29,7 +30,11 @@ import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
 
 /**
- * The app-owned iOS audio graph: file player -> shared Signalsmith DSP Audio Unit -> main mixer.
+ * The app-owned iOS audio graph: two file players -> submixer -> shared Signalsmith DSP Audio Unit
+ * -> main mixer. One player (the current deck) plays the track at the playhead; the other joins
+ * only for an overlap, playing the next track's opening under the current one's end, and becomes
+ * the current deck when that end has played ([promoteOverlap]). Each deck's volume carries its
+ * track's loudness and transition curve; the main mixer carries the pause/resume fade.
  *
  * AVPlayer does not expose a node where an equalizer can be inserted. Owning this graph is what
  * makes the settings on iOS affect the samples that reach the speaker instead of being decorative
@@ -44,6 +49,10 @@ internal class IosAudioEngine : EqualizerController {
 
     private var engine = AVAudioEngine()
     private var player = AVAudioPlayerNode()
+    private var standby = AVAudioPlayerNode()
+    private var submix = AVAudioMixerNode()
+    private var playerBus = 0
+    private var standbyBus = 1
     private val preferences = NSUserDefaults.standardUserDefaults
     private var settings = restoreSettings()
     private var equalizer = checkNotNull(lj_eq_ios_create()) { "Could not instantiate the shared EQ Audio Unit" }
@@ -70,8 +79,15 @@ internal class IosAudioEngine : EqualizerController {
     }.distinctUntilChanged()
 
     private var transportGain = 1f
-    private var normalizationGain = 1f
+    private var currentGain = 1f
+    private var standbyGain = 0f
     private var currentFile: AVAudioFile? = null
+    private var standbyFile: AVAudioFile? = null
+    private var standbyStarted = false
+
+    /** Completion tokens: a segment's end counts only while its token is [completionGeneration]. */
+    private var tokens: Long = 0L
+    private var standbyToken: Long = NO_TOKEN
     private var segmentStartFrame: Long = 0L
     private var pausedFrame: Long = 0L
     private var completionGeneration: Long = 0L
@@ -91,9 +107,15 @@ internal class IosAudioEngine : EqualizerController {
      * C++ stream, and receives the saved settings before rendering starts.
      */
     private fun buildGraph() {
+        playerBus = 0
+        standbyBus = 1
         engine.attachNode(player)
+        engine.attachNode(standby)
+        engine.attachNode(submix)
         engine.attachNode(equalizer)
-        engine.connect(player, equalizer, null)
+        engine.connect(player, submix, 0u, playerBus.toULong(), null)
+        engine.connect(standby, submix, 0u, standbyBus.toULong(), null)
+        engine.connect(submix, equalizer, null)
         engine.connect(equalizer, engine.mainMixerNode, null)
         applySettings()
         engine.prepare()
@@ -119,6 +141,7 @@ internal class IosAudioEngine : EqualizerController {
     fun rebuildAfterMediaServicesReset(resumePositionMs: Long?): Boolean {
         val fileUrl = currentFile?.url
         val onEnded = completion
+        cancelOverlap()
         engine.stop()
         // Drop every reference to the invalidated graph before the new one is built, so a throw
         // while building it cannot leave the engine scheduling segments on dead nodes.
@@ -126,9 +149,11 @@ internal class IosAudioEngine : EqualizerController {
         completion = null
         segmentStartFrame = 0L
         pausedFrame = 0L
-        completionGeneration++
+        invalidateCompletion()
         engine = AVAudioEngine()
         player = AVAudioPlayerNode()
+        standby = AVAudioPlayerNode()
+        submix = AVAudioMixerNode()
         equalizer = checkNotNull(lj_eq_ios_create())
         buildGraph()
         restoreCurve()
@@ -170,7 +195,8 @@ internal class IosAudioEngine : EqualizerController {
             stop()
             return false
         }
-        completionGeneration++
+        invalidateCompletion()
+        cancelOverlap()
         engine.stop()
         player.stop()
         currentFile = file
@@ -197,7 +223,8 @@ internal class IosAudioEngine : EqualizerController {
         // node's flag but emits no samples, so a transport press after natural end must schedule a
         // fresh segment just like an explicit seek to zero.
         if (shouldRestartConsumedSegment(pausedFrame, file.length)) {
-            completionGeneration++
+            invalidateCompletion()
+            cancelOverlap()
             engine.stop()
             player.stop()
             lj_eq_ios_reset(equalizer)
@@ -207,6 +234,7 @@ internal class IosAudioEngine : EqualizerController {
         }
         if (!ensureEngineRunning()) return false
         player.play()
+        if (standbyStarted) standby.play()
         return true
     }
 
@@ -220,6 +248,7 @@ internal class IosAudioEngine : EqualizerController {
     fun pause() {
         pausedFrame = currentFrame()
         player.pause()
+        if (standbyStarted) standby.pause()
         // Pausing a node alone leaves AVAudioEngine's hardware render loop running silently.
         // Keep its prepared graph for resume, but release the idle audio hardware now.
         engine.pause()
@@ -231,20 +260,125 @@ internal class IosAudioEngine : EqualizerController {
         applyMixerGain()
     }
 
-    fun setNormalizationGain(gain: Float) {
-        normalizationGain = if (gain.isFinite()) gain.coerceIn(0f, 1f) else 1f
+    /**
+     * Each deck's gain: the loudness of its track times its transition curve. The standby deck is
+     * silent unless an overlap is sounding.
+     */
+    fun setDeckGains(current: Float, incoming: Float = 0f) {
+        currentGain = if (current.isFinite()) current.coerceIn(0f, 1f) else 1f
+        standbyGain = if (incoming.isFinite()) incoming.coerceIn(0f, 1f) else 0f
         applyMixerGain()
     }
 
-    /** Effective platform mixer value, after composing independent gain controls. */
-    val effectiveOutputVolume: Float get() = engine.mainMixerNode.outputVolume
+    /** Effective platform volume of the current deck, after composing independent gain controls. */
+    val effectiveOutputVolume: Float get() = engine.mainMixerNode.outputVolume * player.volume
 
     private fun applyMixerGain() {
-        engine.mainMixerNode.outputVolume = normalizationGain * transportGain
+        engine.mainMixerNode.outputVolume = transportGain
+        player.volume = currentGain
+        standby.volume = standbyGain
+    }
+
+    /**
+     * Cues [url] on the standby deck for an overlap, silent and not yet playing; returns its
+     * duration, or null when it cannot join — no current file, a stopped graph, an unreadable file.
+     * The graph keeps the current track's format; the submixer converts the incoming one.
+     */
+    fun prepareOverlap(url: NSURL): Long? {
+        cancelOverlap()
+        if (currentFile == null || !engine.running) return null
+        val file = runCatching { AVAudioFile(forReading = url, error = null) }.getOrNull()
+            ?.takeIf { it.length > 0L && supportsFormat(it) } ?: return null
+        if (lj_eq_ios_connect_deck(engine, standby, submix, standbyBus, file.processingFormat) == 0) return null
+        standbyGain = 0f
+        applyMixerGain()
+        standbyFile = file
+        val token = ++tokens
+        standbyToken = token
+        standby.scheduleSegment(
+            file = file,
+            startingFrame = 0L,
+            frameCount = file.length.coerceAtMost(UInt.MAX_VALUE.toLong()).toUInt(),
+            atTime = null,
+            completionCallbackType = AVAudioPlayerNodeCompletionDataPlayedBack,
+            completionHandler = { _ ->
+                dispatch_async(dispatch_get_main_queue()) {
+                    // Only once promoted is this the playing track whose end moves the queue on.
+                    if (token == completionGeneration && currentFile === file) {
+                        pausedFrame = file.length
+                        completion?.invoke()
+                    }
+                }
+            },
+        )
+        return frameToMillis(file.length, file)
+    }
+
+    /** Starts the cued overlap under the current track. */
+    fun startOverlap(): Boolean {
+        if (standbyFile == null || !player.playing) return false
+        standby.play()
+        standbyStarted = true
+        return true
+    }
+
+    /** Whether the next track is sounding under the current one. */
+    val overlapping: Boolean get() = standbyStarted
+
+    /** How far into its own file the overlap's incoming track is. */
+    fun standbyPositionMs(): Long {
+        val file = standbyFile ?: return 0L
+        if (!standbyStarted) return 0L
+        val rendered = standby.lastRenderTime ?: return 0L
+        val played = standby.playerTimeForNodeTime(rendered) ?: return 0L
+        return frameToMillis(played.sampleTime.coerceIn(0L, file.length), file)
+    }
+
+    /** Drops the standby deck's track, sounding or not. */
+    fun cancelOverlap() {
+        standbyToken = NO_TOKEN
+        standbyStarted = false
+        standbyFile = null
+        standby.stop()
+        standbyGain = 0f
+        standby.volume = 0f
+    }
+
+    /**
+     * The current track's end has played: the overlap's incoming track becomes the current one,
+     * carrying on where it is, and its end now calls [onEnded].
+     */
+    fun promoteOverlap(onEnded: () -> Unit): Boolean {
+        val file = standbyFile ?: return false
+        if (!standbyStarted) return false
+        val previous = player
+        val previousBus = playerBus
+        previous.stop()
+        player = standby
+        playerBus = standbyBus
+        standby = previous
+        standbyBus = previousBus
+        currentFile = file
+        completion = onEnded
+        completionGeneration = standbyToken
+        standbyToken = NO_TOKEN
+        standbyFile = null
+        standbyStarted = false
+        segmentStartFrame = 0L
+        pausedFrame = 0L
+        currentGain = standbyGain
+        standbyGain = 0f
+        applyMixerGain()
+        return true
+    }
+
+    private fun invalidateCompletion() {
+        completionGeneration = NO_TOKEN
     }
 
     fun stop() {
-        completionGeneration++
+        invalidateCompletion()
+        cancelOverlap()
         player.stop()
         engine.stop()
         lj_eq_ios_reset(equalizer)
@@ -262,7 +396,8 @@ internal class IosAudioEngine : EqualizerController {
         // last frame and the item then ends through the scheduled segment's completion.
         val lastFrame = (file.length - 1L).coerceAtLeast(0L)
         val frame = millisToFrame(positionMs, file).coerceIn(0L, lastFrame)
-        completionGeneration++
+        invalidateCompletion()
+        cancelOverlap()
         engine.stop()
         player.stop()
         // The new position starts mid-waveform: let it rise over 5 ms instead of clicking.
@@ -301,7 +436,7 @@ internal class IosAudioEngine : EqualizerController {
         // of the file is therefore the end of playback, not a segment: park the transport there
         // and report the end so the queue can move on.
         if (framesLeft == 0L) {
-            completionGeneration++
+            invalidateCompletion()
             segmentStartFrame = file.length
             pausedFrame = file.length
             completion?.invoke()
@@ -309,7 +444,8 @@ internal class IosAudioEngine : EqualizerController {
         }
         // The AU advertises its fixed latency. DataPlayedBack accounts for downstream
         // processing latency, so the delayed tail is rendered before advancing the queue.
-        val token = ++completionGeneration
+        val token = ++tokens
+        completionGeneration = token
         player.scheduleSegment(
             file = file,
             startingFrame = startFrame,
@@ -334,7 +470,8 @@ internal class IosAudioEngine : EqualizerController {
     private fun configureFileGraph(file: AVAudioFile): Boolean {
         // A prepared graph can allocate the AU after changing only one bus, briefly leaving its
         // old stereo output against a new mono input. Detach and set BOTH formats first.
-        if (lj_eq_ios_connect(engine, player, equalizer, file.processingFormat) == 0) return false
+        if (lj_eq_ios_connect_deck(engine, player, submix, playerBus, file.processingFormat) == 0) return false
+        if (lj_eq_ios_connect(engine, submix, equalizer, file.processingFormat) == 0) return false
         applySettings()
         engine.prepare()
         lj_eq_ios_reset(equalizer)
@@ -413,6 +550,7 @@ internal class IosAudioEngine : EqualizerController {
     }
 
     private companion object {
+        const val NO_TOKEN = -1L
         const val KEY_ENABLED = "ios_equalizer_enabled"
         const val KEY_PRESET = "ios_equalizer_preset"
         const val KEY_BASS = "ios_equalizer_software_bass"
