@@ -30,6 +30,11 @@ import kotlinx.coroutines.yield
  * and the SMART metadata-text embedding re-encodes because the genre string is part of its
  * vector identity.
  *
+ * Whether the file names an album at all is one more such fact. The scanner files a song without
+ * one under its folder's name, and that pseudo-album's cover belongs to another song in the folder
+ * (issue #12), so such a song keeps only a cover of its own ([ownCoverOnly]). Its album stays as
+ * the scanner reported it: the Albums tab still lists the folder.
+ *
  * A cache entry is keyed by [TrackDescriptor.sourceRevision]: retagging changes the revision,
  * which makes the entry stale and the file re-read. "Read fine, found nothing" is remembered
  * too — the file is not worth re-opening every launch — while "could not read" stores nothing
@@ -37,6 +42,7 @@ import kotlinx.coroutines.yield
  */
 internal class GenreEnrichment(
     private val settings: AppSettings,
+    private val ownCover: (String) -> String = ::ownCoverOnly,
     private val readFacts: suspend (TrackDescriptor) -> EmbeddedTagFacts? = ::readEmbeddedFacts,
 ) {
     private data class Stored(
@@ -48,6 +54,8 @@ internal class GenreEnrichment(
         val albumArtist: String?,
         /** The file's own year; applied only where the scanner reported none. */
         val year: Int?,
+        /** Whether the file names an album; without one it borrows no album's cover. */
+        val namesAlbum: Boolean,
     )
 
     private val mutex = Mutex()
@@ -80,9 +88,10 @@ internal class GenreEnrichment(
         val language = language ?: track.language
         val albumArtist = albumArtist?.unlessMangling(track.albumArtist) ?: track.albumArtist
         val year = track.year ?: year
+        val artworkUri = if (namesAlbum) track.artworkUri else track.artworkUri?.let(ownCover)
         return if (genre == track.genre && artists == track.artists &&
             originalYear == track.originalYear && language == track.language &&
-            albumArtist == track.albumArtist && year == track.year
+            albumArtist == track.albumArtist && year == track.year && artworkUri == track.artworkUri
         ) {
             track
         } else {
@@ -93,6 +102,7 @@ internal class GenreEnrichment(
                 language = language,
                 albumArtist = albumArtist,
                 year = year,
+                artworkUri = artworkUri,
             )
         }
     }
@@ -125,6 +135,7 @@ internal class GenreEnrichment(
                 language = facts.language?.let(TextRepair::repair),
                 albumArtist = facts.albumArtist?.let(TextRepair::repair),
                 year = facts.year,
+                namesAlbum = facts.album != null,
             )
             updates[track.id.value] = stored
             if (stored.changes(track)) learnedSomething = true
@@ -164,13 +175,13 @@ internal class GenreEnrichment(
     private companion object {
         /**
          * v2 added artists and the original year, v3 the language tag, v4 the album artist, v5 the
-         * file's own year. Older lines are deliberately dropped on decode: those files must be
+         * file's own year, v6 whether the file names an album. Older lines are deliberately dropped on decode: those files must be
          * re-read once anyway to learn the new facts. That is one tag read per track, the same
          * pass every earlier bump cost; SMART's audio analysis is keyed on the audio's identity
          * (URI, duration, revision) and is untouched — only the cheap text vector re-encodes
          * where a year appears.
          */
-        const val FORMAT = "v5"
+        const val FORMAT = "v6"
 
         /** Joins the artist list inside one hex field; NUL never appears in a real name. */
         const val ARTIST_JOIN = "\u0000"
@@ -195,6 +206,7 @@ internal class GenreEnrichment(
                     stored.language.orEmpty().hex(),
                     stored.albumArtist.orEmpty().hex(),
                     stored.year?.toString() ?: "",
+                    if (stored.namesAlbum) "1" else "0",
                 ).joinToString("|")
             }
 
@@ -202,7 +214,7 @@ internal class GenreEnrichment(
             val result = HashMap<String, Stored>()
             payload?.lineSequence()?.forEach { line ->
                 val parts = line.split('|')
-                if (parts.size != 9 || parts[0] != FORMAT) return@forEach
+                if (parts.size != 10 || parts[0] != FORMAT) return@forEach
                 val id = parts[1].unhex() ?: return@forEach
                 val revision = parts[2].unhex() ?: return@forEach
                 val genres = parts[3].unhex() ?: return@forEach
@@ -221,6 +233,7 @@ internal class GenreEnrichment(
                     language = language.takeIf { it.isNotEmpty() }?.let(TextRepair::repair),
                     albumArtist = albumArtist.takeIf { it.isNotEmpty() }?.let(TextRepair::repair),
                     year = parts[8].toIntOrNull(),
+                    namesAlbum = parts[9] != "0",
                 )
             }
             return result

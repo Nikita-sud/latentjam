@@ -42,6 +42,18 @@ public object MediaStoreArtwork {
     public fun trackCover(trackId: Long, albumId: Long): String =
         "$SONGS$trackId$SONG_COVER" + if (albumId > 0) "?$ALBUM=$albumId" else ""
 
+    /**
+     * [uri] without its album fallback: a song whose file names no album was filed by MediaStore
+     * under its folder's name, and that "album's" cover is another song's (issue #12). Any other
+     * locator, and the version, stay as they are.
+     */
+    public fun ownCoverOnly(uri: String): String {
+        if (albumFallback(uri) == null) return uri
+        val kept = uri.substringAfter('?').split('&').filterNot { it.substringBefore('=') == ALBUM }
+        val path = uri.substringBefore('?')
+        return if (kept.isEmpty()) path else path + "?" + kept.joinToString("&")
+    }
+
     /** The audio file named by a song-cover locator; never an arbitrary external or override URI. */
     public fun audioFallback(uri: String): String? {
         if (!uri.startsWith(SONGS)) return null

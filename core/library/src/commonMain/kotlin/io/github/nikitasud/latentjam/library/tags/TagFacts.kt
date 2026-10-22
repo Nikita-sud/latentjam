@@ -21,6 +21,8 @@ package io.github.nikitasud.latentjam.library.tags
  * - [year]: the file's own (edition) year — Vorbis `DATE`/`YEAR`, ID3 `TDRC`/`TYER`. The system
  *   scanner normally reports it, but Android 16's MediaStore leaves it empty for every MP3, FLAC
  *   and Opus file, so this is the fallback when it does.
+ * - [album]: the album the file itself names (`ALBUM`, ID3 `TALB`). The scanner reports a folder's
+ *   name for a file without one, so only the file can tell a real album from a folder.
  */
 public data class EmbeddedTagFacts(
     public val genres: List<String> = emptyList(),
@@ -32,10 +34,12 @@ public data class EmbeddedTagFacts(
     public val albumArtist: String? = null,
     /** The file's own year (`DATE`/`YEAR`, ID3 `TDRC`/`TYER`); null when absent or unreadable. */
     public val year: Int? = null,
+    /** The album the file names (`ALBUM`, ID3 `TALB`); null when it names none. */
+    public val album: String? = null,
 ) {
     public val isEmpty: Boolean
         get() = genres.isEmpty() && artists.isEmpty() && originalYear == null && language == null &&
-            albumArtist == null && year == null
+            albumArtist == null && year == null && album == null
 }
 
 public object TagFacts {
@@ -77,6 +81,7 @@ public object TagFacts {
         var language: String? = null
         var albumArtist: String? = null
         var year: Int? = null
+        var album: String? = null
         for ((rawKey, value) in comments) {
             when (rawKey.uppercase()) {
                 "GENRE" -> genres.add(value)
@@ -88,6 +93,8 @@ public object TagFacts {
                     if (year == null) year = parseYear(value)
                 "ALBUMARTIST", "ALBUM ARTIST", "ALBUM_ARTIST", "TPE2" ->
                     if (albumArtist == null) albumArtist = value.trim().takeIf { it.isNotEmpty() }
+                "ALBUM", "TALB" ->
+                    if (album == null) album = value.trim().takeIf { it.isNotEmpty() }
                 "LANGUAGE", "TLAN" ->
                     if (language == null) language = value.trim().takeIf { it.isNotEmpty() && it.length <= MAX_LANGUAGE_CHARS }
             }
@@ -110,6 +117,7 @@ public object TagFacts {
             language = language,
             albumArtist = albumArtist,
             year = year,
+            album = album,
         )
     }
 

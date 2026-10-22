@@ -59,6 +59,29 @@ internal class MediaStoreArtworkTest {
     }
 
     @Test
+    fun aSongOfNoAlbumKeepsOnlyItsOwnCoverAndVersion() {
+        val song = MediaStoreArtwork.versioned(MediaStoreArtwork.trackCover(42, 7), "1f")
+        val own = MediaStoreArtwork.ownCoverOnly(song)
+        assertEquals("content://media/external/audio/media/42/albumart?v=1f", own)
+        assertNull(MediaStoreArtwork.albumFallback(own))
+        assertEquals("content://media/external/audio/media/42", MediaStoreArtwork.audioFallback(own))
+        assertEquals(
+            "content://media/external/audio/media/42/albumart?v=1f",
+            MediaStoreArtwork.ownCoverOnly("content://media/external/audio/media/42/albumart?v=1f&album=7"),
+        )
+        assertEquals(
+            "content://media/external/audio/media/42/albumart",
+            MediaStoreArtwork.ownCoverOnly(MediaStoreArtwork.trackCover(42, 7)),
+        )
+        listOf(
+            "content://media/external/audio/albumart/7?v=1f",
+            "content://media/external/audio/media/42/albumart?v=1f",
+            "content://other/external/audio/media/42/albumart?album=7",
+            "file:///data/user/0/app/files/track-covers/0a1b2c3d.jpg?album=7",
+        ).forEach { assertEquals(it, MediaStoreArtwork.ownCoverOnly(it)) }
+    }
+
+    @Test
     fun theFallbackDoesNotDependOnParameterOrder() {
         assertEquals(
             "content://media/external/audio/albumart/7?v=1f",

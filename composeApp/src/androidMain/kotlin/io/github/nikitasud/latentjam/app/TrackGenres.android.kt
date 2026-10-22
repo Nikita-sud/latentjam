@@ -8,8 +8,11 @@ import android.net.Uri
 import io.github.nikitasud.latentjam.library.tags.EmbeddedTagFacts
 import io.github.nikitasud.latentjam.library.tags.GenreTags
 import io.github.nikitasud.latentjam.library.tags.RandomAccessSource
+import io.github.nikitasud.latentjam.library.tags.TagCodecs
 import io.github.nikitasud.latentjam.library.tags.TagFacts
+import io.github.nikitasud.latentjam.smart.MediaStoreArtwork
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import java.io.FileInputStream
 import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
@@ -22,8 +25,14 @@ internal actual suspend fun readEmbeddedFacts(track: TrackDescriptor): EmbeddedT
         try {
             val uri = track.audioUri?.takeIf { it.isNotBlank() }?.let(Uri::parse)
                 ?: return@withContext null
-            AndroidAppContext.value.contentResolver.openInputStream(uri)?.use { input ->
+            val resolver = AndroidAppContext.value.contentResolver
+            resolver.openInputStream(uri)?.use { input ->
                 TagFacts.embedded(InputStreamByteSource(input))
+            } ?: resolver.openFileDescriptor(uri, "r")?.use { descriptor ->
+                // MP4 (and any tag the one-pass reader refuses): only whether it names an album,
+                // which MediaStore cannot tell from a folder's name (issue #12).
+                val snapshot = TagCodecs.read(FileChannelSource(FileInputStream(descriptor.fileDescriptor).channel))
+                snapshot?.let { EmbeddedTagFacts(album = it.album?.trim()?.takeIf(String::isNotEmpty)) }
             }
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -31,6 +40,8 @@ internal actual suspend fun readEmbeddedFacts(track: TrackDescriptor): EmbeddedT
             null
         }
     }
+
+internal actual fun ownCoverOnly(artworkUri: String): String = MediaStoreArtwork.ownCoverOnly(artworkUri)
 
 /** Adapts a one-pass stream to the parser's pull interface; no rewinding, no buffering. */
 internal class InputStreamByteSource(private val input: InputStream) : GenreTags.ByteSource {

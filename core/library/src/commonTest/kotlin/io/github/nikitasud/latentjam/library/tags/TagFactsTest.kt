@@ -88,6 +88,14 @@ class TagFactsTest {
     }
 
     @Test
+    fun theAlbumIsTheFilesOwnAndBlankIsNone() {
+        assertEquals("Abbey Road", TagFacts.fromComments(listOf("ALBUM" to " Abbey Road ")).album)
+        assertEquals("Let It Be", TagFacts.fromComments(listOf("TALB" to "Let It Be", "ALBUM" to "Help!")).album)
+        assertNull(TagFacts.fromComments(listOf("ALBUM" to "  ")).album)
+        assertNull(TagFacts.fromComments(listOf("ALBUMARTIST" to "The Beatles")).album)
+    }
+
+    @Test
     fun aLoneDisplayArtistIsNeverGuessedApart() {
         // "feat."-cutting display strings is how taggers ruin band names; a single ARTIST
         // field carries no split information and produces no credit list.

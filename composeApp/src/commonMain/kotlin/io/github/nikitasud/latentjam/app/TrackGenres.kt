@@ -17,3 +17,9 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
  * eligible for a retry. Implementations do their IO off the caller's thread.
  */
 internal expect suspend fun readEmbeddedFacts(track: TrackDescriptor): EmbeddedTagFacts?
+
+/**
+ * [artworkUri] without any album cover it would fall back to, for a song whose file names no album
+ * (see [GenreEnrichment]); unchanged where a platform's locators have no such fallback.
+ */
+internal expect fun ownCoverOnly(artworkUri: String): String

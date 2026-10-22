@@ -125,6 +125,7 @@ public object GenreTags {
         val info = Id3Tags.read(prefix) ?: return null
         val comments = ArrayList<Pair<String, String>>()
         info.genre?.let { comments.add("GENRE" to it) }
+        info.album?.let { comments.add("TALB" to it) }
         Id3Tags.artistValues(prefix).forEach { comments.add("ARTIST" to it) }
         Id3Tags.originalYearText(prefix)?.let { comments.add("TDOR" to it) }
         info.year?.let { comments.add("TDRC" to it) }

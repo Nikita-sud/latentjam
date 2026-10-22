@@ -101,7 +101,7 @@ internal class GenreEnrichmentTest {
         val settings = MemorySettings()
         GenreEnrichment(settings) { facts }.backfill(listOf(track))
         settings.trackGenresPayload = settings.trackGenresPayload!!
-            .replaceFirst("v5|", "v2|").substringBeforeLast('|').substringBeforeLast('|').substringBeforeLast('|')
+            .replaceFirst("v6|", "v2|").substringBeforeLast('|').substringBeforeLast('|').substringBeforeLast('|').substringBeforeLast('|')
         var reads = 0
         val upgraded = GenreEnrichment(settings) { reads++; facts }
         assertEquals(listOf(track), upgraded.apply(listOf(track)))
@@ -117,11 +117,61 @@ internal class GenreEnrichmentTest {
         val settings = MemorySettings()
         GenreEnrichment(settings) { facts }.backfill(listOf(track))
         settings.trackGenresPayload = settings.trackGenresPayload!!
-            .replaceFirst("v5|", "v3|").substringBeforeLast('|').substringBeforeLast('|')
+            .replaceFirst("v6|", "v3|").substringBeforeLast('|').substringBeforeLast('|').substringBeforeLast('|')
         var reads = 0
         val upgraded = GenreEnrichment(settings) { reads++; facts }
         assertTrue(upgraded.backfill(listOf(track)))
         assertEquals(listOf(enriched), upgraded.apply(listOf(track)))
+        assertEquals(1, reads)
+    }
+
+    @Test
+    fun aSongWhoseFileNamesNoAlbumBorrowsNoAlbumCover() = runTest {
+        val settings = MemorySettings()
+        val inFolder = track.copy(album = "TAMIL", artworkUri = "song-cover+album")
+        val enrichment = GenreEnrichment(settings, ownCover = { it.removeSuffix("+album") }) { EmbeddedTagFacts() }
+        assertEquals(listOf(inFolder), enrichment.apply(listOf(inFolder)))
+        assertTrue(enrichment.backfill(listOf(inFolder)))
+        // Only the cover changes: the scanner's folder-named album still lists the song.
+        val ownCover = inFolder.copy(artworkUri = "song-cover")
+        assertEquals(listOf(ownCover), enrichment.apply(listOf(inFolder)))
+
+        val restarted = GenreEnrichment(settings, ownCover = { it.removeSuffix("+album") }) { error("a persisted file must stay warm") }
+        assertEquals(listOf(ownCover), restarted.apply(listOf(inFolder)))
+    }
+
+    @Test
+    fun aSongWhoseFileNamesItsAlbumKeepsTheAlbumCoverFallback() = runTest {
+        val settings = MemorySettings()
+        val tagged = track.copy(album = "Abbey Road", artworkUri = "song-cover+album")
+        val enrichment = GenreEnrichment(settings, ownCover = { error("never stripped") }) { EmbeddedTagFacts(album = "Abbey Road") }
+        assertFalse(enrichment.backfill(listOf(tagged)))
+        assertEquals(listOf(tagged), enrichment.apply(listOf(tagged)))
+        val restarted = GenreEnrichment(settings, ownCover = { error("never stripped") }) { error("a persisted file must stay warm") }
+        assertEquals(listOf(tagged), restarted.apply(listOf(tagged)))
+    }
+
+    @Test
+    fun anUnreadableFileKeepsTheAlbumCoverFallback() = runTest {
+        val settings = MemorySettings()
+        val unknown = track.copy(artworkUri = "song-cover+album")
+        val enrichment = GenreEnrichment(settings, ownCover = { error("never stripped") }) { null }
+        assertFalse(enrichment.backfill(listOf(unknown)))
+        assertEquals(listOf(unknown), enrichment.apply(listOf(unknown)))
+    }
+
+    @Test
+    fun aV5CacheIsReadAgainOnceToLearnWhetherTheFileNamesAnAlbum() = runTest {
+        val settings = MemorySettings()
+        val inFolder = track.copy(artworkUri = "song-cover+album")
+        GenreEnrichment(settings, ownCover = { it.removeSuffix("+album") }) { facts }.backfill(listOf(inFolder))
+        settings.trackGenresPayload = settings.trackGenresPayload!!
+            .replaceFirst("v6|", "v5|").substringBeforeLast('|')
+        var reads = 0
+        val upgraded = GenreEnrichment(settings, ownCover = { it.removeSuffix("+album") }) { reads++; facts }
+        assertEquals(listOf(inFolder), upgraded.apply(listOf(inFolder)))
+        assertTrue(upgraded.backfill(listOf(inFolder)))
+        assertEquals(listOf(enriched.copy(artworkUri = "song-cover")), upgraded.apply(listOf(inFolder)))
         assertEquals(1, reads)
     }
 
@@ -131,7 +181,7 @@ internal class GenreEnrichmentTest {
         val undated = track.copy(year = null)
         GenreEnrichment(settings) { facts }.backfill(listOf(undated))
         settings.trackGenresPayload = settings.trackGenresPayload!!
-            .replaceFirst("v5|", "v4|").substringBeforeLast('|')
+            .replaceFirst("v6|", "v4|").substringBeforeLast('|').substringBeforeLast('|')
         var reads = 0
         val upgraded = GenreEnrichment(settings) { reads++; facts }
         assertEquals(listOf(undated), upgraded.apply(listOf(undated)))
