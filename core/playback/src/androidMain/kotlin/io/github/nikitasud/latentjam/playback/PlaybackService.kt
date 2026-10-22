@@ -59,6 +59,7 @@ public class PlaybackService : MediaLibraryService() {
 
     private var mediaSession: MediaLibrarySession? = null
     private var playbackPlayer: ExoPlayer? = null
+    private var crossfade: CrossfadeCoordinator? = null
     private var pendingResumptionMode: ShuffleMode? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -767,6 +768,7 @@ public class PlaybackService : MediaLibraryService() {
         appLaunchPendingIntent()?.let(sessionBuilder::setSessionActivity)
         mediaSession = sessionBuilder.build()
         player.addListener(playerListener)
+        crossfade = CrossfadeCoordinator(this, player).also { it.start() }
         serviceScope.launch {
             NotificationFavoritesRegistry.state.collectLatest { refreshMediaButtons() }
         }
@@ -813,6 +815,8 @@ public class PlaybackService : MediaLibraryService() {
         MediaBrowseRegistry.clearActiveResumption()
         serviceScope.cancel()
         playbackPlayer?.removeListener(playerListener)
+        crossfade?.release()
+        crossfade = null
         mediaSession?.run {
             player.release()
             release()

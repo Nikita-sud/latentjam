@@ -5,7 +5,12 @@
 package io.github.nikitasud.latentjam.playback
 
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.pow
+import kotlin.math.sin
+import kotlin.math.tanh
 
 /** The slider's contract: transitions can soften up to this many seconds each side. */
 public const val MAX_CROSSFADE_SECONDS: Int = 12
@@ -23,8 +28,8 @@ public fun sanitizeCrossfadeSeconds(value: Int): Int = value.coerceIn(0, MAX_CRO
  * Amplitude factor for smooth transitions: rises over the first [fadeMs] of a track and falls
  * over its last [fadeMs].
  *
- * This is a single-player fade, not a two-stream overlap: ExoPlayer's gapless join stays, the
- * seam just stops being abrupt. Tracks shorter than two fades scale both slopes to halves so a
+ * The fallback for a seam that cannot overlap (see [overlapLengthMs]): the join stays where it
+ * is and only stops being abrupt. Tracks shorter than two fades scale both slopes to halves so a
  * rise and a fall always fit. An unknown duration fades in only — never a surprise mute in the
  * middle of a stream whose end the player cannot see.
  */
@@ -69,81 +74,27 @@ internal fun continuesAlbum(previous: TrackDescriptor?, next: TrackDescriptor?):
     return (nextDisc == disc && nextTrack == track + 1) || (nextDisc == disc + 1 && nextTrack == 1)
 }
 
-/**
- * True when the normalization change at a track change must ramp rather than snap: the player
- * moved on by itself across a [continuesAlbum] seam, which no fade or gap hides.
- */
-internal fun rampsNormalizationAcross(previous: TrackDescriptor?, next: TrackDescriptor?, automatic: Boolean): Boolean =
-    automatic && continuesAlbum(previous, next)
-
-/**
- * Delay until the fade envelope needs another sample.
- *
- * Boundary ramps use a 20 ms cadence; a boundary that does not fade needs none. The middle of a known track sleeps until fade-out begins,
- * avoiding ten wakeups per second for minutes of constant gain. Unknown durations are rechecked
- * coarsely because a prepared player may publish its duration after playback starts.
- */
-internal fun crossfadeUpdateDelayMs(
-    positionMs: Long,
-    durationMs: Long,
-    fadeMs: Long,
-    fadeIn: Boolean = true,
-    fadeOut: Boolean = true,
-): Long {
-    if (fadeMs <= 0L) return Long.MAX_VALUE
-    val position = positionMs.coerceAtLeast(0L)
-    if (durationMs <= 0L) {
-        return if (fadeIn && position < fadeMs) GAIN_RAMP_TICK_MS else UNKNOWN_DURATION_RECHECK_MS
-    }
-    val effectiveFade = minOf(fadeMs, durationMs / 2L)
-    if (effectiveFade <= 0L) return Long.MAX_VALUE
-    val fadeOutStartsAt = durationMs - effectiveFade
-    return when {
-        fadeIn && position < effectiveFade -> GAIN_RAMP_TICK_MS
-        // A queue edit inside the fade window can end the continuation; keep looking coarsely.
-        !fadeOut && position >= fadeOutStartsAt -> UNKNOWN_DURATION_RECHECK_MS
-        position >= fadeOutStartsAt -> GAIN_RAMP_TICK_MS
-        else -> (fadeOutStartsAt - position).coerceAtLeast(GAIN_RAMP_TICK_MS)
+/** Whether a track's start and its end may fade: an album seam played in order is left alone. */
+internal data class FadeEdges(val fadeIn: Boolean, val fadeOut: Boolean) {
+    companion object {
+        val BOTH = FadeEdges(fadeIn = true, fadeOut = true)
     }
 }
 
 /**
- * Keeps the boundary fade continuous when its edges change under a playing track.
- *
- * Which edges fade depends on the live queue, so an edit inside a fade window (removing or adding
- * the album's next track) flips the envelope between full volume and the fade's current depth.
- * The factor then glides from the last value it applied to the new envelope over [rampMs].
- * Main-thread only; [reset] at every item change or seek, where the envelope starts over.
+ * [FadeEdges] for every track in [rows], the queue in the order it plays: no fade where
+ * [continuesAlbum] joins a row to its neighbour. With [repeatsItself] each track's neighbour is
+ * itself. A track queued twice keeps the edges of its later row.
  */
-internal class FadeEdgeSmoother(private val rampMs: Long = FADE_EDGE_RAMP_MS) {
-    private var edges: Pair<Boolean, Boolean>? = null
-    private var lastFactor = 1f
-    private var rampFrom = 1f
-    private var rampStartedAtMs = -1L
-
-    val ramping: Boolean get() = rampStartedAtMs >= 0L
-
-    fun reset() {
-        edges = null
-        rampStartedAtMs = -1L
+internal fun queueFadeEdges(rows: List<TrackDescriptor?>, repeatsItself: Boolean): Map<String, FadeEdges> {
+    val edges = HashMap<String, FadeEdges>(rows.size)
+    rows.forEachIndexed { index, current ->
+        current ?: return@forEachIndexed
+        val previous = if (repeatsItself) current else rows.getOrNull(index - 1)
+        val next = if (repeatsItself) current else rows.getOrNull(index + 1)
+        edges[current.id.value] = FadeEdges(!continuesAlbum(previous, current), !continuesAlbum(current, next))
     }
-
-    fun factor(edges: Pair<Boolean, Boolean>, envelope: Float, nowMs: Long): Float {
-        val previous = this.edges
-        this.edges = edges
-        if (previous != null && previous != edges) {
-            rampFrom = lastFactor
-            rampStartedAtMs = nowMs
-        }
-        val elapsed = nowMs - rampStartedAtMs
-        val result = when {
-            !ramping -> envelope
-            elapsed >= rampMs -> envelope.also { rampStartedAtMs = -1L }
-            else -> rampFrom + (envelope - rampFrom) * elapsed.coerceAtLeast(0L) / rampMs
-        }
-        lastFactor = result
-        return result
-    }
+    return edges
 }
 
 /** dB-linear interpolation avoids a newly measured track dropping several dB in one audio buffer. */
@@ -165,7 +116,60 @@ internal fun normalizationRampVolume(
     }
 }
 
-private const val UNKNOWN_DURATION_RECHECK_MS: Long = 500L
+/**
+ * How long two tracks actually overlap at a seam: the setting, but never more than half of either
+ * track, so a short track is still heard on its own between its two neighbours. Zero when either
+ * length is unknown — an overlap must know where the outgoing track ends.
+ */
+internal fun overlapLengthMs(fadeMs: Long, outgoingMs: Long, incomingMs: Long): Long {
+    if (fadeMs <= 0L || outgoingMs <= 0L || incomingMs <= 0L) return 0L
+    return minOf(fadeMs, outgoingMs / 2L, incomingMs / 2L).coerceAtLeast(0L)
+}
 
-/** Long enough that a fade edge changing under the music is not a step, short enough to follow it. */
-private const val FADE_EDGE_RAMP_MS: Long = 400L
+/**
+ * Outgoing amplitude [progress] (0..1) through an overlap. With [overlapInGain] the two powers
+ * sum to one, so two unrelated songs keep a steady loudness instead of dipping in the middle.
+ */
+internal fun overlapOutGain(progress: Float): Float =
+    cos(progress.coerceIn(0f, 1f) * HALF_PI).toFloat()
+
+/** Incoming amplitude [progress] (0..1) through an overlap; see [overlapOutGain]. */
+internal fun overlapInGain(progress: Float): Float =
+    sin(progress.coerceIn(0f, 1f) * HALF_PI).toFloat()
+
+/**
+ * True once the next track's opening should be decoded so it is ready before the overlap
+ * begins: [CROSSFADE_PREROLL_LEAD_MS] ahead of it, which leaves time for a slow storage read.
+ */
+internal fun prerollsNow(positionMs: Long, durationMs: Long, overlapMs: Long): Boolean =
+    overlapMs > 0L && durationMs > 0L &&
+        durationMs - positionMs.coerceAtLeast(0L) <= overlapMs + CROSSFADE_PREROLL_LEAD_MS
+
+/**
+ * Keeps a sum of two full-scale songs out of hard clipping: unchanged below the knee, and a smooth
+ * approach to full scale above it. Only an overlap ever reaches the knee — one normalised track
+ * never exceeds full scale on its own.
+ */
+internal fun softClip(sample: Float): Float {
+    val magnitude = abs(sample)
+    if (magnitude <= SOFT_CLIP_KNEE) return sample
+    val over = (magnitude - SOFT_CLIP_KNEE) / (1f - SOFT_CLIP_KNEE)
+    val limited = SOFT_CLIP_KNEE + (1f - SOFT_CLIP_KNEE) * tanh(over)
+    return if (sample < 0f) -limited else limited
+}
+
+/** How far ahead of an overlap the next track's opening is decoded. */
+internal const val CROSSFADE_PREROLL_LEAD_MS: Long = 10_000L
+
+/**
+ * Opening decoded beyond the overlap itself. A track can end later than its header's duration
+ * says; the overlap then runs on into this margin instead of running out of the next track.
+ */
+internal const val CROSSFADE_INTRO_MARGIN_MS: Long = 2_000L
+
+/** How quickly an overlap that lost its next track (a queue edit) lets that track go. */
+internal const val CROSSFADE_CANCEL_MS: Long = 300L
+
+private const val HALF_PI: Double = PI / 2.0
+private const val SOFT_CLIP_KNEE: Float = 0.8f
+

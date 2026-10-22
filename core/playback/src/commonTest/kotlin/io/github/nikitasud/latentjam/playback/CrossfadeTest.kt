@@ -53,17 +53,6 @@ internal class CrossfadeTest {
     }
 
     @Test
-    fun schedulerSleepsThroughConstantGainButTicksInsideBothFades() {
-        val duration = 180_000L
-        val fade = 4_000L
-
-        assertEquals(GAIN_RAMP_TICK_MS, crossfadeUpdateDelayMs(2_000, duration, fade))
-        assertEquals(86_000L, crossfadeUpdateDelayMs(90_000, duration, fade))
-        assertEquals(GAIN_RAMP_TICK_MS, crossfadeUpdateDelayMs(178_000, duration, fade))
-        assertEquals(500L, crossfadeUpdateDelayMs(8_000, durationMs = 0, fadeMs = fade))
-    }
-
-    @Test
     fun normalizationGainMovesSmoothlyInDbAndEndsExactlyAtTarget() {
         assertEquals(1f, normalizationRampVolume(1f, 0.25f, elapsedMs = 0))
         assertEquals(0.5f, normalizationRampVolume(1f, 0.25f, elapsedMs = 200))
@@ -96,41 +85,6 @@ internal class CrossfadeTest {
     }
 
     @Test
-    fun normalizationRampsOnlyAcrossASeamThePlayerCrossedByItself() {
-        assertTrue(rampsNormalizationAcross(track("a", 3), track("b", 4), automatic = true))
-        assertFalse(rampsNormalizationAcross(track("a", 3), track("b", 4), automatic = false), "a skip is a seek")
-        assertFalse(rampsNormalizationAcross(track("a", 3), track("b", 5), automatic = true), "a faded seam")
-        assertFalse(rampsNormalizationAcross(null, track("b", 1), automatic = true), "the first item")
-    }
-
-    @Test
-    fun aQueueEditInsideTheFadeWindowGlidesInsteadOfJumping() {
-        val smoother = FadeEdgeSmoother(rampMs = 400)
-        val continued = true to false
-        val faded = true to true
-        // Two seconds before the end of a 4 s fade-out that was not fading: the album continued.
-        assertEquals(1f, smoother.factor(continued, envelope = 1f, nowMs = 0))
-        // The next track is removed: the envelope now says 0.5, the gain starts from 1.
-        assertEquals(1f, smoother.factor(faded, envelope = 0.5f, nowMs = 20))
-        assertTrue(smoother.ramping)
-        assertEquals(0.75f, smoother.factor(faded, envelope = 0.5f, nowMs = 220))
-        assertEquals(0.45f, smoother.factor(faded, envelope = 0.45f, nowMs = 420))
-        assertFalse(smoother.ramping)
-        // And back: a continuation restored mid-fade rises from where the fade had got to.
-        assertEquals(0.45f, smoother.factor(continued, envelope = 1f, nowMs = 440))
-        assertEquals(1f, smoother.factor(continued, envelope = 1f, nowMs = 840))
-    }
-
-    @Test
-    fun aResetStartsTheNextItemOnItsOwnEnvelope() {
-        val smoother = FadeEdgeSmoother(rampMs = 400)
-        smoother.factor(true to false, envelope = 1f, nowMs = 0)
-        smoother.reset()
-        assertEquals(0f, smoother.factor(true to true, envelope = 0f, nowMs = 20))
-        assertFalse(smoother.ramping)
-    }
-
-    @Test
     fun aContinuedEdgeStaysAtFullVolume() {
         val duration = 180_000L
         val fade = 4_000L
@@ -142,12 +96,53 @@ internal class CrossfadeTest {
     }
 
     @Test
-    fun aContinuedEdgeNeedsNoRampTicks() {
-        val duration = 180_000L
-        val fade = 4_000L
-        assertEquals(176_000L, crossfadeUpdateDelayMs(0, duration, fade, fadeIn = false))
-        assertEquals(86_000L, crossfadeUpdateDelayMs(90_000, duration, fade, fadeOut = false))
-        assertEquals(500L, crossfadeUpdateDelayMs(178_000, duration, fade, fadeOut = false))
-        assertEquals(GAIN_RAMP_TICK_MS, crossfadeUpdateDelayMs(2_000, duration, fade, fadeOut = false))
+    fun anOverlapIsTheSettingButNeverMoreThanHalfOfEitherTrack() {
+        assertEquals(8_000L, overlapLengthMs(8_000, 180_000, 200_000))
+        assertEquals(3_000L, overlapLengthMs(8_000, 6_000, 200_000))
+        assertEquals(2_500L, overlapLengthMs(8_000, 180_000, 5_000))
+        assertEquals(0L, overlapLengthMs(8_000, 0, 200_000), "the outgoing end is unknown")
+        assertEquals(0L, overlapLengthMs(0, 180_000, 200_000))
+    }
+
+    @Test
+    fun overlapCurvesKeepTheCombinedPowerSteady() {
+        assertEquals(1f, overlapOutGain(0f))
+        assertEquals(0f, overlapInGain(0f))
+        for (step in 0..10) {
+            val progress = step / 10f
+            val power = overlapOutGain(progress).let { it * it } + overlapInGain(progress).let { it * it }
+            assertTrue(kotlin.math.abs(power - 1f) < 1e-5f, "power at $progress was $power")
+        }
+        assertEquals(0f, overlapOutGain(2f), 1e-6f)
+        assertEquals(1f, overlapInGain(2f), 1e-6f)
+    }
+
+    @Test
+    fun theNextOpeningIsDecodedAheadOfTheOverlap() {
+        assertFalse(prerollsNow(positionMs = 100_000, durationMs = 180_000, overlapMs = 8_000))
+        assertTrue(prerollsNow(positionMs = 162_000, durationMs = 180_000, overlapMs = 8_000))
+        assertFalse(prerollsNow(positionMs = 179_000, durationMs = 0, overlapMs = 8_000), "unknown end")
+        assertFalse(prerollsNow(positionMs = 179_000, durationMs = 180_000, overlapMs = 0))
+    }
+
+    @Test
+    fun softClipLeavesOrdinaryLevelsAloneAndNeverReachesFullScaleHard() {
+        assertEquals(0.5f, softClip(0.5f))
+        assertEquals(-0.8f, softClip(-0.8f))
+        assertTrue(softClip(1.4f) < 1f && softClip(1.4f) > 0.95f)
+        assertTrue(softClip(-1.4f) > -1f)
+        assertTrue(softClip(0.9f) < 0.9f && softClip(0.9f) > softClip(0.85f))
+    }
+
+    @Test
+    fun albumSeamsInTheQueueKeepTheirEdgesAndOtherSeamsFade() {
+        val edges = queueFadeEdges(
+            listOf(track("a", 3), track("b", 4), track("x", 7, album = "Other")),
+            repeatsItself = false,
+        )
+        assertEquals(FadeEdges(fadeIn = true, fadeOut = false), edges["a"])
+        assertEquals(FadeEdges(fadeIn = false, fadeOut = true), edges["b"])
+        assertEquals(FadeEdges.BOTH, edges["x"])
+        assertEquals(FadeEdges.BOTH, queueFadeEdges(listOf(track("a", 3)), repeatsItself = true)["a"])
     }
 }
