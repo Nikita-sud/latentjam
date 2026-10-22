@@ -187,7 +187,11 @@ public class RankerModel(
 
     /** λ · |Δe| to the previous pick ("prev"), or λ · max(0, |Δe to the seed| − τ) ("seedHinge"). */
     /** [poolScale]: |Δe| in units of the pool's e spread (population sd of the allowed rows' known e, floored). */
-    public class Energy(public val lambda: Double, public val seedHinge: Boolean, public val tau: Double, public val poolScale: Boolean = false)
+    /** r11: [prevLambda] / [prevTau] add a hop-to-hop hinge −λp · max(0, |Δe to the previous pick| / sd − τp) beside the seed term. */
+    public class Energy(
+        public val lambda: Double, public val seedHinge: Boolean, public val tau: Double, public val poolScale: Boolean = false,
+        public val prevLambda: Double = 0.0, public val prevTau: Double = 0.0,
+    )
 
     public class AnchorShare(public val share: Double, public val columns: List<String>) {
         internal val columnIndexes: IntArray = IntArray(columns.size) { RankerFeatures.NAMES.indexOf(columns[it]).also { i -> require(i >= 0) } }
@@ -205,6 +209,8 @@ public class RankerModel(
         public val tau: Double,
         public val seedFamilies: Set<String>? = null,
         public val seedMin: Double? = null,
+        /** r11: a hop-to-hop hinge on the same head, −prevLambda · max(0, |x − x_previous| / sd − τ). */
+        public val prevLambda: Double = 0.0,
     )
 
     public class DurationRule(
@@ -419,7 +425,7 @@ public class RankerModel(
             "serving" to setOf("wholeLibraryUpTo", "quotas", "artistKey", "recentWindow", "hopBudgetMs", "l2", "poolTarget", "artistCap", "unknownSeedAudioFill", "coldAudioFill"),
             "inputs" to setOf("logpop", "colisten", "lfm", "audioEncoder"),
             "artistReentry" to setOf("lambda", "k", "gamma", "credit", "creditRun"),
-            "energy" to setOf("lambda", "mode", "tau", "scale"),
+            "energy" to setOf("lambda", "mode", "tau", "scale", "prevLambda", "prevTau"),
             "r1Energy" to setOf("tau", "scale"),
             "seedGate" to setOf("core", "coreSha256", "mu", "sigma", "a", "clip", "columns", "orderR6"),
             "freshness" to setOf("lambda", "delta", "presses", "windowMs", "cap", "engaged"),
@@ -495,6 +501,7 @@ public class RankerModel(
                         seedHinge = when (m["mode"] ?: "prev") { "prev" -> false; "seedHinge" -> true; else -> error("energy mode") },
                         tau = (m["tau"] as? Number)?.toDouble() ?: 0.0,
                         poolScale = when (m["scale"]) { null -> false; "pool" -> true; else -> error("energy scale") },
+                        prevLambda = (m["prevLambda"] as? Number)?.toDouble() ?: 0.0, prevTau = (m["prevTau"] as? Number)?.toDouble() ?: 0.0,
                     )
                 },
                 r1EnergyTau = (root["r1Energy"] as? Map<*, *>)?.let { (it["tau"] as Number).toDouble() },
@@ -588,6 +595,7 @@ public class RankerModel(
                                 k as String, (it["lambda"] as Number).toDouble(), (it["tau"] as? Number)?.toDouble() ?: 0.25,
                                 seedFamilies = (it["seedFamilies"] as? List<*>)?.takeIf { l -> l.isNotEmpty() }?.map { f -> f as String }?.toSet(),
                                 seedMin = (it["seedMin"] as? Number)?.toDouble(),
+                                prevLambda = (it["prevLambda"] as? Number)?.toDouble() ?: 0.0,
                             )
                         }
                     }

@@ -1,6 +1,6 @@
 {
  "schema": "lj-smart-ranker/2",
- "name": "FULL L2 fast track (product check) night-r10c",
+ "name": "FULL L2 fast track (product check) night-r11a",
  "features": [
   "heard",
   "log_freq",
@@ -240,7 +240,9 @@
   "lambda": 0.8,
   "mode": "seedHinge",
   "tau": 0.25,
-  "scale": "pool"
+  "scale": "pool",
+  "prevLambda": 0.8,
+  "prevTau": 0.5
  },
  "audioWeight": 0.7975,
  "freshness": {

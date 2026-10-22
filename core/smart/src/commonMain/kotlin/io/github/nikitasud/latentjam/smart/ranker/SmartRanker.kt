@@ -418,7 +418,7 @@ public object RankerQueue {
                     dsum += kotlin.math.abs(values[i] - seedValue)
                 }
                 val hsd = if (n > 0) maxOf(HEAD_SD_FLOOR, sqrt(sq / n)) else HEAD_SD_FLOOR
-                cont += HeadTerm(spec.lambda, spec.tau, values, seedValue, hsd, seedValue + if (n > 0) dsum / n else 0.0)
+                cont += HeadTerm(spec.lambda, spec.tau, values, seedValue, hsd, seedValue + if (n > 0) dsum / n else 0.0, spec.prevLambda)
             }
             // Diagnostics only: each row's terms (run, freshness + novelty, arm P audio, energy, re-entry).
             val terms = if (trace != null) Array(5) { DoubleArray(poolSize) } else null
@@ -498,10 +498,20 @@ public object RankerQueue {
                         val d = kotlin.math.abs(ei - ref) / eSd
                         v -= en.lambda * (if (!en.seedHinge) d else maxOf(0.0, d - en.tau))
                     }
+                    // r11: the hop-to-hop energy hinge (the previous pick, the prefix's last track, the seed at hop 1).
+                    if (en.prevLambda != 0.0) {
+                        val refP = if (picks.isNotEmpty()) energies[picks.last()].takeIf { !it.isNaN() } else if (npre > 0) prefixEnergy else seedEnergy
+                        if (refP != null) v -= en.prevLambda * maxOf(0.0, kotlin.math.abs(ei - refP) / eSd - en.prevTau)
+                    }
                 }
                 for (h in cont) {
                     val xi = h.values[i].takeIf { !it.isNaN() } ?: h.fill
                     v -= h.lambda * maxOf(0.0, kotlin.math.abs(xi - h.seed) / h.sd - h.tau)
+                    if (h.prevLambda != 0.0) {
+                        // r11: the same head against the previous pick (the seed at hop 1; an unknown previous value skips it).
+                        val xp = if (picks.isNotEmpty()) h.values[picks.last()].takeIf { !it.isNaN() } else h.seed
+                        if (xp != null) v -= h.prevLambda * maxOf(0.0, kotlin.math.abs(xi - xp) / h.sd - h.tau)
+                    }
                 }
                 terms?.let { it[3][i] = mark - v }
                 mark = v
@@ -595,7 +605,7 @@ public object RankerQueue {
     /** Fast 4: the floor of the pool's spread of a continuity head. */
     internal const val HEAD_SD_FLOOR: Double = 0.01
 
-    private class HeadTerm(val lambda: Double, val tau: Double, val values: DoubleArray, val seed: Double, val sd: Double, val fill: Double)
+    private class HeadTerm(val lambda: Double, val tau: Double, val values: DoubleArray, val seed: Double, val sd: Double, val fill: Double, val prevLambda: Double = 0.0)
 
     private val AUDIO_COS = RankerFeatures.NAMES.indexOf("audio_cos")
     private val AUDIO_KNOWN = RankerFeatures.NAMES.indexOf("audio_known")

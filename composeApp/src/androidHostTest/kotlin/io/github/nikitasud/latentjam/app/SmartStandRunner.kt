@@ -45,9 +45,13 @@ import kotlin.test.Test
 class SmartStandRunner {
     @Test
     fun plansTheStandQueues() {
-        val dir = System.getenv("LJ_STAND_DIR")?.let(::File) ?: return
-        val out = File(checkNotNull(System.getenv("LJ_STAND_OUT")) { "LJ_STAND_OUT" }).also { it.mkdirs() }
-        runBlocking { run(dir, out) }
+        val dirs = System.getenv("LJ_STAND_DIR")?.split(':')?.filter(String::isNotEmpty)?.map(::File) ?: return
+        val outBase = File(checkNotNull(System.getenv("LJ_STAND_OUT")) { "LJ_STAND_OUT" })
+        // General stand: several input dirs (colon-separated) -> LJ_STAND_OUT/<dir name> each.
+        for (dir in dirs) {
+            val out = (if (dirs.size > 1) File(outBase, dir.name) else outBase).also { it.mkdirs() }
+            runBlocking { run(dir, out) }
+        }
     }
 
     private suspend fun run(dir: File, out: File) {
@@ -167,6 +171,8 @@ class SmartStandRunner {
                     }
                 }
                 if (chain && full) continue
+                // General stand (synthetic FMA libraries): LJ_STAND_CORE_ONLY=1 skips FULL (no history to personalise on).
+                if (full && System.getenv("LJ_STAND_CORE_ONLY") == "1") continue
                 val chooser = EngineNextTrackChooser(
                     engine = chainEngine ?: NoEngine.instance, history = history, library = { library },
                     useRanker = { !chain }, ranker = { ranker }, rankerHealthy = { assets.healthy },
@@ -175,7 +181,7 @@ class SmartStandRunner {
                     favourites = { favourites }, useFavourites = { true }, clock = { now }, userPlaylists = { userPlaylists },
                     varietyScale = { varietyScale },
                 )
-                for (press in 0 until PRESSES) {
+                for (press in 0 until (System.getenv("LJ_STAND_PRESSES")?.toInt() ?: PRESSES)) {
                     val queue = mutableListOf(seed)
                     val picks = ArrayList<String>()
                     repeat(HOPS) {
