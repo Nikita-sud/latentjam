@@ -142,7 +142,7 @@ internal class CrossfadeTest {
         )
         assertEquals(FadeEdges(fadeIn = true, fadeOut = false), edges["a"])
         assertEquals(FadeEdges(fadeIn = false, fadeOut = true), edges["b"])
-        assertEquals(FadeEdges.BOTH, edges["x"])
-        assertEquals(FadeEdges.BOTH, queueFadeEdges(listOf(track("a", 3)), repeatsItself = true)["a"])
+        assertEquals(null, edges["x"], "a plain seam is not stored")
+        assertEquals(null, queueFadeEdges(listOf(track("a", 3)), repeatsItself = true)["a"])
     }
 }

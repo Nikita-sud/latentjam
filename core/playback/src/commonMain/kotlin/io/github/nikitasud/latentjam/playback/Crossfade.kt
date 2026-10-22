@@ -82,17 +82,19 @@ internal data class FadeEdges(val fadeIn: Boolean, val fadeOut: Boolean) {
 }
 
 /**
- * [FadeEdges] for every track in [rows], the queue in the order it plays: no fade where
- * [continuesAlbum] joins a row to its neighbour. With [repeatsItself] each track's neighbour is
- * itself. A track queued twice keeps the edges of its later row.
+ * [FadeEdges] of the tracks in [rows] (the queue in the order it plays) that are not
+ * [FadeEdges.BOTH]: no fade where [continuesAlbum] joins a row to its neighbour. Only those are
+ * kept, so a 50 000-row queue costs a map of its album seams, not of every row. With
+ * [repeatsItself] each track's neighbour is itself. A track queued twice keeps its later row's.
  */
 internal fun queueFadeEdges(rows: List<TrackDescriptor?>, repeatsItself: Boolean): Map<String, FadeEdges> {
-    val edges = HashMap<String, FadeEdges>(rows.size)
+    val edges = HashMap<String, FadeEdges>()
     rows.forEachIndexed { index, current ->
         current ?: return@forEachIndexed
         val previous = if (repeatsItself) current else rows.getOrNull(index - 1)
         val next = if (repeatsItself) current else rows.getOrNull(index + 1)
-        edges[current.id.value] = FadeEdges(!continuesAlbum(previous, current), !continuesAlbum(current, next))
+        val trackEdges = FadeEdges(!continuesAlbum(previous, current), !continuesAlbum(current, next))
+        if (trackEdges == FadeEdges.BOTH) edges.remove(current.id.value) else edges[current.id.value] = trackEdges
     }
     return edges
 }
