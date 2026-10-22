@@ -185,6 +185,12 @@ public enum class ListenStart {
 
     /** Repeat-one played the same track again. */
     REPEAT,
+
+    /**
+     * The previous track ended and playback moved on to a track the listener queued by hand. Builds
+     * before 0.9.3 read it as no start at all.
+     */
+    QUEUED,
 }
 
 /** Adds non-negative listening durations without wrapping a corrupt/extreme total below zero. */

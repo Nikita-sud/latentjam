@@ -41,6 +41,12 @@ public enum class StartCause {
 
     /** Repeat-one played the same track again. */
     REPEAT,
+
+    /**
+     * The previous track ended and playback moved on to a track the listener queued by hand: Play
+     * next, Add to queue, or a row moved closer to the playhead.
+     */
+    QUEUED,
 }
 
 /**

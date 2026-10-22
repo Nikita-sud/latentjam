@@ -661,6 +661,7 @@ internal class AndroidPlaybackController(
                     putAll(smartPlanPositions)
                 }
                 smartRemovedIds.clear()
+                AndroidPlaybackStarts.forgetQueued()
                 anticipatedResumption = null
                 AndroidPlaybackStarts.announce(StartCause.USER_PICK, TrackId(prepared.selectedItem.mediaId))
                 curatedTailId = if (keepOrderInSmart) tracks.last().id.value else null
@@ -921,6 +922,7 @@ internal class AndroidPlaybackController(
         )
         poolById = poolById + (track.id.value to track)
         releaseSmartProvenance(smartPlanPositions, smartContinuationIds, smartRemovedIds, track.id)
+        AndroidPlaybackStarts.queuedByHand(track.id)
         val item = track.toMediaItem()
         if (player.mediaItemCount == 0) {
             // Queue actions are allowed before the first play. Cue the first item paused, matching
@@ -949,6 +951,7 @@ internal class AndroidPlaybackController(
         )
         poolById = poolById + (track.id.value to track)
         releaseSmartProvenance(smartPlanPositions, smartContinuationIds, smartRemovedIds, track.id)
+        AndroidPlaybackStarts.queuedByHand(track.id)
         if (player.mediaItemCount == 0) {
             player.pause()
             player.setMediaItem(track.toMediaItem())
@@ -995,6 +998,10 @@ internal class AndroidPlaybackController(
             val toMediaIndex = cachedQueueMediaIndices.getOrNull(to) ?: return@withContext
             if (from == to) return@withContext
             queueGeneration++
+            val current = cachedVisibleQueueIndices.getOrNull(player.currentMediaItemIndex)?.takeIf { it >= 0 }
+            if (movedTowardPlayhead(from, to, current)) {
+                cachedQueue.getOrNull(from)?.let { AndroidPlaybackStarts.queuedByHand(it.id) }
+            }
             player.enqueueQueueEdit(AndroidQueueCommand.MOVE, Bundle().apply {
                 putInt(AndroidQueueCommand.FROM, fromMediaIndex)
                 putInt(AndroidQueueCommand.TO, toMediaIndex)
@@ -1005,6 +1012,9 @@ internal class AndroidPlaybackController(
         val count = player.mediaItemCount
         if (from !in 0 until count || to !in 0 until count || from == to) return@withContext
         queueGeneration++
+        if (movedTowardPlayhead(from, to, player.currentMediaItemIndex.takeIf { it >= 0 })) {
+            AndroidPlaybackStarts.queuedByHand(TrackId(player.getMediaItemAt(from).mediaId))
+        }
         player.moveMediaItem(from, to)
         rebuildQueueSnapshot()
         pool = sourceQueueAfterVisibleReorder(pool, cachedQueue, mode)
@@ -1028,6 +1038,7 @@ internal class AndroidPlaybackController(
         if (!stillQueued) {
             pool = pool.filter { it.id.value != removedId }
             poolById = poolById - removedId
+            AndroidPlaybackStarts.unqueued(TrackId(removedId))
         }
         rebuildQueueSnapshot()
         pushState()
@@ -1096,6 +1107,7 @@ internal class AndroidPlaybackController(
                 putAll(prepared.second.smartPlanPositions)
             }
             smartRemovedIds.clear()
+            AndroidPlaybackStarts.forgetQueued()
             curatedTailId = null
             anticipatedResumption = null
             val startPositionMs = positionMs.coerceAtLeast(0L)
@@ -1527,6 +1539,7 @@ internal class AndroidPlaybackController(
         smartPlanPositions.clear()
         smartPlanPositions.putAll(resume.smartPlanPositions.filterKeys { it in resumedIds })
         smartRemovedIds.clear()
+        AndroidPlaybackStarts.forgetQueued()
         anticipatedResumption = resume.takeIf { actualIds.isEmpty() }
         // Ownership has moved into this controller's pool/pending state; release the global URI
         // graph even when Media3 has not installed the timeline yet.

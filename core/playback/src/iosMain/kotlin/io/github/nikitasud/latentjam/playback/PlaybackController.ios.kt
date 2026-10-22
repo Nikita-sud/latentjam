@@ -403,7 +403,11 @@ internal class IosPlaybackController(
             )
             // The listener chose the requested row; one reached past it because it would not open
             // was chosen by nobody.
-            if (loaded) beginStart(StartCause.USER_PICK.takeIf { queueIndex == requestedIndex })
+            if (loaded) {
+                // The rows the listener queued by hand belonged to the queue this one replaced.
+                startLedger.forgetQueued()
+                beginStart(StartCause.USER_PICK.takeIf { queueIndex == requestedIndex })
+            }
             // A failed replacement must not leave the old backend sounding under the new queue.
             // If there was a valid prior selection, reload it and its position instead of claiming
             // an unreadable row from the requested collection.
@@ -675,6 +679,7 @@ internal class IosPlaybackController(
             insertion = SourceQueueInsertion.PLAY_NEXT,
         )
         releaseSmartProvenance(smartPlanPositions, smartContinuationIds, smartRemovedIds, track.id)
+        startLedger.queuedByHand(track.id)
         queueGeneration++
         cueIfNothingCurrent()
         pushState()
@@ -689,6 +694,7 @@ internal class IosPlaybackController(
             insertion = SourceQueueInsertion.APPEND,
         )
         releaseSmartProvenance(smartPlanPositions, smartContinuationIds, smartRemovedIds, track.id)
+        startLedger.queuedByHand(track.id)
         queueGeneration++
         cueIfNothingCurrent()
         pushState()
@@ -721,6 +727,9 @@ internal class IosPlaybackController(
 
     override suspend fun moveQueueItem(from: Int, to: Int): Unit = withContext(Dispatchers.Main) {
         if (from !in queue.indices || to !in queue.indices || from == to) return@withContext
+        if (movedTowardPlayhead(from, to, queueIndex.takeIf { it in queue.indices })) {
+            startLedger.queuedByHand(queue[from].id)
+        }
         queue = queue.toMutableList().apply { add(to, removeAt(from)) }
         queueGeneration++
         // The current entry is tracked by index; arithmetic (not id search) keeps the right one
@@ -745,6 +754,7 @@ internal class IosPlaybackController(
         recordSmartRemoval(smartRemovedIds, removed.id)
         if (queue.none { it.id == removed.id }) {
             pool = pool.filter { it.id != removed.id }
+            startLedger.unqueued(removed.id)
         }
         when {
             queue.isEmpty() -> {
@@ -833,6 +843,7 @@ internal class IosPlaybackController(
         // A resume installs a new queue, so the removals booked against the old one go with it —
         // exactly as Android's restoreQueue does. Restored rows were never removed from this queue.
         smartRemovedIds.clear()
+        startLedger.forgetQueued()
         curatedTailId = null
         // Same for the rows whose start failed: none of them is this queue's row.
         mediaStartRefusedIds.clear()

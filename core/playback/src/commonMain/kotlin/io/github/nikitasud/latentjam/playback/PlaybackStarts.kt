@@ -24,18 +24,46 @@ internal class PlaybackStartLedger {
     var current: PlaybackStart? = null
         private set
 
+    /**
+     * Tracks the listener queued by hand that have not begun since (issue #24). Kept per track, like
+     * SMART's plan positions, because a queue edit names a track that plays later, after any number
+     * of other transitions, where an [announce]ment lasts only until the next one.
+     */
+    private val queuedByHand = HashSet<TrackId>()
+
     /** The command about to run will make [target] current because of [cause]. */
     fun announce(cause: StartCause, target: TrackId) {
         announced = Announcement(cause, target)
     }
 
     /**
+     * The listener put [trackId] in the queue's way: Play next, Add to queue, or a row moved closer
+     * to the playhead. When playback reaches it by itself, it begins as [StartCause.QUEUED].
+     */
+    fun queuedByHand(trackId: TrackId) {
+        queuedByHand += trackId
+    }
+
+    /** [trackId] left the queue; a later row of it is not the one the listener queued. */
+    fun unqueued(trackId: TrackId) {
+        queuedByHand -= trackId
+    }
+
+    /** A new queue replaced the one the listener edited. */
+    fun forgetQueued() {
+        queuedByHand.clear()
+    }
+
+    /**
      * A new playback instance of [trackId] began. An announcement naming this track wins over
      * [observed]; either way the announcement is spent, so one that never came true — Next pressed
-     * just as the track ended on its own — cannot label a later transition.
+     * just as the track ended on its own — cannot label a later transition. An automatic advance onto
+     * a track the listener queued by hand is [StartCause.QUEUED]; any start spends that mark.
      */
     fun begin(trackId: TrackId, observed: StartCause?): PlaybackStart {
-        val cause = announced?.takeIf { it.target == trackId }?.cause ?: observed
+        val queued = queuedByHand.remove(trackId)
+        val cause = (announced?.takeIf { it.target == trackId }?.cause ?: observed)
+            .let { if (queued && it == StartCause.AUTO_ADVANCE) StartCause.QUEUED else it }
         announced = null
         return PlaybackStart(++sequence, trackId, cause).also { current = it }
     }
@@ -59,6 +87,13 @@ internal class PlaybackStartLedger {
 
     private data class Announcement(val cause: StartCause, val target: TrackId)
 }
+
+/**
+ * Whether moving a queue row from [from] to [to] brought it closer to the row playing at [current]:
+ * the listener asked to hear it sooner, which a row moved later, or behind the playhead, is not.
+ */
+internal fun movedTowardPlayhead(from: Int, to: Int, current: Int?): Boolean =
+    current != null && to < from && to > current
 
 /**
  * Reads a jump between queue rows that no in-app command announced — a headset, notification or car

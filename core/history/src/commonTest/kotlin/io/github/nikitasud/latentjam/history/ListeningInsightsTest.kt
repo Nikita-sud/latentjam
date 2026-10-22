@@ -171,6 +171,26 @@ internal class ListeningInsightsTest {
     }
 
     @Test
+    fun aTrackQueuedByHandInSmartModeIsChosenUnlessSkipped() {
+        // Issue #24: Play next in SMART mode reached the log as a plain automatic advance.
+        val queued = (0 until 6).map {
+            play("a-one-1", dayAt(200L - it * 5), start = ListenStart.QUEUED, shuffleMode = "SMART")
+        }
+        val queuedThenSkipped = (0 until 6).map {
+            play("b-two-1", dayAt(200L - it * 5, minuteOffset = 5), start = ListenStart.QUEUED, shuffleMode = "SMART", skipped = true)
+        }
+        val smartAdvanced = (0 until 6).map {
+            play("c-three-1", dayAt(200L - it * 5, minuteOffset = 10), shuffleMode = "SMART")
+        }
+        val keepsRecording = (0 until 20).map { play("f-six-$it", dayAt(it.toLong())) }
+        val result = habits(queued + queuedThenSkipped + smartAdvanced + keepsRecording)
+        assertEquals(listOf("a-one-1"), result.slippingAway.map { it.trackId.value })
+        assertEquals(6, result.slippingAway.single().chosenPlays)
+        // Queueing is not a pick-after-pick step: those stay the listener's direct picks.
+        assertEquals(0, result.pickSteps)
+    }
+
+    @Test
     fun slippingAwayWaitsWhileRecordingWasPaused() {
         val favourite = (0 until 6).map { play("a-one-1", dayAt(200L - it * 5), start = ListenStart.USER_PICK) }
         val fewRecentDays = (0 until 5).map { play("f-six-$it", dayAt(it.toLong())) }
