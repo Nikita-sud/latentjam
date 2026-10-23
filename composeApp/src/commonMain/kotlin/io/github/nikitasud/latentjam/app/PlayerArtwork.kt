@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -559,12 +558,7 @@ private fun CoverFace(uri: String?, fadeIn: Boolean = false) {
             .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            imageVector = Icons.Rounded.MusicNote,
-            contentDescription = null,
-            modifier = Modifier.size(96.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        CoverPlaceholder(Modifier.fillMaxSize())
         if (uri != null) {
             AsyncImage(
                 model = request,
@@ -599,12 +593,7 @@ internal fun PlayerCoverFace(uri: String?, modifier: Modifier = Modifier) {
         modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            imageVector = Icons.Rounded.MusicNote,
-            contentDescription = null,
-            modifier = Modifier.size(96.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        CoverPlaceholder(Modifier.fillMaxSize())
         if (uri != null) {
             AsyncImage(
                 model = request,

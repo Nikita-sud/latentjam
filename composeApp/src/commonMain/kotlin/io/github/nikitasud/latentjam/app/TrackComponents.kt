@@ -38,7 +38,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material3.Icon
@@ -88,7 +87,7 @@ import org.jetbrains.compose.resources.stringResource
 
 internal enum class ArtworkLoadState { LOADING, TERMINAL }
 
-/** Square, rounded artwork with a music-note placeholder until a cover loads. */
+/** Square, rounded artwork; until a cover loads, and for good without one, the [CoverPlaceholder]. */
 @Composable
 internal fun Artwork(
     uri: String?,
@@ -104,17 +103,11 @@ internal fun Artwork(
             .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
     ) {
-        // The note is only the fallback. A vector icon draws through its own offscreen bitmap, so
-        // keeping it under a loaded cover cost every scrolled row an extra texture nobody sees:
-        // about 1 ms of each frame's render thread on a Galaxy S24 Ultra (#18).
+        // The placeholder is only the fallback: drawing it under a loaded cover cost every
+        // scrolled row work nobody sees, about 1 ms of each frame's render thread on a Galaxy S24
+        // Ultra when it was a vector icon (#18).
         var covered by remember(uri) { mutableStateOf(false) }
-        if (!covered) {
-            Icon(
-                imageVector = Icons.Rounded.MusicNote,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        if (!covered) CoverPlaceholder(Modifier.matchParentSize())
         // Scrolling-list artwork stays direct: animating the URI can fade to an AsyncImage that is
         // still loading, producing a blank frame followed by a bitmap pop. Player handoffs retain
         // their old composed content and animate at the player level instead.

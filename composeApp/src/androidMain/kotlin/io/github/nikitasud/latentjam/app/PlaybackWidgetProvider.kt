@@ -15,12 +15,10 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.RadialGradient
 import android.graphics.Rect
 import android.graphics.Shader
-import android.graphics.Typeface
 import android.net.Uri
 import android.os.SystemClock
 import android.provider.Settings
@@ -282,7 +280,7 @@ private object WidgetUpdateCoordinator {
             val newest = PlaybackWidgetStateStore.read(context)
             if (newest.revision != current.revision) {
                 current = newest
-                artwork = if (current.mediaId.isBlank()) emptyArtwork else renderLatentArtwork(current)
+                artwork = if (current.mediaId.isBlank()) emptyArtwork else coverlessArtwork
             }
         }
         val manager = AppWidgetManager.getInstance(context)
@@ -317,7 +315,7 @@ private object WidgetUpdateCoordinator {
         synchronized(artworkCache) { artworkCache[key]?.let { return it } }
         val decoded = snapshot.artworkUri
             ?.let { uri -> decodeBoundedArtwork(context, uri) }
-            ?: renderLatentArtwork(snapshot)
+            ?: coverlessArtwork
         synchronized(artworkCache) { artworkCache[key] = decoded }
         return decoded
     }
@@ -698,38 +696,27 @@ private fun centerCrop(source: Bitmap, size: Int): Bitmap {
     }
 }
 
-private fun renderLatentArtwork(snapshot: PlaybackWidgetSnapshot): Bitmap {
-    val seed = (snapshot.mediaId.ifBlank { snapshot.title.ifBlank { "LatentJam" } }).hashCode()
-    val hue = Math.floorMod(seed, 360).toFloat()
+/**
+ * A coverless track's tile: the app's [CoverPlaceholder], the same for every track, in the widget's
+ * own quiet colours (its empty-cover tile's). One bitmap serves them all.
+ */
+private val coverlessArtwork: Bitmap by lazy {
+    val side = ARTWORK_SIZE_PX.toFloat()
     val bitmap = Bitmap.createBitmap(ARTWORK_SIZE_PX, ARTWORK_SIZE_PX, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
     val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-    val first = Color.HSVToColor(floatArrayOf(hue, 0.72f, 0.74f))
-    val second = Color.HSVToColor(floatArrayOf((hue + 118f) % 360f, 0.76f, 0.48f))
-    paint.shader = LinearGradient(
-        0f,
-        0f,
-        ARTWORK_SIZE_PX.toFloat(),
-        ARTWORK_SIZE_PX.toFloat(),
-        first,
-        second,
-        Shader.TileMode.CLAMP,
-    )
-    canvas.drawRect(0f, 0f, ARTWORK_SIZE_PX.toFloat(), ARTWORK_SIZE_PX.toFloat(), paint)
+    paint.shader = RadialGradient(side * 0.22f, side * 0.20f, side * 0.95f, 0xFF343B40.toInt(), 0xFF111416.toInt(), Shader.TileMode.CLAMP)
+    canvas.drawRect(0f, 0f, side, side, paint)
     paint.shader = null
-    paint.color = 0x30FFFFFF
-    canvas.drawCircle(ARTWORK_SIZE_PX * 0.78f, ARTWORK_SIZE_PX * 0.18f, ARTWORK_SIZE_PX * 0.34f, paint)
-    paint.color = 0x22000000
-    canvas.drawCircle(ARTWORK_SIZE_PX * 0.14f, ARTWORK_SIZE_PX * 0.86f, ARTWORK_SIZE_PX * 0.46f, paint)
-    val mark = snapshot.title.trim().take(1).uppercase().ifBlank { "LJ" }
-    paint.color = Color.WHITE
-    paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-    paint.textAlign = Paint.Align.CENTER
-    paint.textSize = if (mark.length == 1) ARTWORK_SIZE_PX * 0.45f else ARTWORK_SIZE_PX * 0.28f
-    val baseline = ARTWORK_SIZE_PX / 2f - (paint.ascent() + paint.descent()) / 2f
-    paint.setShadowLayer(12f, 0f, 5f, 0x66000000)
-    canvas.drawText(mark, ARTWORK_SIZE_PX / 2f, baseline, paint)
-    return bitmap
+    paint.color = 0x99B2BDC2.toInt()
+    paint.strokeCap = Paint.Cap.ROUND
+    paint.strokeWidth = side * WAVEFORM_STROKE
+    val center = side / 2f
+    WAVEFORM_HEIGHTS.forEachIndexed { index, height ->
+        val x = center + (index - 2) * side * WAVEFORM_SPACING
+        canvas.drawLine(x, center - side * height / 2f, x, center + side * height / 2f, paint)
+    }
+    bitmap
 }
 
 private fun currentBootCount(context: Context): Int = runCatching {
