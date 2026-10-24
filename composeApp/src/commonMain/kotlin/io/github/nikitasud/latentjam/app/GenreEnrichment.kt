@@ -216,11 +216,11 @@ internal class GenreEnrichment(
     private companion object {
         /**
          * v2 added artists and the original year, v3 the language tag, v4 the album artist, v5 the
-         * file's own year, v6 whether the file names an album. Older lines are deliberately dropped on decode: those files must be
-         * re-read once anyway to learn the new facts. That is one tag read per track, the same
-         * pass every earlier bump cost; SMART's audio analysis is keyed on the audio's identity
-         * (URI, duration, revision) and is untouched — only the cheap text vector re-encodes
-         * where a year appears.
+         * file's own year, v6 whether the file names an album. Older lines are deliberately dropped
+         * on decode: those files must be re-read once anyway to learn the new facts. That is one tag
+         * read per track, the same pass every earlier bump cost; SMART's audio analysis is keyed on
+         * the audio's identity (URI, duration, revision) and is untouched — only the cheap text
+         * vector re-encodes where a year appears.
          */
         const val FORMAT = "v6"
         const val FORMAT_PREFIX = "$FORMAT|"
