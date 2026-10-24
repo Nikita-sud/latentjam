@@ -388,12 +388,16 @@ private fun AppShell(
                     value = richer,
                     authoritative = request.librarySnapshotAuthoritative,
                 )
-                // A queued song that turned out to name no album loses a borrowed cover (issue #12):
-                // the player, notification and widget follow at once, not at the next queue.
+                // A playing or soon-playing song that turned out to name no album loses a borrowed
+                // cover (issue #12): the player, notification and widget follow at once. Only the
+                // rows about to play: each refresh is a player command, and the first pass after
+                // an update can change thousands of queued rows; later rows have the new cover from
+                // the next queue on.
                 val queued = playback.state.value
-                val queuedCovers = (queued.queue + queued.sourceQueue).associate { it.id to it.artworkUri }
+                val soon = queued.queue.drop(queued.queueIndex.coerceAtLeast(0)).take(SOON_QUEUED_ROWS)
+                val soonCovers = soon.associate { it.id to it.artworkUri }
                 val recovered = richer.filter { fresh ->
-                    fresh.id in queuedCovers && queuedCovers[fresh.id] != fresh.artworkUri
+                    fresh.id in soonCovers && soonCovers[fresh.id] != fresh.artworkUri
                 }
                 if (recovered.isNotEmpty()) playback.refreshTracks(recovered)
                 enrichedLibraryRevision++
@@ -4689,3 +4693,6 @@ private fun AppShell(
 
 /** Coarse library states only; catalog refreshes within CONTENT must never replay its entrance. */
 private enum class LibraryPresentation { LOADING, CONTENT }
+
+/** Queue rows, from the playing one on, whose descriptors the tag pass refreshes in the player. */
+private const val SOON_QUEUED_ROWS = 16

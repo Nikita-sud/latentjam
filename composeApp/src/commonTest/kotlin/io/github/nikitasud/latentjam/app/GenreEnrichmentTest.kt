@@ -188,6 +188,37 @@ internal class GenreEnrichmentTest {
     }
 
     @Test
+    fun aSaveKeepsTheV5LinesItDoesNotReplace() = runTest {
+        val settings = MemorySettings()
+        val other = track.copy(id = TrackId("other"), sourceRevision = "r2")
+        GenreEnrichment(settings) { facts }.backfill(listOf(track, other))
+        // Both lines become v5; then only [other] is read again and saved.
+        settings.trackGenresPayload = settings.trackGenresPayload!!.lines()
+            .joinToString("\n") { it.replaceFirst("v6|", "v5|").substringBeforeLast('|') }
+        GenreEnrichment(settings) { facts }.backfill(listOf(other))
+        val lines = settings.trackGenresPayload!!.lines()
+        assertEquals(1, lines.count { it.startsWith("v5|") }, "the untouched song's v5 line stays")
+        assertEquals(1, lines.count { it.startsWith("v6|") })
+    }
+
+    @Test
+    fun aPassCutShortKeepsWhatItSaved() = runTest {
+        val settings = MemorySettings()
+        val library = List(1030) { track.copy(id = TrackId("t$it")) }
+        var reads = 0
+        assertFailsWith<CancellationException> {
+            GenreEnrichment(settings) {
+                if (reads++ == 1027) throw CancellationException("closed")
+                facts
+            }.backfill(library)
+        }
+        var rereads = 0
+        GenreEnrichment(settings) { rereads++; facts }.backfill(library)
+        // Saved every 1,024 files: only what came after the last save is read again.
+        assertEquals(1030 - 1024, rereads)
+    }
+
+    @Test
     fun aV4CacheIsReadAgainOnceToLearnTheFilesYear() = runTest {
         val settings = MemorySettings()
         val undated = track.copy(year = null)

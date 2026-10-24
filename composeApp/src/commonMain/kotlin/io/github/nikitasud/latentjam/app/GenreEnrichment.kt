@@ -70,7 +70,8 @@ internal class GenreEnrichment(
 
     /**
      * Facts learned but not yet saved (storage refused the write). Normally empty: the cache
-     * itself stays on storage and is streamed by [apply] and [backfill], never held whole. At
+     * itself stays on storage and is streamed by [apply] and [backfill], never held whole (on
+     * Android; iOS keeps it as one stored string). At
      * 10,000 songs the resident map and its decoded strings were 2.8 MB of a 48 MB heap.
      */
     private val unsaved = HashMap<String, Stored>()
@@ -225,8 +226,11 @@ internal class GenreEnrichment(
         settings.writeTrackGenreLines { emit ->
             settings.readTrackGenreLines { lines ->
                 for (line in lines) {
+                    // Only lines of a format [decode] reads are carried over; their fields are not
+                    // decoded here, as a pass over a whole library rewrites the file many times.
+                    if (!isReadableFormat(line)) continue
                     val id = idOf(line) ?: continue
-                    if (id in changes || decode(line) == null) continue
+                    if (id in changes) continue
                     emit(line)
                 }
             }
@@ -248,8 +252,15 @@ internal class GenreEnrichment(
         const val FORMAT_PREFIX = "$FORMAT|"
         const val PREVIOUS_FORMAT = "v5"
 
-        /** Files read between two saves of a backfill. */
-        const val SAVE_EVERY = 256
+        /** Files read between two saves of a backfill: each save rewrites the whole cache. */
+        const val SAVE_EVERY = 1024
+
+        /** A line of the current format, or of the previous one, by its field count alone. */
+        fun isReadableFormat(line: String): Boolean {
+            val fields = line.count { it == '|' } + 1
+            return (line.startsWith(FORMAT_PREFIX) && fields == 10) ||
+                (line.startsWith("$PREVIOUS_FORMAT|") && fields == 9)
+        }
 
         /** Joins the artist list inside one hex field; NUL never appears in a real name. */
         const val ARTIST_JOIN = "\u0000"
@@ -288,7 +299,7 @@ internal class GenreEnrichment(
             return start until end
         }
 
-        /** The song a current-format line is about, decoding nothing else. */
+        /** The song a current- or previous-format line is about, decoding nothing else. */
         fun idOf(line: String): String? =
             fieldRange(line, 1)?.let { PayloadHex.decode(line, it.first, it.last + 1) }
 

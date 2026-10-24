@@ -33,6 +33,9 @@ internal class PayloadFile(
     /** The legacy payload while the move has not succeeded; null once it has, or never existed. */
     private var pending: String? = null
 
+    /** Set while [write] runs: a read inside it that fails must fail the write, not shorten it. */
+    private var writing = false
+
     @Synchronized
     fun readText(): String? {
         migrate()
@@ -51,20 +54,39 @@ internal class PayloadFile(
         if (!file.exists()) return null
         val reader = try {
             file.bufferedReader()
-        } catch (_: IOException) {
+        } catch (failure: IOException) {
+            if (writing) throw failure
             return null
         }
+        // Only the file's own read failures read as no payload; one raised by [read] (a write it
+        // makes into the replacement, say) is the caller's.
+        val lines = generateSequence {
+            try {
+                reader.readLine()
+            } catch (failure: IOException) {
+                throw ReadFailed(failure)
+            }
+        }
         return try {
-            reader.use { read(it.lineSequence()) }
-        } catch (_: IOException) {
+            reader.use { read(lines) }
+        } catch (failed: ReadFailed) {
+            // Copying the old payload into a replacement must not commit a shortened one.
+            if (writing) throw failed.cause
             null
         }
     }
 
+    private class ReadFailed(override val cause: IOException) : RuntimeException(cause)
+
     @Synchronized
     fun write(contents: (Writer) -> Unit) {
         migrate()
-        replace(contents)
+        writing = true
+        try {
+            replace(contents)
+        } finally {
+            writing = false
+        }
         // A new payload supersedes the legacy one whether or not the move itself succeeded.
         if (pending != null) {
             pending = null
