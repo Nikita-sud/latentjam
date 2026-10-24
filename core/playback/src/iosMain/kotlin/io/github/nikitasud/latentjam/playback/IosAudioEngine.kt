@@ -21,6 +21,7 @@ import platform.AVFAudio.AVAudioEngine
 import platform.AVFAudio.AVAudioFile
 import platform.AVFAudio.AVAudioFormat
 import platform.AVFAudio.AVAudioMixerNode
+import platform.AVFAudio.AVAudioPCMBuffer
 import platform.AVFAudio.AVAudioPlayerNode
 import platform.AVFAudio.AVAudioPlayerNodeCompletionDataPlayedBack
 import platform.Foundation.NSURL
@@ -294,8 +295,8 @@ internal class IosAudioEngine : EqualizerController {
 
     /**
      * Cues [url] on the standby deck for an overlap, silent and not yet playing; returns its
-     * duration, or null when it cannot join — no current file, a stopped graph, an unreadable file.
-     * The graph keeps the current track's format; the submixer converts the incoming one.
+     * duration, or null when it cannot join — no current file, a stopped graph, an unreadable file,
+     * or a file of another sample rate or channel count than the graph's (see [sharesGraphFormat]).
      */
     fun prepareOverlap(url: NSURL): Long? {
         cancelOverlap()
@@ -319,10 +320,15 @@ internal class IosAudioEngine : EqualizerController {
         val token = ++tokens
         standbyToken = token
         standbyStartFrame = startFrame
+        // Mid-waveform at a high level would click: a late start opens with a short fade written
+        // into its first samples, sample-exact, before the rest of the segment follows.
+        val rampFrames = if (startFrame > 0L) scheduleRampIn(file, startFrame) else 0L
+        val segmentStart = startFrame + rampFrames
+        if (segmentStart >= file.length) return
         standby.scheduleSegment(
             file = file,
-            startingFrame = startFrame,
-            frameCount = (file.length - startFrame).coerceIn(1L, UInt.MAX_VALUE.toLong()).toUInt(),
+            startingFrame = segmentStart,
+            frameCount = (file.length - segmentStart).coerceIn(1L, UInt.MAX_VALUE.toLong()).toUInt(),
             atTime = null,
             completionCallbackType = AVAudioPlayerNodeCompletionDataPlayedBack,
             completionHandler = { _ ->
@@ -335,6 +341,29 @@ internal class IosAudioEngine : EqualizerController {
                 }
             },
         )
+    }
+
+    /**
+     * Schedules [RAMP_IN_MS] of [file] from [startFrame] on the standby deck with a linear fade-in
+     * applied to the samples, read through a separate handle so the deck's own reads of [file]
+     * are not disturbed. Returns the frames scheduled, 0 when they could not be read.
+     */
+    private fun scheduleRampIn(file: AVAudioFile, startFrame: Long): Long {
+        val frames = millisToFrame(RAMP_IN_MS, file).coerceAtMost(file.length - startFrame)
+        if (frames <= 0L) return 0L
+        val reader = runCatching { AVAudioFile(forReading = file.url, error = null) }.getOrNull() ?: return 0L
+        val buffer = AVAudioPCMBuffer(pCMFormat = reader.processingFormat, frameCapacity = frames.toUInt())
+            ?: return 0L
+        reader.framePosition = startFrame
+        if (!reader.readIntoBuffer(buffer, frameCount = frames.toUInt(), error = null)) return 0L
+        val read = buffer.frameLength.toInt()
+        val channels = buffer.floatChannelData ?: return 0L
+        for (channel in 0 until reader.processingFormat.channelCount.toInt()) {
+            val samples = channels[channel] ?: continue
+            for (i in 0 until read) samples[i] = samples[i] * i / read
+        }
+        standby.scheduleBuffer(buffer, null)
+        return read.toLong()
     }
 
     /**
@@ -351,8 +380,13 @@ internal class IosAudioEngine : EqualizerController {
         if (!player.playing) return false
         // Begun late — a seek into the overlap's window, the slider raised inside it — the
         // incoming track joins where the overlap has got to, on the same clock as the outgoing
-        // curve, instead of replaying its opening from a quiet start.
-        val fromFrame = millisToFrame(fromMs, file).coerceIn(0L, (file.length - 1L).coerceAtLeast(0L))
+        // curve, instead of replaying its opening from a quiet start. A start on time (late only
+        // by the loop's tick) plays the segment cued ahead, opening and all.
+        val fromFrame = if (fromMs > LATE_START_MS) {
+            millisToFrame(fromMs, file).coerceIn(0L, (file.length - 1L).coerceAtLeast(0L))
+        } else {
+            0L
+        }
         if (fromFrame > 0L) {
             standby.stop()
             scheduleStandby(file, fromFrame)
@@ -604,6 +638,12 @@ internal class IosAudioEngine : EqualizerController {
 
     private companion object {
         const val NO_TOKEN = -1L
+
+        /** Later than this, an overlap's start re-cues the next track where the overlap has got to. */
+        const val LATE_START_MS = 100L
+
+        /** The fade a late-started next track opens with, against a click. */
+        const val RAMP_IN_MS = 20L
         const val KEY_ENABLED = "ios_equalizer_enabled"
         const val KEY_PRESET = "ios_equalizer_preset"
         const val KEY_BASS = "ios_equalizer_software_bass"

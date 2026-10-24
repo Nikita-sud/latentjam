@@ -104,7 +104,8 @@ class IosAudioResetTest {
 
     @Test
     fun aSecondTrackJoinsUnderTheFirstAndCarriesOnAsTheCurrentOne() = withWave { first ->
-        withWave(rate = 48000) { second ->
+        // The same rate and layout: only such a track may join (see sharesGraphFormat).
+        withWave { second ->
             val engine = IosAudioEngine()
             try {
                 // The simulator's test host cannot start an engine; this part runs on a device.

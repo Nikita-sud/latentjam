@@ -1310,6 +1310,9 @@ internal class IosPlaybackController(
             return false
         }
         updateNormalizationGain(snap = true)
+        // The new file starts at the level its own opening calls for — the fade-in's 0 with smooth
+        // transitions on — not at the level the previous track ended on, for the first render.
+        audioEngine.setDeckGains(normalizationGain * deckEnvelope(0L, 0L, crossfadeMs, currentFadeEdges(), 0L, false, 0L))
         val isMediaLibraryItem = track.id.value.startsWith(MEDIA_ID_PREFIX)
         val loaded = if (isMediaLibraryItem && track.audioUri == null) {
             loadMediaLibraryItem(track, autoPlay)
@@ -1456,8 +1459,12 @@ internal class IosPlaybackController(
     }
 
     private fun onItemEnded(itemGeneration: Long) {
-        if (!playing || !isCurrentPlaybackItemGeneration(itemGeneration, playbackItemGeneration)) return
+        if (!isCurrentPlaybackItemGeneration(itemGeneration, playbackItemGeneration)) return
+        // An overlap's outgoing track can end inside a pause's fade, an interruption or a route
+        // change, while `playing` already says no: the next track is sounding, so it takes over
+        // all the same, and a resume carries it on instead of restarting the ended one.
         if (promoteOverlap(if (repeat == RepeatMode.ONE) StartCause.REPEAT else StartCause.AUTO_ADVANCE)) return
+        if (!playing) return
         if (repeat == RepeatMode.ONE) {
             seekActiveBackend(0L)
             playing = playActiveBackend()
@@ -1773,7 +1780,16 @@ internal class IosPlaybackController(
         incomingRiseMs = 0L
         joinedByOverlap = false
         when (activeBackend) {
-            PlaybackBackend.FILE -> audioEngine.seekTo(positionMs)
+            PlaybackBackend.FILE -> {
+                // The level the new position calls for is set before the graph restarts, so the
+                // equalizer's short restart fade-in covers the change; set after, it would land a
+                // few milliseconds into the restarted waveform as a step.
+                val durationMs = audioEngine.durationMs() ?: 0L
+                audioEngine.setDeckGains(
+                    normalizationGain * deckEnvelope(positionMs, durationMs, crossfadeMs, currentFadeEdges(), 0L, false, 0L),
+                )
+                audioEngine.seekTo(positionMs)
+            }
             PlaybackBackend.MEDIA_LIBRARY -> {
                 mediaPlayer.currentPlaybackTime = positionMs / 1000.0
             }
