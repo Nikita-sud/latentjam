@@ -2,26 +2,32 @@
 
 Status: APPROVED by the owner 2026-10-22 (single-player mix, metadata switches at the end of the
 overlap, normalisation in the PCM chain, iOS in the same round) and IMPLEMENTED in release/0.9.3
-(through six review rounds). Verified: host tests, iOS simulator tests, and
-`CrossfadeOverlapDeviceTest` on an API 30 emulator (two WAVs through the production chain: every
-frame of the incoming track exactly once, sum correct mid-overlap, position ≈1690 ms right after
-the 1666 ms overlap — a third of the 5 s incoming track — plus repeat, sleep-timer, real-seek Next,
-short-track and heap checks). iOS ran in the app on an iPhone 17 simulator (2026-10-24, scripted, measured by a tap on the
-main mixer, five 40 s tones): overlap on equal-power curves at a steady level, a clean promotion
-(the next track carries on at 5984 ms), pause/resume inside an overlap, Next landing at 2186 ms with
-its rise continuing, a 22.05 kHz mono neighbour refused with plain fades both ways, repeat-one
-without overlap, the queue running to its end. That run found the setting had never reached iOS
-playback (the capability flag was off) — fixed. Not yet verified: listening on a phone. iOS deviates from the plan in one detail: decks are ramped from
-the controller every 20 ms (not sample-scheduled) — inaudible for two different songs.
+(through nine review rounds).
 
-## Today
+Verified on Android: host tests, and `CrossfadeOverlapDeviceTest` on an API 30 emulator (two WAVs
+through the production chain: every frame of the incoming track exactly once, sum correct
+mid-overlap, position ≈1690 ms right after the 1666 ms overlap — a third of the 5 s incoming
+track — plus repeat, sleep-timer, slider-drag, real-seek Next, short-track and heap checks).
 
-- Android: "Smooth transitions" (0–12 s) is a volume envelope that the app-side controller writes to
+Verified on iOS: simulator tests, and the app itself on an iPhone 17 simulator (scripted, measured
+by a tap, silent): overlap on equal-power curves at a steady level, a clean promotion, pause and
+resume inside an overlap, Next landing on the heard point (also while paused), a 22.05 kHz mono
+neighbour refused with plain fades, repeat-one without overlap, the queue running to its end, a
+steady level around a short overlap, seeks re-applying the levels and a late start joining in step.
+The first run found the setting had never reached iOS playback (the capability flag was off) —
+fixed. iOS deviates from the plan in one detail: decks are ramped from the controller every 20 ms
+(not sample-scheduled) — inaudible for two different songs.
+
+Not yet verified: listening on a phone.
+
+## Before this work
+
+- Android: "Smooth transitions" (0–12 s) was a volume envelope that the app-side controller wrote to
   `MediaController.volume` (`applyEffectiveVolume` in `PlaybackController.android.kt`): fade out over
   the last N s, fade in over the first N s, gapless join in between, no overlap. The same gain stage
-  carries loudness normalisation (`trackVolumes`) and the pause/resume fade. `continuesAlbum` keeps
+  carried loudness normalisation (`trackVolumes`) and the pause/resume fade. `continuesAlbum` kept
   album seams played in order unfaded.
-- iOS (before this work): `setCrossfadeSeconds` was the interface's no-op and the slider was hidden;
+- iOS: `setCrossfadeSeconds` was the interface's no-op and the slider was hidden;
   the setting changed nothing.
 
 ## Android — chosen approach: overlap inside the one player's PCM chain
@@ -132,9 +138,9 @@ Ideas worth offering later, not in this round:
 - androidDeviceTest/emulator: two real files overlap audibly; position of B after the join; ledger.
 - `./gradlew --no-daemon --max-workers=4 testAndroidHostTest` + `compileTestKotlinIosSimulatorArm64`.
 
-## Open questions for the owner
+## Owner's answers (2026-10-22)
 
-1. Approve the single-player PCM-mix approach (and the fallback to today's fade)?
-2. Metadata switching at the end of the overlap — OK, or must it switch at the start?
-3. Moving normalisation into the PCM chain for everyone (needed for correct overlap loudness) — OK?
-4. iOS in this round too, or Android first?
+1. The single-player PCM mix, with today's fade as the fallback: yes.
+2. Metadata switches at the end of the overlap: yes.
+3. Normalisation moves into the PCM chain for everyone: yes.
+4. iOS in the same round: yes.
