@@ -214,6 +214,9 @@ internal class IosPlaybackController(
         val positionMs = audioEngine.positionMs()
         val nextIndex = overlapNextIndex()
         val next = nextIndex?.let(queue::getOrNull)
+        // The engine drops its standby on its own (a media-services reset, a consumed segment
+        // restarted): an overlap it no longer plays is no overlap here either.
+        if (overlap?.started == true && !audioEngine.overlapping) overlap = null
         overlap?.let { active ->
             if (fadeMs <= 0L || finishingTrack || active.outgoingId != current.id || next?.id != active.incoming.id) {
                 releaseOverlap()
@@ -341,6 +344,10 @@ internal class IosPlaybackController(
      */
     private fun promoteOverlap(cause: StartCause): Boolean {
         val active = overlap?.takeIf { it.started } ?: return false
+        if (!audioEngine.overlapping) {
+            overlap = null
+            return false
+        }
         // A queue edit since the last tick may have moved or replaced the next row: re-derive it.
         val incomingIndex = overlapNextIndex()?.takeIf { queue.getOrNull(it)?.id == active.incoming.id }
         if (incomingIndex == null) {
@@ -348,11 +355,14 @@ internal class IosPlaybackController(
             return false
         }
         overlap = null
-        val itemGeneration = ++playbackItemGeneration
+        // The generation moves only once the swap happened: a failed promotion leaves the ended
+        // track's own end handling — the plain advance — still current.
+        val itemGeneration = playbackItemGeneration + 1
         if (!audioEngine.promoteOverlap { mainScope.launch { onItemEnded(itemGeneration) } }) {
             audioEngine.cancelOverlap()
             return false
         }
+        playbackItemGeneration = itemGeneration
         pendingAdvance.invalidate()
         queueIndex = incomingIndex
         incomingRiseMs = active.overlapMs
@@ -1541,6 +1551,8 @@ internal class IosPlaybackController(
             transportFadeJob?.cancel()
             transportFadeJob = null
             transportFade.reset()
+            // The rebuild drops the standby player with the rest of the graph.
+            cancelOverlap()
             val localPosition = mutableState.value.positionMs.takeIf { activeBackend == PlaybackBackend.FILE }
             val recued = audioEngine.rebuildAfterMediaServicesReset(localPosition)
             if (activeBackend == PlaybackBackend.MEDIA_LIBRARY) mediaPlayer.pause()

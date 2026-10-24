@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import platform.AVFAudio.AVAudioEngine
 import platform.AVFAudio.AVAudioFile
+import platform.AVFAudio.AVAudioFormat
 import platform.AVFAudio.AVAudioMixerNode
 import platform.AVFAudio.AVAudioPlayerNode
 import platform.AVFAudio.AVAudioPlayerNodeCompletionDataPlayedBack
@@ -286,9 +287,13 @@ internal class IosAudioEngine : EqualizerController {
      */
     fun prepareOverlap(url: NSURL): Long? {
         cancelOverlap()
-        if (currentFile == null || !engine.running) return null
+        val current = currentFile ?: return null
+        if (!engine.running) return null
         val file = runCatching { AVAudioFile(forReading = url, error = null) }.getOrNull()
             ?.takeIf { it.length > 0L && supportsFormat(it) } ?: return null
+        // The graph after the submixer runs in the current file's format and stays so after the
+        // decks swap; a track of another rate or layout would play through it converted for good.
+        if (!sharesGraphFormat(current.processingFormat, file.processingFormat)) return null
         if (lj_eq_ios_connect_deck(engine, standby, submix, standbyBus, file.processingFormat) == 0) return null
         standbyGain = 0f
         applyMixerGain()
@@ -313,6 +318,14 @@ internal class IosAudioEngine : EqualizerController {
         )
         return frameToMillis(file.length, file)
     }
+
+    /**
+     * Whether a track of [incoming] format may join a graph configured for [current]: same sample
+     * rate and channel count, as Android's mixer requires. Otherwise the seam keeps the plain
+     * fades and the next track loads, reconfiguring the graph for itself.
+     */
+    internal fun sharesGraphFormat(current: AVAudioFormat, incoming: AVAudioFormat): Boolean =
+        current.sampleRate == incoming.sampleRate && current.channelCount == incoming.channelCount
 
     /** Starts the cued overlap under the current track. */
     fun startOverlap(): Boolean {

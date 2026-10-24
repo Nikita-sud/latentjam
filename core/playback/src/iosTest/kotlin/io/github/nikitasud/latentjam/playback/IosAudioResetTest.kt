@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.playback
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
+import platform.AVFAudio.AVAudioFormat
 import platform.Foundation.NSData
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSTemporaryDirectory
@@ -143,6 +144,18 @@ class IosAudioResetTest {
                 assertEquals(null, engine.prepareOverlap(second))
             } finally { engine.stop() }
         }
+    }
+
+    @Test
+    fun onlyATrackOfTheGraphsRateAndLayoutMayJoinAnOverlap() {
+        val engine = IosAudioEngine()
+        try {
+            val stereo44 = AVAudioFormat(standardFormatWithSampleRate = 44100.0, channels = 2u)
+            assertTrue(engine.sharesGraphFormat(stereo44, AVAudioFormat(standardFormatWithSampleRate = 44100.0, channels = 2u)))
+            assertFalse(engine.sharesGraphFormat(stereo44, AVAudioFormat(standardFormatWithSampleRate = 44100.0, channels = 1u)))
+            assertFalse(engine.sharesGraphFormat(stereo44, AVAudioFormat(standardFormatWithSampleRate = 22050.0, channels = 2u)))
+            assertFalse(engine.sharesGraphFormat(AVAudioFormat(standardFormatWithSampleRate = 22050.0, channels = 1u), stereo44))
+        } finally { engine.stop() }
     }
 
     private fun withSavedTonePreferences(block: (NSUserDefaults) -> Unit) {

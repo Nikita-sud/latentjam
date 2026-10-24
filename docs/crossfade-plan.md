@@ -1,8 +1,8 @@
 # Real crossfade (issue #23) — design
 
 Status: APPROVED by the owner 2026-10-22 (single-player mix, metadata switches at the end of the
-overlap, normalisation in the PCM chain, iOS in the same round) and IMPLEMENTED on
-claude/crossfade-23-ba5c6f. Verified: host tests, iOS simulator tests, and
+overlap, normalisation in the PCM chain, iOS in the same round) and IMPLEMENTED in release/0.9.3
+(through six review rounds). Verified: host tests, iOS simulator tests, and
 `CrossfadeOverlapDeviceTest` on an API 30 emulator (two WAVs through the production chain: every
 frame of the incoming track exactly once, sum correct mid-overlap, position ≈1690 ms right after
 the 1666 ms overlap — a third of the 5 s incoming track — plus repeat, sleep-timer, real-seek Next,
@@ -62,7 +62,7 @@ second AudioTrack, a SEEK transition to re-label, and audio focus/ducking for tw
 
 | Area | Behaviour |
 |---|---|
-| Gapless albums | `continuesAlbum` keeps its meaning: no overlap (and no fade) between consecutive tracks of one album played in order. Decided per queue row (by player index on Android), so an album track queued again elsewhere neither breaks the album's seams nor inherits them. |
+| Gapless albums | `continuesAlbum` keeps its meaning: no overlap (and no fade) between consecutive tracks of one album played in order. Decided per queue row (by player index on Android), so an album track queued again elsewhere neither breaks the album's seams nor inherits them. Accepted: the controller publishes these by its copy of the player indices, so for one IPC round trip after a reorder an index may name a row's old place; the envelope's slew makes that a glide. |
 | Start-cause ledger | Untouched: B still begins with an AUTO transition at A's natural end → `AUTO_ADVANCE`, or `QUEUED` if queued by hand. Logged once. |
 | History of A | A plays to its real end → counted as completed, as today. B's session opens at position ≈ N s (its first N s were heard during the overlap). |
 | SMART top-ups | Unchanged; pre-roll takes whatever is next when it starts and re-checks before mixing. |
@@ -84,11 +84,14 @@ second AudioTrack, a SEEK transition to re-label, and audio focus/ducking for tw
 ## iOS — second player node in the existing AVAudioEngine graph
 
 Graph becomes `deck A ─┐ mixer → EQ Audio Unit → output`, `deck B ─┘`. At A's end − N the controller
-schedules B on the idle deck at an exact sample time, ramps both deck volumes (normalisation × curve),
+starts B on the idle deck from its 20 ms transition loop (not sample-scheduled: inaudible for two
+different songs), ramps both deck volumes (normalisation × curve),
 and when A's segment completes the decks swap roles and the controller advances to B without reloading
 it — the same "switch at the end of the overlap" semantics and the same ledger/history behaviour as
 Android. Apple Music (MPMusicPlayerController) items cannot be mixed: no overlap there (plain switch).
-This also makes the slider do something on iOS for the first time.
+This also makes the slider do something on iOS for the first time. Like Android, a next track of
+another sample rate or channel count does not overlap: the graph after the submixer runs in the
+current file's format, so it keeps the plain fades and loads, reconfiguring the graph for itself.
 
 ## Prior art (searched 2026-10-22, at the owner's request)
 
