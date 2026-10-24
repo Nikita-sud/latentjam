@@ -21,8 +21,8 @@ the controller every 20 ms (not sample-scheduled) — inaudible for two differen
   the last N s, fade in over the first N s, gapless join in between, no overlap. The same gain stage
   carries loudness normalisation (`trackVolumes`) and the pause/resume fade. `continuesAlbum` keeps
   album seams played in order unfaded.
-- iOS: `setCrossfadeSeconds` is the interface's no-op. The slider is stored (`AppSettings.ios.kt`) but
-  changes nothing.
+- iOS (before this work): `setCrossfadeSeconds` was the interface's no-op and the slider was hidden;
+  the setting changed nothing.
 
 ## Android — chosen approach: overlap inside the one player's PCM chain
 
@@ -75,7 +75,7 @@ second AudioTrack, a SEEK transition to re-label, and audio focus/ducking for tw
 | EQ / limiter | One EQ on the summed signal; the existing limiter catches peaks of the sum. |
 | Session, notification, widget, Android Auto | Single player → unchanged. Trade-off: the metadata switches to B when A actually ends, i.e. at the END of the overlap, not at its start (Spotify switches earlier). |
 | Pause / resume | Both songs pause and resume together (one stream), with the existing transport fade. |
-| Seek during overlap | Inside A: overlap re-arms at the right offset if the intro is still valid, otherwise cancels. |
+| Seek during overlap | Inside A: overlap re-arms at the right offset if the intro is still valid, otherwise cancels. iOS likewise: a seek into the window re-cues the next track and starts it at the overlap's offset, both curves on one clock, and every seek re-applies the deck levels at once. |
 | Next during overlap | Goes to B at the point already heard (no restart of B's opening), from any controller: the app, the notification, a headset, the lock screen, Android Auto (the session player handles it). The point is read from the player's position, i.e. what reached the speaker, until the join is heard; B's rise carries on along the overlap curve: the coordinator records it before seeking, because the seek disables the renderer and flushes the chain more than once before B plays (measured on a real seek: gain 0.63 against 0.59 on the curve, 0.33 for the fallback fade). The first track to play after that seek spends the recorded rise, and only B at the landing point takes it, so a quicker second Next or a new pick lets it lapse. A rise in progress runs to its end even if the slider goes to 0. Ledger `SKIP_NEXT` as today. |
 | Previous during overlap | As today. |
 | Repeat one, or the same track next | Never overlaps a track with its own opening (repeat-one, a one-row queue on repeat-all, Play next on the playing track): its next play would start seconds in, which the sleep timer's wrap check and the listening log's restart check (both expect ~0) miss. Those seams keep the plain fades. |
