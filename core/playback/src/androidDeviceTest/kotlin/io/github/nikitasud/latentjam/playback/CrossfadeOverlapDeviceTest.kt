@@ -206,6 +206,77 @@ class CrossfadeOverlapDeviceTest {
         }
     }
 
+    /** Dragging the slider while an overlap sounds leaves that overlap alone. */
+    @Test fun movingTheSliderDuringAnOverlapLetsItFinish() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val outgoing = File(context.cacheDir, "crossfade-drag-a.wav").also { writeWav(it, OUTGOING_FRAMES, ::tone) }
+        val incoming = File(context.cacheDir, "crossfade-drag-b.wav").also { writeWav(it, INCOMING_FRAMES, ::saw) }
+        val settings = CrossfadeSettings().apply { fadeMs = OVERLAP_MS }
+        val capture = Capture()
+        val end = CountDownLatch(1)
+        var moved = false
+        lateinit var player: ExoPlayer
+        lateinit var coordinator: CrossfadeCoordinator
+        try {
+            instrumentation.runOnMainSync {
+                runBlocking { AndroidEqualizerController.get(context).setEnabled(false) }
+                val factory = object : EqualizerRenderersFactory(context, settings) {
+                    override fun buildAudioProcessors(context: Context, restart: AtomicBoolean): Array<AudioProcessor> =
+                        super.buildAudioProcessors(context, restart) + capture
+                }
+                player = ExoPlayer.Builder(context, factory).build()
+                player.volume = 0f
+                player.addListener(object : Player.Listener {
+                    override fun onPlaybackStateChanged(state: Int) {
+                        if (state == Player.STATE_ENDED) end.countDown()
+                    }
+                })
+                player.setMediaItems(
+                    listOf(
+                        MediaItem.Builder().setMediaId("a").setUri(outgoing.toURI().toString()).build(),
+                        MediaItem.Builder().setMediaId("b").setUri(incoming.toURI().toString()).build(),
+                    ),
+                )
+                coordinator = CrossfadeCoordinator(context, player, settings)
+                coordinator.start()
+                player.prepare()
+                player.play()
+            }
+            val deadline = System.currentTimeMillis() + 30_000
+            while (end.count > 0 && System.currentTimeMillis() < deadline) {
+                Thread.sleep(20)
+                instrumentation.runOnMainSync {
+                    if (!moved && player.currentMediaItemIndex == 0 && player.currentPosition >= 5_000 && settings.mixing != null) {
+                        // A drag: several steps, each a new setting, within the overlap.
+                        settings.fadeMs = 3_000
+                        coordinator.update()
+                        settings.fadeMs = 5_000
+                        coordinator.update()
+                        moved = true
+                    }
+                }
+            }
+            val samples = capture.samples()
+            val overlapMs = overlapLengthMs(OVERLAP_MS, OUTGOING_FRAMES * 1000L / RATE, INCOMING_FRAMES * 1000L / RATE)
+            val heard = (overlapMs * RATE / 1000).toInt()
+            Log.i("LJCrossfadeTest", "slider moved=$moved frames=${samples.size} expected=${OUTGOING_FRAMES + INCOMING_FRAMES - heard}")
+            assertTrue(moved)
+            // The overlap played out: the opening heard under A is dropped once, as without a drag.
+            assertEquals(OUTGOING_FRAMES + INCOMING_FRAMES - heard, samples.size)
+            for (offset in 0 until 200) {
+                assertEquals(saw(heard + offset), samples[OUTGOING_FRAMES + offset])
+            }
+        } finally {
+            instrumentation.runOnMainSync {
+                coordinator.release()
+                player.release()
+            }
+            outgoing.delete()
+            incoming.delete()
+        }
+    }
+
     /** A next track shorter than the opening asked for is captured whole and still overlaps. */
     @Test fun aNextTrackShorterThanTheRequestedOpeningStillOverlaps() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()

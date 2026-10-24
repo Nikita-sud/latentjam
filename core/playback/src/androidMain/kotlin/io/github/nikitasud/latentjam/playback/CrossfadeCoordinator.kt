@@ -69,6 +69,18 @@ internal class CrossfadeCoordinator(
         withdraw()
     }
 
+    /**
+     * The slider setting a seam is planned at. Moving the slider re-plans a seam whose overlap has
+     * not begun; one already sounding keeps the plan it is playing — the slider writes on every step
+     * of a drag, and withdrawing then would cut the next track off and replay its opening at the
+     * join. iOS carries a sounding overlap on the same way.
+     */
+    private fun plannedFadeMs(fadeMs: Long): Long {
+        val sounding = settings.mixing ?: return fadeMs
+        val planned = seam ?: return fadeMs
+        return if (sounding === settings.plan && fadeMs > 0L) planned.fadeMs else fadeMs
+    }
+
     /** Re-evaluates the seam ahead; also the periodic check while playing. */
     fun update() {
         if (released) return
@@ -80,7 +92,7 @@ internal class CrossfadeCoordinator(
         val next = nextItem()
         val wanted = if (fadeMs > 0L && !settings.finishingTrack && current != null &&
             next?.localConfiguration != null && settings.edgesAt(player.currentMediaItemIndex).fadeOut
-        ) Seam(current.mediaId, next.mediaId, fadeMs) else null
+        ) Seam(current.mediaId, next.mediaId, plannedFadeMs(fadeMs)) else null
         if (seam != wanted) withdraw()
         if (wanted == null || seam != null || wanted in failed) return
         val durationMs = player.duration.takeIf { it != C.TIME_UNSET } ?: 0L
