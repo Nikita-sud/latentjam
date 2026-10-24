@@ -185,13 +185,15 @@ object AppGraph {
                 )
             }
             if (playbackGainControlsAvailable) {
-                // Volume normalization measures lazily as tracks play and pushes the gain map.
-                LoudnessNormalizer(
+                // Volume normalization measures lazily as tracks play and pushes the gain map. Its
+                // stored loudness is a file read, so it starts off the main thread (this is onCreate).
+                val normalizer = LoudnessNormalizer(
                     settings = settings,
                     playback = playback,
                     meter = koin.get(),
                     onStatus = { normalizationStatus.value = it },
-                ).start(appScope)
+                )
+                appScope.launch(Dispatchers.Default) { normalizer.start(appScope) }
                 // Boundary fades follow the preference where the platform implements them.
                 if (boundaryFadeControlsAvailable) appScope.launch {
                     settings.crossfadeSeconds.collect { playback.setCrossfadeSeconds(it) }
