@@ -10,6 +10,7 @@ import androidx.media3.common.audio.AudioProcessor.StreamMetadata
 import androidx.media3.common.audio.BaseAudioProcessor
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
@@ -87,7 +88,7 @@ internal class OverlapPlan(
 )
 
 /** See [CrossfadeSettings.pendingRise]. */
-internal data class PendingRise(val mediaId: String, val riseUs: Long)
+internal data class PendingRise(val mediaId: String, val positionUs: Long, val riseUs: Long)
 
 /** The process-wide settings the service's player reads; the controller lives in the same process. */
 internal object AndroidCrossfade {
@@ -220,9 +221,16 @@ internal class CrossfadeAudioProcessor(
         if (!segment.hadData) {
             segment.hadData = true
             segment.startUs = streams.bufferMediaUs
-            settings.pendingRise?.takeIf { it.mediaId == segment.stream?.mediaId }?.let {
-                segment.riseUs = it.riseUs
+            // The first track to play after the Next's seek spends the rise, whoever it is: only the
+            // track and point the Next landed on take it, so a quicker second Next, another pick or
+            // a new queue lets it lapse instead of a later play of that track starting on it.
+            settings.pendingRise?.let { pending ->
                 settings.pendingRise = null
+                if (pending.mediaId == segment.stream?.mediaId &&
+                    abs(segment.startUs - pending.positionUs) <= RISE_LANDING_TOLERANCE_US
+                ) {
+                    segment.riseUs = pending.riseUs
+                }
             }
         }
         repositionsAtData = streams.repositions
@@ -268,6 +276,11 @@ internal class CrossfadeAudioProcessor(
         var incomingGain = Float.NaN
         var mixing = false
         var readSlot = -1
+        // Published before the first frame: a mix can begin inside this buffer, and a capture
+        // started meanwhile must not take the slot about to be read.
+        settings.soundingSlot = mix?.plan?.slot
+            ?: livePlan?.takeIf { it.outgoingId == mediaId }?.slot
+            ?: settings.soundingSlot
 
         for (frame in 0 until frames) {
             val index = segment.frames
@@ -452,6 +465,9 @@ internal class CrossfadeAudioProcessor(
 
     private companion object {
         const val PCM16_SCALE = 32768f
+
+        /** A Next's landing and the first PCM after its seek: within a few decoder frames. */
+        const val RISE_LANDING_TOLERANCE_US = 200_000L
 
         /** A change of envelope source glides; no curve of its own is ever this steep. */
         const val ENVELOPE_SLEW_MS = 400L

@@ -265,7 +265,7 @@ internal class CrossfadeAudioProcessorTest {
         // Next: the coordinator records the rise, then seeks to b at the point heard, 1 s into the
         // 2 s overlap. The seek disables the renderer, flushing the chain while the outgoing stream
         // is still current, before b's own reposition: two data-less fresh segments.
-        settings.pendingRise = PendingRise("b", riseUs = 2_000_000)
+        settings.pendingRise = PendingRise("b", positionUs = 1_000_000, riseUs = 2_000_000)
         reposition(a, atMs = 9_000)
         val b = stream("b", 20_000)
         reposition(b, atMs = 1_000)
@@ -279,13 +279,29 @@ internal class CrossfadeAudioProcessorTest {
     }
 
     @Test
-    fun aRecordedRiseWaitsForItsOwnTrack() {
+    fun aRecordedRiseLapsesWhenAnotherTrackPlaysFirst() {
         settings.fadeMs = 2_000
-        settings.pendingRise = PendingRise("b", riseUs = 2_000_000)
-        // Another track plays first: it keeps its own plain fade-in and leaves the rise alone.
+        settings.pendingRise = PendingRise("b", positionUs = 1_000_000, riseUs = 2_000_000)
+        // A second Next, another pick or a new queue got there first: c keeps its plain fade-in...
         reposition(stream("c", 20_000), atMs = 1_000)
         assertEquals(500, feed(loud, 1_000, 1_100).first())
-        assertTrue(settings.pendingRise != null)
+        assertEquals(null, settings.pendingRise)
+        // ...and b, played later from its start, does not rise along the old overlap.
+        reposition(stream("b", 20_000), atMs = 0)
+        val opening = feed(loud, 0, 1_100)
+        assertEquals(0, opening[0])
+        assertEquals(500, opening[1_000], "the plain 2 s fade-in, halfway")
+    }
+
+    @Test
+    fun aRecordedRiseIsTakenOnlyAtTheNextsLandingPoint() {
+        settings.fadeMs = 0
+        settings.pendingRise = PendingRise("b", positionUs = 1_000_000, riseUs = 2_000_000)
+        // The same track, but from its start: not the Next's landing, so no rise — even with
+        // smooth transitions off, it plays at full level.
+        reposition(stream("b", 20_000), atMs = 0)
+        assertEquals(1000, feed(loud, 0, 100).first())
+        assertEquals(null, settings.pendingRise)
     }
 
     private companion object {

@@ -33,6 +33,7 @@ internal class CrossfadeCoordinator(
     private val failed = mutableSetOf<Seam>()
 
     private val tick = Runnable { update() }
+    private var released = false
 
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
@@ -60,14 +61,17 @@ internal class CrossfadeCoordinator(
     }
 
     fun release() {
+        released = true
         settings.onFinishingChanged = null
         player.removeListener(listener)
-        handler.removeCallbacks(tick)
+        // Every posted look, the periodic one and a refresh the sleep timer's hold asked for.
+        handler.removeCallbacksAndMessages(null)
         withdraw()
     }
 
     /** Re-evaluates the seam ahead; also the periodic check while playing. */
     fun update() {
+        if (released) return
         handler.removeCallbacks(tick)
         // The setting and the album edges arrive from the controller without an event of their own.
         if (player.isPlaying) handler.postDelayed(tick, TICK_MS)
@@ -110,7 +114,7 @@ internal class CrossfadeCoordinator(
      * because the seek disables the renderer and flushes the chain more than once before it plays.
      */
     fun seekTo(landing: Landing) {
-        settings.pendingRise = PendingRise(landing.mediaId, landing.riseUs)
+        settings.pendingRise = PendingRise(landing.mediaId, landing.positionMs * 1000L, landing.riseUs)
         player.seekTo(landing.index, landing.positionMs)
     }
 
