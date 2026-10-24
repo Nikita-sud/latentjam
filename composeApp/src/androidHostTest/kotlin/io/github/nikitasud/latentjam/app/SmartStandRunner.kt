@@ -311,6 +311,15 @@ class SmartStandRunner {
             sb.append("${a.value}\t${b.value}\t$c\t${b in exclude}\t${rank(true)}\t${rank(false)}\t${normalOnly.followCount(a, b)}\n")
         }
         target.writeText(sb.toString())
+        // PLAN_NB ear test: vc21 pairs into a B the listener skipped (what r12aNB and r12aNBs both stop counting), from
+        // the history only, with how often each occurs and its normal-pair count.
+        val all = habitSkipTransitions(events.asReversed(), ids, start).groupingBy { it }.eachCount()
+        val kept = habitSkipTransitions(events.asReversed(), ids, start, unskippedOnly = true).groupingBy { it }.eachCount()
+        val skippedInto = all.mapValues { (k, v) -> v - (kept[k] ?: 0) }.filterValues { it > 0 }
+        File(target.parentFile, "skip_pairs.tsv").writeText(
+            "seed\tfollower\tcount\tnormalCount\n" + skippedInto.entries.sortedByDescending { it.value }
+                .joinToString("") { (k, v) -> "${k.first.value}\t${k.second.value}\t$v\t${normalOnly.followCount(k.first, k.second)}\n" },
+        )
     }
 
     private suspend fun probe(
