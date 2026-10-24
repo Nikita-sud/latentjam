@@ -83,17 +83,19 @@ internal fun habitListens(
  *   them was skipped or shorter than that (quick skips, brief auto-advances), and B started at most [BRIDGE_GAP_MS]
  *   after A ended.
  * A pair [habitListens] already counts (B's previous real listen, both not skipped) is left out.
+ * [unskippedOnly] (PLAN_NB narrow arm): only pairs into a B that was not itself skipped.
  */
 internal fun habitSkipTransitions(
     oldestFirst: List<ListenEvent>,
     libraryIds: Set<TrackId>,
     seedMs: Long,
+    unskippedOnly: Boolean = false,
 ): List<Pair<TrackId, TrackId>> {
     val events = oldestFirst.filter { it.startedAtMs < seedMs && it.trackId in libraryIds }.sortedBy(ListenEvent::startedAtMs)
     val out = ArrayList<Pair<TrackId, TrackId>>()
     for (j in 1 until events.size) {
         val b = events[j]
-        if (b.origin?.start != ListenStart.USER_PICK) continue
+        if (b.origin?.start != ListenStart.USER_PICK || (unskippedOnly && b.skipped)) continue
         // What habitListens already pairs: B's previous non-skipped listen, when B itself is not skipped.
         val normal = if (b.skipped) null else (j - 1 downTo 0).firstOrNull { !events[it].skipped }?.let { events[it] }
             ?.takeIf { b.startedAtMs - it.startedAtMs <= HabitSlots.PAIR_GAP_MS }?.trackId
@@ -256,7 +258,9 @@ internal suspend fun rankerPlan(
         // Hearts count only for the FULL model ("Learn from my habits").
         val personalHistory = io.github.nikitasud.latentjam.smart.ranker.PersonalHistory(
             listens, seedMs, favourites = if (personal) favourites() else emptyMap(),
-            extraTransitions = if (ranker.skipPairsFor(personal)) habitSkipTransitions(events.asReversed(), libraryIds, seedMs) else emptyList(),
+            extraTransitions = if (ranker.skipPairsFor(personal)) {
+                habitSkipTransitions(events.asReversed(), libraryIds, seedMs, ranker.skipPairsUnskippedOnlyFor(personal))
+            } else emptyList(),
             // PLAN_TRANSGRAPH: a FULL model with a transGraph block reads every play (skips and listen time included).
             graph = ranker.transGraphFor(personal)?.let { cfg ->
                 io.github.nikitasud.latentjam.smart.ranker.TransGraph(

@@ -136,6 +136,8 @@ public class RankerModel(
     public val transGraph: TransGraph? = null,
     /** PLAN_TRANSGRAPH control arm: false = FULL ignores vc21's skip / bridge pairs (habitSkipTransitions). */
     public val skipPairs: Boolean = true,
+    /** PLAN_NB narrow arm ("skipPairs": "unskipped"): vc21 pairs only into a B that was not itself skipped. */
+    public val skipPairsUnskippedOnly: Boolean = false,
 ) {
     /** PLAN_TRANSGRAPH variants "A" (SIGNALS_REVIEW §4), "B" (hard thresholds), "C" (no start-reason multipliers), "A2" (+ 2-hop), "D" (session-kNN). */
     public class TransGraph(
@@ -598,7 +600,8 @@ public class RankerModel(
                     PersonalNudge(d("delta", 0.5), d("track", 1.0), d("artist", 0.5), d("playlist", 0.4), d("favourite", 0.3), d("frequency", 0.15),
                         (it["followMin"] as? Number)?.toInt() ?: 2)
                 },
-                skipPairs = root["skipPairs"] as? Boolean ?: true,
+                skipPairs = root["skipPairs"].let { require(it == null || it is Boolean || it == "unskipped") { "skipPairs" }; it != false },
+                skipPairsUnskippedOnly = root["skipPairs"] == "unskipped",
                 transGraph = (root["transGraph"] as? Map<*, *>)?.let {
                     fun d(k: String, v: Double) = (it[k] as? Number)?.toDouble() ?: v
                     val variant = it["variant"] as? String ?: "A"

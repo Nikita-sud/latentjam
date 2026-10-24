@@ -980,6 +980,9 @@ public class SmartRanker(
     /** PLAN_TRANSGRAPH control: whether a FULL plan reads vc21's skip / bridge pairs (true without a FULL model). */
     public fun skipPairsFor(personal: Boolean): Boolean = !personal || fullModel?.skipPairs != false
 
+    /** PLAN_NB narrow arm: whether a FULL plan keeps only the vc21 pairs whose B was not skipped. */
+    public fun skipPairsUnskippedOnlyFor(personal: Boolean): Boolean = personal && fullModel?.skipPairsUnskippedOnly == true
+
     public fun freshnessFor(personal: Boolean, ruleOnly: Boolean): RankerModel.Freshness? = when {
         ruleOnly -> null
         personal && fullModel != null -> fullModel.freshness

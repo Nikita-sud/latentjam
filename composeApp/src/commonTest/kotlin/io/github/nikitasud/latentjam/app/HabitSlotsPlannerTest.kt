@@ -85,4 +85,18 @@ class HabitSlotsPlannerTest {
         assertTrue(keys.average() in 0.45..0.55)
         assertTrue(saltedTieKey(TrackId("t1"), 1L) != saltedTieKey(TrackId("t1"), 2L))
     }
+
+    @Test
+    fun `the narrow vc21 arm drops pairs into a picked track that was skipped`() {
+        val library = setOf("a", "b", "c").mapTo(HashSet(), ::TrackId)
+        val pick = ListenOrigin(ListenStart.USER_PICK)
+        val events = listOf(
+            event("a", 0, origin = pick),
+            event("c", 190_000, skipped = true, origin = pick), // picked after a, skipped: the bridge pair a to c
+            event("b", 200_000, origin = pick), // after the skipped c: c to b; a to b is a normal pair
+        )
+        val all = habitSkipTransitions(events, library, seedMs = 1_000_000)
+        assertEquals(listOf(TrackId("a") to TrackId("c"), TrackId("c") to TrackId("b")), all)
+        assertEquals(listOf(TrackId("c") to TrackId("b")), habitSkipTransitions(events, library, seedMs = 1_000_000, unskippedOnly = true))
+    }
 }

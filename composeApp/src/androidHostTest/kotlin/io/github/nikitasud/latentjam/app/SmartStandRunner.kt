@@ -275,19 +275,26 @@ class SmartStandRunner {
         val ids = library.mapTo(HashSet()) { it.id }
         val listens = habitListens(events.asReversed(), ids, start)
         val artistKeys = library.associate { it.id to io.github.nikitasud.latentjam.smart.HabitSlots.artistKey(it) }
-        val personal = io.github.nikitasud.latentjam.smart.ranker.PersonalHistory(
-            listens, start, favourites, extraTransitions = habitSkipTransitions(events.asReversed(), ids, start),
+        // The pairs listed are the same for every arm (normal + vc21 pairs); each arm ranks with its own personal history
+        // (PLAN_NB: the FULL model's skipPairs setting, as HabitSlotsPlanner applies it).
+        fun personalWith(extra: List<Pair<TrackId, TrackId>>) = io.github.nikitasud.latentjam.smart.ranker.PersonalHistory(
+            listens, start, favourites, extraTransitions = extra,
         ) { artistKeys[it].orEmpty() }
+        val listing = personalWith(habitSkipTransitions(events.asReversed(), ids, start))
+        val normalOnly = personalWith(emptyList())
+        val personal = personalWith(
+            if (ranker.skipPairsFor(true)) habitSkipTransitions(events.asReversed(), ids, start, ranker.skipPairsUnskippedOnlyFor(true)) else emptyList(),
+        )
         val exclude = io.github.nikitasud.latentjam.smart.HabitSlots.novelty(listens, start)
         val pairs = ArrayList<Triple<TrackId, TrackId, Int>>()
         for (a in listens.map { it.trackId }.distinct()) {
             if (a !in byId) continue
-            for (b in personal.followers(a)) {
-                val c = personal.followCount(a, b)
+            for (b in listing.followers(a)) {
+                val c = listing.followCount(a, b)
                 if (c >= (System.getenv("LJ_STAND_HABIT_MIN")?.toInt() ?: 2) && b in byId) pairs += Triple(a, b, c)
             }
         }
-        val sb = StringBuilder("seed\tfollower\tcount\texcluded\tfullRank\tcoreRank\n")
+        val sb = StringBuilder("seed\tfollower\tcount\texcluded\tfullRank\tcoreRank\tnormalCount\n")
         for ((a, b, c) in pairs.sortedByDescending { it.third }.take(60)) {
             val seed = byId.getValue(a)
             suspend fun rank(full: Boolean): Int {
@@ -300,7 +307,7 @@ class SmartStandRunner {
                 )
                 return r.ids.indexOf(b).let { if (it < 0) -1 else it + 1 }
             }
-            sb.append("${a.value}\t${b.value}\t$c\t${b in exclude}\t${rank(true)}\t${rank(false)}\n")
+            sb.append("${a.value}\t${b.value}\t$c\t${b in exclude}\t${rank(true)}\t${rank(false)}\t${normalOnly.followCount(a, b)}\n")
         }
         target.writeText(sb.toString())
     }
