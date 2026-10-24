@@ -71,8 +71,8 @@ internal class CrossfadeCoordinator(
         val fadeMs = settings.fadeMs
         val current = player.currentMediaItem
         val next = nextItem()
-        val wanted = if (fadeMs > 0L && current != null && next?.localConfiguration != null &&
-            settings.edgesOf(current.mediaId).fadeOut
+        val wanted = if (fadeMs > 0L && !settings.finishingTrack && current != null &&
+            next?.localConfiguration != null && settings.edgesAt(player.currentMediaItemIndex).fadeOut
         ) Seam(current.mediaId, next.mediaId) else null
         if (seam != wanted) withdraw()
         if (wanted == null || seam != null || wanted in failed) return
@@ -82,8 +82,26 @@ internal class CrossfadeCoordinator(
         }
     }
 
+    /**
+     * Where Next should land during an overlap: the next row, at the point of it already heard, so
+     * its opening does not play twice. Null outside an overlap. Every Next the session receives —
+     * the app, the notification, a headset, a car — comes through here.
+     */
+    fun nextFromOverlap(): Pair<Int, Long>? {
+        val heard = settings.progress ?: return null
+        if (player.repeatMode == Player.REPEAT_MODE_ONE) return null
+        val index = player.nextMediaItemIndex.takeIf { it != C.INDEX_UNSET } ?: return null
+        if (player.getMediaItemAt(index).mediaId != heard.incomingId) return null
+        return index to heard.heardMs
+    }
+
+    /**
+     * The row playback moves on to by itself. None under repeat-one: a track never overlaps its
+     * own opening, which would start each repeat seconds in — past the sleep timer's and the
+     * listening log's idea of a restart. Its loop keeps the plain fades.
+     */
     private fun nextItem(): MediaItem? {
-        if (player.repeatMode == Player.REPEAT_MODE_ONE) return player.currentMediaItem
+        if (player.repeatMode == Player.REPEAT_MODE_ONE) return null
         val timeline = player.currentTimeline
         if (timeline.isEmpty) return null
         val index = timeline.getNextWindowIndex(

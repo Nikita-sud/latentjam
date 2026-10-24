@@ -96,10 +96,13 @@ internal class CrossfadeTest {
     }
 
     @Test
-    fun anOverlapIsTheSettingButNeverMoreThanHalfOfEitherTrack() {
+    fun anOverlapIsTheSettingButNeverMoreThanAThirdOfEitherTrack() {
         assertEquals(8_000L, overlapLengthMs(8_000, 180_000, 200_000))
-        assertEquals(3_000L, overlapLengthMs(8_000, 6_000, 200_000))
-        assertEquals(2_500L, overlapLengthMs(8_000, 180_000, 5_000))
+        assertEquals(2_000L, overlapLengthMs(8_000, 6_000, 200_000))
+        assertEquals(1_666L, overlapLengthMs(8_000, 180_000, 5_000))
+        // A 20 s track between two 12 s overlaps still has a third of itself alone.
+        val each = overlapLengthMs(12_000, 180_000, 20_000)
+        assertTrue(20_000 - 2 * each >= 20_000 / 3, "solo time ${20_000 - 2 * each} ms")
         assertEquals(0L, overlapLengthMs(8_000, 0, 200_000), "the outgoing end is unknown")
         assertEquals(0L, overlapLengthMs(0, 180_000, 200_000))
     }
@@ -138,11 +141,29 @@ internal class CrossfadeTest {
     fun albumSeamsInTheQueueKeepTheirEdgesAndOtherSeamsFade() {
         val edges = queueFadeEdges(
             listOf(track("a", 3), track("b", 4), track("x", 7, album = "Other")),
+            mediaIndices = listOf(0, 1, 2),
             repeatsItself = false,
         )
-        assertEquals(FadeEdges(fadeIn = true, fadeOut = false), edges["a"])
-        assertEquals(FadeEdges(fadeIn = false, fadeOut = true), edges["b"])
-        assertEquals(null, edges["x"], "a plain seam is not stored")
-        assertEquals(null, queueFadeEdges(listOf(track("a", 3)), repeatsItself = true)["a"])
+        assertEquals(FadeEdges(fadeIn = true, fadeOut = false), edges[0])
+        assertEquals(FadeEdges(fadeIn = false, fadeOut = true), edges[1])
+        assertEquals(null, edges[2], "a plain seam is not stored")
+        assertEquals(null, queueFadeEdges(listOf(track("a", 3)), listOf(0), repeatsItself = true)[0])
+    }
+
+    @Test
+    fun anAlbumTrackQueuedAgainElsewhereKeepsTheAlbumsSeams() {
+        // Album rows 2, 3, 4 at player indices 0..2; row 3 queued again at the end (index 3).
+        val rows = listOf(track("t2", 2), track("t3", 3), track("t4", 4), track("t3", 3))
+        val edges = queueFadeEdges(rows, listOf(0, 1, 2, 3), repeatsItself = false)
+        assertEquals(FadeEdges(fadeIn = false, fadeOut = false), edges[1], "the album's own row 3")
+        assertEquals(null, edges[3], "the copy fades at both ends")
+    }
+
+    @Test
+    fun edgesAreKeyedByThePlayersIndexNotThePlayingOrder() {
+        // Shuffled: the album pair plays in order but sits at player indices 7 and 2.
+        val edges = queueFadeEdges(listOf(track("a", 3), track("b", 4)), listOf(7, 2), repeatsItself = false)
+        assertEquals(FadeEdges(fadeIn = true, fadeOut = false), edges[7])
+        assertEquals(FadeEdges(fadeIn = false, fadeOut = true), edges[2])
     }
 }

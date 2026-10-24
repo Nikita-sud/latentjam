@@ -78,10 +78,26 @@ class CrossfadeOverlapDeviceTest {
                 player.prepare()
                 player.play()
             }
+            // Halfway through the overlap, Next from any controller lands on the point already heard.
+            var landing: Pair<Int, Long>? = null
+            val deadline = System.currentTimeMillis() + 20_000
+            while (landing == null && System.currentTimeMillis() < deadline) {
+                Thread.sleep(50)
+                instrumentation.runOnMainSync {
+                    if (player.currentMediaItemIndex == 0 && player.currentPosition >= 5_000) {
+                        landing = coordinator.nextFromOverlap()
+                    }
+                }
+            }
             assertTrue("Playback timed out", end.await(30, TimeUnit.SECONDS))
             assertTrue("Playback failed: $failure", failure == null)
+            Log.i("LJCrossfadeTest", "next lands at $landing")
+            assertEquals(1, landing?.first)
+            assertTrue("heard ${landing?.second}", (landing?.second ?: 0L) in 500L..2_000L)
 
-            val heard = OVERLAP_MS.toInt() * RATE / 1000
+            // A third of the shorter track at most: 1666 ms of the 5 s incoming one.
+            val overlapMs = overlapLengthMs(OVERLAP_MS, OUTGOING_FRAMES * 1000L / RATE, INCOMING_FRAMES * 1000L / RATE)
+            val heard = (overlapMs * RATE / 1000).toInt()
             val samples = capture.samples()
             Log.i("LJCrossfadeTest", "frames=${samples.size} expected=${OUTGOING_FRAMES + INCOMING_FRAMES - heard} " +
                 "positionAtStart=$incomingPositionAtStart")
@@ -104,7 +120,113 @@ class CrossfadeOverlapDeviceTest {
                 )
             }
             // The player's clock jumps with the sound: the incoming track starts at the heard point.
-            assertTrue("position at the join was $incomingPositionAtStart", incomingPositionAtStart >= OVERLAP_MS - 300)
+            assertTrue("position at the join was $incomingPositionAtStart", incomingPositionAtStart >= overlapMs - 300)
+        } finally {
+            instrumentation.runOnMainSync {
+                coordinator.release()
+                player.release()
+            }
+            outgoing.delete()
+            incoming.delete()
+        }
+    }
+
+    @Test fun repeatOneLoopsFromItsStartWithoutOverlappingItself() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val track = File(context.cacheDir, "crossfade-loop.wav").also { writeWav(it, OUTGOING_FRAMES, ::tone) }
+        val settings = CrossfadeSettings().apply { fadeMs = OVERLAP_MS }
+        val repeated = CountDownLatch(1)
+        var positionAtRepeat = C.TIME_UNSET
+        var planned = false
+        lateinit var player: ExoPlayer
+        lateinit var coordinator: CrossfadeCoordinator
+        try {
+            instrumentation.runOnMainSync {
+                player = ExoPlayer.Builder(context, EqualizerRenderersFactory(context, settings)).build()
+                player.volume = 0f
+                player.repeatMode = Player.REPEAT_MODE_ONE
+                player.addListener(object : Player.Listener {
+                    override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                        if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) {
+                            positionAtRepeat = player.currentPosition
+                            repeated.countDown()
+                        }
+                    }
+                })
+                player.setMediaItem(MediaItem.Builder().setMediaId("loop").setUri(track.toURI().toString()).build())
+                coordinator = CrossfadeCoordinator(context, player, settings)
+                coordinator.start()
+                player.prepare()
+                player.play()
+            }
+            val deadline = System.currentTimeMillis() + 15_000
+            while (repeated.count > 0 && System.currentTimeMillis() < deadline) {
+                if (settings.plan != null) planned = true
+                Thread.sleep(50)
+            }
+            Log.i("LJCrossfadeTest", "repeat-one position at repeat=$positionAtRepeat planned=$planned")
+            assertEquals(0L, repeated.count)
+            assertTrue("no overlap with itself", !planned)
+            assertTrue("each repeat starts at the start: $positionAtRepeat", positionAtRepeat in 0L..500L)
+        } finally {
+            instrumentation.runOnMainSync {
+                coordinator.release()
+                player.release()
+            }
+            track.delete()
+        }
+    }
+
+    @Test fun finishingTheTrackPlaysItOutAloneWithoutTheNextOpening() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val outgoing = File(context.cacheDir, "crossfade-last-a.wav").also { writeWav(it, OUTGOING_FRAMES, ::tone) }
+        val incoming = File(context.cacheDir, "crossfade-last-b.wav").also { writeWav(it, INCOMING_FRAMES, ::saw) }
+        // The sleep timer's "end of track" is armed.
+        val settings = CrossfadeSettings().apply { fadeMs = OVERLAP_MS; finishingTrack = true }
+        val capture = Capture()
+        val end = CountDownLatch(1)
+        var planned = false
+        lateinit var player: ExoPlayer
+        lateinit var coordinator: CrossfadeCoordinator
+        try {
+            instrumentation.runOnMainSync {
+                runBlocking { AndroidEqualizerController.get(context).setEnabled(false) }
+                val factory = object : EqualizerRenderersFactory(context, settings) {
+                    override fun buildAudioProcessors(context: Context, restart: AtomicBoolean): Array<AudioProcessor> =
+                        super.buildAudioProcessors(context, restart) + capture
+                }
+                player = ExoPlayer.Builder(context, factory).build()
+                player.volume = 0f
+                player.addListener(object : Player.Listener {
+                    override fun onPlaybackStateChanged(state: Int) {
+                        if (state == Player.STATE_ENDED) end.countDown()
+                    }
+                })
+                player.setMediaItems(
+                    listOf(
+                        MediaItem.Builder().setMediaId("a").setUri(outgoing.toURI().toString()).build(),
+                        MediaItem.Builder().setMediaId("b").setUri(incoming.toURI().toString()).build(),
+                    ),
+                )
+                coordinator = CrossfadeCoordinator(context, player, settings)
+                coordinator.start()
+                player.prepare()
+                player.play()
+            }
+            val deadline = System.currentTimeMillis() + 30_000
+            while (end.count > 0 && System.currentTimeMillis() < deadline) {
+                if (settings.plan != null) planned = true
+                Thread.sleep(50)
+            }
+            val samples = capture.samples()
+            Log.i("LJCrossfadeTest", "finishing frames=${samples.size} planned=$planned")
+            assertTrue("no overlap was prepared", !planned)
+            // Every frame of both tracks, one after the other: nothing of B under A's end.
+            assertEquals(OUTGOING_FRAMES + INCOMING_FRAMES, samples.size)
+            // A faded out on its own: its last frames are silent, B's first frame starts from zero.
+            assertTrue((OUTGOING_FRAMES - 100 until OUTGOING_FRAMES).all { abs(samples[it]) <= 20 })
         } finally {
             instrumentation.runOnMainSync {
                 coordinator.release()

@@ -441,10 +441,18 @@ internal class AndroidPlaybackController(
         }
     }
 
-    /** Which ends of each queued track fade, for the PCM chain; see [queueFadeEdges]. */
+    override suspend fun setFinishingCurrentTrack(finishing: Boolean) {
+        withContext(Dispatchers.Main.immediate) { crossfade.finishingTrack = finishing }
+    }
+
+    /** Which ends of each queue row fade, for the PCM chain; see [queueFadeEdges]. */
     private fun publishFadeEdges() {
         val player = controller ?: return
-        crossfade.edges = queueFadeEdges(cachedQueue, repeatsItself = player.repeatMode == Player.REPEAT_MODE_ONE)
+        crossfade.edges = queueFadeEdges(
+            rows = cachedQueue,
+            mediaIndices = cachedQueueMediaIndices,
+            repeatsItself = player.repeatMode == Player.REPEAT_MODE_ONE,
+        )
     }
 
     override suspend fun invalidateSmartFuture() {
@@ -652,15 +660,9 @@ internal class AndroidPlaybackController(
         pendingAdvance.invalidate()
         beginFreshRecoveryAttempt()
         if (player.hasNextMediaItem()) {
-            val nextIndex = player.nextMediaItemIndex
-            announceStart(player, StartCause.SKIP_NEXT, nextIndex)
-            // During an overlap the next track is already sounding: carry on from there.
-            val overlap = crossfade.progress
-            if (overlap != null && overlap.incomingId == player.getMediaItemAt(nextIndex).mediaId) {
-                player.seekTo(nextIndex, overlap.heardMs)
-            } else {
-                player.seekToNextMediaItem()
-            }
+            announceStart(player, StartCause.SKIP_NEXT, player.nextMediaItemIndex)
+            // During an overlap the service lands on the point of the next track already heard.
+            player.seekToNextMediaItem()
             if (player.playbackState == Player.STATE_IDLE) player.prepare()
             pushState()
             // Prediction must not delay a skip when a playable item is already queued.

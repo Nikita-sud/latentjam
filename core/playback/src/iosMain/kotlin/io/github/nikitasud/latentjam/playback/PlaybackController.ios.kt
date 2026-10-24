@@ -155,8 +155,16 @@ internal class IosPlaybackController(
     /** Seams whose next track could not be cued, as "outgoing>incoming" ids; not retried. */
     private val failedOverlaps = mutableSetOf<String>()
 
-    private class IosOverlap(val outgoingId: TrackId, var incomingIndex: Int, val incoming: TrackDescriptor, val overlapMs: Long) {
+    private class IosOverlap(val outgoingId: TrackId, val incoming: TrackDescriptor, val overlapMs: Long) {
         var started = false
+    }
+
+    /** The sleep timer's "end of track" is armed: no overlap, the track fades out on its own. */
+    private var finishingTrack = false
+
+    override suspend fun setFinishingCurrentTrack(finishing: Boolean): Unit = withContext(Dispatchers.Main) {
+        finishingTrack = finishing
+        if (finishing) cancelOverlap()
     }
 
     override suspend fun setCrossfadeSeconds(seconds: Int): Unit = withContext(Dispatchers.Main) {
@@ -193,14 +201,12 @@ internal class IosPlaybackController(
         val nextIndex = overlapNextIndex()
         val next = nextIndex?.let(queue::getOrNull)
         overlap?.let { active ->
-            if (fadeMs <= 0L || active.outgoingId != current.id || next?.id != active.incoming.id) {
+            if (fadeMs <= 0L || finishingTrack || active.outgoingId != current.id || next?.id != active.incoming.id) {
                 cancelOverlap()
-            } else {
-                active.incomingIndex = nextIndex
             }
         }
         val edges = currentFadeEdges()
-        if (overlap == null && fadeMs > 0L && durationMs > 0L && edges.fadeOut && next != null &&
+        if (overlap == null && fadeMs > 0L && !finishingTrack && durationMs > 0L && edges.fadeOut && next != null &&
             durationMs - positionMs <= fadeMs + OVERLAP_CUE_AHEAD_MS
         ) {
             val key = "${current.id.value}>${next.id.value}"
@@ -209,7 +215,7 @@ internal class IosPlaybackController(
                 val incomingMs = audioEngine.prepareOverlap(url)
                 val overlapMs = incomingMs?.let { overlapLengthMs(fadeMs, durationMs, it) } ?: 0L
                 if (overlapMs > 0L) {
-                    overlap = IosOverlap(current.id, nextIndex!!, next, overlapMs)
+                    overlap = IosOverlap(current.id, next, overlapMs)
                 } else {
                     audioEngine.cancelOverlap()
                     failedOverlaps += key
@@ -259,8 +265,13 @@ internal class IosPlaybackController(
     }
 
     /** The row playback moves on to by itself, the current one under repeat-one. */
+    /**
+     * The row playback moves on to by itself. None under repeat-one: a track never overlaps its
+     * own opening, which would start each repeat seconds in — past the sleep timer's and the
+     * listening log's idea of a restart. Its loop keeps the plain fades.
+     */
     private fun overlapNextIndex(): Int? = when (repeat) {
-        RepeatMode.ONE -> queueIndex.takeIf { it in queue.indices }
+        RepeatMode.ONE -> null
         else -> playbackQueueTraversal(queue.size, queueIndex + 1, direction = 1, wrap = repeat == RepeatMode.ALL)
             .firstOrNull()
     }
@@ -285,6 +296,12 @@ internal class IosPlaybackController(
      */
     private fun promoteOverlap(cause: StartCause): Boolean {
         val active = overlap?.takeIf { it.started } ?: return false
+        // A queue edit since the last tick may have moved or replaced the next row: re-derive it.
+        val incomingIndex = overlapNextIndex()?.takeIf { queue.getOrNull(it)?.id == active.incoming.id }
+        if (incomingIndex == null) {
+            cancelOverlap()
+            return false
+        }
         overlap = null
         val itemGeneration = ++playbackItemGeneration
         if (!audioEngine.promoteOverlap { mainScope.launch { onItemEnded(itemGeneration) } }) {
@@ -292,7 +309,7 @@ internal class IosPlaybackController(
             return false
         }
         pendingAdvance.invalidate()
-        queueIndex = active.incomingIndex
+        queueIndex = incomingIndex
         incomingRiseMs = active.overlapMs
         failedOverlaps.clear()
         beginStart(cause)

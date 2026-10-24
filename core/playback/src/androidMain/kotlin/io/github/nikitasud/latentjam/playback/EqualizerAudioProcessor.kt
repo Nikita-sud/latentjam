@@ -179,7 +179,14 @@ internal class StreamTaggingAudioRenderer(
     ) {
         val uid = mediaPeriodId.periodUid
         val mediaId = windowOf(uid)?.mediaItem?.mediaId
-        read.addLast(PcmStream(offsetUs, mediaId) { windowOf(uid)?.durationUs ?: C.TIME_UNSET })
+        read.addLast(
+            PcmStream(
+                offsetUs,
+                mediaId,
+                duration = { windowOf(uid)?.durationUs ?: C.TIME_UNSET },
+                windowIndex = { windowIndexOf(uid) },
+            ),
+        )
         while (read.size > MAX_READ_STREAMS) read.removeFirst()
         super.onStreamChanged(formats, startPositionUs, offsetUs, mediaPeriodId)
     }
@@ -196,10 +203,16 @@ internal class StreamTaggingAudioRenderer(
     }
 
     private fun windowOf(periodUid: Any): Timeline.Window? {
+        val index = windowIndexOf(periodUid)
+        if (index == C.INDEX_UNSET) return null
+        return timeline.getWindow(index, window)
+    }
+
+    private fun windowIndexOf(periodUid: Any): Int {
         val timeline = timeline
         val index = timeline.getIndexOfPeriod(periodUid)
-        if (index == C.INDEX_UNSET) return null
-        return timeline.getWindow(timeline.getPeriod(index, period).windowIndex, window)
+        if (index == C.INDEX_UNSET) return C.INDEX_UNSET
+        return timeline.getPeriod(index, period).windowIndex
     }
 
     private companion object {

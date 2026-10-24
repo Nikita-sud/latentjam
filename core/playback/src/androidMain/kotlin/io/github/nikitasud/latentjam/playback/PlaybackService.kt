@@ -744,6 +744,18 @@ public class PlaybackService : MediaLibraryService() {
         applyPersistedRepeatMode(player)
         playbackPlayer = player
         val sessionPlayer = object : LoadedQueueKeeper(player) {
+            // During an overlap the next row is already sounding: Next from any controller
+            // carries on from there instead of replaying its opening.
+            override fun seekToNext() {
+                crossfade?.nextFromOverlap()?.let { (index, positionMs) -> seekTo(index, positionMs) }
+                    ?: super.seekToNext()
+            }
+
+            override fun seekToNextMediaItem() {
+                crossfade?.nextFromOverlap()?.let { (index, positionMs) -> seekTo(index, positionMs) }
+                    ?: super.seekToNextMediaItem()
+            }
+
             override fun setPlaylistMetadata(playlistMetadata: MediaMetadata) {
                 val marker = playlistMetadata.extras?.getBundle(AndroidQueueCommand.KEY)
                 if (marker == null) {

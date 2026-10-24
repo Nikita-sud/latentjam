@@ -7,12 +7,15 @@ package io.github.nikitasud.latentjam.playback
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** User-visible sleep-timer state. The countdown value is intentionally minute-granular. */
 public sealed interface SleepTimerState {
@@ -36,6 +39,9 @@ public class SleepTimerController(
     public val state: StateFlow<SleepTimerState> = mutableState.asStateFlow()
 
     private var job: Job? = null
+
+    /** The end-of-track timer currently holding playback to its last track. */
+    private var holder: Job? = null
 
     /** Stops playback after [minutes] of wall-clock time. Non-positive values cancel the timer. */
     public fun startCountdown(minutes: Int) {
@@ -74,52 +80,70 @@ public class SleepTimerController(
      * Neither is moving the playhead inside the row an end of it: a manual seek back, Previous
      * restarting the track, or tapping the row again all land at the start of a row that never
      * finished, and only a repeat-one wrap means the track was played out — see the wrap check.
+     *
+     * While armed, playback is told the track is the last ([PlaybackController.setFinishingCurrentTrack]):
+     * a smooth transition would otherwise start the next track under this one's end, and the pause
+     * would land seconds into it.
      */
     public fun startAtEndOfTrack() {
         val initial = playback.state.value
         val trackId = initial.track?.id ?: return
         replace {
             mutableState.value = SleepTimerState.EndOfTrack
-            var rowOrdinal = initial.rowsOfTrackBeforePlayhead(trackId)
-            var hasPlayed = initial.isPlaying
-            var previousPositionMs = initial.positionMs
-            var previousDurationMs = initial.durationMs
-            var previousStart = initial.playbackStart
-            playback.state.first { snapshot ->
-                if (snapshot.isPlaying) hasPlayed = true
-                // Only a duplicated id needs the row's place among the track's rows to tell them
-                // apart. Everywhere else the id is the row's identity and its place is the first,
-                // which is what a copy queued later is compared against.
-                val ambiguousRow = snapshot.queue.count { it.id == trackId } > 1
-                val ordinal = snapshot.rowsOfTrackBeforePlayhead(trackId)
-                val movedAway = snapshot.track?.id != trackId ||
-                    (ambiguousRow && ordinal != rowOrdinal)
-                if (!ambiguousRow) rowOrdinal = ordinal
-                val naturallyEnded = hasPlayed &&
-                    !snapshot.isPlaying &&
-                    snapshot.durationMs > 0L &&
-                    snapshot.positionMs >= (snapshot.durationMs - END_TOLERANCE_MS).coerceAtLeast(0L)
-                // Repeat-one can jump directly from the end back to zero without ever publishing
-                // a paused state or changing queue identity. Remember the previous ticker sample
-                // so "end of track" still means one play, not an infinite loop. That jump is also
-                // what a manual seek back or a Previous restart inside the last seconds looks
-                // like, so the wrap counts only when it is a repeat of the row and not the same
-                // instance being scrubbed — see [isRepeatOfRow].
-                val wrappedToStart = snapshot.repeatMode == RepeatMode.ONE &&
-                    snapshot.positionMs <= END_TOLERANCE_MS &&
-                    previousDurationMs > 0L &&
-                    previousPositionMs >=
-                    (previousDurationMs - END_TOLERANCE_MS).coerceAtLeast(0L) &&
-                    snapshot.positionMs + END_TOLERANCE_MS < previousPositionMs
-                val repeatedFromEnd = hasPlayed && wrappedToStart &&
-                    isRepeatOfRow(previousStart, snapshot.playbackStart)
-                previousPositionMs = snapshot.positionMs
-                previousDurationMs = snapshot.durationMs
-                previousStart = snapshot.playbackStart
-                movedAway || naturallyEnded || repeatedFromEnd
+            try {
+                playback.setFinishingCurrentTrack(true)
+                awaitEndOfTrack(initial, trackId)
+                playback.pause()
+                mutableState.value = SleepTimerState.Off
+            } finally {
+                // A newer end-of-track timer that replaced this one keeps the hold.
+                if (holder === currentCoroutineContext()[Job]) {
+                    holder = null
+                    withContext(NonCancellable) { playback.setFinishingCurrentTrack(false) }
+                }
             }
-            playback.pause()
-            mutableState.value = SleepTimerState.Off
+        }
+        holder = job
+    }
+
+    private suspend fun awaitEndOfTrack(initial: NowPlaying, trackId: TrackId) {
+        var rowOrdinal = initial.rowsOfTrackBeforePlayhead(trackId)
+        var hasPlayed = initial.isPlaying
+        var previousPositionMs = initial.positionMs
+        var previousDurationMs = initial.durationMs
+        var previousStart = initial.playbackStart
+        playback.state.first { snapshot ->
+            if (snapshot.isPlaying) hasPlayed = true
+            // Only a duplicated id needs the row's place among the track's rows to tell them
+            // apart. Everywhere else the id is the row's identity and its place is the first,
+            // which is what a copy queued later is compared against.
+            val ambiguousRow = snapshot.queue.count { it.id == trackId } > 1
+            val ordinal = snapshot.rowsOfTrackBeforePlayhead(trackId)
+            val movedAway = snapshot.track?.id != trackId ||
+                (ambiguousRow && ordinal != rowOrdinal)
+            if (!ambiguousRow) rowOrdinal = ordinal
+            val naturallyEnded = hasPlayed &&
+                !snapshot.isPlaying &&
+                snapshot.durationMs > 0L &&
+                snapshot.positionMs >= (snapshot.durationMs - END_TOLERANCE_MS).coerceAtLeast(0L)
+            // Repeat-one can jump directly from the end back to zero without ever publishing
+            // a paused state or changing queue identity. Remember the previous ticker sample
+            // so "end of track" still means one play, not an infinite loop. That jump is also
+            // what a manual seek back or a Previous restart inside the last seconds looks
+            // like, so the wrap counts only when it is a repeat of the row and not the same
+            // instance being scrubbed — see [isRepeatOfRow].
+            val wrappedToStart = snapshot.repeatMode == RepeatMode.ONE &&
+                snapshot.positionMs <= END_TOLERANCE_MS &&
+                previousDurationMs > 0L &&
+                previousPositionMs >=
+                (previousDurationMs - END_TOLERANCE_MS).coerceAtLeast(0L) &&
+                snapshot.positionMs + END_TOLERANCE_MS < previousPositionMs
+            val repeatedFromEnd = hasPlayed && wrappedToStart &&
+                isRepeatOfRow(previousStart, snapshot.playbackStart)
+            previousPositionMs = snapshot.positionMs
+            previousDurationMs = snapshot.durationMs
+            previousStart = snapshot.playbackStart
+            movedAway || naturallyEnded || repeatedFromEnd
         }
     }
 

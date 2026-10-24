@@ -28,7 +28,8 @@ internal class CrossfadeAudioProcessorTest {
     }
     private var nextKey = 1L
 
-    private fun stream(id: String, durationMs: Long) = PcmStream(nextKey++, id) { durationMs * 1000L }
+    private fun stream(id: String, durationMs: Long, row: Int = -1) =
+        PcmStream(nextKey++, id, duration = { durationMs * 1000L }, windowIndex = { row })
 
     /** A seek, a skip or the first start: the renderer flushes the sink. */
     private fun reposition(stream: PcmStream, atMs: Long = 0L) {
@@ -142,11 +143,11 @@ internal class CrossfadeAudioProcessorTest {
     @Test
     fun anAlbumSeamPlayedInOrderNeitherOverlapsNorFades() {
         settings.fadeMs = 2_000
-        settings.edges = mapOf("a" to FadeEdges(fadeIn = true, fadeOut = false), "b" to FadeEdges(false, true))
+        settings.edges = mapOf(0 to FadeEdges(fadeIn = true, fadeOut = false), 1 to FadeEdges(false, true))
         settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000, samples = ramp)
-        reposition(stream("a", 10_000), atMs = 5_000)
+        reposition(stream("a", 10_000, row = 0), atMs = 5_000)
         assertTrue(feed(loud, 5_000, 10_000).all { it == 1000 })
-        assertEquals(0L, join(stream("b", 10_000)))
+        assertEquals(0L, join(stream("b", 10_000, row = 1)))
         assertTrue(feed(loud, 0, 3_000).all { it == 1000 })
     }
 
@@ -215,6 +216,29 @@ internal class CrossfadeAudioProcessorTest {
         val rest = feed(loud, 9_000, 10_000)
         assertTrue(rest.last() in 1999..2000)
         assertEquals(2_000_000L, join(stream("b", 20_000)))
+    }
+
+    @Test
+    fun theSameTrackQueuedAgainElsewhereStillFadesAtItsOwnRow() {
+        settings.fadeMs = 2_000
+        // Row 0 continues its album; row 3, the same track queued again, does not.
+        settings.edges = mapOf(0 to FadeEdges(fadeIn = false, fadeOut = false))
+        reposition(stream("a", 10_000, row = 3), atMs = 7_000)
+        assertEquals(500, feed(loud, 7_000, 10_000)[2_000])
+    }
+
+    @Test
+    fun finishingTheTrackLetsAnOverlapInProgressGo() {
+        settings.fadeMs = 2_000
+        settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000) { 3000 }
+        reposition(stream("a", 10_000), atMs = 5_000)
+        feed(loud, 5_000, 8_500)
+        // The sleep timer arms "end of track": the coordinator withdraws the plan.
+        settings.finishingTrack = true
+        settings.plan = null
+        val rest = feed({ 0 }, 8_500, 10_000)
+        assertTrue(rest.drop(CROSSFADE_CANCEL_MS.toInt() + 100).all { it == 0 })
+        assertEquals(0L, join(stream("b", 20_000)))
     }
 
     private companion object {

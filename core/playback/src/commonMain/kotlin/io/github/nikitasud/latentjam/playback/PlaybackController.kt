@@ -223,6 +223,13 @@ public interface PlaybackController {
     public suspend fun setCrossfadeSeconds(seconds: Int) {}
 
     /**
+     * Whether playback stops when the current track ends (the sleep timer's "end of track"). While
+     * it does, the next track's opening must not sound under this one's end: the track fades out on
+     * its own. Platforms without overlapping transitions keep the default no-op.
+     */
+    public suspend fun setFinishingCurrentTrack(finishing: Boolean) {}
+
+    /**
      * Replaces the queue with [tracks] and starts playing the one at
      * [startIndex]. The list remains the natural OFF/ON playback source; SMART draws from the
      * complete library supplied by [setSmartLibrary].

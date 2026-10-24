@@ -275,12 +275,42 @@ class SleepTimerTest {
         assertEquals(1, playback.pauseCalls)
         assertEquals(SleepTimerState.Off, timer.state.value)
     }
+    @Test
+    fun `end of track holds back the next track until it fires or is cancelled`() = runTest {
+        val first = TrackDescriptor(TrackId("one"))
+        val second = TrackDescriptor(TrackId("two"))
+        val playback = FakePlayback(
+            initial = NowPlaying(track = first, isPlaying = true, queue = listOf(first, second), queueIndex = 0),
+        )
+        val timer = SleepTimerController(playback, backgroundScope) { testScheduler.currentTime }
+
+        timer.startAtEndOfTrack()
+        runCurrent()
+        assertEquals(listOf(true), playback.finishing)
+        playback.mutableState.value = playback.mutableState.value.copy(track = second, queueIndex = 1)
+        runCurrent()
+        assertEquals(1, playback.pauseCalls)
+        assertEquals(listOf(true, false), playback.finishing)
+
+        playback.mutableState.value = playback.mutableState.value.copy(isPlaying = true)
+        timer.startAtEndOfTrack()
+        runCurrent()
+        timer.cancel()
+        runCurrent()
+        assertEquals(listOf(true, false, true, false), playback.finishing)
+        assertEquals(1, playback.pauseCalls)
+    }
 }
 
 private class FakePlayback(initial: NowPlaying = NowPlaying()) : PlaybackController {
     val mutableState = MutableStateFlow(initial)
     override val state: StateFlow<NowPlaying> = mutableState
     var pauseCalls = 0
+    val finishing = mutableListOf<Boolean>()
+
+    override suspend fun setFinishingCurrentTrack(finishing: Boolean) {
+        this.finishing += finishing
+    }
 
     override suspend fun pause() {
         pauseCalls++

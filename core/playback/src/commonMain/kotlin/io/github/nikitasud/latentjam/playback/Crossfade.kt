@@ -82,19 +82,25 @@ internal data class FadeEdges(val fadeIn: Boolean, val fadeOut: Boolean) {
 }
 
 /**
- * [FadeEdges] of the tracks in [rows] (the queue in the order it plays) that are not
- * [FadeEdges.BOTH]: no fade where [continuesAlbum] joins a row to its neighbour. Only those are
- * kept, so a 50 000-row queue costs a map of its album seams, not of every row. With
- * [repeatsItself] each track's neighbour is itself. A track queued twice keeps its later row's.
+ * [FadeEdges] of the queue's rows that are not [FadeEdges.BOTH], keyed by each row's player index
+ * ([mediaIndices], parallel to [rows], which are in the order they play): no fade where
+ * [continuesAlbum] joins a row to its neighbour. Per row, not per track: album row 3 queued again
+ * with Play next keeps the album's seams. Only those rows are kept, so a 50 000-row queue costs a
+ * map of its album seams. With [repeatsItself] each row's neighbour is itself.
  */
-internal fun queueFadeEdges(rows: List<TrackDescriptor?>, repeatsItself: Boolean): Map<String, FadeEdges> {
-    val edges = HashMap<String, FadeEdges>()
+internal fun queueFadeEdges(
+    rows: List<TrackDescriptor?>,
+    mediaIndices: List<Int>,
+    repeatsItself: Boolean,
+): Map<Int, FadeEdges> {
+    val edges = HashMap<Int, FadeEdges>()
     rows.forEachIndexed { index, current ->
         current ?: return@forEachIndexed
+        val mediaIndex = mediaIndices.getOrNull(index) ?: return@forEachIndexed
         val previous = if (repeatsItself) current else rows.getOrNull(index - 1)
         val next = if (repeatsItself) current else rows.getOrNull(index + 1)
-        val trackEdges = FadeEdges(!continuesAlbum(previous, current), !continuesAlbum(current, next))
-        if (trackEdges == FadeEdges.BOTH) edges.remove(current.id.value) else edges[current.id.value] = trackEdges
+        val rowEdges = FadeEdges(!continuesAlbum(previous, current), !continuesAlbum(current, next))
+        if (rowEdges != FadeEdges.BOTH) edges[mediaIndex] = rowEdges
     }
     return edges
 }
@@ -119,13 +125,14 @@ internal fun normalizationRampVolume(
 }
 
 /**
- * How long two tracks actually overlap at a seam: the setting, but never more than half of either
- * track, so a short track is still heard on its own between its two neighbours. Zero when either
- * length is unknown — an overlap must know where the outgoing track ends.
+ * How long two tracks actually overlap at a seam: the setting, but never more than a third of
+ * either track. A track can be overlapped at both ends, so a third each side leaves it at least a
+ * third heard on its own. Zero when either length is unknown — an overlap must know where the
+ * outgoing track ends.
  */
 internal fun overlapLengthMs(fadeMs: Long, outgoingMs: Long, incomingMs: Long): Long {
     if (fadeMs <= 0L || outgoingMs <= 0L || incomingMs <= 0L) return 0L
-    return minOf(fadeMs, outgoingMs / 2L, incomingMs / 2L).coerceAtLeast(0L)
+    return minOf(fadeMs, outgoingMs / 3L, incomingMs / 3L).coerceAtLeast(0L)
 }
 
 /**

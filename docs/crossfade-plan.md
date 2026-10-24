@@ -54,7 +54,7 @@ second AudioTrack, a SEEK transition to re-label, and audio focus/ducking for tw
 
 | Area | Behaviour |
 |---|---|
-| Gapless albums | `continuesAlbum` keeps its meaning: no overlap (and no fade) between consecutive tracks of one album played in order. |
+| Gapless albums | `continuesAlbum` keeps its meaning: no overlap (and no fade) between consecutive tracks of one album played in order. Decided per queue row (by player index on Android), so an album track queued again elsewhere neither breaks the album's seams nor inherits them. |
 | Start-cause ledger | Untouched: B still begins with an AUTO transition at A's natural end → `AUTO_ADVANCE`, or `QUEUED` if queued by hand. Logged once. |
 | History of A | A plays to its real end → counted as completed, as today. B's session opens at position ≈ N s (its first N s were heard during the overlap). |
 | SMART top-ups | Unchanged; pre-roll takes whatever is next when it starts and re-checks before mixing. |
@@ -64,10 +64,12 @@ second AudioTrack, a SEEK transition to re-label, and audio focus/ducking for tw
 | Session, notification, widget, Android Auto | Single player → unchanged. Trade-off: the metadata switches to B when A actually ends, i.e. at the END of the overlap, not at its start (Spotify switches earlier). |
 | Pause / resume | Both songs pause and resume together (one stream), with the existing transport fade. |
 | Seek during overlap | Inside A: overlap re-arms at the right offset if the intro is still valid, otherwise cancels. |
-| Next during overlap | Goes to B at the point already heard (no restart of B's opening); ledger `SKIP_NEXT` as today. |
+| Next during overlap | Goes to B at the point already heard (no restart of B's opening), from any controller: the app, the notification, a headset, the lock screen, Android Auto (the session player handles it); ledger `SKIP_NEXT` as today. |
 | Previous during overlap | As today. |
-| Repeat one | Overlaps the track with its own beginning like any seam. |
-| End of queue / sleep timer "finish track" | No next → plain fade-out as today. |
+| Repeat one | Never overlaps a track with its own opening: each repeat would start seconds in, which the sleep timer's wrap check and the listening log's restart check (both expect ~0) miss. The loop keeps the plain fades. |
+| Short tracks | An overlap is at most a third of either track (`overlapLengthMs`), so a track overlapped at both ends still has a third of itself alone. |
+| End of queue | No next → plain fade-out as today. |
+| Sleep timer "end of track" | While armed, the timer tells playback (`setFinishingCurrentTrack`): no overlap is prepared and one in progress lets the next track go in 300 ms, so the track fades out on its own and the pause lands at its end, not seconds into the next track. |
 | Audio focus, becoming noisy, ducking | One player → unchanged. |
 | 48 MB heaps | Intro PCM off-heap; capture player lives 1–2 s with a small load buffer. |
 

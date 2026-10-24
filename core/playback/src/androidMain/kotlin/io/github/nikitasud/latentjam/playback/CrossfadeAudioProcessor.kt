@@ -23,8 +23,17 @@ internal class CrossfadeSettings {
     /** Loudness normalisation per media id; a missing id plays at full volume. */
     @Volatile var trackGains: Map<String, Float> = emptyMap()
 
-    /** Which ends of each queued track may fade; see [FadeEdges]. A missing id fades both. */
-    @Volatile var edges: Map<String, FadeEdges> = emptyMap()
+    /**
+     * Which ends of each queue row may fade, by the row's player index; see [queueFadeEdges]. A
+     * missing row fades both.
+     */
+    @Volatile var edges: Map<Int, FadeEdges> = emptyMap()
+
+    /**
+     * Playback stops when the current track ends (the sleep timer's "end of track"): no overlap is
+     * prepared, and one in progress lets the next track go, so the track fades out on its own.
+     */
+    @Volatile var finishingTrack: Boolean = false
 
     /** The next track's decoded opening, ready to overlap the end of the current one. */
     @Volatile var plan: OverlapPlan? = null
@@ -33,7 +42,7 @@ internal class CrossfadeSettings {
     @Volatile var progress: OverlapProgress? = null
 
     fun gainOf(mediaId: String?): Float = mediaId?.let(trackGains::get) ?: 1f
-    fun edgesOf(mediaId: String?): FadeEdges = mediaId?.let(edges::get) ?: FadeEdges.BOTH
+    fun edgesAt(mediaIndex: Int?): FadeEdges = mediaIndex?.let(edges::get) ?: FadeEdges.BOTH
 }
 
 /**
@@ -60,9 +69,17 @@ internal object AndroidCrossfade {
 }
 
 /** The track a run of PCM belongs to, as the audio renderer knows it. [key] is unique per play. */
-internal class PcmStream(val key: Long, val mediaId: String?, private val duration: () -> Long) {
+internal class PcmStream(
+    val key: Long,
+    val mediaId: String?,
+    private val duration: () -> Long,
+    private val windowIndex: () -> Int = { C.INDEX_UNSET },
+) {
     /** The window's duration, [C.TIME_UNSET] while unknown. Read on the playback thread. */
     val durationUs: Long get() = duration()
+
+    /** The row's current player index, after any queue edit; null once it left the queue. */
+    val mediaIndex: Int? get() = windowIndex().takeIf { it != C.INDEX_UNSET }
 }
 
 /**
@@ -142,7 +159,7 @@ internal class CrossfadeAudioProcessor(
                     // The overlap's own clock carries on past the join for a track that ended early.
                     next.incomingBase = mix.mixedFrames - mix.nextIntroFrame.toLong()
                     next.incomingFrames = mix.overlapFrames
-                } else if (!settings.edgesOf(decision.stream?.mediaId).fadeIn) {
+                } else if (!settings.edgesAt(decision.stream?.mediaIndex).fadeIn) {
                     // A segued album seam plays on: its loudness change ramps instead of stepping.
                     next.rampFrom = previous.gain
                 }
@@ -205,7 +222,7 @@ internal class CrossfadeAudioProcessor(
         val mediaId = segment.stream?.mediaId
         val durationUs = segment.stream?.durationUs?.takeIf { it > 0L && it != C.TIME_UNSET } ?: 0L
         val durationMs = durationUs / 1000L
-        val edges = settings.edgesOf(mediaId)
+        val edges = settings.edgesAt(segment.stream?.mediaIndex)
         val targetGain = settings.gainOf(mediaId)
         val livePlan = settings.plan
         val envelopeStep = 1f / (rate * ENVELOPE_SLEW_MS / 1000f)
