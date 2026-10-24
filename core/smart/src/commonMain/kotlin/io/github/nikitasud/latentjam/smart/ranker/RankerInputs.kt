@@ -60,6 +60,8 @@ public class PersonalHistory(
     private val pairNegatives: Map<Pair<TrackId, TrackId>, Pair<Double, Int>> = emptyMap(),
     /** PLAN_LISTENW: the listen weighting (null = counts as before: every listen 1, no negatives). */
     private val listenWeight: RankerModel.ListenWeight? = null,
+    /** PLAN_LISTENW2: how much of the weighting each pair A → B gets (null = all of it, PLAN_LISTENW). */
+    private val pairWeight: ((TrackId, TrackId) -> Double)? = null,
     /** PLAN_TRANSGRAPH: the personal transition graph (FULL models with a transGraph block); null = transition counts. */
     private val graph: TransGraph? = null,
     artistKey: (TrackId) -> String,
@@ -84,13 +86,14 @@ public class PersonalHistory(
             val a = listens[i - 1]
             val b = listens[i]
             if (b.startedAtMs - a.startedAtMs > HabitSlots.PAIR_GAP_MS || a.trackId == b.trackId || !b.countsAsNext) continue
-            fromTrack.getOrPut(a.trackId) { HashMap() }.let { it[b.trackId] = (it[b.trackId] ?: 0.0) + b.credit }
+            val c = credited(a.trackId, b.trackId, b.credit)
+            fromTrack.getOrPut(a.trackId) { HashMap() }.let { it[b.trackId] = (it[b.trackId] ?: 0.0) + c }
             val key = artistKey(a.trackId)
-            if (key.isNotEmpty()) fromArtist.getOrPut(key) { HashMap() }.let { it[b.trackId] = (it[b.trackId] ?: 0.0) + b.credit }
+            if (key.isNotEmpty()) fromArtist.getOrPut(key) { HashMap() }.let { it[b.trackId] = (it[b.trackId] ?: 0.0) + c }
         }
         extraTransitions.forEachIndexed { k, (a, b) ->
             if (a == b) return@forEachIndexed
-            val w = extraCredits?.get(k) ?: 1.0
+            val w = credited(a, b, extraCredits?.get(k) ?: 1.0)
             fromTrack.getOrPut(a) { HashMap() }.let { it[b] = (it[b] ?: 0.0) + w }
             val key = artistKey(a)
             if (key.isNotEmpty()) fromArtist.getOrPut(key) { HashMap() }.let { it[b] = (it[b] ?: 0.0) + w }
@@ -167,11 +170,18 @@ public class PersonalHistory(
         val lw = listenWeight ?: return Double.NaN
         val p = fromTrack[anchor]?.get(track) ?: 0.0
         var v = ln(1.0 + p)
-        if (lw.negWeight > 0.0) pairNegatives[anchor to track]?.let { (n, events) ->
-            v -= lw.negWeight * ln(4.0) * n / (n + p + 2.0) * minOf(1.0, events / 2.0)
+        if (lw.negWeight > 0.0) pairNegatives[anchor to track]?.let { (n0, events) ->
+            // PLAN_LISTENW2: the pair weight replaces the "one rejection counts half" rule
+            val w = pairWeight?.invoke(anchor, track)
+            val n = if (w == null) n0 else n0 * w
+            v -= lw.negWeight * ln(4.0) * n / (n + p + 2.0) * (if (w == null) minOf(1.0, events / 2.0) else 1.0)
         }
         return v
     }
+
+    /** PLAN_LISTENW2: a listen's credit for A → B under the pair's weight w: 1 − w · (1 − credit) (w = 1 without pairWeight). */
+    private fun credited(a: TrackId, b: TrackId, credit: Double): Double =
+        pairWeight?.let { 1.0 - it(a, b) * (1.0 - credit) } ?: credit
 
     /** A credit sum as the old integer count (exact when every credit is 1). */
     private fun whole(x: Double): Int = floor(x + 1e-9).toInt()

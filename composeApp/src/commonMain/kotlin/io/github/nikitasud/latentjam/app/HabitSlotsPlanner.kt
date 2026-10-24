@@ -115,7 +115,7 @@ internal fun abandonNegatives(
         val b = events[j]
         val heard = b.listenedMs ?: continue
         val start = b.origin?.start
-        if ((start != ListenStart.USER_PICK && start != ListenStart.AUTO_ADVANCE) || b.completed || heard >= listenThresholdMs(b)) continue
+        if ((start != ListenStart.USER_PICK && (lw.picksOnly || start != ListenStart.AUTO_ADVANCE)) || b.completed || heard >= listenThresholdMs(b)) continue
         val a = (j - 1 downTo 0).firstOrNull { !events[it].skipped }?.let { events[it] }
             ?.takeIf { b.startedAtMs - it.startedAtMs <= HabitSlots.PAIR_GAP_MS && it.trackId != b.trackId } ?: continue
         val n = 1.0 / (1.0 + kotlin.math.exp(-(lw.midS - heard / 1000.0) / lw.tauS))
@@ -143,12 +143,20 @@ internal fun personalHistoryOf(
 ): io.github.nikitasud.latentjam.smart.ranker.PersonalHistory {
     val credit = lw?.let { w -> { e: ListenEvent -> listenCredit(e, w.zeroMs) } }
     val extras = if (skipPairs) habitSkipTransitionEvents(events, libraryIds, seedMs, unskippedOnly) else emptyList()
+    // PLAN_LISTENW2: the pair's rejection count (the abandons abandonNegatives counts, early ones included) sets its weight
+    val rejections = if (lw != null && lw.pairMode != "all") abandonNegatives(events, libraryIds, seedMs, lw) else emptyMap()
+    val pairWeight: ((TrackId, TrackId) -> Double)? = when (lw?.pairMode) {
+        "gate2" -> { a, b -> if ((rejections[a to b]?.second ?: 0) >= 2) 1.0 else 0.0 }
+        "shrink" -> { a, b -> (rejections[a to b]?.second ?: 0).let { r -> r / (r + lw.kappa) } }
+        else -> null
+    }
     return io.github.nikitasud.latentjam.smart.ranker.PersonalHistory(
         habitListens(events, libraryIds, seedMs, credit), seedMs, favourites,
         extraTransitions = extras.map { it.first to it.second },
         extraCredits = credit?.let { c -> extras.map { c(it.third) } },
-        pairNegatives = if (lw != null && lw.negWeight > 0.0) abandonNegatives(events, libraryIds, seedMs, lw) else emptyMap(),
+        pairNegatives = if (lw != null && lw.negWeight > 0.0) rejections.ifEmpty { abandonNegatives(events, libraryIds, seedMs, lw) } else emptyMap(),
         listenWeight = lw,
+        pairWeight = pairWeight,
         graph = graph,
         artistKey = artistKey,
     )

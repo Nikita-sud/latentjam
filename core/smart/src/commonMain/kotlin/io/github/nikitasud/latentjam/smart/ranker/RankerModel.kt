@@ -149,6 +149,15 @@ public class RankerModel(
      */
     public class ListenWeight(
         public val zeroMs: Long = 30_000L, public val negWeight: Double = 0.0, public val midS: Double = 30.0, public val tauS: Double = 7.0,
+        /**
+         * PLAN_LISTENW2 ("one rejection is noise, a repeat is a signal"): how much of the weighting a pair A → B gets from
+         * its number r of rejections — "all" (1, PLAN_LISTENW), "gate2" (0 below 2 rejections, then 1), "shrink"
+         * (r / (r + [kappa])). At 0 the pair keeps the unweighted treatment (credit 1, no negative).
+         */
+        public val pairMode: String = "all",
+        public val kappa: Double = 2.0,
+        /** PLAN_LISTENW2: only rejections of a picked B count (rejections and negatives); autoplay abandons are ignored. */
+        public val picksOnly: Boolean = false,
     )
 
     /** PLAN_TRANSGRAPH variants "A" (SIGNALS_REVIEW §4), "B" (hard thresholds), "C" (no start-reason multipliers), "A2" (+ 2-hop), "D" (session-kNN). */
@@ -434,7 +443,7 @@ public class RankerModel(
             "followerExempt" to setOf("followMin"),
             "personalNudge" to setOf("delta", "track", "artist", "playlist", "favourite", "frequency", "followMin"),
             "transGraph" to setOf("variant", "window", "gapMin", "halfLifeDays", "mu", "kappa", "neg", "importWeight"),
-            "listenWeight" to setOf("zeroS", "negWeight", "midS", "tauS"),
+            "listenWeight" to setOf("zeroS", "negWeight", "midS", "tauS", "pairMode", "kappa", "picksOnly"),
             "prevFamilyJump" to setOf("lambda"),
             "familyDrift" to setOf("lambda"),
             "playlistBonus" to setOf("lambda", "quota", "artistCap"),
@@ -617,7 +626,10 @@ public class RankerModel(
                 skipPairsUnskippedOnly = root["skipPairs"] == "unskipped",
                 listenWeight = (root["listenWeight"] as? Map<*, *>)?.let {
                     fun d(k: String, v: Double) = (it[k] as? Number)?.toDouble() ?: v
-                    ListenWeight((d("zeroS", 30.0) * 1000).toLong(), d("negWeight", 0.0), d("midS", 30.0), d("tauS", 7.0))
+                    val mode = it["pairMode"] as? String ?: "all"
+                    require(mode in setOf("all", "gate2", "shrink")) { "listenWeight.pairMode" }
+                    ListenWeight((d("zeroS", 30.0) * 1000).toLong(), d("negWeight", 0.0), d("midS", 30.0), d("tauS", 7.0),
+                        mode, d("kappa", 2.0), it["picksOnly"] as? Boolean ?: false)
                 },
                 transGraph = (root["transGraph"] as? Map<*, *>)?.let {
                     fun d(k: String, v: Double) = (it[k] as? Number)?.toDouble() ?: v

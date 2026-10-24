@@ -159,4 +159,29 @@ class HabitSlotsPlannerTest {
         val h = personalHistoryOf(listened, library, t, emptyMap(), skipPairs = true, unskippedOnly = false, lw = full) { "" }
         assertEquals(kotlin.math.ln(1.0 + 2), h.row(TrackId("b"), TrackId("a"), "").transTrackNats)
     }
+
+    @Test
+    fun `one rejection keeps the plain treatment and a repeat turns the weighting on`() {
+        val library = setOf("a", "b").mapTo(HashSet(), ::TrackId)
+        val pick = ListenStart.USER_PICK
+        fun sessions(n: Int): List<ListenEvent> {
+            val out = ArrayList<ListenEvent>(); var t = 0L
+            repeat(n) { out += play("a", t, 200_000, pick, completed = true); out += play("b", t + 201_000, 5_000, pick); t += 3_600_000 }
+            return out
+        }
+        fun lw(mode: String) = io.github.nikitasud.latentjam.smart.ranker.RankerModel.ListenWeight(negWeight = 1.5, pairMode = mode, picksOnly = true)
+        fun nats(events: List<ListenEvent>, w: io.github.nikitasud.latentjam.smart.ranker.RankerModel.ListenWeight?) =
+            personalHistoryOf(events, library, 100_000_000, emptyMap(), skipPairs = true, unskippedOnly = false, lw = w) { "" }
+                .row(TrackId("b"), TrackId("a"), "")
+        // once: gate2 keeps the plain treatment (vc21's pick-then-skip pair counts 1, no negative)
+        val once = nats(sessions(1), lw("gate2"))
+        assertEquals(kotlin.math.ln(2.0), once.transTrackNats, 1e-12)
+        // twice: gate2 zeroes the credit and applies the negative
+        assertTrue(nats(sessions(2), lw("gate2")).transTrackNats < 0.0)
+        // shrink: one rejection moves the pair a third of the way, two half of it
+        val s1 = nats(sessions(1), lw("shrink")).transTrackNats
+        val s2 = nats(sessions(2), lw("shrink")).transTrackNats
+        assertTrue(s1 > 0.0 && s1 < kotlin.math.ln(2.0))
+        assertTrue(s2 < s1)
+    }
 }
