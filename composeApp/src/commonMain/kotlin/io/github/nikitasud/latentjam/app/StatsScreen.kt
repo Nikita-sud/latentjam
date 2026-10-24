@@ -205,12 +205,12 @@ import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
-private enum class StatsPeriod(val days: Int?) { WEEK(7), MONTH(30), ALL(null) }
+internal enum class StatsPeriod(val days: Int?) { WEEK(7), MONTH(30), ALL(null) }
 
 private enum class TopKind { ARTISTS, ALBUMS, GENRES, PLAYLISTS, TRACKS }
 
 /** How the page names and pictures a playlist the log attributes plays to. */
-private class PlaylistLabel(val name: String?, val autoKind: AutoPlaylistKind?, val artworkUri: String?)
+internal class PlaylistLabel(val name: String?, val autoKind: AutoPlaylistKind?, val artworkUri: String?)
 
 /** The listener's playlists as the log can attribute plays to them, with their labels. */
 private suspend fun loadStatsPlaylists(
@@ -257,12 +257,45 @@ private fun PlaylistLabel?.title(): String = when {
 private const val DAY_MS = 24L * 60 * 60 * 1000
 
 /** Section 2: the chips' period. [selection] identifies the chip/source it was computed for. */
-private class PeriodLoad(
+internal class PeriodLoad(
     val selection: Any,
     val overview: ListeningOverview,
     val insights: PeriodInsights,
     val logEmpty: Boolean,
-)
+) {
+    /** The same numbers, shown for this composition's [selection]. */
+    fun shownFor(selection: Any): PeriodLoad = PeriodLoad(selection, overview, insights, logEmpty)
+}
+
+/**
+ * What the Statistics page last computed, kept above the page. The root pager composes only the
+ * page on screen, so the page is disposed whenever it is swiped away; without this every return
+ * read and summarised the whole log again behind a progress bar. A result is reused only for the
+ * inputs it was computed from, so new listens, a new day, a retry, an edited library or edited
+ * playlists still recompute it. Main-thread only, like the page itself.
+ */
+internal class StatsMemory {
+    /** The library and playlists compare by identity: each edit publishes a new list. */
+    class Inputs(
+        val historyRevision: Long,
+        val retry: Int,
+        val localDay: Long,
+        val tracks: List<TrackDescriptor>,
+        val playlists: Any?,
+    ) {
+        override fun equals(other: Any?): Boolean = other is Inputs &&
+            historyRevision == other.historyRevision && retry == other.retry && localDay == other.localDay &&
+            tracks === other.tracks && playlists === other.playlists
+
+        override fun hashCode(): Int = historyRevision.hashCode() * 31 + localDay.hashCode()
+    }
+
+    val periods = HashMap<StatsPeriod, Pair<Inputs, PeriodLoad>>()
+    var habits: Pair<Inputs, HabitInsights>? = null
+    var tracksById: Map<TrackId, TrackDescriptor> = emptyMap()
+    var tracksByIdFor: List<TrackDescriptor>? = null
+    var playlistLabels: Map<String, PlaylistLabel> = emptyMap()
+}
 
 /** A shared dashboard for Settings and the optional root page; never reads playback ticks. */
 @Composable
@@ -272,7 +305,12 @@ internal fun ListeningStatsSettings(
     contentPadding: PaddingValues = PaddingValues(bottom = 24.dp),
     active: Boolean = true,
     accent: TrackAccent? = null,
+    /** Results that outlive this composition; the root page passes one kept above the pager. */
+    memory: StatsMemory? = null,
+    /** The playlists as published: a rename or a new playlist recomputes what names them. */
+    playlistsKey: Any? = null,
 ) {
+    val memo = memory ?: remember { StatsMemory() }
     val accentInk = accent?.let { browseAccentInk(it) } ?: MaterialTheme.colorScheme.primary
     var periodName by rememberSaveable { mutableStateOf(StatsPeriod.MONTH.name) }
     val period = StatsPeriod.entries.firstOrNull { it.name == periodName } ?: StatsPeriod.MONTH
@@ -308,27 +346,44 @@ internal fun ListeningStatsSettings(
         }
     }
     val selection = remember(history, period, tracks) { Any() }
-    var periodLoad by remember { mutableStateOf<PeriodLoad?>(null) }
-    var habitsLoad by remember { mutableStateOf<HabitInsights?>(null) }
+    // A return to the page shows what it last showed at once; the effects below refresh it only
+    // when what it was computed from has changed.
+    var periodLoad by remember { mutableStateOf(memo.periods[period]?.second?.shownFor(selection)) }
+    var habitsLoad by remember { mutableStateOf(memo.habits?.second) }
     var periodFailed by remember { mutableStateOf(false) }
     var habitsFailed by remember { mutableStateOf(false) }
     // Built once off the main thread; rows read it after the first load.
-    var tracksById by remember(tracks) { mutableStateOf<Map<TrackId, TrackDescriptor>>(emptyMap()) }
-    var playlistLabels by remember { mutableStateOf<Map<String, PlaylistLabel>>(emptyMap()) }
+    var tracksById by remember(tracks) {
+        mutableStateOf(if (memo.tracksByIdFor === tracks) memo.tracksById else emptyMap())
+    }
+    var playlistLabels by remember { mutableStateOf(memo.playlistLabels) }
+    fun inputs() = StatsMemory.Inputs(historyRevision, retryRevision, localDay, tracks, playlistsKey)
+    fun keep(catalogMap: Map<TrackId, TrackDescriptor>, labels: Map<String, PlaylistLabel>) {
+        tracksById = catalogMap
+        playlistLabels = labels
+        memo.tracksById = catalogMap
+        memo.tracksByIdFor = tracks
+        memo.playlistLabels = labels
+    }
 
     LaunchedEffect(active) {
         if (!active) snapshots.cancelInFlight()
     }
     // Section 2 follows the chips. New listens refresh it in place; a chip change keeps the old
     // cards dimmed until the new period is ready, so neither the layout nor the scroll jumps.
-    LaunchedEffect(selection, historyRevision, retryRevision, active, localDay) {
+    LaunchedEffect(selection, historyRevision, retryRevision, active, localDay, playlistsKey) {
         if (!active) return@LaunchedEffect
+        val inputs = inputs()
+        memo.periods[period]?.takeIf { it.first == inputs }?.let { (_, kept) ->
+            periodLoad = kept.shownFor(selection)
+            periodFailed = false
+            return@LaunchedEffect
+        }
         try {
             val normalized = snapshots.await(historyRevision, retryRevision)
             val catalogMap = catalog.await()
-            tracksById = catalogMap
             val (statsPlaylists, labels) = playlistsLoad.await()
-            playlistLabels = labels
+            keep(catalogMap, labels)
             val loadContext = currentCoroutineContext()
             val now = epochMillis()
             periodLoad = withContext(Dispatchers.Default) {
@@ -359,7 +414,7 @@ internal fun ListeningStatsSettings(
                     ),
                     logEmpty = normalized.size == 0,
                 )
-            }
+            }.also { memo.periods[period] = inputs to it }
             periodFailed = false
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -368,14 +423,19 @@ internal fun ListeningStatsSettings(
         }
     }
     // Sections 1 and 3 describe the whole log as of today; the chips never touch them.
-    LaunchedEffect(historyRevision, tracks, active, localDay, retryRevision) {
+    LaunchedEffect(historyRevision, tracks, active, localDay, retryRevision, playlistsKey) {
         if (!active) return@LaunchedEffect
+        val inputs = inputs()
+        memo.habits?.takeIf { it.first == inputs }?.let { (_, kept) ->
+            habitsLoad = kept
+            habitsFailed = false
+            return@LaunchedEffect
+        }
         try {
             val normalized = snapshots.await(historyRevision, retryRevision)
             val catalogMap = catalog.await()
-            tracksById = catalogMap
             val (statsPlaylists, labels) = playlistsLoad.await()
-            playlistLabels = labels
+            keep(catalogMap, labels)
             val loadContext = currentCoroutineContext()
             habitsLoad = withContext(Dispatchers.Default) {
                 ListeningInsights.habits(
@@ -386,7 +446,7 @@ internal fun ListeningStatsSettings(
                     cancellationCheck = { loadContext.ensureActive() },
                     playlists = statsPlaylists,
                 )
-            }
+            }.also { memo.habits = inputs to it }
             habitsFailed = false
         } catch (cancelled: CancellationException) {
             throw cancelled
