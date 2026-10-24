@@ -86,6 +86,9 @@ internal class IosAudioEngine : EqualizerController {
     private var standbyFile: AVAudioFile? = null
     private var standbyStarted = false
 
+    /** The frame the standby deck's segment begins at: 0, or later for an overlap begun late. */
+    private var standbyStartFrame = 0L
+
     /** Where the standby deck stopped when the graph paused; -1 while it plays or stands empty. */
     private var standbyPausedFrame = -1L
 
@@ -307,12 +310,19 @@ internal class IosAudioEngine : EqualizerController {
         standbyGain = 0f
         applyMixerGain()
         standbyFile = file
+        scheduleStandby(file, 0L)
+        return frameToMillis(file.length, file)
+    }
+
+    /** Cues [file] on the standby deck from [startFrame]; its end counts once it is promoted. */
+    private fun scheduleStandby(file: AVAudioFile, startFrame: Long) {
         val token = ++tokens
         standbyToken = token
+        standbyStartFrame = startFrame
         standby.scheduleSegment(
             file = file,
-            startingFrame = 0L,
-            frameCount = file.length.coerceAtMost(UInt.MAX_VALUE.toLong()).toUInt(),
+            startingFrame = startFrame,
+            frameCount = (file.length - startFrame).coerceIn(1L, UInt.MAX_VALUE.toLong()).toUInt(),
             atTime = null,
             completionCallbackType = AVAudioPlayerNodeCompletionDataPlayedBack,
             completionHandler = { _ ->
@@ -325,7 +335,6 @@ internal class IosAudioEngine : EqualizerController {
                 }
             },
         )
-        return frameToMillis(file.length, file)
     }
 
     /**
@@ -337,8 +346,17 @@ internal class IosAudioEngine : EqualizerController {
         current.sampleRate == incoming.sampleRate && current.channelCount == incoming.channelCount
 
     /** Starts the cued overlap under the current track. */
-    fun startOverlap(): Boolean {
-        if (standbyFile == null || !player.playing) return false
+    fun startOverlap(fromMs: Long = 0L): Boolean {
+        val file = standbyFile ?: return false
+        if (!player.playing) return false
+        // Begun late — a seek into the overlap's window, the slider raised inside it — the
+        // incoming track joins where the overlap has got to, on the same clock as the outgoing
+        // curve, instead of replaying its opening from a quiet start.
+        val fromFrame = millisToFrame(fromMs, file).coerceIn(0L, (file.length - 1L).coerceAtLeast(0L))
+        if (fromFrame > 0L) {
+            standby.stop()
+            scheduleStandby(file, fromFrame)
+        }
         standby.play()
         standbyStarted = true
         return true
@@ -357,14 +375,15 @@ internal class IosAudioEngine : EqualizerController {
     private fun standbyPlayedFrame(file: AVAudioFile): Long {
         // A paused graph has no render time: the frame it reached was kept when it paused.
         if (!standby.playing && standbyPausedFrame >= 0L) return standbyPausedFrame
-        val rendered = standby.lastRenderTime ?: return 0L
-        val played = standby.playerTimeForNodeTime(rendered) ?: return 0L
-        return played.sampleTime.coerceIn(0L, file.length)
+        val rendered = standby.lastRenderTime ?: return standbyStartFrame
+        val played = standby.playerTimeForNodeTime(rendered) ?: return standbyStartFrame
+        return (standbyStartFrame + played.sampleTime).coerceIn(0L, file.length)
     }
 
     /** Drops the standby deck's track, sounding or not. */
     fun cancelOverlap() {
         standbyPausedFrame = -1L
+        standbyStartFrame = 0L
         standbyToken = NO_TOKEN
         standbyStarted = false
         standbyFile = null
@@ -396,8 +415,9 @@ internal class IosAudioEngine : EqualizerController {
         standbyToken = NO_TOKEN
         standbyFile = null
         standbyStarted = false
-        segmentStartFrame = 0L
+        segmentStartFrame = standbyStartFrame
         pausedFrame = playedFrame
+        standbyStartFrame = 0L
         standbyPausedFrame = -1L
         currentGain = standbyGain
         standbyGain = 0f

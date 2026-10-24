@@ -244,7 +244,8 @@ internal class IosPlaybackController(
         }
         val active = overlap
         if (active != null && !active.started && durationMs - positionMs <= active.overlapMs) {
-            active.started = audioEngine.startOverlap()
+            // Late (a seek into the window): the next track starts where the overlap has got to.
+            active.started = audioEngine.startOverlap(fromMs = positionMs - (durationMs - active.overlapMs))
             if (!active.started) cancelOverlap()
         }
         val windowMs = maxOf(fadeMs, incomingRiseMs)
@@ -1777,6 +1778,10 @@ internal class IosPlaybackController(
                 mediaPlayer.currentPlaybackTime = positionMs / 1000.0
             }
         }
+        // Every seek — a scrub, Previous restarting the track, the lock screen — lands somewhere
+        // the envelope has another value: apply it now and look again at once, not after the
+        // loop's sleep, which may be a second long in the middle of a track.
+        updateCrossfadeLoop()
     }
 
     private fun wireRemoteCommands() {
