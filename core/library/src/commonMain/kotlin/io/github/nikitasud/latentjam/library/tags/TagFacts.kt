@@ -36,6 +36,11 @@ public data class EmbeddedTagFacts(
     public val year: Int? = null,
     /** The album the file names (`ALBUM`, ID3 `TALB`); null when it names none. */
     public val album: String? = null,
+    /**
+     * False when the tag was read only in part, so a null [album] may be one not reached: the file
+     * must not be taken for one that names no album.
+     */
+    public val albumKnown: Boolean = true,
 ) {
     public val isEmpty: Boolean
         get() = genres.isEmpty() && artists.isEmpty() && originalYear == null && language == null &&
@@ -92,6 +97,7 @@ public object TagFacts {
         var albumArtist: String? = null
         var year: Int? = null
         var album: String? = null
+        var complete = true
         for ((rawKey, value) in comments) {
             when (rawKey.uppercase()) {
                 "GENRE" -> genres.add(value)
@@ -103,6 +109,7 @@ public object TagFacts {
                     if (year == null) year = parseYear(value)
                 "ALBUMARTIST", "ALBUM ARTIST", "ALBUM_ARTIST", "TPE2" ->
                     if (albumArtist == null) albumArtist = value.trim().takeIf { it.isNotEmpty() }
+                GenreTags.INCOMPLETE -> complete = false
                 "ALBUM", "TALB" ->
                     if (album == null) album = value.trim().takeIf { it.isNotEmpty() }
                 "LANGUAGE", "TLAN" ->
@@ -128,6 +135,7 @@ public object TagFacts {
             albumArtist = albumArtist,
             year = year,
             album = album,
+            albumKnown = complete || album != null,
         )
     }
 

@@ -152,6 +152,15 @@ internal class GenreEnrichmentTest {
     }
 
     @Test
+    fun aTagReadInPartKeepsTheAlbumCoverFallback() = runTest {
+        val settings = MemorySettings()
+        val partial = track.copy(artworkUri = "song-cover+album")
+        val enrichment = GenreEnrichment(settings, ownCover = { error("never stripped") }) { EmbeddedTagFacts(albumKnown = false) }
+        enrichment.backfill(listOf(partial))
+        assertEquals(listOf(partial), enrichment.apply(listOf(partial)))
+    }
+
+    @Test
     fun anUnreadableFileKeepsTheAlbumCoverFallback() = runTest {
         val settings = MemorySettings()
         val unknown = track.copy(artworkUri = "song-cover+album")
@@ -161,7 +170,7 @@ internal class GenreEnrichmentTest {
     }
 
     @Test
-    fun aV5CacheIsReadAgainOnceToLearnWhetherTheFileNamesAnAlbum() = runTest {
+    fun aV5CacheStillAppliesWhileItsFilesAreReadAgain() = runTest {
         val settings = MemorySettings()
         val inFolder = track.copy(artworkUri = "song-cover+album")
         GenreEnrichment(settings, ownCover = { it.removeSuffix("+album") }) { facts }.backfill(listOf(inFolder))
@@ -169,10 +178,13 @@ internal class GenreEnrichmentTest {
             .replaceFirst("v6|", "v5|").substringBeforeLast('|')
         var reads = 0
         val upgraded = GenreEnrichment(settings, ownCover = { it.removeSuffix("+album") }) { reads++; facts }
-        assertEquals(listOf(inFolder), upgraded.apply(listOf(inFolder)))
+        // Before the re-read: the v5 facts apply, and the album fallback is kept.
+        assertEquals(listOf(enriched.copy(artworkUri = "song-cover+album")), upgraded.apply(listOf(inFolder)))
         assertTrue(upgraded.backfill(listOf(inFolder)))
         assertEquals(listOf(enriched.copy(artworkUri = "song-cover")), upgraded.apply(listOf(inFolder)))
         assertEquals(1, reads)
+        val restarted = GenreEnrichment(settings, ownCover = { it.removeSuffix("+album") }) { error("re-read once only") }
+        assertFalse(restarted.backfill(listOf(inFolder)))
     }
 
     @Test

@@ -33,25 +33,38 @@ internal object Mp4AlbumProbe {
         val head = source.read(0, 8) ?: return null
         if (head.ascii(4) != "ftyp") return null
         val moov = child(source, 0, source.length, "moov") ?: return null
+        val udta = child(source, moov.body, moov.end, "udta")
         val metas = listOfNotNull(
-            child(source, moov.body, moov.end, "udta")?.let { udta -> child(source, udta.body, udta.end, "meta") },
+            udta?.let { child(source, it.body, it.end, "meta") },
             child(source, moov.body, moov.end, "meta"),
         )
         for (meta in metas) {
             val ilst = child(source, metaBody(source, meta), meta.end, "ilst") ?: continue
-            val item = child(source, ilst.body, ilst.end, ALBUM) ?: return EmbeddedTagFacts()
-            val data = child(source, item.body, item.end, "data") ?: return EmbeddedTagFacts()
+            val item = child(source, ilst.body, ilst.end, ALBUM) ?: continue
+            val data = child(source, item.body, item.end, "data") ?: continue
             // A data box's payload starts with a type indicator and a locale, four bytes each.
-            val textStart = data.body + 8
-            val count = (data.end - textStart).coerceIn(0, MAX_ALBUM_BYTES.toLong()).toInt()
-            val bytes = source.read(textStart, count) ?: throw Malformed
-            // The well-known type: the low 24 bits of the indicator; 1 is UTF-8, 2 UTF-16BE.
-            val type = (source.read(data.body, 4) ?: throw Malformed).u32(0) and 0xFFFFFF
-            val text = if (type == DATA_UTF16) utf16(bytes) else bytes.decodeToString()
-            return EmbeddedTagFacts(album = text.trim().takeIf { it.isNotEmpty() })
+            val text = text(source, data.body + 8, data.end) { bytes ->
+                // The well-known type: the low 24 bits of the indicator; 1 is UTF-8, 2 UTF-16BE.
+                val type = (source.read(data.body, 4) ?: throw Malformed).u32(0) and 0xFFFFFF
+                if (type == DATA_UTF16) utf16(bytes) else bytes.decodeToString()
+            }
+            if (text != null) return EmbeddedTagFacts(album = text)
         }
-        // Well-formed, and no `©alb` anywhere MediaStore would look: the file names no album.
+        // 3GPP's own album box, which the system scanner reads too: version and flags, a language
+        // code, then the title.
+        udta?.let { child(source, it.body, it.end, "albm") }?.let { albm ->
+            text(source, albm.body + 6, albm.end) { it.decodeToString().trimEnd('\u0000') }
+                ?.let { return EmbeddedTagFacts(album = it) }
+        }
+        // Well-formed, and no album anywhere the system scanner would look: the file names none.
         return EmbeddedTagFacts()
+    }
+
+    /** The trimmed text from [start] to [end] (bounded), or null when blank. */
+    private fun text(source: RandomAccessSource, start: Long, end: Long, decode: (ByteArray) -> String): String? {
+        val count = (end - start).coerceIn(0, MAX_ALBUM_BYTES.toLong()).toInt()
+        val bytes = source.read(start, count) ?: throw Malformed
+        return decode(bytes).trim().takeIf { it.isNotEmpty() }
     }
 
     /** A box that runs past its parent or the file: the structure cannot be followed. */
@@ -67,7 +80,13 @@ internal object Mp4AlbumProbe {
         var position = start
         repeat(MAX_BOXES) {
             if (position == end) return null
-            if (position + 8 > end) throw Malformed
+            // Fewer than a header's bytes left: QuickTime ends `udta` with a four-byte zero
+            // terminator, so trailing zeros are the box's end; anything else is a broken box.
+            if (position + 8 > end) {
+                val rest = source.read(position, (end - position).toInt()) ?: throw Malformed
+                if (rest.all { it == 0.toByte() }) return null
+                throw Malformed
+            }
             val header = source.read(position, 8) ?: throw Malformed
             val size32 = header.u32(0)
             val (headerSize, size) = when (size32) {

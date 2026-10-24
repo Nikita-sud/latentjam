@@ -115,7 +115,12 @@ public object GenreTags {
                 val tagLength = Id3Tags.tagLength(header) ?: return null
                 if (tagLength <= header.size || tagLength > MAX_ID3_PREFIX) return null
                 val body = source.read(tagLength - header.size) ?: return null
-                id3Comments(header + body)
+                val comments = id3Comments(header + body) ?: return null
+                // As the positional reader: an ID3 tag in front of FLAC or Ogg leaves its stream's
+                // own comments unread.
+                val after = source.readUpTo(4)
+                val wrapped = after.contentEquals(FLAC_MAGIC) || after.contentEquals(OGG_MAGIC)
+                if (wrapped) comments + (INCOMPLETE to "") else comments
             }
             else -> null
         }
@@ -129,7 +134,13 @@ public object GenreTags {
     public fun embeddedComments(source: RandomAccessSource): List<Pair<String, String>>? {
         val magic = source.read(0, 3) ?: return null
         if (Id3Codec.looksLikeTag(magic)) {
-            return Id3FactsPrefix.read(source, MAX_ID3_PREFIX)?.let(::id3Comments)
+            val comments = Id3FactsPrefix.read(source, MAX_ID3_PREFIX)?.let(::id3Comments) ?: return null
+            // An ID3 tag in front of FLAC or Ogg: the stream's own comments are what the system
+            // scanner reads there, and they are not read here.
+            val tagLength = source.read(0, Id3Tags.HEADER_SIZE)?.let(Id3Tags::tagLength)
+            val after = tagLength?.let { source.read(it.toLong(), 4) }
+            val wrapped = after != null && (after.contentEquals(FLAC_MAGIC) || after.contentEquals(OGG_MAGIC))
+            return if (wrapped) comments + (INCOMPLETE to "") else comments
         }
         return embeddedComments(SequentialSource(source))
     }
@@ -281,6 +292,16 @@ public object GenreTags {
         public fun skip(count: Long): Boolean
     }
 
+    /**
+     * The entry that marks a comment list cut short (a block past the prefix read, a damaged entry):
+     * the facts it holds are real, but an absent field may only be unread. Its key cannot occur in a
+     * real tag.
+     */
+    internal const val INCOMPLETE = "\u0000INCOMPLETE"
+
+    private fun ArrayList<Pair<String, String>>.incomplete(): List<Pair<String, String>> =
+        apply { add(INCOMPLETE to "") }
+
     private fun vorbisComments(body: ByteArray, start: Int): List<Pair<String, String>>? {
         var offset = start
         val vendorLength = body.readLeU32(offset) ?: return null
@@ -290,9 +311,9 @@ public object GenreTags {
         if (count > MAX_COMMENT_COUNT) return null
         val entries = ArrayList<Pair<String, String>>()
         repeat(count) {
-            val length = body.readLeU32(offset) ?: return entries
+            val length = body.readLeU32(offset) ?: return entries.incomplete()
             offset += 4
-            if (length > MAX_COMMENT_BLOCK || offset + length > body.size) return entries
+            if (length > MAX_COMMENT_BLOCK || offset + length > body.size) return entries.incomplete()
             val entry = body.decodeToString(offset, offset + length)
             offset += length
             val equals = entry.indexOf('=')

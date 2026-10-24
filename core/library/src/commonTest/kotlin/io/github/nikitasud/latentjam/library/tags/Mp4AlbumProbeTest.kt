@@ -83,6 +83,38 @@ internal class Mp4AlbumProbeTest {
         assertNull(Mp4AlbumProbe.read(ByteArraySource(ftyp + box("mdat", ByteArray(16)))))
     }
 
+    private fun largeBox(type: String, body: ByteArray): ByteArray {
+        val size = 16L + body.size
+        return byteArrayOf(0, 0, 0, 1) + ByteArray(4) { (type[it].code and 0xFF).toByte() } +
+            ByteArray(8) { (size ushr (56 - 8 * it)).toByte() } + body
+    }
+
+    @Test
+    fun largeSizesZeroSizesAndTheUdtaTerminatorAreFollowed() {
+        val ilst = box("ilst", box("\u00A9alb", data("Abbey Road")))
+        val meta = box("meta", ByteArray(4), hdlr, ilst)
+        // A 64-bit size, a terminator after meta, and a last box sized 0 ("to its parent's end").
+        val udta = box("udta", meta, ByteArray(4))
+        val moov = box("moov", largeBox("mvhd", ByteArray(100)), udta, byteArrayOf(0, 0, 0, 0) + "free".encodeToByteArray())
+        assertEquals("Abbey Road", Mp4AlbumProbe.read(ByteArraySource(ftyp + moov))?.album)
+    }
+
+    @Test
+    fun theFirstNonBlankDataAndEveryMetaAreConsulted() {
+        val twoData = file(box("\u00A9alb", data("First"), data("Second")))
+        assertEquals("First", Mp4AlbumProbe.read(ByteArraySource(twoData))?.album)
+        // udta/meta's ilst names no album, moov/meta's does: the album is found.
+        val udtaMeta = box("udta", box("meta", ByteArray(4), hdlr, box("ilst", box("\u00A9nam", data("Song")))))
+        val moovMeta = box("meta", ByteArray(4), hdlr, box("ilst", box("\u00A9alb", data("Help!"))))
+        assertEquals("Help!", Mp4AlbumProbe.read(ByteArraySource(ftyp + box("moov", udtaMeta, moovMeta)))?.album)
+    }
+
+    @Test
+    fun a3gppAlbumBoxNamesTheAlbum() {
+        val albm = box("albm", ByteArray(4), byteArrayOf(0x15, 0xC7.toByte()), "Revolver".encodeToByteArray(), byteArrayOf(0))
+        assertEquals("Revolver", Mp4AlbumProbe.read(ByteArraySource(ftyp + box("moov", box("udta", albm))))?.album)
+    }
+
     @Test
     fun theFactsReaderAnswersForMp4() {
         assertEquals("Abbey Road", TagFacts.embedded(ByteArraySource(file(box("©alb", data("Abbey Road")))))?.album)

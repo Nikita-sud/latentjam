@@ -14,7 +14,8 @@ import kotlin.test.assertTrue
 
 /**
  * The positional facts reader against the stream reader it replaces on Android: the same facts,
- * or the same refusal, for every corpus file, every write fixture, generated tags with the
+ * or the same refusal, for every ID3, FLAC and Ogg corpus file (an MP4 file, which the stream
+ * reader cannot read, must give what [Mp4AlbumProbe] gives, tested on its own), every write fixture, generated tags with the
  * awkward parts of ID3 (pictures, wrong-encoding sizes, extended header, footer, padding), and
  * thousands of byte-level mutations of them. And it never loads a picture.
  */

@@ -59,6 +59,11 @@ internal class GenreEnrichment(
         val year: Int?,
         /** Whether the file names an album; without one it borrows no album's cover. */
         val namesAlbum: Boolean,
+        /**
+         * Read by the previous format, which did not record [namesAlbum]: applied as it is (the
+         * album fallback kept), but its file is read again.
+         */
+        val stale: Boolean = false,
     )
 
     private val mutex = Mutex()
@@ -158,8 +163,8 @@ internal class GenreEnrichment(
                 settings.readTrackGenreLines { lines ->
                     for (line in lines) {
                         val id = idOf(line) ?: continue
-                        // A line that does not decode is no entry at all: its file is read again.
-                        decode(line)?.let { revisions[id] = it.revision }
+                        // A line that does not decode, or is stale, is no entry: its file is read again.
+                        decode(line)?.takeIf { !it.stale }?.let { revisions[id] = it.revision }
                     }
                 }
                 for ((id, stored) in unsaved) revisions[id] = stored.revision
@@ -182,28 +187,37 @@ internal class GenreEnrichment(
                 language = facts.language?.let(TextRepair::repair),
                 albumArtist = facts.albumArtist?.let(TextRepair::repair),
                 year = facts.year,
-                namesAlbum = facts.album != null,
+                // A tag read only in part may name an album that was not reached: keep the fallback.
+                namesAlbum = facts.album != null || !facts.albumKnown,
             )
             updates[track.id.value] = stored
             if (stored.changes(track)) learnedSomething = true
+            // Saved as it goes: a pass over a whole library takes minutes, and an app closed
+            // midway must not have to read the same files again.
+            if (updates.size >= SAVE_EVERY) {
+                save(updates)
+                updates.clear()
+            }
             yield()
         }
-        mutex.withLock {
-            unsaved.putAll(updates)
-            // Facts remain usable in memory if storage is unavailable. A warm pass must also
-            // retry a failed save: its files no longer need reading, so updates will be empty.
-            if (unsaved.isNotEmpty()) {
-                try {
-                    withContext(Dispatchers.Default) { persist(unsaved) }
-                    unsaved.clear()
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (_: Exception) {
-                    // This is a rebuildable cache, not a reason to terminate the library screen.
-                }
+        // A warm pass must also retry a failed save: its files no longer need reading.
+        save(updates)
+        return learnedSomething
+    }
+
+    private suspend fun save(updates: Map<String, Stored>) = mutex.withLock {
+        unsaved.putAll(updates)
+        // Facts remain usable in memory if storage is unavailable.
+        if (unsaved.isNotEmpty()) {
+            try {
+                withContext(Dispatchers.Default) { persist(unsaved) }
+                unsaved.clear()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // This is a rebuildable cache, not a reason to terminate the library screen.
             }
         }
-        return learnedSomething
     }
 
     /** Rewrites the cache: every current-format line not superseded by [changes], then [changes]. */
@@ -225,14 +239,17 @@ internal class GenreEnrichment(
     private companion object {
         /**
          * v2 added artists and the original year, v3 the language tag, v4 the album artist, v5 the
-         * file's own year, v6 whether the file names an album. Older lines are deliberately dropped
-         * on decode: those files must be re-read once anyway to learn the new facts. That is one tag
-         * read per track, the same pass every earlier bump cost; SMART's audio analysis is keyed on
-         * the audio's identity (URI, duration, revision) and is untouched — only the cheap text
-         * vector re-encodes where a year appears.
+         * file's own year, v6 whether the file names an album. Lines older than v5 are dropped on
+         * decode: those files must be read again anyway to learn facts the library shows. v5 lines
+         * still apply while their files are read again ([Stored.stale]), so the library keeps its
+         * genres and years through that pass instead of falling back to the scanner's for minutes.
          */
         const val FORMAT = "v6"
         const val FORMAT_PREFIX = "$FORMAT|"
+        const val PREVIOUS_FORMAT = "v5"
+
+        /** Files read between two saves of a backfill. */
+        const val SAVE_EVERY = 256
 
         /** Joins the artist list inside one hex field; NUL never appears in a real name. */
         const val ARTIST_JOIN = "\u0000"
@@ -259,9 +276,9 @@ internal class GenreEnrichment(
                 if (stored.namesAlbum) "1" else "0",
             ).joinToString("|")
 
-        /** Where field [index] of a current-format [line] starts and ends, or null. */
+        /** Where field [index] of a current- or previous-format [line] starts and ends, or null. */
         fun fieldRange(line: String, index: Int): IntRange? {
-            if (!line.startsWith(FORMAT_PREFIX)) return null
+            if (!line.startsWith(FORMAT_PREFIX) && !line.startsWith("$PREVIOUS_FORMAT|")) return null
             var start = 0
             for (field in 0 until index) {
                 start = line.indexOf('|', start) + 1
@@ -277,7 +294,9 @@ internal class GenreEnrichment(
 
         fun decode(line: String): Stored? {
             val parts = line.split('|')
-            if (parts.size != 10 || parts[0] != FORMAT) return null
+            val current = parts.size == 10 && parts[0] == FORMAT
+            val previous = parts.size == 9 && parts[0] == PREVIOUS_FORMAT
+            if (!current && !previous) return null
             parts[1].unhexOrNull() ?: return null
             val revision = parts[2].unhexOrNull() ?: return null
             val genres = parts[3].unhexOrNull() ?: return null
@@ -296,7 +315,8 @@ internal class GenreEnrichment(
                 language = language.takeIf { it.isNotEmpty() }?.let(TextRepair::repair),
                 albumArtist = albumArtist.takeIf { it.isNotEmpty() }?.let(TextRepair::repair),
                 year = parts[8].toIntOrNull(),
-                namesAlbum = parts[9] != "0",
+                namesAlbum = !current || parts[9] != "0",
+                stale = previous,
             )
         }
 

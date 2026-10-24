@@ -6,6 +6,8 @@ package io.github.nikitasud.latentjam.library.tags
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
@@ -34,7 +36,8 @@ class TagFactsTest {
                 assertEquals(listOf("rus/eng", "rus", "русский")[index], facts.language)
                 assertEquals(1987, facts.originalYear)
                 assertEquals(2012, facts.year)
-                assertEquals(tag.size, source.position, "Only the ID3 prefix is needed")
+                // The tag, and the four bytes after it that tell an ID3 tag in front of FLAC or Ogg.
+                assertEquals(tag.size + 4, source.position, "Only the ID3 prefix is needed")
             }
         }
     }
@@ -93,6 +96,13 @@ class TagFactsTest {
         assertEquals("Let It Be", TagFacts.fromComments(listOf("TALB" to "Let It Be", "ALBUM" to "Help!")).album)
         assertNull(TagFacts.fromComments(listOf("ALBUM" to "  ")).album)
         assertNull(TagFacts.fromComments(listOf("ALBUMARTIST" to "The Beatles")).album)
+    }
+
+    @Test
+    fun aTagReadInPartDoesNotSayItNamesNoAlbum() {
+        assertFalse(TagFacts.fromComments(listOf("GENRE" to "Pop", GenreTags.INCOMPLETE to "")).albumKnown)
+        assertTrue(TagFacts.fromComments(listOf("ALBUM" to "Help!", GenreTags.INCOMPLETE to "")).albumKnown)
+        assertTrue(TagFacts.fromComments(listOf("GENRE" to "Pop")).albumKnown)
     }
 
     @Test
