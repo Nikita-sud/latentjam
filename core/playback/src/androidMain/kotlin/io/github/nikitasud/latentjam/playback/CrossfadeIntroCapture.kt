@@ -26,7 +26,10 @@ import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.audio.ForwardingAudioOutputProvider
 import androidx.media3.exoplayer.audio.MediaCodecAudioRenderer
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import java.io.File
+import java.io.RandomAccessFile
 import java.nio.ByteBuffer
+import java.nio.channels.FileChannel
 import java.nio.ByteOrder
 
 /** The opening of a track as [CrossfadeIntroCapture] decoded it: PCM16 at [sampleRate]. */
@@ -40,8 +43,12 @@ internal class PcmIntro(val sampleRate: Int, val channelCount: Int, val pcm: Byt
  * fast as the decoder does. The PCM it captures is therefore what the main player will produce for
  * the same frames, which lets the main player drop exactly the part already heard.
  *
- * The capture lives off the Java heap (a direct buffer) and is refused above [MAX_INTRO_BYTES]:
- * small-heap phones keep their headroom. Main thread only; [onDone] gets null on any failure.
+ * The capture lives off the Java heap: in a memory-mapped scratch file, unlinked as soon as it is
+ * mapped, so its pages are file cache the system can write out — on ART a direct buffer is a
+ * managed array that counts against the heap limit, which a 48 MB phone cannot spare for a
+ * 2.5–8 MB opening. Above [MAX_INTRO_BYTES], or when the heap has less than [MIN_HEAP_HEADROOM_BYTES]
+ * free for the short-lived decoder itself, there is no capture and the seam falls back to the
+ * plain fades. Main thread only; [onDone] gets null on any failure.
  */
 internal class CrossfadeIntroCapture(
     private val context: Context,
@@ -55,6 +62,11 @@ internal class CrossfadeIntroCapture(
     private val capture = CaptureProcessor()
 
     fun start() {
+        if (heapHeadroomBytes() < MIN_HEAP_HEADROOM_BYTES) {
+            finished = true
+            mainHandler.post { onDone(null) }
+            return
+        }
         val sink = PcmOnlyAudioSink(
             DefaultAudioSink.Builder(context)
                 .setEnableFloatOutput(false)
@@ -70,7 +82,7 @@ internal class CrossfadeIntroCapture(
         val built = ExoPlayer.Builder(context, renderers)
             .setLoadControl(
                 DefaultLoadControl.Builder()
-                    .setBufferDurationsMs(LOAD_MIN_MS, LOAD_MAX_MS, LOAD_MIN_MS, LOAD_MIN_MS)
+                    .setBufferDurationsMs(LOAD_MIN_MS, LOAD_MAX_MS, LOAD_START_MS, LOAD_START_MS)
                     .setTargetBufferBytes(LOAD_TARGET_BYTES)
                     .setPrioritizeTimeOverSizeThresholds(false)
                     .build(),
@@ -133,7 +145,11 @@ internal class CrossfadeIntroCapture(
                 return
             }
             targetBytes = bytes.toInt()
-            buffer = ByteBuffer.allocateDirect(targetBytes).order(ByteOrder.LITTLE_ENDIAN)
+            buffer = mapScratch(targetBytes) ?: run {
+                failed = true
+                mainHandler.post { finish(null) }
+                return
+            }
         }
 
         override fun queueInput(inputBuffer: ByteBuffer) {
@@ -170,13 +186,38 @@ internal class CrossfadeIntroCapture(
         }
     }
 
+    /** A buffer of [bytes] backed by a scratch file that no longer exists by name, or null. */
+    private fun mapScratch(bytes: Int): ByteBuffer? = runCatching {
+        val file = File.createTempFile("crossfade-intro", ".pcm", context.cacheDir)
+        try {
+            RandomAccessFile(file, "rw").use { scratch ->
+                scratch.setLength(bytes.toLong())
+                // The mapping outlives the channel and the name: the pages go when it is collected.
+                scratch.channel.map(FileChannel.MapMode.READ_WRITE, 0L, bytes.toLong())
+            }
+        } finally {
+            file.delete()
+        }
+    }.getOrNull()?.order(ByteOrder.LITTLE_ENDIAN)
+
     private companion object {
         /** About 21.8 s of 96 kHz stereo PCM16; the 14 s a 12 s overlap decodes at 44.1/48 kHz is a third of it. */
         const val MAX_INTRO_BYTES = 8L * 1024 * 1024
         const val TIMEOUT_MS = 15_000L
         const val LOAD_MIN_MS = 2_000
         const val LOAD_MAX_MS = 5_000
-        const val LOAD_TARGET_BYTES = 2 * 1024 * 1024
+
+        /**
+         * Starts decoding on a quarter second. The byte cap below holds under 3 s of 96 kHz PCM, so
+         * a start threshold near it would wait for data the cap never lets in.
+         */
+        const val LOAD_START_MS = 250
+        const val LOAD_TARGET_BYTES = 1024 * 1024
+
+        /** The decoder's own buffers and objects, with room to spare for everything else. */
+        const val MIN_HEAP_HEADROOM_BYTES = 12L * 1024 * 1024
+
+        fun heapHeadroomBytes(): Long = Runtime.getRuntime().let { it.maxMemory() - (it.totalMemory() - it.freeMemory()) }
     }
 }
 
@@ -185,10 +226,16 @@ private class DiscardingOutputProvider(provider: AudioOutputProvider) : Forwardi
     override fun getAudioOutput(config: AudioOutputProvider.OutputConfig): AudioOutput = DiscardingAudioOutput(config)
 }
 
-/** Consumes every write at once and reports it as played, so the decoder sets the pace. */
+/**
+ * Consumes every write at once and reports all but one buffer of it as played, so the decoder sets
+ * the pace. That last buffer is pending audio, as on a real track: without it the audio renderer is
+ * never ready, the player never leaves buffering, its loaded samples are never released, and the
+ * loader stops at its byte cap — at 96 kHz, before the opening is complete.
+ */
 private class DiscardingAudioOutput(private val config: AudioOutputProvider.OutputConfig) : AudioOutput {
     private val frameBytes = Util.getPcmFrameSize(config.encoding, Integer.bitCount(config.channelMask)).coerceAtLeast(1)
     private var frames = 0L
+    private val bufferFrames = (config.bufferSize / frameBytes).toLong().coerceAtLeast(1L)
     private var playbackParameters = PlaybackParameters.DEFAULT
 
     override fun play() = Unit
@@ -206,7 +253,8 @@ private class DiscardingAudioOutput(private val config: AudioOutputProvider.Outp
     override fun getAudioSessionId(): Int = config.audioSessionId
     override fun getSampleRate(): Int = config.sampleRate
     override fun getBufferSizeInFrames(): Long = (config.bufferSize / frameBytes).toLong()
-    override fun getPositionUs(): Long = frames * 1_000_000L / config.sampleRate.coerceAtLeast(1)
+    override fun getPositionUs(): Long =
+        (frames - bufferFrames).coerceAtLeast(0L) * 1_000_000L / config.sampleRate.coerceAtLeast(1)
     override fun getPlaybackParameters(): PlaybackParameters = playbackParameters
     override fun isStalled(): Boolean = false
     override fun addListener(listener: AudioOutput.Listener) = Unit
