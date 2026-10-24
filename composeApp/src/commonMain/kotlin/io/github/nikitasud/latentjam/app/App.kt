@@ -391,8 +391,8 @@ private fun AppShell(
                 // A playing or soon-playing song that turned out to name no album loses a borrowed
                 // cover (issue #12): the player, notification and widget follow at once. Only the
                 // rows about to play: each refresh is a player command, and the first pass after
-                // an update can change thousands of queued rows; later rows have the new cover from
-                // the next queue on.
+                // an update can change thousands of queued rows; a later row takes its new cover
+                // as it starts to play (see playingTrackId).
                 val queued = playback.state.value
                 val soon = queued.queue.drop(queued.queueIndex.coerceAtLeast(0)).take(SOON_QUEUED_ROWS)
                 val soonCovers = soon.associate { it.id to it.artworkUri }
@@ -1438,6 +1438,18 @@ private fun AppShell(
         }
         val groupOrderedCatalog = remember(catalog, groupSortOrders) { catalog?.inGroupOrder(groupSortOrders) }
         val tracksById = remember(catalog) { catalog?.songs?.associateBy { it.id }.orEmpty() }
+        // A queued song whose cover changed after it was queued (the tag pass learning that it
+        // names no album, issue #12) takes its new descriptor as it starts to play: one player
+        // command per song, beyond the rows the tag pass refreshes at once.
+        val playingTrackId by remember(playback) {
+            playback.state.map { it.track?.id }.distinctUntilChanged()
+        }.collectAsState(initial = null)
+        LaunchedEffect(playingTrackId, tracksById) {
+            val playing = playback.state.value.track ?: return@LaunchedEffect
+            if (playing.id != playingTrackId) return@LaunchedEffect
+            val fresh = tracksById[playing.id] ?: return@LaunchedEffect
+            if (fresh.artworkUri != playing.artworkUri) playback.refreshTracks(listOf(fresh))
+        }
         val selectedTracks = remember(
             catalog, groupSortOrders, albumTabTracks, songsBrowse, selectedTrackIds,
             selectedCollection, selectedTab,

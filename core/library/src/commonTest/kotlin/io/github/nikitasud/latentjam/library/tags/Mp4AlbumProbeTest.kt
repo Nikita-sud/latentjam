@@ -103,6 +103,8 @@ internal class Mp4AlbumProbeTest {
     fun theFirstNonBlankDataAndEveryMetaAreConsulted() {
         val twoData = file(box("\u00A9alb", data("First"), data("Second")))
         assertEquals("First", Mp4AlbumProbe.read(ByteArraySource(twoData))?.album)
+        val blankFirst = file(box("\u00A9alb", data(" "), data("Second")))
+        assertEquals("Second", Mp4AlbumProbe.read(ByteArraySource(blankFirst))?.album)
         // udta/meta's ilst names no album, moov/meta's does: the album is found.
         val udtaMeta = box("udta", box("meta", ByteArray(4), hdlr, box("ilst", box("\u00A9nam", data("Song")))))
         val moovMeta = box("meta", ByteArray(4), hdlr, box("ilst", box("\u00A9alb", data("Help!"))))

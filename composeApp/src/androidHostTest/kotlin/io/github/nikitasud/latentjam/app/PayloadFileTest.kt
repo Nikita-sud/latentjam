@@ -51,20 +51,38 @@ internal class PayloadFileTest {
 
     @Test
     fun aWriteAfterAFailedMoveSupersedesTheLegacyValue() {
-        val file = File(directory, "late.txt")
+        // A plain file where the cache's directory should be fails the move; once the directory
+        // can exist, a write lands and the legacy value goes.
+        val parent = File(directory, "late").apply { writeText("x") }
+        val file = File(parent, "cache.txt")
         val payload = payload(file)
-        // The move fails while the directory refuses new files; once it accepts them, a write lands.
-        directory.setWritable(false)
-        try {
-            assertEquals("v6|a\nv6|b", payload.readText())
-            assertEquals(0, removed)
-        } finally {
-            directory.setWritable(true)
-        }
+        assertEquals("v6|a\nv6|b", payload.readText())
+        assertEquals(0, removed)
+        parent.delete()
         payload.write { it.write("v6|c") }
         assertEquals("v6|c", payload.readText())
         assertEquals(1, removed)
         assertTrue(file.exists())
+    }
+
+    @Test
+    fun aReadThatFailsInsideAWriteFailsTheWriteAndKeepsTheOldFile() {
+        legacy = null
+        // A directory where the file is: it exists, but cannot be opened for reading.
+        val file = File(directory, "unreadable").apply { mkdirs() }
+        val payload = payload(file)
+        assertNull(payload.readLines { it.toList() }, "outside a write, it reads as none")
+        assertFailsWith<java.io.IOException> {
+            payload.write { writer -> payload.readLines { lines -> lines.forEach(writer::write) } }
+        }
+        assertTrue(file.isDirectory, "the old file is untouched")
+    }
+
+    @Test
+    fun aCallersOwnFailureInsideAReadIsNotTakenForAMissingPayload() {
+        File(directory, "cache.txt").writeText("v6|x")
+        legacy = null
+        assertFailsWith<IllegalStateException> { payload().readLines { error("the caller's") } }
     }
 
     @Test

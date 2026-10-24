@@ -41,14 +41,19 @@ internal object Mp4AlbumProbe {
         for (meta in metas) {
             val ilst = child(source, metaBody(source, meta), meta.end, "ilst") ?: continue
             val item = child(source, ilst.body, ilst.end, ALBUM) ?: continue
-            val data = child(source, item.body, item.end, "data") ?: continue
-            // A data box's payload starts with a type indicator and a locale, four bytes each.
-            val text = text(source, data.body + 8, data.end) { bytes ->
-                // The well-known type: the low 24 bits of the indicator; 1 is UTF-8, 2 UTF-16BE.
-                val type = (source.read(data.body, 4) ?: throw Malformed).u32(0) and 0xFFFFFF
-                if (type == DATA_UTF16) utf16(bytes) else bytes.decodeToString()
+            // The first `data` that holds text: a blank one before it is no album.
+            var position = item.body
+            while (true) {
+                val data = child(source, position, item.end, "data") ?: break
+                // A data box's payload starts with a type indicator and a locale, four bytes each.
+                val text = text(source, data.body + 8, data.end) { bytes ->
+                    // The well-known type: the low 24 bits of the indicator; 1 is UTF-8, 2 UTF-16BE.
+                    val type = (source.read(data.body, 4) ?: throw Malformed).u32(0) and 0xFFFFFF
+                    if (type == DATA_UTF16) utf16(bytes) else bytes.decodeToString()
+                }
+                if (text != null) return EmbeddedTagFacts(album = text)
+                position = data.end
             }
-            if (text != null) return EmbeddedTagFacts(album = text)
         }
         // 3GPP's own album box, which the system scanner reads too: version and flags, a language
         // code, then the title.

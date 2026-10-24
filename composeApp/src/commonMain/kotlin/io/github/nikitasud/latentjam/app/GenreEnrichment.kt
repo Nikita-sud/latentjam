@@ -221,13 +221,17 @@ internal class GenreEnrichment(
         }
     }
 
-    /** Rewrites the cache: every current-format line not superseded by [changes], then [changes]. */
+    /**
+     * Rewrites the cache: every current- or previous-format line not superseded by [changes], then
+     * [changes].
+     */
     private fun persist(changes: Map<String, Stored>) {
         settings.writeTrackGenreLines { emit ->
             settings.readTrackGenreLines { lines ->
                 for (line in lines) {
-                    // Only lines of a format [decode] reads are carried over; their fields are not
-                    // decoded here, as a pass over a whole library rewrites the file many times.
+                    // Only lines of the formats [decode] reads are carried over, checked by their shape:
+                    // their fields are not decoded here, as a pass over a whole library rewrites the
+                    // file many times. A line that then fails to decode is read again by [backfill].
                     if (!isReadableFormat(line)) continue
                     val id = idOf(line) ?: continue
                     if (id in changes) continue
