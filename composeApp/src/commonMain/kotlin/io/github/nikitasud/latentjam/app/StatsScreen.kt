@@ -192,6 +192,7 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -277,16 +278,18 @@ internal class PeriodLoad(
  * labels, never the library's descriptors. Main-thread only, like the page itself.
  */
 internal class StatsMemory {
-    /** Playlists and favourites compare by identity: each edit publishes a new list. */
+    /**
+     * Playlists and favourites compare by identity: each edit publishes a new list. A retry needs no
+     * place here: only successful results are kept.
+     */
     class Inputs(
         val historyRevision: Long,
-        val retry: Int,
         val localDay: Long,
         val playlists: Any?,
         val favorites: Any?,
     ) {
         override fun equals(other: Any?): Boolean = other is Inputs &&
-            historyRevision == other.historyRevision && retry == other.retry && localDay == other.localDay &&
+            historyRevision == other.historyRevision && localDay == other.localDay &&
             playlists === other.playlists && favorites === other.favorites
 
         override fun hashCode(): Int = historyRevision.hashCode() * 31 + localDay.hashCode()
@@ -327,12 +330,15 @@ internal fun ListeningStatsSettings(
     val snapshots = remember(history, scope) { StatsSnapshots(scope, readEvents = history::allEvents) }
     // Shared reads run under their own supervisor, so a failure cannot cancel the screen's scope.
     val supervisor = remember(scope) { SupervisorJob(scope.coroutineContext[Job]) }
-    val catalog = remember(tracks, scope) {
-        scope.async(supervisor + Dispatchers.Default, start = CoroutineStart.LAZY) { tracks.associateBy { it.id } }
+    // The caller's own map when it has one: a second map of the whole library is a cost of its own.
+    val catalog: Deferred<Map<TrackId, TrackDescriptor>> = remember(tracks, scope, knownTracksById) {
+        knownTracksById?.let { CompletableDeferred(it) }
+            ?: scope.async(supervisor + Dispatchers.Default, start = CoroutineStart.LAZY) { tracks.associateBy { it.id } }
     }
     var retryRevision by remember { mutableIntStateOf(0) }
     // Both sections attribute plays to the same playlists: read them once per revision, off the main
-    // thread, and again whenever the playlists or favourites are published anew.
+    // thread, and again whenever the caller publishes its playlists or favourites anew. Null when
+    // the read failed.
     val playlistsLoad = remember(scope, historyRevision, tracks, retryRevision, playlistsKey, favoritesKey) {
         scope.async(supervisor + Dispatchers.Default, start = CoroutineStart.LAZY) {
             try {
@@ -340,8 +346,7 @@ internal fun ListeningStatsSettings(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Throwable) {
-                // Playlists only refine the lists; without them the page still tells the truth.
-                emptyList<StatsPlaylist>() to emptyMap()
+                null
             }
         }
     }
@@ -362,11 +367,24 @@ internal fun ListeningStatsSettings(
     // Built once off the main thread; rows read it after the first load.
     var tracksById by remember(tracks) { mutableStateOf(knownTracksById ?: emptyMap()) }
     var playlistLabels by remember { mutableStateOf(memo.playlistLabels) }
-    fun inputs() = StatsMemory.Inputs(historyRevision, retryRevision, localDay, playlistsKey, favoritesKey)
-    fun keep(catalogMap: Map<TrackId, TrackDescriptor>, labels: Map<String, PlaylistLabel>) {
+    fun inputs() = StatsMemory.Inputs(historyRevision, localDay, playlistsKey, favoritesKey)
+    fun keep(catalogMap: Map<TrackId, TrackDescriptor>, labels: Map<String, PlaylistLabel>, read: Boolean) {
         tracksById = catalogMap
         playlistLabels = labels
-        memo.playlistLabels = labels
+        if (read) memo.playlistLabels = labels
+    }
+
+    /** Rows of a kept result need the tracks; a map that cannot be built fails like a load. */
+    suspend fun ensureTracks(): Boolean {
+        if (tracksById.isNotEmpty()) return true
+        return try {
+            tracksById = catalog.await()
+            true
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            false
+        }
     }
 
     LaunchedEffect(active) {
@@ -379,15 +397,17 @@ internal fun ListeningStatsSettings(
         val inputs = inputs()
         memo.periods[period]?.takeIf { it.first == inputs }?.let { (_, kept) ->
             periodLoad = kept.shownFor(selection)
-            periodFailed = false
-            if (tracksById.isEmpty()) tracksById = catalog.await()
+            periodFailed = !ensureTracks()
             return@LaunchedEffect
         }
         try {
             val normalized = snapshots.await(historyRevision, retryRevision)
             val catalogMap = catalog.await()
-            val (statsPlaylists, labels) = playlistsLoad.await()
-            keep(catalogMap, labels)
+            // Playlists only refine the lists; without them the page still tells the truth, but such
+            // a result is not kept, so the next visit reads the playlists again.
+            val playlists = playlistsLoad.await()
+            val (statsPlaylists, labels) = playlists ?: (emptyList<StatsPlaylist>() to emptyMap())
+            keep(catalogMap, labels, read = playlists != null)
             val loadContext = currentCoroutineContext()
             val now = epochMillis()
             periodLoad = withContext(Dispatchers.Default) {
@@ -418,7 +438,7 @@ internal fun ListeningStatsSettings(
                     ),
                     logEmpty = normalized.size == 0,
                 )
-            }.also { memo.periods[period] = inputs to it }
+            }.also { if (playlists != null) memo.periods[period] = inputs to it }
             periodFailed = false
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -432,15 +452,17 @@ internal fun ListeningStatsSettings(
         val inputs = inputs()
         memo.habits?.takeIf { it.first == inputs }?.let { (_, kept) ->
             habitsLoad = kept
-            habitsFailed = false
-            if (tracksById.isEmpty()) tracksById = catalog.await()
+            habitsFailed = !ensureTracks()
             return@LaunchedEffect
         }
         try {
             val normalized = snapshots.await(historyRevision, retryRevision)
             val catalogMap = catalog.await()
-            val (statsPlaylists, labels) = playlistsLoad.await()
-            keep(catalogMap, labels)
+            // Playlists only refine the lists; without them the page still tells the truth, but such
+            // a result is not kept, so the next visit reads the playlists again.
+            val playlists = playlistsLoad.await()
+            val (statsPlaylists, labels) = playlists ?: (emptyList<StatsPlaylist>() to emptyMap())
+            keep(catalogMap, labels, read = playlists != null)
             val loadContext = currentCoroutineContext()
             habitsLoad = withContext(Dispatchers.Default) {
                 ListeningInsights.habits(
@@ -451,7 +473,7 @@ internal fun ListeningStatsSettings(
                     cancellationCheck = { loadContext.ensureActive() },
                     playlists = statsPlaylists,
                 )
-            }.also { memo.habits = inputs to it }
+            }.also { if (playlists != null) memo.habits = inputs to it }
             habitsFailed = false
         } catch (cancelled: CancellationException) {
             throw cancelled
