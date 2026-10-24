@@ -26,7 +26,9 @@ internal class CrossfadeSettings {
 
     /**
      * Which ends of each queue row may fade, by the row's player index; see [queueFadeEdges]. A
-     * missing row fades both.
+     * missing row fades both. Published by the controller from its copy of the timeline, so for
+     * the moment a reorder takes to reach it (one IPC round trip) an index may name the row's old
+     * place; the envelope's slew turns such a brief mismatch into a glide, not a step.
      */
     @Volatile var edges: Map<Int, FadeEdges> = emptyMap()
 
@@ -182,9 +184,10 @@ internal class CrossfadeAudioProcessor(
                 val mix = decision.mix
                 val next = Segment(decision.stream, previousGain = previous.gain)
                 if (mix != null) {
+                    // The frames dropped are the ones the overlap played, so the overlap's clock
+                    // carries on past the join from the track's own index — also for an outgoing
+                    // track that ended before its header said.
                     next.skip = mix.nextIntroFrame.toLong()
-                    // The overlap's own clock carries on past the join for a track that ended early.
-                    next.incomingBase = mix.mixedFrames - mix.nextIntroFrame.toLong()
                     next.incomingFrames = mix.overlapFrames
                 } else if (!settings.edgesAt(decision.stream?.mediaIndex).fadeIn) {
                     // A segued album seam plays on: its loudness change ramps instead of stepping.
@@ -263,6 +266,13 @@ internal class CrossfadeAudioProcessor(
         val durationMs = durationUs / 1000L
         val edges = settings.edgesAt(segment.stream?.mediaIndex)
         val targetGain = settings.gainOf(mediaId)
+        // The slot an opening may be read from is published BEFORE the plan is read for this buffer:
+        // the coordinator withdraws a plan and only then picks a free slot, so either it sees this
+        // slot as taken, or this buffer sees the plan gone and starts no mix from it.
+        val candidate = settings.plan
+        settings.soundingSlot = segment.mix?.plan?.slot
+            ?: candidate?.takeIf { it.outgoingId == mediaId }?.slot
+            ?: settings.soundingSlot
         val livePlan = settings.plan
         val envelopeStep = 1f / (rate * ENVELOPE_SLEW_MS / 1000f)
         val introStep = 1f / (rate * CROSSFADE_CANCEL_MS / 1000f)
@@ -276,11 +286,6 @@ internal class CrossfadeAudioProcessor(
         var incomingGain = Float.NaN
         var mixing = false
         var readSlot = -1
-        // Published before the first frame: a mix can begin inside this buffer, and a capture
-        // started meanwhile must not take the slot about to be read.
-        settings.soundingSlot = mix?.plan?.slot
-            ?: livePlan?.takeIf { it.outgoingId == mediaId }?.slot
-            ?: settings.soundingSlot
 
         for (frame in 0 until frames) {
             val index = segment.frames
@@ -299,7 +304,7 @@ internal class CrossfadeAudioProcessor(
 
             var envelope = 1f
             if (segment.incomingFrames > 0L) {
-                val progress = (segment.incomingBase + index).toFloat() / segment.incomingFrames
+                val progress = index.toFloat() / segment.incomingFrames
                 if (progress < 1f) envelope = overlapInGain(progress)
             } else if (segment.riseUs > 0L) {
                 if (mediaUs < segment.riseUs) envelope = overlapInGain(mediaUs.toFloat() / segment.riseUs)
@@ -344,7 +349,9 @@ internal class CrossfadeAudioProcessor(
             }
             segment.frames++
         }
-        settings.soundingSlot = readSlot
+        // Still taken between buffers while the mix may read on: playing, or fading out after a
+        // withdrawal.
+        settings.soundingSlot = segment.mix?.takeIf { !it.cancelled || it.introGain > 0f }?.plan?.slot ?: readSlot
         val reported = segment.mix ?: return
         if (mixing) {
             settings.mixing = reported.plan
@@ -369,8 +376,7 @@ internal class CrossfadeAudioProcessor(
         /** Input frames still to drop: the opening an overlap already played. */
         var skip = 0L
 
-        /** The remainder of an overlap that began in the previous segment: its clock and length. */
-        var incomingBase = 0L
+        /** The length of an overlap that began in the previous segment; its clock is [frames]. */
         var incomingFrames = 0L
 
         /** Set when Next left an overlap for this track: its opening rises over this long. */
@@ -434,7 +440,10 @@ internal class CrossfadeAudioProcessor(
             }
             val mixStartUs = durationUs - plan.overlapUs
             val windowUs = durationUs - minOf(settings.fadeMs * 1000L, durationUs / 2L)
-            val onTime = mediaUs - windowUs <= LATE_START_US || index == 0L
+            // A start the overlap already missed — the slider lowered after the opening was decoded
+            // for a longer overlap — would cut the next track in loud and partway into its opening.
+            val missedStart = mixStartUs < mediaUs - LATE_START_US
+            val onTime = (mediaUs - windowUs <= LATE_START_US && !missedStart) || index == 0L
             if (!onTime) {
                 end = End.FADE
                 return

@@ -80,7 +80,7 @@ internal class CrossfadeCoordinator(
         val next = nextItem()
         val wanted = if (fadeMs > 0L && !settings.finishingTrack && current != null &&
             next?.localConfiguration != null && settings.edgesAt(player.currentMediaItemIndex).fadeOut
-        ) Seam(current.mediaId, next.mediaId) else null
+        ) Seam(current.mediaId, next.mediaId, fadeMs) else null
         if (seam != wanted) withdraw()
         if (wanted == null || seam != null || wanted in failed) return
         val durationMs = player.duration.takeIf { it != C.TIME_UNSET } ?: 0L
@@ -175,7 +175,8 @@ internal class CrossfadeCoordinator(
         settings.plan = null
     }
 
-    private data class Seam(val outgoingId: String, val incomingId: String)
+    /** A seam at a given slider setting: moving the slider withdraws the plan and decodes anew. */
+    private data class Seam(val outgoingId: String, val incomingId: String, val fadeMs: Long)
 
     private companion object {
         const val TICK_MS = 500L

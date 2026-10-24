@@ -304,6 +304,20 @@ internal class CrossfadeAudioProcessorTest {
         assertEquals(null, settings.pendingRise)
     }
 
+    @Test
+    fun aSliderLoweredAfterTheOpeningWasDecodedNeverCutsTheNextTrackInLate() {
+        // The opening was decoded for a 2 s overlap; the slider then went down to 1 s.
+        settings.fadeMs = 1_000
+        settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000) { 3000 }
+        reposition(stream("a", 10_000), atMs = 7_000)
+        val outgoing = feed(loud, 7_000, 10_000)
+        // At the 1 s window the 2 s overlap's start has passed: the plain fade, nothing mixed in.
+        assertEquals(1000, outgoing[1_999])
+        assertEquals(500, outgoing[2_500])
+        assertTrue(outgoing.all { it <= 1000 }, "no opening under the end")
+        assertEquals(0L, join(stream("b", 20_000)))
+    }
+
     private companion object {
         const val RATE = 1000
     }
