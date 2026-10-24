@@ -70,6 +70,8 @@ public class PersonalRow(
     public val activation: Double = Double.NaN,
     public val transTrack: Int = 0,
     public val transArtist: Int = 0,
+    /** PLAN_TRANSGRAPH: the personal graph's A → B value in [−1, 1] (NaN = counts mode); the trans_track column then holds value · ln 4. */
+    public val transValue: Double = Double.NaN,
 )
 
 /**
@@ -191,7 +193,7 @@ public object RankerFeatures {
                 recencyRank?.get(i) ?: 0.0,
                 if (p != null && p.heard && !p.activation.isNaN()) p.activation else 0.0,
                 actrRank?.get(i) ?: 0.0,
-                if (p != null) ln(1.0 + p.transTrack) else 0.0,
+                if (p != null) (if (!p.transValue.isNaN()) p.transValue * ln(4.0) else ln(1.0 + p.transTrack)) else 0.0,
                 if (p != null) ln(1.0 + p.transArtist) else 0.0,
                 if (duration != null) ln(duration / 1000.0) else 0.0,
                 b(duration != null && duration < SHORT_TRACK_MS),

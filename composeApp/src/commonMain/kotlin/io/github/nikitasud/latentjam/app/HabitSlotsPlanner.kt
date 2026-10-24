@@ -257,6 +257,17 @@ internal suspend fun rankerPlan(
         val personalHistory = io.github.nikitasud.latentjam.smart.ranker.PersonalHistory(
             listens, seedMs, favourites = if (personal) favourites() else emptyMap(),
             extraTransitions = habitSkipTransitions(events.asReversed(), libraryIds, seedMs),
+            // PLAN_TRANSGRAPH: a FULL model with a transGraph block reads every play (skips and listen time included).
+            graph = ranker.transGraphFor(personal)?.let { cfg ->
+                io.github.nikitasud.latentjam.smart.ranker.TransGraph(
+                    events.asReversed().filter { it.startedAtMs < seedMs && it.trackId in libraryIds }.map {
+                        io.github.nikitasud.latentjam.smart.ranker.PlayEvent(
+                            it.trackId, it.startedAtMs, it.effectiveListenedMs, it.trackDurationMs ?: 0L, it.skipped, it.origin?.start?.name,
+                        )
+                    },
+                    seedMs, cfg,
+                )
+            },
         ) { artistKeys[it].orEmpty() }
         val fits = io.github.nikitasud.latentjam.smart.ranker.rankerFitsInHeap(minOf(candidates.size, 2_000))
         // PLAN_L1 §2c freshness: what recent presses showed (any seed), as candidate ids.

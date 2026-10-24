@@ -52,6 +52,8 @@ public class PersonalHistory(
     private val favourites: Map<TrackId, Long?> = emptyMap(),
     /** vc20: A → B picks the listens leave out (A or B skipped; habitSkipTransitions), counted as transitions too. */
     extraTransitions: List<Pair<TrackId, TrackId>> = emptyList(),
+    /** PLAN_TRANSGRAPH: the personal transition graph (FULL models with a transGraph block); null = transition counts. */
+    private val graph: TransGraph? = null,
     artistKey: (TrackId) -> String,
 ) {
     private val counts = HashMap<TrackId, Int>()
@@ -121,6 +123,7 @@ public class PersonalHistory(
             activation = activation[track] ?: Double.NaN,
             transTrack = fromTrack[anchor]?.get(track) ?: 0,
             transArtist = if (anchorArtist.isEmpty()) 0 else fromArtist[anchorArtist]?.get(track) ?: 0,
+            transValue = graph?.value(anchor, track) ?: Double.NaN,
         )
     }
 

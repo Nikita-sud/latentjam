@@ -1,0 +1,65 @@
+/*
+ * Copyright (c) 2026 LatentJam Project
+ * SPDX-License-Identifier: Apache-2.0
+ */
+package io.github.nikitasud.latentjam.smart.ranker
+
+import io.github.nikitasud.latentjam.smart.TrackId
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+
+class TransGraphTest {
+    private val day = 86_400_000L
+    private val seedMs = 100 * day
+
+    private fun cfg(variant: String) = RankerModel.TransGraph(variant, 3, 30L * 60_000, 120.0, 1.0, 1.5, 1.5)
+
+    /** Session k, days ago: A (full), then [next] (played [playedS] of 200 s, skipped or not, started as [start]). */
+    private fun session(daysAgo: Int, next: String, playedS: Long, skipped: Boolean, start: String): List<PlayEvent> {
+        val t = seedMs - daysAgo * day
+        return listOf(
+            PlayEvent(TrackId("A"), t, 200_000, 200_000, false, "USER_PICK"),
+            PlayEvent(TrackId(next), t + 201_000, playedS * 1000, 200_000, skipped, start),
+        )
+    }
+
+    @Test
+    fun habitIsPositiveAndEarlySkipIsNegative() {
+        val plays = (1..4).flatMap { session(it * 3, "B", 200, false, "USER_PICK") } +
+            (1..4).flatMap { session(it * 3 + 1, "C", 6, true, "AUTO_ADVANCE") }
+        val g = TransGraph(plays, seedMs, cfg("A"))
+        assertTrue(g.value(TrackId("A"), TrackId("B")) > 0.5, "habit lifts")
+        assertTrue(g.value(TrackId("A"), TrackId("C")) < -0.3, "early skips after A push C down")
+        assertEquals(0.0, g.value(TrackId("A"), TrackId("Z")))
+    }
+
+    @Test
+    fun lateSkipOfTheFadeOutCountsAsAListen() {
+        val plays = (1..3).flatMap { session(it * 2, "B", 190, true, "USER_PICK") }
+        assertTrue(TransGraph(plays, seedMs, cfg("A")).value(TrackId("A"), TrackId("B")) > 0.4)
+    }
+
+    @Test
+    fun autoplayCountsLessThanOwnPicksAndVariantCIgnoresTheStart() {
+        val auto = (1..3).flatMap { session(it * 2, "B", 200, false, "AUTO_ADVANCE") }
+        val pick = (1..3).flatMap { session(it * 2, "B", 200, false, "USER_PICK") }
+        val a = TransGraph(auto, seedMs, cfg("A")).value(TrackId("A"), TrackId("B"))
+        val p = TransGraph(pick, seedMs, cfg("A")).value(TrackId("A"), TrackId("B"))
+        assertTrue(a < p, "autoplay $a < own pick $p")
+        assertEquals(p, TransGraph(auto, seedMs, cfg("C")).value(TrackId("A"), TrackId("B")), 1e-9)
+    }
+
+    @Test
+    fun sessionKnnHasNoNegativesAndSessionsBreakOnGaps() {
+        val plays = (1..3).flatMap { session(it * 3, "C", 6, true, "AUTO_ADVANCE") } + (1..3).flatMap { session(it * 3 + 1, "B", 200, false, "USER_PICK") }
+        val d = TransGraph(plays, seedMs, cfg("D"))
+        assertEquals(0.0, d.value(TrackId("A"), TrackId("C")), "a skipped track is not in the session, and D has no negatives")
+        assertTrue(d.value(TrackId("A"), TrackId("B")) > 0.0)
+        val gap = listOf(
+            PlayEvent(TrackId("A"), seedMs - day, 200_000, 200_000, false, "USER_PICK"),
+            PlayEvent(TrackId("B"), seedMs - day + 200_000 + 31 * 60_000, 200_000, 200_000, false, "USER_PICK"),
+        )
+        assertEquals(0.0, TransGraph(gap, seedMs, cfg("A")).value(TrackId("A"), TrackId("B")))
+    }
+}

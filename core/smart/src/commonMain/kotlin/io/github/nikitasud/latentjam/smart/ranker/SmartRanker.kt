@@ -159,12 +159,18 @@ public object RankerQueue {
                 val x = pn.track * minOf(1.0, r[jt] / LN4) + pn.artist * minOf(1.0, r[ja] / LN4) +
                     pn.playlist * minOf(1.0, 2.0 * (pl?.get(i) ?: 0.0)) + pn.favourite * minOf(1.0, maxOf(0.0, r[jf])) +
                     pn.frequency * minOf(1.0, r[jq] / LN21)
-                minOf(1.0, maxOf(0.0, x))
+                // PLAN_TRANSGRAPH: a graph's negative A → B value may pull the row down (bounded like the lift).
+                minOf(1.0, maxOf(if (model.transGraph != null) -1.0 else 0.0, x))
             }
         }
         val nudge: ((Int) -> DoubleArray)? = if (model.personalNudge == null) null else { anchor ->
             val a = nudgeOf(SEED)
-            if (anchor == SEED) a else { val b = nudgeOf(anchor); DoubleArray(poolSize) { maxOf(a[it], b[it]) } }
+            if (anchor == SEED) a else {
+                val b = nudgeOf(anchor)
+                // With a graph the strongest lift and the strongest rejection both count; without one, the best lift (night r5).
+                if (model.transGraph != null) DoubleArray(poolSize) { maxOf(0.0, a[it], b[it]) + minOf(0.0, a[it], b[it]) }
+                else DoubleArray(poolSize) { maxOf(a[it], b[it]) }
+            }
         }
         model.artistReentry?.takeIf { it.creditRun }?.let { re ->
             return buildCreditRun(
@@ -538,6 +544,8 @@ public object RankerQueue {
                 val delta = model.personalNudge!!.delta * spread(t, allowed)
                 val top = bestScore
                 for (i in 0 until poolSize) if (allowed[i] && t[i] >= top - delta && nd[i] > 0.0) t[i] = t[i] + delta * nd[i]
+                // PLAN_TRANSGRAPH: a rejected A → B loses up to delta wherever it stands (soft, bounded).
+                if (model.transGraph != null) for (i in 0 until poolSize) if (allowed[i] && nd[i] < 0.0) t[i] = t[i] + delta * nd[i]
                 for (i in 0 until poolSize) if (allowed[i]) bestScore = maxOf(bestScore, t[i])
             }
             val spreadPenalised = spread(t, allowed)
@@ -966,6 +974,9 @@ public class SmartRanker(
     public fun entityOf(id: TrackId): Int? = knownById[id]?.entity
 
     /** The freshness block of the model a plan with these flags runs (PLAN_L1 §2c), or null when it has none. */
+    /** PLAN_TRANSGRAPH: the transition-graph block of the model a FULL plan runs, or null (CORE plans never have one). */
+    public fun transGraphFor(personal: Boolean): RankerModel.TransGraph? = if (personal) fullModel?.transGraph else null
+
     public fun freshnessFor(personal: Boolean, ruleOnly: Boolean): RankerModel.Freshness? = when {
         ruleOnly -> null
         personal && fullModel != null -> fullModel.freshness
