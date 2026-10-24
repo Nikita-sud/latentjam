@@ -271,29 +271,29 @@ internal class PeriodLoad(
  * What the Statistics page last computed, kept above the page. The root pager composes only the
  * page on screen, so the page is disposed whenever it is swiped away; without this every return
  * read and summarised the whole log again behind a progress bar. A result is reused only for the
- * inputs it was computed from, so new listens, a new day, a retry, an edited library or edited
- * playlists still recompute it. Main-thread only, like the page itself.
+ * inputs it was computed from, so new listens, a new day, a retry, edited playlists or edited
+ * favourites still recompute it. One memory serves one library: whoever keeps it starts a new one
+ * when the library changes, so it never holds a superseded library alive. It keeps results and
+ * labels, never the library's descriptors. Main-thread only, like the page itself.
  */
 internal class StatsMemory {
-    /** The library and playlists compare by identity: each edit publishes a new list. */
+    /** Playlists and favourites compare by identity: each edit publishes a new list. */
     class Inputs(
         val historyRevision: Long,
         val retry: Int,
         val localDay: Long,
-        val tracks: List<TrackDescriptor>,
         val playlists: Any?,
+        val favorites: Any?,
     ) {
         override fun equals(other: Any?): Boolean = other is Inputs &&
             historyRevision == other.historyRevision && retry == other.retry && localDay == other.localDay &&
-            tracks === other.tracks && playlists === other.playlists
+            playlists === other.playlists && favorites === other.favorites
 
         override fun hashCode(): Int = historyRevision.hashCode() * 31 + localDay.hashCode()
     }
 
     val periods = HashMap<StatsPeriod, Pair<Inputs, PeriodLoad>>()
     var habits: Pair<Inputs, HabitInsights>? = null
-    var tracksById: Map<TrackId, TrackDescriptor> = emptyMap()
-    var tracksByIdFor: List<TrackDescriptor>? = null
     var playlistLabels: Map<String, PlaylistLabel> = emptyMap()
 }
 
@@ -305,12 +305,19 @@ internal fun ListeningStatsSettings(
     contentPadding: PaddingValues = PaddingValues(bottom = 24.dp),
     active: Boolean = true,
     accent: TrackAccent? = null,
-    /** Results that outlive this composition; the root page passes one kept above the pager. */
+    /**
+     * Results that outlive this composition, for [tracks] only; the root page passes one kept above
+     * the pager.
+     */
     memory: StatsMemory? = null,
     /** The playlists as published: a rename or a new playlist recomputes what names them. */
     playlistsKey: Any? = null,
+    /** The favourites as published: the Favorites playlist's plays follow its membership. */
+    favoritesKey: Any? = null,
+    /** [tracks] by id when the caller already holds that map, so returning rows are never blank. */
+    knownTracksById: Map<TrackId, TrackDescriptor>? = null,
 ) {
-    val memo = memory ?: remember { StatsMemory() }
+    val memo = memory ?: remember(tracks) { StatsMemory() }
     val accentInk = accent?.let { browseAccentInk(it) } ?: MaterialTheme.colorScheme.primary
     var periodName by rememberSaveable { mutableStateOf(StatsPeriod.MONTH.name) }
     val period = StatsPeriod.entries.firstOrNull { it.name == periodName } ?: StatsPeriod.MONTH
@@ -325,8 +332,8 @@ internal fun ListeningStatsSettings(
     }
     var retryRevision by remember { mutableIntStateOf(0) }
     // Both sections attribute plays to the same playlists: read them once per revision, off the main
-    // thread, and again whenever the page is shown (names may have changed meanwhile).
-    val playlistsLoad = remember(scope, historyRevision, tracks, retryRevision, active) {
+    // thread, and again whenever the playlists or favourites are published anew.
+    val playlistsLoad = remember(scope, historyRevision, tracks, retryRevision, playlistsKey, favoritesKey) {
         scope.async(supervisor + Dispatchers.Default, start = CoroutineStart.LAZY) {
             try {
                 loadStatsPlaylists(catalog.await())
@@ -353,16 +360,12 @@ internal fun ListeningStatsSettings(
     var periodFailed by remember { mutableStateOf(false) }
     var habitsFailed by remember { mutableStateOf(false) }
     // Built once off the main thread; rows read it after the first load.
-    var tracksById by remember(tracks) {
-        mutableStateOf(if (memo.tracksByIdFor === tracks) memo.tracksById else emptyMap())
-    }
+    var tracksById by remember(tracks) { mutableStateOf(knownTracksById ?: emptyMap()) }
     var playlistLabels by remember { mutableStateOf(memo.playlistLabels) }
-    fun inputs() = StatsMemory.Inputs(historyRevision, retryRevision, localDay, tracks, playlistsKey)
+    fun inputs() = StatsMemory.Inputs(historyRevision, retryRevision, localDay, playlistsKey, favoritesKey)
     fun keep(catalogMap: Map<TrackId, TrackDescriptor>, labels: Map<String, PlaylistLabel>) {
         tracksById = catalogMap
         playlistLabels = labels
-        memo.tracksById = catalogMap
-        memo.tracksByIdFor = tracks
         memo.playlistLabels = labels
     }
 
@@ -371,12 +374,13 @@ internal fun ListeningStatsSettings(
     }
     // Section 2 follows the chips. New listens refresh it in place; a chip change keeps the old
     // cards dimmed until the new period is ready, so neither the layout nor the scroll jumps.
-    LaunchedEffect(selection, historyRevision, retryRevision, active, localDay, playlistsKey) {
+    LaunchedEffect(selection, historyRevision, retryRevision, active, localDay, playlistsKey, favoritesKey) {
         if (!active) return@LaunchedEffect
         val inputs = inputs()
         memo.periods[period]?.takeIf { it.first == inputs }?.let { (_, kept) ->
             periodLoad = kept.shownFor(selection)
             periodFailed = false
+            if (tracksById.isEmpty()) tracksById = catalog.await()
             return@LaunchedEffect
         }
         try {
@@ -423,12 +427,13 @@ internal fun ListeningStatsSettings(
         }
     }
     // Sections 1 and 3 describe the whole log as of today; the chips never touch them.
-    LaunchedEffect(historyRevision, tracks, active, localDay, retryRevision, playlistsKey) {
+    LaunchedEffect(historyRevision, tracks, active, localDay, retryRevision, playlistsKey, favoritesKey) {
         if (!active) return@LaunchedEffect
         val inputs = inputs()
         memo.habits?.takeIf { it.first == inputs }?.let { (_, kept) ->
             habitsLoad = kept
             habitsFailed = false
+            if (tracksById.isEmpty()) tracksById = catalog.await()
             return@LaunchedEffect
         }
         try {

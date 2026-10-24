@@ -267,9 +267,6 @@ private fun AppShell(
     // actions bump this epoch instead, and the sum is what every cache below is keyed on; both
     // halves only grow, so neither counter can mask the other.
     var replacedHistoryEpoch by remember { mutableLongStateOf(0L) }
-    // The Statistics page's results outlive the page itself (see [StatsMemory]); a cleared or
-    // restored log starts them over, as it re-keys the page.
-    val statsMemory = remember(replacedHistoryEpoch) { StatsMemory() }
     val historyRevision = recordedHistoryRevision + replacedHistoryEpoch
     val smartExclusions = AppGraph.smartExclusions
     val smartExclusionState by smartExclusions.state.collectAsState()
@@ -2553,6 +2550,10 @@ private fun AppShell(
                                     // same pager position, so label and content move together
                                     // rather than one chasing the other after the fact.
                                     LibraryPresentation.CONTENT -> shownCatalog?.let { visibleCatalog ->
+                                    // The Statistics page's results outlive the page itself (see
+                                    // [StatsMemory]); a new library, or a cleared or restored log
+                                    // (which re-keys the page), starts them over.
+                                    val statsMemory = remember(replacedHistoryEpoch, visibleCatalog.songs) { StatsMemory() }
                                     HorizontalPager(
                                         state = pagerState,
                                         modifier = Modifier.fillMaxSize(),
@@ -2595,6 +2596,8 @@ private fun AppShell(
                                                 active = browsePageVisible && settledTab == StartPage.STATISTICS,
                                                 memory = statsMemory,
                                                 playlistsKey = playlistsState.playlists,
+                                                favoritesKey = favoriteIds,
+                                                knownTracksById = tracksById.takeIf { catalog?.songs === visibleCatalog.songs },
                                             )
                                         }
 
