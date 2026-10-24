@@ -74,6 +74,8 @@ public class PersonalRow(
     public val transValue: Double = Double.NaN,
     /** PLAN_LISTENW: the credit-weighted artist transition count (NaN = the integer [transArtist] column). */
     public val transArtistCredit: Double = Double.NaN,
+    /** PLAN_LISTENW: the trans_track column itself, in nats: ln(1 + credit) − the pair negative (NaN = counts or graph). */
+    public val transTrackNats: Double = Double.NaN,
 )
 
 /**
@@ -195,7 +197,7 @@ public object RankerFeatures {
                 recencyRank?.get(i) ?: 0.0,
                 if (p != null && p.heard && !p.activation.isNaN()) p.activation else 0.0,
                 actrRank?.get(i) ?: 0.0,
-                if (p != null) (if (!p.transValue.isNaN()) p.transValue * ln(4.0) else ln(1.0 + p.transTrack)) else 0.0,
+                if (p != null) (if (!p.transTrackNats.isNaN()) p.transTrackNats else if (!p.transValue.isNaN()) p.transValue * ln(4.0) else ln(1.0 + p.transTrack)) else 0.0,
                 if (p != null) ln(1.0 + if (p.transArtistCredit.isNaN()) p.transArtist.toDouble() else p.transArtistCredit) else 0.0,
                 if (duration != null) ln(duration / 1000.0) else 0.0,
                 b(duration != null && duration < SHORT_TRACK_MS),

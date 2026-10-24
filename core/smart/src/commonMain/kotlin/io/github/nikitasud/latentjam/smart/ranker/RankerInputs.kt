@@ -133,7 +133,8 @@ public class PersonalHistory(
             activation = activation[track] ?: Double.NaN,
             transTrack = whole(fromTrack[anchor]?.get(track) ?: 0.0),
             transArtist = whole(if (anchorArtist.isEmpty()) 0.0 else fromArtist[anchorArtist]?.get(track) ?: 0.0),
-            transValue = graph?.value(anchor, track) ?: listenValue(anchor, track),
+            transValue = graph?.value(anchor, track) ?: Double.NaN,
+            transTrackNats = if (graph == null) listenNats(anchor, track) else Double.NaN,
             transArtistCredit = if (listenWeight == null || anchorArtist.isEmpty()) Double.NaN else fromArtist[anchorArtist]?.get(track) ?: 0.0,
         )
     }
@@ -158,17 +159,18 @@ public class PersonalHistory(
         }).map { it.key }
 
     /**
-     * PLAN_LISTENW: A → B on the trans_track scale (value · ln 4 = ln(1 + credit) − negWeight · ln 4 · the smoothed
-     * rejection rate, one rejection counting half); NaN without listenWeight (the integer count column is used).
+     * PLAN_LISTENW: the trans_track column in nats — ln(1 + credit) − negWeight · ln 4 · the smoothed rejection rate (one
+     * rejection counting half); NaN without listenWeight (the integer count column is used). With every credit 1 and no
+     * negative it is ln(1 + count), bit for bit.
      */
-    private fun listenValue(anchor: TrackId, track: TrackId): Double {
+    private fun listenNats(anchor: TrackId, track: TrackId): Double {
         val lw = listenWeight ?: return Double.NaN
         val p = fromTrack[anchor]?.get(track) ?: 0.0
         var v = ln(1.0 + p)
         if (lw.negWeight > 0.0) pairNegatives[anchor to track]?.let { (n, events) ->
             v -= lw.negWeight * ln(4.0) * n / (n + p + 2.0) * minOf(1.0, events / 2.0)
         }
-        return v / ln(4.0)
+        return v
     }
 
     /** A credit sum as the old integer count (exact when every credit is 1). */

@@ -296,7 +296,13 @@ class SmartStandRunner {
                 if (c >= (System.getenv("LJ_STAND_HABIT_MIN")?.toInt() ?: 2) && b in byId) pairs += Triple(a, b, c)
             }
         }
-        val sb = StringBuilder("seed\tfollower\tcount\texcluded\tfullRank\tcoreRank\tnormalCount\n")
+        // PLAN_LISTENW: how many of each pair's plays of B were full-credit listens (completed or past the ListenBrainz
+        // threshold) — the owner's pairs held up only by short plays are expected to drop under listen weighting
+        val fullOnly = personalHistoryOf(
+            events.asReversed().map { e -> if (listenCredit(e, 30_000L) >= 1.0) e else e.copy(skipped = true) }, ids, start, favourites,
+            skipPairs = true, unskippedOnly = true, lw = null,
+        ) { artistKeys[it].orEmpty() }
+        val sb = StringBuilder("seed\tfollower\tcount\texcluded\tfullRank\tcoreRank\tnormalCount\tfullCount\n")
         for ((a, b, c) in pairs.sortedByDescending { it.third }.take(60)) {
             val seed = byId.getValue(a)
             suspend fun rank(full: Boolean): Int {
@@ -309,7 +315,7 @@ class SmartStandRunner {
                 )
                 return r.ids.indexOf(b).let { if (it < 0) -1 else it + 1 }
             }
-            sb.append("${a.value}\t${b.value}\t$c\t${b in exclude}\t${rank(true)}\t${rank(false)}\t${normalOnly.followCount(a, b)}\n")
+            sb.append("${a.value}\t${b.value}\t$c\t${b in exclude}\t${rank(true)}\t${rank(false)}\t${normalOnly.followCount(a, b)}\t${fullOnly.followCount(a, b)}\n")
         }
         target.writeText(sb.toString())
         // PLAN_NB ear test: vc21 pairs into a B the listener skipped (what r12aNB and r12aNBs both stop counting), from

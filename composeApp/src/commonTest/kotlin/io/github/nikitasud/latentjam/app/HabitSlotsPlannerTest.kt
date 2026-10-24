@@ -150,8 +150,13 @@ class HabitSlotsPlannerTest {
             personalHistoryOf(events, library, t, emptyMap(), skipPairs = true, unskippedOnly = false, lw = w) { "" }
         assertEquals(2, history(null).followCount(TrackId("a"), TrackId("b")))
         assertEquals(1, history(lw).followCount(TrackId("a"), TrackId("b")))
-        assertTrue(history(null).row(TrackId("c"), TrackId("a"), "").transValue.isNaN()) // counts mode: unchanged
-        assertTrue(history(lw).row(TrackId("c"), TrackId("a"), "").transValue < 0.0)
-        assertTrue(history(lw).row(TrackId("b"), TrackId("a"), "").transValue > 0.0)
+        assertTrue(history(null).row(TrackId("c"), TrackId("a"), "").transTrackNats.isNaN()) // counts mode: unchanged
+        assertTrue(history(lw).row(TrackId("c"), TrackId("a"), "").transTrackNats < 0.0)
+        assertTrue(history(lw).row(TrackId("b"), TrackId("a"), "").transTrackNats > 0.0)
+        // all credits 1 and no negative: the column is ln(1 + count) exactly (imports stay identical to counts mode)
+        val full = io.github.nikitasud.latentjam.smart.ranker.RankerModel.ListenWeight(negWeight = 0.0)
+        val listened = events.map { if (it.trackId == TrackId("a")) it else it.copy(completed = true, skipped = false, listenedMs = 200_000) }
+        val h = personalHistoryOf(listened, library, t, emptyMap(), skipPairs = true, unskippedOnly = false, lw = full) { "" }
+        assertEquals(kotlin.math.ln(1.0 + 2), h.row(TrackId("b"), TrackId("a"), "").transTrackNats)
     }
 }
