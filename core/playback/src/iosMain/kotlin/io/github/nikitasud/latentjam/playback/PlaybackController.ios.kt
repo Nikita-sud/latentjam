@@ -245,7 +245,9 @@ internal class IosPlaybackController(
         val active = overlap
         if (active != null && !active.started && durationMs - positionMs <= active.overlapMs) {
             // Late (a seek into the window): the next track starts where the overlap has got to.
-            active.started = audioEngine.startOverlap(fromMs = positionMs - (durationMs - active.overlapMs))
+            active.started = audioEngine.startOverlap(
+                fromMs = lateOverlapStartMs(positionMs, durationMs, active.overlapMs),
+            )
             if (!active.started) cancelOverlap()
         }
         val windowMs = maxOf(fadeMs, incomingRiseMs)
@@ -1460,9 +1462,11 @@ internal class IosPlaybackController(
 
     private fun onItemEnded(itemGeneration: Long) {
         if (!isCurrentPlaybackItemGeneration(itemGeneration, playbackItemGeneration)) return
-        // An overlap's outgoing track can end inside a pause's fade, an interruption or a route
-        // change, while `playing` already says no: the next track is sounding, so it takes over
-        // all the same, and a resume carries it on instead of restarting the ended one.
+        // An overlap's outgoing track can end inside a pause's fade, while `playing` already says
+        // no but the graph still renders: the next track is sounding, so it takes over all the
+        // same, and a resume carries it on instead of restarting the ended one. Only then — an
+        // interruption or a route change stops the graph at once, with no fade to finish in.
+        if (!playing && !transportFade.pausePending) return
         if (promoteOverlap(if (repeat == RepeatMode.ONE) StartCause.REPEAT else StartCause.AUTO_ADVANCE)) return
         if (!playing) return
         if (repeat == RepeatMode.ONE) {

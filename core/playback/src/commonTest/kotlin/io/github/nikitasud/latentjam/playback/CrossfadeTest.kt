@@ -197,4 +197,14 @@ internal class CrossfadeTest {
         assertTrue(softClip(1.28f, overlapKnee(1f)) < 1f, "two loud tracks stay off the rail")
         assertTrue(overlapKnee(0.5f) in 0.8f..1f)
     }
+
+    @Test
+    fun anOverlapBegunOnTimePlaysTheCuedOpeningAndALateOneJoinsWhereItHasGot() {
+        // 40 s outgoing, 12 s overlap from 28 s.
+        assertEquals(0L, lateOverlapStartMs(28_000, 40_000, 12_000))
+        assertEquals(0L, lateOverlapStartMs(28_015, 40_000, 12_000), "a tick late is on time")
+        assertEquals(0L, lateOverlapStartMs(28_100, 40_000, 12_000))
+        assertEquals(101L, lateOverlapStartMs(28_101, 40_000, 12_000))
+        assertEquals(6_978L, lateOverlapStartMs(34_978, 40_000, 12_000), "a scrub to 35 s")
+    }
 }

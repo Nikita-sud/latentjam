@@ -213,6 +213,21 @@ internal fun deckEnvelope(
     return start * end
 }
 
+/**
+ * Where the next track starts when an overlap begins at [positionMs] of an outgoing track of
+ * [durationMs]: 0 — its cued opening — when the overlap starts on time, which on a player that
+ * looks every few milliseconds means up to [LATE_OVERLAP_START_MS] late; otherwise as far into
+ * the next track as the overlap has got, so both curves run on one clock (a seek into the window,
+ * the slider raised inside it).
+ */
+internal fun lateOverlapStartMs(positionMs: Long, durationMs: Long, overlapMs: Long): Long {
+    val late = positionMs - (durationMs - overlapMs)
+    return if (late > LATE_OVERLAP_START_MS) late else 0L
+}
+
+/** How late an overlap may begin and still play its next track from the cued opening. */
+internal const val LATE_OVERLAP_START_MS: Long = 100L
+
 /** How far ahead of an overlap the next track's opening is decoded. */
 internal const val CROSSFADE_PREROLL_LEAD_MS: Long = 10_000L
 

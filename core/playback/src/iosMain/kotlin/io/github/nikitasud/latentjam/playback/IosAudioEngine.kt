@@ -378,15 +378,11 @@ internal class IosAudioEngine : EqualizerController {
     fun startOverlap(fromMs: Long = 0L): Boolean {
         val file = standbyFile ?: return false
         if (!player.playing) return false
-        // Begun late — a seek into the overlap's window, the slider raised inside it — the
-        // incoming track joins where the overlap has got to, on the same clock as the outgoing
-        // curve, instead of replaying its opening from a quiet start. A start on time (late only
-        // by the loop's tick) plays the segment cued ahead, opening and all.
-        val fromFrame = if (fromMs > LATE_START_MS) {
-            millisToFrame(fromMs, file).coerceIn(0L, (file.length - 1L).coerceAtLeast(0L))
-        } else {
-            0L
-        }
+        // Begun late ([lateOverlapStartMs]) — a seek into the overlap's window, the slider raised
+        // inside it — the incoming track joins where the overlap has got to, on the same clock as
+        // the outgoing curve, instead of replaying its opening from a quiet start. 0 plays the
+        // segment cued ahead, opening and all.
+        val fromFrame = millisToFrame(fromMs, file).coerceIn(0L, (file.length - 1L).coerceAtLeast(0L))
         if (fromFrame > 0L) {
             standby.stop()
             scheduleStandby(file, fromFrame)
@@ -638,9 +634,6 @@ internal class IosAudioEngine : EqualizerController {
 
     private companion object {
         const val NO_TOKEN = -1L
-
-        /** Later than this, an overlap's start re-cues the next track where the overlap has got to. */
-        const val LATE_START_MS = 100L
 
         /** The fade a late-started next track opens with, against a click. */
         const val RAMP_IN_MS = 20L
