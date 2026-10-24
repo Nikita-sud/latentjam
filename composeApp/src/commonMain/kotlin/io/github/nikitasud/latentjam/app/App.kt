@@ -1444,10 +1444,12 @@ private fun AppShell(
         val playingTrackId by remember(playback) {
             playback.state.map { it.track?.id }.distinctUntilChanged()
         }.collectAsState(initial = null)
-        LaunchedEffect(playingTrackId, tracksById) {
+        // Read from the published library, not the catalog built from it later: a catalog that
+        // still lags a refresh would put the old descriptor back into the queue.
+        LaunchedEffect(playingTrackId, tracks) {
             val playing = playback.state.value.track ?: return@LaunchedEffect
             if (playing.id != playingTrackId) return@LaunchedEffect
-            val fresh = tracksById[playing.id] ?: return@LaunchedEffect
+            val fresh = tracks?.firstOrNull { it.id == playing.id } ?: return@LaunchedEffect
             if (fresh.artworkUri != playing.artworkUri) playback.refreshTracks(listOf(fresh))
         }
         val selectedTracks = remember(
