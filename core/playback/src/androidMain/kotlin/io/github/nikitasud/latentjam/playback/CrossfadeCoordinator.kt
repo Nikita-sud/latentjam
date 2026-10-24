@@ -48,7 +48,7 @@ internal class CrossfadeCoordinator(
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             failed.clear()
             // The join is heard now; a Next from here on leaves the incoming track.
-            settings.progress = null
+            settings.mixing = null
         }
     }
 
@@ -88,17 +88,24 @@ internal class CrossfadeCoordinator(
      * the app, the notification, a headset, a car — comes through here.
      */
     fun nextFromOverlap(): Pair<Int, Long>? {
-        val heard = settings.progress ?: return null
+        val plan = settings.mixing ?: return null
+        if (player.currentMediaItem?.mediaId != plan.outgoingId) return null
         if (player.repeatMode == Player.REPEAT_MODE_ONE) return null
         val index = player.nextMediaItemIndex.takeIf { it != C.INDEX_UNSET } ?: return null
-        if (player.getMediaItemAt(index).mediaId != heard.incomingId) return null
-        return index to heard.heardMs
+        if (player.getMediaItemAt(index).mediaId != plan.incomingId) return null
+        val durationMs = player.duration.takeIf { it != C.TIME_UNSET } ?: return null
+        // The incoming opening began under the outgoing track's last overlapUs; the player's
+        // position is what has reached the speaker, so this is the heard point, not one a buffer
+        // ahead of it.
+        val heardMs = player.currentPosition - (durationMs - plan.overlapUs / 1000L)
+        return if (heardMs >= 0L) index to heardMs else null
     }
 
     /**
-     * The row playback moves on to by itself. None under repeat-one: a track never overlaps its
-     * own opening, which would start each repeat seconds in — past the sleep timer's and the
-     * listening log's idea of a restart. Its loop keeps the plain fades.
+     * The row playback moves on to by itself, when it may overlap. Never the track itself: a track
+     * overlapping its own opening would start its next play seconds in — past the sleep timer's
+     * and the listening log's idea of a restart. Repeat-one and any next row of the same track keep
+     * the plain fades.
      */
     private fun nextItem(): MediaItem? {
         if (player.repeatMode == Player.REPEAT_MODE_ONE) return null
@@ -108,7 +115,10 @@ internal class CrossfadeCoordinator(
             player.currentMediaItemIndex, player.repeatMode, player.shuffleModeEnabled,
         )
         if (index == C.INDEX_UNSET) return null
+        // The same track next — a one-row queue on repeat-all, Play next on the playing track —
+        // is a repeat too, and keeps the plain fades for the same reason.
         return timeline.getWindow(index, Timeline.Window()).mediaItem
+            .takeIf { it.mediaId != player.currentMediaItem?.mediaId }
     }
 
     private fun begin(target: Seam, next: MediaItem, outgoingMs: Long, fadeMs: Long) {

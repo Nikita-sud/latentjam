@@ -87,7 +87,8 @@ internal class CrossfadeAudioProcessorTest {
         settings.fadeMs = 2_000
         val a = stream("a", 10_000)
         val b = stream("b", 20_000)
-        settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000, samples = ramp)
+        val overlap = plan("a", "b", overlapMs = 2_000, frames = 4_000, samples = ramp)
+        settings.plan = overlap
         reposition(a, atMs = 5_000)
         val outgoing = feed(loud, 5_000, 10_000)
 
@@ -97,7 +98,7 @@ internal class CrossfadeAudioProcessorTest {
         val expectedMiddle = 1000 * overlapOutGain(0.5f) + 1000 * overlapInGain(0.5f)
         assertTrue(abs(middle - expectedMiddle) <= 1f, "middle of the overlap was $middle")
         assertTrue(outgoing.last() in 1999..2000, "end of the overlap was ${outgoing.last()}")
-        assertEquals(2000L, settings.progress?.heardMs)
+        assertTrue(settings.mixing === overlap)
 
         // The join drops exactly the 2000 frames already heard and reports them as played, also
         // when the sink checkpoints a second time before the first frame.
@@ -106,7 +107,8 @@ internal class CrossfadeAudioProcessorTest {
         processor.flush(StreamMetadata.DEFAULT)
         val incoming = feed(ramp, 0, 3_000)
         assertEquals((2_000 until 3_000).toList(), incoming)
-        assertEquals(null, settings.progress)
+        // Processed ahead of the speaker: until the player reports the join, Next still lands in B.
+        assertTrue(settings.mixing === overlap)
     }
 
     @Test
@@ -200,7 +202,7 @@ internal class CrossfadeAudioProcessorTest {
         feed(loud, 0, 9_000)
         reposition(a, atMs = 3_000)
         assertTrue(feed(loud, 3_000, 4_000).all { it == 1000 })
-        assertEquals(null, settings.progress)
+        assertEquals(null, settings.mixing)
     }
 
     @Test
@@ -228,17 +230,43 @@ internal class CrossfadeAudioProcessorTest {
     }
 
     @Test
-    fun finishingTheTrackLetsAnOverlapInProgressGo() {
+    fun aPlanWithdrawnMidOverlapStopsCountingAsSounding() {
         settings.fadeMs = 2_000
-        settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000) { 3000 }
+        val overlap = plan("a", "b", overlapMs = 2_000, frames = 4_000) { 3000 }
+        settings.plan = overlap
         reposition(stream("a", 10_000), atMs = 5_000)
         feed(loud, 5_000, 8_500)
-        // The sleep timer arms "end of track": the coordinator withdraws the plan.
-        settings.finishingTrack = true
+        assertTrue(settings.mixing === overlap)
+        // What the coordinator does when the sleep timer arms "end of track" or the queue changes.
         settings.plan = null
         val rest = feed({ 0 }, 8_500, 10_000)
         assertTrue(rest.drop(CROSSFADE_CANCEL_MS.toInt() + 100).all { it == 0 })
+        assertEquals(null, settings.mixing, "Next no longer lands mid-track")
         assertEquals(0L, join(stream("b", 20_000)))
+    }
+
+    @Test
+    fun aTrackNeverOverlapsItsOwnOpening() {
+        settings.fadeMs = 2_000
+        settings.plan = plan("a", "a", overlapMs = 2_000, frames = 4_000, samples = ramp)
+        reposition(stream("a", 10_000), atMs = 7_000)
+        // The plain fade-out, nothing mixed in.
+        assertEquals(500, feed(loud, 7_000, 10_000)[2_000])
+        assertEquals(0L, join(stream("a", 10_000)))
+    }
+
+    @Test
+    fun nextDuringAnOverlapCarriesTheIncomingRiseOn() {
+        settings.fadeMs = 2_000
+        settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000, samples = loud)
+        reposition(stream("a", 10_000), atMs = 7_000)
+        feed(loud, 7_000, 9_000)
+        // Next: the session seeks to b at the point heard, 1 s into the 2 s overlap.
+        reposition(stream("b", 20_000), atMs = 1_000)
+        val incoming = feed(loud, 1_000, 3_000)
+        val expected = 1000 * overlapInGain(0.5f)
+        assertTrue(abs(incoming.first() - expected) <= 1f, "rise continued at ${incoming.first()}, not ${1000 * 0.5f}")
+        assertEquals(1000, incoming.last())
     }
 
     private companion object {

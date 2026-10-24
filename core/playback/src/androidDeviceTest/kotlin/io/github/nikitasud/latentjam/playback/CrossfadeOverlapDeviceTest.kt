@@ -78,7 +78,8 @@ class CrossfadeOverlapDeviceTest {
                 player.prepare()
                 player.play()
             }
-            // Halfway through the overlap, Next from any controller lands on the point already heard.
+            // Halfway through the overlap, the landing the session player uses for Next (from any
+            // controller) is the point of the next track already heard.
             var landing: Pair<Int, Long>? = null
             val deadline = System.currentTimeMillis() + 20_000
             while (landing == null && System.currentTimeMillis() < deadline) {
@@ -131,7 +132,45 @@ class CrossfadeOverlapDeviceTest {
         }
     }
 
-    @Test fun repeatOneLoopsFromItsStartWithoutOverlappingItself() {
+    @Test fun aOneRowQueueOnRepeatAllLoopsFromItsStartWithoutOverlappingItself() =
+        loopsWithoutOverlap(Player.REPEAT_MODE_ALL)
+
+    @Test fun repeatOneLoopsFromItsStartWithoutOverlappingItself() = loopsWithoutOverlap(Player.REPEAT_MODE_ONE)
+
+    @Test fun theDecodedOpeningStaysOffTheJavaHeap() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        // 16 s at 96 kHz stereo: the 14 s an overlap of 12 s decodes is 5.4 MB of PCM16.
+        val rate = 96_000
+        val track = File(context.cacheDir, "crossfade-hires.wav").also { writeWav(it, rate * 16, { i -> (i % 4000) - 2000 }, rate) }
+        val done = CountDownLatch(1)
+        var intro: PcmIntro? = null
+        fun usedHeap(): Long {
+            repeat(3) { Runtime.getRuntime().gc(); System.runFinalization(); Thread.sleep(100) }
+            return Runtime.getRuntime().let { it.totalMemory() - it.freeMemory() }
+        }
+        try {
+            val before = usedHeap()
+            instrumentation.runOnMainSync {
+                CrossfadeIntroCapture(context, MediaItem.fromUri(track.toURI().toString()), 14_000L) {
+                    intro = it
+                    done.countDown()
+                }.start()
+            }
+            assertTrue("capture timed out", done.await(20, TimeUnit.SECONDS))
+            val held = checkNotNull(intro)
+            val after = usedHeap()
+            val pcmBytes = held.frames.toLong() * held.channelCount * 2
+            Log.i("LJCrossfadeTest", "intro frames=${held.frames} pcm=$pcmBytes heap delta=${after - before}")
+            assertEquals(14 * rate, held.frames)
+            assertEquals(-2000, held.pcm.getShort(0).toInt())
+            assertTrue("heap grew ${after - before} for $pcmBytes of PCM", after - before < pcmBytes / 4)
+        } finally {
+            track.delete()
+        }
+    }
+
+    private fun loopsWithoutOverlap(repeatMode: Int) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext
         val track = File(context.cacheDir, "crossfade-loop.wav").also { writeWav(it, OUTGOING_FRAMES, ::tone) }
@@ -145,10 +184,12 @@ class CrossfadeOverlapDeviceTest {
             instrumentation.runOnMainSync {
                 player = ExoPlayer.Builder(context, EqualizerRenderersFactory(context, settings)).build()
                 player.volume = 0f
-                player.repeatMode = Player.REPEAT_MODE_ONE
+                player.repeatMode = repeatMode
                 player.addListener(object : Player.Listener {
                     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                        if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) {
+                        if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT ||
+                            reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO
+                        ) {
                             positionAtRepeat = player.currentPosition
                             repeated.countDown()
                         }
@@ -165,7 +206,7 @@ class CrossfadeOverlapDeviceTest {
                 if (settings.plan != null) planned = true
                 Thread.sleep(50)
             }
-            Log.i("LJCrossfadeTest", "repeat-one position at repeat=$positionAtRepeat planned=$planned")
+            Log.i("LJCrossfadeTest", "repeat mode $repeatMode position at repeat=$positionAtRepeat planned=$planned")
             assertEquals(0L, repeated.count)
             assertTrue("no overlap with itself", !planned)
             assertTrue("each repeat starts at the start: $positionAtRepeat", positionAtRepeat in 0L..500L)
@@ -258,10 +299,10 @@ class CrossfadeOverlapDeviceTest {
         fun samples(): List<Int> = synchronized(left) { left.toList() }
     }
 
-    private fun writeWav(file: File, frames: Int, sample: (Int) -> Int) {
+    private fun writeWav(file: File, frames: Int, sample: (Int) -> Int, rate: Int = RATE) {
         val bytes = ByteBuffer.allocate(44 + frames * 4).order(ByteOrder.LITTLE_ENDIAN)
         bytes.put("RIFF".toByteArray()).putInt(36 + frames * 4).put("WAVEfmt ".toByteArray())
-        bytes.putInt(16).putShort(1).putShort(2).putInt(RATE).putInt(RATE * 4).putShort(4).putShort(16)
+        bytes.putInt(16).putShort(1).putShort(2).putInt(rate).putInt(rate * 4).putShort(4).putShort(16)
         bytes.put("data".toByteArray()).putInt(frames * 4)
         repeat(frames) { index ->
             val value = sample(index).toShort()

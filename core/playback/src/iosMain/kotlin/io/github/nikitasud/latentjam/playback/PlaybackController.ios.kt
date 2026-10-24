@@ -264,16 +264,17 @@ internal class IosPlaybackController(
         audioEngine.setDeckGains(current, incoming)
     }
 
-    /** The row playback moves on to by itself, the current one under repeat-one. */
     /**
-     * The row playback moves on to by itself. None under repeat-one: a track never overlaps its
-     * own opening, which would start each repeat seconds in — past the sleep timer's and the
-     * listening log's idea of a restart. Its loop keeps the plain fades.
+     * The row playback moves on to by itself, when it may overlap. Never the track itself: a track
+     * overlapping its own opening would start its next play seconds in — past the sleep timer's
+     * and the listening log's idea of a restart. Repeat-one, a one-row queue on repeat-all and Play
+     * next on the playing track all keep the plain fades.
      */
     private fun overlapNextIndex(): Int? = when (repeat) {
         RepeatMode.ONE -> null
         else -> playbackQueueTraversal(queue.size, queueIndex + 1, direction = 1, wrap = repeat == RepeatMode.ALL)
             .firstOrNull()
+            ?.takeIf { queue.getOrNull(it)?.id != queue.getOrNull(queueIndex)?.id }
     }
 
     private fun currentFadeEdges(): FadeEdges {

@@ -38,8 +38,13 @@ internal class CrossfadeSettings {
     /** The next track's decoded opening, ready to overlap the end of the current one. */
     @Volatile var plan: OverlapPlan? = null
 
-    /** The overlap the processor is mixing right now, for a Next pressed during it. */
-    @Volatile var progress: OverlapProgress? = null
+    /**
+     * The plan whose opening is sounding under its outgoing track, from the moment the mix begins
+     * until the player reports the join ([CrossfadeCoordinator] clears it then) or the overlap is
+     * let go. Where in it the listener is comes from the player's own position, which is what is
+     * heard, not from the frames processed ahead of the speaker.
+     */
+    @Volatile var mixing: OverlapPlan? = null
 
     fun gainOf(mediaId: String?): Float = mediaId?.let(trackGains::get) ?: 1f
     fun edgesAt(mediaIndex: Int?): FadeEdges = mediaIndex?.let(edges::get) ?: FadeEdges.BOTH
@@ -59,9 +64,6 @@ internal class OverlapPlan(
     val pcm: ByteBuffer,
     val frames: Int,
 )
-
-/** The overlap being mixed: [incomingId] has been heard up to [heardMs] of its own time. */
-internal data class OverlapProgress(val incomingId: String, val heardMs: Long)
 
 /** The process-wide settings the service's player reads; the controller lives in the same process. */
 internal object AndroidCrossfade {
@@ -147,8 +149,17 @@ internal class CrossfadeAudioProcessor(
         when (decision) {
             Decision.Continue -> Unit
             is Decision.Fresh -> {
-                segment = Segment(decision.stream, previousGain = null)
-                settings.progress = null
+                val previous = segment
+                segment = Segment(decision.stream, previousGain = null).apply {
+                    // Next during an overlap lands on the incoming track where it was heard; its
+                    // rise carries on along the overlap's curve rather than restarting as a fade.
+                    riseUs = previous?.mix?.takeIf {
+                        !it.cancelled && it.mixedFrames > 0 && it.plan.incomingId == decision.stream?.mediaId
+                    }?.plan?.overlapUs
+                        ?: previous?.takeIf { !it.hadData && it.stream?.key == decision.stream?.key }?.riseUs
+                        ?: 0L
+                }
+                settings.mixing = null
             }
             is Decision.Join -> {
                 val previous = decision.previous
@@ -163,7 +174,8 @@ internal class CrossfadeAudioProcessor(
                     // A segued album seam plays on: its loudness change ramps instead of stepping.
                     next.rampFrom = previous.gain
                 }
-                // The progress stays: until the join is heard, Next still lands on the heard point.
+                // [CrossfadeSettings.mixing] stays: until the join is heard, Next still lands on the
+                // point of the incoming track already heard.
                 segment = next
             }
         }
@@ -173,7 +185,7 @@ internal class CrossfadeAudioProcessor(
         segment = null
         pendingDecision = null
         repositionsAtData = -1L
-        settings.progress = null
+        settings.mixing = null
     }
 
     private fun decide(): Decision {
@@ -256,6 +268,8 @@ internal class CrossfadeAudioProcessor(
             if (segment.incomingFrames > 0L) {
                 val progress = (segment.incomingBase + index).toFloat() / segment.incomingFrames
                 if (progress < 1f) envelope = overlapInGain(progress)
+            } else if (segment.riseUs > 0L) {
+                if (mediaUs < segment.riseUs) envelope = overlapInGain(mediaUs.toFloat() / segment.riseUs)
             } else if (fadeMs > 0L && edges.fadeIn) {
                 envelope = crossfadeFactor(mediaUs / 1000L, durationMs, fadeMs, fadeIn = true, fadeOut = false)
             }
@@ -294,11 +308,11 @@ internal class CrossfadeAudioProcessor(
             }
             segment.frames++
         }
-        val reported = segment.mix
-        settings.progress = if (mixing && reported != null) {
-            OverlapProgress(reported.plan.incomingId, reported.nextIntroFrame * 1000L / rate)
-        } else {
-            null
+        val reported = segment.mix ?: return
+        if (mixing) {
+            settings.mixing = reported.plan
+        } else if (reported.cancelled && settings.mixing === reported.plan) {
+            settings.mixing = null
         }
     }
 
@@ -321,6 +335,9 @@ internal class CrossfadeAudioProcessor(
         /** The remainder of an overlap that began in the previous segment: its clock and length. */
         var incomingBase = 0L
         var incomingFrames = 0L
+
+        /** Set when Next left an overlap for this track: its opening rises over this long. */
+        var riseUs = 0L
 
         var end = End.UNDECIDED
         var mix: Mix? = null
@@ -369,7 +386,9 @@ internal class CrossfadeAudioProcessor(
                 end = End.NONE
                 return
             }
-            val usable = plan != null && plan.outgoingId == stream?.mediaId && plan.overlapUs > 0L &&
+            // Never into the same track: its next play would start seconds in (see CrossfadeCoordinator).
+            val usable = plan != null && plan.outgoingId == stream?.mediaId && plan.incomingId != plan.outgoingId &&
+                plan.overlapUs > 0L &&
                 plan.sampleRate == rate && plan.channelCount == inputAudioFormat.channelCount &&
                 plan.frames > 0
             if (!usable) {
