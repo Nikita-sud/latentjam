@@ -43,11 +43,24 @@ public class TransGraph(plays: List<PlayEvent>, seedMs: Long, private val cfg: R
         var skips = 0
         var autoRun = 0
         val sessions = ArrayList<MutableList<Pair<TrackId, Double>>>()
-        for (p in plays.filter { it.startedAtMs < seedMs }.sortedBy { it.startedAtMs }) {
-            if (prevEnd == Long.MIN_VALUE || p.startedAtMs - prevEnd > cfg.gapMs) {
+        // An import that duplicates an in-app play (same track, starts within its duration) is dropped: users who
+        // scrobbled LatentJam and then import their ListenBrainz history must not count recent transitions twice.
+        val inApp = plays.filter { !it.imported }.groupBy { it.trackId }
+        val kept = plays.filter { p ->
+            p.startedAtMs < seedMs && (!p.imported || inApp[p.trackId].orEmpty().none { q ->
+                kotlin.math.abs(q.startedAtMs - p.startedAtMs) <= maxOf(p.durationMs, 60_000L)
+            })
+        }
+        var prevImported = false
+        for (p in kept.sortedBy { it.startedAtMs }) {
+            // Imports carry timestamps only: two imports are adjacent only when the second starts within a minute of the
+            // first one's end — an unmatched (dropped) row in between leaves a gap and breaks the chain.
+            val importBreak = p.imported && prevImported && p.startedAtMs - prevEnd > IMPORT_GAP_MS
+            if (prevEnd == Long.MIN_VALUE || p.startedAtMs - prevEnd > cfg.gapMs || importBreak) {
                 context = ArrayDeque(); tracks = 0; skips = 0; autoRun = 0; sessions.add(ArrayList())
             }
             prevEnd = p.startedAtMs + p.playedMs
+            prevImported = p.imported
             val decay = 2.0.pow(-maxOf(0L, seedMs - p.startedAtMs) / halfLifeMs)
             val s = p.playedMs / 1000.0
             val d = if (p.durationMs > 0) p.durationMs / 1000.0 else maxOf(s, 1.0)
@@ -104,6 +117,10 @@ public class TransGraph(plays: List<PlayEvent>, seedMs: Long, private val cfg: R
             }
         }
         for ((a, m) in pos) posTotal[a] = m.values.sum()
+    }
+
+    private companion object {
+        const val IMPORT_GAP_MS: Long = 60_000L
     }
 
     private fun add(map: HashMap<TrackId, HashMap<TrackId, Double>>, a: TrackId, b: TrackId, w: Double) {

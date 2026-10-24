@@ -82,4 +82,19 @@ class TransGraphTest {
             .value(TrackId("A"), TrackId("C"))
         assertTrue(one < 0.0 && one > two, "one skip $one is milder than two $two")
     }
+
+    @Test
+    fun importGapsBreakTheChainAndDuplicatesOfInAppPlaysAreDropped() {
+        val t = seedMs - 2 * day
+        fun imp(id: String, at: Long) = PlayEvent(TrackId(id), at, 200_000, 200_000, false, null, imported = true)
+        // A, then an unmatched row (200 s missing), then B: no A -> B edge.
+        val gapped = TransGraph(listOf(imp("A", t), imp("B", t + 400_000)), seedMs, cfg("A"))
+        assertEquals(0.0, gapped.value(TrackId("A"), TrackId("B")))
+        val contiguous = TransGraph(listOf(imp("A", t), imp("B", t + 201_000)), seedMs, cfg("A"))
+        assertTrue(contiguous.value(TrackId("A"), TrackId("B")) > 0.0)
+        // The same listens imported on top of in-app plays count once.
+        val inApp = session(2, "B", 200, false, "USER_PICK")
+        val both = TransGraph(inApp + inApp.map { imp(it.trackId.value, it.startedAtMs + 5_000) }, seedMs, cfg("A"))
+        assertEquals(TransGraph(inApp, seedMs, cfg("A")).value(TrackId("A"), TrackId("B")), both.value(TrackId("A"), TrackId("B")), 1e-12)
+    }
 }
