@@ -90,6 +90,11 @@ internal class PlaybackStartsTest {
         assertFalse(movedTowardPlayhead(from = 6, to = 3, current = null))
         // A row already played, dragged ahead of the playhead, is asked for again.
         assertTrue(movedTowardPlayhead(from = 1, to = 4, current = 2))
+        // Rows 0..4 playing 2: row 1 taken out makes the playing row 1, so index 2 is right after it.
+        assertTrue(movedTowardPlayhead(from = 1, to = 2, current = 2))
+        assertFalse(movedTowardPlayhead(from = 1, to = 1, current = 2))
+        // The playing row itself is not queued by moving it.
+        assertFalse(movedTowardPlayhead(from = 2, to = 4, current = 2))
         assertFalse(movedTowardPlayhead(from = 1, to = 0, current = 2))
     }
 

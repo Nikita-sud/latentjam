@@ -89,12 +89,17 @@ internal class PlaybackStartLedger {
 }
 
 /**
- * Whether moving a queue row from [from] to [to] asked to hear it sooner: it lands ahead of the row
- * playing at [current] and either moved up, or came from the rows already played, which playback
- * would otherwise never reach again. A row moved later, or behind the playhead, is not.
+ * Whether moving a queue row from [from] to [to] (its index after the move) asked to hear it sooner:
+ * it lands ahead of the row playing at [current] and either moved up, or came from the rows already
+ * played, which playback would otherwise never reach again. A row moved later, or behind the
+ * playhead, is not. Taking a played row out moves the playing one up a place, so from there the
+ * row right after it is index [current] itself.
  */
-internal fun movedTowardPlayhead(from: Int, to: Int, current: Int?): Boolean =
-    current != null && to > current && (to < from || from < current)
+internal fun movedTowardPlayhead(from: Int, to: Int, current: Int?): Boolean = when {
+    current == null || from == current -> false
+    from < current -> to >= current
+    else -> to in (current + 1) until from
+}
 
 /**
  * Reads a jump between queue rows that no in-app command announced — a headset, notification or car
