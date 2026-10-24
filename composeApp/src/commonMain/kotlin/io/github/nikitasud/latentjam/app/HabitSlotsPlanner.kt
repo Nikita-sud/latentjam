@@ -256,13 +256,15 @@ internal suspend fun rankerPlan(
         // Hearts count only for the FULL model ("Learn from my habits").
         val personalHistory = io.github.nikitasud.latentjam.smart.ranker.PersonalHistory(
             listens, seedMs, favourites = if (personal) favourites() else emptyMap(),
-            extraTransitions = habitSkipTransitions(events.asReversed(), libraryIds, seedMs),
+            extraTransitions = if (ranker.skipPairsFor(personal)) habitSkipTransitions(events.asReversed(), libraryIds, seedMs) else emptyList(),
             // PLAN_TRANSGRAPH: a FULL model with a transGraph block reads every play (skips and listen time included).
             graph = ranker.transGraphFor(personal)?.let { cfg ->
                 io.github.nikitasud.latentjam.smart.ranker.TransGraph(
                     events.asReversed().filter { it.startedAtMs < seedMs && it.trackId in libraryIds }.map {
                         io.github.nikitasud.latentjam.smart.ranker.PlayEvent(
                             it.trackId, it.startedAtMs, it.effectiveListenedMs, it.trackDurationMs ?: 0L, it.skipped, it.origin?.start?.name,
+                            // An import (no origin, no listen time, no skip) — what a ListenBrainz importer writes.
+                            imported = it.origin == null && it.listenedMs == null && !it.skipped,
                         )
                     },
                     seedMs, cfg,

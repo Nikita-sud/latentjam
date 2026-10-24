@@ -28,8 +28,10 @@ class GenStandHistoryWriter {
                 val f = l.split('\t')
                 ListenEvent(
                     trackId = TrackId(f[0]), startedAtMs = f[1].toLong(), playedMs = f[2].toLong(), trackDurationMs = f[3].toLong(),
-                    completed = f[4] == "1", skipped = f[5] == "1", listenedMs = f[2].toLong(),
-                    origin = ListenOrigin(start = ListenStart.valueOf(f[6])),
+                    completed = f[4] == "1", skipped = f[5] == "1",
+                    // PLAN_TRANSGRAPH: an empty start column is an imported listen (no origin, no listen time).
+                    listenedMs = if (f[6].isEmpty()) null else f[2].toLong(),
+                    origin = if (f[6].isEmpty()) null else ListenOrigin(start = ListenStart.valueOf(f[6])),
                 ).serialize()
             }
             File(dir, "files/listening_history.log").writeText(lines.joinToString("\n", postfix = "\n"))

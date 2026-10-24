@@ -977,6 +977,9 @@ public class SmartRanker(
     /** PLAN_TRANSGRAPH: the transition-graph block of the model a FULL plan runs, or null (CORE plans never have one). */
     public fun transGraphFor(personal: Boolean): RankerModel.TransGraph? = if (personal) fullModel?.transGraph else null
 
+    /** PLAN_TRANSGRAPH control: whether a FULL plan reads vc21's skip / bridge pairs (true without a FULL model). */
+    public fun skipPairsFor(personal: Boolean): Boolean = !personal || fullModel?.skipPairs != false
+
     public fun freshnessFor(personal: Boolean, ruleOnly: Boolean): RankerModel.Freshness? = when {
         ruleOnly -> null
         personal && fullModel != null -> fullModel.freshness

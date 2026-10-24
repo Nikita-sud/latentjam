@@ -17,6 +17,8 @@ public class PlayEvent(
     public val durationMs: Long,
     public val skipped: Boolean,
     public val start: String?,
+    /** An imported listen (e.g. a ListenBrainz export): accepted by definition, no listen time, skip or start reason. */
+    public val imported: Boolean = false,
 )
 
 /**
@@ -30,6 +32,7 @@ public class PlayEvent(
 public class TransGraph(plays: List<PlayEvent>, seedMs: Long, private val cfg: RankerModel.TransGraph) {
     private val pos = HashMap<TrackId, HashMap<TrackId, Double>>()
     private val neg = HashMap<TrackId, HashMap<TrackId, Double>>()
+    private val negCount = HashMap<TrackId, HashMap<TrackId, Int>>()
     private val posTotal = HashMap<TrackId, Double>()
 
     init {
@@ -52,7 +55,12 @@ public class TransGraph(plays: List<PlayEvent>, seedMs: Long, private val cfg: R
             val threshold = min(d / 2.0, 240.0)
             var positive: Double
             var negative: Double
-            if (cfg.variant == "B") {
+            if (p.imported) {
+                // Missing fields are neutral: an imported listen passed the export's acceptance rule (½ track or 4 min),
+                // so it counts as that rule's positive (0.8, §4.1) and never as a rejection; it weighs importWeight.
+                positive = 0.8
+                negative = 0.0
+            } else if (cfg.variant == "B") {
                 positive = if (s >= threshold) 1.0 else 0.0
                 negative = if (p.skipped && s < 30.0) 1.0 else 0.0
             } else {
@@ -64,7 +72,8 @@ public class TransGraph(plays: List<PlayEvent>, seedMs: Long, private val cfg: R
             autoRun = if (p.start == "AUTO_ADVANCE") autoRun + 1 else 0
             var oPos = 1.0
             var oNeg = 1.0
-            if (cfg.variant != "C") when (p.start) {
+            if (p.imported) { oPos = cfg.importWeight; oNeg = 0.0 }
+            else if (cfg.variant != "C") when (p.start) {
                 "USER_PICK" -> { oPos = 1.0; oNeg = 0.3 }
                 "AUTO_ADVANCE" -> { oPos = 0.4 * (0.4 + 0.6 / (1.0 + exp((autoRun - 8.0) / 2.0))); oNeg = 1.0 }
                 "SKIP_NEXT" -> { oPos = 0.8; oNeg = 0.6 }
@@ -73,7 +82,12 @@ public class TransGraph(plays: List<PlayEvent>, seedMs: Long, private val cfg: R
             context.forEachIndexed { k, a ->
                 if (a != p.trackId && r > 0.0) add(pos, a, p.trackId, decay * oPos * r / (k + 1))
             }
-            context.firstOrNull()?.let { a -> if (a != p.trackId && r < 0.0) add(neg, a, p.trackId, decay * oNeg * -r) }
+            context.firstOrNull()?.let { a ->
+                if (a != p.trackId && r < 0.0 && oNeg > 0.0) {
+                    add(neg, a, p.trackId, decay * oNeg * -r)
+                    negCount.getOrPut(a) { HashMap() }.let { it[p.trackId] = (it[p.trackId] ?: 0) + 1 }
+                }
+            }
             tracks++
             if (p.skipped) skips++
             if (negative < 0.5) {
@@ -103,7 +117,9 @@ public class TransGraph(plays: List<PlayEvent>, seedMs: Long, private val cfg: R
         var s = share(anchor, track)
         if (cfg.variant == "A2") pos[anchor]?.keys?.forEach { c -> if (c != track) s += 0.5 * share(anchor, c) * share(c, track) }
         val n = if (cfg.variant == "D") 0.0 else neg[anchor]?.get(track) ?: 0.0
-        val negr = n / (n + (pos[anchor]?.get(track) ?: 0.0) + 2.0)
+        // One rejection counts half until it repeats (a single mood skip must not cost a good track much).
+        val events = negCount[anchor]?.get(track) ?: 0
+        val negr = n / (n + (pos[anchor]?.get(track) ?: 0.0) + 2.0) * minOf(1.0, events / 2.0)
         return (cfg.kappa * s - cfg.negWeight * negr).coerceIn(-1.0, 1.0)
     }
 }

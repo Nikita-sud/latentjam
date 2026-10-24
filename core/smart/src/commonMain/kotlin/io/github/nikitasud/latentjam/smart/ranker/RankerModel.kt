@@ -134,11 +134,15 @@ public class RankerModel(
     public val personalNudge: PersonalNudge? = null,
     /** PLAN_TRANSGRAPH: the personal transition graph that replaces the trans_track count in the FULL nudge; null = counts. */
     public val transGraph: TransGraph? = null,
+    /** PLAN_TRANSGRAPH control arm: false = FULL ignores vc21's skip / bridge pairs (habitSkipTransitions). */
+    public val skipPairs: Boolean = true,
 ) {
     /** PLAN_TRANSGRAPH variants "A" (SIGNALS_REVIEW §4), "B" (hard thresholds), "C" (no start-reason multipliers), "A2" (+ 2-hop), "D" (session-kNN). */
     public class TransGraph(
         public val variant: String, public val window: Int, public val gapMs: Long, public val halfLifeDays: Double,
         public val mu: Double, public val kappa: Double, public val negWeight: Double,
+        /** The weight of an imported listen's positive relative to an in-app own pick (owner addendum: imports count less). */
+        public val importWeight: Double = 0.5,
     )
 
     public class PersonalNudge(
@@ -405,7 +409,7 @@ public class RankerModel(
                 "audioZ", "softNovelty", "anchorShare", "colistenPrevShare", "familyMismatch", "classMismatch", "continuity", "holidaySeason",
                 "durationRule", "titleFlags", "unknownSeedAnchor", "artistSets",
                 "taxonomy", "versionKey", "playlistBonus", "noRepeat", "langScript", "semChain",
-                "hubPenalty", "hubGenreDamp", "scorerSquash", "tagClasses", "prevFamilyJump", "familyDrift", "songDedup", "queueAlbumCap", "queueArtistBudget", "queueArtistCap", "transBonus", "followerExempt", "personalNudge", "transGraph",
+                "hubPenalty", "hubGenreDamp", "scorerSquash", "tagClasses", "prevFamilyJump", "familyDrift", "songDedup", "queueAlbumCap", "queueArtistBudget", "queueArtistCap", "transBonus", "followerExempt", "personalNudge", "transGraph", "skipPairs",
             ),
             "tagClasses" to setOf("classes"),
             "songDedup" to setOf("minChars", "prefixChars"),
@@ -415,7 +419,7 @@ public class RankerModel(
             "transBonus" to setOf("track", "artist"),
             "followerExempt" to setOf("followMin"),
             "personalNudge" to setOf("delta", "track", "artist", "playlist", "favourite", "frequency", "followMin"),
-            "transGraph" to setOf("variant", "window", "gapMin", "halfLifeDays", "mu", "kappa", "neg"),
+            "transGraph" to setOf("variant", "window", "gapMin", "halfLifeDays", "mu", "kappa", "neg", "importWeight"),
             "prevFamilyJump" to setOf("lambda"),
             "familyDrift" to setOf("lambda"),
             "playlistBonus" to setOf("lambda", "quota", "artistCap"),
@@ -594,12 +598,13 @@ public class RankerModel(
                     PersonalNudge(d("delta", 0.5), d("track", 1.0), d("artist", 0.5), d("playlist", 0.4), d("favourite", 0.3), d("frequency", 0.15),
                         (it["followMin"] as? Number)?.toInt() ?: 2)
                 },
+                skipPairs = root["skipPairs"] as? Boolean ?: true,
                 transGraph = (root["transGraph"] as? Map<*, *>)?.let {
                     fun d(k: String, v: Double) = (it[k] as? Number)?.toDouble() ?: v
                     val variant = it["variant"] as? String ?: "A"
                     require(variant in setOf("A", "B", "C", "A2", "D")) { "transGraph.variant" }
                     TransGraph(variant, d("window", 3.0).toInt(), (d("gapMin", 30.0) * 60_000).toLong(), d("halfLifeDays", 120.0),
-                        d("mu", 1.0), d("kappa", 1.5), d("neg", 1.5))
+                        d("mu", 2.0), d("kappa", 1.5), d("neg", 1.5), d("importWeight", 0.5))
                 },
                 transBonus = (root["transBonus"] as? Map<*, *>)?.let {
                     ((it["track"] as? Number)?.toDouble() ?: 0.0) to ((it["artist"] as? Number)?.toDouble() ?: 0.0)

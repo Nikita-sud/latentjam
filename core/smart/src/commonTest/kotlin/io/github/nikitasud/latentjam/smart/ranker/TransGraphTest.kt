@@ -13,7 +13,7 @@ class TransGraphTest {
     private val day = 86_400_000L
     private val seedMs = 100 * day
 
-    private fun cfg(variant: String) = RankerModel.TransGraph(variant, 3, 30L * 60_000, 120.0, 1.0, 1.5, 1.5)
+    private fun cfg(variant: String) = RankerModel.TransGraph(variant, 3, 30L * 60_000, 120.0, 2.0, 1.5, 1.5)
 
     /** Session k, days ago: A (full), then [next] (played [playedS] of 200 s, skipped or not, started as [start]). */
     private fun session(daysAgo: Int, next: String, playedS: Long, skipped: Boolean, start: String): List<PlayEvent> {
@@ -61,5 +61,25 @@ class TransGraphTest {
             PlayEvent(TrackId("B"), seedMs - day + 200_000 + 31 * 60_000, 200_000, 200_000, false, "USER_PICK"),
         )
         assertEquals(0.0, TransGraph(gap, seedMs, cfg("A")).value(TrackId("A"), TrackId("B")))
+    }
+
+    @Test
+    fun importsAreNeutralNeverNegativeAndWeighLess() {
+        fun imp(daysAgo: Int, next: String) = session(daysAgo, next, 200, false, "USER_PICK").map {
+            PlayEvent(it.trackId, it.startedAtMs, it.durationMs, it.durationMs, false, null, imported = true)
+        }
+        val imported = (1..3).flatMap { imp(it * 2, "B") }
+        val inApp = (1..3).flatMap { session(it * 2, "B", 200, false, "USER_PICK") }
+        val vi = TransGraph(imported, seedMs, cfg("A")).value(TrackId("A"), TrackId("B"))
+        val va = TransGraph(inApp, seedMs, cfg("A")).value(TrackId("A"), TrackId("B"))
+        assertTrue(vi > 0.0 && vi < va, "imported $vi lifts, less than in-app $va")
+    }
+
+    @Test
+    fun aSingleRejectionCountsHalf() {
+        val one = TransGraph(session(2, "C", 6, true, "AUTO_ADVANCE"), seedMs, cfg("A")).value(TrackId("A"), TrackId("C"))
+        val two = TransGraph(session(2, "C", 6, true, "AUTO_ADVANCE") + session(4, "C", 6, true, "AUTO_ADVANCE"), seedMs, cfg("A"))
+            .value(TrackId("A"), TrackId("C"))
+        assertTrue(one < 0.0 && one > two, "one skip $one is milder than two $two")
     }
 }
