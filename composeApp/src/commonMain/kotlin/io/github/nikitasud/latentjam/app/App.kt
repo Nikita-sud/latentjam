@@ -388,6 +388,14 @@ private fun AppShell(
                     value = richer,
                     authoritative = request.librarySnapshotAuthoritative,
                 )
+                // A queued song that turned out to name no album loses a borrowed cover (issue #12):
+                // the player, notification and widget follow at once, not at the next queue.
+                val queued = playback.state.value
+                val queuedCovers = (queued.queue + queued.sourceQueue).associate { it.id to it.artworkUri }
+                val recovered = richer.filter { fresh ->
+                    fresh.id in queuedCovers && queuedCovers[fresh.id] != fresh.artworkUri
+                }
+                if (recovered.isNotEmpty()) playback.refreshTracks(recovered)
                 enrichedLibraryRevision++
             }
         }
