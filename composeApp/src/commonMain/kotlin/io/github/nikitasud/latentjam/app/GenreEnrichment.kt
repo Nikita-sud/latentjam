@@ -10,8 +10,10 @@ import io.github.nikitasud.latentjam.library.tags.TextRepair
 import io.github.nikitasud.latentjam.smart.PayloadHex
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 
 /**
@@ -71,6 +73,11 @@ internal class GenreEnrichment(
     /** Applies remembered facts; one streamed pass over the cache, safe on every library load. */
     suspend fun apply(library: List<TrackDescriptor>): List<TrackDescriptor> = mutex.withLock {
         if (library.isEmpty()) return@withLock library
+        // The cache is a file now: streamed, decoded and merged off the caller's (main) thread.
+        withContext(Dispatchers.Default) { applyLocked(library) }
+    }
+
+    private fun applyLocked(library: List<TrackDescriptor>): List<TrackDescriptor> {
         val positions = HashMap<String, Int>(library.size * 2)
         library.forEachIndexed { index, track -> positions[track.id.value] = index }
         var result: MutableList<TrackDescriptor>? = null
@@ -94,7 +101,7 @@ internal class GenreEnrichment(
             }
         }
         for ((id, stored) in unsaved) merge(id, stored)
-        result ?: library
+        return result ?: library
     }
 
     /**
@@ -146,16 +153,18 @@ internal class GenreEnrichment(
     suspend fun backfill(library: List<TrackDescriptor>): Boolean {
         // Only the revision each song was read at: what decides whether its file is read again.
         val known = mutex.withLock {
-            val revisions = HashMap<String, String>()
-            settings.readTrackGenreLines { lines ->
-                for (line in lines) {
-                    val id = idOf(line) ?: continue
-                    // A line that does not decode is no entry at all: its file is read again.
-                    decode(line)?.let { revisions[id] = it.revision }
+            withContext(Dispatchers.Default) {
+                val revisions = HashMap<String, String>()
+                settings.readTrackGenreLines { lines ->
+                    for (line in lines) {
+                        val id = idOf(line) ?: continue
+                        // A line that does not decode is no entry at all: its file is read again.
+                        decode(line)?.let { revisions[id] = it.revision }
+                    }
                 }
+                for ((id, stored) in unsaved) revisions[id] = stored.revision
+                revisions
             }
-            for ((id, stored) in unsaved) revisions[id] = stored.revision
-            revisions
         }
         var learnedSomething = false
         val updates = HashMap<String, Stored>()
@@ -185,7 +194,7 @@ internal class GenreEnrichment(
             // retry a failed save: its files no longer need reading, so updates will be empty.
             if (unsaved.isNotEmpty()) {
                 try {
-                    persist(unsaved)
+                    withContext(Dispatchers.Default) { persist(unsaved) }
                     unsaved.clear()
                 } catch (cancelled: CancellationException) {
                     throw cancelled

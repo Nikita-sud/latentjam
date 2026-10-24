@@ -5,6 +5,8 @@
 package io.github.nikitasud.latentjam.app
 
 import android.content.Context
+import android.system.Os
+import android.system.OsConstants
 import io.github.nikitasud.latentjam.library.AlbumSort
 import io.github.nikitasud.latentjam.library.SongSort
 import io.github.nikitasud.latentjam.playback.sanitizeCrossfadeSeconds
@@ -39,19 +41,28 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
     private val trackGenres = PayloadFile(File(context.filesDir, "track_genres_v1.txt"), KEY_TRACK_GENRES)
     private val trackLoudness = PayloadFile(File(context.filesDir, "track_loudness_v1.txt"), KEY_TRACK_LOUDNESS)
 
-    /** A payload file that takes over its SharedPreferences key the first time it is used. */
+    /**
+     * A payload file that takes over its SharedPreferences key the first time it is used. Until
+     * the move succeeds (storage full, a rename refused) the key is kept and read in its place, so
+     * a failed move never fails a read or loses the payload; the next launch tries again.
+     */
     private inner class PayloadFile(private val file: File, private val legacyKey: String) {
         private var migrated = false
+
+        /** The legacy payload while the move has not succeeded; null once it has, or never existed. */
+        private var pending: String? = null
 
         @Synchronized
         fun readText(): String? {
             migrate()
+            pending?.let { return it }
             return if (file.exists()) file.readText() else null
         }
 
         @Synchronized
         fun <T> readLines(read: (Sequence<String>) -> T): T? {
             migrate()
+            pending?.let { return read(it.lineSequence()) }
             if (!file.exists()) return null
             return file.bufferedReader().use { read(it.lineSequence()) }
         }
@@ -59,6 +70,15 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         @Synchronized
         fun write(contents: (Writer) -> Unit) {
             migrate()
+            replace(contents)
+            // A new payload supersedes the legacy one whether or not the move itself succeeded.
+            if (pending != null) {
+                pending = null
+                preferences.edit().remove(legacyKey).apply()
+            }
+        }
+
+        private fun replace(contents: (Writer) -> Unit) {
             file.parentFile?.mkdirs()
             val temporary = File(file.parentFile, ".${file.name}.tmp")
             try {
@@ -69,6 +89,14 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
                     stream.fd.sync()
                 }
                 check(temporary.renameTo(file)) { "Could not replace ${file.name}" }
+                // The bytes are on storage but the directory entry naming them is not: after a power
+                // cut the rename could be lost. Best effort, as the replacement already happened.
+                file.parentFile?.let { directory ->
+                    runCatching {
+                        val descriptor = Os.open(directory.path, OsConstants.O_RDONLY, 0)
+                        try { Os.fsync(descriptor) } finally { Os.close(descriptor) }
+                    }
+                }
             } finally {
                 if (temporary.exists()) temporary.delete()
             }
@@ -76,15 +104,18 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
 
         private fun migrate() {
             if (migrated) return
-            if (preferences.contains(legacyKey)) {
-                val legacy = readString(legacyKey)
-                if (legacy != null && !file.exists()) {
-                    migrated = true
-                    write { it.write(legacy) }
-                }
-                preferences.edit().remove(legacyKey).apply()
-            }
             migrated = true
+            if (!preferences.contains(legacyKey)) return
+            val legacy = readString(legacyKey)
+            if (legacy != null && !file.exists()) {
+                try {
+                    replace { it.write(legacy) }
+                } catch (_: Exception) {
+                    pending = legacy
+                    return
+                }
+            }
+            preferences.edit().remove(legacyKey).apply()
         }
     }
     private val mutableTheme = MutableStateFlow(readTheme())

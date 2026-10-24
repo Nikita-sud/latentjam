@@ -72,9 +72,13 @@ public object TagFacts {
         return fromComments(comments)
     }
 
-    /** [embedded] over positional reads; an ID3 tag's pictures are never loaded. */
+    /**
+     * [embedded] over positional reads; an ID3 tag's pictures are never loaded. An MP4 file, which
+     * the one-pass reader has no path for, answers only whether it names an album
+     * ([Mp4AlbumProbe]); null still means "could not read", never "names nothing".
+     */
     public fun embedded(source: RandomAccessSource): EmbeddedTagFacts? {
-        val comments = GenreTags.embeddedComments(source) ?: return null
+        val comments = GenreTags.embeddedComments(source) ?: return Mp4AlbumProbe.read(source)
         return fromComments(comments)
     }
 

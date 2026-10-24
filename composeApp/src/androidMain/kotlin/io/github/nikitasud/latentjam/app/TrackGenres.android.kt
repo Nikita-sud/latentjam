@@ -9,7 +9,6 @@ import android.os.ParcelFileDescriptor
 import io.github.nikitasud.latentjam.library.tags.EmbeddedTagFacts
 import io.github.nikitasud.latentjam.library.tags.GenreTags
 import io.github.nikitasud.latentjam.library.tags.RandomAccessSource
-import io.github.nikitasud.latentjam.library.tags.TagCodecs
 import io.github.nikitasud.latentjam.library.tags.TagFacts
 import io.github.nikitasud.latentjam.smart.MediaStoreArtwork
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
@@ -29,13 +28,7 @@ internal actual suspend fun readEmbeddedFacts(track: TrackDescriptor): EmbeddedT
             // stream had to load the whole tag (covers included, up to 8 MB) for every song.
             AndroidAppContext.value.contentResolver.openFileDescriptor(uri, "r")?.let { descriptor ->
                 ParcelFileDescriptor.AutoCloseInputStream(descriptor).use { input ->
-                    val source = FileChannelSource(input.channel)
-                    TagFacts.embedded(source)
-                        // MP4 (and any tag the one-pass reader refuses): only whether it names an
-                        // album, which MediaStore cannot tell from a folder's name (issue #12).
-                        ?: TagCodecs.read(source)?.let { snapshot ->
-                            EmbeddedTagFacts(album = snapshot.album?.trim()?.takeIf(String::isNotEmpty))
-                        }
+                    TagFacts.embedded(FileChannelSource(input.channel))
                 }
             }
         } catch (cancelled: CancellationException) {

@@ -55,7 +55,9 @@ class PositionalFactsTest {
     }
 
     private fun assertSame(bytes: ByteArray, label: String) {
-        val expected = TagFacts.embedded(StreamSource(bytes))
+        // The stream reader has no MP4 path; where it reads nothing, the positional reader adds only
+        // whether an MP4 file names an album (issue #12).
+        val expected = TagFacts.embedded(StreamSource(bytes)) ?: Mp4AlbumProbe.read(ByteArraySource(bytes))
         val actual = TagFacts.embedded(ByteArraySource(bytes))
         assertEquals(expected, actual, label)
     }
