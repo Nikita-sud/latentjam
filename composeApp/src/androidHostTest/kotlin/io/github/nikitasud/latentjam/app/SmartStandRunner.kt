@@ -162,7 +162,8 @@ class SmartStandRunner {
         val queues = StringBuilder()
         for (seed in seeds) {
             for (full in listOf(false, true)) {
-                var now = lastListen + 60_000
+                // PLAN_TRANSGRAPH: LJ_STAND_NOW (epoch ms) fixes the plan clock (a years-old import must age from it).
+                var now = System.getenv("LJ_STAND_NOW")?.toLong() ?: (lastListen + 60_000)
                 val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
                 val plans = HashMap<TrackId, Pair<String, String>>()
                 var queueModel = ""
