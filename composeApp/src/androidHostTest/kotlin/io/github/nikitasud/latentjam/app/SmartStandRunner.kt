@@ -283,9 +283,10 @@ class SmartStandRunner {
         ) { artistKeys[it].orEmpty() }
         val listing = personalWith(habitSkipTransitions(events.asReversed(), ids, start, unskippedOnly = true))
         val normalOnly = personalWith(emptyList())
-        val personal = personalWith(
-            if (ranker.skipPairsFor(true)) habitSkipTransitions(events.asReversed(), ids, start, ranker.skipPairsUnskippedOnlyFor(true)) else emptyList(),
-        )
+        val personal = personalHistoryOf(
+            events.asReversed(), ids, start, favourites, skipPairs = ranker.skipPairsFor(true),
+            unskippedOnly = ranker.skipPairsUnskippedOnlyFor(true), lw = ranker.listenWeightFor(true),
+        ) { artistKeys[it].orEmpty() }
         val exclude = io.github.nikitasud.latentjam.smart.HabitSlots.novelty(listens, start)
         val pairs = ArrayList<Triple<TrackId, TrackId, Int>>()
         for (a in listens.map { it.trackId }.distinct()) {

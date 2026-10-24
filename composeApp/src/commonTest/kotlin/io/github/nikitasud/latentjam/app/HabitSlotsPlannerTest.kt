@@ -99,4 +99,59 @@ class HabitSlotsPlannerTest {
         assertEquals(listOf(TrackId("a") to TrackId("c"), TrackId("c") to TrackId("b")), all)
         assertEquals(listOf(TrackId("c") to TrackId("b")), habitSkipTransitions(events, library, seedMs = 1_000_000, unskippedOnly = true))
     }
+
+    private fun play(id: String, at: Long, heardMs: Long, start: ListenStart, completed: Boolean = false) = ListenEvent(
+        trackId = TrackId(id), startedAtMs = at, playedMs = heardMs, trackDurationMs = 200_000, completed = completed,
+        skipped = !completed && heardMs < 30_000, listenedMs = heardMs, origin = ListenOrigin(start),
+    )
+
+    @Test
+    fun `listen credit is zero up to thirty seconds and full from the ListenBrainz threshold`() {
+        val pick = ListenStart.USER_PICK
+        assertEquals(0.0, listenCredit(play("b", 0, 20_000, pick), 30_000))
+        assertEquals(0.0, listenCredit(play("b", 0, 30_000, pick), 30_000))
+        assertEquals(0.5, listenCredit(play("b", 0, 65_000, pick), 30_000), 1e-9) // threshold min of D over 2 and 240 s is 100 s
+        assertEquals(1.0, listenCredit(play("b", 0, 100_000, pick), 30_000))
+        assertEquals(1.0, listenCredit(play("b", 0, 170_000, pick, completed = true), 30_000))
+        val imported = ListenEvent(TrackId("b"), 0, 200_000, 200_000, completed = true, skipped = false)
+        assertEquals(1.0, listenCredit(imported, 30_000)) // no listen time: neutral
+    }
+
+    @Test
+    fun `an early abandon lowers only that pair and a long listen does not`() {
+        val library = setOf("a", "b", "c", "d").mapTo(HashSet(), ::TrackId)
+        val lw = io.github.nikitasud.latentjam.smart.ranker.RankerModel.ListenWeight(negWeight = 1.5)
+        val events = listOf(
+            play("a", 0, 200_000, ListenStart.USER_PICK, completed = true),
+            play("b", 201_000, 5_000, ListenStart.USER_PICK), // picked after a and left in 5 s
+            play("c", 207_000, 60_000, ListenStart.AUTO_ADVANCE), // after a again: the last listen before c is a
+            play("d", 268_000, 150_000, ListenStart.USER_PICK), // past the threshold: no negative
+        )
+        val neg = abandonNegatives(events, library, seedMs = 1_000_000, lw)
+        assertEquals(setOf(TrackId("a") to TrackId("b"), TrackId("a") to TrackId("c")), neg.keys)
+        assertTrue(neg.getValue(TrackId("a") to TrackId("b")).first > 0.95)
+        assertTrue(neg.getValue(TrackId("a") to TrackId("c")).first < 0.02)
+    }
+
+    @Test
+    fun `credited counts halve partial listens and two rejections make the pair value negative`() {
+        val library = setOf("a", "b", "c").mapTo(HashSet(), ::TrackId)
+        val lw = io.github.nikitasud.latentjam.smart.ranker.RankerModel.ListenWeight(negWeight = 1.5)
+        val pick = ListenStart.USER_PICK
+        val events = ArrayList<ListenEvent>()
+        var t = 0L
+        repeat(2) { // a then b heard 65 s (credit 0.5), a then c left in 5 s
+            events += play("a", t, 200_000, pick, completed = true); t += 201_000
+            events += play("b", t, 65_000, pick); t += 66_000
+            events += play("a", t, 200_000, pick, completed = true); t += 201_000
+            events += play("c", t, 5_000, pick); t += 3_600_000
+        }
+        fun history(w: io.github.nikitasud.latentjam.smart.ranker.RankerModel.ListenWeight?) =
+            personalHistoryOf(events, library, t, emptyMap(), skipPairs = true, unskippedOnly = false, lw = w) { "" }
+        assertEquals(2, history(null).followCount(TrackId("a"), TrackId("b")))
+        assertEquals(1, history(lw).followCount(TrackId("a"), TrackId("b")))
+        assertTrue(history(null).row(TrackId("c"), TrackId("a"), "").transValue.isNaN()) // counts mode: unchanged
+        assertTrue(history(lw).row(TrackId("c"), TrackId("a"), "").transValue < 0.0)
+        assertTrue(history(lw).row(TrackId("b"), TrackId("a"), "").transValue > 0.0)
+    }
 }

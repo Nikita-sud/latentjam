@@ -7,6 +7,8 @@ package io.github.nikitasud.latentjam.smart.ranker
 import io.github.nikitasud.latentjam.smart.HabitListen
 import io.github.nikitasud.latentjam.smart.HabitSlots
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlin.math.floor
+import kotlin.math.ln
 
 /** The on-device audio index as the ranker reads it: vectors for the tagger and the audio term, neighbours for R1. */
 public interface AudioSource {
@@ -52,6 +54,12 @@ public class PersonalHistory(
     private val favourites: Map<TrackId, Long?> = emptyMap(),
     /** vc20: A → B picks the listens leave out (A or B skipped; habitSkipTransitions), counted as transitions too. */
     extraTransitions: List<Pair<TrackId, TrackId>> = emptyList(),
+    /** PLAN_LISTENW: each extra transition's credit (B's listen credit), parallel to [extraTransitions]; null = 1 each. */
+    extraCredits: List<Double>? = null,
+    /** PLAN_LISTENW: pair-level negatives A → B (summed σ weight, number of rejections) from abandons of B after A. */
+    private val pairNegatives: Map<Pair<TrackId, TrackId>, Pair<Double, Int>> = emptyMap(),
+    /** PLAN_LISTENW: the listen weighting (null = counts as before: every listen 1, no negatives). */
+    private val listenWeight: RankerModel.ListenWeight? = null,
     /** PLAN_TRANSGRAPH: the personal transition graph (FULL models with a transGraph block); null = transition counts. */
     private val graph: TransGraph? = null,
     artistKey: (TrackId) -> String,
@@ -61,8 +69,9 @@ public class PersonalHistory(
     /** The position of each track's last play in the log (the ladder's recency order, independent of the clock). */
     private val lastIndex = HashMap<TrackId, Int>()
     private val activation: Map<TrackId, Double> = HabitSlots.activation(listens, seedMs)
-    private val fromTrack = HashMap<TrackId, HashMap<TrackId, Int>>()
-    private val fromArtist = HashMap<String, HashMap<TrackId, Int>>()
+    // Credit-weighted transition counts (every credit is 1 without listenWeight: the counts are the old integers).
+    private val fromTrack = HashMap<TrackId, HashMap<TrackId, Double>>()
+    private val fromArtist = HashMap<String, HashMap<TrackId, Double>>()
     private val seedAt = seedMs
 
     init {
@@ -75,15 +84,16 @@ public class PersonalHistory(
             val a = listens[i - 1]
             val b = listens[i]
             if (b.startedAtMs - a.startedAtMs > HabitSlots.PAIR_GAP_MS || a.trackId == b.trackId || !b.countsAsNext) continue
-            fromTrack.getOrPut(a.trackId) { HashMap() }.let { it[b.trackId] = (it[b.trackId] ?: 0) + 1 }
+            fromTrack.getOrPut(a.trackId) { HashMap() }.let { it[b.trackId] = (it[b.trackId] ?: 0.0) + b.credit }
             val key = artistKey(a.trackId)
-            if (key.isNotEmpty()) fromArtist.getOrPut(key) { HashMap() }.let { it[b.trackId] = (it[b.trackId] ?: 0) + 1 }
+            if (key.isNotEmpty()) fromArtist.getOrPut(key) { HashMap() }.let { it[b.trackId] = (it[b.trackId] ?: 0.0) + b.credit }
         }
-        for ((a, b) in extraTransitions) {
-            if (a == b) continue
-            fromTrack.getOrPut(a) { HashMap() }.let { it[b] = (it[b] ?: 0) + 1 }
+        extraTransitions.forEachIndexed { k, (a, b) ->
+            if (a == b) return@forEachIndexed
+            val w = extraCredits?.get(k) ?: 1.0
+            fromTrack.getOrPut(a) { HashMap() }.let { it[b] = (it[b] ?: 0.0) + w }
             val key = artistKey(a)
-            if (key.isNotEmpty()) fromArtist.getOrPut(key) { HashMap() }.let { it[b] = (it[b] ?: 0) + 1 }
+            if (key.isNotEmpty()) fromArtist.getOrPut(key) { HashMap() }.let { it[b] = (it[b] ?: 0.0) + w }
         }
     }
 
@@ -121,9 +131,10 @@ public class PersonalHistory(
             // A clock or timezone change can date a listen after the seed: the age is clamped at 0 (PLAN_FINAL §1.2).
             ageSeconds = lastAt[track]?.let { maxOf(0.0, (seedAt - it) / 1000.0) } ?: Double.POSITIVE_INFINITY,
             activation = activation[track] ?: Double.NaN,
-            transTrack = fromTrack[anchor]?.get(track) ?: 0,
-            transArtist = if (anchorArtist.isEmpty()) 0 else fromArtist[anchorArtist]?.get(track) ?: 0,
-            transValue = graph?.value(anchor, track) ?: Double.NaN,
+            transTrack = whole(fromTrack[anchor]?.get(track) ?: 0.0),
+            transArtist = whole(if (anchorArtist.isEmpty()) 0.0 else fromArtist[anchorArtist]?.get(track) ?: 0.0),
+            transValue = graph?.value(anchor, track) ?: listenValue(anchor, track),
+            transArtistCredit = if (listenWeight == null || anchorArtist.isEmpty()) Double.NaN else fromArtist[anchorArtist]?.get(track) ?: 0.0,
         )
     }
 
@@ -146,12 +157,29 @@ public class PersonalHistory(
             SaltedKey.idOrder.compare(a.key.value, b.key.value)
         }).map { it.key }
 
-    /** How often [follower] was picked right after [track]. */
-    public fun followCount(track: TrackId, follower: TrackId): Int = fromTrack[track]?.get(follower) ?: 0
+    /**
+     * PLAN_LISTENW: A → B on the trans_track scale (value · ln 4 = ln(1 + credit) − negWeight · ln 4 · the smoothed
+     * rejection rate, one rejection counting half); NaN without listenWeight (the integer count column is used).
+     */
+    private fun listenValue(anchor: TrackId, track: TrackId): Double {
+        val lw = listenWeight ?: return Double.NaN
+        val p = fromTrack[anchor]?.get(track) ?: 0.0
+        var v = ln(1.0 + p)
+        if (lw.negWeight > 0.0) pairNegatives[anchor to track]?.let { (n, events) ->
+            v -= lw.negWeight * ln(4.0) * n / (n + p + 2.0) * minOf(1.0, events / 2.0)
+        }
+        return v / ln(4.0)
+    }
+
+    /** A credit sum as the old integer count (exact when every credit is 1). */
+    private fun whole(x: Double): Int = floor(x + 1e-9).toInt()
+
+    /** How often [follower] was picked right after [track] (credit-weighted under listenWeight, rounded down). */
+    public fun followCount(track: TrackId, follower: TrackId): Int = whole(fromTrack[track]?.get(follower) ?: 0.0)
 
     /** What followed [track] (FULL's R7), most often first. */
     public fun followers(track: TrackId): List<TrackId> =
-        fromTrack[track].orEmpty().entries.sortedWith(compareByDescending<Map.Entry<TrackId, Int>> { it.value }.thenComparator { a, b ->
+        fromTrack[track].orEmpty().entries.filter { it.value > 0.0 }.sortedWith(compareByDescending<Map.Entry<TrackId, Double>> { it.value }.thenComparator { a, b ->
             SaltedKey.idOrder.compare(a.key.value, b.key.value)
         }).map { it.key }
 

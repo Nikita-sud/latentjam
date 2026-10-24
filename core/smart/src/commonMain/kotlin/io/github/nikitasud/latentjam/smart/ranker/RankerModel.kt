@@ -138,7 +138,19 @@ public class RankerModel(
     public val skipPairs: Boolean = true,
     /** PLAN_NB narrow arm ("skipPairs": "unskipped"): vc21 pairs only into a B that was not itself skipped. */
     public val skipPairsUnskippedOnly: Boolean = false,
+    /** PLAN_LISTENW: transitions weighted by how much of B was heard; null = every listen counts 1. */
+    public val listenWeight: ListenWeight? = null,
 ) {
+    /**
+     * PLAN_LISTENW (SIGNALS_REVIEW §4.1, owner framing "a skip means doesn't fit HERE"): a listen of B after A credits
+     * A → B with 0 up to [zeroMs] heard, 1 from the ListenBrainz threshold min(D/2, 240 s) or a completed play, linearly in
+     * between; imported listens (no listen time) count 1. [negWeight] > 0 adds a pair-level negative for an abandon of B
+     * (not completed, under the threshold) after A: σ(([midS] − s) / [tauS]), one rejection counting half.
+     */
+    public class ListenWeight(
+        public val zeroMs: Long = 30_000L, public val negWeight: Double = 0.0, public val midS: Double = 30.0, public val tauS: Double = 7.0,
+    )
+
     /** PLAN_TRANSGRAPH variants "A" (SIGNALS_REVIEW §4), "B" (hard thresholds), "C" (no start-reason multipliers), "A2" (+ 2-hop), "D" (session-kNN). */
     public class TransGraph(
         public val variant: String, public val window: Int, public val gapMs: Long, public val halfLifeDays: Double,
@@ -411,7 +423,7 @@ public class RankerModel(
                 "audioZ", "softNovelty", "anchorShare", "colistenPrevShare", "familyMismatch", "classMismatch", "continuity", "holidaySeason",
                 "durationRule", "titleFlags", "unknownSeedAnchor", "artistSets",
                 "taxonomy", "versionKey", "playlistBonus", "noRepeat", "langScript", "semChain",
-                "hubPenalty", "hubGenreDamp", "scorerSquash", "tagClasses", "prevFamilyJump", "familyDrift", "songDedup", "queueAlbumCap", "queueArtistBudget", "queueArtistCap", "transBonus", "followerExempt", "personalNudge", "transGraph", "skipPairs",
+                "hubPenalty", "hubGenreDamp", "scorerSquash", "tagClasses", "prevFamilyJump", "familyDrift", "songDedup", "queueAlbumCap", "queueArtistBudget", "queueArtistCap", "transBonus", "followerExempt", "personalNudge", "transGraph", "skipPairs", "listenWeight",
             ),
             "tagClasses" to setOf("classes"),
             "songDedup" to setOf("minChars", "prefixChars"),
@@ -422,6 +434,7 @@ public class RankerModel(
             "followerExempt" to setOf("followMin"),
             "personalNudge" to setOf("delta", "track", "artist", "playlist", "favourite", "frequency", "followMin"),
             "transGraph" to setOf("variant", "window", "gapMin", "halfLifeDays", "mu", "kappa", "neg", "importWeight"),
+            "listenWeight" to setOf("zeroS", "negWeight", "midS", "tauS"),
             "prevFamilyJump" to setOf("lambda"),
             "familyDrift" to setOf("lambda"),
             "playlistBonus" to setOf("lambda", "quota", "artistCap"),
@@ -602,6 +615,10 @@ public class RankerModel(
                 },
                 skipPairs = root["skipPairs"].let { require(it == null || it is Boolean || it == "unskipped") { "skipPairs" }; it != false },
                 skipPairsUnskippedOnly = root["skipPairs"] == "unskipped",
+                listenWeight = (root["listenWeight"] as? Map<*, *>)?.let {
+                    fun d(k: String, v: Double) = (it[k] as? Number)?.toDouble() ?: v
+                    ListenWeight((d("zeroS", 30.0) * 1000).toLong(), d("negWeight", 0.0), d("midS", 30.0), d("tauS", 7.0))
+                },
                 transGraph = (root["transGraph"] as? Map<*, *>)?.let {
                     fun d(k: String, v: Double) = (it[k] as? Number)?.toDouble() ?: v
                     val variant = it["variant"] as? String ?: "A"

@@ -23,6 +23,8 @@ public data class HabitListen(
     public val trackId: TrackId,
     public val startedAtMs: Long,
     public val countsAsNext: Boolean = true,
+    /** PLAN_LISTENW: how much this listen credits the transition into it (1 = a full listen; models without listenWeight). */
+    public val credit: Double = 1.0,
 )
 
 /**

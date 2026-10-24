@@ -66,14 +66,93 @@ internal fun habitListens(
     oldestFirst: List<ListenEvent>,
     libraryIds: Set<TrackId>,
     seedMs: Long,
+    /** PLAN_LISTENW: each listen's credit as what followed (null = 1, every model without listenWeight). */
+    credit: ((ListenEvent) -> Double)? = null,
 ): List<HabitListen> = oldestFirst.mapNotNull { event ->
     if (event.skipped || event.startedAtMs >= seedMs || event.trackId !in libraryIds) return@mapNotNull null
     HabitListen(
         trackId = event.trackId,
         startedAtMs = event.startedAtMs,
         countsAsNext = event.origin?.start == ListenStart.USER_PICK,
+        credit = credit?.invoke(event) ?: 1.0,
     )
 }.sortedBy(HabitListen::startedAtMs) // the log is in recording order; a merged or restored one may not be
+
+/** The ListenBrainz listen threshold's cap (min(D/2, 4 min)). */
+private const val LB_LISTEN_CAP_MS: Long = 240_000L
+
+/** PLAN_LISTENW: the ListenBrainz threshold min(D/2, 240 s) of [event] (240 s when the duration is unknown). */
+private fun listenThresholdMs(event: ListenEvent): Long =
+    event.trackDurationMs?.takeIf { it > 0 }?.let { minOf(it / 2, LB_LISTEN_CAP_MS) } ?: LB_LISTEN_CAP_MS
+
+/**
+ * PLAN_LISTENW: how much a play credits the transition into it — 0 up to [zeroMs] heard, 1 for a completed play or from
+ * the ListenBrainz threshold, linear in between. An import or a legacy line (no listen time) is neutral: 1.
+ */
+internal fun listenCredit(event: ListenEvent, zeroMs: Long): Double {
+    val heard = event.listenedMs ?: return 1.0
+    if (event.completed) return 1.0
+    val threshold = listenThresholdMs(event)
+    if (heard >= threshold) return 1.0
+    if (heard <= zeroMs) return 0.0
+    return (heard - zeroMs).toDouble() / (threshold - zeroMs)
+}
+
+/**
+ * PLAN_LISTENW: pair-level negatives (owner: a skip means "doesn't fit HERE" — it lowers A → B, never B elsewhere). An
+ * abandon of B (picked or auto-advanced, not completed, heard under the ListenBrainz threshold) after A, the last
+ * listen before it within [HabitSlots.PAIR_GAP_MS], adds σ(([midS] − s) / [tauS]) to A → B. Imports never reject.
+ */
+internal fun abandonNegatives(
+    oldestFirst: List<ListenEvent>,
+    libraryIds: Set<TrackId>,
+    seedMs: Long,
+    lw: io.github.nikitasud.latentjam.smart.ranker.RankerModel.ListenWeight,
+): Map<Pair<TrackId, TrackId>, Pair<Double, Int>> {
+    val events = oldestFirst.filter { it.startedAtMs < seedMs && it.trackId in libraryIds }.sortedBy(ListenEvent::startedAtMs)
+    val out = HashMap<Pair<TrackId, TrackId>, Pair<Double, Int>>()
+    for (j in 1 until events.size) {
+        val b = events[j]
+        val heard = b.listenedMs ?: continue
+        val start = b.origin?.start
+        if ((start != ListenStart.USER_PICK && start != ListenStart.AUTO_ADVANCE) || b.completed || heard >= listenThresholdMs(b)) continue
+        val a = (j - 1 downTo 0).firstOrNull { !events[it].skipped }?.let { events[it] }
+            ?.takeIf { b.startedAtMs - it.startedAtMs <= HabitSlots.PAIR_GAP_MS && it.trackId != b.trackId } ?: continue
+        val n = 1.0 / (1.0 + kotlin.math.exp(-(lw.midS - heard / 1000.0) / lw.tauS))
+        val key = a.trackId to b.trackId
+        val (sum, count) = out[key] ?: (0.0 to 0)
+        out[key] = (sum + n) to (count + 1)
+    }
+    return out
+}
+
+/**
+ * The personal history a plan reads (HabitSlotsPlanner and the stand's habit check share it): listens with their
+ * credits, vc21's extra transitions (credited with B's play under listenWeight) and the pair negatives.
+ */
+internal fun personalHistoryOf(
+    events: List<ListenEvent>,
+    libraryIds: Set<TrackId>,
+    seedMs: Long,
+    favourites: Map<TrackId, Long?>,
+    skipPairs: Boolean,
+    unskippedOnly: Boolean,
+    lw: io.github.nikitasud.latentjam.smart.ranker.RankerModel.ListenWeight?,
+    graph: io.github.nikitasud.latentjam.smart.ranker.TransGraph? = null,
+    artistKey: (TrackId) -> String,
+): io.github.nikitasud.latentjam.smart.ranker.PersonalHistory {
+    val credit = lw?.let { w -> { e: ListenEvent -> listenCredit(e, w.zeroMs) } }
+    val extras = if (skipPairs) habitSkipTransitionEvents(events, libraryIds, seedMs, unskippedOnly) else emptyList()
+    return io.github.nikitasud.latentjam.smart.ranker.PersonalHistory(
+        habitListens(events, libraryIds, seedMs, credit), seedMs, favourites,
+        extraTransitions = extras.map { it.first to it.second },
+        extraCredits = credit?.let { c -> extras.map { c(it.third) } },
+        pairNegatives = if (lw != null && lw.negWeight > 0.0) abandonNegatives(events, libraryIds, seedMs, lw) else emptyMap(),
+        listenWeight = lw,
+        graph = graph,
+        artistKey = artistKey,
+    )
+}
 
 /**
  * vc21 (the owner's deliberate A → B tests, read from the phone's log): extra transitions [habitListens] misses, for B a
@@ -90,9 +169,17 @@ internal fun habitSkipTransitions(
     libraryIds: Set<TrackId>,
     seedMs: Long,
     unskippedOnly: Boolean = false,
-): List<Pair<TrackId, TrackId>> {
+): List<Pair<TrackId, TrackId>> = habitSkipTransitionEvents(oldestFirst, libraryIds, seedMs, unskippedOnly).map { it.first to it.second }
+
+/** [habitSkipTransitions] with B's play (PLAN_LISTENW credits the pair with it). */
+internal fun habitSkipTransitionEvents(
+    oldestFirst: List<ListenEvent>,
+    libraryIds: Set<TrackId>,
+    seedMs: Long,
+    unskippedOnly: Boolean = false,
+): List<Triple<TrackId, TrackId, ListenEvent>> {
     val events = oldestFirst.filter { it.startedAtMs < seedMs && it.trackId in libraryIds }.sortedBy(ListenEvent::startedAtMs)
-    val out = ArrayList<Pair<TrackId, TrackId>>()
+    val out = ArrayList<Triple<TrackId, TrackId, ListenEvent>>()
     for (j in 1 until events.size) {
         val b = events[j]
         if (b.origin?.start != ListenStart.USER_PICK || (unskippedOnly && b.skipped)) continue
@@ -109,7 +196,7 @@ internal fun habitSkipTransitions(
             val end = a.startedAtMs + a.effectiveListenedMs
             if (b.startedAtMs - end <= BRIDGE_GAP_MS) found += a.trackId
         }
-        for (x in found) if (x != b.trackId && x != normal) out += x to b.trackId
+        for (x in found) if (x != b.trackId && x != normal) out += Triple(x, b.trackId, b)
     }
     return out
 }
@@ -256,11 +343,10 @@ internal suspend fun rankerPlan(
         val artistKeys = HashMap<TrackId, String>(scope.size + 1)
         for (t in scope) artistKeys[t.id] = HabitSlots.artistKey(t)
         // Hearts count only for the FULL model ("Learn from my habits").
-        val personalHistory = io.github.nikitasud.latentjam.smart.ranker.PersonalHistory(
-            listens, seedMs, favourites = if (personal) favourites() else emptyMap(),
-            extraTransitions = if (ranker.skipPairsFor(personal)) {
-                habitSkipTransitions(events.asReversed(), libraryIds, seedMs, ranker.skipPairsUnskippedOnlyFor(personal))
-            } else emptyList(),
+        val personalHistory = personalHistoryOf(
+            events.asReversed(), libraryIds, seedMs, favourites = if (personal) favourites() else emptyMap(),
+            skipPairs = ranker.skipPairsFor(personal), unskippedOnly = ranker.skipPairsUnskippedOnlyFor(personal),
+            lw = ranker.listenWeightFor(personal),
             // PLAN_TRANSGRAPH: a FULL model with a transGraph block reads every play (skips and listen time included).
             graph = ranker.transGraphFor(personal)?.let { cfg ->
                 io.github.nikitasud.latentjam.smart.ranker.TransGraph(
