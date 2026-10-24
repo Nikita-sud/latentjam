@@ -381,6 +381,9 @@ private fun AppShell(
             if (request.tracks.isEmpty()) return@LaunchedEffect
             if (genreEnrichment.backfill(request.tracks) && libraryIndexingRequest === request) {
                 val richer = genreEnrichment.apply(request.tracks)
+                // apply reads the cache off the main thread: a scan or a hide may have published a
+                // newer library meanwhile, which this older one must not replace.
+                if (libraryIndexingRequest !== request) return@LaunchedEffect
                 // With no file under repair the scan's list IS the published one; replace both, or
                 // the scan state keeps the whole pre-enrichment library alive beside the new one.
                 if (libraryScan.scannedTracks === request.tracks) libraryScan.scannedTracks = richer
