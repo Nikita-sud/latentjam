@@ -159,13 +159,21 @@ internal fun prerollsNow(positionMs: Long, durationMs: Long, overlapMs: Long): B
  * approach to full scale above it. Only an overlap ever reaches the knee — one normalised track
  * never exceeds full scale on its own.
  */
-internal fun softClip(sample: Float): Float {
+internal fun softClip(sample: Float, knee: Float = SOFT_CLIP_KNEE): Float {
     val magnitude = abs(sample)
-    if (magnitude <= SOFT_CLIP_KNEE) return sample
-    val over = (magnitude - SOFT_CLIP_KNEE) / (1f - SOFT_CLIP_KNEE)
-    val limited = SOFT_CLIP_KNEE + (1f - SOFT_CLIP_KNEE) * tanh(over)
+    if (magnitude <= knee || knee >= 1f) return sample
+    val over = (magnitude - knee) / (1f - knee)
+    val limited = knee + (1f - knee) * tanh(over)
     return if (sample < 0f) -limited else limited
 }
+
+/**
+ * The knee for an overlap's sum, from how much both tracks sound ([presence], 0..1): full scale
+ * — no limiting below it — where one track plays alone, so nothing changes at either end of the
+ * overlap, sliding down to [SOFT_CLIP_KNEE] as both become audible.
+ */
+internal fun overlapKnee(presence: Float): Float =
+    1f - (1f - SOFT_CLIP_KNEE) * presence.coerceIn(0f, 1f)
 
 /**
  * The current track's envelope on a player that overlaps tracks deck by deck (iOS): its start, then

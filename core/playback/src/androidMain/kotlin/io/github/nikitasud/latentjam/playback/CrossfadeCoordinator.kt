@@ -56,13 +56,13 @@ internal class CrossfadeCoordinator(
     fun start() {
         player.addListener(listener)
         // The sleep timer's hold arrives from the controller: withdraw at once, not on the next tick.
-        settings.onFinishingChanged = { handler.post { update() } }
+        settings.onChange = { handler.post { update() } }
         update()
     }
 
     fun release() {
         released = true
-        settings.onFinishingChanged = null
+        settings.onChange = null
         player.removeListener(listener)
         // Every posted look, the periodic one and a refresh the sleep timer's hold asked for.
         handler.removeCallbacksAndMessages(null)
@@ -85,8 +85,10 @@ internal class CrossfadeCoordinator(
     fun update() {
         if (released) return
         handler.removeCallbacks(tick)
-        // The setting and the album edges arrive from the controller without an event of their own.
-        if (player.isPlaying) handler.postDelayed(tick, TICK_MS)
+        // The album edges arrive from the controller without an event of their own, so a seam is
+        // looked at periodically while playing — but not with the slider at 0, the default: a
+        // setting change wakes this up through [CrossfadeSettings.onChange].
+        if (player.isPlaying && settings.fadeMs > 0L) handler.postDelayed(tick, TICK_MS)
         val fadeMs = settings.fadeMs
         val current = player.currentMediaItem
         val next = nextItem()

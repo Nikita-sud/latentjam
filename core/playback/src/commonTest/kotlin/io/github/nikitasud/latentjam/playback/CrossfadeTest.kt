@@ -188,4 +188,13 @@ internal class CrossfadeTest {
         assertEquals(1f, deckEnvelope(5_000, 180_000, 12_000, FadeEdges.BOTH, 0, joinedByOverlap = true, curveMs = 0))
         assertEquals(5f / 12f, deckEnvelope(5_000, 180_000, 12_000, FadeEdges.BOTH, 0, joinedByOverlap = false, curveMs = 0))
     }
+
+    @Test
+    fun theOverlapKneeLeavesALoneTrackUntouchedAndLimitsTwo() {
+        assertEquals(1f, overlapKnee(0f))
+        assertEquals(0.95f, softClip(0.95f, overlapKnee(0f)), "one track alone: no limiting")
+        assertEquals(0.8f, overlapKnee(1f), 1e-6f)
+        assertTrue(softClip(1.28f, overlapKnee(1f)) < 1f, "two loud tracks stay off the rail")
+        assertTrue(overlapKnee(0.5f) in 0.8f..1f)
+    }
 }

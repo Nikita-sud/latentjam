@@ -20,6 +20,10 @@ import kotlin.math.roundToInt
 internal class CrossfadeSettings {
     /** The "Smooth transitions" width; 0 keeps hard track boundaries. */
     @Volatile var fadeMs: Long = 0L
+        set(value) {
+            field = value
+            onChange?.invoke()
+        }
 
     /** Loudness normalisation per media id; a missing id plays at full volume. */
     @Volatile var trackGains: Map<String, Float> = emptyMap()
@@ -35,16 +39,17 @@ internal class CrossfadeSettings {
     /**
      * Playback stops when the current track ends (the sleep timer's "end of track"): no overlap is
      * prepared, and one in progress lets the next track go, so the track fades out on its own.
-     * [onFinishingChanged] tells the [CrossfadeCoordinator] at once, so the plan is withdrawn now,
-     * not at its next periodic look.
+     * [onChange] tells the [CrossfadeCoordinator] at once, so the plan is withdrawn now, not at
+     * its next periodic look.
      */
     @Volatile var finishingTrack: Boolean = false
         set(value) {
             field = value
-            onFinishingChanged?.invoke()
+            onChange?.invoke()
         }
 
-    @Volatile var onFinishingChanged: (() -> Unit)? = null
+    /** Told when [fadeMs] or [finishingTrack] changes: the coordinator, which sleeps at 0. */
+    @Volatile var onChange: (() -> Unit)? = null
 
     /**
      * Next was pressed during an overlap: the player seeks to the incoming track at the point heard,
@@ -344,10 +349,13 @@ internal class CrossfadeAudioProcessor(
                 if (introIndex >= 0) {
                     val pcm = activeMix!!.plan.pcm
                     sample += pcm.getShort((introIndex * channels + channel) * 2) * activeMix.introGain
-                    // The limiter weighs in with both tracks: none at the overlap's ends, where one
-                    // track plays alone and must sound as it does without it, fully in the middle.
-                    val weight = (2f * segment.envelope * activeMix.introGain).coerceIn(0f, 1f)
-                    sample += (softClip(sample / PCM16_SCALE) * PCM16_SCALE - sample) * weight
+                    // The limiter's knee follows how much both tracks sound: full scale at the
+                    // overlap's ends, where one track plays alone and must sound as without it,
+                    // lower once both are audible. From the curves only: a quieter-normalised next
+                    // track still sums near full scale with a loud outgoing one.
+                    val incomingCurve = activeMix.introGain / incomingGain.coerceAtLeast(MIN_CURVE_GAIN)
+                    val knee = overlapKnee(4f * segment.envelope * incomingCurve)
+                    sample = softClip(sample / PCM16_SCALE, knee) * PCM16_SCALE
                 }
                 output.putShort(sample.roundToInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort())
             }
@@ -481,6 +489,9 @@ internal class CrossfadeAudioProcessor(
 
     private companion object {
         const val PCM16_SCALE = 32768f
+
+        /** Below this a track's loudness gain is silence; it only guards the division. */
+        const val MIN_CURVE_GAIN = 1e-3f
 
         /** A Next's landing and the first PCM after its seek: within a few decoder frames. */
         const val RISE_LANDING_TOLERANCE_US = 200_000L

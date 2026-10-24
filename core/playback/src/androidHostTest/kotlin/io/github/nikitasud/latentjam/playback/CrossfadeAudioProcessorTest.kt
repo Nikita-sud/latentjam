@@ -331,6 +331,19 @@ internal class CrossfadeAudioProcessorTest {
         assertTrue(waiting.all { it == 1000 })
     }
 
+    @Test
+    fun aLoudOutgoingAndAQuieterNormalisedNextTrackNeverClipHard() {
+        settings.fadeMs = 2_000
+        settings.trackGains = mapOf("b" to 0.8f)
+        // Both masters at full scale: the sum peaks near 1.27 mid-overlap.
+        settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000) { Short.MAX_VALUE.toInt() }
+        reposition(stream("a", 10_000), atMs = 7_000)
+        val outgoing = feed({ Short.MAX_VALUE.toInt() }, 7_000, 10_000)
+        val middle = outgoing.subList(1_800, 2_200)
+        assertTrue(middle.all { it < 32_700 }, "mid-overlap peak ${middle.max()} hit the rail")
+        assertTrue(middle.all { it > 29_000 }, "the limit is soft, not a dip: ${middle.min()}")
+    }
+
     private companion object {
         const val RATE = 1000
     }
