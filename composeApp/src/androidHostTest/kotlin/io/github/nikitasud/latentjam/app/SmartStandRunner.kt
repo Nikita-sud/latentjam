@@ -275,12 +275,13 @@ class SmartStandRunner {
         val ids = library.mapTo(HashSet()) { it.id }
         val listens = habitListens(events.asReversed(), ids, start)
         val artistKeys = library.associate { it.id to io.github.nikitasud.latentjam.smart.HabitSlots.artistKey(it) }
-        // The pairs listed are the same for every arm (normal + vc21 pairs); each arm ranks with its own personal history
-        // (PLAN_NB: the FULL model's skipPairs setting, as HabitSlotsPlanner applies it).
+        // The pairs listed are the same for every arm (normal pairs + vc21 pairs into an unskipped B: a pair into a B the
+        // listener skipped is not a habit); each arm ranks with its own personal history (PLAN_NB: the FULL model's
+        // skipPairs setting, as HabitSlotsPlanner applies it).
         fun personalWith(extra: List<Pair<TrackId, TrackId>>) = io.github.nikitasud.latentjam.smart.ranker.PersonalHistory(
             listens, start, favourites, extraTransitions = extra,
         ) { artistKeys[it].orEmpty() }
-        val listing = personalWith(habitSkipTransitions(events.asReversed(), ids, start))
+        val listing = personalWith(habitSkipTransitions(events.asReversed(), ids, start, unskippedOnly = true))
         val normalOnly = personalWith(emptyList())
         val personal = personalWith(
             if (ranker.skipPairsFor(true)) habitSkipTransitions(events.asReversed(), ids, start, ranker.skipPairsUnskippedOnlyFor(true)) else emptyList(),
