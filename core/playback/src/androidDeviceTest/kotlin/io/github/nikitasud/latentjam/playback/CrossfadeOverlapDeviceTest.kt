@@ -207,7 +207,12 @@ class CrossfadeOverlapDeviceTest {
     }
 
     /** Dragging the slider while an overlap sounds leaves that overlap alone. */
-    @Test fun movingTheSliderDuringAnOverlapLetsItFinish() {
+    @Test fun movingTheSliderDuringAnOverlapLetsItFinish() = dragLetsTheOverlapFinish(dragAtMs = 5_000)
+
+    /** The same between the moment the mix is settled (the 2 s window) and its first sound. */
+    @Test fun movingTheSliderBetweenTheSettledMixAndItsSoundLetsItFinish() = dragLetsTheOverlapFinish(dragAtMs = 4_000)
+
+    private fun dragLetsTheOverlapFinish(dragAtMs: Long) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext
         val outgoing = File(context.cacheDir, "crossfade-drag-a.wav").also { writeWav(it, OUTGOING_FRAMES, ::tone) }
@@ -247,7 +252,7 @@ class CrossfadeOverlapDeviceTest {
             while (end.count > 0 && System.currentTimeMillis() < deadline) {
                 Thread.sleep(20)
                 instrumentation.runOnMainSync {
-                    if (!moved && player.currentMediaItemIndex == 0 && player.currentPosition >= 5_000 && settings.mixing != null) {
+                    if (!moved && player.currentMediaItemIndex == 0 && player.currentPosition >= dragAtMs && settings.mixing != null) {
                         // A drag: several steps, each a new setting, within the overlap.
                         settings.fadeMs = 3_000
                         coordinator.update()

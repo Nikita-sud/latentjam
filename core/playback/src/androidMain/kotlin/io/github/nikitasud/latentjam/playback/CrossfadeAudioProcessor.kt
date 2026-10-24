@@ -61,7 +61,8 @@ internal class CrossfadeSettings {
     @Volatile var plan: OverlapPlan? = null
 
     /**
-     * The plan whose opening is sounding under its outgoing track, from the moment the mix begins
+     * The plan whose opening is sounding under its outgoing track, from the moment the mix is
+     * settled (at the start of the fade window, its sound a little later)
      * until the player reports the join ([CrossfadeCoordinator] clears it then) or the overlap is
      * let go. Where in it the listener is comes from the player's own position, which is what is
      * heard, not from the frames processed ahead of the speaker.
@@ -343,7 +344,10 @@ internal class CrossfadeAudioProcessor(
                 if (introIndex >= 0) {
                     val pcm = activeMix!!.plan.pcm
                     sample += pcm.getShort((introIndex * channels + channel) * 2) * activeMix.introGain
-                    sample = softClip(sample / PCM16_SCALE) * PCM16_SCALE
+                    // The limiter weighs in with both tracks: none at the overlap's ends, where one
+                    // track plays alone and must sound as it does without it, fully in the middle.
+                    val weight = (2f * segment.envelope * activeMix.introGain).coerceIn(0f, 1f)
+                    sample += (softClip(sample / PCM16_SCALE) * PCM16_SCALE - sample) * weight
                 }
                 output.putShort(sample.roundToInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort())
             }
@@ -451,6 +455,9 @@ internal class CrossfadeAudioProcessor(
             val startFrame = index + ceilDiv((mixStartUs - mediaUs) * rate, 1_000_000L)
             end = End.MIX
             mix = Mix(plan, startFrame, overlapFrames = (plan.overlapUs * rate / 1_000_000L).coerceAtLeast(1L))
+            // Settled now, sounding a little later: from here a slider drag must not re-plan the
+            // seam (see CrossfadeCoordinator.plannedFadeMs); Next still waits for the start.
+            settings.mixing = plan
         }
     }
 

@@ -318,6 +318,19 @@ internal class CrossfadeAudioProcessorTest {
         assertEquals(0L, join(stream("b", 20_000)))
     }
 
+    @Test
+    fun aMixCountsAsSoundingOnceItIsSettledBeforeItsFirstFrame() {
+        // A 1 s overlap inside a 2 s slider: settled at the 2 s window, sounding 1 s later.
+        settings.fadeMs = 2_000
+        val overlap = plan("a", "b", overlapMs = 1_000, frames = 3_000, samples = ramp)
+        settings.plan = overlap
+        reposition(stream("a", 10_000), atMs = 7_000)
+        val waiting = feed(loud, 7_000, 8_500)
+        assertTrue(settings.mixing === overlap, "a slider drag here must not re-plan the seam")
+        // Nothing of the next track yet, and no fade: the end waits for the overlap.
+        assertTrue(waiting.all { it == 1000 })
+    }
+
     private companion object {
         const val RATE = 1000
     }
