@@ -81,13 +81,16 @@ internal class PlaybackStartsTest {
     }
 
     @Test
-    fun `only a row moved closer to the playhead was asked for sooner`() {
+    fun `a row moved up or brought back ahead of the playhead is asked for sooner`() {
         // Playing row 2: row 6 moved to 3 is promoted; moved to 7, or behind the playhead, is not.
         assertTrue(movedTowardPlayhead(from = 6, to = 3, current = 2))
         assertFalse(movedTowardPlayhead(from = 3, to = 6, current = 2))
         assertFalse(movedTowardPlayhead(from = 6, to = 1, current = 2))
         assertFalse(movedTowardPlayhead(from = 6, to = 2, current = 2))
         assertFalse(movedTowardPlayhead(from = 6, to = 3, current = null))
+        // A row already played, dragged ahead of the playhead, is asked for again.
+        assertTrue(movedTowardPlayhead(from = 1, to = 4, current = 2))
+        assertFalse(movedTowardPlayhead(from = 1, to = 0, current = 2))
     }
 
     @Test
