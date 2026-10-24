@@ -6,8 +6,12 @@ overlap, normalisation in the PCM chain, iOS in the same round) and IMPLEMENTED 
 `CrossfadeOverlapDeviceTest` on an API 30 emulator (two WAVs through the production chain: every
 frame of the incoming track exactly once, sum correct mid-overlap, position ≈1690 ms right after
 the 1666 ms overlap — a third of the 5 s incoming track — plus repeat, sleep-timer, real-seek Next,
-short-track and heap checks). Not yet verified: listening on a phone; iOS overlap at runtime (the simulator test
-host cannot start AVAudioEngine). iOS deviates from the plan in one detail: decks are ramped from
+short-track and heap checks). iOS ran in the app on an iPhone 17 simulator (2026-10-24, scripted, measured by a tap on the
+main mixer, five 40 s tones): overlap on equal-power curves at a steady level, a clean promotion
+(the next track carries on at 5984 ms), pause/resume inside an overlap, Next landing at 2186 ms with
+its rise continuing, a 22.05 kHz mono neighbour refused with plain fades both ways, repeat-one
+without overlap, the queue running to its end. That run found the setting had never reached iOS
+playback (the capability flag was off) — fixed. Not yet verified: listening on a phone. iOS deviates from the plan in one detail: decks are ramped from
 the controller every 20 ms (not sample-scheduled) — inaudible for two different songs.
 
 ## Today

@@ -39,7 +39,7 @@ internal expect fun loudnessMeterModule(): Module
 
 /** Whether the platform can apply normalization to app-owned file playback. */
 internal expect val playbackGainControlsAvailable: Boolean
-/** Separate capability: iOS normalization does not imply support for boundary fades. */
+/** Separate capability: whether the platform applies smooth transitions (fades and overlaps). */
 internal expect val boundaryFadeControlsAvailable: Boolean
 
 /** Versioned derived cache. Legacy sampled RMS rows are discarded, never reinterpreted as LUFS. */
