@@ -8,13 +8,14 @@ import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /** User-visible sleep-timer state. The countdown value is intentionally minute-granular. */
@@ -40,8 +41,13 @@ public class SleepTimerController(
 
     private var job: Job? = null
 
-    /** The end-of-track timer currently holding playback to its last track. */
-    private var holder: Job? = null
+    /** End-of-track timers in the order they were set; set from the caller's thread. */
+    private var holdGenerations = 0L
+
+    /** Which timer holds playback to its last track, and the newest that ever did; under [holdLock]. */
+    private val holdLock = Mutex()
+    private var heldBy = NO_HOLD
+    private var newestHold = NO_HOLD
 
     /** Stops playback after [minutes] of wall-clock time. Non-positive values cancel the timer. */
     public fun startCountdown(minutes: Int) {
@@ -88,22 +94,36 @@ public class SleepTimerController(
     public fun startAtEndOfTrack() {
         val initial = playback.state.value
         val trackId = initial.track?.id ?: return
+        val generation = ++holdGenerations
         replace {
             mutableState.value = SleepTimerState.EndOfTrack
             try {
-                playback.setFinishingCurrentTrack(true)
+                hold(generation)
                 awaitEndOfTrack(initial, trackId)
                 playback.pause()
                 mutableState.value = SleepTimerState.Off
             } finally {
-                // A newer end-of-track timer that replaced this one keeps the hold.
-                if (holder === currentCoroutineContext()[Job]) {
-                    holder = null
-                    withContext(NonCancellable) { playback.setFinishingCurrentTrack(false) }
-                }
+                withContext(NonCancellable) { release(generation) }
             }
         }
-        holder = job
+    }
+
+    /**
+     * Holds playback to its last track for the end-of-track timer [generation]. Timers run on the
+     * app scope's threads, so a replaced timer's steps can land after its successor's: a hold only
+     * ever moves forward to a newer timer, and only the timer holding it lets it go.
+     */
+    private suspend fun hold(generation: Long) = holdLock.withLock {
+        if (generation <= newestHold) return@withLock
+        newestHold = generation
+        heldBy = generation
+        playback.setFinishingCurrentTrack(true)
+    }
+
+    private suspend fun release(generation: Long) = holdLock.withLock {
+        if (heldBy != generation) return@withLock
+        heldBy = NO_HOLD
+        playback.setFinishingCurrentTrack(false)
     }
 
     private suspend fun awaitEndOfTrack(initial: NowPlaying, trackId: TrackId) {
@@ -182,5 +202,6 @@ public class SleepTimerController(
         const val MILLIS_PER_MINUTE = 60_000L
         const val COUNTDOWN_REFRESH_MS = 15_000L
         const val END_TOLERANCE_MS = 1_500L
+        const val NO_HOLD = 0L
     }
 }

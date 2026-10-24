@@ -300,6 +300,30 @@ class SleepTimerTest {
         assertEquals(listOf(true, false, true, false), playback.finishing)
         assertEquals(1, playback.pauseCalls)
     }
+    @Test
+    fun `rearming end of track keeps the hold whichever timer step lands first`() = runTest {
+        val first = TrackDescriptor(TrackId("one"))
+        val playback = FakePlayback(initial = NowPlaying(track = first, isPlaying = true, queue = listOf(first), queueIndex = 0))
+        val timer = SleepTimerController(playback, backgroundScope) { testScheduler.currentTime }
+
+        timer.startAtEndOfTrack()
+        runCurrent()
+        timer.startAtEndOfTrack()
+        runCurrent()
+        assertEquals(true, playback.finishing.last(), "the newer timer holds: ${playback.finishing}")
+        // Replaced before it ever ran: the older timer leaves no trace.
+        timer.startAtEndOfTrack()
+        timer.startAtEndOfTrack()
+        runCurrent()
+        assertEquals(true, playback.finishing.last(), "still held: ${playback.finishing}")
+
+        timer.cancel()
+        runCurrent()
+        assertEquals(false, playback.finishing.last())
+        timer.startCountdown(5)
+        runCurrent()
+        assertEquals(false, playback.finishing.last(), "a countdown holds nothing")
+    }
 }
 
 private class FakePlayback(initial: NowPlaying = NowPlaying()) : PlaybackController {
