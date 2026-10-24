@@ -152,6 +152,9 @@ internal class IosPlaybackController(
     /** The current track joined through an overlap: its rise continues over its own first ms. */
     private var incomingRiseMs = 0L
 
+    /** The current track came in through an overlap: no fade-in of its own after the rise. */
+    private var joinedByOverlap = false
+
     /**
      * An overlap let go while sounding (the slider set to 0, the sleep timer's hold, a queue edit):
      * the incoming track fades out over [CROSSFADE_CANCEL_MS] from [releaseFromGain], while the
@@ -265,18 +268,18 @@ internal class IosPlaybackController(
         val edges = currentFadeEdges()
         // Once the rise is complete the track is simply playing: nothing keeps the loop busy.
         if (incomingRiseMs > 0L && positionMs >= incomingRiseMs) incomingRiseMs = 0L
-        var current = normalizationGain
-        current *= when {
-            incomingRiseMs > 0L && positionMs < incomingRiseMs -> overlapInGain(positionMs.toFloat() / incomingRiseMs)
-            fadeMs > 0L && edges.fadeIn -> crossfadeFactor(positionMs, durationMs, fadeMs, fadeIn = true, fadeOut = false)
-            else -> 1f
-        }
+        // A cued overlap shapes the end already (1 until it starts): never a plain fade before it.
+        val curveMs = overlap?.overlapMs ?: outgoingCurveMs
+        val current = normalizationGain * deckEnvelope(
+            positionMs = positionMs,
+            durationMs = durationMs,
+            fadeMs = fadeMs,
+            edges = edges,
+            riseMs = incomingRiseMs,
+            joinedByOverlap = joinedByOverlap,
+            curveMs = curveMs,
+        )
         var incoming = 0f
-        val curveMs = active?.overlapMs ?: outgoingCurveMs
-        if (curveMs > 0L) {
-            val progress = (positionMs - (durationMs - curveMs)).toFloat() / curveMs
-            current *= if (progress < 1f) overlapOutGain(progress) else 0f
-        }
         if (active != null) {
             val incomingGain = trackVolumes[active.incoming.id.value] ?: 1f
             incoming = incomingGain * overlapInGain(audioEngine.standbyPositionMs().toFloat() / active.overlapMs)
@@ -289,8 +292,6 @@ internal class IosPlaybackController(
             } else {
                 incoming = releaseFromGain * (1f - elapsed.toFloat() / CROSSFADE_CANCEL_MS)
             }
-        } else if (curveMs <= 0L && fadeMs > 0L && edges.fadeOut) {
-            current *= crossfadeFactor(positionMs, durationMs, fadeMs, fadeIn = false, fadeOut = true)
         }
         audioEngine.setDeckGains(current, incoming)
     }
@@ -329,7 +330,10 @@ internal class IosPlaybackController(
     private fun releaseOverlap() {
         val active = overlap ?: return
         if (!active.started) {
-            cancelOverlap()
+            // Not sounding yet, but the end already follows its curve: keep that, drop the rest.
+            overlap = null
+            audioEngine.cancelOverlap()
+            outgoingCurveMs = active.overlapMs
             return
         }
         overlap = null
@@ -366,6 +370,7 @@ internal class IosPlaybackController(
         pendingAdvance.invalidate()
         queueIndex = incomingIndex
         incomingRiseMs = active.overlapMs
+        joinedByOverlap = true
         outgoingCurveMs = 0L
         releaseStartedAtMs = -1L
         failedOverlaps.clear()
@@ -1295,6 +1300,7 @@ internal class IosPlaybackController(
         pendingAdvance.invalidate()
         cancelOverlap()
         incomingRiseMs = 0L
+        joinedByOverlap = false
         failedOverlaps.clear()
         // A delayed pause belongs to the old native item, including when switching backends.
         resetTransportFade()
@@ -1764,6 +1770,7 @@ internal class IosPlaybackController(
         cancelOverlap()
         // A seek — back to 0, a repeat-one wrap — starts the track over: no rise is still going on.
         incomingRiseMs = 0L
+        joinedByOverlap = false
         when (activeBackend) {
             PlaybackBackend.FILE -> audioEngine.seekTo(positionMs)
             PlaybackBackend.MEDIA_LIBRARY -> {

@@ -166,4 +166,26 @@ internal class CrossfadeTest {
         assertEquals(FadeEdges(fadeIn = true, fadeOut = false), edges[7])
         assertEquals(FadeEdges(fadeIn = false, fadeOut = true), edges[2])
     }
+
+    @Test
+    fun aShortOverlapCuedForTheEndKeepsTheTrackFullUntilItBegins() {
+        // Slider 12 s, a 3-minute song before a 9 s interlude: the overlap is 3 s.
+        fun end(positionMs: Long) = deckEnvelope(positionMs, 180_000, 12_000, FadeEdges.BOTH, 0, false, curveMs = 3_000)
+        assertEquals(1f, end(170_000), "no plain fade before the overlap")
+        assertEquals(1f, end(177_000))
+        assertEquals(overlapOutGain(0.5f), end(178_500), 1e-5f)
+        assertEquals(0f, end(180_000))
+        // Without an overlap the plain fade runs as before.
+        assertEquals(0.5f, deckEnvelope(174_000, 180_000, 12_000, FadeEdges.BOTH, 0, false, curveMs = 0))
+    }
+
+    @Test
+    fun aTrackThatCameInThroughAnOverlapNeverFadesInAgain() {
+        fun start(positionMs: Long) = deckEnvelope(positionMs, 180_000, 12_000, FadeEdges.BOTH, 3_000, true, 0)
+        assertEquals(overlapInGain(2f / 3f), start(2_000), 1e-5f)
+        assertEquals(1f, start(3_000))
+        // Its rise is over: not the 5/12 of a plain 12 s fade-in.
+        assertEquals(1f, deckEnvelope(5_000, 180_000, 12_000, FadeEdges.BOTH, 0, joinedByOverlap = true, curveMs = 0))
+        assertEquals(5f / 12f, deckEnvelope(5_000, 180_000, 12_000, FadeEdges.BOTH, 0, joinedByOverlap = false, curveMs = 0))
+    }
 }

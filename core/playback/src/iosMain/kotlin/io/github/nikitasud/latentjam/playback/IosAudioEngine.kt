@@ -86,6 +86,9 @@ internal class IosAudioEngine : EqualizerController {
     private var standbyFile: AVAudioFile? = null
     private var standbyStarted = false
 
+    /** Where the standby deck stopped when the graph paused; -1 while it plays or stands empty. */
+    private var standbyPausedFrame = -1L
+
     /** Completion tokens: a segment's end counts only while its token is [completionGeneration]. */
     private var tokens: Long = 0L
     private var standbyToken: Long = NO_TOKEN
@@ -235,7 +238,10 @@ internal class IosAudioEngine : EqualizerController {
         }
         if (!ensureEngineRunning()) return false
         player.play()
-        if (standbyStarted) standby.play()
+        if (standbyStarted) {
+            standby.play()
+            standbyPausedFrame = -1L
+        }
         return true
     }
 
@@ -249,7 +255,10 @@ internal class IosAudioEngine : EqualizerController {
     fun pause() {
         pausedFrame = currentFrame()
         player.pause()
-        if (standbyStarted) standby.pause()
+        if (standbyStarted) {
+            standbyPausedFrame = standbyFile?.let(::standbyPlayedFrame) ?: -1L
+            standby.pause()
+        }
         // Pausing a node alone leaves AVAudioEngine's hardware render loop running silently.
         // Keep its prepared graph for resume, but release the idle audio hardware now.
         engine.pause()
@@ -342,13 +351,20 @@ internal class IosAudioEngine : EqualizerController {
     fun standbyPositionMs(): Long {
         val file = standbyFile ?: return 0L
         if (!standbyStarted) return 0L
+        return frameToMillis(standbyPlayedFrame(file), file)
+    }
+
+    private fun standbyPlayedFrame(file: AVAudioFile): Long {
+        // A paused graph has no render time: the frame it reached was kept when it paused.
+        if (!standby.playing && standbyPausedFrame >= 0L) return standbyPausedFrame
         val rendered = standby.lastRenderTime ?: return 0L
         val played = standby.playerTimeForNodeTime(rendered) ?: return 0L
-        return frameToMillis(played.sampleTime.coerceIn(0L, file.length), file)
+        return played.sampleTime.coerceIn(0L, file.length)
     }
 
     /** Drops the standby deck's track, sounding or not. */
     fun cancelOverlap() {
+        standbyPausedFrame = -1L
         standbyToken = NO_TOKEN
         standbyStarted = false
         standbyFile = null
@@ -364,6 +380,9 @@ internal class IosAudioEngine : EqualizerController {
     fun promoteOverlap(onEnded: () -> Unit): Boolean {
         val file = standbyFile ?: return false
         if (!standbyStarted) return false
+        // Where the incoming track is, kept for a promotion while paused (Next during a paused
+        // overlap): a paused deck reports its position from pausedFrame.
+        val playedFrame = standbyPlayedFrame(file)
         val previous = player
         val previousBus = playerBus
         previous.stop()
@@ -378,7 +397,8 @@ internal class IosAudioEngine : EqualizerController {
         standbyFile = null
         standbyStarted = false
         segmentStartFrame = 0L
-        pausedFrame = 0L
+        pausedFrame = playedFrame
+        standbyPausedFrame = -1L
         currentGain = standbyGain
         standbyGain = 0f
         applyMixerGain()
