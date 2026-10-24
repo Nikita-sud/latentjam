@@ -32,8 +32,27 @@ internal class CrossfadeSettings {
     /**
      * Playback stops when the current track ends (the sleep timer's "end of track"): no overlap is
      * prepared, and one in progress lets the next track go, so the track fades out on its own.
+     * [onFinishingChanged] tells the [CrossfadeCoordinator] at once, so the plan is withdrawn now,
+     * not at its next periodic look.
      */
     @Volatile var finishingTrack: Boolean = false
+        set(value) {
+            field = value
+            onFinishingChanged?.invoke()
+        }
+
+    @Volatile var onFinishingChanged: (() -> Unit)? = null
+
+    /**
+     * Next was pressed during an overlap: the player seeks to the incoming track at the point heard,
+     * and that track's first PCM continues the overlap's rise instead of starting a fade. Recorded
+     * before the seek and taken by the first segment of that track to carry data, whatever flushes
+     * (a renderer disable, a reposition) come first.
+     */
+    @Volatile var pendingRise: PendingRise? = null
+
+    /** Which scratch slot ([IntroScratch]) the processor is reading an opening from; -1 for none. */
+    @Volatile var soundingSlot: Int = -1
 
     /** The next track's decoded opening, ready to overlap the end of the current one. */
     @Volatile var plan: OverlapPlan? = null
@@ -63,7 +82,12 @@ internal class OverlapPlan(
     val channelCount: Int,
     val pcm: ByteBuffer,
     val frames: Int,
+    /** The [IntroScratch] slot holding [pcm]; -1 when it is not a scratch slot. */
+    val slot: Int = -1,
 )
+
+/** See [CrossfadeSettings.pendingRise]. */
+internal data class PendingRise(val mediaId: String, val riseUs: Long)
 
 /** The process-wide settings the service's player reads; the controller lives in the same process. */
 internal object AndroidCrossfade {
@@ -149,16 +173,7 @@ internal class CrossfadeAudioProcessor(
         when (decision) {
             Decision.Continue -> Unit
             is Decision.Fresh -> {
-                val previous = segment
-                segment = Segment(decision.stream, previousGain = null).apply {
-                    // Next during an overlap lands on the incoming track where it was heard; its
-                    // rise carries on along the overlap's curve rather than restarting as a fade.
-                    riseUs = previous?.mix?.takeIf {
-                        !it.cancelled && it.mixedFrames > 0 && it.plan.incomingId == decision.stream?.mediaId
-                    }?.plan?.overlapUs
-                        ?: previous?.takeIf { !it.hadData && it.stream?.key == decision.stream?.key }?.riseUs
-                        ?: 0L
-                }
+                segment = Segment(decision.stream, previousGain = null)
                 settings.mixing = null
             }
             is Decision.Join -> {
@@ -205,6 +220,10 @@ internal class CrossfadeAudioProcessor(
         if (!segment.hadData) {
             segment.hadData = true
             segment.startUs = streams.bufferMediaUs
+            settings.pendingRise?.takeIf { it.mediaId == segment.stream?.mediaId }?.let {
+                segment.riseUs = it.riseUs
+                settings.pendingRise = null
+            }
         }
         repositionsAtData = streams.repositions
         val channels = inputAudioFormat.channelCount
@@ -248,6 +267,7 @@ internal class CrossfadeAudioProcessor(
         if (mix != null && !mix.cancelled && (livePlan !== mix.plan || fadeMs <= 0L)) mix.cancelled = true
         var incomingGain = Float.NaN
         var mixing = false
+        var readSlot = -1
 
         for (frame in 0 until frames) {
             val index = segment.frames
@@ -283,7 +303,10 @@ internal class CrossfadeAudioProcessor(
                 activeMix.introGain = slew(activeMix.introGain, introTarget, if (activeMix.cancelled) introStep else 1f)
                 val candidate = (index - activeMix.startFrame).toInt()
                 if (candidate < activeMix.plan.frames) {
-                    if (activeMix.introGain > 0f) introIndex = candidate
+                    if (activeMix.introGain > 0f) {
+                        introIndex = candidate
+                        readSlot = activeMix.plan.slot
+                    }
                     if (!activeMix.cancelled) {
                         activeMix.nextIntroFrame = candidate + 1
                         activeMix.mixedFrames = index - activeMix.startFrame + 1
@@ -308,6 +331,7 @@ internal class CrossfadeAudioProcessor(
             }
             segment.frames++
         }
+        settings.soundingSlot = readSlot
         val reported = segment.mix ?: return
         if (mixing) {
             settings.mixing = reported.plan

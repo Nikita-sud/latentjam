@@ -747,13 +747,13 @@ public class PlaybackService : MediaLibraryService() {
             // During an overlap the next row is already sounding: Next from any controller
             // carries on from there instead of replaying its opening.
             override fun seekToNext() {
-                crossfade?.nextFromOverlap()?.let { (index, positionMs) -> seekTo(index, positionMs) }
-                    ?: super.seekToNext()
+                val coordinator = crossfade
+                coordinator?.nextFromOverlap()?.let(coordinator::seekTo) ?: super.seekToNext()
             }
 
             override fun seekToNextMediaItem() {
-                crossfade?.nextFromOverlap()?.let { (index, positionMs) -> seekTo(index, positionMs) }
-                    ?: super.seekToNextMediaItem()
+                val coordinator = crossfade
+                coordinator?.nextFromOverlap()?.let(coordinator::seekTo) ?: super.seekToNextMediaItem()
             }
 
             override fun setPlaylistMetadata(playlistMetadata: MediaMetadata) {

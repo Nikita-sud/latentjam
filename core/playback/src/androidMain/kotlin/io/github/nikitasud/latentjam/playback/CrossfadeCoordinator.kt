@@ -54,10 +54,13 @@ internal class CrossfadeCoordinator(
 
     fun start() {
         player.addListener(listener)
+        // The sleep timer's hold arrives from the controller: withdraw at once, not on the next tick.
+        settings.onFinishingChanged = { handler.post { update() } }
         update()
     }
 
     fun release() {
+        settings.onFinishingChanged = null
         player.removeListener(listener)
         handler.removeCallbacks(tick)
         withdraw()
@@ -87,7 +90,7 @@ internal class CrossfadeCoordinator(
      * its opening does not play twice. Null outside an overlap. Every Next the session receives —
      * the app, the notification, a headset, a car — comes through here.
      */
-    fun nextFromOverlap(): Pair<Int, Long>? {
+    fun nextFromOverlap(): Landing? {
         val plan = settings.mixing ?: return null
         if (player.currentMediaItem?.mediaId != plan.outgoingId) return null
         if (player.repeatMode == Player.REPEAT_MODE_ONE) return null
@@ -98,8 +101,21 @@ internal class CrossfadeCoordinator(
         // position is what has reached the speaker, so this is the heard point, not one a buffer
         // ahead of it.
         val heardMs = player.currentPosition - (durationMs - plan.overlapUs / 1000L)
-        return if (heardMs >= 0L) index to heardMs else null
+        return if (heardMs >= 0L) Landing(index, heardMs, plan.incomingId, plan.overlapUs) else null
     }
+
+    /**
+     * Seeks to [landing] for a Next during an overlap. The incoming track's first PCM after the seek
+     * then continues the overlap's rise ([CrossfadeSettings.pendingRise]) — recorded before the seek,
+     * because the seek disables the renderer and flushes the chain more than once before it plays.
+     */
+    fun seekTo(landing: Landing) {
+        settings.pendingRise = PendingRise(landing.mediaId, landing.riseUs)
+        player.seekTo(landing.index, landing.positionMs)
+    }
+
+    /** Where a Next during an overlap goes: [index] at [positionMs], rising over [riseUs]. */
+    data class Landing(val index: Int, val positionMs: Long, val mediaId: String, val riseUs: Long)
 
     /**
      * The row playback moves on to by itself, when it may overlap. Never the track itself: a track
@@ -123,7 +139,9 @@ internal class CrossfadeCoordinator(
 
     private fun begin(target: Seam, next: MediaItem, outgoingMs: Long, fadeMs: Long) {
         seam = target
-        val pending = CrossfadeIntroCapture(context, next, fadeMs + CROSSFADE_INTRO_MARGIN_MS) { intro ->
+        val scratch = IntroScratch.get(context)
+        val slot = scratch.freeSlot(sounding = settings.soundingSlot)
+        val pending = CrossfadeIntroCapture(context, next, fadeMs + CROSSFADE_INTRO_MARGIN_MS, scratch, slot) { intro ->
             capture = null
             if (seam != target) return@CrossfadeIntroCapture
             val overlapMs = intro?.let { overlapLengthMs(fadeMs, outgoingMs, it.durationMs) } ?: 0L
@@ -139,6 +157,7 @@ internal class CrossfadeCoordinator(
                 channelCount = intro.channelCount,
                 pcm = intro.pcm,
                 frames = intro.frames,
+                slot = intro.slot,
             )
         }
         capture = pending

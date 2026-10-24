@@ -256,17 +256,36 @@ internal class CrossfadeAudioProcessorTest {
     }
 
     @Test
-    fun nextDuringAnOverlapCarriesTheIncomingRiseOn() {
+    fun nextDuringAnOverlapCarriesTheIncomingRiseOnThroughTheSeeksFlushes() {
         settings.fadeMs = 2_000
+        val a = stream("a", 10_000)
         settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000, samples = loud)
-        reposition(stream("a", 10_000), atMs = 7_000)
+        reposition(a, atMs = 7_000)
         feed(loud, 7_000, 9_000)
-        // Next: the session seeks to b at the point heard, 1 s into the 2 s overlap.
-        reposition(stream("b", 20_000), atMs = 1_000)
+        // Next: the coordinator records the rise, then seeks to b at the point heard, 1 s into the
+        // 2 s overlap. The seek disables the renderer, flushing the chain while the outgoing stream
+        // is still current, before b's own reposition: two data-less fresh segments.
+        settings.pendingRise = PendingRise("b", riseUs = 2_000_000)
+        reposition(a, atMs = 9_000)
+        val b = stream("b", 20_000)
+        reposition(b, atMs = 1_000)
+        processor.prepareSegment()
+        processor.flush(StreamMetadata.DEFAULT)
         val incoming = feed(loud, 1_000, 3_000)
         val expected = 1000 * overlapInGain(0.5f)
         assertTrue(abs(incoming.first() - expected) <= 1f, "rise continued at ${incoming.first()}, not ${1000 * 0.5f}")
         assertEquals(1000, incoming.last())
+        assertEquals(null, settings.pendingRise, "taken once")
+    }
+
+    @Test
+    fun aRecordedRiseWaitsForItsOwnTrack() {
+        settings.fadeMs = 2_000
+        settings.pendingRise = PendingRise("b", riseUs = 2_000_000)
+        // Another track plays first: it keeps its own plain fade-in and leaves the rise alone.
+        reposition(stream("c", 20_000), atMs = 1_000)
+        assertEquals(500, feed(loud, 1_000, 1_100).first())
+        assertTrue(settings.pendingRise != null)
     }
 
     private companion object {

@@ -30,17 +30,22 @@ the next track by itself, the part already heard is skipped.
    `DefaultAudioSink` with the same PCM16 conversion and gapless trimming, and a capture
    `AudioOutputProvider` that consumes as fast as the decoder runs. So the captured PCM is bit-identical
    to what the main player will later produce for B. The capture player is released as soon as the
-   buffer is full (1–2 s of work). PCM lives in a memory-mapped scratch file, unlinked once
-   mapped, so it is file cache, not Java heap (on ART `allocateDirect` IS heap): 12 s + 2 s of
-   44.1 kHz stereo ≈ 2.5 MB; hard cap 8 MiB, above it no overlap. No capture either when the heap has
-   under 12 MB free; the seam then gets the plain fades.
+   buffer is full (1–2 s of work). PCM lives in one of two reused scratch slots
+   (`IntroScratch`): memory-mapped files, unlinked once mapped, so file cache and not Java heap (on
+   ART `allocateDirect` IS heap: measured 6.1 MB vs 7 KB for a 14 s opening at 96 kHz). A slot is
+   zero-filled through the file before it is mapped, so a full disk means "no capture" rather than a
+   SIGBUS on the first write, and grown only when an opening needs more; a new capture takes the
+   slot the mixer is not reading. 12 s + 2 s of 44.1 kHz stereo ≈ 2.5 MB; hard cap 8 MiB, above it
+   no overlap. No capture either when the heap has under 12 MB free; the seam then gets the plain
+   fades. A next track shorter than the request is captured whole.
 2. **Mix.** A new `CrossfadeAudioProcessor` sits before the EQ in the main sink. From N s before A's end
    it outputs `A·out(t) + B_intro·in(t)` (equal-power curves, pure function in commonMain, unit-tested).
    It counts how many intro frames M it actually mixed.
 3. **Join.** A subclassed `MediaCodecAudioRenderer` knows which media item each stream belongs to
    (`onStreamChanged` + `getTimeline()`, signalled at `onProcessedStreamChange`). When B's first frames
    arrive and B is the pre-rolled item, the processor drops exactly M frames and reports them through
-   the `AudioProcessorChain` skipped-frame count (the mechanism silence skipping uses), so B's position
+   `CrossfadeProcessorChain.getMediaDuration` (the sink maps playout since its checkpoint at the join
+   through it, adding the frames skipped), so B's position
    reads correctly. If A's real end differs from its duration estimate, the envelope is time-based and
    the extra 2 s of intro absorb the difference — the join stays sample-exact.
 4. **Fallback = today's fade** (volume envelope, no overlap) whenever an overlap cannot be exact:
@@ -66,12 +71,12 @@ second AudioTrack, a SEEK transition to re-label, and audio focus/ducking for tw
 | Session, notification, widget, Android Auto | Single player → unchanged. Trade-off: the metadata switches to B when A actually ends, i.e. at the END of the overlap, not at its start (Spotify switches earlier). |
 | Pause / resume | Both songs pause and resume together (one stream), with the existing transport fade. |
 | Seek during overlap | Inside A: overlap re-arms at the right offset if the intro is still valid, otherwise cancels. |
-| Next during overlap | Goes to B at the point already heard (no restart of B's opening), from any controller: the app, the notification, a headset, the lock screen, Android Auto (the session player handles it). The point is read from the player's position, i.e. what reached the speaker, until the join is heard; B's rise carries on along the overlap curve. Ledger `SKIP_NEXT` as today. |
+| Next during overlap | Goes to B at the point already heard (no restart of B's opening), from any controller: the app, the notification, a headset, the lock screen, Android Auto (the session player handles it). The point is read from the player's position, i.e. what reached the speaker, until the join is heard; B's rise carries on along the overlap curve: the coordinator records it before seeking, because the seek disables the renderer and flushes the chain more than once before B plays (measured on a real seek: gain 0.63 against 0.59 on the curve, 0.33 for the fallback fade). Ledger `SKIP_NEXT` as today. |
 | Previous during overlap | As today. |
 | Repeat one, or the same track next | Never overlaps a track with its own opening (repeat-one, a one-row queue on repeat-all, Play next on the playing track): its next play would start seconds in, which the sleep timer's wrap check and the listening log's restart check (both expect ~0) miss. Those seams keep the plain fades. |
 | Short tracks | An overlap is at most a third of either track (`overlapLengthMs`), so a track overlapped at both ends still has a third of itself alone. |
 | End of queue | No next → plain fade-out as today. |
-| Sleep timer "end of track" | While armed, the timer tells playback (`setFinishingCurrentTrack`): no overlap is prepared and one in progress lets the next track go in 300 ms, so the track fades out on its own and the pause lands at its end, not seconds into the next track. |
+| Sleep timer "end of track" | While armed, the timer tells playback (`setFinishingCurrentTrack`): the coordinator hears it at once (not on its 500 ms tick), so no overlap is prepared and one in progress lets the next track go within about one audio buffer plus 300 ms, so the track fades out on its own and the pause lands at its end, not seconds into the next track. |
 | Audio focus, becoming noisy, ducking | One player → unchanged. |
 | 48 MB heaps | Intro PCM in a mapped file (not heap); capture player lives 1–2 s with a 1 MB load buffer, and is not started with under 12 MB of heap free. |
 
