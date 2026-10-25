@@ -40,6 +40,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -238,7 +242,19 @@ fun App(
         LocalControlInk provides controlInk,
     ) {
         MaterialTheme(colorScheme = scheme, typography = LatentJamTypography) {
-            AppShell(engine, library, playback, externalAudioOpener, darkTheme)
+            // The app draws edge to edge, and its pages keep from the top and bottom bars on their
+            // own, but nothing kept the sides: a landscape iPhone's camera, a foldable iPhone's
+            // status column (an 84 pt reserved strip down one side), an Android side navigation bar
+            // or cutout. The sides are kept once, here, for everything inside; the theme's
+            // background still runs under them.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(scheme.background)
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
+            ) {
+                AppShell(engine, library, playback, externalAudioOpener, darkTheme)
+            }
         }
     }
 }
