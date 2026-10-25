@@ -28,6 +28,24 @@ public class VersionedIndexStore(
     override suspend fun loadSnapshot(modelVersion: String): StoredIndexSnapshot? =
         forVersion(modelVersion).loadSnapshot(modelVersion) ?: legacy.loadSnapshot(modelVersion)
 
+    /**
+     * Streams like the stores it wraps (never one map of the whole library: the default would load the snapshot
+     * whole). The legacy file is read only when the version's own file delivered nothing: rows from a damaged
+     * version file are never mixed with the legacy file's (the receiver discards them on null, as for any store).
+     */
+    override suspend fun loadRows(
+        modelVersion: String,
+        row: (id: TrackId, vector: FloatArray, identity: String?) -> Unit,
+    ): Map<TrackId, String>? {
+        var delivered = 0
+        val own = forVersion(modelVersion).loadRows(modelVersion) { id, vector, identity ->
+            delivered++
+            row(id, vector, identity)
+        }
+        if (own != null || delivered > 0) return own
+        return legacy.loadRows(modelVersion, row)
+    }
+
     private var legacyRetired = false
 
     override suspend fun save(modelVersion: String, entries: Map<TrackId, FloatArray>) {
