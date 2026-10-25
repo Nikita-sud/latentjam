@@ -39,6 +39,10 @@ class ForeignEntityTest {
         assertFalse(ScriptLanguage.foreignEntity("ru", "Базовый минимум"))
         assertFalse(ScriptLanguage.foreignEntity(null, "Базовый минимум"))
         assertFalse(ScriptLanguage.foreignEntity("instrumental", "Колыбельная"))   // not a Latin-script language
+        // a Latin title with a gloss in another script keeps its entity; a mostly-Cyrillic title with a Latin word does not
+        assertFalse(ScriptLanguage.foreignEntity("en", "Hanami (花見)"))
+        assertFalse(ScriptLanguage.foreignEntity("en", "『鯖江市日の出』Sabae Sunrise"))
+        assertTrue(ScriptLanguage.foreignEntity("en", "Пьяный DJ"))
     }
 
     @Test
