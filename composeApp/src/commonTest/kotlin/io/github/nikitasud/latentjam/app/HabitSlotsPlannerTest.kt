@@ -187,12 +187,13 @@ class HabitSlotsPlannerTest {
 
     @Test
     fun `autoplay rejections count by their weight towards the repeat gate`() {
-        val library = setOf("a", "b").mapTo(HashSet(), ::TrackId)
+        val library = setOf("a", "b", "x").mapTo(HashSet(), ::TrackId)
         fun sessions(n: Int): List<ListenEvent> {
             val out = ArrayList<ListenEvent>(); var t = 0L
             repeat(n) {
                 out += play("a", t, 200_000, ListenStart.USER_PICK, completed = true)
-                out += play("b", t + 201_000, 5_000, ListenStart.AUTO_ADVANCE); t += 3_600_000
+                out += play("b", t + 201_000, 5_000, ListenStart.AUTO_ADVANCE)
+                out += play("x", t + 208_000, 200_000, ListenStart.SKIP_NEXT, completed = true); t += 3_600_000 // moved on
             }
             return out
         }
@@ -204,5 +205,10 @@ class HabitSlotsPlannerTest {
         assertEquals(0.0, nats(lw(picksOnly = true, auto = null)), 1e-12) // LW2: autoplay ignored (no pair, no negative)
         assertTrue(nats(lw(picksOnly = false, auto = 1.0)) < 0.0) // two autoplay rejections open the gate
         assertEquals(0.0, nats(lw(picksOnly = false, auto = 0.5)), 1e-12) // half weight: 1.0 < 2, not yet
+        // a stopped session is not a rejection: B cut and nothing played after it within a minute
+        val stopped = sessions(2).filter { !(it.trackId == TrackId("x") && it.startedAtMs < 3_000_000) } // first B: nothing after it
+        val st = personalHistoryOf(stopped, library, 100_000_000, emptyMap(),
+            skipPairs = true, unskippedOnly = false, lw = lw(picksOnly = false, auto = 1.0)) { "" }
+        assertEquals(0.0, st.row(TrackId("b"), TrackId("a"), "").transTrackNats, 1e-12) // only one counted: gate closed
     }
 }

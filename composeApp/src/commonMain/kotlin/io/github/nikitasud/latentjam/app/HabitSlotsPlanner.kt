@@ -78,6 +78,9 @@ internal fun habitListens(
     )
 }.sortedBy(HabitListen::startedAtMs) // the log is in recording order; a merged or restored one may not be
 
+/** PLAN_LISTENW3: an autoplay abandon counts only when the next play starts within this of its end. */
+private const val MOVED_ON_MS: Long = 60_000L
+
 /** The ListenBrainz listen threshold's cap (min(D/2, 4 min)). */
 private const val LB_LISTEN_CAP_MS: Long = 240_000L
 
@@ -118,6 +121,10 @@ internal fun abandonNegatives(
         // PLAN_LISTENW3: a picked rejection weighs 1, an autoplay one lw.autoplayWeight (0 = ignored)
         val weight = when (start) { ListenStart.USER_PICK -> 1.0; ListenStart.AUTO_ADVANCE -> lw.autoplayWeight; else -> 0.0 }
         if (weight <= 0.0 || b.completed || heard >= listenThresholdMs(b)) continue
+        // PLAN_LISTENW3: an autoplay abandon is a rejection only if the listener moved on (the next play starts within
+        // a minute of it); a stopped session (earbuds out, a call, the end of a commute) is not evidence against B
+        if (start == ListenStart.AUTO_ADVANCE && lw.autoWeight != null &&
+            events.getOrNull(j + 1)?.let { it.startedAtMs - (b.startedAtMs + heard) <= MOVED_ON_MS } != true) continue
         val a = (j - 1 downTo 0).firstOrNull { !events[it].skipped }?.let { events[it] }
             ?.takeIf { b.startedAtMs - it.startedAtMs <= HabitSlots.PAIR_GAP_MS && it.trackId != b.trackId } ?: continue
         val n = 1.0 / (1.0 + kotlin.math.exp(-(lw.midS - heard / 1000.0) / lw.tauS))
