@@ -172,6 +172,12 @@ public interface SimilarityEngine {
     public suspend fun energy(trackId: TrackId): Double? = null
 
     /**
+     * How naturally [to] follows [from], for sizing the crossfade between them ([TransitionFit]).
+     * Reads the stored analysis only: no model runs. Null when either track is not analysed yet.
+     */
+    public suspend fun transitionFit(from: TrackId, to: TrackId): TransitionFit? = null
+
+    /**
      * The stored audio vectors and e of [ids] in one read (audit 05 #5): what the SMART ranker plans a press with,
      * read at once instead of one engine call per track. Tracks not indexed are absent.
      */

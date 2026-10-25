@@ -648,8 +648,10 @@
     <string name="settings_normalize_volume">Normalización de volumen</string>
     <string name="settings_normalize_volume_subtitle">Reduce las pistas fuertes hacia un nivel uniforme</string>
     <string name="settings_crossfade">Transiciones suaves</string>
-    <string name="settings_crossfade_subtitle">Atenúa el volumen entre pistas</string>
+    <string name="settings_crossfade_subtitle">El final de una pista se superpone al inicio de la siguiente</string>
     <string name="settings_crossfade_value">%1$d s</string>
+    <string name="settings_crossfade_adaptive">SMART ajusta la duración</string>
+    <string name="settings_crossfade_adaptive_body">Más larga entre pistas que encajan, más corta cuando cambia el sonido o el ritmo</string>
     <string name="duplicates_keep_this">Conservar esta</string>
     <string name="snack_duplicates_merged">Duplicados combinados: las listas ahora apuntan a la copia conservada</string>
     <string name="info_lyrics">Letra</string>

@@ -144,6 +144,7 @@ internal class IosPlaybackController(
 
     /** The "Smooth transitions" width; 0 keeps hard track boundaries. */
     private var crossfadeMs = 0L
+    private val seamCrossfades = SeamCrossfades(mainScope, engine)
     private var crossfadeJob: Job? = null
 
     /** The next track sounding (or cued to sound) under the end of the current one. */
@@ -180,6 +181,10 @@ internal class IosPlaybackController(
         finishingTrack = finishing
         if (finishing) releaseOverlap()
         updateCrossfadeLoop()
+    }
+
+    override suspend fun setAdaptiveCrossfade(enabled: Boolean): Unit = withContext(Dispatchers.Main) {
+        seamCrossfades.enabled = enabled
     }
 
     override suspend fun setCrossfadeSeconds(seconds: Int): Unit = withContext(Dispatchers.Main) {
@@ -226,6 +231,9 @@ internal class IosPlaybackController(
             }
         }
         val edges = currentFadeEdges()
+        // The slider, or the length SMART fitted to this pair; asked on every tick from the start
+        // of the track, so the fit is ready long before the seam is cued.
+        val seamMs = next?.let { seamCrossfades.lengthFor(current.id, it.id, fadeMs) } ?: fadeMs
         if (overlap == null && outgoingCurveMs <= 0L && fadeMs > 0L && !finishingTrack && durationMs > 0L && edges.fadeOut && next != null &&
             durationMs - positionMs <= fadeMs + OVERLAP_CUE_AHEAD_MS
         ) {
@@ -233,7 +241,7 @@ internal class IosPlaybackController(
             val url = next.audioUri?.let { NSURL.URLWithString(it) }
             if (url != null && key !in failedOverlaps) {
                 val incomingMs = audioEngine.prepareOverlap(url)
-                val overlapMs = incomingMs?.let { overlapLengthMs(fadeMs, durationMs, it) } ?: 0L
+                val overlapMs = incomingMs?.let { overlapLengthMs(seamMs, durationMs, it) } ?: 0L
                 if (overlapMs > 0L) {
                     overlap = IosOverlap(current.id, next, overlapMs)
                 } else {

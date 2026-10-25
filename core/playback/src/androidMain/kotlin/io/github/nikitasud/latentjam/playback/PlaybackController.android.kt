@@ -413,6 +413,20 @@ internal class AndroidPlaybackController(
         }
     }
 
+    private val seamCrossfades = SeamCrossfades(mainScope, engine)
+
+    override suspend fun setAdaptiveCrossfade(enabled: Boolean) {
+        withContext(Dispatchers.Main.immediate) {
+            seamCrossfades.enabled = enabled
+            crossfade.seamFadeMs = if (enabled) {
+                { outgoing, incoming, sliderMs -> seamCrossfades.lengthFor(TrackId(outgoing), TrackId(incoming), sliderMs) }
+            } else {
+                null
+            }
+            crossfade.onChange?.invoke()
+        }
+    }
+
     override suspend fun setCrossfadeSeconds(seconds: Int) {
         withContext(Dispatchers.Main.immediate) {
             crossfade.fadeMs = sanitizeCrossfadeSeconds(seconds) * 1000L

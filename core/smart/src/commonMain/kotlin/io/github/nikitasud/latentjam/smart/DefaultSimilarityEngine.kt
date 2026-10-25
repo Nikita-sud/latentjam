@@ -119,6 +119,7 @@ internal class DefaultSimilarityEngine(
     private val audioEnvelopeRefusal = EnvelopeRefusal()
     private val textEnvelopeRefusal = EnvelopeRefusal()
     private var indexRevision = 0L
+    private var transitionSample: Pair<Long, List<TrackId>>? = null
     private var snapshotCache: SnapshotCache? = null
     private var mixCoverageCache: MixCoverageCache? = null
     private var predictorLoaded = false
@@ -517,6 +518,39 @@ internal class DefaultSimilarityEngine(
 
     override suspend fun energy(trackId: TrackId): Double? = withContext(dispatcher) {
         mutex.withLock { energies[trackId]?.toDouble() }
+    }
+
+    override suspend fun transitionFit(from: TrackId, to: TrackId): TransitionFit? = withContext(dispatcher) {
+        mutex.withLock {
+            val outgoing = index.vector(from) ?: return@withLock null
+            val incoming = index.vector(to) ?: return@withLock null
+            val sample = transitionSampleLocked().filter { it != from && it != to }
+            val others = FloatArray(sample.size)
+            var count = 0
+            for (id in sample) {
+                val similarity = index.vector(id)?.let { transitionCosine(outgoing, it) } ?: continue
+                if (similarity.isFinite()) others[count++] = similarity
+            }
+            val closeness = closenessPercentile(transitionCosine(outgoing, incoming), others.copyOf(count))
+                ?: return@withLock null
+            val spread = interquartileRange(sample.mapNotNull { energies[it]?.toDouble() }.toDoubleArray())
+            TransitionFit(
+                closeness = closeness,
+                energyGap = energyGap(energies[from]?.toDouble(), energies[to]?.toDouble(), spread),
+            )
+        }
+    }
+
+    /**
+     * The library tracks a transition is placed against: a fixed random [TRANSITION_SAMPLE_SIZE] of
+     * the audio index, redrawn only when the index changes, so a seam reads the same each time.
+     */
+    private fun transitionSampleLocked(): List<TrackId> {
+        transitionSample?.takeIf { it.first == indexRevision }?.let { return it.second }
+        val drawn = index.ids().sortedBy { it.value }.shuffled(kotlin.random.Random(TRANSITION_SAMPLE_SEED))
+            .take(TRANSITION_SAMPLE_SIZE)
+        transitionSample = indexRevision to drawn
+        return drawn
     }
 
     /**
@@ -1671,3 +1705,6 @@ internal class DefaultSimilarityEngine(
         }
     }
 }
+
+/** Fixed, so the same library always compares a transition against the same tracks. */
+private const val TRANSITION_SAMPLE_SEED: Int = 25

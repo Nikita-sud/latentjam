@@ -78,6 +78,9 @@ internal class IosAppSettings : AppSettings {
         ),
     )
     override val crossfadeSeconds: StateFlow<Int> = mutableCrossfadeSeconds.asStateFlow()
+
+    private val mutableAdaptiveCrossfade = MutableStateFlow(defaults.boolForKey(KEY_ADAPTIVE_CROSSFADE))
+    override val adaptiveCrossfade: StateFlow<Boolean> = mutableAdaptiveCrossfade.asStateFlow()
     private val mutableRelativePlaylistPaths = MutableStateFlow(
         relativePlaylistPathsPreferenceFromPersisted(
             (defaults.objectForKey(KEY_RELATIVE_PLAYLIST_PATHS) as? NSNumber)?.boolValue,
@@ -184,6 +187,11 @@ internal class IosAppSettings : AppSettings {
         val sanitized = sanitizeCrossfadeSeconds(seconds)
         defaults.setInteger(sanitized.toLong(), KEY_CROSSFADE_SECONDS)
         mutableCrossfadeSeconds.value = sanitized
+    }
+
+    override fun setAdaptiveCrossfade(enabled: Boolean) {
+        defaults.setBool(enabled, KEY_ADAPTIVE_CROSSFADE)
+        mutableAdaptiveCrossfade.value = enabled
     }
 
     override fun setRelativePlaylistPaths(enabled: Boolean) {
@@ -408,6 +416,7 @@ internal class IosAppSettings : AppSettings {
         const val KEY_RESUME_SOURCE_NAME = "resume_source_name"
         const val KEY_NORMALIZE_VOLUME = "normalize_volume"
         const val KEY_CROSSFADE_SECONDS = "crossfade_seconds"
+        const val KEY_ADAPTIVE_CROSSFADE = "crossfade_adaptive"
         const val KEY_RELATIVE_PLAYLIST_PATHS = "relative_playlist_paths"
         const val KEY_ARTIST_VARIETY = "artist_variety"
         const val KEY_SONG_SORT = "song_sort"

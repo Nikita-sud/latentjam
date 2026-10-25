@@ -624,8 +624,10 @@
     <string name="settings_normalize_volume">音量均衡</string>
     <string name="settings_normalize_volume_subtitle">将响亮的曲目降低到更一致的音量</string>
     <string name="settings_crossfade">平滑过渡</string>
-    <string name="settings_crossfade_subtitle">在曲目边界淡入淡出音量</string>
+    <string name="settings_crossfade_subtitle">曲目结尾与下一首开头重叠</string>
     <string name="settings_crossfade_value">%1$d 秒</string>
+    <string name="settings_crossfade_adaptive">由 SMART 调整时长</string>
+    <string name="settings_crossfade_adaptive_body">相近的曲目之间更长，音色或节奏变化时更短</string>
     <string name="duplicates_keep_this">保留此曲</string>
     <string name="snack_duplicates_merged">已合并重复项：播放列表现在指向保留的副本</string>
     <string name="info_lyrics">歌词</string>

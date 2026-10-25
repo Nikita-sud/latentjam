@@ -92,14 +92,21 @@ internal class CrossfadeCoordinator(
         val fadeMs = settings.fadeMs
         val current = player.currentMediaItem
         val next = nextItem()
+        // The slider, or the length SMART fitted to this pair; asked from the start of the track,
+        // so the fit is ready long before the seam is cued.
+        val seamMs = if (current != null && next != null && fadeMs > 0L) {
+            settings.seamFadeMs?.invoke(current.mediaId, next.mediaId, fadeMs) ?: fadeMs
+        } else {
+            fadeMs
+        }
         val wanted = if (fadeMs > 0L && !settings.finishingTrack && current != null &&
             next?.localConfiguration != null && settings.edgesAt(player.currentMediaItemIndex).fadeOut
-        ) Seam(current.mediaId, next.mediaId, plannedFadeMs(fadeMs)) else null
+        ) Seam(current.mediaId, next.mediaId, plannedFadeMs(seamMs)) else null
         if (seam != wanted) withdraw()
         if (wanted == null || seam != null || wanted in failed) return
         val durationMs = player.duration.takeIf { it != C.TIME_UNSET } ?: 0L
         if (prerollsNow(player.currentPosition, durationMs, fadeMs)) {
-            begin(wanted, next!!, outgoingMs = durationMs, fadeMs = fadeMs)
+            begin(wanted, next!!, outgoingMs = durationMs, fadeMs = wanted.fadeMs)
         }
     }
 

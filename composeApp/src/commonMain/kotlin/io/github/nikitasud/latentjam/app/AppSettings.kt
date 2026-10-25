@@ -489,6 +489,10 @@ interface AppSettings {
     val crossfadeSeconds: StateFlow<Int>
     fun setCrossfadeSeconds(seconds: Int)
 
+    /** Whether SMART sizes each crossfade to the two tracks it joins (issue #25). Off by default. */
+    val adaptiveCrossfade: StateFlow<Boolean> get() = AdaptiveCrossfadeOff
+    fun setAdaptiveCrossfade(enabled: Boolean) {}
+
     /**
      * Whether an M3U export writes each path from the playlist's own folder (`../Music/…`), for
      * players on other devices, instead of this device's absolute path. Off by default; only
@@ -657,3 +661,6 @@ private val DEFAULT_NOTIFICATION_FAVORITE: StateFlow<Boolean> =
 internal expect val notificationFavoriteAvailable: Boolean
 
 expect fun appSettingsModule(): Module
+
+/** [AppSettings.adaptiveCrossfade] for settings stores that do not keep it. */
+private val AdaptiveCrossfadeOff: StateFlow<Boolean> = kotlinx.coroutines.flow.MutableStateFlow(false)

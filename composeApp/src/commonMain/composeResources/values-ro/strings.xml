@@ -656,8 +656,10 @@
     <string name="settings_normalize_volume">Egalizarea volumului</string>
     <string name="settings_normalize_volume_subtitle">Reduce piesele tari spre un nivel uniform</string>
     <string name="settings_crossfade">Tranziții line</string>
-    <string name="settings_crossfade_subtitle">Atenuează volumul la granițele pieselor</string>
+    <string name="settings_crossfade_subtitle">Finalul unei piese se suprapune peste începutul următoarei</string>
     <string name="settings_crossfade_value">%1$d s</string>
+    <string name="settings_crossfade_adaptive">SMART adaptează durata</string>
+    <string name="settings_crossfade_adaptive_body">Mai lungă între piese care se potrivesc, mai scurtă când se schimbă sunetul sau ritmul</string>
     <string name="duplicates_keep_this">Păstrează-l pe acesta</string>
     <string name="snack_duplicates_merged">Duplicatele au fost unite: playlisturile indică acum copia păstrată</string>
     <string name="info_lyrics">Versuri</string>

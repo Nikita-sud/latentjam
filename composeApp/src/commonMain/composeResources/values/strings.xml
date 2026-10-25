@@ -717,8 +717,10 @@
     <string name="settings_normalize_volume">Volume normalization</string>
     <string name="settings_normalize_volume_subtitle">Reduces loud tracks toward a consistent level</string>
     <string name="settings_crossfade">Smooth transitions</string>
-    <string name="settings_crossfade_subtitle">Fade volume at track boundaries</string>
+    <string name="settings_crossfade_subtitle">The end of a track overlaps the start of the next</string>
     <string name="settings_crossfade_value">%1$d s</string>
+    <string name="settings_crossfade_adaptive">Let SMART adapt the length</string>
+    <string name="settings_crossfade_adaptive_body">Longer between tracks that belong together, shorter across a change of sound or pace</string>
     <string name="duplicates_keep_this">Keep this one</string>
     <string name="snack_duplicates_merged">Duplicates merged: playlists now point at the kept copy</string>
     <string name="info_lyrics">Lyrics</string>

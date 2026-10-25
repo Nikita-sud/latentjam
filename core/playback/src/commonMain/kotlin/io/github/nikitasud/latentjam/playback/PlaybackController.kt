@@ -223,6 +223,12 @@ public interface PlaybackController {
     public suspend fun setCrossfadeSeconds(seconds: Int) {}
 
     /**
+     * Whether SMART sizes each crossfade to the two tracks it joins (issue #25): the slider for a
+     * next track that belongs with the current one, shorter across a change of sound or pace.
+     */
+    public suspend fun setAdaptiveCrossfade(enabled: Boolean) {}
+
+    /**
      * Whether playback stops when the current track ends (the sleep timer's "end of track"). While
      * it does, the next track's opening must not sound under this one's end: the track fades out on
      * its own. Platforms without overlapping transitions keep the default no-op.

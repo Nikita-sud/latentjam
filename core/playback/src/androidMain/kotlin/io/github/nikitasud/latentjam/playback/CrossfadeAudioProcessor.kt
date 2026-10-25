@@ -48,6 +48,12 @@ internal class CrossfadeSettings {
             onChange?.invoke()
         }
 
+    /**
+     * The crossfade a seam between two media ids gets, given the slider's [fadeMs]; null keeps
+     * the slider for every seam. Set by the controller when SMART adapts lengths (issue #25).
+     */
+    @Volatile var seamFadeMs: ((outgoingId: String, incomingId: String, sliderMs: Long) -> Long)? = null
+
     /** Told when [fadeMs] or [finishingTrack] changes: the coordinator, which sleeps at 0. */
     @Volatile var onChange: (() -> Unit)? = null
 
