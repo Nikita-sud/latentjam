@@ -150,6 +150,8 @@ public actual fun smartTextEncoderModule(): Module = module {
             read = { name -> context.assets.assetBytes("ml/$name") },
             audio = io.github.nikitasud.latentjam.smart.ranker.EngineAudioSource { koin.getOrNull() },
             imputationStore = koin.getOrNull(io.github.nikitasud.latentjam.smart.di.smartImputationQualifier),
+            imputationRows = koin.getOrNull<io.github.nikitasud.latentjam.smart.RowStoreFactory>()
+                ?: io.github.nikitasud.latentjam.smart.RowStoreFactory.Heap,
         )
     }
 }

@@ -5,6 +5,9 @@
 package io.github.nikitasud.latentjam.smart.ranker
 
 import io.github.nikitasud.latentjam.smart.FakeIndexStore
+import io.github.nikitasud.latentjam.smart.HeapRowStore
+import io.github.nikitasud.latentjam.smart.RowStore
+import io.github.nikitasud.latentjam.smart.RowStoreFactory
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.text.AssetBytes
 import java.io.File
@@ -56,5 +59,29 @@ class ImputationCacheTest {
         // Another vector for the same track (re-analysed) is a miss; another version starts empty.
         assertFalse(restored.cached(ids[0], vectors[1]).hit)
         assertEquals(0, ImputationCache(tagger, store, "other").size())
+    }
+
+    /** Rows read only through [RowStore.row] (as from Android's mapped file): never the arrays themselves. */
+    private val offHeap = RowStoreFactory { dim, _ ->
+        object : RowStore by HeapRowStore(dim) {
+            override fun heapArray(row: Int): FloatArray? = null
+        }
+    }
+
+    @Test
+    fun rowsKeptOffTheHeapReadBackTheSame() = runTest {
+        val store = FakeIndexStore()
+        val ids = vectors.indices.map { TrackId("t$it") }
+        val first = ImputationCache(tagger, store, "v", offHeap)
+        assertEquals(vectors.size, first.backfill(ids) { vectors[it.value.drop(1).toInt()] })
+        for (cache in listOf(first, ImputationCache(tagger, store, "v", offHeap))) {
+            for ((i, v) in vectors.withIndex()) {
+                val direct = assertNotNull(tagger.impute(v))
+                val got = assertNotNull(cache.cached(ids[i], v).imputed)
+                assertContentEquals(direct.probabilities.map { it.toRawBits() }, got.probabilities.map { it.toRawBits() })
+                assertContentEquals(direct.descriptor.map { it.toRawBits() }, got.descriptor.map { it.toRawBits() })
+                assertEquals(direct.familyProbabilities, got.familyProbabilities)
+            }
+        }
     }
 }

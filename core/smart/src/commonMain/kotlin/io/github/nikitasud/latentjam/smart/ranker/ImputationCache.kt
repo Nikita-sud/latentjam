@@ -5,6 +5,8 @@
 package io.github.nikitasud.latentjam.smart.ranker
 
 import io.github.nikitasud.latentjam.smart.IndexStore
+import io.github.nikitasud.latentjam.smart.RowStore
+import io.github.nikitasud.latentjam.smart.RowStoreFactory
 import io.github.nikitasud.latentjam.smart.StoredIndexSnapshot
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.sync.Mutex
@@ -22,15 +24,20 @@ import kotlinx.coroutines.sync.withLock
  * Stored per track: the descriptor (float32, as [AudioTagger.Imputed.descriptor] is) and the class probabilities,
  * each float64 split exactly into three 22-bit integer chunks held as floats, so the read-back result is bit-identical
  * to [AudioTagger.impute]. Held in memory in that same stored form and decoded per lookup (a plan reads its seed and
- * pool, not the library): a decoded entry cost ~0.6 KB more per track, and a launch decoded every stored row.
+ * pool, not the library): a decoded entry cost ~0.6 KB more per track, and a launch decoded every stored row. The rows
+ * live in a [RowStore] from [rowStores] (Android: a mapped file, off the Java heap); the heap keeps only id → row.
  */
 public class ImputationCache(
     private val tagger: AudioTagger,
     private val store: IndexStore?,
     private val version: String,
+    private val rowStores: RowStoreFactory = RowStoreFactory.Heap,
 ) {
-    /** [row] is the stored row ([encode], or [noOutput] when the head gave nothing); shared with the store, never mutated. */
-    private class Entry(val fingerprint: Long, val row: FloatArray)
+    /** [row] numbers the stored row in [rows] ([encode], or [noOutput] when the head gave nothing). */
+    private class Entry(val fingerprint: Long, val row: Int)
+
+    private val width: Int get() = tagger.descriptorDim + 3 * tagger.classCount
+    private val rows: RowStore by lazy { rowStores.create(width, "imputation") }
 
     private val mutex = Mutex()
     private val entries = HashMap<TrackId, Entry>()
@@ -41,7 +48,7 @@ public class ImputationCache(
     internal suspend fun cached(id: TrackId, vector: FloatArray): Lookup = mutex.withLock {
         restore()
         val e = entries[id]
-        if (e != null && e.fingerprint == fingerprint(vector)) Lookup(true, decoded(e.row)) else Lookup(false, null)
+        if (e != null && e.fingerprint == fingerprint(vector)) Lookup(true, decoded(rowOf(e.row))) else Lookup(false, null)
     }
 
     internal class Lookup(val hit: Boolean, val imputed: AudioTagger.Imputed?)
@@ -50,7 +57,8 @@ public class ImputationCache(
     internal suspend fun compute(id: TrackId, vector: FloatArray): AudioTagger.Imputed? {
         val out = tagger.impute(vector)
         mutex.withLock {
-            entries[id] = Entry(fingerprint(vector), out?.let(::encode) ?: noOutput())
+            val old = entries.put(id, Entry(fingerprint(vector), rows.append(out?.let(::encode) ?: noOutput())))
+            if (old != null) rows.release(old.row)
             dirty = true
         }
         return out
@@ -75,18 +83,14 @@ public class ImputationCache(
     /** Writes the cache when it changed since the last write. */
     public suspend fun persist() {
         val target = store ?: return
-        val snapshot = mutex.withLock {
+        // Written under the lock: the snapshot's rows are a view (one row copied at a time while the store reads it).
+        mutex.withLock {
             if (!dirty) return
             dirty = false
-            val rows = HashMap<TrackId, FloatArray>()
-            val ids = HashMap<TrackId, String>()
-            for ((id, e) in entries) {
-                rows[id] = e.row
-                ids[id] = e.fingerprint.toULong().toString(16)
-            }
-            StoredIndexSnapshot(entries = rows, identities = ids)
+            val ids = HashMap<TrackId, String>(entries.size * 2)
+            for ((id, e) in entries) ids[id] = e.fingerprint.toULong().toString(16)
+            runCatching { target.saveSnapshot(version, StoredIndexSnapshot(entries = storedView, identities = ids)) }
         }
-        runCatching { target.saveSnapshot(version, snapshot) }
     }
 
     public suspend fun size(): Int = mutex.withLock { restore(); entries.size }
@@ -94,13 +98,44 @@ public class ImputationCache(
     private suspend fun restore() {
         if (restored) return
         restored = true
-        val stored = runCatching { store?.loadSnapshot(version) }.getOrNull() ?: return
-        for ((id, row) in stored.entries) {
-            val fp = stored.identities[id]?.toULongOrNull(16)?.toLong() ?: continue
-            if (row.size != tagger.descriptorDim + 3 * tagger.classCount) continue
-            entries[id] = Entry(fp, row)
+        val target = store ?: return
+        // Streamed one row at a time into the row store: a launch never holds the whole file as arrays.
+        val loaded = runCatching {
+            target.loadRows(version) { id, row, identity ->
+                val fp = identity?.toULongOrNull(16)?.toLong()
+                if (fp != null && row.size == width) entries[id] = Entry(fp, rows.append(row))
+            }
+        }.getOrNull()
+        if (loaded == null) {
+            entries.clear()
+            rows.clear()
         }
     }
+
+    private fun rowOf(row: Int): FloatArray = rows.heapArray(row) ?: rows.row(row).toFloatArray()
+
+    /** The entries as the store reads them: each value a stored row (a heap array, or one row copied from the file). */
+    private val storedView: Map<TrackId, FloatArray> = object : AbstractMap<TrackId, FloatArray>() {
+        override val size: Int get() = this@ImputationCache.entries.size
+        override fun containsKey(key: TrackId): Boolean = key in this@ImputationCache.entries
+        override fun get(key: TrackId): FloatArray? = this@ImputationCache.entries[key]?.let { rowOf(it.row) }
+        override val entries: Set<Map.Entry<TrackId, FloatArray>>
+            get() = object : AbstractSet<Map.Entry<TrackId, FloatArray>>() {
+                override val size: Int get() = this@ImputationCache.entries.size
+                override fun iterator(): Iterator<Map.Entry<TrackId, FloatArray>> {
+                    val source = this@ImputationCache.entries.entries.iterator()
+                    return object : Iterator<Map.Entry<TrackId, FloatArray>> {
+                        override fun hasNext(): Boolean = source.hasNext()
+                        override fun next(): Map.Entry<TrackId, FloatArray> {
+                            val (id, e) = source.next()
+                            return StoredEntry(id, rowOf(e.row))
+                        }
+                    }
+                }
+            }
+    }
+
+    private class StoredEntry(override val key: TrackId, override val value: FloatArray) : Map.Entry<TrackId, FloatArray>
 
     /**
      * The head gave nothing for this vector (wrong size, zero, non-finite): kept as a row starting with [NO_OUTPUT],

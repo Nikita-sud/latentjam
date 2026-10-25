@@ -36,6 +36,8 @@ public class SmartRankerAssets(
     private val audioEncoder: String = AUDIO_MODEL_VERSION,
     /** Where the tagger's per-track output is kept (audits 04 #2 / 05 #5); null keeps it in memory only. */
     private val imputationStore: IndexStore? = null,
+    /** Where the imputation cache keeps its rows (Android: a mapped file, off the Java heap). */
+    private val imputationRows: io.github.nikitasud.latentjam.smart.RowStoreFactory = io.github.nikitasud.latentjam.smart.RowStoreFactory.Heap,
     /** artist_sets.py's as2 rules; on with the models trained on them (the FIT rebuild), off until then. */
     private val artistSetsAs2: Boolean = false,
 ) {
@@ -102,7 +104,7 @@ public class SmartRankerAssets(
             }.getOrNull(),
             taxonomy = taxonomy,
             // Keyed by the encoder and the tagger's weights: either changing discards the kept outputs.
-            imputations = tagger?.let { ImputationCache(it, imputationStore, "tagger-$taggerVersion-$audioEncoder") },
+            imputations = tagger?.let { ImputationCache(it, imputationStore, "tagger-$taggerVersion-$audioEncoder", imputationRows) },
             linearHeads = text(HEADS)?.let(LinearHeads::parse),
             artistSetsAs2 = artistSetsAs2,
         )
