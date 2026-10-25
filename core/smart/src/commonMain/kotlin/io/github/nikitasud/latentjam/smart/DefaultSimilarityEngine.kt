@@ -621,7 +621,7 @@ internal class DefaultSimilarityEngine(
     override suspend fun ensureEnergies(): Int = withContext(dispatcher) {
         mutex.withLock {
             if (mutableState.value !is EngineState.Ready) return@withLock 0
-            val missing = audioVectorIdentities.keys.filter { it !in energies }
+            val missing = audioVectorIdentities.ids().filter { it !in energies }
             if (missing.isEmpty() || ensureSemanticModel().isFailure) return@withLock 0
             var added = 0
             for (batch in missing.chunked(SEMANTIC_BATCH_SIZE)) {
@@ -633,7 +633,7 @@ internal class DefaultSimilarityEngine(
                     val e = out[ENERGY_HIGH_INDEX] - out[ENERGY_LOW_INDEX]
                     if (!e.isFinite()) continue
                     energies[rows[r].first] = e
-                    audioVectorIdentities[rows[r].first]?.let { energyIdentities[rows[r].first] = it }
+                    audioVectorIdentities.tokenFor(rows[r].first)?.let { energyIdentities[rows[r].first] = it }
                     added++
                 }
                 yield()
@@ -648,7 +648,7 @@ internal class DefaultSimilarityEngine(
         for ((id, v) in stored.entries) {
             // Only e computed from the vector the index holds now.
             val identity = stored.identities[id] ?: continue
-            if (v.size != 1 || !v[0].isFinite() || audioVectorIdentities[id] != identity) continue
+            if (v.size != 1 || !v[0].isFinite() || !audioVectorIdentities.matchesStored(id, identity)) continue
             energies[id] = v[0]
             energyIdentities[id] = identity
         }

@@ -42,6 +42,13 @@ internal class IdentityDigests {
         if (token != null) putDigest(id, token.first, token.second) else put(id, stored)
     }
 
+    /** The checkpoint token recorded for [id] (what [persisted] writes), or null. */
+    fun tokenFor(id: TrackId): String? = cells[id]?.let { token(high[it], low[it]) }
+
+    /** Whether [stored] (a raw identity or a checkpoint token) names what is recorded for [id]. */
+    fun matchesStored(id: TrackId, stored: String): Boolean =
+        if (parseToken(stored) != null) tokenFor(id) == stored else matches(id, stored)
+
     fun remove(id: TrackId): Boolean {
         val cell = cells.remove(id) ?: return false
         if (freeCount == free.size) free = free.copyOf(free.size * 2)
