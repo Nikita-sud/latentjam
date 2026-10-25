@@ -126,6 +126,8 @@ public object LibraryLayoutRefresh {
         inputVersion: String,
         isActive: () -> Boolean = { true },
         extraHint: Boolean = false,
+        /** Artist of a track, for the unseen-artists hint (more than half of the changed tracks by new artists). */
+        artistOf: ((TrackId) -> String?)? = null,
     ): MapLayoutResult? {
         val ids = rows.trackIds
         val n = ids.size
@@ -177,7 +179,13 @@ public object LibraryLayoutRefresh {
         // 3. Hints (latency only) and the stale mark.
         val novel = groupNovel(neighbours, n, kk, flagged, poll)
         val geometryHint = flaggedCount > 0 && novel > NOVEL_SHARE * flaggedCount
-        val stale = state.stale || changed > STALE_SHARE * n || geometryHint || extraHint
+        val artistHint = artistOf != null && flaggedCount > 0 && run {
+            val known = HashSet<String>()
+            for (i in 0 until n) if (!flagged[i]) artistOf(ids[i])?.lowercase()?.let(known::add)
+            val changedArtists = (0 until n).filter { flagged[it] }.mapNotNull { artistOf(ids[it])?.lowercase() }
+            changedArtists.isNotEmpty() && changedArtists.count { it !in known } * 2 > changedArtists.size
+        }
+        val stale = state.stale || changed > STALE_SHARE * n || geometryHint || artistHint || extraHint
 
         // 4. Placement at the raw scale, then the refresh iterations.
         val y = FloatArray(n * 2)

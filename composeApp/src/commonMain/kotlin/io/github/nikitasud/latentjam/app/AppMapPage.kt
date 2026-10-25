@@ -12,6 +12,7 @@ import androidx.compose.runtime.setValue
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.cluster.LibraryLayout
+import io.github.nikitasud.latentjam.smart.cluster.LibraryLayoutRefresh
 import io.github.nikitasud.latentjam.smart.cluster.MapMemoryBudget
 import io.github.nikitasud.latentjam.smart.cluster.MapComputationUnavailable
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorldSemanticTitle
@@ -157,15 +158,37 @@ internal fun rememberMapPageModel(
                         // effect is not keyed on them, so nothing would retry it before the analysis
                         // ends. The layout is filed under `coverage.fingerprint`, which then no longer
                         // matches, so the next visit redraws it from the newer vectors.
-                        val computed = if (
-                            rows == null ||
-                            rows.trackIds != coverage.trackIds ||
-                            rows.source != coverage.source
-                        ) {
+                        val usable = rows != null && rows.trackIds == coverage.trackIds && rows.source == coverage.source
+                        // Refresh small changes (plan piece 1) only once the analysis is over: while it runs
+                        // every analysed track moves the rows, and the 5-minute reuse below applies instead.
+                        val refreshOn = MapRefreshFlag.enabled && libraryWorlds.audioVectorsReady
+                        var snapshot: io.github.nikitasud.latentjam.smart.cluster.MapRefreshSnapshot? = null
+                        val computed = if (!usable) {
                             null
+                        } else if (refreshOn) {
+                            val inputVersion = MapRefreshFlag.inputVersion(rows!!.source, rows.dim)
+                            val stored = runCatching { AppGraph.mapRefreshStateStore.load() }.getOrNull()
+                            val artists = loaded.associate { it.id to it.artist }
+                            val result = try {
+                                stored?.let {
+                                    LibraryLayoutRefresh.refresh(
+                                        rows, previous.positions, it, inputVersion, isActive = { isActive },
+                                        artistOf = { id -> artists[id] },
+                                    )
+                                } ?: run {
+                                    // A refresh consumed nothing it cannot re-read: rows are read again from the start.
+                                    val fresh = engine.libraryMixRows(loadedIds)
+                                    if (fresh == null || fresh.trackIds != coverage.trackIds || fresh.source != coverage.source) null
+                                    else LibraryLayoutRefresh.build(fresh, previous.positions, inputVersion, { isActive }, workBudget)
+                                }
+                            } finally {
+                                stored?.close()
+                            }
+                            snapshot = result?.snapshot
+                            result?.points
                         } else {
                             LibraryLayout.compute(
-                                rows, previous.positions, isActive = { isActive },
+                                rows!!, previous.positions, isActive = { isActive },
                                 workBudgetBytes = workBudget,
                             )
                         }
@@ -174,6 +197,14 @@ internal fun rememberMapPageModel(
                         } else {
                             kotlinx.coroutines.currentCoroutineContext().ensureActive()
                             layoutStore.saveMapLayoutBestEffort(computed, coverage.fingerprint)
+                            if (refreshOn) {
+                                // Written after the layout it describes; a missing or failed write only means
+                                // the next change rebuilds.
+                                runCatching {
+                                    val store = AppGraph.mapRefreshStateStore
+                                    if (snapshot != null) store.save(snapshot!!) else store.clear()
+                                }
+                            }
                             StoredLibraryLayout(
                                 computed.associate { it.trackId to floatArrayOf(it.x, it.y) },
                                 coverage.fingerprint,
