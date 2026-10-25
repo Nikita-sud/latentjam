@@ -21,14 +21,16 @@ import kotlinx.coroutines.sync.withLock
  *
  * Stored per track: the descriptor (float32, as [AudioTagger.Imputed.descriptor] is) and the class probabilities,
  * each float64 split exactly into three 22-bit integer chunks held as floats, so the read-back result is bit-identical
- * to [AudioTagger.impute].
+ * to [AudioTagger.impute]. Held in memory in that same stored form and decoded per lookup (a plan reads its seed and
+ * pool, not the library): a decoded entry cost ~0.6 KB more per track, and a launch decoded every stored row.
  */
 public class ImputationCache(
     private val tagger: AudioTagger,
     private val store: IndexStore?,
     private val version: String,
 ) {
-    private class Entry(val fingerprint: Long, val imputed: AudioTagger.Imputed?)
+    /** [row] is the stored row ([encode], or [noOutput] when the head gave nothing); shared with the store, never mutated. */
+    private class Entry(val fingerprint: Long, val row: FloatArray)
 
     private val mutex = Mutex()
     private val entries = HashMap<TrackId, Entry>()
@@ -39,7 +41,7 @@ public class ImputationCache(
     internal suspend fun cached(id: TrackId, vector: FloatArray): Lookup = mutex.withLock {
         restore()
         val e = entries[id]
-        if (e != null && e.fingerprint == fingerprint(vector)) Lookup(true, e.imputed) else Lookup(false, null)
+        if (e != null && e.fingerprint == fingerprint(vector)) Lookup(true, decoded(e.row)) else Lookup(false, null)
     }
 
     internal class Lookup(val hit: Boolean, val imputed: AudioTagger.Imputed?)
@@ -48,7 +50,7 @@ public class ImputationCache(
     internal suspend fun compute(id: TrackId, vector: FloatArray): AudioTagger.Imputed? {
         val out = tagger.impute(vector)
         mutex.withLock {
-            entries[id] = Entry(fingerprint(vector), out)
+            entries[id] = Entry(fingerprint(vector), out?.let(::encode) ?: noOutput())
             dirty = true
         }
         return out
@@ -79,7 +81,7 @@ public class ImputationCache(
             val rows = HashMap<TrackId, FloatArray>()
             val ids = HashMap<TrackId, String>()
             for ((id, e) in entries) {
-                rows[id] = e.imputed?.let(::encode) ?: noOutput()
+                rows[id] = e.row
                 ids[id] = e.fingerprint.toULong().toString(16)
             }
             StoredIndexSnapshot(entries = rows, identities = ids)
@@ -96,7 +98,7 @@ public class ImputationCache(
         for ((id, row) in stored.entries) {
             val fp = stored.identities[id]?.toULongOrNull(16)?.toLong() ?: continue
             if (row.size != tagger.descriptorDim + 3 * tagger.classCount) continue
-            entries[id] = Entry(fp, if (row[0] == NO_OUTPUT) null else decode(row) ?: continue)
+            entries[id] = Entry(fp, row)
         }
     }
 
@@ -105,6 +107,9 @@ public class ImputationCache(
      * a value a unit-length descriptor never holds (finite, so any store keeps it).
      */
     private fun noOutput(): FloatArray = FloatArray(tagger.descriptorDim + 3 * tagger.classCount).also { it[0] = NO_OUTPUT }
+
+    /** The output a stored row holds: null for a [noOutput] row. Rows are size-checked on restore, so [decode] succeeds. */
+    private fun decoded(row: FloatArray): AudioTagger.Imputed? = if (row[0] == NO_OUTPUT) null else decode(row)
 
     private fun encode(i: AudioTagger.Imputed): FloatArray {
         val d = i.descriptor

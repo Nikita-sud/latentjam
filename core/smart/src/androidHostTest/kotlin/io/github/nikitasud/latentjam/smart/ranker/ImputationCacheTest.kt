@@ -43,6 +43,16 @@ class ImputationCacheTest {
             assertEquals(direct.family, got.family)
             assertEquals(direct.familyProbabilities, got.familyProbabilities)
         }
+        // In the same process (kept in stored form, decoded per lookup): the head's exact output too.
+        val live = ImputationCache(tagger, null, "v")
+        for ((i, v) in vectors.withIndex()) {
+            val computed = assertNotNull(live.compute(ids[i], v))
+            val got = assertNotNull(live.cached(ids[i], v).imputed)
+            assertContentEquals(computed.probabilities.map { it.toRawBits() }, got.probabilities.map { it.toRawBits() })
+            assertContentEquals(computed.descriptor.map { it.toRawBits() }, got.descriptor.map { it.toRawBits() })
+            assertEquals(computed.family, got.family)
+            assertEquals(computed.familyProbabilities, got.familyProbabilities)
+        }
         // Another vector for the same track (re-analysed) is a miss; another version starts empty.
         assertFalse(restored.cached(ids[0], vectors[1]).hit)
         assertEquals(0, ImputationCache(tagger, store, "other").size())

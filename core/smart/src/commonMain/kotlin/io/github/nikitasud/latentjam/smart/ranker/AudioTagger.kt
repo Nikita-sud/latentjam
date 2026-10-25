@@ -18,12 +18,12 @@ import kotlin.math.sqrt
 public class AudioTagger private constructor(
     private val inputMean: FloatArray,
     private val inputStd: FloatArray,
-    private val familyWeight: Array<DoubleArray>,
+    private val familyWeight: Weights,
     private val familyBias: FloatArray,
     private val temperature: Double,
     private val classes: List<String?>,
     private val familyMeans: Array<FloatArray>,
-    private val ridgeWeight: Array<DoubleArray>,
+    private val ridgeWeight: Weights,
     private val ridgeBias: FloatArray,
 ) {
     /** What the head says about one track. [family] is null for its "other" class (no family in the ranker). */
@@ -59,7 +59,7 @@ public class AudioTagger private constructor(
         if (!(norm > 0.0) || !norm.isFinite()) return null
         val scale = 1.0 / sqrt(norm)
         val z = DoubleArray(embedding.size) { (embedding[it] * scale - inputMean[it]) / inputStd[it] }
-        val logits = DoubleArray(familyWeight.size) { c -> dot(familyWeight[c], z) + familyBias[c] }
+        val logits = DoubleArray(familyWeight.rows) { c -> familyWeight.dot(c, z) + familyBias[c] }
         val max = logits.max()
         val e = DoubleArray(logits.size) { exp((logits[it] - max) / temperature) }
         val total = e.sum()
@@ -67,17 +67,30 @@ public class AudioTagger private constructor(
         var best = 0
         for (c in p.indices) if (p[c] > p[best]) best = c
         val mean = DoubleArray(ridgeBias.size) { d -> p.indices.sumOf { c -> p[c] * familyMeans[c][d] } }
-        val ridge = DoubleArray(ridgeBias.size) { d -> dot(ridgeWeight[d], z) + ridgeBias[d] }
+        val ridge = DoubleArray(ridgeBias.size) { d -> ridgeWeight.dot(d, z) + ridgeBias[d] }
         val blended = unit(mean).let { a -> unit(ridge).let { b -> DoubleArray(a.size) { a[it] + b[it] } } }
         val descriptor = unit(blended)
         val named = buildMap { classes.forEachIndexed { c, name -> if (name != null) put(name, p[c]) } }
         return Imputed(classes[best], p, FloatArray(descriptor.size) { descriptor[it].toFloat() }, named)
     }
 
-    private fun dot(w: DoubleArray, z: DoubleArray): Double {
-        var s = 0.0
-        for (i in w.indices) s += w[i] * z[i]
-        return s
+    /**
+     * A weight matrix as stored: int8 with a float64 scale per row (w = q · scale, formed in float64 inside the dot,
+     * exactly as a dequantised double matrix held it), or float32 widened per use. A ninth of the dequantised doubles.
+     */
+    private class Weights(val rows: Int, val cols: Int, val q: ByteArray?, val scales: DoubleArray?, val f: FloatArray?) {
+        fun dot(r: Int, z: DoubleArray): Double {
+            var s = 0.0
+            val at = r * cols
+            if (q != null) {
+                val scale = scales!![r]
+                for (i in 0 until cols) s += (q[at + i] * scale) * z[i]
+            } else {
+                val w = f!!
+                for (i in 0 until cols) s += w[at + i].toDouble() * z[i]
+            }
+            return s
+        }
     }
 
     private fun unit(v: DoubleArray): DoubleArray {
@@ -107,16 +120,16 @@ public class AudioTagger private constructor(
                 val at = (t.getValue("offset") as Number).toInt()
                 return FloatArray(shape(name).fold(1) { a, b -> a * b }) { f32(at + 4 * it) }
             }
-            // Doubles, as the reference dequantises (q · scale in float64): parity to 1e-9.
-            fun matrix(name: String): Array<DoubleArray> {
+            // Dequantised in float64 inside Weights.dot, as the reference does (q · scale in float64): parity to 1e-9.
+            fun matrix(name: String): Weights {
                 val t = tensors.getValue(name)
                 val (rows, cols) = shape(name)
                 val at = (t.getValue("offset") as Number).toInt()
                 return if (t["dtype"] == "int8") {
                     val scales = (t.getValue("scale_offset") as Number).toInt()
-                    Array(rows) { r -> val s = f32(scales + 4 * r).toDouble(); DoubleArray(cols) { c -> weights[at + r * cols + c] * s } }
+                    Weights(rows, cols, ByteArray(rows * cols) { weights[at + it] }, DoubleArray(rows) { f32(scales + 4 * it).toDouble() }, null)
                 } else {
-                    Array(rows) { r -> DoubleArray(cols) { c -> f32(at + 4 * (r * cols + c)).toDouble() } }
+                    Weights(rows, cols, null, null, FloatArray(rows * cols) { f32(at + 4 * it) })
                 }
             }
             val means = vector("family_descriptor_means")
