@@ -112,6 +112,13 @@ internal class IosPlaybackController(
 
     private val mainScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var trackVolumes: Map<String, Float> = emptyMap()
+
+    /** Where each measured track's sound begins and ends; overlaps meet there ([seamAnchors]). */
+    private var trackSoundSpans: Map<String, SoundSpan> = emptyMap()
+
+    override suspend fun setTrackSoundSpans(spans: Map<String, SoundSpan>): Unit = withContext(Dispatchers.Main) {
+        trackSoundSpans = spans.filterValues { it.isValid() }
+    }
     private var normalizationGain = 1f
     private var normalizationJob: Job? = null
 
@@ -152,6 +159,9 @@ internal class IosPlaybackController(
     /** The current track joined through an overlap: its rise continues over its own first ms. */
     private var incomingRiseMs = 0L
 
+    /** Where in the current track that rise began: its first sound. */
+    private var incomingRiseFromMs = 0L
+
     /** The current track came in through an overlap: no fade-in of its own after the rise. */
     private var joinedByOverlap = false
 
@@ -164,12 +174,26 @@ internal class IosPlaybackController(
     private var releaseStartedAtMs = -1L
     private var releaseFromGain = 0f
     private var outgoingCurveMs = 0L
+
+    /** Where that out-curve ends: the track's last sound, or -1 for the end of its file. */
+    private var outgoingCurveEndMs = -1L
     private var lastIncomingGain = 0f
 
     /** Seams whose next track could not be cued, as "outgoing>incoming" ids; not retried. */
     private val failedOverlaps = mutableSetOf<String>()
 
-    private class IosOverlap(val outgoingId: TrackId, val incoming: TrackDescriptor, val overlapMs: Long) {
+    /**
+     * The overlap at a seam: [overlapMs] ending at [endMs] of the outgoing track (its last sound),
+     * the incoming track sounding from [leadMs] (its first). Its deck plays on over the outgoing
+     * track's trailing silence until that track ends and the decks swap.
+     */
+    private class IosOverlap(
+        val outgoingId: TrackId,
+        val incoming: TrackDescriptor,
+        val overlapMs: Long,
+        val endMs: Long,
+        val leadMs: Long,
+    ) {
         var started = false
     }
 
@@ -226,16 +250,18 @@ internal class IosPlaybackController(
             }
         }
         val edges = currentFadeEdges()
+        val anchors = seamAnchors(durationMs, trackSoundSpans[current.id.value], next?.let { trackSoundSpans[it.id.value] })
         if (overlap == null && outgoingCurveMs <= 0L && fadeMs > 0L && !finishingTrack && durationMs > 0L && edges.fadeOut && next != null &&
-            durationMs - positionMs <= fadeMs + OVERLAP_CUE_AHEAD_MS
+            anchors.outgoingEndMs - positionMs <= fadeMs + OVERLAP_CUE_AHEAD_MS
         ) {
             val key = "${current.id.value}>${next.id.value}"
             val url = next.audioUri?.let { NSURL.URLWithString(it) }
             if (url != null && key !in failedOverlaps) {
-                val incomingMs = audioEngine.prepareOverlap(url)
-                val overlapMs = incomingMs?.let { overlapLengthMs(fadeMs, durationMs, it) } ?: 0L
+                val leadMs = anchors.incomingStartMs
+                val incomingMs = audioEngine.prepareOverlap(url, fromMs = leadMs)
+                val overlapMs = incomingMs?.let { overlapLengthMs(fadeMs, anchors.outgoingEndMs, it - leadMs) } ?: 0L
                 if (overlapMs > 0L) {
-                    overlap = IosOverlap(current.id, next, overlapMs)
+                    overlap = IosOverlap(current.id, next, overlapMs, endMs = anchors.outgoingEndMs, leadMs = leadMs)
                 } else {
                     audioEngine.cancelOverlap()
                     failedOverlaps += key
@@ -243,19 +269,19 @@ internal class IosPlaybackController(
             }
         }
         val active = overlap
-        if (active != null && !active.started && durationMs - positionMs <= active.overlapMs) {
+        if (active != null && !active.started && active.endMs - positionMs <= active.overlapMs) {
             // Late (a seek into the window): the next track starts where the overlap has got to.
             active.started = audioEngine.startOverlap(
-                fromMs = lateOverlapStartMs(positionMs, durationMs, active.overlapMs),
+                fromMs = active.leadMs + lateOverlapStartMs(positionMs, active.endMs, active.overlapMs),
             )
             if (!active.started) cancelOverlap()
         }
-        val windowMs = maxOf(fadeMs, incomingRiseMs)
+        val windowMs = maxOf(fadeMs, incomingRiseFromMs + incomingRiseMs)
         return when {
             overlap?.started == true || releaseStartedAtMs >= 0L || outgoingCurveMs > 0L -> GAIN_RAMP_TICK_MS
             positionMs < windowMs -> GAIN_RAMP_TICK_MS
-            durationMs > 0L && durationMs - positionMs <= fadeMs + OVERLAP_CUE_AHEAD_MS -> GAIN_RAMP_TICK_MS
-            durationMs > 0L -> (durationMs - positionMs - fadeMs - OVERLAP_CUE_AHEAD_MS)
+            durationMs > 0L && anchors.outgoingEndMs - positionMs <= fadeMs + OVERLAP_CUE_AHEAD_MS -> GAIN_RAMP_TICK_MS
+            durationMs > 0L -> (anchors.outgoingEndMs - positionMs - fadeMs - OVERLAP_CUE_AHEAD_MS)
                 .coerceIn(GAIN_RAMP_TICK_MS, OVERLAP_IDLE_TICK_MS)
             else -> OVERLAP_IDLE_TICK_MS
         }
@@ -270,9 +296,13 @@ internal class IosPlaybackController(
         val active = overlap?.takeIf { it.started }
         val edges = currentFadeEdges()
         // Once the rise is complete the track is simply playing: nothing keeps the loop busy.
-        if (incomingRiseMs > 0L && positionMs >= incomingRiseMs) incomingRiseMs = 0L
+        if (incomingRiseMs > 0L && positionMs >= incomingRiseFromMs + incomingRiseMs) {
+            incomingRiseMs = 0L
+            incomingRiseFromMs = 0L
+        }
         // A cued overlap shapes the end already (1 until it starts): never a plain fade before it.
         val curveMs = overlap?.overlapMs ?: outgoingCurveMs
+        val curveEndMs = overlap?.endMs ?: outgoingCurveEndMs.takeIf { it > 0L } ?: durationMs
         val current = normalizationGain * deckEnvelope(
             positionMs = positionMs,
             durationMs = durationMs,
@@ -281,11 +311,13 @@ internal class IosPlaybackController(
             riseMs = incomingRiseMs,
             joinedByOverlap = joinedByOverlap,
             curveMs = curveMs,
+            riseFromMs = incomingRiseFromMs,
+            curveEndMs = curveEndMs,
         )
         var incoming = 0f
         if (active != null) {
             val incomingGain = trackVolumes[active.incoming.id.value] ?: 1f
-            incoming = incomingGain * overlapInGain(audioEngine.standbyPositionMs().toFloat() / active.overlapMs)
+            incoming = incomingGain * overlapInGain((audioEngine.standbyPositionMs() - active.leadMs).toFloat() / active.overlapMs)
             lastIncomingGain = incoming
         } else if (releaseStartedAtMs >= 0L) {
             val elapsed = transportTimeMs() - releaseStartedAtMs
@@ -324,6 +356,7 @@ internal class IosPlaybackController(
     private fun cancelOverlap() {
         releaseStartedAtMs = -1L
         outgoingCurveMs = 0L
+        outgoingCurveEndMs = -1L
         if (overlap == null) return
         overlap = null
         audioEngine.cancelOverlap()
@@ -337,10 +370,12 @@ internal class IosPlaybackController(
             overlap = null
             audioEngine.cancelOverlap()
             outgoingCurveMs = active.overlapMs
+            outgoingCurveEndMs = active.endMs
             return
         }
         overlap = null
         outgoingCurveMs = active.overlapMs
+        outgoingCurveEndMs = active.endMs
         releaseFromGain = lastIncomingGain
         releaseStartedAtMs = transportTimeMs()
     }
@@ -373,8 +408,10 @@ internal class IosPlaybackController(
         pendingAdvance.invalidate()
         queueIndex = incomingIndex
         incomingRiseMs = active.overlapMs
+        incomingRiseFromMs = active.leadMs
         joinedByOverlap = true
         outgoingCurveMs = 0L
+        outgoingCurveEndMs = -1L
         releaseStartedAtMs = -1L
         failedOverlaps.clear()
         beginStart(cause)
@@ -1303,6 +1340,7 @@ internal class IosPlaybackController(
         pendingAdvance.invalidate()
         cancelOverlap()
         incomingRiseMs = 0L
+        incomingRiseFromMs = 0L
         joinedByOverlap = false
         failedOverlaps.clear()
         // A delayed pause belongs to the old native item, including when switching backends.
@@ -1782,6 +1820,7 @@ internal class IosPlaybackController(
         cancelOverlap()
         // A seek — back to 0, a repeat-one wrap — starts the track over: no rise is still going on.
         incomingRiseMs = 0L
+        incomingRiseFromMs = 0L
         joinedByOverlap = false
         when (activeBackend) {
             PlaybackBackend.FILE -> {

@@ -13,6 +13,7 @@ import io.github.nikitasud.latentjam.playback.NowPlaying
 import io.github.nikitasud.latentjam.playback.PlaybackController
 import io.github.nikitasud.latentjam.playback.RepeatMode
 import io.github.nikitasud.latentjam.playback.ShuffleMode
+import io.github.nikitasud.latentjam.playback.SoundSpan
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.math.abs
@@ -49,6 +50,92 @@ internal class LoudnessNormalizationTest {
     }
 
     @Test
+    fun soundEdgesRoundTripAndRowsFromBeforeThemStayReadable() {
+        val original = mapOf(
+            "edges" to StoredTrackLoudness(IntegratedLoudness(-9f, -1.5f, SoundSpan(1_250, 201_400)), "e-v1"),
+            "silent" to StoredTrackLoudness(IntegratedLoudness(-9f, -1.5f, sound = null), "s-v1"),
+            "legacy" to StoredTrackLoudness(IntegratedLoudness(-9f, -1.5f), "l-v1", soundMeasured = false),
+        )
+        val payload = encodeTrackLoudness(original)
+        assertEquals(original, decodeTrackLoudness(payload))
+        // A legacy row is written in the format older builds read.
+        assertTrue(payload.lines().single { it.startsWith("r128-v1|") }.split('|').size == 5)
+        assertEquals(mapOf("edges" to SoundSpan(1_250, 201_400)), soundSpans(decodeTrackLoudness(payload)))
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun smoothTransitionsAloneMeasureSoundEdgesWithoutChangingAnyVolume() = runTest {
+        val settings = ThrowingSettings()
+        settings.normalizeVolume.value = false
+        settings.crossfadeSeconds.value = 6
+        val playback = FakePlayback()
+        val statuses = mutableListOf<NormalizationStatus>()
+        val meter = object : TrackLoudnessMeter {
+            override suspend fun measure(track: TrackDescriptor) = IntegratedLoudness(-8f, -2f, SoundSpan(900, 170_000))
+        }
+        LoudnessNormalizer(settings, playback, meter, statuses::add).start(backgroundScope)
+        runCurrent()
+        playback.nowPlaying.value = NowPlaying(track = audioTrack("song", "revision-1"))
+        runCurrent()
+
+        assertEquals(mapOf("song" to SoundSpan(900, 170_000)), playback.spanUpdates.last())
+        assertTrue(playback.volumeUpdates.all { it.isEmpty() })
+        assertTrue(statuses.all { it.phase == NormalizationPhase.OFF }, "$statuses")
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun aRowFromBeforeSoundEdgesIsMeasuredAgainKeepingItsVolumeMeanwhile() = runTest {
+        val settings = ThrowingSettings()
+        settings.crossfadeSeconds.value = 6
+        val track = audioTrack("song", "revision-1")
+        settings.storedLoudness = encodeTrackLoudness(
+            mapOf("song" to StoredTrackLoudness(IntegratedLoudness(-8f, -2f), track.loudnessAudioIdentity(), soundMeasured = false)),
+        )
+        val playback = FakePlayback()
+        val pending = CompletableDeferred<IntegratedLoudness?>()
+        val meter = object : TrackLoudnessMeter {
+            override suspend fun measure(track: TrackDescriptor) = pending.await()
+        }
+        LoudnessNormalizer(settings, playback, meter).start(backgroundScope)
+        runCurrent()
+        playback.nowPlaying.value = NowPlaying(track = track)
+        runCurrent()
+        // Measuring again: the stored loudness still plays.
+        val volume = IntegratedLoudness(-8f, -2f).normalizationVolume()
+        assertEquals(mapOf("song" to volume), playback.volumeUpdates.last())
+
+        pending.complete(IntegratedLoudness(-8f, -2f, SoundSpan(0, 150_000)))
+        runCurrent()
+        assertEquals(mapOf("song" to SoundSpan(0, 150_000)), playback.spanUpdates.last())
+        assertEquals(mapOf("song" to volume), playback.volumeUpdates.last())
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun withoutSmoothTransitionsARowFromBeforeSoundEdgesIsNotDecodedAgain() = runTest {
+        val settings = ThrowingSettings()
+        val track = audioTrack("song", "revision-1")
+        settings.storedLoudness = encodeTrackLoudness(
+            mapOf("song" to StoredTrackLoudness(IntegratedLoudness(-8f, -2f), track.loudnessAudioIdentity(), soundMeasured = false)),
+        )
+        val playback = FakePlayback()
+        var measured = 0
+        val meter = object : TrackLoudnessMeter {
+            override suspend fun measure(track: TrackDescriptor): IntegratedLoudness? {
+                measured++
+                return null
+            }
+        }
+        LoudnessNormalizer(settings, playback, meter).start(backgroundScope)
+        runCurrent()
+        playback.nowPlaying.value = NowPlaying(track = track)
+        runCurrent()
+        assertEquals(0, measured)
+    }
+
+    @Test
     fun corruptPayloadLinesDropIndividually() {
         val good = "42".encodeToByteArray().joinToString("") { byte ->
             (byte.toInt() and 0xff).toString(16).padStart(2, '0')
@@ -61,7 +148,10 @@ internal class LoudnessNormalizationTest {
                 "r128-v1|$good|$identity|-850|-200\nr128-v1|$good|$identity|notanumber|-200\n" +
                 "r128-v1|$good|$identity|10000|-200\nr128-v1|$good|$identity|-850|10000\n",
         )
-        assertEquals(mapOf("42" to StoredTrackLoudness(IntegratedLoudness(-8.5f, -2f), "source")), decoded)
+        assertEquals(
+            mapOf("42" to StoredTrackLoudness(IntegratedLoudness(-8.5f, -2f), "source", soundMeasured = false)),
+            decoded,
+        )
     }
 
     @Test
@@ -337,7 +427,8 @@ internal class LoudnessNormalizationTest {
         override fun setArtistAlbumSort(choice: SortChoice<AlbumSort>) { artistAlbumSort.value = choice }
         override val playlistSortOrders = MutableStateFlow(PlaylistSortOrders())
         override fun setPlaylistSortOrders(orders: PlaylistSortOrders) { playlistSortOrders.value = orders }
-        override fun readTrackLoudnessPayload(): String? = null
+        var storedLoudness: String? = null
+        override fun readTrackLoudnessPayload(): String? = storedLoudness
         var writeAttempts = 0
         override fun writeTrackLoudnessPayload(payload: String) {
             writeAttempts++
@@ -370,9 +461,14 @@ internal class LoudnessNormalizationTest {
         val nowPlaying = MutableStateFlow(NowPlaying())
         override val state = nowPlaying
         val volumeUpdates = mutableListOf<Map<String, Float>>()
+        val spanUpdates = mutableListOf<Map<String, SoundSpan>>()
 
         override suspend fun setTrackVolumes(volumes: Map<String, Float>) {
             volumeUpdates += volumes
+        }
+
+        override suspend fun setTrackSoundSpans(spans: Map<String, SoundSpan>) {
+            spanUpdates += spans
         }
 
         override suspend fun setSmartLibrary(tracks: List<TrackDescriptor>) = Unit

@@ -109,6 +109,31 @@ This also makes the slider do something on iOS for the first time. Like Android,
 another sample rate or channel count does not overlap: the graph after the submixer runs in the
 current file's format, so it keeps the plain fades and loads, reconfiguring the graph for itself.
 
+## Sound edges (2026-10-25)
+
+An overlap anchored to the file's end runs partly over a track's trailing silence: the outgoing
+music has already stopped while the next track is still rising, which sounds like a dip or a pause.
+Seams now meet the tracks' sound instead.
+
+- **Measured once, in the loudness pass.** `SoundSpanTracker` sees the PCM the R128 scan already
+  decodes (Android `AndroidIntegratedLoudnessMeter`, iOS `IosIntegratedLoudnessMeter`). The span runs
+  from the first to the last 50 ms window above −50 dBFS (mean square), so a quiet passage or a hidden
+  bonus track after a long gap stays inside. It is stored next to the loudness (cache line
+  `r128-v2`; `r128-v1` rows are still read). The scan now also runs while only smooth transitions are
+  on, without changing any volume. A row from before sound edges keeps its loudness and is measured
+  once more while transitions are on.
+- **Anchors (`seamAnchors`).** The overlap ends at the outgoing track's last sound and the incoming
+  track starts at its first. A 100 ms guard stays on the sound's side. An edge shorter than 300 ms is
+  left alone, and one longer than 30 s, or an end past the file, is not trusted. Unmeasured tracks
+  keep the files' edges. The overlap length rules apply to the audible lengths. Album seams get no
+  overlap, as before.
+- **Android.** The opening capture also covers the incoming lead and the outgoing trail. The mixer
+  plays the incoming track alone, at full level, over the outgoing track's trailing frames, so the
+  join and its bridge stay seamless and no frame is dropped without output. A capture that cannot
+  cover that (the size cap, a short track) is decoded again for the files' own edges.
+- **iOS.** The standby deck is cued at the incoming track's first sound. The outgoing curve ends at
+  the last sound, and that deck is silent over its trailing silence until the decks swap.
+
 ## Prior art (searched 2026-10-22, at the owner's request)
 
 Nothing below was copied; GPL projects informed ideas only.

@@ -98,8 +98,10 @@ internal class CrossfadeCoordinator(
         if (seam != wanted) withdraw()
         if (wanted == null || seam != null || wanted in failed) return
         val durationMs = player.duration.takeIf { it != C.TIME_UNSET } ?: 0L
-        if (prerollsNow(player.currentPosition, durationMs, fadeMs)) {
-            begin(wanted, next!!, outgoingMs = durationMs, fadeMs = fadeMs)
+        val spans = settings.soundSpans
+        val anchors = seamAnchors(durationMs, spans[wanted.outgoingId], spans[wanted.incomingId])
+        if (prerollsNow(player.currentPosition, anchors.outgoingEndMs, fadeMs)) {
+            begin(wanted, next!!, outgoingMs = durationMs, fadeMs = fadeMs, anchors = anchors)
         }
     }
 
@@ -115,11 +117,17 @@ internal class CrossfadeCoordinator(
         val index = player.nextMediaItemIndex.takeIf { it != C.INDEX_UNSET } ?: return null
         if (player.getMediaItemAt(index).mediaId != plan.incomingId) return null
         val durationMs = player.duration.takeIf { it != C.TIME_UNSET } ?: return null
-        // The incoming opening began under the outgoing track's last overlapUs; the player's
-        // position is what has reached the speaker, so this is the heard point, not one a buffer
-        // ahead of it.
-        val heardMs = player.currentPosition - (durationMs - plan.overlapUs / 1000L)
-        return if (heardMs >= 0L) Landing(index, heardMs, plan.incomingId, plan.overlapUs) else null
+        val endMs = plan.outgoingEndUs.takeIf { it != C.TIME_UNSET }?.div(1000L)?.coerceAtMost(durationMs) ?: durationMs
+        // The incoming opening began under the overlapUs before the outgoing track's last sound,
+        // at its own first sound; the player's position is what has reached the speaker, so this
+        // is the heard point, not one a buffer ahead of it.
+        val heardMs = player.currentPosition - (endMs - plan.overlapUs / 1000L)
+        val fromMs = plan.incomingStartFrame * 1000L / plan.sampleRate
+        return if (heardMs >= 0L) {
+            Landing(index, fromMs + heardMs, plan.incomingId, plan.overlapUs, riseFromUs = fromMs * 1000L)
+        } else {
+            null
+        }
     }
 
     /**
@@ -128,12 +136,18 @@ internal class CrossfadeCoordinator(
      * because the seek disables the renderer and flushes the chain more than once before it plays.
      */
     fun seekTo(landing: Landing) {
-        settings.pendingRise = PendingRise(landing.mediaId, landing.positionMs * 1000L, landing.riseUs)
+        settings.pendingRise = PendingRise(landing.mediaId, landing.positionMs * 1000L, landing.riseUs, landing.riseFromUs)
         player.seekTo(landing.index, landing.positionMs)
     }
 
-    /** Where a Next during an overlap goes: [index] at [positionMs], rising over [riseUs]. */
-    data class Landing(val index: Int, val positionMs: Long, val mediaId: String, val riseUs: Long)
+    /** Where a Next during an overlap goes: [index] at [positionMs], rising over [riseUs] from [riseFromUs]. */
+    data class Landing(
+        val index: Int,
+        val positionMs: Long,
+        val mediaId: String,
+        val riseUs: Long,
+        val riseFromUs: Long = 0L,
+    )
 
     /**
      * The row playback moves on to by itself, when it may overlap. Never the track itself: a track
@@ -155,14 +169,31 @@ internal class CrossfadeCoordinator(
             .takeIf { it.mediaId != player.currentMediaItem?.mediaId }
     }
 
-    private fun begin(target: Seam, next: MediaItem, outgoingMs: Long, fadeMs: Long) {
+    /**
+     * Decodes [next]'s opening for the seam. Met at the tracks' sound edges ([anchors]), the opening
+     * must also cover the incoming track's leading silence and the outgoing one's trailing silence,
+     * which it plays on over; one that cannot — over the capture's size cap, or a track shorter
+     * than that — is decoded again for the seam at the files' own edges, the seam as it was before.
+     */
+    private fun begin(target: Seam, next: MediaItem, outgoingMs: Long, fadeMs: Long, anchors: SeamAnchors) {
         seam = target
+        val anchored = anchors != SeamAnchors(outgoingMs, 0L)
+        val trailMs = anchors.trailMs(outgoingMs)
+        val leadMs = anchors.incomingStartMs
+        val lengthMs = fadeMs + leadMs + trailMs + CROSSFADE_INTRO_MARGIN_MS
         val scratch = IntroScratch.get(context)
         val slot = scratch.freeSlot(sounding = settings.soundingSlot)
-        val pending = CrossfadeIntroCapture(context, next, fadeMs + CROSSFADE_INTRO_MARGIN_MS, scratch, slot) { intro ->
+        val pending = CrossfadeIntroCapture(context, next, lengthMs, scratch, slot) { intro ->
             capture = null
             if (seam != target) return@CrossfadeIntroCapture
-            val overlapMs = intro?.let { overlapLengthMs(fadeMs, outgoingMs, it.durationMs) } ?: 0L
+            val overlapMs = intro?.let {
+                overlapLengthMs(fadeMs, anchors.outgoingEndMs, it.durationMs - leadMs)
+            } ?: 0L
+            val coveredMs = intro?.let { it.frames * 1000L / it.sampleRate } ?: 0L
+            if (anchored && (intro == null || overlapMs <= 0L || coveredMs < leadMs + overlapMs + trailMs)) {
+                begin(target, next, outgoingMs, fadeMs, SeamAnchors(outgoingMs, 0L))
+                return@CrossfadeIntroCapture
+            }
             if (intro == null || overlapMs <= 0L) {
                 failed += target
                 return@CrossfadeIntroCapture
@@ -176,6 +207,8 @@ internal class CrossfadeCoordinator(
                 pcm = intro.pcm,
                 frames = intro.frames,
                 slot = intro.slot,
+                outgoingEndUs = if (trailMs > 0L) anchors.outgoingEndMs * 1000L else C.TIME_UNSET,
+                incomingStartFrame = (leadMs * intro.sampleRate / 1000L).toInt(),
             )
         }
         capture = pending

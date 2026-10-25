@@ -3,8 +3,16 @@ package io.github.nikitasud.latentjam.playback
 
 import kotlin.math.pow
 
-/** Full-track EBU R128 measurement. Never construct this from the legacy sampled RMS cache. */
-public data class IntegratedLoudness(public val lufs: Float, public val truePeakDbtp: Float) {
+/**
+ * Full-track EBU R128 measurement. Never construct this from the legacy sampled RMS cache. [sound]
+ * is where the track's sound begins and ends, found in the same pass; null when it has none or was
+ * measured before sound edges were.
+ */
+public data class IntegratedLoudness(
+    public val lufs: Float,
+    public val truePeakDbtp: Float,
+    public val sound: SoundSpan? = null,
+) {
     public fun isValid(): Boolean = lufs.isFinite() && lufs in -100f..10f &&
         truePeakDbtp.isFinite() && truePeakDbtp in -160f..40f
 

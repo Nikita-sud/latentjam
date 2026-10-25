@@ -74,7 +74,15 @@ internal class CrossfadeAudioProcessorTest {
         }
     }
 
-    private fun plan(outgoing: String, incoming: String, overlapMs: Long, frames: Int, samples: (Int) -> Int) =
+    private fun plan(
+        outgoing: String,
+        incoming: String,
+        overlapMs: Long,
+        frames: Int,
+        outgoingEndMs: Long? = null,
+        incomingStartFrame: Int = 0,
+        samples: (Int) -> Int,
+    ) =
         OverlapPlan(
             outgoingId = outgoing,
             incomingId = incoming,
@@ -86,6 +94,8 @@ internal class CrossfadeAudioProcessorTest {
                 flip()
             },
             frames = frames,
+            outgoingEndUs = outgoingEndMs?.times(1000L) ?: C.TIME_UNSET,
+            incomingStartFrame = incomingStartFrame,
         )
 
     private val loud = { _: Int -> 1000 }
@@ -118,6 +128,42 @@ internal class CrossfadeAudioProcessorTest {
         assertEquals((2_000 until 5_000).toList(), incoming)
         // Processed ahead of the speaker: until the player reports the join, Next still lands in B.
         assertTrue(settings.mixing === overlap)
+    }
+
+    @Test
+    fun anOverlapMeetsTheLastSoundOfOneTrackAndTheFirstSoundOfTheNext() {
+        settings.fadeMs = 2_000
+        val a = stream("a", 10_000)
+        // B opens with 500 ms of silence; A's last 2 s are silence after its last sound at 8 s.
+        val opening = { frame: Int -> if (frame < 500) 0 else frame }
+        settings.plan = plan(
+            "a", "b", overlapMs = 2_000, frames = 6_000, outgoingEndMs = 8_000, incomingStartFrame = 500,
+            samples = opening,
+        )
+        reposition(a, atMs = 5_000)
+        val outgoing = feed({ frame -> if (frame < 8_000) 1000 else 0 }, 5_000, 10_000)
+
+        // Untouched until 2 s before A's last sound; then B from its first sound on the curves.
+        assertTrue(outgoing.take(1_000).all { it == 1000 })
+        val expectedMiddle = 1000 * overlapOutGain(0.5f) + 1500 * overlapInGain(0.5f)
+        assertTrue(abs(outgoing[2_000] - expectedMiddle) <= 1f, "middle of the overlap was ${outgoing[2_000]}")
+        // Over A's trailing silence B already plays alone, at full level.
+        assertEquals((2_500 until 4_500).toList(), outgoing.subList(3_000, 5_000))
+
+        // The join carries on from the frame of B heard last, the silence before it included.
+        assertEquals(4_500_000L, join(stream("b", 20_000)))
+        assertEquals((4_500 until 8_000).toList(), feed(opening, 0, 8_000))
+    }
+
+    @Test
+    fun aSeamWithoutMeasuredSoundEdgesOverlapsAtTheEndOfTheFile() {
+        settings.fadeMs = 2_000
+        val a = stream("a", 10_000)
+        settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000, samples = ramp)
+        reposition(a, atMs = 5_000)
+        val outgoing = feed(loud, 5_000, 10_000)
+        assertTrue(outgoing.take(3_000).all { it == 1000 })
+        assertEquals(2_000_000L, join(stream("b", 20_000)))
     }
 
     @Test
@@ -217,7 +263,7 @@ internal class CrossfadeAudioProcessorTest {
     @Test
     fun aPlanForAnotherSampleRateIsNotMixed() {
         settings.fadeMs = 2_000
-        settings.plan = plan("a", "b", 2_000, 4_000, ramp).let {
+        settings.plan = plan("a", "b", 2_000, 4_000, samples = ramp).let {
             OverlapPlan(it.outgoingId, it.incomingId, it.overlapUs, RATE * 2, 1, it.pcm, it.frames)
         }
         reposition(stream("a", 10_000), atMs = 7_000)
