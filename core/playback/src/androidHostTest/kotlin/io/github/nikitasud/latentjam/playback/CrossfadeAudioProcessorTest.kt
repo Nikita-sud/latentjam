@@ -49,8 +49,16 @@ internal class CrossfadeAudioProcessorTest {
         return skippedUs
     }
 
-    /** Feeds [samples] starting at [fromMs] of the track in 100-frame buffers; returns the output. */
-    private fun feed(samples: (Int) -> Int, fromMs: Int, toMs: Int): List<Int> = buildList {
+    /**
+     * Feeds [samples] starting at [fromMs] of the track in 100-frame buffers; returns the output.
+     * [outPerBuffer] collects how many frames came out for each buffer in.
+     */
+    private fun feed(
+        samples: (Int) -> Int,
+        fromMs: Int,
+        toMs: Int,
+        outPerBuffer: MutableList<Int>? = null,
+    ): List<Int> = buildList {
         var frame = fromMs
         while (frame < toMs) {
             val count = minOf(100, toMs - frame)
@@ -60,6 +68,7 @@ internal class CrossfadeAudioProcessorTest {
             input.flip()
             processor.queueInput(input)
             val output = processor.output
+            outPerBuffer?.add(output.remaining() / 2)
             while (output.hasRemaining()) add(output.short.toInt())
             frame += count
         }
@@ -100,15 +109,52 @@ internal class CrossfadeAudioProcessorTest {
         assertTrue(outgoing.last() in 1999..2000, "end of the overlap was ${outgoing.last()}")
         assertTrue(settings.mixing === overlap)
 
-        // The join drops exactly the 2000 frames already heard and reports them as played, also
-        // when the sink checkpoints a second time before the first frame.
+        // The join reports the 2000 frames already heard as played, also when the sink checkpoints
+        // a second time before the first frame, and the track goes on from frame 2000 exactly.
         assertEquals(2_000_000L, join(b))
         assertEquals(2_000_000L, processor.prepareSegment())
         processor.flush(StreamMetadata.DEFAULT)
-        val incoming = feed(ramp, 0, 3_000)
-        assertEquals((2_000 until 3_000).toList(), incoming)
+        val incoming = feed(ramp, 0, 5_000)
+        assertEquals((2_000 until 5_000).toList(), incoming)
         // Processed ahead of the speaker: until the player reports the join, Next still lands in B.
         assertTrue(settings.mixing === overlap)
+    }
+
+    @Test
+    fun theJoinKeepsTheSinkFedWhileTheDecodersCopyOfTheOpeningIsDropped() {
+        settings.fadeMs = 2_000
+        val a = stream("a", 10_000)
+        settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000, samples = ramp)
+        reposition(a, atMs = 5_000)
+        feed(loud, 5_000, 10_000)
+        join(stream("b", 20_000))
+        // Dropping the decoder's 4000 frames of the opening, every buffer in still puts the rest of
+        // the opening out: the player never finds the sink empty and stops to rebuffer.
+        val perBuffer = mutableListOf<Int>()
+        val incoming = feed(ramp, 0, 6_000, perBuffer)
+        assertTrue(perBuffer.take(40).all { it > 0 }, "frames out per buffer: $perBuffer")
+        assertEquals(2_000, perBuffer.take(40).sum())
+        assertEquals((2_000 until 6_000).toList(), incoming)
+        // Afterwards the sink reports the next frame out exactly where the track is.
+        assertEquals(0L, processor.prepareSegment())
+    }
+
+    @Test
+    fun aCheckpointWhileTheOpeningPlaysOnKeepsThePositionTheTracksOwn() {
+        settings.fadeMs = 2_000
+        val a = stream("a", 10_000)
+        settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000, samples = ramp)
+        reposition(a, atMs = 5_000)
+        feed(loud, 5_000, 10_000)
+        join(stream("b", 20_000))
+        val before = feed(ramp, 0, 2_000)
+        // 2000 frames in, 1000 of the opening out: the next frame out is 3000, the next in 2000.
+        assertEquals((2_000 until 3_000).toList(), before)
+        assertEquals(1_000_000L, processor.prepareSegment())
+        processor.queueEndOfStream()
+        processor.flush(StreamMetadata.DEFAULT)
+        val after = feed(ramp, 2_000, 5_000)
+        assertEquals((3_000 until 5_000).toList(), after)
     }
 
     @Test
@@ -120,11 +166,12 @@ internal class CrossfadeAudioProcessorTest {
         // The real stream ends 500 ms before its declared duration.
         feed(loud, 5_000, 9_500)
         assertEquals(1_500_000L, join(stream("b", 20_000)))
-        val incoming = feed(ramp, 0, 3_000)
+        val incoming = feed(ramp, 0, 5_000)
         // The rest of the overlap's rise continues on the live track, then full level.
         val expectedFirst = 1500 * overlapInGain(0.75f)
         assertTrue(abs(incoming.first() - expectedFirst) <= 1f, "rise carried over: ${incoming.first()}")
-        assertEquals((2_500 until 3_000).toList(), incoming.takeLast(500))
+        assertEquals(3_500, incoming.size)
+        assertEquals((2_000 until 5_000).toList(), incoming.takeLast(3_000))
     }
 
     @Test

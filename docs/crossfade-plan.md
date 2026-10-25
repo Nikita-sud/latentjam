@@ -59,6 +59,12 @@ the next track by itself, the part already heard is skipped.
    through it, adding the frames skipped), so B's position
    reads correctly. If A's real end differs from its duration estimate, the envelope is time-based and
    the extra 2 s of intro absorb the difference — the join stays sample-exact.
+   Dropping alone starved the sink (owner's phone, 0.9.3 test build: a short pause at every seam). In
+   Media3 1.10 the audio renderer is ready only while the sink holds unplayed frames, so while the
+   decoder worked through B's opening the player went BUFFERING and paused the AudioTrack. Now B plays
+   on from the decoded intro (frames M… of it) at the join, while the decoder's copy of the whole intro
+   is dropped. The intro frames go out in proportion to the frames dropped, so every buffer in still
+   puts sound out.
 4. **Fallback = today's fade** (volume envelope, no overlap) whenever an overlap cannot be exact:
    different sample rate or channel count between A and B, unknown duration, intro not ready in time,
    B fails to decode, too large for the cap.
