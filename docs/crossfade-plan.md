@@ -134,6 +134,30 @@ Seams now meet the tracks' sound instead.
 - **iOS.** The standby deck is cued at the incoming track's first sound. The outgoing curve ends at
   the last sound, and that deck is silent over its trailing silence until the decks swap.
 
+## Mixed sample rates (2026-10-25)
+
+Owner's report: no smooth transition from a 44.1 kHz FLAC into a 48 kHz Opus. The mixer only mixes
+an opening of the outgoing track's rate, so such a seam fell back to the plain fades. DefaultAudioSink
+also replaced its AudioTrack at the join because the output rate changed, which pauses the sound.
+
+- **Android: one output rate across a seam.** `SeamResamplingAudioProcessor` is first in the chain.
+  After a reposition (a start, a seek, a skip, where the sink restarts anyway) a track plays at its
+  own rate. A track the player moves on to by itself, while smooth transitions are on, plays at the
+  rate the output already has. A track at that rate passes through bit for bit, because the processor
+  is inactive then. So the AudioTrack is kept, and the opening can mix. The rate is published as
+  `CrossfadeSettings.outputRate`. The intro capture resamples to it with the same processor, so the
+  captured frames equal the player's at the join.
+- **Resampler (`PcmResampler`, commonMain).** Kaiser-windowed sinc with 16 zero crossings, β 8 and a
+  95 % passband. A downsampling cutoff narrows to the output's Nyquist. Output frame n sits exactly at
+  input n × in / out in integer arithmetic, so the output does not depend on how the input is cut into
+  buffers (tested), and it has no delay. Measured: below −70 dB error at 44.1 → 48 kHz, below −60 dB
+  at 48 → 44.1 kHz for a 15 kHz tone, and a 30 kHz tone at 96 → 48 kHz stays below −70 dB. Cost is
+  about 32 taps per output frame and channel at 44.1/48 kHz; downsampling from 192 kHz takes about
+  140.
+- **iOS.** The submixer converts each input bus to the graph's rate, so a deck of another rate now
+  joins (`sharesGraphFormat` compares channel counts only), and plays on converted until the next
+  load. Same channel count is still required on both platforms.
+
 ## Prior art (searched 2026-10-22, at the owner's request)
 
 Nothing below was copied; GPL projects informed ideas only.

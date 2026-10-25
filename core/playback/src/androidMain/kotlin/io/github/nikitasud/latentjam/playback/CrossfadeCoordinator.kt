@@ -183,7 +183,7 @@ internal class CrossfadeCoordinator(
         val lengthMs = fadeMs + leadMs + trailMs + CROSSFADE_INTRO_MARGIN_MS
         val scratch = IntroScratch.get(context)
         val slot = scratch.freeSlot(sounding = settings.soundingSlot)
-        val pending = CrossfadeIntroCapture(context, next, lengthMs, scratch, slot) { intro ->
+        val pending = CrossfadeIntroCapture(context, next, lengthMs, scratch, slot, settings.outputRate) { intro ->
             capture = null
             if (seam != target) return@CrossfadeIntroCapture
             val overlapMs = intro?.let {
