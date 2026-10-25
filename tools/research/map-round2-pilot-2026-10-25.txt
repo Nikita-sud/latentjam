@@ -1,0 +1,227 @@
+# MapRound2Replay pilot log (design only, not evidence), 25 Oct 2026. Pilot data: synthetic seed 7, FMA round-1 draws 5000/7989 (pool seed 0) with LW2 tagger predictions.
+R2 lib=synthetic-s7 n=10000 dim=1344 family=false mode=pilot
+R2 lib=synthetic-s7 novel style=1 heldOutMembers=322 allMembers=322
+R2 lib=synthetic-s7 add1 router=GEOMETRY share=0.0100 decision=refresh reason=refresh flagged=100 novel=0 ms=2910.3 phases=flags:13.9,project:9.4,neighbours:165.3,router:2.5,place:1.7,affinities:689.7,optimizer:2021.1,finish:6.6
+R2 lib=synthetic-s7 add1 router=CHECK share=0.0100 decision=refresh reason=refresh flagged=100 novel=0 ms=2953.7 phases=flags:12.4,project:2.2,neighbours:123.3,router:0.0,place:1.0,affinities:645.1,optimizer:2004.8,finish:5.2,check:159.8
+R2 lib=synthetic-s7 add1 metrics today trust=0.9837 recall=0.2679 class=0.8479 RF=0.2733 CF=0.8600 overlapCold=NaN
+R2 lib=synthetic-s7 add1 metrics refresh-GEOMETRY trust=0.9838 recall=0.2683 class=0.8479 RF=0.2453 CF=0.8600 overlapCold=NaN
+R2 lib=synthetic-s7 add1 metrics refresh-CHECK trust=0.9838 recall=0.2683 class=0.8479 RF=0.2453 CF=0.8600 overlapCold=NaN
+R2 lib=synthetic-s7 add1 today ms=17008.4 kept=0.4829 p90=0.0794 median=0.0339
+R2 lib=synthetic-s7 add1 router=GEOMETRY stability kept=0.9103 p90=0.0031 median=0.0016 ratio=0.1711 noise=NaN
+R2 lib=synthetic-s7 add1 router=GEOMETRY verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=synthetic-s7 add1 router=CHECK stability kept=0.9103 p90=0.0031 median=0.0016 ratio=0.1737 noise=NaN
+R2 lib=synthetic-s7 add1 router=CHECK verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=synthetic-s7 add2 router=GEOMETRY share=0.0200 decision=refresh reason=refresh flagged=200 novel=0 ms=2927.6 phases=flags:13.0,project:3.9,neighbours:254.4,router:0.7,place:0.4,affinities:639.3,optimizer:2014.0,finish:2.0
+R2 lib=synthetic-s7 add2 router=CHECK share=0.0200 decision=refresh reason=refresh flagged=200 novel=0 ms=3097.5 phases=flags:12.4,project:3.7,neighbours:226.3,router:0.0,place:0.8,affinities:641.6,optimizer:2031.0,finish:0.8,check:180.9
+R2 lib=synthetic-s7 add2 metrics today trust=0.9840 recall=0.2692 class=0.8479 RF=0.2587 CF=0.8550 overlapCold=NaN
+R2 lib=synthetic-s7 add2 metrics refresh-GEOMETRY trust=0.9838 recall=0.2682 class=0.8479 RF=0.2480 CF=0.8550 overlapCold=NaN
+R2 lib=synthetic-s7 add2 metrics refresh-CHECK trust=0.9838 recall=0.2682 class=0.8479 RF=0.2480 CF=0.8550 overlapCold=NaN
+R2 lib=synthetic-s7 add2 today ms=18128.1 kept=0.4582 p90=0.0775 median=0.0351
+R2 lib=synthetic-s7 add2 router=GEOMETRY stability kept=0.8751 p90=0.0036 median=0.0017 ratio=0.1615 noise=NaN
+R2 lib=synthetic-s7 add2 router=GEOMETRY verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=synthetic-s7 add2 router=CHECK stability kept=0.8751 p90=0.0036 median=0.0017 ratio=0.1709 noise=NaN
+R2 lib=synthetic-s7 add2 router=CHECK verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=synthetic-s7 change1 router=GEOMETRY share=0.0100 decision=refresh reason=refresh flagged=100 novel=0 ms=3113.5 phases=flags:13.0,project:2.2,neighbours:391.1,router:1.2,place:0.6,affinities:649.9,optimizer:2054.9,finish:0.6
+R2 lib=synthetic-s7 change1 router=CHECK share=0.0100 decision=refresh reason=refresh flagged=100 novel=0 ms=3257.7 phases=flags:12.7,project:2.1,neighbours:387.8,router:0.0,place:3.1,affinities:639.1,optimizer:2053.4,finish:0.5,check:158.9
+R2 lib=synthetic-s7 change1 metrics today trust=0.9838 recall=0.2692 class=0.8479 RF=0.2653 CF=0.8093 overlapCold=NaN
+R2 lib=synthetic-s7 change1 metrics refresh-GEOMETRY trust=0.9835 recall=0.2680 class=0.8479 RF=0.2433 CF=0.8093 overlapCold=NaN
+R2 lib=synthetic-s7 change1 metrics refresh-CHECK trust=0.9835 recall=0.2680 class=0.8479 RF=0.2433 CF=0.8093 overlapCold=NaN
+R2 lib=synthetic-s7 change1 today ms=17986.6 kept=0.4766 p90=0.0692 median=0.0323
+R2 lib=synthetic-s7 change1 router=GEOMETRY stability kept=0.8965 p90=0.0038 median=0.0020 ratio=0.1731 noise=NaN
+R2 lib=synthetic-s7 change1 router=GEOMETRY verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=synthetic-s7 change1 router=CHECK stability kept=0.8965 p90=0.0038 median=0.0020 ratio=0.1811 noise=NaN
+R2 lib=synthetic-s7 change1 router=CHECK verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=synthetic-s7 album1 router=GEOMETRY share=0.0113 decision=refresh reason=refresh flagged=113 novel=0 ms=3216.9 phases=flags:13.6,project:2.4,neighbours:134.8,router:1.1,place:0.4,affinities:703.1,optimizer:2361.0,finish:0.6
+R2 lib=synthetic-s7 album1 router=CHECK share=0.0113 decision=refresh reason=refresh flagged=113 novel=0 ms=3358.6 phases=flags:13.8,project:2.7,neighbours:172.9,router:0.0,place:0.6,affinities:716.8,optimizer:2289.9,finish:0.5,check:161.2
+R2 lib=synthetic-s7 album1 metrics today trust=0.9839 recall=0.2683 class=0.8479 RF=0.3717 CF=1.0000 overlapCold=NaN
+R2 lib=synthetic-s7 album1 metrics refresh-GEOMETRY trust=0.9835 recall=0.2663 class=0.8479 RF=0.3746 CF=1.0000 overlapCold=NaN
+R2 lib=synthetic-s7 album1 metrics refresh-CHECK trust=0.9835 recall=0.2663 class=0.8479 RF=0.3746 CF=1.0000 overlapCold=NaN
+R2 lib=synthetic-s7 album1 today ms=18035.9 kept=0.4256 p90=0.0992 median=0.0537
+R2 lib=synthetic-s7 album1 router=GEOMETRY stability kept=0.9539 p90=0.0036 median=0.0015 ratio=0.1784 noise=NaN
+R2 lib=synthetic-s7 album1 router=GEOMETRY verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=synthetic-s7 album1 router=CHECK stability kept=0.9539 p90=0.0036 median=0.0015 ratio=0.1862 noise=NaN
+R2 lib=synthetic-s7 album1 router=CHECK verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=synthetic-s7 novel0.5 router=GEOMETRY share=0.0051 decision=full reason=novelty flagged=50 novel=50 ms=21942.4 phases=flags:14.7,project:1.3,neighbours:73.5,router:1.0
+R2 lib=synthetic-s7 novel0.5 router=CHECK share=0.0051 decision=refresh reason=refresh flagged=50 novel=0 ms=2969.3 phases=flags:12.6,project:1.2,neighbours:65.2,router:0.0,place:0.4,affinities:639.2,optimizer:2106.9,finish:0.5,check:143.2
+R2 lib=synthetic-s7 novel0.5 metrics today trust=0.9832 recall=0.2710 class=0.8437 RF=0.5427 CF=1.0000 overlapCold=NaN
+R2 lib=synthetic-s7 novel0.5 metrics refresh-CHECK trust=0.9824 recall=0.2586 class=0.8427 RF=0.3160 CF=0.8093 overlapCold=NaN
+R2 lib=synthetic-s7 novel0.5 today ms=17610.6 kept=0.3628 p90=0.0833 median=0.0382
+R2 lib=synthetic-s7 novel0.5 router=CHECK stability kept=0.9650 p90=0.0033 median=0.0014 ratio=0.1686 noise=NaN
+R2 lib=synthetic-s7 novel0.5 router=CHECK verdict trust=PASS recall=FAIL class=PASS RF=FAIL CF=FAIL lost=PASS p90move=PASS timeHost=PASS
+R2 lib=synthetic-s7 novel1.0 router=GEOMETRY share=0.0102 decision=full reason=novelty flagged=100 novel=100 ms=20476.3 phases=flags:12.2,project:2.1,neighbours:122.2,router:1.4
+R2 lib=synthetic-s7 novel1.0 router=CHECK share=0.0102 decision=refresh reason=refresh flagged=100 novel=0 ms=2974.0 phases=flags:12.2,project:2.1,neighbours:110.3,router:0.0,place:0.5,affinities:636.5,optimizer:2057.7,finish:0.5,check:154.1
+R2 lib=synthetic-s7 novel1.0 metrics today trust=0.9833 recall=0.2707 class=0.8445 RF=0.3827 CF=1.0000 overlapCold=NaN
+R2 lib=synthetic-s7 novel1.0 metrics refresh-CHECK trust=0.9830 recall=0.2588 class=0.8445 RF=0.3667 CF=1.0000 overlapCold=NaN
+R2 lib=synthetic-s7 novel1.0 today ms=16735.7 kept=0.3604 p90=0.0862 median=0.0448
+R2 lib=synthetic-s7 novel1.0 router=CHECK stability kept=0.9654 p90=0.0031 median=0.0017 ratio=0.1777 noise=NaN
+R2 lib=synthetic-s7 novel1.0 router=CHECK verdict trust=PASS recall=FAIL class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=synthetic-s7 novel2.0 router=GEOMETRY share=0.0202 decision=full reason=novelty flagged=200 novel=200 ms=21409.4 phases=flags:12.7,project:3.8,neighbours:256.6,router:0.5
+R2 lib=synthetic-s7 novel2.0 router=CHECK share=0.0202 decision=refresh reason=refresh flagged=200 novel=0 ms=3150.8 phases=flags:13.2,project:3.9,neighbours:231.9,router:0.0,place:0.5,affinities:637.0,optimizer:2081.2,finish:0.5,check:182.5
+R2 lib=synthetic-s7 novel2.0 metrics today trust=0.9835 recall=0.2704 class=0.8460 RF=0.2990 CF=1.0000 overlapCold=NaN
+R2 lib=synthetic-s7 novel2.0 metrics refresh-CHECK trust=0.9833 recall=0.2581 class=0.8460 RF=0.2530 CF=1.0000 overlapCold=NaN
+R2 lib=synthetic-s7 novel2.0 today ms=16750.9 kept=0.3578 p90=0.0905 median=0.0413
+R2 lib=synthetic-s7 novel2.0 router=CHECK stability kept=0.9651 p90=0.0050 median=0.0017 ratio=0.1881 noise=NaN
+R2 lib=synthetic-s7 novel2.0 router=CHECK verdict trust=PASS recall=FAIL class=PASS RF=FAIL CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-5000-fma-pilot n=5000 dim=1344 family=true mode=pilot
+R2 lib=fma-5000-fma-pilot novel style=16 heldOutMembers=100 allMembers=286
+R2 lib=fma-5000-fma-pilot add1 router=GEOMETRY share=0.0100 decision=refresh reason=refresh flagged=50 novel=0 ms=1043.0 phases=flags:6.7,project:1.1,neighbours:28.4,router:0.2,place:0.2,affinities:282.1,optimizer:723.9,finish:0.3
+R2 lib=fma-5000-fma-pilot add1 router=GEOMETRY_FAMILY share=0.0100 decision=refresh reason=refresh flagged=50 novel=0 ms=1031.7 phases=flags:6.4,project:1.1,neighbours:27.3,router:4.9,place:0.1,affinities:275.8,optimizer:715.8,finish:0.3
+R2 lib=fma-5000-fma-pilot add1 router=CHECK share=0.0100 decision=refresh reason=refresh flagged=50 novel=0 ms=1091.2 phases=flags:6.4,project:1.2,neighbours:27.2,router:0.0,place:0.2,affinities:276.3,optimizer:715.5,finish:0.3,check:64.0
+R2 lib=fma-5000-fma-pilot add1 metrics today trust=0.9914 recall=0.6747 class=0.6893 RF=0.6627 CF=0.6720 overlapCold=NaN
+R2 lib=fma-5000-fma-pilot add1 metrics refresh-GEOMETRY trust=0.9907 recall=0.6707 class=0.6853 RF=0.6453 CF=0.6507 overlapCold=NaN
+R2 lib=fma-5000-fma-pilot add1 metrics refresh-GEOMETRY_FAMILY trust=0.9907 recall=0.6707 class=0.6853 RF=0.6453 CF=0.6507 overlapCold=NaN
+R2 lib=fma-5000-fma-pilot add1 metrics refresh-CHECK trust=0.9907 recall=0.6707 class=0.6853 RF=0.6453 CF=0.6507 overlapCold=NaN
+R2 lib=fma-5000-fma-pilot add1 today ms=6373.0 kept=0.8446 p90=0.1714 median=0.0449
+R2 lib=fma-5000-fma-pilot add1 router=GEOMETRY stability kept=0.9734 p90=0.0042 median=0.0021 ratio=0.1637 noise=NaN
+R2 lib=fma-5000-fma-pilot add1 router=GEOMETRY verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-5000-fma-pilot add1 router=GEOMETRY_FAMILY stability kept=0.9734 p90=0.0042 median=0.0021 ratio=0.1619 noise=NaN
+R2 lib=fma-5000-fma-pilot add1 router=GEOMETRY_FAMILY verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-5000-fma-pilot add1 router=CHECK stability kept=0.9734 p90=0.0042 median=0.0021 ratio=0.1712 noise=NaN
+R2 lib=fma-5000-fma-pilot add1 router=CHECK verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-5000-fma-pilot add2 router=GEOMETRY share=0.0200 decision=refresh reason=refresh flagged=100 novel=0 ms=1092.8 phases=flags:6.6,project:2.1,neighbours:56.3,router:0.5,place:0.2,affinities:298.6,optimizer:728.1,finish:0.3
+R2 lib=fma-5000-fma-pilot add2 router=GEOMETRY_FAMILY share=0.0200 decision=refresh reason=refresh flagged=100 novel=0 ms=1041.2 phases=flags:6.3,project:1.9,neighbours:57.3,router:3.1,place:0.1,affinities:275.8,optimizer:696.4,finish:0.3
+R2 lib=fma-5000-fma-pilot add2 router=CHECK share=0.0200 decision=refresh reason=refresh flagged=100 novel=0 ms=1102.6 phases=flags:6.4,project:2.0,neighbours:54.7,router:0.0,place:0.2,affinities:273.6,optimizer:696.3,finish:0.3,check:69.2
+R2 lib=fma-5000-fma-pilot add2 metrics today trust=0.9916 recall=0.6706 class=0.6890 RF=0.6633 CF=0.6787 overlapCold=NaN
+R2 lib=fma-5000-fma-pilot add2 metrics refresh-GEOMETRY trust=0.9921 recall=0.6740 class=0.6904 RF=0.6560 CF=0.6693 overlapCold=NaN
+R2 lib=fma-5000-fma-pilot add2 metrics refresh-GEOMETRY_FAMILY trust=0.9921 recall=0.6740 class=0.6904 RF=0.6560 CF=0.6693 overlapCold=NaN
+R2 lib=fma-5000-fma-pilot add2 metrics refresh-CHECK trust=0.9921 recall=0.6740 class=0.6904 RF=0.6560 CF=0.6693 overlapCold=NaN
+R2 lib=fma-5000-fma-pilot add2 today ms=6020.9 kept=0.8786 p90=0.0602 median=0.0197
+R2 lib=fma-5000-fma-pilot add2 router=GEOMETRY stability kept=0.9706 p90=0.0036 median=0.0018 ratio=0.1815 noise=NaN
+R2 lib=fma-5000-fma-pilot add2 router=GEOMETRY verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-5000-fma-pilot add2 router=GEOMETRY_FAMILY stability kept=0.9706 p90=0.0036 median=0.0018 ratio=0.1729 noise=NaN
+R2 lib=fma-5000-fma-pilot add2 router=GEOMETRY_FAMILY verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-5000-fma-pilot add2 router=CHECK stability kept=0.9706 p90=0.0036 median=0.0018 ratio=0.1831 noise=NaN
+R2 lib=fma-5000-fma-pilot add2 router=CHECK verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-5000-fma-pilot change1 router=GEOMETRY share=0.0100 decision=refresh reason=refresh flagged=50 novel=0 ms=1290.1 phases=flags:6.7,project:1.1,neighbours:306.2,router:0.3,place:0.2,affinities:273.8,optimizer:701.5,finish:0.3
+R2 lib=fma-5000-fma-pilot change1 router=GEOMETRY_FAMILY share=0.0100 decision=refresh reason=refresh flagged=50 novel=0 ms=1278.0 phases=flags:6.4,project:1.1,neighbours:301.5,router:1.7,place:0.1,affinities:274.0,optimizer:692.9,finish:0.3
+R2 lib=fma-5000-fma-pilot change1 router=CHECK share=0.0100 decision=refresh reason=refresh flagged=50 novel=0 ms=1338.8 phases=flags:6.3,project:1.0,neighbours:306.2,router:0.0,place:0.2,affinities:271.8,optimizer:688.8,finish:0.3,check:64.1
+R2 lib=fma-5000-fma-pilot change1 metrics today trust=0.9899 recall=0.6711 class=0.6871 RF=0.6853 CF=0.6493 overlapCold=NaN
+R2 lib=fma-5000-fma-pilot change1 metrics refresh-GEOMETRY trust=0.9906 recall=0.6709 class=0.6863 RF=0.6533 CF=0.6253 overlapCold=NaN
+R2 lib=fma-5000-fma-pilot change1 metrics refresh-GEOMETRY_FAMILY trust=0.9906 recall=0.6709 class=0.6863 RF=0.6533 CF=0.6253 overlapCold=NaN
+R2 lib=fma-5000-fma-pilot change1 metrics refresh-CHECK trust=0.9906 recall=0.6709 class=0.6863 RF=0.6533 CF=0.6253 overlapCold=NaN
+R2 lib=fma-5000-fma-pilot change1 today ms=5971.4 kept=0.8572 p90=0.1345 median=0.0361
+R2 lib=fma-5000-fma-pilot change1 router=GEOMETRY stability kept=0.9683 p90=0.0052 median=0.0028 ratio=0.2160 noise=NaN
+R2 lib=fma-5000-fma-pilot change1 router=GEOMETRY verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-5000-fma-pilot change1 router=GEOMETRY_FAMILY stability kept=0.9683 p90=0.0052 median=0.0028 ratio=0.2140 noise=NaN
+R2 lib=fma-5000-fma-pilot change1 router=GEOMETRY_FAMILY verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-5000-fma-pilot change1 router=CHECK stability kept=0.9683 p90=0.0052 median=0.0028 ratio=0.2242 noise=NaN
+R2 lib=fma-5000-fma-pilot change1 router=CHECK verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-5000-fma-pilot album1 router=GEOMETRY share=0.0106 decision=refresh reason=refresh flagged=53 novel=0 ms=993.6 phases=flags:6.2,project:1.0,neighbours:27.6,router:0.3,place:0.2,affinities:272.1,optimizer:686.0,finish:0.3
+R2 lib=fma-5000-fma-pilot album1 router=GEOMETRY_FAMILY share=0.0106 decision=refresh reason=refresh flagged=53 novel=0 ms=982.8 phases=flags:6.1,project:1.0,neighbours:27.4,router:1.4,place:0.1,affinities:271.4,optimizer:675.1,finish:0.3
+R2 lib=fma-5000-fma-pilot album1 router=CHECK share=0.0106 decision=refresh reason=refresh flagged=53 novel=0 ms=1043.7 phases=flags:6.1,project:1.0,neighbours:27.2,router:0.0,place:0.1,affinities:271.4,optimizer:673.1,finish:0.3,check:64.5
+R2 lib=fma-5000-fma-pilot album1 metrics today trust=0.9910 recall=0.6734 class=0.6821 RF=0.6667 CF=0.7434 overlapCold=NaN
+R2 lib=fma-5000-fma-pilot album1 metrics refresh-GEOMETRY trust=0.9917 recall=0.6731 class=0.6875 RF=0.6176 CF=0.7371 overlapCold=NaN
+R2 lib=fma-5000-fma-pilot album1 metrics refresh-GEOMETRY_FAMILY trust=0.9917 recall=0.6731 class=0.6875 RF=0.6176 CF=0.7371 overlapCold=NaN
+R2 lib=fma-5000-fma-pilot album1 metrics refresh-CHECK trust=0.9917 recall=0.6731 class=0.6875 RF=0.6176 CF=0.7371 overlapCold=NaN
+R2 lib=fma-5000-fma-pilot album1 today ms=5809.6 kept=0.8665 p90=0.1167 median=0.0477
+R2 lib=fma-5000-fma-pilot album1 router=GEOMETRY stability kept=0.9778 p90=0.0053 median=0.0028 ratio=0.1710 noise=NaN
+R2 lib=fma-5000-fma-pilot album1 router=GEOMETRY verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-5000-fma-pilot album1 router=GEOMETRY_FAMILY stability kept=0.9778 p90=0.0053 median=0.0028 ratio=0.1692 noise=NaN
+R2 lib=fma-5000-fma-pilot album1 router=GEOMETRY_FAMILY verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-5000-fma-pilot album1 router=CHECK stability kept=0.9778 p90=0.0053 median=0.0028 ratio=0.1797 noise=NaN
+R2 lib=fma-5000-fma-pilot album1 router=CHECK verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-5000-fma-pilot novel0.5 router=GEOMETRY share=0.0053 decision=refresh reason=refresh flagged=25 novel=0 ms=916.2 phases=flags:5.8,project:0.5,neighbours:14.7,router:0.2,place:0.1,affinities:257.2,optimizer:637.4,finish:0.3
+R2 lib=fma-5000-fma-pilot novel0.5 router=GEOMETRY_FAMILY share=0.0053 decision=refresh reason=refresh flagged=25 novel=0 ms=917.0 phases=flags:5.8,project:0.5,neighbours:13.9,router:1.2,place:0.1,affinities:257.1,optimizer:638.0,finish:0.3
+R2 lib=fma-5000-fma-pilot novel0.5 router=CHECK share=0.0053 decision=full reason=check flagged=25 novel=0 ms=7939.0 phases=flags:5.8,project:0.5,neighbours:14.1,router:0.0,place:0.1,affinities:256.9,optimizer:638.0,finish:0.3,check:55.0
+R2 lib=fma-5000-fma-pilot novel0.5 metrics today trust=0.9912 recall=0.6665 class=0.6831 RF=0.6693 CF=0.4320 overlapCold=NaN
+R2 lib=fma-5000-fma-pilot novel0.5 metrics refresh-GEOMETRY trust=0.9911 recall=0.6684 class=0.6813 RF=0.4853 CF=0.3600 overlapCold=NaN
+R2 lib=fma-5000-fma-pilot novel0.5 metrics refresh-GEOMETRY_FAMILY trust=0.9911 recall=0.6684 class=0.6813 RF=0.4853 CF=0.3600 overlapCold=NaN
+R2 lib=fma-5000-fma-pilot novel0.5 today ms=5459.8 kept=0.8536 p90=0.1063 median=0.0547
+R2 lib=fma-5000-fma-pilot novel0.5 router=GEOMETRY stability kept=0.9794 p90=0.0063 median=0.0041 ratio=0.1678 noise=NaN
+R2 lib=fma-5000-fma-pilot novel0.5 router=GEOMETRY verdict trust=PASS recall=PASS class=PASS RF=FAIL CF=FAIL lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-5000-fma-pilot novel0.5 router=GEOMETRY_FAMILY stability kept=0.9794 p90=0.0063 median=0.0041 ratio=0.1679 noise=NaN
+R2 lib=fma-5000-fma-pilot novel0.5 router=GEOMETRY_FAMILY verdict trust=PASS recall=PASS class=PASS RF=FAIL CF=FAIL lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-5000-fma-pilot novel1.0 router=GEOMETRY share=0.0105 decision=refresh reason=refresh flagged=50 novel=0 ms=930.4 phases=flags:5.8,project:0.9,neighbours:24.4,router:0.2,place:0.1,affinities:258.6,optimizer:640.1,finish:0.3
+R2 lib=fma-5000-fma-pilot novel1.0 router=GEOMETRY_FAMILY share=0.0105 decision=full reason=family flagged=50 novel=0 ms=7106.1 phases=flags:5.8,project:1.0,neighbours:24.3,router:1.3
+R2 lib=fma-5000-fma-pilot novel1.0 router=CHECK share=0.0105 decision=refresh reason=refresh flagged=50 novel=0 ms=1089.7 phases=flags:5.9,project:1.0,neighbours:25.8,router:0.0,place:0.2,affinities:265.0,optimizer:730.3,finish:0.3,check:61.4
+R2 lib=fma-5000-fma-pilot novel1.0 metrics today trust=0.9913 recall=0.6693 class=0.6812 RF=0.7173 CF=0.5933 overlapCold=NaN
+R2 lib=fma-5000-fma-pilot novel1.0 metrics refresh-GEOMETRY trust=0.9910 recall=0.6688 class=0.6810 RF=0.6013 CF=0.4427 overlapCold=NaN
+R2 lib=fma-5000-fma-pilot novel1.0 metrics refresh-CHECK trust=0.9910 recall=0.6688 class=0.6810 RF=0.6013 CF=0.4427 overlapCold=NaN
+R2 lib=fma-5000-fma-pilot novel1.0 today ms=5836.5 kept=0.8495 p90=0.1222 median=0.0501
+R2 lib=fma-5000-fma-pilot novel1.0 router=GEOMETRY stability kept=0.9745 p90=0.0067 median=0.0041 ratio=0.1594 noise=NaN
+R2 lib=fma-5000-fma-pilot novel1.0 router=GEOMETRY verdict trust=PASS recall=PASS class=PASS RF=FAIL CF=FAIL lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-5000-fma-pilot novel1.0 router=CHECK stability kept=0.9745 p90=0.0067 median=0.0041 ratio=0.1867 noise=NaN
+R2 lib=fma-5000-fma-pilot novel1.0 router=CHECK verdict trust=PASS recall=PASS class=PASS RF=FAIL CF=FAIL lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-5000-fma-pilot novel2.0 router=GEOMETRY share=0.0208 decision=refresh reason=refresh flagged=100 novel=0 ms=1108.5 phases=flags:7.6,project:2.3,neighbours:61.4,router:0.2,place:0.2,affinities:283.5,optimizer:753.0,finish:0.3
+R2 lib=fma-5000-fma-pilot novel2.0 router=GEOMETRY_FAMILY share=0.0208 decision=full reason=family flagged=100 novel=0 ms=7828.3 phases=flags:6.3,project:2.6,neighbours:65.8,router:1.6
+R2 lib=fma-5000-fma-pilot novel2.0 router=CHECK share=0.0208 decision=refresh reason=refresh flagged=100 novel=0 ms=1120.9 phases=flags:5.8,project:1.8,neighbours:45.8,router:0.0,place:0.2,affinities:266.1,optimizer:733.6,finish:0.3,check:67.3
+R2 lib=fma-5000-fma-pilot novel2.0 metrics today trust=0.9911 recall=0.6686 class=0.6878 RF=0.7567 CF=0.7793 overlapCold=NaN
+R2 lib=fma-5000-fma-pilot novel2.0 metrics refresh-GEOMETRY trust=0.9906 recall=0.6669 class=0.6815 RF=0.6060 CF=0.5787 overlapCold=NaN
+R2 lib=fma-5000-fma-pilot novel2.0 metrics refresh-CHECK trust=0.9906 recall=0.6669 class=0.6815 RF=0.6060 CF=0.5787 overlapCold=NaN
+R2 lib=fma-5000-fma-pilot novel2.0 today ms=6214.0 kept=0.8424 p90=0.1279 median=0.0480
+R2 lib=fma-5000-fma-pilot novel2.0 router=GEOMETRY stability kept=0.9706 p90=0.0082 median=0.0047 ratio=0.1784 noise=NaN
+R2 lib=fma-5000-fma-pilot novel2.0 router=GEOMETRY verdict trust=PASS recall=PASS class=PASS RF=FAIL CF=FAIL lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-5000-fma-pilot novel2.0 router=CHECK stability kept=0.9706 p90=0.0082 median=0.0047 ratio=0.1804 noise=NaN
+R2 lib=fma-5000-fma-pilot novel2.0 router=CHECK verdict trust=PASS recall=PASS class=PASS RF=FAIL CF=FAIL lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-7989-fma-pilot n=7989 dim=1344 family=true mode=pilot
+R2 lib=fma-7989-fma-pilot novel style=16 heldOutMembers=175 allMembers=467
+R2 lib=fma-7989-fma-pilot add1 router=GEOMETRY share=0.0100 decision=refresh reason=refresh flagged=80 novel=0 ms=1891.5 phases=flags:10.6,project:1.6,neighbours:73.8,router:0.3,place:0.2,affinities:458.7,optimizer:1345.8,finish:0.4
+R2 lib=fma-7989-fma-pilot add1 router=GEOMETRY_FAMILY share=0.0100 decision=refresh reason=refresh flagged=80 novel=0 ms=1877.2 phases=flags:10.0,project:1.6,neighbours:77.7,router:2.3,place:0.2,affinities:448.2,optimizer:1336.6,finish:0.4
+R2 lib=fma-7989-fma-pilot add1 router=CHECK share=0.0100 decision=refresh reason=refresh flagged=80 novel=0 ms=1922.6 phases=flags:10.3,project:1.7,neighbours:71.5,router:0.0,place:0.2,affinities:437.4,optimizer:1284.3,finish:0.4,check:116.9
+R2 lib=fma-7989-fma-pilot add1 metrics today trust=0.9947 recall=0.6995 class=0.7334 RF=0.7133 CF=0.7267 overlapCold=NaN
+R2 lib=fma-7989-fma-pilot add1 metrics refresh-GEOMETRY trust=0.9943 recall=0.6985 class=0.7335 RF=0.7075 CF=0.7117 overlapCold=NaN
+R2 lib=fma-7989-fma-pilot add1 metrics refresh-GEOMETRY_FAMILY trust=0.9943 recall=0.6985 class=0.7335 RF=0.7075 CF=0.7117 overlapCold=NaN
+R2 lib=fma-7989-fma-pilot add1 metrics refresh-CHECK trust=0.9943 recall=0.6985 class=0.7335 RF=0.7075 CF=0.7117 overlapCold=NaN
+R2 lib=fma-7989-fma-pilot add1 today ms=10713.3 kept=0.9044 p90=0.0679 median=0.0390
+R2 lib=fma-7989-fma-pilot add1 router=GEOMETRY stability kept=0.9777 p90=0.0027 median=0.0014 ratio=0.1766 noise=NaN
+R2 lib=fma-7989-fma-pilot add1 router=GEOMETRY verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-7989-fma-pilot add1 router=GEOMETRY_FAMILY stability kept=0.9777 p90=0.0027 median=0.0014 ratio=0.1752 noise=NaN
+R2 lib=fma-7989-fma-pilot add1 router=GEOMETRY_FAMILY verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-7989-fma-pilot add1 router=CHECK stability kept=0.9777 p90=0.0027 median=0.0014 ratio=0.1795 noise=NaN
+R2 lib=fma-7989-fma-pilot add1 router=CHECK verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-7989-fma-pilot add2 router=GEOMETRY share=0.0200 decision=refresh reason=refresh flagged=160 novel=0 ms=1723.9 phases=flags:9.7,project:2.9,neighbours:131.7,router:0.3,place:0.3,affinities:435.4,optimizer:1143.1,finish:0.5
+R2 lib=fma-7989-fma-pilot add2 router=GEOMETRY_FAMILY share=0.0200 decision=refresh reason=refresh flagged=160 novel=0 ms=1728.9 phases=flags:9.7,project:2.9,neighbours:136.5,router:2.0,place:0.2,affinities:437.2,optimizer:1140.1,finish:0.5
+R2 lib=fma-7989-fma-pilot add2 router=CHECK share=0.0200 decision=refresh reason=refresh flagged=160 novel=0 ms=1840.1 phases=flags:9.7,project:3.0,neighbours:132.1,router:0.0,place:0.3,affinities:434.2,optimizer:1139.9,finish:0.5,check:120.4
+R2 lib=fma-7989-fma-pilot add2 metrics today trust=0.9942 recall=0.6981 class=0.7332 RF=0.6762 CF=0.7517 overlapCold=NaN
+R2 lib=fma-7989-fma-pilot add2 metrics refresh-GEOMETRY trust=0.9940 recall=0.6994 class=0.7317 RF=0.6775 CF=0.7446 overlapCold=NaN
+R2 lib=fma-7989-fma-pilot add2 metrics refresh-GEOMETRY_FAMILY trust=0.9940 recall=0.6994 class=0.7317 RF=0.6775 CF=0.7446 overlapCold=NaN
+R2 lib=fma-7989-fma-pilot add2 metrics refresh-CHECK trust=0.9940 recall=0.6994 class=0.7317 RF=0.6775 CF=0.7446 overlapCold=NaN
+R2 lib=fma-7989-fma-pilot add2 today ms=9725.9 kept=0.8832 p90=0.1714 median=0.0513
+R2 lib=fma-7989-fma-pilot add2 router=GEOMETRY stability kept=0.9743 p90=0.0027 median=0.0014 ratio=0.1773 noise=NaN
+R2 lib=fma-7989-fma-pilot add2 router=GEOMETRY verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-7989-fma-pilot add2 router=GEOMETRY_FAMILY stability kept=0.9743 p90=0.0027 median=0.0014 ratio=0.1778 noise=NaN
+R2 lib=fma-7989-fma-pilot add2 router=GEOMETRY_FAMILY verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-7989-fma-pilot add2 router=CHECK stability kept=0.9743 p90=0.0027 median=0.0014 ratio=0.1892 noise=NaN
+R2 lib=fma-7989-fma-pilot add2 router=CHECK verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-7989-fma-pilot change1 router=GEOMETRY share=0.0100 decision=refresh reason=refresh flagged=80 novel=0 ms=2159.8 phases=flags:9.9,project:1.6,neighbours:567.3,router:0.3,place:0.3,affinities:437.0,optimizer:1142.8,finish:0.6
+R2 lib=fma-7989-fma-pilot change1 router=GEOMETRY_FAMILY share=0.0100 decision=refresh reason=refresh flagged=80 novel=0 ms=2166.4 phases=flags:9.9,project:1.6,neighbours:569.6,router:2.3,place:0.2,affinities:437.2,optimizer:1145.0,finish:0.5
+R2 lib=fma-7989-fma-pilot change1 router=CHECK share=0.0100 decision=refresh reason=refresh flagged=80 novel=0 ms=2271.3 phases=flags:10.0,project:1.6,neighbours:579.1,router:0.0,place:0.3,affinities:436.6,optimizer:1135.9,finish:0.4,check:107.4
+R2 lib=fma-7989-fma-pilot change1 metrics today trust=0.9944 recall=0.7002 class=0.7350 RF=0.6992 CF=0.7958 overlapCold=NaN
+R2 lib=fma-7989-fma-pilot change1 metrics refresh-GEOMETRY trust=0.9945 recall=0.6996 class=0.7331 RF=0.6667 CF=0.7775 overlapCold=NaN
+R2 lib=fma-7989-fma-pilot change1 metrics refresh-GEOMETRY_FAMILY trust=0.9945 recall=0.6996 class=0.7331 RF=0.6667 CF=0.7775 overlapCold=NaN
+R2 lib=fma-7989-fma-pilot change1 metrics refresh-CHECK trust=0.9945 recall=0.6996 class=0.7331 RF=0.6667 CF=0.7775 overlapCold=NaN
+R2 lib=fma-7989-fma-pilot change1 today ms=9641.4 kept=0.8849 p90=0.1181 median=0.0499
+R2 lib=fma-7989-fma-pilot change1 router=GEOMETRY stability kept=0.9742 p90=0.0031 median=0.0016 ratio=0.2240 noise=NaN
+R2 lib=fma-7989-fma-pilot change1 router=GEOMETRY verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-7989-fma-pilot change1 router=GEOMETRY_FAMILY stability kept=0.9742 p90=0.0031 median=0.0016 ratio=0.2247 noise=NaN
+R2 lib=fma-7989-fma-pilot change1 router=GEOMETRY_FAMILY verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-7989-fma-pilot change1 router=CHECK stability kept=0.9742 p90=0.0031 median=0.0016 ratio=0.2356 noise=NaN
+R2 lib=fma-7989-fma-pilot change1 router=CHECK verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-7989-fma-pilot album1 router=GEOMETRY share=0.0111 decision=refresh reason=refresh flagged=89 novel=1 ms=1661.5 phases=flags:9.7,project:1.7,neighbours:74.6,router:0.4,place:0.2,affinities:434.9,optimizer:1139.4,finish:0.4
+R2 lib=fma-7989-fma-pilot album1 router=GEOMETRY_FAMILY share=0.0111 decision=refresh reason=refresh flagged=89 novel=1 ms=1673.2 phases=flags:9.7,project:1.7,neighbours:78.8,router:2.0,place:0.2,affinities:434.4,optimizer:1146.0,finish:0.4
+R2 lib=fma-7989-fma-pilot album1 router=CHECK share=0.0111 decision=refresh reason=refresh flagged=89 novel=0 ms=1768.3 phases=flags:9.7,project:1.7,neighbours:72.7,router:0.0,place:0.3,affinities:434.7,optimizer:1139.7,finish:0.4,check:109.0
+R2 lib=fma-7989-fma-pilot album1 metrics today trust=0.9950 recall=0.6995 class=0.7318 RF=0.6831 CF=0.7835 overlapCold=NaN
+R2 lib=fma-7989-fma-pilot album1 metrics refresh-GEOMETRY trust=0.9942 recall=0.6985 class=0.7309 RF=0.6352 CF=0.7109 overlapCold=NaN
+R2 lib=fma-7989-fma-pilot album1 metrics refresh-GEOMETRY_FAMILY trust=0.9942 recall=0.6985 class=0.7309 RF=0.6352 CF=0.7109 overlapCold=NaN
+R2 lib=fma-7989-fma-pilot album1 metrics refresh-CHECK trust=0.9942 recall=0.6985 class=0.7309 RF=0.6352 CF=0.7109 overlapCold=NaN
+R2 lib=fma-7989-fma-pilot album1 today ms=9762.9 kept=0.8924 p90=0.0921 median=0.0414
+R2 lib=fma-7989-fma-pilot album1 router=GEOMETRY stability kept=0.9779 p90=0.0038 median=0.0021 ratio=0.1702 noise=NaN
+R2 lib=fma-7989-fma-pilot album1 router=GEOMETRY verdict trust=PASS recall=PASS class=PASS RF=PASS CF=FAIL lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-7989-fma-pilot album1 router=GEOMETRY_FAMILY stability kept=0.9779 p90=0.0038 median=0.0021 ratio=0.1714 noise=NaN
+R2 lib=fma-7989-fma-pilot album1 router=GEOMETRY_FAMILY verdict trust=PASS recall=PASS class=PASS RF=PASS CF=FAIL lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-7989-fma-pilot album1 router=CHECK stability kept=0.9779 p90=0.0038 median=0.0021 ratio=0.1811 noise=NaN
+R2 lib=fma-7989-fma-pilot album1 router=CHECK verdict trust=PASS recall=PASS class=PASS RF=PASS CF=FAIL lost=PASS p90move=PASS timeHost=PASS
+R2 lib=fma-7989-fma-pilot novel0.5 router=GEOMETRY share=0.0053 decision=full reason=novelty flagged=40 novel=8 ms=12762.3 phases=flags:9.9,project:2.1,neighbours:38.1,router:0.3
+R2 lib=fma-7989-fma-pilot novel0.5 router=GEOMETRY_FAMILY share=0.0053 decision=full reason=novelty flagged=40 novel=8 ms=13069.8 phases=flags:10.1,project:1.4,neighbours:39.3,router:0.3
+R2 lib=fma-7989-fma-pilot novel0.5 router=CHECK share=0.0053 decision=full reason=check flagged=40 novel=0 ms=14461.9 phases=flags:9.3,project:0.9,neighbours:33.9,router:0.0,place:0.2,affinities:413.2,optimizer:1121.8,finish:0.5,check:99.8
+R2 lib=fma-7989-fma-pilot novel1.0 router=GEOMETRY share=0.0105 decision=full reason=novelty flagged=80 novel=16 ms=12301.3 phases=flags:9.3,project:1.6,neighbours:65.1,router:0.3
+R2 lib=fma-7989-fma-pilot novel1.0 router=GEOMETRY_FAMILY share=0.0105 decision=full reason=novelty flagged=80 novel=16 ms=12053.6 phases=flags:9.3,project:1.6,neighbours:63.2,router:0.3
+R2 lib=fma-7989-fma-pilot novel1.0 router=CHECK share=0.0105 decision=full reason=check flagged=80 novel=0 ms=13590.1 phases=flags:9.4,project:1.5,neighbours:61.5,router:0.0,place:0.3,affinities:415.5,optimizer:1083.5,finish:0.4,check:97.1
+R2 lib=fma-7989-fma-pilot novel2.0 router=GEOMETRY share=0.0208 decision=full reason=novelty flagged=160 novel=37 ms=12976.7 phases=flags:9.7,project:4.9,neighbours:122.0,router:0.3
+R2 lib=fma-7989-fma-pilot novel2.0 router=GEOMETRY_FAMILY share=0.0208 decision=full reason=novelty flagged=160 novel=37 ms=13811.6 phases=flags:11.0,project:3.6,neighbours:171.8,router:0.3
+R2 lib=fma-7989-fma-pilot novel2.0 router=CHECK share=0.0208 decision=refresh reason=refresh flagged=160 novel=0 ms=1907.8 phases=flags:10.6,project:3.3,neighbours:144.4,router:0.0,place:0.3,affinities:458.0,optimizer:1177.4,finish:0.4,check:113.4
+R2 lib=fma-7989-fma-pilot novel2.0 metrics today trust=0.9942 recall=0.6950 class=0.7312 RF=0.7783 CF=0.8329 overlapCold=NaN
+R2 lib=fma-7989-fma-pilot novel2.0 metrics refresh-CHECK trust=0.9928 recall=0.6908 class=0.7277 RF=0.6479 CF=0.6617 overlapCold=NaN
+R2 lib=fma-7989-fma-pilot novel2.0 today ms=10397.7 kept=0.8597 p90=0.1656 median=0.0530
+R2 lib=fma-7989-fma-pilot novel2.0 router=CHECK stability kept=0.9788 p90=0.0057 median=0.0035 ratio=0.1835 noise=NaN
+R2 lib=fma-7989-fma-pilot novel2.0 router=CHECK verdict trust=PASS recall=PASS class=PASS RF=FAIL CF=FAIL lost=PASS p90move=PASS timeHost=PASS

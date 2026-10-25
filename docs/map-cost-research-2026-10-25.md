@@ -253,6 +253,252 @@ draw. Nothing below has been gated.
 - **Approach 3 in the same round.** Frozen basis and mean, plus patched 60-NN lists, so the
   refresh no longer repeats PCA and the neighbour search. The time row moves to ≤ 0.25×.
 
+## Round 2: approach 1 + 3 with a new router (plan frozen 25 October 2026, before the gate run)
+
+The owner chose to continue. This round tests the changes proposed in
+[What happens next](#what-happens-next):
+
+- approach 1 (refresh at raw scale) on top of approach 3 (frozen basis and mean, stored reduced
+  rows, patched 60-NN lists);
+- a new router that reuses the neighbour lists and polls per row;
+- a relative stability row;
+- router time inside the time row;
+- cancellation measured from the deadline;
+- overlap against a band of several cold seeds;
+- the LW2 genre-family signal as a router variant.
+
+Everything below was written **after the pilot and before any gate data was run**.
+
+### Pilot (design only, not evidence)
+
+**Pilot data:** synthetic seed 7 and the round-1 FMA draws (5,000 and 7,989), with
+`tools/research/MapRound2Replay.kt` in pilot mode. Log: `tools/research/map-round2-pilot-2026-10-25.txt`.
+
+**Routers tried** (all read the patched 60-NN lists):
+
+- **G, group geometry.** A flagged row is novel if at least 3 of its 5 nearest rows are flagged
+  *and* its nearest unflagged row is farther than 2× the library's median 5th-neighbour distance.
+  The change goes to a full build if more than 10 % of flagged rows are novel.
+  - Isolated outliers are no longer novel: synthetic uniform and changed cases all stayed on the
+    refresh, where round 1 rejected them.
+- **F, family conflict** (LW2 predicted families). The share of flagged rows whose predicted
+  family differs from the majority family of their 5 nearest unflagged rows, against the same share
+  for unflagged rows. Full build if the flagged share exceeds the library's own by 0.15.
+- **C, refresh-then-check.** After the refresh, compare each flagged row's map recall proxy (its 15
+  map neighbours against its 15 nearest input rows from the lists) with the same proxy for up to
+  500 unflagged rows. Full build below 0.85× the unflagged proxy.
+
+**Pilot routing** (new-style cases → full build is the wanted outcome):
+
+| Pilot library | G | G + F | C | Albums and ordinary changes |
+| --- | --- | --- | --- | --- |
+| synthetic s7 | 3 / 3 new styles → full | n/a (no families) | 0 / 3 | all refreshed under every router |
+| FMA-7989 | 3 / 3 | 3 / 3 | 2 / 3 | all refreshed under every router |
+| FMA-5000 | 0 / 3 | 2 / 3 | 1 / 3 | all refreshed under every router |
+
+No single router caught every pilot new style, but their **union** did.
+
+**Two warnings from the pilot:**
+
+- On FMA-7989 an album addition failed CF (−0.073) even though it was refreshed, as it should
+  have been. Albums can fail the quality rows on their own.
+- Approach 1+3 ran in 0.17–0.20× of today's time on the host.
+
+### What is frozen
+
+**Data** (never the owner's library):
+
+- **Synthetic** `hierarchicalFixture`, 10,000 tracks, seeds **23, 29 and 31**. Never used before.
+- **FMA:** three new random draws from the same 7,989-track pool:
+  - seed 101 at 5,000 tracks;
+  - seed 202 at 5,000 tracks;
+  - seed 303 at 6,500 tracks.
+  - The pool is the one used in round 1 and the pilot, so the FMA tracks themselves are **not**
+    fresh; only the draws and scenarios are.
+  - Built by `tools/research/map_gate_fma_dump.py --seed S --tagger <LW2 assets>`.
+
+**Vectors.**
+
+- FMA rows are the LW2 encoder's A0 audio (`mnv4-960-clean-a0-fma-v1`) plus the shipped text
+  vector, fused as the app does.
+- Synthetic rows come from no encoder.
+- **The release encoder (`retrieval-distill-v1`) is not covered by this round.**
+
+**LW2 tagger.**
+
+- The family variant reads only the int8 head's *predicted* family. The dump script checks the
+  Python port against `audio_tagger_golden.tsv` on every run and logs the result: all 6 rows agree
+  on the argmax, max |Δp| = 0 in float64.
+- FMA genre columns are evaluation labels only.
+- The tagger was trained on FMA's official *training* split. Every new-style newcomer is therefore
+  drawn from the validation / test split only, but the background library contains training-split
+  tracks. The family variant's FMA results may still be optimistic.
+
+**Scenarios** (per library, as round 1):
+
+- `same`;
+- +1 / 2 / 3 % uniform additions;
+- changed 1 / 2 / 3 %;
+- album additions: 10–20-track groups from one style, ~1 % in all;
+- **new style** at 0.5 / 1 / 2 %.
+  - The style is the one with ≥ 2 % held-out members whose library share is closest to 3 %,
+    **excluding the pilot's style ("Soundtrack")**. If none qualifies, it is the style with the
+    most held-out members, taking as many as exist.
+  - On the gate draws this is "Field Recordings": 70–88 held-out tracks, so the "2 %" case is
+    1.4–1.8 %.
+  - Synthetic: a style that is closest to 3 % and absent before the change.
+- chains: ten +1 % steps then −2 %, at budgets 10 / 5 / 3 %.
+
+**Pipeline under test** (`tools/research/MapRefreshEngine.kt`).
+
+- **After every full build**, the app keeps:
+  - the centering mean;
+  - the PCA basis;
+  - each track's reduced (50-d) row;
+  - its 60-NN list.
+- **Each change** then runs these steps:
+  1. Flag rows by fused-row hash.
+  2. **Size gate**: more than 3 % flagged → full build.
+  3. **Budget gate**: placed share since the last full build > B → full build.
+  4. Project flagged rows with the frozen mean and basis.
+  5. Patch the 60-NN lists. Clean rows keep their list and are offered the flagged rows; every
+     other row is searched exactly.
+  6. Route with **UNION = G, then F (when predicted families exist), then refresh, then C**. Any
+     one of them → full build. Thresholds are exactly as in the pilot above.
+  7. Place flagged rows from their 5 nearest unflagged list entries at the raw-scale start.
+  8. Recompute the affinities over the patched lists.
+  9. Run 150 iterations, no exaggeration, late momentum.
+  10. Align and normalize.
+- Every step polls for cancellation per row or per iteration.
+- **Variants reported, not deciding:** G alone, G + F, C alone.
+
+**Rows.** Each holds for **every refreshed case under UNION, on every gate library**. "today" is
+today's warm full build on the same input. RF and CF apply only where rows were flagged.
+
+| Row | Pass |
+| --- | --- |
+| trust@15 | ≥ today − 0.005 |
+| recall@15 | ≥ today × 0.97 |
+| class@15 / genre@15 | ≥ today − 0.010 |
+| RF | ≥ today × 0.85 |
+| CF | ≥ today − 0.05 |
+| overlap with a cold build | ≥ mean of three cold-seed overlaps (seeds +1 / +3 / +5) − 0.10 |
+| lost neighbours, 1 − kept15, unchanged tracks | ≤ 0.5 × today's |
+| p90 move, unchanged tracks | ≤ 0.5 × today's and ≤ 0.02 of the map width |
+| stale basis | recall@15 ≥ 0.97 × the approach-1 refresh (fresh PCA + exact kNN, same placement and iterations) |
+| patched kNN | bit-identical (indices and distances) to `BarnesHutTsne.nearestNeighbours` over the same reduced rows |
+| router: new styles | every new-style case (0.5–2 %) → full build |
+| router: keeps | ≥ 90 % of uniform +1 % and album cases → refresh |
+| chain, at each budget | final map vs a cold build of the final library: trust ≥ cold − 0.005, recall ≥ cold × 0.97, RF ≥ cold × 0.85. Budget ladder 10 → 5 → 3 %; adopt the largest that passes. |
+
+**Device rows** (`MapRound2DeviceTest`):
+
+- **Setup.** `LJ-big36`, booted read-only, on synthetic seed 23 with a +1 % uniform change.
+  `LJ-api30` is used too if no other session is using it. `LJ-demo` is never used.
+- **Time.** The refresh's total time, router included, must be ≤ 0.25× today's warm full build,
+  taking the median of 5 runs each with the host idle. Host ratios are reported but do not decide.
+- **Heap.** Peak delta ≤ today's + 2 MB (median of 5). The refresh holds the stored lists
+  (~4.8 MB) and reduced rows (~2 MB), and the peak counts them.
+- **Cancellation.** Deadlines at the middle of each phase; the latency from the deadline must be
+  ≤ 250 ms.
+
+**Verdict rule.** Approach 1 + 3 is ready to implement only if **every** row passes. Otherwise the
+report says which rows fail and why, and nothing is tuned on gate data.
+
+### Plan revisions after the plan review (still before any gate data was run)
+
+The plan review returned REVISE; these changes supersede the text above where they differ.
+
+1. **Heap.**
+   - The neighbour patch now merges each clean row's stored list with the flagged rows in
+     primitive arrays. The earlier boxed version would have added tens of MB.
+   - The heap row counts the stored state at its production size (reduced rows, 60-NN lists, mean,
+     basis and hashes as primitive arrays, about 7.2 MB at 10,000): **refresh peak delta + stored
+     state ≤ today's peak delta + 2 MB.** This may fail by construction of the stored state; it is
+     kept as frozen.
+2. **Device stage** `tools/research/MapRound2DeviceTest.kt` is part of the reviewed material.
+   Device time is measured for +1 % uniform *and* changed 1 %.
+3. **Gate mode is hard-wired.** UNION is the primary; G, G + F and C are variants; "Soundtrack" is
+   excluded.
+4. **Family control.** FMA libraries add a `heldout1` scenario: +1 % uniform drawn only from the
+   validation / test split. It must stay on the refresh, and it counts in the keeps row. This tests
+   whether F fires on the tagger's train / held-out accuracy gap rather than on novelty.
+5. **Three new styles per library**, not one.
+   - FMA: the 3 sub-genres with the most held-out members, "Soundtrack" excluded. On the gate draws
+     these are Field Recordings, Pop and Rock. Their names and held-out counts were read from the
+     gate draws' *labels* before the run; no result was seen.
+   - Synthetic: the 3 styles whose share is closest to 3 %.
+   - Because some of these are not musically isolated (a held-out "Rock" sub-genre still has rock
+     neighbours), the new-style router row becomes **consequence-based:** every new-style case is
+     a UNION full build, *or* a UNION refresh that passes every quality row.
+   - Field Recordings is predicted mostly "other" by the tagger (41–57 of 70–88), so F is largely
+     blind to it. "Other" rows are skipped as rows.
+6. **Scoring** is done by `tools/research/map_round2_score.py`, written before the run. It
+   computes the quality rows over UNION refreshes, the two router rows, the chain rows with
+   bit-exact kNN at every refreshed chain step, and the adopted budget.
+7. **Cancellation.** The patch now polls every 64 rows, plus per searched row. Not pollable from
+   test code: `BarnesHutTsne.jointProbabilities`' CSR merge (core code), and the cheap sort,
+   align and normalize. The device stage logs the longest gap between polls; the row stays
+   ≤ 250 ms from the deadline.
+8. **Time accounting.** A router rejection's time is decision time plus the full build. The
+   refresh's `ms` excludes persisting the new state.
+9. **Family ties.** A conflict counts only when the row's own predicted family is not among the
+   tied most common families of its 5 nearest unflagged rows.
+10. **Disclosures.**
+    - G's isolation clause ("2× the median 5th-neighbour distance") replaced round 1's proposal
+      ("farther than its 5th nearest flagged row") during the pilot.
+    - The pilot's FMA-7989 draw was the whole pool, so every FMA gate track was seen in the pilot.
+      Only synthetic seeds 23/29/31 are fully out of sample.
+    - 0.85 and 0.15 were the only check and family thresholds tried.
+    - Patched-kNN bit-exactness relies on unchanged rows keeping their relative order. Production
+      would break ties by track id, which would not affect quality.
+    - The pilot already shows an album failing CF. If CF fails in the gate, it is not re-gated.
+
+**Second plan review: REVISE. Fixed before any gate data was run:**
+
+11. **The measured "today" is production's work only.**
+    - No research state by-product: today does not run the harness's own extra PCA and kNN.
+    - No extra copy of the matrix.
+    - This applies to the device stage and the host heap probe.
+12. **Measured refreshes skip building the research `State`.** It is a map of boxed ids;
+    production would keep the primitive arrays that are already in the peak. The stored-state
+    bytes are added to the heap row analytically (revision 1).
+13. **The device router is UNION.** The longest gap between polls is measured from the start.
+14. **The scorer fails instead of passing vacuously.** It expects, per library:
+    - 9 new-style cases;
+    - a `heldout1` case (FMA only);
+    - a chain at every budget;
+    - a verdict line for every UNION refresh.
+
+    Anything missing fails every affected row.
+15. **The tagger golden check is required.** The dump aborts on any argmax disagreement or
+    |Δp| > 1e-9.
+16. **Exact invocations** (one per library set): synthetic seeds 23 / 29 / 31; then
+    `fma-gate-s101/fma-5000`, `fma-gate-s202/fma-5000` and `fma-gate-s303/fma-6500`, each with
+    `MAP_R2_MODE=gate`. Device: `-e mapRound2 1 -e mapRows 10000 -e mapRouter UNION -e mapScenario
+    add1|change1 -e mapMode today|refresh`, 5 runs per cell, alternating, host idle.
+17. **Still unpolled:** the hashing pass now polls every 256 rows. A CHECK rejection then runs a full
+    build, whose own kNN polls per row inside `BarnesHutTsne`.
+18. **The new-style row** is a consequence of the quality rows plus the full-build count, not
+    independent evidence.
+
+**Third plan review: REVISE. Fixed:**
+
+19. **A router rejection inside a measured run** now does production's full build only. There is
+    no research state and no extra copy; the rows are consumed in place. The probe logs each run's
+    outcome. Every build's matrix copy is made before its timer starts.
+20. **The scorer requires:**
+    - the six expected library names (`--expect`), with `mode=gate` on each;
+    - add1 and album1 present per library;
+    - every quality row on every verdict (RF / CF excused only for `same`).
+21. **Disclosures.**
+    - The device fixture has no predicted families, so on the device UNION = G + C.
+    - The device's longest-gap measure does not cover the stretch from the last poll to the end.
+
+**Separate, not evidence.** At the owner's explicit request, a qualitative look at his own
+library's regions is made in the scratchpad and reported to him directly. It does not feed any
+row, threshold or decision, and none of his data enters the repository.
+
 ## Current design (verified in code, `claude/research-map-cost-91141c` at 2619533d)
 
 | Piece | Where | What it does |
