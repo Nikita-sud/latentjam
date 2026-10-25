@@ -82,6 +82,8 @@ import platform.MediaPlayer.MPRepeatType
 import platform.MediaPlayer.MPShuffleType
 import platform.UIKit.UIColor
 import platform.UIKit.UIImage
+import platform.UIKit.UIScreen
+import platform.UIKit.UIUserInterfaceStyle
 import platform.UIKit.UIGraphicsBeginImageContextWithOptions
 import platform.UIKit.UIGraphicsEndImageContext
 import platform.UIKit.UIGraphicsGetCurrentContext
@@ -520,7 +522,7 @@ internal class IosPlaybackController(
 
     /** Bounded to tracks that have actually reached the playhead. */
     private val realArtworkIds = mutableSetOf<String>()
-    private val latentArtworkIds = mutableSetOf<String>()
+    private val coverTiles = mutableMapOf<Boolean, UIImage>()
     private val fallbackArtworkInFlight = mutableSetOf<String>()
     private val artworkCache = mutableMapOf<String, UIImage>()
     private val artworkOrder = ArrayDeque<String>()
@@ -921,7 +923,6 @@ internal class IosPlaybackController(
     private fun forgetArtwork(id: String) {
         artworkCache.remove(id)
         realArtworkIds.remove(id)
-        latentArtworkIds.remove(id)
         artworkOrder.remove(id)
     }
 
@@ -2094,16 +2095,14 @@ internal class IosPlaybackController(
         MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = info
     }
 
-    /** Real embedded art first; otherwise publish the same identity/latent colour idea as Android. */
+    /** Real embedded art first; otherwise the app's own "no cover" tile ([coverTileColors]). */
     private fun nowPlayingArtwork(track: TrackDescriptor): MPMediaItemArtwork? {
         val id = track.id.value
-        val image = artworkCache[id]
-            ?: renderFallbackArtwork(identityTrackColorSeed(id).toArgb())?.also { fallback ->
-                cacheArtwork(id, fallback)
-            }
+        val image = artworkCache[id]?.takeIf { id in realArtworkIds }
+            ?: coverTile()
             ?: return null
 
-        if (id !in realArtworkIds && id !in latentArtworkIds) requestArtwork(track)
+        if (id !in realArtworkIds) requestArtwork(track)
         return MPMediaItemArtwork(boundsSize = image.size) { _ -> image }
     }
 
@@ -2123,20 +2122,8 @@ internal class IosPlaybackController(
                 } else if (cover != null) {
                     cacheArtwork(id, cover, real = true)
                 } else {
-                    val embedding = try {
-                        engine.embedding(track.id)
-                    } catch (cancelled: CancellationException) {
-                        throw cancelled
-                    } catch (_: Exception) {
-                        null
-                    } ?: return@launch
-                    if (!hasArtworkOf(track)) {
-                        superseded = true
-                    } else {
-                        val image = renderFallbackArtwork(latentTrackColorSeed(embedding).toArgb())
-                            ?: return@launch
-                        cacheArtwork(id, image, latent = true)
-                    }
+                    // No cover to read: the tile already shown stays.
+                    return@launch
                 }
                 if (!superseded && queue.getOrNull(queueIndex)?.id == track.id) {
                     invalidateNowPlayingInfo()
@@ -2162,48 +2149,41 @@ internal class IosPlaybackController(
         id: String,
         image: UIImage,
         real: Boolean = false,
-        latent: Boolean = false,
     ) {
         if (id !in artworkCache) {
             if (artworkOrder.size >= MAX_ARTWORK_CACHE) {
                 val evicted = artworkOrder.removeFirst()
                 artworkCache.remove(evicted)
                 realArtworkIds.remove(evicted)
-                latentArtworkIds.remove(evicted)
             }
             artworkOrder.addLast(id)
         }
         artworkCache[id] = image
         if (real) realArtworkIds += id
-        if (latent) latentArtworkIds += id
     }
 
-    /** A small local cover is enough for System UI to derive a stable player colour. */
-    private fun renderFallbackArtwork(argb: Int): UIImage? {
+    /** The "no cover" tile for the system's current light or dark, rendered once per style. */
+    private fun coverTile(): UIImage? {
+        val dark = UIScreen.mainScreen.traitCollection.userInterfaceStyle == UIUserInterfaceStyle.UIUserInterfaceStyleDark
+        return coverTiles[dark] ?: renderCoverTile(dark)?.also { coverTiles[dark] = it }
+    }
+
+    /** Renders the app's "no cover" tile ([coverTileColors]) for Now Playing. */
+    private fun renderCoverTile(dark: Boolean): UIImage? {
         val size = FALLBACK_ARTWORK_SIZE
         // This is a fixed-size media-session thumbnail, not a point-sized view on a 3x display.
         UIGraphicsBeginImageContextWithOptions(CGSizeMake(size, size), true, 1.0)
         try {
             val context = UIGraphicsGetCurrentContext() ?: return null
-            val red = ((argb ushr 16) and 0xFF) / 255.0
-            val green = ((argb ushr 8) and 0xFF) / 255.0
-            val blue = (argb and 0xFF) / 255.0
-            val background = UIColor(red = red, green = green, blue = blue, alpha = 1.0)
-            CGContextSetFillColorWithColor(context, background.CGColor)
+            val colors = coverTileColors(dark)
+            CGContextSetFillColorWithColor(context, colors.backgroundArgb.toUIColor().CGColor)
             CGContextFillRect(context, CGRectMake(0.0, 0.0, size, size))
-
-            val mark = if (relativeLuminance(red, green, blue) > 0.48) {
-                UIColor.blackColor.colorWithAlphaComponent(0.74)
-            } else {
-                UIColor.whiteColor.colorWithAlphaComponent(0.82)
-            }
-            CGContextSetStrokeColorWithColor(context, mark.CGColor)
-            CGContextSetLineWidth(context, size * 0.055)
+            CGContextSetStrokeColorWithColor(context, colors.markArgb.toUIColor().CGColor)
+            CGContextSetLineWidth(context, size * COVER_TILE_WAVE_STROKE)
             CGContextSetLineCap(context, CGLineCap.kCGLineCapRound)
             val center = size / 2.0
-            val spacing = size * 0.13
-            val heights = doubleArrayOf(0.20, 0.40, 0.62, 0.40, 0.20)
-            heights.forEachIndexed { index, height ->
+            val spacing = size * COVER_TILE_WAVE_SPACING
+            COVER_TILE_WAVE_HEIGHTS.forEachIndexed { index, height ->
                 val x = center + (index - 2) * spacing
                 val half = size * height / 2.0
                 CGContextBeginPath(context)
@@ -2217,11 +2197,12 @@ internal class IosPlaybackController(
         }
     }
 
-    private fun relativeLuminance(red: Double, green: Double, blue: Double): Double {
-        fun channel(value: Double): Double =
-            if (value <= 0.04045) value / 12.92 else ((value + 0.055) / 1.055).pow(2.4)
-        return 0.2126 * channel(red) + 0.7152 * channel(green) + 0.0722 * channel(blue)
-    }
+    private fun Int.toUIColor(): UIColor = UIColor(
+        red = ((this ushr 16) and 0xFF) / 255.0,
+        green = ((this ushr 8) and 0xFF) / 255.0,
+        blue = (this and 0xFF) / 255.0,
+        alpha = ((this ushr 24) and 0xFF) / 255.0,
+    )
 
     private companion object {
         const val MEDIA_ID_PREFIX = "ios-media:"

@@ -6,12 +6,11 @@ package io.github.nikitasud.latentjam.playback
 
 import android.content.ComponentName
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.LinearGradient
 import android.graphics.Paint
-import android.graphics.Shader
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -172,15 +171,8 @@ internal class AndroidPlaybackController(
      */
     private val failedRecoveryIds = mutableSetOf<String>()
 
-    /** Small bounded cache: only coverless tracks that actually reach the playhead are rendered. */
-    private val latentArtworkCachedIds = mutableSetOf<String>()
-    private val fallbackArtworkCache = object : LinkedHashMap<String, ByteArray>(16, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ByteArray>?): Boolean {
-            val shouldRemove = size > MAX_FALLBACK_ARTWORK_CACHE
-            if (shouldRemove && eldest != null) latentArtworkCachedIds.remove(eldest.key)
-            return shouldRemove
-        }
-    }
+    /** The "no cover" tile, rendered once per light and dark. */
+    private val fallbackArtworkCache = HashMap<String, ByteArray>(2)
     private val fallbackArtworkInFlight = mutableSetOf<String>()
 
     init {
@@ -1519,24 +1511,14 @@ internal class AndroidPlaybackController(
                 ?: track.artworkUri
             if (claimedArtworkUri != null && hasReadableArtwork(claimedArtworkUri)) return
 
-            // Publish a deterministic identity colour immediately. The engine serialises reads
-            // behind an indexing batch, so waiting for an embedding here could leave a first-time
-            // user's notification grey for minutes. This mirrors the app UI: identity now, latent
-            // colour as soon as the vector becomes available.
-            val immediateArtwork = fallbackArtworkCache[id]
-                ?: withContext(Dispatchers.Default) {
-                    renderFallbackArtwork(identityTrackColorSeed(id).toArgb())
-                }.also { fallbackArtworkCache[id] = it }
-            if (!publishFallbackArtwork(id, immediateArtwork, claimedArtworkUri)) return
-            if (id in latentArtworkCachedIds) return
-
-            val embedding = runCatching { engine.embedding(track.id) }.getOrNull() ?: return
-            val latentArtwork = withContext(Dispatchers.Default) {
-                renderFallbackArtwork(latentTrackColorSeed(embedding).toArgb())
-            }
-            fallbackArtworkCache[id] = latentArtwork
-            latentArtworkCachedIds += id
-            publishFallbackArtwork(id, latentArtwork, claimedArtworkUri)
+            // The app's own "no cover" tile, in the system's light or dark (see CoverTile.kt): the
+            // same for every coverless track, as it is inside the app.
+            val dark = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+                Configuration.UI_MODE_NIGHT_YES
+            val key = if (dark) TILE_DARK else TILE_LIGHT
+            val tile = fallbackArtworkCache[key]
+                ?: withContext(Dispatchers.Default) { renderCoverTile(dark) }.also { fallbackArtworkCache[key] = it }
+            publishFallbackArtwork(id, tile, claimedArtworkUri)
         } finally {
             fallbackArtworkInFlight.remove(id)
         }
@@ -1727,42 +1709,25 @@ internal class AndroidPlaybackController(
         else -> RepeatMode.OFF
     }
 
-    /** Renders a local cover with a dominant seed colour and a quiet waveform mark. */
-    private fun renderFallbackArtwork(seedArgb: Int): ByteArray {
+    /** Renders the app's "no cover" tile ([coverTileColors]) as a PNG for the session. */
+    private fun renderCoverTile(dark: Boolean): ByteArray {
         val bitmap = Bitmap.createBitmap(FALLBACK_ARTWORK_SIZE, FALLBACK_ARTWORK_SIZE, Bitmap.Config.ARGB_8888)
         try {
             val canvas = Canvas(bitmap)
-            val background = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                shader = LinearGradient(
-                    0f,
-                    0f,
-                    FALLBACK_ARTWORK_SIZE.toFloat(),
-                    FALLBACK_ARTWORK_SIZE.toFloat(),
-                    blendArgb(seedArgb, Color.WHITE, 0.16f),
-                    blendArgb(seedArgb, Color.BLACK, 0.34f),
-                    Shader.TileMode.CLAMP,
-                )
-            }
-            canvas.drawRect(0f, 0f, bitmap.width.toFloat(), bitmap.height.toFloat(), background)
-
+            val colors = coverTileColors(dark)
+            canvas.drawColor(colors.backgroundArgb)
             val mark = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = if (relativeLuminance(seedArgb) > 0.48f) {
-                    Color.argb(190, 0, 0, 0)
-                } else {
-                    Color.argb(210, 255, 255, 255)
-                }
+                color = colors.markArgb
                 strokeCap = Paint.Cap.ROUND
-                strokeWidth = FALLBACK_ARTWORK_SIZE * 0.055f
+                strokeWidth = FALLBACK_ARTWORK_SIZE * COVER_TILE_WAVE_STROKE
             }
             val center = FALLBACK_ARTWORK_SIZE / 2f
-            val spacing = FALLBACK_ARTWORK_SIZE * 0.13f
-            val heights = floatArrayOf(0.20f, 0.40f, 0.62f, 0.40f, 0.20f)
-            heights.forEachIndexed { index, height ->
+            val spacing = FALLBACK_ARTWORK_SIZE * COVER_TILE_WAVE_SPACING
+            COVER_TILE_WAVE_HEIGHTS.forEachIndexed { index, height ->
                 val x = center + (index - 2) * spacing
                 val half = FALLBACK_ARTWORK_SIZE * height / 2f
                 canvas.drawLine(x, center - half, x, center + half, mark)
             }
-
             return ByteArrayOutputStream().use { output ->
                 check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output))
                 output.toByteArray()
@@ -1770,27 +1735,6 @@ internal class AndroidPlaybackController(
         } finally {
             bitmap.recycle()
         }
-    }
-
-    private fun blendArgb(from: Int, to: Int, fraction: Float): Int {
-        val amount = fraction.coerceIn(0f, 1f)
-        fun channel(start: Int, end: Int): Int = (start + (end - start) * amount).toInt()
-        return Color.argb(
-            channel(Color.alpha(from), Color.alpha(to)),
-            channel(Color.red(from), Color.red(to)),
-            channel(Color.green(from), Color.green(to)),
-            channel(Color.blue(from), Color.blue(to)),
-        )
-    }
-
-    private fun relativeLuminance(argb: Int): Float {
-        fun linear(channel: Int): Float {
-            val value = channel / 255f
-            return if (value <= 0.04045f) value / 12.92f else Math.pow(((value + 0.055f) / 1.055f).toDouble(), 2.4).toFloat()
-        }
-        return 0.2126f * linear(Color.red(argb)) +
-            0.7152f * linear(Color.green(argb)) +
-            0.0722f * linear(Color.blue(argb))
     }
 
     private companion object {
@@ -1803,7 +1747,8 @@ internal class AndroidPlaybackController(
         /** Seek-bar refresh cadence while playing. */
         const val TICKER_INTERVAL_MS = 500L
         const val FALLBACK_ARTWORK_SIZE = 256
-        const val MAX_FALLBACK_ARTWORK_CACHE = 64
+        const val TILE_DARK = "tile:dark"
+        const val TILE_LIGHT = "tile:light"
     }
 }
 
