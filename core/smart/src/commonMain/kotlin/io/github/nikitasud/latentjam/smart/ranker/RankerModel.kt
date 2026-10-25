@@ -158,7 +158,15 @@ public class RankerModel(
         public val kappa: Double = 2.0,
         /** PLAN_LISTENW2: only rejections of a picked B count (rejections and negatives); autoplay abandons are ignored. */
         public val picksOnly: Boolean = false,
-    )
+        /**
+         * PLAN_LISTENW3: how much an autoplay abandon counts against the pair (in the rejection count and the negative)
+         * next to a picked one (1); null = 1, or 0 with [picksOnly].
+         */
+        public val autoWeight: Double? = null,
+    ) {
+        /** The weight of an autoplay rejection. */
+        public val autoplayWeight: Double get() = autoWeight ?: if (picksOnly) 0.0 else 1.0
+    }
 
     /** PLAN_TRANSGRAPH variants "A" (SIGNALS_REVIEW §4), "B" (hard thresholds), "C" (no start-reason multipliers), "A2" (+ 2-hop), "D" (session-kNN). */
     public class TransGraph(
@@ -443,7 +451,7 @@ public class RankerModel(
             "followerExempt" to setOf("followMin"),
             "personalNudge" to setOf("delta", "track", "artist", "playlist", "favourite", "frequency", "followMin"),
             "transGraph" to setOf("variant", "window", "gapMin", "halfLifeDays", "mu", "kappa", "neg", "importWeight"),
-            "listenWeight" to setOf("zeroS", "negWeight", "midS", "tauS", "pairMode", "kappa", "picksOnly"),
+            "listenWeight" to setOf("zeroS", "negWeight", "midS", "tauS", "pairMode", "kappa", "picksOnly", "autoWeight"),
             "prevFamilyJump" to setOf("lambda"),
             "familyDrift" to setOf("lambda"),
             "playlistBonus" to setOf("lambda", "quota", "artistCap"),
@@ -629,7 +637,7 @@ public class RankerModel(
                     val mode = it["pairMode"] as? String ?: "all"
                     require(mode in setOf("all", "gate2", "shrink")) { "listenWeight.pairMode" }
                     ListenWeight((d("zeroS", 30.0) * 1000).toLong(), d("negWeight", 0.0), d("midS", 30.0), d("tauS", 7.0),
-                        mode, d("kappa", 2.0), it["picksOnly"] as? Boolean ?: false)
+                        mode, d("kappa", 2.0), it["picksOnly"] as? Boolean ?: false, (it["autoWeight"] as? Number)?.toDouble())
                 },
                 transGraph = (root["transGraph"] as? Map<*, *>)?.let {
                     fun d(k: String, v: Double) = (it[k] as? Number)?.toDouble() ?: v

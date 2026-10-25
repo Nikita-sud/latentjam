@@ -108,20 +108,22 @@ internal fun abandonNegatives(
     libraryIds: Set<TrackId>,
     seedMs: Long,
     lw: io.github.nikitasud.latentjam.smart.ranker.RankerModel.ListenWeight,
-): Map<Pair<TrackId, TrackId>, Pair<Double, Int>> {
+): Map<Pair<TrackId, TrackId>, Pair<Double, Double>> {
     val events = oldestFirst.filter { it.startedAtMs < seedMs && it.trackId in libraryIds }.sortedBy(ListenEvent::startedAtMs)
-    val out = HashMap<Pair<TrackId, TrackId>, Pair<Double, Int>>()
+    val out = HashMap<Pair<TrackId, TrackId>, Pair<Double, Double>>()
     for (j in 1 until events.size) {
         val b = events[j]
         val heard = b.listenedMs ?: continue
         val start = b.origin?.start
-        if ((start != ListenStart.USER_PICK && (lw.picksOnly || start != ListenStart.AUTO_ADVANCE)) || b.completed || heard >= listenThresholdMs(b)) continue
+        // PLAN_LISTENW3: a picked rejection weighs 1, an autoplay one lw.autoplayWeight (0 = ignored)
+        val weight = when (start) { ListenStart.USER_PICK -> 1.0; ListenStart.AUTO_ADVANCE -> lw.autoplayWeight; else -> 0.0 }
+        if (weight <= 0.0 || b.completed || heard >= listenThresholdMs(b)) continue
         val a = (j - 1 downTo 0).firstOrNull { !events[it].skipped }?.let { events[it] }
             ?.takeIf { b.startedAtMs - it.startedAtMs <= HabitSlots.PAIR_GAP_MS && it.trackId != b.trackId } ?: continue
         val n = 1.0 / (1.0 + kotlin.math.exp(-(lw.midS - heard / 1000.0) / lw.tauS))
         val key = a.trackId to b.trackId
-        val (sum, count) = out[key] ?: (0.0 to 0)
-        out[key] = (sum + n) to (count + 1)
+        val (sum, count) = out[key] ?: (0.0 to 0.0)
+        out[key] = (sum + weight * n) to (count + weight)
     }
     return out
 }
@@ -146,8 +148,8 @@ internal fun personalHistoryOf(
     // PLAN_LISTENW2: the pair's rejection count (the abandons abandonNegatives counts, early ones included) sets its weight
     val rejections = if (lw != null && lw.pairMode != "all") abandonNegatives(events, libraryIds, seedMs, lw) else emptyMap()
     val pairWeight: ((TrackId, TrackId) -> Double)? = when (lw?.pairMode) {
-        "gate2" -> { a, b -> if ((rejections[a to b]?.second ?: 0) >= 2) 1.0 else 0.0 }
-        "shrink" -> { a, b -> (rejections[a to b]?.second ?: 0).let { r -> r / (r + lw.kappa) } }
+        "gate2" -> { a, b -> if ((rejections[a to b]?.second ?: 0.0) >= 2.0 - 1e-9) 1.0 else 0.0 }
+        "shrink" -> { a, b -> (rejections[a to b]?.second ?: 0.0).let { r -> r / (r + lw.kappa) } }
         else -> null
     }
     return io.github.nikitasud.latentjam.smart.ranker.PersonalHistory(

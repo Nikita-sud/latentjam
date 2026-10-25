@@ -57,7 +57,7 @@ public class PersonalHistory(
     /** PLAN_LISTENW: each extra transition's credit (B's listen credit), parallel to [extraTransitions]; null = 1 each. */
     extraCredits: List<Double>? = null,
     /** PLAN_LISTENW: pair-level negatives A → B (summed σ weight, number of rejections) from abandons of B after A. */
-    private val pairNegatives: Map<Pair<TrackId, TrackId>, Pair<Double, Int>> = emptyMap(),
+    private val pairNegatives: Map<Pair<TrackId, TrackId>, Pair<Double, Double>> = emptyMap(),
     /** PLAN_LISTENW: the listen weighting (null = counts as before: every listen 1, no negatives). */
     private val listenWeight: RankerModel.ListenWeight? = null,
     /** PLAN_LISTENW2: how much of the weighting each pair A → B gets (null = all of it, PLAN_LISTENW). */

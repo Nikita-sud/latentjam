@@ -184,4 +184,25 @@ class HabitSlotsPlannerTest {
         assertTrue(s1 > 0.0 && s1 < kotlin.math.ln(2.0))
         assertTrue(s2 < s1)
     }
+
+    @Test
+    fun `autoplay rejections count by their weight towards the repeat gate`() {
+        val library = setOf("a", "b").mapTo(HashSet(), ::TrackId)
+        fun sessions(n: Int): List<ListenEvent> {
+            val out = ArrayList<ListenEvent>(); var t = 0L
+            repeat(n) {
+                out += play("a", t, 200_000, ListenStart.USER_PICK, completed = true)
+                out += play("b", t + 201_000, 5_000, ListenStart.AUTO_ADVANCE); t += 3_600_000
+            }
+            return out
+        }
+        fun nats(w: io.github.nikitasud.latentjam.smart.ranker.RankerModel.ListenWeight) =
+            personalHistoryOf(sessions(2), library, 100_000_000, emptyMap(), skipPairs = true, unskippedOnly = false, lw = w) { "" }
+                .row(TrackId("b"), TrackId("a"), "").transTrackNats
+        fun lw(picksOnly: Boolean, auto: Double?) = io.github.nikitasud.latentjam.smart.ranker.RankerModel.ListenWeight(
+            negWeight = 1.5, pairMode = "gate2", picksOnly = picksOnly, autoWeight = auto)
+        assertEquals(0.0, nats(lw(picksOnly = true, auto = null)), 1e-12) // LW2: autoplay ignored (no pair, no negative)
+        assertTrue(nats(lw(picksOnly = false, auto = 1.0)) < 0.0) // two autoplay rejections open the gate
+        assertEquals(0.0, nats(lw(picksOnly = false, auto = 0.5)), 1e-12) // half weight: 1.0 < 2, not yet
+    }
 }
