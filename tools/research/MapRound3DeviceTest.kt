@@ -54,7 +54,16 @@ class MapRound3DeviceTest {
             val inv = (1.0 / sqrt(norm)).toFloat()
             for (d in 0 until DIM) oldRows[i * DIM + d] *= inv
         }
-        val state = MapRefreshEngine.fullBuild(old.map(ids::get), oldRows, DIM, null).state
+        // Untimed setup, memory-lean (post-freeze harness fix): the state from a consumed copy, then the layout
+        // consumes the old matrix itself.
+        val oldIds = old.map(ids::get)
+        var raw = 0f
+        val stateRows = oldRows.copyOf()
+        val recording = MapEmbeddingBackend { r, rn, rd, initial, active ->
+            ApproximateMapEmbedding.embed(r, rn, rd, initial, active).also { if (it is MapEmbeddingResult.Complete) raw = MapRefreshEngine.spread(it.coordinates) }
+        }
+        val points = LibraryLayout.computeWith(LibraryVectorSpace(oldIds, oldRows, DIM, LibraryVectorSource.AUDIO), emptyMap(), { true }, Long.MAX_VALUE, recording)
+        val state = MapRefreshEngine.stateOfLean(oldIds, stateRows, DIM, points, raw)
         val runtime = Runtime.getRuntime()
         System.gc(); System.runFinalization(); System.gc()
         val usedBefore = runtime.totalMemory() - runtime.freeMemory()
@@ -88,10 +97,13 @@ class MapRound3DeviceTest {
                     val regionStart = System.nanoTime()
                     val worlds = LibraryWorlds.discover(ids.map { TrackDescriptor(it) }, LibraryVectorSpace(ids, rows.copyOf(), DIM, LibraryVectorSource.AUDIO), emptyMap(), isActive, budgetBefore)
                     val regionMs = (System.nanoTime() - regionStart) / 1e6
-                    val built = MapRefreshEngine.fullBuild(ids, rows, DIM, state, isActive, withState = true)
+                    val leanStart = System.nanoTime()
+                    MapRefreshEngine.stateOfLean(ids, rows.copyOf(), DIM, emptyList(), 1f, isActive)
+                    val stateMs = (System.nanoTime() - leanStart) / 1e6
+                    val built = MapRefreshEngine.fullBuild(ids, rows, DIM, state, isActive, withState = false)
                     val regionPath = if (MapMemoryBudget.regionWorkBytes(n, DIM) <= budgetBefore) "average-linkage" else "k-means-fallback"
                     outcome = "completed regions=${worlds.size} region_path=$regionPath"
-                    detail = "regions_ms=$regionMs layout_and_state_ms=${(System.nanoTime() - regionStart) / 1e6 - regionMs} " +
+                    detail = "regions_ms=$regionMs state_ms=$stateMs layout_ms=${built.ms} " +
                         "budget_projection_streamed_bytes=${MapMemoryBudget.projectionStreamedBytes(n, DIM, false)} budget_region_work_bytes=${MapMemoryBudget.regionWorkBytes(n, DIM)} available_work_bytes_before=$budgetBefore"
                 }
                 else -> {

@@ -16,6 +16,25 @@ with minors, now fixed; see [Review log](#review-log).
 
 ## Summary
 
+> **Latest: Round 3 (26 Oct), the owner's deferred-rebuild design: FAIL as frozen, not ready to
+> implement. 10 frozen rows fail.**
+> - **Strong:** refresh speed, 0.14× of today's time on `LJ-api29` (2.6 s vs 18.8 s).
+>   Trust, recall, stability and kNN passed on all 57 ordinary changes. The deferred rebuild
+>   restored new styles' RF, trust and recall in every case.
+> - **Failing:**
+>   - stored-state heap (≈ +8 MB over the margin);
+>   - the rebuild's peak and region fallback on a 256 MB heap;
+>   - additive regions (purity, coverage, own region, chain drift);
+>   - overlap at ≥ 3 % changes;
+>   - one 1 % album's CF;
+>   - tiny new styles while waiting;
+>   - one recovery CF.
+> - Rebuild cancellation passed only as sampled (300–440 ms gaps between polls).
+> - A post-hoc reading, not gated: the ≤ 2 % layout refresh is the most promising candidate for a
+>   next round, but its 2 % budget was never run and its overlap margins are thin.
+>
+> See [Round 3 result](#round-3-result-gate-run-2526-october-2026).
+
 > **Gate result (25 Oct, held-out):** approach 1 **failed as frozen**.
 > - On every non-novel change, the refresh step passed every quality row except overlap on one
 >   album case (0.003 short). On the three novel styles the router let through, RF and CF failed.
@@ -254,6 +273,11 @@ draw. Nothing below has been gated.
   refresh no longer repeats PCA and the neighbour search. The time row moves to ≤ 0.25×.
 
 ## Round 2: approach 1 + 3 with a new router (plan frozen 25 October 2026, before the gate run)
+
+> **Superseded, never scored.** The owner changed the target design before this gate finished (see
+> Round 3). The run was stopped and its partial logs were set aside unread, so its gate libraries
+> stayed unseen for Round 3. Note: stopping it also ended every Gradle daemon on the machine, which
+> may have interrupted another session's build.
 
 The owner chose to continue. This round tests the changes proposed in
 [What happens next](#what-happens-next):
@@ -651,6 +675,101 @@ If a row fails, nothing is re-gated on gate data.
   label.
 - Synthetic libraries have no artists or families, so there only the geometry hint and the budget
   apply.
+
+## Round 3 result (gate run 25–26 October 2026)
+
+**Verdict: FAIL as frozen; the design is not ready to implement.** The frozen rule was "ready only
+if every row passes", and 10 rows fail (the two chain budgets counted as one row, as frozen; the scorer prints them separately).
+
+- **What did well** (stated as findings; this is not a "ready" subset):
+  - On a weak emulator the refresh took **0.14–0.15× of today's time** (2.6 s against 18.8 s at
+    10,000 tracks) and cancelled within 16 ms.
+  - Every trust, recall, class, lost-neighbour, p90-move, stale-basis and kNN row passed on all 57
+    ordinary changes.
+  - The deferred rebuild restored the new styles' RF, trust and recall in all 54 cases.
+- **What failed:**
+  - heap (the stored state);
+  - the deferred rebuild's peak on a 256 MB heap;
+  - additive regions (purity, coverage, own region, chains);
+  - overlap at changes of 3 % or more;
+  - one album's CF at 1 %;
+  - three tiny new styles while waiting;
+  - one new style's recovery CF.
+
+**Data and setup.** Logs: `tools/research/map-round3-gate-2026-10-25.txt`, the scorer output
+`map-round3-score-2026-10-25.txt`, and `map-round3-device-2026-10-25.txt`.
+
+- Six libraries, all public: synthetic seeds 23 / 29 / 31 and FMA draws s101 / s202 / s303. No
+  owner data.
+- 111 cases in total: 57 ordinary changes and 54 new-style cases.
+- Chains at 5 % and 3 %.
+- Device: `LJ-api29` with a 256 MB heap, booted read-only.
+
+### Pass / fail per frozen row
+
+| Row | Result | Verdict |
+| --- | --- | --- |
+| refresh: trust, recall, class, lost neighbours, p90 move, stale basis, bit-exact kNN | 57 / 57 each | **PASS** |
+| refresh: RF | 51 / 51 | **PASS** |
+| refresh: CF | 50 / 51. Fails on FMA s303 album1, a **1.02 %** change: 0.733 vs 0.810, −0.077. The pilot warned of this; not re-gated. | **FAIL** |
+| refresh: overlap with a cold build | 49 / 57. All 8 failures are synthetic changes of 3 % or more (add3, add5, change3; e.g. 0.389 vs 0.432 at add5). The 1–2 % changes pass, some narrowly: synthetic s31 change2 by 0.002, s23 add2 by 0.006. | **FAIL** |
+| waiting: trust, recall (0.95×), class, lost neighbours | 54 / 54 each | **PASS** |
+| waiting: RF ≥ 0.5× | 51 / 54. Fails on 3 synthetic new styles at 0.5 % (0.34–0.44× while waiting). | **FAIL** |
+| recovery: RF, trust, recall | 54 / 54 each | **PASS** |
+| recovery: CF | 53 / 54. Fails on FMA s101 Pop 0.5 % (0.645 vs 0.683, −0.037). | **FAIL** |
+| regions: settled churn ≤ 0.001 | 111 / 111 (a guard: 0 by construction) | **PASS** |
+| regions: purity ≥ fresh − 0.01 | 106 / 111. Fails on 5 FMA s202 cases, −0.012 to −0.017. | **FAIL** |
+| regions: coverage ≥ fresh − 0.02 | 110 / 111. Fails on FMA s101 heldout1 (−0.024). | **FAIL** |
+| regions: ordinary changes create ≤ 1 new region, none below 4 tracks | 57 / 57 | **PASS** |
+| regions: new style in its own region ≥ fresh − 0.10 | 41 / 46 (8 cases where a fresh rediscovery also gives no region are excluded). The pending tracks of a split world inherit the old majority region, so a new style is sometimes absorbed (e.g. 0.29 vs 0.61). | **FAIL** |
+| chains at 5 % and at 3 % | 5 / 6 each. Every **layout** check passes at every stale and final step, and kNN is bit-exact throughout. FMA s303 fails on **regions**: purity after the chain is 0.738–0.739 against 0.757 fresh, −0.018 / −0.019. No budget can be adopted. | **FAIL** |
+| hints (latency, not deciding) | new styles ≥ 1 % marked stale: 36 / 36; false hints on ordinary changes: 2 / 45 | pass (reported) |
+| device: refresh time ≤ 0.25× | add1: 2.61 s vs 18.83 s = **0.138×**. change1: 2.81 s vs 18.97 s = **0.148×**. Medians of 5. | **PASS** |
+| device: refresh heap ≤ today + 2 MB | Refresh peak delta 28.9 MB + stored state 8.7 MB = 37.6 MB, against today's 27.7 MB + 2 MB. The 8.7 MB is an estimate from array sizes, not a heap measurement: about 7.1 MB of 60-NN lists, reduced rows, basis and hashes, plus about 1.6 MB of region identity. | **FAIL** (≈ +8 MB) |
+| device: deferred rebuild ≤ 9 min | 37.7–44.4 s (layout 19.2–21.4 s, state 15.0–19.1 s, regions 3.5–5.2 s) | **PASS** |
+| device: rebuild peak inside the app's budget | Peak delta 71.0 MB against 57.5 MB available before the run. It includes a matrix copy for region discovery. Before the run, the app's own budget formula (regions need 81.4 MB, 57.5 MB available) chose the **k-means fallback** (16 regions). The host region rows used average linkage, so they do not describe the path a 10k-track, 256 MB device actually takes. | **FAIL** |
+| device: cancellation ≤ 250 ms from the deadline | Refresh: 7–16 ms at 0.3 / 1.2 / 2.3 s, all inside the optimizer; deadlines in the earlier, shorter phases were not hit. Rebuild: 0.1–13 ms at 2 / 10 / 30 s (regions, state, layout). **But** the completed rebuilds show gaps of 315–438 ms between polls, so a deadline landing in such a gap would exceed 250 ms. The pass reflects where three sampled deadlines fell. | **PASS as sampled** (worst case not shown) |
+
+**Disclosed deviations.**
+
+- On the device, the frozen harness ran out of memory in the untimed setup: the research state
+  build makes two extra copies of the 54 MB matrix. A memory-lean state build (`stateOfLean`: one
+  consumed copy, row-by-row projection, numerically equivalent) was added after the freeze, for
+  the device stage only. It is used in the setup **and in the measured rebuild's state step**, so
+  the device rebuild row was not measured with frozen code. That lowers its peak and time, which
+  cannot flip either verdict: the peak fails anyway, and the time passes by a wide margin.
+- Host results use the frozen code.
+- The rebuild's state step remains an upper bound: a second PCA and 60-NN that production would
+  share with the layout.
+
+### What this means (a post-hoc reading, not gated)
+
+The following is interpretation after seeing the gate data. It is not a pass and does not change
+the verdict.
+
+1. **The most promising candidate for the next round** is the layout refresh for changes of
+   ≤ 2 %, with approach-3 caches and a deferred full rebuild.
+   - Every layout row except refresh CF passed at 1–2 %. The CF failure is one 1.02 % album.
+   - The 1–2 % overlap margins are thin: 0.002–0.006 on two synthetic cases.
+   - A 2 % stale budget was **not run**: the chains ran 5 % and 3 %.
+   - A fresh round needs a 2 % chain, albums at 1–2 % on more FMA draws, and new seeds.
+2. **The stored state needs a slimmer design** before the heap row can pass:
+   - drop the stored distances and recompute them;
+   - store reduced rows as fp16, memory-mapped from disk;
+   - keep region identity as primitive arrays.
+
+   The estimated 37.6 MB peak is well under a 256 MB heap limit; the failure is the frozen +2 MB
+   margin.
+3. **Additive regions keep every settled track's region**, which is what the owner asked for.
+   But they drift behind a fresh rediscovery (purity −0.019 over a chain), and they sometimes
+   absorb a new style into an old region. Region identity needs another design, for example
+   rediscover and match by overlap, letting a settled track move only when its new region is
+   clearly better, plus the planned periodic re-partition.
+4. **The deferred rebuild on a 256 MB heap** goes over the app's budget, and its regions fall back
+   to k-means by the app's own formula. An app rebuild must stream the matrix as the layout already
+   does, and its region discovery must fit the budget.
+5. **Cancellation inside the rebuild** has 300–440 ms gaps between polls, inside region discovery
+   or the state build. They need finer polling before a 250 ms guarantee can be claimed.
 
 ## Current design (verified in code, `claude/research-map-cost-91141c` at 2619533d)
 
@@ -1078,6 +1197,22 @@ regression) with old-point anchoring (the landmarked Parametric UMAP recipe).
   - the kept15 cut-off is ≈ 0.87.
 
   Verdict unchanged.
+
+- **Round 3 verdict review (fresh subagent): REVISE.** All counts, medians and heap sums matched
+  the logs; no owner data in the repository. Issues raised:
+  - "every layout row passes at 1–2 %" and "fully restores" were false (the 1.02 % album CF;
+    recovery CF);
+  - the "ready layout half" was a post-hoc split, and the 2 % budget was never run;
+  - the thin 2 % overlap margins were not reported;
+  - rebuild poll gaps of 315–438 ms;
+  - `stateOfLean` also affected the measured rebuild;
+  - every refresh deadline fell inside the optimizer;
+  - the 8.7 MB split, the k-means fallback's cause, and number nits.
+
+  **Answered by:** a rewritten verdict that keeps FAIL, marks the reading post-hoc, reports the
+  margins, gaps and the full `stateOfLean` disclosure, and corrects the numbers.
+- **Confirming round: one number error** (worst purity gap −0.017, not −0.015), now fixed.
+  Everything else matched.
 
 ## Sources
 

@@ -146,6 +146,41 @@ internal object MapRefreshEngine {
         )
     }
 
+    /**
+     * Device-stage state build (added after the round-3 freeze, used only by MapRound3DeviceTest): the same mean,
+     * basis, reduced rows and 60-NN as [stateOf], but from ONE matrix that it consumes (centred and unitized in
+     * place), with reduced rows projected row by row. [stateOf]'s two extra copies of the n x dim matrix do not fit a
+     * 256 MB heap next to the library matrix. Numerically equivalent up to float summation order.
+     */
+    fun stateOfLean(ids: List<TrackId>, rows: FloatArray, dim: Int, points: List<LayoutPoint>, raw: Float, isActive: () -> Boolean = { true }): State {
+        val n = ids.size
+        val hashes = ids.indices.associate { ids[it] to rowHash(rows, it, dim) }
+        val mean = FloatArray(dim)
+        for (d in 0 until dim) { var m = 0f; for (i in 0 until n) m += rows[i * dim + d]; mean[d] = m / n }
+        LibraryLayout.prepareForPca(rows, n, dim)
+        val basis = Pca.basis(rows, n, dim, COMPONENTS, SEED, isActive) ?: throw Cancelled()
+        val k = basis.size / dim
+        val reduced = FloatArray(n * k)
+        val row = FloatArray(dim)
+        for (i in 0 until n) {
+            if (i % 256 == 0 && !isActive()) throw Cancelled()
+            rows.copyInto(row, 0, i * dim, (i + 1) * dim)
+            Pca.project(row, dim, basis, k, reduced, i * k)
+            var norm = 0f
+            for (c in 0 until k) norm += reduced[i * k + c] * reduced[i * k + c]
+            norm = sqrt(norm)
+            if (norm >= 1e-12f) for (c in 0 until k) reduced[i * k + c] /= norm
+        }
+        val kk = minOf(K, n - 1)
+        val neighbours = BarnesHutTsne.nearestNeighbours(reduced, n, k, kk, isActive) ?: throw Cancelled()
+        return State(
+            ids, points.associate { it.trackId to floatArrayOf(it.x, it.y) }, raw, hashes, dim, mean, basis, k,
+            ids.indices.associate { ids[it] to reduced.copyOfRange(it * k, (it + 1) * k) },
+            ids.indices.associate { i -> ids[i] to (Array(kk) { s -> ids[neighbours.index[i * kk + s]] } to neighbours.distance.copyOfRange(i * kk, (i + 1) * kk)) },
+            0,
+        )
+    }
+
     /** One library change: flag, patch, route, then refresh or (router says no) today's full build. */
     fun update(ids: List<TrackId>, rows: FloatArray, dim: Int, state: State, config: Config, isActive: () -> Boolean = { true }): Result {
         val poll = { if (!isActive()) throw Cancelled() }
