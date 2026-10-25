@@ -148,6 +148,9 @@ public actual fun smartEngineBackendModule(): Module = module {
     single<IndexStore>(smartLayoutQualifier) {
         IosFileIndexStore(fileName = "map_layout.bin")
     }
+    single<io.github.nikitasud.latentjam.smart.cluster.MapRefreshStateStore> {
+        io.github.nikitasud.latentjam.smart.cluster.IosMapRefreshStateStore()
+    }
     single<IndexStore>(smartImputationQualifier) {
         IosFileIndexStore(fileName = "smart_imputation.bin")
     }
