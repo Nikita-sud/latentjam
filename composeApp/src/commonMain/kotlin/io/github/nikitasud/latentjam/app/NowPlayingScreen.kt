@@ -33,6 +33,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.unit.Dp
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -385,12 +387,18 @@ fun NowPlayingScreen(
     // Once it is parked below the pill, out of sight, the player forgets what a fresh player
     // would not show. Not at the start of the close: an expanded queue would visibly drop while
     // the player shrinks.
+    // A wide window shows the queue beside the player instead of in a sheet under it; set by the
+    // layout below, which is the only place that knows the width.
+    var twoPane by remember { mutableStateOf(false) }
     LaunchedEffect(parked) {
         if (parked) {
             flipped = false
-            sheetState.bottomSheetState.partialExpand()
+            // Without the sheet on screen its state has no anchors to settle between.
+            if (!twoPane) sheetState.bottomSheetState.partialExpand()
         }
     }
+    // Asked for from the player's own controls; a queue already on screen beside it needs nothing.
+    val openQueue: () -> Unit = { if (!twoPane) scope.launch { sheetState.bottomSheetState.expand() } }
 
     // The player sheet grows this screen out of the mini-player pill and carries it while it is
     // dragged; nothing here moves for that, so a drag never recomposes the screen.
@@ -419,66 +427,12 @@ fun NowPlayingScreen(
                     PlayerCoverBackdrop(backdropUri, Modifier.matchParentSize(), onShownChange = { backdropShown = it })
                 }
                 Box(modifier = Modifier.fillMaxSize().clearOfSides(sideBleed)) {
-                // Continues the sheet's own colour through the system-bar strip beneath it.
-                //
-                // The scaffold below is lifted by navigationBarsPadding(), so without this the gradient
-                // painted by the enclosing Box shows through in the gap — an artwork-tinted band that
-                // changes colour every track. Behind Android's three-button bar that passes for a tinted
-                // nav bar, but under an iPhone's home indicator it reads as a stray stripe.
-                //
-                // This is the rule the mini-player pill already follows: the SURFACE runs to the physical
-                // edge, only the CONTENT is inset. Sizing from the same WindowInsets the scaffold pads by
-                // means the two cannot drift — a home-button iPhone reports no inset and this draws
-                // nothing at all, while a three-button Android phone gets the full 48dp.
-                //
-                // As wide as the sheet itself, which stops at its maximum width on a wide window (an
-                // unfolded foldable, a landscape phone): a full-width strip there stuck out on both sides.
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .widthIn(max = BottomSheetDefaults.SheetMaxWidth)
-                        .fillMaxWidth()
-                        .windowInsetsBottomHeight(WindowInsets.navigationBars)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-                )
-
-                // The inset belongs on the SCAFFOLD, and it takes both modifiers to work. The app
-                // draws edge to edge (no opting out from Android 15) and BottomSheetScaffold applies no
-                // insets of its own, so the sheet was anchored to the raw bottom of the window and its
-                // peek — the "Queue · n" label — sat behind the system buttons.
-                //
-                // Padding the sheet CONTENT cannot fix that, which is worth recording because it is the
-                // obvious thing to reach for: a peeking sheet is taller than its container and
-                // translated downwards, so the foot of its content is already far below the window and
-                // padding there is invisible. navigationBarsPadding() moves the anchor the sheet hangs
-                // from, which lifts the peek; clipToBounds() then cuts the part of the sheet that still
-                // overhangs the container, which is what keeps queue rows out of the bar in both the
-                // collapsed and the expanded state. The gradient behind the bar is unaffected — it is
-                // painted by the Box outside this.
-                BottomSheetScaffold(
-                    // Bound the sheet itself, not just the player behind it: its expanded anchor must
-                    // stay below the status bar/camera throughout a drag. The outer background still
-                    // draws to the edge, and the inset is consumed once for both player and queue.
-                    modifier = Modifier
-                        .windowInsetsPadding(
-                            WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
-                        )
-                        .navigationBarsPadding()
-                        .clipToBounds(),
-                    scaffoldState = sheetState,
-                    sheetPeekHeight = QueuePeekHeight,
-                    sheetShape = RoundedCornerShape(topStart = 24.dp.corner(), topEnd = 24.dp.corner()),
-                    sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    sheetShadowElevation = 0.dp,
-                    containerColor = Color.Transparent,
-                    // The stock handle pads itself to 48 dp; the peek is a strip, not a toolbar.
-                    sheetDragHandle = { CompactDragHandle() },
-                    sheetContent = {
+                val queueContent: @Composable () -> Unit = {
                         QueueSheetContent(
                             accent = accent,
                             queue = now.queue,
                             continuationIds = now.smartContinuationIds,
-                            onExpand = { scope.launch { sheetState.bottomSheetState.expand() } },
+                            onExpand = openQueue,
                             currentIndex = now.queueIndex,
                             // The playing bars are an endless animation; a hidden player keeps none.
                             isPlaying = now.isPlaying && active,
@@ -494,14 +448,8 @@ fun NowPlayingScreen(
                             },
                             onSaveQueue = onAddQueueToPlaylist,
                         )
-                    },
-                ) { sheetPadding ->
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(bottom = sheetPadding.calculateBottomPadding()),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
+                }
+                val playerContent: @Composable ColumnScope.() -> Unit = {
                         // Matches the library's top bar geometry exactly, so the
                         // overflow lands in the same place before and after the morph. The bar is a
                         // handle too: pulling it down carries the player like the cover does.
@@ -720,7 +668,7 @@ fun NowPlayingScreen(
                                                     .clickable(role = Role.Button) {
                                                         haptics.play(PlayerHaptic.TAP)
                                                         if (onOpenSource?.invoke() != true) {
-                                                            scope.launch { sheetState.bottomSheetState.expand() }
+                                                            openQueue()
                                                         }
                                                     }
                                                     .padding(horizontal = 10.dp, vertical = 5.dp),
@@ -839,19 +787,116 @@ fun NowPlayingScreen(
 
                                 Spacer(modifier = Modifier.height(if (compact) 12.dp else 34.dp))
 
-                                // What comes next, without opening the queue; a tap opens it anyway.
-                                NextUpRow(
+                                // What comes next, without opening the queue; a tap opens it anyway. Beside
+                                // the queue it would only repeat the row under the playing one.
+                                if (!twoPane) NextUpRow(
                                     next = nextUpTrack(now),
                                     onOpenQueue = {
                                         haptics.play(PlayerHaptic.TAP)
-                                        scope.launch { sheetState.bottomSheetState.expand() }
+                                        openQueue()
                                     },
                                 )
 
                                 Spacer(modifier = Modifier.height(6.dp))
                             },
                         )
+                }
+                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val wide = playerIsTwoPane(maxWidth, maxHeight)
+                SideEffect { twoPane = wide }
+                if (wide) {
+                    // An unfolded foldable or a tablet has the room to show the queue for good: the
+                    // player on the start side, the queue as a card on the end side, no sheet.
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .windowInsetsPadding(
+                                WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+                            )
+                            .navigationBarsPadding(),
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f).fillMaxHeight(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            content = playerContent,
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(24.dp.corner()),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            modifier = Modifier
+                                .weight(QUEUE_PANE_WEIGHT)
+                                .fillMaxHeight()
+                                .padding(top = 8.dp, end = 12.dp, bottom = 12.dp),
+                        ) {
+                            Column(modifier = Modifier.padding(top = 8.dp)) { queueContent() }
+                        }
                     }
+                } else {
+                // Continues the sheet's own colour through the system-bar strip beneath it.
+                //
+                // The scaffold below is lifted by navigationBarsPadding(), so without this the gradient
+                // painted by the enclosing Box shows through in the gap — an artwork-tinted band that
+                // changes colour every track. Behind Android's three-button bar that passes for a tinted
+                // nav bar, but under an iPhone's home indicator it reads as a stray stripe.
+                //
+                // This is the rule the mini-player pill already follows: the SURFACE runs to the physical
+                // edge, only the CONTENT is inset. Sizing from the same WindowInsets the scaffold pads by
+                // means the two cannot drift — a home-button iPhone reports no inset and this draws
+                // nothing at all, while a three-button Android phone gets the full 48dp.
+                //
+                // As wide as the sheet itself, which stops at its maximum width on a wide window (an
+                // unfolded foldable, a landscape phone): a full-width strip there stuck out on both sides.
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .widthIn(max = BottomSheetDefaults.SheetMaxWidth)
+                        .fillMaxWidth()
+                        .windowInsetsBottomHeight(WindowInsets.navigationBars)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                )
+
+                // The inset belongs on the SCAFFOLD, and it takes both modifiers to work. The app
+                // draws edge to edge (no opting out from Android 15) and BottomSheetScaffold applies no
+                // insets of its own, so the sheet was anchored to the raw bottom of the window and its
+                // peek — the "Queue · n" label — sat behind the system buttons.
+                //
+                // Padding the sheet CONTENT cannot fix that, which is worth recording because it is the
+                // obvious thing to reach for: a peeking sheet is taller than its container and
+                // translated downwards, so the foot of its content is already far below the window and
+                // padding there is invisible. navigationBarsPadding() moves the anchor the sheet hangs
+                // from, which lifts the peek; clipToBounds() then cuts the part of the sheet that still
+                // overhangs the container, which is what keeps queue rows out of the bar in both the
+                // collapsed and the expanded state. The gradient behind the bar is unaffected — it is
+                // painted by the Box outside this.
+                BottomSheetScaffold(
+                    // Bound the sheet itself, not just the player behind it: its expanded anchor must
+                    // stay below the status bar/camera throughout a drag. The outer background still
+                    // draws to the edge, and the inset is consumed once for both player and queue.
+                    modifier = Modifier
+                        .windowInsetsPadding(
+                            WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+                        )
+                        .navigationBarsPadding()
+                        .clipToBounds(),
+                    scaffoldState = sheetState,
+                    sheetPeekHeight = QueuePeekHeight,
+                    sheetShape = RoundedCornerShape(topStart = 24.dp.corner(), topEnd = 24.dp.corner()),
+                    sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    sheetShadowElevation = 0.dp,
+                    containerColor = Color.Transparent,
+                    // The stock handle pads itself to 48 dp; the peek is a strip, not a toolbar.
+                    sheetDragHandle = { CompactDragHandle() },
+                    sheetContent = { queueContent() },
+                ) { sheetPadding ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(bottom = sheetPadding.calculateBottomPadding()),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        content = playerContent,
+                    )
+                }
+                }
                 }
                 }
             }
@@ -891,6 +936,20 @@ fun NowPlayingScreen(
         }
     }
 }
+
+/**
+ * Room for the player and its queue side by side, each at about a phone's width: an unfolded
+ * foldable or a tablet. A phone on its side is wide enough but too short; its player already lays
+ * the cover beside the controls, and halving its width as well would only make the player scroll.
+ */
+internal fun playerIsTwoPane(width: Dp, height: Dp): Boolean =
+    width >= TWO_PANE_MIN_WIDTH && height >= TWO_PANE_MIN_HEIGHT
+
+private val TWO_PANE_MIN_WIDTH = 700.dp
+private val TWO_PANE_MIN_HEIGHT = 520.dp
+
+/** The queue card's share of a two-pane player's width, against the player's 1. */
+private const val QUEUE_PANE_WEIGHT = 0.85f
 
 /** Keep the anchored toolbar and queue reachable when a phone rotates or text grows. */
 @Composable

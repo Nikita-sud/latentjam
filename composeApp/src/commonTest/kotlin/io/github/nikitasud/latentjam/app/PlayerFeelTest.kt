@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.app
 
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.unit.dp
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -233,5 +234,14 @@ class PlayerFeelTest {
         assertEquals("MP3", fileFormatLabel("song.mp3", null, null))
         assertNull(fileFormatLabel("noextension", 1L, 1L))
         assertNull(fileFormatLabel(null, 1L, 1L))
+    }
+
+    @Test
+    fun theQueueSitsBesideThePlayerOnlyWhereBothFit() {
+        // An unfolded foldable (about 840 × 900 dp) shows both; a folded one or a phone does not.
+        assertTrue(playerIsTwoPane(840.dp, 900.dp))
+        assertFalse(playerIsTwoPane(412.dp, 900.dp))
+        // A phone on its side is wide but too short: it keeps the queue sheet.
+        assertFalse(playerIsTwoPane(915.dp, 412.dp))
     }
 }
