@@ -110,7 +110,7 @@ def main():
             path = m[3].split('/') if len(m) > 3 else []
             top = m[4] if len(m) > 4 else ''
             sub = path[1] if len(path) > 1 and top else top
-            pool[key] = (V[row], text.get(tid), top, sub)
+            pool[key] = (V[row], text.get(tid), top, sub, cells[1:4] + [cells[5], cells[7] if len(cells) > 7 else ''])
     keys = sorted(pool)
     print(f'pool {len(keys)} unique tracks, {sum(1 for k in keys if pool[k][1] is not None)} with text')
     for n in sizes:
@@ -126,6 +126,8 @@ def main():
             if not predict: return ''
             family = predict(pool[k][0])[0]
             return f"\t{split.get(k, 'cc')}\t{'' if family == 'other' else family}"
+        # descriptors.tsv: id, title, artist, album, genre TAG as the messy library has it, year (the app's inputs).
+        (d / 'descriptors.tsv').write_text(''.join('fma-' + k + '\t' + '\t'.join(c.replace('\t', ' ') for c in pool[k][4]) + '\n' for k in pick), encoding='utf-8')
         (d / 'labels.tsv').write_text(''.join(f'fma-{k}\t{pool[k][2]}\t{pool[k][3]}{extra(k)}\n' for k in pick))
         print(f'{d.name}: {n} tracks, text {len(tk)}, genres {len({pool[k][2] for k in pick if pool[k][2]})}')
 

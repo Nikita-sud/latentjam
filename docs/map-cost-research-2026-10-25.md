@@ -499,6 +499,159 @@ The plan review returned REVISE; these changes supersede the text above where th
 library's regions is made in the scratchpad and reported to him directly. It does not feed any
 row, threshold or decision, and none of his data enters the repository.
 
+## Round 3: refresh every change, defer the rebuild (plan frozen 25 October 2026, before the gate run)
+
+**The owner changed the target design** ("делай как считаешь лучше"). The novelty router is no
+longer a correctness gate.
+
+- **The round-2 gate was stopped and never scored.** Its partial logs were moved aside unread, so
+  the gate libraries (synthetic seeds 23 / 29 / 31; FMA draws s101 / s202 / s303) are still
+  unseen. They are reused here.
+- **Design under test:**
+  1. **Every change** takes the refresh path. This is approach 1 + 3: frozen basis and mean,
+     stored rows, patched 60-NN, raw-scale placement and 150 iterations. No router decides
+     between refresh and rebuild.
+  2. **Region identity persists.**
+     - A new or changed track joins the region with the nearest centroid if it clears that
+       region's 5th-percentile member cosine; otherwise it gets no region.
+     - At a full rebuild, regions are **additive**. Settled tracks (present and unchanged since
+       the last full build) keep their region. Pending tracks take the rediscovered world they
+       fall in: that world's old region when its settled members are mostly (≥ 50 %) from one old
+       region (greedy one-to-one, largest overlap first), otherwise a new region.
+  3. **The full rebuild is deferred.**
+     - The map is marked stale when the placed share since the last full build exceeds B
+       (ladder 5 % → 3 %), or when a hint fires:
+       - group-geometry novelty above 10 % (round 2's G);
+       - the LW2 family conflict (round 2's F, predicted families only);
+       - more than 50 % of new tracks by artists the library does not have.
+     - The rebuild (layout today's way, warm from the waiting map, plus additive regions) would
+       run in the background: WorkManager on charging + idle, iOS `BGProcessingTask` with
+       `requiresExternalPower`. It swaps in when done. In this test it runs right after the stale
+       step.
+     - **The hints only decide how soon a rebuild is asked for, never whether the map is correct.**
+
+**Pilot** (synthetic seed 7 and the round-1 FMA-5000 draw; the "Soundtrack" style; logs in
+`tools/research/map-round3-pilot-2026-10-25.txt`). Design only, not evidence.
+
+- **Refresh** passes every row on ordinary changes, +5 % included. Host time is 0.16–0.21×.
+- **While a new style waits,** whole-map recall falls to 0.955–0.96× today's on synthetic data.
+  This is the frozen basis missing the new style's direction, and the rebuild restores it. The
+  waiting-recall bound is therefore **0.95×**, not 0.97×. This is the one threshold set from the
+  pilot.
+- **Recovery** after the rebuild passed everywhere.
+- **Plain rediscovery** with overlap matching moved 1–11 % of unchanged FMA tracks between regions.
+  A sticky variant moved 1–10 %. The **additive** rule moves 0 % by construction, with purity
+  within 0.0075 of a fresh rediscovery, coverage equal or higher, and a new style getting its own
+  region as often or more. Additive regions are the frozen design.
+- **Hints:** geometry caught the synthetic new style at every size. On FMA, family caught
+  Soundtrack only at 2 %; nothing fired at 0.5–1 %. No false hints on ordinary changes.
+
+**Rows** (scored by `tools/research/map_round3_score.py`, written before the run; "today" is
+today's warm full build on the same input):
+
+| Group | Row | Pass |
+| --- | --- | --- |
+| Refresh (same, add1/2/3/5, change1/2/3, album1, heldout1) | trust, recall, class, RF, CF, overlap band, lost neighbours, p90 move, stale basis, bit-exact kNN | as round 2 |
+| New style **while it waits** (3 styles × 0.5 / 1 / 2 %) | trust | ≥ today − 0.005 |
+| | recall | ≥ today × **0.95** |
+| | class | ≥ today − 0.010 |
+| | lost neighbours | ≤ 0.5 × today's |
+| | RF of the new tracks | ≥ 0.5 × today's (their CF loss and count are reported) |
+| New style **after the deferred rebuild** | RF | ≥ 0.95 × today |
+| | CF | ≥ today − 0.02 |
+| | trust | ≥ today − 0.005 |
+| | recall | ≥ today × 0.97 |
+| Regions (every case) | churn of settled tracks | ≤ 0.001 |
+| | purity (majority-label share) | ≥ a fresh rediscovery's − 0.01 |
+| | coverage | ≥ a fresh rediscovery's − 0.02 |
+| | new style in its own region | ≥ a fresh rediscovery's − 0.10 |
+| Chains (ten +1 % steps then −2 %, B = 5 % and 3 %) | the waiting map at every stale step and the final step, against a cold build of that library | trust ≥ cold − 0.005, recall ≥ cold × 0.97, RF ≥ cold × 0.85; bit-exact kNN at every step; adopt the larger passing B |
+| Hints (latency; **reported, not deciding**) | new styles ≥ 1 % marked stale | ≥ 2/3 |
+| | false hints on ordinary 1–3 % changes | ≤ 20 % |
+
+**Device rows** (`tools/research/MapRound3DeviceTest.kt`):
+
+- **Setup.**
+  - **`LJ-api29`** (2 GB RAM, 256 MB heap class), booted read-only on its own port, synthetic
+    seed 23.
+  - **`LJ-api30` is not used:** another session has the LatentJam app open on it, so it is not
+    free. `LJ-demo` is never used.
+  - The heap limit is set to 256 MB through `dalvik.vm.heapsize` if the image is rootable; this
+    is recorded either way.
+- **Refresh time** (no router, the geometry hint included): ≤ 0.25 × today's warm layout. Median
+  of 5 runs each for add1 and change1, host idle.
+- **Refresh heap:** peak delta + stored state + region identity ≤ today's peak delta + 2 MB
+  (median of 5).
+- **Deferred full rebuild** (layout + `LibraryWorlds.discover` over 10,000 tracks): completes,
+  with peak heap inside the app's own budget formula, in **≤ 9 min** at background priority, which
+  is a single WorkManager window. Median of 3.
+- **Cancellation:** deadlines inside each refresh phase, inside the layout and inside region
+  discovery. Latency from the deadline ≤ 250 ms.
+
+**Plan review 1: REVISE. Fixed before any gate data was run:**
+
+1. **Chains** now require bit-exact kNN at *every* step.
+2. **The device rebuild** now includes building the refresh state the next refreshes need. This is
+   an upper bound: a second PCA and 60-NN, both polled.
+   - Region discovery runs under the app's work budget measured before the run. The log records
+     the path taken (average linkage or k-means fallback) and peak against budget.
+   - The rebuild starts warm from the 99 % state, a timing proxy for "warm from the waiting map".
+   - Region-discovery cancellations are logged as cancellations.
+3. **Long-term drift.**
+   - Additive regions now recompute centroids and floors from their final membership, so a region
+     created at a rebuild can be joined afterwards.
+   - The chains track regions (join every step, additive at each rebuild). The chain row also
+     requires the final additive regions to be within purity − 0.01 and coverage − 0.02 of a
+     fresh discovery of the final library.
+   - **Known limit:** additive regions never re-partition settled tracks. The intended policy is a
+     full re-partition, which renames regions, done rarely and announced: for example when the
+     library has grown more than 25 % since the last re-partition, or when the owner asks.
+   - That policy is not gated here beyond the 11-step chains.
+4. **Threshold provenance.** The region margins (purity − 0.01, coverage − 0.02, own region − 0.10)
+   were written while the additive pilot's results were visible (worst purity gap −0.0075). They
+   are pilot-set, like waiting recall 0.95.
+5. **Region identity bytes** count about 52 B per track (a map on ART) plus 200 centroids.
+6. **Rows true by construction are guards, not evidence:** settled churn, additive coverage, and
+   non-novel purity. The own-region row excludes cases where a fresh rediscovery gives the new style
+   no region either; their count is reported.
+7. **Further specification.**
+   - Pending tracks that fall in no rediscovered world keep their joined region.
+   - A new region takes the discovered name; duplicate names are counted.
+   - The unseen-artist hint is expected to fire on album additions. This is reported only.
+
+**Plan review 2: REVISE. Fixed:**
+
+8. **No spurious tiny regions.** At a rebuild, a pending track takes, in order:
+   - its world's matched old region; else
+   - the world's settled majority region (a split region keeps its id for pending tracks, so two split worlds may share it); else
+   - a new region, but only when the world holds at least `TrackClustering.MIN_CLUSTER_SIZE` (4)
+     pending tracks.
+
+   Otherwise it keeps its joined region.
+9. **New frozen row:** on ordinary changes, at most 1 new region per change and none below
+   `MIN_CLUSTER_SIZE`. Chains log new-region sizes and duplicate names, and fail on a new region
+   below `MIN_CLUSTER_SIZE`.
+10. **Disclosures.**
+    - The device rebuild's `rows.copyOf()` for region discovery sits inside the measured window, a
+      conservative upper bound on its peak.
+    - `region_path` is inferred from the region work budget (correct at 10,000).
+
+**Verdict rule.** The design is ready to implement only if every row passes, hint rows excepted.
+If a row fails, nothing is re-gated on gate data.
+
+**Disclosures.**
+
+- The FMA tracks are the pool used before (round 1, the pilots). Only synthetic seeds
+  23 / 29 / 31 are fully out of sample.
+- The gate style names (Field Recordings, Pop, Rock) were read from the draws' labels.
+- The LW2 encoder vectors (FMA) are not the release encoder's.
+- The tagger was trained on the FMA training split. New-style tracks are held-out-split only;
+  the background is mixed.
+- The unseen-artist hint uses the FMA artist field, which is library metadata, not an evaluation
+  label.
+- Synthetic libraries have no artists or families, so there only the geometry hint and the budget
+  apply.
+
 ## Current design (verified in code, `claude/research-map-cost-91141c` at 2619533d)
 
 | Piece | Where | What it does |

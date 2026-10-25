@@ -110,11 +110,15 @@ internal object MapRefreshEngine {
             LibraryVectorSpace(ids, owned, dim, LibraryVectorSource.AUDIO), previous?.positions ?: emptyMap(), isActive, Long.MAX_VALUE, recording,
         )
         val ms = (System.nanoTime() - start) / 1e6
-        val state = if (withState) stateOf(ids, rows, dim, points, raw) else previous!!
+        val state = if (withState) stateOf(ids, rows, dim, points, raw, isActive) else previous!!
         return Result(points, state, false, "full", 0, 0, ms, emptyMap(), null, null)
     }
 
-    fun stateOf(ids: List<TrackId>, rows: FloatArray, dim: Int, points: List<LayoutPoint>, raw: Float): State {
+    /**
+     * The refresh state a build leaves. Computed separately here (a second PCA and 60-NN), so it is an upper bound on
+     * what production would pay by keeping the layout's own basis and lists. Polls [isActive].
+     */
+    fun stateOf(ids: List<TrackId>, rows: FloatArray, dim: Int, points: List<LayoutPoint>, raw: Float, isActive: () -> Boolean = { true }): State {
         val n = ids.size
         val mean = FloatArray(dim)
         for (d in 0 until dim) {
@@ -124,10 +128,12 @@ internal object MapRefreshEngine {
         }
         val prepared = rows.copyOf()
         LibraryLayout.prepareForPca(prepared, n, dim)
-        val basis = Pca.basis(prepared, n, dim, COMPONENTS, SEED)!!
+        val basis = Pca.basis(prepared, n, dim, COMPONENTS, SEED, isActive) ?: throw Cancelled()
         val k = basis.size / dim
-        val reduced = LibraryLayout.reduceForEmbedding(rows.copyOf(), n, dim)
-        val neighbours = BarnesHutTsne.nearestNeighbours(reduced, n, k, minOf(K, n - 1)) { true }!!
+        if (!isActive()) throw Cancelled()
+        val reduced = LibraryLayout.reduceForEmbedding(rows.copyOf(), n, dim, isActive)
+        if (!isActive()) throw Cancelled()
+        val neighbours = BarnesHutTsne.nearestNeighbours(reduced, n, k, minOf(K, n - 1), isActive) ?: throw Cancelled()
         val kk = minOf(K, n - 1)
         return State(
             ids, points.associate { it.trackId to floatArrayOf(it.x, it.y) }, raw,
@@ -309,7 +315,7 @@ internal object MapRefreshEngine {
      * nearest unflagged row is farther than [Config.isolation] × the library's median 5th-neighbour distance (or not
      * within its 60-NN at all). Isolated outliers are therefore not novel; a new, separate cluster is.
      */
-    private fun groupNovel(nb: BarnesHutTsne.Neighbours, n: Int, kk: Int, flagged: BooleanArray, config: Config, poll: () -> Unit): Int {
+    fun groupNovel(nb: BarnesHutTsne.Neighbours, n: Int, kk: Int, flagged: BooleanArray, config: Config, poll: () -> Unit): Int {
         val fifth = FloatArray(n) { nb.distance[it * kk + minOf(4, kk - 1)] }
         fifth.sort()
         val median = sqrt(fifth[n / 2].toDouble())
@@ -332,7 +338,7 @@ internal object MapRefreshEngine {
      * majority family of their 5 nearest unflagged rows, against the same share for unflagged rows (their 5 nearest
      * other unflagged rows). Routes to a full build when it exceeds the library's own rate by [Config.familyConflictMargin].
      */
-    private fun familyConflict(
+    fun familyConflict(
         ids: List<TrackId>, nb: BarnesHutTsne.Neighbours, n: Int, kk: Int, flagged: BooleanArray, config: Config, poll: () -> Unit,
     ): Boolean {
         val family = config.family!!
