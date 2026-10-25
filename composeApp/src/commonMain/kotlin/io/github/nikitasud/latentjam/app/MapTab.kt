@@ -6,6 +6,8 @@ package io.github.nikitasud.latentjam.app
 
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.testTag
+import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_progress_eta
+import kotlinx.coroutines.delay
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_retry
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_analysis_progress
 import io.github.nikitasud.latentjam.smart.EngineState
@@ -289,11 +291,21 @@ fun MapTab(
                 is MapPageState.Ready -> null
             }
             if (message != null) {
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                    // Seconds, tens of them on a large library, with no fraction to report:
+                    // a running bar rather than a spinner says this one takes a while.
+                    if (state is MapPageState.Building) {
+                        AfterAMoment {
+                            AppLinearProgress(modifier = Modifier.padding(top = 16.dp).width(MAP_PROGRESS_WIDTH))
+                        }
+                    }
+                }
             }
         }
         return
@@ -1618,7 +1630,7 @@ internal fun nearest(
  */
 internal sealed interface MapIndexingHelp {
     /** The analysis is running: how far it has got. */
-    data class Progress(val done: Int, val total: Int) : MapIndexingHelp
+    data class Progress(val done: Int, val total: Int, val etaMinutes: Int? = null) : MapIndexingHelp
 
     /** Nothing will happen by itself: the engine failed, or the pass stopped before finishing. */
     data class Stopped(val engine: EngineState) : MapIndexingHelp
@@ -1630,7 +1642,11 @@ internal sealed interface MapIndexingHelp {
 internal fun mapIndexingHelp(indexing: AutomaticIndexingState, engine: EngineState): MapIndexingHelp = when {
     engine is EngineState.Failed -> MapIndexingHelp.Stopped(engine)
     indexing.running && indexing.progressKnown && indexing.trackIds.isNotEmpty() ->
-        MapIndexingHelp.Progress(indexing.done.coerceAtMost(indexing.trackIds.size), indexing.trackIds.size)
+        MapIndexingHelp.Progress(
+            indexing.done.coerceAtMost(indexing.trackIds.size),
+            indexing.trackIds.size,
+            indexing.etaMinutes,
+        )
     // A pass for this library ran and ended without even the metadata phase: it was interrupted.
     !indexing.running && indexing.trackIds.isNotEmpty() && !indexing.metadataReady ->
         MapIndexingHelp.Stopped(engine)
@@ -1657,16 +1673,47 @@ private fun MapIndexingStatus(onRetry: () -> Unit) {
             textAlign = TextAlign.Center,
         )
         when (help) {
-            is MapIndexingHelp.Progress -> Text(
-                text = stringResource(Res.string.intelligence_analysis_progress, help.done, help.total),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp),
-            )
+            // Minutes to hours: a bar that fills, with the count and, once known, the time left.
+            is MapIndexingHelp.Progress -> {
+                AppLinearProgress(
+                    progress = { if (help.total == 0) 0f else help.done.toFloat() / help.total },
+                    modifier = Modifier.padding(top = 16.dp).width(MAP_PROGRESS_WIDTH),
+                )
+                Text(
+                    text = if (help.etaMinutes == null) {
+                        stringResource(Res.string.intelligence_analysis_progress, help.done, help.total)
+                    } else {
+                        stringResource(Res.string.indexing_notification_progress_eta, help.done, help.total, help.etaMinutes)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
             is MapIndexingHelp.Stopped -> OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 16.dp)) {
                 Text(stringResource(Res.string.intelligence_retry))
             }
-            MapIndexingHelp.Waiting -> Unit
+            // Usually seconds with no measure to show: a spinner, and only once the wait is
+            // long enough to notice, so a quick start does not flash one.
+            MapIndexingHelp.Waiting -> AfterAMoment {
+                AppSpinner(modifier = Modifier.padding(top = 16.dp).size(24.dp), strokeWidth = 2.5.dp)
+            }
         }
     }
 }
+
+/** Shows [content] only once it has been wanted for [SHOW_PROGRESS_AFTER_MS]. */
+@Composable
+private fun AfterAMoment(content: @Composable () -> Unit) {
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(SHOW_PROGRESS_AFTER_MS)
+        shown = true
+    }
+    if (shown) content()
+}
+
+/** Below about a second a progress indicator only flickers; past it, it says work is going on. */
+private const val SHOW_PROGRESS_AFTER_MS = 1_000L
+
+private val MAP_PROGRESS_WIDTH = 240.dp

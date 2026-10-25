@@ -19,6 +19,8 @@ class MapIndexingHelpTest {
     fun aRunningAnalysisShowsHowFarItHasGot() {
         val running = AutomaticIndexingState(trackIds = library, running = true, done = 1, progressKnown = true)
         assertEquals(MapIndexingHelp.Progress(1, 3), mapIndexingHelp(running, ready))
+        // Once the pass can estimate it, the time left travels with the count.
+        assertEquals(MapIndexingHelp.Progress(1, 3, 12), mapIndexingHelp(running.copy(etaMinutes = 12), ready))
         // Not counted yet: no "0 of N" first.
         assertEquals(MapIndexingHelp.Waiting, mapIndexingHelp(running.copy(progressKnown = false), ready))
     }

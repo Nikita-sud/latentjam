@@ -531,6 +531,7 @@ object AppGraph {
                     mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
                         done = progress.analysed,
                         failures = failures.toMap(),
+                        etaMinutes = remaining?.let(IndexingEta::minutesFrom),
                     )
                     // A short scheduling gap also gives thermal management a chance to settle;
                     // 75 ms per model batch is invisible beside audio inference but materially
@@ -622,6 +623,8 @@ data class AutomaticIndexingState(
     val done: Int = 0,
     /** Whether [done] has been counted yet; until then this pass has nothing true to show. */
     val progressKnown: Boolean = false,
+    /** Minutes the pass expects to need, once it has seen enough to say ([IndexingEta]). */
+    val etaMinutes: Int? = null,
     val failures: Map<TrackId, EngineError> = emptyMap(),
 )
 
