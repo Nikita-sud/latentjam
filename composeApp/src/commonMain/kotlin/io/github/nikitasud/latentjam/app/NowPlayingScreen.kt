@@ -33,6 +33,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -199,6 +204,9 @@ private val QueueHandleHeight = 18.dp
 // row under the title, which reads as a stray strip above the navigation bar.
 private val QueuePeekHeight = QueueHandleHeight + QueueTitleRowHeight
 private val PLAY_PAUSED_RADIUS = 36.dp
+
+/** A navigation bar this tall holds three buttons; the gesture pill's is about 24 dp. */
+private val THREE_BUTTON_BAR_MIN = 32.dp
 private val NEXT_UP_HEIGHT = 36.dp
 /** Long enough that skipping through the queue reads no tag on the way; short enough to feel instant. */
 private const val LYRICS_PROBE_DELAY_MS = 400L
@@ -427,8 +435,19 @@ fun NowPlayingScreen(
                     PlayerCoverBackdrop(backdropUri, Modifier.matchParentSize(), onShownChange = { backdropShown = it })
                 }
                 Box(modifier = Modifier.fillMaxSize().clearOfSides(sideBleed)) {
-                val queueContent: @Composable () -> Unit = {
+                val navigationBarHeight = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                // How far the queue sheet is open, 0 peeking to 1 open, read while drawing so a drag
+                // redraws the bar's fade without recomposing.
+                var sheetHostHeight by remember { mutableFloatStateOf(0f) }
+                val peekPx = with(LocalDensity.current) { (QueuePeekHeight + navigationBarHeight).toPx() }
+                val queueOpenFraction: () -> Float = {
+                    val collapsed = sheetHostHeight - peekPx
+                    val offset = runCatching { sheetState.bottomSheetState.requireOffset() }.getOrNull()
+                    if (offset == null || collapsed <= 0f) 0f else ((collapsed - offset) / collapsed).coerceIn(0f, 1f)
+                }
+                val queueContent: @Composable (bottomInset: Dp) -> Unit = { bottomInset ->
                         QueueSheetContent(
+                            bottomInset = bottomInset,
                             accent = accent,
                             queue = now.queue,
                             continuationIds = now.smartContinuationIds,
@@ -828,46 +847,15 @@ fun NowPlayingScreen(
                                 .fillMaxHeight()
                                 .padding(top = 8.dp, end = 12.dp, bottom = 12.dp),
                         ) {
-                            Column(modifier = Modifier.padding(top = 8.dp)) { queueContent() }
+                            Column(modifier = Modifier.padding(top = 8.dp)) { queueContent(0.dp) }
                         }
                     }
                 } else {
-                // Continues the sheet's own colour through the system-bar strip beneath it.
-                //
-                // The scaffold below is lifted by navigationBarsPadding(), so without this the gradient
-                // painted by the enclosing Box shows through in the gap — an artwork-tinted band that
-                // changes colour every track. Behind Android's three-button bar that passes for a tinted
-                // nav bar, but under an iPhone's home indicator it reads as a stray stripe.
-                //
-                // This is the rule the mini-player pill already follows: the SURFACE runs to the physical
-                // edge, only the CONTENT is inset. Sizing from the same WindowInsets the scaffold pads by
-                // means the two cannot drift — a home-button iPhone reports no inset and this draws
-                // nothing at all, while a three-button Android phone gets the full 48dp.
-                //
-                // As wide as the sheet itself, which stops at its maximum width on a wide window (an
-                // unfolded foldable, a landscape phone): a full-width strip there stuck out on both sides.
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .widthIn(max = BottomSheetDefaults.SheetMaxWidth)
-                        .fillMaxWidth()
-                        .windowInsetsBottomHeight(WindowInsets.navigationBars)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-                )
-
-                // The inset belongs on the SCAFFOLD, and it takes both modifiers to work. The app
-                // draws edge to edge (no opting out from Android 15) and BottomSheetScaffold applies no
-                // insets of its own, so the sheet was anchored to the raw bottom of the window and its
-                // peek — the "Queue · n" label — sat behind the system buttons.
-                //
-                // Padding the sheet CONTENT cannot fix that, which is worth recording because it is the
-                // obvious thing to reach for: a peeking sheet is taller than its container and
-                // translated downwards, so the foot of its content is already far below the window and
-                // padding there is invisible. navigationBarsPadding() moves the anchor the sheet hangs
-                // from, which lifts the peek; clipToBounds() then cuts the part of the sheet that still
-                // overhangs the container, which is what keeps queue rows out of the bar in both the
-                // collapsed and the expanded state. The gradient behind the bar is unaffected — it is
-                // painted by the Box outside this.
+                // BottomSheetScaffold applies no insets of its own, and the app draws edge to edge, so
+                // the sheet hangs from the raw bottom of the window. Its peek is therefore the title
+                // plus the navigation bar's height: the "Queue · n" label sits above the buttons, and
+                // the opened sheet's rows run on under them, the last one padded clear of the bar.
+                // clipToBounds() keeps a dragged sheet from drawing past the scaffold.
                 BottomSheetScaffold(
                     // Bound the sheet itself, not just the player behind it: its expanded anchor must
                     // stay below the status bar/camera throughout a drag. The outer background still
@@ -876,17 +864,19 @@ fun NowPlayingScreen(
                         .windowInsetsPadding(
                             WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
                         )
-                        .navigationBarsPadding()
-                        .clipToBounds(),
+                        .clipToBounds()
+                        .onSizeChanged { sheetHostHeight = it.height.toFloat() },
                     scaffoldState = sheetState,
-                    sheetPeekHeight = QueuePeekHeight,
+                    // The sheet reaches the screen's foot and its peek includes the navigation bar,
+                    // so the open queue runs on under the buttons; the title still peeks above them.
+                    sheetPeekHeight = QueuePeekHeight + navigationBarHeight,
                     sheetShape = RoundedCornerShape(topStart = 24.dp.corner(), topEnd = 24.dp.corner()),
                     sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                     sheetShadowElevation = 0.dp,
                     containerColor = Color.Transparent,
                     // The stock handle pads itself to 48 dp; the peek is a strip, not a toolbar.
                     sheetDragHandle = { CompactDragHandle() },
-                    sheetContent = { queueContent() },
+                    sheetContent = { queueContent(navigationBarHeight) },
                 ) { sheetPadding ->
                     Column(
                         modifier = Modifier
@@ -896,6 +886,34 @@ fun NowPlayingScreen(
                         content = playerContent,
                     )
                 }
+                // Over the navigation bar, a fade of the sheet's own colour. Peeking, it is solid, so
+                // no sliver of the first row shows under the title. Open, the rows pass under the bar
+                // and fade out behind it, the way a list does under a transparent bar: behind three
+                // buttons the rows show through murkily and the buttons keep the sheet's colour under them; behind the
+                // gesture pill, which needs no protection, the rows simply pass under it.
+                //
+                // As wide as the sheet itself, which stops at its maximum width on a wide window (an
+                // unfolded foldable, a landscape phone): a full-width strip there stuck out on both sides.
+                val sheetColour = MaterialTheme.colorScheme.surfaceContainerHigh
+                val tallBar = navigationBarHeight >= THREE_BUTTON_BAR_MIN
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .widthIn(max = BottomSheetDefaults.SheetMaxWidth)
+                        .fillMaxWidth()
+                        .height(navigationBarHeight)
+                        .drawBehind {
+                            val open = queueOpenFraction()
+                            val top = 1f - open * (if (tallBar) 0.6f else 1f)
+                            val bottom = if (tallBar) 1f else 1f - open
+                            drawRect(
+                                Brush.verticalGradient(
+                                    0f to sheetColour.copy(alpha = top),
+                                    1f to sheetColour.copy(alpha = bottom),
+                                ),
+                            )
+                        },
+                )
                 }
                 }
                 }
@@ -1709,6 +1727,8 @@ private fun QueueSheetContent(
     onExpand: () -> Unit = {},
     /** Each change brings the list back to the current track, as a freshly opened player shows it. */
     scrollToCurrentKey: Any? = null,
+    /** Room left after the last row, so a list that runs under the navigation bar ends above it. */
+    bottomInset: Dp = 0.dp,
 ) {
     val listState = rememberLazyListState(
         initialFirstVisibleItemIndex = currentIndex.coerceAtLeast(0),
@@ -1806,7 +1826,7 @@ private fun QueueSheetContent(
                 )
             },
         ) { draggingIndex ->
-        FadingLazyColumn(state = listState) {
+        FadingLazyColumn(state = listState, contentPadding = PaddingValues(bottom = bottomInset)) {
             // Stable IDs preserve row identity across ordinary reorders. Duplicate IDs cannot do
             // that safely, so those queues use positional keys and disable item animations.
             itemsIndexed(
