@@ -105,10 +105,13 @@ public class ImputationCache(
                 val fp = identity?.toULongOrNull(16)?.toLong()
                 if (fp != null && row.size == width) entries[id] = Entry(fp, rows.append(row))
             }
-        }.getOrNull()
-        if (loaded == null) {
+        }
+        if (loaded.getOrNull() == null) {
+            println("SMART: tagger outputs not restored (${loaded.exceptionOrNull()?.let { it::class.simpleName } ?: "no usable file"})")
             entries.clear()
             rows.clear()
+        } else {
+            println("SMART: tagger outputs restored for ${entries.size} tracks")
         }
     }
 

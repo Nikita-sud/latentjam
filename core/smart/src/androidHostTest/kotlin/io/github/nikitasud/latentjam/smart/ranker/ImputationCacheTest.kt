@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.smart.ranker
 
 import io.github.nikitasud.latentjam.smart.FakeIndexStore
+import io.github.nikitasud.latentjam.smart.FileIndexStore
 import io.github.nikitasud.latentjam.smart.HeapRowStore
 import io.github.nikitasud.latentjam.smart.RowStore
 import io.github.nikitasud.latentjam.smart.RowStoreFactory
@@ -82,6 +83,21 @@ class ImputationCacheTest {
                 assertContentEquals(direct.descriptor.map { it.toRawBits() }, got.descriptor.map { it.toRawBits() })
                 assertEquals(direct.familyProbabilities, got.familyProbabilities)
             }
+        }
+    }
+
+    @Test
+    fun theAndroidFileStoreRestoresEveryRow() = runTest {
+        val dir = java.nio.file.Files.createTempDirectory("imputation").toFile()
+        try {
+            val ids = vectors.indices.map { TrackId("t$it") }
+            val vectorOf = { id: TrackId -> vectors[id.value.drop(1).toInt()] }
+            assertEquals(vectors.size, ImputationCache(tagger, FileIndexStore(dir), "v", offHeap).backfill(ids, vectorOf))
+            val restored = ImputationCache(tagger, FileIndexStore(dir), "v", offHeap)
+            assertEquals(vectors.size, restored.size())
+            assertEquals(0, restored.backfill(ids, vectorOf))
+        } finally {
+            dir.deleteRecursively()
         }
     }
 }
