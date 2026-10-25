@@ -771,6 +771,270 @@ the verdict.
 5. **Cancellation inside the rebuild** has 300–440 ms gaps between polls, inside region discovery
    or the state build. They need finer polling before a 250 ms guarantee can be claimed.
 
+## Implementation plan (27 October 2026, revised after review)
+
+**Decision by the owner** ("разбирай и решай"): stop re-gating the design as one monolith.
+Implement it in separable pieces, each with its own focused, predeclared check.
+
+**Why.** In round 3:
+
+- every layout quality row on ordinary changes passed, apart from one album's CF;
+- the refresh ran at 0.14× today's time on a 256 MB device;
+- the deferred rebuild recovered new styles.
+
+The failures were engineering problems, not the refresh idea: the heap margin, the rebuild's memory
+path, poll granularity and region identity.
+
+### Where and how
+
+- **Branch.** `feat/map-refresh`, in its own worktree, cut from `feat/lw2-093` at 3853a97b (the
+  owner's current phone build). Nothing is committed on `feat/lw2-093`, nothing is pushed, and
+  nothing is installed on the phone; the parent session does that.
+- **Starting point.** On that branch the Map code is identical to what rounds 1–3 measured:
+  `LibraryLayout`, `BarnesHutTsne`, `Pca`, `MapPageCache`, `AppMapPage`, and the region pipeline in
+  `App.kt`.
+- **No scheduler exists yet:** no WorkManager and no `BGTaskScheduler`. The iOS code refuses a
+  `BGProcessingTask` that could not reconstruct its work on a cold launch, and piece 3 keeps that
+  rule.
+- **One flag,** `MapRefresh.enabled`, default **off**. With it off, behaviour is exactly today's.
+- **Data.** Checks use public data only. The owner's library is for qualitative looks, in the
+  scratchpad.
+- **Fresh data per frozen check:**
+  - pieces 1–2: synthetic seeds 37 / 41 / 43 and FMA draws s404 / s505 / s606;
+  - piece 4: seeds 47 / 53 / 59 and draws s707 / s808 / s909;
+  - piece 3 device: seed 61.
+- **Every piece:**
+  - its own freeze in this report;
+  - an adversarial review before and after;
+  - small commits without AI attribution;
+  - host tests, iOS compile, and the `checkNativeIdentifiers` guard on new test names.
+
+### Piece 0: the refresh state's format and versioning
+
+- **Store.** A sidecar `map_refresh_state.bin`, handled by its own store: `expect` / `actual`
+  `MapRefreshStateStore`, with Android, iOS and JVM (host-test) actuals.
+  - **Reading** is memory-mapped: `MappedByteBuffer` on Android, `NSData` mapped on iOS.
+  - **Writing** uses a temp file plus an atomic rename.
+  - `IndexStore` is not used: it only takes two finite floats per entry and has no paths.
+- **Contents**, in layout order, all **fp32** with **no distances**:
+  - reduced rows (50-d);
+  - 60-NN ids (`Int`);
+  - row hashes;
+  - mean, basis and the raw spread.
+- **Size.** About 4.5 MB at 10,000 tracks, all memory-mapped, so not Java heap. fp16 rows were
+  considered and dropped: they would break bit-exactness. Distances are recomputed from the fp32
+  rows with the exact arithmetic of `nearestNeighbours`, so the patched lists stay bit-exact.
+- **Header:**
+  - format version and `cacheVersion`;
+  - layout `VERSION`;
+  - source (metadata / audio / hybrid);
+  - dim and `COMPONENTS`;
+  - audio encoder, text encoder and fusion versions;
+  - the layout fingerprint it was written with;
+  - a hash of the ordered id list;
+  - a checksum.
+- **Any mismatch means a full build.** In particular, a change of source (metadata → hybrid) or of
+  encoder version always means a full build.
+- **Shares** of the change are cumulative since the last full build: additions + changes + removals
+  over the current size.
+- **Check.** Host tests:
+  - round-trip;
+  - a truncated, stale or mismatched file is rejected and causes a full build;
+  - the atomic write survives being killed mid-write (simulated);
+  - JVM and iOS-simulator parity for the mapped reads.
+
+### Piece 1: layout refresh (core/smart, then AppMapPage)
+
+**Behaviour, applied in order:**
+
+| Case | What happens |
+| --- | --- |
+| flag off | today's full build |
+| analysis in progress (`audioVectorsReady` false) | today's behaviour, including the 5-minute `MAP_LAYOUT_REUSE`; the refresh is off until analysis ends |
+| n ≤ 2,000 (`ExactMapEmbedding`), or the experimental native backend, or the library crossed 2,000 since the last full build | today's full build; there are no lists or sparse P to refresh from |
+| no valid refresh state (piece 0 header mismatch, first build) | today's full build, which writes the state |
+| change > 25 % | today's full build |
+| change ≤ 2 % and no stale hint | **refresh** |
+| change 2–25 %, or a stale hint | **refresh now** and mark the map **stale** for piece 3 |
+
+**Code.**
+
+- **Hashing** of the *raw fused input row* (before centring), as read in the *final projection pass*
+  of `Pca.reduceStreamed`, so each hash describes the row that was actually projected. The next
+  refresh can then compare raw rows without needing the mean.
+  - The Map path never calls `isCurrent()`: a mid-read content change is tolerated, and the layout
+    is filed under the older coverage fingerprint.
+  - With hashes of the rows actually used, the next refresh flags exactly the rows that differ.
+- `SampledTsne.reduce` / `reduceStreamed` expose their mean and basis.
+- `MapEmbeddingBackend` returns a richer result: coordinates plus, for the Kotlin Barnes–Hut
+  backend, the 60-NN index arrays.
+- `BarnesHutTsne.embed` is refactored onto a new `optimize(p, initial, schedule)` and must stay
+  **bit-identical**.
+- A new `LibraryLayoutRefresh` ports the research engine minus routers:
+  1. project flagged rows with the frozen mean and basis;
+  2. patch the 60-NN (primitive merge, recomputed distances);
+  3. place from the lists;
+  4. `jointProbabilities`;
+  5. 150 iterations without exaggeration;
+  6. `alignToPrevious` and `normalize`.
+- The stale hints are latency only: group geometry, the LW2 family conflict when predicted families
+  exist, and unseen artists.
+- **One writer.** Every layout and sidecar write happens under `mapWorkGate` on
+  `AppGraph.mapLayoutDispatcher`, whether it comes from the UI or from the piece-3 worker.
+
+**Check** (seeds 37 / 41 / 43, draws s404 / s505 / s606; frozen before it runs):
+
+- **Equivalence.** On fixtures, the production refresh equals the research engine (fp32, no stored
+  distances) bit-for-bit. The patched kNN equals an exact search, as a property test over random
+  add / change / remove mixes. With the flag off, all existing Map tests stay bit-identical.
+- **Quality.** Uniform, changed, album and held-out changes at 0.5 / 1 / 2 %, plus a **2 % chain**:
+  20 steps of +0.5 %, stale at > 2 %, rebuild, continue.
+  - Rows: trust, recall, class, RF, lost neighbours, p90 move, bit-exact kNN.
+  - **Overlap and CF are judged against a 5-seed cold noise band:** pass if the refresh's value is
+    ≥ the band's minimum − 0.02 per case, and ≥ the band's mean − 0.05 on average.
+- **Size switches.** A library crossing 2,000 between builds, and one with the native backend: both
+  take the full build.
+
+### Piece 2: refresh heap
+
+- With the state memory-mapped (piece 0), the refresh's Java heap holds only the patched index
+  array (2.4 MB), a transient distance array (freed once P is built), P, and the placement and
+  optimizer arrays.
+- **Round 3 measured** a refresh peak of 28.9 MB against today's 27.7 MB, with these arrays
+  included, so the margin is thin (about 0.8 MB). This is stated before the run.
+- **Check** on `LJ-api29` (256 MB, read-only, seed 61), median of 5:
+  - **Java heap:** refresh peak delta ≤ today's + 2 MB, with the mapped bytes reported separately
+    as native or mapped memory.
+  - **Time:** refresh ≤ 0.25× today.  - **iOS:** simulator physical footprint, measured with `task_info`, during the refresh and the
+    rebuild, against today's. **Reported, not gated** (the simulator is not a device); stated as
+    unmeasured on a real device.
+- **If the heap row fails,** the planned fallback, predeclared, is: keep only the patched index
+  array and stream the affinities per row. It is then re-measured; if it still fails, the piece is
+  reported as failed and the flag stays off.
+- Pieces 2 and 3 both use seed 61; they measure different things (refresh vs rebuild).
+
+### Piece 3a: a region service outside Compose (before pieces 3 and 4)
+
+- Map regions are For You's worlds, discovered today in a `LaunchedEffect` in `App.kt`. That
+  pipeline moves into a `LibraryRegionsService` owned by `AppGraph`, which the UI observes.
+- **With the flag off,** the service reproduces today's worlds exactly.
+- **Check:** For You parity with the flag off, meaning identical worlds and mixes on fixtures. The
+  existing region tests pass.
+
+### Piece 4: regions with identity (after 3a)
+
+**Stored** in the sidecar: the region id per track (an `IntArray`); per region its id, name,
+colour index, centroid and floor.
+
+**Between rebuilds:** a new or changed track joins the nearest centroid if it clears that region's
+5th-percentile floor; otherwise it gets no region. For You uses these same regions while the map is
+stale.
+
+**At the full rebuild:**
+
+1. Rediscover.
+2. Match new regions to old by member overlap, greedy and one-to-one. A matched region keeps the
+   old id, name and colour.
+3. A settled track moves only if its rediscovered region has a different id *and* its cosine to
+   that region's centroid beats its cosine to the old one by **δ**.
+4. Unmatched worlds with at least `MIN_CLUSTER_SIZE` members become new regions.
+
+**Pilot** (synthetic seed 7 and the FMA pilot draw) to set δ. It includes a **path switch**:
+average linkage at one rebuild and k-means at the next, because on a 10,000-track, 256 MB device
+the app's own budget formula picks k-means (round 3).
+
+**Check** (seeds 47 / 53 / 59, draws s707 / s808 / s909), **on both region paths**:
+
+- settled churn ≤ 2 %, with its distribution logged and today's churn for contrast;
+- purity ≥ fresh − 0.01;
+- coverage ≥ fresh − 0.02;
+- new style in its own region ≥ fresh − 0.10;
+- no new region below `MIN_CLUSTER_SIZE`;
+- the 2 % chain;
+- For You with the flag on: the mixes come from the identity regions.
+
+**Not in this plan:** making average linkage fit a 256 MB heap at 10,000 tracks, for instance float
+distances or linkage over the 128-d projection. That is a separate piece if wanted.
+
+### Piece 3: the deferred full rebuild (after 3a and 4)
+
+- **Headless entry.** A `MapRebuild` routine that builds everything from disk without UI:
+  - **the track list and descriptors** from `AppGraph.library`'s persisted scan, with genre
+    enrichment from its cached tag facts;
+  - **the playlists** from `AppGraph.playlists`;
+  - **the novelty preference** from settings;
+  - **the album catalog for naming** from the library;
+  - **the engine** loaded to `Ready` from `IndexStore`;
+  - **then** `libraryMixRows`, the region service and the layout.
+- **"Analysis complete" is a persisted test,** not the UI's `audioVectorsReady`: every track in the scanned list the Map uses (`tracks`, not `smartEligibleTracks`)
+  has an audio vector for the current encoder version, checked from the index coverage. Otherwise the
+  worker reschedules and builds nothing; a rebuild never uses partial audio coverage.
+- **Region names.** The stored per-region name is the structured name
+  (`LibraryWorld.name` / `nameSource` / `semanticTitle`), *not* a localized string. The UI localizes
+  it at display time, as today.
+- **Swap-in.** After a background rebuild writes the layout and sidecar, it bumps a persisted rebuild
+  revision. The UI's `MapPageCache` and the region service's observers compare it on their next read
+  and reload, so there is no stale in-memory map.
+- **Rules.**
+  - It runs under `mapWorkGate`, and never while an analysis is in progress (it reschedules
+    instead).
+  - `libraryMixRows` takes the engine lock once per chunk, so a rebuild interleaves with SMART.
+    This is accepted, and SMART's longest wait is measured.
+- **Android.** WorkManager (`androidx.work`, Apache-2.0) runs a `CoroutineWorker` as unique work,
+  constrained to charging + device idle.
+  - Check that the merged manifest (WorkManager's `InitializationProvider`), the `dataSync`
+    `IndexingService` and F-Droid builds are unaffected.
+- **iOS.** A `BGProcessingTaskRequest` with `requiresExternalPower`.
+  - `Info.plist` gets `BGTaskSchedulerPermittedIdentifiers` and `processing` added to
+    `UIBackgroundModes`.
+  - The handler is registered before launch finishes, from the SwiftUI `App.init` or through
+    `@UIApplicationDelegateAdaptor`.
+  - The expiration handler cancels the rebuild, and it is rescheduled.
+  - This is honest under the existing rule, because the rebuild's input is persisted.
+- **Fallback.** If no scheduled run happens within 24 h, the next Map visit while charging runs the
+  rebuild in-app. The number of fallback runs is logged.
+- **Streaming.** Regions and the layout run one after the other, each inside `MapMemoryBudget`;
+  the rebuild never holds two fused matrices. The refresh state is written from the layout's own
+  basis and lists, with no second PCA or kNN.
+- **Polling.** At most 250 ms of work between cancellation polls on the slowest device, in `Pca`'s
+  fit and projection, the neighbour search, region discovery and the state write.
+- **Debug marker.** A debug-only "stale" marker behind the flag. Otherwise a stale map looks like
+  today's map.
+
+**Check** (`LJ-api29`, seed 61, background priority):
+
+- Completes inside the app's budget formula, on whichever region path the formula picks; the path
+  and peak against budget are logged.
+- Time ≤ 9 min.
+- **The longest gap between polls over the whole rebuild ≤ 250 ms,** and cancellation at 10 random
+  deadlines ≤ 250 ms.
+- **Cold-launch tests:**
+  - **Android:** process killed, then `adb shell cmd jobscheduler run -f`; the job completes and
+    the map swaps in.
+  - **iOS simulator:** process killed, then `_simulateLaunchForTaskWithIdentifier`; same result.
+  - **Expiry:** an expired or cancelled run leaves the old map intact and reschedules.
+- SMART's longest engine-lock wait during a rebuild is reported.
+
+### Piece 5: the flag
+
+- `MapRefresh.enabled`: a build constant plus a debug-settings toggle, default **off**.
+- It is defaulted **on** only after the piece-2 and piece-3 device checks pass and the parent session
+  has tried it on the phone.
+
+### Order and reporting
+
+**Order:** piece 0, then 1 + 2, then 3a, then 4, then 3, then 5. The plan summary is reported now;
+progress is reported after each piece.
+
+**Out of scope:**
+
+- region naming from LW2 signals;
+- reducing the memory of average-linkage regions;
+- any UI beyond the debug marker.
+
+- **Plan review log:** round 1 REVISE (3 blockers, 7 majors), round 2 REVISE (1 major: headless
+  inputs), round 3 **READY**.
+
 ## Current design (verified in code, `claude/research-map-cost-91141c` at 2619533d)
 
 | Piece | Where | What it does |
