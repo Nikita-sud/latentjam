@@ -34,6 +34,8 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -88,8 +90,10 @@ internal fun AppModalSheet(
         tonalElevation = 0.dp,
         dragHandle = { SheetHandle() },
         contentWindowInsets = contentWindowInsets,
-        content = content,
-    )
+    ) {
+        // A sheet keeps its own content above the bar, whatever page opened it.
+        CompositionLocalProvider(LocalScrollEndInset provides 0.dp) { content() }
+    }
 }
 
 @Composable
@@ -170,6 +174,12 @@ internal fun Modifier.navigationBarFade(colour: Color): Modifier {
         )
     }
 }
+
+/**
+ * Room a page that runs on under the navigation bar leaves after its last item, so that item can
+ * still be scrolled clear of the bar. Zero where the page already stops above the bar.
+ */
+internal val LocalScrollEndInset = staticCompositionLocalOf { 0.dp }
 
 /** A navigation bar this tall holds three buttons; the gesture pill's is about 24 dp. */
 internal val THREE_BUTTON_BAR_MIN = 32.dp
