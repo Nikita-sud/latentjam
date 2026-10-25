@@ -126,7 +126,9 @@ internal class DefaultSimilarityEngine(
     /**
      * A stored index that could not be READ this session (out of memory, an I/O error — not damage): it stays on disk
      * untouched — nothing is saved over it and nothing re-embeds the library — and the read is retried once, before the
-     * next indexing pass (then at the next launch). SMART meanwhile works without those vectors.
+     * next indexing pass (then at the next launch). A press's audio read also reads it again when one is due (at most
+     * [RESTORE_RETRIES] times, [RESTORE_RETRY_GAP] after the last failure: a launch's own peak is what usually failed
+     * it); those reads never use up the indexing pass's one retry. SMART meanwhile works without those vectors.
      */
     private var audioRestoreFailed = false
     private var audioRestoreRetried = false
@@ -137,6 +139,11 @@ internal class DefaultSimilarityEngine(
 
     override val audioIndexUnreadable: Boolean
         get() = audioIndexUnreadableNow
+    /** Reads of the unreadable stored index made by presses ([audioRows]); never the indexing pass's one retry. */
+    private var pressRestoreRetries = 0
+    /** How long after a failed read a press's retry is due (tests shorten it). */
+    internal var restoreRetryGap: kotlin.time.Duration = RESTORE_RETRY_GAP
+    private var audioRestoreFailedAt: kotlin.time.TimeMark? = null
     private var snapshotCache: SnapshotCache? = null
     private var mixCoverageCache: MixCoverageCache? = null
     private var predictorLoaded = false
@@ -605,6 +612,7 @@ internal class DefaultSimilarityEngine(
      * step, never for an encoder batch (audits 05 #2 / #5).
      */
     override suspend fun audioRows(ids: Collection<TrackId>): AudioRows = mutex.withLock {
+        retryRestoreIfDue()
         val vectors = HashMap<TrackId, FloatArray>(ids.size * 2)
         val es = HashMap<TrackId, Double>(ids.size * 2)
         for (id in ids) {
@@ -1201,6 +1209,8 @@ internal class DefaultSimilarityEngine(
                 audioRestoreFailed = false
                 audioRestoreRetried = false
                 audioIndexUnreadableNow = false
+                pressRestoreRetries = 0
+                audioRestoreFailedAt = null
                 index.clear()
                 textIndex?.clear()
                 knownTracks.clear()
@@ -1257,6 +1267,8 @@ internal class DefaultSimilarityEngine(
                 audioRestoreFailed = false
                 audioRestoreRetried = false
                 audioIndexUnreadableNow = false
+                pressRestoreRetries = 0
+                audioRestoreFailedAt = null
                 mutableState.value = EngineState.Uninitialized
             }
         }
@@ -1268,9 +1280,26 @@ internal class DefaultSimilarityEngine(
      * a missing/mismatched snapshot just means starting empty. The one retry of a
      * read that failed also fills a non-empty index, adopting only the ids it lacks.
      */
+
     /** What made a restore fail, for the aggregate log line (no ids, no paths). */
     private fun restoreCause(failure: Throwable): String =
         (generateSequence(failure) { it.cause }.firstOrNull { it !is IndexRestoreFailure } ?: failure)::class.simpleName ?: "error"
+
+    /**
+     * A press's read of a stored index that failed to load, when one is due (with [mutex] held): at most
+     * [RESTORE_RETRIES], each [restoreRetryGap] after the last failure. The indexing pass keeps its own one retry.
+     */
+    private suspend fun retryRestoreIfDue() {
+        if (!audioRestoreFailed || pressRestoreRetries >= RESTORE_RETRIES) return
+        if ((audioRestoreFailedAt?.elapsedNow() ?: restoreRetryGap) < restoreRetryGap) return
+        pressRestoreRetries++
+        restorePersistedIndex()
+        if (!audioRestoreFailed) {
+            println("SMART: the stored audio index was read on a press's retry $pressRestoreRetries (${index.size} tracks)")
+            audioIndexUnreadableNow = false
+            if (mutableState.value is EngineState.Ready) mutableState.value = EngineState.Ready(indexedCount = index.size)
+        }
+    }
 
     private suspend fun restorePersistedIndex() {
         // The retry of a read that failed still reads when a seed was embedded meanwhile; those live rows are kept.
@@ -1308,6 +1337,7 @@ internal class DefaultSimilarityEngine(
         } catch (failure: Throwable) {
             discardAdopted()
             audioRestoreFailed = true
+            audioRestoreFailedAt = kotlin.time.TimeSource.Monotonic.markNow()
             println("SMART: the stored audio index could not be read now (${restoreCause(failure)}); kept on disk, retried before indexing")
             return
         }
@@ -1802,6 +1832,9 @@ internal class DefaultSimilarityEngine(
             ?: EngineError.BackendFailure(message ?: "Unknown backend failure", this)
 
     private companion object {
+        /** A stored index that failed to load is read again at most this often, this far apart (see audioRestoreFailed). */
+        const val RESTORE_RETRIES = 3
+        val RESTORE_RETRY_GAP = kotlin.time.Duration.parse("10s")
         /** Maximum warm-up requirement for large libraries. */
         const val MIN_AUDIO_CORPUS = 64
 

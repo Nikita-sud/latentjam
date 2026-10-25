@@ -82,7 +82,7 @@ internal class DefaultSimilarityEngineTest {
         // Out of memory on launch and on the one retry: nothing is embedded or saved over the file.
         store.loadFailuresRemaining = 2
         val backend = FakeEmbeddingBackend().apply { vectors.putAll(first.backend.vectors) }
-        val failing = engine(backend, store)
+        val failing = engine(backend, store).apply { restoreRetryGap = kotlin.time.Duration.ZERO }
         assertTrue(failing.initialize().isSuccess)
         assertEquals(EngineState.Ready(indexedCount = 0), failing.state.value)
         val report = failing.indexLibrary(listOf(seed, near, far))
@@ -103,7 +103,7 @@ internal class DefaultSimilarityEngineTest {
         first.engine.indexLibrary(listOf(seed, near))
         first.store.loadFailuresRemaining = 1
         val backend = FakeEmbeddingBackend().apply { vectors.putAll(first.backend.vectors) }
-        val engine = engine(backend, first.store)
+        val engine = engine(backend, first.store).apply { restoreRetryGap = kotlin.time.Duration.ZERO }
         engine.initialize()
         assertEquals(EngineState.Ready(indexedCount = 0), engine.state.value)
         val report = engine.indexLibrary(listOf(seed, near, far))
@@ -238,6 +238,21 @@ internal class DefaultSimilarityEngineTest {
         assertTrue(textStore.saveCalls > 0, "the re-encoded metadata vectors were saved")
         assertEquals(setOf(rock.id), textStore.snapshots[TEXT_INDEX_VERSION]?.keys)
         assertFalse(engine.audioIndexUnreadable)
+    }
+
+    @Test
+    fun aFailedRestoreIsReadAgainByALaterAudioReadAfterTheGap() = runTest {
+        val first = Harness()
+        first.registerTriangle()
+        first.engine.initialize()
+        first.engine.indexLibrary(listOf(seed, near, far))
+        first.store.loadFailuresRemaining = 1
+        val engine = engine(FakeEmbeddingBackend(), first.store).apply { restoreRetryGap = kotlin.time.Duration.ZERO }
+        engine.initialize()
+        assertEquals(EngineState.Ready(indexedCount = 0), engine.state.value)
+        // A press's audio read retries the load and finds every row.
+        assertEquals(3, engine.audioRows(listOf(seed.id, near.id, far.id)).vectors.size)
+        assertEquals(EngineState.Ready(indexedCount = 3), engine.state.value)
     }
 
     // ---------------------------------------------------------------- initialize
