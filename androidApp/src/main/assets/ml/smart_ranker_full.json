@@ -1,6 +1,6 @@
 {
  "schema": "lj-smart-ranker/2",
- "name": "FULL L2 fast track (product check) night-r12a",
+ "name": "FULL L2 fast track (product check) night-r12a + LW2",
  "features": [
   "heard",
   "log_freq",
@@ -602,5 +602,13 @@
   "window": 40,
   "lambda": 8.0,
   "scale": "maxsd"
+ },
+ "listenWeight": {
+  "zeroS": 30,
+  "negWeight": 1.5,
+  "midS": 30,
+  "tauS": 7,
+  "picksOnly": true,
+  "pairMode": "gate2"
  }
 }

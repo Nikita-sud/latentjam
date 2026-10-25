@@ -47,8 +47,8 @@ android {
         applicationId = "io.github.nikitasud.latentjam.kmp"
         minSdk = 24
         targetSdk = 36
-        versionCode = 24
-        versionName = "0.9.2-smart-r9c"
+        versionCode = 28
+        versionName = "0.9.2-smart-lw2"
     }
 
     if (uploadKeystore != null) {
