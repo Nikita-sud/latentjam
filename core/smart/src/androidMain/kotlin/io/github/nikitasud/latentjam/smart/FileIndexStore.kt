@@ -70,7 +70,7 @@ internal class FileIndexStore private constructor(
             if (!isLoadableAndroidIndexSnapshotSize(declaredSize, maximumSnapshotBytes)) {
                 return@withContext null
             }
-            runCatching {
+            readOrReject {
                 // Read at most one byte beyond the configured limit. This closes the TOCTOU gap
                 // between the length preflight and opening a file that may have been replaced or
                 // extended in the meantime, without ever materializing the whole snapshot.
@@ -87,8 +87,35 @@ internal class FileIndexStore private constructor(
                     )
                 }
                 decoded?.takeIf { bounded.bytesRead == declaredSize }
-            }.getOrNull()
+            }
         }
+
+    /**
+     * Runs a read: the file's own damage (truncated, malformed, over the limit) is null — no usable snapshot — while
+     * anything else (out of memory, another I/O error) is [IndexRestoreFailure]: the file may be fine and must survive.
+     * Cancellation passes through.
+     */
+    private inline fun <T> readOrReject(read: () -> T?): T? = try {
+        read()
+    } catch (cancelled: kotlinx.coroutines.CancellationException) {
+        throw cancelled
+    } catch (damage: java.io.EOFException) {
+        null
+    } catch (damage: java.io.UTFDataFormatException) {
+        null
+    } catch (damage: java.nio.charset.CharacterCodingException) {
+        null
+    } catch (damage: IllegalArgumentException) {
+        null
+    } catch (damage: IllegalStateException) {
+        null
+    } catch (damage: NegativeArraySizeException) {
+        null
+    } catch (damage: SnapshotOverLimit) {
+        null
+    } catch (failure: Throwable) {
+        throw IndexRestoreFailure(failure)
+    }
 
     override suspend fun save(modelVersion: String, entries: Map<TrackId, FloatArray>): Unit =
         saveSnapshot(modelVersion, StoredIndexSnapshot(entries))
@@ -339,7 +366,10 @@ private class CountingBoundedInputStream(
 
     private fun ensureWithinLimit() {
         if (bytesRead >= byteLimit) {
-            throw IOException("Index snapshot exceeded the bounded read limit")
+            throw SnapshotOverLimit()
         }
     }
 }
+
+/** The file grew past the read limit while being read: damage (a replaced or growing file), not a failed read. */
+internal class SnapshotOverLimit : IOException("Index snapshot exceeded the bounded read limit")
