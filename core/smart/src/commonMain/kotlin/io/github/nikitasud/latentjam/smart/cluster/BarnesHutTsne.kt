@@ -64,11 +64,46 @@ internal object BarnesHutTsne {
             "rows.size was ${rows.size}, expected n * dim = ${n * dim} (n=$n, dim=$dim)"
         }
         if (n < 3) return FloatArray(n * 2)
-        val k = minOf(n - 1, NEIGHBORS)
-        val neighbours = nearestNeighbours(rows, n, dim, k, isActive) ?: return FloatArray(n * 2)
-        val p = jointProbabilities(neighbours, n, k, isActive) ?: return FloatArray(n * 2)
+        return embedWithNeighbours(rows, n, dim, seed, initial, isActive, iterations, exaggerationIterations, scheduleOffset).coordinates
+    }
 
+    /** [embed]'s coordinates plus the 60-NN lists it built them from (null when cancelled before them). */
+    internal class Embedding(val coordinates: FloatArray, val neighbours: Neighbours?)
+
+    /** [embed], also returning its neighbour lists; the coordinates are [embed]'s, bit for bit. */
+    internal fun embedWithNeighbours(
+        rows: FloatArray,
+        n: Int,
+        dim: Int,
+        seed: Int,
+        initial: FloatArray? = null,
+        isActive: () -> Boolean = { true },
+        iterations: Int = Tsne.ITERATIONS,
+        exaggerationIterations: Int = Tsne.EXAGGERATION_ITERATIONS,
+        scheduleOffset: Int = 0,
+    ): Embedding {
+        if (n < 3) return Embedding(FloatArray(n * 2), null)
+        val k = minOf(n - 1, NEIGHBORS)
+        val neighbours = nearestNeighbours(rows, n, dim, k, isActive) ?: return Embedding(FloatArray(n * 2), null)
+        val p = jointProbabilities(neighbours, n, k, isActive) ?: return Embedding(FloatArray(n * 2), neighbours)
         val y = Tsne.initialPositions(n, seed, initial)
+        optimize(p, n, y, isActive, iterations, exaggerationIterations, scheduleOffset)
+        return Embedding(y, neighbours)
+    }
+
+    /**
+     * The gradient descent over sparse affinities [p], in place on [y]. [embed]'s loop, moved here
+     * unchanged so a refresh can run it on affinities built from stored neighbour lists.
+     */
+    internal fun optimize(
+        p: SparseAffinities,
+        n: Int,
+        y: FloatArray,
+        isActive: () -> Boolean,
+        iterations: Int,
+        exaggerationIterations: Int,
+        scheduleOffset: Int,
+    ) {
         val gains = FloatArray(n * 2) { 1f }
         val velocity = FloatArray(n * 2)
         val grad = FloatArray(n * 2)
@@ -102,7 +137,6 @@ internal object BarnesHutTsne {
             }
             Tsne.update(y, n, grad, gains, velocity, iteration + scheduleOffset)
         }
-        return y
     }
 
     /** Row-major `n x k`, nearest first; ties are broken by the lower row index. */

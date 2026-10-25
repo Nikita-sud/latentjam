@@ -30,6 +30,10 @@ public class MapRefreshSnapshot(
     public val reduced: FloatArray,
     public val neighbourIds: IntArray,
     public val hashes: LongArray,
+    /** Tracks added, changed or removed since the last full build (cumulative across refreshes). */
+    public val changedSinceFull: Int = 0,
+    /** Whether the map is waiting for a deferred full rebuild. */
+    public val stale: Boolean = false,
 ) {
     init {
         val n = ids.size
@@ -39,6 +43,7 @@ public class MapRefreshSnapshot(
             "Per-track arrays do not match ${n} tracks"
         }
         require(rawSpread.isFinite() && rawSpread > 0f) { "Raw spread must be positive" }
+        require(changedSinceFull >= 0) { "Negative change count" }
     }
 }
 
@@ -59,6 +64,8 @@ public class MapRefreshState internal constructor(
     public val rawSpread: Float,
     public val mean: FloatArray,
     public val basis: FloatArray,
+    public val changedSinceFull: Int,
+    public val stale: Boolean,
     private val reducedAt: Long,
     private val neighboursAt: Long,
     private val hashesAt: Long,
@@ -171,6 +178,8 @@ internal object MapRefreshStateCodec {
         out.int(snapshot.components)
         out.int(snapshot.neighbours)
         out.float(snapshot.rawSpread)
+        out.int(snapshot.changedSinceFull)
+        out.int(if (snapshot.stale) 1 else 0)
         for (v in snapshot.mean) out.float(v)
         for (v in snapshot.basis) out.float(v)
         for (id in snapshot.ids) out.string(id.value)
@@ -210,6 +219,9 @@ internal object MapRefreshStateCodec {
         if (n !in 1..MAX_TRACKS || dim !in 1..MAX_DIM || components !in 1..dim || neighbours !in 0 until n) return null
         val rawSpread = reader.float()
         if (!rawSpread.isFinite() || rawSpread <= 0f) return null
+        val changedSinceFull = reader.int()
+        val staleCode = reader.int()
+        if (changedSinceFull < 0 || staleCode !in 0..1) return null
         val mean = FloatArray(dim) { reader.float() }
         val basis = FloatArray(dim * components) { reader.float() }
         val ids = List(n) { TrackId(reader.string() ?: return null) }
@@ -225,7 +237,7 @@ internal object MapRefreshStateCodec {
         if (reader.at != body) return null
         return MapRefreshState(
             bytes, inputVersion, source, fingerprint, ids, dim, components, neighbours, rawSpread, mean, basis,
-            reducedAt, neighboursAt, hashesAt,
+            changedSinceFull, staleCode == 1, reducedAt, neighboursAt, hashesAt,
         ).takeIf { state -> (0 until n).all { row -> (0 until neighbours).all { state.neighbour(row, it) in 0 until n } } }
     }
 
