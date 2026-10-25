@@ -37,13 +37,14 @@ internal fun Modifier.browseCloud(accent: TrackAccent?): Modifier {
     val bleed = rememberSideBleed()
     return drawWithCache {
         val window = bleed.window(size)
-        // Keep the song recognisable across the whole light header. Radial clouds alone fade
-        // nearly to white between their centres; this broad wash dissolves into the list floor.
+        // Keep the song recognisable across the light header. Radial clouds alone fade nearly to
+        // the floor between their centres; this wash dissolves into it. A glow, not a band: at
+        // full strength and twice the depth it read as a block of colour painted over the list.
         val headerWash = if (dark) null else Brush.verticalGradient(
-            0f to color.copy(alpha = (0.90f * strength).coerceAtMost(1f)),
-            0.4f to color.copy(alpha = (0.90f * strength).coerceAtMost(1f)),
+            0f to color.copy(alpha = (0.45f * strength).coerceAtMost(1f)),
+            0.4f to color.copy(alpha = (0.45f * strength).coerceAtMost(1f)),
             1f to color.copy(alpha = 0f),
-            endY = 420.dp.toPx(),
+            endY = 300.dp.toPx(),
         )
         // Two cached gradients carry the current song's hue through the shared header.
         // No blur layer, bitmap, or animation clock is needed while browsing.

@@ -90,6 +90,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
@@ -1426,10 +1427,16 @@ internal fun MiniPlayerPill(
     }
 }
 
-/** The pill's card: the track's colour over the container tone; the player sheet grows from it. */
+/**
+ * The pill's card: the track's colour over the container tone; the player sheet grows from it.
+ * On the light theme it stays a white card with a hint of the track, like the other cards there.
+ */
 @Composable
-internal fun miniPlayerSurfaceColor(accent: TrackAccent): Color =
-    lerp(MaterialTheme.colorScheme.surfaceContainer, accent.container, 0.72f)
+internal fun miniPlayerSurfaceColor(accent: TrackAccent): Color {
+    val scheme = MaterialTheme.colorScheme
+    val share = if (scheme.surface.luminance() < 0.5f) 0.72f else 0.35f
+    return lerp(scheme.surfaceContainer, accent.container, share)
+}
 
 /** Isolates the playhead ticker from the rest of the browse hierarchy. */
 @Composable

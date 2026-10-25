@@ -176,7 +176,7 @@ private fun ComponentActivity.applyStoredWindowTheme(systemBars: Boolean = true)
             Configuration.UI_MODE_NIGHT_YES
     }
     val floor = when {
-        !dark -> 0xFFFAFAFA
+        !dark -> 0xFFF1F1F4
         pureBlack -> 0xFF000000
         else -> 0xFF0B0B0B
     }

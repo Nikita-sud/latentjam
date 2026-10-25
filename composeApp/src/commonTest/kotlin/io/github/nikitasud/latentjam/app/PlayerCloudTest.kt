@@ -55,7 +55,7 @@ class PlayerCloudTest {
 
     @Test
     fun everyCustomAccentInksControlsReadablyOnBothFloors() {
-        val lightFloor = Color(0xFFFAFAFA)
+        val lightFloor = Color(0xFFF1F1F4)
         for (entry in CUSTOM_ACCENT_PALETTE) {
             val accent = Color(entry)
             val lightInk = inkForLightSurface(accent, lightFloor)
@@ -72,10 +72,10 @@ class PlayerCloudTest {
     @Test
     fun lightInkKeepsTheHueOfItsAccent() {
         val yellow = Color(0xFFD9C23A)
-        val ink = inkForLightSurface(yellow, Color(0xFFFAFAFA))
+        val ink = inkForLightSurface(yellow, Color(0xFFF1F1F4))
         assertTrue(ink.red > ink.blue && ink.green > ink.blue)
         // A neutral accent stays a neutral, darker grey.
-        val grey = inkForLightSurface(Color(0.9f, 0.9f, 0.9f), Color(0xFFFAFAFA))
+        val grey = inkForLightSurface(Color(0.9f, 0.9f, 0.9f), Color(0xFFF1F1F4))
         assertTrue(abs(grey.red - grey.blue) < 0.01f && grey.red < 0.6f)
     }
 
@@ -155,5 +155,20 @@ class PlayerCloudTest {
                 assertTrue(contrastRatio(text, blob) >= 3f, "alpha $alpha, cover $cover")
             }
         }
+    }
+
+    @Test
+    fun aLightSurfaceIsAClearPastelOfTheCoverNotBeige() {
+        val ink = Color(0xFF141414)
+        // An olive-brown cover: mixed with white it came out beige.
+        val olive = pastelForLightSurface(Color(0xFF6B5A2E))
+        val red = olive.red; val green = olive.green; val blue = olive.blue
+        assertTrue(maxOf(red, green, blue) - minOf(red, green, blue) > 0.08f, "kept its hue: $olive")
+        for (cover in listOf(Color(0xFF6B5A2E), Color(0xFFB000B0), Color(0xFF0040FF), Color(0xFFFFFF00), Color(0xFF808080))) {
+            assertTrue(contrastRatio(ink, pastelForLightSurface(cover)) >= 7f, "readable on $cover")
+        }
+        // A grey cover stays grey.
+        val grey = pastelForLightSurface(Color(0xFF808080))
+        assertEquals(grey.red, grey.green)
     }
 }

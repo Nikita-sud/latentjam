@@ -209,6 +209,17 @@ internal fun tintForLightSurface(colour: Color): Color {
 }
 
 /**
+ * A track's colour as a light surface: a clean pastel of the same hue at a fixed lightness.
+ * Mixing the cover's colour with white kept its murk, so brown and olive covers turned the mini
+ * player and the accents beige; a fixed lightness and a bounded saturation keep them clear.
+ */
+internal fun pastelForLightSurface(colour: Color): Color {
+    val hsl = colour.toHsl() ?: return Color(0.90f, 0.90f, 0.91f, colour.alpha)
+    val (hue, saturation) = hsl
+    return Color.hsl(hue, saturation.coerceIn(0.35f, 0.70f), 0.88f, colour.alpha)
+}
+
+/**
  * The listener's accent as the ink of controls on a light [surface]: the same hue, darkened
  * until it holds [CONTROL_INK_MIN_CONTRAST] against the floor. [tintForLightSurface] is a cloud
  * pastel; as a switch, a slider or a Play disc it all but vanished (yellow came out at 1.3:1),
@@ -254,7 +265,8 @@ private const val NANOS_PER_SECOND = 1_000_000_000f
 private const val CLOUD_FRAME_INTERVAL_MS = 50L
 private const val MAX_FRAME_DELTA_S = 0.1f
 private const val TWO_PI = (2 * PI).toFloat()
-private const val CLOUD_BASE_ALPHA_LIGHT = 0.04f
+// Enough of the track's colour that the light player is not a blank page around the cover.
+private const val CLOUD_BASE_ALPHA_LIGHT = 0.16f
 private const val CLOUD_ALPHA_LIGHT = 0.98f
 private const val LIGHT_BLOB_RADIUS_SCALE = 1.15f
 private const val CLOUD_ALPHA_DARK = 0.7f

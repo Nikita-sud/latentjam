@@ -188,4 +188,4 @@ private fun TrackColorSeed.toComposeColor(): Color =
 
 /** Tames a raw sampled colour into a surface that text can sit on. */
 private fun toContainer(seed: Color, dark: Boolean): Color =
-    if (dark) lerp(seed, Color.Black, 0.45f) else lerp(seed, Color.White, 0.55f)
+    if (dark) lerp(seed, Color.Black, 0.45f) else pastelForLightSurface(seed)

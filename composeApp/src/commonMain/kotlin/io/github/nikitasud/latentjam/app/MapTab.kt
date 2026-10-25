@@ -1099,7 +1099,8 @@ internal fun regionAccessibilityActions(
  * scheme (215 vs 207) and within 17 on the dark one (41 vs 58) — close enough that "barely played"
  * and "never played" are indistinguishable greys on the one lens whose entire job is to separate
  * them. Raising the floor to 0.40 widens that gap to roughly 40 and 34 respectively, which is
- * plainly visible on both schemes; 1.0 (full ink) is unaffected.
+ * plainly visible on both schemes; 1.0 (full ink) is unaffected. (The light scheme has since moved
+ * to a 0xF1F1F4 floor with a 0xDCDCE2 `outlineVariant`, which only widens the light gap.)
  */
 private const val RAMP_FLOOR_ALPHA = 0.40f
 
