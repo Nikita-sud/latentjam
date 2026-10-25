@@ -913,6 +913,8 @@ public class SmartRanker(
         val year: Int? = null,
         val albumKey: String = "",
         val familyFromTrack: Boolean = false,
+        /** The pack's entity was rejected (ScriptLanguage.foreignEntity): no pack descriptor either. */
+        val noPack: Boolean = false,
     ) {
         /** Set once per library (it needs every track's album key), see [knownOf]. */
         var compilation: Boolean = false
@@ -924,7 +926,7 @@ public class SmartRanker(
             get() {
                 if (loaded and 1 == 0) {
                     loaded = loaded or 1
-                    packDescriptorValue = runCatching {
+                    packDescriptorValue = if (noPack) null else runCatching {
                         knowledge?.descriptor(track.artist, track.artists.firstOrNull(), text = null)?.let(::normalized)
                     }.getOrNull()
                 }
@@ -1029,8 +1031,11 @@ public class SmartRanker(
             }
         }
         val primary = track.artists.firstOrNull()
-        val facts = runCatching { knowledge?.facts(track.artist, primary) }.getOrNull()
-        val entity = runCatching { knowledge?.entity(track.artist, primary) }.getOrNull() ?: -1
+        val packFacts = runCatching { knowledge?.facts(track.artist, primary) }.getOrNull()
+        // A Latin-language entity for a non-Latin-script title is a homonym (ScriptLanguage.foreignEntity): unknown artist.
+        val foreign = ScriptLanguage.foreignEntity(packFacts?.language, track.title)
+        val facts = if (foreign) null else packFacts
+        val entity = if (foreign) -1 else runCatching { knowledge?.entity(track.artist, primary) }.getOrNull() ?: -1
         val tagFamily = HabitFlow.family(track.genre)
         val artistFamily = if (entity >= 0) runCatching { families?.family(entity) }.getOrNull() else null
         // PLAN_L2: the track's own tag family on the twelve-family taxonomy first, else the artist's. Before L2
@@ -1061,6 +1066,7 @@ public class SmartRanker(
             year = if (l2Tracks) (track.originalYear ?: track.year)?.takeIf { it > 0 } else null,
             albumKey = if (l2Tracks) AlbumKeys.albumKey(track.album, track.albumArtist, track.artist) else "",
             familyFromTrack = trackFamily != null,
+            noPack = foreign,
         ).also { if (l2Tracks) it.compilation = AlbumKeys.isVarious(track.albumArtist) }
     }
 
