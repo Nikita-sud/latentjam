@@ -181,6 +181,10 @@ private fun ComponentActivity.applyStoredWindowTheme(systemBars: Boolean = true)
         else -> 0xFF0B0B0B
     }
     window.setBackgroundDrawable(ColorDrawable(floor.toInt()))
+    // With three-button navigation Android lays its own translucent scrim behind the buttons: a
+    // darker band under the player's queue and a pale one under the light pages. The app keeps
+    // its content clear of the bar and tints the buttons for the theme itself.
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) window.isNavigationBarContrastEnforced = false
     if (!systemBars) return
     WindowCompat.getInsetsController(window, window.decorView).apply {
         isAppearanceLightStatusBars = !dark
