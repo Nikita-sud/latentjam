@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.app
 import io.github.nikitasud.latentjam.playback.NowPlaying
 import io.github.nikitasud.latentjam.playback.PlaybackController
 import io.github.nikitasud.latentjam.playback.IntegratedLoudness
+import io.github.nikitasud.latentjam.playback.SoundSpan
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
@@ -42,31 +43,60 @@ internal expect val playbackGainControlsAvailable: Boolean
 /** Separate capability: whether the platform applies smooth transitions (fades and overlaps). */
 internal expect val boundaryFadeControlsAvailable: Boolean
 
-/** Versioned derived cache. Legacy sampled RMS rows are discarded, never reinterpreted as LUFS. */
-internal data class StoredTrackLoudness(val measurement: IntegratedLoudness, val audioIdentity: String)
+/**
+ * Versioned derived cache. Legacy sampled RMS rows are discarded, never reinterpreted as LUFS.
+ * [soundMeasured] is false for a row measured before sound edges were: its loudness stands, and
+ * the track is measured once more for its edges while smooth transitions are on.
+ */
+internal data class StoredTrackLoudness(
+    val measurement: IntegratedLoudness,
+    val audioIdentity: String,
+    val soundMeasured: Boolean = true,
+)
 private const val LOUDNESS_CACHE_VERSION = "r128-v1"
+
+/** [LOUDNESS_CACHE_VERSION] plus the track's [SoundSpan] (-1 for a track with no sound). */
+private const val LOUDNESS_SOUND_CACHE_VERSION = "r128-v2"
 
 internal fun encodeTrackLoudness(loudnessById: Map<String, StoredTrackLoudness>): String =
     loudnessById.entries.filter { it.value.measurement.isValid() }.joinToString("\n") { (id, stored) ->
-        "$LOUDNESS_CACHE_VERSION|${id.encodeLoudnessHex()}|${stored.audioIdentity.encodeLoudnessHex()}|" +
-            "${(stored.measurement.lufs * 100).toInt()}|${(stored.measurement.truePeakDbtp * 100).toInt()}"
+        val version = if (stored.soundMeasured) LOUDNESS_SOUND_CACHE_VERSION else LOUDNESS_CACHE_VERSION
+        val sound = stored.measurement.sound?.takeIf { it.isValid() }
+        "$version|${id.encodeLoudnessHex()}|${stored.audioIdentity.encodeLoudnessHex()}|" +
+            "${(stored.measurement.lufs * 100).toInt()}|${(stored.measurement.truePeakDbtp * 100).toInt()}" +
+            if (stored.soundMeasured) "|${sound?.startMs ?: -1}|${sound?.endMs ?: -1}" else ""
     }
 
 internal fun decodeTrackLoudness(payload: String): Map<String, StoredTrackLoudness> {
     val result = LinkedHashMap<String, StoredTrackLoudness>()
     for (line in payload.lineSequence()) {
         val parts = line.split('|')
-        if (parts.size != 5 || parts[0] != LOUDNESS_CACHE_VERSION) continue
+        val withSound = when {
+            parts.size == 5 && parts[0] == LOUDNESS_CACHE_VERSION -> false
+            parts.size == 7 && parts[0] == LOUDNESS_SOUND_CACHE_VERSION -> true
+            else -> continue
+        }
         val id = parts[1].decodeLoudnessHex() ?: continue
         val identity = parts[2].decodeLoudnessHex() ?: continue
         val lufs = parts[3].toIntOrNull()?.div(100f) ?: continue
         val peak = parts[4].toIntOrNull()?.div(100f) ?: continue
-        val measurement = IntegratedLoudness(lufs, peak)
+        val sound = if (withSound) {
+            val start = parts[5].toLongOrNull() ?: continue
+            val end = parts[6].toLongOrNull() ?: continue
+            SoundSpan(start, end).takeIf { it.isValid() }
+        } else {
+            null
+        }
+        val measurement = IntegratedLoudness(lufs, peak, sound)
         if (!measurement.isValid()) continue
-        result[id] = StoredTrackLoudness(measurement, identity)
+        result[id] = StoredTrackLoudness(measurement, identity, soundMeasured = withSound)
     }
     return result
 }
+
+/** Where each measured track's sound begins and ends, for the overlaps to meet. */
+internal fun soundSpans(loudnessById: Map<String, StoredTrackLoudness>): Map<String, SoundSpan> =
+    buildMap { loudnessById.forEach { (id, stored) -> stored.measurement.sound?.let { put(id, it) } } }
 
 /** The complete per-track volume map playback should apply; empty when the feature is off. */
 internal fun normalizationVolumes(loudnessById: Map<String, StoredTrackLoudness>, enabled: Boolean): Map<String, Float> =
@@ -95,7 +125,9 @@ internal data class NormalizationStatus(
 )
 
 /**
- * Keeps playback volumes matched to measured loudness, measuring lazily as tracks play.
+ * Keeps playback volumes matched to measured loudness, measuring lazily as tracks play. The same
+ * scan finds where each track's sound begins and ends ([SoundSpan]) for smooth transitions, so it
+ * also runs, without changing any volume, while only those are on.
  *
  * There is deliberately no library-wide backfill pass: each track is measured once, while the track
  * before it in the queue plays (or on its own first play when nothing came before), with a bounded
@@ -129,19 +161,26 @@ internal class LoudnessNormalizer(
                 .collect { volumes -> playback.setTrackVolumes(volumes) }
         }
         scope.launch {
+            measured.map(::soundSpans).distinctUntilChanged().collect { spans -> playback.setTrackSoundSpans(spans) }
+        }
+        scope.launch {
             combine(
                 playback.state.map { it.track }.distinctUntilChanged(),
                 settings.normalizeVolume,
-            ) { track, enabled -> track to enabled }
-                .collectLatest { (track, enabled) ->
-                    keepMeasuring(track.takeIf { enabled })
-                    if (!enabled || track == null) {
+                settings.crossfadeSeconds.map { it > 0 && boundaryFadeControlsAvailable }.distinctUntilChanged(),
+                ::Wanted,
+            )
+                .collectLatest { (track, enabled, transitions) ->
+                    wantsSound = transitions
+                    keepMeasuring(track.takeIf { enabled || transitions })
+                    if (!(enabled || transitions) || track == null) {
                         onStatus(NormalizationStatus(if (enabled) NormalizationPhase.WAITING else NormalizationPhase.OFF))
                         return@collectLatest
                     }
-                    when (val result = ensureMeasured(track, reportsProgress = true)) {
-                        is Measured.Ready -> reportReady(result.measurement)
-                        Measured.Unavailable -> onStatus(NormalizationStatus(NormalizationPhase.UNAVAILABLE))
+                    if (!enabled) onStatus(NormalizationStatus(NormalizationPhase.OFF))
+                    when (val result = ensureMeasured(track, reportsProgress = enabled)) {
+                        is Measured.Ready -> if (enabled) reportReady(result.measurement)
+                        Measured.Unavailable -> if (enabled) onStatus(NormalizationStatus(NormalizationPhase.UNAVAILABLE))
                     }
                     // Then what plays next, while this track plays, so its first second already
                     // sounds at the right level instead of dipping once a mid-song scan finishes.
@@ -154,6 +193,11 @@ internal class LoudnessNormalizer(
         }
     }
 
+    private data class Wanted(val track: TrackDescriptor?, val normalize: Boolean, val transitions: Boolean)
+
+    /** Smooth transitions are on: a row measured before sound edges is measured once more. */
+    private var wantsSound = false
+
     private sealed interface Measured {
         data class Ready(val measurement: IntegratedLoudness) : Measured
         data object Unavailable : Measured
@@ -165,13 +209,16 @@ internal class LoudnessNormalizer(
         val audioIdentity = track.loudnessAudioIdentity()
         val attemptIdentity = track.loudnessAttempt()
         val existing = measured.value[id]
-        if (existing?.audioIdentity == audioIdentity) return Measured.Ready(existing.measurement)
-        if (existing != null) {
+        val current = existing?.takeIf { it.audioIdentity == audioIdentity }
+        if (current != null && (current.soundMeasured || !wantsSound)) return Measured.Ready(current.measurement)
+        if (existing != null && current == null) {
             // Remove the stale gain before decoding the replacement. Otherwise the old
             // file's attenuation remains audible during the new file's measurement.
             publish(measured.value - id)
         }
-        if (attemptIdentity in failedThisSession) return Measured.Unavailable
+        // A row only missing its sound edges keeps its loudness, also while it is measured again.
+        val kept = current?.let { Measured.Ready(it.measurement) } ?: Measured.Unavailable
+        if (attemptIdentity in failedThisSession) return kept
         if (reportsProgress) onStatus(NormalizationStatus(NormalizationPhase.MEASURING))
         val job = inFlight[attemptIdentity]?.takeUnless { it.isCancelled }
             ?: measureScope.async { measureOrNull(track) }.also { inFlight[attemptIdentity] = it }
@@ -180,12 +227,12 @@ internal class LoudnessNormalizer(
         } catch (cancelled: CancellationException) {
             // Our own cancellation rethrows; a scan dropped under us is simply not available now.
             currentCoroutineContext().ensureActive()
-            return Measured.Unavailable
+            return kept
         }
         currentCoroutineContext().ensureActive()
         if (measurement == null || !measurement.isValid()) {
             failedThisSession += attemptIdentity
-            return Measured.Unavailable
+            return kept
         }
         publish(measured.value + (id to StoredTrackLoudness(measurement, audioIdentity)))
         return Measured.Ready(measurement)

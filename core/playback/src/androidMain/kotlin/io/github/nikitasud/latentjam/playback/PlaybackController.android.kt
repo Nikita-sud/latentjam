@@ -419,6 +419,12 @@ internal class AndroidPlaybackController(
         }
     }
 
+    override suspend fun setTrackSoundSpans(spans: Map<String, SoundSpan>) {
+        withContext(Dispatchers.Main.immediate) {
+            crossfade.soundSpans = spans.filterValues { it.isValid() }
+        }
+    }
+
     override suspend fun setCrossfadeSeconds(seconds: Int) {
         withContext(Dispatchers.Main.immediate) {
             crossfade.fadeMs = sanitizeCrossfadeSeconds(seconds) * 1000L

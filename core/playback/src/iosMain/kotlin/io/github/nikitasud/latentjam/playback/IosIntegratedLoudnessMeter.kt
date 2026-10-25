@@ -36,6 +36,7 @@ public class IosIntegratedLoudnessMeter {
                     val buffer = AVAudioPCMBuffer(pCMFormat = format, frameCapacity = LoudnessScanLimits.CHUNK_FRAMES.toUInt())
                     val samples = FloatArray(LoudnessScanLimits.CHUNK_FRAMES * channels)
                     val native = NativeLoudnessMeter(rate, channels).also { meter = it }
+                    val sound = SoundSpanTracker(rate, channels)
                     var decodedFrames = 0L
                     while (decodedFrames < file.length) {
                         coroutine.ensureActive()
@@ -50,11 +51,12 @@ public class IosIntegratedLoudnessMeter {
                             for (f in 0 until frames) samples[f * channels + c] = channel[f * stride]
                         }
                         if (!native.add(samples, frames)) return@withLock null
+                        sound.add(samples, frames)
                         decodedFrames += frames
                     }
                     coroutine.ensureActive()
                     if (decodedFrames != file.length || !LoudnessScanLimits.complete(decodedFrames, rate, durationMs)) return@withLock null
-                    native.finish().also { coroutine.ensureActive() }
+                    native.finish()?.copy(sound = sound.finish()).also { coroutine.ensureActive() }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (failure: Exception) {

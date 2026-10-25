@@ -38,6 +38,7 @@ public class AndroidIntegratedLoudnessMeter(context: Context) {
                 var extractor: MediaExtractor? = null
                 var codec: MediaCodec? = null
                 var meter: NativeLoudnessMeter? = null
+                var sound: SoundSpanTracker? = null
                 try {
                     if (durationMs != null && durationMs > LoudnessScanLimits.MAX_DURATION_MS) return@withLock null
                     val uri = Uri.parse(audioUri)
@@ -89,7 +90,10 @@ public class AndroidIntegratedLoudnessMeter(context: Context) {
                                 AudioFormat.ENCODING_PCM_32BIT, AudioFormat.ENCODING_PCM_FLOAT -> 4
                                 else -> error("Unsupported loudness PCM encoding")
                             }
-                            if (meter == null) meter = NativeLoudnessMeter(rate, channels)
+                            if (meter == null) {
+                                meter = NativeLoudnessMeter(rate, channels)
+                                sound = SoundSpanTracker(rate, channels)
+                            }
                         }
                         while (!outputDone) {
                             check()
@@ -137,6 +141,7 @@ public class AndroidIntegratedLoudnessMeter(context: Context) {
                                                 }
                                             }
                                             if (meter?.add(samples, frames) != true) return@withLock null
+                                            sound?.add(samples, frames)
                                             decodedFrames += frames
                                             check(true)
                                         }
@@ -147,7 +152,7 @@ public class AndroidIntegratedLoudnessMeter(context: Context) {
                         }
                         check()
                         if (!inputDone || !LoudnessScanLimits.complete(decodedFrames, rate, expectedDuration)) return@withLock null
-                        meter?.finish().also { coroutine.ensureActive() }
+                        meter?.finish()?.copy(sound = sound?.finish()).also { coroutine.ensureActive() }
                     }
                 } catch (cancelled: CancellationException) {
                     throw cancelled

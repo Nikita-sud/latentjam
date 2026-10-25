@@ -216,6 +216,13 @@ public interface PlaybackController {
     public suspend fun setTrackVolumes(volumes: Map<String, Float>) {}
 
     /**
+     * Where each measured track's sound begins and ends, keyed by track id; a missing id has its
+     * edges at the file's. An overlap ends at the outgoing track's last sound and the next track
+     * comes in at its first. Platforms without overlapping transitions keep the default no-op.
+     */
+    public suspend fun setTrackSoundSpans(spans: Map<String, SoundSpan>) {}
+
+    /**
      * Softens track boundaries by fading amplitude over the first/last [seconds] of each track;
      * 0 restores hard cuts. Composes multiplicatively with [setTrackVolumes]. Platforms without
      * an app-level gain stage keep the default no-op.
