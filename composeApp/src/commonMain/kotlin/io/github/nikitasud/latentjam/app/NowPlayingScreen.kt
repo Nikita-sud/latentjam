@@ -204,9 +204,6 @@ private val QueueHandleHeight = 18.dp
 // row under the title, which reads as a stray strip above the navigation bar.
 private val QueuePeekHeight = QueueHandleHeight + QueueTitleRowHeight
 private val PLAY_PAUSED_RADIUS = 36.dp
-
-/** A navigation bar this tall holds three buttons; the gesture pill's is about 24 dp. */
-private val THREE_BUTTON_BAR_MIN = 32.dp
 private val NEXT_UP_HEIGHT = 36.dp
 /** Long enough that skipping through the queue reads no tag on the way; short enough to feel instant. */
 private const val LYRICS_PROBE_DELAY_MS = 400L
