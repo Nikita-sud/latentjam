@@ -1,0 +1,505 @@
+# MapGateReplay host gate log, 25-26 Oct 2026, base 2619533d + report cc3026b1; host JVM 20, macOS arm64, single thread.
+# Command: MAP_GATE_REPLAY=1 MAP_GATE_SEEDS=13,17,19 MAP_GATE_FMA=<dump dir> MAP_GATE_FMA_SIZES=1000,5000,7989 (dump: tools/research/map_gate_fma_dump.py)
+# Note: an emulator ran concurrently for part of this run, so host times carry some contention noise (both modes alike).
+MAP_GATE_REPLAY=1 MAP_GATE_SEEDS=13,17,19 MAP_GATE_FMA=fma MAP_GATE_FMA_SIZES=1000,5000,7989 base=cc3026b1 Sun Oct 25 13:39:00 CET 2026
+GATE lib=synthetic-s13 n=10000 dim=1344
+GATE lib=synthetic-s13 novel style=37 members=324
+GATE lib=synthetic-s13 same share=0.0000 decision=refresh reason=refresh flagged=0 novel=0 routerMs=0.1
+GATE lib=synthetic-s13 same time todayMs=17647.1 refreshMs=5294.0 ratio=0.3000
+GATE lib=synthetic-s13 same stability today kept=0.5598 p90=0.0797 median=0.0394 refresh kept=0.9707 p90=0.0029 median=0.0014
+GATE lib=synthetic-s13 same metrics today trust=0.9840 recall=0.2704 class=0.8476 RF=NaN CF=NaN overlapCold=0.5598
+GATE lib=synthetic-s13 same metrics refresh trust=0.9843 recall=0.2703 class=0.8476 RF=NaN CF=NaN overlapCold=0.9707
+GATE lib=synthetic-s13 same metrics cold trust=0.9843 recall=0.2700 class=0.8476 RF=NaN CF=NaN overlapCold=1.0000
+GATE lib=synthetic-s13 same metrics cold2 trust=0.9842 recall=0.2697 class=0.8476 RF=NaN CF=NaN overlapCold=0.5668
+GATE lib=synthetic-s13 same verdict trust=PASS recall=PASS class=PASS overlapCold=PASS kept15=PASS p90move=PASS timeHost=PASS overlapNoise=0.5668
+GATE lib=synthetic-s13 add1 share=0.0100 decision=refresh reason=refresh flagged=100 novel=7 routerMs=3667.8
+GATE lib=synthetic-s13 add1 time todayMs=16901.7 refreshMs=4992.0 ratio=0.2954
+GATE lib=synthetic-s13 add1 stability today kept=0.4754 p90=0.0699 median=0.0340 refresh kept=0.8429 p90=0.0037 median=0.0018
+GATE lib=synthetic-s13 add1 metrics today trust=0.9840 recall=0.2697 class=0.8476 RF=0.2780 CF=0.9300 overlapCold=0.5416
+GATE lib=synthetic-s13 add1 metrics refresh trust=0.9839 recall=0.2692 class=0.8476 RF=0.2547 CF=0.9300 overlapCold=0.4908
+GATE lib=synthetic-s13 add1 metrics cold trust=0.9843 recall=0.2700 class=0.8476 RF=0.2667 CF=0.9300 overlapCold=1.0000
+GATE lib=synthetic-s13 add1 metrics cold2 trust=0.9842 recall=0.2697 class=0.8476 RF=0.2720 CF=0.9300 overlapCold=0.5668
+GATE lib=synthetic-s13 add1 verdict trust=PASS recall=PASS class=PASS overlapCold=PASS kept15=PASS p90move=PASS timeHost=PASS RF=PASS CF=PASS overlapNoise=0.5668
+GATE lib=synthetic-s13 add2 share=0.0200 decision=full reason=novelty flagged=200 novel=30 routerMs=3899.5
+GATE lib=synthetic-s13 add3 share=0.0300 decision=full reason=novelty flagged=300 novel=45 routerMs=3966.0
+GATE lib=synthetic-s13 change1 share=0.0100 decision=full reason=novelty flagged=100 novel=17 routerMs=4123.9
+GATE lib=synthetic-s13 change2 share=0.0200 decision=full reason=novelty flagged=200 novel=33 routerMs=4112.2
+GATE lib=synthetic-s13 change3 share=0.0300 decision=full reason=novelty flagged=300 novel=47 routerMs=3967.0
+GATE lib=synthetic-s13 album1 share=0.0115 decision=refresh reason=refresh flagged=115 novel=0 routerMs=3998.8
+GATE lib=synthetic-s13 album1 time todayMs=18142.5 refreshMs=5535.0 ratio=0.3051
+GATE lib=synthetic-s13 album1 stability today kept=0.4385 p90=0.0866 median=0.0372 refresh kept=0.7408 p90=0.0064 median=0.0029
+GATE lib=synthetic-s13 album1 metrics today trust=0.9841 recall=0.2694 class=0.8476 RF=0.3455 CF=1.0000 overlapCold=0.5489
+GATE lib=synthetic-s13 album1 metrics refresh trust=0.9838 recall=0.2672 class=0.8476 RF=0.3304 CF=1.0000 overlapCold=0.4639
+GATE lib=synthetic-s13 album1 metrics cold trust=0.9843 recall=0.2700 class=0.8476 RF=0.3351 CF=1.0000 overlapCold=1.0000
+GATE lib=synthetic-s13 album1 metrics cold2 trust=0.9842 recall=0.2697 class=0.8476 RF=0.3403 CF=1.0000 overlapCold=0.5668
+GATE lib=synthetic-s13 album1 verdict trust=PASS recall=PASS class=PASS overlapCold=FAIL kept15=PASS p90move=PASS timeHost=PASS RF=PASS CF=PASS overlapNoise=0.5668
+GATE lib=synthetic-s13 novel0.5 share=0.0051 decision=full reason=novelty flagged=50 novel=50 routerMs=3709.0
+GATE lib=synthetic-s13 novel1.0 share=0.0102 decision=full reason=novelty flagged=100 novel=100 routerMs=3867.5
+GATE lib=synthetic-s13 novel2.0 share=0.0203 decision=full reason=novelty flagged=200 novel=200 routerMs=3691.9
+GATE lib=synthetic-s13 add5 share=0.0500 decision=full reason=size flagged=500 novel=0 routerMs=0.0
+GATE lib=synthetic-s13 style share=0.0366 decision=full reason=size flagged=366 novel=0 routerMs=0.0
+GATE chain lib=synthetic-s13 B=0.1 step=1 n=8900 decision=full reason=novelty flagged=100 ms=16403.8
+GATE chain lib=synthetic-s13 B=0.1 step=2 n=9000 decision=refresh reason=refresh flagged=100 ms=5059.7
+GATE chain lib=synthetic-s13 B=0.1 step=3 n=9100 decision=full reason=novelty flagged=100 ms=17137.8
+GATE chain lib=synthetic-s13 B=0.1 step=4 n=9200 decision=full reason=novelty flagged=100 ms=17724.3
+GATE chain lib=synthetic-s13 B=0.1 step=5 n=9300 decision=full reason=novelty flagged=100 ms=17577.8
+GATE chain lib=synthetic-s13 B=0.1 step=6 n=9400 decision=full reason=novelty flagged=100 ms=17502.6
+GATE chain lib=synthetic-s13 B=0.1 step=7 n=9500 decision=full reason=novelty flagged=100 ms=17557.6
+GATE chain lib=synthetic-s13 B=0.1 step=8 n=9600 decision=full reason=novelty flagged=100 ms=18200.8
+GATE chain lib=synthetic-s13 B=0.1 step=9 n=9700 decision=full reason=novelty flagged=100 ms=18194.0
+GATE chain lib=synthetic-s13 B=0.1 step=10 n=9800 decision=full reason=novelty flagged=100 ms=17916.5
+GATE chain lib=synthetic-s13 B=0.1 step=11 n=9604 decision=refresh reason=refresh flagged=0 ms=5416.4
+GATE chain lib=synthetic-s13 B=0.1 metrics chain trust=0.9840 recall=0.2741 class=0.8476 RF=0.2720 CF=0.8514 overlapCold=0.4971
+GATE chain lib=synthetic-s13 B=0.1 metrics cold trust=0.9843 recall=0.2759 class=0.8476 RF=0.2719 CF=0.8514 overlapCold=1.0000
+GATE chain lib=synthetic-s13 B=0.1 fullBuilds=9 totalMs=168691.3 verdict=PASS
+GATE chain lib=synthetic-s13 B=0.05 step=1 n=8900 decision=full reason=novelty flagged=100 ms=16228.7
+GATE chain lib=synthetic-s13 B=0.05 step=2 n=9000 decision=refresh reason=refresh flagged=100 ms=4919.9
+GATE chain lib=synthetic-s13 B=0.05 step=3 n=9100 decision=full reason=novelty flagged=100 ms=16849.3
+GATE chain lib=synthetic-s13 B=0.05 step=4 n=9200 decision=full reason=novelty flagged=100 ms=16515.8
+GATE chain lib=synthetic-s13 B=0.05 step=5 n=9300 decision=full reason=novelty flagged=100 ms=16860.8
+GATE chain lib=synthetic-s13 B=0.05 step=6 n=9400 decision=full reason=novelty flagged=100 ms=17073.2
+GATE chain lib=synthetic-s13 B=0.05 step=7 n=9500 decision=full reason=novelty flagged=100 ms=17365.1
+GATE chain lib=synthetic-s13 B=0.05 step=8 n=9600 decision=full reason=novelty flagged=100 ms=17163.8
+GATE chain lib=synthetic-s13 B=0.05 step=9 n=9700 decision=full reason=novelty flagged=100 ms=15890.7
+GATE chain lib=synthetic-s13 B=0.05 step=10 n=9800 decision=full reason=novelty flagged=100 ms=16060.7
+GATE chain lib=synthetic-s13 B=0.05 step=11 n=9604 decision=refresh reason=refresh flagged=0 ms=4714.4
+GATE chain lib=synthetic-s13 B=0.05 metrics chain trust=0.9840 recall=0.2741 class=0.8476 RF=0.2720 CF=0.8514 overlapCold=0.4971
+GATE chain lib=synthetic-s13 B=0.05 metrics cold trust=0.9843 recall=0.2759 class=0.8476 RF=0.2719 CF=0.8514 overlapCold=1.0000
+GATE chain lib=synthetic-s13 B=0.05 fullBuilds=9 totalMs=159642.4 verdict=PASS
+GATE chain lib=synthetic-s13 B=0.03 step=1 n=8900 decision=full reason=novelty flagged=100 ms=14464.9
+GATE chain lib=synthetic-s13 B=0.03 step=2 n=9000 decision=refresh reason=refresh flagged=100 ms=4553.0
+GATE chain lib=synthetic-s13 B=0.03 step=3 n=9100 decision=full reason=novelty flagged=100 ms=15037.5
+GATE chain lib=synthetic-s13 B=0.03 step=4 n=9200 decision=full reason=novelty flagged=100 ms=15195.7
+GATE chain lib=synthetic-s13 B=0.03 step=5 n=9300 decision=full reason=novelty flagged=100 ms=15859.1
+GATE chain lib=synthetic-s13 B=0.03 step=6 n=9400 decision=full reason=novelty flagged=100 ms=15659.1
+GATE chain lib=synthetic-s13 B=0.03 step=7 n=9500 decision=full reason=novelty flagged=100 ms=15600.4
+GATE chain lib=synthetic-s13 B=0.03 step=8 n=9600 decision=full reason=novelty flagged=100 ms=15716.5
+GATE chain lib=synthetic-s13 B=0.03 step=9 n=9700 decision=full reason=novelty flagged=100 ms=16477.9
+GATE chain lib=synthetic-s13 B=0.03 step=10 n=9800 decision=full reason=novelty flagged=100 ms=16562.1
+GATE chain lib=synthetic-s13 B=0.03 step=11 n=9604 decision=refresh reason=refresh flagged=0 ms=4878.3
+GATE chain lib=synthetic-s13 B=0.03 metrics chain trust=0.9840 recall=0.2741 class=0.8476 RF=0.2720 CF=0.8514 overlapCold=0.4971
+GATE chain lib=synthetic-s13 B=0.03 metrics cold trust=0.9843 recall=0.2759 class=0.8476 RF=0.2719 CF=0.8514 overlapCold=1.0000
+GATE chain lib=synthetic-s13 B=0.03 fullBuilds=9 totalMs=150004.6 verdict=PASS
+GATE probe lib=synthetic-s13 heap mode=today peakAboveBaselineMb=58.0
+GATE probe lib=synthetic-s13 heap mode=refresh peakAboveBaselineMb=58.0
+GATE probe lib=synthetic-s13 heap mode=today peakAboveBaselineMb=58.0
+GATE probe lib=synthetic-s13 heap mode=refresh peakAboveBaselineMb=58.0
+GATE probe lib=synthetic-s13 cancel mode=today at=100ms stoppedWithinMs=0.7
+GATE probe lib=synthetic-s13 cancel mode=refresh at=100ms stoppedWithinMs=2020.9
+GATE probe lib=synthetic-s13 cancel mode=today at=1000ms stoppedWithinMs=0.4
+GATE probe lib=synthetic-s13 cancel mode=refresh at=1000ms stoppedWithinMs=4102.1
+GATE probe lib=synthetic-s13 cancel mode=today at=2500ms stoppedWithinMs=0.1
+GATE probe lib=synthetic-s13 cancel mode=refresh at=2500ms stoppedWithinMs=0.0
+GATE probe lib=synthetic-s13 cancel mode=today at=4000ms stoppedWithinMs=0.1
+GATE probe lib=synthetic-s13 cancel mode=refresh at=4000ms stoppedWithinMs=0.0
+GATE lib=synthetic-s17 n=10000 dim=1344
+GATE lib=synthetic-s17 novel style=37 members=339
+GATE lib=synthetic-s17 same share=0.0000 decision=refresh reason=refresh flagged=0 novel=0 routerMs=0.0
+GATE lib=synthetic-s17 same time todayMs=16637.6 refreshMs=4925.4 ratio=0.2960
+GATE lib=synthetic-s17 same stability today kept=0.5343 p90=0.0832 median=0.0387 refresh kept=0.9714 p90=0.0025 median=0.0013
+GATE lib=synthetic-s17 same metrics today trust=0.9833 recall=0.2685 class=0.8494 RF=NaN CF=NaN overlapCold=0.5343
+GATE lib=synthetic-s17 same metrics refresh trust=0.9835 recall=0.2692 class=0.8494 RF=NaN CF=NaN overlapCold=0.9714
+GATE lib=synthetic-s17 same metrics cold trust=0.9835 recall=0.2691 class=0.8494 RF=NaN CF=NaN overlapCold=1.0000
+GATE lib=synthetic-s17 same metrics cold2 trust=0.9831 recall=0.2689 class=0.8494 RF=NaN CF=NaN overlapCold=0.5412
+GATE lib=synthetic-s17 same verdict trust=PASS recall=PASS class=PASS overlapCold=PASS kept15=PASS p90move=PASS timeHost=PASS overlapNoise=0.5412
+GATE lib=synthetic-s17 add1 share=0.0100 decision=full reason=novelty flagged=100 novel=14 routerMs=3777.2
+GATE lib=synthetic-s17 add2 share=0.0200 decision=full reason=novelty flagged=200 novel=31 routerMs=3727.0
+GATE lib=synthetic-s17 add3 share=0.0300 decision=full reason=novelty flagged=300 novel=41 routerMs=3705.8
+GATE lib=synthetic-s17 change1 share=0.0100 decision=full reason=novelty flagged=100 novel=13 routerMs=3599.8
+GATE lib=synthetic-s17 change2 share=0.0200 decision=full reason=novelty flagged=200 novel=37 routerMs=3783.6
+GATE lib=synthetic-s17 change3 share=0.0300 decision=full reason=novelty flagged=300 novel=45 routerMs=3779.8
+GATE lib=synthetic-s17 album1 share=0.0110 decision=refresh reason=refresh flagged=110 novel=0 routerMs=3822.9
+GATE lib=synthetic-s17 album1 time todayMs=16770.3 refreshMs=5216.3 ratio=0.3110
+GATE lib=synthetic-s17 album1 stability today kept=0.4444 p90=0.1110 median=0.0500 refresh kept=0.7832 p90=0.0051 median=0.0022
+GATE lib=synthetic-s17 album1 metrics today trust=0.9832 recall=0.2669 class=0.8494 RF=0.3418 CF=1.0000 overlapCold=0.5400
+GATE lib=synthetic-s17 album1 metrics refresh trust=0.9830 recall=0.2676 class=0.8494 RF=0.3442 CF=0.9994 overlapCold=0.4712
+GATE lib=synthetic-s17 album1 metrics cold trust=0.9835 recall=0.2691 class=0.8494 RF=0.3479 CF=1.0000 overlapCold=1.0000
+GATE lib=synthetic-s17 album1 metrics cold2 trust=0.9831 recall=0.2689 class=0.8494 RF=0.3485 CF=1.0000 overlapCold=0.5412
+GATE lib=synthetic-s17 album1 verdict trust=PASS recall=PASS class=PASS overlapCold=PASS kept15=PASS p90move=PASS timeHost=PASS RF=PASS CF=PASS overlapNoise=0.5412
+GATE lib=synthetic-s17 novel0.5 share=0.0051 decision=full reason=novelty flagged=50 novel=50 routerMs=3796.5
+GATE lib=synthetic-s17 novel1.0 share=0.0102 decision=full reason=novelty flagged=100 novel=100 routerMs=3695.1
+GATE lib=synthetic-s17 novel2.0 share=0.0203 decision=full reason=novelty flagged=200 novel=200 routerMs=3530.1
+GATE lib=synthetic-s17 add5 share=0.0500 decision=full reason=size flagged=500 novel=0 routerMs=0.0
+GATE lib=synthetic-s17 style share=0.0358 decision=full reason=size flagged=358 novel=0 routerMs=0.0
+GATE chain lib=synthetic-s17 B=0.1 step=1 n=8900 decision=full reason=novelty flagged=100 ms=13992.0
+GATE chain lib=synthetic-s17 B=0.1 step=2 n=9000 decision=full reason=novelty flagged=100 ms=14212.6
+GATE chain lib=synthetic-s17 B=0.1 step=3 n=9100 decision=full reason=novelty flagged=100 ms=14660.0
+GATE chain lib=synthetic-s17 B=0.1 step=4 n=9200 decision=full reason=novelty flagged=100 ms=15012.0
+GATE chain lib=synthetic-s17 B=0.1 step=5 n=9300 decision=full reason=novelty flagged=100 ms=14909.4
+GATE chain lib=synthetic-s17 B=0.1 step=6 n=9400 decision=full reason=novelty flagged=100 ms=14946.8
+GATE chain lib=synthetic-s17 B=0.1 step=7 n=9500 decision=full reason=novelty flagged=100 ms=15265.1
+GATE chain lib=synthetic-s17 B=0.1 step=8 n=9600 decision=full reason=novelty flagged=100 ms=15391.1
+GATE chain lib=synthetic-s17 B=0.1 step=9 n=9700 decision=full reason=novelty flagged=100 ms=16266.7
+GATE chain lib=synthetic-s17 B=0.1 step=10 n=9800 decision=full reason=novelty flagged=100 ms=18240.7
+GATE chain lib=synthetic-s17 B=0.1 step=11 n=9604 decision=refresh reason=refresh flagged=0 ms=6053.5
+GATE chain lib=synthetic-s17 B=0.1 metrics chain trust=0.9832 recall=0.2724 class=0.8504 RF=0.2740 CF=0.8494 overlapCold=0.4743
+GATE chain lib=synthetic-s17 B=0.1 metrics cold trust=0.9834 recall=0.2739 class=0.8504 RF=0.2707 CF=0.8494 overlapCold=1.0000
+GATE chain lib=synthetic-s17 B=0.1 fullBuilds=10 totalMs=158950.0 verdict=PASS
+GATE chain lib=synthetic-s17 B=0.05 step=1 n=8900 decision=full reason=novelty flagged=100 ms=14116.1
+GATE chain lib=synthetic-s17 B=0.05 step=2 n=9000 decision=full reason=novelty flagged=100 ms=14422.8
+GATE chain lib=synthetic-s17 B=0.05 step=3 n=9100 decision=full reason=novelty flagged=100 ms=14902.4
+GATE chain lib=synthetic-s17 B=0.05 step=4 n=9200 decision=full reason=novelty flagged=100 ms=15433.7
+GATE chain lib=synthetic-s17 B=0.05 step=5 n=9300 decision=full reason=novelty flagged=100 ms=15167.1
+GATE chain lib=synthetic-s17 B=0.05 step=6 n=9400 decision=full reason=novelty flagged=100 ms=15314.9
+GATE chain lib=synthetic-s17 B=0.05 step=7 n=9500 decision=full reason=novelty flagged=100 ms=15861.5
+GATE chain lib=synthetic-s17 B=0.05 step=8 n=9600 decision=full reason=novelty flagged=100 ms=16605.8
+GATE chain lib=synthetic-s17 B=0.05 step=9 n=9700 decision=full reason=novelty flagged=100 ms=16978.4
+GATE chain lib=synthetic-s17 B=0.05 step=10 n=9800 decision=full reason=novelty flagged=100 ms=16249.0
+GATE chain lib=synthetic-s17 B=0.05 step=11 n=9604 decision=refresh reason=refresh flagged=0 ms=4791.0
+GATE chain lib=synthetic-s17 B=0.05 metrics chain trust=0.9832 recall=0.2724 class=0.8504 RF=0.2740 CF=0.8494 overlapCold=0.4743
+GATE chain lib=synthetic-s17 B=0.05 metrics cold trust=0.9834 recall=0.2739 class=0.8504 RF=0.2707 CF=0.8494 overlapCold=1.0000
+GATE chain lib=synthetic-s17 B=0.05 fullBuilds=10 totalMs=159842.6 verdict=PASS
+GATE chain lib=synthetic-s17 B=0.03 step=1 n=8900 decision=full reason=novelty flagged=100 ms=14202.6
+GATE chain lib=synthetic-s17 B=0.03 step=2 n=9000 decision=full reason=novelty flagged=100 ms=14283.2
+GATE chain lib=synthetic-s17 B=0.03 step=3 n=9100 decision=full reason=novelty flagged=100 ms=14657.8
+GATE chain lib=synthetic-s17 B=0.03 step=4 n=9200 decision=full reason=novelty flagged=100 ms=14813.1
+GATE chain lib=synthetic-s17 B=0.03 step=5 n=9300 decision=full reason=novelty flagged=100 ms=15363.0
+GATE chain lib=synthetic-s17 B=0.03 step=6 n=9400 decision=full reason=novelty flagged=100 ms=16915.0
+GATE chain lib=synthetic-s17 B=0.03 step=7 n=9500 decision=full reason=novelty flagged=100 ms=19987.1
+GATE chain lib=synthetic-s17 B=0.03 step=8 n=9600 decision=full reason=novelty flagged=100 ms=18331.1
+GATE chain lib=synthetic-s17 B=0.03 step=9 n=9700 decision=full reason=novelty flagged=100 ms=15998.0
+GATE chain lib=synthetic-s17 B=0.03 step=10 n=9800 decision=full reason=novelty flagged=100 ms=15850.2
+GATE chain lib=synthetic-s17 B=0.03 step=11 n=9604 decision=refresh reason=refresh flagged=0 ms=4728.3
+GATE chain lib=synthetic-s17 B=0.03 metrics chain trust=0.9832 recall=0.2724 class=0.8504 RF=0.2740 CF=0.8494 overlapCold=0.4743
+GATE chain lib=synthetic-s17 B=0.03 metrics cold trust=0.9834 recall=0.2739 class=0.8504 RF=0.2707 CF=0.8494 overlapCold=1.0000
+GATE chain lib=synthetic-s17 B=0.03 fullBuilds=10 totalMs=165129.2 verdict=PASS
+GATE probe lib=synthetic-s17 heap mode=today peakAboveBaselineMb=58.0
+GATE probe lib=synthetic-s17 heap mode=refresh peakAboveBaselineMb=58.0
+GATE probe lib=synthetic-s17 heap mode=today peakAboveBaselineMb=58.0
+GATE probe lib=synthetic-s17 heap mode=refresh peakAboveBaselineMb=58.0
+GATE probe lib=synthetic-s17 cancel mode=today at=100ms stoppedWithinMs=0.3
+GATE probe lib=synthetic-s17 cancel mode=refresh at=100ms stoppedWithinMs=1973.2
+GATE probe lib=synthetic-s17 cancel mode=today at=1000ms stoppedWithinMs=0.3
+GATE probe lib=synthetic-s17 cancel mode=refresh at=1000ms stoppedWithinMs=1691.5
+GATE probe lib=synthetic-s17 cancel mode=today at=2500ms stoppedWithinMs=0.0
+GATE probe lib=synthetic-s17 cancel mode=refresh at=2500ms stoppedWithinMs=0.0
+GATE probe lib=synthetic-s17 cancel mode=today at=4000ms stoppedWithinMs=0.0
+GATE probe lib=synthetic-s17 cancel mode=refresh at=4000ms stoppedWithinMs=0.0
+GATE lib=synthetic-s19 n=10000 dim=1344
+GATE lib=synthetic-s19 novel style=1 members=333
+GATE lib=synthetic-s19 same share=0.0000 decision=refresh reason=refresh flagged=0 novel=0 routerMs=0.0
+GATE lib=synthetic-s19 same time todayMs=16414.2 refreshMs=4971.3 ratio=0.3029
+GATE lib=synthetic-s19 same stability today kept=0.5418 p90=0.0806 median=0.0310 refresh kept=0.9676 p90=0.0024 median=0.0011
+GATE lib=synthetic-s19 same metrics today trust=0.9842 recall=0.2700 class=0.8514 RF=NaN CF=NaN overlapCold=0.5418
+GATE lib=synthetic-s19 same metrics refresh trust=0.9840 recall=0.2703 class=0.8514 RF=NaN CF=NaN overlapCold=0.9676
+GATE lib=synthetic-s19 same metrics cold trust=0.9840 recall=0.2701 class=0.8514 RF=NaN CF=NaN overlapCold=1.0000
+GATE lib=synthetic-s19 same metrics cold2 trust=0.9843 recall=0.2704 class=0.8514 RF=NaN CF=NaN overlapCold=0.5376
+GATE lib=synthetic-s19 same verdict trust=PASS recall=PASS class=PASS overlapCold=PASS kept15=PASS p90move=PASS timeHost=PASS overlapNoise=0.5376
+GATE lib=synthetic-s19 add1 share=0.0100 decision=full reason=novelty flagged=100 novel=13 routerMs=3636.4
+GATE lib=synthetic-s19 add2 share=0.0200 decision=full reason=novelty flagged=200 novel=29 routerMs=3676.1
+GATE lib=synthetic-s19 add3 share=0.0300 decision=full reason=novelty flagged=300 novel=34 routerMs=3711.3
+GATE lib=synthetic-s19 change1 share=0.0100 decision=full reason=novelty flagged=100 novel=14 routerMs=3640.9
+GATE lib=synthetic-s19 change2 share=0.0200 decision=full reason=novelty flagged=200 novel=32 routerMs=3671.4
+GATE lib=synthetic-s19 change3 share=0.0300 decision=full reason=novelty flagged=300 novel=40 routerMs=3715.1
+GATE lib=synthetic-s19 album1 share=0.0104 decision=refresh reason=refresh flagged=104 novel=0 routerMs=3636.0
+GATE lib=synthetic-s19 album1 time todayMs=16254.8 refreshMs=4999.8 ratio=0.3076
+GATE lib=synthetic-s19 album1 stability today kept=0.4933 p90=0.0848 median=0.0368 refresh kept=0.8294 p90=0.0039 median=0.0016
+GATE lib=synthetic-s19 album1 metrics today trust=0.9843 recall=0.2706 class=0.8514 RF=0.3154 CF=1.0000 overlapCold=0.5412
+GATE lib=synthetic-s19 album1 metrics refresh trust=0.9842 recall=0.2688 class=0.8514 RF=0.3096 CF=1.0000 overlapCold=0.5210
+GATE lib=synthetic-s19 album1 metrics cold trust=0.9840 recall=0.2701 class=0.8514 RF=0.3224 CF=1.0000 overlapCold=1.0000
+GATE lib=synthetic-s19 album1 metrics cold2 trust=0.9843 recall=0.2704 class=0.8514 RF=0.3205 CF=1.0000 overlapCold=0.5376
+GATE lib=synthetic-s19 album1 verdict trust=PASS recall=PASS class=PASS overlapCold=PASS kept15=PASS p90move=PASS timeHost=PASS RF=PASS CF=PASS overlapNoise=0.5376
+GATE lib=synthetic-s19 novel0.5 share=0.0051 decision=full reason=novelty flagged=50 novel=50 routerMs=3393.9
+GATE lib=synthetic-s19 novel1.0 share=0.0102 decision=full reason=novelty flagged=100 novel=100 routerMs=3468.0
+GATE lib=synthetic-s19 novel2.0 share=0.0203 decision=full reason=novelty flagged=200 novel=200 routerMs=3572.5
+GATE lib=synthetic-s19 add5 share=0.0500 decision=full reason=size flagged=500 novel=0 routerMs=0.0
+GATE lib=synthetic-s19 style share=0.0368 decision=full reason=size flagged=368 novel=0 routerMs=0.0
+GATE chain lib=synthetic-s19 B=0.1 step=1 n=8900 decision=full reason=novelty flagged=100 ms=14241.3
+GATE chain lib=synthetic-s19 B=0.1 step=2 n=9000 decision=full reason=novelty flagged=100 ms=14514.1
+GATE chain lib=synthetic-s19 B=0.1 step=3 n=9100 decision=full reason=novelty flagged=100 ms=14831.2
+GATE chain lib=synthetic-s19 B=0.1 step=4 n=9200 decision=full reason=novelty flagged=100 ms=14910.3
+GATE chain lib=synthetic-s19 B=0.1 step=5 n=9300 decision=full reason=novelty flagged=100 ms=15328.7
+GATE chain lib=synthetic-s19 B=0.1 step=6 n=9400 decision=full reason=novelty flagged=100 ms=15168.5
+GATE chain lib=synthetic-s19 B=0.1 step=7 n=9500 decision=full reason=novelty flagged=100 ms=15328.9
+GATE chain lib=synthetic-s19 B=0.1 step=8 n=9600 decision=full reason=novelty flagged=100 ms=15562.4
+GATE chain lib=synthetic-s19 B=0.1 step=9 n=9700 decision=full reason=novelty flagged=100 ms=15725.0
+GATE chain lib=synthetic-s19 B=0.1 step=10 n=9800 decision=full reason=novelty flagged=100 ms=15943.4
+GATE chain lib=synthetic-s19 B=0.1 step=11 n=9604 decision=refresh reason=refresh flagged=0 ms=4750.8
+GATE chain lib=synthetic-s19 B=0.1 metrics chain trust=0.9839 recall=0.2722 class=0.8501 RF=0.2843 CF=0.8555 overlapCold=0.4984
+GATE chain lib=synthetic-s19 B=0.1 metrics cold trust=0.9842 recall=0.2750 class=0.8501 RF=0.2871 CF=0.8553 overlapCold=1.0000
+GATE chain lib=synthetic-s19 B=0.1 fullBuilds=10 totalMs=156304.9 verdict=PASS
+GATE chain lib=synthetic-s19 B=0.05 step=1 n=8900 decision=full reason=novelty flagged=100 ms=14237.1
+GATE chain lib=synthetic-s19 B=0.05 step=2 n=9000 decision=full reason=novelty flagged=100 ms=14411.7
+GATE chain lib=synthetic-s19 B=0.05 step=3 n=9100 decision=full reason=novelty flagged=100 ms=14658.4
+GATE chain lib=synthetic-s19 B=0.05 step=4 n=9200 decision=full reason=novelty flagged=100 ms=14821.1
+GATE chain lib=synthetic-s19 B=0.05 step=5 n=9300 decision=full reason=novelty flagged=100 ms=14940.9
+GATE chain lib=synthetic-s19 B=0.05 step=6 n=9400 decision=full reason=novelty flagged=100 ms=15107.1
+GATE chain lib=synthetic-s19 B=0.05 step=7 n=9500 decision=full reason=novelty flagged=100 ms=15405.8
+GATE chain lib=synthetic-s19 B=0.05 step=8 n=9600 decision=full reason=novelty flagged=100 ms=15517.5
+GATE chain lib=synthetic-s19 B=0.05 step=9 n=9700 decision=full reason=novelty flagged=100 ms=15714.5
+GATE chain lib=synthetic-s19 B=0.05 step=10 n=9800 decision=full reason=novelty flagged=100 ms=16153.5
+GATE chain lib=synthetic-s19 B=0.05 step=11 n=9604 decision=refresh reason=refresh flagged=0 ms=4796.4
+GATE chain lib=synthetic-s19 B=0.05 metrics chain trust=0.9839 recall=0.2722 class=0.8501 RF=0.2843 CF=0.8555 overlapCold=0.4984
+GATE chain lib=synthetic-s19 B=0.05 metrics cold trust=0.9842 recall=0.2750 class=0.8501 RF=0.2871 CF=0.8553 overlapCold=1.0000
+GATE chain lib=synthetic-s19 B=0.05 fullBuilds=10 totalMs=155763.9 verdict=PASS
+GATE chain lib=synthetic-s19 B=0.03 step=1 n=8900 decision=full reason=novelty flagged=100 ms=14357.9
+GATE chain lib=synthetic-s19 B=0.03 step=2 n=9000 decision=full reason=novelty flagged=100 ms=14572.2
+GATE chain lib=synthetic-s19 B=0.03 step=3 n=9100 decision=full reason=novelty flagged=100 ms=14795.7
+GATE chain lib=synthetic-s19 B=0.03 step=4 n=9200 decision=full reason=novelty flagged=100 ms=14960.2
+GATE chain lib=synthetic-s19 B=0.03 step=5 n=9300 decision=full reason=novelty flagged=100 ms=15053.4
+GATE chain lib=synthetic-s19 B=0.03 step=6 n=9400 decision=full reason=novelty flagged=100 ms=15308.6
+GATE chain lib=synthetic-s19 B=0.03 step=7 n=9500 decision=full reason=novelty flagged=100 ms=15449.3
+GATE chain lib=synthetic-s19 B=0.03 step=8 n=9600 decision=full reason=novelty flagged=100 ms=15692.3
+GATE chain lib=synthetic-s19 B=0.03 step=9 n=9700 decision=full reason=novelty flagged=100 ms=15918.9
+GATE chain lib=synthetic-s19 B=0.03 step=10 n=9800 decision=full reason=novelty flagged=100 ms=16146.7
+GATE chain lib=synthetic-s19 B=0.03 step=11 n=9604 decision=refresh reason=refresh flagged=0 ms=4786.4
+GATE chain lib=synthetic-s19 B=0.03 metrics chain trust=0.9839 recall=0.2722 class=0.8501 RF=0.2843 CF=0.8555 overlapCold=0.4984
+GATE chain lib=synthetic-s19 B=0.03 metrics cold trust=0.9842 recall=0.2750 class=0.8501 RF=0.2871 CF=0.8553 overlapCold=1.0000
+GATE chain lib=synthetic-s19 B=0.03 fullBuilds=10 totalMs=157041.5 verdict=PASS
+GATE probe lib=synthetic-s19 heap mode=today peakAboveBaselineMb=58.0
+GATE probe lib=synthetic-s19 heap mode=refresh peakAboveBaselineMb=58.0
+GATE probe lib=synthetic-s19 heap mode=today peakAboveBaselineMb=58.0
+GATE probe lib=synthetic-s19 heap mode=refresh peakAboveBaselineMb=59.0
+GATE probe lib=synthetic-s19 cancel mode=today at=100ms stoppedWithinMs=0.3
+GATE probe lib=synthetic-s19 cancel mode=refresh at=100ms stoppedWithinMs=1879.1
+GATE probe lib=synthetic-s19 cancel mode=today at=1000ms stoppedWithinMs=0.3
+GATE probe lib=synthetic-s19 cancel mode=refresh at=1000ms stoppedWithinMs=2233.4
+GATE probe lib=synthetic-s19 cancel mode=today at=2500ms stoppedWithinMs=0.0
+GATE probe lib=synthetic-s19 cancel mode=refresh at=2500ms stoppedWithinMs=0.0
+GATE probe lib=synthetic-s19 cancel mode=today at=4000ms stoppedWithinMs=0.0
+GATE probe lib=synthetic-s19 cancel mode=refresh at=4000ms stoppedWithinMs=0.0
+GATE fma fma-1000 source=AUDIO_AND_METADATA genres=15 styles=82
+GATE lib=fma-1000 n=1000 dim=1344
+GATE lib=fma-1000 NOT-APPLICABLE exact backend (Tsne.embed has no refresh schedule; refresh applies above 2000)
+GATE fma fma-5000 source=AUDIO_AND_METADATA genres=16 styles=103
+GATE lib=fma-5000 n=5000 dim=1344
+GATE lib=fma-5000 novel style=34 members=152
+GATE lib=fma-5000 same share=0.0000 decision=refresh reason=refresh flagged=0 novel=0 routerMs=0.0
+GATE lib=fma-5000 same time todayMs=5922.2 refreshMs=1935.0 ratio=0.3267
+GATE lib=fma-5000 same stability today kept=0.8684 p90=0.1286 median=0.0464 refresh kept=0.9850 p90=0.0030 median=0.0016
+GATE lib=fma-5000 same metrics today trust=0.9910 recall=0.6729 class=0.6896 RF=NaN CF=NaN overlapCold=0.8684
+GATE lib=fma-5000 same metrics refresh trust=0.9915 recall=0.6711 class=0.6893 RF=NaN CF=NaN overlapCold=0.9850
+GATE lib=fma-5000 same metrics cold trust=0.9915 recall=0.6717 class=0.6895 RF=NaN CF=NaN overlapCold=1.0000
+GATE lib=fma-5000 same metrics cold2 trust=0.9911 recall=0.6718 class=0.6880 RF=NaN CF=NaN overlapCold=0.8452
+GATE lib=fma-5000 same verdict trust=PASS recall=PASS class=PASS overlapCold=PASS kept15=PASS p90move=PASS timeHost=PASS overlapNoise=0.8452
+GATE lib=fma-5000 add1 share=0.0100 decision=refresh reason=refresh flagged=50 novel=0 routerMs=854.4
+GATE lib=fma-5000 add1 time todayMs=5983.6 refreshMs=1937.4 ratio=0.3238
+GATE lib=fma-5000 add1 stability today kept=0.8758 p90=0.1212 median=0.0605 refresh kept=0.9731 p90=0.0038 median=0.0021
+GATE lib=fma-5000 add1 metrics today trust=0.9913 recall=0.6728 class=0.6899 RF=0.6813 CF=0.6933 overlapCold=0.8391
+GATE lib=fma-5000 add1 metrics refresh trust=0.9916 recall=0.6740 class=0.6873 RF=0.6480 CF=0.6867 overlapCold=0.8388
+GATE lib=fma-5000 add1 metrics cold trust=0.9915 recall=0.6717 class=0.6895 RF=0.6613 CF=0.6840 overlapCold=1.0000
+GATE lib=fma-5000 add1 metrics cold2 trust=0.9911 recall=0.6718 class=0.6880 RF=0.6720 CF=0.6960 overlapCold=0.8452
+GATE lib=fma-5000 add1 verdict trust=PASS recall=PASS class=PASS overlapCold=PASS kept15=FAIL p90move=PASS timeHost=PASS RF=PASS CF=PASS overlapNoise=0.8452
+GATE lib=fma-5000 add2 share=0.0200 decision=refresh reason=refresh flagged=100 novel=0 routerMs=850.5
+GATE lib=fma-5000 add2 time todayMs=5901.6 refreshMs=1940.0 ratio=0.3287
+GATE lib=fma-5000 add2 stability today kept=0.8570 p90=0.1048 median=0.0460 refresh kept=0.9616 p90=0.0046 median=0.0026
+GATE lib=fma-5000 add2 metrics today trust=0.9919 recall=0.6750 class=0.6864 RF=0.6587 CF=0.6387 overlapCold=0.8424
+GATE lib=fma-5000 add2 metrics refresh trust=0.9919 recall=0.6729 class=0.6886 RF=0.6693 CF=0.6413 overlapCold=0.8320
+GATE lib=fma-5000 add2 metrics cold trust=0.9915 recall=0.6717 class=0.6895 RF=0.6740 CF=0.6420 overlapCold=1.0000
+GATE lib=fma-5000 add2 metrics cold2 trust=0.9911 recall=0.6718 class=0.6880 RF=0.6713 CF=0.6453 overlapCold=0.8452
+GATE lib=fma-5000 add2 verdict trust=PASS recall=PASS class=PASS overlapCold=PASS kept15=PASS p90move=PASS timeHost=PASS RF=PASS CF=PASS overlapNoise=0.8452
+GATE lib=fma-5000 add3 share=0.0300 decision=refresh reason=refresh flagged=150 novel=0 routerMs=860.4
+GATE lib=fma-5000 add3 time todayMs=5895.9 refreshMs=1941.7 ratio=0.3293
+GATE lib=fma-5000 add3 stability today kept=0.8418 p90=0.1114 median=0.0464 refresh kept=0.9570 p90=0.0055 median=0.0031
+GATE lib=fma-5000 add3 metrics today trust=0.9921 recall=0.6705 class=0.6867 RF=0.6613 CF=0.7351 overlapCold=0.8421
+GATE lib=fma-5000 add3 metrics refresh trust=0.9914 recall=0.6721 class=0.6836 RF=0.6556 CF=0.7436 overlapCold=0.8287
+GATE lib=fma-5000 add3 metrics cold trust=0.9915 recall=0.6717 class=0.6895 RF=0.6778 CF=0.7462 overlapCold=1.0000
+GATE lib=fma-5000 add3 metrics cold2 trust=0.9911 recall=0.6718 class=0.6880 RF=0.6684 CF=0.7307 overlapCold=0.8452
+GATE lib=fma-5000 add3 verdict trust=PASS recall=PASS class=PASS overlapCold=PASS kept15=PASS p90move=PASS timeHost=PASS RF=PASS CF=PASS overlapNoise=0.8452
+GATE lib=fma-5000 change1 share=0.0100 decision=refresh reason=refresh flagged=50 novel=0 routerMs=844.1
+GATE lib=fma-5000 change1 time todayMs=5894.2 refreshMs=1933.7 ratio=0.3281
+GATE lib=fma-5000 change1 stability today kept=0.8441 p90=0.1430 median=0.0699 refresh kept=0.9682 p90=0.0043 median=0.0022
+GATE lib=fma-5000 change1 metrics today trust=0.9909 recall=0.6728 class=0.6900 RF=0.6773 CF=0.7427 overlapCold=0.8575
+GATE lib=fma-5000 change1 metrics refresh trust=0.9905 recall=0.6751 class=0.6886 RF=0.6600 CF=0.7480 overlapCold=0.8428
+GATE lib=fma-5000 change1 metrics cold trust=0.9915 recall=0.6717 class=0.6895 RF=0.6693 CF=0.7453 overlapCold=1.0000
+GATE lib=fma-5000 change1 metrics cold2 trust=0.9911 recall=0.6718 class=0.6880 RF=0.6693 CF=0.7427 overlapCold=0.8452
+GATE lib=fma-5000 change1 verdict trust=PASS recall=PASS class=PASS overlapCold=PASS kept15=PASS p90move=PASS timeHost=PASS RF=PASS CF=PASS overlapNoise=0.8452
+GATE lib=fma-5000 change2 share=0.0200 decision=refresh reason=refresh flagged=100 novel=0 routerMs=850.7
+GATE lib=fma-5000 change2 time todayMs=5908.5 refreshMs=1941.8 ratio=0.3286
+GATE lib=fma-5000 change2 stability today kept=0.8434 p90=0.1624 median=0.0761 refresh kept=0.9565 p90=0.0044 median=0.0021
+GATE lib=fma-5000 change2 metrics today trust=0.9911 recall=0.6741 class=0.6904 RF=0.7060 CF=0.7273 overlapCold=0.8332
+GATE lib=fma-5000 change2 metrics refresh trust=0.9910 recall=0.6753 class=0.6883 RF=0.7027 CF=0.7100 overlapCold=0.8303
+GATE lib=fma-5000 change2 metrics cold trust=0.9915 recall=0.6717 class=0.6895 RF=0.6980 CF=0.7427 overlapCold=1.0000
+GATE lib=fma-5000 change2 metrics cold2 trust=0.9911 recall=0.6718 class=0.6880 RF=0.6967 CF=0.7260 overlapCold=0.8452
+GATE lib=fma-5000 change2 verdict trust=PASS recall=PASS class=PASS overlapCold=PASS kept15=PASS p90move=PASS timeHost=PASS RF=PASS CF=PASS overlapNoise=0.8452
+GATE lib=fma-5000 change3 share=0.0300 decision=refresh reason=refresh flagged=150 novel=0 routerMs=857.5
+GATE lib=fma-5000 change3 time todayMs=5893.2 refreshMs=1940.2 ratio=0.3292
+GATE lib=fma-5000 change3 stability today kept=0.8162 p90=0.1629 median=0.0705 refresh kept=0.9404 p90=0.0070 median=0.0038
+GATE lib=fma-5000 change3 metrics today trust=0.9925 recall=0.6745 class=0.6871 RF=0.6609 CF=0.7204 overlapCold=0.8390
+GATE lib=fma-5000 change3 metrics refresh trust=0.9903 recall=0.6733 class=0.6875 RF=0.6498 CF=0.7160 overlapCold=0.8281
+GATE lib=fma-5000 change3 metrics cold trust=0.9915 recall=0.6717 class=0.6895 RF=0.6551 CF=0.7329 overlapCold=1.0000
+GATE lib=fma-5000 change3 metrics cold2 trust=0.9911 recall=0.6718 class=0.6880 RF=0.6533 CF=0.7182 overlapCold=0.8452
+GATE lib=fma-5000 change3 verdict trust=PASS recall=PASS class=PASS overlapCold=PASS kept15=PASS p90move=PASS timeHost=PASS RF=PASS CF=PASS overlapNoise=0.8452
+GATE lib=fma-5000 album1 share=0.0100 decision=refresh reason=refresh flagged=50 novel=0 routerMs=840.3
+GATE lib=fma-5000 album1 time todayMs=5915.1 refreshMs=1925.3 ratio=0.3255
+GATE lib=fma-5000 album1 stability today kept=0.8324 p90=0.2649 median=0.0857 refresh kept=0.9762 p90=0.0038 median=0.0019
+GATE lib=fma-5000 album1 metrics today trust=0.9918 recall=0.6743 class=0.6858 RF=0.7613 CF=0.7787 overlapCold=0.8446
+GATE lib=fma-5000 album1 metrics refresh trust=0.9912 recall=0.6723 class=0.6848 RF=0.7280 CF=0.7653 overlapCold=0.8175
+GATE lib=fma-5000 album1 metrics cold trust=0.9915 recall=0.6717 class=0.6895 RF=0.7587 CF=0.7813 overlapCold=1.0000
+GATE lib=fma-5000 album1 metrics cold2 trust=0.9911 recall=0.6718 class=0.6880 RF=0.7507 CF=0.7827 overlapCold=0.8452
+GATE lib=fma-5000 album1 verdict trust=PASS recall=PASS class=PASS overlapCold=PASS kept15=PASS p90move=PASS timeHost=PASS RF=PASS CF=PASS overlapNoise=0.8452
+GATE lib=fma-5000 novel0.5 share=0.0051 decision=refresh reason=refresh flagged=25 novel=0 routerMs=792.4
+GATE lib=fma-5000 novel0.5 time todayMs=5714.8 refreshMs=1868.0 ratio=0.3269
+GATE lib=fma-5000 novel0.5 stability today kept=0.8627 p90=0.1452 median=0.0548 refresh kept=0.9723 p90=0.0055 median=0.0033
+GATE lib=fma-5000 novel0.5 metrics today trust=0.9914 recall=0.6738 class=0.6816 RF=0.6267 CF=0.4773 overlapCold=0.8474
+GATE lib=fma-5000 novel0.5 metrics refresh trust=0.9894 recall=0.6751 class=0.6856 RF=0.5840 CF=0.4187 overlapCold=0.8379
+GATE lib=fma-5000 novel0.5 metrics cold trust=0.9916 recall=0.6751 class=0.6873 RF=0.5627 CF=0.4213 overlapCold=1.0000
+GATE lib=fma-5000 novel0.5 metrics cold2 trust=0.9911 recall=0.6725 class=0.6800 RF=0.5707 CF=0.4480 overlapCold=0.8467
+GATE lib=fma-5000 novel0.5 verdict trust=PASS recall=PASS class=PASS overlapCold=PASS kept15=PASS p90move=PASS timeHost=PASS RF=PASS CF=FAIL overlapNoise=0.8467
+GATE lib=fma-5000 novel1.0 share=0.0102 decision=refresh reason=refresh flagged=50 novel=0 routerMs=806.6
+GATE lib=fma-5000 novel1.0 time todayMs=5772.6 refreshMs=1883.0 ratio=0.3262
+GATE lib=fma-5000 novel1.0 stability today kept=0.8560 p90=0.1511 median=0.0597 refresh kept=0.9641 p90=0.0062 median=0.0037
+GATE lib=fma-5000 novel1.0 metrics today trust=0.9914 recall=0.6746 class=0.6847 RF=0.6213 CF=0.6040 overlapCold=0.8522
+GATE lib=fma-5000 novel1.0 metrics refresh trust=0.9893 recall=0.6741 class=0.6849 RF=0.5467 CF=0.5187 overlapCold=0.8519
+GATE lib=fma-5000 novel1.0 metrics cold trust=0.9916 recall=0.6777 class=0.6887 RF=0.5933 CF=0.5307 overlapCold=1.0000
+GATE lib=fma-5000 novel1.0 metrics cold2 trust=0.9904 recall=0.6770 class=0.6885 RF=0.6240 CF=0.6307 overlapCold=0.8447
+GATE lib=fma-5000 novel1.0 verdict trust=PASS recall=PASS class=PASS overlapCold=PASS kept15=PASS p90move=PASS timeHost=PASS RF=PASS CF=FAIL overlapNoise=0.8447
+GATE lib=fma-5000 novel2.0 share=0.0202 decision=refresh reason=refresh flagged=100 novel=0 routerMs=832.1
+GATE lib=fma-5000 novel2.0 time todayMs=5813.3 refreshMs=1928.1 ratio=0.3317
+GATE lib=fma-5000 novel2.0 stability today kept=0.8506 p90=0.1691 median=0.0515 refresh kept=0.9541 p90=0.0067 median=0.0035
+GATE lib=fma-5000 novel2.0 metrics today trust=0.9907 recall=0.6743 class=0.6844 RF=0.6513 CF=0.6820 overlapCold=0.8401
+GATE lib=fma-5000 novel2.0 metrics refresh trust=0.9890 recall=0.6717 class=0.6861 RF=0.5900 CF=0.6593 overlapCold=0.8447
+GATE lib=fma-5000 novel2.0 metrics cold trust=0.9912 recall=0.6752 class=0.6877 RF=0.6493 CF=0.6893 overlapCold=1.0000
+GATE lib=fma-5000 novel2.0 metrics cold2 trust=0.9921 recall=0.6758 class=0.6847 RF=0.6500 CF=0.6880 overlapCold=0.8465
+GATE lib=fma-5000 novel2.0 verdict trust=PASS recall=PASS class=PASS overlapCold=PASS kept15=PASS p90move=PASS timeHost=PASS RF=PASS CF=PASS overlapNoise=0.8465
+GATE lib=fma-5000 add5 share=0.0500 decision=full reason=size flagged=250 novel=0 routerMs=0.0
+GATE lib=fma-5000 style share=0.0492 decision=full reason=size flagged=246 novel=0 routerMs=0.0
+GATE chain lib=fma-5000 B=0.1 step=1 n=4450 decision=refresh reason=refresh flagged=50 ms=1699.0
+GATE chain lib=fma-5000 B=0.1 step=2 n=4500 decision=refresh reason=refresh flagged=50 ms=1721.5
+GATE chain lib=fma-5000 B=0.1 step=3 n=4550 decision=refresh reason=refresh flagged=50 ms=1739.2
+GATE chain lib=fma-5000 B=0.1 step=4 n=4600 decision=refresh reason=refresh flagged=50 ms=1754.6
+GATE chain lib=fma-5000 B=0.1 step=5 n=4650 decision=refresh reason=refresh flagged=50 ms=1789.2
+GATE chain lib=fma-5000 B=0.1 step=6 n=4700 decision=refresh reason=refresh flagged=50 ms=1804.6
+GATE chain lib=fma-5000 B=0.1 step=7 n=4750 decision=refresh reason=refresh flagged=50 ms=1832.5
+GATE chain lib=fma-5000 B=0.1 step=8 n=4800 decision=refresh reason=refresh flagged=50 ms=1874.1
+GATE chain lib=fma-5000 B=0.1 step=9 n=4850 decision=refresh reason=refresh flagged=50 ms=1882.3
+GATE chain lib=fma-5000 B=0.1 step=10 n=4900 decision=full reason=budget flagged=50 ms=5770.0
+GATE chain lib=fma-5000 B=0.1 step=11 n=4802 decision=refresh reason=refresh flagged=0 ms=1847.3
+GATE chain lib=fma-5000 B=0.1 metrics chain trust=0.9907 recall=0.6722 class=0.6817 RF=0.6683 CF=0.6724 overlapCold=0.8314
+GATE chain lib=fma-5000 B=0.1 metrics cold trust=0.9917 recall=0.6727 class=0.6816 RF=0.6669 CF=0.6616 overlapCold=1.0000
+GATE chain lib=fma-5000 B=0.1 fullBuilds=1 totalMs=23714.4 verdict=PASS
+GATE chain lib=fma-5000 B=0.05 step=1 n=4450 decision=refresh reason=refresh flagged=50 ms=1707.2
+GATE chain lib=fma-5000 B=0.05 step=2 n=4500 decision=refresh reason=refresh flagged=50 ms=1724.6
+GATE chain lib=fma-5000 B=0.05 step=3 n=4550 decision=refresh reason=refresh flagged=50 ms=1748.6
+GATE chain lib=fma-5000 B=0.05 step=4 n=4600 decision=refresh reason=refresh flagged=50 ms=1773.0
+GATE chain lib=fma-5000 B=0.05 step=5 n=4650 decision=full reason=budget flagged=50 ms=5472.8
+GATE chain lib=fma-5000 B=0.05 step=6 n=4700 decision=refresh reason=refresh flagged=50 ms=1813.0
+GATE chain lib=fma-5000 B=0.05 step=7 n=4750 decision=refresh reason=refresh flagged=50 ms=1832.9
+GATE chain lib=fma-5000 B=0.05 step=8 n=4800 decision=refresh reason=refresh flagged=50 ms=1862.1
+GATE chain lib=fma-5000 B=0.05 step=9 n=4850 decision=refresh reason=refresh flagged=50 ms=1870.4
+GATE chain lib=fma-5000 B=0.05 step=10 n=4900 decision=full reason=budget flagged=50 ms=5793.6
+GATE chain lib=fma-5000 B=0.05 step=11 n=4802 decision=refresh reason=refresh flagged=0 ms=1843.4
+GATE chain lib=fma-5000 B=0.05 metrics chain trust=0.9908 recall=0.6736 class=0.6824 RF=0.6716 CF=0.6693 overlapCold=0.8345
+GATE chain lib=fma-5000 B=0.05 metrics cold trust=0.9917 recall=0.6727 class=0.6816 RF=0.6669 CF=0.6616 overlapCold=1.0000
+GATE chain lib=fma-5000 B=0.05 fullBuilds=2 totalMs=27441.7 verdict=PASS
+GATE chain lib=fma-5000 B=0.03 step=1 n=4450 decision=refresh reason=refresh flagged=50 ms=1692.7
+GATE chain lib=fma-5000 B=0.03 step=2 n=4500 decision=refresh reason=refresh flagged=50 ms=1718.2
+GATE chain lib=fma-5000 B=0.03 step=3 n=4550 decision=full reason=budget flagged=50 ms=5323.6
+GATE chain lib=fma-5000 B=0.03 step=4 n=4600 decision=refresh reason=refresh flagged=50 ms=1762.7
+GATE chain lib=fma-5000 B=0.03 step=5 n=4650 decision=refresh reason=refresh flagged=50 ms=1771.7
+GATE chain lib=fma-5000 B=0.03 step=6 n=4700 decision=full reason=budget flagged=50 ms=5566.3
+GATE chain lib=fma-5000 B=0.03 step=7 n=4750 decision=refresh reason=refresh flagged=50 ms=1826.5
+GATE chain lib=fma-5000 B=0.03 step=8 n=4800 decision=refresh reason=refresh flagged=50 ms=1848.2
+GATE chain lib=fma-5000 B=0.03 step=9 n=4850 decision=full reason=budget flagged=50 ms=5704.6
+GATE chain lib=fma-5000 B=0.03 step=10 n=4900 decision=refresh reason=refresh flagged=50 ms=1878.7
+GATE chain lib=fma-5000 B=0.03 step=11 n=4802 decision=refresh reason=refresh flagged=0 ms=1837.7
+GATE chain lib=fma-5000 B=0.03 metrics chain trust=0.9911 recall=0.6731 class=0.6832 RF=0.6673 CF=0.6680 overlapCold=0.8431
+GATE chain lib=fma-5000 B=0.03 metrics cold trust=0.9917 recall=0.6727 class=0.6816 RF=0.6669 CF=0.6616 overlapCold=1.0000
+GATE chain lib=fma-5000 B=0.03 fullBuilds=3 totalMs=30930.8 verdict=PASS
+GATE fma fma-7989 source=AUDIO_AND_METADATA genres=16 styles=112
+GATE lib=fma-7989 n=7989 dim=1344
+GATE lib=fma-7989 novel style=37 members=252
+GATE lib=fma-7989 same share=0.0000 decision=refresh reason=refresh flagged=0 novel=0 routerMs=0.0
+GATE lib=fma-7989 same time todayMs=9907.1 refreshMs=3314.1 ratio=0.3345
+GATE lib=fma-7989 same stability today kept=0.8870 p90=0.0991 median=0.0411 refresh kept=0.9869 p90=0.0030 median=0.0016
+GATE lib=fma-7989 same metrics today trust=0.9947 recall=0.7007 class=0.7365 RF=NaN CF=NaN overlapCold=0.8870
+GATE lib=fma-7989 same metrics refresh trust=0.9945 recall=0.7009 class=0.7337 RF=NaN CF=NaN overlapCold=0.9869
+GATE lib=fma-7989 same metrics cold trust=0.9944 recall=0.7012 class=0.7338 RF=NaN CF=NaN overlapCold=1.0000
+GATE lib=fma-7989 same metrics cold2 trust=0.9937 recall=0.6984 class=0.7333 RF=NaN CF=NaN overlapCold=0.8677
+GATE lib=fma-7989 same verdict trust=PASS recall=PASS class=PASS overlapCold=PASS kept15=FAIL p90move=PASS timeHost=PASS overlapNoise=0.8677
+GATE lib=fma-7989 add1 share=0.0100 decision=refresh reason=refresh flagged=80 novel=3 routerMs=2227.5
+GATE lib=fma-7989 add1 time todayMs=9916.1 refreshMs=3338.1 ratio=0.3366
+GATE lib=fma-7989 add1 stability today kept=0.9016 p90=0.0858 median=0.0273 refresh kept=0.9748 p90=0.0033 median=0.0017
+GATE lib=fma-7989 add1 metrics today trust=0.9942 recall=0.7008 class=0.7337 RF=0.6425 CF=0.7200 overlapCold=0.8722
+GATE lib=fma-7989 add1 metrics refresh trust=0.9944 recall=0.7005 class=0.7346 RF=0.6333 CF=0.7017 overlapCold=0.8614
+GATE lib=fma-7989 add1 metrics cold trust=0.9944 recall=0.7012 class=0.7338 RF=0.6375 CF=0.7233 overlapCold=1.0000
+GATE lib=fma-7989 add1 metrics cold2 trust=0.9937 recall=0.6984 class=0.7333 RF=0.6492 CF=0.7200 overlapCold=0.8677
+GATE lib=fma-7989 add1 verdict trust=PASS recall=PASS class=PASS overlapCold=PASS kept15=FAIL p90move=PASS timeHost=PASS RF=PASS CF=PASS overlapNoise=0.8677
+GATE lib=fma-7989 add2 share=0.0200 decision=refresh reason=refresh flagged=160 novel=4 routerMs=2255.4
+GATE lib=fma-7989 add2 time todayMs=9882.2 refreshMs=3362.8 ratio=0.3403
+GATE lib=fma-7989 add2 stability today kept=0.8752 p90=0.1768 median=0.0652 refresh kept=0.9704 p90=0.0031 median=0.0014
+GATE lib=fma-7989 add2 metrics today trust=0.9950 recall=0.6989 class=0.7322 RF=0.6662 CF=0.6988 overlapCold=0.8698
+GATE lib=fma-7989 add2 metrics refresh trust=0.9937 recall=0.6975 class=0.7317 RF=0.6383 CF=0.6933 overlapCold=0.8624
+GATE lib=fma-7989 add2 metrics cold trust=0.9944 recall=0.7012 class=0.7338 RF=0.6617 CF=0.7100 overlapCold=1.0000
+GATE lib=fma-7989 add2 metrics cold2 trust=0.9937 recall=0.6984 class=0.7333 RF=0.6717 CF=0.7129 overlapCold=0.8677
+GATE lib=fma-7989 add2 verdict trust=PASS recall=PASS class=PASS overlapCold=PASS kept15=FAIL p90move=PASS timeHost=PASS RF=PASS CF=PASS overlapNoise=0.8677
+GATE lib=fma-7989 add3 share=0.0300 decision=full reason=size flagged=240 novel=0 routerMs=0.0
+GATE lib=fma-7989 change1 share=0.0100 decision=refresh reason=refresh flagged=80 novel=4 routerMs=2242.2
+GATE lib=fma-7989 change1 time todayMs=10088.1 refreshMs=3440.2 ratio=0.3410
+GATE lib=fma-7989 change1 stability today kept=0.8690 p90=0.1414 median=0.0646 refresh kept=0.9687 p90=0.0038 median=0.0020
+GATE lib=fma-7989 change1 metrics today trust=0.9949 recall=0.6993 class=0.7323 RF=0.6983 CF=0.6517 overlapCold=0.8982
+GATE lib=fma-7989 change1 metrics refresh trust=0.9945 recall=0.6973 class=0.7332 RF=0.6783 CF=0.6467 overlapCold=0.8751
+GATE lib=fma-7989 change1 metrics cold trust=0.9944 recall=0.7012 class=0.7338 RF=0.6958 CF=0.6517 overlapCold=1.0000
+GATE lib=fma-7989 change1 metrics cold2 trust=0.9937 recall=0.6984 class=0.7333 RF=0.6725 CF=0.6517 overlapCold=0.8677
+GATE lib=fma-7989 change1 verdict trust=PASS recall=PASS class=PASS overlapCold=PASS kept15=FAIL p90move=PASS timeHost=PASS RF=PASS CF=PASS overlapNoise=0.8677
+GATE lib=fma-7989 change2 share=0.0200 decision=refresh reason=refresh flagged=160 novel=5 routerMs=2250.0
+GATE lib=fma-7989 change2 time todayMs=9817.0 refreshMs=3353.0 ratio=0.3415
+GATE lib=fma-7989 change2 stability today kept=0.8679 p90=0.1700 median=0.0496 refresh kept=0.9621 p90=0.0042 median=0.0023
+GATE lib=fma-7989 change2 metrics today trust=0.9952 recall=0.7001 class=0.7325 RF=0.7400 CF=0.7646 overlapCold=0.8826
+GATE lib=fma-7989 change2 metrics refresh trust=0.9938 recall=0.6994 class=0.7318 RF=0.7204 CF=0.7700 overlapCold=0.8680
+GATE lib=fma-7989 change2 metrics cold trust=0.9944 recall=0.7012 class=0.7338 RF=0.7362 CF=0.7667 overlapCold=1.0000
+GATE lib=fma-7989 change2 metrics cold2 trust=0.9937 recall=0.6984 class=0.7333 RF=0.7362 CF=0.7683 overlapCold=0.8677
+GATE lib=fma-7989 change2 verdict trust=PASS recall=PASS class=PASS overlapCold=PASS kept15=FAIL p90move=PASS timeHost=PASS RF=PASS CF=PASS overlapNoise=0.8677
+GATE lib=fma-7989 change3 share=0.0300 decision=full reason=size flagged=240 novel=0 routerMs=0.0
+GATE lib=fma-7989 album1 share=0.0103 decision=refresh reason=refresh flagged=82 novel=4 routerMs=2226.0
+GATE lib=fma-7989 album1 time todayMs=9842.5 refreshMs=3330.0 ratio=0.3383
+GATE lib=fma-7989 album1 stability today kept=0.8780 p90=0.1649 median=0.0551 refresh kept=0.9722 p90=0.0036 median=0.0018
+GATE lib=fma-7989 album1 metrics today trust=0.9949 recall=0.7002 class=0.7338 RF=0.6756 CF=0.6659 overlapCold=0.8760
+GATE lib=fma-7989 album1 metrics refresh trust=0.9946 recall=0.6994 class=0.7325 RF=0.6439 CF=0.6171 overlapCold=0.8628
+GATE lib=fma-7989 album1 metrics cold trust=0.9944 recall=0.7012 class=0.7338 RF=0.6740 CF=0.6610 overlapCold=1.0000
+GATE lib=fma-7989 album1 metrics cold2 trust=0.9937 recall=0.6984 class=0.7333 RF=0.6748 CF=0.6691 overlapCold=0.8677
+GATE lib=fma-7989 album1 verdict trust=PASS recall=PASS class=PASS overlapCold=PASS kept15=FAIL p90move=PASS timeHost=PASS RF=PASS CF=PASS overlapNoise=0.8677
+GATE lib=fma-7989 novel0.5 share=0.0051 decision=refresh reason=refresh flagged=40 novel=4 routerMs=2132.2
+GATE lib=fma-7989 novel0.5 time todayMs=9626.9 refreshMs=3263.5 ratio=0.3390
+GATE lib=fma-7989 novel0.5 stability today kept=0.9031 p90=0.0806 median=0.0308 refresh kept=0.9783 p90=0.0031 median=0.0016
+GATE lib=fma-7989 novel0.5 metrics today trust=0.9943 recall=0.6971 class=0.7284 RF=0.5050 CF=0.5717 overlapCold=0.8638
+GATE lib=fma-7989 novel0.5 metrics refresh trust=0.9937 recall=0.6967 class=0.7264 RF=0.4100 CF=0.4367 overlapCold=0.8681
+GATE lib=fma-7989 novel0.5 metrics cold trust=0.9943 recall=0.6967 class=0.7283 RF=0.5233 CF=0.5533 overlapCold=1.0000
+GATE lib=fma-7989 novel0.5 metrics cold2 trust=0.9940 recall=0.6987 class=0.7278 RF=0.5067 CF=0.5583 overlapCold=0.8729
+GATE lib=fma-7989 novel0.5 verdict trust=PASS recall=PASS class=PASS overlapCold=PASS kept15=FAIL p90move=PASS timeHost=PASS RF=FAIL CF=FAIL overlapNoise=0.8729
+GATE lib=fma-7989 novel1.0 share=0.0102 decision=full reason=novelty flagged=80 novel=10 routerMs=2135.4
+GATE lib=fma-7989 novel2.0 share=0.0203 decision=full reason=novelty flagged=160 novel=21 routerMs=2190.4
+GATE lib=fma-7989 add5 share=0.0501 decision=full reason=size flagged=400 novel=0 routerMs=0.0
+GATE lib=fma-7989 style share=0.0497 decision=full reason=size flagged=397 novel=0 routerMs=0.0
+GATE chain lib=fma-7989 B=0.1 step=1 n=7110 decision=refresh reason=refresh flagged=79 ms=2976.8
+GATE chain lib=fma-7989 B=0.1 step=2 n=7189 decision=refresh reason=refresh flagged=79 ms=2992.1
+GATE chain lib=fma-7989 B=0.1 step=3 n=7268 decision=refresh reason=refresh flagged=79 ms=3033.9
+GATE chain lib=fma-7989 B=0.1 step=4 n=7347 decision=refresh reason=refresh flagged=79 ms=3065.3
+GATE chain lib=fma-7989 B=0.1 step=5 n=7426 decision=refresh reason=refresh flagged=79 ms=3067.6
+GATE chain lib=fma-7989 B=0.1 step=6 n=7505 decision=refresh reason=refresh flagged=79 ms=3119.8
+GATE chain lib=fma-7989 B=0.1 step=7 n=7584 decision=refresh reason=refresh flagged=79 ms=3137.5
+GATE chain lib=fma-7989 B=0.1 step=8 n=7663 decision=refresh reason=refresh flagged=79 ms=3171.2
+GATE chain lib=fma-7989 B=0.1 step=9 n=7742 decision=refresh reason=refresh flagged=79 ms=3210.4
+GATE chain lib=fma-7989 B=0.1 step=10 n=7821 decision=full reason=budget flagged=79 ms=9635.7
+GATE chain lib=fma-7989 B=0.1 step=11 n=7665 decision=refresh reason=refresh flagged=0 ms=3152.3
+GATE chain lib=fma-7989 B=0.1 metrics chain trust=0.9942 recall=0.6978 class=0.7298 RF=0.7036 CF=0.7374 overlapCold=0.8518
+GATE chain lib=fma-7989 B=0.1 metrics cold trust=0.9941 recall=0.6962 class=0.7302 RF=0.6988 CF=0.7368 overlapCold=1.0000
+GATE chain lib=fma-7989 B=0.1 fullBuilds=1 totalMs=40562.5 verdict=PASS
+GATE chain lib=fma-7989 B=0.05 step=1 n=7110 decision=refresh reason=refresh flagged=79 ms=2911.5
+GATE chain lib=fma-7989 B=0.05 step=2 n=7189 decision=refresh reason=refresh flagged=79 ms=2940.8
+GATE chain lib=fma-7989 B=0.05 step=3 n=7268 decision=refresh reason=refresh flagged=79 ms=2980.8
+GATE chain lib=fma-7989 B=0.05 step=4 n=7347 decision=refresh reason=refresh flagged=79 ms=3020.7
+GATE chain lib=fma-7989 B=0.05 step=5 n=7426 decision=full reason=budget flagged=79 ms=9130.2
+GATE chain lib=fma-7989 B=0.05 step=6 n=7505 decision=refresh reason=refresh flagged=79 ms=3083.2
+GATE chain lib=fma-7989 B=0.05 step=7 n=7584 decision=refresh reason=refresh flagged=79 ms=3134.9
+GATE chain lib=fma-7989 B=0.05 step=8 n=7663 decision=refresh reason=refresh flagged=79 ms=3166.4
+GATE chain lib=fma-7989 B=0.05 step=9 n=7742 decision=refresh reason=refresh flagged=79 ms=3208.9
+GATE chain lib=fma-7989 B=0.05 step=10 n=7821 decision=full reason=budget flagged=79 ms=9656.0
+GATE chain lib=fma-7989 B=0.05 step=11 n=7665 decision=refresh reason=refresh flagged=0 ms=3189.3
+GATE chain lib=fma-7989 B=0.05 metrics chain trust=0.9938 recall=0.6988 class=0.7284 RF=0.6998 CF=0.7343 overlapCold=0.8565
+GATE chain lib=fma-7989 B=0.05 metrics cold trust=0.9941 recall=0.6962 class=0.7302 RF=0.6988 CF=0.7368 overlapCold=1.0000
+GATE chain lib=fma-7989 B=0.05 fullBuilds=2 totalMs=46422.8 verdict=PASS
+GATE chain lib=fma-7989 B=0.03 step=1 n=7110 decision=refresh reason=refresh flagged=79 ms=2916.9
+GATE chain lib=fma-7989 B=0.03 step=2 n=7189 decision=refresh reason=refresh flagged=79 ms=2956.3
+GATE chain lib=fma-7989 B=0.03 step=3 n=7268 decision=full reason=budget flagged=79 ms=8892.6
+GATE chain lib=fma-7989 B=0.03 step=4 n=7347 decision=refresh reason=refresh flagged=79 ms=3010.7
+GATE chain lib=fma-7989 B=0.03 step=5 n=7426 decision=refresh reason=refresh flagged=79 ms=3042.7
+GATE chain lib=fma-7989 B=0.03 step=6 n=7505 decision=full reason=budget flagged=79 ms=9229.5
+GATE chain lib=fma-7989 B=0.03 step=7 n=7584 decision=refresh reason=refresh flagged=79 ms=3126.8
+GATE chain lib=fma-7989 B=0.03 step=8 n=7663 decision=refresh reason=refresh flagged=79 ms=3167.9
+GATE chain lib=fma-7989 B=0.03 step=9 n=7742 decision=full reason=budget flagged=79 ms=9549.0
+GATE chain lib=fma-7989 B=0.03 step=10 n=7821 decision=refresh reason=refresh flagged=79 ms=3241.5
+GATE chain lib=fma-7989 B=0.03 step=11 n=7665 decision=refresh reason=refresh flagged=0 ms=3156.1
+GATE chain lib=fma-7989 B=0.03 metrics chain trust=0.9942 recall=0.6989 class=0.7297 RF=0.7053 CF=0.7365 overlapCold=0.8525
+GATE chain lib=fma-7989 B=0.03 metrics cold trust=0.9941 recall=0.6962 class=0.7302 RF=0.6988 CF=0.7368 overlapCold=1.0000
+GATE chain lib=fma-7989 B=0.03 fullBuilds=3 totalMs=52290.1 verdict=PASS

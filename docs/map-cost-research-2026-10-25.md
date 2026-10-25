@@ -16,6 +16,16 @@ with minors, now fixed; see [Review log](#review-log).
 
 ## Summary
 
+> **Gate result (25 Oct, held-out):** approach 1 **failed as frozen**.
+> - On every non-novel change, the refresh step passed every quality row except overlap on one
+>   album case (0.003 short). On the three novel styles the router let through, RF and CF failed.
+> - Alone, it cost 0.398× today's time on the emulator, a margin below run-to-run noise.
+> - The novelty router failed both of its rows, and with it included the time row fails.
+> - RF, CF, overlap, kept15 and the router's cancellation failed.
+>
+> See [Gate run](#gate-run-for-approach-1-25-october-2026-held-out). The bullets below are the
+> pre-gate pilot.
+
 - **Every change costs a cold build today.**
   - Any change to the vector fingerprint recomputes the whole layout
     (`MapPageCache.layout` → `LibraryLayout.compute`).
@@ -72,6 +82,176 @@ with minors, now fixed; see [Review log](#review-log).
   - Nomic Atlas withdrew in-place map updates over consistency problems.
   - Apple Photos, the closest on-device analogue, assigns new items to existing clusters at once
     and re-clusters overnight while charging.
+
+## Gate run for approach 1 (25 October 2026, held-out)
+
+**Verdict: FAIL as frozen. Do not implement approach 1 as specified.**
+
+- **What works.** On every non-novel change, the refresh *step* passes every quality row except one: overlap on one album case, 0.464 against 0.467, a single noise draw. RF and CF failed only on the three novel styles the router let through. Unchanged tracks move 13–70× less at p90.
+- **What fails.**
+  - The novelty router fails both of its rows.
+  - The router as built adds 2–4 s of brute-force search: with it, the host time is
+    0.47–0.57×, which fails the time row; without it, the emulator time is 0.398×.
+  - The router also fails cancellation.
+  - kept15 fails on 8 of 25 cases, where today's map is already near the ceiling.
+- **Next step.** A redesigned router and a corrected stability row need a new predeclared round.
+  See [What happens next](#what-happens-next).
+
+### Setup
+
+The parameters and thresholds are exactly those frozen in
+[approach 1](#1-refresh-at-true-scale-recommended-first). Nothing was tuned after the results
+came in.
+
+**Data** (all synthetic or public; never the owner's library):
+
+- **Synthetic** `hierarchicalFixture`, 10,000 tracks, held-out seeds 13, 17 and 19. Seeds 7 and 11
+  were the pilot.
+- **FMA.** The 16 general-stand libraries pooled into 7,989 unique tracks (licence-clean FMA plus
+  cc-audio, app-exact A0 and text vectors, fused as the app does). From the pool: random
+  libraries of 1,000 and 5,000, plus the whole pool.
+  - No public set with these vectors reaches 10,000; the P2 FMA list plus cc-audio gives 9,138
+    audio-only rows.
+  - Genre@15 uses the FMA top genre; "style" is the first sub-genre.
+  - Built by `tools/research/map_gate_fma_dump.py`.
+
+**Mechanism.**
+
+- Rows are flagged by a hash of the fused row. The harness uses 64 bits where the plug-in
+  prescribes 63 (the storage codec); this does not change which rows are flagged.
+- The router applies the size rule (≤ 3 %), the distance novelty rule (2× the median
+  5th-neighbour distance, ≤ 10 % novel) and the placed-share budget (10 / 5 / 3 %).
+- Above 3 % changed, and for anything the router rejects, the full build is today's path, so it
+  matches today by construction.
+
+**Scenarios:** `same`; +1/2/3 % uniform; changed 1/2/3 %; album additions (10–20-track groups,
+~1 %); a never-seen style at 0.5/1/2 %; +5 % and a whole style (router check only); chains of
+ten +1 % steps then −2 %.
+
+**Harness.**
+
+- `tools/research/MapGateReplay.kt` (host). Logs: `tools/research/map-gate-2026-10-25.txt` and a
+  labelled diagnostic, `map-gate-diagnostic-2026-10-25.txt`.
+- `tools/research/MapRefreshDeviceTest.kt` (emulator). Log: `map-refresh-device-2026-10-25.txt`.
+- The emulator was `LJ-big36`, booted `-read-only` on its own port. `LJ-demo` and the phone were
+  not touched. The image is not rootable, so the test APK ran with its largeHeap limit (576 MB)
+  instead of the app's 192 MB. The heap row compares peak *deltas*, which this does not affect.
+- **Time and heap rule.** The rule (median of 5 clean runs per mode) was fixed after a first
+  contended series had been seen. That series ran while the host gate was using the CPU and gave
+  0.37–0.44× in single pairs. Both series are in the log.
+
+### Pass / fail per gate row
+
+Refreshed cases are the 25 the router sent to the refresh: synthetic 7, FMA-5000 11, FMA-7989 7.
+RF and CF exist only where rows were flagged; the five `same` cases have none, so their
+denominator is 20.
+
+| Gate row | Threshold | Result | Verdict |
+| --- | --- | --- | --- |
+| trust@15 | ≥ today − 0.005 | 25 / 25; worst −0.0022 | **PASS** |
+| recall@15 | ≥ today × 0.97 | 25 / 25; worst 0.992× | **PASS** |
+| class@15 / genre@15 | ≥ today − 0.010 | 25 / 25; worst −0.0031 | **PASS** |
+| RF (flagged recall@15) | ≥ today × 0.85 | 19 / 20. Fails on FMA-7989 novel 0.5 % (0.81×), a novel style the router let through. | **FAIL** |
+| CF (flagged genre share) | ≥ today − 0.05 | 17 / 20. Fails on FMA-5000 novel 0.5 % (−0.058), FMA-5000 novel 1 % (−0.085) and FMA-7989 novel 0.5 % (−0.135), all novel styles the router let through. | **FAIL** |
+| overlap with a cold build | ≥ cold-seed noise − 0.10 | 24 / 25. Fails on synthetic seed 13 album (0.464 vs 0.467). The noise reference is one cold-seed draw, so this miss is within plausible noise; it still fails as frozen. | **FAIL** |
+| kept15 (unchanged tracks) | ≥ today + 0.10 | 17 / 25. Fails on FMA-5000 +1 % (0.973 vs 0.976 needed) and all 7 FMA-7989 cases (today keeps 0.868–0.903, so 0.968–1.003 was needed; the refresh got 0.962–0.987). | **FAIL** (the row sits at or near its ceiling where today already keeps ≈ 0.87 or more) |
+| p90 move (unchanged tracks) | ≤ 0.5× today and ≤ 0.02 | 25 / 25. Refresh 0.002–0.007 of the map width; today 0.07–0.26. | **PASS** |
+| chain vs a cold build of the final library | trust − 0.005, recall × 0.97, RF × 0.85 | 15 / 15 (5 libraries × each of the 10 / 5 / 3 % budgets). Weak test, though: see *Chains* below. | **PASS** (weak) |
+| router: novel styles 0.5–2 % → full build | every one | 11 / 15. Synthetic 9 / 9; FMA-5000 0 / 3; FMA-7989 2 / 3. | **FAIL** |
+| router: uniform +1 % and album cases kept on refresh | ≥ 90 % | 8 / 10 = 80 %. Uniform +1 %: 3 / 5 (synthetic seeds 17 and 19 rejected); album: 5 / 5. Synthetic +2/3 % and every synthetic changed case were also rejected. | **FAIL** |
+| time at 10,000 (emulator) | ≤ 0.4× today | **As built, with the router:** the router is a brute-force search that the emulator stage does not include. On the host it adds 2–4 s, giving 0.47–0.57× → fail. **Refresh step alone:** emulator 0.398×, 8.15 s against 20.47 s, median of 5 clean runs (refresh 8.08–8.15 s, today 20.27–21.33 s, i.e. ±2.5 % run to run, more than the 0.002 margin). The rule (median of 5 clean runs) was fixed after a contended series had been seen, whose pairs gave 0.37–0.44 and whose median, about 0.42, fails. Host, router excluded: 0.30–0.34×. A router that reuses the 60-NN lists is untested. | **FAIL** as built; refresh step alone passes by the rule, with a margin below run-to-run noise |
+| peak heap at 10,000 (emulator) | ≤ today + 2 MB | +0.08 MB (median 27.80 vs 27.71 MB). The host shows the same 58 MB for both. | **PASS** |
+| cancellation | every phase stops within 250 ms | Refresh path on the emulator: 48 / 15 / 19 ms at 1 / 4 / 7 s, longest gap between polls 185 ms. The router as built does not poll: 1.7–4.1 s on the host, a *lower bound*, because the host probe times from the first poll after the deadline. | **FAIL** (router) |
+| ladders | 3 → 2 → 1 % size; 10 → 5 → 3 % budget | No size threshold rescues the gate: the router and CF failures occur at 0.5–1 % changes. All three budgets were run, and the chain row passed at each. | — |
+| `LJ-api30` (256 MB) emulator | in the frozen Measure list | Not run (another session was using that AVD); only `LJ-big36`. | not measured |
+| FMA 1,000 tracks | — | Not applicable. ≤ 2,000 tracks uses exact t-SNE, which has no refresh schedule; the design limits the refresh to Barnes–Hut. | n/a |
+
+### Why the router fails
+
+The distance rule measures *isolation*, not *novelty*.
+
+- **It rejects good refreshes on synthetic data.** 15 % of the fixture's tracks are scattered
+  outliers, far from everything by construction. Any uniform change of 1 % or more therefore
+  contains 7–18.5 % "novel" rows, so +2/3 % and every changed case went to a full build. In the
+  chains, 9–10 of 11 steps were full builds.
+- **It misses novel styles on FMA.** A held-out FMA sub-genre is not isolated in the fused space:
+  its tracks sit close to other genres. So it went to the refresh (0 of 3 on FMA-5000), and
+  placement scattered it (CF −0.06 to −0.14).
+
+Both failures come from the rule itself, not from its thresholds.
+
+### Chains, and a diagnostic run (not gate evidence)
+
+**Why the gate chain is weak.**
+
+- With the frozen 10 % budget, ten steps of +1 % of the full library reach the budget at step 10,
+  which is a full build. The measured final map is therefore a full build plus one refresh.
+- On synthetic data the router turned most steps into full builds anyway.
+
+**Diagnostic.** To see the drift itself, the same chains were run with **no budget**, so ten
+refreshes plus the −2 % removal ran with no full build. Synthetic seed 13 also had the novelty
+check switched off.
+
+| Library | trust final vs cold | recall vs cold | RF vs cold |
+| --- | --- | --- | --- |
+| synthetic s13 | 0.9833 vs 0.9843 | 0.982× | 0.954× |
+| FMA-5000 | 0.9909 vs 0.9917 | 0.995× | 0.989× |
+| FMA-7989 | 0.9937 vs 0.9941 | 0.9997× | 0.989× |
+
+- All three stay inside the chain thresholds. In this diagnostic, the refresh did not accumulate
+  visible damage over 11 steps.
+- With the router off, synthetic seed 13 +1/2/3 % and changed 1/2/3 % pass **every** row: kept15
+  0.70–0.84 against today's 0.41–0.48.
+- The novel 1 % style passes too, except CF (0.88 vs 1.00) and overlap. That confirms a novelty
+  check is needed; it has to be a different one.
+
+This diagnostic was run after seeing the gate. It informs the next design and is not a pass.
+
+### Does the recommendation stand?
+
+**Partly.**
+
+- **What stands, as a mechanism.** "Refresh, don't rebuild": placement at true scale plus 150
+  iterations without exaggeration.  - On every non-novel change it passed every quality row except overlap on one album case (0.003
+    short, one noise draw). On the novel styles the router let through, RF and CF failed.
+  - Alone it cost 0.40× on the emulator, a margin below run-to-run noise.
+  - It keeps the map far more still: on FMA, today's rerun moves unchanged tracks up to a quarter
+    of the map width at p90.
+  - The no-budget chain diagnostic (not gate evidence) showed no drift over 11 steps.
+- **What does not.**
+  1. **The router.** It must be redesigned and passed in a new round.
+  2. **The kept15 row.** "+0.10 over today" was a gate design error. It sits at or near its
+     ceiling when today already keeps ≈ 0.87 or more. The next round needs a relative row, for example "share of
+     lost neighbours ≤ 0.5× today's". Checked afterwards, it would pass all 25 cases here, but it was not
+     predeclared, so it does not count.
+  3. **Cost.** The emulator saving is smaller than projected (0.40× against 0.22–0.30×). On this
+     faster emulator, PCA and the 60-NN search, which a refresh still repeats, are a larger
+     share. Approach 3 (caching the basis and the neighbour graph) is what would bring the
+     refresh well below 0.4×, so it moves up from "later" to "with approach 1".
+
+### What happens next
+
+These are proposals for a new predeclared round on fresh seeds (e.g. 23, 29, 31) and a new FMA
+draw. Nothing below has been gated.
+
+- **Router.** Novelty becomes *group* novelty. A flagged row counts as novel only if at least 3 of
+  its 5 nearest neighbours are flagged *and* its nearest unflagged row is farther than its 5th
+  nearest flagged one. Isolated outliers are placed; a new cluster sends the change to a full
+  build. The router reuses the 60-NN lists the build computes anyway, and polls per row.
+  - Album additions are the hard case for this rule, since their tracks are each other's nearest
+    neighbours. The rule must be tested against the album scenario before it is frozen.
+  - If no rule separates albums from novel styles, the fallback is to refresh first and then
+    check the result (the flagged rows' CF / RF proxy against their 60-NN in the input). Rebuild
+    when the check fails.
+- **Stability row.** The share of lost neighbours, (1 − kept15), must be ≤ 0.5× today's, plus
+  p90 move as now.
+- **Measurement fixes.**
+  - Router time goes inside the time row.
+  - Cancellation is measured from the deadline.
+  - The overlap reference becomes a noise band from several cold seeds.
+  - `LJ-api30` is included.
+- **Approach 3 in the same round.** Frozen basis and mean, plus patched 60-NN lists, so the
+  refresh no longer repeats PCA and the neighbour search. The time row moves to ≤ 0.25×.
 
 ## Current design (verified in code, `claude/research-map-cost-91141c` at 2619533d)
 
@@ -474,6 +654,31 @@ regression) with old-point anchoring (the landmarked Parametric UMAP recipe).
   - removing the self-declared status.
 
   The next piece of work is approach 1's held-out gate run.
+
+- **Gate verdict review (fresh subagent): REVISE.** No harness bug was found that flips a
+  verdict. Issues raised:
+  - wrong counts: 25 refreshed cases, not 26, and 20 for RF / CF;
+  - router time was excluded from the time row without saying so (with it: 0.47–0.57× on the
+    host);
+  - "every quality row" over-claimed (the album overlap miss);
+  - the chain diagnostic was cited as evidence;
+  - the 0.398× pass was over-stated: the contended-series median of about 0.42 fails, and
+    run-to-run noise exceeds the margin;
+  - the cancellation probe under-measures;
+  - kept15 was called "unattainable";
+  - `LJ-api30` was not run, and the ladder outcome was not stated;
+  - small number slips.
+
+  **Answered by:** every point corrected in the section above. The verdict is unchanged (FAIL);
+  the time row is now FAIL as built.
+- **Confirming round (fresh subagent): REVISE.** Every number and count matched the logs. Three
+  text fixes remained, now made:
+  - "every quality row except overlap" now says that RF and CF failed on the novel styles the
+    router let through, and the summary box lists RF and CF;
+  - the contended range is 0.37–0.44;
+  - the kept15 cut-off is ≈ 0.87.
+
+  Verdict unchanged.
 
 ## Sources
 
