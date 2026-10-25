@@ -205,8 +205,6 @@ internal class AndroidPlaybackController(
             pendingAdvance.invalidate()
             if (controller?.mediaItemCount != 0) anticipatedResumption = null
             controller?.let(::adoptActiveResumption)
-            snapNormalizationToCurrentTrack()
-            updateGainLoop(controller?.isPlaying == true)
             rebuildQueueSnapshot()
             pushState()
             mainScope.launch {
@@ -224,7 +222,6 @@ internal class AndroidPlaybackController(
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             updateTicker(isPlaying)
-            if (!isPlaying) finishNormalizationRamp()
             if (isPlaying) transportFade.onPlaybackStarted(SystemClock.elapsedRealtime())
             // Buffering and focus suppression also report false. Neither cancels the listener's
             // pause request; only an actual change of playback intent settles the transport.
@@ -249,9 +246,6 @@ internal class AndroidPlaybackController(
             if (playbackState == Player.STATE_ENDED) {
                 mainScope.launch { resumeExhaustedSmartQueue() }
             }
-            // Duration is commonly unavailable until READY. Re-plan a loop that may currently be
-            // doing coarse unknown-duration checks so fade-out starts at the exact boundary.
-            updateGainLoop(controller?.isPlaying == true)
             pushState()
         }
 
@@ -308,10 +302,6 @@ internal class AndroidPlaybackController(
             reason: Int,
         ) {
             pendingAdvance.invalidate()
-            // System UI and Bluetooth controllers can seek while paused, when the ticker is off.
-            // Recompute gain too: while paused the fade loop is off, so otherwise resuming after a
-            // seek to a boundary can emit one full-volume buffer before its first scheduled tick.
-            updateGainLoop(controller?.isPlaying == true)
             pushState()
         }
 
@@ -328,6 +318,7 @@ internal class AndroidPlaybackController(
 
         override fun onRepeatModeChanged(repeatMode: Int) {
             repeat = repeatMode.toLatentJamRepeatMode()
+            publishFadeEdges()
             pushState()
         }
     }
@@ -397,19 +388,13 @@ internal class AndroidPlaybackController(
         }
     }
 
-    /** Main-thread-owned normalization volumes; empty means everything plays at full volume. */
-    private var trackVolumes: Map<String, Float> = emptyMap()
-
-    /** Main-thread-owned crossfade width; 0 keeps hard track boundaries. */
-    private var crossfadeMs: Long = 0
-    private var gainJob: Job? = null
-
-    /** Current/target normalization multiplier; transitions snap, mid-track discoveries ramp. */
-    private var normalizationVolume: Float = 1f
-    private var normalizationRampFrom: Float = 1f
-    private var normalizationRampTarget: Float = 1f
-    private var normalizationRampStartedAtMs: Long = 0L
-    private var normalizationRampActive: Boolean = false
+    /**
+     * Loudness normalisation, the smooth transitions and their overlaps run in the service player's
+     * PCM chain ([CrossfadeAudioProcessor]), where each track's gain and fades apply to its own
+     * samples — two tracks sound at once during an overlap. This controller only tells it what to
+     * do; the player's volume carries the pause/resume fade alone.
+     */
+    private val crossfade = AndroidCrossfade.settings
 
     /**
      * Main-thread-owned pause/resume fade, 1 when idle. A pause lets the sound leave over
@@ -418,144 +403,56 @@ internal class AndroidPlaybackController(
      */
     private val transportFade = TransportFadeState()
     private var pendingPause: Job? = null
+    private var gainJob: Job? = null
 
     override suspend fun setTrackVolumes(volumes: Map<String, Float>) {
         withContext(Dispatchers.Main.immediate) {
-            trackVolumes = volumes.mapValues { (_, volume) ->
+            crossfade.trackGains = volumes.mapValues { (_, volume) ->
                 if (volume.isFinite()) volume.coerceIn(0f, 1f) else 1f
             }
-            // An empty disabled preference must not start PlaybackService on every cold app launch.
-            // In-app transport and synchronizeWithPlatformSession connect when a session exists.
-            val player = controller ?: if (trackVolumes.isNotEmpty()) controller() else return@withContext
-            rampNormalizationTo(desiredNormalizationVolume(player), player.isPlaying)
-            updateGainLoop(player.isPlaying)
         }
     }
 
     override suspend fun setCrossfadeSeconds(seconds: Int) {
         withContext(Dispatchers.Main.immediate) {
-            crossfadeMs = sanitizeCrossfadeSeconds(seconds) * 1000L
-            // The off/default value should not create a playback service merely to set full gain.
-            val player = controller ?: if (crossfadeMs > 0L) controller() else return@withContext
-            updateGainLoop(player.isPlaying)
+            crossfade.fadeMs = sanitizeCrossfadeSeconds(seconds) * 1000L
         }
     }
 
-    /**
-     * Main-thread only. One gain stage: the current item's normalization volume multiplied by
-     * the boundary fade, so neither feature clobbers the other's contribution.
-     */
+    /** Main-thread only. The pause/resume fade; every per-track gain lives in the PCM chain. */
     private fun applyEffectiveVolume() {
         val player = controller ?: return
-        val base = currentNormalizationVolume(SystemClock.elapsedRealtime())
-        val fade = if (crossfadeMs > 0) {
-            val (fadeIn, fadeOut) = boundaryFades(player)
-            crossfadeFactor(
-                positionMs = player.currentPosition,
-                durationMs = player.duration.takeIf { it != C.TIME_UNSET } ?: 0L,
-                fadeMs = crossfadeMs,
-                fadeIn = fadeIn,
-                fadeOut = fadeOut,
-            )
-        } else {
-            1f
-        }
-        val transport = transportFade.gainAt(SystemClock.elapsedRealtime())
-        val volume = (base * fade * transport).coerceIn(0f, 1f)
+        val volume = transportFade.gainAt(SystemClock.elapsedRealtime()).coerceIn(0f, 1f)
         if (player.volume != volume) player.volume = volume
     }
 
-    /** Samples fine ramps at 20 ms, but sleeps through the constant-gain middle of known tracks. */
+    /** Samples the pause/resume fade at 20 ms while it moves; idle otherwise. */
     private fun updateGainLoop(isPlaying: Boolean) {
         gainJob?.cancel()
         gainJob = null
         applyEffectiveVolume()
-        if (!isPlaying) return
-        if (crossfadeMs <= 0L && !normalizationRampActive && !transportFade.active) return
+        if (!isPlaying || !transportFade.active) return
         gainJob = mainScope.launch {
-            while (isActive) {
+            while (isActive && transportFade.active) {
                 applyEffectiveVolume()
-                val player = controller ?: break
-                val rampDelay = if (normalizationRampActive || transportFade.active) {
-                    GAIN_RAMP_TICK_MS
-                } else {
-                    Long.MAX_VALUE
-                }
-                val (fadeIn, fadeOut) = boundaryFades(player)
-                val fadeDelay = crossfadeUpdateDelayMs(
-                    positionMs = player.currentPosition,
-                    durationMs = player.duration.takeIf { it != C.TIME_UNSET } ?: 0L,
-                    fadeMs = crossfadeMs,
-                    fadeIn = fadeIn,
-                    fadeOut = fadeOut,
-                )
-                val nextDelay = minOf(rampDelay, fadeDelay)
-                if (nextDelay == Long.MAX_VALUE) break
-                delay(nextDelay)
+                delay(GAIN_RAMP_TICK_MS)
             }
+            applyEffectiveVolume()
         }
     }
 
-    /**
-     * Which edges of the current item fade: none where the album itself continues across the
-     * seam (see [continuesAlbum]). Neighbours come from the traversal-ordered queue snapshot.
-     */
-    private fun boundaryFades(player: Player): Pair<Boolean, Boolean> {
-        val row = cachedQueueMediaIndices.indexOf(player.currentMediaItemIndex)
-        if (row < 0) return true to true
-        val current = cachedQueue.getOrNull(row)
-        val repeatsItself = player.repeatMode == Player.REPEAT_MODE_ONE
-        val previous = if (repeatsItself) current else cachedQueue.getOrNull(row - 1)
-        val next = if (repeatsItself) current else cachedQueue.getOrNull(row + 1)
-        return !continuesAlbum(previous, current) to !continuesAlbum(current, next)
+    override suspend fun setFinishingCurrentTrack(finishing: Boolean) {
+        withContext(Dispatchers.Main.immediate) { crossfade.finishingTrack = finishing }
     }
 
-    private fun desiredNormalizationVolume(player: Player): Float =
-        player.currentMediaItem?.mediaId?.let(trackVolumes::get) ?: 1f
-
-    /** A track boundary is already a gain discontinuity; install that track's base before it sounds. */
-    private fun snapNormalizationToCurrentTrack() {
+    /** Which ends of each queue row fade, for the PCM chain; see [queueFadeEdges]. */
+    private fun publishFadeEdges() {
         val player = controller ?: return
-        normalizationRampTarget = desiredNormalizationVolume(player)
-        normalizationVolume = normalizationRampTarget
-        normalizationRampActive = false
-    }
-
-    /** A new measurement or preference change during playback reaches target without a hard step. */
-    private fun rampNormalizationTo(target: Float, isPlaying: Boolean) {
-        val sanitized = if (target.isFinite()) target.coerceIn(0f, 1f) else 1f
-        val now = SystemClock.elapsedRealtime()
-        val current = currentNormalizationVolume(now)
-        if (!isPlaying || sanitized == current) {
-            normalizationVolume = sanitized
-            normalizationRampTarget = sanitized
-            normalizationRampActive = false
-            return
-        }
-        if (normalizationRampActive && sanitized == normalizationRampTarget) return
-        normalizationRampFrom = current
-        normalizationRampTarget = sanitized
-        normalizationRampStartedAtMs = now
-        normalizationRampActive = true
-    }
-
-    private fun currentNormalizationVolume(nowMs: Long): Float {
-        if (!normalizationRampActive) return normalizationVolume
-        val elapsed = (nowMs - normalizationRampStartedAtMs).coerceAtLeast(0L)
-        normalizationVolume = normalizationRampVolume(
-            from = normalizationRampFrom,
-            to = normalizationRampTarget,
-            elapsedMs = elapsed,
+        crossfade.edges = queueFadeEdges(
+            rows = cachedQueue,
+            mediaIndices = cachedQueueMediaIndices,
+            repeatsItself = player.repeatMode == Player.REPEAT_MODE_ONE,
         )
-        if (elapsed >= NORMALIZATION_RAMP_MS) normalizationRampActive = false
-        return normalizationVolume
-    }
-
-    /** Once audio is paused, finishing the inaudible remainder avoids resuming at a stale gain. */
-    private fun finishNormalizationRamp() {
-        if (!normalizationRampActive) return
-        normalizationVolume = normalizationRampTarget
-        normalizationRampActive = false
     }
 
     override suspend fun invalidateSmartFuture() {
@@ -641,6 +538,7 @@ internal class AndroidPlaybackController(
                     putAll(smartPlanPositions)
                 }
                 smartRemovedIds.clear()
+                AndroidPlaybackStarts.forgetQueued()
                 anticipatedResumption = null
                 AndroidPlaybackStarts.announce(StartCause.USER_PICK, TrackId(prepared.selectedItem.mediaId))
                 curatedTailId = if (keepOrderInSmart) tracks.last().id.value else null
@@ -763,6 +661,7 @@ internal class AndroidPlaybackController(
         beginFreshRecoveryAttempt()
         if (player.hasNextMediaItem()) {
             announceStart(player, StartCause.SKIP_NEXT, player.nextMediaItemIndex)
+            // During an overlap the service lands on the point of the next track already heard.
             player.seekToNextMediaItem()
             if (player.playbackState == Player.STATE_IDLE) player.prepare()
             pushState()
@@ -901,6 +800,7 @@ internal class AndroidPlaybackController(
         )
         poolById = poolById + (track.id.value to track)
         releaseSmartProvenance(smartPlanPositions, smartContinuationIds, smartRemovedIds, track.id)
+        AndroidPlaybackStarts.queuedByHand(track.id)
         val item = track.toMediaItem()
         if (player.mediaItemCount == 0) {
             // Queue actions are allowed before the first play. Cue the first item paused, matching
@@ -929,6 +829,7 @@ internal class AndroidPlaybackController(
         )
         poolById = poolById + (track.id.value to track)
         releaseSmartProvenance(smartPlanPositions, smartContinuationIds, smartRemovedIds, track.id)
+        AndroidPlaybackStarts.queuedByHand(track.id)
         if (player.mediaItemCount == 0) {
             player.pause()
             player.setMediaItem(track.toMediaItem())
@@ -975,6 +876,10 @@ internal class AndroidPlaybackController(
             val toMediaIndex = cachedQueueMediaIndices.getOrNull(to) ?: return@withContext
             if (from == to) return@withContext
             queueGeneration++
+            val current = cachedVisibleQueueIndices.getOrNull(player.currentMediaItemIndex)?.takeIf { it >= 0 }
+            if (movedTowardPlayhead(from, to, current)) {
+                cachedQueue.getOrNull(from)?.let { AndroidPlaybackStarts.queuedByHand(it.id) }
+            }
             player.enqueueQueueEdit(AndroidQueueCommand.MOVE, Bundle().apply {
                 putInt(AndroidQueueCommand.FROM, fromMediaIndex)
                 putInt(AndroidQueueCommand.TO, toMediaIndex)
@@ -985,6 +890,9 @@ internal class AndroidPlaybackController(
         val count = player.mediaItemCount
         if (from !in 0 until count || to !in 0 until count || from == to) return@withContext
         queueGeneration++
+        if (movedTowardPlayhead(from, to, player.currentMediaItemIndex.takeIf { it >= 0 })) {
+            AndroidPlaybackStarts.queuedByHand(TrackId(player.getMediaItemAt(from).mediaId))
+        }
         player.moveMediaItem(from, to)
         rebuildQueueSnapshot()
         pool = sourceQueueAfterVisibleReorder(pool, cachedQueue, mode)
@@ -1008,6 +916,7 @@ internal class AndroidPlaybackController(
         if (!stillQueued) {
             pool = pool.filter { it.id.value != removedId }
             poolById = poolById - removedId
+            AndroidPlaybackStarts.unqueued(TrackId(removedId))
         }
         rebuildQueueSnapshot()
         pushState()
@@ -1076,6 +985,7 @@ internal class AndroidPlaybackController(
                 putAll(prepared.second.smartPlanPositions)
             }
             smartRemovedIds.clear()
+            AndroidPlaybackStarts.forgetQueued()
             curatedTailId = null
             anticipatedResumption = null
             val startPositionMs = positionMs.coerceAtLeast(0L)
@@ -1455,6 +1365,7 @@ internal class AndroidPlaybackController(
                 visibleIndices[mediaIndex] = visibleIndex
             }
         }
+        publishFadeEdges()
     }
 
     /** Main-thread-only physical indices in the order the current transport traverses them. */
@@ -1507,6 +1418,7 @@ internal class AndroidPlaybackController(
         smartPlanPositions.clear()
         smartPlanPositions.putAll(resume.smartPlanPositions.filterKeys { it in resumedIds })
         smartRemovedIds.clear()
+        AndroidPlaybackStarts.forgetQueued()
         anticipatedResumption = resume.takeIf { actualIds.isEmpty() }
         // Ownership has moved into this controller's pool/pending state; release the global URI
         // graph even when Media3 has not installed the timeline yet.

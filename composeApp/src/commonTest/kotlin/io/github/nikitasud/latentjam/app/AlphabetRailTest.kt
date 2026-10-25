@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.ui.unit.LayoutDirection
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
@@ -40,10 +41,12 @@ internal class AlphabetRailTest {
 
     @Test
     fun touchMappingClampsAndUsesEveryBucket() {
-        assertEquals(0, railBucketIndexAt(-10f, height = 400, bucketCount = 4))
-        assertEquals(0, railBucketIndexAt(99f, height = 400, bucketCount = 4))
-        assertEquals(1, railBucketIndexAt(100f, height = 400, bucketCount = 4))
-        assertEquals(3, railBucketIndexAt(400f, height = 400, bucketCount = 4))
+        val anchors = railTouchAnchors(listOf("A", "B", "C", "D"), "A", 412f, 18f, 6f)
+        assertEquals(0, railBucketIndexAt(-10f, anchors))
+        assertEquals(0, railBucketIndexAt(105f, anchors))
+        assertEquals(1, railBucketIndexAt(107f, anchors))
+        assertEquals(3, railBucketIndexAt(412f, anchors))
+        assertEquals(listOf(0, 1, 2, 3), (0 until 412).mapNotNull { railBucketIndexAt(it.toFloat(), anchors) }.distinct())
     }
 
     @Test
@@ -320,5 +323,14 @@ internal class AlphabetRailTest {
         advanceTimeBy(1L)
         runCurrent()
         assertTrue(revealed)
+    }
+
+    @Test
+    fun leftHandedMeansThePhysicalLeftInEitherReadingDirection() {
+        // Start is the left edge in a left-to-right layout and the right edge in Arabic or Hebrew.
+        assertTrue(handControlsAtStart(leftHanded = true, layoutDirection = LayoutDirection.Ltr))
+        assertFalse(handControlsAtStart(leftHanded = true, layoutDirection = LayoutDirection.Rtl))
+        assertFalse(handControlsAtStart(leftHanded = false, layoutDirection = LayoutDirection.Ltr))
+        assertTrue(handControlsAtStart(leftHanded = false, layoutDirection = LayoutDirection.Rtl))
     }
 }

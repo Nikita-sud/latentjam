@@ -1,0 +1,17 @@
+LatentJam este un player pentru fișierele muzicale de pe telefon care înțelege cum sună biblioteca ta. Un mic model neuronal rulează pe dispozitiv și îți ascultă piesele în fundal, astfel încât modul SMART să aleagă următoarea melodie din propria ta colecție. Nu există cont, nici catalog, nici permisiune de rețea: nimic despre ce asculți nu părăsește telefonul.
+
+<ul>
+<li><b>Coada SMART</b>: următoarea piesă e aleasă din biblioteca ta după sunet, după etichete și după ce știe un pachet offline compact despre 350.000 de artiști — limba, epoca și stilul lor. Coada evită salturile mari de energie.</li>
+<li><b>Pentru tine</b>: rânduri pentru momentul zilei, pentru faza în care te afli, un Joker și o călătorie sonoră prin bibliotecă.</li>
+<li><b>Căutare care ordonează cum te aștepți</b>: întâi titlul, artistul, albumul și genul, apoi versurile din fișierele tale, apoi sensul, în oricare dintre douăzeci de limbi. Un an sau un deceniu în căutare („anii ’80”, „1985”) păstrează doar rezultatele din acei ani.</li>
+<li><b>O hartă a bibliotecii</b>: grupurile sunt genurile tale așa cum le aude modelul.</li>
+<li><b>Un player gândit pentru atingere</b>: coperta se întoarce și arată detaliile piesei, la apăsare lungă oferă acțiuni, iar prin glisare trece de la o piesă la alta; o bară de derulare live, cu derulare fină și versul curent sub cursor; pauza și reluarea se estompează lin în loc să taie brusc.</li>
+<li><b>Versuri</b>: versurile sincronizate urmăresc melodia, iar o atingere pe un vers sare acolo.</li>
+<li><b>Toate etichetele din fișier</b>: toate genurile, artiștii creditați și anul lansării originale, citite din FLAC, Opus și mp3. Albumele se redau în ordinea discurilor și a pieselor, iar o colaborare apare la fiecare artist pe care îl menționează.</li>
+<li><b>Un player adevărat dedesubt</b>: playlisturi cu import și export M3U și ordini independente, personalizată și „Adăugate recent”, navigare pe albume, artiști, genuri și foldere cu bară A–Z, foldere și sub formă de arbore, tranziții line și egalizarea volumului, un detector de dubluri care îți spune ce copie să păstrezi, statistici, editarea etichetelor, copie de rezervă locală și restaurare.</li>
+<li><b>Pe ecranul principal și în mașină</b>: trei widgeturi, o comandă în Setări rapide și un arbore de navigare pentru Android Auto.</li>
+<li><b>Paginile tale, în ordinea ta</b>: afișează, ascunde și reordonează paginile de navigare și alege pagina de pornire.</li>
+<li><b>18 limbi</b>, printre care rusă, română, arabă, ebraică, chineză, japoneză și coreeană.</li>
+</ul>
+
+SMART devine cu adevărat bun după ce o parte consistentă din bibliotecă a fost analizată în fundal; dacă lași telefonul la încărcat peste noapte, procesul merge mai repede.

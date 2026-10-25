@@ -230,6 +230,10 @@
     <plurals name="m3u_import_playlists">
         <item quantity="other">%1$d 个播放列表</item>
     </plurals>
+    <plurals name="m3u_import_skipped_files">
+        <item quantity="other">已跳过 %1$d 个文件</item>
+    </plurals>
+    <string name="m3u_import_playlists_partial">已创建播放列表：%1$d/%2$d。其余未能保存。</string>
     <plurals name="playlist_new_count">
         <item quantity="other">新建 %1$d 个播放列表</item>
     </plurals>
@@ -733,7 +737,9 @@
     <plurals name="stats_days_of_music">
         <item quantity="other">≈ %1$d 天的音乐</item>
     </plurals>
-    <string name="stats_activity_months">最近 12 个月 · 聆听时长</string>
+    <plurals name="stats_activity_last_months">
+        <item quantity="other">最近 %1$d 个月 · 聆听时长</item>
+    </plurals>
     <string name="stats_activity_years">按年 · 聆听时长</string>
     <string name="stats_activity_over_time">你的聆听随时间的变化</string>
     <string name="stats_this_month">本月</string>

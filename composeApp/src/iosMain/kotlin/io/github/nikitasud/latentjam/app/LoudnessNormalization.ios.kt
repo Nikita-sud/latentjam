@@ -11,7 +11,9 @@ internal actual fun loudnessMeterModule(): Module = module {
     single<TrackLoudnessMeter> { IosTrackLoudnessMeter() }
 }
 internal actual val playbackGainControlsAvailable: Boolean = true
-internal actual val boundaryFadeControlsAvailable: Boolean = false
+// The file player overlaps and fades its own tracks (IosPlaybackController); Music library items
+// keep plain switches there.
+internal actual val boundaryFadeControlsAvailable: Boolean = true
 
 private class IosTrackLoudnessMeter : TrackLoudnessMeter {
     private val meter = IosIntegratedLoudnessMeter()

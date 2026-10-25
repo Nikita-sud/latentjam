@@ -11,6 +11,8 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 internal class Id3UserTextAliasesTest {
@@ -116,5 +118,13 @@ internal class Id3UserTextAliasesTest {
             assertEquals(userTexts(before).map { it.body.toList() }, userTexts(edited).map { it.body.toList() })
             assertTrue(Id3TagCodec.inventory(ByteArraySource(edited)).any { it.startsWith(TagVerification.GENRE_ENTRY + "TXXX:") }, "the genre copy is in the inventory")
         }
+    }
+
+    @Test
+    fun theOnePassReaderTellsAnAlbumFromNone() {
+        // MediaStore reports a folder's name as the album of a file without TALB (issue #12).
+        assertEquals("Abbey Road", facts(file(4, TestFrame("TALB", latin1Body("Abbey Road"))))?.album)
+        assertNull(assertNotNull(facts(file(4))).album)
+        assertNull(assertNotNull(facts(file(3, TestFrame("TALB", latin1Body(" "))))).album)
     }
 }

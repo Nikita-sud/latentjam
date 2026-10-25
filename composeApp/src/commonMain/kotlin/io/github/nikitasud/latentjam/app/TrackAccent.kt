@@ -146,14 +146,16 @@ private val seededAccents = HashMap<String, SeededAccent>()
 @Composable
 private fun rememberSeededColor(track: TrackDescriptor?): Color? {
     val axes by LatentPalette.axes.collectAsState()
+    // A refit retires the cached colour, but it stands in until the new one resolves: starting
+    // from null dipped the player cloud and the mini player to the fallback grey and back.
     var accent by remember(track?.id, axes) {
-        mutableStateOf(track?.id?.value?.let(seededAccents::get)?.takeIf { it.axes === axes })
+        mutableStateOf(track?.id?.value?.let(seededAccents::get))
     }
     LaunchedEffect(track?.id, axes) {
         val id = track?.id ?: return@LaunchedEffect
-        // A latent colour is final. Do not keep observing the progressive index after the answer
-        // for this track is already cached.
-        if (accent?.latent == true) return@LaunchedEffect
+        // A latent colour placed with these axes is final. Do not keep observing the progressive
+        // index after the answer for this track is already cached.
+        if (accent?.let { it.latent && it.axes === axes } == true) return@LaunchedEffect
         val engine = AppGraph.engine
         // Automatic indexing advances Ready.indexedCount once per small persisted chunk. Observe
         // that progress inside this effect instead of as Compose state: until THIS track gains an
@@ -186,4 +188,4 @@ private fun TrackColorSeed.toComposeColor(): Color =
 
 /** Tames a raw sampled colour into a surface that text can sit on. */
 private fun toContainer(seed: Color, dark: Boolean): Color =
-    if (dark) lerp(seed, Color.Black, 0.45f) else lerp(seed, Color.White, 0.55f)
+    if (dark) lerp(seed, Color.Black, 0.45f) else pastelForLightSurface(seed)

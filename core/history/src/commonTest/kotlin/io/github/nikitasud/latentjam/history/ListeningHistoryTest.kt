@@ -57,6 +57,19 @@ internal class ListeningHistoryTest {
     }
 
     @Test
+    fun theFirstListenIsTheEarliestPlausibleStartWhereverItSits() = runTest {
+        val floor = ListeningNormalization.PLAUSIBLE_START_MS
+        val history = DefaultListeningHistory(FakeStore())
+        assertEquals(null, history.firstListenAtMs())
+        history.record(event("1", startedAt = 3, completed = true))
+        assertEquals(null, history.firstListenAtMs(), "a listen from an unset clock is not a start")
+        history.record(event("1", startedAt = floor + 500, completed = true))
+        // Merged from a backup: older, though logged later.
+        history.record(event("2", startedAt = floor + 100, completed = true))
+        assertEquals(floor + 100, history.firstListenAtMs())
+    }
+
+    @Test
     fun listensAreRebuiltFromAnExistingLog() = runTest {
         val store = FakeStore(
             listOf(

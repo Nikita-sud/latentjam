@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.app
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.updateTransition
@@ -21,6 +22,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -70,6 +72,81 @@ internal fun railLetterPositions(
     }
 }
 
+/** Space above the first and below the last label inside the pill. */
+internal val RailLetterPadding = 6.dp
+
+/** A shown label's centre and the bucket it names. */
+internal data class RailAnchor(val y: Float, val bucketIndex: Int)
+
+/**
+ * The rail as the finger reads it: every shown label at its drawn centre, plus the two ends of
+ * the alphabet at the pill's edges when thinning left them out. Touching a label selects exactly
+ * that label; the middle of the stretch between two labels walks through the letters hidden
+ * there, so a thinned rail still reaches every bucket. Mapping y straight onto the bucket count instead
+ * disagreed with what was drawn — on a thinned rail the top label selected the second letter.
+ */
+internal fun railTouchAnchors(
+    buckets: List<String>,
+    activeBucket: String?,
+    height: Float,
+    labelHeight: Float,
+    padding: Float,
+): List<RailAnchor> {
+    val positions = railLetterPositions(buckets, activeBucket, height, labelHeight, padding)
+    if (positions.isEmpty()) return emptyList()
+    val indexOf = HashMap<String, Int>(buckets.size * 2)
+    buckets.forEachIndexed { index, label -> indexOf.getOrPut(label) { index } }
+    val shown = positions.mapNotNull { (label, y) -> indexOf[label]?.let { RailAnchor(y, it) } }
+        .sortedBy { it.y }
+    if (shown.isEmpty()) return emptyList()
+    return buildList {
+        if (shown.first().bucketIndex != 0) add(RailAnchor(minOf(padding, shown.first().y), 0))
+        addAll(shown)
+        if (shown.last().bucketIndex != buckets.lastIndex) {
+            add(RailAnchor(maxOf(height - padding, shown.last().y), buckets.lastIndex))
+        }
+    }
+}
+
+/** The bucket under a finger at [y]; drags beyond either end clamp to that end. */
+internal fun railBucketIndexAt(y: Float, anchors: List<RailAnchor>): Int? {
+    if (anchors.isEmpty()) return null
+    if (y.isNaN()) return anchors.first().bucketIndex
+    if (y <= anchors.first().y) return anchors.first().bucketIndex
+    if (y >= anchors.last().y) return anchors.last().bucketIndex
+    val upper = anchors.indexOfFirst { it.y > y }
+    val above = anchors[upper - 1]
+    val below = anchors[upper]
+    val span = below.y - above.y
+    if (span <= 0f) return below.bucketIndex
+    val fraction = (y - above.y) / span
+    val hidden = below.bucketIndex - above.bucketIndex - 1
+    if (hidden <= 0) return if (fraction < 0.5f) above.bucketIndex else below.bucketIndex
+    // Each shown label keeps the quarter of the stretch next to it, however many letters hide
+    // in between: a slightly-off tap still lands on the letter that is drawn there.
+    if (fraction < LABEL_SHARE) return above.bucketIndex
+    if (fraction > 1f - LABEL_SHARE) return below.bucketIndex
+    val inHidden = (fraction - LABEL_SHARE) / (1f - 2f * LABEL_SHARE)
+    return above.bucketIndex + 1 + (inHidden * hidden).toInt().coerceAtMost(hidden - 1)
+}
+
+private const val LABEL_SHARE = 0.25f
+
+/** Inverse of [railBucketIndexAt]: where a bucket sits, drawn or hidden between two labels. */
+internal fun railYOfBucket(bucketIndex: Int, anchors: List<RailAnchor>): Float? {
+    if (anchors.isEmpty()) return null
+    if (bucketIndex <= anchors.first().bucketIndex) return anchors.first().y
+    if (bucketIndex >= anchors.last().bucketIndex) return anchors.last().y
+    val upper = anchors.indexOfFirst { it.bucketIndex > bucketIndex }
+    val above = anchors[upper - 1]
+    val below = anchors[upper]
+    if (bucketIndex == above.bucketIndex) return above.y
+    val hidden = below.bucketIndex - above.bucketIndex - 1
+    val inHidden = (bucketIndex - above.bucketIndex - 0.5f) / hidden
+    val fraction = LABEL_SHARE + inHidden * (1f - 2f * LABEL_SHARE)
+    return above.y + fraction * (below.y - above.y)
+}
+
 /** Common letters keep their identity and move; missing/new letters fade in the same pill. */
 @Composable
 internal fun MorphingRailLetters(
@@ -77,6 +154,8 @@ internal fun MorphingRailLetters(
     activeBucket: String?,
     railHeightPx: Int,
     labelHeight: Dp,
+    /** A finger is on the rail: the current letter sits on a soft accent disc. */
+    scrubbing: Boolean = false,
 ) {
     // The first layout is not an alphabet change. Starting a transition with an empty map
     // faded every letter in again whenever the player released and restored the browse shell.
@@ -85,7 +164,7 @@ internal fun MorphingRailLetters(
     val density = LocalDensity.current
     val reduceMotion = rememberReduceMotion()
     val labelPx = with(density) { labelHeight.toPx() }
-    val paddingPx = with(density) { 6.dp.toPx() }
+    val paddingPx = with(density) { RailLetterPadding.toPx() }
     val positions = remember(buckets, activeBucket, railHeightPx, labelPx, paddingPx) {
         railLetterPositions(buckets, activeBucket, railHeightPx.toFloat(), labelPx, paddingPx)
     }
@@ -114,10 +193,26 @@ internal fun MorphingRailLetters(
                 tween(if (reduceMotion) Motion.REDUCED_MS else Motion.QUICK_MS),
                 label = "rail-active-letter",
             )
+            // The pressed letter gets a disc so the finger can see what it holds even while the
+            // label under it changes; at rest the colour alone marks where the list is.
+            val disc by animateFloatAsState(
+                if (active && scrubbing) 1f else 0f,
+                tween(if (reduceMotion) Motion.REDUCED_MS else Motion.QUICK_MS),
+                label = "rail-active-disc",
+            )
+            val discColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
             Box(
                 Modifier.fillMaxWidth().height(labelHeight).graphicsLayer {
                     translationY = y.value - labelPx / 2f
                     alpha = opacity.value
+                }.drawBehind {
+                    if (disc > 0f) {
+                        drawCircle(
+                            color = discColor,
+                            radius = minOf(size.width, size.height + 2.dp.toPx()) / 2f,
+                            alpha = disc,
+                        )
+                    }
                 },
                 contentAlignment = Alignment.Center,
             ) {

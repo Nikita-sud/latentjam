@@ -41,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -87,8 +88,23 @@ import org.jetbrains.compose.resources.stringResource
 /** Compact index column; normal list scrolling remains the larger gesture target. */
 internal val RailWidth = 30.dp
 internal val RailGap = 4.dp
+
+/**
+ * Whether the rail and the Shuffle button sit on the layout's start side. Left-handed promises
+ * the physical left edge (and right-handed the right), so in a right-to-left layout such as
+ * Arabic or Hebrew, where start is the right, the answer flips.
+ */
+@Composable
+@ReadOnlyComposable
+internal fun handControlsAtStart(): Boolean =
+    handControlsAtStart(LocalAppearance.current.leftHanded, LocalLayoutDirection.current)
+
+internal fun handControlsAtStart(leftHanded: Boolean, layoutDirection: LayoutDirection): Boolean =
+    leftHanded == (layoutDirection == LayoutDirection.Ltr)
 private val RailPillWidth = 26.dp
 private val BubbleSize = 56.dp
+/** Clear space between rail and bubble, so the thumb on the rail does not cover the letter. */
+private val BubbleGap = 12.dp
 private val RailLabelHeight = 18.dp
 
 internal data class RailFinalJump(
@@ -173,12 +189,6 @@ internal fun railIndexOf(names: List<String?>): RailIndex {
         }
     }
     return RailIndex(buckets, starts)
-}
-
-/** Maps a local rail position to one stable bucket, clamping drags beyond either end. */
-internal fun railBucketIndexAt(y: Float, height: Int, bucketCount: Int): Int? {
-    if (height <= 0 || bucketCount <= 0) return null
-    return ((y / height) * bucketCount).toInt().coerceIn(0, bucketCount - 1)
 }
 
 /** Bucket whose first item is at or before the viewport, with the final bucket pinned at list end. */
@@ -301,8 +311,8 @@ internal fun ListWithRail(
         }
     }
     val layoutDirection = LocalLayoutDirection.current
-    // Left-handed puts the rail, and so its gutter, on the start side.
-    val railAtStart = LocalAppearance.current.leftHanded
+    // The rail, and so its gutter, sits on the listener's hand side.
+    val railAtStart = handControlsAtStart()
     val railGutter = if (showRail) RailWidth + RailGap else 0.dp
     val inset = PaddingValues(
         start = contentPadding.calculateStartPadding(layoutDirection) + if (railAtStart) railGutter else 0.dp,
@@ -445,8 +455,8 @@ internal fun GridListWithRail(
         }
     }
     val layoutDirection = LocalLayoutDirection.current
-    // Left-handed puts the rail, and so its gutter, on the start side.
-    val railAtStart = LocalAppearance.current.leftHanded
+    // The rail, and so its gutter, sits on the listener's hand side.
+    val railAtStart = handControlsAtStart()
     val railGutter = if (showRail) RailWidth + RailGap else 0.dp
     val inset = PaddingValues(
         start = contentPadding.calculateStartPadding(layoutDirection) + if (railAtStart) railGutter else 0.dp,
@@ -571,7 +581,7 @@ internal fun BoxScope.StandaloneAlphabetRailOverlay(
     onScrubbingChange: (Boolean) -> Unit = {},
     interactive: Boolean = true,
 ) {
-    val railAtStart = LocalAppearance.current.leftHanded
+    val railAtStart = handControlsAtStart()
     var previewIndex by remember(catalogKey) { mutableStateOf<Int?>(null) }
     var settlingIndex by remember(catalogKey) { mutableStateOf<Int?>(null) }
     var touchY by remember { mutableStateOf(0f) }
@@ -582,7 +592,6 @@ internal fun BoxScope.StandaloneAlphabetRailOverlay(
     val latestOnJump by rememberUpdatedState(onJump)
     val latestOnScrubbingChange by rememberUpdatedState(onScrubbingChange)
     val scope = rememberCoroutineScope()
-    val layoutDirection = LocalLayoutDirection.current
     val density = LocalDensity.current
     val bubbleDiameter = maxOf(
         BubbleSize,
@@ -673,6 +682,7 @@ internal fun BoxScope.StandaloneAlphabetRailOverlay(
         interactive = interactive,
         gestureKey = catalogKey,
         activeBucket = previewBucket ?: settlingBucket ?: activeBucket,
+        scrubbing = previewIndex != null || settlingIndex != null,
         modifier = Modifier
             .align(if (railAtStart) Alignment.CenterStart else Alignment.CenterEnd)
             .fillMaxHeight()
@@ -690,9 +700,11 @@ internal fun BoxScope.StandaloneAlphabetRailOverlay(
 
     // Finger position remains immediate; all animation lives inside this small overlay.
     key(catalogKey) {
+        // The bubble stays through the settle, until the real list is back: a tap no longer
+        // flashes it for a single frame, and it leaves together with the preview it labels.
         RailLetterBubble(
-            bucket = previewBucket,
-            bucketIndex = previewIndex,
+            bucket = previewBucket ?: settlingBucket,
+            bucketIndex = previewIndex ?: settlingIndex,
             reduceMotion = reduceMotion,
             modifier = Modifier
                 .align(if (railAtStart) Alignment.TopStart else Alignment.TopEnd)
@@ -701,13 +713,13 @@ internal fun BoxScope.StandaloneAlphabetRailOverlay(
                     val localTop = (touchY - bubblePx / 2f)
                         .roundToInt()
                         .coerceIn(0, (railHeightPx - bubblePx).coerceAtLeast(0))
-                    // The bubble sits beside the rail, on the side facing the content.
-                    val towardContent = (layoutDirection == LayoutDirection.Ltr) != railAtStart
+                    // The bubble sits beside the rail, on the side facing the content. offset {}
+                    // already mirrors x in a right-to-left layout, so only the rail's side counts.
                     IntOffset(
-                        x = if (towardContent) {
-                            -(RailWidth + RailGap).roundToPx()
+                        x = if (railAtStart) {
+                            (RailWidth + BubbleGap).roundToPx()
                         } else {
-                            (RailWidth + RailGap).roundToPx()
+                            -(RailWidth + BubbleGap).roundToPx()
                         },
                         y = railTopPx.roundToInt() + localTop,
                     )
@@ -806,6 +818,7 @@ private fun AlphabetRail(
     interactive: Boolean,
     gestureKey: Any,
     activeBucket: String?,
+    scrubbing: Boolean,
     modifier: Modifier = Modifier,
     onSelectionStart: () -> Unit,
     onSelect: (index: Int, y: Float) -> Unit,
@@ -824,6 +837,14 @@ private fun AlphabetRail(
     val labelHeight = maxOf(
         RailLabelHeight,
         with(density) { MaterialTheme.typography.labelSmall.fontSize.toDp() * 1.45f },
+    )
+    val labelPx = with(density) { labelHeight.toPx() }
+    val paddingPx = with(density) { RailLetterPadding.toPx() }
+    val latestActiveBucket by rememberUpdatedState(activeBucket)
+    // The letters as drawn right now. A gesture freezes this at touch-down: the current letter
+    // takes over a slot as it changes, and a map that followed it would shift under the finger.
+    fun shownAnchors() = railTouchAnchors(
+        buckets, latestActiveBucket, railHeightPx.toFloat(), labelPx, paddingPx,
     )
     val railPillWidth = maxOf(
         RailPillWidth,
@@ -850,22 +871,27 @@ private fun AlphabetRail(
                         haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
                     }
                     onSelectionStart()
-                    onSelect(index, (index + 0.5f) / buckets.size * railHeightPx)
+                    onSelect(
+                        index,
+                        railYOfBucket(index, shownAnchors())
+                            ?: ((index + 0.5f) / buckets.size * railHeightPx),
+                    )
                     onSelectionEnd()
                     true
                 }
             }
             // One recognizer owns down/move/up. Separate tap and drag detectors race each other
             // and the surrounding pager, especially at Samsung's back-gesture edge.
-            .pointerInput(buckets, gestureKey, haptics) {
+            .pointerInput(buckets, gestureKey, haptics, labelPx, paddingPx) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
+                    val anchors = shownAnchors()
                     val feedback = RailHapticState()
                     var released = false
                     down.consume()
                     latestOnSelectionStart()
                     try {
-                        railBucketIndexAt(down.position.y, railHeightPx, buckets.size)?.let {
+                        railBucketIndexAt(down.position.y, anchors)?.let {
                             if (feedback.select(it, down.uptimeMillis)) {
                                 haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
                             }
@@ -874,11 +900,7 @@ private fun AlphabetRail(
                         while (true) {
                             val event = awaitPointerEvent()
                             val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                            railBucketIndexAt(
-                                change.position.y,
-                                railHeightPx,
-                                buckets.size,
-                            )?.let {
+                            railBucketIndexAt(change.position.y, anchors)?.let {
                                 if (feedback.select(it, change.uptimeMillis)) {
                                     haptics.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
                                 }
@@ -918,6 +940,7 @@ private fun AlphabetRail(
                 activeBucket = activeBucket,
                 railHeightPx = railHeightPx,
                 labelHeight = labelHeight,
+                scrubbing = scrubbing,
             )
         }
     }

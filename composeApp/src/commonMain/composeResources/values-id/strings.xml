@@ -236,6 +236,10 @@
     <plurals name="m3u_import_playlists">
         <item quantity="other">%1$d playlist</item>
     </plurals>
+    <plurals name="m3u_import_skipped_files">
+        <item quantity="other">%1$d file dilewati</item>
+    </plurals>
+    <string name="m3u_import_playlists_partial">Playlist dibuat: %1$d dari %2$d. Sisanya tidak dapat disimpan.</string>
     <plurals name="playlist_new_count">
         <item quantity="other">%1$d playlist baru</item>
     </plurals>
@@ -739,7 +743,9 @@
     <plurals name="stats_days_of_music">
         <item quantity="other">≈ %1$d hari musik</item>
     </plurals>
-    <string name="stats_activity_months">12 bulan terakhir · waktu mendengarkan</string>
+    <plurals name="stats_activity_last_months">
+        <item quantity="other">%1$d bulan terakhir · waktu mendengarkan</item>
+    </plurals>
     <string name="stats_activity_years">Per tahun · waktu mendengarkan</string>
     <string name="stats_activity_over_time">Aktivitas mendengarkan Anda dari waktu ke waktu</string>
     <string name="stats_this_month">Bulan ini</string>

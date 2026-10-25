@@ -5,10 +5,12 @@
 package io.github.nikitasud.latentjam.app
 
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import io.github.nikitasud.latentjam.library.tags.EmbeddedTagFacts
 import io.github.nikitasud.latentjam.library.tags.GenreTags
 import io.github.nikitasud.latentjam.library.tags.RandomAccessSource
 import io.github.nikitasud.latentjam.library.tags.TagFacts
+import io.github.nikitasud.latentjam.smart.MediaStoreArtwork
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import java.io.InputStream
 import java.nio.ByteBuffer
@@ -22,8 +24,12 @@ internal actual suspend fun readEmbeddedFacts(track: TrackDescriptor): EmbeddedT
         try {
             val uri = track.audioUri?.takeIf { it.isNotBlank() }?.let(Uri::parse)
                 ?: return@withContext null
-            AndroidAppContext.value.contentResolver.openInputStream(uri)?.use { input ->
-                TagFacts.embedded(InputStreamByteSource(input))
+            // Positional reads: an ID3 tag is walked frame by frame and its pictures skipped, where a
+            // stream had to load the whole tag (covers included, up to 8 MB) for every song.
+            AndroidAppContext.value.contentResolver.openFileDescriptor(uri, "r")?.let { descriptor ->
+                ParcelFileDescriptor.AutoCloseInputStream(descriptor).use { input ->
+                    TagFacts.embedded(FileChannelSource(input.channel))
+                }
             }
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -31,6 +37,8 @@ internal actual suspend fun readEmbeddedFacts(track: TrackDescriptor): EmbeddedT
             null
         }
     }
+
+internal actual fun ownCoverOnly(artworkUri: String): String = MediaStoreArtwork.ownCoverOnly(artworkUri)
 
 /** Adapts a one-pass stream to the parser's pull interface; no rewinding, no buffering. */
 internal class InputStreamByteSource(private val input: InputStream) : GenreTags.ByteSource {

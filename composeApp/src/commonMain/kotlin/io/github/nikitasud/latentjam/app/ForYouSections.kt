@@ -383,6 +383,11 @@ object ForYouBuilder {
         daypartShownDays: Map<String, Long> = emptyMap(),
         /** Unheard tracks offered on several days and passed over (see [ForYouRhythm.retiredUntil]). */
         retiredDiscoveries: Set<TrackId> = emptySet(),
+        /**
+         * When listening began ([io.github.nikitasud.latentjam.history.ListeningHistory.firstListenAtMs]);
+         * null approximates it with the oldest last play in [stats].
+         */
+        logStartMs: Long? = null,
     ): ForYouPage {
         val byId = library.associateBy { it.id }
         // Accumulates across the page, so a track shown once is not shown again further down.
@@ -424,7 +429,7 @@ object ForYouBuilder {
             },
         )?.let(sections::add)
         worthRevisiting(byId, stats, nowMs, quietMs, used, playlists, revisitIgnored)?.let(sections::add)
-        onARoll(library, byId, recentEvents, stats, worlds, nowMs, used, cooledDiscoveries)
+        onARoll(library, byId, recentEvents, stats, worlds, nowMs, used, cooledDiscoveries, logStartMs)
             ?.let(sections::add)
         // Above "never played" and below the history rows on purpose. With nothing logged the rows
         // above are all empty and this becomes the first thing on the page — which is what it is
@@ -941,14 +946,17 @@ object ForYouBuilder {
         nowMs: Long,
         used: MutableSet<TrackId>,
         cooledDiscoveries: Set<TrackId>,
+        logStartMs: Long?,
     ): ForYouSection? {
         val binge = ForYouRhythm.currentBinge(
             events = recentEvents,
             nowMs = nowMs,
             artistOf = { byId[it]?.artist },
             artistKeyOf = ::primaryArtistKey,
-            // The oldest last-touch across all stats, as adaptiveQuietMs reads the log's age.
-            logStartMs = stats.values.asSequence().map { it.lastPlayedAtMs }.filter { it > 0 }.minOrNull(),
+            // The log's real start. The oldest last play is only a stand-in: a heavy listener replays
+            // everything within weeks, which made a years-old log look too young for any phase.
+            logStartMs = logStartMs
+                ?: stats.values.asSequence().map { it.lastPlayedAtMs }.filter { it > 0 }.minOrNull(),
         ) ?: return null
         val cuts = ForYouRhythm.bingeDeepCuts(
             binge = binge,

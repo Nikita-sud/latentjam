@@ -62,6 +62,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -498,7 +506,10 @@ internal fun SettingsScreen(
             // The artwork glow is painted by the parent; a transparent scaffold cannot infer
             // a contrasting content color from its own container.
             contentColor = MaterialTheme.colorScheme.onSurface,
-            snackbarHost = { AppSnackbarHost(snackbarHostState) },
+            snackbarHost = { AppSnackbarHost(snackbarHostState, Modifier.navigationBarsPadding()) },
+            // The pages run on under the navigation bar, as lists do under a transparent bar: each
+            // pads its own end by [LocalScrollEndInset], so the last item still clears the bar.
+            contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
             topBar = {
                 TopAppBar(
                     title = {
@@ -546,7 +557,9 @@ internal fun SettingsScreen(
                 )
             },
         ) { padding ->
-            Box(modifier = Modifier.fillMaxSize().padding(padding).graphicsLayer {
+            val scrollEnd = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+            CompositionLocalProvider(LocalScrollEndInset provides scrollEnd) {
+            Box(modifier = Modifier.fillMaxSize().padding(padding).navigationBarFade(MaterialTheme.colorScheme.surface).graphicsLayer {
                 val p = if (reduceMotion) 1f else navigationPhase(rootOpenProgress(), 0.3f, 1f)
                 alpha = p
                 val direction = if (layoutDirection == LayoutDirection.Ltr) 1f else -1f
@@ -670,6 +683,7 @@ internal fun SettingsScreen(
                 }
                 }
                 }
+            }
             }
         }
     }
@@ -2945,7 +2959,7 @@ private fun BackupSettings(
             when (result) {
                 is LocalBackupFileResult.Success -> {
                     selectedSections = LocalBackupSections()
-                    pendingImport = result.value.first().text
+                    pendingImport = result.value.documents.first().text
                 }
                 LocalBackupFileResult.Cancelled -> Unit
                 is LocalBackupFileResult.Failure -> show(failedMessage)
@@ -3788,7 +3802,7 @@ private fun StatRow(label: String, value: String) {
 }
 
 @Composable
-private fun describeEngineState(state: EngineState): String = when (state) {
+internal fun describeEngineState(state: EngineState): String = when (state) {
     is EngineState.Uninitialized -> stringResource(Res.string.engine_state_not_started)
     is EngineState.Initializing -> stringResource(Res.string.engine_state_starting)
     is EngineState.Ready -> stringResource(Res.string.engine_state_ready)

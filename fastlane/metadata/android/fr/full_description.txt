@@ -1,0 +1,17 @@
+LatentJam est un lecteur pour les fichiers musicaux de votre téléphone qui comprend comment sonne votre bibliothèque. Un petit modèle neuronal tourne sur l’appareil et écoute vos morceaux en arrière-plan, pour que le mode SMART choisisse le titre suivant dans votre propre collection. Pas de compte, pas de catalogue, pas d’autorisation réseau : rien de ce que vous écoutez ne quitte le téléphone.
+
+<ul>
+<li><b>File d’attente SMART</b> : le morceau suivant est choisi dans votre bibliothèque selon le son, les tags et ce qu’un pack hors ligne compact sait de 350 000 artistes — leur langue, leur époque et leur style. La file évite les grands écarts d’énergie.</li>
+<li><b>Pour vous</b> : des rangées pour ce moment de la journée, pour la période que vous traversez, un Joker et un voyage sonore à travers la bibliothèque.</li>
+<li><b>Une recherche qui classe comme vous l’attendez</b> : titre, artiste, album et genre d’abord, puis les paroles contenues dans vos fichiers, puis le sens, dans l’une des vingt langues prises en charge. Une année ou une décennie dans la requête (« années 80 », « 1985 ») limite les résultats à ces années-là.</li>
+<li><b>Une carte de votre bibliothèque</b> : les groupes sont vos genres tels que le modèle les entend.</li>
+<li><b>Un lecteur pensé pour le tactile</b> : la pochette se retourne pour afficher les infos du morceau, donne accès aux actions par un appui long et passe d’un morceau à l’autre d’un balayage ; une barre de lecture en direct avec défilement fin et la ligne de paroles sous le curseur ; la pause et la reprise se font en fondu au lieu de couper net.</li>
+<li><b>Paroles</b> : les paroles synchronisées suivent la chanson, et un appui sur une ligne y saute directement.</li>
+<li><b>Tous les tags du fichier</b> : tous les genres, les artistes crédités et l’année de sortie originale, lus depuis les fichiers FLAC, Opus et mp3. Les albums se lisent dans l’ordre des disques et des pistes, et une collaboration apparaît chez chaque artiste qu’elle mentionne.</li>
+<li><b>Un vrai lecteur sous le capot</b> : playlists avec import et export M3U et ordres indépendants, personnalisé et « Ajoutés récemment », navigation par albums, artistes, genres et dossiers avec une barre A–Z, dossiers aussi en arborescence, transitions douces et normalisation du volume, un détecteur de doublons qui indique quelle copie garder, statistiques, modification des tags, sauvegarde et restauration locales.</li>
+<li><b>Sur l’écran d’accueil et en voiture</b> : trois widgets, une vignette dans les Réglages rapides et une arborescence de navigation pour Android Auto.</li>
+<li><b>Vos pages, dans votre ordre</b> : affichez, masquez et réorganisez les pages de navigation, et choisissez celle sur laquelle l’app s’ouvre.</li>
+<li><b>18 langues</b>, dont le russe, le roumain, l’arabe, l’hébreu, le chinois, le japonais et le coréen.</li>
+</ul>
+
+SMART devient vraiment bon une fois qu’une bonne partie de votre bibliothèque a été analysée en arrière-plan ; laisser le téléphone en charge toute la nuit accélère le processus.

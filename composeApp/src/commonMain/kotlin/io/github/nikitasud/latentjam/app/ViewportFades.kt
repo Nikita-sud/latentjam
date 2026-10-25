@@ -23,6 +23,9 @@ import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 
 /**
  * Fades scrolling content into its actual backdrop, including the artwork cloud.
@@ -78,10 +81,18 @@ internal fun FadingLazyColumn(
     horizontalAlignment: Alignment.Horizontal = Alignment.Start,
     content: LazyListScope.() -> Unit,
 ) {
+    // A page that runs on under the navigation bar leaves room for it after its last item.
+    val endInset = LocalScrollEndInset.current
+    val direction = LocalLayoutDirection.current
     LazyColumn(
         modifier = modifier.fadingListTop { state.canScrollBackward },
         state = state,
-        contentPadding = contentPadding,
+        contentPadding = if (endInset == 0.dp) contentPadding else PaddingValues(
+            start = contentPadding.calculateStartPadding(direction),
+            top = contentPadding.calculateTopPadding(),
+            end = contentPadding.calculateEndPadding(direction),
+            bottom = contentPadding.calculateBottomPadding() + endInset,
+        ),
         verticalArrangement = verticalArrangement,
         horizontalAlignment = horizontalAlignment,
         content = content,

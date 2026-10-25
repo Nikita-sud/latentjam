@@ -126,7 +126,7 @@ internal class IosPlaybackController(
         val target = queue.getOrNull(queueIndex)?.id?.value?.let(trackVolumes::get) ?: 1f
         if (snap || target == normalizationGain) {
             normalizationGain = target
-            audioEngine.setNormalizationGain(target)
+            applyDeckGains()
             return
         }
         val from = normalizationGain
@@ -135,11 +135,255 @@ internal class IosPlaybackController(
             do {
                 val elapsed = (transportTimeMs() - started).coerceAtLeast(0)
                 normalizationGain = normalizationRampVolume(from, target, elapsed)
-                audioEngine.setNormalizationGain(normalizationGain)
+                applyDeckGains()
                 if (elapsed >= NORMALIZATION_RAMP_MS) break
                 delay(GAIN_RAMP_TICK_MS)
             } while (isActive)
         }
+    }
+
+    /** The "Smooth transitions" width; 0 keeps hard track boundaries. */
+    private var crossfadeMs = 0L
+    private var crossfadeJob: Job? = null
+
+    /** The next track sounding (or cued to sound) under the end of the current one. */
+    private var overlap: IosOverlap? = null
+
+    /** The current track joined through an overlap: its rise continues over its own first ms. */
+    private var incomingRiseMs = 0L
+
+    /** The current track came in through an overlap: no fade-in of its own after the rise. */
+    private var joinedByOverlap = false
+
+    /**
+     * An overlap let go while sounding (the slider set to 0, the sleep timer's hold, a queue edit):
+     * the incoming track fades out over [CROSSFADE_CANCEL_MS] from [releaseFromGain], while the
+     * current track keeps the overlap's out-curve ([outgoingCurveMs]) to its end — what Android's
+     * mixer does with a withdrawn plan, instead of the current track snapping back to full level.
+     */
+    private var releaseStartedAtMs = -1L
+    private var releaseFromGain = 0f
+    private var outgoingCurveMs = 0L
+    private var lastIncomingGain = 0f
+
+    /** Seams whose next track could not be cued, as "outgoing>incoming" ids; not retried. */
+    private val failedOverlaps = mutableSetOf<String>()
+
+    private class IosOverlap(val outgoingId: TrackId, val incoming: TrackDescriptor, val overlapMs: Long) {
+        var started = false
+    }
+
+    /** The sleep timer's "end of track" is armed: no overlap, the track fades out on its own. */
+    private var finishingTrack = false
+
+    override suspend fun setFinishingCurrentTrack(finishing: Boolean): Unit = withContext(Dispatchers.Main) {
+        finishingTrack = finishing
+        if (finishing) releaseOverlap()
+        updateCrossfadeLoop()
+    }
+
+    override suspend fun setCrossfadeSeconds(seconds: Int): Unit = withContext(Dispatchers.Main) {
+        crossfadeMs = sanitizeCrossfadeSeconds(seconds) * 1000L
+        if (crossfadeMs <= 0L) releaseOverlap()
+        updateCrossfadeLoop()
+    }
+
+    /**
+     * Drives the file backend's transitions: each deck's volume is its track's loudness times its
+     * curve — equal-power across an overlap, the plain fades where a seam cannot overlap. Samples
+     * every [GAIN_RAMP_TICK_MS] near a seam and sleeps through the middle of a track.
+     */
+    private fun updateCrossfadeLoop() {
+        crossfadeJob?.cancel()
+        crossfadeJob = null
+        applyDeckGains()
+        // A rise, a release or an out-curve in progress runs to its end even with the slider at 0.
+        val transitionUnderway = incomingRiseMs > 0L || releaseStartedAtMs >= 0L || outgoingCurveMs > 0L
+        if (!playing || activeBackend != PlaybackBackend.FILE || (crossfadeMs <= 0L && !transitionUnderway)) return
+        crossfadeJob = mainScope.launch {
+            while (isActive) {
+                val wait = crossfadeTick()
+                applyDeckGains()
+                delay(wait)
+            }
+        }
+    }
+
+    /** Cues, starts or withdraws the overlap at the current seam; returns when to look again. */
+    private fun crossfadeTick(): Long {
+        val fadeMs = crossfadeMs
+        val current = queue.getOrNull(queueIndex) ?: return OVERLAP_IDLE_TICK_MS
+        val durationMs = audioEngine.durationMs() ?: 0L
+        val positionMs = audioEngine.positionMs()
+        val nextIndex = overlapNextIndex()
+        val next = nextIndex?.let(queue::getOrNull)
+        // The engine drops its standby on its own (a media-services reset, a consumed segment
+        // restarted): an overlap it no longer plays is no overlap here either.
+        if (overlap?.started == true && !audioEngine.overlapping) overlap = null
+        overlap?.let { active ->
+            if (fadeMs <= 0L || finishingTrack || active.outgoingId != current.id || next?.id != active.incoming.id) {
+                releaseOverlap()
+            }
+        }
+        val edges = currentFadeEdges()
+        if (overlap == null && outgoingCurveMs <= 0L && fadeMs > 0L && !finishingTrack && durationMs > 0L && edges.fadeOut && next != null &&
+            durationMs - positionMs <= fadeMs + OVERLAP_CUE_AHEAD_MS
+        ) {
+            val key = "${current.id.value}>${next.id.value}"
+            val url = next.audioUri?.let { NSURL.URLWithString(it) }
+            if (url != null && key !in failedOverlaps) {
+                val incomingMs = audioEngine.prepareOverlap(url)
+                val overlapMs = incomingMs?.let { overlapLengthMs(fadeMs, durationMs, it) } ?: 0L
+                if (overlapMs > 0L) {
+                    overlap = IosOverlap(current.id, next, overlapMs)
+                } else {
+                    audioEngine.cancelOverlap()
+                    failedOverlaps += key
+                }
+            }
+        }
+        val active = overlap
+        if (active != null && !active.started && durationMs - positionMs <= active.overlapMs) {
+            // Late (a seek into the window): the next track starts where the overlap has got to.
+            active.started = audioEngine.startOverlap(
+                fromMs = lateOverlapStartMs(positionMs, durationMs, active.overlapMs),
+            )
+            if (!active.started) cancelOverlap()
+        }
+        val windowMs = maxOf(fadeMs, incomingRiseMs)
+        return when {
+            overlap?.started == true || releaseStartedAtMs >= 0L || outgoingCurveMs > 0L -> GAIN_RAMP_TICK_MS
+            positionMs < windowMs -> GAIN_RAMP_TICK_MS
+            durationMs > 0L && durationMs - positionMs <= fadeMs + OVERLAP_CUE_AHEAD_MS -> GAIN_RAMP_TICK_MS
+            durationMs > 0L -> (durationMs - positionMs - fadeMs - OVERLAP_CUE_AHEAD_MS)
+                .coerceIn(GAIN_RAMP_TICK_MS, OVERLAP_IDLE_TICK_MS)
+            else -> OVERLAP_IDLE_TICK_MS
+        }
+    }
+
+    /** Each deck's volume from its track's loudness and the transition it is in. */
+    private fun applyDeckGains() {
+        if (activeBackend != PlaybackBackend.FILE) return
+        val fadeMs = crossfadeMs
+        val positionMs = audioEngine.positionMs()
+        val durationMs = audioEngine.durationMs() ?: 0L
+        val active = overlap?.takeIf { it.started }
+        val edges = currentFadeEdges()
+        // Once the rise is complete the track is simply playing: nothing keeps the loop busy.
+        if (incomingRiseMs > 0L && positionMs >= incomingRiseMs) incomingRiseMs = 0L
+        // A cued overlap shapes the end already (1 until it starts): never a plain fade before it.
+        val curveMs = overlap?.overlapMs ?: outgoingCurveMs
+        val current = normalizationGain * deckEnvelope(
+            positionMs = positionMs,
+            durationMs = durationMs,
+            fadeMs = fadeMs,
+            edges = edges,
+            riseMs = incomingRiseMs,
+            joinedByOverlap = joinedByOverlap,
+            curveMs = curveMs,
+        )
+        var incoming = 0f
+        if (active != null) {
+            val incomingGain = trackVolumes[active.incoming.id.value] ?: 1f
+            incoming = incomingGain * overlapInGain(audioEngine.standbyPositionMs().toFloat() / active.overlapMs)
+            lastIncomingGain = incoming
+        } else if (releaseStartedAtMs >= 0L) {
+            val elapsed = transportTimeMs() - releaseStartedAtMs
+            if (elapsed >= CROSSFADE_CANCEL_MS) {
+                releaseStartedAtMs = -1L
+                audioEngine.cancelOverlap()
+            } else {
+                incoming = releaseFromGain * (1f - elapsed.toFloat() / CROSSFADE_CANCEL_MS)
+            }
+        }
+        audioEngine.setDeckGains(current, incoming)
+    }
+
+    /**
+     * The row playback moves on to by itself, when it may overlap. Never the track itself: a track
+     * overlapping its own opening would start its next play seconds in — past the sleep timer's
+     * and the listening log's idea of a restart. Repeat-one, a one-row queue on repeat-all and Play
+     * next on the playing track all keep the plain fades.
+     */
+    private fun overlapNextIndex(): Int? = when (repeat) {
+        RepeatMode.ONE -> null
+        else -> playbackQueueTraversal(queue.size, queueIndex + 1, direction = 1, wrap = repeat == RepeatMode.ALL)
+            .firstOrNull()
+            ?.takeIf { queue.getOrNull(it)?.id != queue.getOrNull(queueIndex)?.id }
+    }
+
+    private fun currentFadeEdges(): FadeEdges {
+        val current = queue.getOrNull(queueIndex) ?: return FadeEdges.BOTH
+        val repeatsItself = repeat == RepeatMode.ONE
+        val previous = if (repeatsItself) current else queue.getOrNull(queueIndex - 1)
+        val next = if (repeatsItself) current else overlapNextIndex()?.let(queue::getOrNull)
+        return FadeEdges(!continuesAlbum(previous, current), !continuesAlbum(current, next))
+    }
+
+    /** Drops the overlap at once, with everything it left: for a seek or a new track, which restart anyway. */
+    private fun cancelOverlap() {
+        releaseStartedAtMs = -1L
+        outgoingCurveMs = 0L
+        if (overlap == null) return
+        overlap = null
+        audioEngine.cancelOverlap()
+    }
+
+    /** Lets a sounding overlap go gently; see [releaseStartedAtMs]. One not yet sounding just goes. */
+    private fun releaseOverlap() {
+        val active = overlap ?: return
+        if (!active.started) {
+            // Not sounding yet, but the end already follows its curve: keep that, drop the rest.
+            overlap = null
+            audioEngine.cancelOverlap()
+            outgoingCurveMs = active.overlapMs
+            return
+        }
+        overlap = null
+        outgoingCurveMs = active.overlapMs
+        releaseFromGain = lastIncomingGain
+        releaseStartedAtMs = transportTimeMs()
+    }
+
+    /**
+     * The current track's end has played under the next one's opening: that track is now current,
+     * already sounding — no load, no gap. Returns false when there was nothing to carry on with.
+     */
+    private fun promoteOverlap(cause: StartCause): Boolean {
+        val active = overlap?.takeIf { it.started } ?: return false
+        if (!audioEngine.overlapping) {
+            overlap = null
+            return false
+        }
+        // A queue edit since the last tick may have moved or replaced the next row: re-derive it.
+        val incomingIndex = overlapNextIndex()?.takeIf { queue.getOrNull(it)?.id == active.incoming.id }
+        if (incomingIndex == null) {
+            cancelOverlap()
+            return false
+        }
+        overlap = null
+        // The generation moves only once the swap happened: a failed promotion leaves the ended
+        // track's own end handling — the plain advance — still current.
+        val itemGeneration = playbackItemGeneration + 1
+        if (!audioEngine.promoteOverlap { mainScope.launch { onItemEnded(itemGeneration) } }) {
+            audioEngine.cancelOverlap()
+            return false
+        }
+        playbackItemGeneration = itemGeneration
+        pendingAdvance.invalidate()
+        queueIndex = incomingIndex
+        incomingRiseMs = active.overlapMs
+        joinedByOverlap = true
+        outgoingCurveMs = 0L
+        releaseStartedAtMs = -1L
+        failedOverlaps.clear()
+        beginStart(cause)
+        updateNormalizationGain(snap = true)
+        updateTicker()
+        invalidateNowPlayingInfo()
+        pushState()
+        mainScope.launch { appendSmartNextIfNeeded() }
+        return true
     }
 
     private var transportFadeJob: Job? = null
@@ -403,7 +647,11 @@ internal class IosPlaybackController(
             )
             // The listener chose the requested row; one reached past it because it would not open
             // was chosen by nobody.
-            if (loaded) beginStart(StartCause.USER_PICK.takeIf { queueIndex == requestedIndex })
+            if (loaded) {
+                // The rows the listener queued by hand belonged to the queue this one replaced.
+                startLedger.forgetQueued()
+                beginStart(StartCause.USER_PICK.takeIf { queueIndex == requestedIndex })
+            }
             // A failed replacement must not leave the old backend sounding under the new queue.
             // If there was a valid prior selection, reload it and its position instead of claiming
             // an unreadable row from the requested collection.
@@ -505,6 +753,10 @@ internal class IosPlaybackController(
     override suspend fun next(): Unit = withContext(Dispatchers.Main) {
         if (queue.isEmpty()) return@withContext
         pendingAdvance.invalidate()
+        // During an overlap the next track is already sounding: carry on from there.
+        if (overlap?.let { it.started && repeat != RepeatMode.ONE } == true && promoteOverlap(StartCause.SKIP_NEXT)) {
+            return@withContext
+        }
         if (queueIndex in 0 until queue.lastIndex) {
             // Planning may suspend on inference or another append. A known successor can sound
             // immediately; replenish its future after the skip, matching the Android transport.
@@ -675,6 +927,7 @@ internal class IosPlaybackController(
             insertion = SourceQueueInsertion.PLAY_NEXT,
         )
         releaseSmartProvenance(smartPlanPositions, smartContinuationIds, smartRemovedIds, track.id)
+        startLedger.queuedByHand(track.id)
         queueGeneration++
         cueIfNothingCurrent()
         pushState()
@@ -689,6 +942,7 @@ internal class IosPlaybackController(
             insertion = SourceQueueInsertion.APPEND,
         )
         releaseSmartProvenance(smartPlanPositions, smartContinuationIds, smartRemovedIds, track.id)
+        startLedger.queuedByHand(track.id)
         queueGeneration++
         cueIfNothingCurrent()
         pushState()
@@ -721,6 +975,9 @@ internal class IosPlaybackController(
 
     override suspend fun moveQueueItem(from: Int, to: Int): Unit = withContext(Dispatchers.Main) {
         if (from !in queue.indices || to !in queue.indices || from == to) return@withContext
+        if (movedTowardPlayhead(from, to, queueIndex.takeIf { it in queue.indices })) {
+            startLedger.queuedByHand(queue[from].id)
+        }
         queue = queue.toMutableList().apply { add(to, removeAt(from)) }
         queueGeneration++
         // The current entry is tracked by index; arithmetic (not id search) keeps the right one
@@ -745,6 +1002,7 @@ internal class IosPlaybackController(
         recordSmartRemoval(smartRemovedIds, removed.id)
         if (queue.none { it.id == removed.id }) {
             pool = pool.filter { it.id != removed.id }
+            startLedger.unqueued(removed.id)
         }
         when {
             queue.isEmpty() -> {
@@ -833,6 +1091,7 @@ internal class IosPlaybackController(
         // A resume installs a new queue, so the removals booked against the old one go with it —
         // exactly as Android's restoreQueue does. Restored rows were never removed from this queue.
         smartRemovedIds.clear()
+        startLedger.forgetQueued()
         curatedTailId = null
         // Same for the rows whose start failed: none of them is this queue's row.
         mediaStartRefusedIds.clear()
@@ -1042,6 +1301,10 @@ internal class IosPlaybackController(
      */
     private fun loadCurrentItem(autoPlay: Boolean): Boolean {
         pendingAdvance.invalidate()
+        cancelOverlap()
+        incomingRiseMs = 0L
+        joinedByOverlap = false
+        failedOverlaps.clear()
         // A delayed pause belongs to the old native item, including when switching backends.
         resetTransportFade()
         val track = queue.getOrNull(queueIndex) ?: run {
@@ -1049,6 +1312,9 @@ internal class IosPlaybackController(
             return false
         }
         updateNormalizationGain(snap = true)
+        // The new file starts at the level its own opening calls for — the fade-in's 0 with smooth
+        // transitions on — not at the level the previous track ended on, for the first render.
+        audioEngine.setDeckGains(normalizationGain * deckEnvelope(0L, 0L, crossfadeMs, currentFadeEdges(), 0L, false, 0L))
         val isMediaLibraryItem = track.id.value.startsWith(MEDIA_ID_PREFIX)
         val loaded = if (isMediaLibraryItem && track.audioUri == null) {
             loadMediaLibraryItem(track, autoPlay)
@@ -1195,7 +1461,14 @@ internal class IosPlaybackController(
     }
 
     private fun onItemEnded(itemGeneration: Long) {
-        if (!playing || !isCurrentPlaybackItemGeneration(itemGeneration, playbackItemGeneration)) return
+        if (!isCurrentPlaybackItemGeneration(itemGeneration, playbackItemGeneration)) return
+        // An overlap's outgoing track can end inside a pause's fade, while `playing` already says
+        // no but the graph still renders: the next track is sounding, so it takes over all the
+        // same, and a resume carries it on instead of restarting the ended one. Only then — an
+        // interruption or a route change stops the graph at once, with no fade to finish in.
+        if (!playing && !transportFade.pausePending) return
+        if (promoteOverlap(if (repeat == RepeatMode.ONE) StartCause.REPEAT else StartCause.AUTO_ADVANCE)) return
+        if (!playing) return
         if (repeat == RepeatMode.ONE) {
             seekActiveBackend(0L)
             playing = playActiveBackend()
@@ -1296,6 +1569,8 @@ internal class IosPlaybackController(
             transportFadeJob?.cancel()
             transportFadeJob = null
             transportFade.reset()
+            // The rebuild drops the standby player with the rest of the graph.
+            cancelOverlap()
             val localPosition = mutableState.value.positionMs.takeIf { activeBackend == PlaybackBackend.FILE }
             val recued = audioEngine.rebuildAfterMediaServicesReset(localPosition)
             if (activeBackend == PlaybackBackend.MEDIA_LIBRARY) mediaPlayer.pause()
@@ -1504,12 +1779,29 @@ internal class IosPlaybackController(
     }
 
     private fun seekActiveBackend(positionMs: Long) {
+        cancelOverlap()
+        // A seek — back to 0, a repeat-one wrap — starts the track over: no rise is still going on.
+        incomingRiseMs = 0L
+        joinedByOverlap = false
         when (activeBackend) {
-            PlaybackBackend.FILE -> audioEngine.seekTo(positionMs)
+            PlaybackBackend.FILE -> {
+                // The level the new position calls for is set before the graph restarts, so the
+                // equalizer's short restart fade-in covers the change; set after, it would land a
+                // few milliseconds into the restarted waveform as a step.
+                val durationMs = audioEngine.durationMs() ?: 0L
+                audioEngine.setDeckGains(
+                    normalizationGain * deckEnvelope(positionMs, durationMs, crossfadeMs, currentFadeEdges(), 0L, false, 0L),
+                )
+                audioEngine.seekTo(positionMs)
+            }
             PlaybackBackend.MEDIA_LIBRARY -> {
                 mediaPlayer.currentPlaybackTime = positionMs / 1000.0
             }
         }
+        // Every seek — a scrub, Previous restarting the track, the lock screen — lands somewhere
+        // the envelope has another value: apply it now and look again at once, not after the
+        // loop's sleep, which may be a second long in the middle of a track.
+        updateCrossfadeLoop()
     }
 
     private fun wireRemoteCommands() {
@@ -1611,8 +1903,9 @@ internal class IosPlaybackController(
         -> MPShuffleType.MPShuffleTypeItems
     }
 
-    /** Coarse position refresh while playing; idle otherwise. */
+    /** Coarse position refresh while playing; idle otherwise. Also (re)starts the transitions. */
     private fun updateTicker() {
+        updateCrossfadeLoop()
         if (playing) {
             if (tickerJob == null) {
                 tickerJob = mainScope.launch {
@@ -1934,6 +2227,12 @@ internal class IosPlaybackController(
 
         /** Seek-bar refresh cadence while playing. */
         const val TICKER_INTERVAL_MS = 500L
+
+        /** How long before an overlap its next track is opened and cued: a file open is quick. */
+        const val OVERLAP_CUE_AHEAD_MS = 2_000L
+
+        /** The longest the transition loop sleeps while nothing is near a seam. */
+        const val OVERLAP_IDLE_TICK_MS = 1_000L
 
         /**
          * How long the MediaPlayer backend may stay Stopped after `play()` before the start counts

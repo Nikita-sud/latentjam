@@ -769,11 +769,13 @@ public object ListeningInsights {
     private fun ListenEvent.isPick(): Boolean = !skipped && origin?.start == ListenStart.USER_PICK
 
     /**
-     * A play the listener chose: a pick, or a finished play that SMART did not plan and that is not a
-     * repeat-one loop. SMART repeating a track must not make it a favourite.
+     * A play the listener chose: a pick, a track they queued by hand (issue #24: in SMART mode it
+     * used to count for nothing, however the listener had asked for it), or a finished play that
+     * SMART did not plan and that is not a repeat-one loop. SMART repeating a track must not make it
+     * a favourite.
      */
     private fun ListenEvent.isChosen(): Boolean = !skipped && (
-        isPick() || (
+        isPick() || origin?.start == ListenStart.QUEUED || (
             completed && origin?.smartPlanPosition == null && shuffleMode != "SMART" &&
                 origin?.start != ListenStart.REPEAT
             )

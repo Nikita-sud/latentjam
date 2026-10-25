@@ -295,6 +295,8 @@ internal class LastMiniPresentation(
 @Stable
 internal class LibraryWorldsState {
     var memoryLimited by mutableStateOf(false)
+    /** The last attempt to discover this library's worlds failed; the Map says so instead of waiting. */
+    var discoveryFailed by mutableStateOf(false)
     var worlds by mutableStateOf<List<LibraryWorld>>(emptyList())
     var worldLibraryIds by mutableStateOf<List<TrackId>>(emptyList())
     var builtWorldsKey by mutableStateOf<LibraryWorldsKey?>(null)
@@ -342,6 +344,9 @@ internal class ForYouPageState {
 
     // The last history read failed and no page exists to keep; the snackbar says why.
     var forYouLoadFailed by mutableStateOf(false)
+
+    // Row, mix and collection taps: a new one cancels the previous one's pending continuation.
+    val playbackLauncher = ForYouPlaybackLauncher()
 }
 
 /** The library as scanned and what Settings says about it. */

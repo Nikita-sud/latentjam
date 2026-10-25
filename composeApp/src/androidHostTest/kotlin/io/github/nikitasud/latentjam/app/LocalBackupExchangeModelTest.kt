@@ -88,7 +88,7 @@ internal class LocalBackupExchangeModelTest {
         ready.complete(document)
         runCurrent()
         assertEquals(
-            LocalBackupExchangeResult.Import(LocalBackupFileResult.Success(listOf(document))),
+            LocalBackupExchangeResult.Import(LocalBackupFileResult.Success(ImportedLocalDocuments(listOf(document)))),
             exchange.completed.value,
         )
         // A fresh callback can consume the result once, even if no UI was present at completion.
@@ -107,8 +107,8 @@ internal class LocalBackupExchangeModelTest {
         runCurrent()
 
         val completed = assertIs<LocalBackupExchangeResult.Import>(exchange.completed.value)
-        val document = assertIs<LocalBackupFileResult.Success<List<ImportedLocalDocument>>>(completed.result)
-            .value.single()
+        val document = assertIs<LocalBackupFileResult.Success<ImportedLocalDocuments>>(completed.result)
+            .value.documents.single()
         assertEquals(text, document.text)
         assertNull(document.displayName)
     }
@@ -127,8 +127,37 @@ internal class LocalBackupExchangeModelTest {
         runCurrent()
 
         val completed = assertIs<LocalBackupExchangeResult.Import>(exchange.completed.value)
-        val documents = assertIs<LocalBackupFileResult.Success<List<ImportedLocalDocument>>>(completed.result).value
-        assertEquals(listOf("2000s rock.m3u", "2000 Fun.m3u"), documents.map { it.displayName })
+        val imported = assertIs<LocalBackupFileResult.Success<ImportedLocalDocuments>>(completed.result).value
+        assertEquals(listOf("2000s rock.m3u", "2000 Fun.m3u"), imported.documents.map { it.displayName })
+        assertEquals(1, imported.unreadableCount)
+    }
+
+    @Test
+    fun severalPickedDocumentsShareOneBoundAndMustBeText() = runTest {
+        val playlist = "#EXTM3U\nMusic/song.mp3\n".encodeToByteArray()
+        val audio = byteArrayOf('I'.code.toByte(), 'D'.code.toByte(), '3'.code.toByte(), 4, 0, 0) + ByteArray(2048)
+        var budgetSeen: ImportReadBudget? = null
+        val exchange = LocalBackupExchangeModel(
+            SavedStateHandle(),
+            { _, _ -> },
+            { source, budget ->
+                assertTrue(budgetSeen == null || budgetSeen === budget, "one budget for the whole selection")
+                budgetSeen = budget
+                val bytes = if (source.endsWith(".mp3")) audio else playlist
+                budget.accept(bytes)
+                ImportedLocalDocument(bytes.decodeToString(), source)
+            },
+        ).also(models::add)
+
+        assertTrue(exchange.beginImport())
+        exchange.importSources(listOf("a.m3u", "song.mp3", "b.m3u"))
+        runCurrent()
+
+        val completed = assertIs<LocalBackupExchangeResult.Import>(exchange.completed.value)
+        val imported = assertIs<LocalBackupFileResult.Success<ImportedLocalDocuments>>(completed.result).value
+        assertEquals(listOf("a.m3u", "b.m3u"), imported.documents.map { it.displayName })
+        assertEquals(1, imported.unreadableCount)
+        assertEquals(MAX_LOCAL_BACKUP_DOCUMENT_CHARS - 2 * playlist.size, budgetSeen?.remaining)
     }
 
     @Test
@@ -297,5 +326,5 @@ internal class LocalBackupExchangeModelTest {
         write: suspend (() -> String, String) -> Unit = { _, _ -> },
         read: suspend (String) -> ImportedLocalDocument = { ImportedLocalDocument("document") },
         directory: (String) -> String? = { null },
-    ) = LocalBackupExchangeModel(handle, write, read, directory).also(models::add)
+    ) = LocalBackupExchangeModel(handle, write, { source, _ -> read(source) }, directory).also(models::add)
 }

@@ -20,23 +20,37 @@ import androidx.compose.ui.unit.dp
 internal fun Modifier.browseCloud(accent: TrackAccent?): Modifier {
     val strength = LocalAppearance.current.cloud.alphaScale
     if (accent == null || strength == 0f) return this
-    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val color = if (dark) liftForDarkSurface(accent.vivid) else tintForLightSurface(accent.vivid)
-    val companionColor = if (dark) lerp(color, Color.White, 0.16f) else rotateHue(color, 12f)
+    val colors = MaterialTheme.colorScheme
+    val dark = colors.surface.luminance() < 0.5f
+    val color = if (dark) {
+        liftForDarkCloud(accent.vivid, (0.30f * strength).coerceAtMost(1f), colors.surface, colors.onSurface)
+    } else {
+        tintForLightSurface(accent.vivid)
+    }
+    val companionColor = if (dark) {
+        val companionAlpha = (0.20f * strength).coerceAtMost(1f)
+        liftForDarkCloud(lerp(color, Color.White, 0.16f), companionAlpha, colors.surface, colors.onSurface)
+    } else {
+        rotateHue(color, 12f)
+    }
+    // The wash runs on under the side safe areas, which the page's content keeps out of.
+    val bleed = rememberSideBleed()
     return drawWithCache {
-        // Keep the song recognisable across the whole light header. Radial clouds alone fade
-        // nearly to white between their centres; this broad wash dissolves into the list floor.
+        val window = bleed.window(size)
+        // Keep the song recognisable across the light header. Radial clouds alone fade nearly to
+        // the floor between their centres; this wash dissolves into it. A glow, not a band: at
+        // full strength and twice the depth it read as a block of colour painted over the list.
         val headerWash = if (dark) null else Brush.verticalGradient(
-            0f to color.copy(alpha = (0.90f * strength).coerceAtMost(1f)),
-            0.4f to color.copy(alpha = (0.90f * strength).coerceAtMost(1f)),
+            0f to color.copy(alpha = (0.45f * strength).coerceAtMost(1f)),
+            0.4f to color.copy(alpha = (0.45f * strength).coerceAtMost(1f)),
             1f to color.copy(alpha = 0f),
-            endY = 420.dp.toPx(),
+            endY = 300.dp.toPx(),
         )
         // Two cached gradients carry the current song's hue through the shared header.
         // No blur layer, bitmap, or animation clock is needed while browsing.
         val primary = Brush.radialGradient(
             colors = listOf(color.copy(alpha = ((if (dark) 0.30f else 0.50f) * strength).coerceAtMost(1f)), Color.Transparent),
-            center = Offset(100.dp.toPx(), 50.dp.toPx()),
+            center = Offset(window.left + 100.dp.toPx(), 50.dp.toPx()),
             radius = 220.dp.toPx(),
         )
         val companion = Brush.radialGradient(
@@ -44,13 +58,13 @@ internal fun Modifier.browseCloud(accent: TrackAccent?): Modifier {
                 companionColor.copy(alpha = ((if (dark) 0.20f else 0.28f) * strength).coerceAtMost(1f)),
                 Color.Transparent,
             ),
-            center = Offset(size.width - 60.dp.toPx(), 0f),
+            center = Offset(window.right - 60.dp.toPx(), 0f),
             radius = 190.dp.toPx(),
         )
         onDrawBehind {
-            headerWash?.let { drawRect(it) }
-            drawRect(primary)
-            drawRect(companion)
+            headerWash?.let { drawRect(it, topLeft = window.topLeft, size = window.size) }
+            drawRect(primary, topLeft = window.topLeft, size = window.size)
+            drawRect(companion, topLeft = window.topLeft, size = window.size)
         }
     }
 }

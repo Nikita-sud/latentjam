@@ -40,6 +40,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -230,7 +234,7 @@ fun App(
     // The listener's own accent also inks the controls; any other colour mode keeps them neutral.
     val controlInk = if (trackColorMode == TrackColorMode.CUSTOM) {
         val custom = Color(appearance.customAccent)
-        if (darkTheme) liftForDarkSurface(custom) else tintForLightSurface(custom)
+        if (darkTheme) liftForDarkSurface(custom) else inkForLightSurface(custom, scheme.surface)
     } else null
     CompositionLocalProvider(
         LocalReduceMotion provides rememberPlatformReduceMotion(),
@@ -238,7 +242,19 @@ fun App(
         LocalControlInk provides controlInk,
     ) {
         MaterialTheme(colorScheme = scheme, typography = LatentJamTypography) {
-            AppShell(engine, library, playback, externalAudioOpener, darkTheme)
+            // The app draws edge to edge, and its pages keep from the top and bottom bars on their
+            // own, but nothing kept the sides: a landscape iPhone's camera, a foldable iPhone's
+            // status column (an 84 pt reserved strip down one side), an Android side navigation bar
+            // or cutout. The sides are kept once, here, for everything inside; the theme's
+            // background still runs under them.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(scheme.background)
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
+            ) {
+                AppShell(engine, library, playback, externalAudioOpener, darkTheme)
+            }
         }
     }
 }
@@ -380,10 +396,29 @@ private fun AppShell(
             val request = libraryIndexingRequest ?: return@LaunchedEffect
             if (request.tracks.isEmpty()) return@LaunchedEffect
             if (genreEnrichment.backfill(request.tracks) && libraryIndexingRequest === request) {
+                val richer = genreEnrichment.apply(request.tracks)
+                // apply reads the cache off the main thread: a scan or a hide may have published a
+                // newer library meanwhile, which this older one must not replace.
+                if (libraryIndexingRequest !== request) return@LaunchedEffect
+                // With no file under repair the scan's list IS the published one; replace both, or
+                // the scan state keeps the whole pre-enrichment library alive beside the new one.
+                if (libraryScan.scannedTracks === request.tracks) libraryScan.scannedTracks = richer
                 publishLibraryTracks(
-                    value = genreEnrichment.apply(request.tracks),
+                    value = richer,
                     authoritative = request.librarySnapshotAuthoritative,
                 )
+                // A playing or soon-playing song that turned out to name no album loses a borrowed
+                // cover (issue #12): the player, notification and widget follow at once. Only the
+                // rows about to play: each refresh is a player command, and the first pass after
+                // an update can change thousands of queued rows; a later row takes its new cover
+                // as it starts to play (see playingTrackId).
+                val queued = playback.state.value
+                val soon = queued.queue.drop(queued.queueIndex.coerceAtLeast(0)).take(SOON_QUEUED_ROWS)
+                val soonCovers = soon.associate { it.id to it.artworkUri }
+                val recovered = richer.filter { fresh ->
+                    fresh.id in soonCovers && soonCovers[fresh.id] != fresh.artworkUri
+                }
+                if (recovered.isNotEmpty()) playback.refreshTracks(recovered)
                 enrichedLibraryRevision++
             }
         }
@@ -1029,8 +1064,11 @@ private fun AppShell(
             }
             forYouPage.forYouBuilding = true
             val historySnapshot = try {
-                AppGraph.history.stats() to
-                    AppGraph.history.recentEvents(RECENT_EVENTS_FOR_YOU)
+                Triple(
+                    AppGraph.history.stats(),
+                    AppGraph.history.recentEvents(RECENT_EVENTS_FOR_YOU),
+                    AppGraph.history.firstListenAtMs(),
+                )
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Throwable) {
@@ -1044,7 +1082,7 @@ private fun AppShell(
                 snackbar.showSnackbar(getString(Res.string.settings_library_manage_failed))
                 return@LaunchedEffect
             }
-            val (stats, recentEvents) = historySnapshot
+            val (stats, recentEvents, firstListenAtMs) = historySnapshot
             val excluded = buildSet {
                 loaded.asSequence()
                     .filter { smartExclusionState.excludes(it) }
@@ -1103,6 +1141,7 @@ private fun AppShell(
                     revisitShownDays = shown.revisit,
                     daypartShownDays = shown.daypart,
                     retiredDiscoveries = shown.retired,
+                    logStartMs = firstListenAtMs,
                 )
             }
             // Commit the page and its input key together. If this effect is cancelled while the
@@ -1345,6 +1384,7 @@ private fun AppShell(
                         libraryWorlds.builtWorldsKey = worldsKey
                         libraryWorlds.builtWorldNoveltyPreference = includeNoveltyMixes
                         libraryWorlds.builtWorldReadiness = metadataReady to audioReady
+                        libraryWorlds.discoveryFailed = false
                         }
                     } catch (cancelled: CancellationException) {
                         throw cancelled
@@ -1356,6 +1396,7 @@ private fun AppShell(
                         // a low-RAM phone. The page keeps what it had, as the Map layout below does;
                         // whatever the failed pass allocated is unreachable once this lambda returns.
                         println("SMART: could not refresh library suggestions: $failure")
+                        libraryWorlds.discoveryFailed = true
                     }
                 }
         }
@@ -1420,6 +1461,20 @@ private fun AppShell(
         }
         val groupOrderedCatalog = remember(catalog, groupSortOrders) { catalog?.inGroupOrder(groupSortOrders) }
         val tracksById = remember(catalog) { catalog?.songs?.associateBy { it.id }.orEmpty() }
+        // A queued song whose cover changed after it was queued (the tag pass learning that it
+        // names no album, issue #12) takes its new descriptor as it starts to play: one player
+        // command per song, beyond the rows the tag pass refreshes at once.
+        val playingTrackId by remember(playback) {
+            playback.state.map { it.track?.id }.distinctUntilChanged()
+        }.collectAsState(initial = null)
+        // Read from the published library, not the catalog built from it later: a catalog that
+        // still lags a refresh would put the old descriptor back into the queue.
+        LaunchedEffect(playingTrackId, tracks) {
+            val playing = playback.state.value.track ?: return@LaunchedEffect
+            if (playing.id != playingTrackId) return@LaunchedEffect
+            val fresh = tracks?.firstOrNull { it.id == playing.id } ?: return@LaunchedEffect
+            if (fresh.artworkUri != playing.artworkUri) playback.refreshTracks(listOf(fresh))
+        }
         val selectedTracks = remember(
             catalog, groupSortOrders, albumTabTracks, songsBrowse, selectedTrackIds,
             selectedCollection, selectedTab,
@@ -1728,20 +1783,20 @@ private fun AppShell(
             onImportResult = { result ->
                 when (result) {
                     is LocalBackupFileResult.Success -> scope.launch {
-                        val imports = result.value.map { document ->
-                            importM3u(
-                                text = document.text,
-                                library = catalog?.songs.orEmpty(),
-                                displayName = document.displayName,
-                                filePaths = library::filePaths,
-                            )
-                        }.filter { it.entryCount > 0 }
+                        val imports = importM3uFiles(
+                            result.value.documents,
+                            catalog?.songs.orEmpty(),
+                            library::filePaths,
+                        ).filter { it.entryCount > 0 }
                         if (imports.none { it.tracks.isNotEmpty() }) {
                             snackbar.showSnackbar(getString(Res.string.snack_m3u_import_failed))
                             return@launch
                         }
                         // New playlists, or Favorites: chosen knowing how much of the files was found.
-                        sheets.m3uImportOffer = M3uImportOffer(imports)
+                        sheets.m3uImportOffer = M3uImportOffer(
+                            imports,
+                            skippedFiles = result.value.documents.size + result.value.unreadableCount - imports.size,
+                        )
                     }
                     is LocalBackupFileResult.Failure -> scope.launch {
                         snackbar.showSnackbar(getString(Res.string.snack_m3u_import_failed))
@@ -1751,15 +1806,13 @@ private fun AppShell(
             },
         )
         suspend fun importM3uAsPlaylists(offer: M3uImportOffer) {
-            val fallbackName = getString(Res.string.playlist_imported_name)
-            val created = runPlaylistMutation {
-                for (import in offer.playlists) {
-                    AppGraph.playlists.create(import.name ?: fallbackName, import.tracks.map { it.id })
-                }
+            val created = createM3uPlaylists(offer, getString(Res.string.playlist_imported_name)) { name, ids ->
+                AppGraph.playlists.create(name, ids)
             }
-            // A failure part-way still leaves the earlier files' playlists: show them either way.
+            // A failure part-way still leaves the earlier files' playlists: show them either way,
+            // and say how many were made.
             refreshPlaylistMembershipsBestEffort()
-            if (created) snackbar.showSnackbar(m3uImportedMessage(offer))
+            snackbar.showSnackbar(m3uPlaylistsCreatedMessage(offer, created))
         }
         // A playlist, or Favorites newest first: one exporter, one relative-paths setting.
         fun exportAsM3u(name: String, tracks: () -> List<TrackDescriptor>) {
@@ -2174,19 +2227,23 @@ private fun AppShell(
                             drawContent()
                             return@drawWithContent
                         }
-                        val surface = playerExpansion.surfaceBounds(size)
+                        // Measured in the whole window, side safe areas included: the page's
+                        // backdrop runs under them, and the open sheet covers them.
+                        val window = playerExpansion.sideBleed.window(size)
+                        val surface = playerExpansion.surfaceBounds(size).translate(-window.left, 0f)
                         val radius = playerExpansion.surfaceRadius()
-                        if (sheetCoversWindow(surface, radius, size.width, size.height)) {
+                        if (sheetCoversWindow(surface, radius, window.width, size.height)) {
                             return@drawWithContent
                         }
                         val scrim = libraryScrimAlpha(progress)
                         val pieces = sheetUncoveredPieces(
-                            surface, radius, inset = 1.dp.toPx(), width = size.width, height = size.height,
+                            surface, radius, inset = 1.dp.toPx(), width = window.width, height = size.height,
                         )
-                        for (piece in pieces) {
+                        for (windowPiece in pieces) {
+                            val piece = windowPiece.translate(window.left, 0f)
                             clipRect(piece.left, piece.top, piece.right, piece.bottom) {
                                 this@drawWithContent.drawContent()
-                                drawRect(Color.Black, alpha = scrim)
+                                drawRect(Color.Black, topLeft = piece.topLeft, size = piece.size, alpha = scrim)
                             }
                         }
                     }
@@ -2549,6 +2606,10 @@ private fun AppShell(
                                     // same pager position, so label and content move together
                                     // rather than one chasing the other after the fact.
                                     LibraryPresentation.CONTENT -> shownCatalog?.let { visibleCatalog ->
+                                    // The Statistics page's results outlive the page itself (see
+                                    // [StatsMemory]); a new library, or a cleared or restored log
+                                    // (which re-keys the page), starts them over.
+                                    val statsMemory = remember(replacedHistoryEpoch, visibleCatalog.songs) { StatsMemory() }
                                     HorizontalPager(
                                         state = pagerState,
                                         modifier = Modifier.fillMaxSize(),
@@ -2589,6 +2650,10 @@ private fun AppShell(
                                                 tracks = visibleCatalog.songs,
                                                 contentPadding = listPadding,
                                                 active = browsePageVisible && settledTab == StartPage.STATISTICS,
+                                                memory = statsMemory,
+                                                playlistsKey = playlistsState.playlists,
+                                                favoritesKey = favoriteIds,
+                                                knownTracksById = tracksById.takeIf { catalog?.songs === visibleCatalog.songs },
                                             )
                                         }
 
@@ -2648,22 +2713,22 @@ private fun AppShell(
                                             onPlay = { list, index ->
                                                 AppGraph.queueSource.value =
                                                     QueueSource(QueueSourceKind.FOR_YOU)
-                                                scope.launch {
+                                                forYouPage.playbackLauncher.launch(scope) { isCurrent ->
                                                     playFromForYou(
                                                         playback, engine, AppGraph.history, list, index,
                                                         smartEligibleTracks, smartQueueLength,
-                                                        AppGraph.smartCompanionGroups.value,
+                                                        AppGraph.smartCompanionGroups.value, isCurrent,
                                                     )
                                                 }
                                             },
                                             onPlayCollection = { collection ->
                                                 AppGraph.queueSource.value =
                                                     QueueSource(QueueSourceKind.FOR_YOU, name = collection.title)
-                                                scope.launch {
+                                                forYouPage.playbackLauncher.launch(scope) { isCurrent ->
                                                     playFromForYou(
                                                         playback, engine, AppGraph.history, collection.tracks, 0,
                                                         smartEligibleTracks, smartQueueLength,
-                                                        AppGraph.smartCompanionGroups.value,
+                                                        AppGraph.smartCompanionGroups.value, isCurrent,
                                                     )
                                                 }
                                             },
@@ -2732,6 +2797,7 @@ private fun AppShell(
                                                 ),
                                         ) {
                                         MapTab(
+                                            onRetryIndexing = ::retryAutomaticIndexing,
                                             currentAccent = browseAccentInk(accent),
                                             state = shownMapState,
                                             contentPadding = listPadding,
@@ -3384,16 +3450,16 @@ private fun AppShell(
                         }
                     }
 
-                    val leftHanded = LocalAppearance.current.leftHanded
+                    val shuffleAtStart = handControlsAtStart()
                     val showShuffle = !selectionMode && !railScrubbing && !searchOverlayActive && !collectionOverlayActive &&
                         selectedTab.showsShuffleAll() &&
                         catalog?.songs?.isNotEmpty() == true
                     AnimatedVisibility(
                         visible = showShuffle,
-                        modifier = Modifier.align(if (leftHanded) Alignment.BottomStart else Alignment.BottomEnd)
+                        modifier = Modifier.align(if (shuffleAtStart) Alignment.BottomStart else Alignment.BottomEnd)
                             // Selection adds its own toolbar inset, but an exiting Shuffle
                             // button must keep its original anchor while it fades away.
-                            .padding(start = if (leftHanded) 42.dp else 0.dp, end = if (leftHanded) 0.dp else 42.dp, bottom = navBottom +
+                            .padding(start = if (shuffleAtStart) 42.dp else 0.dp, end = if (shuffleAtStart) 0.dp else 42.dp, bottom = navBottom +
                                 (if (currentTrack != null) miniPlayerHeight else 12.dp) + 20.dp),
                         enter = if (reduceMotion) fadeIn(tween(Motion.REDUCED_MS)) else {
                             fadeIn(tween(Motion.APPEAR_MS)) +
@@ -3404,7 +3470,9 @@ private fun AppShell(
                                 scaleOut(tween(Motion.QUICK_MS), targetScale = 0.86f)
                         },
                     ) {
+                        val shufflePress = rememberPressSource()
                         FilledIconButton(
+                            interactionSource = shufflePress,
                             onClick = {
                                 val songs = catalog?.songs.orEmpty()
                                 if (songs.isNotEmpty()) scope.launch {
@@ -3414,7 +3482,9 @@ private fun AppShell(
                                     playback.play(songs, songs.indices.random())
                                 }
                             },
-                            modifier = Modifier.size(56.dp).inactiveForMotion(!showShuffle),
+                            modifier = Modifier.size(56.dp)
+                                .scaleOnPress(shufflePress, Motion.BUTTON_PRESS_SCALE)
+                                .inactiveForMotion(!showShuffle),
                             colors = playButtonColors(),
                         ) {
                             Icon(Icons.Rounded.Shuffle,
@@ -4670,3 +4740,6 @@ private fun AppShell(
 
 /** Coarse library states only; catalog refreshes within CONTENT must never replay its entrance. */
 private enum class LibraryPresentation { LOADING, CONTENT }
+
+/** Queue rows, from the playing one on, whose descriptors the tag pass refreshes in the player. */
+private const val SOON_QUEUED_ROWS = 16

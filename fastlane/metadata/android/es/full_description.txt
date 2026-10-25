@@ -1,0 +1,17 @@
+LatentJam es un reproductor para la música guardada en tu móvil que entiende cómo suena tu biblioteca. Un pequeño modelo neuronal se ejecuta en el propio dispositivo y escucha tus canciones en segundo plano, para que el modo SMART elija la siguiente canción de tu propia colección. No hay cuenta, ni catálogo, ni permiso de red: nada de lo que escuchas sale del teléfono.
+
+<ul>
+<li><b>Cola SMART</b>: la siguiente canción se elige de tu biblioteca por cómo suena, por sus etiquetas y por lo que un paquete compacto sin conexión sabe de 350.000 artistas: su idioma, su época y su estilo. La cola evita los saltos bruscos de energía.</li>
+<li><b>Para ti</b>: filas para este momento del día, para la fase en la que estás, un comodín y un viaje sonoro a través de tu biblioteca.</li>
+<li><b>Una búsqueda que ordena como esperas</b>: primero título, artista, álbum y género; después la letra guardada en tus archivos; y después el significado, en cualquiera de veinte idiomas. Un año o una década en la consulta («años 80», «1985») limita los resultados a esos años.</li>
+<li><b>Un mapa de tu biblioteca</b>: los grupos son tus géneros tal como los oye el modelo.</li>
+<li><b>Un reproductor pensado para el tacto</b>: la portada se gira para mostrar los datos de la canción, una pulsación larga abre las acciones y un deslizamiento cambia de canción; una barra de progreso en vivo con ajuste fino y la línea de la letra bajo el control; al pausar y reanudar, el sonido se funde en lugar de cortarse.</li>
+<li><b>Letra</b>: la letra sincronizada sigue la canción, y al tocar una línea se salta a ese momento.</li>
+<li><b>Todas las etiquetas del archivo</b>: todos los géneros, los artistas acreditados y el año de lanzamiento original, leídos de FLAC, Opus y mp3. Los álbumes se reproducen en orden de disco y pista, y una colaboración aparece en cada artista que menciona.</li>
+<li><b>Un reproductor completo por dentro</b>: listas con importación y exportación M3U y órdenes independientes personalizado y de añadidas recientemente; navegación por álbum, artista, género y carpeta con una barra A–Z, y las carpetas también en forma de árbol; transiciones suaves y normalización de volumen; un buscador de duplicados que te dice qué copia conservar; estadísticas, edición de etiquetas y copia de seguridad local con restauración.</li>
+<li><b>En la pantalla de inicio y en el coche</b>: tres widgets, un acceso en Ajustes rápidos y un árbol de navegación para Android Auto.</li>
+<li><b>Tus páginas, en tu orden</b>: muestra, oculta y reordena las páginas de navegación, y elige con cuál se abre la app.</li>
+<li><b>18 idiomas</b>, entre ellos ruso, rumano, árabe, hebreo, chino, japonés y coreano.</li>
+</ul>
+
+SMART mejora en cuanto una buena parte de tu biblioteca se ha analizado en segundo plano; dejar el móvil cargando por la noche lo acelera.

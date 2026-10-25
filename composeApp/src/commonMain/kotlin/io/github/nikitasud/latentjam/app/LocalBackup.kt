@@ -155,6 +155,10 @@ internal data class LocalBackupSnapshot(
     /** Whether this snapshot speaks for favourites and duplicate decisions at all (v9 on). */
     val carriesFavoritesAndDuplicateDecisions: Boolean
         get() = formatVersion >= FIRST_VERSION_WITH_FAVORITES
+
+    /** v11 on: the look (appearance and page-header style); older files leave it as it is. */
+    val carriesAppearance: Boolean
+        get() = formatVersion >= FIRST_VERSION_WITH_APPEARANCE
 }
 
 /** The format version that brought the favourites ("F") and duplicate decision ("N") records. */
@@ -527,9 +531,9 @@ internal object LocalBackupCodec {
                     val encodedAppearance = record.nextField().decodeField("appearance")
                     if (!encodedAppearance.startsWith(APPEARANCE_PREFIX)) formatError("Unknown appearance")
                     val appearance = decodeAppearance(encodedAppearance)
-                    val persistedStyle = record.nextField()
-                    val style = pageHeaderStyleFromPersisted(persistedStyle)
-                    if (style.persistedValue != persistedStyle) formatError("Unknown page header style")
+                    // Tolerant like the appearance: a header style from a later build falls back to
+                    // the default instead of refusing the whole restore.
+                    val style = pageHeaderStyleFromPersisted(record.nextField())
                     look = appearance to style
                 }
                 "T" -> {
@@ -1277,8 +1281,12 @@ internal class LocalBackupService(
                 settings.setAlbumSort(snapshot.settings.albumSort)
                 settings.setArtistAlbumSort(snapshot.settings.artistAlbumSort)
                 settings.setGroupSortOrders(snapshot.settings.groupSortOrders)
-                settings.setAppearance(snapshot.settings.appearance)
-                settings.setPageHeaderStyle(snapshot.settings.pageHeaderStyle)
+                // A backup from before v11 has no look at all: restoring it must not reset the
+                // look chosen since to the defaults.
+                if (snapshot.carriesAppearance) {
+                    settings.setAppearance(snapshot.settings.appearance)
+                    settings.setPageHeaderStyle(snapshot.settings.pageHeaderStyle)
+                }
                 settings.setPlaylistSortOrders(settings.playlistSortOrders.value.normalized())
                 completed += LocalBackupSection.SETTINGS
             }

@@ -94,21 +94,25 @@ internal val NeutralLightColors: ColorScheme = lightColorScheme(
     onTertiary = Color(0xFFFFFFFF),
     tertiaryContainer = Color(0xFFDDF3F6),
     onTertiaryContainer = Color(0xFF00363E),
-    background = Color(0xFFFAFAFA),
+    // Paper on a desk: the page is a soft cool grey and everything laid on it (cards, sheets,
+    // the queue, the mini player) is white, so it reads as raised without a border or shadow.
+    // Grey cards on a near-white page read the other way round, as dull dents.
+    background = Color(0xFFF1F1F4),
     onBackground = Color(0xFF141414),
-    surface = Color(0xFFFAFAFA),
+    surface = Color(0xFFF1F1F4),
     onSurface = Color(0xFF141414),
-    surfaceVariant = Color(0xFFE4E4E4),
+    surfaceVariant = Color(0xFFE3E3E8),
     // Pastel channels stay >=.656 through cloud overlaps. Even a further 10% black current-row
     // wash keeps >4.5:1 with this ink; neutral cards and ordinary cloud text have more contrast.
     onSurfaceVariant = Color(0xFF2E2E2E),
     surfaceContainerLowest = Color(0xFFFFFFFF),
-    surfaceContainerLow = Color(0xFFF5F5F5),
-    surfaceContainer = Color(0xFFF0F0F0),
-    surfaceContainerHigh = Color(0xFFEFEFEF),
-    surfaceContainerHighest = Color(0xFFE4E4E4),
+    surfaceContainerLow = Color(0xFFFFFFFF),
+    surfaceContainer = Color(0xFFFFFFFF),
+    surfaceContainerHigh = Color(0xFFFFFFFF),
+    // The one container darker than the page: placeholders, tracks and other recessed wells.
+    surfaceContainerHighest = Color(0xFFE6E6EB),
     outline = Color(0xFF8A8A8A),
-    outlineVariant = Color(0xFFCFCFCF),
+    outlineVariant = Color(0xFFDCDCE2),
     inverseSurface = Color(0xFF2A2A2A),
     inverseOnSurface = Color(0xFFF2F2F2),
     inversePrimary = Color(0xFFE6E6E6),

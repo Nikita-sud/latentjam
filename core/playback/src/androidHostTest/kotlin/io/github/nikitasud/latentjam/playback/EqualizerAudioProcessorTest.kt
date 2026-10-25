@@ -214,4 +214,31 @@ internal class EqualizerAudioProcessorTest {
         val plain = read(processor.output)
         assertEquals(steady.take(plain.size), plain)
     }
+
+    @Test fun theFadeSurvivesTheSecondFlushMedia3IssuesOnceTheNewTrackStarts() {
+        val restart = AtomicBoolean(false)
+        val delegate = Proxy.newProxyInstance(AudioSink::class.java.classLoader, arrayOf(AudioSink::class.java)) { _, method, _ ->
+            if (method.name == "flush") null else error("Unexpected delegation to ${method.name}")
+        } as AudioSink
+        val processor = EqualizerAudioProcessor(restart = restart) { SoftwareEqualizerSettings() }
+        processor.configure(AudioProcessor.AudioFormat(48000, 2, C.ENCODING_PCM_16BIT))
+        val steady = List(2400 * 2) { 20000 }
+
+        // DefaultAudioSink.flush() flushes the chain, then initializeAudioOutput's first buffer
+        // flushes it again (setupAudioProcessors) before any PCM arrives.
+        PcmOnlyAudioSink(delegate, restart).flush()
+        processor.flush(StreamMetadata.DEFAULT)
+        processor.flush(StreamMetadata.DEFAULT)
+        processor.queueInput(buffer(steady))
+        val faded = read(processor.output)
+        val fadeFrames = 48000 / 200
+        assertTrue(abs(faded[0]) < 200, "starts from near silence")
+        assertTrue((1 until fadeFrames).all { faded[2 * it] >= faded[2 * (it - 1)] }, "rises monotonically")
+
+        // Once PCM has played, a later internal flush is bit-exact again.
+        processor.flush(StreamMetadata.DEFAULT)
+        processor.queueInput(buffer(steady))
+        val plain = read(processor.output)
+        assertEquals(steady.take(plain.size), plain)
+    }
 }

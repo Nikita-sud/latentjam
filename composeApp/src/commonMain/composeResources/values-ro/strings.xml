@@ -256,6 +256,12 @@
         <item quantity="few">%1$d playlisturi</item>
         <item quantity="other">%1$d de playlisturi</item>
     </plurals>
+    <plurals name="m3u_import_skipped_files">
+        <item quantity="one">%1$d fișier omis</item>
+        <item quantity="few">%1$d fișiere omise</item>
+        <item quantity="other">%1$d de fișiere omise</item>
+    </plurals>
+    <string name="m3u_import_playlists_partial">Playlisturi create: %1$d din %2$d. Restul nu au putut fi salvate.</string>
     <plurals name="playlist_new_count">
         <item quantity="one">%1$d playlist nou</item>
         <item quantity="few">%1$d playlisturi noi</item>
@@ -801,7 +807,11 @@
         <item quantity="few">≈ %1$d zile de muzică</item>
         <item quantity="other">≈ %1$d de zile de muzică</item>
     </plurals>
-    <string name="stats_activity_months">Ultimele 12 luni · timp de audiție</string>
+    <plurals name="stats_activity_last_months">
+        <item quantity="one">Ultima %1$d lună · timp de audiție</item>
+        <item quantity="few">Ultimele %1$d luni · timp de audiție</item>
+        <item quantity="other">Ultimele %1$d de luni · timp de audiție</item>
+    </plurals>
     <string name="stats_activity_years">Pe ani · timp de audiție</string>
     <string name="stats_activity_over_time">Audițiile tale în timp</string>
     <string name="stats_this_month">Luna aceasta</string>

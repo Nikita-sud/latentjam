@@ -1,0 +1,17 @@
+LatentJam, telefonundaki müzik dosyaları için yapılmış ve kitaplığının nasıl tınladığını anlayan bir müzik çalardır. Küçük bir sinir ağı modeli doğrudan cihazda çalışır ve parçalarını arka planda dinler; böylece SMART modu sıradaki şarkıyı kendi koleksiyonundan seçebilir. Hesap yok, katalog yok, ağ izni yok: dinlediklerine dair hiçbir şey telefondan çıkmaz.
+
+<ul>
+<li><b>SMART kuyruk</b>: sıradaki parça kitaplığından sesine, etiketlerine ve kompakt bir çevrimdışı paketin 350.000 sanatçı hakkında bildiklerine — dillerine, dönemlerine ve tarzlarına — göre seçilir. Kuyruk, enerjideki büyük sıçramalardan kaçınır.</li>
+<li><b>Sana özel</b>: günün bu saatine ve içinde bulunduğun döneme göre satırlar, bir joker ve kitaplığın içinden geçen bir ses yolculuğu.</li>
+<li><b>Beklediğin gibi sıralayan arama</b>: önce başlık, sanatçı, albüm ve tür, ardından dosyalarındaki şarkı sözleri, sonra da anlam; yirmi dilin herhangi birinde. Aramaya yazılan bir yıl ya da on yıl ("80'ler", "1985") sonuçları o yıllarla sınırlar.</li>
+<li><b>Kitaplığının haritası</b>: kümeler, modelin duyduğu hâliyle senin türlerindir.</li>
+<li><b>Dokunmatik için tasarlanmış bir çalar</b>: kapak çevrilince parçanın bilgilerini gösterir, basılı tutunca işlemleri açar, kaydırınca parçalar arasında geçiş yapar; ince ayarlı canlı bir ilerleme çubuğu ve tutamacın altında şarkı sözü satırı; duraklatma ve devam ettirme, sesi aniden kesmek yerine yumuşakça geçiş yapar.</li>
+<li><b>Şarkı sözleri</b>: zamanlı sözler şarkıyı takip eder; bir satıra dokunmak o ana atlar.</li>
+<li><b>Dosyadaki her etiket</b>: tüm türler, adı geçen sanatçılar ve orijinal yayın yılı; FLAC, Opus ve mp3 dosyalarından okunur. Albümler disk ve parça sırasıyla çalınır, bir iş birliği de adı geçen her sanatçının altında listelenir.</li>
+<li><b>Altında gerçek bir çalar</b>: M3U içe ve dışa aktarma, birbirinden bağımsız özel sıralama ve son eklenenler sıralamasıyla çalma listeleri; A–Z çubuğuyla albüm, sanatçı, tür ve klasöre göre gezinme, klasörler ayrıca ağaç görünümünde; yumuşak geçişler ve ses normalleştirme; hangi kopyanın saklanacağını söyleyen bir kopya bulucu; istatistikler, etiket düzenleme, yerel yedekleme ve geri yükleme.</li>
+<li><b>Ana ekranda ve arabada</b>: üç widget, bir Hızlı Ayarlar kutucuğu ve Android Auto için bir göz atma ağacı.</li>
+<li><b>Senin sayfaların, senin sıran</b>: gezinme sayfalarını göster, gizle ve yeniden sırala; uygulamanın hangisiyle açılacağını seç.</li>
+<li><b>18 dil</b>; aralarında Rusça, Rumence, Arapça, İbranice, Çince, Japonca ve Korece var.</li>
+</ul>
+
+SMART, kitaplığının önemli bir kısmı arka planda analiz edildikten sonra iyileşir; telefonu gece boyunca şarjda bırakmak bu süreci hızlandırır.

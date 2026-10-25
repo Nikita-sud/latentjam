@@ -25,6 +25,8 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 
 /** Owns map effects and cache lifetime independently of the player shell. */
 @Composable
@@ -51,6 +53,8 @@ internal fun rememberMapPageModel(
         libraryWorlds.worldLibraryIds,
         libraryWorlds.builtWorldsKey,
         libraryWorlds.memoryLimited,
+        libraryWorlds.audioVectorsReady,
+        libraryWorlds.discoveryFailed,
         mapPageActive,
         historyRevision,
         discoveryMixLabel,
@@ -108,7 +112,9 @@ internal fun rememberMapPageModel(
         }
         if (regions.isEmpty()) {
             mapPage.mapRegions = emptyList()
-            mapPage.mapState = MapPageState.Indexing
+            // A discovery that failed will not report on this library by itself; waiting for it
+            // left the Map saying "still reading" for good (issue: endless Map indexing).
+            mapPage.mapState = if (libraryWorlds.discoveryFailed) MapPageState.Unavailable else MapPageState.Indexing
             return@LaunchedEffect
         }
 
@@ -136,23 +142,35 @@ internal fun rememberMapPageModel(
                         }
                         // Streamed: rows are read from the engine per chunk, so the fused
                         // n x dim input (54 MB at 10,000) is never held, and budgeted without it.
+                        // Measured once, before the rows allocate their chunk buffer: the budget
+                        // already counts that chunk, so a second reading after it exists would
+                        // charge it twice.
                         val streamedBytes = MapMemoryBudget.projectionStreamedBytes(
                             coverage.size, 1344, LibraryLayout.experimentalBackend,
                         )
-                        if (!mapWorkFits(streamedBytes)) {
+                        val workBudget = mapWorkBytes(streamedBytes)
+                        if (workBudget < streamedBytes) {
                             throw MapComputationUnavailable("Insufficient memory for map projection", memoryLimited = true)
                         }
                         val rows = engine.libraryMixRows(loadedIds)
-                        val computed = if (rows == null || rows.fingerprint != coverage.fingerprint) {
+                        // Vectors analysed since `coverage` was taken do not discard the run: the
+                        // effect is not keyed on them, so nothing would retry it before the analysis
+                        // ends. The layout is filed under `coverage.fingerprint`, which then no longer
+                        // matches, so the next visit redraws it from the newer vectors.
+                        val computed = if (
+                            rows == null ||
+                            rows.trackIds != coverage.trackIds ||
+                            rows.source != coverage.source
+                        ) {
                             null
                         } else {
                             LibraryLayout.compute(
                                 rows, previous.positions, isActive = { isActive },
-                                workBudgetBytes = availableMapWorkBytes(),
+                                workBudgetBytes = workBudget,
                             )
                         }
                         if (computed == null) {
-                            null // Index changed while waiting or reading; the new discovery run will retry.
+                            null // The population changed; a library change or the end of the analysis re-runs this.
                         } else {
                             kotlinx.coroutines.currentCoroutineContext().ensureActive()
                             layoutStore.saveMapLayoutBestEffort(computed, coverage.fingerprint)
@@ -162,6 +180,10 @@ internal fun rememberMapPageModel(
                             )
                         }
                     },
+                    // Only while the analysis runs, and only for the same kind of vectors: once it
+                    // ends (this effect re-runs on that) the Map is drawn from the final vectors.
+                    reuseRecentFor = if (libraryWorlds.audioVectorsReady) Duration.ZERO else MAP_LAYOUT_REUSE,
+                    source = coverage.source,
                 ) ?: return@withLock null
                 mapPageCache.page(
                     layout = layout,
@@ -179,6 +201,8 @@ internal fun rememberMapPageModel(
             null
         } catch (failure: Throwable) {
             println("Map: could not assemble the current page: $failure")
+            // A warm page keeps showing; a first build says it failed rather than "still reading".
+            if (stableStateBeforeBuild !is MapPageState.Ready) mapPage.mapState = MapPageState.Unavailable
             null
         }
 
@@ -208,3 +232,6 @@ internal fun rememberMapPageModel(
     }
     return mapPage
 }
+
+/** How long a layout computed while an analysis runs is shown again before the Map recomputes it. */
+private val MAP_LAYOUT_REUSE = 5.minutes

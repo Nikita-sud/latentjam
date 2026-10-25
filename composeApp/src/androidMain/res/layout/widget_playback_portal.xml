@@ -88,6 +88,7 @@
 
             <ImageButton
                 android:id="@+id/widget_previous"
+                android:stateListAnimator="@animator/widget_press"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:background="@drawable/widget_icon_button"
@@ -97,6 +98,7 @@
 
             <ImageButton
                 android:id="@+id/widget_play_pause"
+                android:stateListAnimator="@animator/widget_press"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:background="@drawable/widget_play_button"
@@ -106,6 +108,7 @@
 
             <ImageButton
                 android:id="@+id/widget_next"
+                android:stateListAnimator="@animator/widget_press"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:background="@drawable/widget_icon_button"

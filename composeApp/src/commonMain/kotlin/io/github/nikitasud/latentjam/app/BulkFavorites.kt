@@ -39,6 +39,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.action_add_favorite
 import io.github.nikitasud.latentjam.app.generated.resources.action_undo
 import io.github.nikitasud.latentjam.app.generated.resources.m3u_import_found
 import io.github.nikitasud.latentjam.app.generated.resources.m3u_import_playlists
+import io.github.nikitasud.latentjam.app.generated.resources.m3u_import_skipped_files
 import io.github.nikitasud.latentjam.app.generated.resources.playlist_imported_name
 import io.github.nikitasud.latentjam.app.generated.resources.playlist_new
 import io.github.nikitasud.latentjam.app.generated.resources.playlist_new_count
@@ -99,6 +100,12 @@ internal suspend fun Favorites.applyBulk(
 internal suspend fun Favorites.undoBulk(change: FavoritesChange): Boolean =
     change.changed && replaceIfUnchanged(expected = change.after, replacement = change.before)
 
+/** How many of the distinct [ids] were already among the favorites ([before]) when hearted again. */
+internal fun alreadyFavoriteCount(ids: List<TrackId>, before: List<TrackId>): Int {
+    val hearted = before.toSet()
+    return ids.distinct().count { it in hearted }
+}
+
 /**
  * A bulk heart edit with its feedback: the write, a snackbar saying how many tracks it changed,
  * and Undo for an edit that changed anything. [onPublished] gets every list the store settles on —
@@ -107,12 +114,6 @@ internal suspend fun Favorites.undoBulk(change: FavoritesChange): Boolean =
  *
  * @return false when the write failed; the hearts are then exactly as they were.
  */
-/** How many of the distinct [ids] were already among the favorites ([before]) when hearted again. */
-internal fun alreadyFavoriteCount(ids: List<TrackId>, before: List<TrackId>): Int {
-    val hearted = before.toSet()
-    return ids.distinct().count { it in hearted }
-}
-
 internal suspend fun runBulkFavoriteEdit(
     favorites: Favorites,
     action: SelectionFavoriteAction,
@@ -205,6 +206,8 @@ internal fun List<AutoPlaylist>.favoriteTracks(): List<TrackDescriptor> =
 internal class M3uImportOffer(
     /** The files read and matched against the library (see [importM3u]), in the order picked. */
     val imports: List<M3uImport>,
+    /** Picked files left out: unreadable, not text, past the selection's size bound, or without rows. */
+    val skippedFiles: Int = 0,
 ) {
     constructor(import: M3uImport) : this(listOf(import))
 
@@ -280,13 +283,20 @@ internal fun M3uImportTargetSheet(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(horizontal = 24.dp),
             )
+            val found = pluralStringResource(
+                Res.plurals.m3u_import_found,
+                offer.entryCount,
+                offer.matchedEntryCount,
+                offer.entryCount,
+            )
             Text(
-                text = pluralStringResource(
-                    Res.plurals.m3u_import_found,
-                    offer.entryCount,
-                    offer.matchedEntryCount,
-                    offer.entryCount,
-                ),
+                // Files left out of a multi-select are said here, before anything is written.
+                text = if (offer.skippedFiles > 0) {
+                    found + " · " +
+                        pluralStringResource(Res.plurals.m3u_import_skipped_files, offer.skippedFiles, offer.skippedFiles)
+                } else {
+                    found
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 4.dp, bottom = 12.dp),

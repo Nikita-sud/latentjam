@@ -8,6 +8,7 @@ import android.content.Context
 import io.github.nikitasud.latentjam.library.AlbumSort
 import io.github.nikitasud.latentjam.library.SongSort
 import io.github.nikitasud.latentjam.playback.sanitizeCrossfadeSeconds
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,6 +26,21 @@ internal const val APP_APPEARANCE_KEY = "appearance_v1"
 internal class AndroidAppSettings(context: Context) : AppSettings {
 
     private val preferences = context.getSharedPreferences(APP_SETTINGS_FILE, Context.MODE_PRIVATE)
+
+    /**
+     * Payloads with a line per song live in files of their own. In SharedPreferences a 10,000-song
+     * genre cache was a 1.2 MB string held for the life of the process, and every unrelated
+     * setting's apply() serialized it into the XML again on the shared writer thread.
+     */
+    private val trackGenres = payloadFile("track_genres_v1.txt", KEY_TRACK_GENRES, context)
+    private val trackLoudness = payloadFile("track_loudness_v1.txt", KEY_TRACK_LOUDNESS, context)
+
+    private fun payloadFile(name: String, legacyKey: String, context: Context) = PayloadFile(
+        file = File(context.filesDir, name),
+        readLegacy = { if (preferences.contains(legacyKey)) readString(legacyKey) else null },
+        removeLegacy = { preferences.edit().remove(legacyKey).apply() },
+    )
+
     private val mutableTheme = MutableStateFlow(readTheme())
     override val themeMode: StateFlow<ThemeMode> = mutableTheme.asStateFlow()
     private val mutablePageLayout = MutableStateFlow(pageLayoutFromPersisted(readString(KEY_PAGE_LAYOUT)))
@@ -227,16 +243,23 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         mutablePlaylistSortOrders.value = orders
     }
 
-    override fun readTrackLoudnessPayload(): String? = readString(KEY_TRACK_LOUDNESS)
+    override fun readTrackLoudnessPayload(): String? = trackLoudness.readText()
 
-    override fun writeTrackLoudnessPayload(payload: String) {
-        preferences.edit().putString(KEY_TRACK_LOUDNESS, payload).apply()
-    }
+    override fun writeTrackLoudnessPayload(payload: String) = trackLoudness.write { it.write(payload) }
 
-    override fun readTrackGenresPayload(): String? = readString(KEY_TRACK_GENRES)
+    override fun readTrackGenresPayload(): String? = trackGenres.readText()
 
-    override fun writeTrackGenresPayload(payload: String) {
-        preferences.edit().putString(KEY_TRACK_GENRES, payload).apply()
+    override fun writeTrackGenresPayload(payload: String) = trackGenres.write { it.write(payload) }
+
+    override fun <T> readTrackGenreLines(read: (Sequence<String>) -> T): T? = trackGenres.readLines(read)
+
+    override fun writeTrackGenreLines(write: ((String) -> Unit) -> Unit) = trackGenres.write { writer ->
+        var first = true
+        write { line ->
+            if (!first) writer.write("\n")
+            first = false
+            writer.write(line)
+        }
     }
 
     override fun readAudioCarryOversPayload(): String? = readString(KEY_AUDIO_CARRY_OVERS)

@@ -6,6 +6,13 @@ package io.github.nikitasud.latentjam.app
 
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.testTag
+import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_progress_eta
+import kotlinx.coroutines.delay
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_retry
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_analysis_progress
+import io.github.nikitasud.latentjam.smart.EngineState
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.runtime.collectAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -254,10 +261,16 @@ fun MapTab(
     onOpenRegion: (Int) -> Unit,
     onSmartFromRegion: (Int) -> Unit,
     onOpenTrack: (TrackId) -> Unit,
+    /** Restarts a library analysis that stopped, as Settings → SMART engine does. */
+    onRetryIndexing: () -> Unit = {},
 ) {
     val page = (state as? MapPageState.Ready)?.page
     if (page == null || page.dots.isEmpty()) {
         Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+            if (state == MapPageState.Indexing) {
+                MapIndexingStatus(onRetryIndexing)
+                return@Box
+            }
             val message = when (state) {
                 is MapPageState.Building -> stringResource(Res.string.map_empty_building)
                 is MapPageState.TooLarge -> stringResource(
@@ -278,11 +291,21 @@ fun MapTab(
                 is MapPageState.Ready -> null
             }
             if (message != null) {
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                    // Seconds, tens of them on a large library, with no fraction to report:
+                    // a running bar rather than a spinner says this one takes a while.
+                    if (state is MapPageState.Building) {
+                        AfterAMoment {
+                            AppLinearProgress(modifier = Modifier.padding(top = 16.dp).width(MAP_PROGRESS_WIDTH))
+                        }
+                    }
+                }
             }
         }
         return
@@ -532,7 +555,7 @@ fun MapTab(
                             transform(centroid, pan, gestureZoom)
                         }
                     } else {
-                        detectMapTransformGestures(transform)
+                        detectMapTransformGestures(onTransform = transform)
                     }
                 }
 
@@ -1099,7 +1122,8 @@ internal fun regionAccessibilityActions(
  * scheme (215 vs 207) and within 17 on the dark one (41 vs 58) — close enough that "barely played"
  * and "never played" are indistinguishable greys on the one lens whose entire job is to separate
  * them. Raising the floor to 0.40 widens that gap to roughly 40 and 34 respectively, which is
- * plainly visible on both schemes; 1.0 (full ink) is unaffected.
+ * plainly visible on both schemes; 1.0 (full ink) is unaffected. (The light scheme has since moved
+ * to a 0xF1F1F4 floor with a 0xDCDCE2 `outlineVariant`, which only widens the light gap.)
  */
 private const val RAMP_FLOOR_ALPHA = 0.40f
 
@@ -1598,3 +1622,98 @@ internal fun nearest(
     }
     return best.takeIf { bestDistance < hitRadiusPx * hitRadiusPx }
 }
+
+/**
+ * What the Map can truthfully say while it waits for the library's analysis. "Still reading" was
+ * shown whatever the analysis was doing, so a pass that had stopped, or an engine that never
+ * started, left the Map promising a map that would never come.
+ */
+internal sealed interface MapIndexingHelp {
+    /** The analysis is running: how far it has got. */
+    data class Progress(val done: Int, val total: Int, val etaMinutes: Int? = null) : MapIndexingHelp
+
+    /** Nothing will happen by itself: the engine failed, or the pass stopped before finishing. */
+    data class Stopped(val engine: EngineState) : MapIndexingHelp
+
+    /** Starting up, or between phases: the plain "still reading" message. */
+    data object Waiting : MapIndexingHelp
+}
+
+internal fun mapIndexingHelp(indexing: AutomaticIndexingState, engine: EngineState): MapIndexingHelp = when {
+    engine is EngineState.Failed -> MapIndexingHelp.Stopped(engine)
+    indexing.running && indexing.progressKnown && indexing.trackIds.isNotEmpty() ->
+        MapIndexingHelp.Progress(
+            indexing.done.coerceAtMost(indexing.trackIds.size),
+            indexing.trackIds.size,
+            indexing.etaMinutes,
+        )
+    // A pass for this library ran and ended without even the metadata phase: it was interrupted.
+    !indexing.running && indexing.trackIds.isNotEmpty() && !indexing.metadataReady ->
+        MapIndexingHelp.Stopped(engine)
+    else -> MapIndexingHelp.Waiting
+}
+
+@Composable
+private fun MapIndexingStatus(onRetry: () -> Unit) {
+    val indexing by AppGraph.automaticIndexing.collectAsState()
+    val engineState by AppGraph.engine.state.collectAsState()
+    val help = mapIndexingHelp(indexing, engineState)
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = when (help) {
+                is MapIndexingHelp.Stopped -> if (help.engine is EngineState.Failed) {
+                    describeEngineState(help.engine)
+                } else {
+                    stringResource(Res.string.map_unavailable)
+                }
+                else -> stringResource(Res.string.map_empty_indexing)
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        when (help) {
+            // Minutes to hours: a bar that fills, with the count and, once known, the time left.
+            is MapIndexingHelp.Progress -> {
+                AppLinearProgress(
+                    progress = { if (help.total == 0) 0f else help.done.toFloat() / help.total },
+                    modifier = Modifier.padding(top = 16.dp).width(MAP_PROGRESS_WIDTH),
+                )
+                Text(
+                    text = if (help.etaMinutes == null) {
+                        stringResource(Res.string.intelligence_analysis_progress, help.done, help.total)
+                    } else {
+                        stringResource(Res.string.indexing_notification_progress_eta, help.done, help.total, help.etaMinutes)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+            is MapIndexingHelp.Stopped -> OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 16.dp)) {
+                Text(stringResource(Res.string.intelligence_retry))
+            }
+            // Usually seconds with no measure to show: a spinner, and only once the wait is
+            // long enough to notice, so a quick start does not flash one.
+            MapIndexingHelp.Waiting -> AfterAMoment {
+                AppSpinner(modifier = Modifier.padding(top = 16.dp).size(24.dp), strokeWidth = 2.5.dp)
+            }
+        }
+    }
+}
+
+/** Shows [content] only once it has been wanted for [SHOW_PROGRESS_AFTER_MS]. */
+@Composable
+private fun AfterAMoment(content: @Composable () -> Unit) {
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(SHOW_PROGRESS_AFTER_MS)
+        shown = true
+    }
+    if (shown) content()
+}
+
+/** Below about a second a progress indicator only flickers; past it, it says work is going on. */
+private const val SHOW_PROGRESS_AFTER_MS = 1_000L
+
+private val MAP_PROGRESS_WIDTH = 240.dp

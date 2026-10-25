@@ -167,6 +167,7 @@ private fun PlaybackStart.toListenStartSignal() = ListenStartSignal(
         StartCause.SKIP_NEXT -> ListenStart.SKIP_NEXT
         StartCause.SKIP_PREVIOUS -> ListenStart.SKIP_PREVIOUS
         StartCause.REPEAT -> ListenStart.REPEAT
+        StartCause.QUEUED -> ListenStart.QUEUED
         null -> null
     },
 )

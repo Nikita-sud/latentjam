@@ -32,6 +32,9 @@ internal actual suspend fun readEmbeddedFacts(track: TrackDescriptor): EmbeddedT
         }
     }
 
+/** Every iOS cover is the file's own; no locator here falls back to an album's. */
+internal actual fun ownCoverOnly(artworkUri: String): String = artworkUri
+
 @OptIn(ExperimentalForeignApi::class)
 private fun readGenresFromFile(track: TrackDescriptor): EmbeddedTagFacts? {
     val url = track.audioUri?.takeIf(String::isNotBlank)?.let(NSURL::URLWithString) ?: return null

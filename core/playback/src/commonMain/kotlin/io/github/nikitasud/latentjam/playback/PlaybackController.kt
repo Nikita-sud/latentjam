@@ -41,6 +41,12 @@ public enum class StartCause {
 
     /** Repeat-one played the same track again. */
     REPEAT,
+
+    /**
+     * The previous track ended and playback moved on to a track the listener queued by hand: Play
+     * next, Add to queue, or a row moved closer to the playhead.
+     */
+    QUEUED,
 }
 
 /**
@@ -215,6 +221,13 @@ public interface PlaybackController {
      * an app-level gain stage keep the default no-op.
      */
     public suspend fun setCrossfadeSeconds(seconds: Int) {}
+
+    /**
+     * Whether playback stops when the current track ends (the sleep timer's "end of track"). While
+     * it does, the next track's opening must not sound under this one's end: the track fades out on
+     * its own. Platforms without overlapping transitions keep the default no-op.
+     */
+    public suspend fun setFinishingCurrentTrack(finishing: Boolean) {}
 
     /**
      * Replaces the queue with [tracks] and starts playing the one at

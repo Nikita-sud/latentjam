@@ -230,6 +230,10 @@
     <plurals name="m3u_import_playlists">
         <item quantity="other">플레이리스트 %1$d개</item>
     </plurals>
+    <plurals name="m3u_import_skipped_files">
+        <item quantity="other">파일 %1$d개를 건너뛰었습니다</item>
+    </plurals>
+    <string name="m3u_import_playlists_partial">만든 플레이리스트: %2$d개 중 %1$d개. 나머지는 저장하지 못했습니다.</string>
     <plurals name="playlist_new_count">
         <item quantity="other">새 플레이리스트 %1$d개</item>
     </plurals>
@@ -727,13 +731,15 @@
     <string name="stats_on_repeat">요즘 반복해서 듣는 곡</string>
     <string name="stats_artists_on_repeat">요즘 반복해서 듣는 아티스트</string>
     <plurals name="stats_on_days">
-        <item quantity="other">%1$d일 동안</item>
+        <item quantity="other">재생한 날 %1$d일</item>
     </plurals>
     <string name="stats_week_days">최근 7일 중 %1$d일</string>
     <plurals name="stats_days_of_music">
         <item quantity="other">약 %1$d일 분량의 음악</item>
     </plurals>
-    <string name="stats_activity_months">최근 12개월 · 감상 시간</string>
+    <plurals name="stats_activity_last_months">
+        <item quantity="other">최근 %1$d개월 · 감상 시간</item>
+    </plurals>
     <string name="stats_activity_years">연도별 · 감상 시간</string>
     <string name="stats_activity_over_time">시간에 따른 나의 감상</string>
     <string name="stats_this_month">이번 달</string>

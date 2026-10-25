@@ -21,6 +21,8 @@ package io.github.nikitasud.latentjam.library.tags
  * - [year]: the file's own (edition) year — Vorbis `DATE`/`YEAR`, ID3 `TDRC`/`TYER`. The system
  *   scanner normally reports it, but Android 16's MediaStore leaves it empty for every MP3, FLAC
  *   and Opus file, so this is the fallback when it does.
+ * - [album]: the album the file itself names (`ALBUM`, ID3 `TALB`). The scanner reports a folder's
+ *   name for a file without one, so only the file can tell a real album from a folder.
  */
 public data class EmbeddedTagFacts(
     public val genres: List<String> = emptyList(),
@@ -32,10 +34,17 @@ public data class EmbeddedTagFacts(
     public val albumArtist: String? = null,
     /** The file's own year (`DATE`/`YEAR`, ID3 `TDRC`/`TYER`); null when absent or unreadable. */
     public val year: Int? = null,
+    /** The album the file names (`ALBUM`, ID3 `TALB`); null when it names none. */
+    public val album: String? = null,
+    /**
+     * False when the tag was read only in part, so a null [album] may be one not reached: the file
+     * must not be taken for one that names no album.
+     */
+    public val albumKnown: Boolean = true,
 ) {
     public val isEmpty: Boolean
         get() = genres.isEmpty() && artists.isEmpty() && originalYear == null && language == null &&
-            albumArtist == null && year == null
+            albumArtist == null && year == null && album == null
 }
 
 public object TagFacts {
@@ -68,6 +77,16 @@ public object TagFacts {
         return fromComments(comments)
     }
 
+    /**
+     * [embedded] over positional reads; an ID3 tag's pictures are never loaded. An MP4 file, which
+     * the one-pass reader has no path for, answers only whether it names an album
+     * ([Mp4AlbumProbe]); null still means "could not read", never "names nothing".
+     */
+    public fun embedded(source: RandomAccessSource): EmbeddedTagFacts? {
+        val comments = GenreTags.embeddedComments(source) ?: return Mp4AlbumProbe.read(source)
+        return fromComments(comments)
+    }
+
     /** Facts from decoded `KEY=value`-style entries (Vorbis comments or mapped ID3 frames). */
     internal fun fromComments(comments: List<Pair<String, String>>): EmbeddedTagFacts {
         val genres = ArrayList<String>()
@@ -77,6 +96,8 @@ public object TagFacts {
         var language: String? = null
         var albumArtist: String? = null
         var year: Int? = null
+        var album: String? = null
+        var complete = true
         for ((rawKey, value) in comments) {
             when (rawKey.uppercase()) {
                 "GENRE" -> genres.add(value)
@@ -88,6 +109,9 @@ public object TagFacts {
                     if (year == null) year = parseYear(value)
                 "ALBUMARTIST", "ALBUM ARTIST", "ALBUM_ARTIST", "TPE2" ->
                     if (albumArtist == null) albumArtist = value.trim().takeIf { it.isNotEmpty() }
+                GenreTags.INCOMPLETE -> complete = false
+                "ALBUM", "TALB" ->
+                    if (album == null) album = value.trim().takeIf { it.isNotEmpty() }
                 "LANGUAGE", "TLAN" ->
                     if (language == null) language = value.trim().takeIf { it.isNotEmpty() && it.length <= MAX_LANGUAGE_CHARS }
             }
@@ -110,6 +134,8 @@ public object TagFacts {
             language = language,
             albumArtist = albumArtist,
             year = year,
+            album = album,
+            albumKnown = complete || album != null,
         )
     }
 

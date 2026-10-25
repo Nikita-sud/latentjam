@@ -663,10 +663,12 @@ private fun FolderLevelActions(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
+        val shufflePress = rememberPressSource()
         FilledTonalIconButton(
             onClick = onShuffle,
             enabled = enabled,
-            modifier = Modifier.size(44.dp),
+            interactionSource = shufflePress,
+            modifier = Modifier.size(44.dp).scaleOnPress(shufflePress, Motion.BUTTON_PRESS_SCALE),
             colors = IconButtonDefaults.filledTonalIconButtonColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                 contentColor = MaterialTheme.colorScheme.onSurface,
@@ -674,18 +676,22 @@ private fun FolderLevelActions(
         ) {
             Icon(Icons.Rounded.Shuffle, stringResource(Res.string.action_shuffle), modifier = Modifier.size(20.dp))
         }
+        val playPress = rememberPressSource()
         FilledIconButton(
             onClick = onPlay,
             enabled = enabled,
-            modifier = Modifier.size(52.dp),
+            interactionSource = playPress,
+            modifier = Modifier.size(52.dp).scaleOnPress(playPress, Motion.BUTTON_PRESS_SCALE),
             colors = playButtonColors(),
         ) {
             Icon(Icons.Rounded.PlayArrow, stringResource(Res.string.action_play), modifier = Modifier.size(24.dp))
         }
+        val smartPress = rememberPressSource()
         FilledTonalIconButton(
             onClick = onStartSmart,
             enabled = enabled,
-            modifier = Modifier.size(44.dp),
+            interactionSource = smartPress,
+            modifier = Modifier.size(44.dp).scaleOnPress(smartPress, Motion.BUTTON_PRESS_SCALE),
             colors = IconButtonDefaults.filledTonalIconButtonColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                 contentColor = MaterialTheme.colorScheme.tertiary,

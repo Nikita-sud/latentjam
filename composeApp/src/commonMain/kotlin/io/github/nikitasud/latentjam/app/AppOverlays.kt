@@ -24,6 +24,22 @@ import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.findRootCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,7 +82,7 @@ internal fun AppModalSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
-        modifier = modifier,
+        modifier = modifier.navigationBarFade(MaterialTheme.colorScheme.surfaceContainerHigh),
         sheetState = sheetState,
         sheetGesturesEnabled = sheetGesturesEnabled,
         shape = SheetShape,
@@ -74,8 +90,10 @@ internal fun AppModalSheet(
         tonalElevation = 0.dp,
         dragHandle = { SheetHandle() },
         contentWindowInsets = contentWindowInsets,
-        content = content,
-    )
+    ) {
+        // A sheet keeps its own content above the bar, whatever page opened it.
+        CompositionLocalProvider(LocalScrollEndInset provides 0.dp) { content() }
+    }
 }
 
 @Composable
@@ -123,3 +141,45 @@ internal fun AppSnackbarHost(hostState: SnackbarHostState, modifier: Modifier = 
         )
     }
 }
+
+/**
+ * Where this element passes under the navigation bar, its content fades into [colour]. A sheet
+ * opened half way leaves its lower rows under the bar; with no system scrim there (the app turns it
+ * off), three buttons sat right on their text. Behind three buttons the rows show through murkily
+ * and the buttons sit on [colour]; the gesture pill needs no protection, so nothing is drawn.
+ */
+@Composable
+internal fun Modifier.navigationBarFade(colour: Color): Modifier {
+    val density = LocalDensity.current
+    val bar = WindowInsets.navigationBars.getBottom(density).toFloat()
+    if (bar < with(density) { THREE_BUTTON_BAR_MIN.toPx() }) return this
+    var top by remember { mutableFloatStateOf(0f) }
+    var windowHeight by remember { mutableFloatStateOf(0f) }
+    return onGloballyPositioned {
+        top = it.positionInRoot().y
+        windowHeight = it.findRootCoordinates().size.height.toFloat()
+    }.drawWithContent {
+        drawContent()
+        val barTop = windowHeight - bar - top
+        if (windowHeight <= 0f || barTop >= size.height) return@drawWithContent
+        drawRect(
+            Brush.verticalGradient(
+                0f to colour.copy(alpha = 0.4f),
+                1f to colour,
+                startY = barTop,
+                endY = barTop + bar,
+            ),
+            topLeft = Offset(0f, barTop),
+            size = Size(size.width, bar),
+        )
+    }
+}
+
+/**
+ * Room a page that runs on under the navigation bar leaves after its last item, so that item can
+ * still be scrolled clear of the bar. Zero where the page already stops above the bar.
+ */
+internal val LocalScrollEndInset = staticCompositionLocalOf { 0.dp }
+
+/** A navigation bar this tall holds three buttons; the gesture pill's is about 24 dp. */
+internal val THREE_BUTTON_BAR_MIN = 32.dp

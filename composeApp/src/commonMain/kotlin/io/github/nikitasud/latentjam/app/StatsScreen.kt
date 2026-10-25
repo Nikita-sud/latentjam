@@ -71,7 +71,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.action_retry
 import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.privacy_history_listens
 import io.github.nikitasud.latentjam.app.generated.resources.stats_activity
-import io.github.nikitasud.latentjam.app.generated.resources.stats_activity_months
+import io.github.nikitasud.latentjam.app.generated.resources.stats_activity_last_months
 import io.github.nikitasud.latentjam.app.generated.resources.stats_activity_over_time
 import io.github.nikitasud.latentjam.app.generated.resources.stats_activity_years
 import io.github.nikitasud.latentjam.app.generated.resources.stats_afternoon
@@ -192,6 +192,7 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -205,12 +206,12 @@ import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
-private enum class StatsPeriod(val days: Int?) { WEEK(7), MONTH(30), ALL(null) }
+internal enum class StatsPeriod(val days: Int?) { WEEK(7), MONTH(30), ALL(null) }
 
 private enum class TopKind { ARTISTS, ALBUMS, GENRES, PLAYLISTS, TRACKS }
 
 /** How the page names and pictures a playlist the log attributes plays to. */
-private class PlaylistLabel(val name: String?, val autoKind: AutoPlaylistKind?, val artworkUri: String?)
+internal class PlaylistLabel(val name: String?, val autoKind: AutoPlaylistKind?, val artworkUri: String?)
 
 /** The listener's playlists as the log can attribute plays to them, with their labels. */
 private suspend fun loadStatsPlaylists(
@@ -257,12 +258,47 @@ private fun PlaylistLabel?.title(): String = when {
 private const val DAY_MS = 24L * 60 * 60 * 1000
 
 /** Section 2: the chips' period. [selection] identifies the chip/source it was computed for. */
-private class PeriodLoad(
+internal class PeriodLoad(
     val selection: Any,
     val overview: ListeningOverview,
     val insights: PeriodInsights,
     val logEmpty: Boolean,
-)
+) {
+    /** The same numbers, shown for this composition's [selection]. */
+    fun shownFor(selection: Any): PeriodLoad = PeriodLoad(selection, overview, insights, logEmpty)
+}
+
+/**
+ * What the Statistics page last computed, kept above the page. The root pager composes only the
+ * page on screen, so the page is disposed whenever it is swiped away; without this every return
+ * read and summarised the whole log again behind a progress bar. A result is reused only for the
+ * inputs it was computed from, so new listens, a new day, a retry, edited playlists or edited
+ * favourites still recompute it. One memory serves one library: whoever keeps it starts a new one
+ * when the library changes, so it never holds a superseded library alive. It keeps results and
+ * labels, never the library's descriptors. Main-thread only, like the page itself.
+ */
+internal class StatsMemory {
+    /**
+     * Playlists and favourites compare by identity: each edit publishes a new list. A retry needs no
+     * place here: only successful results are kept.
+     */
+    class Inputs(
+        val historyRevision: Long,
+        val localDay: Long,
+        val playlists: Any?,
+        val favorites: Any?,
+    ) {
+        override fun equals(other: Any?): Boolean = other is Inputs &&
+            historyRevision == other.historyRevision && localDay == other.localDay &&
+            playlists === other.playlists && favorites === other.favorites
+
+        override fun hashCode(): Int = historyRevision.hashCode() * 31 + localDay.hashCode()
+    }
+
+    val periods = HashMap<StatsPeriod, Pair<Inputs, PeriodLoad>>()
+    var habits: Pair<Inputs, HabitInsights>? = null
+    var playlistLabels: Map<String, PlaylistLabel> = emptyMap()
+}
 
 /** A shared dashboard for Settings and the optional root page; never reads playback ticks. */
 @Composable
@@ -272,7 +308,19 @@ internal fun ListeningStatsSettings(
     contentPadding: PaddingValues = PaddingValues(bottom = 24.dp),
     active: Boolean = true,
     accent: TrackAccent? = null,
+    /**
+     * Results that outlive this composition, for [tracks] only; the root page passes one kept above
+     * the pager.
+     */
+    memory: StatsMemory? = null,
+    /** The playlists as published: a rename or a new playlist recomputes what names them. */
+    playlistsKey: Any? = null,
+    /** The favourites as published: the Favorites playlist's plays follow its membership. */
+    favoritesKey: Any? = null,
+    /** [tracks] by id when the caller already holds that map, so returning rows are never blank. */
+    knownTracksById: Map<TrackId, TrackDescriptor>? = null,
 ) {
+    val memo = memory ?: remember(tracks) { StatsMemory() }
     val accentInk = accent?.let { browseAccentInk(it) } ?: MaterialTheme.colorScheme.primary
     var periodName by rememberSaveable { mutableStateOf(StatsPeriod.MONTH.name) }
     val period = StatsPeriod.entries.firstOrNull { it.name == periodName } ?: StatsPeriod.MONTH
@@ -282,21 +330,23 @@ internal fun ListeningStatsSettings(
     val snapshots = remember(history, scope) { StatsSnapshots(scope, readEvents = history::allEvents) }
     // Shared reads run under their own supervisor, so a failure cannot cancel the screen's scope.
     val supervisor = remember(scope) { SupervisorJob(scope.coroutineContext[Job]) }
-    val catalog = remember(tracks, scope) {
-        scope.async(supervisor + Dispatchers.Default, start = CoroutineStart.LAZY) { tracks.associateBy { it.id } }
+    // The caller's own map when it has one: a second map of the whole library is a cost of its own.
+    val catalog: Deferred<Map<TrackId, TrackDescriptor>> = remember(tracks, scope, knownTracksById) {
+        knownTracksById?.let { CompletableDeferred(it) }
+            ?: scope.async(supervisor + Dispatchers.Default, start = CoroutineStart.LAZY) { tracks.associateBy { it.id } }
     }
     var retryRevision by remember { mutableIntStateOf(0) }
     // Both sections attribute plays to the same playlists: read them once per revision, off the main
-    // thread, and again whenever the page is shown (names may have changed meanwhile).
-    val playlistsLoad = remember(scope, historyRevision, tracks, retryRevision, active) {
+    // thread, and again whenever the caller publishes its playlists or favourites anew. Null when
+    // the read failed.
+    val playlistsLoad = remember(scope, historyRevision, tracks, retryRevision, playlistsKey, favoritesKey) {
         scope.async(supervisor + Dispatchers.Default, start = CoroutineStart.LAZY) {
             try {
                 loadStatsPlaylists(catalog.await())
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Throwable) {
-                // Playlists only refine the lists; without them the page still tells the truth.
-                emptyList<StatsPlaylist>() to emptyMap()
+                null
             }
         }
     }
@@ -308,27 +358,56 @@ internal fun ListeningStatsSettings(
         }
     }
     val selection = remember(history, period, tracks) { Any() }
-    var periodLoad by remember { mutableStateOf<PeriodLoad?>(null) }
-    var habitsLoad by remember { mutableStateOf<HabitInsights?>(null) }
+    // A return to the page shows what it last showed at once; the effects below refresh it only
+    // when what it was computed from has changed.
+    var periodLoad by remember { mutableStateOf(memo.periods[period]?.second?.shownFor(selection)) }
+    var habitsLoad by remember { mutableStateOf(memo.habits?.second) }
     var periodFailed by remember { mutableStateOf(false) }
     var habitsFailed by remember { mutableStateOf(false) }
     // Built once off the main thread; rows read it after the first load.
-    var tracksById by remember(tracks) { mutableStateOf<Map<TrackId, TrackDescriptor>>(emptyMap()) }
-    var playlistLabels by remember { mutableStateOf<Map<String, PlaylistLabel>>(emptyMap()) }
+    var tracksById by remember(tracks) { mutableStateOf(knownTracksById ?: emptyMap()) }
+    var playlistLabels by remember { mutableStateOf(memo.playlistLabels) }
+    fun inputs() = StatsMemory.Inputs(historyRevision, localDay, playlistsKey, favoritesKey)
+    fun keep(catalogMap: Map<TrackId, TrackDescriptor>, labels: Map<String, PlaylistLabel>, read: Boolean) {
+        tracksById = catalogMap
+        playlistLabels = labels
+        if (read) memo.playlistLabels = labels
+    }
+
+    /** Rows of a kept result need the tracks; a map that cannot be built fails like a load. */
+    suspend fun ensureTracks(): Boolean {
+        if (tracksById.isNotEmpty()) return true
+        return try {
+            tracksById = catalog.await()
+            true
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            false
+        }
+    }
 
     LaunchedEffect(active) {
         if (!active) snapshots.cancelInFlight()
     }
     // Section 2 follows the chips. New listens refresh it in place; a chip change keeps the old
     // cards dimmed until the new period is ready, so neither the layout nor the scroll jumps.
-    LaunchedEffect(selection, historyRevision, retryRevision, active, localDay) {
+    LaunchedEffect(selection, historyRevision, retryRevision, active, localDay, playlistsKey, favoritesKey) {
         if (!active) return@LaunchedEffect
+        val inputs = inputs()
+        memo.periods[period]?.takeIf { it.first == inputs }?.let { (_, kept) ->
+            periodLoad = kept.shownFor(selection)
+            periodFailed = !ensureTracks()
+            return@LaunchedEffect
+        }
         try {
             val normalized = snapshots.await(historyRevision, retryRevision)
             val catalogMap = catalog.await()
-            tracksById = catalogMap
-            val (statsPlaylists, labels) = playlistsLoad.await()
-            playlistLabels = labels
+            // Playlists only refine the lists; without them the page still tells the truth, but such
+            // a result is not kept, so the next visit reads the playlists again.
+            val playlists = playlistsLoad.await()
+            val (statsPlaylists, labels) = playlists ?: (emptyList<StatsPlaylist>() to emptyMap())
+            keep(catalogMap, labels, read = playlists != null)
             val loadContext = currentCoroutineContext()
             val now = epochMillis()
             periodLoad = withContext(Dispatchers.Default) {
@@ -359,7 +438,7 @@ internal fun ListeningStatsSettings(
                     ),
                     logEmpty = normalized.size == 0,
                 )
-            }
+            }.also { if (playlists != null) memo.periods[period] = inputs to it }
             periodFailed = false
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -368,14 +447,22 @@ internal fun ListeningStatsSettings(
         }
     }
     // Sections 1 and 3 describe the whole log as of today; the chips never touch them.
-    LaunchedEffect(historyRevision, tracks, active, localDay, retryRevision) {
+    LaunchedEffect(historyRevision, tracks, active, localDay, retryRevision, playlistsKey, favoritesKey) {
         if (!active) return@LaunchedEffect
+        val inputs = inputs()
+        memo.habits?.takeIf { it.first == inputs }?.let { (_, kept) ->
+            habitsLoad = kept
+            habitsFailed = !ensureTracks()
+            return@LaunchedEffect
+        }
         try {
             val normalized = snapshots.await(historyRevision, retryRevision)
             val catalogMap = catalog.await()
-            tracksById = catalogMap
-            val (statsPlaylists, labels) = playlistsLoad.await()
-            playlistLabels = labels
+            // Playlists only refine the lists; without them the page still tells the truth, but such
+            // a result is not kept, so the next visit reads the playlists again.
+            val playlists = playlistsLoad.await()
+            val (statsPlaylists, labels) = playlists ?: (emptyList<StatsPlaylist>() to emptyMap())
+            keep(catalogMap, labels, read = playlists != null)
             val loadContext = currentCoroutineContext()
             habitsLoad = withContext(Dispatchers.Default) {
                 ListeningInsights.habits(
@@ -386,7 +473,7 @@ internal fun ListeningStatsSettings(
                     cancellationCheck = { loadContext.ensureActive() },
                     playlists = statsPlaylists,
                 )
-            }
+            }.also { if (playlists != null) memo.habits = inputs to it }
             habitsFailed = false
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -694,9 +781,7 @@ private fun ListeningHero(overview: ListeningOverview, insights: PeriodInsights,
         Text(
             text = (stringResource(Res.string.stats_time_listened) + " · " +
                 stringResource(period.titleRes())).uppercaseForDisplay(),
-            style = MaterialTheme.typography.labelSmall.copy(
-                letterSpacing = 0.5.sp,
-            ),
+            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.5.sp),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
@@ -788,7 +873,16 @@ private fun ActivityCard(overview: ListeningOverview, insights: PeriodInsights, 
                 val months = insights.activityScale == ActivityScale.MONTH
                 StatsTitle(stringResource(Res.string.stats_activity_over_time))
                 StatsNote(
-                    stringResource(if (months) Res.string.stats_activity_months else Res.string.stats_activity_years),
+                    // A log under a year old shows fewer than twelve months: say how many it shows.
+                    if (months) {
+                        pluralStringResource(
+                            Res.plurals.stats_activity_last_months,
+                            insights.activity.size,
+                            insights.activity.size,
+                        )
+                    } else {
+                        stringResource(Res.string.stats_activity_years)
+                    },
                 )
                 ActivityBars(
                     bars = insights.activity.map { bucket ->

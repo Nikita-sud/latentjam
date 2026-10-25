@@ -3,6 +3,7 @@
 #import <AudioToolbox/AudioToolbox.h>
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstring>
 #include <mutex>
 
@@ -11,6 +12,8 @@ struct LJRenderState {
     AudioBufferList *input = nullptr;
     uint32_t channels = 0, capacity = 0;
     void *storage[32] = {};
+    /** A restart's fade outlives AVAudioEngine.stop(), which drops the core it was armed on. */
+    std::atomic<bool> fadePending{false};
 };
 
 @interface LJEqualizerAudioUnit : AUAudioUnit {
@@ -81,6 +84,7 @@ struct LJRenderState {
     for (uint32_t c = 0; c < _render.channels; ++c) _render.storage[c] = _render.input->mBuffers[c].mData;
     lj_eq_set_settings(_render.core, _enabled, _levels.data(), _bass);
     lj_eq_reset(_render.core);
+    if (_render.fadePending.load()) lj_eq_fade_in(_render.core);
     return YES;
 }
 - (void)deallocateRenderResources {
@@ -103,6 +107,11 @@ struct LJRenderState {
         }
         const AUAudioUnitStatus status = pull(flags, timestamp, count, 0, state->input);
         if (status != noErr) return status;
+        // Silence pulled before the player node starts must not use up the fade; the first real audio does.
+        if (state->fadePending.load(std::memory_order_relaxed)) {
+            if (*flags & kAudioUnitRenderAction_OutputIsSilence) lj_eq_fade_in(state->core);
+            else state->fadePending.store(false, std::memory_order_relaxed);
+        }
         if (*flags & kAudioUnitRenderAction_OutputIsSilence) {
             for (uint32_t c = 0; c < state->channels; ++c) std::memset(state->input->mBuffers[c].mData, 0, count * sizeof(float));
         }
@@ -124,8 +133,14 @@ struct LJRenderState {
     _enabled = enabled; _bass = bass; std::memcpy(_levels.data(), levels, sizeof(int32_t) * 10);
     if (_render.core) lj_eq_set_settings(_render.core, _enabled, _levels.data(), _bass);
 }
-- (void)resetDSP { std::lock_guard<std::mutex> guard(_control); if (_render.core) lj_eq_reset(_render.core); }
-- (void)restartDSP { std::lock_guard<std::mutex> guard(_control); if (_render.core) { lj_eq_reset(_render.core); lj_eq_fade_in(_render.core); } }
+- (void)resetDSP { std::lock_guard<std::mutex> guard(_control); _render.fadePending.store(false); if (_render.core) lj_eq_reset(_render.core); }
+// The engine is stopped here, and stop() may have released the render resources: the fade then
+// waits for the next allocation instead of vanishing with the old core.
+- (void)restartDSP {
+    std::lock_guard<std::mutex> guard(_control);
+    _render.fadePending.store(true);
+    if (_render.core) { lj_eq_reset(_render.core); lj_eq_fade_in(_render.core); }
+}
 - (int)sampleRate { std::lock_guard<std::mutex> guard(_control); return _render.core ? int(_inputBus.format.sampleRate) : 0; }
 - (float)takeMeterGain { std::lock_guard<std::mutex> guard(_control); return lj_eq_take_meter_gain(_render.core); }
 @end
@@ -144,10 +159,10 @@ void lj_eq_ios_restart(AVAudioUnit *unit) { [(LJEqualizerAudioUnit *)unit.AUAudi
 int lj_eq_ios_sample_rate(AVAudioUnit *unit) { return [(LJEqualizerAudioUnit *)unit.AUAudioUnit sampleRate]; }
 float lj_eq_ios_take_meter_gain(AVAudioUnit *unit) { return [(LJEqualizerAudioUnit *)unit.AUAudioUnit takeMeterGain]; }
 
-int lj_eq_ios_connect(AVAudioEngine *engine, AVAudioPlayerNode *player, AVAudioUnit *unit, AVAudioFormat *format) {
+int lj_eq_ios_connect(AVAudioEngine *engine, AVAudioNode *source, AVAudioUnit *unit, AVAudioFormat *format) {
     if (engine.running) return 0;
     @try {
-        [engine disconnectNodeOutput:player];
+        [engine disconnectNodeOutput:source];
         [engine detachNode:unit];
         AUAudioUnit *au = unit.AUAudioUnit;
         [au deallocateRenderResources];
@@ -156,8 +171,19 @@ int lj_eq_ios_connect(AVAudioEngine *engine, AVAudioPlayerNode *player, AVAudioU
             [au.outputBusses[0] setFormat:format error:&error];
         if (!configured) return 0;
         [engine attachNode:unit];
-        [engine connect:player to:unit format:format];
+        [engine connect:source to:unit format:format];
         [engine connect:unit to:engine.mainMixerNode format:format];
+        return 1;
+    } @catch (NSException *exception) {
+        return 0;
+    }
+}
+
+int lj_eq_ios_connect_deck(AVAudioEngine *engine, AVAudioPlayerNode *player, AVAudioMixerNode *mixer, int bus, AVAudioFormat *format) {
+    if (bus < 0) return 0;
+    @try {
+        [engine disconnectNodeOutput:player];
+        [engine connect:player to:mixer fromBus:0 toBus:(AVAudioNodeBus)bus format:format];
         return 1;
     } @catch (NSException *exception) {
         return 0;

@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -52,5 +53,66 @@ internal class PlaylistM3uImportOfferTest {
     @Test
     fun anOfferNeedsAFile() {
         assertFailsWith<IllegalArgumentException> { M3uImportOffer(emptyList<M3uImport>()) }
+    }
+
+    @Test
+    fun severalFilesAskForTheLibrarysPathsOnce() = runTest {
+        var asked = 0
+        val documents = listOf(
+            ImportedLocalDocument("#EXTM3U\nMusic/a.mp3\n", "a.m3u"),
+            ImportedLocalDocument("#EXTM3U\nMusic/b.mp3\n", "b.m3u"),
+            ImportedLocalDocument("#EXTM3U\nMusic/c.mp3\n", "c.m3u"),
+        )
+
+        val imports = importM3uFiles(documents, listOf(track("1"))) {
+            asked++
+            emptyMap()
+        }
+
+        assertEquals(listOf("a", "b", "c"), imports.map { it.name })
+        assertEquals(1, asked)
+    }
+
+    @Test
+    fun aFailedPathLookupIsNotRetriedForEveryFile() = runTest {
+        var asked = 0
+        val documents = List(3) { ImportedLocalDocument("#EXTM3U\nMusic/$it.mp3\n", "$it.m3u") }
+
+        val imports = importM3uFiles(documents, listOf(track("1"))) {
+            asked++
+            error("MediaStore is unavailable")
+        }
+
+        assertEquals(3, imports.size)
+        assertEquals(1, asked)
+    }
+
+    @Test
+    fun aFailurePartWayKeepsAndCountsThePlaylistsAlreadyMade() = runTest {
+        val third = M3uImport("Third", entryCount = 1, matchedEntryCount = 1, tracks = listOf(track("4")))
+        val made = mutableListOf<String>()
+
+        val result = createM3uPlaylists(M3uImportOffer(listOf(rock, fun2000, third)), "Imported") { name, _ ->
+            if (name == "2000 Fun") error("Disk full")
+            made += name
+        }
+
+        assertEquals(listOf("2000s rock"), made)
+        assertEquals(1, result.created)
+        assertTrue(result.failed)
+    }
+
+    @Test
+    fun everyFileBecomesAPlaylistWhenNothingFails() = runTest {
+        val nameless = M3uImport(null, entryCount = 1, matchedEntryCount = 1, tracks = listOf(track("4")))
+        val made = mutableListOf<Pair<String, List<TrackId>>>()
+
+        val result = createM3uPlaylists(M3uImportOffer(listOf(rock, nothingFound, nameless)), "Imported") { name, ids ->
+            made += name to ids
+        }
+
+        assertEquals(listOf("2000s rock" to listOf(TrackId("1"), TrackId("2")), "Imported" to listOf(TrackId("4"))), made)
+        assertEquals(2, result.created)
+        assertFalse(result.failed)
     }
 }

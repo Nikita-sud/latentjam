@@ -653,6 +653,16 @@ internal class DefaultSimilarityEngine(
                             }
                         }
                     },
+                    verifyPopulation = {
+                        withContext(dispatcher) {
+                            mutex.withLock {
+                                mutableState.value is EngineState.Ready &&
+                                    mixCoverageLocked(requested)?.let { now ->
+                                        now.source == coverage.source && now.trackIds == trackIds
+                                    } == true
+                            }
+                        }
+                    },
                 )
             }
         }

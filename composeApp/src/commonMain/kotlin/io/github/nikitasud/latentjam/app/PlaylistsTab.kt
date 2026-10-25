@@ -112,6 +112,7 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
+import androidx.compose.foundation.LocalIndication
 
 /**
  * The Playlists tab: the playlists the app derives for you across the top,
@@ -366,10 +367,12 @@ private fun AutoPlaylistCard(
     onClick: () -> Unit,
 ) {
     val artworkUri = remember(auto.tracks) { auto.tracks.firstNotNullOfOrNull { it.artworkUri } }
+    val press = rememberPressSource()
     Column(
         modifier = Modifier.width(150.dp)
+            .scaleOnPress(press)
             .clip(RoundedCornerShape(topStart = 18.dp.corner(), topEnd = 18.dp.corner()))
-            .clickable(onClick = onClick),
+            .clickable(interactionSource = press, indication = LocalIndication.current, onClick = onClick),
     ) {
         Artwork(uri = artworkUri, size = 150.dp, cornerRadius = 18.dp, modifier = artworkModifier)
         Text(

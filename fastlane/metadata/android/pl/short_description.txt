@@ -1,0 +1,1 @@
+Odtwarzacz lokalnej muzyki z rekomendacjami na urządzeniu. Bez konta i sieci.

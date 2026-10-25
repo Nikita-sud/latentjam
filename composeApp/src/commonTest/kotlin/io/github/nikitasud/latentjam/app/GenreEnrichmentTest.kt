@@ -101,7 +101,7 @@ internal class GenreEnrichmentTest {
         val settings = MemorySettings()
         GenreEnrichment(settings) { facts }.backfill(listOf(track))
         settings.trackGenresPayload = settings.trackGenresPayload!!
-            .replaceFirst("v5|", "v2|").substringBeforeLast('|').substringBeforeLast('|').substringBeforeLast('|')
+            .replaceFirst("v6|", "v2|").substringBeforeLast('|').substringBeforeLast('|').substringBeforeLast('|').substringBeforeLast('|')
         var reads = 0
         val upgraded = GenreEnrichment(settings) { reads++; facts }
         assertEquals(listOf(track), upgraded.apply(listOf(track)))
@@ -117,7 +117,7 @@ internal class GenreEnrichmentTest {
         val settings = MemorySettings()
         GenreEnrichment(settings) { facts }.backfill(listOf(track))
         settings.trackGenresPayload = settings.trackGenresPayload!!
-            .replaceFirst("v5|", "v3|").substringBeforeLast('|').substringBeforeLast('|')
+            .replaceFirst("v6|", "v3|").substringBeforeLast('|').substringBeforeLast('|').substringBeforeLast('|')
         var reads = 0
         val upgraded = GenreEnrichment(settings) { reads++; facts }
         assertTrue(upgraded.backfill(listOf(track)))
@@ -126,12 +126,105 @@ internal class GenreEnrichmentTest {
     }
 
     @Test
+    fun aSongWhoseFileNamesNoAlbumBorrowsNoAlbumCover() = runTest {
+        val settings = MemorySettings()
+        val inFolder = track.copy(album = "TAMIL", artworkUri = "song-cover+album")
+        val enrichment = GenreEnrichment(settings, ownCover = { it.removeSuffix("+album") }) { EmbeddedTagFacts() }
+        assertEquals(listOf(inFolder), enrichment.apply(listOf(inFolder)))
+        assertTrue(enrichment.backfill(listOf(inFolder)))
+        // Only the cover changes: the scanner's folder-named album still lists the song.
+        val ownCover = inFolder.copy(artworkUri = "song-cover")
+        assertEquals(listOf(ownCover), enrichment.apply(listOf(inFolder)))
+
+        val restarted = GenreEnrichment(settings, ownCover = { it.removeSuffix("+album") }) { error("a persisted file must stay warm") }
+        assertEquals(listOf(ownCover), restarted.apply(listOf(inFolder)))
+    }
+
+    @Test
+    fun aSongWhoseFileNamesItsAlbumKeepsTheAlbumCoverFallback() = runTest {
+        val settings = MemorySettings()
+        val tagged = track.copy(album = "Abbey Road", artworkUri = "song-cover+album")
+        val enrichment = GenreEnrichment(settings, ownCover = { error("never stripped") }) { EmbeddedTagFacts(album = "Abbey Road") }
+        assertFalse(enrichment.backfill(listOf(tagged)))
+        assertEquals(listOf(tagged), enrichment.apply(listOf(tagged)))
+        val restarted = GenreEnrichment(settings, ownCover = { error("never stripped") }) { error("a persisted file must stay warm") }
+        assertEquals(listOf(tagged), restarted.apply(listOf(tagged)))
+    }
+
+    @Test
+    fun aTagReadInPartKeepsTheAlbumCoverFallback() = runTest {
+        val settings = MemorySettings()
+        val partial = track.copy(artworkUri = "song-cover+album")
+        val enrichment = GenreEnrichment(settings, ownCover = { error("never stripped") }) { EmbeddedTagFacts(albumKnown = false) }
+        enrichment.backfill(listOf(partial))
+        assertEquals(listOf(partial), enrichment.apply(listOf(partial)))
+    }
+
+    @Test
+    fun anUnreadableFileKeepsTheAlbumCoverFallback() = runTest {
+        val settings = MemorySettings()
+        val unknown = track.copy(artworkUri = "song-cover+album")
+        val enrichment = GenreEnrichment(settings, ownCover = { error("never stripped") }) { null }
+        assertFalse(enrichment.backfill(listOf(unknown)))
+        assertEquals(listOf(unknown), enrichment.apply(listOf(unknown)))
+    }
+
+    @Test
+    fun aV5CacheStillAppliesWhileItsFilesAreReadAgain() = runTest {
+        val settings = MemorySettings()
+        val inFolder = track.copy(artworkUri = "song-cover+album")
+        GenreEnrichment(settings, ownCover = { it.removeSuffix("+album") }) { facts }.backfill(listOf(inFolder))
+        settings.trackGenresPayload = settings.trackGenresPayload!!
+            .replaceFirst("v6|", "v5|").substringBeforeLast('|')
+        var reads = 0
+        val upgraded = GenreEnrichment(settings, ownCover = { it.removeSuffix("+album") }) { reads++; facts }
+        // Before the re-read: the v5 facts apply, and the album fallback is kept.
+        assertEquals(listOf(enriched.copy(artworkUri = "song-cover+album")), upgraded.apply(listOf(inFolder)))
+        assertTrue(upgraded.backfill(listOf(inFolder)))
+        assertEquals(listOf(enriched.copy(artworkUri = "song-cover")), upgraded.apply(listOf(inFolder)))
+        assertEquals(1, reads)
+        val restarted = GenreEnrichment(settings, ownCover = { it.removeSuffix("+album") }) { error("re-read once only") }
+        assertFalse(restarted.backfill(listOf(inFolder)))
+    }
+
+    @Test
+    fun aSaveKeepsTheV5LinesItDoesNotReplace() = runTest {
+        val settings = MemorySettings()
+        val other = track.copy(id = TrackId("other"), sourceRevision = "r2")
+        GenreEnrichment(settings) { facts }.backfill(listOf(track, other))
+        // Both lines become v5; then only [other] is read again and saved.
+        settings.trackGenresPayload = settings.trackGenresPayload!!.lines()
+            .joinToString("\n") { it.replaceFirst("v6|", "v5|").substringBeforeLast('|') }
+        GenreEnrichment(settings) { facts }.backfill(listOf(other))
+        val lines = settings.trackGenresPayload!!.lines()
+        assertEquals(1, lines.count { it.startsWith("v5|") }, "the untouched song's v5 line stays")
+        assertEquals(1, lines.count { it.startsWith("v6|") })
+    }
+
+    @Test
+    fun aPassCutShortKeepsWhatItSaved() = runTest {
+        val settings = MemorySettings()
+        val library = List(1030) { track.copy(id = TrackId("t$it")) }
+        var reads = 0
+        assertFailsWith<CancellationException> {
+            GenreEnrichment(settings) {
+                if (reads++ == 1027) throw CancellationException("closed")
+                facts
+            }.backfill(library)
+        }
+        var rereads = 0
+        GenreEnrichment(settings) { rereads++; facts }.backfill(library)
+        // Saved every 1,024 files: only what came after the last save is read again.
+        assertEquals(1030 - 1024, rereads)
+    }
+
+    @Test
     fun aV4CacheIsReadAgainOnceToLearnTheFilesYear() = runTest {
         val settings = MemorySettings()
         val undated = track.copy(year = null)
         GenreEnrichment(settings) { facts }.backfill(listOf(undated))
         settings.trackGenresPayload = settings.trackGenresPayload!!
-            .replaceFirst("v5|", "v4|").substringBeforeLast('|')
+            .replaceFirst("v6|", "v4|").substringBeforeLast('|').substringBeforeLast('|')
         var reads = 0
         val upgraded = GenreEnrichment(settings) { reads++; facts }
         assertEquals(listOf(undated), upgraded.apply(listOf(undated)))
@@ -329,6 +422,30 @@ internal class GenreEnrichmentTest {
         val enrichment = GenreEnrichment(MemorySettings()) { EmbeddedTagFacts(albumArtist = "Beyoncé Lumière") }
         enrichment.backfill(listOf(track))
         assertEquals("Beyoncé Lumière", enrichment.apply(listOf(track)).single().albumArtist)
+    }
+
+    @Test
+    fun theCacheStaysOnStorageInsteadOfInTheHeap() = runTest {
+        val settings = MemorySettings()
+        val enrichment = GenreEnrichment(settings) { facts }
+        enrichment.backfill(listOf(track))
+        assertEquals(listOf(enriched), enrichment.apply(listOf(track)))
+        // A store emptied behind its back is seen at once: nothing was kept resident.
+        settings.trackGenresPayload = ""
+        assertEquals(listOf(track), enrichment.apply(listOf(track)))
+    }
+
+    @Test
+    fun anAlbumsSongsShareOneInstanceOfEachLearnedName() = runTest {
+        val songs = (1..3).map { TrackDescriptor(TrackId("song $it"), genre = "Rock", sourceRevision = "r$it") }
+        val settings = MemorySettings()
+        // Each read returns fresh strings, as decoding a file does.
+        GenreEnrichment(settings) { facts.copy(genres = listOf("Rock", "Pop").map { it.toCharArray().concatToString() },
+            artists = facts.artists.map { it.toCharArray().concatToString() }) }.backfill(songs)
+        val applied = GenreEnrichment(settings) { error("warm") }.apply(songs)
+        assertEquals("Rock; Pop", applied[0].genre)
+        assertTrue(applied.all { it.genre === applied[0].genre })
+        assertTrue(applied.all { it.artists[1] === applied[0].artists[1] && it.albumArtist === applied[0].albumArtist })
     }
 
     private fun String.hex(): String = encodeToByteArray().joinToString("") {

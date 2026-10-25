@@ -50,6 +50,21 @@ internal object AndroidPlaybackStarts {
         ledger.announce(cause, target)
     }
 
+    /** See [PlaybackStartLedger.queuedByHand]. */
+    fun queuedByHand(trackId: TrackId) {
+        ledger.queuedByHand(trackId)
+    }
+
+    /** See [PlaybackStartLedger.unqueued]. */
+    fun unqueued(trackId: TrackId) {
+        ledger.unqueued(trackId)
+    }
+
+    /** See [PlaybackStartLedger.forgetQueued]. */
+    fun forgetQueued() {
+        ledger.forgetQueued()
+    }
+
     /**
      * From the service's session, before it installs [mediaItems]: a controller outside the app set
      * this queue, so the row it starts on — see [externalQueueStart] — is the listener's pick. The
@@ -60,6 +75,7 @@ internal object AndroidPlaybackStarts {
         // Even when no start can be named, the queue now belongs to whoever sent it.
         MediaBrowseRegistry.onExternalQueue?.invoke()
         mutableExternalQueues.value++
+        ledger.forgetQueued()
         val start = externalQueueStart(
             mediaItems,
             startIndex.takeUnless { it == C.INDEX_UNSET },

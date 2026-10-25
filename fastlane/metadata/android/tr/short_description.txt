@@ -1,0 +1,1 @@
+Cihazda çalışan öneri sistemli yerel müzik çalar. Hesap yok, ağ bağlantısı yok.

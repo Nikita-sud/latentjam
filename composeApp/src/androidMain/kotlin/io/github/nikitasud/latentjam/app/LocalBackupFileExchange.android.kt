@@ -50,7 +50,7 @@ internal actual fun rememberLocalBackupFileExchange(
     importMimeTypes: List<String>,
     allowMultipleImport: Boolean,
     onExportResult: (LocalBackupFileResult<Unit>) -> Unit,
-    onImportResult: (LocalBackupFileResult<List<ImportedLocalDocument>>) -> Unit,
+    onImportResult: (LocalBackupFileResult<ImportedLocalDocuments>) -> Unit,
 ): LocalBackupFileExchange {
     val activity = LocalActivity.current as? ComponentActivity
         ?: return LocalBackupFileExchange(
@@ -74,7 +74,7 @@ internal actual fun rememberLocalBackupFileExchange(
                             activity.applicationContext.cacheDir,
                         )
                     },
-                    readDocument = { source -> readDocument(resolver, Uri.parse(source)) },
+                    readDocument = { source, budget -> readDocument(resolver, Uri.parse(source), budget) },
                     documentDirectory = { destination -> createdDocumentDirectory(Uri.parse(destination)) },
                 )
             }
@@ -149,7 +149,7 @@ internal actual fun rememberLocalBackupFileExchange(
 
 internal sealed interface LocalBackupExchangeResult {
     data class Export(val result: LocalBackupFileResult<Unit>) : LocalBackupExchangeResult
-    data class Import(val result: LocalBackupFileResult<List<ImportedLocalDocument>>) : LocalBackupExchangeResult
+    data class Import(val result: LocalBackupFileResult<ImportedLocalDocuments>) : LocalBackupExchangeResult
 }
 
 /** Retains picker input, IO and undelivered results across configuration changes. */
@@ -157,7 +157,8 @@ internal class LocalBackupExchangeModel(
     private val handle: SavedStateHandle,
     /** Encodes the payload by calling it, off the main thread, then writes it to the destination. */
     private val writeDocument: suspend (payload: () -> String, destination: String) -> Unit,
-    private val readDocument: suspend (source: String) -> ImportedLocalDocument,
+    /** Reads one picked document within what [ImportReadBudget] still allows the selection. */
+    private val readDocument: suspend (source: String, budget: ImportReadBudget) -> ImportedLocalDocument,
     /** The folder a created destination sits in, as an absolute path; null when unknown. */
     private val documentDirectory: (destination: String) -> String? = { null },
 ) : ViewModel() {
@@ -241,7 +242,8 @@ internal class LocalBackupExchangeModel(
 
     /**
      * Reads [sources] in the order picked. One that cannot be read is left out rather than
-     * costing the others; the import fails only when none could be read.
+     * costing the others, and counted; the import fails only when none could be read. Several
+     * sources share one bound and must be text (see [ImportReadBudget]).
      */
     fun importSources(sources: List<String>) {
         if (!picking || operation != "import") return
@@ -253,10 +255,11 @@ internal class LocalBackupExchangeModel(
         val request = generation
         work = viewModelScope.launch {
             val documents = ArrayList<ImportedLocalDocument>(sources.size)
+            val budget = ImportReadBudget(textOnly = sources.size > 1)
             var firstFailure: String? = null
             for (source in sources) {
                 try {
-                    documents += readDocument(source)
+                    documents += readDocument(source, budget)
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (failure: Exception) {
@@ -268,7 +271,9 @@ internal class LocalBackupExchangeModel(
             val result = if (documents.isEmpty()) {
                 LocalBackupFileResult.Failure(firstFailure ?: "Could not import backup")
             } else {
-                LocalBackupFileResult.Success(documents.toList())
+                LocalBackupFileResult.Success(
+                    ImportedLocalDocuments(documents.toList(), unreadableCount = sources.size - documents.size),
+                )
             }
             if (request == generation) complete(LocalBackupExchangeResult.Import(result))
         }
@@ -354,10 +359,16 @@ private fun copyToDocument(resolver: ContentResolver, uri: Uri, staged: File) {
     staged.inputStream().use { input -> output.use { input.copyTo(it) } }
 }
 
-private suspend fun readDocument(resolver: ContentResolver, uri: Uri): ImportedLocalDocument =
+private suspend fun readDocument(
+    resolver: ContentResolver,
+    uri: Uri,
+    budget: ImportReadBudget,
+): ImportedLocalDocument =
     withContext(Dispatchers.IO) {
         val input = resolver.openInputStream(uri) ?: error("The selected document cannot be opened")
-        val text = decodeImportedText(input.use { it.readBounded() })
+        val bytes = input.use { it.readBounded(budget) }
+        budget.accept(bytes)
+        val text = decodeImportedText(bytes)
         // Document IDs and URI path segments need not be file names. Ask the provider for its
         // display name; missing metadata must never prevent importing readable contents.
         val displayName = try {
@@ -373,17 +384,27 @@ private suspend fun readDocument(resolver: ContentResolver, uri: Uri): ImportedL
         ImportedLocalDocument(text, displayName)
     }
 
-private suspend fun InputStream.readBounded(): ByteArray {
+/**
+ * Reads at most [budget]'s next limit, judging the first [ImportReadBudget.SNIFF_BYTES] before the
+ * rest is read: an audio file picked with playlists costs one buffer, not its whole length.
+ */
+private suspend fun InputStream.readBounded(budget: ImportReadBudget): ByteArray {
+    val limit = budget.nextLimit
     val result = ByteArrayOutputStream()
     val buffer = ByteArray(8 * 1024)
+    var judged = false
     while (true) {
         currentCoroutineContext().ensureActive()
         val count = read(buffer)
         if (count < 0) break
-        check(result.size() <= MAX_LOCAL_BACKUP_DOCUMENT_CHARS - count) {
+        check(result.size() <= limit - count) {
             "Backup exceeds the supported size"
         }
         result.write(buffer, 0, count)
+        if (!judged && result.size() >= ImportReadBudget.SNIFF_BYTES) {
+            judged = true
+            budget.checkStart(result.toByteArray().copyOf(ImportReadBudget.SNIFF_BYTES))
+        }
     }
     return result.toByteArray()
 }

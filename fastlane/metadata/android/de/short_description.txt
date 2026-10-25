@@ -1,0 +1,1 @@
+Player für lokale Musik mit Empfehlungen direkt am Gerät. Kein Konto, kein Netz.

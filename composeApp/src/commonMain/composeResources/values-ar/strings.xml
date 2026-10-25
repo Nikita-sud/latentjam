@@ -318,6 +318,15 @@
         <item quantity="many">%1$d قائمة تشغيل</item>
         <item quantity="other">%1$d قائمة تشغيل</item>
     </plurals>
+    <plurals name="m3u_import_skipped_files">
+        <item quantity="zero">تم تخطي %1$d ملف</item>
+        <item quantity="one">تم تخطي %1$d ملف</item>
+        <item quantity="two">تم تخطي %1$d ملفين</item>
+        <item quantity="few">تم تخطي %1$d ملفات</item>
+        <item quantity="many">تم تخطي %1$d ملفًا</item>
+        <item quantity="other">تم تخطي %1$d ملف</item>
+    </plurals>
+    <string name="m3u_import_playlists_partial">قوائم التشغيل التي أُنشئت: %1$d من %2$d. تعذّر حفظ الباقي.</string>
     <plurals name="playlist_new_count">
         <item quantity="zero">%1$d قائمة تشغيل جديدة</item>
         <item quantity="one">%1$d قائمة تشغيل جديدة</item>
@@ -930,7 +939,14 @@
         <item quantity="many">≈ %1$d يومًا من الموسيقى</item>
         <item quantity="other">≈ %1$d يوم من الموسيقى</item>
     </plurals>
-    <string name="stats_activity_months">آخر 12 شهرًا · مدة الاستماع</string>
+    <plurals name="stats_activity_last_months">
+        <item quantity="zero">آخر %1$d شهر · مدة الاستماع</item>
+        <item quantity="one">آخر %1$d شهر · مدة الاستماع</item>
+        <item quantity="two">آخر %1$d شهرين · مدة الاستماع</item>
+        <item quantity="few">آخر %1$d أشهر · مدة الاستماع</item>
+        <item quantity="many">آخر %1$d شهرًا · مدة الاستماع</item>
+        <item quantity="other">آخر %1$d شهر · مدة الاستماع</item>
+    </plurals>
     <string name="stats_activity_years">حسب السنة · مدة الاستماع</string>
     <string name="stats_activity_over_time">استماعك عبر الزمن</string>
     <string name="stats_this_month">هذا الشهر</string>

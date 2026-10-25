@@ -58,7 +58,6 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.LibraryAdd
 import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
@@ -72,6 +71,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -90,6 +90,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
@@ -101,6 +102,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.collapse
+import androidx.compose.ui.semantics.expand
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
@@ -156,6 +159,8 @@ import org.jetbrains.compose.resources.getPluralString
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.ui.layout.layout
 
 @Composable
 internal fun EmptyLibraryPage(
@@ -554,20 +559,30 @@ internal fun BrowseCarousel(
                 .browseHeaderSwipe(pagerState, enabled = pages.size > 1),
             content = {
                 pages.forEachIndexed { index, page ->
+                    val interactionSource = remember { MutableInteractionSource() }
                     val label = Modifier
                         .testTag("latentjam_page_${page.name.lowercase()}")
-                        .selectable(
-                            selected = index == pagerState.currentPage,
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            role = Role.Tab,
-                            onClick = {
-                                if (style == PageHeaderStyle.MENU && index == pagerState.currentPage) {
-                                    menuOpen = true
-                                } else {
-                                    onSelect(page)
-                                }
+                        .then(
+                            // In Menu style the current title opens the list of pages: a drop-down,
+                            // not a selected tab, and it says whether the list is open.
+                            if (style == PageHeaderStyle.MENU && index == pagerState.currentPage) {
+                                Modifier.pageMenuAnchor(menuOpen, interactionSource) { menuOpen = it }
+                            } else {
+                                Modifier.selectable(
+                                    selected = index == pagerState.currentPage,
+                                    interactionSource = interactionSource,
+                                    indication = null,
+                                    role = Role.Tab,
+                                    onClick = { onSelect(page) },
+                                )
                             },
+                        )
+                        // A full 48 dp to hit; the drawn pill or title stays its own size, centred.
+                        // Pills grow in height only: their widths drive the sliding fill, which
+                        // must stay as wide as a one-glyph pill such as Japanese 曲.
+                        .then(
+                            if (style == PageHeaderStyle.PILLS) Modifier.minimumTouchHeight()
+                            else Modifier.minimumInteractiveComponentSize(),
                         )
                     when (style) {
                         PageHeaderStyle.PILLS -> Text(
@@ -623,7 +638,14 @@ internal fun BrowseCarousel(
             val fade = PageEdgeFade.toPx()
             val spacing = if (style == PageHeaderStyle.PILLS) PagePillGap.toPx() else 0f
             val top = if (dots) {
-                (PageTitleTop - PageTitlePadding).roundToPx()
+                // The 48 dp hit area is taller than the title; keep the title itself where it was.
+                val natural = if (titleStyle.lineHeight.isSp) {
+                    titleStyle.lineHeight.toPx() + 2 * PageTitlePadding.toPx()
+                } else {
+                    Float.MAX_VALUE
+                }
+                val grown = ((labels.maxOfOrNull { it.height } ?: 0) - natural).coerceAtLeast(0f)
+                (PageTitleTop - PageTitlePadding).roundToPx() - (grown / 2f).roundToInt()
             } else {
                 (constraints.maxHeight - (labels.maxOfOrNull { it.height } ?: 0)) / 2
             }
@@ -712,6 +734,20 @@ internal fun BrowseCarousel(
             }
         }
     }
+}
+
+/** The Menu style's current title: a drop-down anchor that reports and toggles [open]. */
+private fun Modifier.pageMenuAnchor(
+    open: Boolean,
+    interactionSource: MutableInteractionSource,
+    onOpenChange: (Boolean) -> Unit,
+): Modifier = clickable(
+    interactionSource = interactionSource,
+    indication = null,
+    role = Role.DropdownList,
+    onClick = { onOpenChange(true) },
+).semantics {
+    if (open) collapse { onOpenChange(false); true } else expand { onOpenChange(true); true }
 }
 
 private val PageRowEdgeFade = 24.dp
@@ -891,7 +927,21 @@ internal fun SharedSettingsButton(
 /** The shared browse-group gesture: tap, plus [TrackRow]'s long-press haptic when selectable. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun Modifier.groupClickable(onClick: () -> Unit, onLongClick: (() -> Unit)?): Modifier {
+internal fun Modifier.groupClickable(
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)?,
+    /** A card sinks under the finger like the For You cards; rows keep the ripple alone. */
+    pressScale: Float? = null,
+): Modifier {
+    if (pressScale != null) {
+        val press = rememberPressSource()
+        return scaleOnPress(press, pressScale).combinedClickable(
+            interactionSource = press,
+            indication = LocalIndication.current,
+            onClick = onClick,
+            onLongClick = onLongClick,
+        )
+    }
     return combinedClickable(
         onClick = onClick,
         // combinedClickable provides the long-press haptic once the hold is recognized.
@@ -1023,7 +1073,7 @@ internal fun AlbumCard(
                     Modifier
                 },
             )
-            .groupClickable(onClick = onClick, onLongClick = onLongClick)
+            .groupClickable(onClick = onClick, onLongClick = onLongClick, pressScale = Motion.PRESS_SCALE)
             .padding(8.dp),
     ) {
         Box(
@@ -1034,11 +1084,7 @@ internal fun AlbumCard(
                 .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                imageVector = Icons.Rounded.MusicNote,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            CoverPlaceholder(Modifier.matchParentSize())
             album.artworkUri?.let { requestUri ->
                 val imageModel = remember(requestUri, railPreview, platformContext) {
                     if (railPreview) {
@@ -1318,7 +1364,12 @@ internal fun MiniPlayerPill(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
                             if (showPrevious) {
-                                IconButton(onClick = onPrevious) {
+                                val previousPress = rememberPressSource()
+                                IconButton(
+                                    onClick = onPrevious,
+                                    interactionSource = previousPress,
+                                    modifier = Modifier.scaleOnPress(previousPress, Motion.BUTTON_PRESS_SCALE),
+                                ) {
                                     Icon(
                                         imageVector = Icons.Rounded.SkipPrevious,
                                         contentDescription = previousDescription,
@@ -1328,9 +1379,13 @@ internal fun MiniPlayerPill(
                             val playPauseDescription = stringResource(
                                 if (isPlaying) Res.string.action_pause else Res.string.action_play,
                             )
+                            val playPress = rememberPressSource()
                             IconButton(
                                 onClick = onTogglePlayPause,
-                                modifier = Modifier.semantics { contentDescription = playPauseDescription },
+                                interactionSource = playPress,
+                                modifier = Modifier
+                                    .scaleOnPress(playPress, Motion.BUTTON_PRESS_SCALE)
+                                    .semantics { contentDescription = playPauseDescription },
                             ) {
                                 AnimatedContent(
                                     targetState = isPlaying,
@@ -1343,7 +1398,12 @@ internal fun MiniPlayerPill(
                                 )
                                 }
                             }
-                            IconButton(onClick = onNext) {
+                            val nextPress = rememberPressSource()
+                            IconButton(
+                                onClick = onNext,
+                                interactionSource = nextPress,
+                                modifier = Modifier.scaleOnPress(nextPress, Motion.BUTTON_PRESS_SCALE),
+                            ) {
                                 Icon(
                                     imageVector = Icons.Rounded.SkipNext,
                                     contentDescription = stringResource(Res.string.action_next),
@@ -1367,10 +1427,16 @@ internal fun MiniPlayerPill(
     }
 }
 
-/** The pill's card: the track's colour over the container tone; the player sheet grows from it. */
+/**
+ * The pill's card: the track's colour over the container tone; the player sheet grows from it.
+ * On the light theme it stays a white card with a hint of the track, like the other cards there.
+ */
 @Composable
-internal fun miniPlayerSurfaceColor(accent: TrackAccent): Color =
-    lerp(MaterialTheme.colorScheme.surfaceContainer, accent.container, 0.72f)
+internal fun miniPlayerSurfaceColor(accent: TrackAccent): Color {
+    val scheme = MaterialTheme.colorScheme
+    val share = if (scheme.surface.luminance() < 0.5f) 0.72f else 0.35f
+    return lerp(scheme.surfaceContainer, accent.container, share)
+}
 
 /** Isolates the playhead ticker from the rest of the browse hierarchy. */
 @Composable
@@ -1436,4 +1502,15 @@ internal fun MiniPlayerProgress(
             )
         }
     }
+}
+
+/**
+ * A 48 dp tall hit area around content that keeps its own drawn size: the content is measured
+ * without the minimum and centred in the taller slot, as minimumInteractiveComponentSize does for
+ * both axes. A plain heightIn would stretch a fixed-height pill and its outline instead.
+ */
+internal fun Modifier.minimumTouchHeight(): Modifier = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints.copy(minHeight = 0))
+    val height = maxOf(placeable.height, 48.dp.roundToPx()).coerceIn(constraints.minHeight, constraints.maxHeight)
+    layout(placeable.width, height) { placeable.place(0, (height - placeable.height) / 2) }
 }

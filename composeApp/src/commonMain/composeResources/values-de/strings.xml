@@ -256,6 +256,11 @@
         <item quantity="one">%1$d Playlist</item>
         <item quantity="other">%1$d Playlists</item>
     </plurals>
+    <plurals name="m3u_import_skipped_files">
+        <item quantity="one">%1$d Datei übersprungen</item>
+        <item quantity="other">%1$d Dateien übersprungen</item>
+    </plurals>
+    <string name="m3u_import_playlists_partial">Erstellte Playlists: %1$d von %2$d. Der Rest konnte nicht gespeichert werden.</string>
     <plurals name="playlist_new_count">
         <item quantity="one">%1$d neue Playlist</item>
         <item quantity="other">%1$d neue Playlists</item>
@@ -782,7 +787,10 @@
         <item quantity="one">≈ %1$d Tag Musik</item>
         <item quantity="other">≈ %1$d Tage Musik</item>
     </plurals>
-    <string name="stats_activity_months">Letzte 12 Monate · Hörzeit</string>
+    <plurals name="stats_activity_last_months">
+        <item quantity="one">Letzter %1$d Monat · Hörzeit</item>
+        <item quantity="other">Letzte %1$d Monate · Hörzeit</item>
+    </plurals>
     <string name="stats_activity_years">Nach Jahr · Hörzeit</string>
     <string name="stats_activity_over_time">Dein Hören im Lauf der Zeit</string>
     <string name="stats_this_month">Dieser Monat</string>

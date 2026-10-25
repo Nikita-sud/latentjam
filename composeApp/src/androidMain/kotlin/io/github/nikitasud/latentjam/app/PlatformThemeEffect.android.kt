@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.app
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.os.Build
 import android.view.ViewTreeObserver
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -26,6 +27,9 @@ internal actual fun PlatformThemeEffect(darkTheme: Boolean) {
         val window = (view.parent as? DialogWindowProvider)?.window
             ?: activity?.window ?: return@DisposableEffect onDispose { }
         fun applySystemBarTheme() {
+            // No scrim behind three-button navigation (see applyStoredWindowTheme). The window
+            // turns it back on after launch, so it is cleared with the rest of the bar theme.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) window.isNavigationBarContrastEnforced = false
             WindowCompat.getInsetsController(window, view).apply {
                 isAppearanceLightStatusBars = !darkTheme
                 isAppearanceLightNavigationBars = !darkTheme

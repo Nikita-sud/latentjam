@@ -228,13 +228,15 @@ object AppGraph {
                 )
             }
             if (playbackGainControlsAvailable) {
-                // Volume normalization measures lazily as tracks play and pushes the gain map.
-                LoudnessNormalizer(
+                // Volume normalization measures lazily as tracks play and pushes the gain map. Its
+                // stored loudness is a file read, so it starts off the main thread (this is onCreate).
+                val normalizer = LoudnessNormalizer(
                     settings = settings,
                     playback = playback,
                     meter = koin.get(),
                     onStatus = { normalizationStatus.value = it },
-                ).start(appScope)
+                )
+                appScope.launch(Dispatchers.Default) { normalizer.start(appScope) }
                 // Boundary fades follow the preference where the platform implements them.
                 if (boundaryFadeControlsAvailable) appScope.launch {
                     settings.crossfadeSeconds.collect { playback.setCrossfadeSeconds(it) }
@@ -630,6 +632,7 @@ object AppGraph {
                     mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
                         done = progress.analysed,
                         failures = failures.toMap(),
+                        etaMinutes = remaining?.let(IndexingEta::minutesFrom),
                     )
                     // A short scheduling gap also gives thermal management a chance to settle;
                     // 75 ms per model batch is invisible beside audio inference but materially
@@ -763,6 +766,8 @@ data class AutomaticIndexingState(
     val done: Int = 0,
     /** Whether [done] has been counted yet; until then this pass has nothing true to show. */
     val progressKnown: Boolean = false,
+    /** Minutes the pass expects to need, once it has seen enough to say ([IndexingEta]). */
+    val etaMinutes: Int? = null,
     val failures: Map<TrackId, EngineError> = emptyMap(),
 )
 

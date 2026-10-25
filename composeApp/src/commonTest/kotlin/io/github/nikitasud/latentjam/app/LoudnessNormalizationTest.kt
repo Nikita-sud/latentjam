@@ -237,6 +237,40 @@ internal class LoudnessNormalizationTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
+    fun theNextTracksScanCarriesOnWhenItStartsPlaying() = runTest {
+        val settings = ThrowingSettings()
+        val playback = FakePlayback()
+        val pending = CompletableDeferred<IntegratedLoudness?>()
+        var secondScans = 0
+        var secondCancelled = false
+        val statuses = mutableListOf<NormalizationStatus>()
+        val meter = object : TrackLoudnessMeter {
+            override suspend fun measure(track: TrackDescriptor): IntegratedLoudness? {
+                if (track.id.value != "second") return IntegratedLoudness(-20f, -2f)
+                secondScans++
+                try { return pending.await() } catch (cancelled: Throwable) { secondCancelled = true; throw cancelled }
+            }
+        }
+        LoudnessNormalizer(settings, playback, meter, statuses::add).start(backgroundScope)
+        val first = audioTrack("first", "one")
+        val second = audioTrack("second", "one")
+        playback.nowPlaying.value = NowPlaying(track = first, queue = listOf(first, second), queueIndex = 0)
+        runCurrent()
+        assertEquals(1, secondScans)
+
+        playback.nowPlaying.value = NowPlaying(track = second, queue = listOf(first, second), queueIndex = 1)
+        runCurrent()
+        assertFalse(secondCancelled, "the lookahead scan is not dropped when its track starts")
+        assertEquals(NormalizationPhase.MEASURING, statuses.last().phase)
+        pending.complete(IntegratedLoudness(-8f, -2f))
+        runCurrent()
+        assertEquals(1, secondScans, "no second decode from zero")
+        assertTrue("second" in playback.volumeUpdates.last())
+        assertTrue(abs(statuses.last().reductionDb - 6f) < 0.01f)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
     fun aLateNextRowDoesNotRestartThePlayingTracksScan() = runTest {
         val settings = ThrowingSettings()
         val playback = FakePlayback()

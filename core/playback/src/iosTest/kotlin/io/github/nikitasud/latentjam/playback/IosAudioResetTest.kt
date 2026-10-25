@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.playback
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
+import platform.AVFAudio.AVAudioFormat
 import platform.Foundation.NSData
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSTemporaryDirectory
@@ -22,15 +23,15 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalForeignApi::class)
 class IosAudioResetTest {
-    private fun withWave(block: (NSURL) -> Unit) {
-        val bytes = ByteArray(44 + 44100 * 2)
+    private fun withWave(rate: Int = 44100, block: (NSURL) -> Unit) {
+        val bytes = ByteArray(44 + rate * 2)
         fun word(offset: Int, value: Int, count: Int = 4) {
             repeat(count) { bytes[offset + it] = (value ushr (8 * it)).toByte() }
         }
         fun text(offset: Int, value: String) { value.encodeToByteArray().copyInto(bytes, offset) }
         text(0, "RIFF"); word(4, bytes.size - 8); text(8, "WAVE")
         text(12, "fmt "); word(16, 16); word(20, 1, 2); word(22, 1, 2)
-        word(24, 44100); word(28, 88200); word(32, 2, 2); word(34, 16, 2)
+        word(24, rate); word(28, rate * 2); word(32, 2, 2); word(34, 16, 2)
         text(36, "data"); word(40, bytes.size - 44)
         val path = NSTemporaryDirectory() + "latentjam-audio-reset-${NSUUID().UUIDString}.wav"
         val data = bytes.usePinned { NSData.dataWithBytes(it.addressOf(0), bytes.size.toULong()) }
@@ -88,7 +89,7 @@ class IosAudioResetTest {
     fun normalizationComposesWithTransportAndSurvivesGraphRecreation() = withWave { url ->
         val engine = IosAudioEngine()
         try {
-            engine.setNormalizationGain(0.5f)
+            engine.setDeckGains(0.5f)
             engine.setTransportGain(0.4f)
             assertEquals(0.2f, engine.effectiveOutputVolume, 0.00001f)
             assertTrue(engine.load(url, autoPlay = false) {})
@@ -96,8 +97,65 @@ class IosAudioResetTest {
             assertEquals(0.2f, engine.effectiveOutputVolume, 0.00001f)
             engine.setTransportGain(1f)
             assertEquals(0.5f, engine.effectiveOutputVolume, 0.00001f)
-            engine.setNormalizationGain(1f)
+            engine.setDeckGains(1f)
             assertEquals(1f, engine.effectiveOutputVolume, 0.00001f)
+        } finally { engine.stop() }
+    }
+
+    @Test
+    fun aSecondTrackJoinsUnderTheFirstAndCarriesOnAsTheCurrentOne() = withWave { first ->
+        // The same rate and layout: only such a track may join (see sharesGraphFormat).
+        withWave { second ->
+            val engine = IosAudioEngine()
+            try {
+                // The simulator's test host cannot start an engine; this part runs on a device.
+                if (engine.load(first, autoPlay = true) {} && engine.playing) {
+                    assertEquals(1000L, engine.prepareOverlap(second))
+                    assertFalse(engine.overlapping)
+                    assertTrue(engine.startOverlap())
+                    assertTrue(engine.overlapping)
+                    engine.setDeckGains(1f, 0.5f)
+                    assertTrue(engine.promoteOverlap {})
+                    assertFalse(engine.overlapping)
+                    assertTrue(engine.playing)
+                    assertEquals(1000L, engine.durationMs())
+                    // The promoted deck keeps the gain it was sounding at.
+                    assertEquals(0.5f, engine.effectiveOutputVolume, 0.00001f)
+                    assertFalse(engine.promoteOverlap {})
+                }
+            } finally { engine.stop() }
+        }
+    }
+
+    @Test
+    fun aCancelledOverlapLeavesTheCurrentTrackAlone() = withWave { first ->
+        withWave { second ->
+            val engine = IosAudioEngine()
+            try {
+                if (engine.load(first, autoPlay = true) {} && engine.playing) {
+                    assertEquals(1000L, engine.prepareOverlap(second))
+                    assertTrue(engine.startOverlap())
+                    engine.cancelOverlap()
+                    assertFalse(engine.overlapping)
+                    assertFalse(engine.promoteOverlap {})
+                    assertEquals(1000L, engine.durationMs())
+                }
+                // Nothing is playing: no overlap can be cued.
+                engine.stop()
+                assertEquals(null, engine.prepareOverlap(second))
+            } finally { engine.stop() }
+        }
+    }
+
+    @Test
+    fun onlyATrackOfTheGraphsRateAndLayoutMayJoinAnOverlap() {
+        val engine = IosAudioEngine()
+        try {
+            val stereo44 = AVAudioFormat(standardFormatWithSampleRate = 44100.0, channels = 2u)
+            assertTrue(engine.sharesGraphFormat(stereo44, AVAudioFormat(standardFormatWithSampleRate = 44100.0, channels = 2u)))
+            assertFalse(engine.sharesGraphFormat(stereo44, AVAudioFormat(standardFormatWithSampleRate = 44100.0, channels = 1u)))
+            assertFalse(engine.sharesGraphFormat(stereo44, AVAudioFormat(standardFormatWithSampleRate = 22050.0, channels = 2u)))
+            assertFalse(engine.sharesGraphFormat(AVAudioFormat(standardFormatWithSampleRate = 22050.0, channels = 1u), stereo44))
         } finally { engine.stop() }
     }
 

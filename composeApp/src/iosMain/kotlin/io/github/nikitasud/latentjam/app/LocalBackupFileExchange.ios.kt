@@ -43,7 +43,7 @@ internal actual fun rememberLocalBackupFileExchange(
     importMimeTypes: List<String>,
     allowMultipleImport: Boolean,
     onExportResult: (LocalBackupFileResult<Unit>) -> Unit,
-    onImportResult: (LocalBackupFileResult<List<ImportedLocalDocument>>) -> Unit,
+    onImportResult: (LocalBackupFileResult<ImportedLocalDocuments>) -> Unit,
 ): LocalBackupFileExchange {
     val scope = rememberCoroutineScope()
     val currentExportResult = rememberUpdatedState(onExportResult)
@@ -222,13 +222,15 @@ private fun discardTemporaryBackup(path: String) {
 
 /**
  * Reads [urls] in the order picked. One that cannot be read is left out rather than costing the
- * others; the import fails only when none could be read.
+ * others, and counted; the import fails only when none could be read. Several urls share one bound
+ * and must be text (see [ImportReadBudget]).
  */
-private fun readDocuments(urls: List<NSURL>): LocalBackupFileResult<List<ImportedLocalDocument>> {
-    val results = urls.map(::readDocument)
+private fun readDocuments(urls: List<NSURL>): LocalBackupFileResult<ImportedLocalDocuments> {
+    val budget = ImportReadBudget(textOnly = urls.size > 1)
+    val results = urls.map { readDocument(it, budget) }
     val documents = results.mapNotNull { (it as? LocalBackupFileResult.Success)?.value }
     return if (documents.isNotEmpty()) {
-        LocalBackupFileResult.Success(documents)
+        LocalBackupFileResult.Success(ImportedLocalDocuments(documents, unreadableCount = urls.size - documents.size))
     } else {
         results.firstNotNullOfOrNull { it as? LocalBackupFileResult.Failure }
             ?: LocalBackupFileResult.Failure("Could not import backup")
@@ -236,7 +238,7 @@ private fun readDocuments(urls: List<NSURL>): LocalBackupFileResult<List<Importe
 }
 
 @OptIn(ExperimentalForeignApi::class)
-private fun readDocument(url: NSURL): LocalBackupFileResult<ImportedLocalDocument> = runCatching {
+private fun readDocument(url: NSURL, budget: ImportReadBudget): LocalBackupFileResult<ImportedLocalDocument> = runCatching {
     val path = url.path ?: error("The selected document cannot be opened")
     val handle = NSFileHandle.fileHandleForReadingAtPath(path)
         ?: error("The selected document cannot be opened")
@@ -245,19 +247,25 @@ private fun readDocument(url: NSURL): LocalBackupFileResult<ImportedLocalDocumen
         // malicious or accidental multi-gigabyte file could therefore exhaust memory before the
         // 64 MiB policy check ran. Preflight the opened file and still read at most limit+1 bytes,
         // so a replacement/growth race cannot bypass the bound between the two operations.
-        check(handle.seekToEndOfFile() <= MAX_LOCAL_BACKUP_DOCUMENT_CHARS.toULong()) {
+        val limit = budget.nextLimit
+        check(handle.seekToEndOfFile() <= limit.toULong()) {
             "Backup exceeds the supported size"
         }
+        // An audio file picked with playlists is judged by its first bytes, not read whole.
         handle.seekToFileOffset(0uL)
-        handle.readDataOfLength(MAX_LOCAL_BACKUP_DOCUMENT_CHARS.toULong() + 1uL)
+        budget.checkStart(handle.readDataOfLength(ImportReadBudget.SNIFF_BYTES.toULong()).toByteArray())
+        handle.seekToFileOffset(0uL)
+        handle.readDataOfLength(limit.toULong() + 1uL)
     } finally {
         handle.closeFile()
     }
-    check(data.length <= MAX_LOCAL_BACKUP_DOCUMENT_CHARS.toULong()) {
+    check(data.length <= budget.nextLimit.toULong()) {
         "Backup exceeds the supported size"
     }
+    val bytes = data.toByteArray()
+    budget.accept(bytes)
     ImportedLocalDocument(
-        text = decodeImportedText(data.toByteArray()),
+        text = decodeImportedText(bytes),
         displayName = url.lastPathComponent,
     )
 }.fold(

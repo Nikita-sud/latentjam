@@ -673,10 +673,12 @@ private fun CollectionHero(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            val shufflePress = rememberPressSource()
             FilledTonalIconButton(
                 onClick = onShuffle,
                 enabled = enabled && selection.tracks.isNotEmpty(),
-                modifier = Modifier.size(48.dp),
+                interactionSource = shufflePress,
+                modifier = Modifier.size(48.dp).scaleOnPress(shufflePress, Motion.BUTTON_PRESS_SCALE),
                 colors = IconButtonDefaults.filledTonalIconButtonColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                     contentColor = MaterialTheme.colorScheme.onSurface,
@@ -684,18 +686,22 @@ private fun CollectionHero(
             ) {
                 Icon(Icons.Rounded.Shuffle, stringResource(Res.string.action_shuffle), modifier = Modifier.size(21.dp))
             }
+            val playPress = rememberPressSource()
             FilledIconButton(
                 onClick = onPlay,
                 enabled = enabled && selection.tracks.isNotEmpty(),
-                modifier = Modifier.size(56.dp),
+                interactionSource = playPress,
+                modifier = Modifier.size(56.dp).scaleOnPress(playPress, Motion.BUTTON_PRESS_SCALE),
                 colors = playButtonColors(),
             ) {
                 Icon(Icons.Rounded.PlayArrow, stringResource(Res.string.action_play), modifier = Modifier.size(25.dp))
             }
+            val smartPress = rememberPressSource()
             if (onStartSmart != null) FilledTonalIconButton(
                 onClick = onStartSmart,
                 enabled = enabled && selection.tracks.isNotEmpty(),
-                modifier = Modifier.size(48.dp),
+                interactionSource = smartPress,
+                modifier = Modifier.size(48.dp).scaleOnPress(smartPress, Motion.BUTTON_PRESS_SCALE),
                 colors = IconButtonDefaults.filledTonalIconButtonColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                     contentColor = MaterialTheme.colorScheme.tertiary,

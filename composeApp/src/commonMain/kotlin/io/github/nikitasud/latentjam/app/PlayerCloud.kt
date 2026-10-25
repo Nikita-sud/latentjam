@@ -72,10 +72,20 @@ internal fun Modifier.playerCloud(accent: TrackAccent, playing: Boolean): Modifi
     val density = LocalDensity.current
     // A dark surface needs a lifted cover colour; a light one needs a bounded pastel of the
     // same hue. Reusing the already-whitened container washed pale covers almost to white.
-    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val primary = if (dark) liftForDarkSurface(accent.vivid) else tintForLightSurface(accent.vivid)
-    val companion = rotateHue(primary, if (dark) COMPANION_HUE_SHIFT else 12f)
+    val colors = MaterialTheme.colorScheme
+    val dark = colors.surface.luminance() < 0.5f
     val alpha = ((if (dark) CLOUD_ALPHA_DARK else CLOUD_ALPHA_LIGHT) * strength).coerceAtMost(1f)
+    val coverage = darkCloudCoverage(alpha)
+    val primary = if (dark) {
+        liftForDarkCloud(accent.vivid, coverage, colors.surface, colors.onSurface)
+    } else {
+        tintForLightSurface(accent.vivid)
+    }
+    val companion = if (dark) {
+        liftForDarkCloud(rotateHue(primary, COMPANION_HUE_SHIFT), coverage, colors.surface, colors.onSurface)
+    } else {
+        rotateHue(primary, 12f)
+    }
     return drawWithCache {
         // A nearly neutral light floor lets each drifting cloud remain distinct. A stronger
         // same-hue floor erases the visible movement, even while the cloud clock is advancing.
@@ -157,6 +167,31 @@ internal fun liftForDarkSurface(colour: Color): Color {
 }
 
 /**
+ * [liftForDarkSurface] for a cloud drawn at [alpha] on the dark [floor]: where a blob is densest,
+ * [text] still holds [DARK_CLOUD_MIN_TEXT_CONTRAST]. A lift never capped a pale cover, and at
+ * Vivid's full alpha the player's white titles fell to about 1.4:1 on it. Covers that already
+ * leave the text readable keep their colour.
+ */
+internal fun liftForDarkCloud(colour: Color, alpha: Float, floor: Color, text: Color): Color {
+    val lifted = liftForDarkSurface(colour)
+    val (hue, saturation, start) = lifted.toHsl() ?: Triple(0f, 0f, lifted.red)
+    var lightness = start
+    var cloud = lifted
+    while (contrastRatio(text, cloud.over(floor, alpha)) < DARK_CLOUD_MIN_TEXT_CONTRAST && lightness > 0f) {
+        lightness = (lightness - 0.02f).coerceAtLeast(0f)
+        cloud = Color.hsl(hue, saturation, lightness, colour.alpha)
+    }
+    return cloud
+}
+
+/** This colour drawn at [alpha] over an opaque [floor]. */
+internal fun Color.over(floor: Color, alpha: Float): Color = Color(
+    red = red * alpha + floor.red * (1f - alpha),
+    green = green * alpha + floor.green * (1f - alpha),
+    blue = blue * alpha + floor.blue * (1f - alpha),
+)
+
+/**
  * A clearly coloured light surface, including very pale and very dark sampled covers.
  * At L=.80/S<=.72 every RGB channel is at least .656. Even arbitrary cloud overlaps followed
  * by a 10% black current-row wash retain over 4.5:1 with the light theme's #2E2E2E secondary ink.
@@ -171,6 +206,43 @@ internal fun tintForLightSurface(colour: Color): Color {
         lightness = 0.80f,
         alpha = colour.alpha,
     )
+}
+
+/**
+ * A track's colour as a light surface: a clean pastel of the same hue at a fixed lightness.
+ * Mixing the cover's colour with white kept its murk, so brown and olive covers turned the mini
+ * player and the accents beige; a fixed lightness and a bounded saturation keep them clear.
+ */
+internal fun pastelForLightSurface(colour: Color): Color {
+    val hsl = colour.toHsl() ?: return Color(0.90f, 0.90f, 0.91f, colour.alpha)
+    val (hue, saturation) = hsl
+    return Color.hsl(hue, saturation.coerceIn(0.35f, 0.70f), 0.88f, colour.alpha)
+}
+
+/**
+ * The listener's accent as the ink of controls on a light [surface]: the same hue, darkened
+ * until it holds [CONTROL_INK_MIN_CONTRAST] against the floor. [tintForLightSurface] is a cloud
+ * pastel; as a switch, a slider or a Play disc it all but vanished (yellow came out at 1.3:1),
+ * and a Play disc in the cloud's own colour melted into the blob behind it.
+ */
+internal fun inkForLightSurface(colour: Color, surface: Color): Color {
+    val hsl = colour.toHsl()
+    val hue = hsl?.first ?: 0f
+    val saturation = hsl?.second ?: 0f
+    var lightness = minOf(hsl?.third ?: colour.red, CONTROL_INK_MAX_LIGHTNESS)
+    var ink = Color.hsl(hue, saturation, lightness, colour.alpha)
+    while (contrastRatio(ink, surface) < CONTROL_INK_MIN_CONTRAST && lightness > 0f) {
+        lightness = (lightness - 0.02f).coerceAtLeast(0f)
+        ink = Color.hsl(hue, saturation, lightness, colour.alpha)
+    }
+    return ink
+}
+
+/** WCAG contrast between two opaque colours, 1..21. */
+internal fun contrastRatio(a: Color, b: Color): Float {
+    val la = a.luminance()
+    val lb = b.luminance()
+    return (maxOf(la, lb) + 0.05f) / (minOf(la, lb) + 0.05f)
 }
 
 /** Hue in degrees, saturation and lightness in 0..1; null for a grey, which has no hue. */
@@ -193,12 +265,16 @@ private const val NANOS_PER_SECOND = 1_000_000_000f
 private const val CLOUD_FRAME_INTERVAL_MS = 50L
 private const val MAX_FRAME_DELTA_S = 0.1f
 private const val TWO_PI = (2 * PI).toFloat()
-private const val CLOUD_BASE_ALPHA_LIGHT = 0.04f
+// Enough of the track's colour that the light player is not a blank page around the cover.
+private const val CLOUD_BASE_ALPHA_LIGHT = 0.16f
 private const val CLOUD_ALPHA_LIGHT = 0.98f
 private const val LIGHT_BLOB_RADIUS_SCALE = 1.15f
 private const val CLOUD_ALPHA_DARK = 0.7f
 private const val DARK_MIN_LIGHTNESS = 0.45f
 private const val DARK_MIN_SATURATION = 0.45f
+private const val CONTROL_INK_MIN_CONTRAST = 3f
+private const val DARK_CLOUD_MIN_TEXT_CONTRAST = 3f
+private const val CONTROL_INK_MAX_LIGHTNESS = 0.5f
 private const val COMPANION_HUE_SHIFT = 28f
 private const val BREATH_DEPTH = 0.04f
 private const val BREATH_PERIOD_S = 0.86f
@@ -256,3 +332,11 @@ private const val BACKDROP_SOURCE_PX = 24
 private val BACKDROP_BLUR = 40.dp
 private const val BACKDROP_DIM_DARK = 0.55f
 private const val BACKDROP_DIM_LIGHT = 0.5f
+
+/**
+ * How much of the floor the dark cloud covers at its densest, for the titles' contrast check:
+ * two blobs at full strength on one point. How close the blobs get depends on the window (a
+ * small or split-screen player brings two almost together), so the bound assumes the overlap
+ * rather than a distance.
+ */
+internal fun darkCloudCoverage(alpha: Float): Float = 1f - (1f - alpha) * (1f - alpha)

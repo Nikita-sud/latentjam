@@ -8,6 +8,7 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -32,6 +33,69 @@ internal class PlaybackStartsTest {
         ledger.announce(StartCause.SKIP_NEXT, target = b)
 
         assertEquals(StartCause.AUTO_ADVANCE, ledger.begin(a, observed = StartCause.AUTO_ADVANCE).cause)
+    }
+
+    @Test
+    fun `an automatic advance onto a track queued by hand is queued only once`() {
+        val ledger = PlaybackStartLedger()
+        ledger.queuedByHand(b)
+        ledger.begin(a, observed = StartCause.AUTO_ADVANCE)
+
+        assertEquals(StartCause.QUEUED, ledger.begin(b, observed = StartCause.AUTO_ADVANCE).cause)
+        // The queued row played; the same track coming round again is an ordinary advance.
+        assertEquals(StartCause.AUTO_ADVANCE, ledger.begin(b, observed = StartCause.AUTO_ADVANCE).cause)
+    }
+
+    @Test
+    fun `any other start of a queued track keeps its own cause and spends the mark`() {
+        val ledger = PlaybackStartLedger()
+        ledger.queuedByHand(b)
+        assertEquals(StartCause.SKIP_NEXT, ledger.begin(b, observed = StartCause.SKIP_NEXT).cause)
+        assertEquals(StartCause.AUTO_ADVANCE, ledger.begin(b, observed = StartCause.AUTO_ADVANCE).cause)
+
+        ledger.queuedByHand(c)
+        ledger.announce(StartCause.USER_PICK, target = c)
+        assertEquals(StartCause.USER_PICK, ledger.begin(c, observed = StartCause.AUTO_ADVANCE).cause)
+        assertEquals(StartCause.AUTO_ADVANCE, ledger.begin(c, observed = StartCause.AUTO_ADVANCE).cause)
+    }
+
+    @Test
+    fun `an announced advance onto a queued track is queued too`() {
+        // A row that would not open was passed over; the next one is still the listener's queued track.
+        val ledger = PlaybackStartLedger()
+        ledger.queuedByHand(b)
+        ledger.announce(StartCause.AUTO_ADVANCE, target = b)
+        assertEquals(StartCause.QUEUED, ledger.begin(b, observed = null).cause)
+    }
+
+    @Test
+    fun `a queued track that left the queue or whose queue was replaced is not queued`() {
+        val ledger = PlaybackStartLedger()
+        ledger.queuedByHand(b)
+        ledger.queuedByHand(c)
+        ledger.unqueued(b)
+        assertEquals(StartCause.AUTO_ADVANCE, ledger.begin(b, observed = StartCause.AUTO_ADVANCE).cause)
+
+        ledger.forgetQueued()
+        assertEquals(StartCause.AUTO_ADVANCE, ledger.begin(c, observed = StartCause.AUTO_ADVANCE).cause)
+    }
+
+    @Test
+    fun `a row moved up or brought back ahead of the playhead is asked for sooner`() {
+        // Playing row 2: row 6 moved to 3 is promoted; moved to 7, or behind the playhead, is not.
+        assertTrue(movedTowardPlayhead(from = 6, to = 3, current = 2))
+        assertFalse(movedTowardPlayhead(from = 3, to = 6, current = 2))
+        assertFalse(movedTowardPlayhead(from = 6, to = 1, current = 2))
+        assertFalse(movedTowardPlayhead(from = 6, to = 2, current = 2))
+        assertFalse(movedTowardPlayhead(from = 6, to = 3, current = null))
+        // A row already played, dragged ahead of the playhead, is asked for again.
+        assertTrue(movedTowardPlayhead(from = 1, to = 4, current = 2))
+        // Rows 0..4 playing 2: row 1 taken out makes the playing row 1, so index 2 is right after it.
+        assertTrue(movedTowardPlayhead(from = 1, to = 2, current = 2))
+        assertFalse(movedTowardPlayhead(from = 1, to = 1, current = 2))
+        // The playing row itself is not queued by moving it.
+        assertFalse(movedTowardPlayhead(from = 2, to = 4, current = 2))
+        assertFalse(movedTowardPlayhead(from = 1, to = 0, current = 2))
     }
 
     @Test

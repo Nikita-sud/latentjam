@@ -31,8 +31,8 @@ internal class FusedRowWriter(
  * Each row is exactly what `LibraryVectorFusion` would write into the space's matrix for the same
  * track. Rows are read in chunks of [CHUNK_ROWS], each under the engine lock for that chunk only,
  * so a pass over 10,000 tracks never blocks SMART for longer than one chunk. Because the index
- * may change between chunks, a caller checks [isCurrent] once it has read every row it needs and
- * discards its result on `false`.
+ * may change between chunks, a caller checks [keepsPopulation] once it has read every row it needs
+ * and discards its result on `false`; [isCurrent] says whether the content moved as well.
  *
  * Not thread-safe: one reader, sequential use.
  */
@@ -47,6 +47,8 @@ public class LibraryVectorRows internal constructor(
     private val readChunk: suspend (start: Int, count: Int, out: FloatArray) -> Unit,
     /** Whether the content behind [fingerprint] is still what the indexes hold. */
     private val verify: suspend () -> Boolean,
+    /** Whether the indexes still select exactly [trackIds] from [source]. */
+    private val verifyPopulation: suspend () -> Boolean = verify,
 ) {
     public val size: Int get() = trackIds.size
 
@@ -68,6 +70,13 @@ public class LibraryVectorRows internal constructor(
 
     /** True when every row read so far still matches [fingerprint]. Call after the last read. */
     public suspend fun isCurrent(): Boolean = verify()
+
+    /**
+     * True when the indexes still select exactly [trackIds] from [source], though vectors may have
+     * been added or replaced since [fingerprint] was taken. Every row read was then a real vector of
+     * its track at the moment of reading, never a vanished track's zeros. Call after the last read.
+     */
+    public suspend fun keepsPopulation(): Boolean = verifyPopulation()
 
     public companion object {
         /** Rows per locked read: 256 × 1,344 floats is a 1.4 MB buffer. */

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+
+  The big player's press on the home screen: the launcher runs it, so it needs no code here. The
+  button lands at 0.88 in 60 ms and springs back over 360 ms on the player's release curve. As in
+  the app, a release first lets the press land, so even the shortest tap is seen to sink.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <set>
+            <objectAnimator
+                android:duration="60"
+                android:interpolator="@android:interpolator/linear_out_slow_in"
+                android:propertyName="scaleX"
+                android:valueTo="0.88"
+                android:valueType="floatType" />
+            <objectAnimator
+                android:duration="60"
+                android:interpolator="@android:interpolator/linear_out_slow_in"
+                android:propertyName="scaleY"
+                android:valueTo="0.88"
+                android:valueType="floatType" />
+        </set>
+    </item>
+    <item>
+        <set android:ordering="sequentially">
+            <!-- The press lands first: a no-op after a hold, the missing sink after a quick tap. -->
+            <set>
+                <objectAnimator
+                    android:duration="40"
+                    android:interpolator="@android:interpolator/linear_out_slow_in"
+                    android:propertyName="scaleX"
+                    android:valueTo="0.88"
+                    android:valueType="floatType" />
+                <objectAnimator
+                    android:duration="40"
+                    android:interpolator="@android:interpolator/linear_out_slow_in"
+                    android:propertyName="scaleY"
+                    android:valueTo="0.88"
+                    android:valueType="floatType" />
+            </set>
+            <set>
+                <objectAnimator
+                    android:duration="360"
+                    android:interpolator="@interpolator/press_release"
+                    android:propertyName="scaleX"
+                    android:valueTo="1"
+                    android:valueType="floatType" />
+                <objectAnimator
+                    android:duration="360"
+                    android:interpolator="@interpolator/press_release"
+                    android:propertyName="scaleY"
+                    android:valueTo="1"
+                    android:valueType="floatType" />
+            </set>
+        </set>
+    </item>
+</selector>

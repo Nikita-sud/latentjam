@@ -16,8 +16,11 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSourceBitmapLoader
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.source.ShuffleOrder.DefaultShuffleOrder
+import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.session.CommandButton
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
@@ -59,6 +62,7 @@ public class PlaybackService : MediaLibraryService() {
 
     private var mediaSession: MediaLibrarySession? = null
     private var playbackPlayer: ExoPlayer? = null
+    private var crossfade: CrossfadeCoordinator? = null
     private var pendingResumptionMode: ShuffleMode? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -717,10 +721,22 @@ public class PlaybackService : MediaLibraryService() {
         super.onCreate()
         // The app-owned PCM chain applies tone controls on every local output route.
         val player = ExoPlayer.Builder(this, EqualizerRenderersFactory(this))
+            // Every queue row is a local progressive file. The default factory first infers each
+            // row's container from its URI, which parses all of them when a queue is set: 1.5 MB
+            // more heap for a 10,000-song "play all" (measured), for nothing.
+            .setMediaSourceFactory(
+                ProgressiveMediaSource.Factory(DefaultDataSource.Factory(this), DefaultExtractorsFactory()),
+            )
             .setAudioAttributes(AudioAttributes.DEFAULT, /* handleAudioFocus = */ true)
             .setHandleAudioBecomingNoisy(true)
             .setMaxSeekToPreviousPositionMs(PREVIOUS_RESTART_THRESHOLD_MS)
             .build()
+        // Media3 dispatches session commands on the player's looper. A command whose caller has
+        // no package name would crash there before any callback below could refuse it.
+        val blackBoxDir = filesDir
+        NamelessControllerGuard.install(player.applicationLooper) {
+            MediaBlackBox.record(blackBoxDir, "? rejected: controller without a package name")
+        }
         // The listener's persisted repeat choice belongs to the transport this service is about to
         // host: the widget and the player screen show it again as soon as the app connects (see
         // [initialPlaybackModes]), and until now only the shuffle half reached a player. Applied
@@ -728,6 +744,18 @@ public class PlaybackService : MediaLibraryService() {
         applyPersistedRepeatMode(player)
         playbackPlayer = player
         val sessionPlayer = object : LoadedQueueKeeper(player) {
+            // During an overlap the next row is already sounding: Next from any controller
+            // carries on from there instead of replaying its opening.
+            override fun seekToNext() {
+                val coordinator = crossfade
+                coordinator?.nextFromOverlap()?.let(coordinator::seekTo) ?: super.seekToNext()
+            }
+
+            override fun seekToNextMediaItem() {
+                val coordinator = crossfade
+                coordinator?.nextFromOverlap()?.let(coordinator::seekTo) ?: super.seekToNextMediaItem()
+            }
+
             override fun setPlaylistMetadata(playlistMetadata: MediaMetadata) {
                 val marker = playlistMetadata.extras?.getBundle(AndroidQueueCommand.KEY)
                 if (marker == null) {
@@ -761,6 +789,7 @@ public class PlaybackService : MediaLibraryService() {
         appLaunchPendingIntent()?.let(sessionBuilder::setSessionActivity)
         mediaSession = sessionBuilder.build()
         player.addListener(playerListener)
+        crossfade = CrossfadeCoordinator(this, player).also { it.start() }
         serviceScope.launch {
             NotificationFavoritesRegistry.state.collectLatest { refreshMediaButtons() }
         }
@@ -807,6 +836,8 @@ public class PlaybackService : MediaLibraryService() {
         MediaBrowseRegistry.clearActiveResumption()
         serviceScope.cancel()
         playbackPlayer?.removeListener(playerListener)
+        crossfade?.release()
+        crossfade = null
         mediaSession?.run {
             player.release()
             release()

@@ -1,0 +1,350 @@
+/*
+ * Copyright (c) 2026 LatentJam Project
+ * SPDX-License-Identifier: Apache-2.0
+ */
+package io.github.nikitasud.latentjam.playback
+
+import androidx.media3.common.C
+import androidx.media3.common.audio.AudioProcessor
+import androidx.media3.common.audio.AudioProcessor.StreamMetadata
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import kotlin.math.abs
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+
+/**
+ * Drives [CrossfadeAudioProcessor] the way DefaultAudioSink and the stream-tagging renderer do: a
+ * reposition flush before the first track, then per gapless join a checkpoint
+ * ([CrossfadeAudioProcessor.prepareSegment]), a drain and a flush. Mono at 1 kHz keeps frames and
+ * milliseconds the same numbers.
+ */
+internal class CrossfadeAudioProcessorTest {
+    private val settings = CrossfadeSettings()
+    private val streams = PcmStreams()
+    private val processor = CrossfadeAudioProcessor(settings, streams).apply {
+        configure(AudioProcessor.AudioFormat(RATE, 1, C.ENCODING_PCM_16BIT))
+    }
+    private var nextKey = 1L
+
+    private fun stream(id: String, durationMs: Long, row: Int = -1) =
+        PcmStream(nextKey++, id, duration = { durationMs * 1000L }, windowIndex = { row })
+
+    /** A seek, a skip or the first start: the renderer flushes the sink. */
+    private fun reposition(stream: PcmStream, atMs: Long = 0L) {
+        streams.current = stream
+        streams.repositions++
+        streams.bufferMediaUs = atMs * 1000L
+        processor.flush(StreamMetadata.DEFAULT)
+    }
+
+    /** The player moved on by itself; returns the position offset the chain reports. */
+    private fun join(stream: PcmStream): Long {
+        streams.current = stream
+        val skippedUs = processor.prepareSegment()
+        processor.queueEndOfStream()
+        processor.flush(StreamMetadata.DEFAULT)
+        streams.bufferMediaUs = 0L
+        return skippedUs
+    }
+
+    /** Feeds [samples] starting at [fromMs] of the track in 100-frame buffers; returns the output. */
+    private fun feed(samples: (Int) -> Int, fromMs: Int, toMs: Int): List<Int> = buildList {
+        var frame = fromMs
+        while (frame < toMs) {
+            val count = minOf(100, toMs - frame)
+            streams.bufferMediaUs = frame * 1000L
+            val input = ByteBuffer.allocateDirect(count * 2).order(ByteOrder.LITTLE_ENDIAN)
+            repeat(count) { input.putShort(samples(frame + it).toShort()) }
+            input.flip()
+            processor.queueInput(input)
+            val output = processor.output
+            while (output.hasRemaining()) add(output.short.toInt())
+            frame += count
+        }
+    }
+
+    private fun plan(outgoing: String, incoming: String, overlapMs: Long, frames: Int, samples: (Int) -> Int) =
+        OverlapPlan(
+            outgoingId = outgoing,
+            incomingId = incoming,
+            overlapUs = overlapMs * 1000L,
+            sampleRate = RATE,
+            channelCount = 1,
+            pcm = ByteBuffer.allocateDirect(frames * 2).order(ByteOrder.LITTLE_ENDIAN).apply {
+                repeat(frames) { putShort(samples(it).toShort()) }
+                flip()
+            },
+            frames = frames,
+        )
+
+    private val loud = { _: Int -> 1000 }
+    private val ramp = { frame: Int -> frame }
+
+    @Test
+    fun theNextTracksOpeningSoundsUnderTheEndAndIsNotPlayedTwice() {
+        settings.fadeMs = 2_000
+        val a = stream("a", 10_000)
+        val b = stream("b", 20_000)
+        val overlap = plan("a", "b", overlapMs = 2_000, frames = 4_000, samples = ramp)
+        settings.plan = overlap
+        reposition(a, atMs = 5_000)
+        val outgoing = feed(loud, 5_000, 10_000)
+
+        // Untouched until the overlap; then both tracks at once on equal-power curves.
+        assertTrue(outgoing.take(3_000).all { it == 1000 })
+        val middle = outgoing[4_000]
+        val expectedMiddle = 1000 * overlapOutGain(0.5f) + 1000 * overlapInGain(0.5f)
+        assertTrue(abs(middle - expectedMiddle) <= 1f, "middle of the overlap was $middle")
+        assertTrue(outgoing.last() in 1999..2000, "end of the overlap was ${outgoing.last()}")
+        assertTrue(settings.mixing === overlap)
+
+        // The join drops exactly the 2000 frames already heard and reports them as played, also
+        // when the sink checkpoints a second time before the first frame.
+        assertEquals(2_000_000L, join(b))
+        assertEquals(2_000_000L, processor.prepareSegment())
+        processor.flush(StreamMetadata.DEFAULT)
+        val incoming = feed(ramp, 0, 3_000)
+        assertEquals((2_000 until 3_000).toList(), incoming)
+        // Processed ahead of the speaker: until the player reports the join, Next still lands in B.
+        assertTrue(settings.mixing === overlap)
+    }
+
+    @Test
+    fun aTrackThatEndsEarlierThanItsHeaderSaysStillJoinsWhereTheOverlapReached() {
+        settings.fadeMs = 2_000
+        val a = stream("a", 10_000)
+        settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000, samples = ramp)
+        reposition(a, atMs = 5_000)
+        // The real stream ends 500 ms before its declared duration.
+        feed(loud, 5_000, 9_500)
+        assertEquals(1_500_000L, join(stream("b", 20_000)))
+        val incoming = feed(ramp, 0, 3_000)
+        // The rest of the overlap's rise continues on the live track, then full level.
+        val expectedFirst = 1500 * overlapInGain(0.75f)
+        assertTrue(abs(incoming.first() - expectedFirst) <= 1f, "rise carried over: ${incoming.first()}")
+        assertEquals((2_500 until 3_000).toList(), incoming.takeLast(500))
+    }
+
+    @Test
+    fun aWithdrawnPlanLetsTheOpeningGoAndTheNextTrackStartsFromItsBeginning() {
+        settings.fadeMs = 2_000
+        val a = stream("a", 10_000)
+        settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000) { 3000 }
+        reposition(a, atMs = 5_000)
+        feed(loud, 5_000, 8_500)
+        settings.plan = null
+        val rest = feed({ 0 }, 8_500, 10_000)
+        // Within the cancel ramp the opening is gone.
+        assertTrue(rest.drop(CROSSFADE_CANCEL_MS.toInt() + 100).all { it == 0 })
+        assertEquals(0L, join(stream("c", 20_000)))
+        assertEquals(0, feed(ramp, 0, 10).first())
+    }
+
+    @Test
+    fun anAlbumSeamPlayedInOrderNeitherOverlapsNorFades() {
+        settings.fadeMs = 2_000
+        settings.edges = mapOf(0 to FadeEdges(fadeIn = true, fadeOut = false), 1 to FadeEdges(false, true))
+        settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000, samples = ramp)
+        reposition(stream("a", 10_000, row = 0), atMs = 5_000)
+        assertTrue(feed(loud, 5_000, 10_000).all { it == 1000 })
+        assertEquals(0L, join(stream("b", 10_000, row = 1)))
+        assertTrue(feed(loud, 0, 3_000).all { it == 1000 })
+    }
+
+    @Test
+    fun withoutAPlanTheSeamFallsBackToFadingOutAndIn() {
+        settings.fadeMs = 2_000
+        reposition(stream("a", 10_000), atMs = 7_000)
+        val outgoing = feed(loud, 7_000, 10_000)
+        assertEquals(1000, outgoing[0])
+        assertEquals(500, outgoing[2_000])
+        join(stream("b", 10_000))
+        val incoming = feed(loud, 0, 3_000)
+        assertEquals(0, incoming[0])
+        assertEquals(500, incoming[1_000])
+        assertEquals(1000, incoming[2_500])
+    }
+
+    @Test
+    fun aPlanForAnotherSampleRateIsNotMixed() {
+        settings.fadeMs = 2_000
+        settings.plan = plan("a", "b", 2_000, 4_000, ramp).let {
+            OverlapPlan(it.outgoingId, it.incomingId, it.overlapUs, RATE * 2, 1, it.pcm, it.frames)
+        }
+        reposition(stream("a", 10_000), atMs = 7_000)
+        val outgoing = feed(loud, 7_000, 10_000)
+        assertEquals(500, outgoing[2_000])
+        assertEquals(0L, join(stream("b", 10_000)))
+    }
+
+    @Test
+    fun eachTrackPlaysAtItsOwnLoudnessAndALaterMeasurementRamps() {
+        settings.trackGains = mapOf("a" to 0.5f, "b" to 0.25f)
+        reposition(stream("a", 100_000))
+        assertEquals(500, feed(loud, 0, 10).first())
+        join(stream("b", 100_000))
+        // A new track's gain is installed before its first sample.
+        assertEquals(250, feed(loud, 0, 10).first())
+        settings.trackGains = mapOf("b" to 1f)
+        val ramped = feed(loud, 10, 1_000)
+        assertTrue(ramped.first() < 300)
+        assertEquals(1000, ramped.last())
+    }
+
+    @Test
+    fun aSeekBackOutOfTheOverlapReturnsToTheOutgoingTrackAlone() {
+        settings.fadeMs = 2_000
+        val a = stream("a", 10_000)
+        settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000, samples = ramp)
+        reposition(a)
+        feed(loud, 0, 9_000)
+        reposition(a, atMs = 3_000)
+        assertTrue(feed(loud, 3_000, 4_000).all { it == 1000 })
+        assertEquals(null, settings.mixing)
+    }
+
+    @Test
+    fun aMidTrackReconfigurationKeepsTheOverlapGoing() {
+        settings.fadeMs = 2_000
+        val a = stream("a", 10_000)
+        settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000, samples = ramp)
+        reposition(a)
+        feed(loud, 0, 9_000)
+        // Same stream: a speed change or similar re-checkpoints without a join.
+        assertEquals(0L, processor.prepareSegment())
+        processor.flush(StreamMetadata.DEFAULT)
+        val rest = feed(loud, 9_000, 10_000)
+        assertTrue(rest.last() in 1999..2000)
+        assertEquals(2_000_000L, join(stream("b", 20_000)))
+    }
+
+    @Test
+    fun theSameTrackQueuedAgainElsewhereStillFadesAtItsOwnRow() {
+        settings.fadeMs = 2_000
+        // Row 0 continues its album; row 3, the same track queued again, does not.
+        settings.edges = mapOf(0 to FadeEdges(fadeIn = false, fadeOut = false))
+        reposition(stream("a", 10_000, row = 3), atMs = 7_000)
+        assertEquals(500, feed(loud, 7_000, 10_000)[2_000])
+    }
+
+    @Test
+    fun aPlanWithdrawnMidOverlapStopsCountingAsSounding() {
+        settings.fadeMs = 2_000
+        val overlap = plan("a", "b", overlapMs = 2_000, frames = 4_000) { 3000 }
+        settings.plan = overlap
+        reposition(stream("a", 10_000), atMs = 5_000)
+        feed(loud, 5_000, 8_500)
+        assertTrue(settings.mixing === overlap)
+        // What the coordinator does when the sleep timer arms "end of track" or the queue changes.
+        settings.plan = null
+        val rest = feed({ 0 }, 8_500, 10_000)
+        assertTrue(rest.drop(CROSSFADE_CANCEL_MS.toInt() + 100).all { it == 0 })
+        assertEquals(null, settings.mixing, "Next no longer lands mid-track")
+        assertEquals(0L, join(stream("b", 20_000)))
+    }
+
+    @Test
+    fun aTrackNeverOverlapsItsOwnOpening() {
+        settings.fadeMs = 2_000
+        settings.plan = plan("a", "a", overlapMs = 2_000, frames = 4_000, samples = ramp)
+        reposition(stream("a", 10_000), atMs = 7_000)
+        // The plain fade-out, nothing mixed in.
+        assertEquals(500, feed(loud, 7_000, 10_000)[2_000])
+        assertEquals(0L, join(stream("a", 10_000)))
+    }
+
+    @Test
+    fun nextDuringAnOverlapCarriesTheIncomingRiseOnThroughTheSeeksFlushes() {
+        settings.fadeMs = 2_000
+        val a = stream("a", 10_000)
+        settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000, samples = loud)
+        reposition(a, atMs = 7_000)
+        feed(loud, 7_000, 9_000)
+        // Next: the coordinator records the rise, then seeks to b at the point heard, 1 s into the
+        // 2 s overlap. The seek disables the renderer, flushing the chain while the outgoing stream
+        // is still current, before b's own reposition: two data-less fresh segments.
+        settings.pendingRise = PendingRise("b", positionUs = 1_000_000, riseUs = 2_000_000)
+        reposition(a, atMs = 9_000)
+        val b = stream("b", 20_000)
+        reposition(b, atMs = 1_000)
+        processor.prepareSegment()
+        processor.flush(StreamMetadata.DEFAULT)
+        val incoming = feed(loud, 1_000, 3_000)
+        val expected = 1000 * overlapInGain(0.5f)
+        assertTrue(abs(incoming.first() - expected) <= 1f, "rise continued at ${incoming.first()}, not ${1000 * 0.5f}")
+        assertEquals(1000, incoming.last())
+        assertEquals(null, settings.pendingRise, "taken once")
+    }
+
+    @Test
+    fun aRecordedRiseLapsesWhenAnotherTrackPlaysFirst() {
+        settings.fadeMs = 2_000
+        settings.pendingRise = PendingRise("b", positionUs = 1_000_000, riseUs = 2_000_000)
+        // A second Next, another pick or a new queue got there first: c keeps its plain fade-in...
+        reposition(stream("c", 20_000), atMs = 1_000)
+        assertEquals(500, feed(loud, 1_000, 1_100).first())
+        assertEquals(null, settings.pendingRise)
+        // ...and b, played later from its start, does not rise along the old overlap.
+        reposition(stream("b", 20_000), atMs = 0)
+        val opening = feed(loud, 0, 1_100)
+        assertEquals(0, opening[0])
+        assertEquals(500, opening[1_000], "the plain 2 s fade-in, halfway")
+    }
+
+    @Test
+    fun aRecordedRiseIsTakenOnlyAtTheNextsLandingPoint() {
+        settings.fadeMs = 0
+        settings.pendingRise = PendingRise("b", positionUs = 1_000_000, riseUs = 2_000_000)
+        // The same track, but from its start: not the Next's landing, so no rise — even with
+        // smooth transitions off, it plays at full level.
+        reposition(stream("b", 20_000), atMs = 0)
+        assertEquals(1000, feed(loud, 0, 100).first())
+        assertEquals(null, settings.pendingRise)
+    }
+
+    @Test
+    fun aSliderLoweredAfterTheOpeningWasDecodedNeverCutsTheNextTrackInLate() {
+        // The opening was decoded for a 2 s overlap; the slider then went down to 1 s.
+        settings.fadeMs = 1_000
+        settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000) { 3000 }
+        reposition(stream("a", 10_000), atMs = 7_000)
+        val outgoing = feed(loud, 7_000, 10_000)
+        // At the 1 s window the 2 s overlap's start has passed: the plain fade, nothing mixed in.
+        assertEquals(1000, outgoing[1_999])
+        assertEquals(500, outgoing[2_500])
+        assertTrue(outgoing.all { it <= 1000 }, "no opening under the end")
+        assertEquals(0L, join(stream("b", 20_000)))
+    }
+
+    @Test
+    fun aMixCountsAsSoundingOnceItIsSettledBeforeItsFirstFrame() {
+        // A 1 s overlap inside a 2 s slider: settled at the 2 s window, sounding 1 s later.
+        settings.fadeMs = 2_000
+        val overlap = plan("a", "b", overlapMs = 1_000, frames = 3_000, samples = ramp)
+        settings.plan = overlap
+        reposition(stream("a", 10_000), atMs = 7_000)
+        val waiting = feed(loud, 7_000, 8_500)
+        assertTrue(settings.mixing === overlap, "a slider drag here must not re-plan the seam")
+        // Nothing of the next track yet, and no fade: the end waits for the overlap.
+        assertTrue(waiting.all { it == 1000 })
+    }
+
+    @Test
+    fun aLoudOutgoingAndAQuieterNormalisedNextTrackNeverClipHard() {
+        settings.fadeMs = 2_000
+        settings.trackGains = mapOf("b" to 0.8f)
+        // Both masters at full scale: the sum peaks near 1.27 mid-overlap.
+        settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000) { Short.MAX_VALUE.toInt() }
+        reposition(stream("a", 10_000), atMs = 7_000)
+        val outgoing = feed({ Short.MAX_VALUE.toInt() }, 7_000, 10_000)
+        val middle = outgoing.subList(1_800, 2_200)
+        assertTrue(middle.all { it < 32_700 }, "mid-overlap peak ${middle.max()} hit the rail")
+        assertTrue(middle.all { it > 29_000 }, "the limit is soft, not a dip: ${middle.min()}")
+    }
+
+    private companion object {
+        const val RATE = 1000
+    }
+}

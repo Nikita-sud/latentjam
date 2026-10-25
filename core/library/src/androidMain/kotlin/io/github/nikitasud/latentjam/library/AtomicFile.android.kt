@@ -6,17 +6,23 @@ package io.github.nikitasud.latentjam.library
 
 import android.system.Os
 import android.system.OsConstants
+import java.io.BufferedWriter
 import java.io.File
 import java.io.FileOutputStream
+import java.io.OutputStreamWriter
+import java.io.Writer
 
 /** Writes and syncs a sibling first, then atomically replaces the live private file. */
-internal fun File.atomicReplaceText(contents: String) {
+internal fun File.atomicReplaceText(contents: String) = atomicReplace { it.write(contents) }
+
+/** [atomicReplaceText] for contents written piece by piece, never held whole in memory. */
+internal fun File.atomicReplace(write: (Writer) -> Unit) {
     parentFile?.mkdirs()
     val temporary = File(parentFile, ".$name.tmp")
     try {
         FileOutputStream(temporary).use { stream ->
-            val writer = stream.writer(Charsets.UTF_8)
-            writer.write(contents)
+            val writer = BufferedWriter(OutputStreamWriter(stream, Charsets.UTF_8), 16 * 1024)
+            write(writer)
             writer.flush()
             stream.fd.sync()
         }

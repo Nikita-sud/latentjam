@@ -7,10 +7,13 @@ package io.github.nikitasud.latentjam.app
 import io.github.nikitasud.latentjam.library.tags.EmbeddedTagFacts
 import io.github.nikitasud.latentjam.library.tags.GenreTags
 import io.github.nikitasud.latentjam.library.tags.TextRepair
+import io.github.nikitasud.latentjam.smart.PayloadHex
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 
 /**
@@ -30,6 +33,11 @@ import kotlinx.coroutines.yield
  * and the SMART metadata-text embedding re-encodes because the genre string is part of its
  * vector identity.
  *
+ * Whether the file names an album at all is one more such fact. The scanner files a song without
+ * one under its folder's name, and that pseudo-album's cover belongs to another song in the folder
+ * (issue #12), so such a song keeps only a cover of its own ([ownCoverOnly]). Its album stays as
+ * the scanner reported it: the Albums tab still lists the folder.
+ *
  * A cache entry is keyed by [TrackDescriptor.sourceRevision]: retagging changes the revision,
  * which makes the entry stale and the file re-read. "Read fine, found nothing" is remembered
  * too — the file is not worth re-opening every launch — while "could not read" stores nothing
@@ -37,6 +45,7 @@ import kotlinx.coroutines.yield
  */
 internal class GenreEnrichment(
     private val settings: AppSettings,
+    private val ownCover: (String) -> String = ::ownCoverOnly,
     private val readFacts: suspend (TrackDescriptor) -> EmbeddedTagFacts? = ::readEmbeddedFacts,
 ) {
     private data class Stored(
@@ -48,20 +57,57 @@ internal class GenreEnrichment(
         val albumArtist: String?,
         /** The file's own year; applied only where the scanner reported none. */
         val year: Int?,
+        /** Whether the file names an album; without one it borrows no album's cover. */
+        val namesAlbum: Boolean,
+        /**
+         * Read by the previous format, which did not record [namesAlbum]: applied as it is (the
+         * album fallback kept), but its file is read again.
+         */
+        val stale: Boolean = false,
     )
 
     private val mutex = Mutex()
-    private var cache: MutableMap<String, Stored>? = null
-    private var cacheDirty = false
 
-    /** Applies remembered facts; pure and cheap, safe on every library load. */
+    /**
+     * Facts learned but not yet saved (storage refused the write). Normally empty: the cache
+     * itself stays on storage and is streamed by [apply] and [backfill], never held whole (on
+     * Android; iOS keeps it as one stored string). At
+     * 10,000 songs the resident map and its decoded strings were 2.8 MB of a 48 MB heap.
+     */
+    private val unsaved = HashMap<String, Stored>()
+
+    /** Applies remembered facts; one streamed pass over the cache, safe on every library load. */
     suspend fun apply(library: List<TrackDescriptor>): List<TrackDescriptor> = mutex.withLock {
-        val loaded = ensureLoaded()
-        library.map { track ->
-            val stored = loaded[track.id.value] ?: return@map track
-            if (stored.revision != track.revisionKey()) return@map track
-            stored.mergedInto(track)
+        if (library.isEmpty()) return@withLock library
+        // The cache is a file now: streamed, decoded and merged off the caller's (main) thread.
+        withContext(Dispatchers.Default) { applyLocked(library) }
+    }
+
+    private fun applyLocked(library: List<TrackDescriptor>): List<TrackDescriptor> {
+        val positions = HashMap<String, Int>(library.size * 2)
+        library.forEachIndexed { index, track -> positions[track.id.value] = index }
+        var result: MutableList<TrackDescriptor>? = null
+        // An album's songs share one genre, artist list and album artist: one instance per value.
+        val pool = HashMap<String, String>()
+        fun merge(id: String, stored: Stored) {
+            val index = positions[id] ?: return
+            val track = library[index]
+            if (stored.revision != track.revisionKey()) return
+            val merged = stored.mergedInto(track, pool)
+            if (merged !== track || result != null) {
+                val target = result ?: library.toMutableList().also { result = it }
+                target[index] = merged
+            }
         }
+        settings.readTrackGenreLines { lines ->
+            for (line in lines) {
+                val id = idOf(line) ?: continue
+                if (id !in positions || id in unsaved) continue
+                decode(line)?.let { merge(id, it) }
+            }
+        }
+        for ((id, stored) in unsaved) merge(id, stored)
+        return result ?: library
     }
 
     /**
@@ -70,19 +116,22 @@ internal class GenreEnrichment(
      * value MediaStore holds for the same field: MediaStore's own reading wins over its mangling.
      * [track] itself when nothing changes.
      */
-    private fun Stored.mergedInto(track: TrackDescriptor): TrackDescriptor {
+    private fun Stored.mergedInto(track: TrackDescriptor, pool: MutableMap<String, String>? = null): TrackDescriptor {
+        fun String.shared(): String = pool?.getOrPut(this) { this } ?: this
         val genre = joinedGenres.takeIf { it.isNotEmpty() }
             ?.split(GenreTags.SEPARATOR)
             ?.joinToString(GenreTags.SEPARATOR) { it.unlessMangling(track.genre) }
+            ?.let { if (it == track.genre) track.genre else it.shared() }
             ?: track.genre
-        val artists = artists.map { it.unlessMangling(track.artist) }.ifEmpty { track.artists }
+        val artists = artists.map { it.unlessMangling(track.artist).shared() }.ifEmpty { track.artists }
         val originalYear = originalYear ?: track.originalYear
-        val language = language ?: track.language
-        val albumArtist = albumArtist?.unlessMangling(track.albumArtist) ?: track.albumArtist
+        val language = language?.shared() ?: track.language
+        val albumArtist = albumArtist?.unlessMangling(track.albumArtist)?.shared() ?: track.albumArtist
         val year = track.year ?: year
+        val artworkUri = if (namesAlbum) track.artworkUri else track.artworkUri?.let(ownCover)
         return if (genre == track.genre && artists == track.artists &&
             originalYear == track.originalYear && language == track.language &&
-            albumArtist == track.albumArtist && year == track.year
+            albumArtist == track.albumArtist && year == track.year && artworkUri == track.artworkUri
         ) {
             track
         } else {
@@ -93,6 +142,7 @@ internal class GenreEnrichment(
                 language = language,
                 albumArtist = albumArtist,
                 year = year,
+                artworkUri = artworkUri,
             )
         }
     }
@@ -107,13 +157,26 @@ internal class GenreEnrichment(
      * politeness: yields between files so a first launch over a big library never owns a core.
      */
     suspend fun backfill(library: List<TrackDescriptor>): Boolean {
-        val known = mutex.withLock { ensureLoaded().toMap() }
+        // Only the revision each song was read at: what decides whether its file is read again.
+        val known = mutex.withLock {
+            withContext(Dispatchers.Default) {
+                val revisions = HashMap<String, String>()
+                settings.readTrackGenreLines { lines ->
+                    for (line in lines) {
+                        val id = idOf(line) ?: continue
+                        // A line that does not decode, or is stale, is no entry: its file is read again.
+                        decode(line)?.takeIf { !it.stale }?.let { revisions[id] = it.revision }
+                    }
+                }
+                for ((id, stored) in unsaved) revisions[id] = stored.revision
+                revisions
+            }
+        }
         var learnedSomething = false
         val updates = HashMap<String, Stored>()
         for (track in library) {
             val revision = track.revisionKey()
-            val existing = known[track.id.value]
-            if (existing != null && existing.revision == revision) continue
+            if (known[track.id.value] == revision) continue
             val facts = readFacts(track) ?: continue
             // The same repair MediaStore's text gets (issue #7): an older tagger's UTF-8 read as a
             // Windows codepage is in the file itself, and must not reach the library as "BeyoncÃ©".
@@ -125,52 +188,83 @@ internal class GenreEnrichment(
                 language = facts.language?.let(TextRepair::repair),
                 albumArtist = facts.albumArtist?.let(TextRepair::repair),
                 year = facts.year,
+                // A tag read only in part may name an album that was not reached: keep the fallback.
+                namesAlbum = facts.album != null || !facts.albumKnown,
             )
             updates[track.id.value] = stored
             if (stored.changes(track)) learnedSomething = true
+            // Saved as it goes: a pass over a whole library takes minutes, and an app closed
+            // midway must not have to read the same files again.
+            if (updates.size >= SAVE_EVERY) {
+                save(updates)
+                updates.clear()
+            }
             yield()
         }
-        mutex.withLock {
-            val target = ensureLoaded()
-            if (updates.isNotEmpty()) {
-                target.putAll(updates)
-                cacheDirty = true
-            }
-            // Facts remain usable in memory if storage is unavailable. A warm pass must also
-            // retry a failed save: its files no longer need reading, so updates will be empty.
-            if (cacheDirty) {
-                try {
-                    settings.writeTrackGenresPayload(encode(target))
-                    cacheDirty = false
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (_: Exception) {
-                    // This is a rebuildable cache, not a reason to terminate the library screen.
-                }
+        // A warm pass must also retry a failed save: its files no longer need reading.
+        save(updates)
+        return learnedSomething
+    }
+
+    private suspend fun save(updates: Map<String, Stored>) = mutex.withLock {
+        unsaved.putAll(updates)
+        // Facts remain usable in memory if storage is unavailable.
+        if (unsaved.isNotEmpty()) {
+            try {
+                withContext(Dispatchers.Default) { persist(unsaved) }
+                unsaved.clear()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // This is a rebuildable cache, not a reason to terminate the library screen.
             }
         }
-        return learnedSomething
+    }
+
+    /**
+     * Rewrites the cache: every current- or previous-format line not superseded by [changes], then
+     * [changes].
+     */
+    private fun persist(changes: Map<String, Stored>) {
+        settings.writeTrackGenreLines { emit ->
+            settings.readTrackGenreLines { lines ->
+                for (line in lines) {
+                    // Only lines of the formats [decode] reads are carried over, checked by their shape:
+                    // their fields are not decoded here, as a pass over a whole library rewrites the
+                    // file many times. A line that then fails to decode is read again by [backfill].
+                    if (!isReadableFormat(line)) continue
+                    val id = idOf(line) ?: continue
+                    if (id in changes) continue
+                    emit(line)
+                }
+            }
+            for ((id, stored) in changes) emit(encode(id, stored))
+        }
     }
 
     private fun Stored.changes(track: TrackDescriptor): Boolean = mergedInto(track) != track
 
-    private fun ensureLoaded(): MutableMap<String, Stored> {
-        cache?.let { return it }
-        val loaded = decode(settings.readTrackGenresPayload())
-        cache = loaded
-        return loaded
-    }
-
     private companion object {
         /**
          * v2 added artists and the original year, v3 the language tag, v4 the album artist, v5 the
-         * file's own year. Older lines are deliberately dropped on decode: those files must be
-         * re-read once anyway to learn the new facts. That is one tag read per track, the same
-         * pass every earlier bump cost; SMART's audio analysis is keyed on the audio's identity
-         * (URI, duration, revision) and is untouched — only the cheap text vector re-encodes
-         * where a year appears.
+         * file's own year, v6 whether the file names an album. Lines older than v5 are dropped on
+         * decode: those files must be read again anyway to learn facts the library shows. v5 lines
+         * still apply while their files are read again ([Stored.stale]), so the library keeps its
+         * genres and years through that pass instead of falling back to the scanner's for minutes.
          */
-        const val FORMAT = "v5"
+        const val FORMAT = "v6"
+        const val FORMAT_PREFIX = "$FORMAT|"
+        const val PREVIOUS_FORMAT = "v5"
+
+        /** Files read between two saves of a backfill: each save rewrites the whole cache. */
+        const val SAVE_EVERY = 1024
+
+        /** A line of the current format, or of the previous one, by its field count alone. */
+        fun isReadableFormat(line: String): Boolean {
+            val fields = line.count { it == '|' } + 1
+            return (line.startsWith(FORMAT_PREFIX) && fields == 10) ||
+                (line.startsWith("$PREVIOUS_FORMAT|") && fields == 9)
+        }
 
         /** Joins the artist list inside one hex field; NUL never appears in a real name. */
         const val ARTIST_JOIN = "\u0000"
@@ -183,48 +277,65 @@ internal class GenreEnrichment(
         fun TrackDescriptor.revisionKey(): String =
             sourceRevision ?: durationMs?.toString() ?: "-"
 
-        fun encode(entries: Map<String, Stored>): String =
-            entries.entries.joinToString("\n") { (id, stored) ->
-                listOf(
-                    FORMAT,
-                    id.hex(),
-                    stored.revision.hex(),
-                    stored.joinedGenres.hex(),
-                    stored.artists.joinToString(ARTIST_JOIN).hex(),
-                    stored.originalYear?.toString() ?: "",
-                    stored.language.orEmpty().hex(),
-                    stored.albumArtist.orEmpty().hex(),
-                    stored.year?.toString() ?: "",
-                ).joinToString("|")
-            }
+        fun encode(id: String, stored: Stored): String =
+            listOf(
+                FORMAT,
+                PayloadHex.encode(id),
+                PayloadHex.encode(stored.revision),
+                PayloadHex.encode(stored.joinedGenres),
+                PayloadHex.encode(stored.artists.joinToString(ARTIST_JOIN)),
+                stored.originalYear?.toString() ?: "",
+                PayloadHex.encode(stored.language.orEmpty()),
+                PayloadHex.encode(stored.albumArtist.orEmpty()),
+                stored.year?.toString() ?: "",
+                if (stored.namesAlbum) "1" else "0",
+            ).joinToString("|")
 
-        fun decode(payload: String?): MutableMap<String, Stored> {
-            val result = HashMap<String, Stored>()
-            payload?.lineSequence()?.forEach { line ->
-                val parts = line.split('|')
-                if (parts.size != 9 || parts[0] != FORMAT) return@forEach
-                val id = parts[1].unhex() ?: return@forEach
-                val revision = parts[2].unhex() ?: return@forEach
-                val genres = parts[3].unhex() ?: return@forEach
-                val artistsJoined = parts[4].unhex() ?: return@forEach
-                val language = parts[6].unhex() ?: return@forEach
-                val albumArtist = parts[7].unhex() ?: return@forEach
-                // Entries written before the ID3 reader learned to read UTF-8 in Latin-1 frames
-                // hold "HÃ¶rspiel" for an unchanged file. TextRepair recovers the names a re-read
-                // would find without opening the file, and leaves a sound name as it is.
-                result[id] = Stored(
-                    revision = revision,
-                    joinedGenres = genres.split(GenreTags.SEPARATOR)
-                        .joinToString(GenreTags.SEPARATOR, transform = TextRepair::repair),
-                    artists = artistsJoined.split(ARTIST_JOIN).filter { it.isNotEmpty() }.map(TextRepair::repair),
-                    originalYear = parts[5].toIntOrNull(),
-                    language = language.takeIf { it.isNotEmpty() }?.let(TextRepair::repair),
-                    albumArtist = albumArtist.takeIf { it.isNotEmpty() }?.let(TextRepair::repair),
-                    year = parts[8].toIntOrNull(),
-                )
+        /** Where field [index] of a current- or previous-format [line] starts and ends, or null. */
+        fun fieldRange(line: String, index: Int): IntRange? {
+            if (!line.startsWith(FORMAT_PREFIX) && !line.startsWith("$PREVIOUS_FORMAT|")) return null
+            var start = 0
+            for (field in 0 until index) {
+                start = line.indexOf('|', start) + 1
+                if (start == 0) return null
             }
-            return result
+            val end = line.indexOf('|', start).let { if (it < 0) line.length else it }
+            return start until end
         }
+
+        /** The song a current- or previous-format line is about, decoding nothing else. */
+        fun idOf(line: String): String? =
+            fieldRange(line, 1)?.let { PayloadHex.decode(line, it.first, it.last + 1) }
+
+        fun decode(line: String): Stored? {
+            val parts = line.split('|')
+            val current = parts.size == 10 && parts[0] == FORMAT
+            val previous = parts.size == 9 && parts[0] == PREVIOUS_FORMAT
+            if (!current && !previous) return null
+            parts[1].unhexOrNull() ?: return null
+            val revision = parts[2].unhexOrNull() ?: return null
+            val genres = parts[3].unhexOrNull() ?: return null
+            val artistsJoined = parts[4].unhexOrNull() ?: return null
+            val language = parts[6].unhexOrNull() ?: return null
+            val albumArtist = parts[7].unhexOrNull() ?: return null
+            // Entries written before the ID3 reader learned to read UTF-8 in Latin-1 frames
+            // hold "HÃ¶rspiel" for an unchanged file. TextRepair recovers the names a re-read
+            // would find without opening the file, and leaves a sound name as it is.
+            return Stored(
+                revision = revision,
+                joinedGenres = genres.split(GenreTags.SEPARATOR)
+                    .joinToString(GenreTags.SEPARATOR, transform = TextRepair::repair),
+                artists = artistsJoined.split(ARTIST_JOIN).filter { it.isNotEmpty() }.map(TextRepair::repair),
+                originalYear = parts[5].toIntOrNull(),
+                language = language.takeIf { it.isNotEmpty() }?.let(TextRepair::repair),
+                albumArtist = albumArtist.takeIf { it.isNotEmpty() }?.let(TextRepair::repair),
+                year = parts[8].toIntOrNull(),
+                namesAlbum = !current || parts[9] != "0",
+                stale = previous,
+            )
+        }
+
+        private fun String.unhexOrNull(): String? = PayloadHex.decode(this)
     }
 }
 
