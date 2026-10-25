@@ -291,6 +291,8 @@ internal class LastMiniPresentation(
 @Stable
 internal class LibraryWorldsState {
     var memoryLimited by mutableStateOf(false)
+    /** The last attempt to discover this library's worlds failed; the Map says so instead of waiting. */
+    var discoveryFailed by mutableStateOf(false)
     var worlds by mutableStateOf<List<LibraryWorld>>(emptyList())
     var worldLibraryIds by mutableStateOf<List<TrackId>>(emptyList())
     var builtWorldsKey by mutableStateOf<LibraryWorldsKey?>(null)

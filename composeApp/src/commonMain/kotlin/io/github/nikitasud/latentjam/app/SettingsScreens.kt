@@ -3712,7 +3712,7 @@ private fun StatRow(label: String, value: String) {
 }
 
 @Composable
-private fun describeEngineState(state: EngineState): String = when (state) {
+internal fun describeEngineState(state: EngineState): String = when (state) {
     is EngineState.Uninitialized -> stringResource(Res.string.engine_state_not_started)
     is EngineState.Initializing -> stringResource(Res.string.engine_state_starting)
     is EngineState.Ready -> stringResource(Res.string.engine_state_ready)

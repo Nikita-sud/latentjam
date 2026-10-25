@@ -1382,6 +1382,7 @@ private fun AppShell(
                         libraryWorlds.builtWorldsKey = worldsKey
                         libraryWorlds.builtWorldNoveltyPreference = includeNoveltyMixes
                         libraryWorlds.builtWorldReadiness = metadataReady to audioReady
+                        libraryWorlds.discoveryFailed = false
                         }
                     } catch (cancelled: CancellationException) {
                         throw cancelled
@@ -1393,6 +1394,7 @@ private fun AppShell(
                         // a low-RAM phone. The page keeps what it had, as the Map layout below does;
                         // whatever the failed pass allocated is unreachable once this lambda returns.
                         println("SMART: could not refresh library suggestions: $failure")
+                        libraryWorlds.discoveryFailed = true
                     }
                 }
         }
@@ -2790,6 +2792,7 @@ private fun AppShell(
                                                 ),
                                         ) {
                                         MapTab(
+                                            onRetryIndexing = ::retryAutomaticIndexing,
                                             currentAccent = browseAccentInk(accent),
                                             state = shownMapState,
                                             contentPadding = listPadding,

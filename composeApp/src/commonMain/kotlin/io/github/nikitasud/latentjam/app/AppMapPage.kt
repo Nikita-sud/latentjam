@@ -54,6 +54,7 @@ internal fun rememberMapPageModel(
         libraryWorlds.builtWorldsKey,
         libraryWorlds.memoryLimited,
         libraryWorlds.audioVectorsReady,
+        libraryWorlds.discoveryFailed,
         mapPageActive,
         historyRevision,
         discoveryMixLabel,
@@ -111,7 +112,9 @@ internal fun rememberMapPageModel(
         }
         if (regions.isEmpty()) {
             mapPage.mapRegions = emptyList()
-            mapPage.mapState = MapPageState.Indexing
+            // A discovery that failed will not report on this library by itself; waiting for it
+            // left the Map saying "still reading" for good (issue: endless Map indexing).
+            mapPage.mapState = if (libraryWorlds.discoveryFailed) MapPageState.Unavailable else MapPageState.Indexing
             return@LaunchedEffect
         }
 
@@ -198,6 +201,8 @@ internal fun rememberMapPageModel(
             null
         } catch (failure: Throwable) {
             println("Map: could not assemble the current page: $failure")
+            // A warm page keeps showing; a first build says it failed rather than "still reading".
+            if (stableStateBeforeBuild !is MapPageState.Ready) mapPage.mapState = MapPageState.Unavailable
             null
         }
 

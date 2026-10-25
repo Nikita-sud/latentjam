@@ -6,6 +6,11 @@ package io.github.nikitasud.latentjam.app
 
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.testTag
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_retry
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_analysis_progress
+import io.github.nikitasud.latentjam.smart.EngineState
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.runtime.collectAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -254,10 +259,16 @@ fun MapTab(
     onOpenRegion: (Int) -> Unit,
     onSmartFromRegion: (Int) -> Unit,
     onOpenTrack: (TrackId) -> Unit,
+    /** Restarts a library analysis that stopped, as Settings → SMART engine does. */
+    onRetryIndexing: () -> Unit = {},
 ) {
     val page = (state as? MapPageState.Ready)?.page
     if (page == null || page.dots.isEmpty()) {
         Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+            if (state == MapPageState.Indexing) {
+                MapIndexingStatus(onRetryIndexing)
+                return@Box
+            }
             val message = when (state) {
                 is MapPageState.Building -> stringResource(Res.string.map_empty_building)
                 is MapPageState.TooLarge -> stringResource(
@@ -1598,4 +1609,64 @@ internal fun nearest(
         }
     }
     return best.takeIf { bestDistance < hitRadiusPx * hitRadiusPx }
+}
+
+/**
+ * What the Map can truthfully say while it waits for the library's analysis. "Still reading" was
+ * shown whatever the analysis was doing, so a pass that had stopped, or an engine that never
+ * started, left the Map promising a map that would never come.
+ */
+internal sealed interface MapIndexingHelp {
+    /** The analysis is running: how far it has got. */
+    data class Progress(val done: Int, val total: Int) : MapIndexingHelp
+
+    /** Nothing will happen by itself: the engine failed, or the pass stopped before finishing. */
+    data class Stopped(val engine: EngineState) : MapIndexingHelp
+
+    /** Starting up, or between phases: the plain "still reading" message. */
+    data object Waiting : MapIndexingHelp
+}
+
+internal fun mapIndexingHelp(indexing: AutomaticIndexingState, engine: EngineState): MapIndexingHelp = when {
+    engine is EngineState.Failed -> MapIndexingHelp.Stopped(engine)
+    indexing.running && indexing.progressKnown && indexing.trackIds.isNotEmpty() ->
+        MapIndexingHelp.Progress(indexing.done.coerceAtMost(indexing.trackIds.size), indexing.trackIds.size)
+    // A pass for this library ran and ended without even the metadata phase: it was interrupted.
+    !indexing.running && indexing.trackIds.isNotEmpty() && !indexing.metadataReady ->
+        MapIndexingHelp.Stopped(engine)
+    else -> MapIndexingHelp.Waiting
+}
+
+@Composable
+private fun MapIndexingStatus(onRetry: () -> Unit) {
+    val indexing by AppGraph.automaticIndexing.collectAsState()
+    val engineState by AppGraph.engine.state.collectAsState()
+    val help = mapIndexingHelp(indexing, engineState)
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = when (help) {
+                is MapIndexingHelp.Stopped -> if (help.engine is EngineState.Failed) {
+                    describeEngineState(help.engine)
+                } else {
+                    stringResource(Res.string.map_unavailable)
+                }
+                else -> stringResource(Res.string.map_empty_indexing)
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        when (help) {
+            is MapIndexingHelp.Progress -> Text(
+                text = stringResource(Res.string.intelligence_analysis_progress, help.done, help.total),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            is MapIndexingHelp.Stopped -> OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 16.dp)) {
+                Text(stringResource(Res.string.intelligence_retry))
+            }
+            MapIndexingHelp.Waiting -> Unit
+        }
+    }
 }
