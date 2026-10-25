@@ -68,6 +68,12 @@ internal class CrossfadeSettings {
      */
     @Volatile var pendingRise: PendingRise? = null
 
+    /**
+     * The sample rate the main player's output runs at ([SeamResamplingAudioProcessor]); the rate an
+     * opening is captured at, so its frames are the ones the player will produce. 0 before any.
+     */
+    @Volatile var outputRate: Int = 0
+
     /** Which scratch slot ([IntroScratch]) the processor is reading an opening from; -1 for none. */
     @Volatile var soundingSlot: Int = -1
 
@@ -140,6 +146,9 @@ internal class PcmStreams {
     var current: PcmStream? = null
     var bufferMediaUs: Long = 0L
     var repositions: Long = 0L
+
+    /** [repositions] when the last buffer reached the sink; equal to it once PCM follows a reposition. */
+    var repositionsAtData: Long = -1L
 }
 
 /**

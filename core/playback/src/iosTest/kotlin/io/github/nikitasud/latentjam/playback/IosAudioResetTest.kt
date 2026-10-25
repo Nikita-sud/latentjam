@@ -104,7 +104,7 @@ class IosAudioResetTest {
 
     @Test
     fun aSecondTrackJoinsUnderTheFirstAndCarriesOnAsTheCurrentOne() = withWave { first ->
-        // The same rate and layout: only such a track may join (see sharesGraphFormat).
+        // The same layout: only such a track may join (see sharesGraphFormat).
         withWave { second ->
             val engine = IosAudioEngine()
             try {
@@ -148,13 +148,13 @@ class IosAudioResetTest {
     }
 
     @Test
-    fun onlyATrackOfTheGraphsRateAndLayoutMayJoinAnOverlap() {
+    fun onlyATrackOfTheGraphsLayoutMayJoinAnOverlapAtAnyRate() {
         val engine = IosAudioEngine()
         try {
             val stereo44 = AVAudioFormat(standardFormatWithSampleRate = 44100.0, channels = 2u)
             assertTrue(engine.sharesGraphFormat(stereo44, AVAudioFormat(standardFormatWithSampleRate = 44100.0, channels = 2u)))
             assertFalse(engine.sharesGraphFormat(stereo44, AVAudioFormat(standardFormatWithSampleRate = 44100.0, channels = 1u)))
-            assertFalse(engine.sharesGraphFormat(stereo44, AVAudioFormat(standardFormatWithSampleRate = 22050.0, channels = 2u)))
+            assertTrue(engine.sharesGraphFormat(stereo44, AVAudioFormat(standardFormatWithSampleRate = 48000.0, channels = 2u)))
             assertFalse(engine.sharesGraphFormat(AVAudioFormat(standardFormatWithSampleRate = 22050.0, channels = 1u), stereo44))
         } finally { engine.stop() }
     }

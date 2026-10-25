@@ -296,7 +296,7 @@ internal class IosAudioEngine : EqualizerController {
     /**
      * Cues [url] on the standby deck for an overlap, silent and not yet playing; returns its
      * duration, or null when it cannot join — no current file, a stopped graph, an unreadable file,
-     * or a file of another sample rate or channel count than the graph's (see [sharesGraphFormat]).
+     * or a file of another channel count than the graph's (see [sharesGraphFormat]).
      */
     fun prepareOverlap(url: NSURL, fromMs: Long = 0L): Long? {
         cancelOverlap()
@@ -368,12 +368,15 @@ internal class IosAudioEngine : EqualizerController {
     }
 
     /**
-     * Whether a track of [incoming] format may join a graph configured for [current]: same sample
-     * rate and channel count, as Android's mixer requires. Otherwise the seam keeps the plain
-     * fades and the next track loads, reconfiguring the graph for itself.
+     * Whether a track of [incoming] format may join a graph configured for [current]: the same
+     * channel count, as Android's mixer requires. Another sample rate joins: the submixer converts
+     * its input bus to the graph's rate, and the track plays on converted after the decks swap until
+     * the next load sets the graph to a file's own rate — what Android does across such a seam
+     * ([SeamResamplingAudioProcessor]). Otherwise the seam keeps the plain fades and the next track
+     * loads, reconfiguring the graph for itself.
      */
     internal fun sharesGraphFormat(current: AVAudioFormat, incoming: AVAudioFormat): Boolean =
-        current.sampleRate == incoming.sampleRate && current.channelCount == incoming.channelCount
+        current.channelCount == incoming.channelCount
 
     /** Starts the cued overlap under the current track. */
     fun startOverlap(fromMs: Long = 0L): Boolean {

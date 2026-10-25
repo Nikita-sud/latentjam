@@ -123,6 +123,8 @@ internal class CrossfadeIntroCapture(
     private val lengthMs: Long,
     private val scratch: IntroScratch,
     private val slot: Int,
+    /** The main player's output rate, the opening's too; 0 keeps the track's own. */
+    private val outputRate: Int,
     private val onDone: (PcmIntro?) -> Unit,
 ) {
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -139,7 +141,9 @@ internal class CrossfadeIntroCapture(
         val sink = PcmOnlyAudioSink(
             DefaultAudioSink.Builder(context)
                 .setEnableFloatOutput(false)
-                .setAudioProcessors(arrayOf<AudioProcessor>(capture))
+                // At the main player's output rate: an opening of another rate is resampled exactly
+                // as the player will resample it at the join.
+                .setAudioProcessors(arrayOf(SeamResamplingAudioProcessor(AndroidCrossfade.settings, targetRate = outputRate), capture))
                 .setAudioOutputProvider(
                     DiscardingOutputProvider(AudioTrackAudioOutputProvider.Builder(context).build()),
                 )
