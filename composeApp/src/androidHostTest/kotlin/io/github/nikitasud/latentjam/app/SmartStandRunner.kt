@@ -62,8 +62,14 @@ class SmartStandRunner {
         val payload = File(dir, "track_genres.txt").takeIf { it.isFile }?.readText()
         val settings = java.lang.reflect.Proxy.newProxyInstance(
             AppSettings::class.java.classLoader, arrayOf(AppSettings::class.java),
-        ) { _, method, _ ->
-            if (method.name == "readTrackGenresPayload") payload else error("stand: unexpected settings call ${method.name}")
+        ) { _, method, args ->
+            @Suppress("UNCHECKED_CAST")
+            when (method.name) {
+                "readTrackGenresPayload" -> payload
+                // The line-at-a-time read (the genre cache on storage): the same payload, its lines.
+                "readTrackGenreLines" -> payload?.let { (args[0] as (Sequence<String>) -> Any?)(it.lineSequence()) }
+                else -> error("stand: unexpected settings call ${method.name}")
+            }
         } as AppSettings
         val library = GenreEnrichment(settings) { null }.apply(File(dir, "library.tsv").readLines().filter(String::isNotEmpty).map(::track))
         val byId = library.associateBy { it.id }
