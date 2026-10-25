@@ -16,6 +16,8 @@ import io.github.nikitasud.latentjam.smart.text.ArtistPopularity
 import io.github.nikitasud.latentjam.smart.text.ArtistSets
 import io.github.nikitasud.latentjam.smart.text.ArtistVectors
 import io.github.nikitasud.latentjam.smart.text.KnownArtists
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.pow
 import kotlin.math.sqrt
@@ -961,6 +963,9 @@ public class SmartRanker(
     /** One string per distinct artist key across the cache. */
     private val artistStrings = HashMap<String, String>()
     private var knownFor: List<TrackDescriptor>? = null
+
+    /** [plan] and [warm] share the library caches (knownOf, the hub scores); a press waits for a warm-up in progress. */
+    private val libraryLock = Mutex()
     private var knownById: Map<TrackId, Known> = emptyMap()
 
     /** Library tracks whose artist has a pack entity / a co-listening list / a LightFM vector (build notes). */
@@ -1139,7 +1144,25 @@ public class SmartRanker(
     public suspend fun plan(request: PlanRequest): PlanReport = plan(request, null)
 
     /** [plan] with [diagnostics] filled (the debug action; the time budget is not applied). */
-    public suspend fun plan(request: PlanRequest, diagnostics: PlanDiagnostics?): PlanReport {
+    public suspend fun plan(request: PlanRequest, diagnostics: PlanDiagnostics?): PlanReport =
+        libraryLock.withLock { planLocked(request, diagnostics) }
+
+    /**
+     * Computes the library-wide work a press would otherwise pay on its first plan (the hub scores) for [library] — the
+     * same list the planner passes as [PlanRequest.library], so the press finds the same cache key and the same values.
+     * Runs in the background after indexing and after library changes. Returns the tracks scored (0: nothing to do).
+     */
+    public suspend fun warm(library: List<TrackDescriptor>): Int = libraryLock.withLock {
+        val cache = knownOf(library)
+        val specs = listOfNotNull(model.hubPenalty, fullModel?.hubPenalty)
+        for (spec in specs) hubScores(spec, cache.values, emptyMap())
+        if (specs.isEmpty()) 0 else hubCache?.second?.size ?: 0
+    }
+
+    /** Returns once no [warm] is running: the planner's heap check must not count a warm-up's transient arrays. */
+    public suspend fun awaitWarm(): Unit = libraryLock.withLock { }
+
+    private suspend fun planLocked(request: PlanRequest, diagnostics: PlanDiagnostics?): PlanReport {
         val active = when {
             request.ruleOnly -> RankerModel.RULE_SET
             request.personal && fullModel != null -> fullModel
@@ -1259,8 +1282,16 @@ public class SmartRanker(
         val personalRows = if (active.features.any { it in RankerFeatures.PERSONAL }) request.history else null
         // Hearts count only in a FULL plan ("Learn from my habits"), whatever columns the model names (reference.py).
         val hearts = if (request.personal) request.history else null
+        // Cold fix: semChain for a seed the pack does not know (scope cold), centred on the library's means.
+        val sem = active.semChain?.takeIf { !it.coldOnly || seedKnown.entity < 0 }?.let { spec ->
+            bounded(AUDIO_BATCH_CAP_MS) { semChainFor(spec, seedKnown, prefixKnown, pool, cache.values, rawVectors) }
+                ?: null.also { timeouts += "semChain" }
+        }
+        // The hub scores are library-wide work (cached by library; warm() computes them in the background): preparation,
+        // not decoding, so a first press after launch is not pushed onto the ladder by them.
+        val hubPen = hubPenalties(active, seedKnown, pool, cache.values, rawVectors)
         val budgetMs = serving.hopBudgetMs * request.length
-        // The decoder's own budget: preparation (knowledge, retrieval, imputation) has its own limits above.
+        // The decoder's own budget: preparation (knowledge, retrieval, imputation, semChain, hub) has its own limits above.
         val decoding = TimeSource.Monotonic.markNow()
         val hopScores = ArrayList<Double>()
         val hopChoices = ArrayList<Int>()
@@ -1277,11 +1308,6 @@ public class SmartRanker(
                 poolSource.size <= serving.wholeLibraryUpTo -> "whole"
                 else -> "retrievers"
             }
-        }
-        // Cold fix: semChain for a seed the pack does not know (scope cold), centred on the library's means.
-        val sem = active.semChain?.takeIf { !it.coldOnly || seedKnown.entity < 0 }?.let { spec ->
-            bounded(AUDIO_BATCH_CAP_MS) { semChainFor(spec, seedKnown, prefixKnown, pool, cache.values, rawVectors) }
-                ?: null.also { timeouts += "semChain" }
         }
         trace?.semChain = sem != null
         var seedRowsSeen: Array<DoubleArray>? = null
@@ -1327,7 +1353,7 @@ public class SmartRanker(
                 active, seedKnown.durationMs, seedKnown.track.title, pool.map { it.durationMs }, pool.map { it.track.title },
             )).let { rp ->
                 // Cold fix round 2: the hub terms join the rule penalties (reference.py: rule_pen + hub_pen).
-                val hub = hubPenalties(active, seedKnown, pool, cache.values, rawVectors)
+                val hub = hubPen
                 when {
                     hub == null -> rp
                     rp == null -> hub
@@ -1473,6 +1499,10 @@ public class SmartRanker(
     /** Per-library CSLS hub scores (0.9.1 SmartSnapshot.computeHubPenalty), kept until the library or its audio changes. */
     private var hubCache: Pair<Long, Map<TrackId, Double>>? = null
 
+    /** The last plan's hub scores: how many library tracks they cover (-1 = the model has no hub term); for the log. */
+    public var lastHubTracks: Int = -1
+        private set
+
     /** β · hub(i) plus the hub-genre damp per pool row; null when the model has neither. */
     private suspend fun hubPenalties(
         model: RankerModel,
@@ -1487,6 +1517,7 @@ public class SmartRanker(
         var out: DoubleArray? = null
         if (spec != null) {
             val hubs = hubScores(spec, library, poolVectors)
+            lastHubTracks = hubs.size
             out = DoubleArray(pool.size) { spec.beta * (hubs[pool[it].track.id] ?: 0.0) }
         }
         if (damp != null) {
@@ -1498,45 +1529,68 @@ public class SmartRanker(
     }
 
     private suspend fun hubScores(spec: RankerModel.HubPenalty, library: Collection<Known>, poolVectors: Map<TrackId, FloatArray>): Map<TrackId, Double> {
-        val ids = ArrayList<TrackId>(library.size)
-        val units = ArrayList<FloatArray>(library.size)
-        for (chunk in library.map { it.track.id }.chunked(SEM_BATCH)) {
+        // The unit vectors are read twice in SEM_BATCH chunks (the ids and mean, then the scores) instead of held for
+        // the whole library: normalized() is deterministic, so the scores are bit-identical to holding them.
+        suspend fun unitsOf(chunk: List<TrackId>): Map<TrackId, FloatArray> {
             val rows = runCatching { audio.vectors(chunk) }.getOrNull().orEmpty()
-            for (id in chunk) (poolVectors[id] ?: rows[id])?.let(::normalized)?.let { ids += id; units += it }
+            val out = HashMap<TrackId, FloatArray>(chunk.size * 2)
+            for (id in chunk) (poolVectors[id] ?: rows[id])?.let(::normalized)?.let { out[id] = it }
+            return out
         }
-        var key = ids.size.toLong()
+        val ids = ArrayList<TrackId>(library.size)
+        var mu: DoubleArray? = null
+        for (chunk in library.map { it.track.id }.chunked(SEM_BATCH)) {
+            val units = unitsOf(chunk)
+            for (id in chunk) units[id]?.let { u ->
+                ids += id
+                val m = mu ?: DoubleArray(u.size).also { mu = it }
+                for (d in m.indices) m[d] += u[d].toDouble()
+            }
+        }
+        var key = (ids.size.toLong() * 31 + spec.topk) * 31 + spec.sample
         for (id in ids) key = key * 31 + id.value.hashCode()
         hubCache?.takeIf { it.first == key }?.let { return it.second }
         if (ids.size < 2 || ids.size > HUB_MAX_TRACKS) return emptyMap<TrackId, Double>().also { hubCache = key to it }
-        val dim = units[0].size
-        val mu = DoubleArray(dim)
-        for (u in units) for (d in 0 until dim) mu[d] += u[d].toDouble()
-        val m = Array(units.size) { i ->
-            val r = DoubleArray(dim) { d -> units[i][d].toDouble() - mu[d] / units.size }
+        val centre = mu!!
+        val dim = centre.size
+        // Centred unit rows: only the reference sample is kept; each track's own row is rebuilt into one buffer (same
+        // arithmetic, so the scores are bit-identical to holding every row — that was n × dim doubles per press).
+        fun centred(u: FloatArray, r: DoubleArray): DoubleArray {
+            for (d in 0 until dim) r[d] = u[d].toDouble() - centre[d] / ids.size
             var nn = 0.0
             for (x in r) nn += x * x
             nn = sqrt(nn)
             val div = if (nn > 0.0) nn else 1.0
             for (d in 0 until dim) r[d] = r[d] / div
-            r
+            return r
         }
         val ref = ids.indices.sortedWith { a, b -> SaltedKey.idOrder.compare(ids[a].value, ids[b].value) }.take(spec.sample)
+        val refRows = HashMap<Int, DoubleArray>(ref.size * 2)
+        for (chunk in ref.chunked(SEM_BATCH)) {
+            val units = unitsOf(chunk.map { ids[it] })
+            // The index changed under the press (a vector gone or resized): no hub term this time, nothing cached.
+            for (j in chunk) refRows[j] = centred(units[ids[j]]?.takeIf { it.size == dim } ?: return emptyMap(), DoubleArray(dim))
+        }
         val k = minOf(spec.topk, ref.size - 1)
-        val h = DoubleArray(m.size)
+        val h = DoubleArray(ids.size)
         val row = DoubleArray(ref.size)
-        for (i in m.indices) {
-            for ((col, j) in ref.withIndex()) {
-                if (j == i) { row[col] = Double.NEGATIVE_INFINITY; continue }
-                var dot = 0.0
-                val a = m[i]
-                val b = m[j]
-                for (d in 0 until dim) dot += a[d] * b[d]
-                row[col] = dot
+        val buf = DoubleArray(dim)
+        for (start in ids.indices step SEM_BATCH) {
+            val units = unitsOf(ids.subList(start, minOf(start + SEM_BATCH, ids.size)))
+            for (i in start until minOf(start + SEM_BATCH, ids.size)) {
+                val a = refRows[i] ?: centred(units[ids[i]]?.takeIf { it.size == dim } ?: return emptyMap(), buf)
+                for ((col, j) in ref.withIndex()) {
+                    if (j == i) { row[col] = Double.NEGATIVE_INFINITY; continue }
+                    var dot = 0.0
+                    val b = refRows.getValue(j)
+                    for (d in 0 until dim) dot += a[d] * b[d]
+                    row[col] = dot
+                }
+                val sorted = row.sortedArray()
+                var sum = 0.0
+                for (t in sorted.size - k until sorted.size) sum += sorted[t]
+                h[i] = sum / k
             }
-            val sorted = row.sortedArray()
-            var sum = 0.0
-            for (t in sorted.size - k until sorted.size) sum += sorted[t]
-            h[i] = sum / k
         }
         var mean = 0.0
         for (x in h) mean += x

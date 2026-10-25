@@ -378,7 +378,9 @@ internal suspend fun rankerPlan(
                 )
             },
         ) { artistKeys[it].orEmpty() }
-        val fits = io.github.nikitasud.latentjam.smart.ranker.rankerFitsInHeap(minOf(candidates.size, 2_000))
+        // A press that races the background warm-up waits for it here, so its arrays do not read as missing headroom.
+        ranker.awaitWarm()
+        val fits = io.github.nikitasud.latentjam.smart.ranker.rankerFitsInHeapCollecting(minOf(candidates.size, 2_000))
         // PLAN_L1 §2c freshness: what recent presses showed (any seed), as candidate ids.
         val freshness = ranker.freshnessFor(personal, ruleOnly || !fits)
         // Fast 3 freshness.engaged = exempt: what the listener played after being shown it keeps no impression weight.
@@ -419,7 +421,7 @@ internal suspend fun rankerPlan(
             "SMART: ranker ${report.model} planned ${report.ids.size} (${report.fromModel} model, ${report.fromLadder} ladder" +
                 "${if (report.timedOut) ", budget spent" else ""}) from ${report.poolSize} of ${candidates.size} candidates " +
                 "at press $press (${novel.size} recent left out, ${report.imputed} imputed; library tracks with an entity " +
-                "$withEntity, a co-listening list $listed, a LightFM vector $withLfm; audio ${report.audio.describe(report.poolSize)})",
+                "$withEntity, a co-listening list $listed, a LightFM vector $withLfm; audio ${report.audio.describe(report.poolSize)}; hub ${ranker.lastHubTracks})",
         )
         report
     } catch (cancelled: kotlinx.coroutines.CancellationException) {

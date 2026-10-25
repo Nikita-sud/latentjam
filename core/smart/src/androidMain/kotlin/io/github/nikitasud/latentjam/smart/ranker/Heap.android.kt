@@ -8,3 +8,8 @@ public actual fun heapHeadroomBytes(): Long {
     val r = Runtime.getRuntime()
     return r.maxMemory() - (r.totalMemory() - r.freeMemory())
 }
+
+public actual fun heapHeadroomAfterCollectBytes(): Long {
+    Runtime.getRuntime().gc()
+    return heapHeadroomBytes()
+}

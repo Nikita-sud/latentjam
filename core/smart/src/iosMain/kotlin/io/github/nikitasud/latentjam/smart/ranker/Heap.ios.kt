@@ -6,3 +6,5 @@ package io.github.nikitasud.latentjam.smart.ranker
 
 // iOS has no managed-heap ceiling of the Android kind; the process memory limit is not exposed as a number.
 public actual fun heapHeadroomBytes(): Long = Long.MAX_VALUE
+
+public actual fun heapHeadroomAfterCollectBytes(): Long = Long.MAX_VALUE

@@ -47,6 +47,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -264,6 +265,15 @@ object AppGraph {
                             .associate { it.id to SaltedKey.contentHash(SaltedKey.contentKey(it)) }
                     },
                 )
+            }
+            // SMART's library-wide work (the hub scores) for the list the planner passes, off the first press: after a
+            // library change here, after indexing in the indexing job (new vectors).
+            appScope.launch {
+                smartLibraryTracks.collectLatest { tracks ->
+                    if (tracks.isEmpty()) return@collectLatest
+                    delay(SMART_WARM_DELAY_MS)
+                    warmSmartRanker(tracks)
+                }
             }
             // Remembers where listening stood, so the next launch reopens with the same track
             // parked in the player and the same shuffle mode — SMART stays on across restarts.
@@ -657,6 +667,7 @@ object AppGraph {
                 } catch (failure: Exception) {
                     println("SMART: tagger backfill failed (${failure::class.simpleName})")
                 }
+                warmSmartRanker(smartLibraryTracks.value)
                 mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
                     running = false,
                     complete = true,
@@ -664,6 +675,20 @@ object AppGraph {
                     failures = failures.toMap(),
                 )
             }
+        }
+    }
+
+    /** SmartRanker.warm off the main thread; a failure only means the first press computes it. */
+    private suspend fun warmSmartRanker(tracks: List<TrackDescriptor>) {
+        try {
+            val ranker = koin.getOrNull<SmartRankerAssets>()?.ranker ?: return
+            val started = kotlin.time.TimeSource.Monotonic.markNow()
+            val scored = withContext(Dispatchers.Default) { ranker.warm(tracks) }
+            if (scored > 0) println("SMART: warmed the hub scores for $scored tracks in ${started.elapsedNow().inWholeMilliseconds} ms")
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            println("SMART: warm-up failed (${failure::class.simpleName})")
         }
     }
 
@@ -766,6 +791,9 @@ internal class AnalysisProgress(private val total: Int) {
 // The engine serialises a batch under its model/index lock. Eight bounds how long an interactive
 // SMART/search request can wait; the separate cadence coalesces four such batches per snapshot.
 private const val AUTOMATIC_INDEX_CHUNK_SIZE = 8
+
+/** Launch and library changes settle before SMART's warm-up takes a core for a few seconds. */
+private const val SMART_WARM_DELAY_MS = 5_000L
 private const val AUTOMATIC_INDEX_CHECKPOINT_TRACKS = 32
 private const val AUTOMATIC_INDEX_YIELD_MS = 75L
 
