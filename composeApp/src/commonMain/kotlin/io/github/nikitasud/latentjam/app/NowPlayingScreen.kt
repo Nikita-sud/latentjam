@@ -398,7 +398,9 @@ fun NowPlayingScreen(
     // names, the queue's playing bars) asking for frames while it is hidden.
     val motionHeld = rememberUpdatedState(!active)
     CompositionLocalProvider(LocalEndlessMotionHeld provides motionHeld) {
-        Surface(modifier = Modifier.fillMaxSize()) {
+        // The floor and its cloud or cover run under the side safe areas too; the player itself stays clear of them.
+        val sideBleed = rememberSideBleed()
+        Surface(modifier = Modifier.fillMaxSize().underSides(sideBleed)) {
             val backdropUri = now.track?.artworkUri
                 ?.takeIf { LocalAppearance.current.playerBackground == PlayerBackground.BLURRED_COVER }
             var backdropShown by remember(backdropUri) { mutableStateOf(false) }
@@ -416,6 +418,7 @@ fun NowPlayingScreen(
                 if (backdropUri != null) {
                     PlayerCoverBackdrop(backdropUri, Modifier.matchParentSize(), onShownChange = { backdropShown = it })
                 }
+                Box(modifier = Modifier.fillMaxSize().clearOfSides(sideBleed)) {
                 // Continues the sheet's own colour through the system-bar strip beneath it.
                 //
                 // The scaffold below is lifted by navigationBarsPadding(), so without this the gradient
@@ -849,6 +852,7 @@ fun NowPlayingScreen(
                             },
                         )
                     }
+                }
                 }
             }
         }

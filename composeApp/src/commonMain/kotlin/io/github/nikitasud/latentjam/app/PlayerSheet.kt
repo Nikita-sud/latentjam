@@ -31,6 +31,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -104,8 +105,14 @@ internal class PlayerExpansion(open: Boolean, private val scope: CoroutineScope)
     var pillBounds = Rect.Zero
     var pillRadiusPx = 0f
 
-    /** Where the sheet's opaque surface is now, in the window that both the sheet and the library fill. */
-    fun surfaceBounds(size: Size): Rect = lerp(pillBounds, Rect(Offset.Zero, size), progress)
+    /** How far the window reaches past the sheet's sides, under the side safe areas; set by the sheet. */
+    var sideBleed = SideBleed(0, 0)
+
+    /**
+     * Where the sheet's opaque surface is now, in the space that both the sheet and the library are
+     * laid out in. Open, it covers the side safe areas as well, so it can reach outside that space.
+     */
+    fun surfaceBounds(size: Size): Rect = lerp(pillBounds, sideBleed.window(size), progress)
 
     /** The surface's corner radius now: the pill's, easing to square at the top. */
     fun surfaceRadius(): Float = sheetCornerRadius(pillRadiusPx, progress)
@@ -294,6 +301,10 @@ internal fun PlayerSheet(
     val density = LocalDensity.current
     val layoutDirection = LocalLayoutDirection.current
     val navigationBars = WindowInsets.navigationBars
+    // The open player reaches the window's edges, under the side safe areas the rest of the app keeps
+    // out of, so the surface grows all the way there.
+    val sideBleed = rememberSideBleed()
+    SideEffect { expansion.sideBleed = sideBleed }
     val floorColor = MaterialTheme.colorScheme.surface
     val darkFloor = floorColor.luminance() < 0.5f
     // The pill's geometry in the listener's style: a bar has no margin and square corners.
@@ -361,14 +372,16 @@ internal fun PlayerSheet(
     fun Density.pill(size: Size): Rect = miniPlayerBounds(
         width = size.width,
         height = size.height,
-        insetLeft = navigationBars.getLeft(this, layoutDirection).toFloat(),
-        insetRight = navigationBars.getRight(this, layoutDirection).toFloat(),
+        // The app's root already keeps everything clear of the side safe areas, a side navigation
+        // bar among them; counting it here again pushed the pill in twice.
+        insetLeft = 0f,
+        insetRight = 0f,
         insetBottom = navigationBars.getBottom(this).toFloat(),
         margin = pillMargin.toPx(),
         pillHeight = (pillHeight - PILL_MARGIN * 2).toPx(),
     )
     fun Density.surface(size: Size, progress: Float): Rect =
-        lerp(pill(size), Rect(Offset.Zero, size), progress)
+        lerp(pill(size), sideBleed.window(size), progress)
 
     val commitPx = with(density) { PLAYER_COMMIT_DISTANCE.toPx() }
     val flingPx = with(density) { PLAYER_FLING_VELOCITY.toPx() }

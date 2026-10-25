@@ -33,7 +33,10 @@ internal fun Modifier.browseCloud(accent: TrackAccent?): Modifier {
     } else {
         rotateHue(color, 12f)
     }
+    // The wash runs on under the side safe areas, which the page's content keeps out of.
+    val bleed = rememberSideBleed()
     return drawWithCache {
+        val window = bleed.window(size)
         // Keep the song recognisable across the whole light header. Radial clouds alone fade
         // nearly to white between their centres; this broad wash dissolves into the list floor.
         val headerWash = if (dark) null else Brush.verticalGradient(
@@ -46,7 +49,7 @@ internal fun Modifier.browseCloud(accent: TrackAccent?): Modifier {
         // No blur layer, bitmap, or animation clock is needed while browsing.
         val primary = Brush.radialGradient(
             colors = listOf(color.copy(alpha = ((if (dark) 0.30f else 0.50f) * strength).coerceAtMost(1f)), Color.Transparent),
-            center = Offset(100.dp.toPx(), 50.dp.toPx()),
+            center = Offset(window.left + 100.dp.toPx(), 50.dp.toPx()),
             radius = 220.dp.toPx(),
         )
         val companion = Brush.radialGradient(
@@ -54,13 +57,13 @@ internal fun Modifier.browseCloud(accent: TrackAccent?): Modifier {
                 companionColor.copy(alpha = ((if (dark) 0.20f else 0.28f) * strength).coerceAtMost(1f)),
                 Color.Transparent,
             ),
-            center = Offset(size.width - 60.dp.toPx(), 0f),
+            center = Offset(window.right - 60.dp.toPx(), 0f),
             radius = 190.dp.toPx(),
         )
         onDrawBehind {
-            headerWash?.let { drawRect(it) }
-            drawRect(primary)
-            drawRect(companion)
+            headerWash?.let { drawRect(it, topLeft = window.topLeft, size = window.size) }
+            drawRect(primary, topLeft = window.topLeft, size = window.size)
+            drawRect(companion, topLeft = window.topLeft, size = window.size)
         }
     }
 }

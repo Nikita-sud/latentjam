@@ -2220,19 +2220,23 @@ private fun AppShell(
                             drawContent()
                             return@drawWithContent
                         }
-                        val surface = playerExpansion.surfaceBounds(size)
+                        // Measured in the whole window, side safe areas included: the page's
+                        // backdrop runs under them, and the open sheet covers them.
+                        val window = playerExpansion.sideBleed.window(size)
+                        val surface = playerExpansion.surfaceBounds(size).translate(-window.left, 0f)
                         val radius = playerExpansion.surfaceRadius()
-                        if (sheetCoversWindow(surface, radius, size.width, size.height)) {
+                        if (sheetCoversWindow(surface, radius, window.width, size.height)) {
                             return@drawWithContent
                         }
                         val scrim = libraryScrimAlpha(progress)
                         val pieces = sheetUncoveredPieces(
-                            surface, radius, inset = 1.dp.toPx(), width = size.width, height = size.height,
+                            surface, radius, inset = 1.dp.toPx(), width = window.width, height = size.height,
                         )
-                        for (piece in pieces) {
+                        for (windowPiece in pieces) {
+                            val piece = windowPiece.translate(window.left, 0f)
                             clipRect(piece.left, piece.top, piece.right, piece.bottom) {
                                 this@drawWithContent.drawContent()
-                                drawRect(Color.Black, alpha = scrim)
+                                drawRect(Color.Black, topLeft = piece.topLeft, size = piece.size, alpha = scrim)
                             }
                         }
                     }
