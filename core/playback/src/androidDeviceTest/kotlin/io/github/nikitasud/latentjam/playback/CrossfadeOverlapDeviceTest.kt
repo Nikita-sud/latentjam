@@ -363,7 +363,7 @@ class CrossfadeOverlapDeviceTest {
             instrumentation.runOnMainSync {
                 CrossfadeIntroCapture(
                     context, MediaItem.fromUri(track.toURI().toString()), 14_000L,
-                    IntroScratch.get(context), slot = 0,
+                    IntroScratch.get(context), slot = 0, outputRate = 0,
                 ) {
                     intro = it
                     done.countDown()

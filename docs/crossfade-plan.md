@@ -59,6 +59,12 @@ the next track by itself, the part already heard is skipped.
    through it, adding the frames skipped), so B's position
    reads correctly. If A's real end differs from its duration estimate, the envelope is time-based and
    the extra 2 s of intro absorb the difference — the join stays sample-exact.
+   Dropping alone starved the sink (owner's phone, 0.9.3 test build: a short pause at every seam). In
+   Media3 1.10 the audio renderer is ready only while the sink holds unplayed frames, so while the
+   decoder worked through B's opening the player went BUFFERING and paused the AudioTrack. Now B plays
+   on from the decoded intro (frames M… of it) at the join, while the decoder's copy of the whole intro
+   is dropped. The intro frames go out in proportion to the frames dropped, so every buffer in still
+   puts sound out.
 4. **Fallback = today's fade** (volume envelope, no overlap) whenever an overlap cannot be exact:
    different sample rate or channel count between A and B, unknown duration, intro not ready in time,
    B fails to decode, too large for the cap.
@@ -102,6 +108,55 @@ Android. Apple Music (MPMusicPlayerController) items cannot be mixed: no overlap
 This also makes the slider do something on iOS for the first time. Like Android, a next track of
 another sample rate or channel count does not overlap: the graph after the submixer runs in the
 current file's format, so it keeps the plain fades and loads, reconfiguring the graph for itself.
+
+## Sound edges (2026-10-25)
+
+An overlap anchored to the file's end runs partly over a track's trailing silence: the outgoing
+music has already stopped while the next track is still rising, which sounds like a dip or a pause.
+Seams now meet the tracks' sound instead.
+
+- **Measured once, in the loudness pass.** `SoundSpanTracker` sees the PCM the R128 scan already
+  decodes (Android `AndroidIntegratedLoudnessMeter`, iOS `IosIntegratedLoudnessMeter`). The span runs
+  from the first to the last 50 ms window above −50 dBFS (mean square), so a quiet passage or a hidden
+  bonus track after a long gap stays inside. It is stored next to the loudness (cache line
+  `r128-v2`; `r128-v1` rows are still read). The scan now also runs while only smooth transitions are
+  on, without changing any volume. A row from before sound edges keeps its loudness and is measured
+  once more while transitions are on.
+- **Anchors (`seamAnchors`).** The overlap ends at the outgoing track's last sound and the incoming
+  track starts at its first. A 100 ms guard stays on the sound's side. An edge shorter than 300 ms is
+  left alone, and one longer than 30 s, or an end past the file, is not trusted. Unmeasured tracks
+  keep the files' edges. The overlap length rules apply to the audible lengths. Album seams get no
+  overlap, as before.
+- **Android.** The opening capture also covers the incoming lead and the outgoing trail. The mixer
+  plays the incoming track alone, at full level, over the outgoing track's trailing frames, so the
+  join and its bridge stay seamless and no frame is dropped without output. A capture that cannot
+  cover that (the size cap, a short track) is decoded again for the files' own edges.
+- **iOS.** The standby deck is cued at the incoming track's first sound. The outgoing curve ends at
+  the last sound, and that deck is silent over its trailing silence until the decks swap.
+
+## Mixed sample rates (2026-10-25)
+
+Owner's report: no smooth transition from a 44.1 kHz FLAC into a 48 kHz Opus. The mixer only mixes
+an opening of the outgoing track's rate, so such a seam fell back to the plain fades. DefaultAudioSink
+also replaced its AudioTrack at the join because the output rate changed, which pauses the sound.
+
+- **Android: one output rate across a seam.** `SeamResamplingAudioProcessor` is first in the chain.
+  After a reposition (a start, a seek, a skip, where the sink restarts anyway) a track plays at its
+  own rate. A track the player moves on to by itself, while smooth transitions are on, plays at the
+  rate the output already has. A track at that rate passes through bit for bit, because the processor
+  is inactive then. So the AudioTrack is kept, and the opening can mix. The rate is published as
+  `CrossfadeSettings.outputRate`. The intro capture resamples to it with the same processor, so the
+  captured frames equal the player's at the join.
+- **Resampler (`PcmResampler`, commonMain).** Kaiser-windowed sinc with 16 zero crossings, β 8 and a
+  95 % passband. A downsampling cutoff narrows to the output's Nyquist. Output frame n sits exactly at
+  input n × in / out in integer arithmetic, so the output does not depend on how the input is cut into
+  buffers (tested), and it has no delay. Measured: below −70 dB error at 44.1 → 48 kHz, below −60 dB
+  at 48 → 44.1 kHz for a 15 kHz tone, and a 30 kHz tone at 96 → 48 kHz stays below −70 dB. Cost is
+  about 32 taps per output frame and channel at 44.1/48 kHz; downsampling from 192 kHz takes about
+  140.
+- **iOS.** The submixer converts each input bus to the graph's rate, so a deck of another rate now
+  joins (`sharesGraphFormat` compares channel counts only), and plays on converted until the next
+  load. Same channel count is still required on both platforms.
 
 ## Prior art (searched 2026-10-22, at the owner's request)
 
