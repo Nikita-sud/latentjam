@@ -47,6 +47,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
@@ -75,6 +76,7 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material3.BottomSheetScaffold
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
@@ -425,9 +427,13 @@ fun NowPlayingScreen(
                 // edge, only the CONTENT is inset. Sizing from the same WindowInsets the scaffold pads by
                 // means the two cannot drift — a home-button iPhone reports no inset and this draws
                 // nothing at all, while a three-button Android phone gets the full 48dp.
+                //
+                // As wide as the sheet itself, which stops at its maximum width on a wide window (an
+                // unfolded foldable, a landscape phone): a full-width strip there stuck out on both sides.
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
+                        .widthIn(max = BottomSheetDefaults.SheetMaxWidth)
                         .fillMaxWidth()
                         .windowInsetsBottomHeight(WindowInsets.navigationBars)
                         .background(MaterialTheme.colorScheme.surfaceContainerHigh),
