@@ -98,6 +98,8 @@ class SmartStandRunner {
         val assets = SmartRankerAssets(knowledge, ::read, audio = audio, artistSetsAs2 = System.getenv("LJ_STAND_AS2") == "1")
         val ranker = assets.ranker
         check(assets.problem == null) { "ranker assets: ${assets.problem}" }
+        // No wall-clock budgets on the bench (a busy host must not turn a plan into a fallback); LJ_STAND_BUDGETS=on keeps them.
+        ranker.ignoreBudgets = System.getenv("LJ_STAND_BUDGETS") != "on"
         ranker.backfillImputations(library)
         // One warm plan resolves every library track (family, imputation): the facts the seed set is stratified by.
         ranker.plan(io.github.nikitasud.latentjam.smart.ranker.PlanRequest(library[0], library, library, 1))

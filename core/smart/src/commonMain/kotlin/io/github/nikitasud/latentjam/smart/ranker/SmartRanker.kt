@@ -875,6 +875,16 @@ public class SmartRanker(
     /** artist_sets.py's as2 rules (audit 07 #4 / #7 / #10): on with the models trained on them (the FIT rebuild). */
     artistSetsAs2: Boolean = false,
 ) {
+    /**
+     * Test hook (SmartStandRunner): the wall-clock budgets are off, so a busy evaluation host cannot turn a plan into a
+     * timeout fallback and change a queue. A plan that finishes within its budgets is identical either way. The app never
+     * sets it.
+     */
+    public var ignoreBudgets: Boolean = false
+
+    private suspend fun <T> bounded(ms: Long, block: suspend kotlinx.coroutines.CoroutineScope.() -> T): T? =
+        if (ignoreBudgets) kotlinx.coroutines.coroutineScope { block() } else withTimeoutOrNull(ms, block)
+
     /** as2 when the caller asks for it or the shipped model was trained with it (`"artistSets": "as2"`). */
     private val artistSetsAs2: Boolean = artistSetsAs2 || model.artistSetsAs2 || fullModel?.artistSetsAs2 == true
     private val versionKeyV2: Boolean = model.versionKeyV2 || fullModel?.versionKeyV2 == true
@@ -1097,7 +1107,7 @@ public class SmartRanker(
             if (missing.isEmpty()) return filled
         }
         // Not backfilled yet (or no cache): computed here within its own budget; what it misses reads as unknown.
-        val done = withTimeoutOrNull(AUDIO_BUDGET_MS) { for (k in rows) {
+        val done = bounded(AUDIO_BUDGET_MS) { for (k in rows) {
             if (k.imputationTried || (k.descriptor != null && k.family != null)) continue
             val embedding = vectorOf(k.track.id) ?: continue
             k.imputationTried = true
@@ -1203,11 +1213,11 @@ public class SmartRanker(
         // The prefix's last track (the first top-up hop's previous anchor) has its vector and e too.
         val readIds = (pool.map { it.track.id } + seedKnown.track.id + listOfNotNull(prefixKnown?.track?.id)).distinct()
         val audioIds = readIds
-        val rawVectors: Map<TrackId, FloatArray> = withTimeoutOrNull(AUDIO_BATCH_CAP_MS) {
+        val rawVectors: Map<TrackId, FloatArray> = bounded(AUDIO_BATCH_CAP_MS) {
             runCatching { audio.vectors(readIds) }.getOrNull().orEmpty()
         } ?: emptyMap<TrackId, FloatArray>().also { timeouts += "vectors" }
         val rawEnergies: Map<TrackId, Double> = if (active.energy != null || active.r1EnergyTau != null) {
-            withTimeoutOrNull(AUDIO_BATCH_CAP_MS) { runCatching { audio.energies(readIds) }.getOrNull().orEmpty() }
+            bounded(AUDIO_BATCH_CAP_MS) { runCatching { audio.energies(readIds) }.getOrNull().orEmpty() }
                 ?: emptyMap<TrackId, Double>().also { timeouts += "energy" }
         } else {
             emptyMap()
@@ -1270,7 +1280,7 @@ public class SmartRanker(
         }
         // Cold fix: semChain for a seed the pack does not know (scope cold), centred on the library's means.
         val sem = active.semChain?.takeIf { !it.coldOnly || seedKnown.entity < 0 }?.let { spec ->
-            withTimeoutOrNull(AUDIO_BATCH_CAP_MS) { semChainFor(spec, seedKnown, prefixKnown, pool, cache.values, rawVectors) }
+            bounded(AUDIO_BATCH_CAP_MS) { semChainFor(spec, seedKnown, prefixKnown, pool, cache.values, rawVectors) }
                 ?: null.also { timeouts += "semChain" }
         }
         trace?.semChain = sem != null
@@ -1300,7 +1310,7 @@ public class SmartRanker(
                             songBase.any { SongKey.prefixMatch(it, k, pc) } || picks.any { p -> songKeys[p]?.let { SongKey.prefixMatch(it, k, pc) } == true }
                         } == true))
             },
-            stop = { decoding.elapsedNow().inWholeMilliseconds > budgetMs && trace == null && diagnostics == null },
+            stop = { !ignoreBudgets && decoding.elapsedNow().inWholeMilliseconds > budgetMs && trace == null && diagnostics == null },
             skipWhenTied = request.ruleOnly,
             credits = if (active.artistReentry != null) pool.map { it.artists } else null,
             seedCredits = seedKnown.artists,
@@ -1401,7 +1411,7 @@ public class SmartRanker(
                 .also { if (diagnostics != null) diagRows[anchor] = it }
                 .also { if (anchor == RankerQueue.SEED && seedRowsSeen == null) seedRowsSeen = it }
         }.map { pool[it].track.id }
-        val timedOut = modelPicks.size < minOf(request.length, pool.size) && decoding.elapsedNow().inWholeMilliseconds > budgetMs
+        val timedOut = !ignoreBudgets && modelPicks.size < minOf(request.length, pool.size) && decoding.elapsedNow().inWholeMilliseconds > budgetMs
         val picks = ArrayList(modelPicks)
         val planPicks = ArrayList<PlanPick>(request.length)
         for ((h, id) in modelPicks.withIndex()) {
@@ -1810,7 +1820,7 @@ public class SmartRanker(
             }
         }
         val quota = { name: String -> serving.quotas[name] ?: 0 }
-        val nbOrNull = withTimeoutOrNull(R1_BUDGET_MS) { runCatching { audio.neighbours(seed.track.id, quota("audio") * 2) }.getOrNull().orEmpty() }
+        val nbOrNull = bounded(R1_BUDGET_MS) { runCatching { audio.neighbours(seed.track.id, quota("audio") * 2) }.getOrNull().orEmpty() }
         val nb = nbOrNull.orEmpty()
         onR1(nb.size, nbOrNull == null)
         val es = if (active.r1EnergyTau != null) energyOf(seed.track.id) else null
@@ -1908,13 +1918,13 @@ public class SmartRanker(
                 seed.imputedDescriptor == null
             ) {
                 // Fast 3: a seed with no family and no descriptor fills from its own audio neighbours (nearest first).
-                val near = withTimeoutOrNull(R1_BUDGET_MS) { runCatching { audio.neighbours(seed.track.id, target) }.getOrNull() }.orEmpty()
+                val near = bounded(R1_BUDGET_MS) { runCatching { audio.neighbours(seed.track.id, target) }.getOrNull() }.orEmpty()
                 take(near, target - out.size, "fill-audio")
             }
             // Cold fix round 3: like 0.9.1 (no fill), a seed without a pack entity fills from its own audio neighbours.
             val coldNoFill = serving.coldAudioFill && (serving.audioFillAll || seed.entity < 0)
             if (coldNoFill && out.size < target) {
-                val near = withTimeoutOrNull(R1_BUDGET_MS) { runCatching { audio.neighbours(seed.track.id, target) }.getOrNull() }.orEmpty()
+                val near = bounded(R1_BUDGET_MS) { runCatching { audio.neighbours(seed.track.id, target) }.getOrNull() }.orEmpty()
                 take(near, target - out.size, "fill-audio")
             }
             if (out.size < target && seed.family != null) {
@@ -2034,7 +2044,7 @@ public class SmartRanker(
 
     /** Audio neighbours within [budgetMs]; a busy or failing index gives none (the next rung or retriever runs). */
     private suspend fun boundedNeighbours(id: TrackId, k: Int, budgetMs: Long): List<TrackId> =
-        withTimeoutOrNull(budgetMs) { runCatching { audio.neighbours(id, k) }.getOrNull() }.orEmpty()
+        bounded(budgetMs) { runCatching { audio.neighbours(id, k) }.getOrNull() }.orEmpty()
 
     private fun overlap(anchor: LongArray, candidate: LongArray): Double {
         if (anchor.isEmpty() || candidate.isEmpty()) return 0.0
