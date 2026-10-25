@@ -46,4 +46,21 @@ class SmartPressesTest {
         failReads = false
         assertEquals(5L, presses.next("a"))
     }
+
+    @Test
+    fun aReadThatThrowsNeverWritesOverTheStoredCounts() = runTest {
+        val good = Memory()
+        SmartPresses(good).apply { next("a"); next("a"); next("a") }
+        val stored = good.lines
+        var failReads = 1
+        val store = object : SmartPressStore {
+            override suspend fun read(): List<String> = if (failReads-- > 0) throw OutOfMemoryError("simulated") else good.lines
+            override suspend fun write(lines: List<String>) { good.lines = lines }
+        }
+        val presses = SmartPresses(store)
+        assertEquals(0L, presses.next("a"))
+        assertEquals(stored, good.lines)
+        // The next use reads the file again and carries on from it.
+        assertEquals(3L, presses.next("a"))
+    }
 }

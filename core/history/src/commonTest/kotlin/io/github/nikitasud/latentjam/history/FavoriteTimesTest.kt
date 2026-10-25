@@ -27,6 +27,23 @@ class FavoriteTimesTest {
     }
 
     @Test
+    fun aReadThatThrowsNeverWritesOverTheStoredTimes() = runTest {
+        val good = Memory()
+        FavoriteTimes(good).update(listOf(TrackId("a")), emptyList(), 10)
+        val stored = good.lines
+        var failReads = 1
+        val store = object : FavoriteTimeStore {
+            override suspend fun read(): List<String> = if (failReads-- > 0) throw OutOfMemoryError("simulated") else good.lines
+            override suspend fun write(lines: List<String>) { good.lines = lines }
+        }
+        val times = FavoriteTimes(store)
+        times.update(listOf(TrackId("b")), emptyList(), 20)
+        assertEquals(stored, good.lines)
+        times.update(listOf(TrackId("c")), emptyList(), 30)
+        assertEquals(mapOf(TrackId("a") to 10L, TrackId("c") to 30L), FavoriteTimes(good).all())
+    }
+
+    @Test
     fun heartEventsRoundTripInTheSmartLog() {
         val e = SmartFavoriteEvent(7, "0011223344556677", true)
         assertEquals(e, SmartImpressionLog.parse(SmartImpressionLog.serialize(e)))

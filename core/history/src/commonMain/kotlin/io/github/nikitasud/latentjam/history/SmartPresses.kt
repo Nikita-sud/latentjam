@@ -48,7 +48,8 @@ public class SmartPresses(private val store: SmartPressStore) {
             store.read()
         } catch (cancelled: CancellationException) {
             throw cancelled
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
+            // Out of memory too (an Error, not an Exception): a transient failure is never a near-empty map.
             return null
         }
         val map = LinkedHashMap<String, Long>()
