@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_lock_screen_player">المشغّل على شاشة القفل</string>
+    <string name="settings_lock_screen_player_subtitle">أطفئ الشاشة داخل LatentJam أثناء تشغيل الموسيقى، وسيظهر المشغّل الكامل على شاشة القفل</string>
+</resources>

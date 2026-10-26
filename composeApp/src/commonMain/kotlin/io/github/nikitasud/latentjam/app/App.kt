@@ -221,6 +221,17 @@ fun App(
     playback: PlaybackController,
     externalAudioOpener: ExternalAudioOpener? = null,
 ) {
+    LatentJamAppTheme { darkTheme ->
+        AppShell(engine, library, playback, externalAudioOpener, darkTheme)
+    }
+}
+
+/**
+ * The listener's theme, appearance and control ink around [content], which receives whether the
+ * theme is dark. Shared by the app and the lock-screen player so both wear the same colours.
+ */
+@Composable
+internal fun LatentJamAppTheme(content: @Composable (darkTheme: Boolean) -> Unit) {
     val themeMode by AppGraph.settings.themeMode.collectAsState()
     val darkTheme = when (themeMode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
@@ -253,7 +264,7 @@ fun App(
                     .background(scheme.background)
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
             ) {
-                AppShell(engine, library, playback, externalAudioOpener, darkTheme)
+                content(darkTheme)
             }
         }
     }

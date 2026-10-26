@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_lock_screen_player">Player nella schermata di blocco</string>
+    <string name="settings_lock_screen_player_subtitle">Se spegni lo schermo in LatentJam mentre suona la musica, il player completo ti aspetta nella schermata di blocco</string>
+</resources>

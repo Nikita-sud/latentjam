@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_lock_screen_player">잠금 화면 플레이어</string>
+    <string name="settings_lock_screen_player_subtitle">음악 재생 중 LatentJam에서 화면을 끄면 잠금 화면에 전체 플레이어가 표시됩니다</string>
+</resources>

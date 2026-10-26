@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_lock_screen_player">Reproductor en la pantalla de bloqueo</string>
+    <string name="settings_lock_screen_player_subtitle">Si apagas la pantalla en LatentJam mientras suena música, el reproductor completo te espera en la pantalla de bloqueo</string>
+</resources>

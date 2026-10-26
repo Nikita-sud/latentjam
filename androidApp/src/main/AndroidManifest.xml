@@ -182,5 +182,15 @@
         <receiver
             android:name="io.github.nikitasud.latentjam.app.PlaybackWidgetActionReceiver"
             android:exported="false" />
+
+        <!-- "Player on the lock screen": shown above the keyguard after the screen turns off, in
+             its own task so it never lands in the app's back stack or in Recents. -->
+        <activity
+            android:name="io.github.nikitasud.latentjam.app.LockScreenPlayerActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|navigation|uiMode"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:taskAffinity="${applicationId}.lockplayer" />
     </application>
 </manifest>

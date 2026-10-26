@@ -19,6 +19,9 @@ import platform.Foundation.NSUserDefaults
 
 internal actual val notificationFavoriteAvailable: Boolean = false
 
+/** iOS gives apps no way to draw over the lock screen; Now Playing there is the system's. */
+internal actual val lockScreenPlayerAvailable: Boolean = false
+
 internal class IosAppSettings : AppSettings {
 
     private val defaults = NSUserDefaults.standardUserDefaults

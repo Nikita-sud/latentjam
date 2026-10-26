@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_lock_screen_player">Leitor no ecrã de bloqueio</string>
+    <string name="settings_lock_screen_player_subtitle">Desligue o ecrã no LatentJam enquanto toca música e o leitor completo espera no ecrã de bloqueio</string>
+</resources>

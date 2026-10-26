@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_lock_screen_player">Player na tela de bloqueio</string>
+    <string name="settings_lock_screen_player_subtitle">Desligue a tela no LatentJam enquanto a música toca e o player completo espera na tela de bloqueio</string>
+</resources>

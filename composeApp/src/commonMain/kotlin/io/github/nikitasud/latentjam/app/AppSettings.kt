@@ -505,6 +505,10 @@ interface AppSettings {
     val notificationFavorite: StateFlow<Boolean> get() = DEFAULT_NOTIFICATION_FAVORITE
     fun setNotificationFavorite(enabled: Boolean) {}
 
+    /** Android only: the full player opens above the lock screen when the screen turns off. */
+    val lockScreenPlayer: StateFlow<Boolean> get() = DEFAULT_LOCK_SCREEN_PLAYER
+    fun setLockScreenPlayer(enabled: Boolean) {}
+
     /** The Tracks tab's order. */
     val songSort: StateFlow<SortChoice<SongSort>>
     fun setSongSort(choice: SortChoice<SongSort>)
@@ -659,6 +663,12 @@ private val DEFAULT_NOTIFICATION_FAVORITE: StateFlow<Boolean> =
 
 /** Whether this platform offers configurable media notification actions. */
 internal expect val notificationFavoriteAvailable: Boolean
+
+private val DEFAULT_LOCK_SCREEN_PLAYER: StateFlow<Boolean> =
+    kotlinx.coroutines.flow.MutableStateFlow(false)
+
+/** Whether this platform can draw the app's own player above the lock screen (iOS cannot). */
+internal expect val lockScreenPlayerAvailable: Boolean
 
 expect fun appSettingsModule(): Module
 
