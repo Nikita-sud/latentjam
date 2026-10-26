@@ -7,6 +7,8 @@ package io.github.nikitasud.latentjam.smart
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorCoverage
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorRows
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorSpace
+import kotlin.time.TimeSource
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -49,6 +51,14 @@ public interface SimilarityEngine {
      * intended for UI ("preparing smart shuffle…") and for gating callers.
      */
     public val state: StateFlow<EngineState>
+
+    /**
+     * The track library indexing is analysing right now and since when; null between batches. Lets
+     * the UI name a track analysis has been waiting on far too long instead of showing a frozen bar
+     * (issue #27).
+     */
+    public val analysing: StateFlow<TrackInAnalysis?>
+        get() = NothingInAnalysis
 
     /**
      * Restores the persisted vector indexes and loads the queue-chain models
@@ -390,6 +400,14 @@ public fun continuesSmartPlan(plannedBefore: List<TrackId>, queuedBefore: List<T
     val planned = plannedBefore.toHashSet()
     return queuedBefore.any { it in planned }
 }
+
+/** [SimilarityEngine.analysing]: the track being analysed, from [started]. */
+public class TrackInAnalysis(
+    public val trackId: TrackId,
+    public val started: TimeSource.Monotonic.ValueTimeMark,
+)
+
+private val NothingInAnalysis: StateFlow<TrackInAnalysis?> = MutableStateFlow(null)
 
 /** [SimilarityEngine.audioRows]: stored audio vectors and e by track. */
 public class AudioRows(public val vectors: Map<TrackId, FloatArray>, public val energies: Map<TrackId, Double>)

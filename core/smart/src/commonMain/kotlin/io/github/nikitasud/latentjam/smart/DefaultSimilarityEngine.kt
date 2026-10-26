@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlin.concurrent.Volatile
+import kotlin.time.TimeSource
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
@@ -132,6 +133,9 @@ internal class DefaultSimilarityEngine(
     private val energyIdentities = HashMap<TrackId, String>()
 
     override val state: StateFlow<EngineState> = mutableState.asStateFlow()
+
+    private val mutableAnalysing = MutableStateFlow<TrackInAnalysis?>(null)
+    override val analysing: StateFlow<TrackInAnalysis?> = mutableAnalysing.asStateFlow()
 
     override suspend fun initialize(): Result<Unit> = withContext(dispatcher) {
         mutex.withLock {
@@ -259,12 +263,22 @@ internal class DefaultSimilarityEngine(
         // Phase 2, outside the engine lock: inference only (decoding and the model), results kept aside.
         val results = ArrayList<Pair<TrackDescriptor, Result<FloatArray>>>(prepared.toEmbed.size)
         if (prepared.toEmbed.isNotEmpty()) {
-            inference.withLock {
-                withContext(inferenceDispatcher) { backend.embedEach(prepared.toEmbed) { track, result ->
-                    results += track to result
-                    // Let foreground dispatchers run between independent tracks.
-                    yield()
-                } }
+            fun analysingFrom(position: Int) {
+                mutableAnalysing.value = prepared.toEmbed.getOrNull(position)
+                    ?.let { TrackInAnalysis(it.id, TimeSource.Monotonic.markNow()) }
+            }
+            try {
+                inference.withLock {
+                    analysingFrom(0)
+                    withContext(inferenceDispatcher) { backend.embedEach(prepared.toEmbed) { track, result ->
+                        results += track to result
+                        analysingFrom(results.size)
+                        // Let foreground dispatchers run between independent tracks.
+                        yield()
+                    } }
+                }
+            } finally {
+                mutableAnalysing.value = null
             }
         }
         // Phase 3, under the engine lock again: install what is still wanted, encode text, persist.

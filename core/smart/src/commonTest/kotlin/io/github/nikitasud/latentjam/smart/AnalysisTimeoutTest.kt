@@ -4,17 +4,22 @@
  */
 package io.github.nikitasud.latentjam.smart
 
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -32,14 +37,17 @@ internal class AnalysisTimeoutTest {
     }
 
     /** Decodes ahead like the Android backend; [hanging] tracks never come back from decoding. */
-    private inner class DecodingBackend(var hanging: Set<TrackId>) : EmbeddingBackend {
+    private inner class DecodingBackend(
+        var hanging: Set<TrackId>,
+        budget: Duration = 300.milliseconds,
+    ) : EmbeddingBackend {
         val decodes = mutableListOf<TrackId>()
         private val decoding = DeadlineDecoding(
             object : DecodeWorkers {
                 override val dispatcher: CoroutineDispatcher = Dispatchers.Default
                 override fun abandon() {}
             },
-            budget = 300.milliseconds,
+            budget = budget,
         )
 
         override suspend fun loadModel(): Result<Unit> = Result.success(Unit)
@@ -96,6 +104,7 @@ internal class AnalysisTimeoutTest {
         assertTrue(error.technicalDetail.orEmpty().contains("timed out"))
         // A remembered failure no longer counts as missing: the progress bar can reach the end.
         assertEquals(0, engine.missingFromIndex(tracks.map { it.id }))
+        assertNull(engine.analysing.value)
         // Remembered durably, like other audio that cannot be analysed.
         assertEquals(setOf(stuckTrack), store.failureSnapshots["test-model"]?.keys)
 
@@ -113,6 +122,21 @@ internal class AnalysisTimeoutTest {
         assertEquals(1, retried.indexed)
         assertTrue(retried.errors.isEmpty())
         assertEquals(0, engine.missingFromIndex(tracks.map { it.id }))
+    }
+
+    @Test
+    fun `the engine names the track analysis is waiting on`() = runTest {
+        val backend = DecodingBackend(hanging = setOf(stuckTrack), budget = 30.seconds)
+        val engine = engine(backend, FakeIndexStore())
+        engine.initialize()
+
+        val batch = async(Dispatchers.Default) { engine.indexLibrary(tracks) }
+        val waiting = withContext(Dispatchers.Default) { engine.analysing.first { it?.trackId == stuckTrack } }
+        assertEquals(stuckTrack, waiting?.trackId)
+        stuck.complete(Unit)
+
+        assertEquals(4, batch.await().indexed)
+        assertNull(engine.analysing.value)
     }
 
     @Test
