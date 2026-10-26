@@ -163,12 +163,13 @@ public object RankerQueue {
             val ja = RankerFeatures.NAMES.indexOf("trans_artist")
             val jf = RankerFeatures.NAMES.indexOf("is_favourite")
             val jq = RankerFeatures.NAMES.indexOf("log_freq")
-            // PLAN_093: a single A → B (one bridged skip-through, say) is noise; the transition parts need minTransitions.
-            val floorT = if (pn.minTransitions > 1) kotlin.math.ln(1.0 + pn.minTransitions) - 1e-9 else 0.0
+            // PLAN_093: the transition parts shrink by c / (c + κ), c = e^column − 1 (the credit-weighted count).
+            val kappa = pn.transitionKappa
+            fun shrink(x: Double) = if (kappa <= 0.0 || x <= 0.0) x else { val c = kotlin.math.exp(x) - 1.0; x * c / (c + kappa) }
             DoubleArray(poolSize) { i ->
                 val r = rows[i]
-                val tt = if (r[jt] >= floorT) r[jt] else 0.0
-                val ta = if (r[ja] >= floorT) r[ja] else 0.0
+                val tt = shrink(r[jt])
+                val ta = shrink(r[ja])
                 val x = pn.track * minOf(1.0, tt / LN4) + pn.artist * minOf(1.0, ta / LN4) +
                     pn.playlist * minOf(1.0, 2.0 * (pl?.get(i) ?: 0.0)) + pn.favourite * minOf(1.0, maxOf(0.0, r[jf])) +
                     pn.frequency * minOf(1.0, r[jq] / LN21)

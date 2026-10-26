@@ -181,8 +181,11 @@ public class RankerModel(
     public class PersonalNudge(
         public val delta: Double, public val track: Double, public val artist: Double, public val playlist: Double,
         public val favourite: Double, public val frequency: Double, public val followMin: Int,
-        /** PLAN_093: the track / artist transition parts count only from this many A → B transitions (1 = any; one is noise). */
-        public val minTransitions: Int = 1,
+        /**
+         * PLAN_093: the track / artist transition parts × c / (c + κ), c the credit-weighted A → B count (LW2's "shrink"
+         * form, mirrored for positives: one transition is mostly noise, a habit is not); 0 = off.
+         */
+        public val transitionKappa: Double = 0.0,
     )
 
     /** [sdUnits] (scale "maxsd"): λ · max(1, the hop's score spread), so it scales up on libraries whose scores spread wide. */
@@ -481,7 +484,7 @@ public class RankerModel(
             "queueArtistCap" to setOf("cap", "window", "lambda", "scale", "ownExtra"),
             "transBonus" to setOf("track", "artist"),
             "followerExempt" to setOf("followMin"),
-            "personalNudge" to setOf("delta", "track", "artist", "playlist", "favourite", "frequency", "followMin", "minTransitions"),
+            "personalNudge" to setOf("delta", "track", "artist", "playlist", "favourite", "frequency", "followMin", "transitionKappa"),
             "transGraph" to setOf("variant", "window", "gapMin", "halfLifeDays", "mu", "kappa", "neg", "importWeight"),
             "listenWeight" to setOf("zeroS", "negWeight", "midS", "tauS", "pairMode", "kappa", "picksOnly", "autoWeight"),
             "prevFamilyJump" to setOf("lambda"),
@@ -670,7 +673,7 @@ public class RankerModel(
                 personalNudge = (root["personalNudge"] as? Map<*, *>)?.let {
                     fun d(k: String, v: Double) = (it[k] as? Number)?.toDouble() ?: v
                     PersonalNudge(d("delta", 0.5), d("track", 1.0), d("artist", 0.5), d("playlist", 0.4), d("favourite", 0.3), d("frequency", 0.15),
-                        (it["followMin"] as? Number)?.toInt() ?: 2, (it["minTransitions"] as? Number)?.toInt() ?: 1)
+                        (it["followMin"] as? Number)?.toInt() ?: 2, (it["transitionKappa"] as? Number)?.toDouble() ?: 0.0)
                 },
                 skipPairs = root["skipPairs"].let { require(it == null || it is Boolean || it == "unskipped") { "skipPairs" }; it != false },
                 skipPairsUnskippedOnly = root["skipPairs"] == "unskipped",

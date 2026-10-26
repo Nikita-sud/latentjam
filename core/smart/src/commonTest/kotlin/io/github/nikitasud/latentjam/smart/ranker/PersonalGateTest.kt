@@ -12,7 +12,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * PLAN_093: personalNudge.minTransitions and queueArtistCap.ownExtra parse, and their defaults change nothing. Their
+ * PLAN_093: personalNudge.transitionKappa and queueArtistCap.ownExtra parse, and their defaults change nothing. Their
  * effects are measured on the stand (PLAN_093 personal checks), where real histories and sound neighbours exist.
  */
 class PersonalGateTest {
@@ -40,7 +40,7 @@ class PersonalGateTest {
 
     @Test
     fun theDefaultsChangeNothing() = runTest {
-        assertEquals(plan(model("$nudge}")), plan(model("$nudge, \"minTransitions\": 1}")))
+        assertEquals(plan(model("$nudge}")), plan(model("$nudge, \"transitionKappa\": 0}")))
         val cap = """, "queueArtistCap": {"cap": 3, "window": 10, "lambda": 8.0"""
         val near = object : AudioSource {
             override suspend fun vector(id: TrackId): FloatArray? = null
@@ -51,8 +51,8 @@ class PersonalGateTest {
 
     @Test
     fun theKeysParse() {
-        assertEquals(2, model("$nudge, \"minTransitions\": 2}").personalNudge!!.minTransitions)
-        assertEquals(1, model("$nudge}").personalNudge!!.minTransitions)
+        assertEquals(2.0, model("$nudge, \"transitionKappa\": 2}").personalNudge!!.transitionKappa)
+        assertEquals(0.0, model("$nudge}").personalNudge!!.transitionKappa)
         assertEquals(2, model(""", "queueArtistCap": {"cap": 3, "window": 10, "lambda": 8.0, "ownExtra": 2}""").queueArtistCap!!.ownExtra)
         assertEquals(0, model(""", "queueArtistCap": {"cap": 3, "window": 10, "lambda": 8.0}""").queueArtistCap!!.ownExtra)
     }
