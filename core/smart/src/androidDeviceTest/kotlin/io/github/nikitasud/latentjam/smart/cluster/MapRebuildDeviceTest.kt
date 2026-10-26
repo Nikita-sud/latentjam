@@ -34,10 +34,14 @@ class MapRebuildDeviceTest {
         val args = InstrumentationRegistry.getArguments()
         assumeTrue(args.getString("mapRebuild") == "1")
         val cancels = args.getString("mapRebuildCancels")?.toInt() ?: 10
+        // Supplementary set (docs/map-refresh-checks.md, piece 3 result): deadlines in [0, mapRebuildDeadlineMaxMs).
+        deadlineMaxMs = args.getString("mapRebuildDeadlineMaxMs")?.toDouble()
         val priority = Process.getThreadPriority(Process.myTid())
         Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND)
         try { runBlocking { run(cancels) } } finally { Process.setThreadPriority(priority) }
     }
+
+    private var deadlineMaxMs: Double? = null
 
     private val dir get() = InstrumentationRegistry.getInstrumentation().targetContext.filesDir
     private fun log(line: String) { Log.i("LJMapRebuild", line); File(dir, "map-rebuild.log").appendText(line + "\n") }
@@ -99,7 +103,7 @@ class MapRebuildDeviceTest {
         val random = Random(6161)
         repeat(cancels) { i ->
             val polls = Polls()
-            val at = (random.nextDouble() * full.ms * 1e6).toLong()
+            val at = (random.nextDouble() * (deadlineMaxMs ?: full.ms) * 1e6).toLong()
             polls.deadlineNs = SystemClock.elapsedRealtimeNanos() + at
             val stateFile = File(dir, "map_rebuild_state_check.bin")
             val stamp = stateFile.lastModified() to stateFile.length()

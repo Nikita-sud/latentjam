@@ -466,3 +466,85 @@ MAP_REGIONS=1 MAP_REGIONS_MODE=check MAP_REGIONS_DELTAS=0.2 MAP_REGIONS_SEEDS=47
 MAP_REGIONS_FMA=<s707>/fma-5000,<s808>/fma-5000,<s909>/fma-6500 MAP_REGIONS_EXCLUDE_STYLE="Hip-Hop Beats" \
 ./gradlew :core:smart:testAndroidHostTest --tests '*MapRegionIdentityReplay' --rerun
 ```
+
+### Piece 4 freeze review, round 2 (26 October 2026): REVISE. Addressed below, then re-reviewed before the run.
+
+**Fixes:**
+
+- **Placed agreement measured the wrong thing (2a, 2b).** It now:
+  - counts **labelled** tracks only (synthetic style, FMA top genre);
+  - gives both maps the same denominator, so a track without a region counts as disagreeing;
+  - gates on the **new or changed** tracks only. Previously unassigned tracks are logged as
+    `looseAgree`.
+- **Settled tracks could lose their region (6a).** A leftover group too small to be a region now
+  returns its settled tracks to their old region. This is a code change, so one confirmation pilot
+  (pilot 6, δ = 0.2 only) runs on the pilot data before the check. It does not tune anything: if it
+  fails a row, that is reported, not fixed.
+- **Floor (6b).** The unsettled rule uses the kept region's stored floor, measured against its
+  previous centroid. This is documented in `rediscover`, as is the order of the steps (6d).
+- **A tag-only edit re-placed a track (8).** Row hashes and tag hashes are now separate (codec
+  format 3). A new vector rejoins. A tag edit only marks the track pending, so the rebuild renames
+  its region without moving it.
+
+**Disclosures (3, 4, 7):**
+
+- **Known limitation on k-means devices (3).** On the switch path, which a 256 MB device takes at
+  10,000 tracks, a new style is absorbed into existing regions. FMA pilot: identity own = 0, the
+  k-means fresh map also 0, the average-linkage map 0.33. The row reads n/a there because today's
+  device map does no better. The average-linkage values are logged for contrast. This is a property
+  of the k-means fallback, not of identity, and it is out of this plan's scope ("reducing the memory
+  of average-linkage regions").
+- **Logged, not gating (4).** These cannot fail on the switch, because identity keeps about 13×
+  more, finer regions than k-means fresh:
+  - purity on the switch;
+  - the switch chain's purity and coverage.
+- **Pilot honesty (7).** The unsettled-placement rule was chosen *because* it fixed pilot 4's
+  failures on this same pilot draw, so the pilot passes are not evidence for it. The check draws are
+  new random draws, but from the same 7,989-track pool as the pilot draw, so a rule fitted to the
+  pilot is only partly tested out of sample.
+
+**Binding rows.** This table replaces the earlier ones. The check is graded on it alone.
+
+| # | Row | Paths | Pass |
+| --- | --- | --- | --- |
+| R1 | settled moved churn, per case | both | ≤ 2 % |
+| R2 | purity, per case | average linkage | ≥ fresh − 0.01 |
+| R3 | coverage, per case | both | ≥ fresh − 0.02 |
+| R4 | placed agreement (new or changed labelled tracks, unassigned = disagree), per case | both | ≥ fresh(same path) − 0.05 |
+| R5 | new style's own region (novel case) | both | ≥ fresh − 0.10; n/a when fresh = 0 |
+| R6 | new regions | both | none below `MIN_CLUSTER_SIZE` |
+| R7 | chain, moved churn from the start | both | ≤ 2 % |
+| R8 | chain purity | average linkage | ≥ fresh − 0.01 |
+| R9 | chain coverage | average linkage | ≥ fresh − 0.02 |
+
+Logged, not gating:
+- purity and the chain's purity and coverage on the switch;
+- gained tracks, `looseAgree` and the per-region moved distribution;
+- today's moved share;
+- the average-linkage contrast on the switch.
+
+### Piece 3 result, part A (26 October 2026)
+
+Log: `piece3-device-2026-10-26.txt`. APK built from b5f22eb8.
+
+| Row | Result | Verdict |
+| --- | --- | --- |
+| completes | completed on the **average-linkage** path the formula picked (budget 176.5 MB); peak Java-heap delta 117.8 MB | PASS |
+| time | 33.7 s (regions 6.2 s, identity 0.07 s, layout 27.5 s, state write 0.06 s) | PASS |
+| longest gap between polls | 58.6 ms (state-write stage) | PASS |
+| cancellation | **8 of 10** ended `cancelled`, 0.2–12.9 ms after the deadline. Runs 3 and 9 drew deadlines (28.4 s, 32.5 s) later than those runs took, because they were warmer than the first full run. They completed, so they are not cancellation samples. | **not met as worded** (10 of 10 required); latency ≤ 250 ms holds on every sample |
+| old map intact after a cancel | the state file was untouched in all 8 cancelled runs | PASS |
+
+- **Longest chunk read** (the stand-in for SMART's lock wait; an array copy here, not the
+  engine's fusion work): 0.19 ms.
+- **Path caveat.** In this bare test process the formula allowed average linkage. In the app the
+  engine's index and the library also sit on the heap, so a 256 MB phone at 10,000 tracks is likely
+  to take k-means, as round 3 found. That path was not exercised on the device here.
+
+**Supplementary cancellation set, declared before it runs.**
+- 10 deadlines, uniform in [0, 26,000 ms), which is 80 % of the warm full run, so each is a real
+  cancellation.
+- Same device and data.
+- **Pass:** all 10 end `cancelled` ≤ 250 ms after the deadline, with the state file untouched.
+- It supplements the frozen row and does not replace it. Pilot 6 runs on the host at the same time;
+  this is disclosed.
