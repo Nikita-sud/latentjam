@@ -50,7 +50,7 @@ internal object LibraryRegionsService {
             val cachedKey = libraryWorlds.builtWorldsKey
             // Plan piece 4: with the refresh flag on and the analysis over, regions keep their identity.
             // A change joins the regions as they are (no discovery); a rebuild rediscovers and matches.
-            val identityOn = MapRefreshFlag.enabled && audioReady
+            val identityOn = RegionIdentityFlag.enabled && audioReady
             if (
                 !rebuild &&
                 cachedKey != null &&

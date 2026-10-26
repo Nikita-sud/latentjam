@@ -14,3 +14,8 @@ import platform.Foundation.NSUserDefaults
 @OptIn(ExperimentalNativeApi::class)
 internal actual fun mapRefreshOverride(): Boolean =
     Platform.isDebugBinary && NSUserDefaults.standardUserDefaults.boolForKey("map_refresh_enabled")
+
+/** Debug binaries only: the `map_region_identity_off` user default turns region identity off alone. */
+@OptIn(ExperimentalNativeApi::class)
+internal actual fun regionIdentityOffOverride(): Boolean =
+    Platform.isDebugBinary && NSUserDefaults.standardUserDefaults.boolForKey("map_region_identity_off")

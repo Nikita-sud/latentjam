@@ -21,5 +21,20 @@ internal object MapRefreshFlag {
         "${io.github.nikitasud.latentjam.smart.cluster.LibraryLayout.cacheVersion}|$source|$dim|refresh-v1"
 }
 
+/**
+ * Whether the Map's regions keep their identity across rebuilds (plan piece 4). It follows [MapRefreshFlag]: turning
+ * the refresh on turns identity on, and identity alone can be switched off ([regionIdentityOffOverride]). The owner
+ * accepted the frozen check's purity trade (docs/map-refresh-checks.md, piece 4 override, 26 October 2026).
+ */
+internal object RegionIdentityFlag {
+    fun enabled(refreshEnabled: Boolean = MapRefreshFlag.enabled, switchedOff: Boolean = regionIdentityOffOverride()): Boolean =
+        refreshEnabled && !switchedOff
+
+    val enabled: Boolean get() = enabled()
+}
+
 /** Platform debug override for [MapRefreshFlag]; false in release builds. */
 internal expect fun mapRefreshOverride(): Boolean
+
+/** Platform debug switch that turns [RegionIdentityFlag] off alone; false in release builds. */
+internal expect fun regionIdentityOffOverride(): Boolean

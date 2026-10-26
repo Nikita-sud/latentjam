@@ -72,7 +72,7 @@ internal object MapRebuild {
         readLayout: suspend () -> Pair<Int, Boolean>? = {
             AppGraph.mapRefreshStateStore.load()?.let { state -> try { state.changedSinceFull to state.stale } finally { state.close() } }
         },
-        readIdentityPending: suspend () -> Int = { RegionIdentityKeeper.pendingCount() },
+        readIdentityPending: suspend () -> Int = { if (RegionIdentityFlag.enabled) RegionIdentityKeeper.pendingCount() else 0 },
         schedule: () -> Unit = ::scheduleMapRebuild,
     ): Boolean {
         if (!enabled) return false
@@ -129,7 +129,8 @@ internal object MapRebuild {
         val layoutState = runCatching { AppGraph.mapRefreshStateStore.load() }.getOrNull()
         val layout = layoutState?.let { it.changedSinceFull to it.stale }
         layoutState?.close()
-        if (!pendingWork(layout?.first, layout?.second, RegionIdentityKeeper.pendingCount())) return Outcome.NOT_NEEDED
+        val identityPending = if (RegionIdentityFlag.enabled) RegionIdentityKeeper.pendingCount() else 0
+        if (!pendingWork(layout?.first, layout?.second, identityPending)) return Outcome.NOT_NEEDED
 
         // The Map's own inputs, read as App reads them: the scanned library with cached genre facts.
         val scan = AppGraph.library.scan()

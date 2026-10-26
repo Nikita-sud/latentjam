@@ -734,3 +734,30 @@ lower on small samples.
 - On average linkage, the sticky regions trade about 0.01 of genre purity against fresh
   rediscovery, which is just past the frozen tolerance.
 - Whether that trade is worth it is the owner's call. The frozen gate says no.
+
+### Piece 4: owner override of the frozen FAIL (26 October 2026)
+
+The owner accepted the trade ("согласен"; relayed by the parent session), and region identity
+proceeds despite the frozen FAIL. The four failing cells, all FMA with average linkage:
+
+| Row | Cell | Value | Limit |
+| --- | --- | --- | --- |
+| R2 purity | s808 add2 | 0.7413 vs fresh 0.7527 | ≥ fresh − 0.01 |
+| R2 purity | s808 album1 | 0.7425 vs fresh 0.7527 | ≥ fresh − 0.01 |
+| R4 placed agreement | s707 add1 | 0.625 vs fresh 0.708 (30/48 vs 34/48) | ≥ fresh − 0.05 |
+| R7 chain moved churn | s808 | 2.16 % | ≤ 2 % |
+
+**What the owner accepts:** about 0.01 genre purity on average linkage, in exchange for settled
+tracks moving less than 1 % at a rebuild. Today they move 3–14 % (FMA, average linkage) and about
+60 % (the k-means path).
+
+The frozen verdict is not rewritten: it stays FAIL, and this is an override. Unchanged by it:
+- the 33 missing FMA novel cells;
+- the k-means new-style limitation.
+
+**Conditions set with the override:**
+- Region identity gets its own switch, which follows the refresh switch by default and can be
+  turned off alone.
+- Both stay **off** by default until both of these are done:
+  - one deferred-rebuild run on a real iPhone;
+  - a run on the owner's phone that exercises the k-means region path.
