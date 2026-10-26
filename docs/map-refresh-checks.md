@@ -675,3 +675,55 @@ MAP_REGIONS_EXCLUDE_STYLE="Hip-Hop Beats" MAP_REGIONS_LOG=<scratch>/p4-check.log
 
 The FMA paths are the scratchpad draws made by `map_gate_fma_dump.py --seed 707|808|909`. They are
 not committed; they can be regenerated from the pool.
+
+### Piece 4 result (26 October 2026): FAIL as frozen
+
+**Run.**
+- Code: commit 4b528d7e (plus the grader, 2b12ff65).
+- Log: `piece4-check-2026-10-26.txt`.
+- Mechanical grade (`tools/research/map_regions_piece4_grade.py`):
+  `piece4-check-grade-2026-10-26.txt`.
+- Result: **327 cells, 4 FAIL, 2 n/a.** Under the round-3 verdict rule, **piece 4 FAILS** and the
+  flag stays off. There is no re-run.
+
+| Row | Pass | Failing cells |
+| --- | --- | --- |
+| R1 moved churn | 66 / 66 | — |
+| R2 purity (average linkage) | 31 / 33 | FMA s808 add2: 0.7413 vs fresh 0.7527 (−0.0114); FMA s808 album1: 0.7425 vs 0.7527 (−0.0102). The limit is −0.01. |
+| R3 coverage | 66 / 66 | — |
+| R4 placed agreement | 65 / 66 | FMA s707 add1, average linkage: 0.625 vs fresh 0.708 (30/48 vs 34/48 labelled new tracks; the limit is −0.05) |
+| R5 new style's own region | 4 / 6 | synthetic s53 and s59, switch: n/a (fresh own = 0) |
+| R6 minimum size | 66 / 66 | — |
+| R7 chain moved churn | 11 / 12 | FMA s808, average linkage: 2.16 % vs 2 % |
+| R8 / R9 chain purity / coverage | 6 / 6, 6 / 6 | — |
+
+- **Every synthetic cell passes.** All four FAILs are on FMA with average linkage. Three of them
+  miss by small margins: purity by 0.0002 and 0.0014 past the limit, chain churn by 0.16 points.
+  The fourth, R4, misses by four tracks out of 48.
+
+**The check was incomplete (a data defect found after the run).**
+- The three check draws were generated with three columns: id, top genre, style. They had no
+  split column, unlike the pilot draw. So no FMA track counted as held out, and the harness
+  silently skipped the FMA novel-style case.
+- R4 and R5 for the new style were therefore evaluated on synthetic only.
+- This cannot change the verdict, which is already FAIL. It is a harness defect: a case should never
+  be skipped silently. Any later round fixes it first.
+
+**What identity achieved (logged, not gating).** Settled tracks moved:
+
+| Library | Path | Today | Identity |
+| --- | --- | --- | --- |
+| FMA | average linkage | 3.0–14.3 % | 0.02–0.98 % |
+| FMA | k-means switch | 58–60 % | 0.3–1.1 % |
+| Synthetic | average linkage | 0.4–1.6 % | 0 % |
+| Synthetic | k-means switch | 32–43 % | 0 % |
+
+The cost on FMA average linkage is a purity loss of about 0.01, plus placed agreement up to 0.08
+lower on small samples.
+
+**Reading.**
+- On the k-means path a 256 MB device takes, identity is far more stable than today, and it is
+  purer than today's k-means map.
+- On average linkage, the sticky regions trade about 0.01 of genre purity against fresh
+  rediscovery, which is just past the frozen tolerance.
+- Whether that trade is worth it is the owner's call. The frozen gate says no.
