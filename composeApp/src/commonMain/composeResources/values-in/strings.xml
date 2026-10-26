@@ -456,7 +456,7 @@
     <string name="intelligence_smart_diagnose_body">Merencanakan ulang antrean SMART terbaru dan menyimpan skor tiap langkah ke file di folder aplikasi pada perangkat ini, untuk pemeriksaan produk.</string>
     <string name="intelligence_smart_diagnose_done">Diagnosis SMART disimpan</string>
     <string name="intelligence_smart_diagnose_failed">Tidak dapat menyimpan diagnosis SMART.</string>
-    <string name="intelligence_smart_ranker">Pemeringkat terlatih (uji)</string>
+    <string name="intelligence_smart_ranker">Pemeringkat terlatih</string>
     <string name="intelligence_smart_ranker_body">SMART memilih setiap lagu berikutnya dengan model yang dilatih dari data dengar publik (ListenBrainz). Mati: rantai SMART biasa.</string>
     <string name="foryou_mix_meme_viral">Meme &amp; audio viral</string>
     <string name="foryou_mix_sound_effects">Efek suara</string>

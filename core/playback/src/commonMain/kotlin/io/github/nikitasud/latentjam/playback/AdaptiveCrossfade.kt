@@ -65,7 +65,8 @@ internal class SeamCrossfades(
                 val read = runCatching { engine.transitionFit(outgoing, incoming) }.getOrNull()
                 if (pair == wanted) {
                     fit = read
-                    println("Crossfade: ${outgoing.value} -> ${incoming.value} fit=$read length=${fittedCrossfadeMs(sliderMs, read)} ms")
+                    // No ids: nothing about the library leaves the app through the system log.
+                    println("Crossfade: fit=$read length=${fittedCrossfadeMs(sliderMs, read)} ms")
                 }
             }
             return sliderMs

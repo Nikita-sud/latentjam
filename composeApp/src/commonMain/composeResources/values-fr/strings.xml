@@ -482,7 +482,7 @@
     <string name="intelligence_smart_diagnose_body">Replanifie les files SMART récentes et enregistre les scores de chaque étape dans un fichier du dossier de l’app sur cet appareil, pour les vérifications du produit.</string>
     <string name="intelligence_smart_diagnose_done">Diagnostic SMART enregistré</string>
     <string name="intelligence_smart_diagnose_failed">Impossible d’enregistrer le diagnostic SMART.</string>
-    <string name="intelligence_smart_ranker">Classement appris (test)</string>
+    <string name="intelligence_smart_ranker">Classement appris</string>
     <string name="intelligence_smart_ranker_body">SMART choisit chaque titre suivant avec un modèle appris sur des données d’écoute publiques (ListenBrainz). Désactivé : la chaîne SMART habituelle.</string>
     <string name="foryou_mix_meme_viral">Mèmes et sons viraux</string>
     <string name="foryou_mix_sound_effects">Effets sonores</string>

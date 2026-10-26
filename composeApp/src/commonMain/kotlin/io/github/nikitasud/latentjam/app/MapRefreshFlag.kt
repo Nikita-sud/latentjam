@@ -6,13 +6,14 @@ package io.github.nikitasud.latentjam.app
 
 /**
  * Whether the Map refreshes small library changes instead of rebuilding them
- * (docs/map-cost-research-2026-10-25.md, implementation plan, piece 5). Off by default until the
- * device checks pass. A debuggable build can turn it on without UI: Android `adb shell run-as <pkg>
+ * (docs/map-cost-research-2026-10-25.md, implementation plan, piece 5).
+ * On since 0.9.3 (device checks passed; the owner accepted the identity trade). The debug switches below stay
+ * for builds that need it on without the default: Android `adb shell run-as <pkg>
  * touch files/map_refresh_enabled`; iOS the `map_refresh_enabled` user default (e.g. the launch
  * argument `-map_refresh_enabled YES`).
  */
 internal object MapRefreshFlag {
-    const val DEFAULT: Boolean = false
+    const val DEFAULT: Boolean = true
 
     val enabled: Boolean get() = DEFAULT || mapRefreshOverride()
 

@@ -514,7 +514,7 @@
     <string name="intelligence_smart_diagnose_body">Planuje ponownie ostatnie kolejki SMART i zapisuje wyniki każdego kroku w pliku w folderze aplikacji na tym urządzeniu, do kontroli produktu.</string>
     <string name="intelligence_smart_diagnose_done">Diagnoza SMART zapisana</string>
     <string name="intelligence_smart_diagnose_failed">Nie udało się zapisać diagnozy SMART.</string>
-    <string name="intelligence_smart_ranker">Wyuczony ranking (test)</string>
+    <string name="intelligence_smart_ranker">Wyuczony ranking</string>
     <string name="intelligence_smart_ranker_body">SMART wybiera każdy kolejny utwór modelem wyuczonym na publicznych danych o słuchaniu (ListenBrainz). Wyłączone: zwykły łańcuch SMART.</string>
     <string name="foryou_mix_meme_viral">Memy i virale</string>
     <string name="foryou_mix_sound_effects">Efekty dźwiękowe</string>

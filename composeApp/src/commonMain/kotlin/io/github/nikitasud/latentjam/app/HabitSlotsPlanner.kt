@@ -413,8 +413,8 @@ internal suspend fun rankerPlan(
                 recentPlays = listens.takeLast(RECENT_PLAYS).map { it.trackId to it.startedAtMs },
             ),
         )
-        // Test builds: one aggregate line per press in the app's external files dir (ids only; nothing leaves the phone).
-        appendDebugLine(SMART_PRESS_DIAG, pressDiagnostics(seed, report, seedMs, press, personal, ruleOnly || !fits, varietyScale, playlists, listens.size))
+        // Debuggable builds: one aggregate line per press in the app's external files dir (ids only; nothing leaves the phone).
+        if (isDebuggableBuild()) appendDebugLine(SMART_PRESS_DIAG, pressDiagnostics(seed, report, seedMs, press, personal, ruleOnly || !fits, varietyScale, playlists, listens.size))
         val (withEntity, listed, withLfm) = ranker.entityCoverage
         // Aggregate on purpose: no title, artist or id leaves the app through the system log.
         println(

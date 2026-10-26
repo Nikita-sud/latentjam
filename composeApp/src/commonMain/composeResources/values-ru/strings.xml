@@ -503,7 +503,7 @@
     <string name="intelligence_smart_diagnose_body">Заново планирует последние очереди SMART и сохраняет оценки каждого шага в файл в папке приложения на этом устройстве — для проверки продукта.</string>
     <string name="intelligence_smart_diagnose_done">Диагностика SMART сохранена</string>
     <string name="intelligence_smart_diagnose_failed">Не удалось сохранить диагностику SMART.</string>
-    <string name="intelligence_smart_ranker">Обученный ранжировщик (тест)</string>
+    <string name="intelligence_smart_ranker">Обученный ранжировщик</string>
     <string name="intelligence_smart_ranker_body">SMART выбирает каждый следующий трек моделью, обученной на открытых данных о прослушиваниях (ListenBrainz). Выключено — обычная цепочка SMART.</string>
     <string name="foryou_mix_meme_viral">Мемы и вирусные аудиозаписи</string>
     <string name="foryou_mix_sound_effects">Звуковые эффекты</string>

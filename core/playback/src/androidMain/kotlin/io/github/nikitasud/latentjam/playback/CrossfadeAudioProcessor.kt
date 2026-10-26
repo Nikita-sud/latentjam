@@ -128,10 +128,14 @@ internal class OverlapPlan(
 /** See [CrossfadeSettings.pendingRise]. */
 internal data class PendingRise(val mediaId: String, val positionUs: Long, val riseUs: Long, val fromUs: Long = 0L)
 
+private const val SEAM_TAG = "LJCrossfade"
+
 /** The process-wide settings the service's player reads; the controller lives in the same process. */
 internal object AndroidCrossfade {
     val settings = CrossfadeSettings().apply {
-        seamLog = { line -> android.util.Log.i("LJCrossfade", line) }
+        // Seam lines name media ids, so they stay silent unless asked for:
+        // `adb shell setprop log.tag.LJCrossfade DEBUG`.
+        seamLog = { line -> if (android.util.Log.isLoggable(SEAM_TAG, android.util.Log.DEBUG)) android.util.Log.d(SEAM_TAG, line) }
     }
 }
 

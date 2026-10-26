@@ -2037,37 +2037,40 @@ private fun IntelligenceSettings(
                     onCheckedChange = settings::setUseFavourites,
                     nestedIndent = 16.dp,
                 )
-                SettingsRow(
-                    title = stringResource(Res.string.intelligence_smart_log_export),
-                    subtitle = stringResource(Res.string.intelligence_smart_log_export_body),
-                    onClick = {
-                        val log = AppGraph.smartImpressionLog
-                        if (log == null || smartLogExchange.inProgress) return@SettingsRow
-                        smartLogExchange.exportTo(
-                            { _ -> exportSmartLogText(log) },
-                            "latentjam-smart-log-${io.github.nikitasud.latentjam.history.epochMillis()}.txt",
-                        )
-                    },
-                )
-                SettingsRow(
-                    title = stringResource(Res.string.intelligence_smart_diagnose),
-                    subtitle = stringResource(Res.string.intelligence_smart_diagnose_body),
-                    onClick = {
-                        if (diagnosing) return@SettingsRow
-                        diagnosing = true
-                        scope.launch {
-                            val path = try {
-                                withContext(Dispatchers.Default) { AppGraph.diagnoseSmartStarts() }
-                            } catch (cancelled: CancellationException) {
-                                throw cancelled
-                            } catch (_: Exception) {
-                                null
+                // Product-check tools: debuggable builds only.
+                if (isDebuggableBuild()) {
+                    SettingsRow(
+                        title = stringResource(Res.string.intelligence_smart_log_export),
+                        subtitle = stringResource(Res.string.intelligence_smart_log_export_body),
+                        onClick = {
+                            val log = AppGraph.smartImpressionLog
+                            if (log == null || smartLogExchange.inProgress) return@SettingsRow
+                            smartLogExchange.exportTo(
+                                { _ -> exportSmartLogText(log) },
+                                "latentjam-smart-log-${io.github.nikitasud.latentjam.history.epochMillis()}.txt",
+                            )
+                        },
+                    )
+                    SettingsRow(
+                        title = stringResource(Res.string.intelligence_smart_diagnose),
+                        subtitle = stringResource(Res.string.intelligence_smart_diagnose_body),
+                        onClick = {
+                            if (diagnosing) return@SettingsRow
+                            diagnosing = true
+                            scope.launch {
+                                val path = try {
+                                    withContext(Dispatchers.Default) { AppGraph.diagnoseSmartStarts() }
+                                } catch (cancelled: CancellationException) {
+                                    throw cancelled
+                                } catch (_: Exception) {
+                                    null
+                                }
+                                diagnosing = false
+                                snackbarHostState.showSnackbar(if (path != null) diagnoseDone else diagnoseFailed)
                             }
-                            diagnosing = false
-                            snackbarHostState.showSnackbar(if (path != null) diagnoseDone else diagnoseFailed)
-                        }
-                    },
-                )
+                        },
+                    )
+                }
                 SettingsSwitchRow(
                     title = stringResource(Res.string.intelligence_include_novelty_mixes),
                     subtitle = stringResource(Res.string.intelligence_include_novelty_mixes_body),

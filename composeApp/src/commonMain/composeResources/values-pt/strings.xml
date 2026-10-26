@@ -490,7 +490,7 @@
     <string name="intelligence_smart_diagnose_body">Volta a planear as filas recentes do SMART e guarda as pontuações de cada passo num ficheiro na pasta da app neste dispositivo, para verificações do produto.</string>
     <string name="intelligence_smart_diagnose_done">Diagnóstico do SMART guardado</string>
     <string name="intelligence_smart_diagnose_failed">Não foi possível guardar o diagnóstico do SMART.</string>
-    <string name="intelligence_smart_ranker">Classificador aprendido (teste)</string>
+    <string name="intelligence_smart_ranker">Classificador aprendido</string>
     <string name="intelligence_smart_ranker_body">O SMART escolhe cada próxima faixa com um modelo aprendido de dados públicos de audição (ListenBrainz). Desligado: a cadeia SMART de sempre.</string>
     <string name="foryou_mix_meme_viral">Memes e áudios virais</string>
     <string name="foryou_mix_sound_effects">Efeitos sonoros</string>

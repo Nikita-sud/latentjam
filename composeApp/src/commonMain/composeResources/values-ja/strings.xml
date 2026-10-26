@@ -450,7 +450,7 @@
     <string name="intelligence_smart_diagnose_body">最近の SMART キューを再計画し、各ステップのスコアをこの端末のアプリ用フォルダーにファイルとして保存します。製品確認用です。</string>
     <string name="intelligence_smart_diagnose_done">SMART の診断を保存しました</string>
     <string name="intelligence_smart_diagnose_failed">SMART の診断を保存できませんでした。</string>
-    <string name="intelligence_smart_ranker">学習済みランカー（テスト）</string>
+    <string name="intelligence_smart_ranker">学習済みランカー</string>
     <string name="intelligence_smart_ranker_body">SMART が公開リスニングデータ（ListenBrainz）から学習したモデルで次の曲を選びます。オフ：通常の SMART チェーン。</string>
     <string name="foryou_mix_meme_viral">ミーム＆バイラル音源</string>
     <string name="foryou_mix_sound_effects">効果音</string>

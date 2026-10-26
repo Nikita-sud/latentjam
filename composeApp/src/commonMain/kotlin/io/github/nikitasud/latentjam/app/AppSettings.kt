@@ -422,7 +422,7 @@ private val LEARN_FROM_HABITS_DEFAULT_FLOW: StateFlow<Boolean> = MutableStateFlo
 internal const val DEFAULT_USE_FAVOURITES = true
 private val USE_FAVOURITES_DEFAULT_FLOW: StateFlow<Boolean> = MutableStateFlow(DEFAULT_USE_FAVOURITES)
 
-/** The learned SMART ranker is on in this test build until the listener turns it off. */
+/** The learned SMART ranker is on until the listener turns it off. */
 internal const val DEFAULT_SMART_RANKER = true
 private val SMART_RANKER_FALLBACK_FLOW: StateFlow<Boolean> = MutableStateFlow(false)
 

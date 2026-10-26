@@ -558,7 +558,7 @@
     <string name="intelligence_smart_diagnose_body">يعيد تخطيط قوائم SMART الأخيرة ويحفظ درجات كل خطوة في ملف داخل مجلد التطبيق على هذا الجهاز، لفحوص المنتج.</string>
     <string name="intelligence_smart_diagnose_done">تم حفظ تشخيص SMART</string>
     <string name="intelligence_smart_diagnose_failed">تعذّر حفظ تشخيص SMART.</string>
-    <string name="intelligence_smart_ranker">مُرتِّب مُتعلَّم (تجريبي)</string>
+    <string name="intelligence_smart_ranker">مُرتِّب مُتعلَّم</string>
     <string name="intelligence_smart_ranker_body">يختار SMART كل أغنية تالية بنموذج تعلّم من بيانات استماع عامة (ListenBrainz). عند الإيقاف: سلسلة SMART المعتادة.</string>
     <string name="foryou_mix_meme_viral">ميمات ومقاطع رائجة</string>
     <string name="foryou_mix_sound_effects">مؤثرات صوتية</string>

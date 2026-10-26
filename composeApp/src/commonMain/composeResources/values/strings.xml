@@ -553,7 +553,7 @@
     <string name="intelligence_smart_diagnose_body">Re-plans recent SMART queues and saves every hop’s scores to a file in the app’s folder on this device, for product checks.</string>
     <string name="intelligence_smart_diagnose_done">SMART diagnostics saved</string>
     <string name="intelligence_smart_diagnose_failed">Could not save the SMART diagnostics.</string>
-    <string name="intelligence_smart_ranker">Learned ranker (test)</string>
+    <string name="intelligence_smart_ranker">Learned ranker</string>
     <string name="intelligence_smart_ranker_body">SMART picks each next track with a model learned from public listening data (ListenBrainz). Off: the usual SMART chain.</string>
     <string name="foryou_mix_meme_viral">Meme &amp; Viral Audio</string>
     <string name="foryou_mix_sound_effects">Sound effects</string>

@@ -514,7 +514,7 @@
     <string name="intelligence_smart_diagnose_body">Наново планує останні черги SMART і зберігає оцінки кожного кроку у файл у теці застосунку на цьому пристрої — для перевірки продукту.</string>
     <string name="intelligence_smart_diagnose_done">Діагностику SMART збережено</string>
     <string name="intelligence_smart_diagnose_failed">Не вдалося зберегти діагностику SMART.</string>
-    <string name="intelligence_smart_ranker">Навчений ранжувальник (тест)</string>
+    <string name="intelligence_smart_ranker">Навчений ранжувальник</string>
     <string name="intelligence_smart_ranker_body">SMART обирає кожен наступний трек моделлю, навченою на відкритих даних про прослуховування (ListenBrainz). Вимкнено — звичайний ланцюжок SMART.</string>
     <string name="foryou_mix_meme_viral">Меми й вірусні аудіо</string>
     <string name="foryou_mix_sound_effects">Звукові ефекти</string>
