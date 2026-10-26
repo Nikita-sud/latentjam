@@ -28,23 +28,38 @@ internal val KeepLoadedQueue: MediaItem =
 internal open class LoadedQueueKeeper(player: Player) : ForwardingPlayer(player) {
 
     override fun setMediaItem(mediaItem: MediaItem) {
-        if (mediaItem !== KeepLoadedQueue) super.setMediaItem(mediaItem)
+        if (mediaItem !== KeepLoadedQueue) {
+            onReplaceQueue()
+            super.setMediaItem(mediaItem)
+        }
     }
 
     override fun setMediaItem(mediaItem: MediaItem, resetPosition: Boolean) {
-        if (mediaItem !== KeepLoadedQueue) super.setMediaItem(mediaItem, resetPosition)
+        if (mediaItem !== KeepLoadedQueue) {
+            onReplaceQueue()
+            super.setMediaItem(mediaItem, resetPosition)
+        }
     }
 
     override fun setMediaItem(mediaItem: MediaItem, startPositionMs: Long) {
-        if (mediaItem !== KeepLoadedQueue) super.setMediaItem(mediaItem, startPositionMs)
+        if (mediaItem !== KeepLoadedQueue) {
+            onReplaceQueue()
+            super.setMediaItem(mediaItem, startPositionMs)
+        }
     }
 
     override fun setMediaItems(mediaItems: List<MediaItem>) {
-        if (!mediaItems.keepsLoadedQueue()) super.setMediaItems(mediaItems)
+        if (!mediaItems.keepsLoadedQueue()) {
+            onReplaceQueue()
+            super.setMediaItems(mediaItems)
+        }
     }
 
     override fun setMediaItems(mediaItems: List<MediaItem>, resetPosition: Boolean) {
-        if (!mediaItems.keepsLoadedQueue()) super.setMediaItems(mediaItems, resetPosition)
+        if (!mediaItems.keepsLoadedQueue()) {
+            onReplaceQueue()
+            super.setMediaItems(mediaItems, resetPosition)
+        }
     }
 
     override fun setMediaItems(
@@ -53,9 +68,13 @@ internal open class LoadedQueueKeeper(player: Player) : ForwardingPlayer(player)
         startPositionMs: Long,
     ) {
         if (!mediaItems.keepsLoadedQueue()) {
+            onReplaceQueue()
             super.setMediaItems(mediaItems, startIndex, startPositionMs)
         }
     }
+
+    /** A real queue is about to replace the loaded one; never called for [KeepLoadedQueue]. */
+    protected open fun onReplaceQueue() {}
 
     private fun List<MediaItem>.keepsLoadedQueue(): Boolean = singleOrNull() === KeepLoadedQueue
 }

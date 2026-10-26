@@ -34,7 +34,8 @@ public class PlaybackTileService : TileService() {
             val shouldPlay = !showPauseButton(
                 playWhenReady = controller.playWhenReady,
                 playbackState = controller.playbackState,
-                pausePending = false,
+                // A pause still fading out (from anywhere) reads as paused: this tap resumes.
+                pausePending = AndroidTransportFade.pausePending.value,
             )
             if (shouldPlay) {
                 // `play()` alone is a no-op once the final item reached STATE_ENDED, where a tap on
@@ -82,7 +83,7 @@ public class PlaybackTileService : TileService() {
     private fun transportIsPlaying(controller: MediaController): Boolean = showPauseButton(
         playWhenReady = controller.playWhenReady,
         playbackState = controller.playbackState,
-        pausePending = false,
+        pausePending = AndroidTransportFade.pausePending.value,
     )
 
     private fun withController(block: (MediaController) -> Unit) {
