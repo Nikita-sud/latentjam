@@ -63,7 +63,7 @@ internal class CrossfadeSettings {
     @Volatile var pendingRise: PendingRise? = null
 
     /**
-     * The sample rate the main player's output runs at ([SeamResamplingAudioProcessor]); the rate an
+     * The sample rate the main player's output runs at ([SeamResamplingAudioSink]); the rate an
      * opening is captured at, so its frames are the ones the player will produce. 0 before any.
      */
     @Volatile var outputRate: Int = 0

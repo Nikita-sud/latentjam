@@ -139,15 +139,19 @@ internal class CrossfadeIntroCapture(
             return
         }
         val sink = PcmOnlyAudioSink(
-            DefaultAudioSink.Builder(context)
-                .setEnableFloatOutput(false)
-                // At the main player's output rate: an opening of another rate is resampled exactly
-                // as the player will resample it at the join.
-                .setAudioProcessors(arrayOf(SeamResamplingAudioProcessor(AndroidCrossfade.settings, targetRate = outputRate), capture))
-                .setAudioOutputProvider(
-                    DiscardingOutputProvider(AudioTrackAudioOutputProvider.Builder(context).build()),
-                )
-                .build(),
+            // At the main player's output rate: an opening of another rate is resampled exactly as
+            // the player will resample it at the join.
+            SeamResamplingAudioSink(
+                DefaultAudioSink.Builder(context)
+                    .setEnableFloatOutput(false)
+                    .setAudioProcessors(arrayOf<AudioProcessor>(capture))
+                    .setAudioOutputProvider(
+                        DiscardingOutputProvider(AudioTrackAudioOutputProvider.Builder(context).build()),
+                    )
+                    .build(),
+                AndroidCrossfade.settings,
+                targetRate = outputRate,
+            ),
         )
         val renderers = RenderersFactory { handler, _, audioListener, _, _ ->
             arrayOf<Renderer>(MediaCodecAudioRenderer(context, MediaCodecSelector.DEFAULT, handler, audioListener, sink))

@@ -21,7 +21,7 @@ import kotlin.math.sqrt
  */
 internal class PcmResampler(
     private val inputRate: Int,
-    private val outputRate: Int,
+    val outputRate: Int,
     private val channels: Int,
 ) {
     private val step: Long

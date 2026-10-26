@@ -140,7 +140,9 @@ Owner's report: no smooth transition from a 44.1 kHz FLAC into a 48 kHz Opus. Th
 an opening of the outgoing track's rate, so such a seam fell back to the plain fades. DefaultAudioSink
 also replaced its AudioTrack at the join because the output rate changed, which pauses the sound.
 
-- **Android: one output rate across a seam.** `SeamResamplingAudioProcessor` is first in the chain.
+- **Android: one output rate across a seam.** `SeamResamplingAudioSink` sits in front of
+  DefaultAudioSink. It was first a processor first in the chain, which broke the sink's clock; see
+  "Clock jump" below.
   After a reposition (a start, a seek, a skip, where the sink restarts anyway) a track plays at its
   own rate. A track the player moves on to by itself, while smooth transitions are on, plays at the
   rate the output already has. A track at that rate passes through bit for bit, because the processor
@@ -196,6 +198,27 @@ Owner's report: a farting noise from Bohemian Rhapsody (FLAC 44.1 kHz) into Hear
 - **Fix.** The opening decoded ahead (`introCaptureMs`) is what will be heard plus half of it, at
   least 2 s. The rest then lasts while the decoder runs at three times real time. A 12 s overlap
   decodes 18 s (it was 14 s), which still fits the 8 MiB capture up to 96 kHz.
+
+## Clock jump after a rate-changing join (2026-10-26)
+
+Owner's report: no transition felt from Heartbreaker (Opus 48 kHz, played at 44.1 kHz since the
+seam before it) into More Than a Feeling (FLAC 44.1 kHz). At the join the sink logged
+`UnexpectedDiscontinuityException`: it expected the next buffer 27.2 s later than it came. Then the
+position read 0 for a moment and jumped about 20 s, the sink drained and re-synced in the middle of
+the track, and the processors were flushed.
+
+- **Cause.** DefaultAudioSink times every byte given to it since its last flush at the current
+  track's input rate (`inputFramesToDurationUs(getSubmittedFrames())`). With the resampler inside its
+  chain, a reused AudioTrack saw its input rate change at the join, so the frames of the track before
+  were counted at the wrong rate. The seam into Heartbreaker had the same fault and probably added
+  to its stutter.
+- **Fix.** The resampler moved in front of the sink (`SeamResamplingAudioSink`, under
+  `PcmOnlyAudioSink`). The sink only ever sees the output's rate, with gapless encoder delay and
+  padding scaled to it. A buffer the sink cannot take yet is offered again as the same conversion.
+  The capture goes through the same sink, so its PCM is the player's at the join (tested).
+- **Also.** A track whose stream ends before its overlap was settled (`CrossfadeAudioProcessor`
+  `Decision.Join.early`) now brings the next track in at its first sound, rising on the overlap's
+  curve from its decoded opening.
 
 ## Prior art (searched 2026-10-22, at the owner's request)
 
