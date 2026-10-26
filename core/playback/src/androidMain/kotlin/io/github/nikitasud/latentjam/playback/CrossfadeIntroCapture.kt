@@ -139,15 +139,19 @@ internal class CrossfadeIntroCapture(
             return
         }
         val sink = PcmOnlyAudioSink(
-            DefaultAudioSink.Builder(context)
-                .setEnableFloatOutput(false)
-                // At the main player's output rate: an opening of another rate is resampled exactly
-                // as the player will resample it at the join.
-                .setAudioProcessors(arrayOf(SeamResamplingAudioProcessor(AndroidCrossfade.settings, targetRate = outputRate), capture))
-                .setAudioOutputProvider(
-                    DiscardingOutputProvider(AudioTrackAudioOutputProvider.Builder(context).build()),
-                )
-                .build(),
+            // At the main player's output rate: an opening of another rate is resampled exactly as
+            // the player will resample it at the join.
+            SeamResamplingAudioSink(
+                DefaultAudioSink.Builder(context)
+                    .setEnableFloatOutput(false)
+                    .setAudioProcessors(arrayOf<AudioProcessor>(capture))
+                    .setAudioOutputProvider(
+                        DiscardingOutputProvider(AudioTrackAudioOutputProvider.Builder(context).build()),
+                    )
+                    .build(),
+                AndroidCrossfade.settings,
+                targetRate = outputRate,
+            ),
         )
         val renderers = RenderersFactory { handler, _, audioListener, _, _ ->
             arrayOf<Renderer>(MediaCodecAudioRenderer(context, MediaCodecSelector.DEFAULT, handler, audioListener, sink))
@@ -261,7 +265,7 @@ internal class CrossfadeIntroCapture(
     }
 
     private companion object {
-        /** About 21.8 s of 96 kHz stereo PCM16; the 14 s a 12 s overlap decodes at 44.1/48 kHz is a third of it. */
+        /** About 21.8 s of 96 kHz stereo PCM16; the 18 s a 12 s overlap decodes ([introCaptureMs]) fits at up to 96 kHz. */
         const val MAX_INTRO_BYTES = 8L * 1024 * 1024
         const val TIMEOUT_MS = 15_000L
         const val LOAD_MIN_MS = 2_000

@@ -156,6 +156,62 @@ internal class CrossfadeAudioProcessorTest {
     }
 
     @Test
+    fun anOpeningStillBeingDecodedAfterASeekNearTheEndStillOverlapsLate() {
+        settings.fadeMs = 2_000
+        val a = stream("a", 10_000)
+        // A seek to 7.5 s: the next track's opening is being decoded, not ready at the window (8 s).
+        settings.preparingFor = "a"
+        reposition(a, atMs = 7_500)
+        val waiting = feed(loud, 7_500, 8_500)
+        assertTrue(waiting.all { it == 1000 }, "played on at full level while the opening was decoded")
+
+        // It arrives 500 ms into the overlap: B comes in where the overlap has got to.
+        settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000, samples = ramp)
+        settings.preparingFor = null
+        val outgoing = feed(loud, 8_500, 10_000)
+        val expectedMiddle = 1000 * overlapOutGain(0.5f) + 1000 * overlapInGain(0.5f)
+        assertTrue(abs(outgoing[500] - expectedMiddle) <= 2f, "middle of the late overlap was ${outgoing[500]}")
+        // Coming in, the next track rises over a ramp, not a step.
+        assertTrue(outgoing.take(50).zipWithNext().all { (x, y) -> abs(y - x) < 30 }, "${outgoing.take(50)}")
+        assertEquals(2_000_000L, join(stream("b", 20_000)))
+    }
+
+    @Test
+    fun anOpeningThatNeverArrivesFallsBackToTheFadeSoonAfterTheWindow() {
+        settings.fadeMs = 2_000
+        val a = stream("a", 10_000)
+        settings.preparingFor = "a"
+        reposition(a, atMs = 7_500)
+        val outgoing = feed(loud, 7_500, 10_000)
+        // Waited at most half the fade (1 s), then faded out by the end.
+        assertEquals(1000, outgoing[1_400])
+        assertTrue(outgoing.last() < 50, "end was ${outgoing.last()}")
+    }
+
+    @Test
+    fun aTrackThatEndsBeforeItsOverlapBringsTheNextOneInRisingFromItsFirstSound() {
+        settings.fadeMs = 2_000
+        val a = stream("a", 10_000)
+        // B opens with 300 ms of silence.
+        val opening = { frame: Int -> if (frame < 300) 0 else frame }
+        settings.plan = plan(
+            "a", "b", overlapMs = 2_000, frames = 6_000, incomingStartFrame = 300, samples = opening,
+        )
+        reposition(a, atMs = 5_000)
+        // The stream ends at 7 s, before the 8 s window: nothing was mixed, nothing settled.
+        assertTrue(feed(loud, 5_000, 7_000).all { it == 1000 })
+
+        // B starts at its first sound, rising on the overlap's curve, its decoder's copy dropped.
+        assertEquals(300_000L, join(stream("b", 20_000)))
+        val incoming = feed(opening, 0, 8_000)
+        assertEquals(7_700, incoming.size)
+        assertEquals(0, incoming.first())
+        val expectedMiddle = 1300 * overlapInGain(0.5f)
+        assertTrue(abs(incoming[1_000] - expectedMiddle) <= 2f, "middle of the rise was ${incoming[1_000]}")
+        assertEquals((2_300 until 8_000).toList(), incoming.subList(2_000, 7_700))
+    }
+
+    @Test
     fun aSeamWithoutMeasuredSoundEdgesOverlapsAtTheEndOfTheFile() {
         settings.fadeMs = 2_000
         val a = stream("a", 10_000)

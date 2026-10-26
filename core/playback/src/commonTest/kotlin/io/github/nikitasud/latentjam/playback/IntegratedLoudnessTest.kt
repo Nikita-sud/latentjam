@@ -73,6 +73,15 @@ internal class IntegratedLoudnessTest {
         assertFalse(LoudnessScanLimits.complete(48000L * 3600 * 7, 48000, null))
     }
 
+    @Test fun aFileThatRunsOutBeforeItsEstimatedLengthIsMeasuredAsItPlays() {
+        // A CBR MP3 without a seek table: 299.5 s estimated from the size, 276.9 s of real audio.
+        assertFalse(LoudnessScanLimits.complete(44100L * 276_900 / 1000, 44100, 299_500))
+        assertTrue(LoudnessScanLimits.complete(44100L * 276_900 / 1000, 44100, 299_500, sourceEnded = true))
+        // Not a scan that stopped at a tenth, nor one longer than the estimate.
+        assertFalse(LoudnessScanLimits.complete(48000L * 10, 48000, 180_000, sourceEnded = true))
+        assertFalse(LoudnessScanLimits.complete(48000L * 200, 48000, 180_000, sourceEnded = true))
+    }
+
     private fun tone(channels: Int, chunk: Int = 4096, invertRight: Boolean = false,
         frequency: Double = 1000.0, amplitude: Double = 0.1, phase: Double = 0.0, rate: Int = 48000): IntegratedLoudness {
         val meter = NativeLoudnessMeter(rate, channels)

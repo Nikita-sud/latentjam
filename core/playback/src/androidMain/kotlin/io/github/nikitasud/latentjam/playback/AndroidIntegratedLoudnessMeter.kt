@@ -151,7 +151,10 @@ public class AndroidIntegratedLoudnessMeter(context: Context) {
                             }
                         }
                         check()
-                        if (!inputDone || !LoudnessScanLimits.complete(decodedFrames, rate, expectedDuration)) return@withLock null
+                        // inputDone: the extractor itself reported the end of the file.
+                        if (!inputDone || !LoudnessScanLimits.complete(decodedFrames, rate, expectedDuration, sourceEnded = true)) {
+                            return@withLock null
+                        }
                         meter?.finish()?.copy(sound = sound?.finish()).also { coroutine.ensureActive() }
                     }
                 } catch (cancelled: CancellationException) {

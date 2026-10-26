@@ -140,7 +140,9 @@ Owner's report: no smooth transition from a 44.1 kHz FLAC into a 48 kHz Opus. Th
 an opening of the outgoing track's rate, so such a seam fell back to the plain fades. DefaultAudioSink
 also replaced its AudioTrack at the join because the output rate changed, which pauses the sound.
 
-- **Android: one output rate across a seam.** `SeamResamplingAudioProcessor` is first in the chain.
+- **Android: one output rate across a seam.** `SeamResamplingAudioSink` sits in front of
+  DefaultAudioSink. It was first a processor first in the chain, which broke the sink's clock; see
+  "Clock jump" below.
   After a reposition (a start, a seek, a skip, where the sink restarts anyway) a track plays at its
   own rate. A track the player moves on to by itself, while smooth transitions are on, plays at the
   rate the output already has. A track at that rate passes through bit for bit, because the processor
@@ -157,6 +159,66 @@ also replaced its AudioTrack at the join because the output rate changed, which 
 - **iOS.** The submixer converts each input bus to the graph's rate, so a deck of another rate now
   joins (`sharesGraphFormat` compares channel counts only), and plays on converted until the next
   load. Same channel count is still required on both platforms.
+
+## Late openings and junk tails (2026-10-26)
+
+Owner's report: "In the Meantime" → "Locked Away" faded instead of overlapping the first time, and
+overlapped the second. The slider is at 12 s and the MP3's real end is 276.95 s, so the window opens
+at 264.95 s. The owner seeked to 264.0 s, and the next opening's decode, started by that seek, landed
+around 266 s. The processor settles a seam once, at the window, so it chose the plain fades with no
+plan yet. The second time a seek to 246 s left time for the decode.
+
+- **A seam waits for an opening being decoded.** The coordinator marks the seam
+  (`CrossfadeSettings.preparingFor`), and the processor plays on at full level for at most half the
+  fade (3 s at most) past the window instead of settling on the fades. An opening that arrives late
+  still mixes on its own clock: the next track comes in where the overlap has got to, rising no
+  faster than a cancel falls (300 ms). That holds up to half the overlap (3 s at most) late. A start
+  before the window, from the slider lowered after the decode, still takes the fades as before.
+- **A file that runs out before its estimated length is measured as it plays.** That MP3 has no
+  seek table. The container's 299.5 s estimate comes from the file size and includes a junk tail,
+  while the decoder reaches its end at 276.9 s. The loudness and sound-edge scan rejected that as a
+  truncated scan, so the track never got a measurement. When the source itself ends, the scan now
+  stands down to half of the estimate (`LoudnessScanLimits.complete(sourceEnded = true)`; the file
+  size is part of the audio identity).
+- **Seam log.** `LJCrossfade` lines for each seam decision: overlap with its anchors and lateness,
+  fade with its reason, and a capture that failed.
+
+## Stutter after a join into Opus (2026-10-26)
+
+Owner's report: a farting noise from Bohemian Rhapsody (FLAC 44.1 kHz) into Heartbreaker (Opus
+48 kHz). The phone (vc34) went BUFFERING/PLAYING every 250–350 ms for 3 s after the join, at
+19.5 s into Heartbreaker.
+
+- **Cause.** At the join the player drops its decoder's copy of the heard opening (19.5 s here)
+  and plays on meanwhile from the rest of the captured opening, which was a fixed 2 s. Opus comes in
+  20 ms packets, and the player's render loop gets through about ten times real time with them. So
+  21.5 s took about 3.3 s, the 2 s ran out, and the sink starved again and again. FLAC and MP3 packets
+  are larger, which is why those joins held. The resampler is not the limit: about 400× real time on
+  the host.
+- **Fix.** The opening decoded ahead (`introCaptureMs`) is what will be heard plus half of it, at
+  least 2 s. The rest then lasts while the decoder runs at three times real time. A 12 s overlap
+  decodes 18 s (it was 14 s), which still fits the 8 MiB capture up to 96 kHz.
+
+## Clock jump after a rate-changing join (2026-10-26)
+
+Owner's report: no transition felt from Heartbreaker (Opus 48 kHz, played at 44.1 kHz since the
+seam before it) into More Than a Feeling (FLAC 44.1 kHz). At the join the sink logged
+`UnexpectedDiscontinuityException`: it expected the next buffer 27.2 s later than it came. Then the
+position read 0 for a moment and jumped about 20 s, the sink drained and re-synced in the middle of
+the track, and the processors were flushed.
+
+- **Cause.** DefaultAudioSink times every byte given to it since its last flush at the current
+  track's input rate (`inputFramesToDurationUs(getSubmittedFrames())`). With the resampler inside its
+  chain, a reused AudioTrack saw its input rate change at the join, so the frames of the track before
+  were counted at the wrong rate. The seam into Heartbreaker had the same fault and probably added
+  to its stutter.
+- **Fix.** The resampler moved in front of the sink (`SeamResamplingAudioSink`, under
+  `PcmOnlyAudioSink`). The sink only ever sees the output's rate, with gapless encoder delay and
+  padding scaled to it. A buffer the sink cannot take yet is offered again as the same conversion.
+  The capture goes through the same sink, so its PCM is the player's at the join (tested).
+- **Also.** A track whose stream ends before its overlap was settled (`CrossfadeAudioProcessor`
+  `Decision.Join.early`) now brings the next track in at its first sound, rising on the overlap's
+  curve from its decoded opening.
 
 ## Prior art (searched 2026-10-22, at the owner's request)
 

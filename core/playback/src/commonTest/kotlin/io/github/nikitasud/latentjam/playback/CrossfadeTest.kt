@@ -207,4 +207,19 @@ internal class CrossfadeTest {
         assertEquals(101L, lateOverlapStartMs(28_101, 40_000, 12_000))
         assertEquals(6_978L, lateOverlapStartMs(34_978, 40_000, 12_000), "a scrub to 35 s")
     }
+
+    @Test
+    fun theOpeningDecodedAheadOutlastsTheDecoderAtThreeTimesRealTime() {
+        // A 12 s overlap: 18 s decoded, 6 s to play on from while the decoder drops all 18.
+        assertEquals(18_000L, introCaptureMs(12_000))
+        // Heard 19.5 s (leading silence, overlap, trailing silence): 29.25 s.
+        assertEquals(29_250L, introCaptureMs(19_500))
+        // Never under the margin a late end needs.
+        assertEquals(3_000L, introCaptureMs(1_000))
+        for (heard in listOf(1_000L, 6_000L, 12_000L, 19_500L, 40_000L)) {
+            val total = introCaptureMs(heard)
+            val rest = total - heard
+            assertTrue(total.toDouble() / rest <= 3.0 + 1e-9, "heard $heard: $total to decode in $rest")
+        }
+    }
 }
