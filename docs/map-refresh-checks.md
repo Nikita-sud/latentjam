@@ -112,3 +112,27 @@ on.
   neighbours are mostly other changed tracks);
 - a row on the album cases' recall, RF and CF;
 - a re-check of whether the unseen-artist hint marks real album additions.
+
+## Piece 2: refresh heap (frozen 26 October 2026, before the run)
+
+**Code under test:** `LibraryLayoutRefresh.refresh` with its state loaded from
+`FileMapRefreshStateStore`, which maps the state from disk (`MapRefreshHeapDeviceTest`).
+
+**Setup.**
+- Device: `LJ-api29`, booted read-only, with a 256 MB heap set by `setprop` (the image is
+  rootable). `LJ-demo` and the phone are not used.
+- Data: synthetic seed 61 at 10,000 tracks.
+- Scenarios: add1 and change1.
+- Runs: 5 alternating runs per mode, with the host idle.
+
+**Rows** (medians of 5):
+
+| Row | Pass |
+| --- | --- |
+| Java heap | refresh peak delta ≤ today's peak delta + 2 MB; the mapped file's size is reported separately |
+| time | refresh ≤ 0.25 × today (`LibraryLayout.compute`, streamed and warm) |
+
+**iOS.** The simulator footprint is not measured in this piece; that is stated as unmeasured.
+
+**If the heap row fails** (predeclared fallback): keep only the patched index array, stream the
+affinities per row, then re-measure. If it still fails, the piece fails.
