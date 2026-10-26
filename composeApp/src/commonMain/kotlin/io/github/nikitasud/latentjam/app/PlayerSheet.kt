@@ -283,7 +283,8 @@ internal fun PlayerSheet(
     onOpenChange: (Boolean) -> Unit,
     hasTrack: Boolean,
     pillHeight: Dp,
-    pillColor: Color,
+    /** Read while drawing: it follows the accent's cross-fade between tracks. */
+    pillColor: () -> Color,
     coverUri: String?,
     /** The player is about to cover the library: a drag up from the pill has begun. */
     onCoverStart: () -> Unit,
@@ -457,7 +458,7 @@ internal fun PlayerSheet(
                         if (warm && fullPlayerContentAlpha(progress) >= 1f) return@drawBehind
                         val rect = surface(size, progress)
                         drawRoundRect(
-                            color = lerp(pillColor, floorColor, playerSurfaceColorFraction(progress)),
+                            color = lerp(pillColor(), floorColor, playerSurfaceColorFraction(progress)),
                             topLeft = rect.topLeft,
                             size = rect.size,
                             cornerRadius = CornerRadius(sheetCornerRadius(pillRadius.toPx(), progress)),

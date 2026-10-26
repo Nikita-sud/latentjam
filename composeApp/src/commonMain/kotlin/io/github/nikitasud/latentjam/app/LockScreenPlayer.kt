@@ -158,7 +158,7 @@ internal fun LockScreenPlayer(
         val track by remember(playback) {
             playback.state.map { it.track }.distinctUntilChanged()
         }.collectAsState(playback.state.value.track)
-        val accent = rememberTrackAccent(
+        val accent = rememberTrackAccentState(
             track = track,
             mode = trackColorMode,
             darkTheme = darkTheme,
@@ -201,7 +201,7 @@ internal fun LockScreenPlayer(
         ) {
             NowPlayingScreen(
                 playback = playback,
-                accent = accent,
+                accent = accent::value,
                 queueSourceLabel = queueSource?.let { source ->
                     source.name ?: source.kind.fallbackLabelRes()?.let { stringResource(it) }
                 },

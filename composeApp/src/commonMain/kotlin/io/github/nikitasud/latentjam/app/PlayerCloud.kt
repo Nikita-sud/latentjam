@@ -55,7 +55,7 @@ import kotlinx.coroutines.delay
  * between tracks, so a skip recolours the cloud on the same fade.
  */
 @Composable
-internal fun Modifier.playerCloud(accent: TrackAccent, playing: Boolean): Modifier {
+internal fun Modifier.playerCloud(accent: () -> TrackAccent, playing: Boolean): Modifier {
     val appearance = LocalAppearance.current
     val strength = appearance.cloud.alphaScale
     if (strength == 0f) return this
@@ -76,17 +76,19 @@ internal fun Modifier.playerCloud(accent: TrackAccent, playing: Boolean): Modifi
     val dark = colors.surface.luminance() < 0.5f
     val alpha = ((if (dark) CLOUD_ALPHA_DARK else CLOUD_ALPHA_LIGHT) * strength).coerceAtMost(1f)
     val coverage = darkCloudCoverage(alpha)
-    val primary = if (dark) {
-        liftForDarkCloud(accent.vivid, coverage, colors.surface, colors.onSurface)
-    } else {
-        tintForLightSurface(accent.vivid)
-    }
-    val companion = if (dark) {
-        liftForDarkCloud(rotateHue(primary, COMPANION_HUE_SHIFT), coverage, colors.surface, colors.onSurface)
-    } else {
-        rotateHue(primary, 12f)
-    }
+    // Colours are read while drawing: the accent's cross-fade between tracks rebuilds this cache
+    // on each frame of the fade without recomposing the player.
     return drawWithCache {
+        val primary = if (dark) {
+            liftForDarkCloud(accent().vivid, coverage, colors.surface, colors.onSurface)
+        } else {
+            tintForLightSurface(accent().vivid)
+        }
+        val companion = if (dark) {
+            liftForDarkCloud(rotateHue(primary, COMPANION_HUE_SHIFT), coverage, colors.surface, colors.onSurface)
+        } else {
+            rotateHue(primary, 12f)
+        }
         // A nearly neutral light floor lets each drifting cloud remain distinct. A stronger
         // same-hue floor erases the visible movement, even while the cloud clock is advancing.
         val baseWash = primary.copy(alpha = CLOUD_BASE_ALPHA_LIGHT)
