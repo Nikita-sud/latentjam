@@ -57,6 +57,25 @@ class SmartLogRecorderTest {
     }
 
     @Test
+    fun clearingTheHistoryLeavesNothingOfTheRunningQueueToWriteBack() = runTest {
+        val store = Lines()
+        val recorder = SmartLogRecorder(SmartImpressionLog(store), backgroundScope, clock = { 42L })
+        recorder.planned("q.0.1", 0, rankOffset = 0, model = "core", rows = listOf(row("a"), row("b")))
+        recorder.served(TrackId("a"))
+        // Clear listening history, with the plan's lines possibly still queued.
+        recorder.forgetAll()
+        runCurrent()
+        assertEquals("", store.text.toString())
+        // The queue plays on: its old rows must not reach the emptied log.
+        val queue = listOf(t("seed"), t("a"))
+        recorder.onNowPlaying(NowPlaying(track = t("a"), queue = queue, playbackStart = PlaybackStart(2, TrackId("a"), StartCause.AUTO_ADVANCE)))
+        recorder.onListen(ListenEvent(TrackId("a"), 0, 240_000, 240_000, completed = true, skipped = false, listenedMs = 240_000))
+        runCurrent()
+        assertEquals("", store.text.toString())
+        assertEquals(emptySet(), recorder.engagedKeys())
+    }
+
+    @Test
     fun recentPressesAreTheFirstTenRowsOfEachPlanZeroNewestFirst() = runTest {
         val store = Lines()
         var now = 1_000L

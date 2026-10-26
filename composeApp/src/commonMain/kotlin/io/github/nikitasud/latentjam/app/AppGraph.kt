@@ -465,7 +465,7 @@ object AppGraph {
 
     /** Clear listening history: SMART's in-memory press list (freshness) is cleared with the log. */
     internal suspend fun forgetSmartPresses() {
-        koin.getOrNull<SmartLogRecorder>()?.forgetPresses()
+        koin.getOrNull<SmartLogRecorder>()?.forgetAll()
         // The per-seed press counts name every SMART seed's file; they go with the history.
         koin.getOrNull<SmartPresses>()?.clear()
     }
