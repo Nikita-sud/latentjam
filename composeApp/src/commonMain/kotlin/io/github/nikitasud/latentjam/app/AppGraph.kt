@@ -190,9 +190,11 @@ object AppGraph {
                                 // fresh MPD libraries both judges prefer it (+0.26/+0.15 and +0.13/+0.10),
                                 // playlist share +1.3/+0.7 pp, harsh transitions -0.5 pp, a blind listener
                                 // panel 12:6; the owner's library +5 pp playlist share. The listener's
-                                // artist-variety setting replaces the default penalty at startup (App).
+                                // The saved artist-variety level from the first plan on, so a process the UI never
+                                // composes (Android Auto, a headset resume) does not plan at the default; App's
+                                // ArtistVarietyApplier then follows changes.
                                 judgedScoring = true,
-                                artistRunPenalty = ARTIST_VARIETY_PENALTIES[DEFAULT_ARTIST_VARIETY],
+                                artistRunPenalty = ARTIST_VARIETY_PENALTIES[sanitizeArtistVariety(get<AppSettings>().artistVariety.value)],
                             )
                         }
                         // SMART's on-device impression and outcome log: local only, read by nothing in ranking.
