@@ -88,7 +88,7 @@ internal fun ListenBrainzImportSection(
                 scope.launch {
                     // One durable operation, like a restore: once started it runs to the end and
                     // reports, even when the screen closes, so the log is never left half-told.
-                    withContext(NonCancellable) {
+                    val failed = withContext(NonCancellable) {
                         try {
                             val importer = ListenBrainzImporter(history = AppGraph.history, library = library)
                             val outcome = importer.import(
@@ -97,20 +97,24 @@ internal fun ListenBrainzImportSection(
                             )
                             if (outcome.imported > 0) AppGraph.noteHistoryImported()
                             ListenBrainzImportState.report.value = outcome
+                            null
                         } catch (cancelled: CancellationException) {
                             throw cancelled
                         } catch (failure: Throwable) {
-                            val message = when (failure) {
+                            when (failure) {
                                 is ListenBrainzLibraryEmptyException -> Res.string.listenbrainz_import_empty_library
                                 is IllegalArgumentException -> Res.string.listenbrainz_import_invalid
                                 else -> Res.string.listenbrainz_import_failed
                             }
-                            snackbarHostState.showSnackbar(getString(message))
                         } finally {
                             result.value.release()
                             ListenBrainzImportState.progress.value = null
                         }
                     }
+                    // Reported outside NonCancellable: with no snackbar host left (the activity was
+                    // recreated meanwhile) showSnackbar never returns, and it must not hold the
+                    // import's file or its progress then.
+                    failed?.let { snackbarHostState.showSnackbar(getString(it)) }
                 }
             }
         }
