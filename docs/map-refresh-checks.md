@@ -136,3 +136,23 @@ on.
 
 **If the heap row fails** (predeclared fallback): keep only the patched index array, stream the
 affinities per row, then re-measure. If it still fails, the piece fails.
+
+### Piece 2 result (26 October 2026): PASS
+
+Log: `docs/map-refresh-logs/piece2-heap-2026-10-26.txt` (20 runs, 5 per mode and scenario, modes
+alternating; APK built from commit 2f9a2298). Every refresh run refreshed (none stale, none declined).
+
+| Scenario | Today: time / heap delta | Refresh: time / heap delta | Time ratio | Heap: refresh − today | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| add1 | 19,449 ms / 27.75 MB | 2,583 ms / 29.20 MB | 0.133 | +1.45 MB | PASS |
+| change1 | 20,148 ms / 27.82 MB | 3,659 ms / 29.68 MB | 0.182 | +1.85 MB | PASS |
+
+- The mapped state file is 4.62 MB (add1) and 4.67 MB (change1). It is memory-mapped, not Java heap.
+- **Margin.** change1's heap margin is small: 0.15 MB under the 2 MB limit. The per-run spread
+  is 29.07–29.86 MB, against 27.75–28.52 MB for today.
+- **Deviation from the setup.** The host was *not* idle: a host-side Gradle test (the piece-4
+  pilot) and a read-only code search ran during the series. Both modes alternated through the same
+  load, so the time ratio is the fair comparison. Absolute times may be inflated. Heap is
+  unaffected by host load.
+- The fallback was not needed.
+- **iOS:** the simulator footprint is unmeasured, as frozen.
