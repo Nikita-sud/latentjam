@@ -411,9 +411,8 @@ private const val MAX_DECODED_RESUME_QUEUE_IDS = 10_000
 private val DEFAULT_APPEARANCE: StateFlow<Appearance> = kotlinx.coroutines.flow.MutableStateFlow(Appearance())
 
 /**
- * "Learn from my habits" (the FULL ranker) is OFF in this test build: FULL is known to over-weight heard tracks
- * (pre-E diagnostics, 2026-10-20) and is being fixed. The toggle still works for comparison. The preference moved to a
- * new key so a value stored by earlier test builds does not carry over.
+ * "Learn from my habits" (the FULL ranker) is off until the listener turns it on. The preference moved to a new key so
+ * a value stored by earlier test builds does not carry over.
  */
 internal const val DEFAULT_LEARN_FROM_HABITS = false
 private val LEARN_FROM_HABITS_DEFAULT_FLOW: StateFlow<Boolean> = MutableStateFlow(DEFAULT_LEARN_FROM_HABITS)
@@ -460,9 +459,9 @@ interface AppSettings {
     fun setIncludeNoveltyMixes(enabled: Boolean)
 
     /**
-     * Whether a SMART queue started from a track gives every other one of its first ten slots to
-     * what the listener usually plays after it (docs/habit-slots.md). On by default; off leaves
-     * SMART's own queue unchanged. Implementations without the preference keep it on.
+     * "Learn from my habits": whether the learned ranker plans with the FULL model, which reads the
+     * listener's own history, rather than the objective one. Off by default
+     * ([DEFAULT_LEARN_FROM_HABITS]); implementations without the preference keep that default.
      */
     val learnFromHabits: StateFlow<Boolean> get() = LEARN_FROM_HABITS_DEFAULT_FLOW
     fun setLearnFromHabits(enabled: Boolean) {}
@@ -476,7 +475,7 @@ interface AppSettings {
 
     /**
      * Whether SMART plans its queues with the learned ranker (docs/smart-ranker.md) instead of its
-     * chain. Test builds turn it on by default; implementations without the preference keep it off.
+     * chain. On by default ([DEFAULT_SMART_RANKER]); implementations without the preference keep it off.
      */
     val smartRanker: StateFlow<Boolean> get() = SMART_RANKER_FALLBACK_FLOW
     fun setSmartRanker(enabled: Boolean) {}
