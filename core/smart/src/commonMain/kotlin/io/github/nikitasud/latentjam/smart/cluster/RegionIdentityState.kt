@@ -27,9 +27,11 @@ public class RegionIdentitySnapshot(
     public val nextId: Int = RegionIdentity.nextId(regions),
     /** The caller's non-vector inputs (the app: playlists, novelty preference, readiness); a join needs them unchanged. */
     public val context: String = "",
+    /** Per track, a hash of the caller's descriptor facts (the app: tags as discovery reads them); 0 when unused. */
+    public val tagHashes: LongArray = LongArray(ids.size),
 ) {
     init {
-        require(hashes.size == ids.size && pending.size == ids.size) { "One hash and one pending flag per track" }
+        require(hashes.size == ids.size && pending.size == ids.size && tagHashes.size == ids.size) { "One hash, tag hash and pending flag per track" }
     }
 
     public val pendingCount: Int get() = pending.count { it }
@@ -55,7 +57,7 @@ public object NoRegionIdentityStore : RegionIdentityStore {
  */
 public object RegionIdentityCodec {
     private const val MAGIC: Int = 0x494A4C52 // "RLJI"
-    private const val FORMAT: Int = 2
+    private const val FORMAT: Int = 3
     private const val MAX_STRING: Int = 1 shl 20
 
     public fun encode(snapshot: RegionIdentitySnapshot): ByteArray {
@@ -67,7 +69,7 @@ public object RegionIdentityCodec {
         out.int(snapshot.ids.size)
         val index = HashMap<TrackId, Int>(snapshot.ids.size * 2)
         snapshot.ids.forEachIndexed { i, id ->
-            out.string(id.value); out.long(snapshot.hashes[i]); out.byte(if (snapshot.pending[i]) 1 else 0)
+            out.string(id.value); out.long(snapshot.hashes[i]); out.long(snapshot.tagHashes[i]); out.byte(if (snapshot.pending[i]) 1 else 0)
             index[id] = i
         }
         out.int(snapshot.regions.size)
@@ -98,8 +100,8 @@ public object RegionIdentityCodec {
         val nextId = r.int()
         val context = r.string()
         val n = r.int(); require(n in 0..body)
-        val ids = ArrayList<TrackId>(n); val hashes = LongArray(n); val pending = BooleanArray(n)
-        for (i in 0 until n) { ids += TrackId(r.string()); hashes[i] = r.long(); pending[i] = r.byte().toInt() != 0 }
+        val ids = ArrayList<TrackId>(n); val hashes = LongArray(n); val tags = LongArray(n); val pending = BooleanArray(n)
+        for (i in 0 until n) { ids += TrackId(r.string()); hashes[i] = r.long(); tags[i] = r.long(); pending[i] = r.byte().toInt() != 0 }
         val count = r.int(); require(count in 0..body)
         val dim = r.int(); require(dim in 0..body)
         val regions = ArrayList<IdentityRegion>(count)
@@ -117,7 +119,7 @@ public object RegionIdentityCodec {
             regions += IdentityRegion(id, colour, world, centroid, floor)
         }
         if (r.at != body) return null
-        RegionIdentitySnapshot(inputVersion, ids, hashes, pending, regions, maxOf(nextId, RegionIdentity.nextId(regions)), context)
+        RegionIdentitySnapshot(inputVersion, ids, hashes, pending, regions, maxOf(nextId, RegionIdentity.nextId(regions)), context, tags)
     }.getOrNull()
 
     private fun fnv(bytes: ByteArray, end: Int): Long {

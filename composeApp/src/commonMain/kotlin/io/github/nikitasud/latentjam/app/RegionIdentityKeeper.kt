@@ -41,7 +41,8 @@ internal object RegionIdentityKeeper {
         val version = MapRefreshFlag.inputVersion(rows.source, rows.dim)
         val descriptorOf = loaded.associateBy { it.id }
         val previous = snapshot(descriptorOf)?.takeIf { it.inputVersion == version && it.context == context } ?: return null
-        val hashes = trackHashes(rows, descriptorOf, isActive)
+        val hashes = RegionIdentity.hashes(rows, isActive)
+        val tags = tagHashes(rows.trackIds, descriptorOf)
         val before = HashMap<TrackId, Int>(previous.ids.size * 2).also { m -> previous.ids.forEachIndexed { i, id -> m[id] = i } }
         val present = rows.trackIds.toHashSet()
         val changed = ArrayList<TrackDescriptor>()
@@ -49,17 +50,18 @@ internal object RegionIdentityKeeper {
         rows.trackIds.forEachIndexed { i, id ->
             val at = before[id]
             if (at == null || previous.hashes[at] != hashes[i]) {
+                // A new vector rejoins; a tag edit alone only waits for the rebuild to rename its region.
                 changed += descriptorOf[id] ?: TrackDescriptor(id)
                 pending[i] = true
             } else {
-                pending[i] = previous.pending[at]
+                pending[i] = previous.pending[at] || previous.tagHashes[at] != tags[i]
             }
         }
         val removed = previous.ids.count { it !in present }
         if (changed.size + removed > LibraryLayoutRefresh.MAX_SHARE * rows.size) return null
         val regions = if (changed.isEmpty() && removed == 0) previous.regions
             else RegionIdentity.join(previous.regions, changed, present, rows, isActive)
-        val next = RegionIdentitySnapshot(version, rows.trackIds, hashes, pending, regions, maxOf(previous.nextId, RegionIdentity.nextId(regions)), context)
+        val next = RegionIdentitySnapshot(version, rows.trackIds, hashes, pending, regions, maxOf(previous.nextId, RegionIdentity.nextId(regions)), context, tags)
         keep(next)
         if (next.pendingCount > 0) MapRebuild.requested(stale = false, nowMs = io.github.nikitasud.latentjam.history.epochMillis())
         return worlds(regions, descriptorOf)
@@ -83,7 +85,8 @@ internal object RegionIdentityKeeper {
         val version = MapRefreshFlag.inputVersion(rows.source, rows.dim)
         val descriptorOf = loaded.associateBy { it.id }
         val previous = snapshot(descriptorOf)?.takeIf { it.inputVersion == version }
-        val hashes = trackHashes(rows, descriptorOf, isActive)
+        val hashes = RegionIdentity.hashes(rows, isActive)
+        val tags = tagHashes(rows.trackIds, descriptorOf)
         val regions = if (previous == null) {
             RegionIdentity.initial(named, rows, isActive)
         } else {
@@ -91,31 +94,20 @@ internal object RegionIdentityKeeper {
             val settled = HashSet<TrackId>()
             rows.trackIds.forEachIndexed { i, id ->
                 val j = at[id] ?: return@forEachIndexed
-                if (previous.hashes[j] == hashes[i] && !previous.pending[j]) settled += id
+                if (previous.hashes[j] == hashes[i] && previous.tagHashes[j] == tags[i] && !previous.pending[j]) settled += id
             }
             RegionIdentity.rediscover(previous.regions, named, settled, rows, RegionIdentity.DELTA, isActive = isActive, nextId = previous.nextId)
         }
         val nextId = maxOf(previous?.nextId ?: 0, RegionIdentity.nextId(regions))
-        keep(RegionIdentitySnapshot(version, rows.trackIds, hashes, BooleanArray(rows.size), regions, nextId, context))
+        keep(RegionIdentitySnapshot(version, rows.trackIds, hashes, BooleanArray(rows.size), regions, nextId, context, tags))
         return worlds(regions, descriptorOf)
     }
 
-    /**
-     * A track's row hash mixed with its tags as discovery reads them ([worldIdentity]): a tag edit marks
-     * the track changed, so it rejoins and the deferred rebuild renames its region.
-     */
-    private suspend fun trackHashes(
-        rows: io.github.nikitasud.latentjam.smart.cluster.LibraryVectorRows,
-        descriptorOf: Map<TrackId, TrackDescriptor>,
-        isActive: () -> Boolean,
-    ): LongArray {
-        val out = RegionIdentity.hashes(rows, isActive)
-        rows.trackIds.forEachIndexed { i, id ->
-            var h = out[i]
-            for (c in descriptorOf[id]?.worldIdentity().toString()) h = (h xor c.code.toLong()) * 0x100000001b3L
-            out[i] = h
-        }
-        return out
+    /** Per track, FNV-1a 64 of its tags as discovery reads them ([worldIdentity]): a change marks it pending. */
+    private fun tagHashes(ids: List<TrackId>, descriptorOf: Map<TrackId, TrackDescriptor>): LongArray = LongArray(ids.size) { i ->
+        var h = -0x340d631b7bdddcdbL
+        for (c in descriptorOf[ids[i]]?.worldIdentity().toString()) h = (h xor c.code.toLong()) * 0x100000001b3L
+        h
     }
 
     /** The non-vector inputs of a discovery, as a short stable string (FNV-1a 64 of their text). */

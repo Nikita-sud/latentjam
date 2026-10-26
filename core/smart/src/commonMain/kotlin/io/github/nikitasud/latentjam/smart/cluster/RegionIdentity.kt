@@ -83,7 +83,11 @@ public object RegionIdentity {
      * 2. A settled track (present and unchanged since the last rebuild) stays in its old region unless the
      *    world it falls in now is matched to another region (or to none) and its cosine to that world's
      *    centroid beats its cosine to its old region's centroid by more than [delta].
-     * 3. An unmatched world with at least [minSize] members (after step 2) becomes a new region.
+     * 3. An unsettled track (new, changed, or without a region before) goes to whichever is nearer: its
+     *    world's centroid, or the nearest kept region's settled core when it clears that region's floor
+     *    (the floor is the region's stored one, measured against its previous centroid).
+     * 4. An unmatched world with at least [minSize] members (after steps 2 and 3) becomes a new region; the
+     *    settled tracks of a smaller one return to their old region.
      */
     public suspend fun rediscover(
         previous: List<IdentityRegion>,
@@ -175,6 +179,15 @@ public object RegionIdentity {
                 members.entries.removeAll { it.value.isEmpty() }
                 leftovers.entries.removeAll { it.value.isEmpty() }
             }
+        }
+
+        // A leftover group too small to be a region is not kept; its settled tracks return to their old region
+        // rather than losing one (the others stay without a region, as a fresh discovery would leave them).
+        for (w in leftovers.keys.toList()) {
+            val rest = leftovers.getValue(w)
+            if (rest.size >= minSize) continue
+            for (t in rest) { val old = oldOf[t.id]; if (t.id in settled && old != null && old in byId) members.getOrPut(old) { mutableListOf() } += t }
+            leftovers.remove(w)
         }
 
         var newId = maxOf(nextId, nextId(previous))

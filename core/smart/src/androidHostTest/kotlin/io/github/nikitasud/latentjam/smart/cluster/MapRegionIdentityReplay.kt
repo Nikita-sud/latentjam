@@ -145,13 +145,19 @@ class MapRegionIdentityReplay {
         val freshOf = membership(freshRegions)
         // Placed tracks: new or changed, or settled without a region before. Their agreement with their
         // region's majority label, against the same tracks in the fresh map of the same path.
-        val placed = ids.filter { it in flagged || beforeOf[it] == null }.toSet()
+        // Labelled tracks only (noise and unlabelled tracks have no majority to agree with); the gate is the
+        // new or changed tracks, the previously unassigned ones are logged. An unassigned track disagrees, so
+        // both maps are scored on the same tracks.
+        val labelled = { id: TrackId -> genreOf.getValue(id) >= 0 }
+        val placed = flagged.filter(labelled).toSet()
+        val formerlyLoose = ids.filter { it !in flagged && beforeOf[it] == null && labelled(it) }.toSet()
         val agreeFresh = agreement(freshOf, genreOf, placed)
+        val looseFresh = agreement(freshOf, genreOf, formerlyLoose)
         // For contrast only on the switch: the average-linkage fresh map of the after library.
         val alFresh = if (switch) RegionIdentity.initial(discover(lib, ids, m, kmeans = false), rowAfter) else null
-        log("R4 $label fresh regions=${fresh.size} purity=${f4(pFresh)} coverage=${f4(covFresh)} own=${f4(ownFresh)} placed=${placed.size} placedAgreeFresh=${f4(agreeFresh)} " +
+        log("R4 $label fresh regions=${fresh.size} purity=${f4(pFresh)} coverage=${f4(covFresh)} own=${f4(ownFresh)} placed=${placed.size} placedAgreeFresh=${f4(agreeFresh)} formerlyLoose=${formerlyLoose.size} looseAgreeFresh=${f4(looseFresh)} " +
             "todayMoved=${f4(churn(beforeOf, today, settled))} todayPerRegion ${distribution(beforeOf, today, settled)} joinedCoverage=${f4(coverage(joined, ids.size))}" +
-            (alFresh?.let { " averageLinkageFresh regions=${it.size} purity=${f4(purity(it, genreOf))} placedAgree=${f4(agreement(membership(it), genreOf, placed))}" } ?: ""))
+            (alFresh?.let { " averageLinkageFresh regions=${it.size} purity=${f4(purity(it, genreOf))} placedAgree=${f4(agreement(membership(it), genreOf, placed))} own=${f4(own(it, flagged, c.novel))}" } ?: ""))
         for (delta in deltas) {
             val after = RegionIdentity.rediscover(joined, fresh, settled, rowAfter, delta)
             val afterOf = membership(after)
@@ -159,9 +165,10 @@ class MapRegionIdentityReplay {
             val newRegions = after.filter { r -> initial.none { it.id == r.id } }.map { it.world.tracks.size }
             val p = purity(after, genreOf); val cov = coverage(after, ids.size); val ow = own(after, flagged, c.novel)
             val agree = agreement(afterOf, genreOf, placed)
+            val loose = agreement(afterOf, genreOf, formerlyLoose)
             val ownVerdict = when { !c.novel -> "PASS"; ownFresh <= 0 -> "n/a"; else -> pf(ow >= ownFresh - 0.10) }
             log("R4 $label delta=$delta churn=${f4(churn)} gained=${f4(gained(beforeOf, afterOf, settled))} perRegion ${distribution(beforeOf, afterOf, settled)} purity=${f4(p)} coverage=${f4(cov)} own=${f4(ow)} regions=${after.size} freshRegions=${fresh.size} newRegions=${newRegions.size} newMin=${newRegions.minOrNull() ?: 0} " +
-                "verdict purity=${pf(p >= pFresh - 0.01)} coverage=${pf(cov >= covFresh - 0.02)} churn=${pf(churn <= 0.02)} own=$ownVerdict placedAgree=${f4(agree)} placed=${pf(agree >= agreeFresh - 0.05)} minSize=${pf(newRegions.all { it >= TrackClustering.MIN_CLUSTER_SIZE })}")
+                "verdict purity=${pf(p >= pFresh - 0.01)} coverage=${pf(cov >= covFresh - 0.02)} churn=${pf(churn <= 0.02)} own=$ownVerdict placedAgree=${f4(agree)} placed=${pf(agree >= agreeFresh - 0.05)} looseAgree=${f4(loose)} minSize=${pf(newRegions.all { it >= TrackClustering.MIN_CLUSTER_SIZE })}")
         }
     }
 
@@ -220,11 +227,14 @@ class MapRegionIdentityReplay {
         return out
     }
 
-    /** Among [tracks] that have a region in [of]: the share whose label is their region's majority label (over all its members). */
+    /**
+     * Over all of [tracks]: the share that has a region in [of] whose majority label (over its members) is the
+     * track's own. A track without a region counts as disagreeing, so two maps are scored on the same tracks.
+     */
     private fun agreement(of: Map<TrackId, Int>, label: Map<TrackId, Int>, tracks: Set<TrackId>): Double {
+        if (tracks.isEmpty()) return Double.NaN
         val majority = of.entries.groupBy({ it.value }, { label.getValue(it.key) }).mapValues { (_, l) -> l.groupingBy { it }.eachCount().maxBy { it.value }.key }
-        val assigned = tracks.filter { of[it] != null }
-        return if (assigned.isEmpty()) Double.NaN else assigned.count { label.getValue(it) == majority.getValue(of.getValue(it)) }.toDouble() / assigned.size
+        return tracks.count { t -> of[t]?.let { label.getValue(t) == majority.getValue(it) } == true }.toDouble() / tracks.size
     }
 
     /** Moved: settled tracks that had a region and now have another one or none (over settled tracks). */
