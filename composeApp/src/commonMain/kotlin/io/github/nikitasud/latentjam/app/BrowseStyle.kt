@@ -6,6 +6,8 @@ package io.github.nikitasud.latentjam.app
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
@@ -98,8 +100,14 @@ internal fun Modifier.playbackDockFade(): Modifier {
 /** Tonal ink remains readable across artwork hues and both appearance modes. */
 @Composable
 internal fun browseAccentInk(accent: TrackAccent): Color =
-    if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) {
-        lerp(accent.vivid, Color.White, 0.7f)
-    } else {
-        lerp(accent.vivid, Color.Black, 0.7f)
-    }
+    accentInk(accent, dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f)
+
+/** The same ink, read from [accent] by whoever calls the result: a list's current row alone. */
+@Composable
+internal fun browseAccentInk(accent: State<TrackAccent>): () -> Color {
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    return remember(accent, dark) { { accentInk(accent.value, dark) } }
+}
+
+private fun accentInk(accent: TrackAccent, dark: Boolean): Color =
+    if (dark) lerp(accent.vivid, Color.White, 0.7f) else lerp(accent.vivid, Color.Black, 0.7f)

@@ -110,7 +110,8 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 fun ForYouTab(
     page: ForYouPage,
-    accent: TrackAccent? = null,
+    /** Read by the hero card alone, so the accent's fade between tracks recomposes nothing else. */
+    accent: (() -> TrackAccent)? = null,
     contentPadding: PaddingValues,
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
@@ -671,9 +672,10 @@ private fun ForYouCardItem(
  * alone: the personal signal decides what to start from, the model decides what follows.
  */
 @Composable
-private fun HeroCard(hero: ForYouHero, accent: TrackAccent?, onPlay: () -> Unit) {
-    val tint = accent?.vivid ?: MaterialTheme.colorScheme.primary
-    val ink = accent?.let { browseAccentInk(it) } ?: MaterialTheme.colorScheme.primary
+private fun HeroCard(hero: ForYouHero, accent: (() -> TrackAccent)?, onPlay: () -> Unit) {
+    val current = accent?.invoke()
+    val tint = current?.vivid ?: MaterialTheme.colorScheme.primary
+    val ink = current?.let { browseAccentInk(it) } ?: MaterialTheme.colorScheme.primary
     val interaction = remember { MutableInteractionSource() }
     Surface(
         modifier = Modifier

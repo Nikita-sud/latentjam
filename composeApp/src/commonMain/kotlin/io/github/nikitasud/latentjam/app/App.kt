@@ -2593,7 +2593,7 @@ private fun AppShell(
                                         ) {
                                         ForYouTab(
                                             playlistArtworkUris = playlistArtworkUris,
-                                            accent = accent.value,
+                                            accent = accent::value,
                                             page = shownForYou,
                                             contentPadding = listPadding,
                                             isRefreshing = forYouPage.forYouRefreshing,
@@ -2936,9 +2936,9 @@ private fun AppShell(
                                                 browse = browse,
                                                 listState = songsListState,
                                                 onRailScrubbingChange = { railScrubbing = it },
-                                                currentAccent = browseAccentInk(accent.value),
-                                                currentTrackId = currentTrack?.id,
-                                                currentTrackPlaying = currentTrackPlaying,
+                                                currentAccent = browseAccentInk(accent),
+                                                currentTrackId = { currentTrack?.id },
+                                                currentTrackPlaying = { currentTrackPlaying },
                                                 contentPadding = listPadding,
                                                 selectedTrackIds = selectedTrackIds,
                                                 onToggleSelection = { track ->
