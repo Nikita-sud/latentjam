@@ -51,10 +51,36 @@ internal object MapRebuild {
         private set
 
     /** Called after a refresh that leaves work for the rebuild. */
-    fun requested(stale: Boolean, nowMs: Long) {
+    fun requested(stale: Boolean, nowMs: Long, schedule: () -> Unit = ::scheduleMapRebuild) {
         if (stale) staleState.value = true
         if (requestedAtMs == 0L) requestedAtMs = nowMs
-        scheduleMapRebuild()
+        schedule()
+    }
+
+    /** Whether the stored state still asks for a rebuild: changes since the last full build, a stale map, or pending regions. */
+    fun pendingWork(layoutChangedSinceFull: Int?, layoutStale: Boolean?, identityPending: Int): Boolean =
+        (layoutChangedSinceFull ?: 0) > 0 || layoutStale == true || identityPending > 0
+
+    /**
+     * Once per process start: a rebuild the stored state still asks for is enqueued again. Queued work does
+     * not survive a reboot (the app drops RECEIVE_BOOT_COMPLETED), so this is what brings it back; a stale
+     * map also gets its debug marker back. Returns whether it asked.
+     */
+    suspend fun resumePending(
+        nowMs: Long,
+        enabled: Boolean = MapRefreshFlag.enabled,
+        readLayout: suspend () -> Pair<Int, Boolean>? = {
+            AppGraph.mapRefreshStateStore.load()?.let { state -> try { state.changedSinceFull to state.stale } finally { state.close() } }
+        },
+        readIdentityPending: suspend () -> Int = { RegionIdentityKeeper.pendingCount() },
+        schedule: () -> Unit = ::scheduleMapRebuild,
+    ): Boolean {
+        if (!enabled) return false
+        val layout = runCatching { readLayout() }.getOrNull()
+        val identity = runCatching { readIdentityPending() }.getOrDefault(0)
+        if (!pendingWork(layout?.first, layout?.second, identity)) return false
+        requested(stale = layout?.second == true, nowMs = nowMs, schedule = schedule)
+        return true
     }
 
     /** Called after a full build in the page itself: nothing is waiting any more. */
@@ -101,9 +127,9 @@ internal object MapRebuild {
         engine.initialize().getOrElse { return Outcome.NOT_READY }
 
         val layoutState = runCatching { AppGraph.mapRefreshStateStore.load() }.getOrNull()
-        val layoutPending = layoutState?.let { it.changedSinceFull > 0 || it.stale } == true
+        val layout = layoutState?.let { it.changedSinceFull to it.stale }
         layoutState?.close()
-        if (!layoutPending && RegionIdentityKeeper.pendingCount() == 0) return Outcome.NOT_NEEDED
+        if (!pendingWork(layout?.first, layout?.second, RegionIdentityKeeper.pendingCount())) return Outcome.NOT_NEEDED
 
         // The Map's own inputs, read as App reads them: the scanned library with cached genre facts.
         val scan = AppGraph.library.scan()

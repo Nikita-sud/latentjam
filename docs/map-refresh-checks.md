@@ -548,3 +548,64 @@ Log: `piece3-device-2026-10-26.txt`. APK built from b5f22eb8.
 - **Pass:** all 10 end `cancelled` ≤ 250 ms after the deadline, with the state file untouched.
 - It supplements the frozen row and does not replace it. Pilot 6 runs on the host at the same time;
   this is disclosed.
+
+**Supplementary cancellation set (result).**
+- Log: `piece3-device-supplementary-2026-10-26.txt`. APK built from the 901a4026 tree.
+- **10 of 10 ended `cancelled`**, 0.14–12.4 ms after the deadline, with the state file untouched.
+  The deadlines fell in the region stage 2 times and in the layout stage 8 times.
+- **PASS.**
+- The full run repeated part A: 35.1 s, peak heap delta 119.0 MB, longest gap between polls 58.0 ms.
+
+### Piece 3, part B results (26 October 2026)
+
+- **Android cold launch: PASS.** Log: `piece3-android-coldlaunch-2026-10-26.txt`.
+  - JobScheduler started a fresh process for WorkManager's `SystemJobService`.
+  - `MapRebuild.run` returned `NOT_NEEDED` in 57 ms (nothing pending on the emulator), and WorkManager
+    recorded `SUCCESS`.
+  - An earlier run in the live process returned `NOT_READY` (the launch's own analysis was running)
+    and was retried with backoff, as designed.
+- **iOS simulator: NOT RUN.** Log: `piece3-ios-simulator-2026-10-26.txt`.
+  - `_simulateLaunchForTaskWithIdentifier` reports that no task request with that identifier was
+    scheduled.
+  - The submit at launch never reached the BackgroundTasks framework. `BGTaskScheduler` is not
+    available on the Simulator; Apple supports this only on a device under the debugger.
+  - It needs one real-iPhone run; the parent session raises it with the owner.
+- **Expiry and cancel:**
+  - Part A covers the work's cancellation and that the old map stays intact.
+  - The iOS expiration path (`invokeOnCompletion` completes and reschedules) and WorkManager's
+    `isStopped` poll are checked by reading the code, not on a device.
+
+### Reboot: RECEIVE_BOOT_COMPLETED is dropped (decided 26 October 2026)
+
+WorkManager's library manifest declares `RECEIVE_BOOT_COMPLETED` so that scheduled work survives a
+reboot. The parent session decided to drop it: privacy posture, the F-Droid listing, and a lost
+pending rebuild costs nothing.
+
+- `androidApp`'s manifest removes it with `tools:node="remove"`, as it already does for Media3's
+  `ACCESS_NETWORK_STATE`.
+- **A reboot drops a pending rebuild until the next app start.** At every process start (Android
+  `LatentJamApplication.onCreate`, iOS `MainViewController`), `MapRebuild.resumePending` reads the
+  stored state. If the layout changed since its last full build, is stale, or regions have pending
+  tracks, it enqueues the rebuild again; a stale map also gets its debug marker back.
+- Tests: `MapRebuildResumeTest`, which covers:
+  - a change that is owed;
+  - stale;
+  - regions only;
+  - nothing owed;
+  - the flag off;
+  - an unreadable state.
+- The merged manifest is checked to have lost the permission.
+
+**Pilot 6 (confirmation after the round-2 fixes, δ = 0.2, pilot data, no tuning).**
+- Log: `piece4-pilot6-2026-10-26.txt`.
+- **Synthetic s7 passes every binding row on both paths.**
+- **FMA pilot fails three binding rows:**
+  - **R2:** change2 purity on average linkage, 0.7211 vs 0.7228. This is the known risk named
+    above.
+  - **R4:** add2 placed agreement on average linkage, 0.537 vs fresh 0.590 − 0.05 = 0.540.
+  - **R4:** the novel case on the switch, placed agreement 0.750 vs 0.833 − 0.05 = 0.783. This falls
+    under the k-means limitation disclosed above.
+- R1, R6, R7 and every other row pass. The chain's moved share from the start is 1.6 % on both
+  paths.
+- As declared, nothing is changed in response: the check runs with this code and these rows, and
+  **is expected to be at risk on R2 and R4 for FMA**.

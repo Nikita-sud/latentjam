@@ -37,6 +37,13 @@
         android:name="android.permission.ACCESS_NETWORK_STATE"
         tools:node="remove" />
 
+    <!-- WorkManager declares this to restore scheduled work after a reboot. The Map's deferred rebuild
+         is the only work, and the next app start enqueues it again (MapRebuild.resumePending), so a
+         reboot only delays it and the permission is dropped. -->
+    <uses-permission
+        android:name="android.permission.RECEIVE_BOOT_COMPLETED"
+        tools:node="remove" />
+
     <!-- State leaves the device only through the user's explicit backup export. -->
     <application
         android:name="io.github.nikitasud.latentjam.app.LatentJamApplication"
