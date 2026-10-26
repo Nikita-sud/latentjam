@@ -47,6 +47,7 @@ import io.github.nikitasud.latentjam.playback.PlaybackController
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
@@ -148,6 +149,22 @@ internal fun lockPlayerKeepsWhileAsleep(now: NowPlaying): Boolean = now.track !=
  */
 internal fun lockPlayerShouldLeave(now: NowPlaying, asleep: Boolean): Boolean =
     lockPlayerShouldClose(now) || (asleep && !lockPlayerKeepsWhileAsleep(now))
+
+/** How long a stop while asleep may last before the player goes: a dry SMART queue resumes after a planning pass. */
+internal const val LOCK_PLAYER_LEAVE_GRACE_MS: Long = 5_000L
+
+/**
+ * [lockPlayerShouldLeave] for a change of playback: an empty player goes at once; a stop while
+ * asleep only if it still holds after [LOCK_PLAYER_LEAVE_GRACE_MS]. A SMART queue that ran dry
+ * passes through an ended state until its next rows are planned and it plays on; the caller
+ * cancels the wait when playback changes again.
+ */
+internal suspend fun lockPlayerLeavesAfterGrace(now: () -> NowPlaying, asleep: () -> Boolean): Boolean {
+    if (lockPlayerShouldClose(now())) return true
+    if (!lockPlayerShouldLeave(now(), asleep())) return false
+    delay(LOCK_PLAYER_LEAVE_GRACE_MS)
+    return lockPlayerShouldLeave(now(), asleep())
+}
 
 /**
  * Asks the app's full player to open, from outside its composition: the lock player's LatentJam

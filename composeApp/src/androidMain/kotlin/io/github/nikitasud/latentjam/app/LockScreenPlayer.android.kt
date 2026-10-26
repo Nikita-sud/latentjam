@@ -24,6 +24,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -143,7 +144,9 @@ class LockScreenPlayerActivity : ComponentActivity() {
                 AppGraph.playback.state
                     .map { (it.track == null) to lockPlayerKeepsWhileAsleep(it) }
                     .distinctUntilChanged()
-                    .collect { if (lockPlayerShouldLeave(AppGraph.playback.state.value, asleep())) leave() }
+                    .collectLatest {
+                        if (lockPlayerLeavesAfterGrace({ AppGraph.playback.state.value }, ::asleep)) leave()
+                    }
             }
         }
         setContent {

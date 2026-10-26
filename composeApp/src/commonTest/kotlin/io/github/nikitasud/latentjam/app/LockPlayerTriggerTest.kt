@@ -7,6 +7,10 @@ package io.github.nikitasud.latentjam.app
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.playback.NowPlaying
+import kotlinx.coroutines.async
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.currentTime
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -91,6 +95,28 @@ class LockPlayerTriggerTest {
 class LockPlayerLeaveTest {
 
     private val track = TrackDescriptor(id = TrackId("t1"), title = "Song")
+
+    @Test
+    fun `a stop while asleep that recovers within the grace keeps it`() = runTest {
+        var now = NowPlaying(track = track, isPlaying = false, showPauseButton = false)
+        val leaving = async { lockPlayerLeavesAfterGrace({ now }, { true }) }
+        advanceTimeBy(LOCK_PLAYER_LEAVE_GRACE_MS / 2)
+        // The dry SMART queue got its rows and plays on.
+        now = NowPlaying(track = track, isPlaying = true, showPauseButton = true)
+        assertFalse(leaving.await())
+    }
+
+    @Test
+    fun `a stop while asleep that lasts the grace closes it and an empty player closes it at once`() = runTest {
+        val stopped = NowPlaying(track = track, isPlaying = false, showPauseButton = false)
+        val started = currentTime
+        assertTrue(lockPlayerLeavesAfterGrace({ stopped }, { true }))
+        assertEquals(LOCK_PLAYER_LEAVE_GRACE_MS, currentTime - started)
+        val empty = NowPlaying(track = null)
+        val emptyAt = currentTime
+        assertTrue(lockPlayerLeavesAfterGrace({ empty }, { false }))
+        assertEquals(emptyAt, currentTime)
+    }
 
     @Test
     fun `it stays asleep only while playback is meant to run`() {
