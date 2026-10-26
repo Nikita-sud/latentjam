@@ -11,6 +11,7 @@ import io.github.nikitasud.latentjam.history.RecentSearches
 import io.github.nikitasud.latentjam.history.ForYouImpressions
 import io.github.nikitasud.latentjam.history.SmartExclusions
 import io.github.nikitasud.latentjam.history.SmartImpressionLog
+import io.github.nikitasud.latentjam.history.SmartPresses
 import io.github.nikitasud.latentjam.history.listeningHistoryModule
 import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.library.Playlists
@@ -465,6 +466,8 @@ object AppGraph {
     /** Clear listening history: SMART's in-memory press list (freshness) is cleared with the log. */
     internal suspend fun forgetSmartPresses() {
         koin.getOrNull<SmartLogRecorder>()?.forgetPresses()
+        // The per-seed press counts name every SMART seed's file; they go with the history.
+        koin.getOrNull<SmartPresses>()?.clear()
     }
 
     /** SMART's impression log, for the debug export (null when the platform binds none). */
