@@ -29,12 +29,17 @@ public class RegionIdentitySnapshot(
     public val context: String = "",
     /** Per track, a hash of the caller's descriptor facts (the app: tags as discovery reads them); 0 when unused. */
     public val tagHashes: LongArray = LongArray(ids.size),
+    /** Per track: only its tags changed since the last rediscovery. It still owes a rebuild but stays settled. */
+    public val tagPending: BooleanArray = BooleanArray(ids.size),
 ) {
     init {
-        require(hashes.size == ids.size && pending.size == ids.size && tagHashes.size == ids.size) { "One hash, tag hash and pending flag per track" }
+        require(hashes.size == ids.size && pending.size == ids.size && tagHashes.size == ids.size && tagPending.size == ids.size) {
+            "One hash, tag hash and pending flag per track"
+        }
     }
 
-    public val pendingCount: Int get() = pending.count { it }
+    /** Tracks that owe the rebuild: a new or changed vector ([pending]) or new tags ([tagPending]). */
+    public val pendingCount: Int get() = ids.indices.count { pending[it] || tagPending[it] }
 }
 
 /** Raw bytes on disk; a missing, short or corrupt file reads as null and costs one rediscovery. */
@@ -69,7 +74,8 @@ public object RegionIdentityCodec {
         out.int(snapshot.ids.size)
         val index = HashMap<TrackId, Int>(snapshot.ids.size * 2)
         snapshot.ids.forEachIndexed { i, id ->
-            out.string(id.value); out.long(snapshot.hashes[i]); out.long(snapshot.tagHashes[i]); out.byte(if (snapshot.pending[i]) 1 else 0)
+            out.string(id.value); out.long(snapshot.hashes[i]); out.long(snapshot.tagHashes[i])
+            out.byte((if (snapshot.pending[i]) 1 else 0) or (if (snapshot.tagPending[i]) 2 else 0))
             index[id] = i
         }
         out.int(snapshot.regions.size)
@@ -100,8 +106,11 @@ public object RegionIdentityCodec {
         val nextId = r.int()
         val context = r.string()
         val n = r.int(); require(n in 0..body)
-        val ids = ArrayList<TrackId>(n); val hashes = LongArray(n); val tags = LongArray(n); val pending = BooleanArray(n)
-        for (i in 0 until n) { ids += TrackId(r.string()); hashes[i] = r.long(); tags[i] = r.long(); pending[i] = r.byte().toInt() != 0 }
+        val ids = ArrayList<TrackId>(n); val hashes = LongArray(n); val tags = LongArray(n); val pending = BooleanArray(n); val tagPending = BooleanArray(n)
+        for (i in 0 until n) {
+            ids += TrackId(r.string()); hashes[i] = r.long(); tags[i] = r.long()
+            val flags = r.byte().toInt(); pending[i] = flags and 1 != 0; tagPending[i] = flags and 2 != 0
+        }
         val count = r.int(); require(count in 0..body)
         val dim = r.int(); require(dim in 0..body)
         val regions = ArrayList<IdentityRegion>(count)
@@ -119,7 +128,7 @@ public object RegionIdentityCodec {
             regions += IdentityRegion(id, colour, world, centroid, floor)
         }
         if (r.at != body) return null
-        RegionIdentitySnapshot(inputVersion, ids, hashes, pending, regions, maxOf(nextId, RegionIdentity.nextId(regions)), context, tags)
+        RegionIdentitySnapshot(inputVersion, ids, hashes, pending, regions, maxOf(nextId, RegionIdentity.nextId(regions)), context, tags, tagPending)
     }.getOrNull()
 
     private fun fnv(bytes: ByteArray, end: Int): Long {

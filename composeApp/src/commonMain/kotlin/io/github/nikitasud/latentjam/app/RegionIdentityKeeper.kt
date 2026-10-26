@@ -47,21 +47,24 @@ internal object RegionIdentityKeeper {
         val present = rows.trackIds.toHashSet()
         val changed = ArrayList<TrackDescriptor>()
         val pending = BooleanArray(rows.size)
+        val tagPending = BooleanArray(rows.size)
         rows.trackIds.forEachIndexed { i, id ->
             val at = before[id]
             if (at == null || previous.hashes[at] != hashes[i]) {
-                // A new vector rejoins; a tag edit alone only waits for the rebuild to rename its region.
+                // A new vector rejoins. A tag edit alone keeps the track where it is (and settled); it only
+                // owes the rebuild, which rediscovers and names any region that is new or re-formed.
                 changed += descriptorOf[id] ?: TrackDescriptor(id)
                 pending[i] = true
             } else {
-                pending[i] = previous.pending[at] || previous.tagHashes[at] != tags[i]
+                pending[i] = previous.pending[at]
+                tagPending[i] = previous.tagPending[at] || previous.tagHashes[at] != tags[i]
             }
         }
         val removed = previous.ids.count { it !in present }
         if (changed.size + removed > LibraryLayoutRefresh.MAX_SHARE * rows.size) return null
         val regions = if (changed.isEmpty() && removed == 0) previous.regions
             else RegionIdentity.join(previous.regions, changed, present, rows, isActive)
-        val next = RegionIdentitySnapshot(version, rows.trackIds, hashes, pending, regions, maxOf(previous.nextId, RegionIdentity.nextId(regions)), context, tags)
+        val next = RegionIdentitySnapshot(version, rows.trackIds, hashes, pending, regions, maxOf(previous.nextId, RegionIdentity.nextId(regions)), context, tags, tagPending)
         keep(next)
         if (next.pendingCount > 0) MapRebuild.requested(stale = false, nowMs = io.github.nikitasud.latentjam.history.epochMillis())
         return worlds(regions, descriptorOf)
@@ -94,7 +97,8 @@ internal object RegionIdentityKeeper {
             val settled = HashSet<TrackId>()
             rows.trackIds.forEachIndexed { i, id ->
                 val j = at[id] ?: return@forEachIndexed
-                if (previous.hashes[j] == hashes[i] && previous.tagHashes[j] == tags[i] && !previous.pending[j]) settled += id
+                // Same vector and not changed since the last rediscovery: settled, whatever its tags did.
+                if (previous.hashes[j] == hashes[i] && !previous.pending[j]) settled += id
             }
             RegionIdentity.rediscover(previous.regions, named, settled, rows, RegionIdentity.DELTA, isActive = isActive, nextId = previous.nextId)
         }

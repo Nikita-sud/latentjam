@@ -609,3 +609,69 @@ pending rebuild costs nothing.
   paths.
 - As declared, nothing is changed in response: the check runs with this code and these rows, and
   **is expected to be at risk on R2 and R4 for FMA**.
+
+### Piece 4 freeze review, round 3 (26 October 2026): REVISE. Addressed below; the check then runs without another round, as the reviewer allowed.
+
+**1. Verdict rule.** Piece 4 PASSES only if every cell of R1–R9 passes, on every library × case ×
+path where the row applies. n/a never counts as a pass, and it is reported as n/a.
+- **Any FAIL means piece 4 FAILS as frozen**, and the flag stays off.
+- There is no re-run with a changed δ, rule or rows. A later attempt is a new frozen round on new
+  draws.
+
+**2. R4 on the novel case's switch path stays binding.** The disclosed k-means limitation covers
+R5 only. An R4 failure there counts like any other.
+
+**3. R4's granularity is accepted as frozen.** In the novel case, R4 counts only the labelled new
+tracks: 12 on the FMA pilot. One track is 0.083, more than the 0.05 tolerance. The alternatives
+would happen to rescue pilot 6's known failure (9/12 vs 10/12):
+- a tolerance of max(0.05, 1/n);
+- n/a below 30 tracks.
+
+So none is adopted now. The  count is logged for every case.
+
+**4. Correction to round 2's fix 8.**
+- **The earlier claim was wrong.** In that code, a tag-only edit marked the track pending, so the
+  rebuild treated it as unsettled and could move it.
+- **The code now matches the claim.** A tag-only edit sets a separate  flag (codec
+  format 3, bit 2 of the flags byte). The track then owes the rebuild but **stays settled**, so
+  sticky placement applies at δ.
+- **Naming.** A matched region keeps its old name: that is the plan's identity rule. A tag edit
+  changes names only for regions that are new or re-formed at the rebuild.
+- The harness never edits tags, so the check's numbers are unaffected.
+
+**5. Grading map.** Grade from the `delta=0.2` lines.
+
+| Row | Log line | Field | Paths |
+| --- | --- | --- | --- |
+| R1 | per case | `churn=` | both |
+| R2 | per case | `verdict purity=` | `switch=false` only |
+| R3 | per case | `coverage=` | both |
+| R4 | per case | `placed=` (the verdict, not the count) | both |
+| R5 | per case | `own=` | novel lines only |
+| R6 | per case | `minSize=` | both |
+| R7 | `chain` | `churn=` | both |
+| R8 | `chain` | `purity=` | `switch=false` only |
+| R9 | `chain` | `coverage=` | `switch=false` only |
+
+Ignore these fields:
+- `own=PASS` on lines that are not novel;
+- the purity and coverage verdicts printed for `switch=true` where the table says
+  `switch=false` only.
+
+**Disclosures.**
+- **R3 on the switch path cannot fail.** Identity coverage is about 0.89 there, against about 0.70
+  for k-means fresh, and settled tracks are kept.
+- **The R1 and R7 denominators include settled tracks that had no region before.** That is about
+  22 % on FMA, so it dilutes moved churn. This is consistent with every pilot.
+
+**Command:**
+
+```
+MAP_REGIONS=1 MAP_REGIONS_MODE=check MAP_REGIONS_DELTAS=0.2 MAP_REGIONS_SEEDS=47,53,59 \
+MAP_REGIONS_FMA=/private/tmp/claude-501/-Users-nichitabulgaru-Documents-LJ-latentjam--claude-worktrees-research-map-cost-91141c/a70fc488-7434-4db2-8aee-455a6707983f/scratchpad/fma-p4-s707/fma-5000,/private/tmp/claude-501/-Users-nichitabulgaru-Documents-LJ-latentjam--claude-worktrees-research-map-cost-91141c/a70fc488-7434-4db2-8aee-455a6707983f/scratchpad/fma-p4-s808/fma-5000,/private/tmp/claude-501/-Users-nichitabulgaru-Documents-LJ-latentjam--claude-worktrees-research-map-cost-91141c/a70fc488-7434-4db2-8aee-455a6707983f/scratchpad/fma-p4-s909/fma-6500 \
+MAP_REGIONS_EXCLUDE_STYLE="Hip-Hop Beats" MAP_REGIONS_LOG=<scratch>/p4-check.log \
+./gradlew :core:smart:testAndroidHostTest --tests '*MapRegionIdentityReplay' --rerun
+```
+
+The FMA paths are the scratchpad draws made by `map_gate_fma_dump.py --seed 707|808|909`. They are
+not committed; they can be regenerated from the pool.
