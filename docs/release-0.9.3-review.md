@@ -158,3 +158,38 @@ confirmed (all low), one rejected.
 | R4-A2-1 | "Clear listening history" left SmartLogRecorder's outcome tracker and queued writes: pre-clear queue ids / content hashes were written back into the emptied impression log, and pre-clear tracks re-marked engaged | CONFIRMED, low (privacy; new in 0.9.3) | 8e23ad14 (`forgetAll`: new tracker, queue refs reset, presses and log cleared again through the write queue) |
 | R4-A6-1 | Lock player's LatentJam pill is a 32 dp touch target | REJECTED: Compose widens pointer hit-testing to 48 dp and the 64 dp top bar leaves room; only the semantics bounds are 32 dp | — |
 | R4-A6-2 | The lock-screen cover is announced as a button with no action (role kept when the handlers became optional) | CONFIRMED, low (lock screen only) | 831197af |
+
+## Round 5 — clean
+
+Four fresh reviewers (playback; SMART; Map + ListenBrainz/history; lock player + UI + perf + release hygiene)
+re-reviewed every fix commit and their areas from scratch. **No confirmed findings.**
+
+| id | finding | verdict |
+|---|---|---|
+| R5-A3-1 | iOS background Map rebuild ignores `LibraryScan.complete`: a Music.app query that comes back empty lets it rebuild regions for the Documents-only part of the library | NOT CONFIRMED as a defect: the foreground regions path already publishes and rediscovers on incomplete scans (`App.scanLibrary` uses `complete` only for pruning), so the background run is no worse; the trigger (query still loading) is a foreground moment after a grant. The suggested `!complete → NOT_READY` would be harmful: `complete` is false for good for users who denied Music.app or have no Music.app songs, so their rebuild would never run. Follow-up idea for 0.9.4: return NOT_READY only when snapshot ids absent from the scan are not proven deleted. |
+
+Checks at 88aa303b (no code change after it): `:composeApp:testAndroidHostTest`,
+`:core:{smart,playback,history,library}:testAndroidHostTest`, `:core:{playback,history}:iosSimulatorArm64Test`,
+`:composeApp:compileKotlinIosSimulatorArm64`, `:androidApp:assembleRelease` all green; `check-dex-registers.py` on the
+arm64 release APK: ok, most registers 250 (limit 255).
+
+## Outcome
+
+Five rounds; round 5 clean. 44 confirmed findings fixed (round 1: 22, round 2: 13, round 3: 6, round 4: 3) in 27
+fix commits on top of fb4aa942 (`git log --oneline fb4aa942..HEAD`, plus the log commits). Nothing here changes SMART queue output except b1053179 (only after the ranker setting is toggled
+mid-session) and the bit-identical f04581df.
+
+Left for the owner / main session:
+
+- **Proposals (change SMART queues, not applied):** A2-2b presses counted to disk while "Save listening history" is
+  off (keep them in memory only?); A2-5 artist variety Off/Low/High/Max does not scale the per-queue artist caps.
+- **Owner question:** R2-A2-1 "Keep together in SMART" is ignored by the learned ranker (documented in
+  docs/smart-ranker.md): hide or annotate the action while the ranker is on, route marked seeds to the chain, or say
+  so in the release notes.
+- **Release notes:** R3-A5-3 local backup export fails ("Backup failed") for very large histories after a ListenBrainz
+  import (~100k listens on 48 MB heaps, ~350–400k on iOS); nothing is lost. Streamed backup encode/decode for 0.9.4.
+- **Release gate:** A8-1 versionName/versionCode are still test labels (`0.9.3-lw2-map-lock2-xf2` / 38);
+  `docs/smart-ranker.md` still says "test build" in places; re-run `check-dex-registers.py` on the final APK
+  (`SmartRanker.planLocked` at 250 of 255).
+- **Not verified on a device:** the iOS playback fixes (1c54050b, 18a27949, 2f528ba1) and the lock player lifecycle
+  fixes (526aa121, 4c6c035d) are traced and unit-tested where testable, not heard or watched on hardware.
