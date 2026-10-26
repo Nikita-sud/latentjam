@@ -134,20 +134,26 @@ internal object LibraryRegionsService {
             // immediately opened page compete with clustering at normal CPU priority.
             val discovered = cachedDiscovery ?: withContext(AppGraph.mapLayoutDispatcher) {
                 val started = TimeSource.Monotonic.markNow()
+                // Discovery takes seconds; one collection first keeps released
+                // matrices from pushing a large library onto the k-means fallback.
+                val budget = collectMapGarbage().let { availableMapWorkBytes() }
+                val size = features.vectorSpace.size
+                // The path LibraryWorlds.discover takes for this budget, logged for the device checks.
+                val path = if (size <= io.github.nikitasud.latentjam.smart.cluster.LibraryLayout.MAX_TRACKS &&
+                    io.github.nikitasud.latentjam.smart.cluster.MapMemoryBudget.regionWorkBytes(size, features.vectorSpace.dim) <= budget
+                ) "average-linkage" else "k-means"
                 LibraryWorlds.discover(
                     library = loaded,
                     vectorSpace = features.vectorSpace,
                     semantics = features.semantics,
                     isActive = { isActive },
-                    // Discovery takes seconds; one collection first keeps released
-                    // matrices from pushing a large library onto the k-means fallback.
-                    workBudgetBytes = collectMapGarbage().let { availableMapWorkBytes() },
+                    workBudgetBytes = budget,
                 ).also { mixes ->
                     val routed = mixes.groupingBy { it.content }.eachCount()
                     println(
                         "SMART: built ${mixes.size} ${features.vectorSpace.source} " +
                             "local mixes (semantic=${features.semantics.size}, " +
-                            "routes=$routed) in " +
+                            "routes=$routed, path=$path, budget=$budget, rebuild=$rebuild, identity=$identityOn) in " +
                             "${started.elapsedNow().inWholeMilliseconds} ms",
                     )
                 }
