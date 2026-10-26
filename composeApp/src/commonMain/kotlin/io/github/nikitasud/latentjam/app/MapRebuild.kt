@@ -9,6 +9,7 @@ import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.cluster.LibraryLayout
 import io.github.nikitasud.latentjam.smart.cluster.LibraryLayoutRefresh
 import io.github.nikitasud.latentjam.smart.cluster.MapMemoryBudget
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -33,9 +34,12 @@ internal expect fun onExternalPower(): Boolean
  * in-app on a Map visit while charging when no scheduled run has happened for [FALLBACK_AFTER_MS].
  */
 internal object MapRebuild {
-    enum class Outcome { DONE, NOT_NEEDED, NOT_READY, CANCELLED, FAILED }
+    /** AGAIN: the run finished, but a request arrived meanwhile that it may not have seen; run once more. */
+    enum class Outcome { DONE, NOT_NEEDED, NOT_READY, CANCELLED, FAILED, AGAIN }
 
     const val FALLBACK_AFTER_MS: Long = 24L * 60 * 60 * 1000
+
+    private val POWER_CHECK_EVERY = 5.seconds
 
     private val revisionState = MutableStateFlow(0L)
 
@@ -54,6 +58,10 @@ internal object MapRebuild {
      */
     private var requestedAtMs: Long = 0L
 
+    /** Bumped by every [requested]: a run clears what is waiting only when nothing new arrived while it ran. */
+    @kotlin.concurrent.Volatile
+    private var requests: Int = 0
+
     /** Fallback runs this process has made (logged with each). */
     var fallbackRuns: Int = 0
         private set
@@ -66,6 +74,7 @@ internal object MapRebuild {
         persisted: () -> Long = ::persistedRequestAt,
         persist: (Long) -> Unit = ::persistRequestAt,
     ) {
+        requests++
         if (stale) staleState.value = true
         if (requestedAtMs == 0L) {
             // A time in the future is a changed clock, not a request: start the day again.
@@ -114,9 +123,14 @@ internal object MapRebuild {
         return true
     }
 
-    /** Called after a full build in the page itself: nothing is waiting any more. */
-    fun builtInPage() {
-        nothingWaiting()
+    /**
+     * Called after a full build in the page itself: the layout owes nothing any more. Regions still waiting for
+     * their identity are only rediscovered by the rebuild, so their request (and the fallback's day) stays.
+     */
+    suspend fun builtInPage(
+        identityPending: suspend () -> Int = { if (RegionIdentityFlag.enabled) RegionIdentityKeeper.pendingCount() else 0 },
+    ) {
+        if (runCatching { identityPending() }.getOrDefault(0) > 0) staleState.value = false else nothingWaiting()
     }
 
     /** The in-app fallback's condition: a request older than [FALLBACK_AFTER_MS], on external power. */
@@ -133,7 +147,21 @@ internal object MapRebuild {
         if (fallbackJob?.isActive == true) return
         fallbackRuns++
         val trigger = "fallback#$fallbackRuns"
-        fallbackJob = scope.launch { run(isActive = { isActive }, trigger = trigger) }
+        fallbackJob = scope.launch {
+            // It ran on external power and stops when that ends, as the scheduled run's constraints would.
+            var powerCheckedAt = TimeSource.Monotonic.markNow()
+            var powered = true
+            run(
+                isActive = {
+                    if (powerCheckedAt.elapsedNow() >= POWER_CHECK_EVERY) {
+                        powered = onExternalPower()
+                        powerCheckedAt = TimeSource.Monotonic.markNow()
+                    }
+                    isActive && powered
+                },
+                trigger = trigger,
+            )
+        }
     }
 
     /**
@@ -142,7 +170,8 @@ internal object MapRebuild {
      */
     suspend fun run(isActive: () -> Boolean, trigger: String): Outcome {
         val started = TimeSource.Monotonic.markNow()
-        val outcome = try {
+        val requestsAtStart = requests
+        var outcome = try {
             rebuild(isActive)
         } catch (cancelled: CancellationException) {
             Outcome.CANCELLED
@@ -150,8 +179,12 @@ internal object MapRebuild {
             println("Map rebuild ($trigger) failed: $failure")
             Outcome.FAILED
         }
+        if (outcome == Outcome.DONE || outcome == Outcome.NOT_NEEDED) {
+            // A refresh or a join that asked meanwhile left work this run may not have seen: keep it waiting and have
+            // the caller run again (on Android a request made while the job ran was dropped as a duplicate of it).
+            if (requests == requestsAtStart) nothingWaiting() else outcome = Outcome.AGAIN
+        }
         println("Map rebuild ($trigger): $outcome in ${started.elapsedNow().inWholeMilliseconds} ms")
-        if (outcome == Outcome.DONE || outcome == Outcome.NOT_NEEDED) nothingWaiting()
         return outcome
     }
 

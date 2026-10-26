@@ -57,7 +57,7 @@ class MapRebuildResumeTest {
         assertEquals(0, scheduled)
     }
 
-    @Test fun `the first request time is kept across processes and a future one restarts the day`() {
+    @Test fun `the first request time is kept across processes and a future one restarts the day`() = runTest {
         MapRebuild.builtInPage()
         var stored = 1_000L
         var writes = 0
