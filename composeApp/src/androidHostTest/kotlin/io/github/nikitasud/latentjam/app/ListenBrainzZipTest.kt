@@ -124,10 +124,11 @@ class ListenBrainzZipTest {
         val report = ListenBrainzImporter(history, library2, now = { 1_800_000_000_000L }, maxHistoryEvents = 5_000)
             .import(source = { ListenBrainzTestExports.input(bytes, 65_536) })
         assertEquals(200_000, report.listensRead)
-        assertEquals(5_000, report.imported)
+        // 1/50 of the bound stays free for later plays.
+        assertEquals(4_900, report.imported)
         assertEquals(200_000L, report.imported + report.overLimit + report.alreadyPresent + report.notInLibrary)
         val events = history.allEvents()
-        assertEquals(5_000, events.size)
+        assertEquals(4_900, events.size)
         // The newest month is month 20; everything kept starts at or after its first listen.
         assertEquals(true, events.all { it.startedAtMs >= (1_500_000_000L + 19 * 100_000L) * 1000 })
     }

@@ -49,6 +49,13 @@ internal class ListenBrainzMatcher(library: List<TrackDescriptor>) {
     private val albums = arrayOfNulls<String>(tracks.size)
     private val lookups = HashMap<String, Lookup>()
 
+    /**
+     * Per track, the lowest index of the tracks sharing one of its strict artist and title keys:
+     * copies of one song (an album and a compilation) share a group. Duplicates are found per
+     * group, so a listen already credited to one copy is not added again for another.
+     */
+    val groups: IntArray = IntArray(tracks.size) { it }
+
     init {
         val strictLists = HashMap<String, MutableList<Int>>()
         val looseLists = HashMap<String, MutableList<Int>>()
@@ -69,7 +76,11 @@ internal class ListenBrainzMatcher(library: List<TrackDescriptor>) {
                 looseLists.getOrPut(key) { mutableListOf() }.addDistinct(index)
             }
         }
-        strictLists.forEach { (key, list) -> strict[key] = list.toIntArray() }
+        strictLists.forEach { (key, list) ->
+            strict[key] = list.toIntArray()
+            val lowest = list.min()
+            for (index in list) if (lowest < groups[index]) groups[index] = lowest
+        }
         looseLists.forEach { (key, list) -> loose[key] = list.toIntArray() }
     }
 
@@ -115,13 +126,13 @@ internal class ListenBrainzMatcher(library: List<TrackDescriptor>) {
     }
 
     private fun choose(candidates: IntArray, row: ListenBrainzRow): Int {
-        if (candidates.size == 1) return candidates[0]
+        if (candidates.size == 1) return plausible(candidates[0], row)
         var pool = candidates.toList()
         strictForm(row.release)?.let { release ->
             val sameRelease = pool.filter { albums[it] == release }
             if (sameRelease.isNotEmpty()) pool = sameRelease
         }
-        if (pool.size == 1) return pool[0]
+        if (pool.size == 1) return plausible(pool[0], row)
         val duration = row.durationMs
         if (duration != null) {
             return pool
@@ -136,12 +147,28 @@ internal class ListenBrainzMatcher(library: List<TrackDescriptor>) {
         return if (sameLength) pool.min() else AMBIGUOUS
     }
 
+    /**
+     * A lone candidate is taken unless both lengths are known and far apart: an extended mix or a
+     * live take whose suffix the loose form dropped is not the studio track the library holds. The
+     * bound is generous, unlike [DURATION_TOLERANCE_MS], because submitted durations are often
+     * rounded or come from another edition.
+     */
+    private fun plausible(index: Int, row: ListenBrainzRow): Int {
+        val listened = row.durationMs ?: return index
+        val own = tracks[index].durationMs?.takeIf { it > 0 } ?: return index
+        val apart = kotlin.math.abs(own - listened)
+        return if (apart > LONE_CANDIDATE_TOLERANCE_MS && apart * 4 > own) AMBIGUOUS else index
+    }
+
     companion object {
         const val NONE: Int = -1
         const val AMBIGUOUS: Int = -2
 
         /** How far apart two durations may be and still describe one recording. */
         const val DURATION_TOLERANCE_MS: Long = 10_000L
+
+        /** See [plausible]: a lone candidate is refused only more than 30 s and a quarter apart. */
+        const val LONE_CANDIDATE_TOLERANCE_MS: Long = 30_000L
 
         private const val MAX_REMEMBERED_LOOKUPS = 200_000
 
@@ -286,7 +313,7 @@ internal class ListenBrainzImporter(
         var overLimit = matched.trimmed.toInt()
         if (candidates.isNotEmpty()) {
             history.merge(imported = emptyList(), maxEvents = maxHistoryEvents) { existing, _ ->
-                val fold = fold(existing, candidates, matcher.tracks)
+                val fold = fold(existing, candidates, matcher.tracks, matcher.groups)
                 imported = fold.added.size
                 songs = fold.songs
                 alreadyPresent = matched.duplicates.toInt() + fold.alreadyPresent
@@ -310,14 +337,20 @@ internal class ListenBrainzImporter(
     private class Fold(val added: List<ListenEvent>, val songs: Int, val alreadyPresent: Int, val overLimit: Int)
 
     /** Pure and quick: it runs under the history's lock. */
-    private fun fold(existing: List<ListenEvent>, candidates: LongArray, tracks: List<TrackDescriptor>): Fold {
+    private fun fold(
+        existing: List<ListenEvent>,
+        candidates: LongArray,
+        tracks: List<TrackDescriptor>,
+        groups: IntArray,
+    ): Fold {
         val indexById = HashMap<String, Int>(tracks.size * 2)
         tracks.forEachIndexed { index, track -> indexById[track.id.value] = index }
-        // Per track: every start (exact duplicates) and the starts of plays recorded in the app.
+        // Per song (its copies grouped): every start (exact duplicates) and the starts of plays
+        // recorded in the app.
         val allStarts = HashMap<Int, PackedLongs>()
         val inAppStarts = HashMap<Int, PackedLongs>()
         for (event in existing) {
-            val index = indexById[event.trackId.value] ?: continue
+            val index = indexById[event.trackId.value]?.let { groups[it] } ?: continue
             allStarts.getOrPut(index) { PackedLongs() }.add(event.startedAtMs)
             val importShaped = event.origin == null && event.listenedMs == null && !event.skipped
             if (!importShaped) inAppStarts.getOrPut(index) { PackedLongs() }.add(event.startedAtMs)
@@ -327,13 +360,15 @@ internal class ListenBrainzImporter(
         val fresh = ArrayList<Long>()
         var alreadyPresent = 0
         for (packed in candidates) {
-            val index = unpackIndex(packed)
+            val index = groups[unpackIndex(packed)]
             val startMs = unpackSeconds(packed) * 1000
             val exact = sortedAll[index]?.anyWithin(startMs, 0L) == true
             val nearInApp = sortedInApp[index]?.let { starts -> starts.anyWithin(startMs, IN_APP_WINDOW_MS) } == true
             if (exact || nearInApp) alreadyPresent++ else fresh += packed
         }
-        val room = (maxHistoryEvents - existing.size).coerceAtLeast(0)
+        // A little room is left for the plays recorded after the import: a log filled to the bound
+        // would pass it with the next listen, and backup export refuses a log past it.
+        val room = (maxHistoryEvents - maxHistoryEvents / PLAY_HEADROOM_DIVISOR - existing.size).coerceAtLeast(0)
         // Candidates are in start order, so the newest are at the end.
         val kept = if (fresh.size > room) fresh.subList(fresh.size - room, fresh.size) else fresh
         val songs = HashSet<Int>()
@@ -418,6 +453,9 @@ internal class ListenBrainzImporter(
     companion object {
         /** The history's bound; local backup restores against the same one. */
         const val MAX_HISTORY_EVENTS: Int = 500_000
+
+        /** The share of the bound kept free for later plays: 1/50, so 10,000 listens at 500,000. */
+        private const val PLAY_HEADROOM_DIVISOR = 50
 
         /** A row this close to a play recorded in the app is that play, scrobbled. */
         const val IN_APP_WINDOW_MS: Long = 2 * 60_000L
