@@ -115,6 +115,11 @@ public interface ListeningHistory {
 public interface HistoryStore {
     public suspend fun append(line: String)
     public suspend fun readAll(): List<String>
+
+    /** Hands every line to [consume] in order; a file store reads them one at a time, not all first. */
+    public suspend fun readEach(consume: (String) -> Unit) {
+        readAll().forEach(consume)
+    }
     public suspend fun replaceAll(lines: List<String>) {
         clear()
         lines.forEach { append(it) }
@@ -134,13 +139,13 @@ public class DefaultListeningHistory(
 
     private val mutex = Mutex()
     private var loaded = false
-    private val events = ArrayList<ListenEvent>()
+    private var events = ArrayList<ListenEvent>()
     /**
      * Updated with [events] under the same mutex so repeated For You/Search/playlist reads do not
      * replay the complete append-only log on their caller's dispatcher. A returned [stats] map is
      * still copied, so callers never observe later records mutating an older snapshot.
      */
-    private val aggregates = mutableMapOf<TrackId, TrackStats>()
+    private var aggregates = mutableMapOf<TrackId, TrackStats>()
 
     override suspend fun record(event: ListenEvent): Unit = mutex.withLock {
         ensureLoaded()
@@ -226,29 +231,39 @@ public class DefaultListeningHistory(
      * previous log readable rather than a half-restored one.
      */
     private suspend fun writeAll(replacement: List<ListenEvent>) {
-        // Reserve before writing: once the store holds the replacement, growing the list must not
-        // fail half-way and leave this process serving an empty log beside a merged file.
-        events.ensureCapacity(replacement.size)
+        // Everything memory will hold is built before the write and only swapped in after it: once
+        // the store holds the replacement, an allocation failing half-way must not leave this
+        // process serving an empty log beside a merged file (the next merge would fold from it).
+        val nextEvents = ArrayList(replacement)
+        val nextAggregates = mutableMapOf<TrackId, TrackStats>()
+        nextEvents.forEach { nextAggregates.aggregate(it) }
         // Lines are serialized as the store asks for them. An imported log runs to hundreds of
         // thousands of events, and a list of every line beside the events was the largest
         // allocation of the write on small heaps.
-        store.replaceAll(SerializedLines(replacement))
-        events.clear()
-        events += replacement
-        aggregates.clear()
-        replacement.forEach(::aggregate)
+        store.replaceAll(SerializedLines(nextEvents))
+        events = nextEvents
+        aggregates = nextAggregates
     }
 
     private suspend fun ensureLoaded() {
         if (loaded) return
-        val lines = store.readAll()
-        // File stores confine their read to IO, but the continuation resumes on the caller. The
-        // first stats()/For You request commonly comes from a Main LaunchedEffect, and parsing plus
-        // folding a long-lived history there is avoidable launch jank.
+        // Off the caller: the first stats()/For You request commonly comes from a Main
+        // LaunchedEffect, and parsing plus folding a long-lived history there is avoidable launch
+        // jank. Lines are parsed as they are read rather than all held first, and each song's id
+        // is kept once: after a ListenBrainz import the log runs to hundreds of thousands of
+        // listens, and a list of every line beside one id string per event did not fit a small
+        // heap at the next launch.
         val restored = withContext(Dispatchers.Default) {
-            val parsed = lines.mapNotNull(ListenEvent::parse)
+            val parsed = ArrayList<ListenEvent>()
             val folded = mutableMapOf<TrackId, TrackStats>()
-            parsed.forEach { folded.aggregate(it) }
+            val ids = HashMap<String, TrackId>()
+            store.readEach { line ->
+                val event = ListenEvent.parse(line) ?: return@readEach
+                val shared = ids.getOrPut(event.trackId.value) { event.trackId }
+                val kept = if (shared.value === event.trackId.value) event else event.copy(trackId = shared)
+                parsed += kept
+                folded.aggregate(kept)
+            }
             RestoredHistory(parsed, folded)
         }
         events += restored.events

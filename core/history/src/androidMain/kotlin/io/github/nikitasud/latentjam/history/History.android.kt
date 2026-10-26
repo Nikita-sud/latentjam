@@ -40,6 +40,10 @@ internal class FileHistoryStore(context: Context) : HistoryStore {
         if (!file.exists()) emptyList() else file.readLines()
     }
 
+    override suspend fun readEach(consume: (String) -> Unit): Unit = withContext(Dispatchers.IO) {
+        if (file.exists()) file.forEachLine(Charsets.UTF_8, consume)
+    }
+
     override suspend fun replaceAll(lines: List<String>): Unit = withContext(Dispatchers.IO) {
         // Streamed line by line: one String of the whole log (plus the encoder's copy of it) is
         // several times the log's size and does not fit a small heap after a large import.

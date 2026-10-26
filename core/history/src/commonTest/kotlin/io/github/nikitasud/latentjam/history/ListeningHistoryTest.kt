@@ -15,6 +15,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -42,6 +43,32 @@ internal class ListeningHistoryTest {
         skipped = skipped,
         shuffleMode = "SMART",
     )
+
+    @Test
+    fun aLoadedLogKeepsOneIdPerSongAndEveryLineInOrder() = runTest {
+        val lines = listOf(event("a", 1), event("b", 2), event("a", 3)).map(ListenEvent::serialize)
+        val history = DefaultListeningHistory(FakeStore(lines))
+        val events = history.allEvents()
+        assertEquals(listOf(1L, 2L, 3L), events.map { it.startedAtMs })
+        assertEquals(listOf("a", "b", "a"), events.map { it.trackId.value })
+        assertSame(events[0].trackId.value, events[2].trackId.value)
+        assertEquals(2, history.stats().getValue(TrackId("a")).plays)
+    }
+
+    @Test
+    fun aFailedRewriteLeavesTheLogInMemoryAsItWas() = runTest {
+        val store = object : HistoryStore {
+            val lines = mutableListOf(event("a", 1).serialize())
+            override suspend fun append(line: String) { lines += line }
+            override suspend fun readAll(): List<String> = lines.toList()
+            override suspend fun replaceAll(lines: List<String>) = error("disk full")
+            override suspend fun clear() { lines.clear() }
+        }
+        val history = DefaultListeningHistory(store)
+        assertFailsWith<IllegalStateException> { history.replace(listOf(event("b", 2))) }
+        assertEquals(listOf("a"), history.allEvents().map { it.trackId.value })
+        assertEquals(setOf(TrackId("a")), history.stats().keys)
+    }
 
     @Test
     fun skippedStartsAreStartsButNotListens() = runTest {
