@@ -196,7 +196,7 @@ internal class CrossfadeAudioProcessor(
         val decision = decide()
         pendingDecision = decision
         val skipped = when (decision) {
-            is Decision.Join -> decision.mix?.nextIntroFrame?.toLong() ?: 0L
+            is Decision.Join -> decision.mix?.nextIntroFrame?.toLong() ?: decision.early?.incomingStartFrame?.toLong() ?: 0L
             // The sink can checkpoint twice at one join (a new format, then the discontinuity);
             // the second still precedes the frames the first one's skip will drop. In general: how
             // far the next frame out runs ahead of the next frame in.
@@ -230,6 +230,21 @@ internal class CrossfadeAudioProcessor(
                     next.bridge = Bridge(mix.plan, from = mix.nextIntroFrame).takeIf { it.length > 0 }
                     next.incomingFrames = mix.overlapFrames
                     next.incomingFrom = mix.plan.incomingStartFrame.toLong()
+                } else if (decision.early != null) {
+                    // The outgoing track ended before its overlap could begin (its stream shorter
+                    // than its duration said): nothing of the next one was heard, so it comes in
+                    // at its first sound, rising on the overlap's curve, from its decoded opening.
+                    val plan = decision.early
+                    val from = plan.incomingStartFrame
+                    next.frames = from.toLong()
+                    next.skip = plan.frames.toLong()
+                    next.bridge = Bridge(plan, from = from).takeIf { it.length > 0 }
+                    next.incomingFrames = (plan.overlapUs * plan.sampleRate / 1_000_000L).coerceAtLeast(1L)
+                    next.incomingFrom = from.toLong()
+                    settings.seamLog(
+                        "seam ${previous.stream?.mediaId} -> ${plan.incomingId}: ended at " +
+                            "${(previous.startUs + previous.frames * 1_000_000L / plan.sampleRate) / 1000} ms before its overlap; rising in",
+                    )
                 } else if (!settings.edgesAt(decision.stream?.mediaIndex).fadeIn) {
                     // A segued album seam plays on: its loudness change ramps instead of stepping.
                     next.rampFrom = previous.gain
@@ -256,7 +271,16 @@ internal class CrossfadeAudioProcessor(
         val mix = previous.mix?.takeIf {
             !it.cancelled && it.nextIntroFrame > 0 && it.plan.incomingId == stream?.mediaId
         }
-        return Decision.Join(stream, previous, mix)
+        // Ended before its end was settled: the opening decoded for this seam can still bring the
+        // next track in.
+        val early = settings.plan?.takeIf { plan ->
+            mix == null && previous.end == End.UNDECIDED && settings.fadeMs > 0L &&
+                plan.outgoingId == previous.stream?.mediaId && plan.incomingId == stream?.mediaId &&
+                plan.incomingId != plan.outgoingId && plan.overlapUs > 0L &&
+                plan.sampleRate == inputAudioFormat.sampleRate && plan.channelCount == inputAudioFormat.channelCount &&
+                plan.frames > plan.incomingStartFrame
+        }
+        return Decision.Join(stream, previous, mix, early)
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
@@ -595,7 +619,7 @@ internal class CrossfadeAudioProcessor(
         class Fresh(val stream: PcmStream?) : Decision
 
         /** The player moved on to [stream] by itself; [mix] is the overlap it continues. */
-        class Join(val stream: PcmStream?, val previous: Segment, val mix: Mix?) : Decision
+        class Join(val stream: PcmStream?, val previous: Segment, val mix: Mix?, val early: OverlapPlan? = null) : Decision
     }
 
     private companion object {

@@ -189,6 +189,29 @@ internal class CrossfadeAudioProcessorTest {
     }
 
     @Test
+    fun aTrackThatEndsBeforeItsOverlapBringsTheNextOneInRisingFromItsFirstSound() {
+        settings.fadeMs = 2_000
+        val a = stream("a", 10_000)
+        // B opens with 300 ms of silence.
+        val opening = { frame: Int -> if (frame < 300) 0 else frame }
+        settings.plan = plan(
+            "a", "b", overlapMs = 2_000, frames = 6_000, incomingStartFrame = 300, samples = opening,
+        )
+        reposition(a, atMs = 5_000)
+        // The stream ends at 7 s, before the 8 s window: nothing was mixed, nothing settled.
+        assertTrue(feed(loud, 5_000, 7_000).all { it == 1000 })
+
+        // B starts at its first sound, rising on the overlap's curve, its decoder's copy dropped.
+        assertEquals(300_000L, join(stream("b", 20_000)))
+        val incoming = feed(opening, 0, 8_000)
+        assertEquals(7_700, incoming.size)
+        assertEquals(0, incoming.first())
+        val expectedMiddle = 1300 * overlapInGain(0.5f)
+        assertTrue(abs(incoming[1_000] - expectedMiddle) <= 2f, "middle of the rise was ${incoming[1_000]}")
+        assertEquals((2_300 until 8_000).toList(), incoming.subList(2_000, 7_700))
+    }
+
+    @Test
     fun aSeamWithoutMeasuredSoundEdgesOverlapsAtTheEndOfTheFile() {
         settings.fadeMs = 2_000
         val a = stream("a", 10_000)
