@@ -101,6 +101,8 @@ public object RankerQueue {
          * picks so far (the bonus saturates as marked tracks fill the queue); null = none.
          */
         companion: ((anchor: Int, picks: List<Int>) -> DoubleArray)? = null,
+        /** PLAN_093: extra queueArtistCap room for the seed's own artist (it dominates the seed's sound neighbours); 0 = none. */
+        seedArtistExtra: Int = 0,
         features: (anchor: Int) -> Array<DoubleArray>,
     ): List<Int> {
         if (poolSize == 0 || length <= 0) return emptyList()
@@ -161,9 +163,13 @@ public object RankerQueue {
             val ja = RankerFeatures.NAMES.indexOf("trans_artist")
             val jf = RankerFeatures.NAMES.indexOf("is_favourite")
             val jq = RankerFeatures.NAMES.indexOf("log_freq")
+            // PLAN_093: a single A → B (one bridged skip-through, say) is noise; the transition parts need minTransitions.
+            val floorT = if (pn.minTransitions > 1) kotlin.math.ln(1.0 + pn.minTransitions) - 1e-9 else 0.0
             DoubleArray(poolSize) { i ->
                 val r = rows[i]
-                val x = pn.track * minOf(1.0, r[jt] / LN4) + pn.artist * minOf(1.0, r[ja] / LN4) +
+                val tt = if (r[jt] >= floorT) r[jt] else 0.0
+                val ta = if (r[ja] >= floorT) r[ja] else 0.0
+                val x = pn.track * minOf(1.0, tt / LN4) + pn.artist * minOf(1.0, ta / LN4) +
                     pn.playlist * minOf(1.0, 2.0 * (pl?.get(i) ?: 0.0)) + pn.favourite * minOf(1.0, maxOf(0.0, r[jf])) +
                     pn.frequency * minOf(1.0, r[jq] / LN21)
                 // PLAN_TRANSGRAPH: a graph's negative A → B value may pull the row down (bounded like the lift).
@@ -184,7 +190,7 @@ public object RankerQueue {
                 model, re, poolSize, artistKeys, seedArtist, tieOrder, length, choose, take, blocked, stop, trace,
                 credits, seedCredits, seedScores, ::scores, fresh, energies, seedEnergy, audioAgainst, novelty, heads,
                 seedFamily, rulePenalties, seedUnknown, prefix, prefixEnergy, noRepeat, varietyScale, semTerms, families, nudge,
-                albumKeys, seedAlbum, companion,
+                albumKeys, seedAlbum, companion, seedArtistExtra,
             )
         }
         val lambdaRun = model.runPenalty * varietyScale
@@ -323,6 +329,7 @@ public object RankerQueue {
         albumKeys: List<String>?,
         seedAlbum: String,
         companion: ((anchor: Int, picks: List<Int>) -> DoubleArray)? = null,
+        seedArtistExtra: Int = 0,
     ): List<Int> {
         val lambdaRun = (if (noRepeat) model.noRepeat!!.lambdaStart else model.runPenalty) * varietyScale
         val lambdaRe = re.lambda * varietyScale
@@ -473,7 +480,8 @@ public object RankerQueue {
                     val key = artistKeys[i]
                     if (key.isNotEmpty()) {
                         val recent = histKeys.takeLast(maxOf(1, qc.window - 1))
-                        if (recent.count { it == key } >= qc.cap) v -= qc.lambda * (if (qc.sdUnits) maxOf(1.0, sd) else 1.0)
+                        val cap = qc.cap + if (key == seedArtist) seedArtistExtra else 0
+                        if (recent.count { it == key } >= cap) v -= qc.lambda * (if (qc.sdUnits) maxOf(1.0, sd) else 1.0)
                     }
                 }
                 // vc23: cumulative tail drift — off the seed's family after k consecutive off-family picks.
@@ -1343,7 +1351,16 @@ public class SmartRanker(
         val songKeys = active.songDedupMinChars?.let { mc -> pool.map { SongKey.of(it.track.title, mc) } }
         val songBase = if (songKeys == null) emptySet() else
             (listOf(seedKnown.track.title) + prefixIds.map { cache.getValue(it).track.title }).mapNotNull { SongKey.of(it, active.songDedupMinChars!!) }.toSet()
+        // PLAN_093: the seed's own artist keeps its run when at least half of the seed's 10 nearest sound neighbours are its
+        // own tracks (rather than handing the slots to whatever the text matches next).
+        val seedArtistExtra = active.queueArtistCap?.ownExtra?.takeIf { it > 0 }?.let { extra ->
+            val nb = bounded(R1_BUDGET_MS) { runCatching { audio.neighbours(seedKnown.track.id, 10) }.getOrNull() }.orEmpty()
+            val seedKey = artistKeyOf(seedKnown)
+            val own = nb.count { id -> id != seedKnown.track.id && cache[id]?.let(artistKeyOf) == seedKey }
+            if (seedKey.isNotEmpty() && own >= 5) extra else 0
+        } ?: 0
         val modelPicks = RankerQueue.build(
+            seedArtistExtra = seedArtistExtra,
             model = active,
             poolSize = pool.size,
             artistKeys = pool.map(artistKeyOf),
