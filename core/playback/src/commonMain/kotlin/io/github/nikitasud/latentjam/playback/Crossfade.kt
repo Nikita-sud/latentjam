@@ -241,6 +241,19 @@ internal const val CROSSFADE_PREROLL_LEAD_MS: Long = 10_000L
  */
 internal const val CROSSFADE_INTRO_MARGIN_MS: Long = 2_000L
 
+/**
+ * How much of the next track's opening to decode ahead for a seam that may sound over [heardMs]
+ * of it: its leading silence, the overlap, the outgoing track's trailing silence.
+ *
+ * At the join the player plays on from the rest of this opening while its decoder works through
+ * its own copy of all of it ([CrossfadeAudioProcessor]), so the rest must last as long as that
+ * takes. A decoder of small packets (Opus: 20 ms each) gets through about ten times real time in
+ * the player's render loop, which a fixed two seconds after twelve heard fell short of — the sound
+ * stuttered. Half of what is heard, at least [CROSSFADE_INTRO_MARGIN_MS], asks three times.
+ */
+internal fun introCaptureMs(heardMs: Long): Long =
+    heardMs + maxOf(CROSSFADE_INTRO_MARGIN_MS, heardMs / 2L)
+
 /** How quickly an overlap that lost its next track (a queue edit) lets that track go. */
 internal const val CROSSFADE_CANCEL_MS: Long = 300L
 

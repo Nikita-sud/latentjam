@@ -69,7 +69,7 @@ internal class CrossfadeSettings {
     @Volatile var pendingRise: PendingRise? = null
 
     /**
-     * The sample rate the main player's output runs at ([SeamResamplingAudioProcessor]); the rate an
+     * The sample rate the main player's output runs at ([SeamResamplingAudioSink]); the rate an
      * opening is captured at, so its frames are the ones the player will produce. 0 before any.
      */
     @Volatile var outputRate: Int = 0
@@ -79,6 +79,16 @@ internal class CrossfadeSettings {
 
     /** The next track's decoded opening, ready to overlap the end of the current one. */
     @Volatile var plan: OverlapPlan? = null
+
+    /**
+     * The outgoing media id whose seam's opening is being decoded right now, before its [plan]
+     * exists: the processor waits for it a little past the start of the fade window (a seek close to
+     * the end starts the decode late) instead of settling on the plain fades.
+     */
+    @Volatile var preparingFor: String? = null
+
+    /** One line per seam decision, for the log; playback thread. */
+    @Volatile var seamLog: (String) -> Unit = {}
 
     /**
      * The plan whose opening is sounding under its outgoing track, from the moment the mix is
@@ -120,7 +130,9 @@ internal data class PendingRise(val mediaId: String, val positionUs: Long, val r
 
 /** The process-wide settings the service's player reads; the controller lives in the same process. */
 internal object AndroidCrossfade {
-    val settings = CrossfadeSettings()
+    val settings = CrossfadeSettings().apply {
+        seamLog = { line -> android.util.Log.i("LJCrossfade", line) }
+    }
 }
 
 /** The track a run of PCM belongs to, as the audio renderer knows it. [key] is unique per play. */
@@ -190,7 +202,7 @@ internal class CrossfadeAudioProcessor(
         val decision = decide()
         pendingDecision = decision
         val skipped = when (decision) {
-            is Decision.Join -> decision.mix?.nextIntroFrame?.toLong() ?: 0L
+            is Decision.Join -> decision.mix?.nextIntroFrame?.toLong() ?: decision.early?.incomingStartFrame?.toLong() ?: 0L
             // The sink can checkpoint twice at one join (a new format, then the discontinuity);
             // the second still precedes the frames the first one's skip will drop. In general: how
             // far the next frame out runs ahead of the next frame in.
@@ -224,6 +236,21 @@ internal class CrossfadeAudioProcessor(
                     next.bridge = Bridge(mix.plan, from = mix.nextIntroFrame).takeIf { it.length > 0 }
                     next.incomingFrames = mix.overlapFrames
                     next.incomingFrom = mix.plan.incomingStartFrame.toLong()
+                } else if (decision.early != null) {
+                    // The outgoing track ended before its overlap could begin (its stream shorter
+                    // than its duration said): nothing of the next one was heard, so it comes in
+                    // at its first sound, rising on the overlap's curve, from its decoded opening.
+                    val plan = decision.early
+                    val from = plan.incomingStartFrame
+                    next.frames = from.toLong()
+                    next.skip = plan.frames.toLong()
+                    next.bridge = Bridge(plan, from = from).takeIf { it.length > 0 }
+                    next.incomingFrames = (plan.overlapUs * plan.sampleRate / 1_000_000L).coerceAtLeast(1L)
+                    next.incomingFrom = from.toLong()
+                    settings.seamLog(
+                        "seam ${previous.stream?.mediaId} -> ${plan.incomingId}: ended at " +
+                            "${(previous.startUs + previous.frames * 1_000_000L / plan.sampleRate) / 1000} ms before its overlap; rising in",
+                    )
                 } else if (!settings.edgesAt(decision.stream?.mediaIndex).fadeIn) {
                     // A segued album seam plays on: its loudness change ramps instead of stepping.
                     next.rampFrom = previous.gain
@@ -250,7 +277,16 @@ internal class CrossfadeAudioProcessor(
         val mix = previous.mix?.takeIf {
             !it.cancelled && it.nextIntroFrame > 0 && it.plan.incomingId == stream?.mediaId
         }
-        return Decision.Join(stream, previous, mix)
+        // Ended before its end was settled: the opening decoded for this seam can still bring the
+        // next track in.
+        val early = settings.plan?.takeIf { plan ->
+            mix == null && previous.end == End.UNDECIDED && settings.fadeMs > 0L &&
+                plan.outgoingId == previous.stream?.mediaId && plan.incomingId == stream?.mediaId &&
+                plan.incomingId != plan.outgoingId && plan.overlapUs > 0L &&
+                plan.sampleRate == inputAudioFormat.sampleRate && plan.channelCount == inputAudioFormat.channelCount &&
+                plan.frames > plan.incomingStartFrame
+        }
+        return Decision.Join(stream, previous, mix, early)
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
@@ -373,7 +409,10 @@ internal class CrossfadeAudioProcessor(
                 envelope *= if (progress < 1f) overlapOutGain(progress) else 0f
                 if (incomingGain.isNaN()) incomingGain = settings.gainOf(activeMix.plan.incomingId)
                 val introTarget = if (activeMix.cancelled) 0f else overlapInGain(progress) * incomingGain
-                activeMix.introGain = slew(activeMix.introGain, introTarget, if (activeMix.cancelled) introStep else 1f)
+                // Rising never faster than a cancel falls: a mix begun late comes in over that
+                // time from where its curve has got to, not as a step.
+                val rising = introTarget > activeMix.introGain
+                activeMix.introGain = slew(activeMix.introGain, introTarget, if (activeMix.cancelled || rising) introStep else 1f)
                 val candidate = (index - activeMix.startFrame).toInt() + activeMix.plan.incomingStartFrame
                 if (candidate < activeMix.plan.frames) {
                     if (activeMix.introGain > 0f) {
@@ -514,23 +553,40 @@ internal class CrossfadeAudioProcessor(
                 plan.sampleRate == rate && plan.channelCount == inputAudioFormat.channelCount &&
                 plan.frames > 0
             if (!usable) {
+                // Its opening is still being decoded (a seek close to the end started that late):
+                // play on at full level for a moment rather than settle on the plain fades.
+                val windowUs = durationUs - minOf(settings.fadeMs * 1000L, durationUs / 2L)
+                val waitUs = minOf(MAX_LATE_MIX_US, settings.fadeMs * 1000L / 2L)
+                if (settings.preparingFor == stream?.mediaId && mediaUs - windowUs <= waitUs) return
                 end = End.FADE
+                settings.seamLog("seam ${stream?.mediaId}: fade at ${mediaUs / 1000} ms (${if (plan == null) "no opening" else "opening unusable"})")
                 return
             }
             val endUs = anchorUs(plan, durationUs)
             val mixStartUs = endUs - plan.overlapUs
             val windowUs = endUs - minOf(settings.fadeMs * 1000L, endUs / 2L)
-            // A start the overlap already missed — the slider lowered after the opening was decoded
-            // for a longer overlap — would cut the next track in loud and partway into its opening.
-            val missedStart = mixStartUs < mediaUs - LATE_START_US
-            val onTime = (mediaUs - windowUs <= LATE_START_US && !missedStart) || index == 0L
+            // A start before the window — the slider lowered after the opening was decoded for a
+            // longer overlap — would cut the next track in loud and partway into its opening.
+            val missedStart = mixStartUs < windowUs - LATE_START_US
+            // An opening that arrived late (a seek close to the end started its decode late) still
+            // mixes, on its own clock: the next track comes in where the overlap has got to, rising
+            // over a short ramp — up to a bound, past which it would cut in well into its opening.
+            val lateUs = mediaUs - mixStartUs
+            val maxLateUs = maxOf(LATE_START_US, minOf(MAX_LATE_MIX_US, plan.overlapUs / 2L))
+            val onTime = (!missedStart && lateUs <= maxLateUs) || index == 0L
             if (!onTime) {
                 end = End.FADE
+                settings.seamLog("seam ${stream?.mediaId}: fade at ${mediaUs / 1000} ms (opening ${lateUs / 1000} ms late)")
                 return
             }
             val startFrame = index + ceilDiv((mixStartUs - mediaUs) * rate, 1_000_000L)
             end = End.MIX
             mix = Mix(plan, startFrame, overlapFrames = (plan.overlapUs * rate / 1_000_000L).coerceAtLeast(1L))
+            settings.seamLog(
+                "seam ${stream?.mediaId} -> ${plan.incomingId}: overlap ${plan.overlapUs / 1000} ms ending at " +
+                    "${endUs / 1000} of ${durationUs / 1000} ms, from frame ${plan.incomingStartFrame} at $rate Hz" +
+                    if (lateUs > LATE_START_US) ", ${lateUs / 1000} ms late" else "",
+            )
             // Settled now, sounding a little later: from here a slider drag must not re-plan the
             // seam (see CrossfadeCoordinator.plannedFadeMs); Next still waits for the start.
             settings.mixing = plan
@@ -569,7 +625,7 @@ internal class CrossfadeAudioProcessor(
         class Fresh(val stream: PcmStream?) : Decision
 
         /** The player moved on to [stream] by itself; [mix] is the overlap it continues. */
-        class Join(val stream: PcmStream?, val previous: Segment, val mix: Mix?) : Decision
+        class Join(val stream: PcmStream?, val previous: Segment, val mix: Mix?, val early: OverlapPlan? = null) : Decision
     }
 
     private companion object {
@@ -584,8 +640,11 @@ internal class CrossfadeAudioProcessor(
         /** A change of envelope source glides; no curve of its own is ever this steep. */
         const val ENVELOPE_SLEW_MS = 400L
 
-        /** How late an overlap may still begin — about one audio buffer. */
+        /** How late an overlap may still begin as if on time — about one audio buffer. */
         const val LATE_START_US = 100_000L
+
+        /** How late it may still begin on its own clock, at most half of it ([Segment.decideEnd]). */
+        const val MAX_LATE_MIX_US = 3_000_000L
 
         fun slew(current: Float, target: Float, step: Float): Float = when {
             target > current + step -> current + step

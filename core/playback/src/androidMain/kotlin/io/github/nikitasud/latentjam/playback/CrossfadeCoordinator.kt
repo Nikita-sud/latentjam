@@ -184,15 +184,17 @@ internal class CrossfadeCoordinator(
      */
     private fun begin(target: Seam, next: MediaItem, outgoingMs: Long, fadeMs: Long, anchors: SeamAnchors) {
         seam = target
+        settings.preparingFor = target.outgoingId
         val anchored = anchors != SeamAnchors(outgoingMs, 0L)
         val trailMs = anchors.trailMs(outgoingMs)
         val leadMs = anchors.incomingStartMs
-        val lengthMs = fadeMs + leadMs + trailMs + CROSSFADE_INTRO_MARGIN_MS
+        val lengthMs = introCaptureMs(fadeMs + leadMs + trailMs)
         val scratch = IntroScratch.get(context)
         val slot = scratch.freeSlot(sounding = settings.soundingSlot)
         val pending = CrossfadeIntroCapture(context, next, lengthMs, scratch, slot, settings.outputRate) { intro ->
             capture = null
             if (seam != target) return@CrossfadeIntroCapture
+            settings.preparingFor = null
             val overlapMs = intro?.let {
                 overlapLengthMs(fadeMs, anchors.outgoingEndMs, it.durationMs - leadMs)
             } ?: 0L
@@ -203,6 +205,7 @@ internal class CrossfadeCoordinator(
             }
             if (intro == null || overlapMs <= 0L) {
                 failed += target
+                settings.seamLog("seam ${target.outgoingId} -> ${target.incomingId}: no opening (${if (intro == null) "capture failed" else "too short to overlap"})")
                 return@CrossfadeIntroCapture
             }
             settings.plan = OverlapPlan(
@@ -226,6 +229,7 @@ internal class CrossfadeCoordinator(
         capture?.cancel()
         capture = null
         seam = null
+        settings.preparingFor = null
         settings.plan = null
     }
 

@@ -372,7 +372,7 @@ internal class IosAudioEngine : EqualizerController {
      * channel count, as Android's mixer requires. Another sample rate joins: the submixer converts
      * its input bus to the graph's rate, and the track plays on converted after the decks swap until
      * the next load sets the graph to a file's own rate — what Android does across such a seam
-     * ([SeamResamplingAudioProcessor]). Otherwise the seam keeps the plain fades and the next track
+     * (SeamResamplingAudioSink). Otherwise the seam keeps the plain fades and the next track
      * loads, reconfiguring the graph for itself.
      */
     internal fun sharesGraphFormat(current: AVAudioFormat, incoming: AVAudioFormat): Boolean =

@@ -38,12 +38,16 @@ public class IosIntegratedLoudnessMeter {
                     val native = NativeLoudnessMeter(rate, channels).also { meter = it }
                     val sound = SoundSpanTracker(rate, channels)
                     var decodedFrames = 0L
+                    // The file ran out before the length its header estimates (a junk tail).
+                    var ranOut = false
                     while (decodedFrames < file.length) {
                         coroutine.ensureActive()
                         if ((NSProcessInfo.processInfo.systemUptime - started) * 1000 > LoudnessScanLimits.WALL_BUDGET_MS) return@withLock null
-                        if (!file.readIntoBuffer(buffer, error = null)) return@withLock null
+                        if (!file.readIntoBuffer(buffer, error = null) || buffer.frameLength.toInt() <= 0) {
+                            ranOut = true
+                            break
+                        }
                         val frames = buffer.frameLength.toInt()
-                        if (frames <= 0) return@withLock null // early EOF is a partial scan
                         val data = buffer.floatChannelData ?: return@withLock null
                         val stride = buffer.stride.toInt()
                         for (c in 0 until channels) {
@@ -55,7 +59,13 @@ public class IosIntegratedLoudnessMeter {
                         decodedFrames += frames
                     }
                     coroutine.ensureActive()
-                    if (decodedFrames != file.length || !LoudnessScanLimits.complete(decodedFrames, rate, durationMs)) return@withLock null
+                    val complete = if (ranOut) {
+                        // What decoded is what plays; LoudnessScanLimits.complete bounds how short.
+                        LoudnessScanLimits.complete(decodedFrames, rate, file.length * 1000 / rate, sourceEnded = true)
+                    } else {
+                        decodedFrames == file.length && LoudnessScanLimits.complete(decodedFrames, rate, durationMs)
+                    }
+                    if (!complete) return@withLock null
                     native.finish()?.copy(sound = sound.finish()).also { coroutine.ensureActive() }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
