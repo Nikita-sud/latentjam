@@ -495,13 +495,16 @@ fun NowPlayingScreen(
                             // Where the sound is going, before the first note says so.
                             val outputRoute = rememberAudioOutputRoute()
                             val outputChooser = rememberAudioOutputChooser()
-                            if (outputRoute != null) {
-                                AudioOutputStatus(
-                                    route = outputRoute,
-                                    onOpen = outputChooser.takeIf { surface.allows(PlayerEntry.OUTPUT_CHOOSER) },
-                                )
+                            // The route takes what the actions leave (they are measured first), so a long
+                            // device name ellipsizes instead of squeezing the lock player's LatentJam button.
+                            Box(modifier = Modifier.weight(1f)) {
+                                if (outputRoute != null) {
+                                    AudioOutputStatus(
+                                        route = outputRoute,
+                                        onOpen = outputChooser.takeIf { surface.allows(PlayerEntry.OUTPUT_CHOOSER) },
+                                    )
+                                }
                             }
-                            Spacer(modifier = Modifier.weight(1f))
                             if (now.track != null) {
                                 AnimatedVisibility(
                                     visible = lyrics != null,

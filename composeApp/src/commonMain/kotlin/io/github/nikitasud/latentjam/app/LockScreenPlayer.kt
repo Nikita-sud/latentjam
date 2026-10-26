@@ -270,6 +270,8 @@ internal fun BrandButton(onClick: () -> Unit) {
             // The product name, the same in every language.
             text = "LatentJam",
             style = MaterialTheme.typography.labelLarge,
+            maxLines = 1,
+            softWrap = false,
         )
     }
 }
