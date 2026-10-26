@@ -203,7 +203,8 @@ internal fun saturatingDurationAdd(left: Long, right: Long): Long =
  * [plays] counts every start, skipped ones included: rates such as skips per start and "was it
  * ever started" need them. [listens] counts only starts that were not skipped, and is what the
  * listener sees as a play count (Most played, play counts, rankings): a track started and skipped
- * within 30 seconds was not played.
+ * within 30 seconds was not played. [lastListenedAtMs] is the latest such start (0 when every start
+ * was skipped): what "Recently played" lists, so a track switched past at once does not appear.
  */
 public data class TrackStats(
     public val plays: Int,
@@ -212,4 +213,5 @@ public data class TrackStats(
     public val totalPlayedMs: Long,
     public val lastPlayedAtMs: Long,
     public val listens: Int = plays,
+    public val lastListenedAtMs: Long = lastPlayedAtMs,
 )

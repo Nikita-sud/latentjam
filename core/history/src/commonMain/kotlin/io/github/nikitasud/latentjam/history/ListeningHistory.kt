@@ -263,6 +263,11 @@ private fun MutableMap<TrackId, TrackStats>.aggregate(event: ListenEvent) {
         ),
         lastPlayedAtMs = maxOf(previous?.lastPlayedAtMs ?: 0, event.startedAtMs),
         listens = (previous?.listens ?: 0) + if (event.skipped) 0 else 1,
+        lastListenedAtMs = if (event.skipped) {
+            previous?.lastListenedAtMs ?: 0
+        } else {
+            maxOf(previous?.lastListenedAtMs ?: 0, event.startedAtMs)
+        },
     )
 }
 

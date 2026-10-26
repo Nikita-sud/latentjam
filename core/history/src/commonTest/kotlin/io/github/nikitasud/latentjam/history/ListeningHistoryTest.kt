@@ -57,6 +57,19 @@ internal class ListeningHistoryTest {
     }
 
     @Test
+    fun aSkippedStartDoesNotMoveTheLastListen() = runTest {
+        val history = DefaultListeningHistory(FakeStore())
+        history.record(event("1", startedAt = 10, completed = true))
+        history.record(event("1", startedAt = 20, played = 3_000, skipped = true))
+        history.record(event("2", startedAt = 30, played = 2_000, skipped = true))
+
+        val stats = history.stats()
+        assertEquals(20, stats.getValue(TrackId("1")).lastPlayedAtMs)
+        assertEquals(10, stats.getValue(TrackId("1")).lastListenedAtMs)
+        assertEquals(0, stats.getValue(TrackId("2")).lastListenedAtMs, "only skipped: never listened")
+    }
+
+    @Test
     fun theFirstListenIsTheEarliestPlausibleStartWhereverItSits() = runTest {
         val floor = ListeningNormalization.PLAUSIBLE_START_MS
         val history = DefaultListeningHistory(FakeStore())

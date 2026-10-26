@@ -1433,7 +1433,8 @@ private fun AppShell(
             val stats = AppGraph.history.stats()
             // What the listener calls plays: a start skipped within 30 seconds is not one.
             playlistsState.playCounts = stats.mapValues { it.value.listens }
-            playlistsState.lastPlayedAt = stats.mapValues { it.value.lastPlayedAtMs }
+            // Recently played and Rediscover by the last real listen, not the last skipped start.
+            playlistsState.lastPlayedAt = stats.mapValues { it.value.lastListenedAtMs }
         }
 
         suspend fun refreshPlaylistStatsBestEffort() {
