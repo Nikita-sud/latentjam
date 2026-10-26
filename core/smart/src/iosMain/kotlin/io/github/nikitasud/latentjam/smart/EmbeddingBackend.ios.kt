@@ -10,15 +10,33 @@ import io.github.nikitasud.latentjam.smart.di.smartEnergyQualifier
 import io.github.nikitasud.latentjam.smart.di.smartImputationQualifier
 import io.github.nikitasud.latentjam.smart.di.smartLayoutQualifier
 import io.github.nikitasud.latentjam.smart.di.smartTextIndexQualifier
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
-/** iOS audio backend backed by the ONNX Runtime provider installed by the Swift host. */
+/**
+ * iOS audio backend backed by the ONNX Runtime provider installed by the Swift host.
+ *
+ * The native call decodes with AVAudioFile, which has no deadline of its own: it runs on an I/O
+ * thread and a track gets [TRACK_ANALYSIS_BUDGET], after which it fails as timed out and the
+ * thread is left to finish (or never) on its own (issue #27). ORT sessions accept concurrent runs,
+ * so a late return overlapping the next track is safe.
+ */
 internal class IosEmbeddingBackend(
     private val config: SmartEngineConfig,
 ) : EmbeddingBackend {
 
     private var lease: IosInferenceLease? = null
+
+    private val decoding = DeadlineDecoding(
+        object : DecodeWorkers {
+            // Elastic: a stuck thread is one of 64, and the next call simply gets another.
+            override val dispatcher: CoroutineDispatcher = Dispatchers.IO
+            override fun abandon() {}
+        },
+    )
 
     override suspend fun loadModel(): Result<Unit> {
         val existingLease = lease?.takeIf { it.currentProvider() != null }
@@ -64,12 +82,16 @@ internal class IosEmbeddingBackend(
         }
     }
 
-    override suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray> {
+    override suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray> =
+        decoding.withinBudget { embedNative(descriptor) }
+
+    private suspend fun embedNative(descriptor: TrackDescriptor): Result<FloatArray> {
         val provider = lease?.currentProvider()
             ?: return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
         val uri = descriptor.audioUri
             ?: return invalidAudio("No audio URI")
-        val native = provider.embedAudio(uri, descriptor.durationMs ?: -1L, config.embeddingDim)
+        val durationMs = descriptor.durationMs ?: -1L
+        val native = decoding.decode { provider.embedAudio(uri, durationMs, config.embeddingDim) }
         val output = when (native.status) {
             IosAudioEmbeddingStatus.SUCCESS -> native.embedding
                 ?: return backendFailure("Native audio provider returned success without output")
