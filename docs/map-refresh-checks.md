@@ -632,7 +632,7 @@ So none is adopted now. The  count is logged for every case.
 **4. Correction to round 2's fix 8.**
 - **The earlier claim was wrong.** In that code, a tag-only edit marked the track pending, so the
   rebuild treated it as unsettled and could move it.
-- **The code now matches the claim.** A tag-only edit sets a separate  flag (codec
+- **The code now matches the claim.** A tag-only edit sets a separate `tagPending` flag (codec
   format 3, bit 2 of the flags byte). The track then owes the rebuild but **stays settled**, so
   sticky placement applies at δ.
 - **Naming.** A matched region keeps its old name: that is the plan's identity rule. A tag edit
