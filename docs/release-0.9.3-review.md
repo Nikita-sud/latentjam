@@ -123,3 +123,20 @@ the presses mutex), 0ec57479 (each base name keeps its own legacy file; a failed
 drop no real listens in realistic cases), ddfba61f, 21fdb586, 526aa121, 1c54050b (thread confinement, double
 completion, repeat modes, sleep timer). Release hygiene: nothing new (no reflective uses, permissions, strings or
 plist changes from the fixes; no Kotlin/Native-hostile test names).
+
+## Round 3
+
+Six fresh reviewers (playback; SMART; Map; ListenBrainz + history; UI + perf; lock player + release hygiene). SMART,
+UI + perf, lock player and release hygiene: **no confirmed findings** (round-1/2 fixes re-traced and held, including
+b1053179: `learned` is never null while the ranker setting is on, so the chain branch runs only with it off). 7
+findings elsewhere, all confirmed low; one is a release-note limitation.
+
+| id | finding | verdict | fix |
+|---|---|---|---|
+| R3-A1-1 | A Next queued behind a change's fade decided its branch at the press and was dropped at the tail (pick the last row + Next; two quick Nexts at n-2; repeat ALL on iOS did not wrap). iOS made likelier by 18a27949; Android has the same drop since the service-side fades | CONFIRMED, low (regression vs 0.9.2) | 2f528ba1 (iOS decides when it runs and waits for planning / wraps; Android's deferred app Next waits ≤ 15 s for the next planned row) |
+| R3-A1-2 | A system pause (unplug, call, focus loss) during a pick's fade was overridden: the pick then played, on the speaker | CONFIRMED, low | 2f528ba1 (Android plays only if `playWhenReady`; iOS loads without autoplay after a system pause in the change) |
+| R3-A3-1 | `resumePending` in a worker-started process raced the run's request snapshot → spurious AGAIN, one wasted scan per idle charge | CONFIRMED (Android), low; iOS mostly rejected (no scene in a BG launch) | f048106a (a start-up re-read is not new work) |
+| R3-A3-2 | The fallback's power check (86517a74) read UIDevice off Main | CONFIRMED (API contract), low | f048106a (polled on Main, read from a state flow) |
+| R3-A5-1 | `ensureLoaded` published events, then allocated (`putAll`) before `loaded = true`; a failure there doubled the log on the next call | CONFIRMED, low (old lines, new trigger) | 094c1b19 (adopt, no allocation in between) |
+| R3-A5-2 | SmartPresses / FavoriteTimes cached an empty map after a failed or cancelled read; the next write wiped every other count / heart time | CONFIRMED, low (new in 0.9.3) | 32105c7c |
+| R3-A5-3 | Local backup builds / reads the whole file as one String: after a big import, export fails ("Backup failed") from ~100k listens on 48 MB heaps (~350–400k on iOS, 64 Mi-char cap) | CONFIRMED, pre-existing code, new trigger; no data risk | **release note** for 0.9.3; streamed encode/decode for 0.9.4 |
