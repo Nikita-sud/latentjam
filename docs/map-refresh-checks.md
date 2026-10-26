@@ -51,3 +51,33 @@ draws from the licence-clean general-stand pool. Never the owner's library.
 
 **Verdict.** Piece 1 passes only if every row passes. A failing row is reported and nothing is
 re-gated on this data.
+
+### Piece 1 result (26 October 2026): FAIL as frozen
+
+**Run.** 6 libraries, 45 cases plus 6 chains, 1 h 47 min on the host.
+- Log: `docs/map-refresh-logs/piece1-check-2026-10-26.txt`.
+- Score: `docs/map-refresh-logs/piece1-score-2026-10-26.txt`.
+
+| Row | Result | Verdict |
+| --- | --- | --- |
+| trust, class, lost neighbours, p90 move, bit-exact lists | 45 / 45 each | PASS |
+| recall@15 | 44 / 45. Fails on synthetic s41 album1 (0.2624 vs 0.2709, 0.969×). | FAIL |
+| RF | 44 / 45. Fails on FMA s505 album1 (0.608 vs 0.733, 0.83×). | FAIL |
+| overlap with a cold build, per case against the band minimum − 0.02 | 24 / 45. **Every synthetic case fails**, from 0.5 % on: the refreshed map agrees with a cold build at 0.45–0.50, against a band minimum of 0.53–0.55. Today's warm rebuild sits at about 0.54. Every FMA case passes. | FAIL |
+| CF, per case against the band minimum − 0.02 | 42 / 45. Fails on FMA s505 add0.5 (0.728 vs 0.755), s505 album1 (0.679 vs 0.789) and s606 album1 (0.708 vs 0.814). | FAIL |
+| overlap, mean − band mean ≥ −0.05 | −0.033 | PASS |
+| CF, mean − band mean ≥ −0.05 | −0.008 | PASS |
+| small changes not marked stale | 24 / 24 | PASS (reported) |
+| 2 % chains | 6 / 6, 5 rebuilds each | PASS |
+| refresh time (host) | 2.7–3.1 s against 16.3–18.4 s (synthetic, 10,000); 1.0–1.4 s against 6.1–8.1 s (FMA) | (reported) |
+
+**What it means.**
+
+- **Overlap.** On synthetic data the refresh keeps the previous map's own t-SNE solution, and that
+  solution agrees with a cold build of the new library somewhat less than two cold builds agree
+  with each other. The per-case band row detects this; the mean row and every quality row against
+  the input do not fail.
+- **Albums.** Whole-style albums are placed less well than a full rebuild would place them. This
+  is the known weakness.
+- **Consequence.** The piece is **not** passed. The flag stays off by default. The remaining
+  pieces are separable and continue.
