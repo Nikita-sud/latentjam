@@ -401,8 +401,46 @@ internal class SessionTransportFadesTest {
         assertEquals(0, rig.exo.index)
     }
 
+    /** The tail wait is SMART's: it plans the row after the tail. */
+    private fun smartTest(body: suspend TestScope.() -> Unit) = runTest {
+        AndroidShuffleModeRegistry.set(ShuffleMode.SMART)
+        try {
+            body()
+        } finally {
+            AndroidShuffleModeRegistry.set(ShuffleMode.OFF)
+        }
+    }
+
     @Test
-    fun theAppsNextBehindAPickOfTheLastRowWaitsForThePlannedRow() = runTest {
+    fun outsideSmartANextAtTheTailWaitsForNothing() = runTest {
+        val rig = Rig(this)
+        rig.exo.index = 3
+        rig.fades.next(deferrable = true, appOp = true) { rig.exo.player.seekToNextMediaItem() }
+        advanceTimeBy(200L)
+        runCurrent()
+        // Added to the queue by hand: not where the earlier Next was going.
+        rig.exo.append("e")
+        advanceTimeBy(200L)
+        runCurrent()
+        assertEquals(3, rig.exo.index)
+    }
+
+    @Test
+    fun aQueueEditByTheListenerDropsTheNextWaitingAtTheTail() = smartTest {
+        val rig = Rig(this)
+        rig.exo.index = 3
+        rig.fades.next(deferrable = true, appOp = true) { rig.exo.player.seekToNextMediaItem() }
+        advanceTimeBy(200L)
+        runCurrent()
+        rig.fades.dropNextAtTail()
+        rig.exo.append("e")
+        advanceTimeBy(200L)
+        runCurrent()
+        assertEquals(3, rig.exo.index)
+    }
+
+    @Test
+    fun theAppsNextBehindAPickOfTheLastRowWaitsForThePlannedRow() = smartTest {
         val rig = Rig(this)
         rig.fades.pick(3, 0L, deferrable = true, mediaId = "d", appOp = true)
         rig.fades.next(deferrable = true, appOp = true) { rig.exo.player.seekToNextMediaItem() }
@@ -419,7 +457,7 @@ internal class SessionTransportFadesTest {
     }
 
     @Test
-    fun aRowQueuedLongAfterANextAtTheTailIsNotSkippedTo() = runTest {
+    fun aRowQueuedLongAfterANextAtTheTailIsNotSkippedTo() = smartTest {
         val rig = Rig(this)
         rig.exo.index = 3
         rig.fades.next(deferrable = true, appOp = true) { rig.exo.player.seekToNextMediaItem() }
@@ -434,7 +472,7 @@ internal class SessionTransportFadesTest {
     }
 
     @Test
-    fun twoQuickAppNextsAtTheTailWaitForThePlannedRow() = runTest {
+    fun twoQuickAppNextsAtTheTailWaitForThePlannedRow() = smartTest {
         val rig = Rig(this)
         rig.exo.index = 2
         rig.fades.next(deferrable = true, appOp = true) { rig.exo.player.seekToNextMediaItem() }
@@ -449,7 +487,7 @@ internal class SessionTransportFadesTest {
     }
 
     @Test
-    fun aPauseDropsTheNextWaitingAtTheTail() = runTest {
+    fun aPauseDropsTheNextWaitingAtTheTail() = smartTest {
         val rig = Rig(this)
         rig.exo.index = 3
         rig.fades.next(deferrable = true, appOp = true) { rig.exo.player.seekToNextMediaItem() }

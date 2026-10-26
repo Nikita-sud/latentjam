@@ -96,6 +96,11 @@ internal class SessionTransportFades(
     private var nextAtTail: (() -> Unit)? = null
     private var nextAtTailUntilMs = 0L
 
+    /** A queue edit or a shuffle change by the listener: a Next waiting at the tail is not for its rows. */
+    fun dropNextAtTail() {
+        nextAtTail = null
+    }
+
     /** What the controllers set; the ExoPlayer plays at this times the fade's gain. */
     var baseVolume: Float = 1f
         private set
@@ -122,7 +127,7 @@ internal class SessionTransportFades(
 
         override fun onTimelineChanged(timeline: Timeline, reason: Int) {
             val waiting = nextAtTail ?: return
-            if (nowMs() > nextAtTailUntilMs) {
+            if (nowMs() > nextAtTailUntilMs || AndroidShuffleModeRegistry.mode.value != ShuffleMode.SMART) {
                 nextAtTail = null
                 return
             }
@@ -210,6 +215,8 @@ internal class SessionTransportFades(
         nextAtTail = null
         val action = action@{
             if (appOp && !player.hasNextMediaItem()) {
+                // Only SMART plans a row after the tail; elsewhere a Next there does nothing, as before.
+                if (AndroidShuffleModeRegistry.mode.value != ShuffleMode.SMART) return@action
                 nextAtTail = plain
                 nextAtTailUntilMs = nowMs() + NEXT_AT_TAIL_WAIT_MS
                 return@action
@@ -439,6 +446,17 @@ internal open class TransportFadingPlayer(
     }
 
     override fun onReplaceQueue() = fades.replaceQueue()
+
+    // A row the listener moves into place is not the one a Next waiting at the tail was for.
+    override fun moveMediaItem(currentIndex: Int, newIndex: Int) {
+        fades.dropNextAtTail()
+        wrappedPlayer.moveMediaItem(currentIndex, newIndex)
+    }
+
+    override fun moveMediaItems(fromIndex: Int, toIndex: Int, newIndex: Int) {
+        fades.dropNextAtTail()
+        wrappedPlayer.moveMediaItems(fromIndex, toIndex, newIndex)
+    }
 
     override fun getVolume(): Float = fades.baseVolume
 

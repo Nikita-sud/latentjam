@@ -612,6 +612,7 @@ public class PlaybackService : MediaLibraryService() {
         }
 
         override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+            transportFades?.dropNextAtTail()
             val currentMode = AndroidShuffleModeRegistry.mode.value
             // SMART intentionally maps to ExoPlayer shuffle=false. An actual external change to
             // true still exits SMART and becomes normal random shuffle.
@@ -640,7 +641,9 @@ public class PlaybackService : MediaLibraryService() {
     /** Runs synchronously inside the ordered metadata command, before later prepare/play calls. */
     private fun applyQueueEdit(marker: android.os.Bundle) {
         val player = playbackPlayer ?: return
-        when (marker.getString(AndroidQueueCommand.OPERATION)) {
+        val operation = marker.getString(AndroidQueueCommand.OPERATION)
+        if (operation in LISTENER_QUEUE_EDITS) transportFades?.dropNextAtTail()
+        when (operation) {
             AndroidQueueCommand.START, AndroidQueueCommand.RESTORE -> {
                 if (
                     !player.shuffleModeEnabled ||
@@ -1132,6 +1135,11 @@ public class PlaybackService : MediaLibraryService() {
     }
 
     private companion object {
+        /** Queue edits the listener makes (not SMART's own appends, which go straight to the player). */
+        val LISTENER_QUEUE_EDITS = setOf(
+            AndroidQueueCommand.START, AndroidQueueCommand.RESTORE, AndroidQueueCommand.PLAY_NEXT,
+            AndroidQueueCommand.APPEND, AndroidQueueCommand.MOVE,
+        )
         const val BROWSE_ROOT_ID = "browse-root"
         const val BROWSE_COLLECTIONS_ID = "browse-collections"
         const val BROWSE_TRACKS_ID = "browse-tracks"
