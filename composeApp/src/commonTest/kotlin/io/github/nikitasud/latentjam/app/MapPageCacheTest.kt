@@ -143,4 +143,15 @@ class MapPageCacheTest {
         cache.layout(listOf(a, b), 16, { missing }, { computes++; layout(fingerprint = 16) }, reuseRecentFor = 5.minutes, source = "fused")
         assertEquals(before + 1, computes)
     }
+
+    @Test fun `a background rebuild revision reloads the layout from disk`() = runTest {
+        val cache = MapPageCache()
+        val warm = cache.layout(listOf(a, b), 20, { layout(20) }, { error("No recompute") })!!
+        assertSame(warm, cache.layout(listOf(a, b), 20, { error("No read") }, { error("No recompute") }))
+        // Same vectors, so the same fingerprint: only the revision says disk holds a newer layout.
+        val rebuilt = StoredLibraryLayout(listOf(a, b).associateWith { floatArrayOf(0.7f, 0.1f) }, 20)
+        val swapped = cache.layout(listOf(a, b), 20, { rebuilt }, { error("No recompute") }, revision = 1)!!
+        assertSame(rebuilt, swapped)
+        assertSame(rebuilt, cache.layout(listOf(a, b), 20, { error("No read") }, { error("No recompute") }, revision = 1))
+    }
 }

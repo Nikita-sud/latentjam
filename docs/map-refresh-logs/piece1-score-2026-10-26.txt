@@ -1,0 +1,20 @@
+| Row | Pass | Failing cases | Verdict |
+| --- | --- | --- | --- |
+| trust | 45 / 45 | — | PASS |
+| recall | 44 / 45 | synthetic-s41 album1 | FAIL |
+| class | 45 / 45 | — | PASS |
+| RF | 44 / 45 | fma-fma-p1-s505 album1 | FAIL |
+| lost | 45 / 45 | — | PASS |
+| p90move | 45 / 45 | — | PASS |
+| knnExact | 45 / 45 | — | PASS |
+| overlapCaseBand | 24 / 45 | synthetic-s37 add0.5; synthetic-s37 add1.0; synthetic-s37 add2.0; synthetic-s37 album1; synthetic-s37 change0.5; synthetic-s37 change1.0; synthetic-s37 change2.0; synthetic-s41 add0.5; synthetic-s41 add1.0; synthetic-s41 add2.0; synthetic-s41 album1; synthetic-s41 change0.5; synthetic-s41 change1.0; synthetic-s41 change2.0; synthetic-s43 add0.5; synthetic-s43 add1.0; synthetic-s43 add2.0; synthetic-s43 album1; synthetic-s43 change0.5; synthetic-s43 change1.0; synthetic-s43 change2.0 | FAIL |
+| cfCaseBand | 42 / 45 | fma-fma-p1-s505 add0.5; fma-fma-p1-s505 album1; fma-fma-p1-s606 album1 | FAIL |
+| small changes not stale (0.5 / 1 %) | 24 / 24 | — | reported (a hint may fire) |
+| overlap mean − band mean ≥ −0.05 | -0.0329 over 45 cases | | PASS |
+| CF mean − band mean ≥ −0.05 | -0.0078 over 45 cases | | PASS |
+| chain fma-fma-p1-s404 | 5 rebuilds | | PASS |
+| chain fma-fma-p1-s505 | 5 rebuilds | | PASS |
+| chain fma-fma-p1-s606 | 5 rebuilds | | PASS |
+| chain synthetic-s37 | 5 rebuilds | | PASS |
+| chain synthetic-s41 | 5 rebuilds | | PASS |
+| chain synthetic-s43 | 5 rebuilds | | PASS |

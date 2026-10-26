@@ -1,0 +1,6 @@
+# Piece 3, iOS simulator attempt (iPhone 17 simulator 70FAC93A-0F48-46CC-9F2B-E367C8379430, debug build of the feat/map-refresh working tree, 26 Oct 2026)
+# launched with -map_refresh_enabled YES -map_rebuild_request YES; lldb: expr -l objc -- (void)[[BGTaskScheduler sharedScheduler] _simulateLaunchForTaskWithIdentifier:@"io.github.nikitasud.latentjam.map-rebuild"]
+Timestamp               Ty Process[PID:TID]
+2026-10-26 02:14:57.256 Df LatentJam[12448:54a747] [com.apple.BackgroundTasks:Framework] Simulating launch for task with identifier io.github.nikitasud.latentjam.map-rebuild
+2026-10-26 02:14:57.256 Df LatentJam[12448:54a747] [com.apple.BackgroundTasks:Framework] Getting pending task requests
+2026-10-26 02:14:57.261 E  LatentJam[12448:54a76f] [com.apple.BackgroundTasks:Framework] No task request with identifier io.github.nikitasud.latentjam.map-rebuild has been scheduled

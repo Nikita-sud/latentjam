@@ -5,6 +5,8 @@
 package io.github.nikitasud.latentjam.app
 
 import androidx.compose.ui.window.ComposeUIViewController
+import io.github.nikitasud.latentjam.history.epochMillis
+import kotlinx.coroutines.launch
 import platform.UIKit.UIViewController
 
 /**
@@ -14,6 +16,8 @@ import platform.UIKit.UIViewController
  */
 fun MainViewController(): UIViewController {
     AppGraph.start()
+    // As on Android: a rebuild the stored state still owes is submitted again at each launch.
+    AppGraph.appScope.launch { MapRebuild.resumePending(epochMillis()) }
     return ComposeUIViewController {
         App(
             engine = AppGraph.engine,

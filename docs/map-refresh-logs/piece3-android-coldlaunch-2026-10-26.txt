@@ -1,0 +1,11 @@
+# Piece 3, Android cold launch on LJ-api29 (arm64 debug APK from the feat/map-refresh working tree, 26 Oct 2026 02:00-02:03 CET)
+# Setup: run-as touch files/map_refresh_enabled files/map_rebuild_request; am start MainActivity (request consumed; JOB #u0a145/0 enqueued)
+# Run 1, process still alive (am kill did not kill it): cmd jobscheduler run -f io.github.nikitasud.latentjam.kmp 0
+10-26 02:01:30.400  8596  8596 D WM-WorkerWrapper: Starting work for io.github.nikitasud.latentjam.app.MapRebuildWorker
+10-26 02:01:30.400  8596  8706 I System.out: Map rebuild (work#0): NOT_READY in 0 ms
+10-26 02:01:30.401  8596  8626 I WM-WorkerWrapper: Worker result RETRY for Work [ id=6655965a-add5-490b-b7b6-d329f35c8788, tags={ io.github.nikitasud.latentjam.app.MapRebuildWorker } ]
+10-26 02:01:30.406  8596  8626 D WM-SystemJobScheduler: Scheduling work ID 6655965a-add5-490b-b7b6-d329f35c8788Job ID 1
+# Run 2, cold: kill -9 8596 (pidof empty), then cmd jobscheduler run -f io.github.nikitasud.latentjam.kmp 1
+10-26 02:02:26.131  3480  3509 I ActivityManager: Start proc 9704:io.github.nikitasud.latentjam.kmp/u0a145 for service {io.github.nikitasud.latentjam.kmp/androidx.work.impl.background.systemjob.SystemJobService}
+10-26 02:02:26.910  9704  9732 I System.out: Map rebuild (work#1): NOT_NEEDED in 57 ms
+10-26 02:02:26.911  9704  9726 I WM-WorkerWrapper: Worker result SUCCESS for Work [ id=6655965a-add5-490b-b7b6-d329f35c8788, tags={ io.github.nikitasud.latentjam.app.MapRebuildWorker } ]

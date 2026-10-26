@@ -6,12 +6,15 @@ package io.github.nikitasud.latentjam.app
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import io.github.nikitasud.latentjam.history.epochMillis
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.cluster.LibraryLayout
+import io.github.nikitasud.latentjam.smart.cluster.LibraryLayoutRefresh
 import io.github.nikitasud.latentjam.smart.cluster.MapMemoryBudget
 import io.github.nikitasud.latentjam.smart.cluster.MapComputationUnavailable
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorldSemanticTitle
@@ -43,6 +46,8 @@ internal fun rememberMapPageModel(
     // MapTab keeps its lens, selection and viewport when those facts change.
     val mapPageCache = remember { MapPageCache() }
     val mapPage = remember { MapPageModel() }
+    // A background rebuild (plan piece 3) rewrote the disk layout: re-run and reload it from disk.
+    val rebuildRevision by MapRebuild.revision.collectAsState()
     // Keyed on the region labels too, exactly as the For You effect above is: they are
     // stringResource reads, so a locale change produces new ones and the page they name has to be
     // rebuilt to pick them up. Cheap when that is all that changed -- LibraryLayout.covers finds
@@ -59,6 +64,7 @@ internal fun rememberMapPageModel(
         historyRevision,
         discoveryMixLabel,
         semanticMixLabels,
+        rebuildRevision,
     ) {
         // A previous keyed run may have been cancelled after publishing its transient build
         // state. Normalize before any precondition can return, so neither the first-build
@@ -66,6 +72,10 @@ internal fun rememberMapPageModel(
         mapPage.mapState = mapPage.mapState.afterInterruptedMapBuild()
         if (!mapPageActive) return@LaunchedEffect
         val loaded = tracks ?: return@LaunchedEffect
+        // No scheduled rebuild for a day: run it here while on external power (plan piece 3, fallback).
+        if (MapRefreshFlag.enabled && libraryWorlds.audioVectorsReady && MapRebuild.fallbackDue(epochMillis())) {
+            MapRebuild.runFallback(isActive = { isActive })
+        }
         if (libraryWorlds.memoryLimited) {
             // Explain the refusal even after a warm page. MapPageCache and the disk snapshot
             // stay intact, so retrying does not discard the last successful coordinates.
@@ -157,15 +167,41 @@ internal fun rememberMapPageModel(
                         // effect is not keyed on them, so nothing would retry it before the analysis
                         // ends. The layout is filed under `coverage.fingerprint`, which then no longer
                         // matches, so the next visit redraws it from the newer vectors.
-                        val computed = if (
-                            rows == null ||
-                            rows.trackIds != coverage.trackIds ||
-                            rows.source != coverage.source
-                        ) {
+                        val usable = rows != null && rows.trackIds == coverage.trackIds && rows.source == coverage.source
+                        // Refresh small changes (plan piece 1) only once the analysis is over: while it runs
+                        // every analysed track moves the rows, and the 5-minute reuse below applies instead.
+                        val refreshOn = MapRefreshFlag.enabled && libraryWorlds.audioVectorsReady
+                        var snapshot: io.github.nikitasud.latentjam.smart.cluster.MapRefreshSnapshot? = null
+                        val computed = if (!usable) {
                             null
+                        } else if (refreshOn) {
+                            val inputVersion = MapRefreshFlag.inputVersion(rows!!.source, rows.dim)
+                            val stored = runCatching { AppGraph.mapRefreshStateStore.load() }.getOrNull()
+                            val artists = loaded.associate { it.id to it.artist }
+                            val result = try {
+                                stored?.let {
+                                    LibraryLayoutRefresh.refresh(
+                                        rows, previous.positions, it, inputVersion, isActive = { isActive },
+                                        artistOf = { id -> artists[id] },
+                                    )
+                                } ?: run {
+                                    // A refresh consumed nothing it cannot re-read: rows are read again from the start.
+                                    val fresh = engine.libraryMixRows(loadedIds)
+                                    if (fresh == null || fresh.trackIds != coverage.trackIds || fresh.source != coverage.source) null
+                                    else LibraryLayoutRefresh.build(fresh, previous.positions, inputVersion, { isActive }, workBudget)
+                                }
+                            } finally {
+                                stored?.close()
+                            }
+                            snapshot = result?.snapshot
+                            if (result != null) {
+                                if (!result.refreshed) MapRebuild.builtInPage()
+                                else if (result.stale || result.changedSinceFull > 0) MapRebuild.requested(result.stale, epochMillis())
+                            }
+                            result?.points
                         } else {
                             LibraryLayout.compute(
-                                rows, previous.positions, isActive = { isActive },
+                                rows!!, previous.positions, isActive = { isActive },
                                 workBudgetBytes = workBudget,
                             )
                         }
@@ -174,6 +210,14 @@ internal fun rememberMapPageModel(
                         } else {
                             kotlinx.coroutines.currentCoroutineContext().ensureActive()
                             layoutStore.saveMapLayoutBestEffort(computed, coverage.fingerprint)
+                            if (refreshOn) {
+                                // Written after the layout it describes; a missing or failed write only means
+                                // the next change rebuilds.
+                                runCatching {
+                                    val store = AppGraph.mapRefreshStateStore
+                                    if (snapshot != null) store.save(snapshot!!) else store.clear()
+                                }
+                            }
                             StoredLibraryLayout(
                                 computed.associate { it.trackId to floatArrayOf(it.x, it.y) },
                                 coverage.fingerprint,
@@ -184,6 +228,7 @@ internal fun rememberMapPageModel(
                     // ends (this effect re-runs on that) the Map is drawn from the final vectors.
                     reuseRecentFor = if (libraryWorlds.audioVectorsReady) Duration.ZERO else MAP_LAYOUT_REUSE,
                     source = coverage.source,
+                    revision = rebuildRevision,
                 ) ?: return@withLock null
                 mapPageCache.page(
                     layout = layout,

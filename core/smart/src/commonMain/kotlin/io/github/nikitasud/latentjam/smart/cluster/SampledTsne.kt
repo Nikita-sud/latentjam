@@ -55,6 +55,8 @@ internal object SampledTsne {
         sample: IntArray?,
         components: Int,
         seed: Int,
+        /** Collects the mean, the basis and the raw rows' hashes for the Map's refresh state. */
+        capture: ReductionCapture? = null,
         isActive: () -> Boolean,
     ): FloatArray? {
         val row = FloatArray(dim)
@@ -66,12 +68,17 @@ internal object SampledTsne {
             for (d in 0 until dim) mean[d] += row[d]
         }
         for (d in 0 until dim) mean[d] /= n
+        val hashes = capture?.let { LongArray(n) }
         val prepared: suspend (Int, FloatArray) -> Unit = { i, out ->
             source.read(i, out)
+            // Every pass overwrites, so the hash kept is the final projection pass's raw row.
+            if (hashes != null) hashes[i] = MapRefreshRows.hash(out, dim)
             centerAndUnitize(out, mean, dim)
         }
         if (sample == null) {
-            val out = Pca.reduceStreamed(prepared, n, dim, components, seed, isActive) ?: return null
+            val out = Pca.reduceStreamed(prepared, n, dim, components, seed, isActive, basisOut = capture?.let { c -> { c.basis = it } })
+                ?: return null
+            if (capture != null) { capture.mean = mean; capture.hashes = hashes }
             val k = out.size / n
             for (i in 0 until n) unitize(out, i * k, k)
             return out
@@ -285,12 +292,12 @@ internal object SampledTsne {
         for (m in 0 until k) out[m] /= total
     }
 
-    private fun centerAndUnitize(row: FloatArray, mean: FloatArray, dim: Int) {
+    internal fun centerAndUnitize(row: FloatArray, mean: FloatArray, dim: Int) {
         for (d in 0 until dim) row[d] -= mean[d]
         unitize(row, 0, dim)
     }
 
-    private fun unitize(values: FloatArray, offset: Int, dim: Int) {
+    internal fun unitize(values: FloatArray, offset: Int, dim: Int) {
         var norm = 0f
         for (d in 0 until dim) norm += values[offset + d] * values[offset + d]
         norm = sqrt(norm)

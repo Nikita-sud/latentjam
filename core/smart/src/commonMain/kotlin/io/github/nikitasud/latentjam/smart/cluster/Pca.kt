@@ -96,6 +96,8 @@ internal object Pca {
         components: Int,
         seed: Int,
         isActive: () -> Boolean = { true },
+        /** Receives the final `dim x k` basis (the Map's refresh state keeps it). */
+        basisOut: ((FloatArray) -> Unit)? = null,
     ): FloatArray? {
         require(n > 0 && dim > 0) { "Empty matrix has no principal components" }
         val k = components.coerceAtMost(dim).coerceAtMost(n)
@@ -118,6 +120,7 @@ internal object Pca {
             basis = next
             orthonormalize(basis, dim, k)
         }
+        basisOut?.invoke(basis)
         val out = FloatArray(n * k)
         for (i in 0 until n) {
             if (i % ROW_POLL == 0 && !isActive()) return null

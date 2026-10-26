@@ -980,7 +980,8 @@ private fun AppShell(
         // already indexed or remembered as an unchanged decode failure, so a permanently bad file
         // cannot wake tens of MB of model state on every launch.
         val forYouPage = remember { ForYouPageState() }
-        val libraryWorlds = remember { LibraryWorldsState() }
+        // Process-wide since the region service moved out of composition (plan piece 3a).
+        val libraryWorlds = remember { LibraryRegionsService.state }
         val discoveryMixLabel = stringResource(Res.string.foryou_mix_discovery)
         val memeViralMixLabel = stringResource(Res.string.foryou_mix_meme_viral)
         val soundEffectsMixLabel = stringResource(Res.string.foryou_mix_sound_effects)
@@ -1284,108 +1285,15 @@ private fun AppShell(
                 .collect { (metadataReady, audioReady) ->
                     if (!metadataReady && !audioReady) return@collect
                     try {
-                        mapWorkGate.withLock {
-                        // Check raw-vector identity without allocating the fused matrix on a warm
-                        // page return. A changed vector, tag, playlist, preference or readiness tier
-                        // still invalidates discovery, even if the library population is unchanged.
-                        val coverage = engine.libraryMixCoverage(loadedIds) ?: return@collect
-                        val descriptorIdentity = loaded.map(TrackDescriptor::worldIdentity)
-                        val cachedKey = libraryWorlds.builtWorldsKey
-                        if (
-                            cachedKey != null &&
-                            libraryWorlds.builtWorldNoveltyPreference == includeNoveltyMixes &&
-                            libraryWorlds.builtWorldReadiness == (metadataReady to audioReady) &&
-                            cachedKey.playlistIdentity == playlistPresentationIdentity &&
-                            cachedKey.discovery.trackIds == loadedIds &&
-                            cachedKey.discovery.source == coverage.source &&
-                            cachedKey.discovery.vectorFingerprint == coverage.fingerprint &&
-                            cachedKey.discovery.descriptorIdentity == descriptorIdentity
-                        ) {
-                            // A refused newer population must not hide reusable regions if the
-                            // library returns to this cached population. Projection checks its own budget.
-                            libraryWorlds.memoryLimited = false
-                            return@collect
-                        }
-                        // Measured on the map lane, where a short reading may collect garbage first.
-                        libraryWorlds.memoryLimited = withContext(AppGraph.mapLayoutDispatcher) {
-                            !mapWorkFits(4L * coverage.size * 1344 + 8L * 1024 * 1024)
-                        }
-                        if (libraryWorlds.memoryLimited) return@collect
-                        val features = engine.libraryMixFeatures(
-                            ids = loadedIds,
-                            // This preference is the listener's explicit request for semantic novelty
-                            // and effect routing, so loading the shared model here is useful work. The
-                            // default path keeps restored/failed-only libraries completely lazy.
-                            loadMissingSemantics = includeNoveltyMixes,
-                        ) ?: return@collect
-                        val discoveryKey = LibraryWorldDiscoveryKey(
-                            trackIds = loadedIds,
-                            source = features.vectorSpace.source,
-                            vectorFingerprint = features.vectorSpace.fingerprint,
-                            descriptorIdentity = descriptorIdentity,
-                            semanticsCount = features.semantics.size,
+                        LibraryRegionsService.refresh(
+                            engine = engine,
+                            loaded = loaded,
+                            playlistGroups = { playlistsState.playlists.map { playlist -> playlist.name to playlist.trackIds.map(::TrackId) } },
+                            playlistPresentationIdentity = playlistPresentationIdentity,
+                            includeNoveltyMixes = includeNoveltyMixes,
+                            metadataReady = metadataReady,
+                            audioReady = audioReady,
                         )
-                        val worldsKey = LibraryWorldsKey(
-                            discovery = discoveryKey,
-                            playlistIdentity = playlistPresentationIdentity,
-                        )
-                        if (worldsKey == libraryWorlds.builtWorldsKey) {
-                            libraryWorlds.builtWorldNoveltyPreference = includeNoveltyMixes
-                            libraryWorlds.builtWorldReadiness = metadataReady to audioReady
-                            return@collect
-                        }
-                        // Snapshot for the background pass; a world mostly inside one named group
-                        // takes that group's name. Playlists come first — the listener's own word
-                        // outranks the artist's on a tie — then real (multi-track, one artist's)
-                        // albums, whose titles are the artist's own curation.
-                        val playlistGroups = playlistsState.playlists.map { playlist ->
-                            playlist.name to playlist.trackIds.map(::TrackId)
-                        }
-                        val cachedDiscovery = libraryWorlds.builtDiscoveredWorlds
-                            ?.takeIf { libraryWorlds.builtWorldDiscoveryKey == discoveryKey }
-                        // Discovery is derived library work, not an interaction prerequisite. Keep it
-                        // on the Map's low-priority serial lane so a cold restore cannot make an
-                        // immediately opened page compete with clustering at normal CPU priority.
-                        val discovered = cachedDiscovery ?: withContext(AppGraph.mapLayoutDispatcher) {
-                            val started = TimeSource.Monotonic.markNow()
-                            LibraryWorlds.discover(
-                                library = loaded,
-                                vectorSpace = features.vectorSpace,
-                                semantics = features.semantics,
-                                isActive = { isActive },
-                                // Discovery takes seconds; one collection first keeps released
-                                // matrices from pushing a large library onto the k-means fallback.
-                                workBudgetBytes = collectMapGarbage().let { availableMapWorkBytes() },
-                            ).also { mixes ->
-                                val routed = mixes.groupingBy { it.content }.eachCount()
-                                println(
-                                    "SMART: built ${mixes.size} ${features.vectorSpace.source} " +
-                                        "local mixes (semantic=${features.semantics.size}, " +
-                                        "routes=$routed) in " +
-                                        "${started.elapsedNow().inWholeMilliseconds} ms",
-                                )
-                            }
-                        }
-                        val namedWorlds = withContext(AppGraph.mapLayoutDispatcher) {
-                            // Counted over the tracks that exist (a playlist keeps the ids of
-                            // deleted files) and over real albums only; the map replay builds the
-                            // same groups the same way.
-                            val naming = WorldNamingGroups.of(
-                                library = loadedIds.toHashSet(),
-                                playlists = playlistGroups,
-                                albums = LibraryCatalog.build(loaded).albums.map { it.title to it.tracks },
-                            )
-                            LibraryWorlds.namedAfterGroups(discovered, naming)
-                        }
-                        libraryWorlds.worldLibraryIds = loadedIds
-                        libraryWorlds.worlds = namedWorlds
-                        libraryWorlds.builtWorldDiscoveryKey = discoveryKey
-                        libraryWorlds.builtDiscoveredWorlds = discovered
-                        libraryWorlds.builtWorldsKey = worldsKey
-                        libraryWorlds.builtWorldNoveltyPreference = includeNoveltyMixes
-                        libraryWorlds.builtWorldReadiness = metadataReady to audioReady
-                        libraryWorlds.discoveryFailed = false
-                        }
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (failure: Throwable) {
@@ -2877,6 +2785,7 @@ private fun AppShell(
                                                 }
                                             },
                                         )
+                                        MapStaleMarker(Modifier.align(Alignment.TopEnd).padding(listPadding))
                                         }
                                         }
 

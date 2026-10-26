@@ -60,7 +60,19 @@ android {
         }
     }
 
+    // The map refresh test build's debug switch (buildTypes.debug).
+    buildFeatures { resValues = true }
+
     buildTypes {
+        debug {
+            // `-Platentjam.mapRefreshTestBuild=true`: a debug test build with the Map refresh (and region
+            // identity, which follows it) on from the first launch. The app reads it only when debuggable.
+            resValue(
+                "bool",
+                "map_refresh_test_build",
+                (providers.gradleProperty("latentjam.mapRefreshTestBuild").orNull == "true").toString(),
+            )
+        }
         release {
             // Compose, Media3 and the local model pipeline all benefit from ahead-of-time R8
             // optimization. Debug remains intentionally untouched for useful stack traces.

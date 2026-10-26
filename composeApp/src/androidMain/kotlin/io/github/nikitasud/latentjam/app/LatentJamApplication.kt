@@ -10,6 +10,8 @@ import android.content.res.Configuration
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
+import io.github.nikitasud.latentjam.history.epochMillis
+import kotlinx.coroutines.launch
 import org.koin.dsl.module
 
 /** Process entry point shared by the UI, playback service, widgets, and Android Auto. */
@@ -34,6 +36,9 @@ public class LatentJamApplication : Application(), SingletonImageLoader.Factory 
         // Covers configuration changes made while this process was stopped. With no installed
         // widgets the coordinator returns before scheduling work or decoding artwork.
         refreshPlaybackWidgets(this)
+        scheduleMapRebuildIfRequested(this)
+        // A reboot drops queued work; the stored state says whether a Map rebuild is still owed.
+        AppGraph.appScope.launch { MapRebuild.resumePending(epochMillis()) }
     }
 
     /** Coil's defaults, plus a song's own cover falling back to its album's ([TrackCoverFetcher]). */

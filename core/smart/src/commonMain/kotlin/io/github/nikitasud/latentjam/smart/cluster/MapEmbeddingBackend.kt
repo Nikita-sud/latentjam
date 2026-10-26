@@ -5,7 +5,8 @@
 package io.github.nikitasud.latentjam.smart.cluster
 
 internal sealed interface MapEmbeddingResult {
-    class Complete(val coordinates: FloatArray) : MapEmbeddingResult
+    /** [neighbours]: the 60-NN lists behind the coordinates, when the backend has them (Kotlin Barnes-Hut). */
+    class Complete(val coordinates: FloatArray, val neighbours: BarnesHutTsne.Neighbours? = null) : MapEmbeddingResult
     data object Cancelled : MapEmbeddingResult
     class Failed(val reason: String) : MapEmbeddingResult
 }
@@ -31,10 +32,11 @@ internal object ExactMapEmbedding : MapEmbeddingBackend {
 internal object ApproximateMapEmbedding : MapEmbeddingBackend {
     override fun embed(rows: FloatArray, n: Int, dim: Int, initial: FloatArray?, isActive: () -> Boolean): MapEmbeddingResult {
         if (!isActive()) return MapEmbeddingResult.Cancelled
-        val result = BarnesHutTsne.embed(rows, n, dim, 0x1A7E27, initial, isActive)
+        val embedding = BarnesHutTsne.embedWithNeighbours(rows, n, dim, 0x1A7E27, initial, isActive)
+        val result = embedding.coordinates
         return when {
             !isActive() -> MapEmbeddingResult.Cancelled
-            result.all(Float::isFinite) -> MapEmbeddingResult.Complete(result)
+            result.all(Float::isFinite) -> MapEmbeddingResult.Complete(result, embedding.neighbours)
             else -> MapEmbeddingResult.Failed("Non-finite coordinates")
         }
     }

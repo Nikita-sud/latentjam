@@ -27,6 +27,8 @@ internal class MapPageCache(private val timeSource: TimeSource = TimeSource.Mono
     /** When [stored] was last computed here, and from which vectors; null when it came from disk. */
     private var computedAt: TimeMark? = null
     private var computedSource: Any? = null
+    /** The [MapRebuild.revision] [stored] belongs to; a newer one means disk holds a newer layout. */
+    private var storedRevision: Long = 0L
     private var pageKey: PageKey? = null
     private var cachedPage: MapPage? = null
 
@@ -44,17 +46,21 @@ internal class MapPageCache(private val timeSource: TimeSource = TimeSource.Mono
         reuseRecentFor: Duration = Duration.ZERO,
         /** The vectors the layout is drawn from; a layout from another source is never reused. */
         source: Any? = null,
+        /** [MapRebuild.revision]: a background rebuild wrote the disk layout, so memory is not reused. */
+        revision: Long = 0L,
     ): StoredLibraryLayout? = mutex.withLock {
         fun StoredLibraryLayout.matches() = this.fingerprint == fingerprint &&
             LibraryLayout.covers(positions, trackIds)
-        stored?.takeIf { it.matches() }?.let { return@withLock it }
-        val recent = computedAt?.let { it.elapsedNow() < reuseRecentFor } == true && computedSource == source
+        val current = storedRevision == revision
+        stored?.takeIf { current && it.matches() }?.let { return@withLock it }
+        val recent = current && computedAt?.let { it.elapsedNow() < reuseRecentFor } == true && computedSource == source
         stored?.takeIf { recent && it.positions.size == trackIds.size && LibraryLayout.covers(it.positions, trackIds) }
             ?.let { return@withLock it }
         val disk = load()
         currentCoroutineContext().ensureActive()
         if (disk.matches()) {
             stored = disk
+            storedRevision = revision
             computedAt = null
             return@withLock disk
         }
@@ -64,6 +70,7 @@ internal class MapPageCache(private val timeSource: TimeSource = TimeSource.Mono
         currentCoroutineContext().ensureActive()
         if (!built.matches()) return@withLock null
         stored = built
+        storedRevision = revision
         computedAt = timeSource.markNow()
         computedSource = source
         built

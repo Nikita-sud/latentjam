@@ -86,6 +86,13 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
+		<string>processing</string>
+	</array>
+
+	<!-- The Map's deferred rebuild on external power (BGProcessingTask); see MapRebuild.ios.kt. -->
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>io.github.nikitasud.latentjam.map-rebuild</string>
 	</array>
 </dict>
 </plist>

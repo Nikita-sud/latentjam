@@ -388,6 +388,14 @@ object AppGraph {
     val layoutStore: IndexStore
         get() = koin.get(smartLayoutQualifier)
 
+    /** The Map's refresh state (docs/map-cost-research-2026-10-25.md, piece 0), beside [layoutStore]. */
+    val mapRefreshStateStore: io.github.nikitasud.latentjam.smart.cluster.MapRefreshStateStore
+        get() = koin.get()
+
+    /** The regions' identity between rebuilds (plan piece 4), beside [mapRefreshStateStore]. */
+    val regionIdentityStore: io.github.nikitasud.latentjam.smart.cluster.RegionIdentityStore
+        get() = koin.get()
+
     /** Dedicated low-priority serial lane for the Map's potentially minute-long O(n²) layout. */
     val mapLayoutDispatcher: CoroutineDispatcher
         get() = koin.get(smartMapLayoutDispatcherQualifier)

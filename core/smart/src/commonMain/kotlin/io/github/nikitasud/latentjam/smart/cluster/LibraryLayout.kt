@@ -219,17 +219,26 @@ public object LibraryLayout {
         onPhase: (String) -> Unit = {},
         keepsPopulation: suspend () -> Boolean = { true },
         backend: MapEmbeddingBackend = backendFor(ids.size),
+        /** When set, collects what the Map's refresh state needs (mean, basis, hashes, lists, raw spread). */
+        capture: ReductionCapture? = null,
     ): List<LayoutPoint>? {
         val n = ids.size
         if (n < 3) return ids.map { id -> LayoutPoint(id, 0.5f, 0.5f) }
         if (!isActive()) throw kotlinx.coroutines.CancellationException("Map cancelled before PCA")
-        val reduced = SampledTsne.reduce(source, n, dim, null, COMPONENTS, SEED, isActive)
+        val reduced = SampledTsne.reduce(source, n, dim, null, COMPONENTS, SEED, capture, isActive)
             ?: throw kotlinx.coroutines.CancellationException("Map cancelled during PCA")
         onPhase("reduced")
         if (!keepsPopulation()) return null
         val warm = warmStart(ids, previous, n)
         var embedded = when (val result = backend.embed(reduced, n, reduced.size / n, warm, isActive)) {
-            is MapEmbeddingResult.Complete -> result.coordinates
+            is MapEmbeddingResult.Complete -> {
+                if (capture != null) {
+                    capture.reduced = reduced
+                    capture.neighbours = result.neighbours
+                    capture.rawSpread = MapRefreshRows.spread(result.coordinates)
+                }
+                result.coordinates
+            }
             MapEmbeddingResult.Cancelled -> throw kotlinx.coroutines.CancellationException("Map cancelled")
             is MapEmbeddingResult.Failed -> throw MapComputationUnavailable(result.reason)
         }
@@ -260,7 +269,7 @@ public object LibraryLayout {
         val n = ids.size
         if (n < 3) return ids.map { id -> LayoutPoint(id, 0.5f, 0.5f) }
         val sample = SampledTsne.sampleRows(ids, sampleSize)
-        val reduced = SampledTsne.reduce(source, n, dim, sample.takeIf { samplePca }, COMPONENTS, SEED, isActive)
+        val reduced = SampledTsne.reduce(source, n, dim, sample.takeIf { samplePca }, COMPONENTS, SEED, isActive = isActive)
             ?: throw kotlinx.coroutines.CancellationException("Map cancelled during PCA")
         onPhase("reduced")
         val reducedDim = reduced.size / n
