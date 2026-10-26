@@ -10,6 +10,7 @@ import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -854,30 +855,38 @@ internal class IosPlaybackController(
                 if (overlap?.let { it.started && repeat != RepeatMode.ONE } == true && promoteOverlap(StartCause.SKIP_NEXT)) {
                     return@runChange
                 }
-                if (queueIndex in 0 until queue.lastIndex) {
-                    advance(StartCause.SKIP_NEXT)
-                    mainScope.launch { appendSmartNextIfNeeded() }
-                } else {
-                    pendingAdvance.afterPlanning(plan = ::appendSmartNextIfNeeded) { advance(StartCause.SKIP_NEXT) }
-                }
+                skipToNext()
             }
             return@withContext
         }
         if (queueIndex in 0 until queue.lastIndex) {
             // Planning may suspend on inference or another append. A known successor can sound
             // immediately; replenish its future after the skip, matching the Android transport.
-            runChange(ManualChange.TRACK) {
-                if (queueIndex in 0 until queue.lastIndex) {
-                    advance(StartCause.SKIP_NEXT)
-                    mainScope.launch { appendSmartNextIfNeeded() }
-                }
-            }
+            runChange(ManualChange.TRACK) { skipToNext() }
         } else {
             // The next row is still being planned: the music plays on meanwhile, not a silence —
             // a change still waiting runs and its sound comes back, rather than held for an arrival
             // the load that follows would never bring.
             changeFades.settle()
             pendingAdvance.afterPlanning(plan = ::appendSmartNextIfNeeded) { advance(StartCause.SKIP_NEXT) }
+        }
+    }
+
+    /**
+     * A Next queued behind a change decides here, when it runs, not at the press: the change before
+     * it (a pick of the last row, an earlier Next) may have reached the tail, and then this Next
+     * waits for planning or wraps like an immediate one. Launched, not awaited, so the change's
+     * fade-in does not wait on planning; undispatched, so the fence's revision is taken now and a
+     * transport action after this drain still supersedes it.
+     */
+    private fun skipToNext() {
+        if (queueIndex in 0 until queue.lastIndex) {
+            advance(StartCause.SKIP_NEXT)
+            mainScope.launch { appendSmartNextIfNeeded() }
+        } else {
+            mainScope.launch(start = CoroutineStart.UNDISPATCHED) {
+                pendingAdvance.afterPlanning(plan = ::appendSmartNextIfNeeded) { advance(StartCause.SKIP_NEXT) }
+            }
         }
     }
 
@@ -939,12 +948,21 @@ internal class IosPlaybackController(
      */
     private var autoAdvancedDuringChange = false
 
+    /**
+     * The system paused (route gone, interruption) while a change waited for its silence: a picked
+     * row then loads paused instead of starting again on the speaker or against the call.
+     */
+    private var systemPausedDuringChange = false
+
     private suspend fun runChange(
         change: ManualChange,
         survivesAutoAdvance: Boolean = false,
         action: suspend () -> Unit,
     ) {
-        if (!changeFades.pending) autoAdvancedDuringChange = false
+        if (!changeFades.pending) {
+            autoAdvancedDuringChange = false
+            systemPausedDuringChange = false
+        }
         changeFades.run(change) { if (survivesAutoAdvance || !autoAdvancedDuringChange) action() }
     }
 
@@ -956,7 +974,7 @@ internal class IosPlaybackController(
         val loaded = loadPlayableFrom(
             startIndex = queueIndex,
             direction = 1,
-            autoPlay = true,
+            autoPlay = !systemPausedDuringChange,
             wrap = false,
         )
         if (loaded) {
@@ -1818,6 +1836,7 @@ internal class IosPlaybackController(
 
     /** Reflect a system-initiated stop and make sure the lock screen agrees. */
     private fun pauseFromSystem(deactivateSession: Boolean = true) {
+        if (changeFades.pending) systemPausedDuringChange = true
         pauseActiveBackend()
         playing = false
         if (deactivateSession) deactivateAudioSession()
