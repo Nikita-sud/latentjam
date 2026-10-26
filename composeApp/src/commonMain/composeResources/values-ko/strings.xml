@@ -565,6 +565,8 @@
     <string name="intelligence_problems">분석 문제</string>
     <string name="intelligence_problems_body">SMART가 분석하지 못한 트랙입니다. 음악은 계속 재생할 수 있습니다.</string>
     <string name="intelligence_no_problems">분석 문제 없음</string>
+    <string name="intelligence_analysis_stalled_track">분석이 %2$d분째 “%1$s”에서 멈춰 있습니다</string>
+    <string name="intelligence_analysis_stalled">분석이 %1$d분째 진행되지 않습니다</string>
     <string name="intelligence_manage_exclusions">추천 제외</string>
     <string name="intelligence_manage_exclusions_body">SMART가 추천하지 않을 트랙과 아티스트</string>
     <string name="intelligence_exclusions_empty">추천 제외 없음</string>

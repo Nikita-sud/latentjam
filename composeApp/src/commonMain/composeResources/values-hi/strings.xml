@@ -587,6 +587,8 @@
     <string name="intelligence_problems">विश्लेषण की समस्याएँ</string>
     <string name="intelligence_problems_body">वे ट्रैक जिनका SMART विश्लेषण नहीं कर सका। आपका संगीत फिर भी चलाया जा सकता है।</string>
     <string name="intelligence_no_problems">विश्लेषण में कोई समस्या नहीं</string>
+    <string name="intelligence_analysis_stalled_track">विश्लेषण %2$d मिनट से “%1$s” पर रुका है</string>
+    <string name="intelligence_analysis_stalled">विश्लेषण %1$d मिनट से आगे नहीं बढ़ा</string>
     <string name="intelligence_manage_exclusions">सुझावों से बाहर रखे गए आइटम</string>
     <string name="intelligence_manage_exclusions_body">वे ट्रैक और कलाकार जिनका SMART कभी सुझाव न दे</string>
     <string name="intelligence_exclusions_empty">सुझावों से कुछ भी बाहर नहीं है</string>

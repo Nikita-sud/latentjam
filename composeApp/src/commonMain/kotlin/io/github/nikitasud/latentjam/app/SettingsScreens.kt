@@ -652,6 +652,7 @@ internal fun SettingsScreen(
                         onOpen = { open(SettingsPage.INTELLIGENCE, it) },
                     )
                     SettingsPage.INTELLIGENCE_PROBLEMS -> IntelligenceProblemsSettings(
+                        engine = engine,
                         tracks = tracks,
                         libraryLoading = libraryLoading,
                         onRetryIndexing = onRetryIndexing,
@@ -1922,6 +1923,7 @@ private fun IntelligenceSettings(
         emptyMap()
     }
     val done = if (indexingMatchesLibrary) indexing.done.coerceIn(0, tracks.size) else 0
+    val stall = rememberAnalysisStall(engine, indexing)
     // The request belongs to this composition; restoring its old busy flag cannot restore its job.
     var rebuilding by remember { mutableStateOf(false) }
     var confirmRebuild by rememberSaveable { mutableStateOf(false) }
@@ -1980,6 +1982,14 @@ private fun IntelligenceSettings(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
                     )
+                    if (stall != null) {
+                        Text(
+                            text = analysisStallText(stall, tracks),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                        )
+                    }
                 }
                 val needsRecovery = !libraryLoading && (
                     state is EngineState.Uninitialized ||
@@ -2089,7 +2099,9 @@ private fun IntelligenceSettings(
             SettingsSection(title = null) {
                 SettingsRow(
                     title = stringResource(Res.string.intelligence_problems),
-                    subtitle = if (failures.isEmpty()) {
+                    subtitle = if (failures.isEmpty() && stall != null) {
+                        analysisStallText(stall, tracks)
+                    } else if (failures.isEmpty()) {
                         stringResource(Res.string.intelligence_no_problems)
                     } else {
                         stringResource(Res.string.intelligence_analysis_failed, failures.size)
@@ -2161,6 +2173,7 @@ private fun actionableIndexingFailures(
 
 @Composable
 private fun IntelligenceProblemsSettings(
+    engine: SimilarityEngine,
     tracks: List<TrackDescriptor>,
     libraryLoading: Boolean,
     onRetryIndexing: () -> Unit,
@@ -2180,6 +2193,7 @@ private fun IntelligenceProblemsSettings(
     }
     val failureEntries = remember(failures) { failures.entries.toList() }
     val byId = remember(tracks) { tracks.associateBy(TrackDescriptor::id) }
+    val stall = rememberAnalysisStall(engine, indexing)
     var removing by remember { mutableStateOf<TrackId?>(null) }
     val manageFailed = stringResource(Res.string.settings_library_manage_failed)
     val removedMessage = stringResource(Res.string.snack_removed_from_latentjam)
@@ -2191,6 +2205,8 @@ private fun IntelligenceProblemsSettings(
         item {
             SettingsSection(stringResource(Res.string.intelligence_problems)) {
                 SettingsBody(stringResource(Res.string.intelligence_problems_body))
+                // Issue #27: never a frozen bar alone; say what analysis has been waiting on.
+                if (stall != null) SettingsBody(analysisStallText(stall, tracks))
                 if (libraryLoading || (indexing.running && failures.isEmpty())) {
                     AppLinearProgress(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),

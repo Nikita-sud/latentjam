@@ -594,6 +594,8 @@
     <string name="intelligence_problems">Problemi di analisi</string>
     <string name="intelligence_problems_body">Brani che SMART non ha potuto analizzare. La musica resta riproducibile.</string>
     <string name="intelligence_no_problems">Nessun problema di analisi</string>
+    <string name="intelligence_analysis_stalled_track">L’analisi è ferma su “%1$s” da %2$d min</string>
+    <string name="intelligence_analysis_stalled">L’analisi non avanza da %1$d min</string>
     <string name="intelligence_manage_exclusions">Esclusioni dai consigli</string>
     <string name="intelligence_manage_exclusions_body">Brani e artisti che SMART non deve mai consigliare</string>
     <string name="intelligence_exclusions_empty">Nessuna esclusione dai consigli</string>

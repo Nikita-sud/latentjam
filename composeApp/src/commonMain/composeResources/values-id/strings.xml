@@ -571,6 +571,8 @@
     <string name="intelligence_problems">Masalah analisis</string>
     <string name="intelligence_problems_body">Trek yang tidak dapat dianalisis SMART. Musik Anda tetap dapat diputar.</string>
     <string name="intelligence_no_problems">Tidak ada masalah analisis</string>
+    <string name="intelligence_analysis_stalled_track">Analisis menunggu “%1$s” selama %2$d mnt</string>
+    <string name="intelligence_analysis_stalled">Analisis tidak berjalan selama %1$d mnt</string>
     <string name="intelligence_manage_exclusions">Pengecualian rekomendasi</string>
     <string name="intelligence_manage_exclusions_body">Trek dan artis yang tidak boleh direkomendasikan SMART</string>
     <string name="intelligence_exclusions_empty">Tidak ada pengecualian rekomendasi</string>

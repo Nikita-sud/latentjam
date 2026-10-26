@@ -615,6 +615,8 @@
     <string name="intelligence_problems">בעיות ניתוח</string>
     <string name="intelligence_problems_body">שירים ש־SMART לא הצליח לנתח. המוזיקה שלך עדיין ניתנת להשמעה.</string>
     <string name="intelligence_no_problems">אין בעיות ניתוח</string>
+    <string name="intelligence_analysis_stalled_track">הניתוח ממתין ל„%1$s” כבר %2$d דק׳</string>
+    <string name="intelligence_analysis_stalled">הניתוח לא התקדם כבר %1$d דק׳</string>
     <string name="intelligence_manage_exclusions">החרגות מהמלצות</string>
     <string name="intelligence_manage_exclusions_body">שירים ואמנים ש־SMART לעולם לא ימליץ עליהם</string>
     <string name="intelligence_exclusions_empty">אין החרגות מהמלצות</string>

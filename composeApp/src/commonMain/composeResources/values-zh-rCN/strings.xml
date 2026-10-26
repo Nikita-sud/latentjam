@@ -565,6 +565,8 @@
     <string name="intelligence_problems">分析问题</string>
     <string name="intelligence_problems_body">SMART 无法分析的曲目。音乐仍可正常播放。</string>
     <string name="intelligence_no_problems">没有分析问题</string>
+    <string name="intelligence_analysis_stalled_track">分析已在“%1$s”上等待 %2$d 分钟</string>
+    <string name="intelligence_analysis_stalled">分析已 %1$d 分钟没有进展</string>
     <string name="intelligence_manage_exclusions">推荐排除项</string>
     <string name="intelligence_manage_exclusions_body">SMART 永不推荐的曲目和艺人</string>
     <string name="intelligence_exclusions_empty">没有推荐排除项</string>

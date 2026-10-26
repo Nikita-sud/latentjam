@@ -687,6 +687,8 @@
     <string name="intelligence_problems">مشكلات التحليل</string>
     <string name="intelligence_problems_body">مقاطع تعذر على SMART تحليلها. تظل موسيقاك قابلة للتشغيل.</string>
     <string name="intelligence_no_problems">لا توجد مشكلات في التحليل</string>
+    <string name="intelligence_analysis_stalled_track">التحليل ينتظر «%1$s» منذ %2$d دقيقة</string>
+    <string name="intelligence_analysis_stalled">لم يتقدم التحليل منذ %1$d دقيقة</string>
     <string name="intelligence_manage_exclusions">استثناءات التوصيات</string>
     <string name="intelligence_manage_exclusions_body">المقاطع والفنانون الذين يجب ألا يقترحهم SMART مطلقًا</string>
     <string name="intelligence_exclusions_empty">لا توجد استثناءات من التوصيات</string>

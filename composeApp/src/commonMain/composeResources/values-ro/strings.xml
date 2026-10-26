@@ -601,6 +601,8 @@
     <string name="intelligence_problems">Probleme de analiză</string>
     <string name="intelligence_problems_body">Piese pe care SMART nu le-a putut analiza. Muzica rămâne redabilă.</string>
     <string name="intelligence_no_problems">Nu există probleme de analiză</string>
+    <string name="intelligence_analysis_stalled_track">Analiza așteaptă „%1$s” de %2$d min</string>
+    <string name="intelligence_analysis_stalled">Analiza nu a mai avansat de %1$d min</string>
     <string name="intelligence_manage_exclusions">Excluderi din recomandări</string>
     <string name="intelligence_manage_exclusions_body">Piese și artiști pe care SMART nu trebuie să îi recomande niciodată</string>
     <string name="intelligence_exclusions_empty">Nu există excluderi din recomandări</string>

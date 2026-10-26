@@ -637,6 +637,8 @@
     <string name="intelligence_problems">Проблеми аналізу</string>
     <string name="intelligence_problems_body">Треки, які SMART не вдалося проаналізувати. Музику й надалі можна відтворювати.</string>
     <string name="intelligence_no_problems">Проблем аналізу немає</string>
+    <string name="intelligence_analysis_stalled_track">Аналіз чекає на «%1$s» уже %2$d хв</string>
+    <string name="intelligence_analysis_stalled">Аналіз не просувається вже %1$d хв</string>
     <string name="intelligence_manage_exclusions">Винятки з рекомендацій</string>
     <string name="intelligence_manage_exclusions_body">Треки та виконавці, яких SMART ніколи не має рекомендувати</string>
     <string name="intelligence_exclusions_empty">Винятків з рекомендацій немає</string>

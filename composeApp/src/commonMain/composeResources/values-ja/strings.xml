@@ -565,6 +565,8 @@
     <string name="intelligence_problems">解析の問題</string>
     <string name="intelligence_problems_body">SMART が解析できなかった曲です。音楽は引き続き再生できます。</string>
     <string name="intelligence_no_problems">解析の問題はありません</string>
+    <string name="intelligence_analysis_stalled_track">解析が「%1$s」で%2$d分止まっています</string>
+    <string name="intelligence_analysis_stalled">解析が%1$d分進んでいません</string>
     <string name="intelligence_manage_exclusions">おすすめからの除外</string>
     <string name="intelligence_manage_exclusions_body">SMART がおすすめしない曲とアーティスト</string>
     <string name="intelligence_exclusions_empty">おすすめからの除外はありません</string>

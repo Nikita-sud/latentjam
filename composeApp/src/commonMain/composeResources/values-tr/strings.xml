@@ -587,6 +587,8 @@
     <string name="intelligence_problems">Analiz sorunları</string>
     <string name="intelligence_problems_body">SMART’ın analiz edemediği parçalar. Müziğiniz oynatılabilir durumda kalır.</string>
     <string name="intelligence_no_problems">Analiz sorunu yok</string>
+    <string name="intelligence_analysis_stalled_track">Analiz %2$d dk’dır “%1$s” parçasını bekliyor</string>
+    <string name="intelligence_analysis_stalled">Analiz %1$d dk’dır ilerlemiyor</string>
     <string name="intelligence_manage_exclusions">Öneri hariç tutmaları</string>
     <string name="intelligence_manage_exclusions_body">SMART’ın hiçbir zaman önermemesi gereken parçalar ve sanatçılar</string>
     <string name="intelligence_exclusions_empty">Öneri hariç tutması yok</string>

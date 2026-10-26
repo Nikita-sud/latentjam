@@ -599,6 +599,8 @@
     <string name="intelligence_problems">Problèmes d’analyse</string>
     <string name="intelligence_problems_body">Morceaux que SMART n’a pas pu analyser. Votre musique reste lisible.</string>
     <string name="intelligence_no_problems">Aucun problème d’analyse</string>
+    <string name="intelligence_analysis_stalled_track">L’analyse attend « %1$s » depuis %2$d min</string>
+    <string name="intelligence_analysis_stalled">L’analyse n’avance plus depuis %1$d min</string>
     <string name="intelligence_manage_exclusions">Exclusions des recommandations</string>
     <string name="intelligence_manage_exclusions_body">Morceaux et artistes que SMART ne doit jamais recommander</string>
     <string name="intelligence_exclusions_empty">Aucune exclusion de recommandation</string>

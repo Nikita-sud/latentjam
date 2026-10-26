@@ -38,6 +38,7 @@ import io.github.nikitasud.latentjam.smart.smartChainInputsModule
 import io.github.nikitasud.latentjam.smart.smartEngineBackendModule
 import io.github.nikitasud.latentjam.smart.text.smartTextEncoderModule
 import io.github.nikitasud.latentjam.smart.text.MusicEntityResolver
+import kotlin.time.TimeSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CancellationException
@@ -627,6 +628,9 @@ object AppGraph {
                 )
 
                 var visited = 0
+                mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
+                    progressAt = TimeSource.Monotonic.markNow(),
+                )
                 // Spread over the library rather than in title order, so the SMART pool is
                 // representative long before a big library finishes (see analysisOrder).
                 analysisOrder(tracks).chunked(AUTOMATIC_INDEX_CHUNK_SIZE).forEach { chunk ->
@@ -654,6 +658,7 @@ object AppGraph {
                         done = progress.analysed,
                         failures = failures.toMap(),
                         etaMinutes = remaining?.let(IndexingEta::minutesFrom),
+                        progressAt = TimeSource.Monotonic.markNow(),
                     )
                     // A short scheduling gap also gives thermal management a chance to settle;
                     // 75 ms per model batch is invisible beside audio inference but materially
@@ -664,6 +669,7 @@ object AppGraph {
                 }
                 // Completion is published only after the short final checkpoint is durable.
                 checkpointCadence.flush(engine::persistPendingAnalysis)
+                mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(progressAt = null)
                 // PLAN_AUDIO_ON §8.8: e for every indexed track that lacks it — new rows, and a restored library's
                 // one-time backfill. Only the small semantic head runs, on the stored vectors.
                 try {
@@ -790,6 +796,8 @@ data class AutomaticIndexingState(
     /** Minutes the pass expects to need, once it has seen enough to say ([IndexingEta]). */
     val etaMinutes: Int? = null,
     val failures: Map<TrackId, EngineError> = emptyMap(),
+    /** When the audio pass last moved (started, or finished a chunk); null outside it ([analysisStall]). */
+    val progressAt: TimeSource.Monotonic.ValueTimeMark? = null,
 )
 
 /**

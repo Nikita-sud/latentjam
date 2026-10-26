@@ -663,6 +663,8 @@
     <string name="intelligence_problems">Analysis problems</string>
     <string name="intelligence_problems_body">Tracks SMART could not analyse. Your music stays playable.</string>
     <string name="intelligence_no_problems">No analysis problems</string>
+    <string name="intelligence_analysis_stalled_track">Analysis has been waiting on “%1$s” for %2$d min</string>
+    <string name="intelligence_analysis_stalled">Analysis has made no progress for %1$d min</string>
     <string name="intelligence_manage_exclusions">Recommendation exclusions</string>
     <string name="intelligence_manage_exclusions_body">Tracks and artists SMART should never recommend</string>
     <string name="intelligence_exclusions_empty">No recommendation exclusions</string>
