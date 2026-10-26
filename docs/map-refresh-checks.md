@@ -683,7 +683,7 @@ not committed; they can be regenerated from the pool.
 - Log: `piece4-check-2026-10-26.txt`.
 - Mechanical grade (`tools/research/map_regions_piece4_grade.py`):
   `piece4-check-grade-2026-10-26.txt`.
-- Result: **327 cells, 4 FAIL, 2 n/a.** Under the round-3 verdict rule, **piece 4 FAILS** and the
+- Result: **327 of 360 expected cells graded, 4 FAIL, 2 n/a, 33 missing** (see "incomplete" below). Under the round-3 verdict rule, **piece 4 FAILS** and the
   flag stays off. There is no re-run.
 
 | Row | Pass | Failing cells |
@@ -697,7 +697,7 @@ not committed; they can be regenerated from the pool.
 | R7 chain moved churn | 11 / 12 | FMA s808, average linkage: 2.16 % vs 2 % |
 | R8 / R9 chain purity / coverage | 6 / 6, 6 / 6 | — |
 
-- **Every synthetic cell passes.** All four FAILs are on FMA with average linkage. Three of them
+- **No synthetic cell fails** (2 synthetic R5 cells read n/a, which is not a pass). All four FAILs are on FMA with average linkage. Three of them
   miss by small margins: purity by 0.0002 and 0.0014 past the limit, chain churn by 0.16 points.
   The fourth, R4, misses by four tracks out of 48.
 
@@ -705,9 +705,16 @@ not committed; they can be regenerated from the pool.
 - The three check draws were generated with three columns: id, top genre, style. They had no
   split column, unlike the pilot draw. So no FMA track counted as held out, and the harness
   silently skipped the FMA novel-style case.
-- R4 and R5 for the new style were therefore evaluated on synthetic only.
+- So the FMA novel case is missing in full: R1, R3, R4, R5 and R6 on both paths, plus R2 on
+  average linkage, for each of the three FMA draws. That is **33 of the 360 expected cells**. The new
+  style was evaluated on synthetic only.
 - This cannot change the verdict, which is already FAIL. It is a harness defect: a case should never
   be skipped silently. Any later round fixes it first.
+- **Grader fixed after the post-run review.** The verdict now needs every expected cell present and
+  passing, with no FAIL and no n/a. Before, it could have printed PASS with only n/a cells, and it
+  did not count missing cells. Re-graded, the verdict is unchanged: FAIL.
+- **Post-run review:** REVISE on wording and the grader only. The FAIL stands, and the numbers and
+  margins were hand-checked against the raw log.
 
 **What identity achieved (logged, not gating).** Settled tracks moved:
 
