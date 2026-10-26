@@ -39,13 +39,25 @@ internal object LoudnessScanLimits {
     const val WALL_BUDGET_MS = 120_000L
     const val IDLE_BUDGET_MS = 5_000L
 
-    fun complete(frames: Long, rate: Int, expectedDurationMs: Long?): Boolean {
+    /**
+     * [sourceEnded]: the file itself ran out — the extractor's end of stream, a read that found no
+     * more audio — rather than the scan stopping short. A container duration is then only an
+     * estimate (a CBR MP3 without a seek table guesses from the file size, junk tail included), and
+     * what decoded is what the player plays: a shorter result stands, down to [MIN_ENDED_SHARE] of
+     * the estimate. The file's size is part of its audio identity, so one still being written is
+     * measured again once it grows.
+     */
+    fun complete(frames: Long, rate: Int, expectedDurationMs: Long?, sourceEnded: Boolean = false): Boolean {
         if (rate !in 8000..192000 || frames < (rate + 5L) / 10 * 4) return false
         if (frames > MAX_DURATION_MS * rate / 1000) return false
         val duration = frames * 1000 / rate
         // Container durations can include encoder delay/padding and rounding. Gross truncation,
         // including an early apparent EOS, must not be cached as a complete measurement.
         val expected = expectedDurationMs?.takeIf { it > 0 } ?: return true
-        return kotlin.math.abs(duration - expected) <= maxOf(2_000L, expected / 50)
+        if (kotlin.math.abs(duration - expected) <= maxOf(2_000L, expected / 50)) return true
+        return sourceEnded && duration < expected && duration >= expected * MIN_ENDED_SHARE / 100
     }
+
+    /** The least of a container's estimated duration a file that ran out may hold, in percent. */
+    const val MIN_ENDED_SHARE = 50L
 }

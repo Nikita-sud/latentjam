@@ -91,9 +91,9 @@ internal class EqualizerAudioProcessor(
  * even when EQ is currently off, so speaker, Bluetooth and USB respond to live edits equally.
  * DefaultAudioSink converts high-resolution/float PCM to PCM16 before our custom processors.
  *
- * The chain is [SeamResamplingAudioProcessor] (one rate across a seam), [CrossfadeAudioProcessor]
- * (loudness, transitions, overlaps), then the equalizer, so an overlap is equalised and limited as
- * one signal. The audio renderer names the track each
+ * In front of the sink, [SeamResamplingAudioSink] keeps one rate across a seam. The chain is
+ * [CrossfadeAudioProcessor] (loudness, transitions, overlaps) then the equalizer, so an overlap is
+ * equalised and limited as one signal. The audio renderer names the track each
  * stream belongs to through the sink's [PcmStreams].
  */
 internal open class EqualizerRenderersFactory(
@@ -110,14 +110,13 @@ internal open class EqualizerRenderersFactory(
         val chain = CrossfadeProcessorChain(
             CrossfadeAudioProcessor(crossfade, streams),
             *buildAudioProcessors(context, restart),
-            resampler = SeamResamplingAudioProcessor(crossfade, streams),
         )
         val sink = DefaultAudioSink.Builder(context)
             .setEnableFloatOutput(false)
             .setEnableAudioOutputPlaybackParameters(enableAudioOutputPlaybackParams)
             .setAudioProcessorChain(chain)
             .build()
-        return PcmOnlyAudioSink(sink, restart, streams)
+        return PcmOnlyAudioSink(SeamResamplingAudioSink(sink, crossfade, streams), restart, streams)
     }
 
     protected open fun buildAudioProcessors(context: Context, restart: AtomicBoolean): Array<AudioProcessor> {
@@ -230,11 +229,8 @@ internal class StreamTaggingAudioRenderer(
 internal class CrossfadeProcessorChain(
     private val crossfade: CrossfadeAudioProcessor,
     vararg processors: AudioProcessor,
-    resampler: SeamResamplingAudioProcessor? = null,
 ) : AudioProcessorChain {
-    private val inner = DefaultAudioSink.DefaultAudioProcessorChain(
-        *listOfNotNull(resampler, crossfade).toTypedArray(), *processors,
-    )
+    private val inner = DefaultAudioSink.DefaultAudioProcessorChain(crossfade, *processors)
     private var skippedUs = 0L
 
     override fun getAudioProcessors(): Array<AudioProcessor> = inner.audioProcessors
