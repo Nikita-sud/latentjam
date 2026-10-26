@@ -72,6 +72,9 @@ public interface ListeningHistory {
      * it has to be a pure, quick transformation: it must not suspend, and it must not call back into
      * this history (a mutex-backed implementation would deadlock).
      *
+     * When [combine] returns the very list it was handed, nothing changed and the store is not
+     * rewritten.
+     *
      * The replacement must not exceed [maxEvents]. An implementation rejects a larger result with
      * [IllegalArgumentException] before touching the store, so the log keeps its previous content
      * rather than silently losing its oldest part.
@@ -131,7 +134,7 @@ public class DefaultListeningHistory(
 
     private val mutex = Mutex()
     private var loaded = false
-    private val events = mutableListOf<ListenEvent>()
+    private val events = ArrayList<ListenEvent>()
     /**
      * Updated with [events] under the same mutex so repeated For You/Search/playlist reads do not
      * replay the complete append-only log on their caller's dispatcher. A returned [stats] map is
@@ -189,7 +192,13 @@ public class DefaultListeningHistory(
             // combine runs here, while the lock is held, so the log it reads is the log writeAll
             // persists: a record() issued meanwhile waits for the lock instead of being overwritten
             // by a replacement computed from a log that no longer exists.
-            val merged = combine(events.toList(), imported).toList()
+            val current = events.toList()
+            val combined = combine(current, imported)
+            // Handing back the very list it was given means nothing changed: rewriting the whole log
+            // would cost a full write, and a log already past maxEvents (later plays are never
+            // refused) would turn a no-op into a failure.
+            if (combined === current) return@withLock current.size
+            val merged = combined.toList()
             require(merged.size <= maxEvents) {
                 "Merged listening history holds ${merged.size} events, more than the $maxEvents allowed"
             }
@@ -217,7 +226,13 @@ public class DefaultListeningHistory(
      * previous log readable rather than a half-restored one.
      */
     private suspend fun writeAll(replacement: List<ListenEvent>) {
-        store.replaceAll(replacement.map(ListenEvent::serialize))
+        // Reserve before writing: once the store holds the replacement, growing the list must not
+        // fail half-way and leave this process serving an empty log beside a merged file.
+        events.ensureCapacity(replacement.size)
+        // Lines are serialized as the store asks for them. An imported log runs to hundreds of
+        // thousands of events, and a list of every line beside the events was the largest
+        // allocation of the write on small heaps.
+        store.replaceAll(SerializedLines(replacement))
         events.clear()
         events += replacement
         aggregates.clear()
@@ -249,6 +264,12 @@ public class DefaultListeningHistory(
         val events: List<ListenEvent>,
         val aggregates: Map<TrackId, TrackStats>,
     )
+}
+
+/** The store lines of [events], serialized on access rather than all at once. */
+private class SerializedLines(private val events: List<ListenEvent>) : AbstractList<String>() {
+    override val size: Int get() = events.size
+    override fun get(index: Int): String = events[index].serialize()
 }
 
 private fun MutableMap<TrackId, TrackStats>.aggregate(event: ListenEvent) {

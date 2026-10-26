@@ -8,6 +8,7 @@ import android.system.Os
 import android.system.OsConstants
 import java.io.File
 import java.io.FileOutputStream
+import java.io.Writer
 
 /**
  * Writes and syncs a sibling first, then atomically replaces the live private file.
@@ -17,12 +18,17 @@ import java.io.FileOutputStream
  * cache when the device loses power would silently roll the newest state back to the old one.
  */
 internal fun File.atomicReplaceText(contents: String) {
+    atomicReplace { writer -> writer.write(contents) }
+}
+
+/** [atomicReplaceText] for contents produced piece by piece into [write]'s buffered writer. */
+internal fun File.atomicReplace(write: (Writer) -> Unit) {
     parentFile?.mkdirs()
     val temporary = File(parentFile, ".$name.tmp")
     try {
         FileOutputStream(temporary).use { stream ->
-            val writer = stream.writer(Charsets.UTF_8)
-            writer.write(contents)
+            val writer = stream.writer(Charsets.UTF_8).buffered()
+            write(writer)
             writer.flush()
             stream.fd.sync()
         }

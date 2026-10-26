@@ -41,9 +41,9 @@ internal class FileHistoryStore(context: Context) : HistoryStore {
     }
 
     override suspend fun replaceAll(lines: List<String>): Unit = withContext(Dispatchers.IO) {
-        file.atomicReplaceText(
-            lines.joinToString(separator = "\n", postfix = if (lines.isEmpty()) "" else "\n"),
-        )
+        // Streamed line by line: one String of the whole log (plus the encoder's copy of it) is
+        // several times the log's size and does not fit a small heap after a large import.
+        file.atomicReplace { writer -> lines.forEach { line -> writer.write(line); writer.write("\n") } }
     }
 
     /**
