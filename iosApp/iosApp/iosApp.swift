@@ -14,6 +14,8 @@ struct iOSApp: App {
             provider: provider
         )
         provider.runSmokeIfRequested()
+        // BGTaskScheduler needs its handlers before launch finishes (Map deferred rebuild).
+        IosMapRebuildTaskKt.registerMapRebuildTask()
     }
 
     var body: some Scene {

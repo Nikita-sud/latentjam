@@ -34,6 +34,7 @@ public class LatentJamApplication : Application(), SingletonImageLoader.Factory 
         // Covers configuration changes made while this process was stopped. With no installed
         // widgets the coordinator returns before scheduling work or decoding artwork.
         refreshPlaybackWidgets(this)
+        scheduleMapRebuildIfRequested(this)
     }
 
     /** Coil's defaults, plus a song's own cover falling back to its album's ([TrackCoverFetcher]). */

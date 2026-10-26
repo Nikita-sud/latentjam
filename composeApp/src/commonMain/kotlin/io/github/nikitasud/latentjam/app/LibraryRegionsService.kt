@@ -37,6 +37,7 @@ internal object LibraryRegionsService {
         includeNoveltyMixes: Boolean,
         metadataReady: Boolean,
         audioReady: Boolean,
+        rebuild: Boolean = false,
     ) {
         val libraryWorlds = state
         val loadedIds = loaded.map(TrackDescriptor::id)
@@ -47,7 +48,11 @@ internal object LibraryRegionsService {
             val coverage = engine.libraryMixCoverage(loadedIds) ?: return
             val descriptorIdentity = loaded.map(TrackDescriptor::worldIdentity)
             val cachedKey = libraryWorlds.builtWorldsKey
+            // Plan piece 4: with the refresh flag on and the analysis over, regions keep their identity.
+            // A change joins the regions as they are (no discovery); a rebuild rediscovers and matches.
+            val identityOn = MapRefreshFlag.enabled && audioReady
             if (
+                !rebuild &&
                 cachedKey != null &&
                 libraryWorlds.builtWorldNoveltyPreference == includeNoveltyMixes &&
                 libraryWorlds.builtWorldReadiness == (metadataReady to audioReady) &&
@@ -67,6 +72,33 @@ internal object LibraryRegionsService {
                 !mapWorkFits(4L * coverage.size * 1344 + 8L * 1024 * 1024)
             }
             if (libraryWorlds.memoryLimited) return
+            // Joining only answers a change of vectors or members. A changed playlist, novelty preference
+            // or readiness tier changes the discovery itself: the keeper refuses to join, and it rediscovers.
+            val identityContext = RegionIdentityKeeper.context(playlistPresentationIdentity, includeNoveltyMixes, metadataReady, audioReady)
+            if (identityOn && !rebuild) {
+                val joined = withContext(AppGraph.mapLayoutDispatcher) {
+                    RegionIdentityKeeper.join(engine, loaded, loadedIds, coverage.source, identityContext, isActive = { isActive })
+                }
+                if (joined != null) {
+                    libraryWorlds.worldLibraryIds = loadedIds
+                    libraryWorlds.worlds = joined
+                    // No features were built: the key carries what the early check compares.
+                    val discoveryKey = LibraryWorldDiscoveryKey(
+                        trackIds = loadedIds,
+                        source = coverage.source,
+                        vectorFingerprint = coverage.fingerprint,
+                        descriptorIdentity = descriptorIdentity,
+                        semanticsCount = -1,
+                    )
+                    libraryWorlds.builtWorldDiscoveryKey = discoveryKey
+                    libraryWorlds.builtDiscoveredWorlds = null
+                    libraryWorlds.builtWorldsKey = LibraryWorldsKey(discoveryKey, playlistPresentationIdentity)
+                    libraryWorlds.builtWorldNoveltyPreference = includeNoveltyMixes
+                    libraryWorlds.builtWorldReadiness = metadataReady to audioReady
+                    libraryWorlds.discoveryFailed = false
+                    return
+                }
+            }
             val features = engine.libraryMixFeatures(
                 ids = loadedIds,
                 // This preference is the listener's explicit request for semantic novelty
@@ -85,7 +117,7 @@ internal object LibraryRegionsService {
                 discovery = discoveryKey,
                 playlistIdentity = playlistPresentationIdentity,
             )
-            if (worldsKey == libraryWorlds.builtWorldsKey) {
+            if (!rebuild && worldsKey == libraryWorlds.builtWorldsKey) {
                 libraryWorlds.builtWorldNoveltyPreference = includeNoveltyMixes
                 libraryWorlds.builtWorldReadiness = metadataReady to audioReady
                 return
@@ -96,7 +128,7 @@ internal object LibraryRegionsService {
             // albums, whose titles are the artist's own curation.
             val playlistGroups = playlistGroups()
             val cachedDiscovery = libraryWorlds.builtDiscoveredWorlds
-                ?.takeIf { libraryWorlds.builtWorldDiscoveryKey == discoveryKey }
+                ?.takeIf { !rebuild && libraryWorlds.builtWorldDiscoveryKey == discoveryKey }
             // Discovery is derived library work, not an interaction prerequisite. Keep it
             // on the Map's low-priority serial lane so a cold restore cannot make an
             // immediately opened page compete with clustering at normal CPU priority.
@@ -130,6 +162,11 @@ internal object LibraryRegionsService {
                     albums = LibraryCatalog.build(loaded).albums.map { it.title to it.tracks },
                 )
                 LibraryWorlds.namedAfterGroups(discovered, naming)
+            }.let { named ->
+                if (!identityOn) named
+                else withContext(AppGraph.mapLayoutDispatcher) {
+                    RegionIdentityKeeper.rediscover(engine, loaded, loadedIds, coverage.source, named, identityContext, isActive = { isActive })
+                } ?: named
             }
             libraryWorlds.worldLibraryIds = loadedIds
             libraryWorlds.worlds = namedWorlds

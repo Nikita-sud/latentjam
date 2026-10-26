@@ -76,6 +76,8 @@ kotlin {
         androidMain.dependencies {
             // MainActivity lives here (see its KDoc for the AGP 9 rationale).
             api(libs.androidx.activity.compose)
+            // The Map's deferred rebuild (charging + idle); Apache-2.0.
+            implementation(libs.androidx.work.runtime)
         }
     }
 }

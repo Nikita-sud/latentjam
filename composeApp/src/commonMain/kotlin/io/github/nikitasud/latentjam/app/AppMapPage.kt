@@ -6,6 +6,8 @@ package io.github.nikitasud.latentjam.app
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import io.github.nikitasud.latentjam.history.epochMillis
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -44,6 +46,8 @@ internal fun rememberMapPageModel(
     // MapTab keeps its lens, selection and viewport when those facts change.
     val mapPageCache = remember { MapPageCache() }
     val mapPage = remember { MapPageModel() }
+    // A background rebuild (plan piece 3) rewrote the disk layout: re-run and reload it from disk.
+    val rebuildRevision by MapRebuild.revision.collectAsState()
     // Keyed on the region labels too, exactly as the For You effect above is: they are
     // stringResource reads, so a locale change produces new ones and the page they name has to be
     // rebuilt to pick them up. Cheap when that is all that changed -- LibraryLayout.covers finds
@@ -60,6 +64,7 @@ internal fun rememberMapPageModel(
         historyRevision,
         discoveryMixLabel,
         semanticMixLabels,
+        rebuildRevision,
     ) {
         // A previous keyed run may have been cancelled after publishing its transient build
         // state. Normalize before any precondition can return, so neither the first-build
@@ -67,6 +72,10 @@ internal fun rememberMapPageModel(
         mapPage.mapState = mapPage.mapState.afterInterruptedMapBuild()
         if (!mapPageActive) return@LaunchedEffect
         val loaded = tracks ?: return@LaunchedEffect
+        // No scheduled rebuild for a day: run it here while on external power (plan piece 3, fallback).
+        if (MapRefreshFlag.enabled && libraryWorlds.audioVectorsReady && MapRebuild.fallbackDue(epochMillis())) {
+            MapRebuild.runFallback(isActive = { isActive })
+        }
         if (libraryWorlds.memoryLimited) {
             // Explain the refusal even after a warm page. MapPageCache and the disk snapshot
             // stay intact, so retrying does not discard the last successful coordinates.
@@ -185,6 +194,10 @@ internal fun rememberMapPageModel(
                                 stored?.close()
                             }
                             snapshot = result?.snapshot
+                            if (result != null) {
+                                if (!result.refreshed) MapRebuild.builtInPage()
+                                else if (result.stale || result.changedSinceFull > 0) MapRebuild.requested(result.stale, epochMillis())
+                            }
                             result?.points
                         } else {
                             LibraryLayout.compute(
@@ -215,6 +228,7 @@ internal fun rememberMapPageModel(
                     // ends (this effect re-runs on that) the Map is drawn from the final vectors.
                     reuseRecentFor = if (libraryWorlds.audioVectorsReady) Duration.ZERO else MAP_LAYOUT_REUSE,
                     source = coverage.source,
+                    revision = rebuildRevision,
                 ) ?: return@withLock null
                 mapPageCache.page(
                     layout = layout,

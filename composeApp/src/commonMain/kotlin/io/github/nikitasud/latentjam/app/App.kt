@@ -2785,6 +2785,7 @@ private fun AppShell(
                                                 }
                                             },
                                         )
+                                        MapStaleMarker(Modifier.align(Alignment.TopEnd).padding(listPadding))
                                         }
                                         }
 
