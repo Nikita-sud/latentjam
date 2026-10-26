@@ -298,3 +298,82 @@ visible is the region's id (which orders the region list), its name and its memb
 - **What it does not support:** the size of the margin.
 - **Follow-up**, not run here: a stronger heap metric, either the smallest `-Xmx` (via `setprop`) at
   which each mode still completes, or ART's `art.gc.bytes-allocated` / an `hprof` of the peak.
+
+> **Timing of this freeze.** The text below was written to the scratchpad at 01:39 CET on
+> 26 October, before part B's Android cold launch ran (02:00–02:03). It was committed only after
+> that run, at the same time as part B's log and before part A ran. Part B's outcome was not used to
+> change it.
+
+## Piece 3: the deferred rebuild (frozen 26 October 2026, before the run)
+
+**Code under test:**
+- `MapRebuild` (headless; composeApp commonMain).
+- Android: `MapRebuildWorker` (WorkManager unique work, charging + device idle).
+- iOS: `registerMapRebuildTask` / `BGProcessingTaskRequest` with `requiresExternalPower`.
+- The in-app fallback (24 h on external power), the `MapPageCache` rebuild revision and the debug
+  "stale" marker.
+
+**Harness:** `MapRebuildDeviceTest` (androidDeviceTest; `-e mapRebuild 1`) for the work itself, plus
+the app on the emulator and simulator for the launch paths.
+
+### A. The rebuild's work on `LJ-api29`
+
+**Setup:**
+- 256 MB heap; synthetic seed 61 at 10,000 tracks.
+- A background-priority thread, as on the map lane.
+- Before: the map and regions of 99 %. After: 100 %; the added 1 % is not settled.
+- Stages, as `MapRebuild` runs them:
+  1. region discovery, with the budget measured by the app's `availableMapWorkBytes` formula, so the path is the one the app would pick;
+  2. `RegionIdentity.rediscover`;
+  3. `LibraryLayoutRefresh.build`;
+  4. the state write.
+- One full run, then 10 runs stopped at uniformly random deadlines inside the full run's duration
+  (seeded).
+
+| Row | Pass |
+| --- | --- |
+| completes | the full run completes (no OOM) on the path the formula picks; path, budget and peak Java-heap delta logged |
+| time | ≤ 9 min (540,000 ms) |
+| longest gap between two cancellation polls, whole run | ≤ 250 ms (stage of the longest gap logged) |
+| cancellation | each of the 10 deadline runs ends `cancelled` ≤ 250 ms after its deadline |
+| old map intact after a cancel | the state file is untouched by every run cancelled before its write stage |
+
+**Reported, not rows:**
+- per-stage times;
+- the longest single chunk read. In the app each chunk read holds the engine lock, so this stands
+  in for SMART's longest wait. The device test has no real engine: the chunk is an array copy here,
+  while the engine also fuses the rows, so the app's wait is longer by that work. This is stated as
+  a stand-in.
+
+### B. Launch paths
+
+**Android, on `LJ-api29`** (a debug build of the app):
+- Setup: the refresh override on, and the `map_rebuild_request` debug trigger, so a cold start
+  enqueues the work.
+- Steps: start, force-stop, then `adb shell cmd jobscheduler run -f <pkg> <job id>` with the process
+  dead.
+- **Row:** the job starts a cold process, `MapRebuild.run` logs an outcome, and WorkManager records
+  the work as finished.
+
+**iOS simulator** (a separate simulator, not the booted "LJ iPhone Duo"):
+- Steps: the debug app with the override and the task registered; process killed; then
+  `_simulateLaunchForTaskWithIdentifier` (lldb).
+- **Row:** the handler runs, `MapRebuild.run` logs an outcome, and the task completes.
+- If the simulator path cannot be driven, it is reported as **not run**, not as a pass.
+
+**Expiry and cancel:**
+- Row A covers the work being cancelled.
+- The iOS expiration handler cancels the job; `invokeOnCompletion` then completes the task and
+  reschedules it.
+- WorkManager's `isStopped` is the worker's poll. Both are checked by reading the code, not on a
+  device.
+
+### What the emulator cannot show (stated before the run)
+
+- Neither emulator nor simulator has an analysed library of ≥ 2,000 tracks. So a launched rebuild
+  will find nothing pending, and `NOT_NEEDED` is the expected outcome.
+- The swap-in of a rebuilt map is covered by a unit test instead (`MapPageCacheTest`: a new
+  revision reloads the layout from disk although the fingerprint is the same), and by row A doing
+  the work itself.
+- The 24 h fallback is not exercised on a device. Its timer is in memory, so it restarts with the
+  process, and that is disclosed.
