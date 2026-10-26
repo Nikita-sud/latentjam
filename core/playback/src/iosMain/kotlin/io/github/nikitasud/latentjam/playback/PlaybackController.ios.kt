@@ -261,7 +261,11 @@ internal class IosPlaybackController(
         // of the track, so the fit is ready long before the seam is cued.
         val seamMs = next?.let { seamCrossfades.lengthFor(current.id, it.id, fadeMs) } ?: fadeMs
         var anchors = seamAnchors(durationMs, trackSoundSpans[current.id.value], next?.let { trackSoundSpans[it.id.value] })
-        if (overlap == null && outgoingCurveMs <= 0L && fadeMs > 0L && !finishingTrack && durationMs > 0L && edges.fadeOut && next != null &&
+        // At or past its end the track is over, whatever reports that end next (a drained overlap
+        // posts it on the main queue): cueing or late-starting the following track now would start
+        // it part-way in, ahead of the advance that plays it from its start.
+        val ended = durationMs > 0L && positionMs >= durationMs
+        if (overlap == null && !ended && outgoingCurveMs <= 0L && fadeMs > 0L && !finishingTrack && durationMs > 0L && edges.fadeOut && next != null &&
             anchors.outgoingEndMs - positionMs <= fadeMs + OVERLAP_CUE_AHEAD_MS
         ) {
             val key = "${current.id.value}>${next.id.value}"
@@ -288,7 +292,7 @@ internal class IosPlaybackController(
             }
         }
         val active = overlap
-        if (active != null && !active.started && active.endMs - positionMs <= active.overlapMs) {
+        if (active != null && !active.started && !ended && active.endMs - positionMs <= active.overlapMs) {
             // Late (a seek into the window): the next track starts where the overlap has got to.
             active.started = audioEngine.startOverlap(
                 fromMs = active.leadMs + lateOverlapStartMs(positionMs, active.endMs, active.overlapMs),
@@ -455,6 +459,10 @@ internal class IosPlaybackController(
         scope = mainScope,
         nowMs = ::transportTimeMs,
         playing = { playing && activeBackend == PlaybackBackend.FILE && !transportFade.pausePending },
+        // A file starts synchronously here and nothing would report it later (Android's
+        // onPlaybackStarted): waiting for it kept the fade-in loop spinning every 20 ms when a
+        // change ended with nothing playing on the file graph (a Music.app item, a call).
+        sounding = { true },
         onGain = ::fadeInAfterStart,
     )
     private val mutableState = MutableStateFlow(NowPlaying())
@@ -958,7 +966,9 @@ internal class IosPlaybackController(
             restorePreviousPlayback(previousIndex, previousPositionMs, wasPlaying)
         }
         pushState()
-        if (this@IosPlaybackController.queueIndex >= 0) appendSmartNextIfNeeded()
+        // Not awaited: this runs inside the pick's change, whose fade-in waits for it, and planning
+        // the rows after it (up to 20 choices, a cold ranker load) would keep the picked song silent.
+        if (this@IosPlaybackController.queueIndex >= 0) mainScope.launch { appendSmartNextIfNeeded() }
     }
 
     override suspend fun cycleRepeatMode(): RepeatMode = withContext(Dispatchers.Main) {
