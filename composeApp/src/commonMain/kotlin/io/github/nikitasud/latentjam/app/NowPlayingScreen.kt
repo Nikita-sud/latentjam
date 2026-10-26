@@ -1855,8 +1855,11 @@ private fun QueueSheetContent(
                 // Duplicate occurrences cannot be distinguished by TrackId alone. Reset gesture
                 // state on any structural queue change so a survivor never inherits a removed
                 // duplicate's dismissed anchor. queueIdentity is reference-equal and therefore
-                // avoids hashing/comparing the entire queue once for every visible row.
-                androidx.compose.runtime.key(queueIdentity) {
+                // avoids hashing/comparing the entire queue once for every visible row. Stable IDs
+                // need no reset: their state already belongs to the track, and resetting rebuilt
+                // every visible row each time SMART appended to the queue (a hitch on every change).
+                androidx.compose.runtime.key(if (ambiguousItemIdentity) queueIdentity else Unit) {
+                val currentRowIndex by rememberUpdatedState(index)
                 var removalRequested by remember { mutableStateOf(false) }
                 val dismissState = rememberSwipeToDismissBoxState(
                     confirmValueChange = { value ->
@@ -1864,7 +1867,7 @@ private fun QueueSheetContent(
                         // Removing twice would consume the row that shifted into this index.
                         if (value != SwipeToDismissBoxValue.Settled && !removalRequested) {
                             removalRequested = true
-                            onRemoveAt(index)
+                            onRemoveAt(currentRowIndex)
                         }
                         true
                     },
