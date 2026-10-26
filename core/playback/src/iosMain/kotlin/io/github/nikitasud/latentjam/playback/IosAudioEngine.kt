@@ -87,6 +87,13 @@ internal class IosAudioEngine : EqualizerController {
     private var standbyFile: AVAudioFile? = null
     private var standbyStarted = false
 
+    /**
+     * The standby deck's segment has played out before its promotion — an incoming track shorter
+     * than what it had to sound over, or one cued too near its own end to schedule. Its one end
+     * was spent while it did not count yet, so [promoteOverlap] reports it on promotion instead.
+     */
+    private var standbyDrained = false
+
     /** The frame the standby deck's segment begins at: 0, or later for an overlap begun late. */
     private var standbyStartFrame = 0L
 
@@ -321,11 +328,15 @@ internal class IosAudioEngine : EqualizerController {
         val token = ++tokens
         standbyToken = token
         standbyStartFrame = startFrame
+        standbyDrained = false
         // Mid-waveform at a high level would click: a late start opens with a short fade written
         // into its first samples, sample-exact, before the rest of the segment follows.
         val rampFrames = if (startFrame > 0L) scheduleRampIn(file, startFrame) else 0L
         val segmentStart = startFrame + rampFrames
-        if (segmentStart >= file.length) return
+        if (segmentStart >= file.length) {
+            standbyDrained = true
+            return
+        }
         standby.scheduleSegment(
             file = file,
             startingFrame = segmentStart,
@@ -338,6 +349,8 @@ internal class IosAudioEngine : EqualizerController {
                     if (token == completionGeneration && currentFile === file) {
                         pausedFrame = file.length
                         completion?.invoke()
+                    } else if (token == standbyToken) {
+                        standbyDrained = true
                     }
                 }
             },
@@ -420,6 +433,7 @@ internal class IosAudioEngine : EqualizerController {
         standbyStartFrame = 0L
         standbyToken = NO_TOKEN
         standbyStarted = false
+        standbyDrained = false
         standbyFile = null
         standby.stop()
         standbyGain = 0f
@@ -456,6 +470,16 @@ internal class IosAudioEngine : EqualizerController {
         currentGain = standbyGain
         standbyGain = 0f
         applyMixerGain()
+        if (standbyDrained) {
+            // Its end went by unpromoted: nothing scheduled is left to report it, so the track
+            // ends now, from where it stands — never replayed from its start.
+            standbyDrained = false
+            pausedFrame = file.length
+            val generation = completionGeneration
+            dispatch_async(dispatch_get_main_queue()) {
+                if (completionGeneration == generation && currentFile === file) completion?.invoke()
+            }
+        }
         return true
     }
 

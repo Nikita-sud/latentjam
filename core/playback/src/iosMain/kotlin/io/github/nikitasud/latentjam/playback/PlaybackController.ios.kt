@@ -260,18 +260,27 @@ internal class IosPlaybackController(
         // The slider, or the length SMART fitted to this pair; asked on every tick from the start
         // of the track, so the fit is ready long before the seam is cued.
         val seamMs = next?.let { seamCrossfades.lengthFor(current.id, it.id, fadeMs) } ?: fadeMs
-        val anchors = seamAnchors(durationMs, trackSoundSpans[current.id.value], next?.let { trackSoundSpans[it.id.value] })
+        var anchors = seamAnchors(durationMs, trackSoundSpans[current.id.value], next?.let { trackSoundSpans[it.id.value] })
         if (overlap == null && outgoingCurveMs <= 0L && fadeMs > 0L && !finishingTrack && durationMs > 0L && edges.fadeOut && next != null &&
             anchors.outgoingEndMs - positionMs <= fadeMs + OVERLAP_CUE_AHEAD_MS
         ) {
             val key = "${current.id.value}>${next.id.value}"
             val url = next.audioUri?.let { NSURL.URLWithString(it) }
             if (url != null && key !in failedOverlaps) {
-                val leadMs = anchors.incomingStartMs
-                val incomingMs = audioEngine.prepareOverlap(url, fromMs = leadMs)
-                val overlapMs = incomingMs?.let { overlapLengthMs(seamMs, anchors.outgoingEndMs, it - leadMs) } ?: 0L
+                var incomingMs = audioEngine.prepareOverlap(url, fromMs = anchors.incomingStartMs)
+                var overlapMs = incomingMs?.let { overlapLengthMs(seamMs, anchors.outgoingEndMs, it - anchors.incomingStartMs) } ?: 0L
+                val unanchored = SeamAnchors(outgoingEndMs = durationMs, incomingStartMs = 0L)
+                if (incomingMs != null && overlapMs > 0L && anchors != unanchored &&
+                    overlapOutrunsIncoming(anchors, durationMs, incomingMs, overlapMs)
+                ) {
+                    // Too short to sound over the outgoing track's trailing silence: met at the
+                    // files' own edges instead, as Android re-plans such a seam.
+                    anchors = unanchored
+                    incomingMs = audioEngine.prepareOverlap(url)
+                    overlapMs = incomingMs?.let { overlapLengthMs(seamMs, durationMs, it) } ?: 0L
+                }
                 if (overlapMs > 0L) {
-                    overlap = IosOverlap(current.id, next, overlapMs, endMs = anchors.outgoingEndMs, leadMs = leadMs)
+                    overlap = IosOverlap(current.id, next, overlapMs, endMs = anchors.outgoingEndMs, leadMs = anchors.incomingStartMs)
                 } else {
                     audioEngine.cancelOverlap()
                     failedOverlaps += key
@@ -651,7 +660,7 @@ internal class IosPlaybackController(
         withContext(Dispatchers.Main) {
             if (tracks.isEmpty()) return@withContext
             // A change still waiting for its fade happens first, on the queue it was asked for.
-            changeFades.flush()
+            flushChangesBeforeLoad()
             pendingAdvance.invalidate()
             val previousQueue = queue
             val previousContinuations = smartContinuationIds.toSet()
@@ -807,6 +816,16 @@ internal class IosPlaybackController(
 
     private fun transportTimeMs(): Long = (uptimeSeconds() * 1000).toLong()
 
+    /**
+     * What is waiting runs now ([ManualChangeFades.flush]) and the load that follows takes over the
+     * sound at full gain: no arrival is coming for the change's silence, which would otherwise hold
+     * through the load ([resetTransportFade]) and leave the new queue at the out-fade's level.
+     */
+    private suspend fun flushChangesBeforeLoad() {
+        changeFades.flush()
+        if (transportFade.changePending) transportFade.reset()
+    }
+
     private fun resetTransportFade() {
         transportFadeJob?.cancel()
         transportFadeJob = null
@@ -819,24 +838,37 @@ internal class IosPlaybackController(
     override suspend fun next(): Unit = withContext(Dispatchers.Main) {
         if (queue.isEmpty()) return@withContext
         pendingAdvance.invalidate()
-        // During an overlap the next track is already sounding: carry on from there, seamlessly.
-        if (!changeFades.pending && overlap?.let { it.started && repeat != RepeatMode.ONE } == true &&
-            promoteOverlap(StartCause.SKIP_NEXT)
-        ) {
+        // During an overlap the next track is already sounding: carry on from there. The outgoing
+        // track leaves over the change's fade instead of stopping mid-waveform; a paused overlap
+        // promotes at once.
+        if (!changeFades.pending && overlap?.let { it.started && repeat != RepeatMode.ONE } == true) {
+            runChange(ManualChange.TRACK) {
+                if (overlap?.let { it.started && repeat != RepeatMode.ONE } == true && promoteOverlap(StartCause.SKIP_NEXT)) {
+                    return@runChange
+                }
+                if (queueIndex in 0 until queue.lastIndex) {
+                    advance(StartCause.SKIP_NEXT)
+                    mainScope.launch { appendSmartNextIfNeeded() }
+                } else {
+                    pendingAdvance.afterPlanning(plan = ::appendSmartNextIfNeeded) { advance(StartCause.SKIP_NEXT) }
+                }
+            }
             return@withContext
         }
         if (queueIndex in 0 until queue.lastIndex) {
             // Planning may suspend on inference or another append. A known successor can sound
             // immediately; replenish its future after the skip, matching the Android transport.
-            changeFades.run(ManualChange.TRACK) {
+            runChange(ManualChange.TRACK) {
                 if (queueIndex in 0 until queue.lastIndex) {
                     advance(StartCause.SKIP_NEXT)
                     mainScope.launch { appendSmartNextIfNeeded() }
                 }
             }
         } else {
-            // The next row is still being planned: the music plays on meanwhile, not a silence.
-            changeFades.flush()
+            // The next row is still being planned: the music plays on meanwhile, not a silence —
+            // a change still waiting runs and its sound comes back, rather than held for an arrival
+            // the load that follows would never bring.
+            changeFades.settle()
             pendingAdvance.afterPlanning(plan = ::appendSmartNextIfNeeded) { advance(StartCause.SKIP_NEXT) }
         }
     }
@@ -845,7 +877,7 @@ internal class IosPlaybackController(
         pendingAdvance.invalidate()
         if (queue.isEmpty()) return@withContext
         val restarts = previousPlaybackQueueIndex(queue.size, queueIndex, positionMs(), repeat) == queueIndex
-        changeFades.run(if (restarts) ManualChange.SEEK else ManualChange.TRACK) { skipToPrevious() }
+        runChange(if (restarts) ManualChange.SEEK else ManualChange.TRACK) { skipToPrevious() }
     }
 
     private fun skipToPrevious() {
@@ -876,7 +908,7 @@ internal class IosPlaybackController(
 
     override suspend fun seekTo(positionMs: Long): Unit = withContext(Dispatchers.Main) {
         pendingAdvance.invalidate()
-        changeFades.run(ManualChange.SEEK) {
+        runChange(ManualChange.SEEK) {
             seekActiveBackend(positionMs)
             // iOS extrapolates the lock-screen position from the playback rate, so a
             // seek it was not told about leaves the lock screen counting from the old
@@ -888,7 +920,24 @@ internal class IosPlaybackController(
 
     override suspend fun playAt(queueIndex: Int): Unit = withContext(Dispatchers.Main) {
         if (queueIndex !in queue.indices) return@withContext
-        changeFades.run(ManualChange.TRACK) { pickRow(queueIndex) }
+        // A picked row names its row: it still means that row after playback moved on by itself.
+        runChange(ManualChange.TRACK, survivesAutoAdvance = true) { pickRow(queueIndex) }
+    }
+
+    /**
+     * Playback moved on by itself while a change waited for its silence: Next, Previous and a seek
+     * were asked of the track that has since ended, so they are dropped — as Android's transport
+     * fades do — instead of skipping or seeking the track that followed.
+     */
+    private var autoAdvancedDuringChange = false
+
+    private suspend fun runChange(
+        change: ManualChange,
+        survivesAutoAdvance: Boolean = false,
+        action: suspend () -> Unit,
+    ) {
+        if (!changeFades.pending) autoAdvancedDuringChange = false
+        changeFades.run(change) { if (survivesAutoAdvance || !autoAdvancedDuringChange) action() }
     }
 
     private suspend fun pickRow(queueIndex: Int) {
@@ -1158,7 +1207,7 @@ internal class IosPlaybackController(
         smartPlanPositions: Map<TrackId, Int>,
     ): Unit = withContext(Dispatchers.Main) {
         if (tracks.isEmpty()) return@withContext
-        changeFades.flush()
+        flushChangesBeforeLoad()
         pendingAdvance.invalidate()
         val restorePlan = playbackResumePlan(
             tracks, startIndex, sourceTracks, smartContinuationIds, smartPlanPositions,
@@ -1555,6 +1604,8 @@ internal class IosPlaybackController(
         // same, and a resume carries it on instead of restarting the ended one. Only then — an
         // interruption or a route change stops the graph at once, with no fade to finish in.
         if (!playing && !transportFade.pausePending) return
+        // Repeat-one restarts the same track, which a waiting change still means.
+        if (changeFades.pending && repeat != RepeatMode.ONE) autoAdvancedDuringChange = true
         if (promoteOverlap(if (repeat == RepeatMode.ONE) StartCause.REPEAT else StartCause.AUTO_ADVANCE)) return
         if (!playing) return
         if (repeat == RepeatMode.ONE) {
@@ -1849,7 +1900,9 @@ internal class IosPlaybackController(
         transportFadeJob?.cancel()
         transportFadeJob = null
         val fading = fadeIn && activeBackend == PlaybackBackend.FILE
-        val holding = transportFade.changePending
+        // Only a change still waiting or running holds; one whose arrival will never come must not
+        // start the backend at the out-fade's terminal silence.
+        val holding = transportFade.changePending && changeFades.pending
         when {
             holding -> Unit // a manual change arrives over its own fade-in (ManualChangeFades)
             fading -> transportFade.beginResume(transportTimeMs())
@@ -2337,3 +2390,16 @@ public actual fun playbackModule(): Module = module {
         IosPlaybackController(chooser = get(), audioEngine = get(), engine = get())
     }
 }
+
+/**
+ * Whether an overlap of [overlapMs] met at [anchors] needs more of an incoming track of
+ * [incomingMs] than it has. Its deck sounds from the incoming track's first sound and plays on over
+ * the outgoing track's trailing silence until the decks swap; a track shorter than that would end
+ * before it counts. Android re-plans such a seam at the files' own edges (CrossfadeCoordinator).
+ */
+internal fun overlapOutrunsIncoming(
+    anchors: SeamAnchors,
+    outgoingDurationMs: Long,
+    incomingMs: Long,
+    overlapMs: Long,
+): Boolean = incomingMs - anchors.incomingStartMs < overlapMs + anchors.trailMs(outgoingDurationMs)
