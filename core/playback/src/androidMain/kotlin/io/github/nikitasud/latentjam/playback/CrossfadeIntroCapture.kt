@@ -261,7 +261,7 @@ internal class CrossfadeIntroCapture(
     }
 
     private companion object {
-        /** About 21.8 s of 96 kHz stereo PCM16; the 14 s a 12 s overlap decodes at 44.1/48 kHz is a third of it. */
+        /** About 21.8 s of 96 kHz stereo PCM16; the 18 s a 12 s overlap decodes ([introCaptureMs]) fits at up to 96 kHz. */
         const val MAX_INTRO_BYTES = 8L * 1024 * 1024
         const val TIMEOUT_MS = 15_000L
         const val LOAD_MIN_MS = 2_000

@@ -181,7 +181,7 @@ internal class CrossfadeCoordinator(
         val anchored = anchors != SeamAnchors(outgoingMs, 0L)
         val trailMs = anchors.trailMs(outgoingMs)
         val leadMs = anchors.incomingStartMs
-        val lengthMs = fadeMs + leadMs + trailMs + CROSSFADE_INTRO_MARGIN_MS
+        val lengthMs = introCaptureMs(fadeMs + leadMs + trailMs)
         val scratch = IntroScratch.get(context)
         val slot = scratch.freeSlot(sounding = settings.soundingSlot)
         val pending = CrossfadeIntroCapture(context, next, lengthMs, scratch, slot, settings.outputRate) { intro ->

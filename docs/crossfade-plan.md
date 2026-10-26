@@ -181,6 +181,22 @@ plan yet. The second time a seek to 246 s left time for the decode.
 - **Seam log.** `LJCrossfade` lines for each seam decision: overlap with its anchors and lateness,
   fade with its reason, and a capture that failed.
 
+## Stutter after a join into Opus (2026-10-26)
+
+Owner's report: a farting noise from Bohemian Rhapsody (FLAC 44.1 kHz) into Heartbreaker (Opus
+48 kHz). The phone (vc34) went BUFFERING/PLAYING every 250–350 ms for 3 s after the join, at
+19.5 s into Heartbreaker.
+
+- **Cause.** At the join the player drops its decoder's copy of the heard opening (19.5 s here)
+  and plays on meanwhile from the rest of the captured opening, which was a fixed 2 s. Opus comes in
+  20 ms packets, and the player's render loop gets through about ten times real time with them. So
+  21.5 s took about 3.3 s, the 2 s ran out, and the sink starved again and again. FLAC and MP3 packets
+  are larger, which is why those joins held. The resampler is not the limit: about 400× real time on
+  the host.
+- **Fix.** The opening decoded ahead (`introCaptureMs`) is what will be heard plus half of it, at
+  least 2 s. The rest then lasts while the decoder runs at three times real time. A 12 s overlap
+  decodes 18 s (it was 14 s), which still fits the 8 MiB capture up to 96 kHz.
+
 ## Prior art (searched 2026-10-22, at the owner's request)
 
 Nothing below was copied; GPL projects informed ideas only.
