@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_lock_screen_player">锁屏播放器</string>
+    <string name="settings_lock_screen_player_subtitle">播放音乐时在 LatentJam 中关闭屏幕，完整播放器会显示在锁屏上</string>
+</resources>

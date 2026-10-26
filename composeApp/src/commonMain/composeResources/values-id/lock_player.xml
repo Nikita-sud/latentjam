@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_lock_screen_player">Pemutar di layar kunci</string>
+    <string name="settings_lock_screen_player_subtitle">Matikan layar di LatentJam saat musik diputar, dan pemutar lengkap menunggu di layar kunci</string>
+</resources>

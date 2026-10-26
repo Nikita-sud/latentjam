@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_lock_screen_player">Odtwarzacz na ekranie blokady</string>
+    <string name="settings_lock_screen_player_subtitle">Wyłącz ekran w LatentJam podczas odtwarzania, a pełny odtwarzacz poczeka na ekranie blokady</string>
+</resources>

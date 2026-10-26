@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_lock_screen_player">Плеер на экране блокировки</string>
+    <string name="settings_lock_screen_player_subtitle">Выключите экран в LatentJam во время музыки — полный плеер будет ждать на экране блокировки</string>
+</resources>

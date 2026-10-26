@@ -279,11 +279,12 @@ fun NowPlayingScreen(
     onStartSleepTimer: (minutes: Int) -> Unit,
     onSleepAtEndOfTrack: () -> Unit,
     onCancelSleepTimer: () -> Unit,
-    onTrackMenu: (TrackDescriptor) -> Unit,
+    /** Null on the lock screen, where no menu may lead into the library: the overflow is absent. */
+    onTrackMenu: ((TrackDescriptor) -> Unit)?,
     /** Queue rows keep their own information target rather than turning the current cover. */
-    onQueueTrackMenu: (TrackDescriptor) -> Unit = onTrackMenu,
+    onQueueTrackMenu: ((TrackDescriptor) -> Unit)? = onTrackMenu,
     /** Raised by the queue sheet's save affordance with the CURRENT queue as the selection. */
-    onAddQueueToPlaylist: () -> Unit,
+    onAddQueueToPlaylist: (() -> Unit)?,
     isFavorite: Boolean = false,
     onToggleFavorite: () -> Unit = {},
     /** Bumped by the app when "Information" is chosen from the player's own actions sheet. */
@@ -296,7 +297,7 @@ fun NowPlayingScreen(
     onOpenSource: (() -> Boolean)? = null,
     smartQueueLength: Int = DEFAULT_SMART_QUEUE_LENGTH,
     onSmartQueueLength: (Int) -> Unit = {},
-    onEditTags: (TrackDescriptor) -> Unit = {},
+    onEditTags: ((TrackDescriptor) -> Unit)? = {},
     onShowOnMap: ((TrackDescriptor) -> Unit)? = null,
     /** Opens Settings at the equalizer, from the back of the cover. */
     onOpenEqualizer: (() -> Unit)? = null,
@@ -559,12 +560,14 @@ fun NowPlayingScreen(
                                 }
                             }
                             // One tap to the full list of actions; the sleep timer lives there too.
-                            OverflowButton(
-                                onClick = {
-                                    haptics.play(PlayerHaptic.TAP)
-                                    now.track?.let(onTrackMenu)
-                                },
-                            )
+                            if (onTrackMenu != null) {
+                                OverflowButton(
+                                    onClick = {
+                                        haptics.play(PlayerHaptic.TAP)
+                                        now.track?.let(onTrackMenu)
+                                    },
+                                )
+                            }
                         }
 
                         AdaptivePlayerContent(
@@ -580,7 +583,7 @@ fun NowPlayingScreen(
                                     },
                                     flipped = flipped,
                                     onFlip = { flipped = it },
-                                    onHold = { now.track?.let(onTrackMenu) },
+                                    onHold = { onTrackMenu?.let { menu -> now.track?.let(menu) } },
                                     onSkip = { forward ->
                                         scope.launch { if (forward) playback.next() else playback.previous() }
                                     },
@@ -602,7 +605,7 @@ fun NowPlayingScreen(
                                             TrackDetailsFace(
                                                 track = track,
                                                 stats = trackStats,
-                                                onEditTags = { onEditTags(track) },
+                                                onEditTags = onEditTags?.let { edit -> { edit(track) } },
                                                 onShowOnMap = onShowOnMap?.let { show -> { show(track) } },
                                                 onClose = { flipped = false },
                                                 onOpenEqualizer = onOpenEqualizer,
@@ -1563,7 +1566,8 @@ private fun QueueRow(
     isPlayed: Boolean,
     isPlaying: Boolean,
     onClick: () -> Unit,
-    onMenu: () -> Unit,
+    /** Null leaves the row without its overflow (the lock screen). */
+    onMenu: (() -> Unit)?,
     modifier: Modifier = Modifier,
     canMoveUp: Boolean = false,
     canMoveDown: Boolean = false,
@@ -1635,12 +1639,14 @@ private fun QueueRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        IconButton(onClick = onMenu, modifier = Modifier.size(48.dp)) {
-            Icon(
-                imageVector = Icons.Rounded.MoreVert,
-                contentDescription = stringResource(Res.string.action_track_options),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        if (onMenu != null) {
+            IconButton(onClick = onMenu, modifier = Modifier.size(48.dp)) {
+                Icon(
+                    imageVector = Icons.Rounded.MoreVert,
+                    contentDescription = stringResource(Res.string.action_track_options),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -1717,10 +1723,10 @@ private fun QueueSheetContent(
     /** Both platforms reorder the visible traversal while keeping the current item loaded. */
     canReorder: Boolean,
     onPlayAt: (Int) -> Unit,
-    onTrackMenu: (TrackDescriptor) -> Unit,
+    onTrackMenu: ((TrackDescriptor) -> Unit)?,
     onRemoveAt: (Int) -> Unit,
     onMove: (from: Int, to: Int) -> Unit,
-    onSaveQueue: () -> Unit,
+    onSaveQueue: (() -> Unit)?,
     onExpand: () -> Unit = {},
     /** Each change brings the list back to the current track, as a freshly opened player shows it. */
     scrollToCurrentKey: Any? = null,
@@ -1784,7 +1790,7 @@ private fun QueueSheetContent(
                 )
             }
             AnimatedContent(
-                targetState = queue.isNotEmpty(),
+                targetState = queue.isNotEmpty() && onSaveQueue != null,
                 transitionSpec = { motionIconTransform(reduceMotion) },
                 modifier = Modifier.align(Alignment.CenterEnd).padding(end = 8.dp),
                 label = "save-queue",
@@ -1792,7 +1798,7 @@ private fun QueueSheetContent(
                 Box(modifier = Modifier.size(QueueTitleRowHeight), contentAlignment = Alignment.Center) {
                     if (canSave) {
                         // A queue worth keeping — often SMART's work — becomes a playlist in two taps.
-                        IconButton(onClick = onSaveQueue, modifier = Modifier.size(QueueTitleRowHeight)) {
+                        IconButton(onClick = { onSaveQueue?.invoke() }, modifier = Modifier.size(QueueTitleRowHeight)) {
                             Icon(
                                 imageVector = Icons.Rounded.LibraryAdd,
                                 contentDescription =
@@ -1817,7 +1823,7 @@ private fun QueueSheetContent(
                     accent = accent, track = track, isCurrent = index == currentIndex,
                     isPlayed = index < currentIndex, isPlaying = isPlaying,
                     isContinuation = track.id in continuationIds,
-                    onClick = {}, onMenu = {},
+                    onClick = {}, onMenu = onTrackMenu?.let { {} },
                     modifier = modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)
                         .padding(horizontal = 8.dp),
                 )
@@ -1894,7 +1900,7 @@ private fun QueueSheetContent(
                             isContinuation = track.id in continuationIds,
                             isPlaying = isPlaying,
                             onClick = { onPlayAt(index) },
-                            onMenu = { onTrackMenu(track) },
+                            onMenu = onTrackMenu?.let { menu -> { menu(track) } },
                             canMoveUp = canReorder && index > 0,
                             canMoveDown = canReorder && index < queue.lastIndex,
                             onMoveUp = {

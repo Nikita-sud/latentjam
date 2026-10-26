@@ -30,6 +30,7 @@ public class LatentJamApplication : Application(), SingletonImageLoader.Factory 
         )
         installMediaBrowseCatalog(this)
         installNotificationFavorites()
+        installLockScreenPlayer(this)
         widgetFontScale = resources.configuration.fontScale
         widgetDensityDpi = resources.configuration.densityDpi
         widgetOrientation = resources.configuration.orientation

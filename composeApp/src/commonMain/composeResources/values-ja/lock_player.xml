@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_lock_screen_player">ロック画面のプレーヤー</string>
+    <string name="settings_lock_screen_player_subtitle">音楽の再生中に LatentJam で画面をオフにすると、ロック画面にフルプレーヤーが表示されます</string>
+</resources>

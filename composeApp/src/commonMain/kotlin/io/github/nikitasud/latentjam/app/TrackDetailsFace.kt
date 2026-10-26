@@ -75,7 +75,8 @@ import org.jetbrains.compose.resources.stringResource
 internal fun TrackDetailsFace(
     track: TrackDescriptor,
     stats: TrackStats?,
-    onEditTags: () -> Unit,
+    /** Null on the lock screen, where the library cannot be edited. */
+    onEditTags: (() -> Unit)?,
     onShowOnMap: (() -> Unit)?,
     onClose: () -> Unit,
     onOpenEqualizer: (() -> Unit)? = null,
@@ -154,11 +155,13 @@ internal fun TrackDetailsFace(
                     onClick = showOnMap,
                 )
             }
-            DetailActionButton(
-                label = stringResource(Res.string.info_edit),
-                icon = Icons.Outlined.Edit,
-                onClick = onEditTags,
-            )
+            onEditTags?.let { editTags ->
+                DetailActionButton(
+                    label = stringResource(Res.string.info_edit),
+                    icon = Icons.Outlined.Edit,
+                    onClick = editTags,
+                )
+            }
         }
     }
 }

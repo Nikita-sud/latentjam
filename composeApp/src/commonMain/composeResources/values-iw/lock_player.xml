@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_lock_screen_player">נגן במסך הנעילה</string>
+    <string name="settings_lock_screen_player_subtitle">כיבוי המסך בתוך LatentJam בזמן ניגון משאיר את הנגן המלא על מסך הנעילה</string>
+</resources>

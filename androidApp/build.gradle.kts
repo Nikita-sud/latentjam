@@ -47,8 +47,8 @@ android {
         applicationId = "io.github.nikitasud.latentjam.kmp"
         minSdk = 24
         targetSdk = 36
-        versionCode = 32
-        versionName = "0.9.3-lw2-map"
+        versionCode = 34
+        versionName = "0.9.3-lw2-map-lock"
     }
 
     if (uploadKeystore != null) {

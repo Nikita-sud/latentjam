@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_lock_screen_player">Player auf dem Sperrbildschirm</string>
+    <string name="settings_lock_screen_player_subtitle">Schaltest du in LatentJam den Bildschirm aus, während Musik läuft, wartet der volle Player auf dem Sperrbildschirm</string>
+</resources>

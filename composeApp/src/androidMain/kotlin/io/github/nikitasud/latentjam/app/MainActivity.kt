@@ -164,7 +164,7 @@ class MainActivity : ComponentActivity() {
  * Applies the persisted palette before Compose draws, avoiding a wrong-colour launch frame. Once
  * Compose runs, it owns the [systemBars].
  */
-private fun ComponentActivity.applyStoredWindowTheme(systemBars: Boolean = true) {
+internal fun ComponentActivity.applyStoredWindowTheme(systemBars: Boolean = true) {
     val preferences = runCatching { getSharedPreferences(APP_SETTINGS_FILE, Context.MODE_PRIVATE) }.getOrNull()
     val stored = runCatching { preferences?.getString(APP_THEME_KEY, null) }.getOrNull()
     val pureBlack = runCatching { decodeAppearance(preferences?.getString(APP_APPEARANCE_KEY, null)).pureBlack }

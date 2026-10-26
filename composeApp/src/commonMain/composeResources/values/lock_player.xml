@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_lock_screen_player">Player on the lock screen</string>
+    <string name="settings_lock_screen_player_subtitle">Turn the screen off in LatentJam while music plays, and the full player waits on the lock screen</string>
+</resources>

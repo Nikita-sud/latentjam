@@ -329,6 +329,8 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_smart_engi
 import io.github.nikitasud.latentjam.app.generated.resources.snack_duplicates_merged
 import io.github.nikitasud.latentjam.app.generated.resources.settings_notification_favorite
 import io.github.nikitasud.latentjam.app.generated.resources.settings_notification_favorite_subtitle
+import io.github.nikitasud.latentjam.app.generated.resources.settings_lock_screen_player
+import io.github.nikitasud.latentjam.app.generated.resources.settings_lock_screen_player_subtitle
 import io.github.nikitasud.latentjam.app.generated.resources.settings_stats
 import io.github.nikitasud.latentjam.app.generated.resources.settings_stats_subtitle
 import io.github.nikitasud.latentjam.app.generated.resources.settings_start_page
@@ -972,6 +974,15 @@ private fun AppearanceSettings(
                         body = stringResource(Res.string.settings_notification_favorite_subtitle),
                         checked = favorite,
                         onCheckedChange = settings::setNotificationFavorite,
+                    )
+                }
+                if (lockScreenPlayerAvailable) {
+                    val lockPlayer by settings.lockScreenPlayer.collectAsState()
+                    AppearanceSwitchRow(
+                        title = stringResource(Res.string.settings_lock_screen_player),
+                        body = stringResource(Res.string.settings_lock_screen_player_subtitle),
+                        checked = lockPlayer,
+                        onCheckedChange = settings::setLockScreenPlayer,
                     )
                 }
             }

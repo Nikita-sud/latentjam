@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_lock_screen_player">लॉक स्क्रीन पर प्लेयर</string>
+    <string name="settings_lock_screen_player_subtitle">संगीत चलते समय LatentJam में स्क्रीन बंद करें, तो पूरा प्लेयर लॉक स्क्रीन पर मिलेगा</string>
+</resources>
