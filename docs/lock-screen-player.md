@@ -19,12 +19,30 @@ service running) starts a `setShowWhenLocked(true)` activity with
 | Full-screen-intent notification from the background | `USE_FULL_SCREEN_INTENT` (revoked by Play for non-call/alarm apps; user-revocable on 14+) | opens | **no**: the screen turns back on about 4 s after the user switched it off |
 
 A media foreground service is not a background-activity-start exemption on Android 10+. Samsung
-Music's `LockActivity` works from anywhere because it is a platform-signed system app. The full-screen
+Music's `LockActivity` works from anywhere because it holds the privileged
+`START_ACTIVITIES_FROM_BACKGROUND` (see below). The full-screen
 intent is rejected because it re-wakes the screen on every screen-off (battery, pocket touches) and
 leaves a heads-up "call" notification behind.
 
 One UI on the Galaxy S24 Ultra (Android 16) runs the AOSP BAL rules, so the same table is expected
 there; it was not measured on that phone.
+
+## Why Samsung Music can and we cannot (owner's manifest check, 2026-10-26)
+
+Samsung Music 16.2.45.1 declares 57 permissions and **no** `SYSTEM_ALERT_WINDOW`; its code has no
+`canDrawOverlays`, no `TYPE_APPLICATION_OVERLAY` / `TYPE_SYSTEM_ALERT` windows and no special-access
+flow. `LockActivity` is started with `NEW_TASK | NO_ANIMATION` from a screen-off coroutine, and that
+start is allowed because the app holds `START_ACTIVITIES_FROM_BACKGROUND`, a signature/privileged
+permission. It reaches the lock screen through `setShowWhenLocked(true)`, not an overlay, and the
+`mediaPlayback` foreground service keeps it alive. Its other permissions (`INTERACT_ACROSS_USERS_FULL`,
+`INJECT_EVENTS`, `INTERNAL_SYSTEM_WINDOW`, `MANAGE_ACTIVITY_STACKS`, `STATUS_BAR`,
+`WRITE_SECURE_SETTINGS`, `DEVICE_POWER`, …) mark it as a privileged system app.
+
+So a third-party app cannot reproduce Samsung's background launch as is. The nearest third-party
+equivalent is the "Display over other apps" grant (`SYSTEM_ALERT_WINDOW`): we would not draw an
+overlay with it, only use its background-activity-start exemption (`BAL_ALLOW_SAW_PERMISSION`,
+measured above), with the same `setShowWhenLocked` activity. The difference from Samsung: the
+listener must turn the special access on by hand in system settings.
 
 ## What ships
 
