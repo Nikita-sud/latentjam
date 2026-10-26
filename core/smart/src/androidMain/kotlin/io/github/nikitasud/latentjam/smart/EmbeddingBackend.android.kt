@@ -466,6 +466,9 @@ public actual fun smartEngineBackendModule(): Module = module {
     single<io.github.nikitasud.latentjam.smart.cluster.MapRefreshStateStore> {
         io.github.nikitasud.latentjam.smart.cluster.FileMapRefreshStateStore(get<android.content.Context>().filesDir)
     }
+    single<io.github.nikitasud.latentjam.smart.cluster.RegionIdentityStore> {
+        io.github.nikitasud.latentjam.smart.cluster.FileRegionIdentityStore(get<android.content.Context>().filesDir)
+    }
 
     single<IndexStore>(smartImputationQualifier) {
         FileIndexStore(context = get(), fileName = "smart_imputation.bin")

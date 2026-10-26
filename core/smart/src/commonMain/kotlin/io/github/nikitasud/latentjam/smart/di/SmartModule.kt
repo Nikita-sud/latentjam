@@ -118,6 +118,7 @@ public val smartEngineModule: Module = module {
     single<IndexStore>(smartTextIndexQualifier) { NoopIndexStore() }
     single<IndexStore>(smartLayoutQualifier) { NoopIndexStore() }
     single<io.github.nikitasud.latentjam.smart.cluster.MapRefreshStateStore> { io.github.nikitasud.latentjam.smart.cluster.NoMapRefreshStateStore }
+    single<io.github.nikitasud.latentjam.smart.cluster.RegionIdentityStore> { io.github.nikitasud.latentjam.smart.cluster.NoRegionIdentityStore }
     single<IndexStore>(smartEnergyQualifier) { NoopIndexStore() }
     single<IndexStore>(smartImputationQualifier) { NoopIndexStore() }
 
