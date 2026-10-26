@@ -191,6 +191,17 @@ internal class ManualChangeFades(
         drain(fadeIn = false)
     }
 
+    /**
+     * What is waiting runs now and the sound comes back over its fade-in: a command that does not
+     * take the sound over itself (a seek, a plain command) must not leave the change's silence.
+     */
+    suspend fun settle() {
+        if (waiting == null) return
+        waiting?.cancel()
+        waiting = null
+        drain(fadeIn = true)
+    }
+
     private suspend fun drain(fadeIn: Boolean) {
         if (running) return
         running = true

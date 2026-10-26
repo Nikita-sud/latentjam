@@ -1,6 +1,12 @@
 # Pause and manual-change fades for every Android source — design
 
-Status: APPROVED 2026-10-26 — revision 4, review round 4 READY (the owner delegated approval to adversarial review rounds). Branch: on top of `feat/manual-change-fades`
+Status: APPROVED 2026-10-26 — revision 4, review round 4 READY (the owner delegated approval to adversarial review rounds).
+IMPLEMENTED 2026-10-26 (`SessionTransportFades.kt`, host tests `SessionTransportFadesTest`). Not yet
+heard on a phone.
+
+Deviations found while implementing:
+- **A pause from the app or from nobody during a pending pause** completes it at once (recovery
+  parking on a failed row, the service stopping); only a deferrable second pause is a no-op. Branch: on top of `feat/manual-change-fades`
 (7bade8e1). Follow-up to limit 1 in `docs/manual-change-fades-plan.md`.
 
 ## What is instant today

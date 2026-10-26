@@ -66,7 +66,8 @@ manual fades reuse that envelope.
 
 ## Limits and choices for the owner
 
-1. **Android sources.** As with pause today, only commands from inside the app fade. Notification,
+1. **Android sources.** *Resolved 2026-10-26 by `docs/service-side-fades-plan.md`: the envelope
+   moved into the service and every source fades.* As with pause today, only commands from inside the app fade. Notification,
    headset, Android Auto and widget commands go straight to the service's player and stay instant.
    Covering them means doing the fade in the service's session player instead. That is a larger
    change: the session acknowledges a command before the delayed change happens, so the
