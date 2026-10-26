@@ -85,7 +85,7 @@ public abstract class LivePlaybackWidgetProvider internal constructor(
         when (intent.action) {
             PlaybackWidgetStateStore.stateChangedAction(context) -> {
                 val pending = goAsync()
-                WidgetUpdateCoordinator.requestAll(context, pending::finish)
+                WidgetUpdateCoordinator.requestAllInBackground(context, pending::finish)
             }
             AppWidgetManager.ACTION_APPWIDGET_UPDATE -> {
                 val manager = AppWidgetManager.getInstance(context)
@@ -220,6 +220,35 @@ private object WidgetUpdateCoordinator {
     }
     private data class Target(val style: WidgetStyle, val id: Int)
     private var refreshQueue: WidgetRefreshQueue<Target>? = null
+    private val lookupLock = Any()
+    private var lookupScheduled = false
+    private val lookupCompletions = mutableListOf<() -> Unit>()
+
+    /**
+     * [requestAll] for a playback state change, off the main thread and once per burst. Every widget
+     * class hears each change, and each asked the widget service for the ids of all three classes:
+     * nine binder calls on the main thread per change, several changes per skip. Rendering reads the
+     * newest snapshot, so one lookup serves every change that arrived before it ran.
+     */
+    fun requestAllInBackground(context: Context, onComplete: () -> Unit) {
+        val appContext = context.applicationContext
+        val schedule = synchronized(lookupLock) {
+            lookupCompletions += onComplete
+            !lookupScheduled.also { lookupScheduled = true }
+        }
+        if (!schedule) return
+        executor.execute {
+            val completions = synchronized(lookupLock) {
+                lookupScheduled = false
+                lookupCompletions.toList().also { lookupCompletions.clear() }
+            }
+            val finish = { completions.forEach { it() } }
+            runCatching { requestAll(appContext, finish) }.onFailure { failure ->
+                Log.w(WIDGET_LOG_TAG, "Unable to refresh widgets", failure)
+                finish()
+            }
+        }
+    }
 
     fun requestAll(context: Context, onComplete: () -> Unit = {}) {
         val appContext = context.applicationContext
