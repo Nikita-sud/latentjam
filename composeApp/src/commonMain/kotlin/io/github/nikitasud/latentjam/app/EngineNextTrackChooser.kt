@@ -155,7 +155,10 @@ class EngineNextTrackChooser(
             // A top-up can extend this chooser's plan or one the UI requested directly, even
             // after replacing the previous queue. The engine checks the preceding queued tracks
             // before carrying a walk; an unrelated seed starts fresh there.
-            val learned = if (useRanker()) ranker() else null
+            // Top-ups arrive on Main, and the first call loads and checksums ~32 MB of ranker
+            // assets (the warm-up starts only seconds after launch): resolve it off Main.
+            val learned = if (useRanker()) withContext(Dispatchers.Default) { ranker() } else null
+            val healthy = learned != null && withContext(Dispatchers.Default) { rankerHealthy() }
             var picks: List<PlanPick>? = null
             var model = "chain"
             var plan = if (learned != null) {
@@ -182,7 +185,7 @@ class EngineNextTrackChooser(
                 val report = rankerPlan(
                     learned, history, sessionSeed, candidates, library(), RANKER_LENGTH,
                     seedMs = events.last().startedAtMs, press = queuePress, recentIds = recentIds,
-                    personal = queuePersonal, ruleOnly = !rankerHealthy() || queueFailures >= BREAKER_LIMIT,
+                    personal = queuePersonal, ruleOnly = !healthy || queueFailures >= BREAKER_LIMIT,
                     favourites = if (queueFavourites) favourites else NO_FAVOURITES,
                     presses = { window, count ->
                         smartLog?.recentPresses(clock(), window, count, excludeQueue = queueId.takeIf { recentIds.isNotEmpty() })
