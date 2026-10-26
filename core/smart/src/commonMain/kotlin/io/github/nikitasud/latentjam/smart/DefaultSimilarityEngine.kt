@@ -794,6 +794,15 @@ internal class DefaultSimilarityEngine(
         mutex.withLock { textIndex?.entries().orEmpty() }
     }
 
+    override suspend fun metadataRows(ids: Collection<TrackId>): Map<TrackId, FloatArray> = withContext(dispatcher) {
+        mutex.withLock {
+            val index = textIndex ?: return@withLock emptyMap()
+            val out = HashMap<TrackId, FloatArray>(ids.size * 2)
+            for (id in ids) index.vector(id)?.let { out[id] = it }
+            out
+        }
+    }
+
     override suspend fun semanticSearch(query: String, limit: Int): List<ScoredTrack> =
         withContext(dispatcher) {
             mutex.withLock {

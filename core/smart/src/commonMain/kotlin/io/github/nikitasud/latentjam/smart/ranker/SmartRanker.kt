@@ -1623,13 +1623,17 @@ public class SmartRanker(
                 if (id in needed) audioUnit[id] = u
             }
         }
-        val texts = runCatching { audio.textVectors(ids) }.getOrNull().orEmpty()
+        // Text: streamed the same way, in the same order (so the mean is bit-identical); a whole-library copy of the
+        // 384-float rows was ~1.6 KB a track on every plan.
         var textMean: SemChain.Companion.Mean? = null
         val textUnit = HashMap<TrackId, FloatArray>()
-        for (id in ids) {
-            val u = texts[id]?.let(::normalized) ?: continue
-            (textMean ?: SemChain.Companion.Mean(u.size).also { textMean = it }).add(u)
-            if (id in needed) textUnit[id] = u
+        for (chunk in ids.chunked(SEM_BATCH)) {
+            val texts = runCatching { audio.textVectors(chunk) }.getOrNull().orEmpty()
+            for (id in chunk) {
+                val u = texts[id]?.let(::normalized) ?: continue
+                (textMean ?: SemChain.Companion.Mean(u.size).also { textMean = it }).add(u)
+                if (id in needed) textUnit[id] = u
+            }
         }
         var descMean: SemChain.Companion.Mean? = null
         val descUnit = HashMap<TrackId, FloatArray>()

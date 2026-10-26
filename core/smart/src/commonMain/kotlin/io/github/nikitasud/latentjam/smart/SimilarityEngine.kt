@@ -288,6 +288,15 @@ public interface SimilarityEngine {
     public suspend fun metadataVectors(): Map<TrackId, FloatArray>
 
     /**
+     * The stored metadata vectors of [ids] only, in [metadataVectors]' form: what the SMART ranker reads in batches
+     * instead of copying the whole library's vectors for every plan. Tracks without one are absent.
+     */
+    public suspend fun metadataRows(ids: Collection<TrackId>): Map<TrackId, FloatArray> {
+        val wanted = ids.toHashSet()
+        return metadataVectors().filterKeys { it in wanted }
+    }
+
+    /**
      * Finds tracks whose trusted metadata embedding is closest to free-form [query] text.
      *
      * Intended as the semantic half of a hybrid search: callers keep exact title/artist/album

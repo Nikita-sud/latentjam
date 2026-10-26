@@ -210,8 +210,6 @@ public class EngineAudioSource(private val engine: () -> io.github.nikitasud.lat
     override suspend fun energy(id: TrackId): Double? = engine()?.energy(id)
     override suspend fun vectors(ids: Collection<TrackId>): Map<TrackId, FloatArray> = engine()?.audioRows(ids)?.vectors.orEmpty()
     override suspend fun energies(ids: Collection<TrackId>): Map<TrackId, Double> = engine()?.audioRows(ids)?.energies.orEmpty()
-    override suspend fun textVectors(ids: Collection<TrackId>): Map<TrackId, FloatArray> {
-        val wanted = ids.toHashSet()
-        return engine()?.metadataVectors().orEmpty().filterKeys { it in wanted }
-    }
+    override suspend fun textVectors(ids: Collection<TrackId>): Map<TrackId, FloatArray> =
+        engine()?.metadataRows(ids).orEmpty()
 }
