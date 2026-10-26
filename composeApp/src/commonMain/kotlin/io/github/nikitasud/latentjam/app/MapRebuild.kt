@@ -14,6 +14,8 @@ import kotlin.time.TimeSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -66,15 +68,19 @@ internal object MapRebuild {
     var fallbackRuns: Int = 0
         private set
 
-    /** Called after a refresh that leaves work for the rebuild. */
+    /**
+     * Called after a refresh that leaves work for the rebuild. [newWork] false: a re-read of what is already stored
+     * ([resumePending]), which a running rebuild reads too and so must not make it run again.
+     */
     fun requested(
         stale: Boolean,
         nowMs: Long,
         schedule: () -> Unit = ::scheduleMapRebuild,
         persisted: () -> Long = ::persistedRequestAt,
         persist: (Long) -> Unit = ::persistRequestAt,
+        newWork: Boolean = true,
     ) {
-        requests++
+        if (newWork) requests++
         if (stale) staleState.value = true
         if (requestedAtMs == 0L) {
             // A time in the future is a changed clock, not a request: start the day again.
@@ -119,7 +125,7 @@ internal object MapRebuild {
         val layout = runCatching { readLayout() }.getOrNull()
         val identity = runCatching { readIdentityPending() }.getOrDefault(0)
         if (!pendingWork(layout?.first, layout?.second, identity)) return false
-        requested(stale = layout?.second == true, nowMs = nowMs, schedule = schedule)
+        requested(stale = layout?.second == true, nowMs = nowMs, schedule = schedule, newWork = false)
         return true
     }
 
@@ -148,19 +154,20 @@ internal object MapRebuild {
         fallbackRuns++
         val trigger = "fallback#$fallbackRuns"
         fallbackJob = scope.launch {
-            // It ran on external power and stops when that ends, as the scheduled run's constraints would.
-            var powerCheckedAt = TimeSource.Monotonic.markNow()
-            var powered = true
-            run(
-                isActive = {
-                    if (powerCheckedAt.elapsedNow() >= POWER_CHECK_EVERY) {
-                        powered = onExternalPower()
-                        powerCheckedAt = TimeSource.Monotonic.markNow()
-                    }
-                    isActive && powered
-                },
-                trigger = trigger,
-            )
+            // It ran on external power and stops when that ends, as the scheduled run's constraints would. Polled on
+            // Main (UIDevice is main-thread only) and read by isActive from the rebuild's own threads.
+            val powered = MutableStateFlow(true)
+            val poll = launch(Dispatchers.Main) {
+                while (true) {
+                    delay(POWER_CHECK_EVERY)
+                    powered.value = onExternalPower()
+                }
+            }
+            try {
+                run(isActive = { isActive && powered.value }, trigger = trigger)
+            } finally {
+                poll.cancel()
+            }
         }
     }
 
