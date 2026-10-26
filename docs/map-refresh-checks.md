@@ -377,3 +377,92 @@ the app on the emulator and simulator for the launch paths.
   the work itself.
 - The 24 h fallback is not exercised on a device. Its timer is in memory, so it restarts with the
   process, and that is disclosed.
+
+### Piece 4 freeze review, round 1 (26 October 2026): REVISE. The freeze is revised below, before any check run.
+
+A fresh adversarial reviewer found two kinds of problem: rows that cannot fail, and bugs in the
+wiring. Each is addressed as follows (issue numbers are the reviewer's).
+
+**1. Purity on the switch path cannot fail.** The fresh map there is k-means: 16 coarse regions
+against about 210 kept ones, and purity grows with the region count.
+- **New row, placed agreement.** It covers the tracks this round placed: new or changed tracks,
+  and settled tracks that had no region before. It is the share whose label matches their region's
+  majority label, compared against the same tracks in the fresh map of the same path.
+  **Pass: ≥ fresh − 0.05.**
+- Region counts are logged next to purity.
+- On the switch, the average-linkage fresh map is also logged (purity and placed agreement), for
+  contrast only: the device cannot run average linkage.
+
+**2. Coverage is one-sided.** `rediscover` keeps settled tracks that the new worlds leave out, so
+identity's coverage cannot fall below what it had. Disclosed. The coverage row still guards the
+other side: tracks that lose their region.
+
+**3. The new-style row passes automatically when fresh scores 0.** When the fresh map does not give
+the new style a region of its own (own = 0), the row now reads **n/a**, not a pass.
+
+**4. Both paths for the chain.** A switch chain is added, with k-means at every rediscovery.
+
+**5. The harness changed after pilot 2.** The chain's churn verdict and the placed-agreement row
+were added after pilot 2. Pilot 3 is run with the final harness.
+
+**6. The "today" contrast is now exact.** It uses only the fresh worlds, each given the old id it
+overlaps most, with no keeping of tracks the fresh worlds leave out.
+
+**7. The new-style case could reuse the pilot's style.** The style the pilot picked on FMA is
+logged and excluded in the check (`MAP_REGIONS_EXCLUDE_STYLE`).
+
+**8. δ.** 0.2 was the edge of the pilot grid, so pilot 3 adds 0.3. In plain terms, δ = 0.2 means
+"settled tracks almost never move": per-region p90 moved is 0 everywhere. So the rows that can catch
+a bad identity map are purity on average linkage, the new placed-agreement row and coverage.
+
+**Code fixes:**
+
+- **9.** A join used to ignore changes to playlists, the novelty preference and the readiness tier
+  (and, found while fixing it, tag edits).
+  - The snapshot now stores a context of the non-vector inputs. A different context refuses the
+    join and rediscovers.
+  - Each track's hash now mixes in its tags as discovery reads them, so a tag edit marks the track
+    pending and schedules the rebuild.
+- **10.** Ids could be reused when the highest-id region vanished. The snapshot now carries a
+  high-water mark (`nextId`, codec format 2).
+- **11.** The input-version comment was corrected. An encoder or fusion-weight change makes every
+  hash differ, which leads to a full rediscovery with nothing settled, so every region gets a new id.
+- **12.** A region dropped for want of rows is now logged.
+- **Also:** a join with pending tracks now goes through `MapRebuild.requested`, so the 24 h fallback
+  timer starts.
+
+**Pilots 3–5** (pilot data only; logs `piece4-pilot3..5-2026-10-26.txt`):
+
+- **Pilot 3** (final harness, δ ∈ {0.1, 0.2, 0.3}) found a mechanism weakness. On the k-means
+  switch, new, changed and previously unassigned tracks were poured into the one fine region their
+  coarse world matched. FMA change2 on the switch failed placed agreement at every δ (0.479 vs
+  0.481). At δ = 0.3, change2 purity on average linkage also failed.
+- **Pilot 4** placed those tracks as a join would: nearest kept core that clears its floor. That
+  fixed the switch, but the new FMA style was absorbed into old regions (own 0.33 → 0).
+- **Pilot 5**, the rule frozen here: an unsettled track has no stickiness. It goes to whichever is
+  nearer, its rediscovered world's centroid or the nearest kept region's core (if it clears the
+  floor).
+  - At δ = 0.2, every row passes on both libraries and both paths, except two:
+    - **FMA change2 on average linkage, purity:** 0.7218 vs 0.7228, a miss of 0.001. The changed
+      vectors are midpoints of two random tracks.
+    - **The FMA novel style on the switch:** n/a, because fresh own is 0.
+  - On the switch, placed agreement is 0.51–0.54 against fresh's 0.50–0.53.
+  - The new style keeps its own region on average linkage (0.33 = fresh).
+  - Chain moved share from the start: 1.8 % (average linkage) and 1.6 % (switch).
+
+**Frozen:**
+- **Code:** δ = 0.2, the pilot-5 placement and every other code fix above.
+- **Rows:** the table above plus placed agreement ≥ fresh − 0.05, the new-style row as n/a when
+  fresh is 0, and the chain on both paths.
+- **The pilot's FMA new style ("Hip-Hop Beats") is excluded** in the check.
+- **Known risk, named before the run:** purity on changed vectors on average linkage. In the pilot
+  it missed by 0.001.
+- **No more tuning.** Further pilots would fit δ and the rule to the pilot draw.
+
+**Check command:**
+
+```
+MAP_REGIONS=1 MAP_REGIONS_MODE=check MAP_REGIONS_DELTAS=0.2 MAP_REGIONS_SEEDS=47,53,59 \
+MAP_REGIONS_FMA=<s707>/fma-5000,<s808>/fma-5000,<s909>/fma-6500 MAP_REGIONS_EXCLUDE_STYLE="Hip-Hop Beats" \
+./gradlew :core:smart:testAndroidHostTest --tests '*MapRegionIdentityReplay' --rerun
+```

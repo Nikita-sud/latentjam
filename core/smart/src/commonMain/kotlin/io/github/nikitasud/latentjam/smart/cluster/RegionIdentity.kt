@@ -147,10 +147,11 @@ public object RegionIdentity {
         // Settled tracks the rediscovery left out of every world keep their region.
         for (r in previous) for (t in r.world.tracks) if (t.id in settled && t.id !in placed) members.getOrPut(r.id) { mutableListOf() } += t
 
-        // An unsettled track (new, changed, or without a region before) is placed as a join would place it:
-        // in the kept region whose settled core it is nearest, when it clears that region's floor. Only
-        // otherwise does it follow its rediscovered world. A coarse world (the k-means fallback) then cannot
-        // pour such tracks into the one fine region it happened to match.
+        // An unsettled track (new, changed, or without a region before) has no stickiness: it goes to whichever
+        // is nearer, its rediscovered world (centroid) or the kept region whose settled core it is nearest (when
+        // it clears that region's floor). On a fine rediscovery the two nearly agree; a coarse world (the
+        // k-means fallback) no longer pours such tracks into the one fine region it matched, and a new style
+        // stays nearest its own world and becomes a new region.
         val unsettled = worldOf.keys.filterTo(HashSet()) { it !in settled || oldOf[it] == null }
         if (unsettled.isNotEmpty()) {
             val coreIds = members.keys.filter { it in byId }
@@ -163,7 +164,8 @@ public object RegionIdentity {
                 var best = -1
                 var bestCos = -2f
                 for (k in coreIds.indices) { val c = cores[k] ?: continue; val cos = cosine(row, c); if (cos > bestCos) { bestCos = cos; best = k } }
-                if (best >= 0 && bestCos >= byId.getValue(coreIds[best]).floor) moveTo[id] = coreIds[best]
+                val worldCos = worldOf[id]?.let { w -> worldCentroids[w]?.let { cosine(row, it) } } ?: -2f
+                if (best >= 0 && bestCos > worldCos && bestCos >= byId.getValue(coreIds[best]).floor) moveTo[id] = coreIds[best]
             }
             if (moveTo.isNotEmpty()) {
                 val moved = ArrayList<Pair<Int, TrackDescriptor>>()

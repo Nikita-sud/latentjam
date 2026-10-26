@@ -10,6 +10,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import platform.BackgroundTasks.BGProcessingTask
 import platform.BackgroundTasks.BGTaskScheduler
+import platform.Foundation.NSUserDefaults
 import kotlin.concurrent.AtomicInt
 
 /**
@@ -43,6 +44,13 @@ fun registerMapRebuildTask() {
             expired.value = 1
             job.cancel()
         }
+    }
+    // Debug check aid: the `map_rebuild_request` user default submits the request at launch, so
+    // `_simulateLaunchForTaskWithIdentifier` has one to launch without a library change first.
+    val defaults = NSUserDefaults.standardUserDefaults
+    if (mapRefreshOverride() && defaults.boolForKey("map_rebuild_request")) {
+        defaults.removeObjectForKey("map_rebuild_request")
+        scheduleMapRebuild()
     }
 }
 
