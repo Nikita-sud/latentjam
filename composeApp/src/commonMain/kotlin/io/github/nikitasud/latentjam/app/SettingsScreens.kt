@@ -2607,14 +2607,13 @@ private fun DuplicateGroupCard(
         color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
-            Text(
+            // Long names and paths run instead of ending in "…": telling copies apart needs all of them.
+            MarqueeText(
                 text = survivor.track.title ?: stringResource(Res.string.track_untitled),
-                style = MaterialTheme.typography.titleMedium.metadata(),
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
             )
-            Text(
+            MarqueeText(
                 text = listOfNotNull(
                     survivor.track.artist,
                     stringResource(Res.string.duplicates_copy_count, group.copies.size),
@@ -2628,7 +2627,7 @@ private fun DuplicateGroupCard(
                 ).let { joinBidiWrapped(it) },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 8.dp),
             )
             group.copies.forEachIndexed { index, copy ->
                 if (index > 0) AppDivider()
@@ -2681,10 +2680,13 @@ private fun DuplicateCopyRow(
                 ?: copy.track.title
                 ?: stringResource(Res.string.track_untitled),
         )
+    // The whole path on its own line: the folder is usually what tells two copies apart.
+    val path = listOfNotNull(
+        copy.track.folderPath?.trimEnd('/')?.takeIf { it.isNotEmpty() },
+        copy.track.fileName?.takeIf { facts.isNotEmpty() },
+    ).takeIf { it.isNotEmpty() }?.joinToString("/")?.let { bidiWrap(it) }
     val details = listOfNotNull(
         copy.track.album,
-        copy.track.folderPath,
-        copy.track.fileName?.takeIf { facts.isNotEmpty() },
         copy.plays.takeIf { it > 0 }?.let {
             pluralStringResource(Res.plurals.privacy_history_listens, it, it)
         },
@@ -2705,19 +2707,25 @@ private fun DuplicateCopyRow(
     ) {
         AppRadioButton(selected = selected, onClick = null, enabled = enabled)
         Column(modifier = Modifier.weight(1f).padding(start = 4.dp, end = 4.dp)) {
-            Text(
+            MarqueeText(
                 text = headline,
                 style = MaterialTheme.typography.bodyMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth(),
             )
+            if (path != null) {
+                MarqueeText(
+                    text = path,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
             if (details.isNotEmpty()) {
-                Text(
+                MarqueeText(
                     text = details,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
             if (recommended) {
