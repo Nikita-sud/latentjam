@@ -101,6 +101,8 @@ public class RankerModel(
     public val playlistBonus: PlaylistBonus? = null,
     /** PLAN_DECODER2 NOREPEAT (FULL): λ_start on runs when the seed artist's pre-session share is below ρ. */
     public val noRepeat: NoRepeat? = null,
+    /** "Keep together" (marked playlists, CORE and FULL): the bonus weights and RK's retrieval quota; the defaults without the key. */
+    public val keepTogether: KeepTogether = KeepTogether.DEFAULT,
     /** Fast 3: −λ for a candidate in [ClassMismatch.families] when the seed is not. */
     public val classMismatch: ClassMismatch? = null,
     /** Fast 4: seed-anchored continuity on cached audio heads, in head-name order. */
@@ -235,6 +237,21 @@ public class RankerModel(
         public val lambda: Double, public val seedHinge: Boolean, public val tau: Double, public val poolScale: Boolean = false,
         public val prevLambda: Double = 0.0, public val prevTau: Double = 0.0,
     )
+
+    /**
+     * "Keep together": a pool row sharing a marked playlist with the seed gains [seed], one sharing it with the hop's
+     * anchor (the previous pick; the seed at hop 1) gains [prev] — added beside semChain, outside the model's mix. RK
+     * retrieves the marked playlists of the seed (and of a top-up's last track) into the pool: at most [quota] rows,
+     * [artistCap] per artist. Bounded: the bonus fades as marked tracks fill the last 10 picks and is gone once [share] of
+     * them are marked. No marked playlist, no effect.
+     */
+    public class KeepTogether(
+        public val seed: Double, public val prev: Double, public val quota: Int, public val artistCap: Int, public val share: Double = 0.5,
+    ) {
+        public companion object {
+            public val DEFAULT: KeepTogether = KeepTogether(seed = 1.0, prev = 1.5, quota = 40, artistCap = 8, share = 0.5)
+        }
+    }
 
     public class AnchorShare(public val share: Double, public val columns: List<String>) {
         internal val columnIndexes: IntArray = IntArray(columns.size) { RankerFeatures.NAMES.indexOf(columns[it]).also { i -> require(i >= 0) } }
@@ -439,7 +456,7 @@ public class RankerModel(
                 "artistReentry", "energy", "r1Energy", "audioAnchor", "imputedDescriptor", "seedGate", "freshness", "coreOffset",
                 "audioZ", "softNovelty", "anchorShare", "colistenPrevShare", "familyMismatch", "classMismatch", "continuity", "holidaySeason",
                 "durationRule", "titleFlags", "unknownSeedAnchor", "artistSets",
-                "taxonomy", "versionKey", "playlistBonus", "noRepeat", "langScript", "semChain",
+                "taxonomy", "versionKey", "playlistBonus", "keepTogether", "noRepeat", "langScript", "semChain",
                 "hubPenalty", "hubGenreDamp", "scorerSquash", "tagClasses", "prevFamilyJump", "familyDrift", "songDedup", "queueAlbumCap", "queueArtistBudget", "queueArtistCap", "transBonus", "followerExempt", "personalNudge", "transGraph", "skipPairs", "listenWeight",
             ),
             "tagClasses" to setOf("classes"),
@@ -455,6 +472,7 @@ public class RankerModel(
             "prevFamilyJump" to setOf("lambda"),
             "familyDrift" to setOf("lambda"),
             "playlistBonus" to setOf("lambda", "quota", "artistCap"),
+            "keepTogether" to setOf("seed", "prev", "quota", "artistCap", "share"),
             "noRepeat" to setOf("lambdaStart", "rho", "minPlays"),
             "anchorShare" to setOf("share", "columns"),
             "familyMismatch" to setOf("lambda", "near", "nearScale", "coldLambda"),
@@ -599,6 +617,14 @@ public class RankerModel(
                 playlistBonus = (root["playlistBonus"] as? Map<*, *>)?.let {
                     PlaylistBonus((it["lambda"] as Number).toDouble(), (it["quota"] as? Number)?.toInt() ?: 50, (it["artistCap"] as? Number)?.toInt() ?: 15)
                 },
+                keepTogether = (root["keepTogether"] as? Map<*, *>)?.let {
+                    val d = KeepTogether.DEFAULT
+                    KeepTogether(
+                        (it["seed"] as? Number)?.toDouble() ?: d.seed, (it["prev"] as? Number)?.toDouble() ?: d.prev,
+                        (it["quota"] as? Number)?.toInt() ?: d.quota, (it["artistCap"] as? Number)?.toInt() ?: d.artistCap,
+                        (it["share"] as? Number)?.toDouble() ?: d.share,
+                    )
+                } ?: KeepTogether.DEFAULT,
                 noRepeat = (root["noRepeat"] as? Map<*, *>)?.let {
                     NoRepeat((it["lambdaStart"] as Number).toDouble(), (it["rho"] as Number).toDouble(), (it["minPlays"] as? Number)?.toInt() ?: 10)
                 },

@@ -161,6 +161,12 @@ class SmartStandRunner {
         // The v0.9.1-equivalent engine: the learned ranker off, the judged chain of the phone's engine (LJ_STAND_ENGINE=chain).
         val chain = System.getenv("LJ_STAND_ENGINE") == "chain"
         val chainEngine = if (chain) chainEngine(dir, files, knowledge, library) else null
+        // "Keep together" stand check: LJ_STAND_MARKS names a file in the library dir of "group<TAB>trackId" lines (the
+        // marked playlists), given to the chooser as the app does — both the ranker and the chain read them.
+        val marks = System.getenv("LJ_STAND_MARKS")?.let { name ->
+            File(dir, name).takeIf { it.exists() }?.readLines()?.mapNotNull { l -> l.split('\t').takeIf { it.size >= 2 } }
+                ?.groupBy({ it[0] }, { TrackId(it[1]) })?.values?.map { it.toSet() }
+        }.orEmpty()
         val queues = StringBuilder()
         for (seed in seeds) {
             for (full in listOf(false, true)) {
@@ -186,7 +192,7 @@ class SmartStandRunner {
                     learnFromHabits = { full && !chain }, personalRanker = { full },
                     presses = SmartPresses(MemoryPresses()), smartLog = log,
                     favourites = { favourites }, useFavourites = { true }, clock = { now }, userPlaylists = { userPlaylists },
-                    varietyScale = { varietyScale },
+                    varietyScale = { varietyScale }, companionGroups = { marks },
                 )
                 for (press in 0 until (System.getenv("LJ_STAND_PRESSES")?.toInt() ?: PRESSES)) {
                     val queue = mutableListOf(seed)

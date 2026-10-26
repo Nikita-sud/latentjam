@@ -192,6 +192,7 @@ class EngineNextTrackChooser(
                     prefix = if (continuing) servedInQueue.toList() else emptyList(),
                     playlists = userPlaylists,
                     varietyScale = varietyScale(),
+                    companionGroups = groups,
                 )
                 if (report == null || report.timedOut) queueFailures++
                 picks = report?.picks

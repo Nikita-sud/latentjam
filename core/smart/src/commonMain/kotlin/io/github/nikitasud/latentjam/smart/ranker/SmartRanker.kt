@@ -96,6 +96,11 @@ public object RankerQueue {
         /** vc22 queueAlbumCap: each row's album core and the seed's ("" = none). */
         albumKeys: List<String>? = null,
         seedAlbum: String = "",
+        /**
+         * "Keep together": each row's bonus for sharing a marked playlist with the seed and with a hop's anchor, given the
+         * picks so far (the bonus saturates as marked tracks fill the queue); null = none.
+         */
+        companion: ((anchor: Int, picks: List<Int>) -> DoubleArray)? = null,
         features: (anchor: Int) -> Array<DoubleArray>,
     ): List<Int> {
         if (poolSize == 0 || length <= 0) return emptyList()
@@ -179,7 +184,7 @@ public object RankerQueue {
                 model, re, poolSize, artistKeys, seedArtist, tieOrder, length, choose, take, blocked, stop, trace,
                 credits, seedCredits, seedScores, ::scores, fresh, energies, seedEnergy, audioAgainst, novelty, heads,
                 seedFamily, rulePenalties, seedUnknown, prefix, prefixEnergy, noRepeat, varietyScale, semTerms, families, nudge,
-                albumKeys, seedAlbum,
+                albumKeys, seedAlbum, companion,
             )
         }
         val lambdaRun = model.runPenalty * varietyScale
@@ -191,7 +196,7 @@ public object RankerQueue {
         var runLength = if (runArtist.isEmpty()) 0 else 1
         repeat(minOf(length, poolSize)) {
             if (picks.isNotEmpty() && stop()) return picks
-            val s = when {
+            val mixed = when {
                 picks.isEmpty() || model.anchor == RankerModel.Anchor.SEED -> seedScores
                 model.anchor == RankerModel.Anchor.PREVIOUS -> scores(picks.last())
                 else -> {
@@ -200,6 +205,7 @@ public object RankerQueue {
                     DoubleArray(poolSize) { (model.seedWeight * seedScores[it] + model.previousWeight * previous[it]) / total }
                 }
             }
+            val s = companion?.invoke(picks.lastOrNull() ?: SEED, picks)?.let { b -> DoubleArray(poolSize) { mixed[it] + b[it] } } ?: mixed
             // proto_ranker4 D0 (PLAN_FINAL §8): dedup first; the penalty uses the sd of the raw scores over what is
             // left, the third-in-a-row cap follows, and ε uses the sd of those penalised, capped scores.
             val allowed = BooleanArray(poolSize) { open[it] && s[it].isFinite() && !blocked(it, picks) }
@@ -316,6 +322,7 @@ public object RankerQueue {
         nudge: ((Int) -> DoubleArray)?,
         albumKeys: List<String>?,
         seedAlbum: String,
+        companion: ((anchor: Int, picks: List<Int>) -> DoubleArray)? = null,
     ): List<Int> {
         val lambdaRun = (if (noRepeat) model.noRepeat!!.lambdaStart else model.runPenalty) * varietyScale
         val lambdaRe = re.lambda * varietyScale
@@ -351,6 +358,7 @@ public object RankerQueue {
             val prevAnchor = picks.lastOrNull() ?: if (npre > 0) PREFIX else null
             // Cold fix: semChain's terms against this hop's anchor (the seed at hop 1).
             val semT = semTerms?.invoke(prevAnchor ?: SEED)
+            val keepT = companion?.invoke(prevAnchor ?: SEED, picks)
             val combined = when {
                 prevAnchor == null || model.anchor == RankerModel.Anchor.SEED || (model.unknownSeedAnchor && seedUnknown) -> seedScores
                 model.anchor == RankerModel.Anchor.PREVIOUS -> scores(prevAnchor)
@@ -490,6 +498,7 @@ public object RankerQueue {
                 }
                 terms?.let { it[1][i] = mark - v }
                 if (semT != null) v += semT[i]
+                if (keepT != null) v += keepT[i]
                 mark = v
                 if (aPrev != null) v += model.audioWeight * aPrev[i]
                 terms?.let { it[2][i] = v - mark }
@@ -683,6 +692,8 @@ public class PlanRequest(
     public val engaged: Set<TrackId> = emptySet(),
     /** Fast 3.3 (FULL only): the listener's own playlists (M3U files, app playlists), each in its order. */
     public val playlists: List<List<TrackId>> = emptyList(),
+    /** "Keep together": the playlists the listener marked (CORE and FULL); empty = the plan is unchanged. */
+    public val companionGroups: List<Set<TrackId>> = emptyList(),
     /** The artist-variety setting as a multiplier on the decoder's artist terms (1 = the model's tuned values, 0 = none). */
     public val varietyScale: Double = 1.0,
     /** PLAN_DECODER2 §19 AS: the current session's plays before the press as (track, start ms), any order (CORE and FULL). */
@@ -1198,6 +1209,9 @@ public class SmartRanker(
                 for (id in distinct) playlistsOf.getOrPut(id) { ArrayList(1) } += p to distinct.size
             }
         }
+        // "Keep together": each track -> the marked playlists it is in (a playlist of fewer than two tracks relates nothing).
+        val groupsOf = HashMap<TrackId, MutableList<Int>>()
+        for ((g, set) in request.companionGroups.withIndex()) if (set.size >= 2) for (id in set) groupsOf.getOrPut(id) { ArrayList(1) } += g
         // Fast track 2 soft novelty: only the hardLast newest of the novelty set stay excluded (ties by id bytes); the
         // rest join the source and lose λ_n · sd · (1 − age / 24 h) in the decoder.
         var exclude = request.exclude
@@ -1232,7 +1246,7 @@ public class SmartRanker(
         val pool = when {
             request.ruleOnly -> ruleOnlyPool(poolSource, seedKnown, salted, sources)
             poolSource.size <= serving.wholeLibraryUpTo -> poolSource
-            else -> retrieve(poolSource, seedKnown, request, serving, salted, sources, active, playlistsOf) { got, timedOut ->
+            else -> retrieve(poolSource, seedKnown, request, serving, salted, sources, active, playlistsOf, groupsOf) { got, timedOut ->
                 r1Count = got
                 if (timedOut) timeouts += "R1"
             }
@@ -1382,6 +1396,33 @@ public class SmartRanker(
             seedUnknown = seedKnown.family == null && seedKnown.packDescriptor == null && seedKnown.imputedDescriptor == null,
             prefix = prefixIds.map { id -> cache.getValue(id).let { k -> artistKeyOf(k) to k.artists } }.ifEmpty { null },
             prefixEnergy = prefixKnown?.let { rawEnergies[it.track.id]?.takeIf { e -> e.isFinite() } },
+            companion = if (groupsOf.isEmpty()) null else run {
+                val kt = active.keepTogether
+                fun shares(id: TrackId): DoubleArray? {
+                    val gs = groupsOf[id] ?: return null
+                    return DoubleArray(pool.size) { i ->
+                        val other = pool[i].track.id
+                        if (other != id && groupsOf[other]?.any { it in gs } == true) 1.0 else 0.0
+                    }
+                }
+                val withSeed = shares(request.seed.id)
+                val cache = HashMap<Int, DoubleArray?>()
+                val bonus = { anchor: Int, picks: List<Int> ->
+                    val anchorId = when (anchor) {
+                        RankerQueue.SEED -> request.seed.id
+                        RankerQueue.PREFIX -> prefixIds.last()
+                        else -> pool[anchor].track.id
+                    }
+                    val withAnchor = cache.getOrPut(anchor) { shares(anchorId) }
+                    // Bounded: the bonus fades linearly as marked tracks fill the queue's last 10 rows (a top-up's served
+                    // prefix included, so a refill does not restart it), and is gone at kt.share of them.
+                    val recent = (prefixIds + picks.map { pool[it].track.id }).takeLast(10)
+                    val marked = recent.count { groupsOf.containsKey(it) }
+                    val f = if (recent.isEmpty()) 1.0 else maxOf(0.0, 1.0 - marked / (kt.share * 10.0))
+                    DoubleArray(pool.size) { i -> f * (kt.seed * (withSeed?.get(i) ?: 0.0) + kt.prev * (withAnchor?.get(i) ?: 0.0)) }
+                }
+                bonus
+            },
             playlistBonus = if (playlistsOf.isEmpty()) null else { anchor: Int ->
                 val anchorId = when (anchor) {
                     RankerQueue.SEED -> request.seed.id
@@ -1855,6 +1896,7 @@ public class SmartRanker(
         sources: MutableMap<TrackId, String>,
         active: RankerModel,
         playlistsOf: Map<TrackId, List<Pair<Int, Int>>>,
+        groupsOf: Map<TrackId, List<Int>> = emptyMap(),
         onR1: (neighbours: Int, timedOut: Boolean) -> Unit = { _, _ -> },
     ): List<Known> {
         val byId = pool.associateBy { it.track.id }
@@ -1970,6 +2012,28 @@ public class SmartRanker(
                 if (got.size >= r8.quota) break
             }
             take(got, r8.quota, "R8", capped = false)
+        }
+        // RK ("keep together", CORE and FULL): the marked playlists of the seed and of a top-up's last track, salted order,
+        // their own per-artist cap and quota, before the fill (so the fill still reaches its target).
+        val kt = active.keepTogether
+        val anchorGroups = HashSet<Int>()
+        groupsOf[seed.track.id]?.let { anchorGroups += it }
+        request.prefix.lastOrNull()?.let { last -> groupsOf[last]?.let { anchorGroups += it } }
+        if (anchorGroups.isNotEmpty()) {
+            val ids = groupsOf.entries.filter { (id, gs) -> id != seed.track.id && id in byId && gs.any { it in anchorGroups } }
+                .map { it.key }.sortedBy { salted[it] ?: 0L }
+            val perArtist = HashMap<String, Int>()
+            val got = ArrayList<TrackId>()
+            for (id in ids) {
+                if (id in out) continue
+                val a = capKey(byId.getValue(id))
+                val c = perArtist[a] ?: 0
+                if (a.isNotEmpty() && c >= kt.artistCap) continue
+                perArtist[a] = c + 1
+                got += id
+                if (got.size >= kt.quota) break
+            }
+            take(got, kt.quota, "RK", capped = false)
         }
         if (serving.l2) {
             // Audit 04 #1 / #11: fill to a fixed target, the seed's family first (capped), then a salted sample.

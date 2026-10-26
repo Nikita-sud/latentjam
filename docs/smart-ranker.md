@@ -105,7 +105,13 @@ parity on the trained model (§7: no interim builds).
 - The ranker plans §7.2b's repeats, but the app's queues hold a track once: the chooser serves only tracks not yet
   queued, so a small library's SMART queue still ends when every track is queued (repeat-all loops). Letting the
   controllers queue a track again is a playback change of its own.
-- Marked playlists ("keep together in SMART") are not a ranker feature yet; the old chain still honours them.
+- Marked playlists ("keep together in SMART", `PlanRequest.companionGroups`, CORE and FULL): RK retrieves the marked
+  playlists of the seed (and of a top-up's last track) into the pool if retrieval missed them (≤ 40 rows, ≤ 8 per
+  artist, before the fill); each pool row then earns `keepTogether.seed` (1.0) for sharing a marked playlist with the
+  seed and `keepTogether.prev` (1.5) for sharing one with the hop's anchor (the previous pick; the seed at hop 1),
+  added beside semChain, outside the model's seed / previous mix. Bounded: the bonus fades linearly as marked tracks
+  fill the last 10 picks and is gone at half of them. Every other rule stays on top. No marked playlist (or only
+  one-track ones) leaves the plan untouched. SmartDiagnostics' replays of logged presses carry no marks.
 - Columns after the first 32 (reference.py's TAIL, so earlier indexes never move): `pop_known`; `is_favourite`, set
   only in FULL plans ("Learn from my habits") from the listener's hearts; `favourited_days_ago`, days since the heart
   from `favorite_times.txt` (0 when the time is unknown: hearts from before this build, or after the seed). The

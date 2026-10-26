@@ -192,7 +192,9 @@ while a closer one is left, and the walk carries on across top-ups. Metadata rul
 artists down instead of banning them (each further song by one artist in a row must fit better by
 more; Settings → SMART engine → Artist variety), suppress duplicate titles, other versions of a song
 included, and keep one very dense cluster (cinematic and anime soundtracks) from crowding the queue.
-Playlists marked *Keep together in SMART* earn points, not reserved slots. The finished queue is
+Playlists marked *Keep together in SMART* earn points, not reserved slots: their songs join the
+candidates and get a soft, bounded bonus next to the song you started from and next to each other,
+with or without *Learn from my habits*; with nothing marked the queue is exactly as before. The finished queue is
 ordered into gentle transitions.
 
 **Messy tags.** Track *titles* are excluded from the embedding, so a filename like `Hard Techno Mix`

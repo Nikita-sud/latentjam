@@ -343,6 +343,8 @@ internal suspend fun rankerPlan(
     prefix: List<TrackId> = emptyList(),
     /** Fast 3.3: the listener's own playlists (app and imported M3U), read only for [personal] plans. */
     playlists: () -> List<List<TrackId>> = { emptyList() },
+    /** "Keep together": the playlists the listener marked (CORE and FULL; empty = the plan is unchanged). */
+    companionGroups: List<Set<TrackId>> = emptyList(),
     /** The artist-variety setting as the ranker's multiplier on its artist terms. */
     varietyScale: Double = 1.0,
 ): io.github.nikitasud.latentjam.smart.ranker.PlanReport? = withContext(Dispatchers.Default) {
@@ -408,7 +410,7 @@ internal suspend fun rankerPlan(
                 recentIds = recentIds, press = press, history = personalHistory, personal = personal,
                 ruleOnly = ruleOnly || !fits, impressions = impressions, excludeAgeMs = noveltyAges, engaged = engaged,
                 seedMs = seedMs, prefix = prefix, playlists = if (personal) playlists() else emptyList(),
-                varietyScale = varietyScale,
+                varietyScale = varietyScale, companionGroups = companionGroups,
                 // §19 AS: the session's plays before the press (the ranker reads the last two within 30 min).
                 recentPlays = listens.takeLast(RECENT_PLAYS).map { it.trackId to it.startedAtMs },
             ),
