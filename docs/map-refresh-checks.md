@@ -185,3 +185,116 @@ only appended to. The verdict is still not supported:
 - The time row is unchanged.
 - If the heap row fails, the frozen fallback applies: keep only the patched index array and stream
   the affinities per row, then re-measure.
+
+## Piece 4: regions with identity (frozen 26 October 2026, before the run)
+
+**Code under test:** `RegionIdentity` (`initial` / `join` / `rediscover`, rows streamed from
+`LibraryVectorRows`) with `DELTA = 0.2`. Regions come from today's `LibraryWorlds.discover`.
+**Harness:** `MapRegionIdentityReplay` (opt-in host test, `MAP_REGIONS=1`).
+
+### Pilot (synthetic seed 7 and the FMA pilot draw; it sets δ only)
+
+Logs: `piece4-pilot1-2026-10-26.txt` and `piece4-pilot2-2026-10-26.txt`.
+
+**Pilot 1** (δ ∈ {0, 0.02, 0.05, 0.1}) counted every settled track whose region differed as
+churn. That included tracks that had **no** region before and got one. On the k-means switch this
+is coverage growth: average linkage leaves 16 % of tracks out, k-means about 4 %. It is not
+movement, so the definition was split before the freeze:
+
+- **moved:** a settled track had a region and now has another one or none (the row);
+- **gained:** a settled track had none and now has one (reported).
+
+Per-region moved shares (p50 / p90 / max over old regions) are logged too.
+
+**Pilot 2** (δ ∈ {0, 0.05, 0.1, 0.2}), moved churn:
+
+| | δ = 0 | 0.05 | 0.1 | 0.2 |
+| --- | --- | --- | --- | --- |
+| synthetic s7, average linkage | ≤ 0.8 % | ≤ 0.8 % | ≤ 0.4 % | ≤ 0.2 % |
+| synthetic s7, switch to k-means | 0 | 0 | 0 | 0 |
+| FMA pilot, average linkage | up to 2.5 % | up to 2.2 % | up to 2.1 % (change2) | ≤ 1.6 % |
+| FMA pilot, switch to k-means | 4–7 % | 3–5 % | 2.1–3.6 % | ≤ 1.6 % |
+
+- **Today, for contrast** (fresh worlds matched to the old ids by overlap, no stickiness): FMA
+  moves 2.5–9 % on average linkage and about 42 % on the switch.
+- Purity, coverage, new-style and minimum-size rows pass at every δ.
+- **δ = 0.2 is the only value that passes every row on both libraries and both paths.**
+- The 2 % chain's moved-from-start share is 1.8 % (FMA) and 0.01 % (synthetic) at δ = 0.2.
+
+### Data and paths (none used before)
+
+- **Data:**
+  - synthetic seeds 47 / 53 / 59 at 10,000 tracks;
+  - FMA draws s707 (5,000), s808 (5,000) and s909 (6,500).
+- **The FMA draws are new random draws from the same 7,989-track pool** as the pilot draw and
+  piece 1, so they overlap in tracks.
+- **Paths:**
+  - **Average linkage:** "before" and "after" both use it.
+  - **Switch:** "before" uses average linkage, "after" uses the k-means fallback (`workBudgetBytes = 1`),
+    as a 256 MB device at 10,000 tracks does (round 3).
+
+**Cases per library:**
+
+- additions of 1 / 2 / 5 %;
+- changed vectors at 2 %;
+- album additions of about 1 %;
+- one new style at about 2 % (for FMA, from its held-out split only);
+- the 2 % chain: start at 88 %, add 0.5 % per step for 20 steps, join every step, and rediscover
+  when more than 2 % is pending.
+
+### Rows
+
+Each case must pass on both paths, on every library. "Fresh" is today's discovery of the after
+library given fresh identities.
+
+| Row | Pass |
+| --- | --- |
+| settled moved churn | ≤ 2 % (gained and per-region distribution logged, today's contrast logged) |
+| purity (synthetic style / FMA top genre) | ≥ fresh − 0.01 |
+| coverage | ≥ fresh − 0.02 |
+| new style in its own region (novel case) | ≥ fresh − 0.10 |
+| new regions | none below `MIN_CLUSTER_SIZE` (4) |
+| 2 % chain (average linkage) | purity ≥ fresh − 0.01, coverage ≥ fresh − 0.02, **and moved churn from the start ≤ 2 %** |
+
+**For You with the flag on.** This is checked by code path and review, not by this harness:
+- For You reads `LibraryRegionsService.state.worlds`.
+- With the flag on and the analysis over, those are `RegionIdentityKeeper`'s worlds (joined
+  between rebuilds, rediscovered at a rebuild).
+- The piece-3 emulator run exercises it.
+
+**Deviation from the plan.** The plan says identity is stored "in the sidecar". It is stored in its
+own file, `map_region_identity.bin`, beside the sidecar. Regions and layout are written by different
+stages, and one file each keeps the layout state's codec unchanged. A missing or corrupt file costs
+one rediscovery.
+
+**Not colour.** The Map has no per-region colours today: the Worlds lens marks only the selected
+region. So the stable `colour` index is stored but has nothing to read it yet. What identity keeps
+visible is the region's id (which orders the region list), its name and its members.
+
+### Piece 2 re-run result (26 October 2026): PASS as declared, with a caveat on what the heap row measures
+
+**Logs.**
+- `piece2-heap-rerun-2026-10-26.txt`: 20 runs. Every refresh refreshed, none stale, all with
+  `load_in_window=1`.
+- `piece2-heap-rerun-hostload-2026-10-26.txt`: the host load per run.
+- Another session's Gradle test executor was running during 16 of the 20 runs. My own Gradle was
+  idle throughout.
+
+| Scenario | Today: time / heap delta | Refresh: time / heap delta (load inside) | Time ratio | Heap: refresh − today | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| add1 | 18,868 ms / 29,262,352 B | 2,471 ms / 8,522,952 B | 0.131 | −20.7 MB | PASS |
+| change1 | 19,698 ms / 29,190,576 B | 3,604 ms / 10,998,528 B | 0.183 | −18.2 MB | PASS |
+
+- The state load takes 32–133 ms and is now inside both the timer and the sampled window.
+
+**Caveat: what the heap row measures.**
+- **Today's** peak delta is about 29 MB in both series.
+- **Refresh** measured about 29 MB in the first series, with the load outside the window, and
+  5.5–11 MB now. Moving the load *inside* made the reading smaller, which no change in work explains.
+- **Most likely reading:** the sampled `totalMemory − freeMemory` is dominated by when ART's
+  collector runs. Used heap climbs to the next collection trigger, about 29 MB above the post-GC
+  baseline here, and then drops. So the sample measures garbage headroom, not the live working set.
+- **What this supports:** the refresh does not need more Java heap than today's build.
+- **What it does not support:** the size of the margin.
+- **Follow-up**, not run here: a stronger heap metric, either the smallest `-Xmx` (via `setprop`) at
+  which each mode still completes, or ART's `art.gc.bytes-allocated` / an `hprof` of the peak.
