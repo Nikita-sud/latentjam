@@ -156,3 +156,32 @@ alternating; APK built from commit 2f9a2298). Every refresh run refreshed (none 
   unaffected by host load.
 - The fallback was not needed.
 - **iOS:** the simulator footprint is unmeasured, as frozen.
+
+### Piece 2 review, round 1 (26 October 2026): REVISE. The PASS above is withdrawn.
+
+A fresh adversarial reviewer recomputed every number (they match) and confirmed that the freeze was
+only appended to. The verdict is still not supported:
+
+1. **`store.load()` ran before the heap baseline.** The state's heap was therefore never counted
+   in refresh's delta:
+   - `mean` and `basis` (1,344 × 50 floats);
+   - the 10,000 decoded id strings;
+   - the checksum and validation pass.
+
+   In the app, loading is part of the refresh path. With change1's 0.15 MiB margin this can flip the
+   verdict.
+2. **The unit was not declared.** The table used MiB. Read in decimal MB, change1's margin is 0.06.
+3. **The load's time was outside the timer.**
+4. **Heap polling at 10 ms can miss short peaks.** Refresh runs get about 8× fewer samples than
+   today. This is a disclosed limitation of the method, applied to both modes.
+5. **"Heap is unaffected by host load" is not supported.** GC timing shifts under load.
+
+**Re-run, declared before it runs:**
+- Same device, data, scenarios and 5 alternating runs. The host is idle this time: no Gradle and
+  no other jobs during the series.
+- Refresh mode loads the state **inside** the sampled and timed window (`load_in_window=1`, with
+  `load_ms` logged).
+- The heap row is scored against **2,000,000 bytes**, the stricter reading of "2 MB".
+- The time row is unchanged.
+- If the heap row fails, the frozen fallback applies: keep only the patched index array and stream
+  the affinities per row, then re-measure.

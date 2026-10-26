@@ -59,7 +59,6 @@ class MapRefreshHeapDeviceTest {
         val previous = built.points.associate { it.trackId to floatArrayOf(it.x, it.y) }
         @Suppress("UNUSED_VALUE") var heldOld: FloatArray? = oldRows
         heldOld = null
-        val state = store.load()!!
         val mappedBytes = File(dir, "map_refresh_state_check.bin").length()
 
         val runtime = Runtime.getRuntime()
@@ -68,16 +67,22 @@ class MapRefreshHeapDeviceTest {
         val peak = AtomicLong(usedBefore)
         val sampling = AtomicBoolean(true)
         val sampler = thread(isDaemon = true) { while (sampling.get()) { peak.updateAndGet { maxOf(it, runtime.totalMemory() - runtime.freeMemory()) }; Thread.sleep(10) } }
+        var loadMs = 0.0
         val start = System.nanoTime()
         val outcome = if (mode == "today") {
             LibraryLayout.compute(rowsOf(ids, rows), previous)!!.size.let { "completed points=$it" }
         } else {
-            val r = LibraryLayoutRefresh.refresh(rowsOf(ids, rows), previous, state, "check")
+            // Loading (parse, checksum, validation) is part of the app's refresh path, so it is inside
+            // the timed and sampled window (piece 2 review round 1, issue 1).
+            val loadStart = System.nanoTime()
+            val state = store.load()!!
+            loadMs = (System.nanoTime() - loadStart) / 1e6
+            val r = try { LibraryLayoutRefresh.refresh(rowsOf(ids, rows), previous, state, "check") } finally { state.close() }
             if (r == null) "declined" else "refreshed stale=${r.stale} changed=${r.changedSinceFull}"
         }
         val ms = (System.nanoTime() - start) / 1e6
         sampling.set(false); sampler.join()
-        val info = "LJ_MAP_REFRESH_HEAP mode=$mode scenario=$scenario outcome=$outcome total_ms=$ms heap_peak_delta_bytes=${peak.get() - usedBefore} " +
+        val info = "LJ_MAP_REFRESH_HEAP mode=$mode scenario=$scenario outcome=$outcome total_ms=$ms load_ms=$loadMs load_in_window=1 heap_peak_delta_bytes=${peak.get() - usedBefore} " +
             "mapped_state_bytes=$mappedBytes heap_limit_bytes=${runtime.maxMemory()}"
         Log.i("LJMapRefreshHeap", info)
         File(dir, "map-refresh-heap.log").appendText(info + "\n")
