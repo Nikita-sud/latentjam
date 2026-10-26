@@ -63,6 +63,7 @@ public class PlaybackService : MediaLibraryService() {
     private var mediaSession: MediaLibrarySession? = null
     private var playbackPlayer: ExoPlayer? = null
     private var crossfade: CrossfadeCoordinator? = null
+    private var transportFades: SessionTransportFades? = null
     private var pendingResumptionMode: ShuffleMode? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -666,6 +667,24 @@ public class PlaybackService : MediaLibraryService() {
                     playNext = marker.getString(AndroidQueueCommand.OPERATION) == AndroidQueueCommand.PLAY_NEXT,
                 )
             }
+            AndroidQueueCommand.T_PAUSE -> transportFades?.pause(deferrable = true)
+            AndroidQueueCommand.T_NEXT -> transportFades?.next(deferrable = true, appOp = true) {
+                player.seekToNextMediaItem()
+            }
+            AndroidQueueCommand.T_PREVIOUS -> transportFades?.previous(deferrable = true, appOp = true)
+            AndroidQueueCommand.T_SEEK -> {
+                val positionMs = marker.getLong(AndroidQueueCommand.POSITION, C.TIME_UNSET)
+                if (positionMs != C.TIME_UNSET) {
+                    transportFades?.seek(deferrable = true) { player.seekTo(positionMs) }
+                }
+            }
+            AndroidQueueCommand.T_PICK -> {
+                val index = marker.getInt(AndroidQueueCommand.INDEX, -1)
+                val mediaId = marker.getString(AndroidQueueCommand.MEDIA_ID)
+                if (index >= 0 && mediaId != null) {
+                    transportFades?.pick(index, 0L, deferrable = true, mediaId = mediaId, appOp = true)
+                }
+            }
             AndroidQueueCommand.MOVE -> {
                 if (!player.shuffleModeEnabled ||
                     player.mediaItemCount != marker.getInt(AndroidQueueCommand.SIZE, -1)
@@ -743,19 +762,19 @@ public class PlaybackService : MediaLibraryService() {
         // before the session and the listener exist — see [applyPersistedRepeatMode] for why.
         applyPersistedRepeatMode(player)
         playbackPlayer = player
-        val sessionPlayer = object : LoadedQueueKeeper(player) {
+        val fades = SessionTransportFades(
+            player = player,
+            scope = serviceScope,
+            nowMs = SystemClock::elapsedRealtime,
             // During an overlap the next row is already sounding: Next from any controller
             // carries on from there instead of replaying its opening.
-            override fun seekToNext() {
+            landNext = {
                 val coordinator = crossfade
-                coordinator?.nextFromOverlap()?.let(coordinator::seekTo) ?: super.seekToNext()
-            }
-
-            override fun seekToNextMediaItem() {
-                val coordinator = crossfade
-                coordinator?.nextFromOverlap()?.let(coordinator::seekTo) ?: super.seekToNextMediaItem()
-            }
-
+                coordinator?.nextFromOverlap()?.let(coordinator::seekTo) != null
+            },
+        )
+        transportFades = fades
+        val sessionPlayer = object : TransportFadingPlayer(player, fades, ::commandMayWaitForFade) {
             override fun setPlaylistMetadata(playlistMetadata: MediaMetadata) {
                 val marker = playlistMetadata.extras?.getBundle(AndroidQueueCommand.KEY)
                 if (marker == null) {
@@ -793,6 +812,12 @@ public class PlaybackService : MediaLibraryService() {
         serviceScope.launch {
             NotificationFavoritesRegistry.state.collectLatest { refreshMediaButtons() }
         }
+        // A pause fading out raises no player event; the widget hears of it here.
+        serviceScope.launch {
+            AndroidTransportFade.pausePending.collectLatest {
+                playbackPlayer?.takeIf { it.currentMediaItem != null }?.let(::publishWidgetSnapshot)
+            }
+        }
         // If Android recreated the service after an unclean process death, the persisted timing
         // anchor must no longer claim that progress is live while Media3 restores the queue.
         PlaybackWidgetStateStore.markPaused(this)
@@ -806,6 +831,16 @@ public class PlaybackService : MediaLibraryService() {
                     ?.let(::publishWidgetSnapshot)
             }
         }
+    }
+
+    /**
+     * Whether the command being handled may wait for its fade. Not for the app's own controller,
+     * which masks it and would flicker back (the app sends ordered ops instead), nor for Media3's
+     * own housekeeping, which has no caller.
+     */
+    private fun commandMayWaitForFade(): Boolean {
+        val caller = mediaSession?.controllerForCurrentRequest ?: return false
+        return !caller.connectionHints.getBoolean(APP_CONTROLLER_HINT, false)
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? =
@@ -835,6 +870,8 @@ public class PlaybackService : MediaLibraryService() {
         PlaybackWidgetStateStore.markPaused(this)
         MediaBrowseRegistry.clearActiveResumption()
         serviceScope.cancel()
+        transportFades?.release()
+        transportFades = null
         playbackPlayer?.removeListener(playerListener)
         crossfade?.release()
         crossfade = null
@@ -866,11 +903,11 @@ public class PlaybackService : MediaLibraryService() {
                 // The transport the listener asked for, not the instantaneous player flag: a seek
                 // buffers for a moment, and reading isPlaying flipped the widget to Play and froze
                 // its clock while the music was merely on its way. Same rule as the in-app player,
-                // see [showPauseButton]; the service has no pending pause of its own.
+                // see [showPauseButton]. A pause fading out already shows as paused.
                 isPlaying = showPauseButton(
                     playWhenReady = player.playWhenReady,
                     playbackState = player.playbackState,
-                    pausePending = false,
+                    pausePending = AndroidTransportFade.pausePending.value,
                 ),
                 positionMs = player.currentPosition.coerceAtLeast(0),
                 durationMs = player.duration

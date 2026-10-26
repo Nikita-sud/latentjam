@@ -28,6 +28,15 @@ internal object AndroidQueueCommand {
     const val PLAY_NEXT = "play_next"
     const val APPEND = "append"
     const val MOVE = "move"
+    const val POSITION = "position"
+
+    // The app's transport changes that wait for a fade, in order with its other player commands; see
+    // SessionTransportFades.
+    const val T_PAUSE = "t_pause"
+    const val T_NEXT = "t_next"
+    const val T_PREVIOUS = "t_previous"
+    const val T_SEEK = "t_seek"
+    const val T_PICK = "t_pick"
 }
 
 internal fun MediaController.enqueueQueueEdit(operation: String, args: Bundle = Bundle()) {
