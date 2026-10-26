@@ -3083,6 +3083,9 @@ private fun BackupSettings(
                 )
             }
         }
+        item {
+            ListenBrainzImportSection(settings = settings, library = library, snackbarHostState = snackbarHostState)
+        }
     }
 
     if (pendingImport != null && !confirmReplace) {
@@ -3670,7 +3673,7 @@ private fun SettingsCardSection(title: String, content: @Composable () -> Unit) 
 }
 
 @Composable
-private fun SettingsSection(title: String?, content: @Composable () -> Unit) {
+internal fun SettingsSection(title: String?, content: @Composable () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -3701,7 +3704,7 @@ private fun SettingsLabel(text: String) {
 }
 
 @Composable
-private fun SettingsBody(text: String) {
+internal fun SettingsBody(text: String) {
     Text(
         text = text,
         style = MaterialTheme.typography.bodySmall,
@@ -3756,7 +3759,7 @@ private fun SettingsRow(
 }
 
 @Composable
-private fun SettingsActionRow(
+internal fun SettingsActionRow(
     title: String,
     subtitle: String?,
     onClick: () -> Unit,
