@@ -9,4 +9,12 @@
     <style name="Theme.LatentJam" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/window_background</item>
     </style>
+
+    <!-- The lock-screen player: translucent over the keyguard, so the lock screen shows behind it
+         while it opens, and while a swipe down carries it away. Its Compose content is opaque. -->
+    <style name="Theme.LatentJam.LockPlayer">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
 </resources>

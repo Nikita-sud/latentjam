@@ -191,6 +191,7 @@
             android:excludeFromRecents="true"
             android:exported="false"
             android:launchMode="singleInstance"
-            android:taskAffinity="${applicationId}.lockplayer" />
+            android:taskAffinity="${applicationId}.lockplayer"
+            android:theme="@style/Theme.LatentJam.LockPlayer" />
     </application>
 </manifest>

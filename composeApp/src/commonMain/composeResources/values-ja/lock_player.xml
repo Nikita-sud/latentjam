@@ -1,4 +1,7 @@
 <resources>
     <string name="settings_lock_screen_player">ロック画面のプレーヤー</string>
     <string name="settings_lock_screen_player_subtitle">音楽の再生中に LatentJam で画面をオフにすると、ロック画面にフルプレーヤーが表示されます</string>
+    <string name="lock_player_open_app">ロックを解除して LatentJam を開く</string>
+    <string name="lock_player_cover_description">カバー。横にスワイプで曲を切り替え、下にドラッグで閉じます。</string>
+    <string name="lock_player_mode_description">再生モード: %1$s。タップで切り替えます。</string>
 </resources>

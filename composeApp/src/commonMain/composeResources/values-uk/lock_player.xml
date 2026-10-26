@@ -1,4 +1,7 @@
 <resources>
     <string name="settings_lock_screen_player">Плеєр на екрані блокування</string>
     <string name="settings_lock_screen_player_subtitle">Вимкніть екран у LatentJam під час музики — повний плеєр чекатиме на екрані блокування</string>
+    <string name="lock_player_open_app">Розблокувати й відкрити LatentJam</string>
+    <string name="lock_player_cover_description">Обкладинка. Проведіть убік, щоб змінити трек, потягніть униз, щоб закрити.</string>
+    <string name="lock_player_mode_description">Режим відтворення: %1$s. Натисніть, щоб змінити.</string>
 </resources>

@@ -1,4 +1,7 @@
 <resources>
     <string name="settings_lock_screen_player">Lecteur sur l'écran de verrouillage</string>
     <string name="settings_lock_screen_player_subtitle">Éteignez l'écran dans LatentJam pendant la lecture : le lecteur complet vous attend sur l'écran de verrouillage</string>
+    <string name="lock_player_open_app">Déverrouiller et ouvrir LatentJam</string>
+    <string name="lock_player_cover_description">Pochette. Balayez sur le côté pour changer de titre, tirez vers le bas pour fermer.</string>
+    <string name="lock_player_mode_description">Mode de lecture : %1$s. Touchez pour changer.</string>
 </resources>

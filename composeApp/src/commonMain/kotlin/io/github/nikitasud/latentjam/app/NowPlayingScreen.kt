@@ -321,6 +321,10 @@ fun NowPlayingScreen(
     onCollapseAbandon: () -> Unit = {},
     /** Lets the sheet find the cover's place and hide it while a copy flies to the mini player. */
     artworkModifier: Modifier = Modifier,
+    /** The lock screen leaves out every entry point that would need an unlock ([PlayerEntry]). */
+    surface: PlayerSurface = PlayerSurface.APP,
+    /** Shown as a small LatentJam button at the top end; the lock screen's way into the app. */
+    onBrand: (() -> Unit)? = null,
     onClose: () -> Unit,
 ) {
     // Position is intentionally projected out. It changes twice per second, while artwork, queue,
@@ -458,12 +462,12 @@ fun NowPlayingScreen(
                             onTogglePlayback = { scope.launch { playback.togglePlayPause() } },
                             canReorder = true,
                             onPlayAt = { index -> scope.launch { playback.playAt(index) } },
-                            onTrackMenu = onQueueTrackMenu,
+                            onTrackMenu = onQueueTrackMenu?.takeIf { surface.allows(PlayerEntry.QUEUE_ROW_MENU) },
                             onRemoveAt = { index -> scope.launch { playback.removeQueueItem(index) } },
                             onMove = { from, to ->
                                 scope.launch { playback.moveQueueItem(from, to) }
                             },
-                            onSaveQueue = onAddQueueToPlaylist,
+                            onSaveQueue = onAddQueueToPlaylist?.takeIf { surface.allows(PlayerEntry.ADD_QUEUE_TO_PLAYLIST) },
                         )
                 }
                 val playerContent: @Composable ColumnScope.() -> Unit = {
@@ -490,10 +494,11 @@ fun NowPlayingScreen(
                             }
                             // Where the sound is going, before the first note says so.
                             val outputRoute = rememberAudioOutputRoute()
+                            val outputChooser = rememberAudioOutputChooser()
                             if (outputRoute != null) {
                                 AudioOutputStatus(
                                     route = outputRoute,
-                                    onOpen = rememberAudioOutputChooser(),
+                                    onOpen = outputChooser.takeIf { surface.allows(PlayerEntry.OUTPUT_CHOOSER) },
                                 )
                             }
                             Spacer(modifier = Modifier.weight(1f))
@@ -560,7 +565,7 @@ fun NowPlayingScreen(
                                 }
                             }
                             // One tap to the full list of actions; the sleep timer lives there too.
-                            if (onTrackMenu != null) {
+                            if (onTrackMenu != null && surface.allows(PlayerEntry.TRACK_MENU)) {
                                 OverflowButton(
                                     onClick = {
                                         haptics.play(PlayerHaptic.TAP)
@@ -568,6 +573,7 @@ fun NowPlayingScreen(
                                     },
                                 )
                             }
+                            onBrand?.let { brand -> BrandButton(onClick = brand) }
                         }
 
                         AdaptivePlayerContent(
@@ -582,8 +588,12 @@ fun NowPlayingScreen(
                                         else live.positionMs <= PREVIOUS_RESTART_THRESHOLD_MS && live.queue.size > 1
                                     },
                                     flipped = flipped,
-                                    onFlip = { flipped = it },
-                                    onHold = { onTrackMenu?.let { menu -> now.track?.let(menu) } },
+                                    onFlip = if (surface.allows(PlayerEntry.COVER_DETAILS)) {
+                                        { turned -> flipped = turned }
+                                    } else null,
+                                    onHold = if (onTrackMenu != null && surface.allows(PlayerEntry.TRACK_MENU)) {
+                                        { now.track?.let(onTrackMenu) }
+                                    } else null,
                                     onSkip = { forward ->
                                         scope.launch { if (forward) playback.next() else playback.previous() }
                                     },
@@ -650,11 +660,12 @@ fun NowPlayingScreen(
                                             verticalAlignment = Alignment.CenterVertically,
                                             modifier = Modifier.padding(horizontal = 8.dp),
                                         ) {
+                                            val linksAllowed = surface.allows(PlayerEntry.ARTIST_ALBUM_LINKS)
                                             val artist = shownTrack?.artist
                                             val album = shownTrack?.album?.takeIf { it.isNotBlank() }
                                             MetadataLink(
                                                 text = artist,
-                                                onClick = if (shownTrack != null && artist != null) {
+                                                onClick = if (shownTrack != null && artist != null && linksAllowed) {
                                                     onGoToArtist?.let { go -> { go(shownTrack) } }
                                                 } else null,
                                                 modifier = Modifier.weight(1f, fill = false),
@@ -669,7 +680,7 @@ fun NowPlayingScreen(
                                             if (album != null) {
                                                 MetadataLink(
                                                     text = album,
-                                                    onClick = onGoToAlbum?.let { go -> { go(shownTrack) } },
+                                                    onClick = onGoToAlbum?.takeIf { linksAllowed }?.let { go -> { go(shownTrack) } },
                                                     modifier = Modifier.weight(1f, fill = false),
                                                 )
                                             }
@@ -684,12 +695,16 @@ fun NowPlayingScreen(
                                                 modifier = Modifier
                                                     .padding(top = 2.dp)
                                                     .clip(RoundedCornerShape(14.dp.corner()))
-                                                    .clickable(role = Role.Button) {
-                                                        haptics.play(PlayerHaptic.TAP)
-                                                        if (onOpenSource?.invoke() != true) {
-                                                            openQueue()
-                                                        }
-                                                    }
+                                                    .then(
+                                                        if (surface.allows(PlayerEntry.SOURCE_LINK)) {
+                                                            Modifier.clickable(role = Role.Button) {
+                                                                haptics.play(PlayerHaptic.TAP)
+                                                                if (onOpenSource?.invoke() != true) {
+                                                                    openQueue()
+                                                                }
+                                                            }
+                                                        } else Modifier,
+                                                    )
                                                     .padding(horizontal = 10.dp, vertical = 5.dp),
                                             ) {
                                                 Icon(
@@ -739,6 +754,7 @@ fun NowPlayingScreen(
                                             onSelect = { chosen -> scope.launch { playback.setShuffleMode(chosen) } },
                                             smartQueueLength = smartQueueLength,
                                             onSmartQueueLength = onSmartQueueLength,
+                                            menuEnabled = surface.allows(PlayerEntry.MODE_MENU),
                                         )
                                     }
                                 }
@@ -921,7 +937,7 @@ fun NowPlayingScreen(
         }
     }
 
-    if (showSleepTimer) {
+    if (showSleepTimer && surface.allows(PlayerEntry.SLEEP_TIMER)) {
         SleepTimerDialog(
             state = sleepTimerState,
             onStart = { minutes ->

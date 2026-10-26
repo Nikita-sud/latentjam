@@ -1,4 +1,7 @@
 <resources>
     <string name="settings_lock_screen_player">Kilit ekranında oynatıcı</string>
     <string name="settings_lock_screen_player_subtitle">Müzik çalarken LatentJam'de ekranı kapatırsanız tam oynatıcı kilit ekranında bekler</string>
+    <string name="lock_player_open_app">Kilidi aç ve LatentJam'i aç</string>
+    <string name="lock_player_cover_description">Kapak. Parçayı değiştirmek için yana kaydırın, kapatmak için aşağı çekin.</string>
+    <string name="lock_player_mode_description">Çalma modu: %1$s. Değiştirmek için dokunun.</string>
 </resources>

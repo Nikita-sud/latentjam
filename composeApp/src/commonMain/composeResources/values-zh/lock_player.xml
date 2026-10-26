@@ -1,4 +1,7 @@
 <resources>
     <string name="settings_lock_screen_player">锁屏播放器</string>
     <string name="settings_lock_screen_player_subtitle">播放音乐时在 LatentJam 中关闭屏幕，完整播放器会显示在锁屏上</string>
+    <string name="lock_player_open_app">解锁并打开 LatentJam</string>
+    <string name="lock_player_cover_description">封面。左右滑动切换曲目，向下拖动关闭。</string>
+    <string name="lock_player_mode_description">播放模式：%1$s。点按切换。</string>
 </resources>

@@ -1,4 +1,7 @@
 <resources>
     <string name="settings_lock_screen_player">Pemutar di layar kunci</string>
     <string name="settings_lock_screen_player_subtitle">Matikan layar di LatentJam saat musik diputar, dan pemutar lengkap menunggu di layar kunci</string>
+    <string name="lock_player_open_app">Buka kunci dan buka LatentJam</string>
+    <string name="lock_player_cover_description">Sampul. Geser ke samping untuk mengganti lagu, tarik ke bawah untuk menutup.</string>
+    <string name="lock_player_mode_description">Mode pemutaran: %1$s. Ketuk untuk mengganti.</string>
 </resources>

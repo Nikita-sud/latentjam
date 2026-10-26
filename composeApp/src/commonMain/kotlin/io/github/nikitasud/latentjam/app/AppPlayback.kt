@@ -20,6 +20,14 @@ internal fun PlaybackRestoreEffect(
     onUnavailable: () -> Unit,
 ) {
     var resumeAttempted by remember { mutableStateOf(false) }
+    // The lock player's LatentJam button, after the unlock.
+    val openRequested by PlayerOpenRequest.pending.collectAsState()
+    LaunchedEffect(openRequested) {
+        if (openRequested) {
+            PlayerOpenRequest.pending.value = false
+            onOpenPlayer()
+        }
+    }
     val externalAudioRequest = externalAudioOpener?.pending?.collectAsState()?.value
     LaunchedEffect(tracks, playlistsState.playlistsLoaded, externalAudioRequest) {
         if (resumeAttempted || externalAudioOpener?.pending?.value != null) return@LaunchedEffect

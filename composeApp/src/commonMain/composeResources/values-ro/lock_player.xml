@@ -1,4 +1,7 @@
 <resources>
     <string name="settings_lock_screen_player">Player pe ecranul de blocare</string>
     <string name="settings_lock_screen_player_subtitle">Stinge ecranul în LatentJam în timp ce cântă muzica, iar playerul complet te așteaptă pe ecranul de blocare</string>
+    <string name="lock_player_open_app">Deblochează și deschide LatentJam</string>
+    <string name="lock_player_cover_description">Copertă. Glisează lateral pentru a schimba piesa, trage în jos pentru a închide.</string>
+    <string name="lock_player_mode_description">Mod de redare: %1$s. Atinge pentru a schimba.</string>
 </resources>

@@ -4,7 +4,36 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.animation.core.animate
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
+import io.github.nikitasud.latentjam.app.generated.resources.Res
+import io.github.nikitasud.latentjam.app.generated.resources.lock_player_open_app
+import kotlinx.coroutines.flow.MutableStateFlow
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -26,14 +55,16 @@ import org.jetbrains.compose.resources.stringResource
  * nothing here touches the platform, so the rules are tested on every target.
  *
  * The player opens once per screen-off, only while music plays and the listener asked for it,
- * and never on top of itself. The guard is cleared when the screen comes back on.
+ * and never on top of itself. The guard is cleared when the screen comes back on. A player the
+ * listener swiped away stays away until the device is next unlocked.
  */
 internal class LockPlayerTrigger {
     private var launchedThisScreenOff = false
+    private var dismissedUntilUnlock = false
 
     /** The screen went off; true when the lock player should be started now. */
     fun onScreenOff(enabled: Boolean, playing: Boolean, playerShowing: Boolean): Boolean {
-        if (!enabled || !playing || playerShowing || launchedThisScreenOff) return false
+        if (!enabled || !playing || playerShowing || launchedThisScreenOff || dismissedUntilUnlock) return false
         launchedThisScreenOff = true
         return true
     }
@@ -42,6 +73,51 @@ internal class LockPlayerTrigger {
     fun onScreenOn() {
         launchedThisScreenOff = false
     }
+
+    /** The listener swiped the player away to the plain lock screen. */
+    fun onDismissed() {
+        dismissedUntilUnlock = true
+    }
+
+    /** The device was unlocked. */
+    fun onUnlocked() {
+        dismissedUntilUnlock = false
+    }
+}
+
+/**
+ * A way to act from the full player. [needsUnlock] marks the ones that open a dialog, sheet,
+ * picker or another screen, or lead into the library: those wait for an unlocked device.
+ */
+enum class PlayerEntry(val needsUnlock: Boolean) {
+    TRANSPORT(false),
+    SEEK(false),
+    REPEAT(false),
+    MODE_CYCLE(false),
+    FAVOURITE(false),
+    QUEUE_PAGE(false),
+    QUEUE_PLAY_REORDER_REMOVE(false),
+    LYRICS(false),
+    TRACK_MENU(true),
+    QUEUE_ROW_MENU(true),
+    ADD_QUEUE_TO_PLAYLIST(true),
+    /** The cover's back face: track information, tag editing, map and equaliser links. */
+    COVER_DETAILS(true),
+    ARTIST_ALBUM_LINKS(true),
+    SOURCE_LINK(true),
+    OUTPUT_CHOOSER(true),
+    /** The mode button's hold menu with the named modes and SMART queue settings. */
+    MODE_MENU(true),
+    SLEEP_TIMER(true),
+}
+
+/** Where the full player is shown; the lock screen offers only what needs no unlock. */
+enum class PlayerSurface {
+    APP,
+    LOCK_SCREEN,
+    ;
+
+    fun allows(entry: PlayerEntry): Boolean = this == APP || !entry.needsUnlock
 }
 
 /**
@@ -51,12 +127,29 @@ internal class LockPlayerTrigger {
 internal fun lockPlayerShouldClose(now: NowPlaying): Boolean = now.track == null
 
 /**
- * The full player as it appears above the lock screen. Everything that leads into the library
- * (menus, tag editing, going to an album, the map, saving the queue) is left out, because the
- * device is still locked; playback, the queue, lyrics and the heart work as in the app.
+ * Asks the app's full player to open, from outside its composition: the lock player's LatentJam
+ * button sets it after the unlock, and the app consumes it once ([PlaybackRestoreEffect]).
+ */
+internal object PlayerOpenRequest {
+    val pending: MutableStateFlow<Boolean> = MutableStateFlow(false)
+}
+
+/**
+ * The full player as it appears above the lock screen: the same content, minus every entry point
+ * that would need an unlock ([PlayerSurface.LOCK_SCREEN]). The seek bar stays, unlike Samsung
+ * Music's lock player: it opens nothing.
+ *
+ * [onClose] (the close button, Back) asks for the unlock; [onOpenApp] (the LatentJam button) asks
+ * for it too and then opens the player in the app; a downward swipe calls [onDismiss], which goes
+ * back to the plain lock screen and leaves the device locked.
  */
 @Composable
-internal fun LockScreenPlayer(playback: PlaybackController, onClose: () -> Unit) {
+internal fun LockScreenPlayer(
+    playback: PlaybackController,
+    onClose: () -> Unit,
+    onOpenApp: () -> Unit,
+    onDismiss: () -> Unit,
+) {
     LatentJamAppTheme { darkTheme ->
         val settings = AppGraph.settings
         val trackColorMode by settings.trackColorMode.collectAsState()
@@ -89,31 +182,94 @@ internal fun LockScreenPlayer(playback: PlaybackController, onClose: () -> Unit)
             }
         }
         val scope = rememberCoroutineScope()
-        NowPlayingScreen(
-            playback = playback,
-            accent = accent,
-            queueSourceLabel = queueSource?.let { source ->
-                source.name ?: source.kind.fallbackLabelRes()?.let { stringResource(it) }
-            },
-            sleepTimerState = sleepTimerState,
-            onStartSleepTimer = sleepTimer::startCountdown,
-            onSleepAtEndOfTrack = sleepTimer::startAtEndOfTrack,
-            onCancelSleepTimer = sleepTimer::cancel,
-            onTrackMenu = null,
-            onAddQueueToPlaylist = null,
-            onEditTags = null,
-            isFavorite = isFavorite,
-            onToggleFavorite = {
-                val id = track?.id
-                if (id != null) scope.launch {
-                    // The revision moves after the write and re-reads the heart above.
-                    runCatching { favorites.toggle(id) }
-                        .onFailure { println("Lock player: could not toggle a favourite: $it") }
-                }
-            },
-            smartQueueLength = smartQueueLength,
-            onSmartQueueLength = settings::setSmartQueueLength,
-            onClose = onClose,
+        // The swipe down moves the whole player with the finger; read only while drawing, so a
+        // drag never recomposes the screen.
+        var pull by remember { mutableFloatStateOf(0f) }
+        var height by remember { mutableIntStateOf(0) }
+        val flingPx = with(LocalDensity.current) { DISMISS_FLING.toPx() }
+        fun settle(to: Float, then: () -> Unit = {}) {
+            scope.launch {
+                animate(pull, to) { value, _ -> pull = value }
+                then()
+            }
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .onSizeChanged { height = it.height }
+                .graphicsLayer { translationY = pull },
+        ) {
+            NowPlayingScreen(
+                playback = playback,
+                accent = accent,
+                queueSourceLabel = queueSource?.let { source ->
+                    source.name ?: source.kind.fallbackLabelRes()?.let { stringResource(it) }
+                },
+                sleepTimerState = sleepTimerState,
+                onStartSleepTimer = sleepTimer::startCountdown,
+                onSleepAtEndOfTrack = sleepTimer::startAtEndOfTrack,
+                onCancelSleepTimer = sleepTimer::cancel,
+                onTrackMenu = null,
+                onAddQueueToPlaylist = null,
+                onEditTags = null,
+                isFavorite = isFavorite,
+                onToggleFavorite = {
+                    val id = track?.id
+                    if (id != null) scope.launch {
+                        // The revision moves after the write and re-reads the heart above.
+                        runCatching { favorites.toggle(id) }
+                            .onFailure { println("Lock player: could not toggle a favourite: $it") }
+                    }
+                },
+                smartQueueLength = smartQueueLength,
+                onSmartQueueLength = settings::setSmartQueueLength,
+                surface = PlayerSurface.LOCK_SCREEN,
+                onBrand = onOpenApp,
+                onCollapseDrag = { delta -> pull = (pull + delta).coerceAtLeast(0f) },
+                onCollapseRelease = { velocity ->
+                    val closes = lockPlayerSwipeCloses(pull, velocity, height.toFloat(), flingPx)
+                    if (closes) settle(height.toFloat(), onDismiss) else settle(0f)
+                    closes
+                },
+                onCollapseAbandon = { settle(0f) },
+                onClose = onClose,
+            )
+        }
+    }
+}
+
+/** A swipe down past a quarter of the screen, or flung down, closes the lock player. */
+internal fun lockPlayerSwipeCloses(pulledPx: Float, velocityPxPerS: Float, heightPx: Float, flingPxPerS: Float): Boolean =
+    heightPx > 0f && (pulledPx > heightPx * DISMISS_FRACTION || (velocityPxPerS > flingPxPerS && pulledPx > 0f))
+
+private const val DISMISS_FRACTION = 0.25f
+private val DISMISS_FLING = 1000.dp
+
+/** The lock player's small LatentJam button: unlock, then the player in the app. */
+@Composable
+internal fun BrandButton(onClick: () -> Unit) {
+    val description = stringResource(Res.string.lock_player_open_app)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier
+            .padding(end = 8.dp)
+            .height(32.dp)
+            .clip(RoundedCornerShape(16.dp.corner()))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = description }
+            .padding(horizontal = 10.dp),
+    ) {
+        Icon(
+            imageVector = LatentJamMark,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+        )
+        Text(
+            // The product name, the same in every language.
+            text = "LatentJam",
+            style = MaterialTheme.typography.labelLarge,
         )
     }
 }
