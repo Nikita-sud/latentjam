@@ -427,6 +427,19 @@ internal class IosPlaybackController(
 
     private var transportFadeJob: Job? = null
     private val transportFade = TransportFadeState()
+
+    /**
+     * Next, Previous, a picked row and a seek wait for a short fade while the music plays (see
+     * [ManualChange]); every source comes through here — the app, the lock screen, Control Center,
+     * headphones, CarPlay. Only the file backend has a mixer to ride.
+     */
+    private val changeFades = ManualChangeFades(
+        fade = transportFade,
+        scope = mainScope,
+        nowMs = ::transportTimeMs,
+        playing = { playing && activeBackend == PlaybackBackend.FILE && !transportFade.pausePending },
+        onGain = ::fadeInAfterStart,
+    )
     private val mutableState = MutableStateFlow(NowPlaying())
     override val state: StateFlow<NowPlaying> = mutableState.asStateFlow()
 
@@ -629,6 +642,8 @@ internal class IosPlaybackController(
     ): Unit =
         withContext(Dispatchers.Main) {
             if (tracks.isEmpty()) return@withContext
+            // A change still waiting for its fade happens first, on the queue it was asked for.
+            changeFades.flush()
             pendingAdvance.invalidate()
             val previousQueue = queue
             val previousContinuations = smartContinuationIds.toSet()
@@ -716,6 +731,7 @@ internal class IosPlaybackController(
         }
 
     override suspend fun togglePlayPause(): Unit = withContext(Dispatchers.Main) {
+        changeFades.flush()
         pendingAdvance.invalidate()
         if (queue.isEmpty()) return@withContext
         if (playing) {
@@ -730,6 +746,7 @@ internal class IosPlaybackController(
     }
 
     override suspend fun pause(): Unit = withContext(Dispatchers.Main) {
+        changeFades.flush()
         pendingAdvance.invalidate()
         if (queue.isEmpty() || !playing) return@withContext
         fadeOutAndPause()
@@ -785,6 +802,8 @@ internal class IosPlaybackController(
     private fun resetTransportFade() {
         transportFadeJob?.cancel()
         transportFadeJob = null
+        // A manual change holds its silence through the load until its own arrival.
+        if (transportFade.changePending) return
         transportFade.reset()
         audioEngine.setTransportGain(1f)
     }
@@ -792,16 +811,24 @@ internal class IosPlaybackController(
     override suspend fun next(): Unit = withContext(Dispatchers.Main) {
         if (queue.isEmpty()) return@withContext
         pendingAdvance.invalidate()
-        // During an overlap the next track is already sounding: carry on from there.
-        if (overlap?.let { it.started && repeat != RepeatMode.ONE } == true && promoteOverlap(StartCause.SKIP_NEXT)) {
+        // During an overlap the next track is already sounding: carry on from there, seamlessly.
+        if (!changeFades.pending && overlap?.let { it.started && repeat != RepeatMode.ONE } == true &&
+            promoteOverlap(StartCause.SKIP_NEXT)
+        ) {
             return@withContext
         }
         if (queueIndex in 0 until queue.lastIndex) {
             // Planning may suspend on inference or another append. A known successor can sound
             // immediately; replenish its future after the skip, matching the Android transport.
-            advance(StartCause.SKIP_NEXT)
-            mainScope.launch { appendSmartNextIfNeeded() }
+            changeFades.run(ManualChange.TRACK) {
+                if (queueIndex in 0 until queue.lastIndex) {
+                    advance(StartCause.SKIP_NEXT)
+                    mainScope.launch { appendSmartNextIfNeeded() }
+                }
+            }
         } else {
+            // The next row is still being planned: the music plays on meanwhile, not a silence.
+            changeFades.flush()
             pendingAdvance.afterPlanning(plan = ::appendSmartNextIfNeeded) { advance(StartCause.SKIP_NEXT) }
         }
     }
@@ -809,11 +836,17 @@ internal class IosPlaybackController(
     override suspend fun previous(): Unit = withContext(Dispatchers.Main) {
         pendingAdvance.invalidate()
         if (queue.isEmpty()) return@withContext
+        val restarts = previousPlaybackQueueIndex(queue.size, queueIndex, positionMs(), repeat) == queueIndex
+        changeFades.run(if (restarts) ManualChange.SEEK else ManualChange.TRACK) { skipToPrevious() }
+    }
+
+    private fun skipToPrevious() {
+        if (queue.isEmpty()) return
         val previousIndex = queueIndex
         val previousPositionMs = positionMs()
         val wasPlaying = playing
         val targetIndex = previousPlaybackQueueIndex(queue.size, queueIndex, previousPositionMs, repeat)
-        if (targetIndex < 0) return@withContext
+        if (targetIndex < 0) return
         // Player-standard: restart the track unless you are already at its start.
         if (targetIndex == previousIndex) {
             seekActiveBackend(0L)
@@ -835,16 +868,23 @@ internal class IosPlaybackController(
 
     override suspend fun seekTo(positionMs: Long): Unit = withContext(Dispatchers.Main) {
         pendingAdvance.invalidate()
-        seekActiveBackend(positionMs)
-        // iOS extrapolates the lock-screen position from the playback rate, so a
-        // seek it was not told about leaves the lock screen counting from the old
-        // position for the rest of the track.
-        invalidateNowPlayingInfo()
-        pushState()
+        changeFades.run(ManualChange.SEEK) {
+            seekActiveBackend(positionMs)
+            // iOS extrapolates the lock-screen position from the playback rate, so a
+            // seek it was not told about leaves the lock screen counting from the old
+            // position for the rest of the track.
+            invalidateNowPlayingInfo()
+            pushState()
+        }
     }
 
     override suspend fun playAt(queueIndex: Int): Unit = withContext(Dispatchers.Main) {
         if (queueIndex !in queue.indices) return@withContext
+        changeFades.run(ManualChange.TRACK) { pickRow(queueIndex) }
+    }
+
+    private suspend fun pickRow(queueIndex: Int) {
+        if (queueIndex !in queue.indices) return
         val previousIndex = this@IosPlaybackController.queueIndex
         val previousPositionMs = positionMs()
         val wasPlaying = playing
@@ -1110,6 +1150,7 @@ internal class IosPlaybackController(
         smartPlanPositions: Map<TrackId, Int>,
     ): Unit = withContext(Dispatchers.Main) {
         if (tracks.isEmpty()) return@withContext
+        changeFades.flush()
         pendingAdvance.invalidate()
         val restorePlan = playbackResumePlan(
             tracks, startIndex, sourceTracks, smartContinuationIds, smartPlanPositions,
@@ -1800,7 +1841,12 @@ internal class IosPlaybackController(
         transportFadeJob?.cancel()
         transportFadeJob = null
         val fading = fadeIn && activeBackend == PlaybackBackend.FILE
-        if (fading) transportFade.beginResume(transportTimeMs()) else transportFade.reset()
+        val holding = transportFade.changePending
+        when {
+            holding -> Unit // a manual change arrives over its own fade-in (ManualChangeFades)
+            fading -> transportFade.beginResume(transportTimeMs())
+            else -> transportFade.reset()
+        }
         audioEngine.setTransportGain(transportFade.gainAt(transportTimeMs()))
         val started = when (activeBackend) {
             PlaybackBackend.FILE -> audioEngine.play()
@@ -1813,7 +1859,9 @@ internal class IosPlaybackController(
                 true
             }
         }
-        if (started && fading) fadeInAfterStart() else resetTransportFade()
+        if (!holding) {
+            if (started && fading) fadeInAfterStart() else resetTransportFade()
+        }
         return started
     }
 

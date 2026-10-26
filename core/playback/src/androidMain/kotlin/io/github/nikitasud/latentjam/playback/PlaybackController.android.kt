@@ -394,6 +394,20 @@ internal class AndroidPlaybackController(
      * [TRANSPORT_FADE_IN_MS]. Reversing mid-fade continues from the gain reached, never a jump.
      */
     private val transportFade = TransportFadeState()
+
+    /**
+     * Next, Previous, a picked row and a seek wait for a short fade while the music plays (see
+     * [ManualChange]). Only the app's own commands: the notification, a headset, Android Auto and
+     * the widget reach the service's player directly and stay instant, as their pauses do.
+     */
+    private val changeFades = ManualChangeFades(
+        fade = transportFade,
+        scope = mainScope,
+        nowMs = { SystemClock.elapsedRealtime() },
+        playing = { controller?.isPlaying == true && !transportFade.pausePending },
+        sounding = { controller?.isPlaying == true },
+        onGain = { updateGainLoop(controller?.isPlaying == true) },
+    )
     private var pendingPause: Job? = null
     private var gainJob: Job? = null
 
@@ -489,6 +503,8 @@ internal class AndroidPlaybackController(
         keepOrderInSmart: Boolean,
     ) {
         if (tracks.isEmpty()) return
+        // A change still waiting for its fade happens first, on the queue it was asked for.
+        withContext(Dispatchers.Main.immediate) { changeFades.flush() }
         userInteractionRevision.incrementAndGet()
         val requestGeneration = playRequestGeneration.incrementAndGet()
         val modeAtRequest = withContext(Dispatchers.Main.immediate) {
@@ -591,6 +607,7 @@ internal class AndroidPlaybackController(
 
     override suspend fun togglePlayPause(): Unit = withContext(Dispatchers.Main) {
         userInteractionRevision.incrementAndGet()
+        changeFades.flush()
         pendingAdvance.invalidate()
         val player = controller ?: return@withContext
         if (player.playWhenReady && player.playbackState != Player.STATE_ENDED && !transportFade.pausePending) {
@@ -609,6 +626,7 @@ internal class AndroidPlaybackController(
 
     override suspend fun pause(): Unit = withContext(Dispatchers.Main) {
         userInteractionRevision.incrementAndGet()
+        changeFades.flush()
         pendingAdvance.invalidate()
         val player = controller ?: return@withContext
         if (player.playWhenReady && !transportFade.pausePending) fadeOutAndPause(player)
@@ -656,6 +674,16 @@ internal class AndroidPlaybackController(
         userInteractionRevision.incrementAndGet()
         val player = controller ?: return@withContext
         pendingAdvance.invalidate()
+        if (player.hasNextMediaItem()) {
+            changeFades.run(ManualChange.TRACK) { if (controller === player) skipToNext(player) }
+        } else {
+            // The next row is still being planned: the music plays on meanwhile, not a silence.
+            changeFades.flush()
+            skipToNext(player)
+        }
+    }
+
+    private suspend fun skipToNext(player: Player) {
         beginFreshRecoveryAttempt()
         if (player.hasNextMediaItem()) {
             announceStart(player, StartCause.SKIP_NEXT, player.nextMediaItemIndex)
@@ -681,6 +709,16 @@ internal class AndroidPlaybackController(
         userInteractionRevision.incrementAndGet()
         pendingAdvance.invalidate()
         val player = controller ?: return@withContext
+        // Near its start Previous moves to the row before; later it restarts the track (a seek).
+        val change = if (player.hasPreviousMediaItem() && player.currentPosition <= player.maxSeekToPreviousPosition) {
+            ManualChange.TRACK
+        } else {
+            ManualChange.SEEK
+        }
+        changeFades.run(change) { if (controller === player) skipToPrevious(player) }
+    }
+
+    private fun skipToPrevious(player: Player) {
         beginFreshRecoveryAttempt()
         // Media3 restarts the current item instead unless it is still near its start; only a move
         // to the previous row begins a new play.
@@ -696,8 +734,12 @@ internal class AndroidPlaybackController(
         userInteractionRevision.incrementAndGet()
         pendingAdvance.invalidate()
         val player = controller ?: return@withContext
-        player.seekTo(positionMs)
-        pushState()
+        changeFades.run(ManualChange.SEEK) {
+            if (controller === player) {
+                player.seekTo(positionMs)
+                pushState()
+            }
+        }
     }
 
     override suspend fun playAt(queueIndex: Int): Unit = withContext(Dispatchers.Main) {
@@ -706,9 +748,18 @@ internal class AndroidPlaybackController(
         val mediaItemIndex = cachedQueueMediaIndices.getOrNull(queueIndex) ?: return@withContext
         if (mediaItemIndex !in 0 until player.mediaItemCount) return@withContext
         pendingAdvance.invalidate()
+        changeFades.run(ManualChange.TRACK) { if (controller === player) pickRow(player, mediaItemIndex) }
+    }
+
+    private fun pickRow(player: Player, mediaItemIndex: Int) {
+        if (mediaItemIndex !in 0 until player.mediaItemCount) return
         beginFreshRecoveryAttempt()
-        resetTransportFade()
-        applyEffectiveVolume()
+        // A pick from silence or a pause plays at full level; one made while playing arrives over
+        // its change fade.
+        if (!transportFade.changePending) {
+            resetTransportFade()
+            applyEffectiveVolume()
+        }
         // The service also observes the seek when this tap restarts the current row in place.
         announceStart(player, StartCause.USER_PICK, mediaItemIndex)
         player.seekTo(mediaItemIndex, 0L)
@@ -945,6 +996,7 @@ internal class AndroidPlaybackController(
         smartPlanPositions: Map<TrackId, Int>,
     ) {
         if (tracks.isEmpty()) return
+        withContext(Dispatchers.Main.immediate) { changeFades.flush() }
         // Same generation contract as play(): a user tap that lands during a slow restore must
         // win, and the restore must then abandon its stale queue rather than clobber the tap's.
         val requestGeneration = playRequestGeneration.incrementAndGet()
