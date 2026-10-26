@@ -78,6 +78,32 @@ internal fun habitListens(
     )
 }.sortedBy(HabitListen::startedAtMs) // the log is in recording order; a merged or restored one may not be
 
+/**
+ * PLAN_NOVELTY (3): the tracks played right after [seed] — the next listen in the log (a skip heard under 30 s in between
+ * is ignored, anything else breaks the pair), started within 5 min of the seed's end, any origin — and heard fully
+ * (completed or past the ListenBrainz threshold, whatever the skip flag; an import counts). The seed is never its own.
+ */
+internal fun fullFollowers(oldestFirst: List<ListenEvent>, libraryIds: Set<TrackId>, seed: TrackId, seedMs: Long): Set<TrackId> {
+    val events = oldestFirst.filter { it.startedAtMs < seedMs && it.trackId in libraryIds }.sortedBy { it.startedAtMs }
+    val out = HashSet<TrackId>()
+    for ((i, a) in events.withIndex()) {
+        if (a.trackId != seed) continue
+        var j = i + 1
+        while (j < events.size && events[j].skipped && events[j].effectiveListenedMs < SHORT_SKIP_MS) j++
+        val b = events.getOrNull(j) ?: continue
+        if (b.trackId == seed) continue
+        if (b.startedAtMs - (a.startedAtMs + a.effectiveListenedMs) > FOLLOW_GAP_MS) continue
+        if (listenCredit(b, 0L) >= 1.0) out += b.trackId
+    }
+    return out
+}
+
+/** PLAN_NOVELTY (3): the next listen starts within this of the seed's end. */
+private const val FOLLOW_GAP_MS: Long = 5L * 60L * 1_000L
+
+/** PLAN_NOVELTY (3): a skip heard under this between the seed and the next listen does not break the pair. */
+private const val SHORT_SKIP_MS: Long = 30_000L
+
 /** PLAN_LISTENW3: an autoplay abandon counts only when the next play starts within this of its end. */
 private const val MOVED_ON_MS: Long = 60_000L
 
@@ -358,7 +384,8 @@ internal suspend fun rankerPlan(
         // Fast track 2 soft novelty: ms since each novelty id's last play (read only by a model with softNovelty).
         val lastPlay = HashMap<TrackId, Long>(novel.size * 2)
         for (l in listens) if (l.trackId in novel) lastPlay[l.trackId] = maxOf(lastPlay[l.trackId] ?: Long.MIN_VALUE, l.startedAtMs)
-        val noveltyAges = lastPlay.mapValues { (_, at) -> maxOf(0L, seedMs - at) }
+        // PLAN_NOVELTY: a track of the seed's own listening session older than 24 h counts as 12 h old (not penalty-free).
+        val noveltyAges = lastPlay.mapValues { (_, at) -> maxOf(0L, seedMs - at).let { if (it >= HabitSlots.NOVELTY_WINDOW_MS) HabitSlots.NOVELTY_WINDOW_MS / 2 else it } }
         val artistKeys = HashMap<TrackId, String>(scope.size + 1)
         for (t in scope) artistKeys[t.id] = HabitSlots.artistKey(t)
         // Hearts count only for the FULL model ("Learn from my habits").
@@ -411,6 +438,7 @@ internal suspend fun rankerPlan(
                 ruleOnly = ruleOnly || !fits, impressions = impressions, excludeAgeMs = noveltyAges, engaged = engaged,
                 seedMs = seedMs, prefix = prefix, playlists = if (personal) playlists() else emptyList(),
                 varietyScale = varietyScale, companionGroups = companionGroups,
+                fullFollowers = fullFollowers(events.asReversed(), libraryIds, seed.id, seedMs),
                 // §19 AS: the session's plays before the press (the ranker reads the last two within 30 min).
                 recentPlays = listens.takeLast(RECENT_PLAYS).map { it.trackId to it.startedAtMs },
             ),

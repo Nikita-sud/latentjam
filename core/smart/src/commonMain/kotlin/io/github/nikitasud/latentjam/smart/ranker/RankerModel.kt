@@ -286,7 +286,16 @@ public class RankerModel(
     )
 
     /** The novelty set beyond its [hardLast] newest stays in the pool, losing λ · sd · (1 − age / 24 h). */
-    public class SoftNovelty(public val lambda: Double, public val hardLast: Int)
+    /**
+     * Fast track 2 soft novelty: [hardLast] newest of the novelty set stay excluded, the rest return to the pool at
+     * −λ · sd · (1 − age / 24 h). PLAN_NOVELTY [fullFollowers]: the seed's full followers (a full listen right after it,
+     * any origin, once is enough — `PlanRequest.fullFollowers`) leave both the exclusion and the penalty. [fastLambda]
+     * adds a fast component for just-heard tracks: the factor becomes (1 − age / 24 h) + (fastLambda / λ) · e^(−age / [fastTauMs]).
+     */
+    public class SoftNovelty(
+        public val lambda: Double, public val hardLast: Int, public val fullFollowers: Boolean = false,
+        public val fastLambda: Double = 0.0, public val fastTauMs: Long = 10_800_000L,
+    )
 
     /**
      * g_i = σ(a · clip((CORE logit_i − mu) / sigma, ±clip)) from the seed-anchor rows before gating (the [core] model's
@@ -484,7 +493,7 @@ public class RankerModel(
             "durationRule" to setOf("longMs", "longLambda", "seedLongMs", "shortMs", "shortLambda", "veryShortMs", "veryShortLambda", "veryLongMs", "veryLongLambda"),
             "titleFlags" to setOf("lambda"),
             "classMismatch" to setOf("lambda", "families"),
-            "softNovelty" to setOf("lambda", "hardLast"),
+            "softNovelty" to setOf("lambda", "hardLast", "fullFollowers", "fastLambda", "fastTauH"),
             "serving" to setOf("wholeLibraryUpTo", "quotas", "artistKey", "recentWindow", "hopBudgetMs", "l2", "poolTarget", "artistCap", "unknownSeedAudioFill", "coldAudioFill"),
             "inputs" to setOf("logpop", "colisten", "lfm", "audioEncoder"),
             "artistReentry" to setOf("lambda", "k", "gamma", "credit", "creditRun"),
@@ -688,7 +697,10 @@ public class RankerModel(
                     }
                     .sortedBy { it.name },
                 softNovelty = (root["softNovelty"] as? Map<*, *>)?.let { n ->
-                    SoftNovelty(lambda = (n["lambda"] as Number).toDouble(), hardLast = (n["hardLast"] as? Number)?.toInt() ?: 10)
+                    SoftNovelty(lambda = (n["lambda"] as Number).toDouble(), hardLast = (n["hardLast"] as? Number)?.toInt() ?: 10,
+                        fullFollowers = n["fullFollowers"] as? Boolean ?: false,
+                        fastLambda = (n["fastLambda"] as? Number)?.toDouble() ?: 0.0,
+                        fastTauMs = ((n["fastTauH"] as? Number)?.toDouble()?.times(3_600_000.0))?.toLong() ?: 10_800_000L)
                 },
                 seedGate = (root["seedGate"] as? Map<*, *>)?.let { g ->
                     val coreMap = (g["core"] as Map<*, *>).toMutableMap().also { it["audioWeight"] = 0.0 }

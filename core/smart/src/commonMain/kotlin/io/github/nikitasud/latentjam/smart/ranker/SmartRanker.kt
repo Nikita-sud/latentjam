@@ -694,6 +694,12 @@ public class PlanRequest(
     public val playlists: List<List<TrackId>> = emptyList(),
     /** "Keep together": the playlists the listener marked (CORE and FULL); empty = the plan is unchanged. */
     public val companionGroups: List<Set<TrackId>> = emptyList(),
+    /**
+     * PLAN_NOVELTY: tracks fully listened right after the seed (the next listen, ≤ 5 min after the seed's end, any origin,
+     * completed or past the ListenBrainz threshold; any such pair counts) — read only by a model with
+     * softNovelty.fullFollowers, which keeps them out of the novelty exclusion and its penalty (CORE and FULL).
+     */
+    public val fullFollowers: Set<TrackId> = emptySet(),
     /** The artist-variety setting as a multiplier on the decoder's artist terms (1 = the model's tuned values, 0 = none). */
     public val varietyScale: Double = 1.0,
     /** PLAN_DECODER2 §19 AS: the current session's plays before the press as (track, start ms), any order (CORE and FULL). */
@@ -1220,6 +1226,8 @@ public class SmartRanker(
             val keep = request.history.followers(request.seed.id).filter { request.history.followCount(request.seed.id, it) >= fm }.toSet()
             if (keep.isNotEmpty()) exclude = exclude - keep
         }
+        // PLAN_NOVELTY (3): a full listen right after the seed, once, is no reason to keep it out of the seed's own queue.
+        if (active.softNovelty?.fullFollowers == true && request.fullFollowers.isNotEmpty()) exclude = exclude - request.fullFollowers
         var noveltyAge: Map<TrackId, Long> = emptyMap()
         active.softNovelty?.takeIf { exclude.isNotEmpty() }?.let { sn ->
             val ages = request.excludeAgeMs
@@ -1458,7 +1466,12 @@ public class SmartRanker(
             },
             familyMismatchLambda = if (seedKnown.entity < 0) active.familyColdLambda else null,
             novelty = if (active.softNovelty != null) DoubleArray(pool.size) { i ->
-                noveltyAge[pool[i].track.id]?.let { maxOf(0.0, 1.0 - it.toDouble() / NOVELTY_MS) } ?: 0.0
+                noveltyAge[pool[i].track.id]?.let { age ->
+                    val sn = active.softNovelty!!
+                    // PLAN_NOVELTY NV3: a fast component holds just-heard tracks back harder than the 24 h line.
+                    val fast = if (sn.fastLambda > 0.0) sn.fastLambda / sn.lambda * kotlin.math.exp(-age.toDouble() / sn.fastTauMs) else 0.0
+                    maxOf(0.0, 1.0 - age.toDouble() / NOVELTY_MS) + fast
+                } ?: 0.0
             } else null,
             energies = energies,
             seedEnergy = seedEnergy,

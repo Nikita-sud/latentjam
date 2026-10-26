@@ -171,7 +171,16 @@ class SmartStandRunner {
         for (seed in seeds) {
             for (full in listOf(false, true)) {
                 // PLAN_TRANSGRAPH: LJ_STAND_NOW (epoch ms) fixes the plan clock (a years-old import must age from it).
-                var now = System.getenv("LJ_STAND_NOW")?.toLong() ?: (lastListen + 60_000)
+                // PLAN_NOVELTY session mode (LJ_STAND_SESSION=1): the clock is 20 min after this library's last play, the
+                // history is the copy's own afresh for every seed and mode, and each press's first 3 picks are played
+                // (completed, autoplay) before the next press — what a listener re-pressing SMART has just heard.
+                val session = System.getenv("LJ_STAND_SESSION") == "1"
+                var now = if (session) lastListen + SESSION_CLOCK_MS else System.getenv("LJ_STAND_NOW")?.toLong() ?: (lastListen + 60_000)
+                val seedHistory = if (!session) history else DefaultListeningHistory(object : HistoryStore {
+                    override suspend fun append(line: String) = Unit
+                    override suspend fun readAll(): List<String> = historyLines
+                    override suspend fun clear() = Unit
+                })
                 val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
                 val plans = HashMap<TrackId, Pair<String, String>>()
                 var queueModel = ""
@@ -189,14 +198,26 @@ class SmartStandRunner {
                 // General stand (synthetic FMA libraries): LJ_STAND_CORE_ONLY=1 skips FULL (no history to personalise on).
                 if (full && System.getenv("LJ_STAND_CORE_ONLY") == "1") continue
                 val chooser = EngineNextTrackChooser(
-                    engine = chainEngine ?: NoEngine.instance, history = history, library = { library },
+                    engine = chainEngine ?: NoEngine.instance, history = seedHistory, library = { library },
                     useRanker = { !chain }, ranker = { ranker }, rankerHealthy = { assets.healthy },
                     learnFromHabits = { full && (!chain || chainFull) }, personalRanker = { full },
                     presses = SmartPresses(MemoryPresses()), smartLog = log,
                     favourites = { favourites }, useFavourites = { true }, clock = { now }, userPlaylists = { userPlaylists },
                     varietyScale = { varietyScale }, companionGroups = { marks },
                 )
+                suspend fun played(track: TrackDescriptor, at: Long, start: io.github.nikitasud.latentjam.history.ListenStart): Long {
+                    val heard = track.durationMs ?: 180_000L
+                    seedHistory.record(
+                        io.github.nikitasud.latentjam.history.ListenEvent(
+                            track.id, at, heard, track.durationMs, completed = true, skipped = false, listenedMs = heard,
+                            origin = io.github.nikitasud.latentjam.history.ListenOrigin(start),
+                        ),
+                    )
+                    return at + heard + SESSION_STEP_MS
+                }
                 for (press in 0 until (System.getenv("LJ_STAND_PRESSES")?.toInt() ?: PRESSES)) {
+                    // Session mode: the press happens on the seed, which has just played to its end.
+                    if (session) played(seed, now - (seed.durationMs ?: 180_000L) - SESSION_STEP_MS, io.github.nikitasud.latentjam.history.ListenStart.USER_PICK)
                     val queue = mutableListOf(seed)
                     val picks = ArrayList<String>()
                     repeat(HOPS) {
@@ -207,6 +228,12 @@ class SmartStandRunner {
                         queue += choice.track
                         val (source, plan) = plans[choice.track.id] ?: ("?" to "?")
                         picks += "{\"id\":${q(choice.track.id.value)},\"pos\":${choice.planPosition ?: 0},\"source\":${q(source)},\"plan\":$plan}"
+                    }
+                    if (session) {
+                        // Back to back, as the phone plays them: after the press, the first picks in order.
+                        var at = now
+                        for (track in queue.drop(1).take(SESSION_PLAYED)) at = played(track, at, io.github.nikitasud.latentjam.history.ListenStart.AUTO_ADVANCE)
+                        now = maxOf(now + PRESS_GAP_MS, at + SESSION_AFTER_MS) - PRESS_GAP_MS   // the loop adds PRESS_GAP_MS
                     }
                     queues.append("{\"seed\":${q(seed.id.value)},\"mode\":\"${if (full) "FULL" else "CORE"}\",\"press\":$press,")
                         .append("\"model\":${q(queueModel)},\"picks\":[").append(picks.joinToString(",")).append("]}\n")
@@ -527,5 +554,12 @@ class SmartStandRunner {
         const val HOPS = 40
         const val PRESSES = 3
         const val PRESS_GAP_MS = 10L * 60_000
+        /** PLAN_NOVELTY session mode: the press clock this long after the library's last play. */
+        const val SESSION_CLOCK_MS: Long = 20L * 60L * 1_000L
+        /** PLAN_NOVELTY session mode: rows of a press played (back to back) before the next press. */
+        const val SESSION_PLAYED: Int = 3
+        /** PLAN_NOVELTY session mode: the gap between two plays, and from the last play's end to the next press. */
+        const val SESSION_STEP_MS: Long = 5_000L
+        const val SESSION_AFTER_MS: Long = 60_000L
     }
 }
