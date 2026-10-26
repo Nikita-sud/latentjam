@@ -78,6 +78,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -3743,7 +3744,9 @@ private fun AppShell(
                             height = miniPlayerHeight,
                             track = current,
                             accent = if (currentTrack != null) {
-                                accent.value
+                                // Covered by the full player, the pill takes the accent as it is
+                                // without following its fade; uncovering it composes it afresh.
+                                if (live) accent.value else Snapshot.withoutReadObservation { accent.value }
                             } else {
                                 lastMiniPresentation.accent
                             },
