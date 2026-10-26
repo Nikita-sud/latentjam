@@ -201,6 +201,12 @@ class EngineNextTrackChooser(
                 model = report?.model ?: "none"
                 report?.ids.orEmpty()
             } else {
+                // The chain keeps no ranker session. Left as it was, a ranker turned back on mid-queue
+                // would continue a plan from an earlier, unrelated seed (with this queue's rows as its
+                // prefix); cleared, its next top-up seeds at the current track, as a restored queue does.
+                queueSeedTrack = null
+                servedInQueue.clear()
+                queueModeSet = false
                 engine.continueSmartQueue(
                     current, candidates, CHAIN_LENGTH, events, groups, precedingTrackIds = recentIds,
                 )
