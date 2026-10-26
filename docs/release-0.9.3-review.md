@@ -140,3 +140,21 @@ findings elsewhere, all confirmed low; one is a release-note limitation.
 | R3-A5-1 | `ensureLoaded` published events, then allocated (`putAll`) before `loaded = true`; a failure there doubled the log on the next call | CONFIRMED, low (old lines, new trigger) | 094c1b19 (adopt, no allocation in between) |
 | R3-A5-2 | SmartPresses / FavoriteTimes cached an empty map after a failed or cancelled read; the next write wiped every other count / heart time | CONFIRMED, low (new in 0.9.3) | 32105c7c |
 | R3-A5-3 | Local backup builds / reads the whole file as one String: after a big import, export fails ("Backup failed") from ~100k listens on 48 MB heaps (~350–400k on iOS, 64 Mi-char cap) | CONFIRMED, pre-existing code, new trigger; no data risk | **release note** for 0.9.3; streamed encode/decode for 0.9.4 |
+
+### Round 3 checks
+
+`:composeApp:testAndroidHostTest`, `:core:{smart,playback,history,library}:testAndroidHostTest`,
+`:core:{playback,history}:iosSimulatorArm64Test`, `:composeApp:compileKotlinIosSimulatorArm64` and
+`:androidApp:assembleRelease` green at 9b3ee3e4; most dex registers 250 (limit 255).
+
+## Round 4
+
+Six fresh reviewers. Map, ListenBrainz + history, lock player and release hygiene: **no confirmed findings**. Three
+confirmed (all low), one rejected.
+
+| id | finding | verdict | fix |
+|---|---|---|---|
+| R4-A1-1 | Regression from 2f528ba1: Android's tail wait armed outside SMART and fired on the listener's own edits (Play next, Add to queue, a move, a shuffle switch within 15 s), cutting the playing song | CONFIRMED, low | 7c20b7c2 (arms only in SMART; dropped by listener queue edits, direct moves, shuffle changes, or a mode no longer SMART) |
+| R4-A2-1 | "Clear listening history" left SmartLogRecorder's outcome tracker and queued writes: pre-clear queue ids / content hashes were written back into the emptied impression log, and pre-clear tracks re-marked engaged | CONFIRMED, low (privacy; new in 0.9.3) | 8e23ad14 (`forgetAll`: new tracker, queue refs reset, presses and log cleared again through the write queue) |
+| R4-A6-1 | Lock player's LatentJam pill is a 32 dp touch target | REJECTED: Compose widens pointer hit-testing to 48 dp and the 64 dp top bar leaves room; only the semantics bounds are 32 dp | — |
+| R4-A6-2 | The lock-screen cover is announced as a button with no action (role kept when the handlers became optional) | CONFIRMED, low (lock screen only) | 831197af |
