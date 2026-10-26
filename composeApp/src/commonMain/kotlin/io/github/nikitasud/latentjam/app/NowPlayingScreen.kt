@@ -94,7 +94,8 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
-import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.material3.SwipeToDismissBoxState
+import androidx.compose.material3.SwipeToDismissBoxDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberBottomSheetScaffoldState
@@ -1866,17 +1867,27 @@ private fun QueueSheetContent(
                 androidx.compose.runtime.key(if (ambiguousItemIdentity) queueIdentity else Unit) {
                 val currentRowIndex by rememberUpdatedState(index)
                 var removalRequested by remember { mutableStateOf(false) }
-                val dismissState = rememberSwipeToDismissBoxState(
-                    confirmValueChange = { value ->
-                        // Anchored dragging can ask to confirm the same target more than once.
-                        // Removing twice would consume the row that shifted into this index.
-                        if (value != SwipeToDismissBoxValue.Settled && !removalRequested) {
-                            removalRequested = true
-                            onRemoveAt(currentRowIndex)
-                        }
-                        true
-                    },
-                )
+                // Plain remember, not rememberSwipeToDismissBoxState: that one is saveable, and the
+                // lazy list keeps a removed key's saved state, so a track swiped away and queued
+                // again in the same session came back swiped away (only the red background).
+                val swipeDensity = LocalDensity.current
+                val swipeThreshold = SwipeToDismissBoxDefaults.positionalThreshold
+                val dismissState = remember {
+                    SwipeToDismissBoxState(
+                        initialValue = SwipeToDismissBoxValue.Settled,
+                        density = swipeDensity,
+                        confirmValueChange = { value ->
+                            // Anchored dragging can ask to confirm the same target more than once.
+                            // Removing twice would consume the row that shifted into this index.
+                            if (value != SwipeToDismissBoxValue.Settled && !removalRequested) {
+                                removalRequested = true
+                                onRemoveAt(currentRowIndex)
+                            }
+                            true
+                        },
+                        positionalThreshold = swipeThreshold,
+                    )
+                }
                 Box(
                     modifier = Modifier
                         .animateItem(
