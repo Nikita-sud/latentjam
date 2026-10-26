@@ -23,7 +23,7 @@ class RegionIdentityFlagTest {
         assertFalse(RegionIdentityFlag.enabled(refreshEnabled = false, switchedOff = true))
     }
 
-    @Test fun `both are off by default`() {
-        assertFalse(MapRefreshFlag.DEFAULT)
+    @Test fun `both are on by default since 0_9_3`() {
+        assertTrue(MapRefreshFlag.DEFAULT)
     }
 }
