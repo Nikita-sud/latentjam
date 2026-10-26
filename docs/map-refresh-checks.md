@@ -81,3 +81,34 @@ re-gated on this data.
   is the known weakness.
 - **Consequence.** The piece is **not** passed. The flag stays off by default. The remaining
   pieces are separable and continue.
+
+### Change of criterion after piece 1 (26 October 2026, decided by the delegated owner)
+
+**Overlap with a cold build becomes a reported number, not a pass/fail row,** from the next round
+on.
+
+- **Why.** Two cold builds of the same library agree at only about 0.54 (synthetic). The refresh
+  deliberately keeps the previous map's own t-SNE solution, which is the point of it. So agreement
+  with one particular cold solution does not measure layout quality.
+- **What judges the layout instead:**
+  - fidelity to the high-dimensional space: trust, recall, RF, CF and class;
+  - stability: lost neighbours and p90 move.
+
+  All of these passed except on three whole-style album cases.
+- **Piece 1 itself stays FAIL as frozen.** This changes the criterion for later rounds only; it
+  does not re-score this run.
+
+**Albums and the stale hint.** This was checked first, as asked.
+
+- In the piece-1 run, **none of the six album cases was marked stale**:
+  - their shares are 1.02–1.24 %, under the 2 % budget;
+  - the geometry hint did not fire;
+  - the check harness did not pass artist names, so the app's unseen-artist hint was not
+    exercised.
+- So today the stale hint does **not** route these albums to the deferred rebuild.
+
+**Follow-up round (to be predeclared here before it runs):**
+- a few exaggerated iterations limited to grouped newcomers (changed tracks whose nearest
+  neighbours are mostly other changed tracks);
+- a row on the album cases' recall, RF and CF;
+- a re-check of whether the unseen-artist hint marks real album additions.
