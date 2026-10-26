@@ -120,6 +120,14 @@ object AppGraph {
     val smartLibraryTracks = MutableStateFlow<List<TrackDescriptor>>(emptyList())
     /** Advances after each accepted listening event so For You can apply feedback next time it opens. */
     val historyRevision: StateFlow<Long> = mutableHistoryRevision.asStateFlow()
+
+    /**
+     * Reports listens written without playback (a ListenBrainz import): every reader keyed on
+     * [historyRevision] — For You, Statistics, Search, auto playlists — then rebuilds from the log.
+     */
+    fun noteHistoryImported() {
+        mutableHistoryRevision.value += 1L
+    }
     private val historyFlushRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     private var automaticIndexingKey: AutomaticIndexingRequest? = null
     private var automaticIndexingJob: Job? = null
