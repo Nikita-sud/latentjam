@@ -31,4 +31,19 @@ class SmartPressesTest {
         assertEquals(0L, flaky.next("a"))
         assertEquals(1L, flaky.next("a"))
     }
+
+    @Test
+    fun aFailedReadNeitherWipesTheFileNorIsRemembered() = runTest {
+        var failReads = true
+        val store = object : SmartPressStore {
+            var lines = listOf("p1|61|5")
+            override suspend fun read(): List<String> = if (failReads) error("io") else lines
+            override suspend fun write(lines: List<String>) { this.lines = lines }
+        }
+        val presses = SmartPresses(store)
+        assertEquals(0L, presses.next("b"))
+        assertEquals(listOf("p1|61|5"), store.lines)
+        failReads = false
+        assertEquals(5L, presses.next("a"))
+    }
 }

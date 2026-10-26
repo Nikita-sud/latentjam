@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.history
 
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -24,7 +25,8 @@ public class SmartPresses(private val store: SmartPressStore) {
 
     /** The press of a new SMART start from [contentKey] (0 the first time), counted as used. */
     public suspend fun next(contentKey: String): Long = mutex.withLock {
-        val map = loaded()
+        // An unreadable file is press 0 this time, not an empty map written over every other seed's count.
+        val map = loaded() ?: return@withLock 0L
         val press = map[contentKey] ?: 0L
         map[contentKey] = press + 1
         runCatching { store.write(map.entries.sortedBy { it.key }.map { (k, v) -> "$FORMAT|${k.encodeHex()}|$v" }) }
@@ -32,17 +34,25 @@ public class SmartPresses(private val store: SmartPressStore) {
     }
 
     /** The current count for [contentKey] without using one. */
-    public suspend fun peek(contentKey: String): Long = mutex.withLock { loaded()[contentKey] ?: 0L }
+    public suspend fun peek(contentKey: String): Long = mutex.withLock { loaded()?.get(contentKey) ?: 0L }
 
     public suspend fun clear(): Unit = mutex.withLock {
         counts = LinkedHashMap()
         runCatching { store.write(emptyList()) }
     }
 
-    private suspend fun loaded(): MutableMap<String, Long> {
+    /** The counts, read once; null (and not remembered) when the read failed or was cancelled. */
+    private suspend fun loaded(): MutableMap<String, Long>? {
         counts?.let { return it }
+        val lines = try {
+            store.read()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return null
+        }
         val map = LinkedHashMap<String, Long>()
-        for (line in runCatching { store.read() }.getOrDefault(emptyList())) {
+        for (line in lines) {
             val parts = line.split('|')
             if (parts.size != 3 || parts[0] != FORMAT) continue
             val key = parts[1].decodeHex() ?: continue

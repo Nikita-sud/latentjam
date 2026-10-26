@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.history
 
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -24,21 +25,30 @@ public class FavoriteTimes(private val store: FavoriteTimeStore) {
     private var times: MutableMap<TrackId, Long>? = null
 
     /** The heart time of every favourite that has one. */
-    public suspend fun all(): Map<TrackId, Long> = mutex.withLock { HashMap(loaded()) }
+    public suspend fun all(): Map<TrackId, Long> = mutex.withLock { HashMap(loaded().orEmpty()) }
 
     /** [added] were hearted at [atMs], [removed] lost their heart. */
     public suspend fun update(added: Collection<TrackId>, removed: Collection<TrackId>, atMs: Long): Unit = mutex.withLock {
         if (added.isEmpty() && removed.isEmpty()) return
-        val map = loaded()
+        // Unreadable now: skip this change rather than write a file holding only it over every other time.
+        val map = loaded() ?: return@withLock
         for (id in removed) map.remove(id)
         for (id in added) map[id] = atMs
         runCatching { store.write(map.entries.map { (id, at) -> "$FORMAT|${id.value.encodeHex()}|$at" }) }
     }
 
-    private suspend fun loaded(): MutableMap<TrackId, Long> {
+    /** The times, read once; null (and not remembered) when the read failed or was cancelled. */
+    private suspend fun loaded(): MutableMap<TrackId, Long>? {
         times?.let { return it }
+        val lines = try {
+            store.read()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return null
+        }
         val map = LinkedHashMap<TrackId, Long>()
-        for (line in runCatching { store.read() }.getOrDefault(emptyList())) {
+        for (line in lines) {
             val p = line.split('|')
             if (p.size != 3 || p[0] != FORMAT) continue
             val id = p[1].decodeHex() ?: continue
