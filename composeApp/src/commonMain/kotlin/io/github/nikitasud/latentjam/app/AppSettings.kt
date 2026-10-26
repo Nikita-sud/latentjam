@@ -577,6 +577,13 @@ interface AppSettings {
     fun readDuplicateDismissalsPayload(): String?
     fun writeDuplicateDismissalsPayload(payload: String)
 
+    /**
+     * When a deferred Map rebuild was first asked for and has not run since, in epoch ms (0: none waiting). Kept on
+     * disk so the in-app fallback's day survives process deaths; the defaults keep fakes and tests storage-free.
+     */
+    fun readMapRebuildRequestedAtMs(): Long = 0L
+    fun writeMapRebuildRequestedAtMs(epochMs: Long) = Unit
+
     /** Whether new playback sessions are written to the private on-device listening log. */
     val saveListeningHistory: StateFlow<Boolean>
 

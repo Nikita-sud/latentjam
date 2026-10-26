@@ -11,6 +11,10 @@ import io.github.nikitasud.latentjam.smart.cluster.LibraryLayoutRefresh
 import io.github.nikitasud.latentjam.smart.cluster.MapMemoryBudget
 import kotlin.time.TimeSource
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.withLock
@@ -43,7 +47,11 @@ internal object MapRebuild {
     /** The Map shows a refreshed layout that should be rebuilt (the debug marker reads it). */
     val stale: StateFlow<Boolean> = staleState
 
-    /** When a rebuild was first asked for and has not run since, in epoch ms; 0 when none is waiting. */
+    /**
+     * When a rebuild was first asked for and has not run since, in epoch ms; 0 when none is waiting. Persisted
+     * ([AppSettings.readMapRebuildRequestedAtMs]): resumePending runs at every process start, and an in-memory time
+     * restarted the fallback's day each time, so it almost never became due.
+     */
     private var requestedAtMs: Long = 0L
 
     /** Fallback runs this process has made (logged with each). */
@@ -51,10 +59,33 @@ internal object MapRebuild {
         private set
 
     /** Called after a refresh that leaves work for the rebuild. */
-    fun requested(stale: Boolean, nowMs: Long, schedule: () -> Unit = ::scheduleMapRebuild) {
+    fun requested(
+        stale: Boolean,
+        nowMs: Long,
+        schedule: () -> Unit = ::scheduleMapRebuild,
+        persisted: () -> Long = ::persistedRequestAt,
+        persist: (Long) -> Unit = ::persistRequestAt,
+    ) {
         if (stale) staleState.value = true
-        if (requestedAtMs == 0L) requestedAtMs = nowMs
+        if (requestedAtMs == 0L) {
+            // A time in the future is a changed clock, not a request: start the day again.
+            val earlier = persisted().takeIf { it in 1..nowMs }
+            requestedAtMs = earlier ?: nowMs
+            if (earlier == null) persist(nowMs)
+        }
         schedule()
+    }
+
+    private fun persistedRequestAt(): Long = runCatching { AppGraph.settings.readMapRebuildRequestedAtMs() }.getOrDefault(0L)
+
+    private fun persistRequestAt(epochMs: Long) {
+        runCatching { AppGraph.settings.writeMapRebuildRequestedAtMs(epochMs) }
+    }
+
+    private fun nothingWaiting() {
+        staleState.value = false
+        requestedAtMs = 0L
+        persistRequestAt(0L)
     }
 
     /** Whether the stored state still asks for a rebuild: changes since the last full build, a stale map, or pending regions. */
@@ -85,17 +116,24 @@ internal object MapRebuild {
 
     /** Called after a full build in the page itself: nothing is waiting any more. */
     fun builtInPage() {
-        staleState.value = false
-        requestedAtMs = 0L
+        nothingWaiting()
     }
 
     /** The in-app fallback's condition: a request older than [FALLBACK_AFTER_MS], on external power. */
     fun fallbackDue(nowMs: Long): Boolean =
         requestedAtMs != 0L && nowMs - requestedAtMs >= FALLBACK_AFTER_MS && onExternalPower()
 
-    suspend fun runFallback(isActive: () -> Boolean): Outcome {
+    private var fallbackJob: Job? = null
+
+    /**
+     * Starts the fallback in [scope] unless one is still running. Not in the Map page's own effect: the rebuild
+     * changes that effect's keys (its worlds, then the revision), which cancelled it part-way and started it again.
+     */
+    fun launchFallback(scope: CoroutineScope) {
+        if (fallbackJob?.isActive == true) return
         fallbackRuns++
-        return run(isActive, trigger = "fallback#$fallbackRuns")
+        val trigger = "fallback#$fallbackRuns"
+        fallbackJob = scope.launch { run(isActive = { isActive }, trigger = trigger) }
     }
 
     /**
@@ -113,10 +151,7 @@ internal object MapRebuild {
             Outcome.FAILED
         }
         println("Map rebuild ($trigger): $outcome in ${started.elapsedNow().inWholeMilliseconds} ms")
-        if (outcome == Outcome.DONE || outcome == Outcome.NOT_NEEDED) {
-            requestedAtMs = 0L
-            staleState.value = false
-        }
+        if (outcome == Outcome.DONE || outcome == Outcome.NOT_NEEDED) nothingWaiting()
         return outcome
     }
 
@@ -138,7 +173,12 @@ internal object MapRebuild {
         val ids = loaded.map(TrackDescriptor::id)
         if (!isActive()) throw CancellationException("Map rebuild cancelled")
         // "Analysis complete" from the index itself: a rebuild never runs on partial audio coverage.
-        if (ids.isEmpty() || engine.missingFromIndex(ids) > 0) return Outcome.NOT_READY
+        // An empty scan is not a library to rebuild (permission pending or revoked, storage not mounted): nothing to do
+        // now, and the next refresh asks again. Retrying it would keep the job alive on every idle charge.
+        if (ids.isEmpty()) return Outcome.NOT_NEEDED
+        // Judged on the descriptors: this process may never have synchronized the library into the engine, and a
+        // remembered decode failure must not read as missing audio (it would hold the rebuild back forever).
+        if (engine.missingFromIndexOf(loaded) > 0) return Outcome.NOT_READY
         val coverage = engine.libraryMixCoverage(ids) ?: return Outcome.NOT_READY
         if (coverage.size > LibraryLayout.MAX_TRACKS) return Outcome.NOT_NEEDED
 

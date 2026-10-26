@@ -74,7 +74,7 @@ internal fun rememberMapPageModel(
         val loaded = tracks ?: return@LaunchedEffect
         // No scheduled rebuild for a day: run it here while on external power (plan piece 3, fallback).
         if (MapRefreshFlag.enabled && libraryWorlds.audioVectorsReady && MapRebuild.fallbackDue(epochMillis())) {
-            MapRebuild.runFallback(isActive = { isActive })
+            MapRebuild.launchFallback(AppGraph.appScope)
         }
         if (libraryWorlds.memoryLimited) {
             // Explain the refusal even after a warm page. MapPageCache and the disk snapshot

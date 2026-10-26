@@ -151,6 +151,13 @@ public interface SimilarityEngine {
     public suspend fun missingFromIndex(ids: List<TrackId>): Int
 
     /**
+     * [missingFromIndex] for callers that hold the descriptors but did not synchronize the library into this
+     * engine first — a background job in a fresh process. A remembered decode failure is judged against [tracks]
+     * themselves, so it does not count as work there either.
+     */
+    public suspend fun missingFromIndexOf(tracks: List<TrackDescriptor>): Int = missingFromIndex(tracks.map { it.id })
+
+    /**
      * The stored embedding for [trackId], or `null` if it is not indexed.
      *
      * Exposed so the UI can express a track's position in latent space —

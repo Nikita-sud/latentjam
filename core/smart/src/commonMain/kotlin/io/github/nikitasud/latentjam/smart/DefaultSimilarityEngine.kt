@@ -512,6 +512,12 @@ internal class DefaultSimilarityEngine(
         }
     }
 
+    override suspend fun missingFromIndexOf(tracks: List<TrackDescriptor>): Int = withContext(dispatcher) {
+        mutex.withLock {
+            tracks.count { track -> track.id !in index && !hasRememberedAudioFailure(knownTracks[track.id] ?: track) }
+        }
+    }
+
     override suspend fun embedding(trackId: TrackId): FloatArray? = withContext(dispatcher) {
         mutex.withLock { index.vector(trackId) }
     }
