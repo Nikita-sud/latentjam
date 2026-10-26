@@ -183,13 +183,15 @@ class SmartStandRunner {
                         recorder.planned(queue, plan, rankOffset, model, rows)
                     }
                 }
-                if (chain && full) continue
+                // LJ_STAND_CHAIN_FULL=1: the chain's FULL as the phone runs it ("Learn from my habits": the habit slots on top).
+                val chainFull = System.getenv("LJ_STAND_CHAIN_FULL") == "1"
+                if (chain && full && !chainFull) continue
                 // General stand (synthetic FMA libraries): LJ_STAND_CORE_ONLY=1 skips FULL (no history to personalise on).
                 if (full && System.getenv("LJ_STAND_CORE_ONLY") == "1") continue
                 val chooser = EngineNextTrackChooser(
                     engine = chainEngine ?: NoEngine.instance, history = history, library = { library },
                     useRanker = { !chain }, ranker = { ranker }, rankerHealthy = { assets.healthy },
-                    learnFromHabits = { full && !chain }, personalRanker = { full },
+                    learnFromHabits = { full && (!chain || chainFull) }, personalRanker = { full },
                     presses = SmartPresses(MemoryPresses()), smartLog = log,
                     favourites = { favourites }, useFavourites = { true }, clock = { now }, userPlaylists = { userPlaylists },
                     varietyScale = { varietyScale }, companionGroups = { marks },
