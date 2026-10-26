@@ -1,4 +1,7 @@
 <resources>
     <string name="settings_lock_screen_player">Player na tela de bloqueio</string>
     <string name="settings_lock_screen_player_subtitle">Desligue a tela no LatentJam enquanto a música toca e o player completo espera na tela de bloqueio</string>
+    <string name="lock_player_open_app">Desbloquear e abrir o LatentJam</string>
+    <string name="lock_player_cover_description">Capa. Deslize para o lado para trocar de faixa, arraste para baixo para fechar.</string>
+    <string name="lock_player_mode_description">Modo de reprodução: %1$s. Toque para trocar.</string>
 </resources>

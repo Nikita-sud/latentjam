@@ -1,4 +1,7 @@
 <resources>
     <string name="settings_lock_screen_player">Odtwarzacz na ekranie blokady</string>
     <string name="settings_lock_screen_player_subtitle">Wyłącz ekran w LatentJam podczas odtwarzania, a pełny odtwarzacz poczeka na ekranie blokady</string>
+    <string name="lock_player_open_app">Odblokuj i otwórz LatentJam</string>
+    <string name="lock_player_cover_description">Okładka. Przesuń w bok, aby zmienić utwór, przeciągnij w dół, aby zamknąć.</string>
+    <string name="lock_player_mode_description">Tryb odtwarzania: %1$s. Dotknij, aby zmienić.</string>
 </resources>

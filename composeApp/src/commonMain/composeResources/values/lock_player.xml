@@ -1,4 +1,7 @@
 <resources>
     <string name="settings_lock_screen_player">Player on the lock screen</string>
     <string name="settings_lock_screen_player_subtitle">Turn the screen off in LatentJam while music plays, and the full player waits on the lock screen</string>
+    <string name="lock_player_open_app">Unlock and open LatentJam</string>
+    <string name="lock_player_cover_description">Cover. Swipe sideways to change track, drag down to close.</string>
+    <string name="lock_player_mode_description">Playback mode: %1$s. Tap to change.</string>
 </resources>

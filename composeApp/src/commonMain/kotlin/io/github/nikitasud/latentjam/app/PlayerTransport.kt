@@ -71,6 +71,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.cd_mode_button
+import io.github.nikitasud.latentjam.app.generated.resources.lock_player_mode_description
 import io.github.nikitasud.latentjam.app.generated.resources.cd_skip_next_hold
 import io.github.nikitasud.latentjam.app.generated.resources.cd_skip_previous_hold
 import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
@@ -261,6 +262,8 @@ internal fun ModeButton(
     onSelect: (ShuffleMode) -> Unit,
     smartQueueLength: Int,
     onSmartQueueLength: (Int) -> Unit,
+    /** False on the lock screen: a hold opens nothing, a tap still cycles. */
+    menuEnabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val haptics = LocalHapticFeedback.current
@@ -278,7 +281,10 @@ internal fun ModeButton(
     )
     val modeName = stringResource(mode.labelRes())
     val menuDescription = stringResource(Res.string.player_mode_title)
-    val description = stringResource(Res.string.cd_mode_button, modeName)
+    val description = stringResource(
+        if (menuEnabled) Res.string.cd_mode_button else Res.string.lock_player_mode_description,
+        modeName,
+    )
     val cycle: () -> Unit = {
         haptics.play(PlayerHaptic.TAP)
         onCycle()
@@ -294,15 +300,17 @@ internal fun ModeButton(
                     role = Role.Button
                     contentDescription = description
                     onClick { cycle(); true }
-                    onLongClick(label = menuDescription) { menuOpen = true; true }
+                    if (menuEnabled) onLongClick(label = menuDescription) { menuOpen = true; true }
                 }
                 .tapOrHold(
                     interactionSource = interaction,
                     holdMs = MODE_HOLD_MS,
                     onTap = cycle,
                     onHoldStart = {
-                        haptics.play(PlayerHaptic.HOLD)
-                        menuOpen = true
+                        if (menuEnabled) {
+                            haptics.play(PlayerHaptic.HOLD)
+                            menuOpen = true
+                        }
                     },
                     onHoldEnd = {},
                 ),

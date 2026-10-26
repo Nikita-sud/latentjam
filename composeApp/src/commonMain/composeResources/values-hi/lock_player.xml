@@ -1,4 +1,7 @@
 <resources>
     <string name="settings_lock_screen_player">लॉक स्क्रीन पर प्लेयर</string>
     <string name="settings_lock_screen_player_subtitle">संगीत चलते समय LatentJam में स्क्रीन बंद करें, तो पूरा प्लेयर लॉक स्क्रीन पर मिलेगा</string>
+    <string name="lock_player_open_app">अनलॉक करके LatentJam खोलें</string>
+    <string name="lock_player_cover_description">कवर। ट्रैक बदलने के लिए बगल में स्वाइप करें, बंद करने के लिए नीचे खींचें।</string>
+    <string name="lock_player_mode_description">प्लेबैक मोड: %1$s। बदलने के लिए टैप करें।</string>
 </resources>

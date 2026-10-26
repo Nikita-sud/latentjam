@@ -1,4 +1,7 @@
 <resources>
     <string name="settings_lock_screen_player">Player nella schermata di blocco</string>
     <string name="settings_lock_screen_player_subtitle">Se spegni lo schermo in LatentJam mentre suona la musica, il player completo ti aspetta nella schermata di blocco</string>
+    <string name="lock_player_open_app">Sblocca e apri LatentJam</string>
+    <string name="lock_player_cover_description">Copertina. Scorri di lato per cambiare brano, trascina in basso per chiudere.</string>
+    <string name="lock_player_mode_description">Modalità di riproduzione: %1$s. Tocca per cambiare.</string>
 </resources>

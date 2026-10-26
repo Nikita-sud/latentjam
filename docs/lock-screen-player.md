@@ -57,14 +57,26 @@ description says plainly that the player appears when LatentJam was open as the 
 - `LockPlayerTrigger` (commonMain, tested): opens once per screen-off, only when the setting is on
   and music plays, never on top of a showing player; the guard clears when the screen comes on.
 - `installLockScreenPlayer` (Android): the screen on/off receiver exists only while the setting is on.
-- `LockScreenPlayerActivity`: its own task, singleInstance, excluded from Recents. It renders
+- `LockScreenPlayerActivity`: its own task, singleInstance, excluded from Recents, translucent
+  window over the keyguard, edge to edge with transparent bars and the short-edge cutout. It renders
   `NowPlayingScreen` through `LockScreenPlayer` with the app's theme, against the same
-  `PlaybackController` as the app, so it always agrees with the notification. It closes on
-  `ACTION_USER_PRESENT` and when playback ends (no track). The close action and Back call
-  `KeyguardManager.requestDismissKeyguard` and leave once the unlock succeeds.
-- Over a locked device nothing leads into the library: no overflow menus, no queue track menus, no
-  "save queue", no tag editing, album/artist/map/equalizer links absent. Playback, queue order,
-  lyrics and the heart work.
+  `PlaybackController` as the app, so it always agrees with the notification. It closes on unlock
+  (`ACTION_USER_PRESENT`, which System UI sends, so its receivers are exported) and when playback
+  ends (no track).
+- The lock surface (`PlayerSurface.LOCK_SCREEN`, every entry point listed in `PlayerEntry`) is
+  Samsung's rule: the same content, minus anything that opens a dialog, sheet, picker or another
+  screen. Kept: previous/play-pause/next, mode (tap cycles), repeat, favourite, the queue page
+  (play, reorder, remove), lyrics, and the seek bar. Samsung drops the seek bar; ours stays on
+  purpose, since it opens nothing. Left out: the overflow and track sheet (share, sleep timer,
+  information live there), the cover's hold menu and its back face (track info, tag editing, map,
+  equaliser), the mode button's hold menu, queue row menus, add-to-playlist, the audio output
+  chooser (the route stays as plain text), and the artist/album links and "Playing from" chip
+  (plain text).
+- Ways out: Close and Back ask for the unlock and leave. The small LatentJam button asks for the
+  unlock and then opens the full player in the app. A swipe down returns to the plain lock screen
+  without unlocking; a swiped-away player stays away until the next unlock (otherwise Android's
+  ~10 s grace period after it closes would bring it back on the next screen-off, and later it
+  would not).
 
 ## iOS
 

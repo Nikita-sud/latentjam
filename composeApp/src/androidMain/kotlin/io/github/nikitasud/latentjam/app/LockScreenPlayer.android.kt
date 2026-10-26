@@ -10,11 +10,14 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -36,11 +39,12 @@ import kotlinx.coroutines.launch
  */
 internal fun installLockScreenPlayer(context: Context) {
     val app = context.applicationContext
-    val trigger = LockPlayerTrigger()
+    val trigger = lockPlayerTrigger
     val receiver = object : BroadcastReceiver() {
         override fun onReceive(receiverContext: Context, intent: Intent) {
             when (intent.action) {
                 Intent.ACTION_SCREEN_ON -> trigger.onScreenOn()
+                Intent.ACTION_USER_PRESENT -> trigger.onUnlocked()
                 Intent.ACTION_SCREEN_OFF -> {
                     val open = trigger.onScreenOff(
                         enabled = AppGraph.settings.lockScreenPlayer.value,
@@ -63,22 +67,29 @@ internal fun installLockScreenPlayer(context: Context) {
     val filter = IntentFilter().apply {
         addAction(Intent.ACTION_SCREEN_OFF)
         addAction(Intent.ACTION_SCREEN_ON)
+        addAction(Intent.ACTION_USER_PRESENT)
     }
     // Main: the receiver runs there too, so the trigger is only ever touched from one thread.
     AppGraph.appScope.launch(Dispatchers.Main) {
         var registered = false
         AppGraph.settings.lockScreenPlayer.collect { enabled ->
             if (enabled && !registered) {
-                ContextCompat.registerReceiver(app, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+                // Exported: System UI, an app uid, sends USER_PRESENT; a not-exported receiver never
+                // hears it. All three actions are protected broadcasts only the system may send.
+                ContextCompat.registerReceiver(app, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
                 registered = true
             } else if (!enabled && registered) {
                 app.unregisterReceiver(receiver)
                 registered = false
                 trigger.onScreenOn()
+                trigger.onUnlocked()
             }
         }
     }
 }
+
+/** One per process; touched only on the main thread (receiver, activity, settings collector). */
+private val lockPlayerTrigger = LockPlayerTrigger()
 
 /**
  * The full player above the keyguard, edge to edge. It drives the same playback controller as the
@@ -98,7 +109,18 @@ class LockScreenPlayerActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         showing = true
         showOverKeyguard(true)
+        // Edge to edge with transparent bars, and into the short-edge cutout like a full-screen
+        // media screen; the stored theme then tints the bar icons.
+        enableEdgeToEdge()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+        }
         applyStoredWindowTheme()
+        // The stored theme paints an opaque floor; this window stays see-through (its theme), so a
+        // swipe down uncovers the lock screen rather than a blank colour.
+        window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         // Exported on purpose: System UI, an app uid, sends USER_PRESENT, so a not-exported
         // receiver never hears the unlock. Only the system may send this protected broadcast.
         ContextCompat.registerReceiver(
@@ -116,7 +138,15 @@ class LockScreenPlayerActivity : ComponentActivity() {
             }
         }
         setContent {
-            LockScreenPlayer(playback = AppGraph.playback, onClose = ::unlock)
+            LockScreenPlayer(
+                playback = AppGraph.playback,
+                onClose = { unlock() },
+                onOpenApp = { unlock(then = ::openPlayerInApp) },
+                onDismiss = {
+                    lockPlayerTrigger.onDismissed()
+                    leave()
+                },
+            )
         }
     }
 
@@ -136,18 +166,34 @@ class LockScreenPlayerActivity : ComponentActivity() {
         super.onDestroy()
     }
 
-    /** Close asks for the unlock (PIN, fingerprint, face); the player goes once it succeeds. */
-    private fun unlock() {
+    /**
+     * Asks for the unlock (PIN, fingerprint, face); once it succeeds, [then] runs and the player
+     * goes. A cancelled unlock leaves the player where it was.
+     */
+    private fun unlock(then: () -> Unit = {}) {
         val keyguard = getSystemService(KeyguardManager::class.java)
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || keyguard?.isKeyguardLocked != true) {
+            then()
             leave()
             return
         }
         keyguard.requestDismissKeyguard(
             this,
             object : KeyguardManager.KeyguardDismissCallback() {
-                override fun onDismissSucceeded() = leave()
+                override fun onDismissSucceeded() {
+                    then()
+                    leave()
+                }
             },
+        )
+    }
+
+    /** The lock screen as a way in: the app comes forward with its full player open. */
+    private fun openPlayerInApp() {
+        PlayerOpenRequest.pending.value = true
+        startActivity(
+            Intent(this, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION),
         )
     }
 

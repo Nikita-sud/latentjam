@@ -71,6 +71,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.cd_player_artwork
+import io.github.nikitasud.latentjam.app.generated.resources.lock_player_cover_description
 import io.github.nikitasud.latentjam.app.generated.resources.action_track_options
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.abs
@@ -89,8 +90,10 @@ import kotlin.math.abs
 internal fun PlayerArtworkCard(
     track: TrackDescriptor?,
     flipped: Boolean,
-    onFlip: (Boolean) -> Unit,
-    onHold: () -> Unit,
+    /** Null keeps the cover from turning over (the lock screen shows no track details). */
+    onFlip: ((Boolean) -> Unit)?,
+    /** Null leaves a hold without an action, and without the ring that announces one. */
+    onHold: (() -> Unit)?,
     onSkip: (forward: Boolean) -> Unit,
     canSkipForward: Boolean,
     canSkipBackward: Boolean,
@@ -182,7 +185,10 @@ internal fun PlayerArtworkCard(
         swiping = false
     }
 
-    val description = stringResource(Res.string.cd_player_artwork)
+    // Without a turn or a hold (the lock screen) the description promises neither.
+    val description = stringResource(
+        if (onFlip == null && onHold == null) Res.string.lock_player_cover_description else Res.string.cd_player_artwork,
+    )
     val actionsDescription = stringResource(Res.string.action_track_options)
     val ringColor = MaterialTheme.colorScheme.onSurface
     val ringTrack = ringColor.copy(alpha = 0.18f)
@@ -208,8 +214,8 @@ internal fun PlayerArtworkCard(
             .semantics {
                 contentDescription = description
                 role = Role.Button
-                onClick { currentOnFlip(!currentFlipped); true }
-                onLongClick(label = actionsDescription) { currentOnHold(); true }
+                if (onFlip != null) onClick { currentOnFlip?.invoke(!currentFlipped); true }
+                if (onHold != null) onLongClick(label = actionsDescription) { currentOnHold?.invoke(); true }
             }
             .onPlaced { placed.coordinates = it }
             .pointerInput(track?.id, queueIndex, reduceMotion, haptics) {
@@ -231,7 +237,8 @@ internal fun PlayerArtworkCard(
                     val width = size.width.toFloat()
                     if (width <= 0f) return@awaitEachGesture
                     holdCenter = down.position
-                    holdJob = scope.launch {
+                    val holds = currentOnHold != null
+                    if (holds) holdJob = scope.launch {
                         if (!reduceMotion) {
                             launch { pressScale.animateTo(HOLD_SINK, tween(HOLD_MS, easing = LinearEasing)) }
                         }
@@ -246,11 +253,15 @@ internal fun PlayerArtworkCard(
                         val holdDeadline = down.uptimeMillis + HOLD_MS
                         while (axis == null) {
                             val remaining = holdDeadline - change.uptimeMillis
-                            val event = withTimeoutOrNull(remaining.coerceAtLeast(1L)) { awaitPointerEvent() }
+                            val event = if (holds) {
+                                withTimeoutOrNull(remaining.coerceAtLeast(1L)) { awaitPointerEvent() }
+                            } else {
+                                awaitPointerEvent()
+                            }
                             if (event == null) {
                                 haptics.play(PlayerHaptic.HOLD)
                                 settlePress()
-                                currentOnHold()
+                                currentOnHold?.invoke()
                                 waitForUpOrCancellation()
                                 return@awaitEachGesture
                             }
@@ -261,8 +272,10 @@ internal fun PlayerArtworkCard(
                             axis = artworkDragAxis(delta.x, delta.y, slop)
                             if (axis == null && change.changedToUpIgnoreConsumed()) {
                                 change.consume()
-                                haptics.play(PlayerHaptic.TAP)
-                                currentOnFlip(!currentFlipped)
+                                currentOnFlip?.let { flip ->
+                                    haptics.play(PlayerHaptic.TAP)
+                                    flip(!currentFlipped)
+                                }
                                 finished = true
                                 return@awaitEachGesture
                             }

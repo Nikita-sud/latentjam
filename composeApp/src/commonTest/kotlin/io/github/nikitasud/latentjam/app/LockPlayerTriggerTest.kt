@@ -57,10 +57,83 @@ class LockPlayerTriggerTest {
     }
 
     @Test
+    fun `a swiped away player stays away through screen cycles until the next unlock`() {
+        val trigger = LockPlayerTrigger()
+        assertTrue(trigger.onScreenOff(enabled = true, playing = true, playerShowing = false))
+        trigger.onDismissed()
+        trigger.onScreenOn()
+        assertFalse(trigger.onScreenOff(enabled = true, playing = true, playerShowing = false))
+        trigger.onScreenOn()
+        trigger.onUnlocked()
+        assertTrue(trigger.onScreenOff(enabled = true, playing = true, playerShowing = false))
+    }
+
+    @Test
     fun `the open player stays through a pause and closes when playback ends`() {
         val track = TrackDescriptor(id = TrackId("t1"), title = "Song")
         assertFalse(lockPlayerShouldClose(NowPlaying(track = track, isPlaying = true)))
         assertFalse(lockPlayerShouldClose(NowPlaying(track = track, isPlaying = false)))
         assertTrue(lockPlayerShouldClose(NowPlaying(track = null)))
+    }
+}
+
+class LockScreenSurfaceTest {
+
+    @Test
+    fun `the app player keeps every entry point`() {
+        PlayerEntry.entries.forEach { assertTrue(PlayerSurface.APP.allows(it), it.name) }
+    }
+
+    @Test
+    fun `the lock screen offers exactly the entry points that need no unlock`() {
+        val offered = PlayerEntry.entries.filter(PlayerSurface.LOCK_SCREEN::allows).toSet()
+        assertEquals(
+            setOf(
+                PlayerEntry.TRANSPORT,
+                PlayerEntry.SEEK,
+                PlayerEntry.REPEAT,
+                PlayerEntry.MODE_CYCLE,
+                PlayerEntry.FAVOURITE,
+                PlayerEntry.QUEUE_PAGE,
+                PlayerEntry.QUEUE_PLAY_REORDER_REMOVE,
+                PlayerEntry.LYRICS,
+            ),
+            offered,
+        )
+    }
+
+    @Test
+    fun `nothing that opens a menu sheet picker or another screen is offered on the lock screen`() {
+        listOf(
+            PlayerEntry.TRACK_MENU,
+            PlayerEntry.QUEUE_ROW_MENU,
+            PlayerEntry.ADD_QUEUE_TO_PLAYLIST,
+            PlayerEntry.COVER_DETAILS,
+            PlayerEntry.ARTIST_ALBUM_LINKS,
+            PlayerEntry.SOURCE_LINK,
+            PlayerEntry.OUTPUT_CHOOSER,
+            PlayerEntry.MODE_MENU,
+            PlayerEntry.SLEEP_TIMER,
+        ).forEach { assertFalse(PlayerSurface.LOCK_SCREEN.allows(it), it.name) }
+    }
+}
+
+class LockPlayerSwipeTest {
+
+    @Test
+    fun `a pull past a quarter of the screen closes the lock player`() {
+        assertTrue(lockPlayerSwipeCloses(pulledPx = 260f, velocityPxPerS = 0f, heightPx = 1000f, flingPxPerS = 2000f))
+        assertFalse(lockPlayerSwipeCloses(pulledPx = 240f, velocityPxPerS = 0f, heightPx = 1000f, flingPxPerS = 2000f))
+    }
+
+    @Test
+    fun `a fast fling down closes it after a short pull but a fling without any pull does not`() {
+        assertTrue(lockPlayerSwipeCloses(pulledPx = 40f, velocityPxPerS = 2500f, heightPx = 1000f, flingPxPerS = 2000f))
+        assertFalse(lockPlayerSwipeCloses(pulledPx = 0f, velocityPxPerS = 2500f, heightPx = 1000f, flingPxPerS = 2000f))
+    }
+
+    @Test
+    fun `an unmeasured screen never closes it`() {
+        assertFalse(lockPlayerSwipeCloses(pulledPx = 500f, velocityPxPerS = 5000f, heightPx = 0f, flingPxPerS = 2000f))
     }
 }
