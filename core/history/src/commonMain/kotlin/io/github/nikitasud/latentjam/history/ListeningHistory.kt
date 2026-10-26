@@ -266,8 +266,10 @@ public class DefaultListeningHistory(
             }
             RestoredHistory(parsed, folded)
         }
-        events += restored.events
-        aggregates.putAll(restored.aggregates)
+        // Adopted, not copied in: nothing may allocate between publishing the events and marking the
+        // log loaded, or a failure there would leave them published and the next call add them again.
+        events = restored.events
+        aggregates = restored.aggregates
         loaded = true
     }
 
@@ -275,9 +277,9 @@ public class DefaultListeningHistory(
         aggregates.aggregate(event)
     }
 
-    private data class RestoredHistory(
-        val events: List<ListenEvent>,
-        val aggregates: Map<TrackId, TrackStats>,
+    private class RestoredHistory(
+        val events: ArrayList<ListenEvent>,
+        val aggregates: MutableMap<TrackId, TrackStats>,
     )
 }
 
