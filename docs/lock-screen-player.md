@@ -49,8 +49,10 @@ listener must turn the special access on by hand in system settings.
 The no-permission path: the player opens when LatentJam itself was on screen at screen-off, and
 again at every later screen-off while the lock player is the top screen. When another app was in
 front, Android refuses the start silently and the system media card remains the lock-screen
-player. "Display over other apps" would cover that case too, but it is a new permission and is
-only added with the owner's consent.
+player. Owner's decision (2026-10-26): ship this path only, as an option off by default; no
+`SYSTEM_ALERT_WINDOW`, no full-screen intent, no new permission of any kind, because Samsung's own
+mechanism (a privileged background start) is not available to a third-party app. The setting's
+description says plainly that the player appears when LatentJam was open as the screen went off.
 
 - `LockPlayerTrigger` (commonMain, tested): opens once per screen-off, only when the setting is on
   and music plays, never on top of a showing player; the guard clears when the screen comes on.
