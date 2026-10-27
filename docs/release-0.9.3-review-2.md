@@ -117,3 +117,22 @@ Notes, not defects:
 - A playlist page sorted by Plays is sorted only when it opens (R2-U-2's pre-existing half): opened before the first
   history read, it shows Custom order until reopened. Left as is (a page's order is fixed while open by design).
 - `seamLog` prints only opaque track ids and is silent unless `log.tag.LJCrossfade` is set to DEBUG.
+
+### Round 2 checks
+
+At 18d22f18: all check tasks green; most dex registers 249 (limit 255).
+
+## Round 3
+
+Three fresh reviewers: P crossfade fixes + decode workers · U app-layer fixes + release hygiene over everything after
+292077cb · S SMART candidate / Map interaction / #27 / Recently played / Plays / lock player / duplicates. 5 findings,
+all confirmed (one moot after a revert). Crossfade (274bc160 + 4f06182b together), release hygiene, the SMART
+candidate, Recently played, Plays sort, lock player and duplicates marquees: clean.
+
+| id | finding | verdict | fix |
+|---|---|---|---|
+| R3-P-1 | From d506e74a (kept by e0387249 on multi-worker devices): a window that came back Unavailable (codec contention) was retried on the extra thread beside every look-ahead decode, one codec more than the worker count, so the retry was likelier to fail again and the track stored with fewer windows | moot: d506e74a and e0387249 reverted (6db6af61, 0011bd01) | revert: the separate thread fixed a rare, pre-existing wait (R1-I-4) and caused R2-I-1 and R3-P-1; back to 0.9.2's one pool, R1-I-4 a 0.9.4 note |
+| R3-P-2 | KDoc and a host test still described the separate thread on low-RAM devices | moot (reverted) | — |
+| R3-U-1 | From 30fb951c: an empty first history read (no listens yet) equals the initial counts and re-runs no refresh, so the flag stayed unset and the first listen re-sorted an open Favorites page sorted by plays once | CONFIRMED-narrower, very low (start on Playlists, no other key change before the first listen); the reviewer's fix would not work, the verifier's was taken | f78639ed (an empty first read settles it; a refresh from before the read can no longer unsettle it) |
+| R3-S-1 | Android: while the stored audio index stays unreadable (R1-I-1's session), the pass still ends `complete`, so the Map / For You turned region identity on with metadata-only vectors and saved fresh region identities over the stored ones (lost on the next good launch) | CONFIRMED-narrower, low (the layout save is 0.9.2 behaviour; iOS never latches) | 68fd797f (`SimilarityEngine.audioIndexUnreadable`; identity and the in-page refresh stay off while it holds) |
+| R3-S-2 | iOS (from ecc90062, not in 0.9.2): a track being analysed when iOS suspends the app timed out on return (the 90 s clock runs on while suspended) and was remembered as "Analysis timed out" until Retry | CONFIRMED, low-medium (a first analysis, the app left for > 90 s) | 4a507538 (a timeout across a background/foreground transition, or firing while still in the background, is the retryable `AudioUnavailable`) |
