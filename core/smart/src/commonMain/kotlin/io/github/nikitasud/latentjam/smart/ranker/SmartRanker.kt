@@ -36,6 +36,27 @@ import kotlin.time.TimeSource
  * ε = 0). Features are always computed over the whole pool, as the research does. The
  * loop stops early when no row may be taken or [stop] says the time budget is spent.
  */
+/**
+ * [RankerQueue.build]'s newer, optional inputs in one argument. planLocked's call passes every parameter at once and
+ * sits at the dex register limit (tools/release/check-dex-registers.py), so new inputs go here, not into the list.
+ */
+public class QueueExtras(
+    /** vc22 queueAlbumCap: each row's album core and the seed's ("" = none). */
+    public val albumKeys: List<String>? = null,
+    public val seedAlbum: String = "",
+    /**
+     * "Keep together": each row's bonus for sharing a marked playlist with the seed and with a hop's anchor, given the
+     * picks so far (the bonus saturates as marked tracks fill the queue); null = none.
+     */
+    public val companion: ((anchor: Int, picks: List<Int>) -> DoubleArray)? = null,
+    /** PLAN_093: extra queueArtistCap room for the seed's own artist (it dominates the seed's sound neighbours); 0 = none. */
+    public val seedArtistExtra: Int = 0,
+) {
+    public companion object {
+        public val NONE: QueueExtras = QueueExtras()
+    }
+}
+
 public object RankerQueue {
     public fun build(
         model: RankerModel,
@@ -93,19 +114,15 @@ public object RankerQueue {
         semTerms: ((anchor: Int) -> DoubleArray)? = null,
         /** Cold fix: familyMismatch's λ for this plan (coldLambda on a seed without a pack entity); null = the model's. */
         familyMismatchLambda: Double? = null,
-        /** vc22 queueAlbumCap: each row's album core and the seed's ("" = none). */
-        albumKeys: List<String>? = null,
-        seedAlbum: String = "",
-        /**
-         * "Keep together": each row's bonus for sharing a marked playlist with the seed and with a hop's anchor, given the
-         * picks so far (the bonus saturates as marked tracks fill the queue); null = none.
-         */
-        companion: ((anchor: Int, picks: List<Int>) -> DoubleArray)? = null,
-        /** PLAN_093: extra queueArtistCap room for the seed's own artist (it dominates the seed's sound neighbours); 0 = none. */
-        seedArtistExtra: Int = 0,
+        /** The album cap, keep together and PLAN_093's seed-artist room; see [QueueExtras]. */
+        extras: QueueExtras = QueueExtras.NONE,
         features: (anchor: Int) -> Array<DoubleArray>,
     ): List<Int> {
         if (poolSize == 0 || length <= 0) return emptyList()
+        val albumKeys = extras.albumKeys
+        val seedAlbum = extras.seedAlbum
+        val companion = extras.companion
+        val seedArtistExtra = extras.seedArtistExtra
         var seedRows: Array<DoubleArray>? = null
         fun scores(anchor: Int): DoubleArray {
             var rows = features(anchor)
@@ -1361,13 +1378,10 @@ public class SmartRanker(
             if (seedKey.isNotEmpty() && own >= 5) extra else 0
         } ?: 0
         val modelPicks = RankerQueue.build(
-            seedArtistExtra = seedArtistExtra,
             model = active,
             poolSize = pool.size,
             artistKeys = pool.map(artistKeyOf),
             seedArtist = artistKeyOf(seedKnown),
-            albumKeys = if (active.queueAlbumCap == null) null else pool.map { AlbumCore.of(it.track.album) },
-            seedAlbum = if (active.queueAlbumCap == null) "" else AlbumCore.of(seedKnown.track.album),
             tieOrder = IntArray(pool.size) { it },
             length = request.length,
             choose = { hop, nearBest ->
@@ -1422,33 +1436,6 @@ public class SmartRanker(
             seedUnknown = seedKnown.family == null && seedKnown.packDescriptor == null && seedKnown.imputedDescriptor == null,
             prefix = prefixIds.map { id -> cache.getValue(id).let { k -> artistKeyOf(k) to k.artists } }.ifEmpty { null },
             prefixEnergy = prefixKnown?.let { rawEnergies[it.track.id]?.takeIf { e -> e.isFinite() } },
-            companion = if (groupsOf.isEmpty()) null else run {
-                val kt = active.keepTogether
-                fun shares(id: TrackId): DoubleArray? {
-                    val gs = groupsOf[id] ?: return null
-                    return DoubleArray(pool.size) { i ->
-                        val other = pool[i].track.id
-                        if (other != id && groupsOf[other]?.any { it in gs } == true) 1.0 else 0.0
-                    }
-                }
-                val withSeed = shares(request.seed.id)
-                val cache = HashMap<Int, DoubleArray?>()
-                val bonus = { anchor: Int, picks: List<Int> ->
-                    val anchorId = when (anchor) {
-                        RankerQueue.SEED -> request.seed.id
-                        RankerQueue.PREFIX -> prefixIds.last()
-                        else -> pool[anchor].track.id
-                    }
-                    val withAnchor = cache.getOrPut(anchor) { shares(anchorId) }
-                    // Bounded: the bonus fades linearly as marked tracks fill the queue's last 10 rows (a top-up's served
-                    // prefix included, so a refill does not restart it), and is gone at kt.share of them.
-                    val recent = (prefixIds + picks.map { pool[it].track.id }).takeLast(10)
-                    val marked = recent.count { groupsOf.containsKey(it) }
-                    val f = if (recent.isEmpty()) 1.0 else maxOf(0.0, 1.0 - marked / (kt.share * 10.0))
-                    DoubleArray(pool.size) { i -> f * (kt.seed * (withSeed?.get(i) ?: 0.0) + kt.prev * (withAnchor?.get(i) ?: 0.0)) }
-                }
-                bonus
-            },
             playlistBonus = if (playlistsOf.isEmpty()) null else { anchor: Int ->
                 val anchorId = when (anchor) {
                     RankerQueue.SEED -> request.seed.id
@@ -1510,6 +1497,38 @@ public class SmartRanker(
                     trace.hops += h
                 }
             },
+            extras = QueueExtras(
+                albumKeys = if (active.queueAlbumCap == null) null else pool.map { AlbumCore.of(it.track.album) },
+                seedAlbum = if (active.queueAlbumCap == null) "" else AlbumCore.of(seedKnown.track.album),
+                companion = if (groupsOf.isEmpty()) null else run {
+                    val kt = active.keepTogether
+                    fun shares(id: TrackId): DoubleArray? {
+                        val gs = groupsOf[id] ?: return null
+                        return DoubleArray(pool.size) { i ->
+                            val other = pool[i].track.id
+                            if (other != id && groupsOf[other]?.any { it in gs } == true) 1.0 else 0.0
+                        }
+                    }
+                    val withSeed = shares(request.seed.id)
+                    val cache = HashMap<Int, DoubleArray?>()
+                    val bonus = { anchor: Int, picks: List<Int> ->
+                        val anchorId = when (anchor) {
+                            RankerQueue.SEED -> request.seed.id
+                            RankerQueue.PREFIX -> prefixIds.last()
+                            else -> pool[anchor].track.id
+                        }
+                        val withAnchor = cache.getOrPut(anchor) { shares(anchorId) }
+                        // Bounded: the bonus fades linearly as marked tracks fill the queue's last 10 rows (a top-up's served
+                        // prefix included, so a refill does not restart it), and is gone at kt.share of them.
+                        val recent = (prefixIds + picks.map { pool[it].track.id }).takeLast(10)
+                        val marked = recent.count { groupsOf.containsKey(it) }
+                        val f = if (recent.isEmpty()) 1.0 else maxOf(0.0, 1.0 - marked / (kt.share * 10.0))
+                        DoubleArray(pool.size) { i -> f * (kt.seed * (withSeed?.get(i) ?: 0.0) + kt.prev * (withAnchor?.get(i) ?: 0.0)) }
+                    }
+                    bonus
+                },
+                seedArtistExtra = seedArtistExtra,
+            ),
         ) { anchor ->
             gatedRows(anchor, seedKnown, pool, artistKeyOf, audioVectors, personalRows, request.seed.id, popularityOn, hearts, active, prefixKnown, albumPrefix) { gateValues = it ?: gateValues; gateValues }
                 .also { if (diagnostics != null) diagRows[anchor] = it }
