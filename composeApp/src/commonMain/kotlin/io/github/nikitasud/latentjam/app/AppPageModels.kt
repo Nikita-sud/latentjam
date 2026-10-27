@@ -452,6 +452,9 @@ internal class PlaylistsState {
     private var favoritesFollowedWithCounts = false
 
     fun publishStats(plays: Map<TrackId, Int>, lastListenedAt: Map<TrackId, Long>) {
+        // A first read with no listens equals the empty counts every page was sorted with so far, and
+        // re-runs nothing that would record it.
+        if (!playCountsLoaded && plays.isEmpty()) favoritesFollowedWithCounts = true
         playCounts = plays
         lastPlayedAt = lastListenedAt
         playCountsLoaded = true
@@ -467,7 +470,7 @@ internal class PlaylistsState {
         val loaded = playCountsLoaded
         // Counted only for a refresh that ran to its end: one cancelled by the next sorted nothing.
         currentCoroutineContext()[Job]?.invokeOnCompletion { cause ->
-            if (cause == null) favoritesFollowedWithCounts = loaded
+            if (cause == null && loaded) favoritesFollowedWithCounts = true
         }
         return settled
     }

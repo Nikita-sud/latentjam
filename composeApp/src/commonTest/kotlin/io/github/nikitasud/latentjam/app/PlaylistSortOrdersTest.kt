@@ -19,6 +19,7 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.yield
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -215,13 +216,26 @@ internal class PlaylistSortOrdersTest {
         assertEquals(true, refresh(), "a listen after that keeps the order")
         // A refresh cancelled before it sorted records nothing.
         val other = PlaylistsState()
-        other.publishStats(emptyMap(), emptyMap())
+        other.publishStats(mapOf(TrackId("a") to 1), emptyMap())
         val cancelled = launch(start = CoroutineStart.UNDISPATCHED) {
             other.favoritesPlaysOrderSettled()
             awaitCancellation()
         }
         cancelled.cancelAndJoin()
         assertEquals(false, async { other.favoritesPlaysOrderSettled() }.await())
+    }
+
+    @Test
+    fun aFirstReadWithNoListensSettlesTheFavoritesOrderAtOnce() = runTest {
+        // No listens yet: the empty counts re-run nothing, and every page was sorted with them already.
+        val state = PlaylistsState()
+        val before = launch(start = CoroutineStart.UNDISPATCHED) {
+            state.favoritesPlaysOrderSettled()
+            yield()
+        }
+        state.publishStats(emptyMap(), emptyMap())
+        before.join()
+        assertEquals(true, async { state.favoritesPlaysOrderSettled() }.await(), "a run from before the read cannot unsettle it")
     }
 
     @Test
