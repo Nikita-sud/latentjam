@@ -78,19 +78,15 @@ internal class OnnxEmbeddingBackend(
         }
     }
 
-    /**
-     * Every decode runs here under the per-track deadline (issue #27). Re-decodes get a thread of their
-     * own, so the track being finished never waits behind a look-ahead decode that is stuck.
-     */
+    /** Every decode runs here, inline re-decodes included, under the per-track deadline (issue #27). */
     private val decoding = DeadlineDecoding(
-        workers = ExecutorDecodeWorkers(decodeWorkers) { task -> decodeThread(task, "smart-decode") },
-        redecodeWorkers = ExecutorDecodeWorkers(1) { task -> decodeThread(task, "smart-redecode") },
+        ExecutorDecodeWorkers(decodeWorkers) { task ->
+            Thread({
+                Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND)
+                task.run()
+            }, "smart-decode").apply { isDaemon = true }
+        },
     )
-
-    private fun decodeThread(task: Runnable, name: String): Thread = Thread({
-        Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND)
-        task.run()
-    }, name).apply { isDaemon = true }
 
     override suspend fun loadModel(): Result<Unit> {
         if (session != null) return Result.success(Unit)
