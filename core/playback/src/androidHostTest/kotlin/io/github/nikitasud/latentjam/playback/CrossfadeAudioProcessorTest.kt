@@ -227,6 +227,17 @@ internal class CrossfadeAudioProcessorTest {
     }
 
     @Test
+    fun aShortTrackWhoseOpeningNeverArrivesStillFadesOutByItsEnd() {
+        settings.fadeMs = 12_000
+        val a = stream("a", 6_000)
+        settings.preparingFor = "a"
+        reposition(a, atMs = 0)
+        val outgoing = feed(loud, 0, 6_000)
+        assertEquals(1000, outgoing[5_500])
+        assertTrue(outgoing.last() < 50, "end was ${outgoing.last()}")
+    }
+
+    @Test
     fun aSeekWaitIsBoundedByTheSeamsOverlapNotTheSlider() {
         settings.fadeMs = 6_000
         val a = stream("a", 20_000)

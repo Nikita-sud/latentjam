@@ -570,10 +570,11 @@ internal class CrossfadeAudioProcessor(
                 if (settings.preparingFor == stream?.mediaId) {
                     // A seek deep into the window waits for the opening as long as one before it would.
                     if (index == 0L && waitFromUs < 0L) waitFromUs = mediaUs
-                    // …but not past the point where the fade could still reach silence by the end.
-                    val seekWait = waitFromUs >= 0L && mediaUs - waitFromUs <= waitUs &&
-                        durationUs - mediaUs > ENVELOPE_SLEW_MS * 1000L
-                    if (mediaUs - windowUs <= waitUs || seekWait) return
+                    val seekWait = waitFromUs >= 0L && mediaUs - waitFromUs <= waitUs
+                    // …but never past the point where the fade could still reach silence by the end
+                    // (a short track, whose window is half its length, would otherwise end at full level).
+                    val fadeFits = durationUs - mediaUs > ENVELOPE_SLEW_MS * 1000L
+                    if (fadeFits && (mediaUs - windowUs <= waitUs || seekWait)) return
                 }
                 end = End.FADE
                 settings.seamLog("seam ${stream?.mediaId}: fade at ${mediaUs / 1000} ms (${if (plan == null) "no opening" else "opening unusable"})")
