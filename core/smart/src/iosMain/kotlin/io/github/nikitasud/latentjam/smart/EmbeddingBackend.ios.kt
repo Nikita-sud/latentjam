@@ -82,8 +82,19 @@ internal class IosEmbeddingBackend(
         }
     }
 
-    override suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray> =
-        decoding.withinBudget { embedNative(descriptor) }
+    override suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray> {
+        // iOS suspends the app soon after it leaves the screen, while the deadline's clock keeps running: a
+        // track timed out across that is analysed again, not remembered as timed out.
+        val transitionsBefore = IosAppTransitions.count
+        val result = decoding.withinBudget { embedNative(descriptor) }
+        return timeoutUnlessSuspended(
+            result = result,
+            budget = TRACK_ANALYSIS_BUDGET,
+            transitionsBefore = transitionsBefore,
+            transitionsAfter = IosAppTransitions.count,
+            inBackgroundAfter = IosAppTransitions.inBackground,
+        )
+    }
 
     private suspend fun embedNative(descriptor: TrackDescriptor): Result<FloatArray> {
         val provider = lease?.currentProvider()
