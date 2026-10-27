@@ -1255,14 +1255,16 @@ internal class DefaultSimilarityEngine(
     /**
      * Loads the persisted snapshot into an EMPTY index (a live index is never
      * clobbered on re-initialize). Individually invalid entries are skipped;
-     * a missing/mismatched snapshot just means starting empty.
+     * a missing/mismatched snapshot just means starting empty. The one retry of a
+     * read that failed also fills a non-empty index, adopting only the ids it lacks.
      */
     /** What made a restore fail, for the aggregate log line (no ids, no paths). */
     private fun restoreCause(failure: Throwable): String =
         (generateSequence(failure) { it.cause }.firstOrNull { it !is IndexRestoreFailure } ?: failure)::class.simpleName ?: "error"
 
     private suspend fun restorePersistedIndex() {
-        if (index.size > 0) return
+        // The retry of a read that failed still reads when a seed was embedded meanwhile; those live rows are kept.
+        if (index.size > 0 && !audioRestoreFailed) return
         // Cancellation must not read as "no snapshot": falling through would let initialize()
         // publish Ready(0) and re-embed the whole library instead of restarting the restore.
         val loaded = try {
@@ -1278,6 +1280,7 @@ internal class DefaultSimilarityEngine(
         val persisted = loaded ?: return
         // Adopted, not copied: the decoded rows are this index's only copy of the library.
         for ((id, vector) in persisted.entries) {
+            if (id in index) continue
             runCatching { index.adopt(id, vector) }
                 .onSuccess {
                     persisted.identities[id]?.let { identity ->
@@ -1286,7 +1289,7 @@ internal class DefaultSimilarityEngine(
                 }
         }
         for ((id, identity) in persisted.failedIdentities) {
-            if (id !in index && identity.isNotBlank()) {
+            if (id !in index && id !in audioFailureIdentities && identity.isNotBlank()) {
                 audioFailureIdentities[id] = identity
             }
         }

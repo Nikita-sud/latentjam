@@ -112,6 +112,30 @@ internal class DefaultSimilarityEngineTest {
     }
 
     @Test
+    fun aRestoreRetryStillReadsAfterASeedWasEmbeddedOnDemand() = runTest {
+        val first = Harness()
+        first.registerTriangle()
+        first.engine.initialize()
+        first.engine.indexLibrary(listOf(seed, near))
+        val store = first.store
+        store.loadFailuresRemaining = 1
+        val backend = FakeEmbeddingBackend().apply { vectors.putAll(first.backend.vectors) }
+        val engine = engine(backend, store)
+        engine.initialize()
+        // A SMART press before the first indexing chunk embeds its seed into the empty index.
+        engine.smartQueue(seed, listOf(seed, near, far), length = 1)
+        assertEquals(1, backend.embedCalls)
+
+        val report = engine.indexLibrary(listOf(seed, near, far))
+
+        // The retry read the file: near is restored, not embedded again; only far is new.
+        assertEquals(3, store.loadCalls)
+        assertEquals(1, report.indexed)
+        assertEquals(2, backend.embedCalls)
+        assertEquals(setOf(seed.id, near.id, far.id), store.snapshots.getValue("test-model").keys)
+    }
+
+    @Test
     fun rebuildAfterAnUnreadableStoredIndexAnalysesTheLibraryThisSession() = runTest {
         val first = Harness()
         first.registerTriangle()
