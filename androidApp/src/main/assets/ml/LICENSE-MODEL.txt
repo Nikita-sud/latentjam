@@ -17,7 +17,7 @@ Version 2.0, included in the repository root:
   artist_family_l2.bin
   heads.json
 
-artist_colisten.bin, artist_known.bin and artist_pop.bin are CC0-1.0 (see below).
+artist_colisten.bin and artist_pop.bin are CC0-1.0 (see below).
 
 Copyright (c) 2026 LatentJam Project
 
@@ -98,12 +98,6 @@ often listened to by the same people, each with an 8-bit similarity. It was coun
 https://listenbrainz.org), from listeners outside the evaluation sample; it
 holds only entity ids and similarities, no listener data. It is offered under
 CC0-1.0, like its source.
-
-artist_known.bin lists the artist names, sort names and aliases of
-music_entities_250k.bin's corpus (MusicBrainz core data and Wikidata, both CC0)
-as 64-bit FNV-1a keys of their normalised forms, each with the key of its
-canonical name; the names themselves are not included. SMART splits a credit
-such as "A feat. B & C" into artists with it. It is offered under CC0-1.0.
 
 artist_pop.bin holds, for about 174,000 artists of music_entities_250k.bin,
 ln(1 + the number of distinct ListenBrainz listeners) of the artist, counted

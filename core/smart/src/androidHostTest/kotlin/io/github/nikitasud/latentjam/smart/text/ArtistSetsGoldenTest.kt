@@ -4,7 +4,6 @@
  */
 package io.github.nikitasud.latentjam.smart.text
 
-import java.io.File
 import java.util.zip.GZIPInputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -54,8 +53,8 @@ class ArtistSetsGoldenTest {
     }
 
     @Test
-    fun realCreditsMatchTheReferenceOnTheShippedList() {
-        val bytes = File("../../androidApp/src/main/assets/ml/artist_known.bin").readBytes()
+    fun realCreditsMatchTheReferenceOnTheKnownList() {
+        val bytes = javaClass.getResourceAsStream("/artist_known.bin")!!.readBytes()
         val table = assertNotNull(KnownArtistTable.parse(AssetBytes.of(bytes)))
         assertEquals(3000, check("real", table))
     }
@@ -77,8 +76,8 @@ class ArtistSetsGoldenTest {
     }
 
     @Test
-    fun as2RealCreditsMatchTheReferenceOnTheShippedList() {
-        val bytes = File("../../androidApp/src/main/assets/ml/artist_known.bin").readBytes()
+    fun as2RealCreditsMatchTheReferenceOnTheKnownList() {
+        val bytes = javaClass.getResourceAsStream("/artist_known.bin")!!.readBytes()
         val table = assertNotNull(KnownArtistTable.parse(AssetBytes.of(bytes)))
         assertEquals(3000, check("real", table, as2 = true))
     }

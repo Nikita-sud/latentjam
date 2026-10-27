@@ -18,10 +18,6 @@
    "size": 4074980,
    "sha256": "c9d77d610a1c0eff64921dd0f667e842c78cf65802a60bbba2faaee623aa1dc9"
   },
-  "artist_known.bin": {
-   "size": 6404144,
-   "sha256": "ba2b4ce1658c9ed1dd7856936c3320e6b63e81a0ca4c02b0f44ed77304f43680"
-  },
   "audio_tagger.json": {
    "size": 3260,
    "sha256": "f4ecd37413b7854b3f2a62acc7ed1dfac3204122852bd737f402bdcf7a3ba9de"

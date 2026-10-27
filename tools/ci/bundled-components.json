@@ -88,10 +88,6 @@
       "license": "Apache-2.0",
       "provenance": "LightFM artist vectors trained offline on ListenBrainz (CC0) listens, stored as int8 with a scale per vector; tools/research/ranker/pack_lfm.py, shrink_tables.py lfm"
     },
-    "artist_known.bin": {
-      "license": "CC0-1.0",
-      "provenance": "MusicBrainz core data and Wikidata (CC0) artist names and aliases as 64-bit keys; tools/research/ranker/pack_artist_known.py"
-    },
     "audio_tagger.bin": {
       "license": "Apache-2.0",
       "provenance": "audio tagger head trained on FMA tracks under CC BY / CC0 / public domain; tools/research/listenbrainz_eval/audio_tagger.py"
