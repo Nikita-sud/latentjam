@@ -546,6 +546,12 @@ internal class CrossfadeAudioProcessor(
          * only begun on time — or straight after a seek into the window — never halfway through a
          * window it missed, where the next track would cut in loud.
          */
+        /**
+         * Where a seek (or a start) landed inside the window while the opening was still being decoded: the wait
+         * for it is counted from here, not from where the overlap would have begun. -1 = no such wait.
+         */
+        var waitFromUs = -1L
+
         fun decideEnd(edges: FadeEdges, plan: OverlapPlan?, durationUs: Long, mediaUs: Long, rate: Int, index: Long) {
             if (!edges.fadeOut) {
                 end = End.NONE
@@ -561,7 +567,11 @@ internal class CrossfadeAudioProcessor(
                 // play on at full level for a moment rather than settle on the plain fades.
                 val windowUs = durationUs - minOf(settings.fadeMs * 1000L, durationUs / 2L)
                 val waitUs = minOf(MAX_LATE_MIX_US, settings.fadeMs * 1000L / 2L)
-                if (settings.preparingFor == stream?.mediaId && mediaUs - windowUs <= waitUs) return
+                if (settings.preparingFor == stream?.mediaId) {
+                    // A seek deep into the window waits for the opening as long as one before it would.
+                    if (index == 0L && waitFromUs < 0L) waitFromUs = mediaUs
+                    if (mediaUs - windowUs <= waitUs || (waitFromUs >= 0L && mediaUs - waitFromUs <= waitUs)) return
+                }
                 end = End.FADE
                 settings.seamLog("seam ${stream?.mediaId}: fade at ${mediaUs / 1000} ms (${if (plan == null) "no opening" else "opening unusable"})")
                 return
@@ -577,7 +587,14 @@ internal class CrossfadeAudioProcessor(
             // over a short ramp — up to a bound, past which it would cut in well into its opening.
             val lateUs = mediaUs - mixStartUs
             val maxLateUs = maxOf(LATE_START_US, minOf(MAX_LATE_MIX_US, plan.overlapUs / 2L))
-            val onTime = (!missedStart && lateUs <= maxLateUs) || index == 0L
+            // Straight after a seek into the window — also when its opening arrived a moment after the seek — the
+            // next track comes in where the overlap has got to: the overlap's start was never heard to be missed.
+            // The wait is counted from the seek: from where this stretch of the track began, when that was inside
+            // the overlap (before the opening came, a trailing silence had not moved the window there yet).
+            val waitFrom = if (waitFromUs >= 0L) waitFromUs else startUs.takeIf { it > mixStartUs } ?: -1L
+            val waitedUs = if (waitFrom >= 0L) mediaUs - waitFrom else -1L
+            val afterSeek = index == 0L || waitedUs in 0L..minOf(MAX_LATE_MIX_US, settings.fadeMs * 1000L / 2L)
+            val onTime = (!missedStart && lateUs <= maxLateUs) || afterSeek
             if (!onTime) {
                 end = End.FADE
                 settings.seamLog("seam ${stream?.mediaId}: fade at ${mediaUs / 1000} ms (opening ${lateUs / 1000} ms late)")
@@ -589,7 +606,8 @@ internal class CrossfadeAudioProcessor(
             settings.seamLog(
                 "seam ${stream?.mediaId} -> ${plan.incomingId}: overlap ${plan.overlapUs / 1000} ms ending at " +
                     "${endUs / 1000} of ${durationUs / 1000} ms, from frame ${plan.incomingStartFrame} at $rate Hz" +
-                    if (lateUs > LATE_START_US) ", ${lateUs / 1000} ms late" else "",
+                    (if (lateUs > LATE_START_US) ", ${lateUs / 1000} ms late" else "") +
+                    (if (waitedUs > 0L) " (opening ready ${waitedUs / 1000} ms after the seek)" else ""),
             )
             // Settled now, sounding a little later: from here a slider drag must not re-plan the
             // seam (see CrossfadeCoordinator.plannedFadeMs); Next still waits for the start.

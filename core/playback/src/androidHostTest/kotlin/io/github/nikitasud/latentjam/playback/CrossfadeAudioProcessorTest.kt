@@ -177,6 +177,43 @@ internal class CrossfadeAudioProcessorTest {
     }
 
     @Test
+    fun aSeekDeepIntoTheWindowStillOverlapsWhenItsOpeningArrivesAMomentLater() {
+        settings.fadeMs = 2_000
+        val a = stream("a", 10_000)
+        // A seek to 9.3 s, 1.3 s past where the overlap would have begun (8 s); the opening, decoded
+        // again for the replanned seam, is ready 100 ms after the seek.
+        settings.preparingFor = "a"
+        reposition(a, atMs = 9_300)
+        assertTrue(feed(loud, 9_300, 9_400).all { it == 1000 }, "played on while the opening was decoded")
+        settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000, samples = ramp)
+        settings.preparingFor = null
+        val outgoing = feed(loud, 9_400, 10_000)
+        // B comes in where the overlap has got to (1.4 s of 2 s) instead of A fading alone.
+        val expectedEnd = 1000 * overlapOutGain(0.999f) + 2000 * overlapInGain(0.999f)
+        assertTrue(abs(outgoing.last() - expectedEnd) <= 30f, "end of the overlap was ${outgoing.last()}")
+        assertTrue(settings.mixing != null, "the seam mixed")
+        assertEquals(2_000_000L, join(stream("b", 20_000)))
+    }
+
+    @Test
+    fun aSeekIntoAWindowThatATrailingSilenceMovedEarlierStillOverlaps() {
+        settings.fadeMs = 2_000
+        val a = stream("a", 10_000)
+        // A's last sound is at 8 s, so its overlap runs 6–8 s; the file's own window starts at 8 s.
+        // A seek to 6.8 s with the opening not decoded yet: nothing is settled until it comes.
+        settings.preparingFor = "a"
+        reposition(a, atMs = 6_800)
+        assertTrue(feed(loud, 6_800, 6_900).all { it == 1000 })
+        settings.plan = plan("a", "b", overlapMs = 2_000, frames = 6_000, outgoingEndMs = 8_000, samples = ramp)
+        settings.preparingFor = null
+        val outgoing = feed({ frame -> if (frame < 8_000) 1000 else 0 }, 6_900, 8_000)
+        // 100 ms after the seek, not 900 ms after the overlap began: B comes in where the overlap has got to.
+        assertTrue(settings.mixing != null, "the seam mixed")
+        val expectedEnd = 1000 * overlapOutGain(0.999f) + 2000 * overlapInGain(0.999f)
+        assertTrue(abs(outgoing.last() - expectedEnd) <= 30f, "end of the overlap was ${outgoing.last()}")
+    }
+
+    @Test
     fun anOpeningThatNeverArrivesFallsBackToTheFadeSoonAfterTheWindow() {
         settings.fadeMs = 2_000
         val a = stream("a", 10_000)
