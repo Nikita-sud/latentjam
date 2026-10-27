@@ -175,3 +175,45 @@ main via `AppGraph.start`). 1 finding, confirmed.
 | id | finding | verdict | fix |
 |---|---|---|---|
 | R5-I-1 | Android, from d3e3613f: an unreadable stored metadata (text) index latched `textRestoreFailed` for the session with no retry: no metadata vectors, SMART without its text term and semantic search, and the Map fused source fell to AUDIO with identity / refresh on, saving regions from an audio-only space (0.9.2 re-encoded) | CONFIRMED, low | fbafd1d1 (encoded again this session, as 0.9.2 and a fresh install do; the audio index is still never overwritten) |
+
+### Round 5 checks
+
+At 4c921f75: all check tasks green; most dex registers 249 (limit 255).
+
+## Round 6 (clean)
+
+Two fresh reviewers again: fbafd1d1 and the index / iOS fixes first, then a sweep of the rest. No confirmed problems.
+One info item: R6-I-1, the `IndexStore` KDoc still described the old latch for the metadata index (doc only, fixed in
+d53ee00e). Notes, not defects: History rows keep `text = null` after a re-encode session with a non-authoritative
+scan (0.9.2 behaviour); 3e0c7b51 trades a second suspension of the same track for no stuck threads; the sweep found
+the day-one upgrade path clean.
+
+## Round 7 (clean, requested short round over fbafd1d1 and d53ee00e only)
+
+One fresh reviewer: **CLEAN**. `textRestoreFailed` is gone from the code. The audio index protection is unchanged (the
+save still guards on `!audioRestoreFailed`; flags reset only after both deletions succeed and in `release()`).
+`CancellationException` is still rethrown. The metadata file is written only when vectors are added or rows are
+pruned, so an unavailable text encoder never saves an empty snapshot. The test fails on the pre-change code.
+Low notes: a pass killed after a checkpoint saves a partial metadata snapshot (re-encode time only, by design); the
+test's key assertion alone would also pass untouched (the `saveCalls > 0` assertion is the one that pins it).
+
+### Final checks
+
+At d53ee00e: every check task green (EXIT 0); the release APK's most dex registers are 249 (limit 255, `planLocked`).
+The arm64 release APK installs on emulator-5556 (LJ-fold, `adb install -r`) and launches to `MainActivity`
+(`Status: ok`, 494 ms) with the process alive and no crash in the crash buffer.
+
+## Outcome
+
+Rounds 6 and 7 found no confirmed problems; the loop stops.
+
+Fix commits, in order: a991dee6, de3e213d, 274bc160, c87a41e1, df1b8b83, 6b62a52f, 4f06182b, 3c9cba1d, 6c047ffe,
+30fb951c, f78639ed, 68fd797f, 4a507538, 862e99d8, 3e0c7b51, fbafd1d1, d53ee00e. d506e74a and e0387249 (re-decode
+pool) are reverted by 0011bd01 and 6db6af61: they caused R2-I-1 and R3-P-1.
+
+Left for the owner:
+- Proposals (queue-changing, not applied): R1-S-1, R1-S-2, R1-S-3.
+- Notes: R1-I-3, R1-I-6, R1-I-7; R1-I-4 (low-RAM decode pool) for 0.9.4; R2-S-n1, R2-S-n2; the playlist page's own
+  Plays order gap; the elapsed-overshoot suspension test idea; `fullFollowers()` computed while PLAN_NOVELTY is off.
+- Release gate A8-1 (version labels) is still open.
+- The iOS fixes 4a507538 and 3e0c7b51 compile and pass host tests but are not verified on a device.
