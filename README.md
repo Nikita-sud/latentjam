@@ -18,6 +18,7 @@
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-8E24AA.svg?style=flat-square"></a>
   <img alt="Status: beta" src="https://img.shields.io/badge/status-beta-F9A825?style=flat-square">
   <a href="https://github.com/sponsors/Nikita-sud"><img alt="Sponsor" src="https://img.shields.io/badge/sponsor-%E2%9D%A4-EA4AAA?style=flat-square&logo=githubsponsors&logoColor=white"></a>
+  <a href="https://paypal.me/NichitaBulgaru"><img alt="PayPal" src="https://img.shields.io/badge/PayPal-donate-003087?style=flat-square&logo=paypal&logoColor=white"></a>
 </p>
 
 <p align="center">
@@ -328,7 +329,8 @@ Gradle doesn't track these variables, so add `--rerun` to the test task, e.g.
 LatentJam is free and has no paid tier: no account, no ads, no analytics. If it earns its place in
 your library, you can fund its next release through
 **[GitHub Sponsors](https://github.com/sponsors/Nikita-sud)** — monthly or one-off, and you can stop
-whenever you like.
+whenever you like — or send a one-off donation through **[PayPal](https://paypal.me/NichitaBulgaru)**
+if you don't use GitHub.
 
 Sponsorship goes towards the maintainer's time on the parts nobody sees: the offline training data
 and the devices behind each release, and the release work that keeps F-Droid, the APKs and the
