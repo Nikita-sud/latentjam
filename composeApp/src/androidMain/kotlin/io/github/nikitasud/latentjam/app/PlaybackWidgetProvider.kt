@@ -651,7 +651,8 @@ private fun bindTransport(
         R.id.widget_play_pause,
         context.getString(if (isPlaying) R.string.widget_pause else R.string.widget_play),
     )
-    setControlEnabled(views, R.id.widget_previous, hasTrack && snapshot.hasPrevious)
+    // Previous also restarts the current track, so the first row of a queue keeps it.
+    setControlEnabled(views, R.id.widget_previous, hasTrack)
     setControlEnabled(views, R.id.widget_play_pause, hasTrack)
     setControlEnabled(views, R.id.widget_next, hasTrack && snapshot.hasNext)
 }
