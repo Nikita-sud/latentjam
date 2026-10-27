@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.playback
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import java.lang.reflect.Proxy
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -115,6 +116,14 @@ internal class SessionTransportFadesTest {
         fun seekWithin(position: Long, call: String) {
             calls += call
             positionMs = position
+        }
+
+        /** A row added at the end, as the app's SMART top-up does. */
+        fun append(id: String) {
+            ids += id
+            listeners.toList().forEach {
+                it.onTimelineChanged(Timeline.EMPTY, Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED)
+            }
         }
 
         /** The track ran out and the player moved on by itself (gapless or a crossfade). */
@@ -390,6 +399,119 @@ internal class SessionTransportFadesTest {
         runCurrent()
         assertEquals(StartCause.USER_PICK to 0, rig.announced.last())
         assertEquals(0, rig.exo.index)
+    }
+
+    /** The tail wait is SMART's: it plans the row after the tail. */
+    private fun smartTest(body: suspend TestScope.() -> Unit) = runTest {
+        AndroidShuffleModeRegistry.set(ShuffleMode.SMART)
+        try {
+            body()
+        } finally {
+            AndroidShuffleModeRegistry.set(ShuffleMode.OFF)
+        }
+    }
+
+    @Test
+    fun outsideSmartANextAtTheTailWaitsForNothing() = runTest {
+        val rig = Rig(this)
+        rig.exo.index = 3
+        rig.fades.next(deferrable = true, appOp = true) { rig.exo.player.seekToNextMediaItem() }
+        advanceTimeBy(200L)
+        runCurrent()
+        // Added to the queue by hand: not where the earlier Next was going.
+        rig.exo.append("e")
+        advanceTimeBy(200L)
+        runCurrent()
+        assertEquals(3, rig.exo.index)
+    }
+
+    @Test
+    fun aQueueEditByTheListenerDropsTheNextWaitingAtTheTail() = smartTest {
+        val rig = Rig(this)
+        rig.exo.index = 3
+        rig.fades.next(deferrable = true, appOp = true) { rig.exo.player.seekToNextMediaItem() }
+        advanceTimeBy(200L)
+        runCurrent()
+        rig.fades.dropNextAtTail()
+        rig.exo.append("e")
+        advanceTimeBy(200L)
+        runCurrent()
+        assertEquals(3, rig.exo.index)
+    }
+
+    @Test
+    fun theAppsNextBehindAPickOfTheLastRowWaitsForThePlannedRow() = smartTest {
+        val rig = Rig(this)
+        rig.fades.pick(3, 0L, deferrable = true, mediaId = "d", appOp = true)
+        rig.fades.next(deferrable = true, appOp = true) { rig.exo.player.seekToNextMediaItem() }
+        advanceTimeBy(200L)
+        runCurrent()
+        assertEquals(3, rig.exo.index, "nothing after the picked row yet")
+        assertEquals(StartCause.USER_PICK to 3, rig.announced.last())
+        advanceTimeBy(500L)
+        rig.exo.append("e")
+        advanceTimeBy(200L)
+        runCurrent()
+        assertEquals(4, rig.exo.index, "the Next lands on the row planned after the pick")
+        assertEquals(StartCause.SKIP_NEXT to 4, rig.announced.last())
+    }
+
+    @Test
+    fun aRowQueuedLongAfterANextAtTheTailIsNotSkippedTo() = smartTest {
+        val rig = Rig(this)
+        rig.exo.index = 3
+        rig.fades.next(deferrable = true, appOp = true) { rig.exo.player.seekToNextMediaItem() }
+        advanceTimeBy(200L)
+        runCurrent()
+        // SMART had nothing; the listener queues a song by hand a minute later.
+        advanceTimeBy(60_000L)
+        rig.exo.append("e")
+        advanceTimeBy(200L)
+        runCurrent()
+        assertEquals(3, rig.exo.index)
+    }
+
+    @Test
+    fun twoQuickAppNextsAtTheTailWaitForThePlannedRow() = smartTest {
+        val rig = Rig(this)
+        rig.exo.index = 2
+        rig.fades.next(deferrable = true, appOp = true) { rig.exo.player.seekToNextMediaItem() }
+        rig.fades.next(deferrable = true, appOp = true) { rig.exo.player.seekToNextMediaItem() }
+        advanceTimeBy(200L)
+        runCurrent()
+        assertEquals(3, rig.exo.index)
+        rig.exo.append("e")
+        advanceTimeBy(200L)
+        runCurrent()
+        assertEquals(4, rig.exo.index)
+    }
+
+    @Test
+    fun aPauseDropsTheNextWaitingAtTheTail() = smartTest {
+        val rig = Rig(this)
+        rig.exo.index = 3
+        rig.fades.next(deferrable = true, appOp = true) { rig.exo.player.seekToNextMediaItem() }
+        rig.session.pause()
+        advanceTimeBy(200L)
+        runCurrent()
+        rig.exo.append("e")
+        advanceTimeBy(200L)
+        runCurrent()
+        assertEquals(3, rig.exo.index)
+        assertFalse(rig.exo.playWhenReady)
+    }
+
+    @Test
+    fun aSystemPauseDuringThePicksFadeKeepsThePickedRowPaused() = runTest {
+        val rig = Rig(this)
+        rig.fades.pick(2, 0L, deferrable = true, mediaId = "c", appOp = true)
+        advanceTimeBy(60L)
+        // Becoming noisy: ExoPlayer pauses itself, not through the session player.
+        rig.exo.changePlayWhenReady(false)
+        advanceTimeBy(200L)
+        runCurrent()
+        assertEquals(2, rig.exo.index, "the row is still picked")
+        assertFalse(rig.exo.playWhenReady, "but the unplug's pause holds")
     }
 
     @Test

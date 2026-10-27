@@ -99,6 +99,16 @@ class ListenBrainzMatcherTest {
     }
 
     @Test
+    fun aLoneCandidateFarFromTheListenedLengthIsAnotherVersion() {
+        val matcher = ListenBrainzMatcher(listOf(track("1", "Band", "Song", durationMs = 200_000)))
+        // An extended mix ("Song (Extended Mix)" loses its suffix in the loose pass) is not this track.
+        assertEquals(ListenBrainzMatcher.AMBIGUOUS, matcher.match(row("Band", "Song (Extended Mix)", durationMs = 420_000)))
+        // Rounded or edition-to-edition differences still match.
+        assertEquals("1", matcher.id(row("Band", "Song", durationMs = 225_000)))
+        assertEquals("1", matcher.id(row("Band", "Song")))
+    }
+
+    @Test
     fun mappedNamesAreTriedWhenTheSubmittedOnesFindNothing() {
         val matcher = ListenBrainzMatcher(listOf(track("1", "Кино", "Группа крови")))
         val mapped = ListenBrainzRow(1_700_000_000, "Kino", "Gruppa krovi", null, mappedArtist = "Кино", mappedTitle = "Группа крови")
@@ -211,6 +221,43 @@ class ListenBrainzImportTest {
         assertEquals(4, report.imported)
         assertEquals(6, report.overLimit)
         assertEquals((6 until 10).map { (1_700_000_000L + it * 1_000) * 1000 }, history.allEvents().map { it.startedAtMs })
+    }
+
+    @Test
+    fun aListenAlreadyCreditedToAnotherCopyOfTheSongIsNotAddedAgain() = runTest {
+        val history = DefaultListeningHistory(MemoryHistoryStore())
+        val album = TrackDescriptor(id = TrackId("c1"), artist = "Artist", title = "Song", album = "Album", durationMs = 200_000L)
+        val compilation = TrackDescriptor(id = TrackId("c2"), artist = "Artist", title = "Song", album = "Hits", durationMs = 200_000L)
+        val line = ListenBrainzTestExports.listen(1_700_000_000, "Artist", "Song", release = "Hits")
+        val first = ListenBrainzImporter(history, FakeLibrary(listOf(album)), now = { now }).import(source = export(line)::open)
+        assertEquals(1, first.imported)
+        // The compilation joins the library; the same listen now narrows to it by release.
+        val again = ListenBrainzImporter(history, FakeLibrary(listOf(album, compilation)), now = { now })
+            .import(source = export(line)::open)
+        assertEquals(0, again.imported)
+        assertEquals(1, again.alreadyPresent)
+        assertEquals(listOf(TrackId("c1")), history.allEvents().map { it.trackId })
+    }
+
+    @Test
+    fun theImportLeavesRoomForLaterPlaysAndANoOpReimportStillWorks() = runTest {
+        val history = DefaultListeningHistory(MemoryHistoryStore())
+        val lines = (0 until 120).map { ListenBrainzTestExports.listen(1_700_000_000L + it * 1_000, "Artist", "First") }
+        // 100 allowed, 1/50 of it kept free.
+        val report = importer(history, maxHistoryEvents = 100).import(source = export(*lines.toTypedArray())::open)
+        assertEquals(98, report.imported)
+        // Plays recorded later may pass the bound; importing again must not then fail.
+        repeat(5) {
+            history.record(
+                ListenEvent(
+                    trackId = TrackId("t2"), startedAtMs = now + it, playedMs = 1L,
+                    trackDurationMs = 240_000L, completed = false, skipped = true,
+                ),
+            )
+        }
+        val again = importer(history, maxHistoryEvents = 100).import(source = export(*lines.toTypedArray())::open)
+        assertEquals(0, again.imported)
+        assertEquals(103, history.allEvents().size)
     }
 
     @Test

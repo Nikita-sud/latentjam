@@ -295,6 +295,13 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         preferences.edit().putString(KEY_DUPLICATE_DISMISSALS, payload).apply()
     }
 
+    override fun readMapRebuildRequestedAtMs(): Long =
+        runCatching { preferences.getLong(KEY_MAP_REBUILD_REQUESTED_AT, 0L) }.getOrNull() ?: 0L
+
+    override fun writeMapRebuildRequestedAtMs(epochMs: Long) {
+        preferences.edit().putLong(KEY_MAP_REBUILD_REQUESTED_AT, epochMs).apply()
+    }
+
     override suspend fun setSaveListeningHistory(enabled: Boolean): Result<Unit> =
         persistRecordingPreference(KEY_SAVE_HISTORY, enabled, mutableSaveListeningHistory)
 
@@ -466,6 +473,7 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         const val KEY_TRACK_GENRES = "track_genres_v1"
         const val KEY_AUDIO_CARRY_OVERS = "audio_carry_overs"
         const val KEY_DUPLICATE_DISMISSALS = "duplicate_dismissals_v1"
+        const val KEY_MAP_REBUILD_REQUESTED_AT = "map_rebuild_requested_at_ms"
         const val KEY_RESUME_SOURCE_REFERENCE = "resume_source_reference"
         const val KEY_RESUME_QUEUE_STATE = "resume_queue_state_v2"
         /** Read-only migration key used by builds before collision-safe queue state. */

@@ -161,6 +161,13 @@ public interface SimilarityEngine {
     public suspend fun missingFromIndex(ids: List<TrackId>): Int
 
     /**
+     * [missingFromIndex] for callers that hold the descriptors but did not synchronize the library into this
+     * engine first — a background job in a fresh process. A remembered decode failure is judged against [tracks]
+     * themselves, so it does not count as work there either.
+     */
+    public suspend fun missingFromIndexOf(tracks: List<TrackDescriptor>): Int = missingFromIndex(tracks.map { it.id })
+
+    /**
      * The stored embedding for [trackId], or `null` if it is not indexed.
      *
      * Exposed so the UI can express a track's position in latent space —
@@ -296,6 +303,15 @@ public interface SimilarityEngine {
      * Empty when the platform has no text encoder, or before [initialize].
      */
     public suspend fun metadataVectors(): Map<TrackId, FloatArray>
+
+    /**
+     * The stored metadata vectors of [ids] only, in [metadataVectors]' form: what the SMART ranker reads in batches
+     * instead of copying the whole library's vectors for every plan. Tracks without one are absent.
+     */
+    public suspend fun metadataRows(ids: Collection<TrackId>): Map<TrackId, FloatArray> {
+        val wanted = ids.toHashSet()
+        return metadataVectors().filterKeys { it in wanted }
+    }
 
     /**
      * Finds tracks whose trusted metadata embedding is closest to free-form [query] text.

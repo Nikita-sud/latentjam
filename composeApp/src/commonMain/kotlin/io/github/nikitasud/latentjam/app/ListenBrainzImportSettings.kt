@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
@@ -44,6 +45,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 
@@ -58,6 +60,9 @@ internal object ListenBrainzImportState {
 
     /** The finished import's report, until the listener closes the summary. */
     val report = MutableStateFlow<ListenBrainzImportReport?>(null)
+
+    /** Why the last import failed, until a screen has shown it. */
+    val failure = MutableStateFlow<StringResource?>(null)
 }
 
 /** Settings → Local backup: loading a ListenBrainz export into the listening history. */
@@ -70,6 +75,14 @@ internal fun ListenBrainzImportSection(
     val scope = rememberCoroutineScope()
     val progress by ListenBrainzImportState.progress.collectAsState()
     val report by ListenBrainzImportState.report.collectAsState()
+    val failure by ListenBrainzImportState.failure.collectAsState()
+    // Shown from process-wide state, like the report: the section may be gone when an import
+    // fails (scrolled away, Settings closed), and its scope with it.
+    LaunchedEffect(failure) {
+        val reason = failure ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(getString(reason))
+        ListenBrainzImportState.failure.value = null
+    }
     val learnFromHabits by settings.learnFromHabits.collectAsState()
     val smartRanker by settings.smartRanker.collectAsState()
 
@@ -100,12 +113,11 @@ internal fun ListenBrainzImportSection(
                         } catch (cancelled: CancellationException) {
                             throw cancelled
                         } catch (failure: Throwable) {
-                            val message = when (failure) {
+                            ListenBrainzImportState.failure.value = when (failure) {
                                 is ListenBrainzLibraryEmptyException -> Res.string.listenbrainz_import_empty_library
                                 is IllegalArgumentException -> Res.string.listenbrainz_import_invalid
                                 else -> Res.string.listenbrainz_import_failed
                             }
-                            snackbarHostState.showSnackbar(getString(message))
                         } finally {
                             result.value.release()
                             ListenBrainzImportState.progress.value = null

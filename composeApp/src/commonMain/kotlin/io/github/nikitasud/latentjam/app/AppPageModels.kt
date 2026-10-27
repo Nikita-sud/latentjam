@@ -11,6 +11,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.selected
 import io.github.nikitasud.latentjam.history.ForYouImpression
@@ -282,6 +285,23 @@ internal class LastMiniPresentation(
     var accent: TrackAccent,
     var isPlaying: Boolean,
 )
+
+/** Starts from the accent as it is now, without the caller observing it. */
+internal fun lastMiniPresentation(
+    track: TrackDescriptor?,
+    accent: State<TrackAccent>,
+    isPlaying: Boolean,
+): LastMiniPresentation =
+    LastMiniPresentation(track, Snapshot.withoutReadObservation { accent.value }, isPlaying)
+
+/**
+ * Keeps the accent's latest frame while a track is [live]. The accent animates over several
+ * frames and is consulted only after the live track disappears, so it is followed here rather
+ * than by the shell, which would otherwise recompose for every frame of the fade.
+ */
+internal suspend fun LastMiniPresentation.followAccent(live: () -> Boolean, accent: State<TrackAccent>) {
+    snapshotFlow { if (live()) accent.value else null }.collect { frame -> if (frame != null) this.accent = frame }
+}
 
 // The state holders below keep groups of App's state in one remembered object each instead of one
 // local per field. App's theme content compiles to a single method in which every value kept alive

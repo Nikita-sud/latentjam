@@ -8,7 +8,9 @@ package io.github.nikitasud.latentjam.smart
  * One snapshot file per model version (`<base>.<version>.bin`) beside the single legacy file (`<base>.bin`) that
  * released builds read and write. Builds with different audio encoders on one phone then keep each other's vectors:
  * installing one never makes the other re-analyse the library. A version's first load adopts the legacy file when
- * it holds that version (the stores check the version on load); saves never touch the legacy file.
+ * it holds that version (the stores check the version on load). The first successful save of a version deletes the
+ * legacy file: by then the versioned file holds everything it could have offered, and an upgrade whose encoder
+ * changed would otherwise keep the previous release's vectors on disk forever (up to 64 MiB).
  */
 public class VersionedIndexStore(
     private val baseName: String,
@@ -26,11 +28,23 @@ public class VersionedIndexStore(
     override suspend fun loadSnapshot(modelVersion: String): StoredIndexSnapshot? =
         forVersion(modelVersion).loadSnapshot(modelVersion) ?: legacy.loadSnapshot(modelVersion)
 
-    override suspend fun save(modelVersion: String, entries: Map<TrackId, FloatArray>): Unit =
-        forVersion(modelVersion).save(modelVersion, entries)
+    private var legacyRetired = false
 
-    override suspend fun saveSnapshot(modelVersion: String, snapshot: StoredIndexSnapshot): Unit =
+    override suspend fun save(modelVersion: String, entries: Map<TrackId, FloatArray>) {
+        forVersion(modelVersion).save(modelVersion, entries)
+        retireLegacy()
+    }
+
+    override suspend fun saveSnapshot(modelVersion: String, snapshot: StoredIndexSnapshot) {
         forVersion(modelVersion).saveSnapshot(modelVersion, snapshot)
+        retireLegacy()
+    }
+
+    private suspend fun retireLegacy() {
+        if (legacyRetired) return
+        legacyRetired = true
+        runCatching { legacy.clear() }
+    }
 
     /** Deletes the snapshots of the versions this store has used, and the legacy file. */
     override suspend fun clear() {

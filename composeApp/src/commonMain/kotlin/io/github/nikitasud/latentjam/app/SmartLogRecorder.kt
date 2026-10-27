@@ -73,7 +73,7 @@ class SmartLogRecorder(
     private val clock: () -> Long = ::epochMillis,
 ) : SmartPlanLog {
     private val mutex = Mutex()
-    private val tracker = SmartOutcomeTracker()
+    private var tracker = SmartOutcomeTracker()
     private val writes = Channel<suspend () -> Unit>(WRITE_BUFFER, BufferOverflow.DROP_OLDEST)
     private var lastStart: Long? = null
     private var queueRef: List<TrackDescriptor>? = null
@@ -147,6 +147,25 @@ class SmartLogRecorder(
 
     /** Clear listening history: the presses go with the log. */
     suspend fun forgetPresses(): Unit = pressMutex.withLock { pressLog = ArrayDeque(); engaged.clear() }
+
+    /**
+     * Clear listening history, everything this recorder holds: the presses, the running queue's open plan rows
+     * (they would otherwise write their outcomes into the emptied log), and lines still queued for it — the log is
+     * cleared again through the write queue, after them.
+     */
+    suspend fun forgetAll() {
+        mutex.withLock {
+            tracker = SmartOutcomeTracker()
+            queueRef = null
+            queueIds = emptySet()
+        }
+        forgetPresses()
+        // Queued writes may still mark tracks engaged: forget again once they have drained.
+        writes.trySend {
+            forgetPresses()
+            log.clear()
+        }
+    }
 
     private fun trimPresses() {
         val l = pressLog ?: return

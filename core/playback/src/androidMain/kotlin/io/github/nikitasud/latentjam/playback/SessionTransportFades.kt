@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.playback
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -41,6 +42,9 @@ internal const val APP_CONTROLLER_HINT: String = "io.github.nikitasud.latentjam.
 
 /** A play this close to the start of its row is a start, at full level; further in, a resume. */
 internal const val START_OF_ROW_MS: Long = 500L
+
+/** How long an app Next at the tail waits for SMART's next row; a cold ranker plans within seconds. */
+private const val NEXT_AT_TAIL_WAIT_MS: Long = 15_000L
 
 /**
  * The pause, resume and manual-change fades for every source, owned by the service. See
@@ -81,6 +85,22 @@ internal class SessionTransportFades(
     /** An automatic advance landed while the changes waited for their silence. */
     private var autoAdvanced = false
 
+    /**
+     * The app's Next found no row after the playhead: the change before it (a pick of the last row,
+     * an earlier Next) got there after the app looked. As the app's own Next at the tail does, it
+     * waits for the row planned next — the app plans when it sees the new row — and goes there when
+     * it arrives. Any other command, a pause or a transition drops it, and so does a row that comes
+     * only after [NEXT_AT_TAIL_WAIT_MS] (SMART had nothing; a song queued by hand later must not be
+     * skipped to).
+     */
+    private var nextAtTail: (() -> Unit)? = null
+    private var nextAtTailUntilMs = 0L
+
+    /** A queue edit or a shuffle change by the listener: a Next waiting at the tail is not for its rows. */
+    fun dropNextAtTail() {
+        nextAtTail = null
+    }
+
     /** What the controllers set; the ExoPlayer plays at this times the fade's gain. */
     var baseVolume: Float = 1f
         private set
@@ -101,7 +121,19 @@ internal class SessionTransportFades(
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            nextAtTail = null
             if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && changes.pending) autoAdvanced = true
+        }
+
+        override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+            val waiting = nextAtTail ?: return
+            if (nowMs() > nextAtTailUntilMs || AndroidShuffleModeRegistry.mode.value != ShuffleMode.SMART) {
+                nextAtTail = null
+                return
+            }
+            if (!player.hasNextMediaItem()) return
+            nextAtTail = null
+            next(deferrable = true, appOp = true, plain = waiting)
         }
     }
 
@@ -122,6 +154,7 @@ internal class SessionTransportFades(
     private fun sounding(): Boolean = player.isPlaying && !fade.pausePending
 
     fun pause(deferrable: Boolean) {
+        nextAtTail = null
         if (fade.pausePending) {
             // A second pause from a car or a notification must not cut the fade short.
             if (deferrable) return
@@ -179,7 +212,15 @@ internal class SessionTransportFades(
 
     /** Next. [appOp]: the app asked; history is told here, at the change. */
     fun next(deferrable: Boolean, appOp: Boolean = false, plain: () -> Unit) {
-        val action = {
+        nextAtTail = null
+        val action = action@{
+            if (appOp && !player.hasNextMediaItem()) {
+                // Only SMART plans a row after the tail; elsewhere a Next there does nothing, as before.
+                if (AndroidShuffleModeRegistry.mode.value != ShuffleMode.SMART) return@action
+                nextAtTail = plain
+                nextAtTailUntilMs = nowMs() + NEXT_AT_TAIL_WAIT_MS
+                return@action
+            }
             if (appOp) player.nextMediaItemIndex.takeIf { it != C.INDEX_UNSET }?.let { announce(StartCause.SKIP_NEXT, it) }
             if (!landNext()) plain()
             if (appOp) prepareIfIdle()
@@ -246,7 +287,9 @@ internal class SessionTransportFades(
             if (positionMs == C.TIME_UNSET) player.seekToDefaultPosition(target) else player.seekTo(target, positionMs)
             if (appOp) {
                 prepareIfIdle()
-                play()
+                // Paused meanwhile by the system (becoming noisy, focus loss): the row is picked
+                // but stays paused; a pause from a controller ran this pick before it.
+                if (player.playWhenReady) play()
             }
         }
     }
@@ -290,6 +333,7 @@ internal class SessionTransportFades(
         survivesAutoAdvance: Boolean = false,
         action: () -> Unit,
     ) {
+        nextAtTail = null
         if (!deferrable) {
             // Never waits, but what was asked before it happens first and the sound comes back.
             runNow { changes.settle() }
@@ -307,6 +351,7 @@ internal class SessionTransportFades(
     }
 
     private fun reset() {
+        nextAtTail = null
         pendingPause?.cancel()
         pendingPause = null
         fade.reset()
@@ -401,6 +446,17 @@ internal open class TransportFadingPlayer(
     }
 
     override fun onReplaceQueue() = fades.replaceQueue()
+
+    // A row the listener moves into place is not the one a Next waiting at the tail was for.
+    override fun moveMediaItem(currentIndex: Int, newIndex: Int) {
+        fades.dropNextAtTail()
+        wrappedPlayer.moveMediaItem(currentIndex, newIndex)
+    }
+
+    override fun moveMediaItems(fromIndex: Int, toIndex: Int, newIndex: Int) {
+        fades.dropNextAtTail()
+        wrappedPlayer.moveMediaItems(fromIndex, toIndex, newIndex)
+    }
 
     override fun getVolume(): Float = fades.baseVolume
 

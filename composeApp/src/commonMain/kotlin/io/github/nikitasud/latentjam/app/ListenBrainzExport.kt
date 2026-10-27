@@ -73,6 +73,7 @@ internal object ListenBrainzExportReader {
             if (bytes.ensure(4) && bytes.le32(0) == ZIP_LOCAL) {
                 readZip(bytes, state)
             } else {
+                if (!startsLikeJson(bytes)) throw ListenBrainzFormatException("Not a ZIP or JSON file")
                 JsonRecords(bytes, state).readAll()
             }
         } catch (_: RowLimitReached) {
@@ -80,6 +81,25 @@ internal object ListenBrainzExportReader {
         }
         return ListenBrainzReadSummary(state.rows, state.unreadable, truncated = false)
     }
+
+    /**
+     * Whether the first significant byte opens a JSON object or array. A wrongly picked file (a
+     * video, an audio file) would otherwise be scanned to its end, with no rows to report progress.
+     * Empty input passes: it simply holds no listens.
+     */
+    private fun startsLikeJson(bytes: ByteReader): Boolean {
+        var at = 0
+        while (at < JSON_SNIFF_BYTES && bytes.ensure(at + 1)) {
+            when (bytes.buffer[bytes.position + at].toInt() and 0xFF) {
+                0x20, 0x09, 0x0A, 0x0D, 0xEF, 0xBB, 0xBF -> at++
+                '{'.code, '['.code -> return true
+                else -> return false
+            }
+        }
+        return true
+    }
+
+    private const val JSON_SNIFF_BYTES = 4096
 
     // ------------------------------------------------------------------------------------ ZIP
 

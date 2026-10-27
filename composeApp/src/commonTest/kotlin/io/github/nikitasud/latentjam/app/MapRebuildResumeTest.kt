@@ -56,4 +56,21 @@ class MapRebuildResumeTest {
         assertFalse(asked)
         assertEquals(0, scheduled)
     }
+
+    @Test fun `the first request time is kept across processes and a future one restarts the day`() = runTest {
+        MapRebuild.builtInPage()
+        var stored = 1_000L
+        var writes = 0
+        // A request from an earlier process: adopted, not overwritten.
+        MapRebuild.requested(stale = false, nowMs = 90_000_000L, schedule = {}, persisted = { stored }, persist = { stored = it; writes++ })
+        assertEquals(1_000L, stored)
+        assertEquals(0, writes)
+        MapRebuild.builtInPage()
+        // A stored time after now is a changed clock: today's request starts the day.
+        stored = 5_000_000_000_000L
+        MapRebuild.requested(stale = false, nowMs = 90_000_000L, schedule = {}, persisted = { stored }, persist = { stored = it; writes++ })
+        assertEquals(90_000_000L, stored)
+        assertEquals(1, writes)
+        MapRebuild.builtInPage()
+    }
 }

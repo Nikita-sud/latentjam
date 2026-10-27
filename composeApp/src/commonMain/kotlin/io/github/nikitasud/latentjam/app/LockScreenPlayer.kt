@@ -47,6 +47,7 @@ import io.github.nikitasud.latentjam.playback.PlaybackController
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
@@ -69,9 +70,14 @@ internal class LockPlayerTrigger {
         return true
     }
 
-    /** The screen is on again, so the next screen-off may open the player again. */
-    fun onScreenOn() {
+    /**
+     * The screen is on again, so the next screen-off may open the player again. A wake with no
+     * keyguard ([keyguardLocked] false: lock "None", or within the lock-after-timeout grace) is as
+     * good as an unlock, though Android sends no unlock broadcast for it then.
+     */
+    fun onScreenOn(keyguardLocked: Boolean = true) {
         launchedThisScreenOff = false
+        if (!keyguardLocked) dismissedUntilUnlock = false
     }
 
     /** The listener swiped the player away to the plain lock screen. */
@@ -121,10 +127,44 @@ enum class PlayerSurface {
 }
 
 /**
- * Whether an open lock player has nothing left to show. A pause keeps it (the listener may have
- * paused from it); an empty player means playback stopped and its notification has gone too.
+ * Whether an open lock player has nothing left to show. A pause keeps it while it is on screen
+ * (the listener may have paused from it); an empty player means playback stopped and its
+ * notification has gone too.
  */
 internal fun lockPlayerShouldClose(now: NowPlaying): Boolean = now.track == null
+
+/**
+ * Whether the lock player may stay over the keyguard while the screen is off, waiting for the
+ * next wake. It mirrors the rule that opens it: only while playback is meant to run. The intent
+ * ([NowPlaying.showPauseButton]) rather than [NowPlaying.isPlaying], so a buffering blip does not
+ * close it; a pause, the sleep timer, the end of the queue, a focus loss or unplugged headphones
+ * do, and the next wake shows the plain lock screen with the system media card.
+ */
+internal fun lockPlayerKeepsWhileAsleep(now: NowPlaying): Boolean = now.track != null && now.showPauseButton
+
+/**
+ * Whether the open lock player should go now. [asleep]: the player is not visible because the
+ * screen is off (below STARTED). On screen, only an empty player closes it, so a pause pressed on
+ * the lock player keeps it until the next screen-off.
+ */
+internal fun lockPlayerShouldLeave(now: NowPlaying, asleep: Boolean): Boolean =
+    lockPlayerShouldClose(now) || (asleep && !lockPlayerKeepsWhileAsleep(now))
+
+/** How long a stop while asleep may last before the player goes: a dry SMART queue resumes after a planning pass. */
+internal const val LOCK_PLAYER_LEAVE_GRACE_MS: Long = 5_000L
+
+/**
+ * [lockPlayerShouldLeave] for a change of playback: an empty player goes at once; a stop while
+ * asleep only if it still holds after [LOCK_PLAYER_LEAVE_GRACE_MS]. A SMART queue that ran dry
+ * passes through an ended state until its next rows are planned and it plays on; the caller
+ * cancels the wait when playback changes again.
+ */
+internal suspend fun lockPlayerLeavesAfterGrace(now: () -> NowPlaying, asleep: () -> Boolean): Boolean {
+    if (lockPlayerShouldClose(now())) return true
+    if (!lockPlayerShouldLeave(now(), asleep())) return false
+    delay(LOCK_PLAYER_LEAVE_GRACE_MS)
+    return lockPlayerShouldLeave(now(), asleep())
+}
 
 /**
  * Asks the app's full player to open, from outside its composition: the lock player's LatentJam
@@ -158,7 +198,7 @@ internal fun LockScreenPlayer(
         val track by remember(playback) {
             playback.state.map { it.track }.distinctUntilChanged()
         }.collectAsState(playback.state.value.track)
-        val accent = rememberTrackAccent(
+        val accent = rememberTrackAccentState(
             track = track,
             mode = trackColorMode,
             darkTheme = darkTheme,
@@ -201,7 +241,7 @@ internal fun LockScreenPlayer(
         ) {
             NowPlayingScreen(
                 playback = playback,
-                accent = accent,
+                accent = accent::value,
                 queueSourceLabel = queueSource?.let { source ->
                     source.name ?: source.kind.fallbackLabelRes()?.let { stringResource(it) }
                 },

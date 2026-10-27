@@ -15,6 +15,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
@@ -61,7 +63,20 @@ fun rememberTrackAccent(
     darkTheme: Boolean,
     /** The listener's own colour, used by [TrackColorMode.CUSTOM]. */
     customColor: Color? = null,
-): TrackAccent {
+): TrackAccent = rememberTrackAccentState(track, mode, darkTheme, customColor).value
+
+/**
+ * [rememberTrackAccent] as a state the caller reads where it paints. The cross-fade moves this
+ * state on every frame for [Motion.APPEAR_MS]; a caller that only passes it on (the app shell)
+ * then recomposes once per track instead of once per frame of the fade.
+ */
+@Composable
+fun rememberTrackAccentState(
+    track: TrackDescriptor?,
+    mode: TrackColorMode = TrackColorMode.DYNAMIC,
+    darkTheme: Boolean,
+    customColor: Color? = null,
+): State<TrackAccent> {
     val fallback = MaterialTheme.colorScheme.primaryContainer
 
     val artwork = rememberArtworkColor(
@@ -98,21 +113,27 @@ fun rememberTrackAccent(
     }
     val reduceMotion = rememberReduceMotion()
     val duration = if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS
-    val container by animateColorAsState(
+    val container = animateColorAsState(
         targetValue = target,
         animationSpec = tween(duration),
         label = "accent-container",
     )
-    // Pick from the animated surface on every frame. Interpolating black and white independently
-    // passes through mid-gray exactly while the background is changing, which can briefly erase
-    // control contrast. 0.179 is the luminance crossover where black and white have equal contrast.
-    val onContainer = if (container.luminance() > 0.179f) Color.Black else Color.White
-    val vivid by animateColorAsState(
+    val vivid = animateColorAsState(
         targetValue = vividGoal,
         animationSpec = tween(duration),
         label = "accent-vivid",
     )
-    return TrackAccent(container, onContainer, vivid)
+    return remember(container, vivid) {
+        derivedStateOf {
+            val surface = container.value
+            // Pick from the animated surface on every frame. Interpolating black and white
+            // independently passes through mid-gray exactly while the background is changing, which
+            // can briefly erase control contrast. 0.179 is the luminance crossover where black and
+            // white have equal contrast.
+            val onContainer = if (surface.luminance() > 0.179f) Color.Black else Color.White
+            TrackAccent(surface, onContainer, vivid.value)
+        }
+    }
 }
 
 /**

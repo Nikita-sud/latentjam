@@ -78,6 +78,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -751,7 +752,8 @@ private fun AppShell(
             selectedTab == StartPage.TRACKS || selectedTab in GROUP_TABS || showSearch ||
                 selectedCollection?.allowsTrackSelection == true
         )
-        val accent = rememberTrackAccent(
+        // A state, read where the accent paints: its cross-fade must not recompose this shell.
+        val accent = rememberTrackAccentState(
             track = currentTrack,
             mode = trackColorMode,
             darkTheme = darkTheme,
@@ -761,17 +763,16 @@ private fun AppShell(
         // in an ordinary main-thread holder: while a live track exists none of these fallback
         // fields are read, so updating them must not itself invalidate the shell.
         val lastMiniPresentation = remember {
-            LastMiniPresentation(currentTrack, accent, showPauseButton)
+            lastMiniPresentation(currentTrack, accent, showPauseButton)
         }
         SideEffect {
             if (currentTrack != null) {
-                // Accent animates over several frames. This value is only consulted after the
-                // live track disappears, so ordinary fields retain the latest exit frame without
-                // scheduling a second whole-shell recomposition for every colour-animation tick.
                 lastMiniPresentation.track = currentTrack
-                lastMiniPresentation.accent = accent
                 lastMiniPresentation.isPlaying = showPauseButton
             }
+        }
+        LaunchedEffect(lastMiniPresentation) {
+            lastMiniPresentation.followAccent(live = { currentTrack != null }, accent = accent)
         }
         val shareTracks = rememberTrackSharer()
         val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -2186,7 +2187,8 @@ private fun AppShell(
                         // after them stays visible — which is how the pill reaches screens it used to
                         // disappear behind.
                         Box(modifier = Modifier.fillMaxSize().browseCloud(
-                            accent.takeIf { currentTrack != null && trackColorMode != TrackColorMode.THEME },
+                            accent.takeIf { currentTrack != null && trackColorMode != TrackColorMode.THEME }
+                                ?.let { state -> state::value },
                         )) {
                     var railScrubbing by remember { mutableStateOf(false) }
                     val pageRailSlots = remember {
@@ -2565,7 +2567,7 @@ private fun AppShell(
                                         // cleared or restored log must drop its cached snapshot.
                                         StartPage.STATISTICS -> androidx.compose.runtime.key(replacedHistoryEpoch) {
                                             ListeningStatsSettings(
-                                                accent = accent,
+                                                accent = accent.value,
                                                 history = AppGraph.history,
                                                 tracks = visibleCatalog.songs,
                                                 contentPadding = listPadding,
@@ -2593,7 +2595,7 @@ private fun AppShell(
                                         ) {
                                         ForYouTab(
                                             playlistArtworkUris = playlistArtworkUris,
-                                            accent = accent,
+                                            accent = accent::value,
                                             page = shownForYou,
                                             contentPadding = listPadding,
                                             isRefreshing = forYouPage.forYouRefreshing,
@@ -2718,7 +2720,7 @@ private fun AppShell(
                                         ) {
                                         MapTab(
                                             onRetryIndexing = ::retryAutomaticIndexing,
-                                            currentAccent = browseAccentInk(accent),
+                                            currentAccent = browseAccentInk(accent.value),
                                             state = shownMapState,
                                             contentPadding = listPadding,
                                             focusTrackId = mapPage.mapFocusTrackId,
@@ -2802,7 +2804,7 @@ private fun AppShell(
                                         }
 
                                         StartPage.PLAYLISTS -> PlaylistsTabContent(
-                                            currentAccent = browseAccentInk(accent),
+                                            currentAccent = browseAccentInk(accent.value),
                                             onCreate = { showCreatePlaylist = true },
                                             onImport = { m3uExchange.import() },
                                             autoPlaylists = playlistsState.autoPlaylists,
@@ -2937,8 +2939,8 @@ private fun AppShell(
                                                 listState = songsListState,
                                                 onRailScrubbingChange = { railScrubbing = it },
                                                 currentAccent = browseAccentInk(accent),
-                                                currentTrackId = currentTrack?.id,
-                                                currentTrackPlaying = currentTrackPlaying,
+                                                currentTrackId = { currentTrack?.id },
+                                                currentTrackPlaying = { currentTrackPlaying },
                                                 contentPadding = listPadding,
                                                 selectedTrackIds = selectedTrackIds,
                                                 onToggleSelection = { track ->
@@ -3350,7 +3352,7 @@ private fun AppShell(
                                             onTrackMenu = { sheets.trackMenuRequest = TrackMenuRequest(it) },
                                             currentTrackId = currentTrack?.id,
                                             currentTrackPlaying = currentTrackPlaying,
-                                            currentAccent = browseAccentInk(accent),
+                                            currentAccent = browseAccentInk(accent.value),
                                             contentPadding = listPadding,
                                             onRailScrubbingChange = { railScrubbing = it },
                                         )
@@ -3503,7 +3505,7 @@ private fun AppShell(
                                 ?.takeIf { it.customArtworkRef != null }
                                 ?.let { playlist -> { resetPlaylistCover(playlist) } },
                             coverEditBusy = coverEditTargetId != null || coverSaveInProgress,
-                            accent = accent,
+                            accent = accent.value,
                             onStartSmart = {
                                 scope.launch {
                                     AppGraph.queueSource.value = selection.queueSource()
@@ -3511,7 +3513,7 @@ private fun AppShell(
                                     playback.play(selection.tracks, 0)
                                 }
                             },
-                            currentAccent = browseAccentInk(accent),
+                            currentAccent = browseAccentInk(accent.value),
                             selection = selection,
                             // Only a page with albums to order offers the choice.
                             albumSort = artistAlbumSortChoice.takeIf {
@@ -3606,7 +3608,7 @@ private fun AppShell(
                                 .inactiveDuringTransition(!searchVisibilityState.targetState),
                         ) {
                         SearchScreen(
-                            accent = accent,
+                            accent = accent.value,
                             // Search stays composed under an open player: it must not own Back or
                             // the keyboard there, and it focuses its field again on return.
                             active = showSearch && !showNowPlaying,
@@ -3733,9 +3735,9 @@ private fun AppShell(
                 onCoverStart = { beginCover() },
                 hasTrack = currentTrack != null,
                 pillHeight = miniPlayerHeight,
-                pillColor = miniPlayerSurfaceColor(
-                    if (currentTrack != null) accent else lastMiniPresentation.accent,
-                ),
+                pillColor = miniPlayerSurfaceColor {
+                    if (currentTrack != null) accent.value else lastMiniPresentation.accent
+                },
                 coverUri = (currentTrack ?: lastMiniPresentation.track)?.artworkUri,
                 mini = { live, thumbnailAlpha ->
                     (currentTrack ?: lastMiniPresentation.track)?.let { current ->
@@ -3743,7 +3745,9 @@ private fun AppShell(
                             height = miniPlayerHeight,
                             track = current,
                             accent = if (currentTrack != null) {
-                                accent
+                                // Covered by the full player, the pill takes the accent as it is
+                                // without following its fade; uncovering it composes it afresh.
+                                if (live) accent.value else Snapshot.withoutReadObservation { accent.value }
                             } else {
                                 lastMiniPresentation.accent
                             },
@@ -3771,7 +3775,7 @@ private fun AppShell(
                     val queueSource by AppGraph.queueSource.collectAsState()
                     NowPlayingScreen(
                         playback = playback,
-                        accent = accent,
+                        accent = accent::value,
                         // Kept composed below the pill once used; it follows playback only while
                         // it is on screen or a finger may be about to bring it there.
                         active = revealed && !showSettings,
@@ -4518,7 +4522,7 @@ private fun AppShell(
             SettingsScreen(
                 active = showSettings,
                 startRoute = settingsRoute,
-                accent = accent,
+                accent = accent.value,
                 rootOpenProgress = { revealProgress.value },
                 rootButtonBounds = settingsButtonBounds,
                 settings = settings,

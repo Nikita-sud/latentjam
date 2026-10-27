@@ -526,6 +526,12 @@ internal class DefaultSimilarityEngine(
         }
     }
 
+    override suspend fun missingFromIndexOf(tracks: List<TrackDescriptor>): Int = withContext(dispatcher) {
+        mutex.withLock {
+            tracks.count { track -> track.id !in index && !hasRememberedAudioFailure(knownTracks[track.id] ?: track) }
+        }
+    }
+
     override suspend fun embedding(trackId: TrackId): FloatArray? = withContext(dispatcher) {
         mutex.withLock { index.vector(trackId) }
     }
@@ -806,6 +812,15 @@ internal class DefaultSimilarityEngine(
 
     override suspend fun metadataVectors(): Map<TrackId, FloatArray> = withContext(dispatcher) {
         mutex.withLock { textIndex?.entries().orEmpty() }
+    }
+
+    override suspend fun metadataRows(ids: Collection<TrackId>): Map<TrackId, FloatArray> = withContext(dispatcher) {
+        mutex.withLock {
+            val index = textIndex ?: return@withLock emptyMap()
+            val out = HashMap<TrackId, FloatArray>(ids.size * 2)
+            for (id in ids) index.vector(id)?.let { out[id] = it }
+            out
+        }
     }
 
     override suspend fun semanticSearch(query: String, limit: Int): List<ScoredTrack> =

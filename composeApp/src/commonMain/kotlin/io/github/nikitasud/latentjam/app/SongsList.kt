@@ -79,19 +79,27 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 internal fun SectionedSongsList(
     browse: SongsBrowseDerivation,
-    currentTrackId: TrackId?,
+    /**
+     * Read by each row for itself, with [currentTrackPlaying] and [currentAccent]: a track change
+     * recomposes the two rows it concerns and the accent's fade the current row alone, not the list
+     * or the page around it.
+     */
+    currentTrackId: () -> TrackId?,
     /** Whether the player is audibly running; animates the current row's badge. */
-    currentTrackPlaying: Boolean = false,
+    currentTrackPlaying: () -> Boolean = { false },
     contentPadding: PaddingValues,
     selectedTrackIds: Set<TrackId> = emptySet(),
     onToggleSelection: (TrackDescriptor) -> Unit = {},
     onStartSelection: (TrackDescriptor) -> Unit = {},
     onPlay: (queue: List<TrackDescriptor>, index: Int) -> Unit,
     onTrackMenu: (TrackDescriptor) -> Unit,
-    currentAccent: Color? = null,
+    currentAccent: () -> Color? = { null },
     onRailScrubbingChange: (Boolean) -> Unit = {},
     listState: LazyListState = rememberLazyListState(),
 ) {
+    val latestCurrentTrackId by rememberUpdatedState(currentTrackId)
+    val latestCurrentTrackPlaying by rememberUpdatedState(currentTrackPlaying)
+    val latestCurrentAccent by rememberUpdatedState(currentAccent)
     val displayOrder = browse.displayOrder
     val indexed = browse.indexed
     val indexEnabled = browse.indexEnabled
@@ -183,11 +191,14 @@ internal fun SectionedSongsList(
                             ),
                         ),
                     ) {
+                        val isCurrent by remember(track.id) {
+                            derivedStateOf { latestCurrentTrackId() == track.id }
+                        }
                         TrackRow(
                             track = track,
-                            isCurrent = track.id == currentTrackId,
-                            isPlaying = currentTrackPlaying && track.id == currentTrackId,
-                            currentAccent = if (track.id == currentTrackId) currentAccent else null,
+                            isCurrent = isCurrent,
+                            isPlaying = isCurrent && latestCurrentTrackPlaying(),
+                            currentAccent = if (isCurrent) latestCurrentAccent() else null,
                             rowEndInset = 0.dp,
                             onClick = {
                                 if (selectionMode) {
@@ -231,8 +242,8 @@ internal fun SectionedSongsList(
         if (previewRequested) RailScrubPreviewLayer(
             listState = railPreviewListState,
             indexed = indexed,
-            currentTrackId = currentTrackId,
-            currentAccent = currentAccent,
+            currentTrackId = latestCurrentTrackId(),
+            currentAccent = latestCurrentAccent(),
             selectedTrackIds = if (selectionMode) selectedTrackIds else null,
             unknownTitle = unknownTitle,
             unknownArtist = unknownArtist,

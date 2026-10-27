@@ -24,6 +24,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -43,7 +44,9 @@ internal fun installLockScreenPlayer(context: Context) {
     val receiver = object : BroadcastReceiver() {
         override fun onReceive(receiverContext: Context, intent: Intent) {
             when (intent.action) {
-                Intent.ACTION_SCREEN_ON -> trigger.onScreenOn()
+                Intent.ACTION_SCREEN_ON -> trigger.onScreenOn(
+                    keyguardLocked = app.getSystemService(KeyguardManager::class.java)?.isKeyguardLocked != false,
+                )
                 Intent.ACTION_USER_PRESENT -> trigger.onUnlocked()
                 Intent.ACTION_SCREEN_OFF -> {
                     val open = trigger.onScreenOff(
@@ -93,11 +96,15 @@ private val lockPlayerTrigger = LockPlayerTrigger()
 
 /**
  * The full player above the keyguard, edge to edge. It drives the same playback controller as the
- * app, so it always agrees with the media notification. It leaves when the device is unlocked or
- * playback ends; its close action asks the system to unlock rather than dropping back to the lock
- * screen.
+ * app, so it always agrees with the media notification. It leaves when the device is unlocked, when
+ * playback stops or ends while the screen is off ([lockPlayerShouldLeave]), and when it wakes with
+ * no keyguard to sit on; its close action asks the system to unlock rather than dropping back to
+ * the lock screen.
  */
 class LockScreenPlayerActivity : ComponentActivity() {
+
+    /** An unlock was asked for and has not finished; the keyguard check at wake waits for it. */
+    private var unlocking = false
 
     private val unlockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -131,10 +138,15 @@ class LockScreenPlayerActivity : ComponentActivity() {
         )
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.CREATED) {
+                // Below STARTED the screen is off: a stop that happens then (sleep timer, end of
+                // queue, focus loss, unplugged headphones) closes it, so the next wake shows the
+                // plain lock screen.
                 AppGraph.playback.state
-                    .map(::lockPlayerShouldClose)
+                    .map { (it.track == null) to lockPlayerKeepsWhileAsleep(it) }
                     .distinctUntilChanged()
-                    .collect { close -> if (close) leave() }
+                    .collectLatest {
+                        if (lockPlayerLeavesAfterGrace({ AppGraph.playback.state.value }, ::asleep)) leave()
+                    }
             }
         }
         setContent {
@@ -157,8 +169,35 @@ class LockScreenPlayerActivity : ComponentActivity() {
      */
     override fun onStop() {
         super.onStop()
-        if (getSystemService(PowerManager::class.java)?.isInteractive == true) leave()
+        // Asleep it stays only while playback is meant to run; a pause pressed on it while the
+        // screen was on ends here, at the next screen-off.
+        if (screenOn() || lockPlayerShouldLeave(AppGraph.playback.state.value, asleep = true)) leave()
     }
+
+    override fun onStart() {
+        super.onStart()
+        leaveWithoutKeyguard()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        leaveWithoutKeyguard()
+    }
+
+    /**
+     * Woken with no keyguard (lock "None", or within the lock-after-timeout grace): there is no lock
+     * screen to sit on, so it must not stay as an ordinary screen on an unlocked phone. The keyguard
+     * counts as locked while this player hides it, so the normal path is unaffected. Checked only
+     * with the screen on: at screen-off the keyguard may not be shown yet.
+     */
+    private fun leaveWithoutKeyguard() {
+        if (unlocking || !screenOn()) return
+        if (getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == false) leave()
+    }
+
+    private fun screenOn(): Boolean = getSystemService(PowerManager::class.java)?.isInteractive == true
+
+    private fun asleep(): Boolean = !lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
 
     override fun onDestroy() {
         unregisterReceiver(unlockReceiver)
@@ -177,12 +216,22 @@ class LockScreenPlayerActivity : ComponentActivity() {
             leave()
             return
         }
+        unlocking = true
         keyguard.requestDismissKeyguard(
             this,
             object : KeyguardManager.KeyguardDismissCallback() {
                 override fun onDismissSucceeded() {
+                    unlocking = false
                     then()
                     leave()
+                }
+
+                override fun onDismissCancelled() {
+                    unlocking = false
+                }
+
+                override fun onDismissError() {
+                    unlocking = false
                 }
             },
         )

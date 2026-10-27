@@ -7,6 +7,10 @@ package io.github.nikitasud.latentjam.app
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.playback.NowPlaying
+import kotlinx.coroutines.async
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.currentTime
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -74,6 +78,87 @@ class LockPlayerTriggerTest {
         assertFalse(lockPlayerShouldClose(NowPlaying(track = track, isPlaying = true)))
         assertFalse(lockPlayerShouldClose(NowPlaying(track = track, isPlaying = false)))
         assertTrue(lockPlayerShouldClose(NowPlaying(track = null)))
+    }
+
+    @Test
+    fun `a wake with no keyguard counts as an unlock for a swiped away player`() {
+        val trigger = LockPlayerTrigger()
+        assertTrue(trigger.onScreenOff(enabled = true, playing = true, playerShowing = false))
+        trigger.onDismissed()
+        trigger.onScreenOn(keyguardLocked = true)
+        assertFalse(trigger.onScreenOff(enabled = true, playing = true, playerShowing = false))
+        trigger.onScreenOn(keyguardLocked = false)
+        assertTrue(trigger.onScreenOff(enabled = true, playing = true, playerShowing = false))
+    }
+}
+
+class LockPlayerLeaveTest {
+
+    private val track = TrackDescriptor(id = TrackId("t1"), title = "Song")
+
+    @Test
+    fun `a stop while asleep that recovers within the grace keeps it`() = runTest {
+        var now = NowPlaying(track = track, isPlaying = false, showPauseButton = false)
+        val leaving = async { lockPlayerLeavesAfterGrace({ now }, { true }) }
+        advanceTimeBy(LOCK_PLAYER_LEAVE_GRACE_MS / 2)
+        // The dry SMART queue got its rows and plays on.
+        now = NowPlaying(track = track, isPlaying = true, showPauseButton = true)
+        assertFalse(leaving.await())
+    }
+
+    @Test
+    fun `a stop while asleep that lasts the grace closes it and an empty player closes it at once`() = runTest {
+        val stopped = NowPlaying(track = track, isPlaying = false, showPauseButton = false)
+        val started = currentTime
+        assertTrue(lockPlayerLeavesAfterGrace({ stopped }, { true }))
+        assertEquals(LOCK_PLAYER_LEAVE_GRACE_MS, currentTime - started)
+        val empty = NowPlaying(track = null)
+        val emptyAt = currentTime
+        assertTrue(lockPlayerLeavesAfterGrace({ empty }, { false }))
+        assertEquals(emptyAt, currentTime)
+    }
+
+    @Test
+    fun `it stays asleep only while playback is meant to run`() {
+        assertTrue(lockPlayerKeepsWhileAsleep(NowPlaying(track = track, isPlaying = true)))
+        assertFalse(lockPlayerKeepsWhileAsleep(NowPlaying(track = track, isPlaying = false)))
+        assertFalse(lockPlayerKeepsWhileAsleep(NowPlaying(track = null, isPlaying = true)))
+    }
+
+    @Test
+    fun `a buffering blip while asleep keeps it`() {
+        // Buffering: not playing this instant, but the pause button still shows.
+        val buffering = NowPlaying(track = track, isPlaying = false, showPauseButton = true)
+        assertTrue(lockPlayerKeepsWhileAsleep(buffering))
+        assertFalse(lockPlayerShouldLeave(buffering, asleep = true))
+    }
+
+    @Test
+    fun `a sleep timer or the end of the queue while asleep closes it`() {
+        // Paused by the timer, or parked at the end with the last track still current.
+        val stopped = NowPlaying(track = track, isPlaying = false, showPauseButton = false)
+        assertTrue(lockPlayerShouldLeave(stopped, asleep = true))
+    }
+
+    @Test
+    fun `a pause pressed on the lock player keeps it while it is on screen`() {
+        val paused = NowPlaying(track = track, isPlaying = false)
+        assertFalse(lockPlayerShouldLeave(paused, asleep = false))
+        // The next screen-off then takes it away.
+        assertTrue(lockPlayerShouldLeave(paused, asleep = true))
+    }
+
+    @Test
+    fun `playing keeps it awake and asleep`() {
+        val playing = NowPlaying(track = track, isPlaying = true)
+        assertFalse(lockPlayerShouldLeave(playing, asleep = false))
+        assertFalse(lockPlayerShouldLeave(playing, asleep = true))
+    }
+
+    @Test
+    fun `an empty player closes it awake and asleep`() {
+        assertTrue(lockPlayerShouldLeave(NowPlaying(track = null), asleep = false))
+        assertTrue(lockPlayerShouldLeave(NowPlaying(track = null), asleep = true))
     }
 }
 

@@ -49,8 +49,10 @@ public class PlaybackTileService : TileService() {
                 controller.pause()
             }
             // MediaController commands are asynchronous. Reflect the requested state now; the
-            // next listening callback reconciles it with the session's authoritative state.
-            updateTile(shouldPlay && transportIsPlaying(controller))
+            // next listening callback reconciles it with the session's authoritative state. A
+            // resume clears a pause still fading out only on the service's next turn, so it is
+            // not read here: the tile would show paused while the music comes back.
+            updateTile(shouldPlay && transportIsPlaying(controller, pausePending = false))
         }
     }
 
@@ -76,14 +78,16 @@ public class PlaybackTileService : TileService() {
      * ([showPauseButton]): playback intent plus a state that can actually produce audio.
      *
      * [MediaController.isPlaying] alone cannot be trusted here — the shade may hold a stale
-     * controller, and an ended or idle queue must not be drawn as playing. A paused-but-fading
-     * session still counts as playing: the fade is part of a pause request, and the icon flips
-     * when the request settles.
+     * controller, and an ended or idle queue must not be drawn as playing. A pause still fading
+     * out reads as paused ([pausePending]), as on the app's own transport.
      */
-    private fun transportIsPlaying(controller: MediaController): Boolean = showPauseButton(
+    private fun transportIsPlaying(
+        controller: MediaController,
+        pausePending: Boolean = AndroidTransportFade.pausePending.value,
+    ): Boolean = showPauseButton(
         playWhenReady = controller.playWhenReady,
         playbackState = controller.playbackState,
-        pausePending = AndroidTransportFade.pausePending.value,
+        pausePending = pausePending,
     )
 
     private fun withController(block: (MediaController) -> Unit) {

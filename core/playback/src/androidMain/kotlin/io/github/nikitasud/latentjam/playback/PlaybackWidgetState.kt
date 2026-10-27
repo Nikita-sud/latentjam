@@ -250,12 +250,19 @@ public object PlaybackWidgetStateStore {
         )
     }
 
-    internal fun currentBootCount(context: Context): Int = runCatching {
-        Settings.Global.getInt(
-            context.applicationContext.contentResolver,
-            Settings.Global.BOOT_COUNT,
-        )
-    }.getOrDefault(PlaybackWidgetSnapshot.UNKNOWN_BOOT_COUNT)
+    /**
+     * Read once per process: a reboot ends every process, so the count cannot change under one, and
+     * every published snapshot asked the settings provider again on the main thread.
+     */
+    internal fun currentBootCount(context: Context): Int =
+        bootCount ?: runCatching {
+            Settings.Global.getInt(
+                context.applicationContext.contentResolver,
+                Settings.Global.BOOT_COUNT,
+            )
+        }.getOrNull().also { bootCount = it } ?: PlaybackWidgetSnapshot.UNKNOWN_BOOT_COUNT
+
+    @Volatile private var bootCount: Int? = null
 
     private const val PREFERENCES_FILE = "playback_widget_state"
     private const val KEY_REVISION = "revision"

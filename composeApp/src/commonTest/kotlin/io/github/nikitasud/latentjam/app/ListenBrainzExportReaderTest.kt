@@ -54,6 +54,15 @@ class ListenBrainzExportReaderTest {
     }
 
     @Test
+    fun aFileThatIsNeitherZipNorJsonFailsAtOnce() {
+        val notAnExport = byteArrayOf(0x49, 0x44, 0x33, 0x04) + ByteArray(10_000) { 0x0A }
+        assertFailsWith<ListenBrainzFormatException> { read(notAnExport) }
+        // Leading whitespace before JSON still reads, and an empty file holds no listens.
+        assertEquals(1, read(("\n  " + ListenBrainzTestExports.listen(1_700_000_000, "A", "B")).encodeToByteArray()).first.size)
+        assertEquals(0, read(ByteArray(0)).first.size)
+    }
+
+    @Test
     fun decodesEscapesAndMultibyteText() {
         val line = "{\"listened_at\":1700000000,\"track_metadata\":{\"artist_name\":\"Bj\\u00f6rk \\ud83c\\udfb5\"," +
             "\"track_name\":\"Привет \\\"мир\\\" ✓\"}}"

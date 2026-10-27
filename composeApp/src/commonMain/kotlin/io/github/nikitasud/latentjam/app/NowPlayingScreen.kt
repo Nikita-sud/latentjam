@@ -94,7 +94,8 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
-import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.material3.SwipeToDismissBoxState
+import androidx.compose.material3.SwipeToDismissBoxDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberBottomSheetScaffoldState
@@ -272,7 +273,11 @@ internal fun queueLazyItemKey(
 @Composable
 fun NowPlayingScreen(
     playback: PlaybackController,
-    accent: TrackAccent,
+    /**
+     * Read where it paints (the cloud, the current queue row), never by this screen itself: the
+     * accent cross-fades over several frames on every track change.
+     */
+    accent: () -> TrackAccent,
     /** Resolved "Playing from" name — collection title, search query, or a surface label. */
     queueSourceLabel: String? = null,
     sleepTimerState: SleepTimerState,
@@ -1579,7 +1584,8 @@ private fun RepeatButton(mode: RepeatMode, onClick: () -> Unit) {
  */
 @Composable
 private fun QueueRow(
-    accent: TrackAccent,
+    /** Read by the current row alone, so the accent's cross-fade recomposes no other row. */
+    accent: () -> TrackAccent,
     track: TrackDescriptor,
     isCurrent: Boolean,
     isPlayed: Boolean,
@@ -1596,7 +1602,7 @@ private fun QueueRow(
     isContinuation: Boolean = false,
 ) {
     val reduceMotion = rememberReduceMotion()
-    val accentInk = browseAccentInk(accent)
+    val accentInk = if (isCurrent) browseAccentInk(accent()) else Color.Unspecified
     val artworkAlpha by animateFloatAsState(
         targetValue = if (isPlayed) 0.6f else 1f,
         animationSpec = tween(
@@ -1731,7 +1737,7 @@ private fun PlayingBars(isPlaying: Boolean, tint: Color) {
  */
 @Composable
 private fun QueueSheetContent(
-    accent: TrackAccent,
+    accent: () -> TrackAccent,
     queue: List<TrackDescriptor>,
     /** Rows SMART appended to keep playing while it could not recommend; labelled, never hidden. */
     continuationIds: Set<TrackId>,
@@ -1864,17 +1870,27 @@ private fun QueueSheetContent(
                 androidx.compose.runtime.key(if (ambiguousItemIdentity) queueIdentity else Unit) {
                 val currentRowIndex by rememberUpdatedState(index)
                 var removalRequested by remember { mutableStateOf(false) }
-                val dismissState = rememberSwipeToDismissBoxState(
-                    confirmValueChange = { value ->
-                        // Anchored dragging can ask to confirm the same target more than once.
-                        // Removing twice would consume the row that shifted into this index.
-                        if (value != SwipeToDismissBoxValue.Settled && !removalRequested) {
-                            removalRequested = true
-                            onRemoveAt(currentRowIndex)
-                        }
-                        true
-                    },
-                )
+                // Plain remember, not rememberSwipeToDismissBoxState: that one is saveable, and the
+                // lazy list keeps a removed key's saved state, so a track swiped away and queued
+                // again in the same session came back swiped away (only the red background).
+                val swipeDensity = LocalDensity.current
+                val swipeThreshold = SwipeToDismissBoxDefaults.positionalThreshold
+                val dismissState = remember {
+                    SwipeToDismissBoxState(
+                        initialValue = SwipeToDismissBoxValue.Settled,
+                        density = swipeDensity,
+                        confirmValueChange = { value ->
+                            // Anchored dragging can ask to confirm the same target more than once.
+                            // Removing twice would consume the row that shifted into this index.
+                            if (value != SwipeToDismissBoxValue.Settled && !removalRequested) {
+                                removalRequested = true
+                                onRemoveAt(currentRowIndex)
+                            }
+                            true
+                        },
+                        positionalThreshold = swipeThreshold,
+                    )
+                }
                 Box(
                     modifier = Modifier
                         .animateItem(
@@ -1938,12 +1954,16 @@ private fun QueueSheetContent(
                                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                                 .padding(horizontal = 8.dp)
                                 .clip(RoundedCornerShape(16.dp.corner()))
-                                .background(
+                                .then(
                                     if (index == currentIndex) {
-                                        accent.vivid.copy(alpha = 0.12f)
-                                            .compositeOver(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                        // Tinted while drawing: the accent's cross-fade repaints
+                                        // this row without recomposing it.
+                                        val floor = MaterialTheme.colorScheme.surfaceContainerHigh
+                                        Modifier.drawBehind {
+                                            drawRect(accent().vivid.copy(alpha = 0.12f).compositeOver(floor))
+                                        }
                                     } else {
-                                        MaterialTheme.colorScheme.surfaceContainerHigh
+                                        Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)
                                     },
                                 ),
                         )

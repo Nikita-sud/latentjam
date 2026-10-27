@@ -55,7 +55,7 @@ internal actual fun onExternalPower(): Boolean = runCatching {
 internal class MapRebuildWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result = when (MapRebuild.run(isActive = { !isStopped }, trigger = "work#$runAttemptCount")) {
         MapRebuild.Outcome.DONE, MapRebuild.Outcome.NOT_NEEDED -> Result.success()
-        MapRebuild.Outcome.NOT_READY, MapRebuild.Outcome.CANCELLED -> Result.retry()
+        MapRebuild.Outcome.NOT_READY, MapRebuild.Outcome.CANCELLED, MapRebuild.Outcome.AGAIN -> Result.retry()
         MapRebuild.Outcome.FAILED -> Result.failure()
     }
 

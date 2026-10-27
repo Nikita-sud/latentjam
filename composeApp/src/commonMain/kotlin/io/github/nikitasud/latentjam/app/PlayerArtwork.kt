@@ -213,7 +213,8 @@ internal fun PlayerArtworkCard(
             }
             .semantics {
                 contentDescription = description
-                role = Role.Button
+                // A button only where tapping or holding does something (not on the lock screen).
+                if (onFlip != null || onHold != null) role = Role.Button
                 if (onFlip != null) onClick { currentOnFlip?.invoke(!currentFlipped); true }
                 if (onHold != null) onLongClick(label = actionsDescription) { currentOnHold?.invoke(); true }
             }

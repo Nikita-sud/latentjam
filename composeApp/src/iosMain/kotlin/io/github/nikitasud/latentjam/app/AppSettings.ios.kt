@@ -267,6 +267,14 @@ internal class IosAppSettings : AppSettings {
         defaults.setObject(payload, KEY_DUPLICATE_DISMISSALS)
     }
 
+    // A string, like the payloads above: NSUserDefaults' integer accessors are platform-width.
+    override fun readMapRebuildRequestedAtMs(): Long =
+        (defaults.objectForKey(KEY_MAP_REBUILD_REQUESTED_AT) as? String)?.toLongOrNull() ?: 0L
+
+    override fun writeMapRebuildRequestedAtMs(epochMs: Long) {
+        defaults.setObject(epochMs.toString(), KEY_MAP_REBUILD_REQUESTED_AT)
+    }
+
     override suspend fun setSaveListeningHistory(enabled: Boolean): Result<Unit> =
         persistRecordingPreference(KEY_SAVE_HISTORY, enabled, mutableSaveListeningHistory)
 
@@ -432,6 +440,7 @@ internal class IosAppSettings : AppSettings {
         const val KEY_TRACK_GENRES = "track_genres_v1"
         const val KEY_AUDIO_CARRY_OVERS = "audio_carry_overs"
         const val KEY_DUPLICATE_DISMISSALS = "duplicate_dismissals_v1"
+        const val KEY_MAP_REBUILD_REQUESTED_AT = "map_rebuild_requested_at_ms"
         const val KEY_RESUME_SOURCE_REFERENCE = "resume_source_reference"
         const val KEY_RESUME_QUEUE_STATE = "resume_queue_state_v2"
         /** Read-only migration key used by builds before collision-safe queue state. */

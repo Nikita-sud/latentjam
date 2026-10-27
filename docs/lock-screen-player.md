@@ -61,8 +61,22 @@ description says plainly that the player appears when LatentJam was open as the 
   window over the keyguard, edge to edge with transparent bars and the short-edge cutout. It renders
   `NowPlayingScreen` through `LockScreenPlayer` with the app's theme, against the same
   `PlaybackController` as the app, so it always agrees with the notification. It closes on unlock
-  (`ACTION_USER_PRESENT`, which System UI sends, so its receivers are exported) and when playback
-  ends (no track).
+  (`ACTION_USER_PRESENT`, which System UI sends, so its receivers are exported) and when the
+  player empties (no track).
+- When it leaves (`lockPlayerShouldLeave`, commonMain, tested): while the screen is off it stays
+  only as long as playback is meant to run (`lockPlayerKeepsWhileAsleep`: a track and the pause
+  button showing, so a buffering blip does not close it). A pause, the sleep timer, the end of the
+  queue, a focus loss or unplugged headphones while the screen is off close it, and so does the
+  next screen-off after a pause, so the next wake shows the plain lock screen with the system
+  media card. A pause pressed on the lock player with the screen on keeps it until that screen-off.
+  A stop while the screen is off counts only once it has lasted 5 s (`lockPlayerLeavesAfterGrace`):
+  a SMART queue that ran dry passes through an ended state until its next rows are planned.
+- No keyguard, no player: when it starts or resumes with the screen on and
+  `KeyguardManager.isKeyguardLocked` false (lock "None", or a wake within the "lock after N s"
+  grace, where no unlock broadcast comes), it leaves rather than stay as an ordinary screen on an
+  unlocked phone. The keyguard counts as locked while this player hides it, so the normal path is
+  unaffected. With lock "None" its first frame may still flash. Such a wake also clears a
+  swipe-away, as an unlock would.
 - The lock surface (`PlayerSurface.LOCK_SCREEN`, every entry point listed in `PlayerEntry`) is
   Samsung's rule: the same content, minus anything that opens a dialog, sheet, picker or another
   screen. Kept: previous/play-pause/next, mode (tap cycles), repeat, favourite, the queue page

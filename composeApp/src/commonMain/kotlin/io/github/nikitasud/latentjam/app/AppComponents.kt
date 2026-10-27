@@ -1432,10 +1432,15 @@ internal fun MiniPlayerPill(
  * On the light theme it stays a white card with a hint of the track, like the other cards there.
  */
 @Composable
-internal fun miniPlayerSurfaceColor(accent: TrackAccent): Color {
+internal fun miniPlayerSurfaceColor(accent: TrackAccent): Color = miniPlayerSurfaceColor { accent }()
+
+/** The same colour, worked out from [accent] only when it is read, for a caller that draws with it. */
+@Composable
+internal fun miniPlayerSurfaceColor(accent: () -> TrackAccent): () -> Color {
     val scheme = MaterialTheme.colorScheme
     val share = if (scheme.surface.luminance() < 0.5f) 0.72f else 0.35f
-    return lerp(scheme.surfaceContainer, accent.container, share)
+    val floor = scheme.surfaceContainer
+    return remember(accent, floor, share) { { lerp(floor, accent().container, share) } }
 }
 
 /** Isolates the playhead ticker from the rest of the browse hierarchy. */
