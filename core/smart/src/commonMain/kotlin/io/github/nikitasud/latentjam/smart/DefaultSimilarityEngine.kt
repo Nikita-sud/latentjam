@@ -128,6 +128,13 @@ internal class DefaultSimilarityEngine(
      */
     private var audioRestoreFailed = false
     private var audioRestoreRetried = false
+
+    /** Set once the one retry could not read the stored audio index either; read without the lock (see the interface). */
+    @Volatile
+    private var audioIndexUnreadableNow = false
+
+    override val audioIndexUnreadable: Boolean
+        get() = audioIndexUnreadableNow
     private var textRestoreFailed = false
     private var snapshotCache: SnapshotCache? = null
     private var mixCoverageCache: MixCoverageCache? = null
@@ -238,6 +245,7 @@ internal class DefaultSimilarityEngine(
             if (audioRestoreFailed && !audioRestoreRetried) {
                 audioRestoreRetried = true
                 restorePersistedIndex()
+                audioIndexUnreadableNow = audioRestoreFailed
             }
             if (mutableState.value !is EngineState.Ready || audioRestoreFailed) return@withLock null
             // Resumability: tracks already in the index keep their embedding. A file that the
@@ -1190,6 +1198,7 @@ internal class DefaultSimilarityEngine(
                 // longer blocks analysis, and the rebuild starts now instead of at the next launch.
                 audioRestoreFailed = false
                 audioRestoreRetried = false
+                audioIndexUnreadableNow = false
                 textRestoreFailed = false
                 index.clear()
                 textIndex?.clear()
@@ -1246,6 +1255,7 @@ internal class DefaultSimilarityEngine(
                 // The next initialize() reads both stored files again and decides afresh.
                 audioRestoreFailed = false
                 audioRestoreRetried = false
+                audioIndexUnreadableNow = false
                 textRestoreFailed = false
                 mutableState.value = EngineState.Uninitialized
             }

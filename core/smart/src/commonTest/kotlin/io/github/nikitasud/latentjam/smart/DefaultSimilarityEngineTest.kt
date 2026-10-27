@@ -17,6 +17,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
@@ -157,6 +158,42 @@ internal class DefaultSimilarityEngineTest {
         assertEquals(3, report.indexed)
         assertTrue(store.saveCalls > saves)
         assertEquals(setOf(seed.id, near.id, far.id), store.snapshots.getValue("test-model").keys)
+    }
+
+    @Test
+    fun anAudioIndexUnreadableAfterItsRetryIsReportedUntilAnalysisIsRebuilt() = runTest {
+        val first = Harness()
+        first.registerTriangle()
+        first.engine.initialize()
+        first.engine.indexLibrary(listOf(seed, near, far))
+        val store = first.store
+        store.loadFailuresRemaining = 2
+        val backend = FakeEmbeddingBackend().apply { vectors.putAll(first.backend.vectors) }
+        val engine = engine(backend, store)
+        engine.initialize()
+        // The launch read failed, but its retry has not run yet.
+        assertFalse(engine.audioIndexUnreadable)
+
+        engine.indexLibrary(listOf(seed, near, far))
+        assertTrue(engine.audioIndexUnreadable)
+
+        engine.clearAnalysis()
+        assertFalse(engine.audioIndexUnreadable)
+    }
+
+    @Test
+    fun anAudioIndexReadOnItsRetryIsNotReportedUnreadable() = runTest {
+        val first = Harness()
+        first.registerTriangle()
+        first.engine.initialize()
+        first.engine.indexLibrary(listOf(seed, near))
+        first.store.loadFailuresRemaining = 1
+        val engine = engine(FakeEmbeddingBackend().apply { vectors.putAll(first.backend.vectors) }, first.store)
+        engine.initialize()
+
+        engine.indexLibrary(listOf(seed, near, far))
+
+        assertFalse(engine.audioIndexUnreadable)
     }
 
     @Test
