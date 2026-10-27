@@ -83,6 +83,18 @@ internal class PlaylistSortOrdersTest {
     }
 
     @Test
+    fun playsOrderTheShownAndPlayedPageByListens() {
+        val orders = PlaylistSortOrders().withPlaylist(playlist.id, SortChoice(PlaylistSort.PLAYS, SongSortDirection.DESCENDING))
+        val plays = mapOf(TrackId("a") to 3, TrackId("b") to 12)
+        val shown = playlistPage.inChosenOrder(orders, listOf(playlist), listOf(favorites), plays)
+        // b 12, a 3, c never: most first; the page's tracks are what play.
+        assertEquals(listOf("b", "a", "c"), ids(shown.tracks))
+        assertEquals(listOf("b", "a", "c"), ids(playlist.tracksInChosenOrder(shown.tracks, orders, plays)))
+        // The order survives a restart: it is written and read back like any other.
+        assertEquals(orders, playlistSortOrdersFromPersisted(encodePlaylistSortOrders(orders)))
+    }
+
+    @Test
     fun customOrderReturnsAfterAnotherSortAndRecentUsesAdditionOrder() {
         val byTitle = playlistPage.shownWith(
             PlaylistSortOrders().withPlaylist(playlist.id, SortChoice(PlaylistSort.TITLE, SongSortDirection.ASCENDING)),

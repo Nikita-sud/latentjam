@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.info_album
 import io.github.nikitasud.latentjam.app.generated.resources.info_artist
+import io.github.nikitasud.latentjam.app.generated.resources.map_lens_plays
 import io.github.nikitasud.latentjam.app.generated.resources.info_duration
 import io.github.nikitasud.latentjam.app.generated.resources.info_title
 import io.github.nikitasud.latentjam.app.generated.resources.info_year
@@ -336,6 +337,7 @@ internal fun PlaylistSort.label(): String = stringResource(
         PlaylistSort.ARTIST -> Res.string.info_artist
         PlaylistSort.ALBUM -> Res.string.info_album
         PlaylistSort.DURATION -> Res.string.info_duration
+        PlaylistSort.PLAYS -> Res.string.map_lens_plays
     },
 )
 

@@ -274,6 +274,25 @@ internal class PlaylistSortingTest {
     }
 
     @Test
+    fun playsRunMostFirstAndTiesKeepTheStoredOrder() {
+        val stored = listOf(track("rare"), track("never"), track("loved"), track("mid-a"), track("mid-b"))
+        val counts = mapOf("rare" to 1, "loved" to 40, "mid-a" to 7, "mid-b" to 7)
+        val plays = { id: TrackId -> counts[id.value] ?: 0 }
+        assertEquals(
+            listOf("loved", "mid-a", "mid-b", "rare", "never"),
+            ids(PlaylistSorting.sort(stored, PlaylistSort.PLAYS, plays = plays)),
+        )
+        // Least first: what the playlist hardly gets to, unplayed tracks leading.
+        assertEquals(
+            listOf("never", "rare", "mid-a", "mid-b", "loved"),
+            ids(PlaylistSorting.sort(stored, PlaylistSort.PLAYS, SongSortDirection.ASCENDING, plays = plays)),
+        )
+        // Without counts every track has 0: the stored order stands.
+        assertEquals(ids(stored), ids(PlaylistSorting.sort(stored, PlaylistSort.PLAYS)))
+        assertEquals(SongSortDirection.DESCENDING, PlaylistSort.PLAYS.defaultDirection)
+    }
+
+    @Test
     fun everyOrderIsAPermutationOfTheStoredTracks() {
         val stored = (0 until 40).map { n ->
             track(

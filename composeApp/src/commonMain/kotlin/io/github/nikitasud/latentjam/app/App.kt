@@ -582,7 +582,7 @@ private fun AppShell(
             // the order the listener chose for it.
             val shown = value?.inChosenOrder(
                 AppGraph.settings.playlistSortOrders.value,
-                playlistsState.playlists, playlistsState.autoPlaylists,
+                playlistsState.playlists, playlistsState.autoPlaylists, playlistsState.playCounts,
             )
             if (selectedCollection !== shown) {
                 selectedCollection = shown
@@ -1574,7 +1574,7 @@ private fun AppShell(
             val followed = openPage.followingFavorites(hearted) { page ->
                 page.inChosenOrder(
                     AppGraph.settings.playlistSortOrders.value,
-                    playlistsState.playlists, playlistsState.autoPlaylists,
+                    playlistsState.playlists, playlistsState.autoPlaylists, playlistsState.playCounts,
                 )
             } ?: return@LaunchedEffect
             val subtitle = trackCountLabel(hearted.size)

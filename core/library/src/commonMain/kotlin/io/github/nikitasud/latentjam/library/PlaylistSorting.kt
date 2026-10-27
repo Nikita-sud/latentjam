@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.library
 
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import io.github.nikitasud.latentjam.smart.TrackId
 
 /** How the tracks on one playlist's page, or on Favorites, are shown. Never written back to the playlist. */
 public enum class PlaylistSort {
@@ -19,12 +20,15 @@ public enum class PlaylistSort {
     /** Album, then disc and track number within it, so an album plays through in its own order. */
     ALBUM,
     DURATION,
+
+    /** How often each track was listened to (a start skipped within 30 seconds is not a listen); most first. */
+    PLAYS,
 }
 
 /** The direction a newly chosen field starts in: newest first, A–Z, shortest first. */
 public val PlaylistSort.defaultDirection: SongSortDirection
     get() = when (this) {
-        PlaylistSort.RECENT -> SongSortDirection.DESCENDING
+        PlaylistSort.RECENT, PlaylistSort.PLAYS -> SongSortDirection.DESCENDING
         PlaylistSort.CUSTOM, PlaylistSort.TITLE, PlaylistSort.ARTIST, PlaylistSort.ALBUM,
         PlaylistSort.DURATION -> SongSortDirection.ASCENDING
     }
@@ -53,6 +57,8 @@ public object PlaylistSorting {
         sort: PlaylistSort,
         direction: SongSortDirection = sort.defaultDirection,
         storedNewestFirst: Boolean = false,
+        /** Each track's listens, read by [PlaylistSort.PLAYS]; an unplayed track has 0. */
+        plays: (TrackId) -> Int = { 0 },
     ): List<TrackDescriptor> = when (sort) {
         PlaylistSort.CUSTOM -> stored
         PlaylistSort.RECENT ->
@@ -62,6 +68,15 @@ public object PlaylistSorting {
         PlaylistSort.ALBUM -> byAlbum(stored, direction)
         PlaylistSort.DURATION -> stored.sortedWith { left, right ->
             compareMissingLast(left.durationMs, right.durationMs, direction)
+        }
+        PlaylistSort.PLAYS -> {
+            // Read once per track: the comparator would otherwise look each one up on every comparison.
+            val counts = stored.associate { it.id to plays(it.id) }
+            stored.sortedWith { left, right ->
+                val l = counts.getValue(left.id)
+                val r = counts.getValue(right.id)
+                if (direction == SongSortDirection.ASCENDING) l.compareTo(r) else r.compareTo(l)
+            }
         }
     }
 

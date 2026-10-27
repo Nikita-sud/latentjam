@@ -178,11 +178,14 @@ internal fun CollectionSelection.inChosenOrder(
     orders: PlaylistSortOrders,
     playlists: List<Playlist>,
     autoPlaylists: List<AutoPlaylist>,
-): CollectionSelection = inChosenOrder(orders, storedTrackOrder(playlists, autoPlaylists, orders))
+    /** Each track's listens, for the Plays order. */
+    plays: Map<TrackId, Int> = emptyMap(),
+): CollectionSelection = inChosenOrder(orders, storedTrackOrder(playlists, autoPlaylists, orders), plays)
 
 internal fun CollectionSelection.inChosenOrder(
     orders: PlaylistSortOrders,
     storedOrder: List<TrackId>?,
+    plays: Map<TrackId, Int> = emptyMap(),
 ): CollectionSelection {
     val choice = trackSortChoice(orders) ?: return this
     // A playlist or Favorites page is one flat list; sections would need re-sorting each of them.
@@ -193,6 +196,7 @@ internal fun CollectionSelection.inChosenOrder(
         sort = choice.sort,
         direction = choice.direction,
         storedNewestFirst = playlistId == null,
+        plays = { plays[it] ?: 0 },
     )
     val unchanged = sorted.size == tracks.size && sorted.indices.all { sorted[it] === tracks[it] }
     // Only an A–Z title order gets the letter rail, the rule every other track list follows.
@@ -255,10 +259,11 @@ internal fun AppSettings.forgetDeletedPlaylistOrders(complete: List<Playlist>?) 
 internal fun Playlist.tracksInChosenOrder(
     resolved: List<TrackDescriptor>,
     orders: PlaylistSortOrders,
+    plays: Map<TrackId, Int> = emptyMap(),
 ): List<TrackDescriptor> {
     val choice = orders.forPlaylist(id)
     val stored = inStoredOrder(resolved, baseTrackOrder(choice.sort).map(::TrackId))
-    return PlaylistSorting.sort(stored, choice.sort, choice.direction, storedNewestFirst = false)
+    return PlaylistSorting.sort(stored, choice.sort, choice.direction, storedNewestFirst = false) { plays[it] ?: 0 }
 }
 
 private fun Playlist.baseTrackOrder(sort: PlaylistSort): List<String> =
