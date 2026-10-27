@@ -218,7 +218,7 @@ internal class DefaultSimilarityEngineTest {
     }
 
     @Test
-    fun rebuildAfterAnUnreadableMetadataIndexSavesMetadataVectorsAgain() = runTest {
+    fun anUnreadableMetadataIndexIsEncodedAgainThisSession() = runTest {
         val rock = seed.copy(genre = "Rock")
         val textStore = FakeIndexStore().apply {
             snapshots[TEXT_INDEX_VERSION] = mapOf(rock.id to FloatArray(TextEncoder.TEXT_DIM).also { it[0] = 1f })
@@ -233,12 +233,11 @@ internal class DefaultSimilarityEngineTest {
         )
         engine.initialize()
         engine.indexLibrary(listOf(rock))
-        assertEquals(0, textStore.saveCalls, "a metadata index that could not be read is never saved over")
 
-        engine.clearAnalysis()
-        engine.indexLibrary(listOf(rock))
-
+        // A quick, deterministic re-encode: the session has its metadata vectors and saves them again.
+        assertTrue(textStore.saveCalls > 0, "the re-encoded metadata vectors were saved")
         assertEquals(setOf(rock.id), textStore.snapshots[TEXT_INDEX_VERSION]?.keys)
+        assertFalse(engine.audioIndexUnreadable)
     }
 
     // ---------------------------------------------------------------- initialize

@@ -135,7 +135,6 @@ internal class DefaultSimilarityEngine(
 
     override val audioIndexUnreadable: Boolean
         get() = audioIndexUnreadableNow
-    private var textRestoreFailed = false
     private var snapshotCache: SnapshotCache? = null
     private var mixCoverageCache: MixCoverageCache? = null
     private var predictorLoaded = false
@@ -175,8 +174,9 @@ internal class DefaultSimilarityEngine(
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (failure: Throwable) {
-                    textRestoreFailed = true
-                    println("SMART: the stored metadata index could not be read now (${restoreCause(failure)}); kept on disk")
+                    // Unlike the audio index, the metadata vectors are a quick, deterministic re-encode: this
+                    // session encodes them again (as a fresh install does) rather than going without them.
+                    println("SMART: the stored metadata index could not be read now (${restoreCause(failure)}); encoding again")
                     null
                 }
                 persistedText
@@ -1185,7 +1185,7 @@ internal class DefaultSimilarityEngine(
                     }.onFailure { collectClearFailure(failures, it) }
                     if (textStore != null) {
                         textIndexDirty = true
-                        if (!textRestoreFailed) runCatching {
+                        runCatching {
                             textStore.saveSnapshot(TEXT_INDEX_VERSION, metadataSnapshot)
                         }.onSuccess {
                             textIndexDirty = false
@@ -1200,7 +1200,6 @@ internal class DefaultSimilarityEngine(
                 audioRestoreFailed = false
                 audioRestoreRetried = false
                 audioIndexUnreadableNow = false
-                textRestoreFailed = false
                 index.clear()
                 textIndex?.clear()
                 knownTracks.clear()
@@ -1257,7 +1256,6 @@ internal class DefaultSimilarityEngine(
                 audioRestoreFailed = false
                 audioRestoreRetried = false
                 audioIndexUnreadableNow = false
-                textRestoreFailed = false
                 mutableState.value = EngineState.Uninitialized
             }
         }
@@ -1315,7 +1313,6 @@ internal class DefaultSimilarityEngine(
     private fun indexTextVector(track: TrackDescriptor): Boolean {
         val encoder = textEncoder ?: return false
         val target = textIndex ?: return false
-        if (textRestoreFailed) return false
         if (track.id in target) return false
         val metadata = track.textString()
         if (metadata.isBlank()) return false
@@ -1458,7 +1455,7 @@ internal class DefaultSimilarityEngine(
     }
 
     private suspend fun persistTextIndex() {
-        if (!textIndexDirty || textRestoreFailed) return
+        if (!textIndexDirty) return
         val targetStore = textStore
         if (targetStore == null) {
             // This engine was intentionally configured without metadata persistence.
