@@ -48,7 +48,9 @@ internal fun analysisTimedOut(budget: Duration): EngineError.InvalidAudio =
  * [EngineError.AudioUnavailable]: its clock kept running while the track itself did not, so it is analysed again
  * by the next pass instead of being remembered as timed out. The app counts as suspended during the track when it
  * changed between foreground and background since the track started ([transitionsBefore] to [transitionsAfter]),
- * or when it is still in the background as the timeout fires ([inBackgroundAfter]). Any other result is unchanged.
+ * or when it is still in the background as the timeout fires ([inBackgroundAfter]). An app playing music in the
+ * background is not suspended, so that is only a likely sign: a track already let off once ([forgivenBefore]) is
+ * remembered as timed out, so a track that really hangs costs at most one more wait. Any other result is unchanged.
  */
 internal fun timeoutUnlessSuspended(
     result: Result<FloatArray>,
@@ -56,10 +58,11 @@ internal fun timeoutUnlessSuspended(
     transitionsBefore: Int,
     transitionsAfter: Int,
     inBackgroundAfter: Boolean,
+    forgivenBefore: Boolean = false,
 ): Result<FloatArray> {
     val timedOut = (result.exceptionOrNull() as? SmartEngineException)?.error == analysisTimedOut(budget)
     val suspended = transitionsAfter != transitionsBefore || inBackgroundAfter
-    if (!timedOut || !suspended) return result
+    if (!timedOut || !suspended || forgivenBefore) return result
     return Result.failure(SmartEngineException(EngineError.AudioUnavailable("Analysis interrupted by the app being suspended")))
 }
 

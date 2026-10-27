@@ -41,6 +41,15 @@ internal class SuspendedTimeoutTest {
     }
 
     @Test
+    fun aTrackLetOffOnceIsRememberedTheNextTime() {
+        // Music playing in the background keeps the app running: a track that really hangs there is not let off twice.
+        val result = timeoutUnlessSuspended(
+            timedOut, budget, transitionsBefore = 1, transitionsAfter = 1, inBackgroundAfter = true, forgivenBefore = true,
+        )
+        assertSame(timedOut.exceptionOrNull(), result.exceptionOrNull())
+    }
+
+    @Test
     fun otherResultsAreUnchangedAcrossASuspension() {
         val invalid: Result<FloatArray> = Result.failure(SmartEngineException(EngineError.InvalidAudio("Audio is not decodable")))
         val success = Result.success(floatArrayOf(1f))
