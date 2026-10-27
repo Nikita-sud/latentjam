@@ -101,6 +101,8 @@ public class RankerModel(
     public val playlistBonus: PlaylistBonus? = null,
     /** PLAN_DECODER2 NOREPEAT (FULL): λ_start on runs when the seed artist's pre-session share is below ρ. */
     public val noRepeat: NoRepeat? = null,
+    /** "Keep together" (marked playlists, CORE and FULL): the bonus weights and RK's retrieval quota; the defaults without the key. */
+    public val keepTogether: KeepTogether = KeepTogether.DEFAULT,
     /** Fast 3: −λ for a candidate in [ClassMismatch.families] when the seed is not. */
     public val classMismatch: ClassMismatch? = null,
     /** Fast 4: seed-anchored continuity on cached audio heads, in head-name order. */
@@ -179,10 +181,19 @@ public class RankerModel(
     public class PersonalNudge(
         public val delta: Double, public val track: Double, public val artist: Double, public val playlist: Double,
         public val favourite: Double, public val frequency: Double, public val followMin: Int,
+        /**
+         * PLAN_093: the track / artist transition parts × c / (c + κ), c the credit-weighted A → B count (LW2's "shrink"
+         * form, mirrored for positives: one transition is mostly noise, a habit is not); 0 = off.
+         */
+        public val transitionKappa: Double = 0.0,
     )
 
     /** [sdUnits] (scale "maxsd"): λ · max(1, the hop's score spread), so it scales up on libraries whose scores spread wide. */
-    public class QueueArtistCap(public val cap: Int, public val window: Int, public val lambda: Double, public val sdUnits: Boolean = false)
+    public class QueueArtistCap(
+        public val cap: Int, public val window: Int, public val lambda: Double, public val sdUnits: Boolean = false,
+        /** PLAN_093 (artist cap only): the seed's own artist may take this many more when it dominates the seed's sound neighbours. */
+        public val ownExtra: Int = 0,
+    )
 
     /**
      * A lexicon class over lower-cased tags: [genre] substrings of the genre, exact ';'-separated genre [tokens], [text]
@@ -236,6 +247,21 @@ public class RankerModel(
         public val prevLambda: Double = 0.0, public val prevTau: Double = 0.0,
     )
 
+    /**
+     * "Keep together": a pool row sharing a marked playlist with the seed gains [seed], one sharing it with the hop's
+     * anchor (the previous pick; the seed at hop 1) gains [prev] — added beside semChain, outside the model's mix. RK
+     * retrieves the marked playlists of the seed (and of a top-up's last track) into the pool: at most [quota] rows,
+     * [artistCap] per artist. Bounded: the bonus fades as marked tracks fill the last 10 picks and is gone once [share] of
+     * them are marked. No marked playlist, no effect.
+     */
+    public class KeepTogether(
+        public val seed: Double, public val prev: Double, public val quota: Int, public val artistCap: Int, public val share: Double = 0.5,
+    ) {
+        public companion object {
+            public val DEFAULT: KeepTogether = KeepTogether(seed = 1.0, prev = 1.5, quota = 40, artistCap = 8, share = 0.5)
+        }
+    }
+
     public class AnchorShare(public val share: Double, public val columns: List<String>) {
         internal val columnIndexes: IntArray = IntArray(columns.size) { RankerFeatures.NAMES.indexOf(columns[it]).also { i -> require(i >= 0) } }
     }
@@ -269,7 +295,16 @@ public class RankerModel(
     )
 
     /** The novelty set beyond its [hardLast] newest stays in the pool, losing λ · sd · (1 − age / 24 h). */
-    public class SoftNovelty(public val lambda: Double, public val hardLast: Int)
+    /**
+     * Fast track 2 soft novelty: [hardLast] newest of the novelty set stay excluded, the rest return to the pool at
+     * −λ · sd · (1 − age / 24 h). PLAN_NOVELTY [fullFollowers]: the seed's full followers (a full listen right after it,
+     * any origin, once is enough — `PlanRequest.fullFollowers`) leave both the exclusion and the penalty. [fastLambda]
+     * adds a fast component for just-heard tracks: the factor becomes (1 − age / 24 h) + (fastLambda / λ) · e^(−age / [fastTauMs]).
+     */
+    public class SoftNovelty(
+        public val lambda: Double, public val hardLast: Int, public val fullFollowers: Boolean = false,
+        public val fastLambda: Double = 0.0, public val fastTauMs: Long = 10_800_000L,
+    )
 
     /**
      * g_i = σ(a · clip((CORE logit_i − mu) / sigma, ±clip)) from the seed-anchor rows before gating (the [core] model's
@@ -439,22 +474,23 @@ public class RankerModel(
                 "artistReentry", "energy", "r1Energy", "audioAnchor", "imputedDescriptor", "seedGate", "freshness", "coreOffset",
                 "audioZ", "softNovelty", "anchorShare", "colistenPrevShare", "familyMismatch", "classMismatch", "continuity", "holidaySeason",
                 "durationRule", "titleFlags", "unknownSeedAnchor", "artistSets",
-                "taxonomy", "versionKey", "playlistBonus", "noRepeat", "langScript", "semChain",
+                "taxonomy", "versionKey", "playlistBonus", "keepTogether", "noRepeat", "langScript", "semChain",
                 "hubPenalty", "hubGenreDamp", "scorerSquash", "tagClasses", "prevFamilyJump", "familyDrift", "songDedup", "queueAlbumCap", "queueArtistBudget", "queueArtistCap", "transBonus", "followerExempt", "personalNudge", "transGraph", "skipPairs", "listenWeight",
             ),
             "tagClasses" to setOf("classes"),
             "songDedup" to setOf("minChars", "prefixChars"),
             "queueAlbumCap" to setOf("cap", "window", "lambda", "scale"),
             "queueArtistBudget" to setOf("cap", "window", "lambda", "scale"),
-            "queueArtistCap" to setOf("cap", "window", "lambda", "scale"),
+            "queueArtistCap" to setOf("cap", "window", "lambda", "scale", "ownExtra"),
             "transBonus" to setOf("track", "artist"),
             "followerExempt" to setOf("followMin"),
-            "personalNudge" to setOf("delta", "track", "artist", "playlist", "favourite", "frequency", "followMin"),
+            "personalNudge" to setOf("delta", "track", "artist", "playlist", "favourite", "frequency", "followMin", "transitionKappa"),
             "transGraph" to setOf("variant", "window", "gapMin", "halfLifeDays", "mu", "kappa", "neg", "importWeight"),
             "listenWeight" to setOf("zeroS", "negWeight", "midS", "tauS", "pairMode", "kappa", "picksOnly", "autoWeight"),
             "prevFamilyJump" to setOf("lambda"),
             "familyDrift" to setOf("lambda"),
             "playlistBonus" to setOf("lambda", "quota", "artistCap"),
+            "keepTogether" to setOf("seed", "prev", "quota", "artistCap", "share"),
             "noRepeat" to setOf("lambdaStart", "rho", "minPlays"),
             "anchorShare" to setOf("share", "columns"),
             "familyMismatch" to setOf("lambda", "near", "nearScale", "coldLambda"),
@@ -466,7 +502,7 @@ public class RankerModel(
             "durationRule" to setOf("longMs", "longLambda", "seedLongMs", "shortMs", "shortLambda", "veryShortMs", "veryShortLambda", "veryLongMs", "veryLongLambda"),
             "titleFlags" to setOf("lambda"),
             "classMismatch" to setOf("lambda", "families"),
-            "softNovelty" to setOf("lambda", "hardLast"),
+            "softNovelty" to setOf("lambda", "hardLast", "fullFollowers", "fastLambda", "fastTauH"),
             "serving" to setOf("wholeLibraryUpTo", "quotas", "artistKey", "recentWindow", "hopBudgetMs", "l2", "poolTarget", "artistCap", "unknownSeedAudioFill", "coldAudioFill"),
             "inputs" to setOf("logpop", "colisten", "lfm", "audioEncoder"),
             "artistReentry" to setOf("lambda", "k", "gamma", "credit", "creditRun"),
@@ -599,6 +635,14 @@ public class RankerModel(
                 playlistBonus = (root["playlistBonus"] as? Map<*, *>)?.let {
                     PlaylistBonus((it["lambda"] as Number).toDouble(), (it["quota"] as? Number)?.toInt() ?: 50, (it["artistCap"] as? Number)?.toInt() ?: 15)
                 },
+                keepTogether = (root["keepTogether"] as? Map<*, *>)?.let {
+                    val d = KeepTogether.DEFAULT
+                    KeepTogether(
+                        (it["seed"] as? Number)?.toDouble() ?: d.seed, (it["prev"] as? Number)?.toDouble() ?: d.prev,
+                        (it["quota"] as? Number)?.toInt() ?: d.quota, (it["artistCap"] as? Number)?.toInt() ?: d.artistCap,
+                        (it["share"] as? Number)?.toDouble() ?: d.share,
+                    )
+                } ?: KeepTogether.DEFAULT,
                 noRepeat = (root["noRepeat"] as? Map<*, *>)?.let {
                     NoRepeat((it["lambdaStart"] as Number).toDouble(), (it["rho"] as Number).toDouble(), (it["minPlays"] as? Number)?.toInt() ?: 10)
                 },
@@ -622,13 +666,14 @@ public class RankerModel(
                     QueueArtistCap((it["cap"] as? Number)?.toInt() ?: 3, (it["window"] as? Number)?.toInt() ?: 10, (it["lambda"] as Number).toDouble(), it["scale"] == "sd" || it["scale"] == "maxsd")
                 },
                 queueArtistCap = (root["queueArtistCap"] as? Map<*, *>)?.let {
-                    QueueArtistCap((it["cap"] as? Number)?.toInt() ?: 3, (it["window"] as? Number)?.toInt() ?: 10, (it["lambda"] as Number).toDouble(), it["scale"] == "sd" || it["scale"] == "maxsd")
+                    QueueArtistCap((it["cap"] as? Number)?.toInt() ?: 3, (it["window"] as? Number)?.toInt() ?: 10, (it["lambda"] as Number).toDouble(), it["scale"] == "sd" || it["scale"] == "maxsd",
+                        (it["ownExtra"] as? Number)?.toInt() ?: 0)
                 },
                 followerExemptMin = (root["followerExempt"] as? Map<*, *>)?.let { (it["followMin"] as? Number)?.toInt() ?: 2 },
                 personalNudge = (root["personalNudge"] as? Map<*, *>)?.let {
                     fun d(k: String, v: Double) = (it[k] as? Number)?.toDouble() ?: v
                     PersonalNudge(d("delta", 0.5), d("track", 1.0), d("artist", 0.5), d("playlist", 0.4), d("favourite", 0.3), d("frequency", 0.15),
-                        (it["followMin"] as? Number)?.toInt() ?: 2)
+                        (it["followMin"] as? Number)?.toInt() ?: 2, (it["transitionKappa"] as? Number)?.toDouble() ?: 0.0)
                 },
                 skipPairs = root["skipPairs"].let { require(it == null || it is Boolean || it == "unskipped") { "skipPairs" }; it != false },
                 skipPairsUnskippedOnly = root["skipPairs"] == "unskipped",
@@ -662,7 +707,10 @@ public class RankerModel(
                     }
                     .sortedBy { it.name },
                 softNovelty = (root["softNovelty"] as? Map<*, *>)?.let { n ->
-                    SoftNovelty(lambda = (n["lambda"] as Number).toDouble(), hardLast = (n["hardLast"] as? Number)?.toInt() ?: 10)
+                    SoftNovelty(lambda = (n["lambda"] as Number).toDouble(), hardLast = (n["hardLast"] as? Number)?.toInt() ?: 10,
+                        fullFollowers = n["fullFollowers"] as? Boolean ?: false,
+                        fastLambda = (n["fastLambda"] as? Number)?.toDouble() ?: 0.0,
+                        fastTauMs = ((n["fastTauH"] as? Number)?.toDouble()?.times(3_600_000.0))?.toLong() ?: 10_800_000L)
                 },
                 seedGate = (root["seedGate"] as? Map<*, *>)?.let { g ->
                     val coreMap = (g["core"] as Map<*, *>).toMutableMap().also { it["audioWeight"] = 0.0 }

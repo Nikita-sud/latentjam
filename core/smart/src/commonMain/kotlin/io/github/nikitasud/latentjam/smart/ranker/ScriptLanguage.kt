@@ -54,6 +54,20 @@ internal object ScriptLanguage {
         return null
     }
 
+    /**
+     * A pack entity whose language is written in Latin script cannot be the artist of a track whose title is in another
+     * script (a Russian "Sabi & MIA BOYKA" title resolved by its first credit to an English "Sabi"; a Russian "Shura"
+     * to an English Shura): the entity's language, descriptor and tables would all be someone else's. A Latin title with a
+     * gloss in another script ("Hanami (花見)") is still a Latin title: only a title whose letters are mostly another
+     * script counts.
+     */
+    fun foreignEntity(language: String?, title: String?): Boolean {
+        if (language == null || title == null) return false
+        if (group(language) != "lat") return false
+        val other = title.count { c -> SCRIPTS.any { it.second(c) } }
+        return other > 0 && other > title.count(::latinLetter)
+    }
+
     /** The pack language, else "script:<group>" from the title and artist, else null. */
     fun effective(language: String?, title: String?, artist: String?, latin: Boolean = false): String? =
         language ?: scriptOf(title, artist, latin)?.let { "script:$it" }
