@@ -37,6 +37,7 @@ import io.github.nikitasud.latentjam.smart.cluster.loadStoredLayout
 import io.github.nikitasud.latentjam.smart.cluster.saveLayout
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -444,6 +445,32 @@ internal class PlaylistsState {
     var companionGroupsInitialized by mutableStateOf(false)
     var playCounts by mutableStateOf<Map<TrackId, Int>>(emptyMap())
     var lastPlayedAt by mutableStateOf<Map<TrackId, Long>>(emptyMap())
+
+    /** Whether [playCounts] came from the history (it starts empty, before the first read). */
+    var playCountsLoaded by mutableStateOf(false)
+        private set
+    private var favoritesFollowedWithCounts = false
+
+    fun publishStats(plays: Map<TrackId, Int>, lastListenedAt: Map<TrackId, Long>) {
+        playCounts = plays
+        lastPlayedAt = lastListenedAt
+        playCountsLoaded = true
+    }
+
+    /**
+     * Whether an open Favorites page sorted by plays keeps its order on this refresh of the auto lists:
+     * only when the previous refresh already had loaded counts, so the page was sorted with them. A page
+     * opened before the first read was sorted with every count at 0, so it re-sorts once when they arrive.
+     */
+    suspend fun favoritesPlaysOrderSettled(): Boolean {
+        val settled = favoritesFollowedWithCounts
+        val loaded = playCountsLoaded
+        // Counted only for a refresh that ran to its end: one cancelled by the next sorted nothing.
+        currentCoroutineContext()[Job]?.invokeOnCompletion { cause ->
+            if (cause == null) favoritesFollowedWithCounts = loaded
+        }
+        return settled
+    }
 
     // Rediscover is time-derived even when the library and history are unchanged. Refresh the
     // clock when the listener revisits Playlists or returns to the foreground so a track that
