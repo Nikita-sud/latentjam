@@ -78,21 +78,13 @@ internal class OnnxEmbeddingBackend(
         }
     }
 
-    private val lookAhead = ExecutorDecodeWorkers(decodeWorkers) { task -> decodeThread(task, "smart-decode") }
-
     /**
-     * Every decode runs here under the per-track deadline (issue #27). With more than one worker,
-     * re-decodes get a thread of their own, so the track being finished never waits behind a look-ahead
-     * decode that is stuck. A low-RAM device keeps its single thread for both: one decode at a time is
-     * why it has one worker.
+     * Every decode runs here under the per-track deadline (issue #27). Re-decodes get a thread of their
+     * own, so the track being finished never waits behind a look-ahead decode that is stuck.
      */
     private val decoding = DeadlineDecoding(
-        workers = lookAhead,
-        redecodeWorkers = if (decodeWorkers > 1) {
-            ExecutorDecodeWorkers(1) { task -> decodeThread(task, "smart-redecode") }
-        } else {
-            lookAhead
-        },
+        workers = ExecutorDecodeWorkers(decodeWorkers) { task -> decodeThread(task, "smart-decode") },
+        redecodeWorkers = ExecutorDecodeWorkers(1) { task -> decodeThread(task, "smart-redecode") },
     )
 
     private fun decodeThread(task: Runnable, name: String): Thread = Thread({
