@@ -243,8 +243,9 @@ internal class DefaultSimilarityEngine(
             // A stored index this session could not read is read again first (once); while it still cannot be, nothing
             // is embedded (re-analysing the library over a file that is fine would only be overwritten work).
             if (audioRestoreFailed && !audioRestoreRetried) {
-                audioRestoreRetried = true
                 restorePersistedIndex()
+                // Counted only once the read returned: one cancelled mid-read (a new indexing request) is tried again.
+                audioRestoreRetried = true
                 audioIndexUnreadableNow = audioRestoreFailed
             }
             if (mutableState.value !is EngineState.Ready || audioRestoreFailed) return@withLock null

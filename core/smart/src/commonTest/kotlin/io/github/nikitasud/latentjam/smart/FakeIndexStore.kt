@@ -26,7 +26,14 @@ internal class FakeIndexStore : IndexStore {
     /** Loads that fail as a read that could not happen now (out of memory), not as "no snapshot". */
     var loadFailuresRemaining: Int = 0
 
+    /** The next load is cancelled (a new indexing request cancelled the pass mid-read). */
+    var cancelNextLoad: Boolean = false
+
     private fun failNextLoadIfConfigured() {
+        if (cancelNextLoad) {
+            cancelNextLoad = false
+            throw kotlinx.coroutines.CancellationException("simulated cancel")
+        }
         if (loadFailuresRemaining > 0) {
             loadFailuresRemaining--
             throw IndexRestoreFailure(OutOfMemoryError("simulated restore"))

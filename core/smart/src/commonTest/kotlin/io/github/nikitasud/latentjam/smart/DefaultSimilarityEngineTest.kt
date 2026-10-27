@@ -182,6 +182,27 @@ internal class DefaultSimilarityEngineTest {
     }
 
     @Test
+    fun aRetryReadCancelledMidReadIsTriedAgainByTheNextPass() = runTest {
+        val first = Harness()
+        first.registerTriangle()
+        first.engine.initialize()
+        first.engine.indexLibrary(listOf(seed, near))
+        val store = first.store
+        store.loadFailuresRemaining = 1
+        val engine = engine(FakeEmbeddingBackend().apply { vectors.putAll(first.backend.vectors) }, store)
+        engine.initialize()
+        store.cancelNextLoad = true
+        assertFailsWith<CancellationException> { engine.indexLibrary(listOf(seed, near, far)) }
+
+        val report = engine.indexLibrary(listOf(seed, near, far))
+
+        // The retry still ran: seed and near restored, far analysed, the file saved with all three.
+        assertEquals(1, report.indexed)
+        assertFalse(engine.audioIndexUnreadable)
+        assertEquals(3, store.snapshots.getValue("test-model").size)
+    }
+
+    @Test
     fun anAudioIndexReadOnItsRetryIsNotReportedUnreadable() = runTest {
         val first = Harness()
         first.registerTriangle()
