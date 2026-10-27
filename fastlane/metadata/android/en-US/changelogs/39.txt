@@ -1,0 +1,10 @@
+Crossfade: the end of a track really overlaps the start of the next.
+Optional full player on the lock screen.
+Import your ListenBrainz history.
+Sort playlists and Favorites by plays.
+Analysis no longer stalls on a file that never decodes.
+Better SMART queues; artist variety applies to every queue.
+The Map keeps its regions between rescans.
+Recently played lists only real listens.
+Smoother track changes, with fades on pause and skip.
+Many fixes.
