@@ -175,12 +175,18 @@ internal suspend fun runBulkFavoriteEdit(
  *
  * The page shows the hearts in its chosen order ([inOrder]), so that is what is compared: a page
  * sorted by title must not be rebuilt each time a play count or the clock changes the auto lists.
+ * A page sorted by plays ([byPlays]) keeps its order while the hearts stay the same, as a playlist's
+ * page does: re-sorting on every listen would move the song just heard and part the page from its queue.
  */
 internal fun CollectionSelection.followingFavorites(
     hearted: List<TrackDescriptor>,
+    byPlays: Boolean = false,
     inOrder: (CollectionSelection) -> CollectionSelection = { it },
 ): CollectionSelection? {
     if (routeId != FAVORITES_ROUTE_ID) return null
+    if (byPlays && hearted.size == tracks.size && hearted.mapTo(HashSet()) { it.id } == tracks.mapTo(HashSet()) { it.id }) {
+        return null
+    }
     val followed = inOrder(
         copy(
             tracks = hearted,

@@ -12,6 +12,7 @@ import java.nio.ByteOrder
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -211,6 +212,57 @@ internal class CrossfadeAudioProcessorTest {
         assertTrue(settings.mixing != null, "the seam mixed")
         val expectedEnd = 1000 * overlapOutGain(0.999f) + 2000 * overlapInGain(0.999f)
         assertTrue(abs(outgoing.last() - expectedEnd) <= 30f, "end of the overlap was ${outgoing.last()}")
+    }
+
+    @Test
+    fun aSeekIntoTheLastMomentsStillFadesOutWhenTheOpeningNeverComes() {
+        settings.fadeMs = 2_000
+        val a = stream("a", 10_000)
+        // 300 ms left, less than the wait: waiting would end the track at full level.
+        settings.preparingFor = "a"
+        reposition(a, atMs = 9_700)
+        val outgoing = feed(loud, 9_700, 10_000)
+        assertTrue(outgoing.first() < 1000, "faded from the seek, first frame ${outgoing.first()}")
+        assertTrue(outgoing.last() < 50, "end was ${outgoing.last()}")
+    }
+
+    @Test
+    fun aShortTrackWhoseOpeningNeverArrivesStillFadesOutByItsEnd() {
+        settings.fadeMs = 12_000
+        val a = stream("a", 6_000)
+        settings.preparingFor = "a"
+        reposition(a, atMs = 0)
+        val outgoing = feed(loud, 0, 6_000)
+        assertEquals(1000, outgoing[5_500])
+        assertTrue(outgoing.last() < 50, "end was ${outgoing.last()}")
+    }
+
+    @Test
+    fun aSeekWaitIsBoundedByTheSeamsOverlapNotTheSlider() {
+        settings.fadeMs = 6_000
+        val a = stream("a", 20_000)
+        // A 2 s overlap (a short next track) under a 6 s slider; the opening comes 1.2 s after the seek.
+        settings.preparingFor = "a"
+        reposition(a, atMs = 18_400)
+        feed(loud, 18_400, 19_600)
+        settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000, samples = { 3000 })
+        settings.preparingFor = null
+        val outgoing = feed(loud, 19_600, 20_000)
+        assertNull(settings.mixing, "1.2 s is past half the overlap: no late cut-in")
+        assertTrue(outgoing.all { it <= 1000 }, "${outgoing.take(5)}")
+    }
+
+    @Test
+    fun aSeekWaitWithinHalfTheOverlapStillMixes() {
+        settings.fadeMs = 6_000
+        val a = stream("a", 20_000)
+        settings.preparingFor = "a"
+        reposition(a, atMs = 18_400)
+        feed(loud, 18_400, 19_300)
+        settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000, samples = { 3000 })
+        settings.preparingFor = null
+        feed(loud, 19_300, 20_000)
+        assertTrue(settings.mixing != null, "0.9 s after the seek, within half the 2 s overlap")
     }
 
     @Test

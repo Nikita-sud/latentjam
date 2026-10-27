@@ -82,8 +82,24 @@ internal class IosEmbeddingBackend(
         }
     }
 
-    override suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray> =
-        decoding.withinBudget { embedNative(descriptor) }
+    override suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray> {
+        // iOS suspends the app soon after it leaves the screen, while the deadline's clock keeps running: a
+        // track timed out across that is analysed again, not remembered as timed out.
+        val transitionsBefore = IosAppTransitions.count
+        val result = decoding.withinBudget { embedNative(descriptor) }
+        val file = descriptor.id.value to descriptor.audioUri
+        return timeoutUnlessSuspended(
+            result = result,
+            budget = TRACK_ANALYSIS_BUDGET,
+            transitionsBefore = transitionsBefore,
+            transitionsAfter = IosAppTransitions.count,
+            inBackgroundAfter = IosAppTransitions.inBackground,
+            forgivenBefore = file in forgivenTimeouts,
+        ).also { if (it.exceptionOrNull() !== result.exceptionOrNull()) forgivenTimeouts += file }
+    }
+
+    /** Tracks (and files) whose timeout was let off as a suspension this run; embeds run one at a time. */
+    private val forgivenTimeouts = HashSet<Pair<String, String?>>()
 
     private suspend fun embedNative(descriptor: TrackDescriptor): Result<FloatArray> {
         val provider = lease?.currentProvider()
@@ -161,6 +177,8 @@ internal class IosEmbeddingBackend(
 }
 
 public actual fun smartEngineBackendModule(): Module = module {
+    // Observed from app start, on the main thread, so a move to the background before the first analysis counts.
+    IosAppTransitions.count
     single<BatchDotProducts> { IosBatchDotProducts }
     single<EmbeddingBackend> { IosEmbeddingBackend(config = get()) }
     single<IndexStore> { VersionedIndexStore("smart_index") { name -> IosFileIndexStore(fileName = name) } }

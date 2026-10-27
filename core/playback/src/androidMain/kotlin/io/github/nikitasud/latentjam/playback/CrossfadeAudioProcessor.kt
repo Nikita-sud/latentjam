@@ -570,7 +570,11 @@ internal class CrossfadeAudioProcessor(
                 if (settings.preparingFor == stream?.mediaId) {
                     // A seek deep into the window waits for the opening as long as one before it would.
                     if (index == 0L && waitFromUs < 0L) waitFromUs = mediaUs
-                    if (mediaUs - windowUs <= waitUs || (waitFromUs >= 0L && mediaUs - waitFromUs <= waitUs)) return
+                    val seekWait = waitFromUs >= 0L && mediaUs - waitFromUs <= waitUs
+                    // …but never past the point where the fade could still reach silence by the end
+                    // (a short track, whose window is half its length, would otherwise end at full level).
+                    val fadeFits = durationUs - mediaUs > ENVELOPE_SLEW_MS * 1000L
+                    if (fadeFits && (mediaUs - windowUs <= waitUs || seekWait)) return
                 }
                 end = End.FADE
                 settings.seamLog("seam ${stream?.mediaId}: fade at ${mediaUs / 1000} ms (${if (plan == null) "no opening" else "opening unusable"})")
@@ -593,7 +597,9 @@ internal class CrossfadeAudioProcessor(
             // the overlap (before the opening came, a trailing silence had not moved the window there yet).
             val waitFrom = if (waitFromUs >= 0L) waitFromUs else startUs.takeIf { it > mixStartUs } ?: -1L
             val waitedUs = if (waitFrom >= 0L) mediaUs - waitFrom else -1L
-            val afterSeek = index == 0L || waitedUs in 0L..minOf(MAX_LATE_MIX_US, settings.fadeMs * 1000L / 2L)
+            // Bounded as a late opening without a seek is, by this seam's overlap: a short one (adaptive, a short
+            // next track) must not let the next track cut in well into its opening.
+            val afterSeek = index == 0L || waitedUs in 0L..minOf(MAX_LATE_MIX_US, plan.overlapUs / 2L)
             val onTime = (!missedStart && lateUs <= maxLateUs) || afterSeek
             if (!onTime) {
                 end = End.FADE

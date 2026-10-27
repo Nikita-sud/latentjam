@@ -22,6 +22,7 @@ import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.library.ArtistGroup
 import io.github.nikitasud.latentjam.library.AutoPlaylist
 import io.github.nikitasud.latentjam.library.Playlist
+import io.github.nikitasud.latentjam.library.PlaylistSort
 import io.github.nikitasud.latentjam.playback.NowPlaying
 import io.github.nikitasud.latentjam.playback.ShuffleMode
 import io.github.nikitasud.latentjam.smart.IndexStore
@@ -36,6 +37,7 @@ import io.github.nikitasud.latentjam.smart.cluster.loadStoredLayout
 import io.github.nikitasud.latentjam.smart.cluster.saveLayout
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -192,6 +194,8 @@ internal fun resolveResumeSourceQueue(
     playlistsAvailable: Boolean = true,
     /** A rebuilt playlist plays in the order its page shows, as it did when it was started. */
     playlistOrders: PlaylistSortOrders = PlaylistSortOrders(),
+    /** Listens per track, for a playlist sorted by plays; see [playsForResume]. */
+    plays: Map<TrackId, Int> = emptyMap(),
 ): List<TrackDescriptor>? {
     val byId = library.associateBy { it.id.value }
     return when {
@@ -201,12 +205,41 @@ internal fun resolveResumeSourceQueue(
             saved.sourceReference != null && playlistsAvailable ->
             playlists.firstOrNull { it.id == saved.sourceReference }
                 ?.let { playlist ->
-                    playlist.tracksInChosenOrder(playlist.trackIds.mapNotNull(byId::get), playlistOrders)
+                    playlist.tracksInChosenOrder(playlist.trackIds.mapNotNull(byId::get), playlistOrders, plays)
                 }
                 .orEmpty()
         else -> null
     }
 }
+
+/**
+ * The play counts [resolveResumeSourceQueue] needs for [saved]: read only when it rebuilds a
+ * playlist sorted by plays, since the history's stats copy every track.
+ */
+internal suspend fun playsForResume(saved: ResumePlayback, playlistOrders: PlaylistSortOrders): Map<TrackId, Int> {
+    val rebuilt = saved.sourceReference
+        ?.takeIf { !saved.sourceQueuePersisted && saved.sourceKind == QueueSourceKind.COLLECTION.name }
+    return playsWhenSortedByPlays(playlistOrders, listOfNotNull(rebuilt))
+}
+
+/** Listens per track when one of [playlistIds] is sorted by plays, else nothing (no history read). */
+internal suspend fun playsWhenSortedByPlays(
+    orders: PlaylistSortOrders,
+    playlistIds: Collection<String>,
+): Map<TrackId, Int> =
+    if (playlistIds.none { orders.forPlaylist(it).sort == PlaylistSort.PLAYS }) {
+        emptyMap()
+    } else {
+        try {
+            // What the pages call plays: a start skipped within 30 seconds is not one.
+            AppGraph.history.stats().mapValues { it.value.listens }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            // Best-effort, as every other history read: an unreadable history leaves the stored order.
+            emptyMap()
+        }
+    }
 
 internal data class ResumeFallbackQueue(
     val liveQueue: List<TrackDescriptor>,
@@ -412,6 +445,35 @@ internal class PlaylistsState {
     var companionGroupsInitialized by mutableStateOf(false)
     var playCounts by mutableStateOf<Map<TrackId, Int>>(emptyMap())
     var lastPlayedAt by mutableStateOf<Map<TrackId, Long>>(emptyMap())
+
+    /** Whether [playCounts] came from the history (it starts empty, before the first read). */
+    var playCountsLoaded by mutableStateOf(false)
+        private set
+    private var favoritesFollowedWithCounts = false
+
+    fun publishStats(plays: Map<TrackId, Int>, lastListenedAt: Map<TrackId, Long>) {
+        // A first read with no listens equals the empty counts every page was sorted with so far, and
+        // re-runs nothing that would record it.
+        if (!playCountsLoaded && plays.isEmpty()) favoritesFollowedWithCounts = true
+        playCounts = plays
+        lastPlayedAt = lastListenedAt
+        playCountsLoaded = true
+    }
+
+    /**
+     * Whether an open Favorites page sorted by plays keeps its order on this refresh of the auto lists:
+     * only when the previous refresh already had loaded counts, so the page was sorted with them. A page
+     * opened before the first read was sorted with every count at 0, so it re-sorts once when they arrive.
+     */
+    suspend fun favoritesPlaysOrderSettled(): Boolean {
+        val settled = favoritesFollowedWithCounts
+        val loaded = playCountsLoaded
+        // Counted only for a refresh that ran to its end: one cancelled by the next sorted nothing.
+        currentCoroutineContext()[Job]?.invokeOnCompletion { cause ->
+            if (cause == null && loaded) favoritesFollowedWithCounts = true
+        }
+        return settled
+    }
 
     // Rediscover is time-derived even when the library and history are unchanged. Refresh the
     // clock when the listener revisits Playlists or returns to the foreground so a track that

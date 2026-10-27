@@ -61,6 +61,15 @@ public interface SimilarityEngine {
         get() = NothingInAnalysis
 
     /**
+     * True while the stored audio index could not be read this session, at launch and on its one retry before
+     * indexing: it is kept on disk, nothing is analysed, and the audio vectors it holds are missing until the next
+     * launch (or until analysis is rebuilt). Derived state that keeps its identity across sessions (the Map's regions,
+     * its refresh state) is then not saved over. Readable from any thread; may lag a change by a moment.
+     */
+    public val audioIndexUnreadable: Boolean
+        get() = false
+
+    /**
      * Restores the persisted vector indexes and loads the queue-chain models
      * (scorer, text encoder). The audio encoder itself is NOT loaded here: it
      * loads lazily inside the first operation that must embed or classify, so

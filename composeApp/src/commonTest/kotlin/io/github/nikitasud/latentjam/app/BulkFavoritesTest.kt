@@ -199,8 +199,28 @@ internal class BulkFavoritesTest {
             routeId = FAVORITES_ROUTE_ID,
         )
 
-        assertNull(page.followingFavorites(hearted, byTitle), "same hearts, already in the chosen order")
-        assertEquals(listOf(a, c).sortedBy { it.title }, page.followingFavorites(listOf(c, a), byTitle)?.tracks)
+        assertNull(page.followingFavorites(hearted, inOrder = byTitle), "same hearts, already in the chosen order")
+        assertEquals(listOf(a, c).sortedBy { it.title }, page.followingFavorites(listOf(c, a), inOrder = byTitle)?.tracks)
+    }
+
+    @Test
+    fun aFavoritesPageSortedByPlaysKeepsItsOrderWhileItsHeartsAreUnchanged() {
+        // A listen changes the counts; the page keeps its order until the hearts change.
+        val reSorted: (CollectionSelection) -> CollectionSelection = { page ->
+            page.copy(tracks = page.tracks.sortedByDescending { it.title })
+        }
+        val page = CollectionSelection(
+            title = "Favorites",
+            subtitle = "3 tracks",
+            artworkUri = "art:a",
+            tracks = listOf(a, b, c),
+            allowsTrackSelection = true,
+            routeId = FAVORITES_ROUTE_ID,
+        )
+
+        assertNull(page.followingFavorites(listOf(c, b, a), byPlays = true, inOrder = reSorted))
+        assertEquals(listOf(c, b, a), page.followingFavorites(listOf(c, b, a), inOrder = reSorted)?.tracks)
+        assertEquals(listOf(b, a), page.followingFavorites(listOf(a, b), byPlays = true, inOrder = reSorted)?.tracks)
     }
 
     @Test

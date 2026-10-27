@@ -169,8 +169,9 @@ internal fun rememberMapPageModel(
                         // matches, so the next visit redraws it from the newer vectors.
                         val usable = rows != null && rows.trackIds == coverage.trackIds && rows.source == coverage.source
                         // Refresh small changes (plan piece 1) only once the analysis is over: while it runs
-                        // every analysed track moves the rows, and the 5-minute reuse below applies instead.
-                        val refreshOn = MapRefreshFlag.enabled && libraryWorlds.audioVectorsReady
+                        // every analysed track moves the rows, and the 5-minute reuse below applies instead. An
+                        // unreadable stored audio index never ends it: its refresh state is not saved over.
+                        val refreshOn = MapRefreshFlag.enabled && libraryWorlds.audioVectorsReady && !engine.audioIndexUnreadable
                         var snapshot: io.github.nikitasud.latentjam.smart.cluster.MapRefreshSnapshot? = null
                         val computed = if (!usable) {
                             null

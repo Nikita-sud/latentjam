@@ -43,8 +43,9 @@ public data class StoredIndexSnapshot(
  */
 public interface IndexStore {
     // Load contract: null = no usable snapshot (none, another version, damaged data: start over). A snapshot that could
-    // not be READ now (out of memory, an I/O error) throws [IndexRestoreFailure] instead: the file may be fine, and a
-    // caller must neither start over from empty nor save over it.
+    // not be READ now (out of memory, an I/O error) throws [IndexRestoreFailure] instead: the file may be fine, and the
+    // audio index's caller neither starts over from empty nor saves over it (the metadata index, a quick deterministic
+    // re-encode, is encoded again).
 
     /** The snapshot for [modelVersion], or `null` if none is usable. */
     public suspend fun load(modelVersion: String): Map<TrackId, FloatArray>?
@@ -81,6 +82,7 @@ public class NoopIndexStore : IndexStore {
 
 /**
  * A stored snapshot that could not be read now for a reason other than its content (out of memory, an I/O error).
- * Distinct from "no snapshot" (a load's null): the file is kept, nothing is saved over it, and the read is retried.
+ * Distinct from "no snapshot" (a load's null): for the audio index the file is kept, nothing is saved over it, and
+ * the read is retried; the metadata index is encoded again.
  */
 public class IndexRestoreFailure(cause: Throwable) : Exception("the stored index could not be read now", cause)

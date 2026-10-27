@@ -1432,10 +1432,12 @@ private fun AppShell(
 
         suspend fun refreshPlaylistStats() {
             val stats = AppGraph.history.stats()
-            // What the listener calls plays: a start skipped within 30 seconds is not one.
-            playlistsState.playCounts = stats.mapValues { it.value.listens }
-            // Recently played and Rediscover by the last real listen, not the last skipped start.
-            playlistsState.lastPlayedAt = stats.mapValues { it.value.lastListenedAtMs }
+            playlistsState.publishStats(
+                // What the listener calls plays: a start skipped within 30 seconds is not one.
+                plays = stats.mapValues { it.value.listens },
+                // Recently played and Rediscover by the last real listen, not the last skipped start.
+                lastListenedAt = stats.mapValues { it.value.lastListenedAtMs },
+            )
         }
 
         suspend fun refreshPlaylistStatsBestEffort() {
@@ -1552,6 +1554,7 @@ private fun AppShell(
             favoriteIds,
             playlistsState.autoPlaylistClockMs,
         ) {
+            val playsSettled = playlistsState.favoritesPlaysOrderSettled()
             val songs = catalog?.songs
             playlistsState.autoPlaylists = if (songs == null) {
                 emptyList()
@@ -1571,7 +1574,10 @@ private fun AppShell(
             val openPage = selectedCollection?.takeIf { songs != null } ?: return@LaunchedEffect
             val hearted = playlistsState.autoPlaylists
                 .firstOrNull { it.kind == AutoPlaylistKind.FAVORITES }?.tracks.orEmpty()
-            val followed = openPage.followingFavorites(hearted) { page ->
+            val followed = openPage.followingFavorites(
+                hearted,
+                byPlays = playsSettled && AppGraph.settings.playlistSortOrders.value.favoritesByPlays,
+            ) { page ->
                 page.inChosenOrder(
                     AppGraph.settings.playlistSortOrders.value,
                     playlistsState.playlists, playlistsState.autoPlaylists, playlistsState.playCounts,

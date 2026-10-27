@@ -13,6 +13,13 @@ import io.github.nikitasud.latentjam.library.defaultDirection
 import io.github.nikitasud.latentjam.library.hasDirection
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.yield
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -180,6 +187,55 @@ internal class PlaylistSortOrdersTest {
             library = listOf(alpha, bravo, charlie), playlists = listOf(moved), playlistOrders = recent,
         ))))
         assertEquals(recent, playlistSortOrdersFromPersisted(encodePlaylistSortOrders(recent)))
+    }
+
+    @Test
+    fun aPlaylistSortedByPlaysResumesInThatOrder() {
+        val byPlays = PlaylistSortOrders().withPlaylist(playlist.id,
+            SortChoice(PlaylistSort.PLAYS, SongSortDirection.DESCENDING))
+        val plays = mapOf(TrackId("c") to 5, TrackId("a") to 2)
+        val saved = ResumePlayback(trackId = "a", shuffleMode = "OFF", positionMs = 0,
+            sourceKind = QueueSourceKind.COLLECTION.name, sourceReference = playlist.id)
+        assertEquals(
+            ids(playlist.tracksInChosenOrder(listOf(alpha, bravo, charlie), byPlays, plays)),
+            ids(checkNotNull(resolveResumeSourceQueue(saved = saved, library = listOf(alpha, bravo, charlie),
+                playlists = listOf(playlist), playlistOrders = byPlays, plays = plays))),
+        )
+        assertEquals(listOf("c", "a"), ids(checkNotNull(resolveResumeSourceQueue(saved = saved,
+            library = listOf(alpha, bravo, charlie), playlists = listOf(playlist), playlistOrders = byPlays,
+            plays = plays))).take(2))
+    }
+
+    @Test
+    fun aFavoritesPageSortedByPlaysSettlesOnlyAfterARefreshWithLoadedCounts() = runTest {
+        val state = PlaylistsState()
+        suspend fun refresh(): Boolean = async { state.favoritesPlaysOrderSettled() }.await()
+        assertEquals(false, refresh(), "opened before the counts: sorted with every count at 0")
+        state.publishStats(mapOf(TrackId("a") to 1), emptyMap())
+        assertEquals(false, refresh(), "the counts arrive: the page re-sorts once")
+        assertEquals(true, refresh(), "a listen after that keeps the order")
+        // A refresh cancelled before it sorted records nothing.
+        val other = PlaylistsState()
+        other.publishStats(mapOf(TrackId("a") to 1), emptyMap())
+        val cancelled = launch(start = CoroutineStart.UNDISPATCHED) {
+            other.favoritesPlaysOrderSettled()
+            awaitCancellation()
+        }
+        cancelled.cancelAndJoin()
+        assertEquals(false, async { other.favoritesPlaysOrderSettled() }.await())
+    }
+
+    @Test
+    fun aFirstReadWithNoListensSettlesTheFavoritesOrderAtOnce() = runTest {
+        // No listens yet: the empty counts re-run nothing, and every page was sorted with them already.
+        val state = PlaylistsState()
+        val before = launch(start = CoroutineStart.UNDISPATCHED) {
+            state.favoritesPlaysOrderSettled()
+            yield()
+        }
+        state.publishStats(emptyMap(), emptyMap())
+        before.join()
+        assertEquals(true, async { state.favoritesPlaysOrderSettled() }.await(), "a run from before the read cannot unsettle it")
     }
 
     @Test

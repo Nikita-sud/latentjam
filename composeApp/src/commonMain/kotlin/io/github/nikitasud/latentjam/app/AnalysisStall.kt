@@ -72,7 +72,7 @@ internal fun analysisStallText(stall: AnalysisStall, tracks: List<TrackDescripto
     val track = stall.trackId?.let { id -> tracks.firstOrNull { it.id == id } }
         ?: return stringResource(Res.string.intelligence_analysis_stalled, stall.minutes)
     val title = track.title ?: stringResource(Res.string.track_untitled)
-    val name = track.artist?.let { "$title — $it" } ?: title
+    val name = joinBidiWrapped(listOfNotNull(title, track.artist), " — ")
     return stringResource(Res.string.intelligence_analysis_stalled_track, name, stall.minutes)
 }
 

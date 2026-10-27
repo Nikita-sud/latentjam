@@ -17,6 +17,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
@@ -109,6 +110,134 @@ internal class DefaultSimilarityEngineTest {
         // The retry restored seed and near; only far is new.
         assertEquals(1, report.indexed)
         assertEquals(3, first.store.snapshots.getValue("test-model").size)
+    }
+
+    @Test
+    fun aRestoreRetryStillReadsAfterASeedWasEmbeddedOnDemand() = runTest {
+        val first = Harness()
+        first.registerTriangle()
+        first.engine.initialize()
+        first.engine.indexLibrary(listOf(seed, near))
+        val store = first.store
+        store.loadFailuresRemaining = 1
+        val backend = FakeEmbeddingBackend().apply { vectors.putAll(first.backend.vectors) }
+        val engine = engine(backend, store)
+        engine.initialize()
+        // A SMART press before the first indexing chunk embeds its seed into the empty index.
+        engine.smartQueue(seed, listOf(seed, near, far), length = 1)
+        assertEquals(1, backend.embedCalls)
+
+        val report = engine.indexLibrary(listOf(seed, near, far))
+
+        // The retry read the file: near is restored, not embedded again; only far is new.
+        assertEquals(3, store.loadCalls)
+        assertEquals(1, report.indexed)
+        assertEquals(2, backend.embedCalls)
+        assertEquals(setOf(seed.id, near.id, far.id), store.snapshots.getValue("test-model").keys)
+    }
+
+    @Test
+    fun rebuildAfterAnUnreadableStoredIndexAnalysesTheLibraryThisSession() = runTest {
+        val first = Harness()
+        first.registerTriangle()
+        first.engine.initialize()
+        first.engine.indexLibrary(listOf(seed, near, far))
+        val store = first.store
+        // Out of memory on launch and on the one retry: analysis waits for the stored file.
+        store.loadFailuresRemaining = 2
+        val backend = FakeEmbeddingBackend().apply { vectors.putAll(first.backend.vectors) }
+        val engine = engine(backend, store)
+        engine.initialize()
+        assertEquals(0, engine.indexLibrary(listOf(seed, near, far)).indexed)
+        val saves = store.saveCalls
+
+        // Rebuild analysis deletes the file, so nothing is left to protect and the library is analysed now.
+        engine.clearAnalysis()
+        val report = engine.indexLibrary(listOf(seed, near, far))
+
+        assertEquals(3, report.indexed)
+        assertTrue(store.saveCalls > saves)
+        assertEquals(setOf(seed.id, near.id, far.id), store.snapshots.getValue("test-model").keys)
+    }
+
+    @Test
+    fun anAudioIndexUnreadableAfterItsRetryIsReportedUntilAnalysisIsRebuilt() = runTest {
+        val first = Harness()
+        first.registerTriangle()
+        first.engine.initialize()
+        first.engine.indexLibrary(listOf(seed, near, far))
+        val store = first.store
+        store.loadFailuresRemaining = 2
+        val backend = FakeEmbeddingBackend().apply { vectors.putAll(first.backend.vectors) }
+        val engine = engine(backend, store)
+        engine.initialize()
+        // The launch read failed, but its retry has not run yet.
+        assertFalse(engine.audioIndexUnreadable)
+
+        engine.indexLibrary(listOf(seed, near, far))
+        assertTrue(engine.audioIndexUnreadable)
+
+        engine.clearAnalysis()
+        assertFalse(engine.audioIndexUnreadable)
+    }
+
+    @Test
+    fun aRetryReadCancelledMidReadIsTriedAgainByTheNextPass() = runTest {
+        val first = Harness()
+        first.registerTriangle()
+        first.engine.initialize()
+        first.engine.indexLibrary(listOf(seed, near))
+        val store = first.store
+        store.loadFailuresRemaining = 1
+        val engine = engine(FakeEmbeddingBackend().apply { vectors.putAll(first.backend.vectors) }, store)
+        engine.initialize()
+        store.cancelNextLoad = true
+        assertFailsWith<CancellationException> { engine.indexLibrary(listOf(seed, near, far)) }
+
+        val report = engine.indexLibrary(listOf(seed, near, far))
+
+        // The retry still ran: seed and near restored, far analysed, the file saved with all three.
+        assertEquals(1, report.indexed)
+        assertFalse(engine.audioIndexUnreadable)
+        assertEquals(3, store.snapshots.getValue("test-model").size)
+    }
+
+    @Test
+    fun anAudioIndexReadOnItsRetryIsNotReportedUnreadable() = runTest {
+        val first = Harness()
+        first.registerTriangle()
+        first.engine.initialize()
+        first.engine.indexLibrary(listOf(seed, near))
+        first.store.loadFailuresRemaining = 1
+        val engine = engine(FakeEmbeddingBackend().apply { vectors.putAll(first.backend.vectors) }, first.store)
+        engine.initialize()
+
+        engine.indexLibrary(listOf(seed, near, far))
+
+        assertFalse(engine.audioIndexUnreadable)
+    }
+
+    @Test
+    fun anUnreadableMetadataIndexIsEncodedAgainThisSession() = runTest {
+        val rock = seed.copy(genre = "Rock")
+        val textStore = FakeIndexStore().apply {
+            snapshots[TEXT_INDEX_VERSION] = mapOf(rock.id to FloatArray(TextEncoder.TEXT_DIM).also { it[0] = 1f })
+            loadFailuresRemaining = 1
+        }
+        val engine = engine(
+            backend = FakeEmbeddingBackend(mutableMapOf(seed.id to floatArrayOf(1f, 0f, 0f))),
+            store = FakeIndexStore(),
+            textEncoder = FakeTextEncoder(),
+            textIndex = InMemoryVectorIndex(TextEncoder.TEXT_DIM),
+            textStore = textStore,
+        )
+        engine.initialize()
+        engine.indexLibrary(listOf(rock))
+
+        // A quick, deterministic re-encode: the session has its metadata vectors and saves them again.
+        assertTrue(textStore.saveCalls > 0, "the re-encoded metadata vectors were saved")
+        assertEquals(setOf(rock.id), textStore.snapshots[TEXT_INDEX_VERSION]?.keys)
+        assertFalse(engine.audioIndexUnreadable)
     }
 
     // ---------------------------------------------------------------- initialize

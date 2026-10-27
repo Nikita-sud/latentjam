@@ -128,7 +128,13 @@ internal class DefaultSimilarityEngine(
      */
     private var audioRestoreFailed = false
     private var audioRestoreRetried = false
-    private var textRestoreFailed = false
+
+    /** Set once the one retry could not read the stored audio index either; read without the lock (see the interface). */
+    @Volatile
+    private var audioIndexUnreadableNow = false
+
+    override val audioIndexUnreadable: Boolean
+        get() = audioIndexUnreadableNow
     private var snapshotCache: SnapshotCache? = null
     private var mixCoverageCache: MixCoverageCache? = null
     private var predictorLoaded = false
@@ -168,8 +174,9 @@ internal class DefaultSimilarityEngine(
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (failure: Throwable) {
-                    textRestoreFailed = true
-                    println("SMART: the stored metadata index could not be read now (${restoreCause(failure)}); kept on disk")
+                    // Unlike the audio index, the metadata vectors are a quick, deterministic re-encode: this
+                    // session encodes them again (as a fresh install does) rather than going without them.
+                    println("SMART: the stored metadata index could not be read now (${restoreCause(failure)}); encoding again")
                     null
                 }
                 persistedText
@@ -236,8 +243,10 @@ internal class DefaultSimilarityEngine(
             // A stored index this session could not read is read again first (once); while it still cannot be, nothing
             // is embedded (re-analysing the library over a file that is fine would only be overwritten work).
             if (audioRestoreFailed && !audioRestoreRetried) {
-                audioRestoreRetried = true
                 restorePersistedIndex()
+                // Counted only once the read returned: one cancelled mid-read (a new indexing request) is tried again.
+                audioRestoreRetried = true
+                audioIndexUnreadableNow = audioRestoreFailed
             }
             if (mutableState.value !is EngineState.Ready || audioRestoreFailed) return@withLock null
             // Resumability: tracks already in the index keep their embedding. A file that the
@@ -1176,7 +1185,7 @@ internal class DefaultSimilarityEngine(
                     }.onFailure { collectClearFailure(failures, it) }
                     if (textStore != null) {
                         textIndexDirty = true
-                        if (!textRestoreFailed) runCatching {
+                        runCatching {
                             textStore.saveSnapshot(TEXT_INDEX_VERSION, metadataSnapshot)
                         }.onSuccess {
                             textIndexDirty = false
@@ -1186,6 +1195,11 @@ internal class DefaultSimilarityEngine(
                 }
 
                 generation++
+                // Both stored files are gone, so there is nothing left to protect: an index this session could not read no
+                // longer blocks analysis, and the rebuild starts now instead of at the next launch.
+                audioRestoreFailed = false
+                audioRestoreRetried = false
+                audioIndexUnreadableNow = false
                 index.clear()
                 textIndex?.clear()
                 knownTracks.clear()
@@ -1238,6 +1252,10 @@ internal class DefaultSimilarityEngine(
                 textEncoderLoaded = false
                 audioModelLoaded = false
                 semanticModelLoaded = false
+                // The next initialize() reads both stored files again and decides afresh.
+                audioRestoreFailed = false
+                audioRestoreRetried = false
+                audioIndexUnreadableNow = false
                 mutableState.value = EngineState.Uninitialized
             }
         }
@@ -1246,14 +1264,16 @@ internal class DefaultSimilarityEngine(
     /**
      * Loads the persisted snapshot into an EMPTY index (a live index is never
      * clobbered on re-initialize). Individually invalid entries are skipped;
-     * a missing/mismatched snapshot just means starting empty.
+     * a missing/mismatched snapshot just means starting empty. The one retry of a
+     * read that failed also fills a non-empty index, adopting only the ids it lacks.
      */
     /** What made a restore fail, for the aggregate log line (no ids, no paths). */
     private fun restoreCause(failure: Throwable): String =
         (generateSequence(failure) { it.cause }.firstOrNull { it !is IndexRestoreFailure } ?: failure)::class.simpleName ?: "error"
 
     private suspend fun restorePersistedIndex() {
-        if (index.size > 0) return
+        // The retry of a read that failed still reads when a seed was embedded meanwhile; those live rows are kept.
+        if (index.size > 0 && !audioRestoreFailed) return
         // Cancellation must not read as "no snapshot": falling through would let initialize()
         // publish Ready(0) and re-embed the whole library instead of restarting the restore.
         val loaded = try {
@@ -1269,6 +1289,7 @@ internal class DefaultSimilarityEngine(
         val persisted = loaded ?: return
         // Adopted, not copied: the decoded rows are this index's only copy of the library.
         for ((id, vector) in persisted.entries) {
+            if (id in index) continue
             runCatching { index.adopt(id, vector) }
                 .onSuccess {
                     persisted.identities[id]?.let { identity ->
@@ -1277,7 +1298,7 @@ internal class DefaultSimilarityEngine(
                 }
         }
         for ((id, identity) in persisted.failedIdentities) {
-            if (id !in index && identity.isNotBlank()) {
+            if (id !in index && id !in audioFailureIdentities && identity.isNotBlank()) {
                 audioFailureIdentities[id] = identity
             }
         }
@@ -1292,7 +1313,6 @@ internal class DefaultSimilarityEngine(
     private fun indexTextVector(track: TrackDescriptor): Boolean {
         val encoder = textEncoder ?: return false
         val target = textIndex ?: return false
-        if (textRestoreFailed) return false
         if (track.id in target) return false
         val metadata = track.textString()
         if (metadata.isBlank()) return false
@@ -1435,7 +1455,7 @@ internal class DefaultSimilarityEngine(
     }
 
     private suspend fun persistTextIndex() {
-        if (!textIndexDirty || textRestoreFailed) return
+        if (!textIndexDirty) return
         val targetStore = textStore
         if (targetStore == null) {
             // This engine was intentionally configured without metadata persistence.

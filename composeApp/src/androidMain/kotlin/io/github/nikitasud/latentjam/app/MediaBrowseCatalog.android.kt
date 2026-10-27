@@ -29,12 +29,14 @@ internal fun installMediaBrowseCatalog(context: Context) {
             val tracks = AppGraph.library.tracks().filter { !it.audioUri.isNullOrBlank() }
             val byId = tracks.associateBy { it.id.value }
             val orders = AppGraph.settings.playlistSortOrders.value
+            val playlists = AppGraph.playlists.all()
+            val plays = playsWhenSortedByPlays(orders, playlists.map { it.id })
             MediaBrowseCatalog(
                 collectionsTitle = appContext.getString(R.string.browse_playlists),
                 tracksTitle = appContext.getString(R.string.browse_tracks),
-                collections = AppGraph.playlists.all().mapNotNull { playlist ->
+                collections = playlists.mapNotNull { playlist ->
                     // In the order the playlist's page shows, so the car plays what the phone shows.
-                    val members = playlist.tracksInChosenOrder(playlist.trackIds.mapNotNull(byId::get), orders)
+                    val members = playlist.tracksInChosenOrder(playlist.trackIds.mapNotNull(byId::get), orders, plays)
                     if (members.isEmpty()) return@mapNotNull null
                     MediaBrowseCollection(
                         id = "browse-playlist-${playlist.id}",
@@ -88,11 +90,13 @@ private suspend fun buildMediaPlaybackResume(): MediaPlaybackResume? {
         ?: ShuffleMode.OFF
     val byId = library.associateBy { it.id.value }
     val playlists = AppGraph.playlists.all()
+    val orders = AppGraph.settings.playlistSortOrders.value
     val source = resolveResumeSourceQueue(
         saved = saved,
         library = library,
         playlists = playlists,
-        playlistOrders = AppGraph.settings.playlistSortOrders.value,
+        playlistOrders = orders,
+        plays = playsForResume(saved, orders),
     )
     val resolvedSavedQueue = saved.queueTrackIds.mapIndexedNotNull { persistedIndex, id ->
         byId[id]?.let { persistedIndex to it }
