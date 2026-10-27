@@ -136,3 +136,24 @@ candidate, Recently played, Plays sort, lock player and duplicates marquees: cle
 | R3-U-1 | From 30fb951c: an empty first history read (no listens yet) equals the initial counts and re-runs no refresh, so the flag stayed unset and the first listen re-sorted an open Favorites page sorted by plays once | CONFIRMED-narrower, very low (start on Playlists, no other key change before the first listen); the reviewer's fix would not work, the verifier's was taken | f78639ed (an empty first read settles it; a refresh from before the read can no longer unsettle it) |
 | R3-S-1 | Android: while the stored audio index stays unreadable (R1-I-1's session), the pass still ends `complete`, so the Map / For You turned region identity on with metadata-only vectors and saved fresh region identities over the stored ones (lost on the next good launch) | CONFIRMED-narrower, low (the layout save is 0.9.2 behaviour; iOS never latches) | 68fd797f (`SimilarityEngine.audioIndexUnreadable`; identity and the in-page refresh stay off while it holds) |
 | R3-S-2 | iOS (from ecc90062, not in 0.9.2): a track being analysed when iOS suspends the app timed out on return (the 90 s clock runs on while suspended) and was remembered as "Analysis timed out" until Retry | CONFIRMED, low-medium (a first analysis, the app left for > 90 s) | 4a507538 (a timeout across a background/foreground transition, or firing while still in the background, is the retryable `AudioUnavailable`) |
+
+### Round 3 checks
+
+At 705dc331: all check tasks green; most dex registers 249 (limit 255).
+
+## Round 4
+
+Two fresh reviewers over everything this loop touched (I analysis / index / Map / iOS deadline; U playlists, crossfade,
+settings, release hygiene over `292077cb..HEAD`). Playlists / Favorites lifecycle (cold start on each tab, activity
+recreation, history cleared or off), crossfade, `joinBidiWrapped`, the reverts (complete: nothing named
+`redecodeWorkers` left; 6b62a52f does not rely on the second pool) and release hygiene: clean. 3 findings, all
+confirmed.
+
+| id | finding | verdict | fix |
+|---|---|---|---|
+| R4-I-1 | Android (flag order from d3e3613f, the hole re-opened past 68fd797f): the retry of an unreadable index was counted before its read, so a pass cancelled mid-read (a new indexing request, the foreground-service timeout) left analysis blocked for the session with `audioIndexUnreadable` false, and the Map could save metadata-only region identities again | CONFIRMED, low (a cancel during a seconds-long read) | 862e99d8 (counted once the read returned; a cancelled read is tried again by the next pass) |
+| R4-I-2 / R4-U-1 | iOS, from 4a507538: with the `audio` background mode the app is not suspended while music plays, so a decode that really hangs timed out in the background and was retried by every pass, each leaving a stuck IO thread (`abandon()` is a no-op on iOS) | CONFIRMED, low (passes are rare; IO threads not used by playback) | 3e0c7b51 (a track is let off once per run, then remembered) |
+| R4-I-3 | iOS, from 4a507538: `IosAppTransitions` started observing at the first analysis, so leaving the app before it was missed and a suspension in that window was still remembered as a timeout | CONFIRMED-narrower, very low | 3e0c7b51 (observed from `smartEngineBackendModule()`, at start-up on the main thread) |
+
+0.9.4 idea from the verifier: a suspension makes the deadline fire late (on resume), so "elapsed > budget + a few
+seconds" on the same monotonic clock is a cleaner suspension test than app transitions; needs a device check.
