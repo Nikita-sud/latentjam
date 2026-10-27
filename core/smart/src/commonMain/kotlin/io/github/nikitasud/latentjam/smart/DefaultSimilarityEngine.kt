@@ -121,6 +121,14 @@ internal class DefaultSimilarityEngine(
     private val textEnvelopeRefusal = EnvelopeRefusal()
     private var indexRevision = 0L
     private var transitionSample: Pair<Long, List<TrackId>>? = null
+    /**
+     * A stored index that could not be READ this session (out of memory, an I/O error — not damage): it stays on disk
+     * untouched — nothing is saved over it and nothing re-embeds the library — and the read is retried once, before the
+     * next indexing pass (then at the next launch). SMART meanwhile works without those vectors.
+     */
+    private var audioRestoreFailed = false
+    private var audioRestoreRetried = false
+    private var textRestoreFailed = false
     private var snapshotCache: SnapshotCache? = null
     private var mixCoverageCache: MixCoverageCache? = null
     private var predictorLoaded = false
@@ -159,7 +167,9 @@ internal class DefaultSimilarityEngine(
                     textStore?.loadSnapshot(TEXT_INDEX_VERSION)
                 } catch (cancelled: CancellationException) {
                     throw cancelled
-                } catch (_: Throwable) {
+                } catch (failure: Throwable) {
+                    textRestoreFailed = true
+                    println("SMART: the stored metadata index could not be read now (${restoreCause(failure)}); kept on disk")
                     null
                 }
                 persistedText
@@ -223,7 +233,13 @@ internal class DefaultSimilarityEngine(
         // Phase 1, under the engine lock: partition, remember known failures, load the model.
         val prepared = mutex.withLock {
             rememberTracks(tracks)
-            if (mutableState.value !is EngineState.Ready) return@withLock null
+            // A stored index this session could not read is read again first (once); while it still cannot be, nothing
+            // is embedded (re-analysing the library over a file that is fine would only be overwritten work).
+            if (audioRestoreFailed && !audioRestoreRetried) {
+                audioRestoreRetried = true
+                restorePersistedIndex()
+            }
+            if (mutableState.value !is EngineState.Ready || audioRestoreFailed) return@withLock null
             // Resumability: tracks already in the index keep their embedding. A file that the
             // decoder could not open is also skipped while its exact content identity is
             // unchanged. This partition happens before ensureAudioModel(), which is the key to
@@ -1153,14 +1169,14 @@ internal class DefaultSimilarityEngine(
                     // a best-effort basis before surfacing the failure; dirty flags retain any
                     // repair that still needs another save attempt in this process.
                     audioIndexDirty = true
-                    runCatching {
+                    if (!audioRestoreFailed) runCatching {
                         store.saveSnapshot(config.modelVersion, audioSnapshot)
                     }.onSuccess {
                         audioIndexDirty = false
                     }.onFailure { collectClearFailure(failures, it) }
                     if (textStore != null) {
                         textIndexDirty = true
-                        runCatching {
+                        if (!textRestoreFailed) runCatching {
                             textStore.saveSnapshot(TEXT_INDEX_VERSION, metadataSnapshot)
                         }.onSuccess {
                             textIndexDirty = false
@@ -1232,17 +1248,25 @@ internal class DefaultSimilarityEngine(
      * clobbered on re-initialize). Individually invalid entries are skipped;
      * a missing/mismatched snapshot just means starting empty.
      */
+    /** What made a restore fail, for the aggregate log line (no ids, no paths). */
+    private fun restoreCause(failure: Throwable): String =
+        (generateSequence(failure) { it.cause }.firstOrNull { it !is IndexRestoreFailure } ?: failure)::class.simpleName ?: "error"
+
     private suspend fun restorePersistedIndex() {
         if (index.size > 0) return
         // Cancellation must not read as "no snapshot": falling through would let initialize()
         // publish Ready(0) and re-embed the whole library instead of restarting the restore.
-        val persisted = try {
+        val loaded = try {
             store.loadSnapshot(config.modelVersion)
         } catch (cancelled: CancellationException) {
             throw cancelled
-        } catch (_: Throwable) {
-            null
-        } ?: return
+        } catch (failure: Throwable) {
+            audioRestoreFailed = true
+            println("SMART: the stored audio index could not be read now (${restoreCause(failure)}); kept on disk, retried before indexing")
+            return
+        }
+        audioRestoreFailed = false
+        val persisted = loaded ?: return
         // Adopted, not copied: the decoded rows are this index's only copy of the library.
         for ((id, vector) in persisted.entries) {
             runCatching { index.adopt(id, vector) }
@@ -1268,6 +1292,7 @@ internal class DefaultSimilarityEngine(
     private fun indexTextVector(track: TrackDescriptor): Boolean {
         val encoder = textEncoder ?: return false
         val target = textIndex ?: return false
+        if (textRestoreFailed) return false
         if (track.id in target) return false
         val metadata = track.textString()
         if (metadata.isBlank()) return false
@@ -1393,7 +1418,7 @@ internal class DefaultSimilarityEngine(
     }
 
     private suspend fun persistAudioIndex() {
-        if (!audioIndexDirty) return
+        if (!audioIndexDirty || audioRestoreFailed) return
         val rows = index.size
         if (audioEnvelopeRefusal.covers(rows)) return
         // Only the store call is guarded: a refusal is the store's answer about this snapshot,
@@ -1410,7 +1435,7 @@ internal class DefaultSimilarityEngine(
     }
 
     private suspend fun persistTextIndex() {
-        if (!textIndexDirty) return
+        if (!textIndexDirty || textRestoreFailed) return
         val targetStore = textStore
         if (targetStore == null) {
             // This engine was intentionally configured without metadata persistence.

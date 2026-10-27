@@ -23,14 +23,25 @@ internal class FakeIndexStore : IndexStore {
     var saveFailuresRemaining: Int = 0
     var clearFailuresRemaining: Int = 0
     var failClearAfterDeletion: Boolean = false
+    /** Loads that fail as a read that could not happen now (out of memory), not as "no snapshot". */
+    var loadFailuresRemaining: Int = 0
+
+    private fun failNextLoadIfConfigured() {
+        if (loadFailuresRemaining > 0) {
+            loadFailuresRemaining--
+            throw IndexRestoreFailure(OutOfMemoryError("simulated restore"))
+        }
+    }
 
     override suspend fun load(modelVersion: String): Map<TrackId, FloatArray>? {
         loadCalls++
+        failNextLoadIfConfigured()
         return snapshots[modelVersion]?.deepCopy()
     }
 
     override suspend fun loadSnapshot(modelVersion: String): StoredIndexSnapshot? {
         loadCalls++
+        failNextLoadIfConfigured()
         return snapshots[modelVersion]?.let { entries ->
             StoredIndexSnapshot(
                 entries = entries.deepCopy(),

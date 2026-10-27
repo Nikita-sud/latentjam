@@ -222,4 +222,12 @@ internal class FileIndexStoreTest {
         output.writeInt(bytes.size)
         output.write(bytes)
     }
+    @Test
+    fun aTruncatedFileIsStillNoSnapshot() = runTest {
+        val store = FileIndexStore(directory.toFile())
+        store.saveSnapshot("model", StoredIndexSnapshot(entries = mapOf(TrackId("one") to floatArrayOf(1f, 2f))))
+        val file = directory.toFile().listFiles()!!.single()
+        file.writeBytes(file.readBytes().copyOf(file.length().toInt() - 3))
+        assertNull(store.loadSnapshot("model"))
+    }
 }

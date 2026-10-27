@@ -67,6 +67,50 @@ internal class DefaultSimilarityEngineTest {
         backend.vectors[far.id] = floatArrayOf(0f, 1f, 0f)
     }
 
+    // ---------------------------------------------------------------- a restore that fails
+
+    @Test
+    fun aRestoreThatCannotReadKeepsTheStoredIndexAndEmbedsNothing() = runTest {
+        val first = Harness()
+        first.registerTriangle()
+        first.engine.initialize()
+        first.engine.indexLibrary(listOf(seed, near, far))
+        val stored = first.store.snapshots.getValue("test-model").mapValues { it.value.toList() }
+        val store = first.store
+        val saves = store.saveCalls
+        // Out of memory on launch and on the one retry: nothing is embedded or saved over the file.
+        store.loadFailuresRemaining = 2
+        val backend = FakeEmbeddingBackend().apply { vectors.putAll(first.backend.vectors) }
+        val failing = engine(backend, store)
+        assertTrue(failing.initialize().isSuccess)
+        assertEquals(EngineState.Ready(indexedCount = 0), failing.state.value)
+        val report = failing.indexLibrary(listOf(seed, near, far))
+        assertEquals(0, report.indexed)
+        assertEquals(saves, store.saveCalls)
+        assertEquals(stored, store.snapshots.getValue("test-model").mapValues { it.value.toList() })
+        // The next launch reads the same file.
+        val next = engine(backend, store)
+        next.initialize()
+        assertEquals(EngineState.Ready(indexedCount = 3), next.state.value)
+    }
+
+    @Test
+    fun aRestoreThatFailsOnceIsReadAgainBeforeIndexing() = runTest {
+        val first = Harness()
+        first.registerTriangle()
+        first.engine.initialize()
+        first.engine.indexLibrary(listOf(seed, near))
+        first.store.loadFailuresRemaining = 1
+        val backend = FakeEmbeddingBackend().apply { vectors.putAll(first.backend.vectors) }
+        val engine = engine(backend, first.store)
+        engine.initialize()
+        assertEquals(EngineState.Ready(indexedCount = 0), engine.state.value)
+        val report = engine.indexLibrary(listOf(seed, near, far))
+        // The retry restored seed and near; only far is new.
+        assertEquals(1, report.indexed)
+        assertEquals(3, first.store.snapshots.getValue("test-model").size)
+    }
+
     // ---------------------------------------------------------------- initialize
 
     @Test
