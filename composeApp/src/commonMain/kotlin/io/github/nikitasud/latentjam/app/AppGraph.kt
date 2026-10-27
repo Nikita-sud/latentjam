@@ -253,9 +253,8 @@ object AppGraph {
                 if (boundaryFadeControlsAvailable) appScope.launch {
                     settings.crossfadeSeconds.collect { playback.setCrossfadeSeconds(it) }
                 }
-                if (boundaryFadeControlsAvailable) appScope.launch {
-                    settings.adaptiveCrossfade.collect { playback.setAdaptiveCrossfade(it) }
-                }
+                // SMART-adapted crossfade lengths are held back for now: the slider alone decides,
+                // whatever an earlier build stored.
             }
             // History observes playback for the app's whole lifetime.
             val smartLog = koin.getOrNull<SmartLogRecorder>()

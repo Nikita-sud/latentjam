@@ -16,8 +16,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import io.github.nikitasud.latentjam.app.generated.resources.settings_crossfade_adaptive_body
-import io.github.nikitasud.latentjam.app.generated.resources.settings_crossfade_adaptive
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.semantics.Role
@@ -210,19 +208,6 @@ internal fun EqualizerSettings(equalizer: EqualizerController, settings: AppSett
                     }
                     Text(stringResource(Res.string.settings_crossfade_subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     AppSlider(value = crossfade.toFloat(), onValueChange = { settings.setCrossfadeSeconds(it.roundToInt()) }, valueRange = 0f..MAX_CROSSFADE_SECONDS.toFloat(), steps = MAX_CROSSFADE_SECONDS - 1)
-                    // The slider becomes the longest blend; SMART shortens it across a change.
-                    val adaptive by settings.adaptiveCrossfade.collectAsState()
-                    Row(
-                        Modifier.fillMaxWidth()
-                            .toggleable(value = adaptive, enabled = crossfade > 0, role = Role.Switch, onValueChange = settings::setAdaptiveCrossfade),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f).padding(end = 12.dp)) {
-                            Text(stringResource(Res.string.settings_crossfade_adaptive), style = MaterialTheme.typography.bodyLarge)
-                            Text(stringResource(Res.string.settings_crossfade_adaptive_body), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        AppSwitch(checked = adaptive, onCheckedChange = null, enabled = crossfade > 0)
-                    }
                 }
             }
         }
