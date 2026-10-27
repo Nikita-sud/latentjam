@@ -1,0 +1,305 @@
+# MapRound3Replay pilot logs (design only, not evidence), 25 Oct 2026: synthetic seed 7 + FMA round-1 draw 5000 (Soundtrack style). Second part: the additive/sticky region pilot on FMA-5000.
+R3 lib=synthetic-s7 n=10000 dim=1344 family=false artists=false mode=pilot
+R3 lib=synthetic-s7 novel style=style-1 heldOutMembers=322 allMembers=322
+R3 lib=synthetic-s7 same share=0.0000 refreshMs=3678.9 hint=none staleAt5=false staleAt3=false novel=false
+R3 lib=synthetic-s7 same metrics today trust=0.9837 recall=0.2688 class=0.8479 RF=NaN CF=NaN overlapCold=NaN
+R3 lib=synthetic-s7 same metrics refresh trust=0.9837 recall=0.2675 class=0.8479 RF=NaN CF=NaN overlapCold=NaN
+R3 lib=synthetic-s7 same metrics rebuild trust=0.9837 recall=0.2687 class=0.8479 RF=NaN CF=NaN overlapCold=NaN
+R3 lib=synthetic-s7 same time todayMs=22275.1 refreshMs=3678.9 ratio=0.1652 rebuildMs=24805.6
+R3 lib=synthetic-s7 same stability today kept=0.5496 p90=0.0712 refresh kept=0.9692 p90=0.0024
+R3 lib=synthetic-s7 same regions regionsBefore=68 regionsAfter=68 churnTodayByName=0.0000 churnTodayMatched=0.0000 churnJoin=0.0000 churnRebuildMatched=0.0000 newTrackJoinAgreesWithRebuild=NaN newTracksJoined=0/0
+R3 lib=synthetic-s7 same verdict trust=PASS recall=PASS class=PASS lost=PASS p90move=PASS timeHost=PASS regionChurnRebuild=PASS waitRFratio=NaN waitCFdelta=NaN flagged=0
+R3 lib=synthetic-s7 add1 share=0.0100 refreshMs=2998.3 hint=none staleAt5=false staleAt3=false novel=false
+R3 lib=synthetic-s7 add1 metrics today trust=0.9837 recall=0.2679 class=0.8479 RF=0.2733 CF=0.8600 overlapCold=NaN
+R3 lib=synthetic-s7 add1 metrics refresh trust=0.9838 recall=0.2683 class=0.8479 RF=0.2453 CF=0.8600 overlapCold=NaN
+R3 lib=synthetic-s7 add1 metrics rebuild trust=0.9837 recall=0.2675 class=0.8479 RF=0.2713 CF=0.8600 overlapCold=NaN
+R3 lib=synthetic-s7 add1 time todayMs=16949.1 refreshMs=2998.3 ratio=0.1769 rebuildMs=17193.2
+R3 lib=synthetic-s7 add1 stability today kept=0.4829 p90=0.0794 refresh kept=0.9103 p90=0.0031
+R3 lib=synthetic-s7 add1 regions regionsBefore=68 regionsAfter=68 churnTodayByName=0.0023 churnTodayMatched=0.0084 churnJoin=0.0000 churnRebuildMatched=0.0084 newTrackJoinAgreesWithRebuild=0.9000 newTracksJoined=77/100
+R3 lib=synthetic-s7 add1 verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS regionChurnRebuild=PASS waitRFratio=0.8976 waitCFdelta=0.0000 flagged=100
+R3 lib=synthetic-s7 add5 share=0.0500 refreshMs=3005.0 hint=none staleAt5=false staleAt3=true novel=false
+R3 lib=synthetic-s7 add5 metrics today trust=0.9838 recall=0.2691 class=0.8479 RF=0.2691 CF=0.8476 overlapCold=NaN
+R3 lib=synthetic-s7 add5 metrics refresh trust=0.9837 recall=0.2634 class=0.8480 RF=0.2497 CF=0.8479 overlapCold=NaN
+R3 lib=synthetic-s7 add5 metrics rebuild trust=0.9837 recall=0.2679 class=0.8479 RF=0.2680 CF=0.8476 overlapCold=NaN
+R3 lib=synthetic-s7 add5 time todayMs=16660.1 refreshMs=3005.0 ratio=0.1804 rebuildMs=16388.2
+R3 lib=synthetic-s7 add5 stability today kept=0.3839 p90=0.0911 refresh kept=0.7973 p90=0.0045
+R3 lib=synthetic-s7 add5 regions regionsBefore=69 regionsAfter=68 churnTodayByName=0.0046 churnTodayMatched=0.0104 churnJoin=0.0000 churnRebuildMatched=0.0104 newTrackJoinAgreesWithRebuild=0.8780 newTracksJoined=365/500
+R3 lib=synthetic-s7 add5 verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS regionChurnRebuild=PASS waitRFratio=0.9281 waitCFdelta=0.0003 flagged=500
+R3 lib=synthetic-s7 change1 share=0.0100 refreshMs=3134.6 hint=none staleAt5=false staleAt3=false novel=false
+R3 lib=synthetic-s7 change1 metrics today trust=0.9838 recall=0.2692 class=0.8479 RF=0.2653 CF=0.8093 overlapCold=NaN
+R3 lib=synthetic-s7 change1 metrics refresh trust=0.9835 recall=0.2680 class=0.8479 RF=0.2433 CF=0.8093 overlapCold=NaN
+R3 lib=synthetic-s7 change1 metrics rebuild trust=0.9839 recall=0.2695 class=0.8479 RF=0.2647 CF=0.8093 overlapCold=NaN
+R3 lib=synthetic-s7 change1 time todayMs=17697.5 refreshMs=3134.6 ratio=0.1771 rebuildMs=19496.4
+R3 lib=synthetic-s7 change1 stability today kept=0.4766 p90=0.0692 refresh kept=0.8965 p90=0.0038
+R3 lib=synthetic-s7 change1 regions regionsBefore=69 regionsAfter=68 churnTodayByName=0.0013 churnTodayMatched=0.0043 churnJoin=0.0000 churnRebuildMatched=0.0043 newTrackJoinAgreesWithRebuild=0.9100 newTracksJoined=71/100
+R3 lib=synthetic-s7 change1 verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS regionChurnRebuild=PASS waitRFratio=0.9171 waitCFdelta=0.0000 flagged=100
+R3 lib=synthetic-s7 album1 share=0.0113 refreshMs=3040.2 hint=none staleAt5=false staleAt3=false novel=false
+R3 lib=synthetic-s7 album1 metrics today trust=0.9839 recall=0.2683 class=0.8479 RF=0.3717 CF=1.0000 overlapCold=NaN
+R3 lib=synthetic-s7 album1 metrics refresh trust=0.9835 recall=0.2663 class=0.8479 RF=0.3746 CF=1.0000 overlapCold=NaN
+R3 lib=synthetic-s7 album1 metrics rebuild trust=0.9842 recall=0.2698 class=0.8479 RF=0.3823 CF=1.0000 overlapCold=NaN
+R3 lib=synthetic-s7 album1 time todayMs=17373.6 refreshMs=3040.2 ratio=0.1750 rebuildMs=16612.5
+R3 lib=synthetic-s7 album1 stability today kept=0.4256 p90=0.0992 refresh kept=0.9539 p90=0.0036
+R3 lib=synthetic-s7 album1 regions regionsBefore=70 regionsAfter=68 churnTodayByName=0.0011 churnTodayMatched=0.0043 churnJoin=0.0000 churnRebuildMatched=0.0043 newTrackJoinAgreesWithRebuild=0.6637 newTracksJoined=75/113
+R3 lib=synthetic-s7 album1 verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS regionChurnRebuild=PASS waitRFratio=1.0079 waitCFdelta=0.0000 flagged=113
+R3 lib=synthetic-s7 novel-style-1-0.5 share=0.0051 refreshMs=2763.4 hint=geometry staleAt5=true staleAt3=true novel=true
+R3 lib=synthetic-s7 novel-style-1-0.5 metrics today trust=0.9832 recall=0.2711 class=0.8437 RF=0.5373 CF=1.0000 overlapCold=NaN
+R3 lib=synthetic-s7 novel-style-1-0.5 metrics refresh trust=0.9823 recall=0.2591 class=0.8425 RF=0.2987 CF=0.7720 overlapCold=NaN
+R3 lib=synthetic-s7 novel-style-1-0.5 metrics rebuild trust=0.9831 recall=0.2719 class=0.8437 RF=0.5320 CF=1.0000 overlapCold=NaN
+R3 lib=synthetic-s7 novel-style-1-0.5 time todayMs=17415.5 refreshMs=2763.4 ratio=0.1587 rebuildMs=17546.9
+R3 lib=synthetic-s7 novel-style-1-0.5 stability today kept=0.3633 p90=0.0872 refresh kept=0.9644 p90=0.0032
+R3 lib=synthetic-s7 novel-style-1-0.5 regions regionsBefore=70 regionsAfter=72 churnTodayByName=0.0004 churnTodayMatched=0.0029 churnJoin=0.0000 churnRebuildMatched=0.0029 newTrackJoinAgreesWithRebuild=0.0000 newTracksJoined=0/50
+R3 lib=synthetic-s7 novel-style-1-0.5 verdict waitTrust=PASS waitRecall=FAIL waitClass=PASS waitLost=PASS waitRF=PASS recoverRF=PASS recoverCF=PASS recoverTrust=PASS recoverRecall=PASS regionChurnRebuild=PASS waitRFratio=0.5558 waitCFdelta=-0.2280 flagged=50
+R3 lib=synthetic-s7 novel-style-1-1.0 share=0.0102 refreshMs=2831.0 hint=geometry staleAt5=true staleAt3=true novel=true
+R3 lib=synthetic-s7 novel-style-1-1.0 metrics today trust=0.9834 recall=0.2699 class=0.8445 RF=0.3807 CF=1.0000 overlapCold=NaN
+R3 lib=synthetic-s7 novel-style-1-1.0 metrics refresh trust=0.9830 recall=0.2590 class=0.8445 RF=0.3640 CF=1.0000 overlapCold=NaN
+R3 lib=synthetic-s7 novel-style-1-1.0 metrics rebuild trust=0.9835 recall=0.2701 class=0.8445 RF=0.3967 CF=1.0000 overlapCold=NaN
+R3 lib=synthetic-s7 novel-style-1-1.0 time todayMs=17095.2 refreshMs=2831.0 ratio=0.1656 rebuildMs=17521.3
+R3 lib=synthetic-s7 novel-style-1-1.0 stability today kept=0.3554 p90=0.0926 refresh kept=0.9650 p90=0.0031
+R3 lib=synthetic-s7 novel-style-1-1.0 regions regionsBefore=70 regionsAfter=72 churnTodayByName=0.0006 churnTodayMatched=0.0031 churnJoin=0.0000 churnRebuildMatched=0.0031 newTrackJoinAgreesWithRebuild=0.0000 newTracksJoined=0/100
+R3 lib=synthetic-s7 novel-style-1-1.0 verdict waitTrust=PASS waitRecall=FAIL waitClass=PASS waitLost=PASS waitRF=PASS recoverRF=PASS recoverCF=PASS recoverTrust=PASS recoverRecall=PASS regionChurnRebuild=PASS waitRFratio=0.9562 waitCFdelta=0.0000 flagged=100
+R3 lib=synthetic-s7 novel-style-1-2.0 share=0.0202 refreshMs=3042.3 hint=geometry staleAt5=true staleAt3=true novel=true
+R3 lib=synthetic-s7 novel-style-1-2.0 metrics today trust=0.9837 recall=0.2696 class=0.8460 RF=0.2690 CF=1.0000 overlapCold=NaN
+R3 lib=synthetic-s7 novel-style-1-2.0 metrics refresh trust=0.9833 recall=0.2574 class=0.8460 RF=0.2367 CF=1.0000 overlapCold=NaN
+R3 lib=synthetic-s7 novel-style-1-2.0 metrics rebuild trust=0.9835 recall=0.2697 class=0.8460 RF=0.2640 CF=1.0000 overlapCold=NaN
+R3 lib=synthetic-s7 novel-style-1-2.0 time todayMs=17678.9 refreshMs=3042.3 ratio=0.1721 rebuildMs=17090.6
+R3 lib=synthetic-s7 novel-style-1-2.0 stability today kept=0.3592 p90=0.0920 refresh kept=0.9654 p90=0.0049
+R3 lib=synthetic-s7 novel-style-1-2.0 regions regionsBefore=70 regionsAfter=71 churnTodayByName=0.0010 churnTodayMatched=0.0073 churnJoin=0.0000 churnRebuildMatched=0.0073 newTrackJoinAgreesWithRebuild=0.0000 newTracksJoined=0/200
+R3 lib=synthetic-s7 novel-style-1-2.0 verdict waitTrust=PASS waitRecall=FAIL waitClass=PASS waitLost=PASS waitRF=PASS recoverRF=PASS recoverCF=PASS recoverTrust=PASS recoverRecall=PASS regionChurnRebuild=PASS waitRFratio=0.8798 waitCFdelta=0.0000 flagged=200
+R3 chain lib=synthetic-s7 B=0.05 step=1 n=8900 sinceFull=100 hint=none stale=false knnExact=true refreshMs=2428.3 check=n/a
+R3 chain lib=synthetic-s7 B=0.05 step=2 n=9000 sinceFull=200 hint=none stale=false knnExact=true refreshMs=2524.5 check=n/a
+R3 chain lib=synthetic-s7 B=0.05 step=3 n=9100 sinceFull=300 hint=none stale=false knnExact=true refreshMs=2507.8 check=n/a
+R3 chain lib=synthetic-s7 B=0.05 step=4 n=9200 sinceFull=400 hint=none stale=false knnExact=true refreshMs=2501.0 check=n/a
+R3 chain lib=synthetic-s7 B=0.05 step=5 waiting trust=0.9836 recall=0.2728 class=0.8481 RF=0.2564 CF=0.8540 overlapCold=0.4014 cold trust=0.9841 recall=0.2761 class=0.8481 RF=0.2684 CF=0.8539 overlapCold=1.0000
+R3 chain lib=synthetic-s7 B=0.05 step=5 n=9300 sinceFull=500 hint=none stale=true knnExact=true refreshMs=2624.3 check=PASS
+R3 chain lib=synthetic-s7 B=0.05 step=6 n=9400 sinceFull=100 hint=none stale=false knnExact=true refreshMs=2702.9 check=n/a
+R3 chain lib=synthetic-s7 B=0.05 step=7 n=9500 sinceFull=200 hint=none stale=false knnExact=true refreshMs=2625.3 check=n/a
+R3 chain lib=synthetic-s7 B=0.05 step=8 n=9600 sinceFull=300 hint=none stale=false knnExact=true refreshMs=2625.6 check=n/a
+R3 chain lib=synthetic-s7 B=0.05 step=9 n=9700 sinceFull=400 hint=none stale=false knnExact=true refreshMs=2746.5 check=n/a
+R3 chain lib=synthetic-s7 B=0.05 step=10 waiting trust=0.9835 recall=0.2674 class=0.8474 RF=0.2523 CF=0.8339 overlapCold=0.4082 cold trust=0.9838 recall=0.2704 class=0.8474 RF=0.2644 CF=0.8337 overlapCold=1.0000
+R3 chain lib=synthetic-s7 B=0.05 step=10 n=9800 sinceFull=500 hint=none stale=true knnExact=true refreshMs=2753.7 check=PASS
+R3 chain lib=synthetic-s7 B=0.05 step=11 waiting trust=0.9839 recall=0.2714 class=0.8481 RF=NaN CF=NaN overlapCold=0.4524 cold trust=0.9839 recall=0.2746 class=0.8481 RF=NaN CF=NaN overlapCold=1.0000
+R3 chain lib=synthetic-s7 B=0.05 step=11 n=9604 sinceFull=0 hint=none stale=false knnExact=true refreshMs=4939.0 check=PASS
+R3 chain lib=synthetic-s7 B=0.05 rebuilds=2 verdict=PASS
+R3 chain lib=synthetic-s7 B=0.03 step=1 n=8900 sinceFull=100 hint=none stale=false knnExact=true refreshMs=2417.9 check=n/a
+R3 chain lib=synthetic-s7 B=0.03 step=2 n=9000 sinceFull=200 hint=none stale=false knnExact=true refreshMs=2427.1 check=n/a
+R3 chain lib=synthetic-s7 B=0.03 step=3 waiting trust=0.9839 recall=0.2773 class=0.8484 RF=0.2662 CF=0.8667 overlapCold=0.4562 cold trust=0.9838 recall=0.2798 class=0.8484 RF=0.2802 CF=0.8667 overlapCold=1.0000
+R3 chain lib=synthetic-s7 B=0.03 step=3 n=9100 sinceFull=300 hint=none stale=true knnExact=true refreshMs=2573.0 check=PASS
+R3 chain lib=synthetic-s7 B=0.03 step=4 n=9200 sinceFull=100 hint=none stale=false knnExact=true refreshMs=2632.8 check=n/a
+R3 chain lib=synthetic-s7 B=0.03 step=5 n=9300 sinceFull=200 hint=none stale=false knnExact=true refreshMs=2595.3 check=n/a
+R3 chain lib=synthetic-s7 B=0.03 step=6 waiting trust=0.9836 recall=0.2732 class=0.8480 RF=0.2433 CF=0.8364 overlapCold=0.4368 cold trust=0.9840 recall=0.2766 class=0.8480 RF=0.2656 CF=0.8364 overlapCold=1.0000
+R3 chain lib=synthetic-s7 B=0.03 step=6 n=9400 sinceFull=300 hint=none stale=true knnExact=true refreshMs=2550.4 check=PASS
+R3 chain lib=synthetic-s7 B=0.03 step=7 n=9500 sinceFull=100 hint=none stale=false knnExact=true refreshMs=2599.4 check=n/a
+R3 chain lib=synthetic-s7 B=0.03 step=8 n=9600 sinceFull=200 hint=none stale=false knnExact=true refreshMs=2625.8 check=n/a
+R3 chain lib=synthetic-s7 B=0.03 step=9 waiting trust=0.9834 recall=0.2695 class=0.8476 RF=0.2520 CF=0.8362 overlapCold=0.4288 cold trust=0.9839 recall=0.2718 class=0.8477 RF=0.2627 CF=0.8360 overlapCold=1.0000
+R3 chain lib=synthetic-s7 B=0.03 step=9 n=9700 sinceFull=300 hint=none stale=true knnExact=true refreshMs=2660.3 check=PASS
+R3 chain lib=synthetic-s7 B=0.03 step=10 n=9800 sinceFull=100 hint=none stale=false knnExact=true refreshMs=2727.4 check=n/a
+R3 chain lib=synthetic-s7 B=0.03 step=11 waiting trust=0.9838 recall=0.2707 class=0.8481 RF=0.2667 CF=0.8182 overlapCold=0.4446 cold trust=0.9839 recall=0.2746 class=0.8481 RF=0.2828 CF=0.8182 overlapCold=1.0000
+R3 chain lib=synthetic-s7 B=0.03 step=11 n=9604 sinceFull=100 hint=none stale=false knnExact=true refreshMs=4907.1 check=PASS
+R3 chain lib=synthetic-s7 B=0.03 rebuilds=3 verdict=PASS
+R3 lib=fma-5000-fma-pilot n=5000 dim=1344 family=true artists=true mode=pilot
+R3 lib=fma-5000-fma-pilot novel style=Soundtrack heldOutMembers=100 allMembers=286
+R3 lib=fma-5000-fma-pilot same share=0.0000 refreshMs=1041.0 hint=none staleAt5=false staleAt3=false novel=false
+R3 lib=fma-5000-fma-pilot same metrics today trust=0.9910 recall=0.6729 class=0.6896 RF=NaN CF=NaN overlapCold=NaN
+R3 lib=fma-5000-fma-pilot same metrics refresh trust=0.9915 recall=0.6711 class=0.6893 RF=NaN CF=NaN overlapCold=NaN
+R3 lib=fma-5000-fma-pilot same metrics rebuild trust=0.9917 recall=0.6724 class=0.6885 RF=NaN CF=NaN overlapCold=NaN
+R3 lib=fma-5000-fma-pilot same time todayMs=6433.4 refreshMs=1041.0 ratio=0.1618 rebuildMs=6134.9
+R3 lib=fma-5000-fma-pilot same stability today kept=0.8684 p90=0.1286 refresh kept=0.9850 p90=0.0030
+R3 lib=fma-5000-fma-pilot same regions regionsBefore=170 regionsAfter=170 churnTodayByName=0.0000 churnTodayMatched=0.0000 churnJoin=0.0000 churnRebuildMatched=0.0000 newTrackJoinAgreesWithRebuild=NaN newTracksJoined=0/0
+R3 lib=fma-5000-fma-pilot same verdict trust=PASS recall=PASS class=PASS lost=PASS p90move=PASS timeHost=PASS regionChurnRebuild=PASS waitRFratio=NaN waitCFdelta=NaN flagged=0
+R3 lib=fma-5000-fma-pilot add1 share=0.0100 refreshMs=989.6 hint=none staleAt5=false staleAt3=false novel=false
+R3 lib=fma-5000-fma-pilot add1 metrics today trust=0.9914 recall=0.6747 class=0.6893 RF=0.6627 CF=0.6720 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot add1 metrics refresh trust=0.9907 recall=0.6707 class=0.6853 RF=0.6453 CF=0.6507 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot add1 metrics rebuild trust=0.9914 recall=0.6733 class=0.6898 RF=0.6573 CF=0.6747 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot add1 time todayMs=5967.5 refreshMs=989.6 ratio=0.1658 rebuildMs=5756.4
+R3 lib=fma-5000-fma-pilot add1 stability today kept=0.8446 p90=0.1714 refresh kept=0.9734 p90=0.0042
+R3 lib=fma-5000-fma-pilot add1 regions regionsBefore=170 regionsAfter=170 churnTodayByName=0.0103 churnTodayMatched=0.0121 churnJoin=0.0000 churnRebuildMatched=0.0121 newTrackJoinAgreesWithRebuild=0.8200 newTracksJoined=43/50
+R3 lib=fma-5000-fma-pilot add1 verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS regionChurnRebuild=PASS waitRFratio=0.9738 waitCFdelta=-0.0213 flagged=50
+R3 lib=fma-5000-fma-pilot add5 share=0.0500 refreshMs=1052.6 hint=none staleAt5=false staleAt3=true novel=false
+R3 lib=fma-5000-fma-pilot add5 metrics today trust=0.9919 recall=0.6746 class=0.6883 RF=0.6456 CF=0.6803 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot add5 metrics refresh trust=0.9901 recall=0.6721 class=0.6902 RF=0.6379 CF=0.6739 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot add5 metrics rebuild trust=0.9918 recall=0.6754 class=0.6865 RF=0.6536 CF=0.6699 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot add5 time todayMs=5738.6 refreshMs=1052.6 ratio=0.1834 rebuildMs=5723.5
+R3 lib=fma-5000-fma-pilot add5 stability today kept=0.8389 p90=0.1337 refresh kept=0.9528 p90=0.0048
+R3 lib=fma-5000-fma-pilot add5 regions regionsBefore=169 regionsAfter=170 churnTodayByName=0.1373 churnTodayMatched=0.1126 churnJoin=0.0000 churnRebuildMatched=0.1126 newTrackJoinAgreesWithRebuild=0.7080 newTracksJoined=183/250
+R3 lib=fma-5000-fma-pilot add5 verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS regionChurnRebuild=FAIL waitRFratio=0.9880 waitCFdelta=-0.0064 flagged=250
+R3 lib=fma-5000-fma-pilot change1 share=0.0100 refreshMs=1365.2 hint=none staleAt5=false staleAt3=false novel=false
+R3 lib=fma-5000-fma-pilot change1 metrics today trust=0.9899 recall=0.6711 class=0.6871 RF=0.6853 CF=0.6493 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot change1 metrics refresh trust=0.9906 recall=0.6709 class=0.6863 RF=0.6533 CF=0.6253 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot change1 metrics rebuild trust=0.9906 recall=0.6709 class=0.6867 RF=0.6773 CF=0.6533 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot change1 time todayMs=6466.6 refreshMs=1365.2 ratio=0.2111 rebuildMs=6213.3
+R3 lib=fma-5000-fma-pilot change1 stability today kept=0.8572 p90=0.1345 refresh kept=0.9683 p90=0.0052
+R3 lib=fma-5000-fma-pilot change1 regions regionsBefore=172 regionsAfter=170 churnTodayByName=0.0804 churnTodayMatched=0.0600 churnJoin=0.0000 churnRebuildMatched=0.0600 newTrackJoinAgreesWithRebuild=0.7400 newTracksJoined=42/50
+R3 lib=fma-5000-fma-pilot change1 verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS regionChurnRebuild=FAIL waitRFratio=0.9533 waitCFdelta=-0.0240 flagged=50
+R3 lib=fma-5000-fma-pilot album1 share=0.0106 refreshMs=1068.0 hint=none staleAt5=false staleAt3=false novel=false
+R3 lib=fma-5000-fma-pilot album1 metrics today trust=0.9910 recall=0.6734 class=0.6821 RF=0.6667 CF=0.7434 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot album1 metrics refresh trust=0.9917 recall=0.6731 class=0.6875 RF=0.6176 CF=0.7371 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot album1 metrics rebuild trust=0.9914 recall=0.6738 class=0.6829 RF=0.6881 CF=0.7434 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot album1 time todayMs=6255.9 refreshMs=1068.0 ratio=0.1707 rebuildMs=6025.8
+R3 lib=fma-5000-fma-pilot album1 stability today kept=0.8665 p90=0.1167 refresh kept=0.9778 p90=0.0053
+R3 lib=fma-5000-fma-pilot album1 regions regionsBefore=174 regionsAfter=170 churnTodayByName=0.0299 churnTodayMatched=0.0261 churnJoin=0.0000 churnRebuildMatched=0.0261 newTrackJoinAgreesWithRebuild=0.6792 newTracksJoined=40/53
+R3 lib=fma-5000-fma-pilot album1 verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS regionChurnRebuild=FAIL waitRFratio=0.9264 waitCFdelta=-0.0063 flagged=53
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-0.5 share=0.0053 refreshMs=1026.6 hint=none staleAt5=false staleAt3=false novel=true
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-0.5 metrics today trust=0.9916 recall=0.6691 class=0.6796 RF=0.6267 CF=0.4480 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-0.5 metrics refresh trust=0.9909 recall=0.6683 class=0.6806 RF=0.4800 CF=0.3307 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-0.5 metrics rebuild trust=0.9907 recall=0.6688 class=0.6808 RF=0.6240 CF=0.4453 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-0.5 time todayMs=6256.7 refreshMs=1026.6 ratio=0.1641 rebuildMs=6131.4
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-0.5 stability today kept=0.8688 p90=0.1118 refresh kept=0.9804 p90=0.0065
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-0.5 regions regionsBefore=173 regionsAfter=174 churnTodayByName=0.0569 churnTodayMatched=0.0314 churnJoin=0.0000 churnRebuildMatched=0.0314 newTrackJoinAgreesWithRebuild=0.5600 newTracksJoined=12/25
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-0.5 verdict waitTrust=PASS waitRecall=PASS waitClass=PASS waitLost=PASS waitRF=PASS recoverRF=PASS recoverCF=PASS recoverTrust=PASS recoverRecall=PASS regionChurnRebuild=FAIL waitRFratio=0.7660 waitCFdelta=-0.1173 flagged=25
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-1.0 share=0.0105 refreshMs=991.5 hint=none staleAt5=false staleAt3=false novel=true
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-1.0 metrics today trust=0.9908 recall=0.6666 class=0.6834 RF=0.7360 CF=0.6413 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-1.0 metrics refresh trust=0.9910 recall=0.6689 class=0.6808 RF=0.5893 CF=0.4733 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-1.0 metrics rebuild trust=0.9914 recall=0.6673 class=0.6840 RF=0.7200 CF=0.6640 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-1.0 time todayMs=5844.0 refreshMs=991.5 ratio=0.1697 rebuildMs=5807.5
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-1.0 stability today kept=0.8533 p90=0.1113 refresh kept=0.9754 p90=0.0071
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-1.0 regions regionsBefore=173 regionsAfter=173 churnTodayByName=0.0734 churnTodayMatched=0.0405 churnJoin=0.0000 churnRebuildMatched=0.0405 newTrackJoinAgreesWithRebuild=0.7000 newTracksJoined=34/50
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-1.0 verdict waitTrust=PASS waitRecall=PASS waitClass=PASS waitLost=PASS waitRF=PASS recoverRF=PASS recoverCF=PASS recoverTrust=PASS recoverRecall=PASS regionChurnRebuild=FAIL waitRFratio=0.8007 waitCFdelta=-0.1680 flagged=50
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-2.0 share=0.0208 refreshMs=1038.1 hint=family staleAt5=true staleAt3=true novel=true
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-2.0 metrics today trust=0.9911 recall=0.6686 class=0.6878 RF=0.7567 CF=0.7793 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-2.0 metrics refresh trust=0.9906 recall=0.6669 class=0.6815 RF=0.6060 CF=0.5787 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-2.0 metrics rebuild trust=0.9914 recall=0.6692 class=0.6868 RF=0.7513 CF=0.7847 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-2.0 time todayMs=6547.6 refreshMs=1038.1 ratio=0.1585 rebuildMs=6350.6
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-2.0 stability today kept=0.8424 p90=0.1279 refresh kept=0.9706 p90=0.0082
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-2.0 regions regionsBefore=173 regionsAfter=172 churnTodayByName=0.0868 churnTodayMatched=0.0543 churnJoin=0.0000 churnRebuildMatched=0.0543 newTrackJoinAgreesWithRebuild=0.7600 newTracksJoined=73/100
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-2.0 verdict waitTrust=PASS waitRecall=PASS waitClass=PASS waitLost=PASS waitRF=PASS recoverRF=PASS recoverCF=PASS recoverTrust=PASS recoverRecall=PASS regionChurnRebuild=FAIL waitRFratio=0.8009 waitCFdelta=-0.2007 flagged=100
+R3 lib=fma-5000-fma-pilot heldout1 share=0.0100 refreshMs=1100.9 hint=none staleAt5=false staleAt3=false novel=false
+R3 lib=fma-5000-fma-pilot heldout1 metrics today trust=0.9920 recall=0.6714 class=0.6866 RF=0.7147 CF=0.7213 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot heldout1 metrics refresh trust=0.9916 recall=0.6736 class=0.6881 RF=0.7000 CF=0.7147 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot heldout1 metrics rebuild trust=0.9918 recall=0.6707 class=0.6884 RF=0.7227 CF=0.7293 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot heldout1 time todayMs=6603.3 refreshMs=1100.9 ratio=0.1667 rebuildMs=6764.4
+R3 lib=fma-5000-fma-pilot heldout1 stability today kept=0.8655 p90=0.1704 refresh kept=0.9763 p90=0.0043
+R3 lib=fma-5000-fma-pilot heldout1 regions regionsBefore=174 regionsAfter=170 churnTodayByName=0.0495 churnTodayMatched=0.0380 churnJoin=0.0000 churnRebuildMatched=0.0380 newTrackJoinAgreesWithRebuild=0.7400 newTracksJoined=40/50
+R3 lib=fma-5000-fma-pilot heldout1 verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS regionChurnRebuild=FAIL waitRFratio=0.9795 waitCFdelta=-0.0067 flagged=50
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=1 n=4450 sinceFull=50 hint=none stale=false knnExact=true refreshMs=981.8 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=2 n=4500 sinceFull=100 hint=none stale=false knnExact=true refreshMs=968.2 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=3 n=4550 sinceFull=150 hint=none stale=false knnExact=true refreshMs=1023.8 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=4 n=4600 sinceFull=200 hint=none stale=false knnExact=true refreshMs=1007.5 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=5 waiting trust=0.9899 recall=0.6664 class=0.6759 RF=0.6459 CF=0.6147 overlapCold=0.8159 cold trust=0.9914 recall=0.6673 class=0.6816 RF=0.6541 CF=0.6240 overlapCold=1.0000
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=5 n=4650 sinceFull=250 hint=none stale=true knnExact=true refreshMs=1023.8 check=PASS
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=6 n=4700 sinceFull=50 hint=none stale=false knnExact=true refreshMs=1172.8 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=7 n=4750 sinceFull=100 hint=none stale=false knnExact=true refreshMs=1091.0 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=8 n=4800 sinceFull=150 hint=none stale=false knnExact=true refreshMs=1077.9 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=9 n=4850 sinceFull=200 hint=none stale=false knnExact=true refreshMs=1115.1 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=10 waiting trust=0.9899 recall=0.6739 class=0.6840 RF=0.6808 CF=0.6709 overlapCold=0.8226 cold trust=0.9904 recall=0.6709 class=0.6841 RF=0.6845 CF=0.6712 overlapCold=1.0000
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=10 n=4900 sinceFull=250 hint=none stale=true knnExact=true refreshMs=1178.1 check=PASS
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=11 waiting trust=0.9915 recall=0.6740 class=0.6861 RF=NaN CF=NaN overlapCold=0.8259 cold trust=0.9913 recall=0.6703 class=0.6795 RF=NaN CF=NaN overlapCold=1.0000
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=11 n=4802 sinceFull=0 hint=none stale=false knnExact=true refreshMs=1769.4 check=PASS
+R3 chain lib=fma-5000-fma-pilot B=0.05 rebuilds=2 verdict=PASS
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=1 n=4450 sinceFull=50 hint=none stale=false knnExact=true refreshMs=1024.3 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=2 n=4500 sinceFull=100 hint=none stale=false knnExact=true refreshMs=1072.9 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=3 waiting trust=0.9897 recall=0.6651 class=0.6748 RF=0.6324 CF=0.5707 overlapCold=0.8189 cold trust=0.9913 recall=0.6683 class=0.6774 RF=0.6427 CF=0.5880 overlapCold=1.0000
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=3 n=4550 sinceFull=150 hint=none stale=true knnExact=true refreshMs=1007.3 check=PASS
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=4 n=4600 sinceFull=50 hint=none stale=false knnExact=true refreshMs=1051.9 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=5 n=4650 sinceFull=100 hint=none stale=false knnExact=true refreshMs=1006.3 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=6 waiting trust=0.9905 recall=0.6690 class=0.6775 RF=0.6609 CF=0.6711 overlapCold=0.8252 cold trust=0.9922 recall=0.6690 class=0.6832 RF=0.6676 CF=0.6884 overlapCold=1.0000
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=6 n=4700 sinceFull=150 hint=none stale=true knnExact=true refreshMs=1071.0 check=PASS
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=7 n=4750 sinceFull=50 hint=none stale=false knnExact=true refreshMs=1018.3 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=8 n=4800 sinceFull=100 hint=none stale=false knnExact=true refreshMs=1084.1 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=9 waiting trust=0.9902 recall=0.6751 class=0.6842 RF=0.6622 CF=0.6809 overlapCold=0.8406 cold trust=0.9911 recall=0.6751 class=0.6867 RF=0.6747 CF=0.6822 overlapCold=1.0000
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=9 n=4850 sinceFull=150 hint=none stale=true knnExact=true refreshMs=1085.7 check=PASS
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=10 n=4900 sinceFull=50 hint=none stale=false knnExact=true refreshMs=1044.5 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=11 waiting trust=0.9907 recall=0.6744 class=0.6851 RF=0.7404 CF=0.6411 overlapCold=0.8306 cold trust=0.9913 recall=0.6703 class=0.6795 RF=0.7277 CF=0.6184 overlapCold=1.0000
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=11 n=4802 sinceFull=50 hint=none stale=false knnExact=true refreshMs=1672.0 check=PASS
+R3 chain lib=fma-5000-fma-pilot B=0.03 rebuilds=3 verdict=PASS
+R3 lib=fma-5000-fma-pilot n=5000 dim=1344 family=true artists=true mode=pilot
+R3 lib=fma-5000-fma-pilot novel style=Soundtrack heldOutMembers=100 allMembers=286
+R3 lib=fma-5000-fma-pilot add1 share=0.0100 refreshMs=1146.9 hint=none staleAt5=false staleAt3=false novel=false
+R3 lib=fma-5000-fma-pilot add1 metrics today trust=0.9914 recall=0.6747 class=0.6893 RF=0.6627 CF=0.6720 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot add1 metrics refresh trust=0.9907 recall=0.6707 class=0.6853 RF=0.6453 CF=0.6507 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot add1 metrics rebuild trust=0.9914 recall=0.6733 class=0.6898 RF=0.6573 CF=0.6747 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot add1 time todayMs=6694.3 refreshMs=1146.9 ratio=0.1713 rebuildMs=6472.7
+R3 lib=fma-5000-fma-pilot add1 stability today kept=0.8446 p90=0.1714 refresh kept=0.9734 p90=0.0042
+R3 lib=fma-5000-fma-pilot add1 regions regionsBefore=170 regionsAfter=170 churnTodayByName=0.0103 churnTodayMatched=0.0121 churnJoin=0.0000 churnRebuildMatched=0.0121 churnRebuildSticky=0.0099 purityDiscovered=0.7639 puritySticky=0.7626 stickyRegions=170 churnAdditive=0.0000 purityAdditive=0.7629 coverageAdditive=0.7878 coverageDiscovered=0.7844 ownRegionDiscovered=NaN ownRegionAdditive=NaN newTrackJoinAgreesWithSticky=0.8200 newTrackJoinAgreesWithRebuild=0.8200 newTracksJoined=43/50
+R3 lib=fma-5000-fma-pilot add1 verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS regionChurnRebuild=PASS waitRFratio=0.9738 waitCFdelta=-0.0213 flagged=50
+R3 lib=fma-5000-fma-pilot add5 share=0.0500 refreshMs=1123.5 hint=none staleAt5=false staleAt3=true novel=false
+R3 lib=fma-5000-fma-pilot add5 metrics today trust=0.9919 recall=0.6746 class=0.6883 RF=0.6456 CF=0.6803 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot add5 metrics refresh trust=0.9901 recall=0.6721 class=0.6902 RF=0.6379 CF=0.6739 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot add5 metrics rebuild trust=0.9918 recall=0.6754 class=0.6865 RF=0.6536 CF=0.6699 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot add5 time todayMs=6476.3 refreshMs=1123.5 ratio=0.1735 rebuildMs=6611.7
+R3 lib=fma-5000-fma-pilot add5 stability today kept=0.8389 p90=0.1337 refresh kept=0.9528 p90=0.0048
+R3 lib=fma-5000-fma-pilot add5 regions regionsBefore=169 regionsAfter=170 churnTodayByName=0.1373 churnTodayMatched=0.1126 churnJoin=0.0000 churnRebuildMatched=0.1126 churnRebuildSticky=0.1013 purityDiscovered=0.7639 puritySticky=0.7624 stickyRegions=170 churnAdditive=0.0000 purityAdditive=0.7601 coverageAdditive=0.7844 coverageDiscovered=0.7844 ownRegionDiscovered=NaN ownRegionAdditive=NaN newTrackJoinAgreesWithSticky=0.7080 newTrackJoinAgreesWithRebuild=0.7080 newTracksJoined=183/250
+R3 lib=fma-5000-fma-pilot add5 verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS regionChurnRebuild=FAIL waitRFratio=0.9880 waitCFdelta=-0.0064 flagged=250
+R3 lib=fma-5000-fma-pilot change1 share=0.0100 refreshMs=1425.5 hint=none staleAt5=false staleAt3=false novel=false
+R3 lib=fma-5000-fma-pilot change1 metrics today trust=0.9899 recall=0.6711 class=0.6871 RF=0.6853 CF=0.6493 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot change1 metrics refresh trust=0.9906 recall=0.6709 class=0.6863 RF=0.6533 CF=0.6253 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot change1 metrics rebuild trust=0.9906 recall=0.6709 class=0.6867 RF=0.6773 CF=0.6533 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot change1 time todayMs=6655.4 refreshMs=1425.5 ratio=0.2142 rebuildMs=6565.7
+R3 lib=fma-5000-fma-pilot change1 stability today kept=0.8572 p90=0.1345 refresh kept=0.9683 p90=0.0052
+R3 lib=fma-5000-fma-pilot change1 regions regionsBefore=172 regionsAfter=170 churnTodayByName=0.0804 churnTodayMatched=0.0600 churnJoin=0.0000 churnRebuildMatched=0.0600 churnRebuildSticky=0.0533 purityDiscovered=0.7639 puritySticky=0.7626 stickyRegions=170 churnAdditive=0.0000 purityAdditive=0.7564 coverageAdditive=0.7832 coverageDiscovered=0.7844 ownRegionDiscovered=NaN ownRegionAdditive=NaN newTrackJoinAgreesWithSticky=0.7400 newTrackJoinAgreesWithRebuild=0.7400 newTracksJoined=42/50
+R3 lib=fma-5000-fma-pilot change1 verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS regionChurnRebuild=FAIL waitRFratio=0.9533 waitCFdelta=-0.0240 flagged=50
+R3 lib=fma-5000-fma-pilot album1 share=0.0106 refreshMs=1058.3 hint=none staleAt5=false staleAt3=false novel=false
+R3 lib=fma-5000-fma-pilot album1 metrics today trust=0.9910 recall=0.6734 class=0.6821 RF=0.6667 CF=0.7434 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot album1 metrics refresh trust=0.9917 recall=0.6731 class=0.6875 RF=0.6176 CF=0.7371 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot album1 metrics rebuild trust=0.9914 recall=0.6738 class=0.6829 RF=0.6881 CF=0.7434 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot album1 time todayMs=6598.0 refreshMs=1058.3 ratio=0.1604 rebuildMs=6541.8
+R3 lib=fma-5000-fma-pilot album1 stability today kept=0.8665 p90=0.1167 refresh kept=0.9778 p90=0.0053
+R3 lib=fma-5000-fma-pilot album1 regions regionsBefore=174 regionsAfter=170 churnTodayByName=0.0299 churnTodayMatched=0.0261 churnJoin=0.0000 churnRebuildMatched=0.0261 churnRebuildSticky=0.0214 purityDiscovered=0.7639 puritySticky=0.7638 stickyRegions=170 churnAdditive=0.0000 purityAdditive=0.7643 coverageAdditive=0.7890 coverageDiscovered=0.7844 ownRegionDiscovered=NaN ownRegionAdditive=NaN newTrackJoinAgreesWithSticky=0.6792 newTrackJoinAgreesWithRebuild=0.6792 newTracksJoined=40/53
+R3 lib=fma-5000-fma-pilot album1 verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS regionChurnRebuild=FAIL waitRFratio=0.9264 waitCFdelta=-0.0063 flagged=53
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-1.0 share=0.0105 refreshMs=1076.8 hint=none staleAt5=false staleAt3=false novel=true
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-1.0 metrics today trust=0.9908 recall=0.6666 class=0.6834 RF=0.7360 CF=0.6413 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-1.0 metrics refresh trust=0.9910 recall=0.6689 class=0.6808 RF=0.5893 CF=0.4733 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-1.0 metrics rebuild trust=0.9914 recall=0.6673 class=0.6840 RF=0.7200 CF=0.6640 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-1.0 time todayMs=6273.6 refreshMs=1076.8 ratio=0.1716 rebuildMs=6184.0
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-1.0 stability today kept=0.8533 p90=0.1113 refresh kept=0.9754 p90=0.0071
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-1.0 regions regionsBefore=173 regionsAfter=173 churnTodayByName=0.0734 churnTodayMatched=0.0405 churnJoin=0.0000 churnRebuildMatched=0.0405 churnRebuildSticky=0.0246 purityDiscovered=0.7529 puritySticky=0.7562 stickyRegions=173 churnAdditive=0.0000 purityAdditive=0.7517 coverageAdditive=0.7939 coverageDiscovered=0.7859 ownRegionDiscovered=0.3200 ownRegionAdditive=0.4000 newTrackJoinAgreesWithSticky=0.7000 newTrackJoinAgreesWithRebuild=0.7000 newTracksJoined=34/50
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-1.0 verdict waitTrust=PASS waitRecall=PASS waitClass=PASS waitLost=PASS waitRF=PASS recoverRF=PASS recoverCF=PASS recoverTrust=PASS recoverRecall=PASS regionChurnRebuild=FAIL waitRFratio=0.8007 waitCFdelta=-0.1680 flagged=50
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-2.0 share=0.0208 refreshMs=1171.7 hint=family staleAt5=true staleAt3=true novel=true
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-2.0 metrics today trust=0.9911 recall=0.6686 class=0.6878 RF=0.7567 CF=0.7793 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-2.0 metrics refresh trust=0.9906 recall=0.6669 class=0.6815 RF=0.6060 CF=0.5787 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-2.0 metrics rebuild trust=0.9914 recall=0.6692 class=0.6868 RF=0.7513 CF=0.7847 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-2.0 time todayMs=6438.5 refreshMs=1171.7 ratio=0.1820 rebuildMs=6263.9
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-2.0 stability today kept=0.8424 p90=0.1279 refresh kept=0.9706 p90=0.0082
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-2.0 regions regionsBefore=173 regionsAfter=172 churnTodayByName=0.0868 churnTodayMatched=0.0543 churnJoin=0.0000 churnRebuildMatched=0.0543 churnRebuildSticky=0.0325 purityDiscovered=0.7515 puritySticky=0.7540 stickyRegions=172 churnAdditive=0.0000 purityAdditive=0.7488 coverageAdditive=0.7954 coverageDiscovered=0.7850 ownRegionDiscovered=0.3600 ownRegionAdditive=0.4100 newTrackJoinAgreesWithSticky=0.7600 newTrackJoinAgreesWithRebuild=0.7600 newTracksJoined=73/100
+R3 lib=fma-5000-fma-pilot novel-Soundtrack-2.0 verdict waitTrust=PASS waitRecall=PASS waitClass=PASS waitLost=PASS waitRF=PASS recoverRF=PASS recoverCF=PASS recoverTrust=PASS recoverRecall=PASS regionChurnRebuild=FAIL waitRFratio=0.8009 waitCFdelta=-0.2007 flagged=100
+R3 lib=fma-5000-fma-pilot heldout1 share=0.0100 refreshMs=1119.5 hint=none staleAt5=false staleAt3=false novel=false
+R3 lib=fma-5000-fma-pilot heldout1 metrics today trust=0.9920 recall=0.6714 class=0.6866 RF=0.7147 CF=0.7213 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot heldout1 metrics refresh trust=0.9916 recall=0.6736 class=0.6881 RF=0.7000 CF=0.7147 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot heldout1 metrics rebuild trust=0.9918 recall=0.6707 class=0.6884 RF=0.7227 CF=0.7293 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot heldout1 time todayMs=6586.8 refreshMs=1119.5 ratio=0.1700 rebuildMs=6513.2
+R3 lib=fma-5000-fma-pilot heldout1 stability today kept=0.8655 p90=0.1704 refresh kept=0.9763 p90=0.0043
+R3 lib=fma-5000-fma-pilot heldout1 regions regionsBefore=174 regionsAfter=170 churnTodayByName=0.0495 churnTodayMatched=0.0380 churnJoin=0.0000 churnRebuildMatched=0.0380 churnRebuildSticky=0.0301 purityDiscovered=0.7639 puritySticky=0.7633 stickyRegions=170 churnAdditive=0.0000 purityAdditive=0.7583 coverageAdditive=0.7952 coverageDiscovered=0.7844 ownRegionDiscovered=NaN ownRegionAdditive=NaN newTrackJoinAgreesWithSticky=0.7400 newTrackJoinAgreesWithRebuild=0.7400 newTracksJoined=40/50
+R3 lib=fma-5000-fma-pilot heldout1 verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS regionChurnRebuild=FAIL waitRFratio=0.9795 waitCFdelta=-0.0067 flagged=50
+# --- smoke after plan review 1 (pilot data, album1 + chains on FMA-5000 round-1 draw)
+R3 lib=fma-5000-fma-pilot n=5000 dim=1344 family=true artists=true mode=pilot
+R3 lib=fma-5000-fma-pilot novel style=Soundtrack heldOutMembers=100 allMembers=286
+R3 lib=fma-5000-fma-pilot album1 share=0.0106 refreshMs=1061.7 hint=none staleAt5=false staleAt3=false novel=false
+R3 lib=fma-5000-fma-pilot album1 metrics today trust=0.9910 recall=0.6734 class=0.6821 RF=0.6667 CF=0.7434 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot album1 metrics refresh trust=0.9917 recall=0.6731 class=0.6875 RF=0.6176 CF=0.7371 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot album1 metrics rebuild trust=0.9914 recall=0.6738 class=0.6829 RF=0.6881 CF=0.7434 overlapCold=NaN
+R3 lib=fma-5000-fma-pilot album1 time todayMs=6074.9 refreshMs=1061.7 ratio=0.1748 rebuildMs=6163.1
+R3 lib=fma-5000-fma-pilot album1 stability today kept=0.8665 p90=0.1167 refresh kept=0.9778 p90=0.0053
+R3 lib=fma-5000-fma-pilot album1 regions regionsBefore=174 regionsAfter=170 churnTodayByName=0.0299 churnTodayMatched=0.0261 churnJoin=0.0000 churnRebuildMatched=0.0261 churnRebuildSticky=0.0214 purityDiscovered=0.7639 puritySticky=0.7638 stickyRegions=170 churnAdditive=0.0000 purityAdditive=0.7643 coverageAdditive=0.7890 coverageDiscovered=0.7844 ownRegionDiscovered=NaN ownRegionAdditive=NaN additiveRegions=175 duplicateNames=8 newTrackJoinAgreesWithSticky=0.6792 newTrackJoinAgreesWithRebuild=0.6792 newTracksJoined=40/53
+R3 lib=fma-5000-fma-pilot album1 verdict trust=PASS recall=PASS class=PASS RF=PASS CF=PASS lost=PASS p90move=PASS timeHost=PASS waitRFratio=0.9264 waitCFdelta=-0.0063 flagged=53
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=1 n=4450 sinceFull=50 hint=none stale=false knnExact=true refreshMs=956.9 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=2 n=4500 sinceFull=100 hint=none stale=false knnExact=true refreshMs=949.8 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=3 n=4550 sinceFull=150 hint=none stale=false knnExact=true refreshMs=965.0 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=4 n=4600 sinceFull=200 hint=none stale=false knnExact=true refreshMs=979.3 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=5 waiting trust=0.9899 recall=0.6664 class=0.6759 RF=0.6459 CF=0.6147 overlapCold=0.8159 cold trust=0.9914 recall=0.6673 class=0.6816 RF=0.6541 CF=0.6240 overlapCold=1.0000
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=5 n=4650 sinceFull=250 hint=none stale=true knnExact=true refreshMs=989.0 check=PASS
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=6 n=4700 sinceFull=50 hint=none stale=false knnExact=true refreshMs=983.5 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=7 n=4750 sinceFull=100 hint=none stale=false knnExact=true refreshMs=1013.3 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=8 n=4800 sinceFull=150 hint=none stale=false knnExact=true refreshMs=1017.1 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=9 n=4850 sinceFull=200 hint=none stale=false knnExact=true refreshMs=1015.5 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=10 waiting trust=0.9899 recall=0.6739 class=0.6840 RF=0.6808 CF=0.6709 overlapCold=0.8226 cold trust=0.9904 recall=0.6709 class=0.6841 RF=0.6845 CF=0.6712 overlapCold=1.0000
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=10 n=4900 sinceFull=250 hint=none stale=true knnExact=true refreshMs=1040.6 check=PASS
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=11 waiting trust=0.9915 recall=0.6740 class=0.6861 RF=NaN CF=NaN overlapCold=0.8259 cold trust=0.9913 recall=0.6703 class=0.6795 RF=NaN CF=NaN overlapCold=1.0000
+R3 chain lib=fma-5000-fma-pilot B=0.05 step=11 n=4802 sinceFull=0 hint=none stale=false knnExact=true refreshMs=1643.0 check=PASS
+R3 chain lib=fma-5000-fma-pilot B=0.05 regions purityAdditive=0.7473 purityFresh=0.7497 coverageAdditive=0.7861 coverageFresh=0.7880 regionsAdditive=184 regionsFresh=169 regionVerdict=PASS
+R3 chain lib=fma-5000-fma-pilot B=0.05 rebuilds=2 verdict=PASS
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=1 n=4450 sinceFull=50 hint=none stale=false knnExact=true refreshMs=1024.6 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=2 n=4500 sinceFull=100 hint=none stale=false knnExact=true refreshMs=951.9 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=3 waiting trust=0.9897 recall=0.6651 class=0.6748 RF=0.6324 CF=0.5707 overlapCold=0.8189 cold trust=0.9913 recall=0.6683 class=0.6774 RF=0.6427 CF=0.5880 overlapCold=1.0000
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=3 n=4550 sinceFull=150 hint=none stale=true knnExact=true refreshMs=965.7 check=PASS
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=4 n=4600 sinceFull=50 hint=none stale=false knnExact=true refreshMs=967.3 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=5 n=4650 sinceFull=100 hint=none stale=false knnExact=true refreshMs=969.4 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=6 waiting trust=0.9905 recall=0.6690 class=0.6775 RF=0.6609 CF=0.6711 overlapCold=0.8252 cold trust=0.9922 recall=0.6690 class=0.6832 RF=0.6676 CF=0.6884 overlapCold=1.0000
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=6 n=4700 sinceFull=150 hint=none stale=true knnExact=true refreshMs=951.2 check=PASS
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=7 n=4750 sinceFull=50 hint=none stale=false knnExact=true refreshMs=953.8 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=8 n=4800 sinceFull=100 hint=none stale=false knnExact=true refreshMs=967.3 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=9 waiting trust=0.9902 recall=0.6751 class=0.6842 RF=0.6622 CF=0.6809 overlapCold=0.8406 cold trust=0.9911 recall=0.6751 class=0.6867 RF=0.6747 CF=0.6822 overlapCold=1.0000
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=9 n=4850 sinceFull=150 hint=none stale=true knnExact=true refreshMs=977.2 check=PASS
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=10 n=4900 sinceFull=50 hint=none stale=false knnExact=true refreshMs=1044.5 check=n/a
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=11 waiting trust=0.9907 recall=0.6744 class=0.6851 RF=0.7404 CF=0.6411 overlapCold=0.8306 cold trust=0.9913 recall=0.6703 class=0.6795 RF=0.7277 CF=0.6184 overlapCold=1.0000
+R3 chain lib=fma-5000-fma-pilot B=0.03 step=11 n=4802 sinceFull=50 hint=none stale=false knnExact=true refreshMs=1557.9 check=PASS
+R3 chain lib=fma-5000-fma-pilot B=0.03 regions purityAdditive=0.7481 purityFresh=0.7497 coverageAdditive=0.7855 coverageFresh=0.7880 regionsAdditive=184 regionsFresh=169 regionVerdict=PASS
+R3 chain lib=fma-5000-fma-pilot B=0.03 rebuilds=3 verdict=PASS

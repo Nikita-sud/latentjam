@@ -1,0 +1,326 @@
+# MapIncrementalReplay output, 25 Oct 2026. Base commit 2619533d; host JVM (Gradle :core:smart:testAndroidHostTest), single thread, macOS arm64.
+# Command: MAP_INC_REPLAY=1 ./gradlew :core:smart:testAndroidHostTest --tests '*MapIncrementalReplay*' --rerun  (defaults: n=10000, seeds 7,11, scenarios same,add1,add5,add10,style,change5)
+# Synthetic hierarchicalFixture only. ms includes PCA. kept15/move are over unchanged old tracks; RF = recallFlagged@15 (new or changed tracks).
+# Note: the seed 7 `same` header line (flagged=0 rawSpread=...) is missing from the JUnit XML capture; nothing else was edited.
+INC n=10000 seed=7 same cold ms=16428
+INC n=10000 seed=7 same cold-seed2 ms=14878 (embed only, unnormalized)
+INC n=10000 seed=7 same today ms=16141 kept15=0.5496 medianMove=0.0316 p90Move=0.0712
+INC n=10000 seed=7 same today-s ms=16676 kept15=0.4393 medianMove=0.0272 p90Move=0.0678
+INC n=10000 seed=7 same warm-150s ms=4808 kept15=0.9692 medianMove=0.0012 p90Move=0.0024
+INC n=10000 seed=7 same place ms=1375 kept15=1.0000 medianMove=0.0000 p90Move=0.0000
+INC n=10000 seed=7 same place+50s ms=3486 kept15=0.9853 medianMove=0.0002 p90Move=0.0004
+INC n=10000 seed=7 same place+150s ms=4810 kept15=0.9692 medianMove=0.0012 p90Move=0.0024
+INC n=10000 seed=7 same place+300s ms=6796 kept15=0.9515 medianMove=0.0026 p90Move=0.0046
+INC n=10000 seed=7 same cold trust@15=0.9837 recall@15=0.2668 recallFlagged@15=NaN class@15=0.8479 classFlagged@15=NaN overlapToday=0.5496 overlapCold=1.0000
+INC n=10000 seed=7 same cold-seed2 trust@15=0.9836 recall@15=0.2690 recallFlagged@15=NaN class@15=0.8479 classFlagged@15=NaN overlapToday=0.5385 overlapCold=0.5350
+INC n=10000 seed=7 same today trust@15=0.9837 recall@15=0.2688 recallFlagged@15=NaN class@15=0.8479 classFlagged@15=NaN overlapToday=1.0000 overlapCold=0.5496
+INC n=10000 seed=7 same today-s trust@15=0.9829 recall@15=0.2649 recallFlagged@15=NaN class@15=0.8479 classFlagged@15=NaN overlapToday=0.4537 overlapCold=0.4393
+INC n=10000 seed=7 same warm-150s trust@15=0.9837 recall@15=0.2675 recallFlagged@15=NaN class@15=0.8479 classFlagged@15=NaN overlapToday=0.5481 overlapCold=0.9692
+INC n=10000 seed=7 same place trust@15=0.9837 recall@15=0.2668 recallFlagged@15=NaN class@15=0.8479 classFlagged@15=NaN overlapToday=0.5496 overlapCold=1.0000
+INC n=10000 seed=7 same place+50s trust@15=0.9837 recall@15=0.2670 recallFlagged@15=NaN class@15=0.8479 classFlagged@15=NaN overlapToday=0.5499 overlapCold=0.9853
+INC n=10000 seed=7 same place+150s trust@15=0.9837 recall@15=0.2675 recallFlagged@15=NaN class@15=0.8479 classFlagged@15=NaN overlapToday=0.5481 overlapCold=0.9692
+INC n=10000 seed=7 same place+300s trust@15=0.9836 recall@15=0.2677 recallFlagged@15=NaN class@15=0.8479 classFlagged@15=NaN overlapToday=0.5442 overlapCold=0.9515
+INC n=10000 seed=7 add1 flagged=100 rawSpread=47.6931
+INC n=10000 seed=7 add1 cold ms=16268
+INC n=10000 seed=7 add1 cold-seed2 ms=14890 (embed only, unnormalized)
+INC n=10000 seed=7 add1 today ms=16106 kept15=0.4671 medianMove=0.0420 p90Move=0.0869
+INC n=10000 seed=7 add1 today-s ms=16880 kept15=0.4210 medianMove=0.0301 p90Move=0.0727
+INC n=10000 seed=7 add1 warm-150s ms=4913 kept15=0.8773 medianMove=0.0023 p90Move=0.0046
+INC n=10000 seed=7 add1 place ms=1431 kept15=1.0000 medianMove=0.0000 p90Move=0.0000
+INC n=10000 seed=7 add1 place+50s ms=3576 kept15=0.9058 medianMove=0.0007 p90Move=0.0016
+INC n=10000 seed=7 add1 place+150s ms=4911 kept15=0.8599 medianMove=0.0023 p90Move=0.0045
+INC n=10000 seed=7 add1 place+300s ms=6930 kept15=0.8403 medianMove=0.0063 p90Move=0.0119
+INC n=10000 seed=7 add1 cold trust@15=0.9837 recall@15=0.2668 recallFlagged@15=0.2773 class@15=0.8479 classFlagged@15=0.8700 overlapToday=0.5328 overlapCold=1.0000
+INC n=10000 seed=7 add1 cold-seed2 trust@15=0.9836 recall@15=0.2690 recallFlagged@15=0.2693 class@15=0.8479 classFlagged@15=0.8700 overlapToday=0.5236 overlapCold=0.5350
+INC n=10000 seed=7 add1 today trust@15=0.9840 recall@15=0.2696 recallFlagged@15=0.2727 class@15=0.8479 classFlagged@15=0.8700 overlapToday=1.0000 overlapCold=0.5328
+INC n=10000 seed=7 add1 today-s trust@15=0.9831 recall@15=0.2655 recallFlagged@15=0.2647 class@15=0.8479 classFlagged@15=0.8700 overlapToday=0.4294 overlapCold=0.4192
+INC n=10000 seed=7 add1 warm-150s trust@15=0.9808 recall@15=0.2662 recallFlagged@15=0.0500 class@15=0.8423 classFlagged@15=0.3140 overlapToday=0.4711 overlapCold=0.4796
+INC n=10000 seed=7 add1 place trust@15=0.9838 recall@15=0.2667 recallFlagged@15=0.1620 class@15=0.8479 classFlagged@15=0.8700 overlapToday=0.4613 overlapCold=0.4699
+INC n=10000 seed=7 add1 place+50s trust@15=0.9837 recall@15=0.2679 recallFlagged@15=0.2280 class@15=0.8479 classFlagged@15=0.8700 overlapToday=0.4786 overlapCold=0.4873
+INC n=10000 seed=7 add1 place+150s trust@15=0.9838 recall@15=0.2686 recallFlagged@15=0.2493 class@15=0.8479 classFlagged@15=0.8700 overlapToday=0.4822 overlapCold=0.4923
+INC n=10000 seed=7 add1 place+300s trust@15=0.9839 recall@15=0.2695 recallFlagged@15=0.2553 class@15=0.8479 classFlagged@15=0.8700 overlapToday=0.4825 overlapCold=0.4903
+INC n=10000 seed=7 add5 flagged=500 rawSpread=47.7212
+INC n=10000 seed=7 add5 cold ms=16473
+INC n=10000 seed=7 add5 cold-seed2 ms=15028 (embed only, unnormalized)
+INC n=10000 seed=7 add5 today ms=16348 kept15=0.4221 medianMove=0.0292 p90Move=0.0682
+INC n=10000 seed=7 add5 today-s ms=16812 kept15=0.3744 medianMove=0.0233 p90Move=0.0663
+INC n=10000 seed=7 add5 warm-150s ms=4854 kept15=0.7316 medianMove=0.0030 p90Move=0.0103
+INC n=10000 seed=7 add5 place ms=1568 kept15=1.0000 medianMove=0.0000 p90Move=0.0000
+INC n=10000 seed=7 add5 place+50s ms=3657 kept15=0.7925 medianMove=0.0014 p90Move=0.0035
+INC n=10000 seed=7 add5 place+150s ms=5030 kept15=0.6989 medianMove=0.0026 p90Move=0.0066
+INC n=10000 seed=7 add5 place+300s ms=7018 kept15=0.6672 medianMove=0.0054 p90Move=0.0110
+INC n=10000 seed=7 add5 cold trust@15=0.9837 recall@15=0.2668 recallFlagged@15=0.2663 class@15=0.8479 classFlagged@15=0.8460 overlapToday=0.5358 overlapCold=1.0000
+INC n=10000 seed=7 add5 cold-seed2 trust@15=0.9836 recall@15=0.2690 recallFlagged@15=0.2669 class@15=0.8479 classFlagged@15=0.8460 overlapToday=0.5244 overlapCold=0.5350
+INC n=10000 seed=7 add5 today trust@15=0.9839 recall@15=0.2690 recallFlagged@15=0.2716 class@15=0.8479 classFlagged@15=0.8460 overlapToday=1.0000 overlapCold=0.5358
+INC n=10000 seed=7 add5 today-s trust@15=0.9830 recall@15=0.2644 recallFlagged@15=0.2656 class@15=0.8479 classFlagged@15=0.8460 overlapToday=0.4368 overlapCold=0.4213
+INC n=10000 seed=7 add5 warm-150s trust@15=0.9727 recall@15=0.2569 recallFlagged@15=0.0824 class@15=0.8275 classFlagged@15=0.4397 overlapToday=0.4182 overlapCold=0.4059
+INC n=10000 seed=7 add5 place trust@15=0.9833 recall@15=0.2558 recallFlagged@15=0.1492 class@15=0.8479 classFlagged@15=0.8460 overlapToday=0.3961 overlapCold=0.3877
+INC n=10000 seed=7 add5 place+50s trust@15=0.9836 recall@15=0.2631 recallFlagged@15=0.2401 class@15=0.8479 classFlagged@15=0.8460 overlapToday=0.4508 overlapCold=0.4388
+INC n=10000 seed=7 add5 place+150s trust@15=0.9837 recall@15=0.2661 recallFlagged@15=0.2540 class@15=0.8479 classFlagged@15=0.8460 overlapToday=0.4725 overlapCold=0.4579
+INC n=10000 seed=7 add5 place+300s trust@15=0.9839 recall@15=0.2677 recallFlagged@15=0.2565 class@15=0.8479 classFlagged@15=0.8460 overlapToday=0.4755 overlapCold=0.4595
+INC n=10000 seed=7 add10 flagged=1000 rawSpread=47.7837
+INC n=10000 seed=7 add10 cold ms=16100
+INC n=10000 seed=7 add10 cold-seed2 ms=14673 (embed only, unnormalized)
+INC n=10000 seed=7 add10 today ms=16003 kept15=0.3655 medianMove=0.0406 p90Move=0.0862
+INC n=10000 seed=7 add10 today-s ms=16514 kept15=0.3407 medianMove=0.0270 p90Move=0.0673
+INC n=10000 seed=7 add10 warm-150s ms=4821 kept15=0.6369 medianMove=0.0047 p90Move=0.0122
+INC n=10000 seed=7 add10 place ms=1744 kept15=1.0000 medianMove=0.0000 p90Move=0.0000
+INC n=10000 seed=7 add10 place+50s ms=3841 kept15=0.7015 medianMove=0.0022 p90Move=0.0054
+INC n=10000 seed=7 add10 place+150s ms=5143 kept15=0.5986 medianMove=0.0037 p90Move=0.0099
+INC n=10000 seed=7 add10 place+300s ms=7117 kept15=0.5651 medianMove=0.0065 p90Move=0.0148
+INC n=10000 seed=7 add10 cold trust@15=0.9837 recall@15=0.2668 recallFlagged@15=0.2646 class@15=0.8479 classFlagged@15=0.8549 overlapToday=0.5447 overlapCold=1.0000
+INC n=10000 seed=7 add10 cold-seed2 trust@15=0.9836 recall@15=0.2690 recallFlagged@15=0.2679 class@15=0.8479 classFlagged@15=0.8549 overlapToday=0.5332 overlapCold=0.5350
+INC n=10000 seed=7 add10 today trust@15=0.9838 recall@15=0.2689 recallFlagged@15=0.2665 class@15=0.8479 classFlagged@15=0.8549 overlapToday=1.0000 overlapCold=0.5447
+INC n=10000 seed=7 add10 today-s trust@15=0.9830 recall@15=0.2654 recallFlagged@15=0.2651 class@15=0.8479 classFlagged@15=0.8549 overlapToday=0.4285 overlapCold=0.4266
+INC n=10000 seed=7 add10 warm-150s trust@15=0.9665 recall@15=0.2457 recallFlagged@15=0.0963 class@15=0.8166 classFlagged@15=0.5539 overlapToday=0.3548 overlapCold=0.3505
+INC n=10000 seed=7 add10 place trust@15=0.9824 recall@15=0.2437 recallFlagged@15=0.1419 class@15=0.8478 classFlagged@15=0.8548 overlapToday=0.3229 overlapCold=0.3178
+INC n=10000 seed=7 add10 place+50s trust@15=0.9828 recall@15=0.2585 recallFlagged@15=0.2323 class@15=0.8479 classFlagged@15=0.8549 overlapToday=0.4000 overlapCold=0.3914
+INC n=10000 seed=7 add10 place+150s trust@15=0.9834 recall@15=0.2628 recallFlagged@15=0.2467 class@15=0.8479 classFlagged@15=0.8549 overlapToday=0.4357 overlapCold=0.4256
+INC n=10000 seed=7 add10 place+300s trust@15=0.9835 recall@15=0.2653 recallFlagged@15=0.2513 class@15=0.8479 classFlagged@15=0.8549 overlapToday=0.4482 overlapCold=0.4371
+INC n=10000 seed=7 style flagged=331 rawSpread=47.4667
+INC n=10000 seed=7 style cold ms=16102
+INC n=10000 seed=7 style cold-seed2 ms=14776 (embed only, unnormalized)
+INC n=10000 seed=7 style today ms=16012 kept15=0.3483 medianMove=0.0403 p90Move=0.0896
+INC n=10000 seed=7 style today-s ms=16459 kept15=0.3237 medianMove=0.0286 p90Move=0.0683
+INC n=10000 seed=7 style warm-150s ms=4788 kept15=0.5575 medianMove=0.0045 p90Move=0.0147
+INC n=10000 seed=7 style place ms=1489 kept15=1.0000 medianMove=0.0000 p90Move=0.0000
+INC n=10000 seed=7 style place+50s ms=3592 kept15=0.6748 medianMove=0.0024 p90Move=0.0066
+INC n=10000 seed=7 style place+150s ms=4930 kept15=0.5635 medianMove=0.0041 p90Move=0.0127
+INC n=10000 seed=7 style place+300s ms=6925 kept15=0.5304 medianMove=0.0095 p90Move=0.0199
+INC n=10000 seed=7 style cold trust@15=0.9837 recall@15=0.2668 recallFlagged@15=0.2473 class@15=0.8479 classFlagged@15=1.0000 overlapToday=0.5434 overlapCold=1.0000
+INC n=10000 seed=7 style cold-seed2 trust@15=0.9836 recall@15=0.2690 recallFlagged@15=0.2463 class@15=0.8479 classFlagged@15=1.0000 overlapToday=0.5423 overlapCold=0.5350
+INC n=10000 seed=7 style today trust@15=0.9841 recall@15=0.2692 recallFlagged@15=0.2445 class@15=0.8479 classFlagged@15=1.0000 overlapToday=1.0000 overlapCold=0.5434
+INC n=10000 seed=7 style today-s trust@15=0.9830 recall@15=0.2656 recallFlagged@15=0.2455 class@15=0.8479 classFlagged@15=1.0000 overlapToday=0.4386 overlapCold=0.4242
+INC n=10000 seed=7 style warm-150s trust@15=0.9830 recall@15=0.2605 recallFlagged@15=0.2042 class@15=0.8479 classFlagged@15=1.0000 overlapToday=0.4125 overlapCold=0.4145
+INC n=10000 seed=7 style place trust@15=0.9694 recall@15=0.2513 recallFlagged@15=0.0348 class@15=0.8261 classFlagged@15=0.4282 overlapToday=0.3359 overlapCold=0.3339
+INC n=10000 seed=7 style place+50s trust@15=0.9736 recall@15=0.2543 recallFlagged@15=0.1106 class@15=0.8355 classFlagged@15=0.6236 overlapToday=0.3820 overlapCold=0.3813
+INC n=10000 seed=7 style place+150s trust@15=0.9791 recall@15=0.2599 recallFlagged@15=0.1734 class@15=0.8426 classFlagged@15=0.8393 overlapToday=0.4085 overlapCold=0.4104
+INC n=10000 seed=7 style place+300s trust@15=0.9821 recall@15=0.2627 recallFlagged@15=0.2089 class@15=0.8464 classFlagged@15=0.9523 overlapToday=0.4208 overlapCold=0.4221
+INC n=10000 seed=7 change5 flagged=536 rawSpread=48.1481
+INC n=10000 seed=7 change5 cold ms=16106
+INC n=10000 seed=7 change5 cold-seed2 ms=14756 (embed only, unnormalized)
+INC n=10000 seed=7 change5 today ms=15885 kept15=0.3941 medianMove=0.0507 p90Move=0.0907
+INC n=10000 seed=7 change5 today-s ms=16517 kept15=0.3572 medianMove=0.0298 p90Move=0.0763
+INC n=10000 seed=7 change5 warm-150s ms=4858 kept15=0.6899 medianMove=0.0135 p90Move=0.0205
+INC n=10000 seed=7 change5 place ms=1568 kept15=1.0000 medianMove=0.0011 p90Move=0.0018
+INC n=10000 seed=7 change5 place+50s ms=3669 kept15=0.7548 medianMove=0.0028 p90Move=0.0053
+INC n=10000 seed=7 change5 place+150s ms=4981 kept15=0.6571 medianMove=0.0038 p90Move=0.0082
+INC n=10000 seed=7 change5 place+300s ms=6988 kept15=0.6223 medianMove=0.0064 p90Move=0.0123
+INC n=10000 seed=7 change5 cold trust@15=0.9837 recall@15=0.2668 recallFlagged@15=0.2703 class@15=0.8479 classFlagged@15=0.8357 overlapToday=0.5416 overlapCold=1.0000
+INC n=10000 seed=7 change5 cold-seed2 trust@15=0.9836 recall@15=0.2690 recallFlagged@15=0.2723 class@15=0.8479 classFlagged@15=0.8357 overlapToday=0.5435 overlapCold=0.5350
+INC n=10000 seed=7 change5 today trust@15=0.9840 recall@15=0.2694 recallFlagged@15=0.2711 class@15=0.8479 classFlagged@15=0.8357 overlapToday=1.0000 overlapCold=0.5416
+INC n=10000 seed=7 change5 today-s trust@15=0.9830 recall@15=0.2653 recallFlagged@15=0.2690 class@15=0.8479 classFlagged@15=0.8357 overlapToday=0.4418 overlapCold=0.4372
+INC n=10000 seed=7 change5 warm-150s trust@15=0.9731 recall@15=0.2574 recallFlagged@15=0.1256 class@15=0.8340 classFlagged@15=0.5781 overlapToday=0.4169 overlapCold=0.4044
+INC n=10000 seed=7 change5 place trust@15=0.9828 recall@15=0.2529 recallFlagged@15=0.1536 class@15=0.8479 classFlagged@15=0.8358 overlapToday=0.3697 overlapCold=0.3602
+INC n=10000 seed=7 change5 place+50s trust@15=0.9832 recall@15=0.2614 recallFlagged@15=0.2399 class@15=0.8479 classFlagged@15=0.8357 overlapToday=0.4283 overlapCold=0.4174
+INC n=10000 seed=7 change5 place+150s trust@15=0.9832 recall@15=0.2644 recallFlagged@15=0.2512 class@15=0.8479 classFlagged@15=0.8357 overlapToday=0.4531 overlapCold=0.4407
+INC n=10000 seed=7 change5 place+300s trust@15=0.9835 recall@15=0.2654 recallFlagged@15=0.2566 class@15=0.8479 classFlagged@15=0.8357 overlapToday=0.4589 overlapCold=0.4447
+INC n=10000 seed=11 same flagged=0 rawSpread=47.3736
+INC n=10000 seed=11 same cold ms=16100
+INC n=10000 seed=11 same cold-seed2 ms=14748 (embed only, unnormalized)
+INC n=10000 seed=11 same today ms=16045 kept15=0.5319 medianMove=0.0304 p90Move=0.0716
+INC n=10000 seed=11 same today-s ms=16559 kept15=0.4282 medianMove=0.0288 p90Move=0.0671
+INC n=10000 seed=11 same warm-150s ms=4814 kept15=0.9691 medianMove=0.0011 p90Move=0.0024
+INC n=10000 seed=11 same place ms=1371 kept15=1.0000 medianMove=0.0000 p90Move=0.0000
+INC n=10000 seed=11 same place+50s ms=3483 kept15=0.9839 medianMove=0.0002 p90Move=0.0004
+INC n=10000 seed=11 same place+150s ms=4826 kept15=0.9691 medianMove=0.0011 p90Move=0.0024
+INC n=10000 seed=11 same place+300s ms=6834 kept15=0.9508 medianMove=0.0027 p90Move=0.0061
+INC n=10000 seed=11 same cold trust@15=0.9849 recall@15=0.2667 recallFlagged@15=NaN class@15=0.8559 classFlagged@15=NaN overlapToday=0.5319 overlapCold=1.0000
+INC n=10000 seed=11 same cold-seed2 trust@15=0.9846 recall@15=0.2661 recallFlagged@15=NaN class@15=0.8559 classFlagged@15=NaN overlapToday=0.5306 overlapCold=0.5666
+INC n=10000 seed=11 same today trust@15=0.9846 recall@15=0.2675 recallFlagged@15=NaN class@15=0.8559 classFlagged@15=NaN overlapToday=1.0000 overlapCold=0.5319
+INC n=10000 seed=11 same today-s trust@15=0.9839 recall@15=0.2636 recallFlagged@15=NaN class@15=0.8558 classFlagged@15=NaN overlapToday=0.4229 overlapCold=0.4282
+INC n=10000 seed=11 same warm-150s trust@15=0.9849 recall@15=0.2667 recallFlagged@15=NaN class@15=0.8559 classFlagged@15=NaN overlapToday=0.5318 overlapCold=0.9691
+INC n=10000 seed=11 same place trust@15=0.9849 recall@15=0.2667 recallFlagged@15=NaN class@15=0.8559 classFlagged@15=NaN overlapToday=0.5319 overlapCold=1.0000
+INC n=10000 seed=11 same place+50s trust@15=0.9849 recall@15=0.2665 recallFlagged@15=NaN class@15=0.8559 classFlagged@15=NaN overlapToday=0.5322 overlapCold=0.9839
+INC n=10000 seed=11 same place+150s trust@15=0.9849 recall@15=0.2667 recallFlagged@15=NaN class@15=0.8559 classFlagged@15=NaN overlapToday=0.5318 overlapCold=0.9691
+INC n=10000 seed=11 same place+300s trust@15=0.9849 recall@15=0.2675 recallFlagged@15=NaN class@15=0.8559 classFlagged@15=NaN overlapToday=0.5293 overlapCold=0.9508
+INC n=10000 seed=11 add1 flagged=100 rawSpread=46.7718
+INC n=10000 seed=11 add1 cold ms=16098
+INC n=10000 seed=11 add1 cold-seed2 ms=14772 (embed only, unnormalized)
+INC n=10000 seed=11 add1 today ms=16010 kept15=0.4752 medianMove=0.0383 p90Move=0.0792
+INC n=10000 seed=11 add1 today-s ms=16230 kept15=0.4040 medianMove=0.0297 p90Move=0.0674
+INC n=10000 seed=11 add1 warm-150s ms=4798 kept15=0.8421 medianMove=0.0021 p90Move=0.0046
+INC n=10000 seed=11 add1 place ms=1416 kept15=1.0000 medianMove=0.0000 p90Move=0.0000
+INC n=10000 seed=11 add1 place+50s ms=3509 kept15=0.8876 medianMove=0.0009 p90Move=0.0018
+INC n=10000 seed=11 add1 place+150s ms=4797 kept15=0.8273 medianMove=0.0017 p90Move=0.0036
+INC n=10000 seed=11 add1 place+300s ms=6757 kept15=0.8017 medianMove=0.0038 p90Move=0.0080
+INC n=10000 seed=11 add1 cold trust@15=0.9849 recall@15=0.2667 recallFlagged@15=0.2727 class@15=0.8559 classFlagged@15=0.8100 overlapToday=0.5506 overlapCold=1.0000
+INC n=10000 seed=11 add1 cold-seed2 trust@15=0.9846 recall@15=0.2661 recallFlagged@15=0.2667 class@15=0.8559 classFlagged@15=0.8100 overlapToday=0.5395 overlapCold=0.5666
+INC n=10000 seed=11 add1 today trust@15=0.9845 recall@15=0.2666 recallFlagged@15=0.2687 class@15=0.8559 classFlagged@15=0.8100 overlapToday=1.0000 overlapCold=0.5506
+INC n=10000 seed=11 add1 today-s trust@15=0.9839 recall@15=0.2641 recallFlagged@15=0.2747 class@15=0.8558 classFlagged@15=0.8100 overlapToday=0.4279 overlapCold=0.4294
+INC n=10000 seed=11 add1 warm-150s trust@15=0.9813 recall@15=0.2641 recallFlagged@15=0.0493 class@15=0.8504 classFlagged@15=0.2853 overlapToday=0.4850 overlapCold=0.4813
+INC n=10000 seed=11 add1 place trust@15=0.9844 recall@15=0.2632 recallFlagged@15=0.1693 class@15=0.8559 classFlagged@15=0.8100 overlapToday=0.4687 overlapCold=0.4653
+INC n=10000 seed=11 add1 place+50s trust@15=0.9844 recall@15=0.2647 recallFlagged@15=0.2433 class@15=0.8559 classFlagged@15=0.8100 overlapToday=0.4906 overlapCold=0.4875
+INC n=10000 seed=11 add1 place+150s trust@15=0.9844 recall@15=0.2652 recallFlagged@15=0.2600 class@15=0.8559 classFlagged@15=0.8100 overlapToday=0.4986 overlapCold=0.4971
+INC n=10000 seed=11 add1 place+300s trust@15=0.9844 recall@15=0.2662 recallFlagged@15=0.2667 class@15=0.8559 classFlagged@15=0.8100 overlapToday=0.4990 overlapCold=0.4977
+INC n=10000 seed=11 add5 flagged=500 rawSpread=47.5948
+INC n=10000 seed=11 add5 cold ms=16220
+INC n=10000 seed=11 add5 cold-seed2 ms=14726 (embed only, unnormalized)
+INC n=10000 seed=11 add5 today ms=16250 kept15=0.4042 medianMove=0.0423 p90Move=0.0822
+INC n=10000 seed=11 add5 today-s ms=16362 kept15=0.3721 medianMove=0.0239 p90Move=0.0609
+INC n=10000 seed=11 add5 warm-150s ms=4822 kept15=0.7121 medianMove=0.0037 p90Move=0.0093
+INC n=10000 seed=11 add5 place ms=1560 kept15=1.0000 medianMove=0.0000 p90Move=0.0000
+INC n=10000 seed=11 add5 place+50s ms=3662 kept15=0.7712 medianMove=0.0016 p90Move=0.0038
+INC n=10000 seed=11 add5 place+150s ms=4993 kept15=0.6740 medianMove=0.0029 p90Move=0.0071
+INC n=10000 seed=11 add5 place+300s ms=6945 kept15=0.6396 medianMove=0.0063 p90Move=0.0129
+INC n=10000 seed=11 add5 cold trust@15=0.9849 recall@15=0.2667 recallFlagged@15=0.2651 class@15=0.8559 classFlagged@15=0.8500 overlapToday=0.5268 overlapCold=1.0000
+INC n=10000 seed=11 add5 cold-seed2 trust@15=0.9846 recall@15=0.2661 recallFlagged@15=0.2640 class@15=0.8559 classFlagged@15=0.8500 overlapToday=0.5365 overlapCold=0.5666
+INC n=10000 seed=11 add5 today trust@15=0.9847 recall@15=0.2669 recallFlagged@15=0.2677 class@15=0.8559 classFlagged@15=0.8500 overlapToday=1.0000 overlapCold=0.5268
+INC n=10000 seed=11 add5 today-s trust@15=0.9839 recall@15=0.2631 recallFlagged@15=0.2608 class@15=0.8558 classFlagged@15=0.8500 overlapToday=0.4401 overlapCold=0.4439
+INC n=10000 seed=11 add5 warm-150s trust@15=0.9733 recall@15=0.2546 recallFlagged@15=0.0744 class@15=0.8346 classFlagged@15=0.4285 overlapToday=0.4042 overlapCold=0.3994
+INC n=10000 seed=11 add5 place trust@15=0.9839 recall@15=0.2537 recallFlagged@15=0.1571 class@15=0.8559 classFlagged@15=0.8500 overlapToday=0.3774 overlapCold=0.3698
+INC n=10000 seed=11 add5 place+50s trust@15=0.9842 recall@15=0.2612 recallFlagged@15=0.2345 class@15=0.8559 classFlagged@15=0.8500 overlapToday=0.4283 overlapCold=0.4211
+INC n=10000 seed=11 add5 place+150s trust@15=0.9841 recall@15=0.2639 recallFlagged@15=0.2523 class@15=0.8558 classFlagged@15=0.8500 overlapToday=0.4486 overlapCold=0.4431
+INC n=10000 seed=11 add5 place+300s trust@15=0.9842 recall@15=0.2648 recallFlagged@15=0.2545 class@15=0.8558 classFlagged@15=0.8500 overlapToday=0.4548 overlapCold=0.4501
+INC n=10000 seed=11 add10 flagged=1000 rawSpread=47.0768
+INC n=10000 seed=11 add10 cold ms=16112
+INC n=10000 seed=11 add10 cold-seed2 ms=14692 (embed only, unnormalized)
+INC n=10000 seed=11 add10 today ms=15877 kept15=0.3425 medianMove=0.0442 p90Move=0.0863
+INC n=10000 seed=11 add10 today-s ms=16408 kept15=0.3211 medianMove=0.0364 p90Move=0.0780
+INC n=10000 seed=11 add10 warm-150s ms=4853 kept15=0.5947 medianMove=0.0057 p90Move=0.0169
+INC n=10000 seed=11 add10 place ms=1752 kept15=1.0000 medianMove=0.0000 p90Move=0.0000
+INC n=10000 seed=11 add10 place+50s ms=3853 kept15=0.6685 medianMove=0.0026 p90Move=0.0063
+INC n=10000 seed=11 add10 place+150s ms=5145 kept15=0.5517 medianMove=0.0043 p90Move=0.0110
+INC n=10000 seed=11 add10 place+300s ms=7113 kept15=0.5140 medianMove=0.0084 p90Move=0.0183
+INC n=10000 seed=11 add10 cold trust@15=0.9849 recall@15=0.2667 recallFlagged@15=0.2689 class@15=0.8559 classFlagged@15=0.8570 overlapToday=0.5540 overlapCold=1.0000
+INC n=10000 seed=11 add10 cold-seed2 trust@15=0.9846 recall@15=0.2661 recallFlagged@15=0.2686 class@15=0.8559 classFlagged@15=0.8570 overlapToday=0.5418 overlapCold=0.5666
+INC n=10000 seed=11 add10 today trust@15=0.9847 recall@15=0.2670 recallFlagged@15=0.2689 class@15=0.8559 classFlagged@15=0.8570 overlapToday=1.0000 overlapCold=0.5540
+INC n=10000 seed=11 add10 today-s trust@15=0.9837 recall@15=0.2621 recallFlagged@15=0.2641 class@15=0.8558 classFlagged@15=0.8570 overlapToday=0.4337 overlapCold=0.4276
+INC n=10000 seed=11 add10 warm-150s trust@15=0.9643 recall@15=0.2438 recallFlagged@15=0.0923 class@15=0.8180 classFlagged@15=0.5104 overlapToday=0.3409 overlapCold=0.3336
+INC n=10000 seed=11 add10 place trust@15=0.9829 recall@15=0.2392 recallFlagged@15=0.1473 class@15=0.8559 classFlagged@15=0.8570 overlapToday=0.3030 overlapCold=0.2977
+INC n=10000 seed=11 add10 place+50s trust@15=0.9834 recall@15=0.2548 recallFlagged@15=0.2377 class@15=0.8559 classFlagged@15=0.8570 overlapToday=0.3775 overlapCold=0.3708
+INC n=10000 seed=11 add10 place+150s trust@15=0.9838 recall@15=0.2610 recallFlagged@15=0.2532 class@15=0.8558 classFlagged@15=0.8570 overlapToday=0.4082 overlapCold=0.4010
+INC n=10000 seed=11 add10 place+300s trust@15=0.9839 recall@15=0.2632 recallFlagged@15=0.2562 class@15=0.8558 classFlagged@15=0.8570 overlapToday=0.4220 overlapCold=0.4159
+INC n=10000 seed=11 style flagged=378 rawSpread=47.0841
+INC n=10000 seed=11 style cold ms=16057
+INC n=10000 seed=11 style cold-seed2 ms=14602 (embed only, unnormalized)
+INC n=10000 seed=11 style today ms=15695 kept15=0.3463 medianMove=0.0457 p90Move=0.0928
+INC n=10000 seed=11 style today-s ms=16256 kept15=0.3247 medianMove=0.0249 p90Move=0.0688
+INC n=10000 seed=11 style warm-150s ms=4726 kept15=0.5468 medianMove=0.0049 p90Move=0.0154
+INC n=10000 seed=11 style place ms=1490 kept15=1.0000 medianMove=0.0000 p90Move=0.0000
+INC n=10000 seed=11 style place+50s ms=3556 kept15=0.6700 medianMove=0.0022 p90Move=0.0059
+INC n=10000 seed=11 style place+150s ms=4898 kept15=0.5673 medianMove=0.0039 p90Move=0.0109
+INC n=10000 seed=11 style place+300s ms=6922 kept15=0.5293 medianMove=0.0085 p90Move=0.0196
+INC n=10000 seed=11 style cold trust@15=0.9849 recall@15=0.2667 recallFlagged@15=0.2289 class@15=0.8559 classFlagged@15=1.0000 overlapToday=0.5469 overlapCold=1.0000
+INC n=10000 seed=11 style cold-seed2 trust@15=0.9846 recall@15=0.2661 recallFlagged@15=0.2229 class@15=0.8559 classFlagged@15=1.0000 overlapToday=0.5363 overlapCold=0.5666
+INC n=10000 seed=11 style today trust@15=0.9843 recall@15=0.2659 recallFlagged@15=0.2300 class@15=0.8559 classFlagged@15=1.0000 overlapToday=1.0000 overlapCold=0.5469
+INC n=10000 seed=11 style today-s trust@15=0.9837 recall@15=0.2643 recallFlagged@15=0.2287 class@15=0.8558 classFlagged@15=1.0000 overlapToday=0.4335 overlapCold=0.4290
+INC n=10000 seed=11 style warm-150s trust@15=0.9837 recall@15=0.2593 recallFlagged@15=0.1892 class@15=0.8558 classFlagged@15=1.0000 overlapToday=0.4146 overlapCold=0.4167
+INC n=10000 seed=11 style place trust@15=0.9662 recall@15=0.2480 recallFlagged@15=0.0312 class@15=0.8253 classFlagged@15=0.4660 overlapToday=0.3323 overlapCold=0.3305
+INC n=10000 seed=11 style place+50s trust@15=0.9750 recall@15=0.2519 recallFlagged@15=0.0538 class@15=0.8399 classFlagged@15=0.6229 overlapToday=0.3828 overlapCold=0.3809
+INC n=10000 seed=11 style place+150s trust@15=0.9791 recall@15=0.2573 recallFlagged@15=0.1189 class@15=0.8472 classFlagged@15=0.7751 overlapToday=0.4076 overlapCold=0.4101
+INC n=10000 seed=11 style place+300s trust@15=0.9806 recall@15=0.2604 recallFlagged@15=0.1564 class@15=0.8506 classFlagged@15=0.8642 overlapToday=0.4210 overlapCold=0.4238
+INC n=10000 seed=11 change5 flagged=490 rawSpread=47.3105
+INC n=10000 seed=11 change5 cold ms=15943
+INC n=10000 seed=11 change5 cold-seed2 ms=14789 (embed only, unnormalized)
+INC n=10000 seed=11 change5 today ms=15898 kept15=0.3869 medianMove=0.0430 p90Move=0.0861
+INC n=10000 seed=11 change5 today-s ms=16886 kept15=0.3553 medianMove=0.0294 p90Move=0.0666
+INC n=10000 seed=11 change5 warm-150s ms=5067 kept15=0.6940 medianMove=0.0184 p90Move=0.0222
+INC n=10000 seed=11 change5 place ms=1558 kept15=1.0000 medianMove=0.0011 p90Move=0.0013
+INC n=10000 seed=11 change5 place+50s ms=3981 kept15=0.7536 medianMove=0.0018 p90Move=0.0043
+INC n=10000 seed=11 change5 place+150s ms=5098 kept15=0.6535 medianMove=0.0029 p90Move=0.0075
+INC n=10000 seed=11 change5 place+300s ms=7440 kept15=0.6200 medianMove=0.0066 p90Move=0.0143
+INC n=10000 seed=11 change5 cold trust@15=0.9849 recall@15=0.2667 recallFlagged@15=0.2763 class@15=0.8559 classFlagged@15=0.8531 overlapToday=0.5524 overlapCold=1.0000
+INC n=10000 seed=11 change5 cold-seed2 trust@15=0.9846 recall@15=0.2661 recallFlagged@15=0.2796 class@15=0.8559 classFlagged@15=0.8531 overlapToday=0.5580 overlapCold=0.5666
+INC n=10000 seed=11 change5 today trust@15=0.9845 recall@15=0.2668 recallFlagged@15=0.2774 class@15=0.8559 classFlagged@15=0.8531 overlapToday=1.0000 overlapCold=0.5524
+INC n=10000 seed=11 change5 today-s trust@15=0.9836 recall@15=0.2641 recallFlagged@15=0.2759 class@15=0.8558 classFlagged@15=0.8531 overlapToday=0.4097 overlapCold=0.4219
+INC n=10000 seed=11 change5 warm-150s trust@15=0.9749 recall@15=0.2579 recallFlagged@15=0.1361 class@15=0.8427 classFlagged@15=0.5873 overlapToday=0.4046 overlapCold=0.4103
+INC n=10000 seed=11 change5 place trust@15=0.9839 recall@15=0.2527 recallFlagged@15=0.1550 class@15=0.8559 classFlagged@15=0.8531 overlapToday=0.3645 overlapCold=0.3696
+INC n=10000 seed=11 change5 place+50s trust@15=0.9840 recall@15=0.2602 recallFlagged@15=0.2418 class@15=0.8558 classFlagged@15=0.8529 overlapToday=0.4127 overlapCold=0.4198
+INC n=10000 seed=11 change5 place+150s trust@15=0.9842 recall@15=0.2638 recallFlagged@15=0.2555 class@15=0.8559 classFlagged@15=0.8531 overlapToday=0.4310 overlapCold=0.4413
+INC n=10000 seed=11 change5 place+300s trust@15=0.9843 recall@15=0.2653 recallFlagged@15=0.2595 class@15=0.8559 classFlagged@15=0.8531 overlapToday=0.4386 overlapCold=0.4504
+
+# ---- First run (earlier version of the harness, same fixture/seed 7, scenarios add1/add5 as 'added=1/100' and 'added=1/20', at n=5000 and n=10000).
+# Variants: warm-N = N iterations, no exaggeration, from the stored 0..1 (compressed) start; warm-Ns = same from the rescaled start; place = newcomers at mean of 5 nearest old rows.
+# Decimal commas come from the host locale. The 'rawSpread' line for n=5000 added=1/100 was not captured.
+INC n=5000 added=1/100 cold-1000 ms=7073
+INC n=5000 added=1/100 today-warm-1000 ms=7025 kept15=0,5804 medianMove=0,0427 p90Move=0,0834
+INC n=5000 added=1/100 warm-300 ms=2953 kept15=0,5967 medianMove=0,0483 p90Move=0,0872
+INC n=5000 added=1/100 warm-150 ms=2104 kept15=0,5445 medianMove=0,0513 p90Move=0,0927
+INC n=5000 added=1/100 warm-75 ms=1672 kept15=0,4188 medianMove=0,0496 p90Move=0,0923
+INC n=5000 added=1/100 warm-300s ms=2953 kept15=0,8705 medianMove=0,0159 p90Move=0,0200
+INC n=5000 added=1/100 warm-150s ms=2094 kept15=0,8904 medianMove=0,0050 p90Move=0,0072
+INC n=5000 added=1/100 warm-75s ms=1671 kept15=0,9051 medianMove=0,0018 p90Move=0,0031
+INC n=5000 added=1/100 place ms=707 kept15=1,0000 medianMove=0,0000 p90Move=0,0000
+INC n=5000 added=1/100 place+50s ms=1532 kept15=0,9057 medianMove=0,0008 p90Move=0,0020
+INC n=5000 added=1/100 place+150s ms=2084 kept15=0,8725 medianMove=0,0026 p90Move=0,0056
+INC n=5000 added=1/100 cold-1000 trust@15=0,9845 recall@15=0,3637 recallNew@15=0,3533 class@15=0,8452 overlapToday=0,6453
+INC n=5000 added=1/100 today-warm-1000 trust@15=0,9844 recall@15=0,3642 recallNew@15=0,3533 class@15=0,8452 overlapToday=1,0000
+INC n=5000 added=1/100 warm-300 trust@15=0,9850 recall@15=0,3620 recallNew@15=0,3493 class@15=0,8452 overlapToday=0,6367
+INC n=5000 added=1/100 warm-150 trust@15=0,9845 recall@15=0,3408 recallNew@15=0,3187 class@15=0,8452 overlapToday=0,5669
+INC n=5000 added=1/100 warm-75 trust@15=0,9828 recall@15=0,2911 recallNew@15=0,2800 class@15=0,8452 overlapToday=0,4146
+INC n=5000 added=1/100 warm-300s trust@15=0,9835 recall@15=0,3621 recallNew@15=0,2493 class@15=0,8441 overlapToday=0,5943
+INC n=5000 added=1/100 warm-150s trust@15=0,9816 recall@15=0,3600 recallNew@15=0,1307 class@15=0,8414 overlapToday=0,5883
+INC n=5000 added=1/100 warm-75s trust@15=0,9806 recall@15=0,3596 recallNew@15=0,0453 class@15=0,8400 overlapToday=0,5852
+INC n=5000 added=1/100 place trust@15=0,9841 recall@15=0,3593 recallNew@15=0,2427 class@15=0,8451 overlapToday=0,5731
+INC n=5000 added=1/100 place+50s trust@15=0,9841 recall@15=0,3628 recallNew@15=0,3213 class@15=0,8451 overlapToday=0,5966
+INC n=5000 added=1/100 place+150s trust@15=0,9842 recall@15=0,3637 recallNew@15=0,3227 class@15=0,8451 overlapToday=0,6004
+INC n=5000 added=1/20 rawSpread=46,1939
+INC n=5000 added=1/20 cold-1000 ms=6884
+INC n=5000 added=1/20 today-warm-1000 ms=6932 kept15=0,4888 medianMove=0,0284 p90Move=0,0711
+INC n=5000 added=1/20 warm-300 ms=2892 kept15=0,5030 medianMove=0,0491 p90Move=0,0794
+INC n=5000 added=1/20 warm-150 ms=2074 kept15=0,4689 medianMove=0,0552 p90Move=0,0837
+INC n=5000 added=1/20 warm-75 ms=1673 kept15=0,3729 medianMove=0,0568 p90Move=0,0917
+INC n=5000 added=1/20 warm-300s ms=3019 kept15=0,6909 medianMove=0,0116 p90Move=0,0194
+INC n=5000 added=1/20 warm-150s ms=2167 kept15=0,7225 medianMove=0,0043 p90Move=0,0129
+INC n=5000 added=1/20 warm-75s ms=1696 kept15=0,7636 medianMove=0,0024 p90Move=0,0092
+INC n=5000 added=1/20 place ms=754 kept15=1,0000 medianMove=0,0000 p90Move=0,0000
+INC n=5000 added=1/20 place+50s ms=1587 kept15=0,7743 medianMove=0,0019 p90Move=0,0049
+INC n=5000 added=1/20 place+150s ms=2178 kept15=0,6994 medianMove=0,0036 p90Move=0,0087
+INC n=5000 added=1/20 cold-1000 trust@15=0,9845 recall@15=0,3637 recallNew@15=0,3507 class@15=0,8452 overlapToday=0,6595
+INC n=5000 added=1/20 today-warm-1000 trust@15=0,9844 recall@15=0,3650 recallNew@15=0,3525 class@15=0,8451 overlapToday=1,0000
+INC n=5000 added=1/20 warm-300 trust@15=0,9847 recall@15=0,3617 recallNew@15=0,3488 class@15=0,8452 overlapToday=0,6033
+INC n=5000 added=1/20 warm-150 trust@15=0,9845 recall@15=0,3409 recallNew@15=0,3227 class@15=0,8452 overlapToday=0,5327
+INC n=5000 added=1/20 warm-75 trust@15=0,9824 recall@15=0,2890 recallNew@15=0,2888 class@15=0,8452 overlapToday=0,3951
+INC n=5000 added=1/20 warm-300s trust@15=0,9801 recall@15=0,3574 recallNew@15=0,2587 class@15=0,8383 overlapToday=0,5336
+INC n=5000 added=1/20 warm-150s trust@15=0,9739 recall@15=0,3491 recallNew@15=0,1469 class@15=0,8274 overlapToday=0,5111
+INC n=5000 added=1/20 warm-75s trust@15=0,9710 recall@15=0,3448 recallNew@15=0,0997 class@15=0,8210 overlapToday=0,4984
+INC n=5000 added=1/20 place trust@15=0,9830 recall@15=0,3471 recallNew@15=0,2427 class@15=0,8451 overlapToday=0,4628
+INC n=5000 added=1/20 place+50s trust@15=0,9836 recall@15=0,3576 recallNew@15=0,3293 class@15=0,8451 overlapToday=0,5350
+INC n=5000 added=1/20 place+150s trust@15=0,9839 recall@15=0,3617 recallNew@15=0,3464 class@15=0,8451 overlapToday=0,5507
+INC n=10000 added=1/100 rawSpread=47,6931
+INC n=10000 added=1/100 cold-1000 ms=16235
+INC n=10000 added=1/100 today-warm-1000 ms=16500 kept15=0,4671 medianMove=0,0420 p90Move=0,0869
+INC n=10000 added=1/100 warm-300 ms=6926 kept15=0,4671 medianMove=0,0379 p90Move=0,0709
+INC n=10000 added=1/100 warm-150 ms=4795 kept15=0,3517 medianMove=0,0366 p90Move=0,0713
+INC n=10000 added=1/100 warm-75 ms=3813 kept15=0,2100 medianMove=0,0354 p90Move=0,0691
+INC n=10000 added=1/100 warm-300s ms=6947 kept15=0,8532 medianMove=0,0056 p90Move=0,0108
+INC n=10000 added=1/100 warm-150s ms=4910 kept15=0,8773 medianMove=0,0023 p90Move=0,0046
+INC n=10000 added=1/100 warm-75s ms=3880 kept15=0,9005 medianMove=0,0010 p90Move=0,0023
+INC n=10000 added=1/100 place ms=1450 kept15=1,0000 medianMove=0,0000 p90Move=0,0000
+INC n=10000 added=1/100 place+50s ms=3558 kept15=0,9053 medianMove=0,0007 p90Move=0,0016
+INC n=10000 added=1/100 place+150s ms=4865 kept15=0,8589 medianMove=0,0024 p90Move=0,0045
+INC n=10000 added=1/100 cold-1000 trust@15=0,9837 recall@15=0,2668 recallNew@15=0,2773 class@15=0,8479 overlapToday=0,5328
+INC n=10000 added=1/100 today-warm-1000 trust@15=0,9840 recall@15=0,2696 recallNew@15=0,2727 class@15=0,8479 overlapToday=1,0000
+INC n=10000 added=1/100 warm-300 trust@15=0,9839 recall@15=0,2584 recallNew@15=0,2660 class@15=0,8479 overlapToday=0,4657
+INC n=10000 added=1/100 warm-150 trust@15=0,9821 recall@15=0,2119 recallNew@15=0,2080 class@15=0,8480 overlapToday=0,3302
+INC n=10000 added=1/100 warm-75 trust@15=0,9786 recall@15=0,1551 recallNew@15=0,1560 class@15=0,8480 overlapToday=0,1910
+INC n=10000 added=1/100 warm-300s trust@15=0,9824 recall@15=0,2677 recallNew@15=0,1293 class@15=0,8446 overlapToday=0,4770
+INC n=10000 added=1/100 warm-150s trust@15=0,9808 recall@15=0,2662 recallNew@15=0,0500 class@15=0,8423 overlapToday=0,4711
+INC n=10000 added=1/100 warm-75s trust@15=0,9804 recall@15=0,2654 recallNew@15=0,0213 class@15=0,8413 overlapToday=0,4702
+INC n=10000 added=1/100 place trust@15=0,9838 recall@15=0,2667 recallNew@15=0,1620 class@15=0,8479 overlapToday=0,4612
+INC n=10000 added=1/100 place+50s trust@15=0,9837 recall@15=0,2678 recallNew@15=0,2287 class@15=0,8479 overlapToday=0,4786
+INC n=10000 added=1/100 place+150s trust@15=0,9838 recall@15=0,2686 recallNew@15=0,2513 class@15=0,8479 overlapToday=0,4820
+INC n=10000 added=1/20 rawSpread=47,7212
+INC n=10000 added=1/20 cold-1000 ms=16358
+INC n=10000 added=1/20 today-warm-1000 ms=16457 kept15=0,4221 medianMove=0,0292 p90Move=0,0682
+INC n=10000 added=1/20 warm-300 ms=6831 kept15=0,4165 medianMove=0,0375 p90Move=0,0755
+INC n=10000 added=1/20 warm-150 ms=4789 kept15=0,3148 medianMove=0,0360 p90Move=0,0708
+INC n=10000 added=1/20 warm-75 ms=3795 kept15=0,1928 medianMove=0,0367 p90Move=0,0694
+INC n=10000 added=1/20 warm-300s ms=6898 kept15=0,6879 medianMove=0,0092 p90Move=0,0175
+INC n=10000 added=1/20 warm-150s ms=4840 kept15=0,7316 medianMove=0,0030 p90Move=0,0103
+INC n=10000 added=1/20 warm-75s ms=3813 kept15=0,7887 medianMove=0,0016 p90Move=0,0057
+INC n=10000 added=1/20 place ms=1559 kept15=1,0000 medianMove=0,0000 p90Move=0,0000
+INC n=10000 added=1/20 place+50s ms=3754 kept15=0,7884 medianMove=0,0014 p90Move=0,0036
+INC n=10000 added=1/20 place+150s ms=5011 kept15=0,6951 medianMove=0,0026 p90Move=0,0068
+INC n=10000 added=1/20 cold-1000 trust@15=0,9837 recall@15=0,2668 recallNew@15=0,2663 class@15=0,8479 overlapToday=0,5358
+INC n=10000 added=1/20 today-warm-1000 trust@15=0,9839 recall@15=0,2690 recallNew@15=0,2716 class@15=0,8479 overlapToday=1,0000
+INC n=10000 added=1/20 warm-300 trust@15=0,9839 recall@15=0,2578 recallNew@15=0,2533 class@15=0,8479 overlapToday=0,4728
+INC n=10000 added=1/20 warm-150 trust@15=0,9822 recall@15=0,2110 recallNew@15=0,2073 class@15=0,8480 overlapToday=0,3306
+INC n=10000 added=1/20 warm-75 trust@15=0,9792 recall@15=0,1535 recallNew@15=0,1535 class@15=0,8480 overlapToday=0,1895
+INC n=10000 added=1/20 warm-300s trust@15=0,9773 recall@15=0,2624 recallNew@15=0,1536 class@15=0,8360 overlapToday=0,4421
+INC n=10000 added=1/20 warm-150s trust@15=0,9727 recall@15=0,2569 recallNew@15=0,0824 class@15=0,8275 overlapToday=0,4182
+INC n=10000 added=1/20 warm-75s trust@15=0,9703 recall@15=0,2535 recallNew@15=0,0480 class@15=0,8229 overlapToday=0,4109
+INC n=10000 added=1/20 place trust@15=0,9833 recall@15=0,2558 recallNew@15=0,1492 class@15=0,8479 overlapToday=0,3961
+INC n=10000 added=1/20 place+50s trust@15=0,9836 recall@15=0,2628 recallNew@15=0,2399 class@15=0,8479 overlapToday=0,4518
+INC n=10000 added=1/20 place+150s trust@15=0,9837 recall@15=0,2661 recallNew@15=0,2520 class@15=0,8479 overlapToday=0,4734
