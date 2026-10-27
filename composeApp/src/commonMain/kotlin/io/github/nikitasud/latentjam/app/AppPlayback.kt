@@ -73,6 +73,7 @@ internal fun PlaybackRestoreEffect(
             playlists = playlistsState.playlists,
             playlistsAvailable = playlistsState.playlistsAvailableForSourceRestore,
             playlistOrders = AppGraph.settings.playlistSortOrders.value,
+            plays = playsForResume(saved, AppGraph.settings.playlistSortOrders.value),
         )
         if (savedQueueIndex >= 0) {
             playback.restoreQueue(

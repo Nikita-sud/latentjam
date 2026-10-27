@@ -22,6 +22,7 @@ import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.library.ArtistGroup
 import io.github.nikitasud.latentjam.library.AutoPlaylist
 import io.github.nikitasud.latentjam.library.Playlist
+import io.github.nikitasud.latentjam.library.PlaylistSort
 import io.github.nikitasud.latentjam.playback.NowPlaying
 import io.github.nikitasud.latentjam.playback.ShuffleMode
 import io.github.nikitasud.latentjam.smart.IndexStore
@@ -192,6 +193,8 @@ internal fun resolveResumeSourceQueue(
     playlistsAvailable: Boolean = true,
     /** A rebuilt playlist plays in the order its page shows, as it did when it was started. */
     playlistOrders: PlaylistSortOrders = PlaylistSortOrders(),
+    /** Listens per track, for a playlist sorted by plays; see [playsForResume]. */
+    plays: Map<TrackId, Int> = emptyMap(),
 ): List<TrackDescriptor>? {
     val byId = library.associateBy { it.id.value }
     return when {
@@ -201,12 +204,34 @@ internal fun resolveResumeSourceQueue(
             saved.sourceReference != null && playlistsAvailable ->
             playlists.firstOrNull { it.id == saved.sourceReference }
                 ?.let { playlist ->
-                    playlist.tracksInChosenOrder(playlist.trackIds.mapNotNull(byId::get), playlistOrders)
+                    playlist.tracksInChosenOrder(playlist.trackIds.mapNotNull(byId::get), playlistOrders, plays)
                 }
                 .orEmpty()
         else -> null
     }
 }
+
+/**
+ * The play counts [resolveResumeSourceQueue] needs for [saved]: read only when it rebuilds a
+ * playlist sorted by plays, since the history's stats copy every track.
+ */
+internal suspend fun playsForResume(saved: ResumePlayback, playlistOrders: PlaylistSortOrders): Map<TrackId, Int> {
+    val rebuilt = saved.sourceReference
+        ?.takeIf { !saved.sourceQueuePersisted && saved.sourceKind == QueueSourceKind.COLLECTION.name }
+    return playsWhenSortedByPlays(playlistOrders, listOfNotNull(rebuilt))
+}
+
+/** Listens per track when one of [playlistIds] is sorted by plays, else nothing (no history read). */
+internal suspend fun playsWhenSortedByPlays(
+    orders: PlaylistSortOrders,
+    playlistIds: Collection<String>,
+): Map<TrackId, Int> =
+    if (playlistIds.none { orders.forPlaylist(it).sort == PlaylistSort.PLAYS }) {
+        emptyMap()
+    } else {
+        // What the pages call plays: a start skipped within 30 seconds is not one.
+        AppGraph.history.stats().mapValues { it.value.listens }
+    }
 
 internal data class ResumeFallbackQueue(
     val liveQueue: List<TrackDescriptor>,

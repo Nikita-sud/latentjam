@@ -183,6 +183,23 @@ internal class PlaylistSortOrdersTest {
     }
 
     @Test
+    fun aPlaylistSortedByPlaysResumesInThatOrder() {
+        val byPlays = PlaylistSortOrders().withPlaylist(playlist.id,
+            SortChoice(PlaylistSort.PLAYS, SongSortDirection.DESCENDING))
+        val plays = mapOf(TrackId("c") to 5, TrackId("a") to 2)
+        val saved = ResumePlayback(trackId = "a", shuffleMode = "OFF", positionMs = 0,
+            sourceKind = QueueSourceKind.COLLECTION.name, sourceReference = playlist.id)
+        assertEquals(
+            ids(playlist.tracksInChosenOrder(listOf(alpha, bravo, charlie), byPlays, plays)),
+            ids(checkNotNull(resolveResumeSourceQueue(saved = saved, library = listOf(alpha, bravo, charlie),
+                playlists = listOf(playlist), playlistOrders = byPlays, plays = plays))),
+        )
+        assertEquals(listOf("c", "a"), ids(checkNotNull(resolveResumeSourceQueue(saved = saved,
+            library = listOf(alpha, bravo, charlie), playlists = listOf(playlist), playlistOrders = byPlays,
+            plays = plays))).take(2))
+    }
+
+    @Test
     fun aPageAlreadyInItsOrderIsReturnedAsIs() {
         val orders = PlaylistSortOrders()
         val shown = playlistPage.shownWith(orders)
