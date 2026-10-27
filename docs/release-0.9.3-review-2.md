@@ -81,3 +81,39 @@ match real names; by-name enum reads in `runCatching`; no new logs with titles o
 | R1-U-1 | Android Auto listed a playlist sorted by Plays in its Custom order (`tracksInChosenOrder` without play counts) | CONFIRMED-narrower, low (the car plays the tapped row; the visible problem is the list order) | a991dee6 (counts read only when a playlist is sorted by plays) |
 | R1-U-2 | A resume that rebuilds a Plays-sorted playlist (source not saved: > 10,000 rows, or an unreadable queue save) used Custom order after the resumed track | CONFIRMED-narrower, very low | a991dee6 (`playsForResume`, both resume paths) |
 | R1-U-3 | An open Favorites page sorted by Plays re-sorted after every listen (a playlist page does not), moving the song just heard and parting the page from its queue | CONFIRMED-narrower, low | de3e213d (kept while the hearts are unchanged) |
+
+### Round 1 checks
+
+At 00d45c46: `:core:{smart,history,playback,library}:allTests`, `:composeApp:testAndroidHostTest`,
+`:composeApp:compileKotlinIosSimulatorArm64`, `:androidApp:assembleRelease` green; most dex registers 249 (limit 255).
+
+## Round 2
+
+Four fresh reviewers saw both logs and reviewed the round-1 fix commits first, then their areas again. SMART: **no
+confirmed findings** (two notes below). 5 findings elsewhere, all confirmed; three were introduced by round-1 fixes.
+
+| id | finding | verdict | fix |
+|---|---|---|---|
+| R2-I-1 | From d506e74a: the separate re-decode thread also ran on low-RAM devices, kept to one decode worker for memory, so a re-decode ran beside the next look-ahead (+1 decode window, ~1–3.5 MB heap, and a second codec) | CONFIRMED-narrower, low (an OOM inside the re-decode is caught; no new crash path) | e0387249 (separate thread only with more than one worker; low-RAM devices back to one decode at a time, R1-I-4 reopened only there, as in 0.9.2) |
+| R2-X-1 | Since f140acb6 (not in 0.9.2): the plain wait for an opening (no seek) had no end guard; a track under ~6.8 s with a slider ≥ 6 s whose opening stalls (or a skip into it before its decode finished) ended at full level | CONFIRMED-narrower, very low (the opening's decode starts at the track's start for tracks under 22 s) | 4f06182b (every wait stops in time for the 400 ms fade) |
+| R2-U-1 | From a991dee6: the new play-count read was bare; a history that cannot load (I/O, OOM after a large import) would crash the launch restore of a Plays-sorted, unsaved playlist source on every launch and empty Android Auto's browse tree | CONFIRMED-narrower, low (needs all three conditions); the claimed new race was already there (`setShuffleMode` suspends) | 3c9cba1d (best-effort, falls back to the stored order) |
+| R2-U-2 | From de3e213d: a Favorites page sorted by plays opened before the first history read was sorted with every count at 0 and then frozen | CONFIRMED (Favorites; a playlist page sorted by plays has the same gap since 1692b5c5) | 30fb951c (keeps its order only after a refresh with loaded counts ran to its end) |
+| R2-U-3 | The #27 stalled-analysis sentence put "Title — Artist" in unwrapped (every other title in a sentence is `bidiWrap`ped): RTL reordering | CONFIRMED, cosmetic (new in 0.9.3) | 6c047ffe |
+
+Round-1 fixes re-reviewed and held: c87a41e1 (flags reset under the engine mutex, kept on a partial clear failure),
+df1b8b83 (this session's rows, identities and failures win; a second failed read keeps saves blocked), 6b62a52f (a
+pass that ends normally does not abandon; no RejectedExecutionException: pools are recreated lazily), 274bc160 (normal
+seeks with overlap == slider unchanged; a plan ready at the seek still mixes; no gain step: the 400 ms slew is what
+the guard leaves), a991dee6 / de3e213d (no deadlock; Auto reads in a service coroutine; tag edits still refresh an
+open page; sort changes still re-sort; the App.kt edit is inside a `LaunchedEffect` lambda, not `App()`/`AppShell`).
+
+Notes, not defects:
+- R2-S-n1 (changes queues, info): rule-only plans (breaker tripped, assets unhealthy, ranker not fitting the heap)
+  also get the keep-together bonus (`RULE_SET` takes `KeepTogether.DEFAULT`); rule scores span ~0–3, so marked
+  co-members dominate those plans until they fill 5 of the last 10 rows. Fits the feature's intent; not measured on
+  the stand.
+- R2-S-n2 (debug only): the debug replay in `SmartDiagnostics.kt` leaves `companionGroups` and the prefix out of
+  `PlanRequest`, so replays of queues with marked playlists do not match the logged queue.
+- A playlist page sorted by Plays is sorted only when it opens (R2-U-2's pre-existing half): opened before the first
+  history read, it shows Custom order until reopened. Left as is (a page's order is fixed while open by design).
+- `seamLog` prints only opaque track ids and is silent unless `log.tag.LJCrossfade` is set to DEBUG.
