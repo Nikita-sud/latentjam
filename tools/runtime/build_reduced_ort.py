@@ -90,6 +90,11 @@ def main():
             if domain == "latentjam":  # LatentJam's own operators live in libljq4, not in the runtime
                 continue
             ops.setdefault(domain, {}).setdefault(versions[domain], set()).add(node.op_type)
+    # The session's MatMulAddFusion rewrites MatMul + Add into a Gemm of the model's opset at load time,
+    # a node neither inventory above shows; without its kernel the load fails with ORT_NOT_IMPLEMENTED.
+    for names in ops.get("ai.onnx", {}).values():
+        if "MatMul" in names:
+            names.add("Gemm")
     config = output / "required-operators.config"
     config.write_text("# Original and ARM-optimized graphs; no type reduction.\n" + "\n".join(
         f"{domain};{opset};" + ",".join(sorted(names))
