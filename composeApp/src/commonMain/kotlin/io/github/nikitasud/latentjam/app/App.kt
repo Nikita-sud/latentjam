@@ -1571,7 +1571,10 @@ private fun AppShell(
             val openPage = selectedCollection?.takeIf { songs != null } ?: return@LaunchedEffect
             val hearted = playlistsState.autoPlaylists
                 .firstOrNull { it.kind == AutoPlaylistKind.FAVORITES }?.tracks.orEmpty()
-            val followed = openPage.followingFavorites(hearted) { page ->
+            val followed = openPage.followingFavorites(
+                hearted,
+                byPlays = AppGraph.settings.playlistSortOrders.value.favoritesByPlays,
+            ) { page ->
                 page.inChosenOrder(
                     AppGraph.settings.playlistSortOrders.value,
                     playlistsState.playlists, playlistsState.autoPlaylists, playlistsState.playCounts,

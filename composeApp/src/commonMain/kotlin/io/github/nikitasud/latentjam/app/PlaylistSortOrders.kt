@@ -255,6 +255,10 @@ internal fun AppSettings.forgetDeletedPlaylistOrders(complete: List<Playlist>?) 
     if (retained !== current) setPlaylistSortOrders(retained)
 }
 
+/** Whether the Favorites page is sorted by plays, an order a listen changes. */
+internal val PlaylistSortOrders.favoritesByPlays: Boolean
+    get() = favorites.sort == PlaylistSort.PLAYS
+
 /** A playlist's tracks in the order its page shows them, for queues built away from that page. */
 internal fun Playlist.tracksInChosenOrder(
     resolved: List<TrackDescriptor>,
