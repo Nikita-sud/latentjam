@@ -157,3 +157,21 @@ confirmed.
 
 0.9.4 idea from the verifier: a suspension makes the deadline fire late (on resume), so "elapsed > budget + a few
 seconds" on the same monotonic clock is a cleaner suspension test than app transitions; needs a device check.
+
+### Round 4 checks
+
+At 629a2c1f: all check tasks green; most dex registers 249 (limit 255). The release APK installs on emulator-5556
+(`adb install -r`) and launches to `MainActivity` with no crash.
+
+## Round 5
+
+Two fresh reviewers: I analysis / index / Map / iOS deadline at HEAD, round-4 fixes first; U a sweep of everything else
+after 292077cb (SMART candidate, playlists / Favorites / Auto / resume, crossfade, UI, release hygiene). The sweep:
+**no findings** (note: `fullFollowers()` in `HabitSlotsPlanner` runs on every plan while PLAN_NOVELTY is off, result
+unused, negligible cost). 862e99d8 and 3e0c7b51 held (no overlapping reads: the read holds the engine mutex; one full
+read per cancelled pass at most; `forgivenTimeouts` only touched under the inference mutex; the module touch runs on
+main via `AppGraph.start`). 1 finding, confirmed.
+
+| id | finding | verdict | fix |
+|---|---|---|---|
+| R5-I-1 | Android, from d3e3613f: an unreadable stored metadata (text) index latched `textRestoreFailed` for the session with no retry: no metadata vectors, SMART without its text term and semantic search, and the Map fused source fell to AUDIO with identity / refresh on, saving regions from an audio-only space (0.9.2 re-encoded) | CONFIRMED, low | fbafd1d1 (encoded again this session, as 0.9.2 and a fresh install do; the audio index is still never overwritten) |
