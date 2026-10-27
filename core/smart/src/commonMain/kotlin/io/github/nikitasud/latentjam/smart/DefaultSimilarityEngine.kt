@@ -1186,6 +1186,11 @@ internal class DefaultSimilarityEngine(
                 }
 
                 generation++
+                // Both stored files are gone, so there is nothing left to protect: an index this session could not read no
+                // longer blocks analysis, and the rebuild starts now instead of at the next launch.
+                audioRestoreFailed = false
+                audioRestoreRetried = false
+                textRestoreFailed = false
                 index.clear()
                 textIndex?.clear()
                 knownTracks.clear()
@@ -1238,6 +1243,10 @@ internal class DefaultSimilarityEngine(
                 textEncoderLoaded = false
                 audioModelLoaded = false
                 semanticModelLoaded = false
+                // The next initialize() reads both stored files again and decides afresh.
+                audioRestoreFailed = false
+                audioRestoreRetried = false
+                textRestoreFailed = false
                 mutableState.value = EngineState.Uninitialized
             }
         }

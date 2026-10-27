@@ -111,6 +111,54 @@ internal class DefaultSimilarityEngineTest {
         assertEquals(3, first.store.snapshots.getValue("test-model").size)
     }
 
+    @Test
+    fun rebuildAfterAnUnreadableStoredIndexAnalysesTheLibraryThisSession() = runTest {
+        val first = Harness()
+        first.registerTriangle()
+        first.engine.initialize()
+        first.engine.indexLibrary(listOf(seed, near, far))
+        val store = first.store
+        // Out of memory on launch and on the one retry: analysis waits for the stored file.
+        store.loadFailuresRemaining = 2
+        val backend = FakeEmbeddingBackend().apply { vectors.putAll(first.backend.vectors) }
+        val engine = engine(backend, store)
+        engine.initialize()
+        assertEquals(0, engine.indexLibrary(listOf(seed, near, far)).indexed)
+        val saves = store.saveCalls
+
+        // Rebuild analysis deletes the file, so nothing is left to protect and the library is analysed now.
+        engine.clearAnalysis()
+        val report = engine.indexLibrary(listOf(seed, near, far))
+
+        assertEquals(3, report.indexed)
+        assertTrue(store.saveCalls > saves)
+        assertEquals(setOf(seed.id, near.id, far.id), store.snapshots.getValue("test-model").keys)
+    }
+
+    @Test
+    fun rebuildAfterAnUnreadableMetadataIndexSavesMetadataVectorsAgain() = runTest {
+        val rock = seed.copy(genre = "Rock")
+        val textStore = FakeIndexStore().apply {
+            snapshots[TEXT_INDEX_VERSION] = mapOf(rock.id to FloatArray(TextEncoder.TEXT_DIM).also { it[0] = 1f })
+            loadFailuresRemaining = 1
+        }
+        val engine = engine(
+            backend = FakeEmbeddingBackend(mutableMapOf(seed.id to floatArrayOf(1f, 0f, 0f))),
+            store = FakeIndexStore(),
+            textEncoder = FakeTextEncoder(),
+            textIndex = InMemoryVectorIndex(TextEncoder.TEXT_DIM),
+            textStore = textStore,
+        )
+        engine.initialize()
+        engine.indexLibrary(listOf(rock))
+        assertEquals(0, textStore.saveCalls, "a metadata index that could not be read is never saved over")
+
+        engine.clearAnalysis()
+        engine.indexLibrary(listOf(rock))
+
+        assertEquals(setOf(rock.id), textStore.snapshots[TEXT_INDEX_VERSION]?.keys)
+    }
+
     // ---------------------------------------------------------------- initialize
 
     @Test
