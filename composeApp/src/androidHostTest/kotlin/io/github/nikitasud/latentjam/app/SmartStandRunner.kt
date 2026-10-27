@@ -55,7 +55,8 @@ class SmartStandRunner {
     }
 
     private suspend fun run(dir: File, out: File) {
-        val ml = File("../androidApp/src/main/assets/ml")
+        // LJ_STAND_ML: another asset directory (PLAN_SIZE's arms: tables dropped or replaced, manifest to match).
+        val ml = File(System.getenv("LJ_STAND_ML") ?: "../androidApp/src/main/assets/ml")
         fun read(name: String) = File(ml, name).takeIf { it.isFile }?.readBytes()?.let(AssetBytes::of)
         // The library as the app hands it to SMART: the MediaStore scan, upgraded by GenreEnrichment's stored tag
         // facts (full genre list, credited artists, original year, language, album artist).
