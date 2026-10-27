@@ -92,9 +92,9 @@ outside that list, ranked by article count. MusicBrainz core data and Wikidata
 are both CC0. The index stores only 40-bit name hashes and integer ids, never
 the names themselves.
 
-artist_colisten.bin lists, for about 180,000 artists of music_entities_250k.bin,
-the ten artists most often listened to by the same people, each with an 8-bit
-similarity. It was counted offline from ListenBrainz listens (CC0,
+artist_colisten.bin lists, for about 82,000 artists of music_entities_250k.bin
+with at least 50 listeners, up to ten artists with at least 50 listeners most
+often listened to by the same people, each with an 8-bit similarity. It was counted offline from ListenBrainz listens (CC0,
 https://listenbrainz.org), from listeners outside the evaluation sample; it
 holds only entity ids and similarities, no listener data. It is offered under
 CC0-1.0, like its source.
@@ -153,8 +153,8 @@ CC BY 4.0, and only tracks whose own licence is CC BY, CC0 or public domain
 were used, each attributed to its artist in that metadata (fma_metadata,
 tracks.csv). No FMA audio or metadata ships with LatentJam.
 
-artist_lfm.bin holds one 32-dimensional vector for about 112,000 artists of
-music_entities_250k.bin: their item embeddings from a LightFM model (Apache-2.0
+artist_lfm.bin holds one 32-dimensional vector (8-bit values and a scale) for
+about 112,000 artists of music_entities_250k.bin: their item embeddings from a LightFM model (Apache-2.0
 and MIT, run offline only; none of its code ships) that LatentJam trained on
 which artists the same ListenBrainz listeners (CC0) play, plus each artist's
 genre family, language and decade. It holds no listener data.

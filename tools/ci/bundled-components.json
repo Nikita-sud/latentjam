@@ -82,11 +82,11 @@
     },
     "artist_colisten.bin": {
       "license": "CC0-1.0",
-      "provenance": "ListenBrainz listens (CC0), artist co-listening neighbours; tools/research/ranker/pack_colisten.py"
+      "provenance": "ListenBrainz listens (CC0), artist co-listening neighbours of artists with at least 50 listeners; tools/research/ranker/pack_colisten.py, shrink_tables.py colisten --floor 50"
     },
     "artist_lfm.bin": {
       "license": "Apache-2.0",
-      "provenance": "LightFM artist vectors trained offline on ListenBrainz (CC0) listens; tools/research/ranker/pack_lfm.py"
+      "provenance": "LightFM artist vectors trained offline on ListenBrainz (CC0) listens, stored as int8 with a scale per vector; tools/research/ranker/pack_lfm.py, shrink_tables.py lfm"
     },
     "artist_known.bin": {
       "license": "CC0-1.0",

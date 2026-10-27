@@ -11,12 +11,12 @@
    "sha256": "d873b4904225f76670c8f21ee974ca7791fdc130c351711b532e1e03f1229668"
   },
   "artist_colisten.bin": {
-   "size": 7947962,
-   "sha256": "817f793e46a9fec925bc3cb084a8515a7e1e08d0272f4d1af0034d1664a4acbe"
+   "size": 2533390,
+   "sha256": "0e98b852d7cc1bbac7531cba43f47b742b406b9fb9100b0a8dafeac2f83d6f77"
   },
   "artist_lfm.bin": {
-   "size": 14369964,
-   "sha256": "fecc3f17d8b74f22b6747654bf9702d132fc3939cd8b7e16f6d95b28e344a60d"
+   "size": 4074980,
+   "sha256": "c9d77d610a1c0eff64921dd0f667e842c78cf65802a60bbba2faaee623aa1dc9"
   },
   "artist_known.bin": {
    "size": 6404144,
