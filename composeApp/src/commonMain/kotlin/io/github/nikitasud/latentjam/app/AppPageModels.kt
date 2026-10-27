@@ -229,8 +229,15 @@ internal suspend fun playsWhenSortedByPlays(
     if (playlistIds.none { orders.forPlaylist(it).sort == PlaylistSort.PLAYS }) {
         emptyMap()
     } else {
-        // What the pages call plays: a start skipped within 30 seconds is not one.
-        AppGraph.history.stats().mapValues { it.value.listens }
+        try {
+            // What the pages call plays: a start skipped within 30 seconds is not one.
+            AppGraph.history.stats().mapValues { it.value.listens }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            // Best-effort, as every other history read: an unreadable history leaves the stored order.
+            emptyMap()
+        }
     }
 
 internal data class ResumeFallbackQueue(
