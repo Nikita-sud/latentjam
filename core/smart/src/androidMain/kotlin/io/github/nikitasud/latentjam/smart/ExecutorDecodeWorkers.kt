@@ -15,7 +15,8 @@ import kotlinx.coroutines.asCoroutineDispatcher
  *
  * [abandon] shuts the pool down without waiting (interrupting its threads) and the next decoding gets
  * a fresh one: a thread stuck in MediaExtractor or MediaCodec stays stuck, but it no longer counts
- * against the pool. Work still queued on the old pool is rejected and completes as cancelled.
+ * against the pool. Work still queued on the old pool is dropped: it never runs and its Deferred never
+ * completes, so it must not be awaited after an abandon (DeadlineDecoding starts it again instead).
  */
 internal class ExecutorDecodeWorkers(
     private val threads: Int,

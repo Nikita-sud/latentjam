@@ -11,6 +11,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -59,11 +60,17 @@ internal class DeadlineDecoding(
     fun <T> start(block: suspend CoroutineScope.() -> T): Deferred<T> =
         scope.async(workers.dispatcher, block = block)
 
-    /** [work]'s value; when the waiting is cancelled (the track's deadline), [work] is cancelled too. */
+    /**
+     * [work]'s value; when the waiting is cancelled (the track's deadline, or the pass itself), [work] is
+     * cancelled too. Unfinished work may sit in a call that ignores cancellation, so when the pass itself is
+     * cancelled the workers are replaced (the budget's own timeout replaces them in [withinBudget]): the next
+     * pass must not queue behind a stuck thread.
+     */
     suspend fun <T> await(work: Deferred<T>): T = try {
         work.await()
     } catch (cancellation: CancellationException) {
         work.cancel()
+        if (!work.isCompleted && cancellation !is TimeoutCancellationException) workers.abandon()
         throw cancellation
     }
 
@@ -125,6 +132,8 @@ internal class DeadlineDecoding(
                 onResult(track, result)
             }
         } finally {
+            // Decoding left behind by a cancelled pass may be stuck; later passes start on fresh workers.
+            if (queue.any { (_, work) -> !work.isCompleted }) workers.abandon()
             for ((_, work) in queue) work.cancel()
         }
     }
