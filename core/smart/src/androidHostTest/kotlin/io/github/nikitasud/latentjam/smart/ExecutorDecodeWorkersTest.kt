@@ -103,4 +103,34 @@ internal class ExecutorDecodeWorkersTest {
 
         assertEquals(listOf("b" to true, "c" to true), results.map { it.first to it.second.isSuccess })
     }
+
+    @Test
+    fun aReDecodeOfTheCurrentTrackNeverWaitsBehindAStuckLookAhead() {
+        runBlocking { reDecodeDoesNotWaitBehindStuckPrefetch() }
+    }
+
+    private suspend fun reDecodeDoesNotWaitBehindStuckPrefetch() {
+        fun workers() = ExecutorDecodeWorkers(threads = 1) { task -> Thread(task, "test-decode").apply { isDaemon = true } }
+        // A low-RAM device: one look-ahead thread, and a re-decode thread of its own.
+        val decoding = DeadlineDecoding(workers(), budget = 400.milliseconds, redecodeWorkers = workers())
+        val tracks = listOf("a", "b", "c").map { TrackDescriptor(TrackId(it), audioUri = "test://$it") }
+        val results = mutableListOf<Pair<String, Result<FloatArray>>>()
+
+        decoding.each(
+            tracks = tracks,
+            ahead = 1,
+            prefetch = { track ->
+                if (track.id.value == "b") blockUninterruptibly()
+                floatArrayOf(track.id.value.first().code.toFloat())
+            },
+            // a's window needs decoding again (as the head retry always does) while b's look-ahead is stuck.
+            finish = { track, decoded ->
+                if (track.id.value == "a") Result.success(decoding.decode { decoded }) else Result.success(decoded)
+            },
+            onResult = { track, result -> results += track.id.value to result },
+        )
+        decoding.close()
+
+        assertEquals(listOf("a" to true, "b" to false, "c" to true), results.map { it.first to it.second.isSuccess })
+    }
 }

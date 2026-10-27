@@ -49,16 +49,25 @@ internal fun analysisTimedOut(budget: Duration): EngineError.InvalidAudio =
  * Decoding is started in a scope of its own, never as a child of the caller: a worker stuck in native
  * code is cancelled and abandoned, never joined, so it cannot hold the batch (and the engine's
  * inference lock) with it.
+ *
+ * [decode] (a window decoded again while the track is being finished) runs on [redecodeWorkers], so on a
+ * one-thread pool it never queues behind a look-ahead prefetch that is stuck; both are replaced together.
  */
 internal class DeadlineDecoding(
     private val workers: DecodeWorkers,
     private val budget: Duration = TRACK_ANALYSIS_BUDGET,
+    private val redecodeWorkers: DecodeWorkers = workers,
 ) {
     private val scope = CoroutineScope(SupervisorJob())
 
     /** Starts [block] on a worker. */
     fun <T> start(block: suspend CoroutineScope.() -> T): Deferred<T> =
         scope.async(workers.dispatcher, block = block)
+
+    private fun abandon() {
+        workers.abandon()
+        if (redecodeWorkers !== workers) redecodeWorkers.abandon()
+    }
 
     /**
      * [work]'s value; when the waiting is cancelled (the track's deadline, or the pass itself), [work] is
@@ -70,17 +79,18 @@ internal class DeadlineDecoding(
         work.await()
     } catch (cancellation: CancellationException) {
         work.cancel()
-        if (!work.isCompleted && cancellation !is TimeoutCancellationException) workers.abandon()
+        if (!work.isCompleted && cancellation !is TimeoutCancellationException) abandon()
         throw cancellation
     }
 
-    /** [block] on a worker, awaited. */
-    suspend fun <T> decode(block: suspend CoroutineScope.() -> T): T = await(start(block))
+    /** [block] on a re-decode worker, awaited. */
+    suspend fun <T> decode(block: suspend CoroutineScope.() -> T): T =
+        await(scope.async(redecodeWorkers.dispatcher, block = block))
 
     /** [analyse]'s result, or [analysisTimedOut] once [budget] passes; the workers are then replaced. */
     suspend fun withinBudget(analyse: suspend () -> Result<FloatArray>): Result<FloatArray> {
         withTimeoutOrNull(budget) { analyse() }?.let { return it }
-        workers.abandon()
+        abandon()
         return Result.failure(SmartEngineException(analysisTimedOut(budget)))
     }
 
@@ -133,12 +143,13 @@ internal class DeadlineDecoding(
             }
         } finally {
             // Decoding left behind by a cancelled pass may be stuck; later passes start on fresh workers.
-            if (queue.any { (_, work) -> !work.isCompleted }) workers.abandon()
+            if (queue.any { (_, work) -> !work.isCompleted }) abandon()
             for ((_, work) in queue) work.cancel()
         }
     }
 
     fun close() {
         workers.close()
+        if (redecodeWorkers !== workers) redecodeWorkers.close()
     }
 }
