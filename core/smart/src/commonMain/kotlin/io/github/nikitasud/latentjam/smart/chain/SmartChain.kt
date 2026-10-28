@@ -350,6 +350,7 @@ internal class SmartChain(
         }
 
         val excludedRows = sessionExclusions(seedRow, context.sessionRows, length)
+        val classRows = tuning.queueClasses?.penalised(snapshot, seedRow)
         var provenance: HashMap<Int, String>? = if (trace != null) HashMap() else null
         // The latest reference's cosines and full-library rankings, reused while the reference stays.
         var cosines: ReferenceCosines? = null
@@ -787,7 +788,17 @@ internal class SmartChain(
             // A run of one artist: the next of its tracks in a row gives up runLength spreads of this
             // hop's scores per unit of the penalty, so it still wins when it clearly fits best.
             val runPenalised = tuning.artistRunPenalty > 0f && runLength > 0
-            val spread = if (runPenalised || points != null) scoreSpread(hopScores, hopScored) else 0f
+            val spread = if (runPenalised || points != null || classRows != null) scoreSpread(hopScores, hopScored) else 0f
+            // Jarring kinds (QueueClasses): soft, sized by this hop's spread like the run penalty.
+            if (classRows != null && spread > 0f) {
+                val paid = tuning.queueClasses!!.lambda * spread
+                for (i in pool.indices) {
+                    if (hopScored[i] && classRows[pool[i]]) {
+                        hopScores[i] -= paid
+                        hopTerms?.get(i)?.let { it[6] -= paid }
+                    }
+                }
+            }
             if (runPenalised) {
                 val penalty = tuning.artistRunPenalty * runLength * spread
                 if (penalty > 0f) {

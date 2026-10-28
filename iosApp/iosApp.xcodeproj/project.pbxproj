@@ -17,8 +17,29 @@
 		A10000050000000000000001 /* LatentJam.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LatentJam.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A10000200000000000000001 /* Exceptions for "iosApp" folder in "iosApp" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ml/artist_colisten.bin,
+				ml/artist_family.bin,
+				ml/artist_family_l2.bin,
+				ml/artist_lfm.bin,
+				ml/artist_pop.bin,
+				ml/audio_tagger.bin,
+				ml/audio_tagger.json,
+				ml/genre_families.json,
+				ml/heads.json,
+				ml/smart_manifest.json,
+				ml/smart_ranker.json,
+				ml/smart_ranker_full.json,
+			);
+			target = A10000060000000000000001 /* iosApp */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		A10000010000000000000001 /* iosApp */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = iosApp; sourceTree = "<group>"; };
+		A10000010000000000000001 /* iosApp */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (A10000200000000000000001 /* Exceptions for "iosApp" folder in "iosApp" target */, ); explicitFileTypes = {}; explicitFolders = (); path = iosApp; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */

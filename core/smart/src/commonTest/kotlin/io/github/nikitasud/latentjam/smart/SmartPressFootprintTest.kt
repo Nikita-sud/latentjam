@@ -344,8 +344,8 @@ internal class SmartPressFootprintTest {
             "plain 3: t1000 t0210 t0199 t0304 t0610 t0965 t0665 t0984 t0057 t0080 t0781 t0016",
             "plain 404: t0296 t0548 t0932 t0351 t0678 t0647 t0677 t0970 t0393 t0457 t0624 t0632",
             "plain 777: t0142 t0906 t0973 t1091 t0857 t0246 t0444 t0134 t0582 t0122 t0921 t0837",
-            "judged start: t0983 t0715 t0600 t0416 t0105 t0931 t0449 t0531 t0197 t0287 t0244 t0520",
-            "judged top-up: t0844 t0050 t0631 t0081 t0488 t0985 t0306 t0979 t0233 t0131 t0429 t0551",
+            "judged start: t0931 t0449 t0167 t0834 t0710 t0042 t0997 t0983 t0715 t0105 t0416 t0600",
+            "judged top-up: t0282 t0154 t0828 t0007 t0520 t0707 t0021 t0557 t0233 t0782 t0720 t0903",
         )
 
         /** ±1/16, ±1/8 and 0 as FP16 bit patterns: exact, so the decoded floats are too. */

@@ -198,6 +198,7 @@ object AppGraph {
                                 // ArtistVarietyApplier then follows changes.
                                 judgedScoring = true,
                                 artistRunPenalty = ARTIST_VARIETY_PENALTIES[sanitizeArtistVariety(get<AppSettings>().artistVariety.value)],
+                                queueClassPenalty = SMART_QUEUE_CLASS_PENALTY,
                             )
                         }
                         // SMART's on-device impression and outcome log: local only, read by nothing in ranking.
@@ -745,6 +746,9 @@ object AppGraph {
  * ranker tables) leaves them out of the app: SMART plans with the chain, and the ranker settings are hidden.
  */
 internal const val SMART_RANKER_SHIPPED: Boolean = false
+
+/** Spreads a SMART candidate loses for a kind of track that jars after its seed (QueueClasses); 0 is off. */
+internal const val SMART_QUEUE_CLASS_PENALTY: Float = 1f
 
 /**
  * Optional background analysis must not crash playback when storage or foreground promotion

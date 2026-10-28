@@ -72,6 +72,8 @@ internal data class ChainTuning(
      * better by more. JourneySequencer takes the same value for the order. 0 is off. EXPERIMENTAL.
      */
     val artistRunPenalty: Float = 0f,
+    /** Kinds of track that jar after a seed outside them ([QueueClasses]); null is off. */
+    val queueClasses: QueueClasses? = null,
     /**
      * A learned correction added to every candidate's score: one weight per [Rerank] feature, in
      * score units. Null is off. EXPERIMENTAL.

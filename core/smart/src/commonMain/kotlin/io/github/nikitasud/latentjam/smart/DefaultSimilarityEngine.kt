@@ -11,7 +11,9 @@ import io.github.nikitasud.latentjam.smart.chain.ChainWalk
 import io.github.nikitasud.latentjam.smart.chain.CompanionMembership
 import io.github.nikitasud.latentjam.smart.chain.JourneySequencer
 import io.github.nikitasud.latentjam.smart.chain.MetadataFallbackQueue
+import io.github.nikitasud.latentjam.smart.chain.PickTrace
 import io.github.nikitasud.latentjam.smart.chain.PredictorRuntime
+import io.github.nikitasud.latentjam.smart.chain.QueueClasses
 import io.github.nikitasud.latentjam.smart.chain.SmartChain
 import io.github.nikitasud.latentjam.smart.chain.SmartSnapshot
 import io.github.nikitasud.latentjam.smart.chain.SmartTrack
@@ -1010,9 +1012,10 @@ internal class DefaultSimilarityEngine(
                 ChainTuning(
                     continueAfterExhaustion = true,
                     neighbourhoodBonus = 0f,
-                    rerankWeights = Rerank.JUDGED_WEIGHTS,
+                    rerankWeights = (config.correctionWeights?.toFloatArray() ?: Rerank.JUDGED_WEIGHTS).takeIf { config.judgedCorrection },
                     soundFloor = Rerank.SOUND_FLOOR,
                     artistRunPenalty = runPenalty,
+                    queueClasses = config.queueClassPenalty.takeIf { it > 0f }?.let(::QueueClasses),
                     companionPoints = Rerank.COMPANION_POINTS,
                 )
             } else {
@@ -1027,12 +1030,14 @@ internal class DefaultSimilarityEngine(
                 tuning = tuning,
             )
             val timeFeatures = clock.timeFeatures()
+            val traceSink = SmartTraceHook.sink
             fun plan(walk: ChainWalk?) = planner.build(
                 seedId = seed.id,
                 length = length,
                 timeFeatures = timeFeatures,
                 historyEvents = history,
                 resume = walk,
+                trace = traceSink?.let { sink -> { t: PickTrace -> sink(SmartTraceHook.line(snapshot, seed.id, t)) } },
             )
             var continued = resume
             var chain = plan(resume?.walk)

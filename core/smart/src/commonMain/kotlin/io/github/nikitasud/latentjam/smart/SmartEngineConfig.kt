@@ -49,6 +49,11 @@ package io.github.nikitasud.latentjam.smart
  *   restricting the pool to it. Queues of listener-marked playlists keep the shipped chain. Off by default.
  * @property artistRunPenalty How strongly a judged-scoring queue avoids several tracks in a row by one artist
  *   (ChainTuning.artistRunPenalty) until [SimilarityEngine.setArtistRunPenalty] changes it; 0 is off.
+ * @property queueClassPenalty With [judgedScoring]: standard deviations of a hop's scores a candidate loses for a kind
+ *   of track that jars after its seed (ChainTuning.queueClasses); 0 is off.
+ * @property judgedCorrection With [judgedScoring]: whether the learned correction (Rerank.JUDGED_WEIGHTS) is added.
+ * @property correctionWeights With [judgedCorrection]: weights used in place of Rerank.JUDGED_WEIGHTS, one per Rerank
+ *   feature; null keeps them.
  */
 public data class SmartEngineConfig(
     public val embeddingDim: Int = 960,
@@ -58,4 +63,7 @@ public data class SmartEngineConfig(
     public val continueAfterExhaustion: Boolean = false,
     public val judgedScoring: Boolean = false,
     public val artistRunPenalty: Float = 0f,
+    public val queueClassPenalty: Float = 0f,
+    public val judgedCorrection: Boolean = true,
+    public val correctionWeights: List<Float>? = null,
 )

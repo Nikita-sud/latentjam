@@ -55,6 +55,11 @@ class SmartStandRunner {
     }
 
     private suspend fun run(dir: File, out: File) {
+        // LJ_STAND_TRACE: every chain pick's scored candidates to out/trace.jsonl (refitting the judged correction).
+        io.github.nikitasud.latentjam.smart.SmartTraceHook.sink = if (System.getenv("LJ_STAND_TRACE") == null) null else {
+            val traceFile = File(out, "trace.jsonl").also { it.delete() }
+            ({ line: String -> traceFile.appendText(line + "\n") })
+        }
         // LJ_STAND_ML: another asset directory (PLAN_SIZE's arms: tables dropped or replaced, manifest to match).
         val ml = File(System.getenv("LJ_STAND_ML") ?: "../androidApp/src/main/assets/ml")
         fun read(name: String) = File(ml, name).takeIf { it.isFile }?.readBytes()?.let(AssetBytes::of)
@@ -505,6 +510,10 @@ class SmartStandRunner {
             embeddingDim = 960, modelLocator = "ml/mnv4_audio.onnx", modelVersion = AUDIO_MODEL_VERSION, typicalityWeight = 0f,
             continueAfterExhaustion = true, judgedScoring = true,
             artistRunPenalty = ARTIST_VARIETY_PENALTIES[DEFAULT_ARTIST_VARIETY],
+            // LJ_STAND_CLASS (spreads) and LJ_STAND_NO_JUDGED override the app's chain for tuning runs.
+            queueClassPenalty = System.getenv("LJ_STAND_CLASS")?.toFloat() ?: SMART_QUEUE_CLASS_PENALTY,
+            judgedCorrection = System.getenv("LJ_STAND_NO_JUDGED") == null,
+            correctionWeights = System.getenv("LJ_STAND_CORRECTION")?.split(',')?.map { it.trim().toFloat() },
         )
         val engine = io.github.nikitasud.latentjam.smart.createHostSimilarityEngine(
             config, backend, store(versioned(files, "smart_index", AUDIO_MODEL_VERSION).name), store("smart_text_index.bin"),

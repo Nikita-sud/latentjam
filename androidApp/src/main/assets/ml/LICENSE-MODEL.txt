@@ -19,6 +19,13 @@ Version 2.0, included in the repository root:
 
 artist_colisten.bin and artist_pop.bin are CC0-1.0 (see below).
 
+This build plans SMART with the chain and does not package the learned ranker's
+files: smart_ranker.json, smart_ranker_full.json, smart_manifest.json,
+artist_colisten.bin, artist_lfm.bin, artist_pop.bin, artist_family.bin,
+artist_family_l2.bin, audio_tagger.bin, audio_tagger.json, genre_families.json
+and heads.json stay in the source tree only. Their notes below apply to
+builds that ship the ranker.
+
 Copyright (c) 2026 LatentJam Project
 
 mnv4_audio.onnx is the A0 MobileNetV4-Conv-M student from the 2026-10-10
@@ -39,12 +46,17 @@ EfficientAT MN10 targets, plus the FMA genre labels. It uses no synthetic
 clips and no MPD-fitted weights. The output order remains the 27-label
 semantic_scores contract. The routing scores are not general probabilities
 of a listener's preference. Both replacement weight files are licensed
-Apache-2.0 by LatentJam. The older SMART chain, used only when the learned
-ranker is switched off, still carries constants fitted on the Million Playlist
-Dataset; the learned ranker and its assets use none.
+Apache-2.0 by LatentJam. The SMART chain's learned score correction (12
+weights in the app's code) was refitted on 2026-10-28 to rankings by local
+Claude judges of the chain's own candidates in licence-filtered Free Music
+Archive libraries; it no longer uses weights fitted on the Million Playlist
+Dataset.
 
 The student implementation used PyTorch Image Models (timm), licensed
-Apache-2.0. EfficientAT code and published weights are licensed MIT:
+Apache-2.0. The EfficientAT repository (code) is licensed MIT; its release
+checkpoints, including mn10_as_mAP_471.pt, are published there without
+separate terms, and the author permitted their use in commercial applications
+(github.com/fschmid56/EfficientAT issue #44, 2026-09-07). The MIT notice:
 
   Copyright (c) 2022 Florian Schmid
   https://github.com/fschmid56/EfficientAT
@@ -83,7 +95,9 @@ the same model's structured artist attributes (languages, decades, genres),
 never on a listener's library. Its weights are 4-bit codes (groups of 32
 rotated by a Walsh-Hadamard matrix, a Lloyd-Max codebook and an FP16 length
 per group), quantized after training. DeepSeek's terms of use permit using its
-outputs, including for training.
+outputs, including for training. The artist descriptions and attributes behind
+artist_knowledge.bin and artist_adapter.bin are AI-generated content
+(DeepSeek-V4.1-Flash).
 
 music_entities_250k.bin is a hash index over artist names and aliases: the
 250,000 MusicBrainz artists with the most artist credits, then musicians,

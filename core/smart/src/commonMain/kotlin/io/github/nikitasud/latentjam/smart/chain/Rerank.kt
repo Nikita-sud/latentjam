@@ -36,24 +36,25 @@ internal object Rerank {
 
     /**
      * The correction the app uses ([io.github.nikitasud.latentjam.smart.SmartEngineConfig.judgedScoring]), in
-     * [FEATURES] order: fitted to DeepSeek Flash's rankings of the chain's own candidates at 10,000 hops on four
-     * MPD libraries no queue was evaluated on (tools/research/model_diet rank_candidates.py and fit_rerank.py,
-     * penalty 0.01). Accepted only together with [SOUND_FLOOR], a soft neighbourhood and an artist-run penalty
-     * (docs/model-diet-fixes-2026-10-06.md). Read it, never write it.
+     * [FEATURES] order: fitted to local Claude judges' top-3 rankings of the chain's own candidates at 1,279 hops on the
+     * 16 FMA general-stand libraries (licence-filtered CC audio; songs shown as artist, title, genre, year and an audio
+     * note), with the model_diet recipe (rank_candidates.py sampling, fit_rerank.py top-3 Plackett-Luce, penalty by
+     * leave-one-library-out) and the base score's weight held at 1 (c093, 2026-10-28). It replaces weights fitted on
+     * the Million Playlist Dataset. Read it, never write it.
      */
     val JUDGED_WEIGHTS: FloatArray = floatArrayOf(
-        8.307804f,
-        14.342008f,
-        0.7398643f,
-        10.941509f,
-        27.112993f,
-        7.756507f,
-        9.659199f,
-        5.657382f,
-        3.100394f,
-        -4.66554f,
-        0.0f,
-        1.8221145f,
+        -1.746999f,
+        -4.787909f,
+        3.597523f,
+        -0.352905f,
+        -4.021822f,
+        1.214467f,
+        -1.847727f,
+        1.849149f,
+        0.000000f,
+        2.347830f,
+        2.086977f,
+        -0.094448f,
     )
 
     /** The sound floor the judged scoring was accepted with ([ChainTuning.soundFloor]). */
