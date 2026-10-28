@@ -269,7 +269,8 @@ internal class StreamTaggingAudioRenderer(
  * A decoder created while a newer stream is being read — the next track needs another codec, as
  * Opus into MP3 does — was created for that stream, and the old one's output was all drained
  * before it. Its first output buffer therefore starts the newer stream. The renderer marks the
- * change then, as Media3 would; Media3's own later mark finds it already made.
+ * change then, as Media3 would. Media3's own later mark still re-syncs the sink (a drain and flush of its
+ * processors, as before this fix), but finds the position already right: no jump and no error.
  */
 internal class CodecStreamSwitch {
     private var codecStream: PcmStream? = null
