@@ -215,8 +215,6 @@
     <string name="auto_playlist_recently_added">Ostatnio dodane</string>
     <string name="auto_playlist_most_played">Najczęściej odtwarzane</string>
     <string name="auto_playlist_recently_played">Ostatnio odtwarzane</string>
-    <string name="auto_playlist_never_played">Nigdy nie odtworzone</string>
-    <string name="auto_playlist_rediscover">Odkryj na nowo</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Odtwórz jako następny</string>

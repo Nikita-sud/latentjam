@@ -292,14 +292,10 @@ internal class PlaylistsTest {
             playCounts = mapOf(TrackId("1") to 5, TrackId("3") to 9),
             lastPlayedAtMs = mapOf(TrackId("1") to 50L, TrackId("3") to 90L),
         )
-        assertEquals(4, auto.size)
+        assertEquals(3, auto.size)
         assertContentEquals(
             listOf("2", "3", "1"),
             auto.first { it.kind == AutoPlaylistKind.RECENTLY_ADDED }.tracks.map { it.id.value },
-        )
-        assertContentEquals(
-            listOf("2"),
-            auto.first { it.kind == AutoPlaylistKind.NEVER_PLAYED }.tracks.map { it.id.value },
         )
         assertContentEquals(
             listOf("3", "1"),
@@ -318,8 +314,8 @@ internal class PlaylistsTest {
             playCounts = emptyMap(),
             lastPlayedAtMs = emptyMap(),
         )
-        // The unheard track is a genuine NEVER_PLAYED entry; every other kind is empty and drops.
-        assertContentEquals(listOf(AutoPlaylistKind.NEVER_PLAYED), auto.map { it.kind })
+        // Every kind is empty and drops.
+        assertTrue(auto.isEmpty())
         assertTrue(AutoPlaylists.build(emptyList(), emptyMap(), emptyMap()).isEmpty())
     }
 }

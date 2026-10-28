@@ -197,8 +197,6 @@
     <string name="auto_playlist_recently_added">Adăugate recent</string>
     <string name="auto_playlist_most_played">Cele mai ascultate</string>
     <string name="auto_playlist_recently_played">Ascultate recent</string>
-    <string name="auto_playlist_never_played">Neascultate încă</string>
-    <string name="auto_playlist_rediscover">De redescoperit</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Redă în continuare</string>

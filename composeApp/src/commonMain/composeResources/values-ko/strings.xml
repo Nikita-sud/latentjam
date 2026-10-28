@@ -187,8 +187,6 @@
     <string name="auto_playlist_recently_added">최근 추가한 곡</string>
     <string name="auto_playlist_most_played">자주 재생한 곡</string>
     <string name="auto_playlist_recently_played">최근 재생한 곡</string>
-    <string name="auto_playlist_never_played">재생한 적 없음</string>
-    <string name="auto_playlist_rediscover">다시 발견</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">다음에 재생</string>

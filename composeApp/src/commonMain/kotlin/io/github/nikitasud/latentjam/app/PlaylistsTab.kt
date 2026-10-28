@@ -91,10 +91,8 @@ import io.github.nikitasud.latentjam.app.generated.resources.action_change_playl
 import io.github.nikitasud.latentjam.app.generated.resources.action_reset_playlist_cover
 import io.github.nikitasud.latentjam.app.generated.resources.auto_playlist_most_played
 import io.github.nikitasud.latentjam.app.generated.resources.auto_playlist_favorites
-import io.github.nikitasud.latentjam.app.generated.resources.auto_playlist_never_played
 import io.github.nikitasud.latentjam.app.generated.resources.auto_playlist_recently_added
 import io.github.nikitasud.latentjam.app.generated.resources.auto_playlist_recently_played
-import io.github.nikitasud.latentjam.app.generated.resources.auto_playlist_rediscover
 import io.github.nikitasud.latentjam.app.generated.resources.cd_playlist_options
 import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.playlist_add_to_title
@@ -156,23 +154,7 @@ internal fun PlaylistsTabContent(
     // SaveableStateProvider and hands it back on return — the way the other tabs keep theirs.
     val listState = rememberLazyListState()
     val reduceMotion = rememberReduceMotion()
-    val featuredPlaylists = remember(autoPlaylists) {
-        val pinned = listOf(
-            AutoPlaylistKind.FAVORITES,
-            AutoPlaylistKind.RECENTLY_ADDED,
-            AutoPlaylistKind.MOST_PLAYED,
-            AutoPlaylistKind.RECENTLY_PLAYED,
-        ).map { kind ->
-            autoPlaylists.firstOrNull { it.kind == kind } ?: AutoPlaylist(kind, emptyList())
-        }
-        // Never Played and Rediscover are derived from listening history, so AutoPlaylists.build
-        // hands them over only once they have rows. They join the rail exactly then: unlike the
-        // four kinds above they have no stable slot to hold on day one, and a 0-track card here
-        // would open an empty page. Their titles are localized like the rest (titleRes()).
-        val derived = listOf(AutoPlaylistKind.NEVER_PLAYED, AutoPlaylistKind.REDISCOVER)
-            .mapNotNull { kind -> autoPlaylists.firstOrNull { it.kind == kind } }
-        pinned + derived
-    }
+    val featuredPlaylists = remember(autoPlaylists) { featuredAutoPlaylists(autoPlaylists) }
     val orderIdentity = remember(playlists) { playlists.map { it.id } }
     @Composable fun UserPlaylistRow(index: Int, preview: Boolean = false) {
         val playlist = playlists[index]
@@ -328,6 +310,17 @@ internal fun PlaylistsTabContent(
 }
 
 /**
+ * The rail at the top of Playlists: always these four kinds, each with its own card even while empty. Suggestion lists
+ * (never played, forgotten favourites) live in For You, not here.
+ */
+internal fun featuredAutoPlaylists(autoPlaylists: List<AutoPlaylist>): List<AutoPlaylist> = listOf(
+    AutoPlaylistKind.FAVORITES,
+    AutoPlaylistKind.RECENTLY_ADDED,
+    AutoPlaylistKind.MOST_PLAYED,
+    AutoPlaylistKind.RECENTLY_PLAYED,
+).map { kind -> autoPlaylists.firstOrNull { it.kind == kind } ?: AutoPlaylist(kind, emptyList()) }
+
+/**
  * The builder emits a playlist KIND; the title is written here.
  *
  * Same split as the For You sections: the derivation stays a pure, unit-tested
@@ -341,8 +334,6 @@ internal fun AutoPlaylistKind.titleRes(): StringResource = when (this) {
     AutoPlaylistKind.RECENTLY_ADDED -> Res.string.auto_playlist_recently_added
     AutoPlaylistKind.MOST_PLAYED -> Res.string.auto_playlist_most_played
     AutoPlaylistKind.RECENTLY_PLAYED -> Res.string.auto_playlist_recently_played
-    AutoPlaylistKind.NEVER_PLAYED -> Res.string.auto_playlist_never_played
-    AutoPlaylistKind.REDISCOVER -> Res.string.auto_playlist_rediscover
 }
 
 @Composable

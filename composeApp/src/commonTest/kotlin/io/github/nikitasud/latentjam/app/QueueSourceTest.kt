@@ -73,15 +73,18 @@ internal class QueueSourceTest {
 
     @Test
     fun autoPlaylistsNeverResolveThroughTheirDisplayName() {
-        assertNull(source("auto:NEVER_PLAYED").resolveGroup(catalog))
+        assertNull(source("auto:MOST_PLAYED").resolveGroup(catalog))
     }
 
     @Test
     fun autoPlaylistsKeepTheirKindAsTheStableIdentity() {
-        val source = source("auto:NEVER_PLAYED", "Never played")
+        val source = source("auto:MOST_PLAYED", "Most played")
         assertEquals(QueueSourceKind.LIBRARY_GROUP, source.kind)
-        assertEquals(AutoPlaylistKind.NEVER_PLAYED, source.autoPlaylistKind())
+        assertEquals(AutoPlaylistKind.MOST_PLAYED, source.autoPlaylistKind())
         assertNull(source("auto:UNKNOWN").autoPlaylistKind())
+        // A queue saved by 0.9.2 from a list the Playlists page no longer has restores without a kind.
+        assertNull(source("auto:NEVER_PLAYED").autoPlaylistKind())
+        assertNull(source("auto:REDISCOVER").autoPlaylistKind())
         assertNull(source("album:second").autoPlaylistKind())
         assertNull(QueueSource(QueueSourceKind.COLLECTION, "Shared").autoPlaylistKind())
     }
@@ -98,7 +101,7 @@ internal class QueueSourceTest {
         assertEquals("playlist:saved-id", playlist.queueSource().parentCollectionId())
         assertEquals("album:second", source("album:second", "Translated label").parentCollectionId())
         assertEquals("folder:/second/Shared", source("folder:/second/Shared").parentCollectionId())
-        assertEquals("auto:NEVER_PLAYED", source("auto:NEVER_PLAYED", "Never played").parentCollectionId())
+        assertEquals("auto:MOST_PLAYED", source("auto:MOST_PLAYED", "Most played").parentCollectionId())
     }
 
     @Test

@@ -187,8 +187,6 @@
     <string name="auto_playlist_recently_added">最近追加した曲</string>
     <string name="auto_playlist_most_played">よく再生した曲</string>
     <string name="auto_playlist_recently_played">最近再生した曲</string>
-    <string name="auto_playlist_never_played">未再生</string>
-    <string name="auto_playlist_rediscover">再発見</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">次に再生</string>

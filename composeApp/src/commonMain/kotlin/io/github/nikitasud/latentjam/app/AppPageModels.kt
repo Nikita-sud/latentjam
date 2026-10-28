@@ -19,7 +19,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.selected
 import io.github.nikitasud.latentjam.history.ForYouImpression
 import io.github.nikitasud.latentjam.history.SmartExclusionState
-import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.library.ArtistGroup
 import io.github.nikitasud.latentjam.library.AutoPlaylist
 import io.github.nikitasud.latentjam.library.Playlist
@@ -479,10 +478,6 @@ internal class PlaylistsState {
         return settled
     }
 
-    // Rediscover is time-derived even when the library and history are unchanged. Refresh the
-    // clock when the listener revisits Playlists or returns to the foreground so a track that
-    // crossed the rest threshold while the app was idle appears without a process restart.
-    var autoPlaylistClockMs by mutableLongStateOf(epochMillis())
     var autoPlaylists by mutableStateOf<List<AutoPlaylist>>(emptyList())
 
     /**

@@ -195,8 +195,6 @@
     <string name="auto_playlist_recently_added">हाल ही में जोड़े गए</string>
     <string name="auto_playlist_most_played">सबसे ज़्यादा चलाए गए</string>
     <string name="auto_playlist_recently_played">हाल ही में चलाए गए</string>
-    <string name="auto_playlist_never_played">कभी नहीं सुने गए</string>
-    <string name="auto_playlist_rediscover">फिर से खोजें</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">अगले में चलाएं</string>

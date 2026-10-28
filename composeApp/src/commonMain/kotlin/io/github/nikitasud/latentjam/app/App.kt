@@ -909,7 +909,6 @@ private fun AppShell(
             onLeave = { AppGraph.flushListeningSession() },
         ) {
             scope.launch {
-                if (selectedTab == StartPage.PLAYLISTS) playlistsState.autoPlaylistClockMs = epochMillis()
                 // Not while a tag save is queued or running. The return from its consent dialog lands
                 // here just as the writes start, and a reload that already sees a written file's new
                 // revision, before the save's SMART carry-over exists, discards its audio analysis.
@@ -1439,7 +1438,7 @@ private fun AppShell(
             playlistsState.publishStats(
                 // What the listener calls plays: a start skipped within 30 seconds is not one.
                 plays = stats.mapValues { it.value.listens },
-                // Recently played and Rediscover by the last real listen, not the last skipped start.
+                // Recently played by the last real listen, not the last skipped start.
                 lastListenedAt = stats.mapValues { it.value.lastListenedAtMs },
             )
         }
@@ -1509,12 +1508,11 @@ private fun AppShell(
         // the user comes back to the tab rather than only at startup.
         LaunchedEffect(selectedTab) {
             if (selectedTab == StartPage.PLAYLISTS) {
-                playlistsState.autoPlaylistClockMs = epochMillis()
                 refreshPlaylistsWithFeedback()
             }
         }
         // A listen can complete while this tab stays visible. Republish the derived auto lists
-        // immediately instead of requiring a tab round-trip before Never Played/Rediscover move.
+        // immediately instead of requiring a tab round-trip before Most / Recently played move.
         LaunchedEffect(historyRevision) {
             if (selectedTab == StartPage.PLAYLISTS) refreshPlaylistStatsBestEffort()
         }
@@ -1557,7 +1555,6 @@ private fun AppShell(
             playlistsState.playCounts,
             playlistsState.lastPlayedAt,
             favoriteIds,
-            playlistsState.autoPlaylistClockMs,
         ) {
             val playsSettled = playlistsState.favoritesPlaysOrderSettled()
             val songs = catalog?.songs
@@ -1570,7 +1567,6 @@ private fun AppShell(
                         playlistsState.playCounts,
                         playlistsState.lastPlayedAt,
                         favoriteIds,
-                        playlistsState.autoPlaylistClockMs,
                     )
                 }
             }

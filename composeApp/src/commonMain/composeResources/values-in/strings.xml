@@ -193,8 +193,6 @@
     <string name="auto_playlist_recently_added">Baru ditambahkan</string>
     <string name="auto_playlist_most_played">Paling sering diputar</string>
     <string name="auto_playlist_recently_played">Baru diputar</string>
-    <string name="auto_playlist_never_played">Belum pernah diputar</string>
-    <string name="auto_playlist_rediscover">Temukan kembali</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Putar berikutnya</string>

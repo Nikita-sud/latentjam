@@ -215,8 +215,6 @@
     <string name="auto_playlist_recently_added">Нещодавно додані</string>
     <string name="auto_playlist_most_played">Найчастіше прослухані</string>
     <string name="auto_playlist_recently_played">Нещодавно прослухані</string>
-    <string name="auto_playlist_never_played">Жодного разу не слухали</string>
-    <string name="auto_playlist_rediscover">Згадати забуте</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Відтворити наступним</string>

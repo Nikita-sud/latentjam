@@ -250,8 +250,6 @@
     <string name="auto_playlist_recently_added">Recently added</string>
     <string name="auto_playlist_most_played">Most played</string>
     <string name="auto_playlist_recently_played">Recently played</string>
-    <string name="auto_playlist_never_played">Never played</string>
-    <string name="auto_playlist_rediscover">Rediscover</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Play next</string>

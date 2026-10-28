@@ -187,8 +187,6 @@
     <string name="auto_playlist_recently_added">最近添加</string>
     <string name="auto_playlist_most_played">最常播放</string>
     <string name="auto_playlist_recently_played">最近播放</string>
-    <string name="auto_playlist_never_played">从未播放</string>
-    <string name="auto_playlist_rediscover">重新发现</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">下一首播放</string>
