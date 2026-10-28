@@ -50,12 +50,13 @@ jobs:
       - name: Native cancellation, deterministic output, sanitizers and notices
         run: python3 tools/ci/native_verify.py
       - name: Optimized release, DEX and native gates
-        run: ./gradlew :androidApp:assembleRelease :androidApp:checkReleaseDexRegisters :androidApp:checkReleaseNativeLibraries -Platentjam.composeReports=true --max-workers=2
+        # Maven Central's full runtime here; compact-release.yml builds and checks the reduced one every channel ships.
+        run: ./gradlew :androidApp:assembleRelease :androidApp:checkReleaseDexRegisters :androidApp:checkReleaseNativeLibraries -Platentjam.composeReports=true -Platentjam.stockOrt=true --max-workers=2
       - name: APK inventory and 16 KiB alignment
         run: python3 tools/ci/apk_inventory.py androidApp/build/outputs/apk/release --output build/reports/apks.json --abis arm64-v8a armeabi-v7a x86_64
       - name: Universal F-Droid release, DEX and all four native ABIs
         run: |
-          ./gradlew :androidApp:clean :androidApp:assembleRelease -Platentjam.fdroid=true --max-workers=2
+          ./gradlew :androidApp:clean :androidApp:assembleRelease -Platentjam.fdroid=true -Platentjam.stockOrt=true --max-workers=2
           python3 tools/ci/apk_inventory.py androidApp/build/outputs/apk/release --output build/reports/fdroid-apks.json --abis arm64-v8a armeabi-v7a x86 x86_64
       - name: CycloneDX and bundled components
         run: |

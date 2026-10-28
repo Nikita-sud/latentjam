@@ -47,14 +47,13 @@ jobs:
       - name: Read the application's runtime version
         run: |
           python -c 'import os,tomllib; v=tomllib.load(open("gradle/libs.versions.toml","rb"))["versions"]["onnxruntime"]; print("ORT_VERSION="+v, file=open(os.environ["GITHUB_ENV"],"a"))'
-      - name: Build a model-matched reduced ARM64 runtime
+      - name: Build the reduced ARM64 runtime from source, as every release channel does
+        # No onnxruntime wheel, no prebuilt protoc: the committed operator list, the SHA-1-checked dependency mirror
+        # and protoc from the protobuf sources (tools/runtime/ort_source_build.sh).
         run: |
-          python -m pip install "onnxruntime==$ORT_VERSION" onnx numpy
           git clone --depth 1 --branch "v$ORT_VERSION" --recursive --shallow-submodules https://github.com/microsoft/onnxruntime.git "$RUNNER_TEMP/ort-source"
           curl --fail --location --retry 3 "https://repo.maven.apache.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/$ORT_VERSION/onnxruntime-android-$ORT_VERSION.aar" -o "$RUNNER_TEMP/onnxruntime-android-$ORT_VERSION.aar"
-          cmake -S core/ort-ops/src/main/cpp -B "$RUNNER_TEMP/ljq4-host" -DCMAKE_BUILD_TYPE=Release
-          cmake --build "$RUNNER_TEMP/ljq4-host" --parallel 2
-          python tools/runtime/build_reduced_ort.py --source "$RUNNER_TEMP/ort-source" --output "$RUNNER_TEMP/reduced-ort" --sdk "$ANDROID_HOME" --ndk "$ANDROID_HOME/ndk/28.2.13676358" --stock-aar "$RUNNER_TEMP/onnxruntime-android-$ORT_VERSION.aar" --custom-op-library "$RUNNER_TEMP/ljq4-host/libljq4.so" --jobs 2
+          JOBS=2 bash tools/runtime/ort_source_build.sh "$RUNNER_TEMP/ort-source" "$ANDROID_HOME/ndk/28.2.13676358" "$ANDROID_HOME" "$RUNNER_TEMP/onnxruntime-android-$ORT_VERSION.aar"
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -62,7 +61,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
       - name: Verify exact packaged runtime, DEX and all split ABIs
         run: |
-          python tools/runtime/build_compact_release.py --reduced-repo "$RUNNER_TEMP/reduced-ort/maven" --stock-aar "$RUNNER_TEMP/onnxruntime-android-$ORT_VERSION.aar" --strip-tool "$ANDROID_HOME/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
+          python tools/runtime/build_compact_release.py --reduced-repo "$GITHUB_WORKSPACE/build/reduced-ort/maven" --stock-aar "$RUNNER_TEMP/onnxruntime-android-$ORT_VERSION.aar" --strip-tool "$ANDROID_HOME/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -70,5 +69,5 @@ jobs:
           path: |
             build/reports/compact-release/
             androidApp/build/reports/dex-registers/
-            ${{ runner.temp }}/reduced-ort/maven/manifest.json
+            build/reduced-ort/maven/manifest.json
           retention-days: 14
