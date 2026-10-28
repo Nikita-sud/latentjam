@@ -152,3 +152,26 @@ NDK r28c.
   `ort_deps_mirror.py --offline` checks them in the same layout.
 
 The steps the recipe runs were reproduced from a clean export of the release commit (section 4).
+
+## 4. Reproduced locally (2026-10-28)
+
+A clean `git archive` of release/0.9.3-full was used, with the scandelete list above removed, then the recipe's steps:
+
+1. `bash ../tools/runtime/ort_source_build.sh <onnxruntime v1.26.0 srclib> $NDK $SDK -` from `androidApp/`. The stock
+   AAR was fetched by the script and matched its pinned SHA-256; the mirror was prefilled and SHA-1-checked.
+2. `../gradlew assembleRelease -Platentjam.fdroid=true -Platentjam.fdroidAbi=arm64-v8a`.
+
+Result: one unsigned `androidApp-arm64-v8a-release-unsigned.apk`, versionCode 432, 28,555,240 bytes. Its
+`lib/arm64-v8a/libonnxruntime.so` is the reduced runtime this build produced.
+
+That library is not byte-identical to one built in another directory: build paths end up in the binary. It passed the
+Android parity probe bitwise on its own, 13 / 13 cases on emulator-5586 (API 30), as did the in-tree build (API 36
+and 30).
+
+| channel | arm64-v8a | armeabi-v7a | x86 | x86_64 |
+|---|---|---|---|---|
+| GitHub release APK (signed, uncompressed libs) | 36,955,416 (full ORT: 53,077,360) | 44,480,220 | — | 58,841,574 |
+| F-Droid APK (unsigned, compressed libs) | 28,555,240 | 33,467,080 | 36,408,096 | 36,300,138 |
+| Play bundle | base/lib/arm64-v8a/libonnxruntime.so 11,278,568 (full: 27,408,600) | stock | stock | stock |
+
+The non-ARM64 ABIs keep Maven Central's runtime. Only ARM64 is reduced.
