@@ -128,7 +128,7 @@ a restart; an unhealthy manifest and a throwing audio index still fill the queue
 ## Device checks (19 October, evening)
 
 - **v2 on the owner's phone** (7f9b8701, reduced ORT, 57.0 MiB, sha256 230507aa…): installed 18:47 as an update, launch
-  OK. Copy: `~/Documents/LJ/releases/test-builds/2026-10-19/ranker-v2-coreplfm-7f9b8701-arm64.apk`.
+  OK. A copy is kept outside the repository.
 - **Pixel_7_Pro emulator** (read-only), current build: SMART plans 20 from the model; process death and resume and a
   media-button play work. A plan made during indexing used to spend its budget waiting on the engine's lock — fixed
   with per-read audio limits (858ceb54).
@@ -149,8 +149,8 @@ a restart; an unhealthy manifest and a throwing audio index still fill the queue
 - a6e01704 ships model_core_final.json (f9db1ec8) as smart_ranker.json and model_full_final.json (54fd0a4b) as
   smart_ranker_full.json, with artist_pop.bin and artist_family.bin. This is not the formal hand-off; the E gates
   are running.
-- Installed on the owner's phone 13:30 as an update (APK d5c56529…; notes beside the APK in
-  ~/Documents/LJ/releases/test-builds/2026-10-20/). Launch OK.
+- Installed on the owner's phone 13:30 as an update (APK d5c56529…; notes kept with the APK, outside
+  the repository). Launch OK.
 - The first plan was FULL final: 20 picks from the model, a 184-track pool from 1,106 candidates, 1,196 ms
   including the one-time asset load and manifest hashing.
 
