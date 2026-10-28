@@ -74,8 +74,6 @@ internal data class ChainTuning(
     val artistRunPenalty: Float = 0f,
     /** Kinds of track that jar after a seed outside them ([QueueClasses]); null is off. */
     val queueClasses: QueueClasses? = null,
-    /** When the artist cap or the run penalty blocks a candidate, pick among the most similar ([SimilarityGuard]); null is off. */
-    val similarityGuard: SimilarityGuard? = null,
     /** A learned queue theme as a candidate channel ([ThemePool]); null is off. */
     val theme: ThemePool? = null,
     /** Research: every theme the walk computes, as (reference row, row-major features); the app never sets it. */
@@ -151,14 +149,3 @@ internal fun durationSanityMultiplier(durationMs: Long?): Float {
         else -> 1f
     }
 }
-
-/**
- * Owner 2026-10-28 («хорошо если похоже, а если не похоже не хорошо»): when the artist cap or the run penalty keeps a
- * candidate out, the slot goes to the best-scoring candidate among the [share] of the hop's pool most like the flow and
- * the seed (audio to the previous pick + audio to the seed + artist descriptor to the seed − energy gap), never to a dissimilar fill.
- */
-internal data class SimilarityGuard(
-    val share: Float = 0.25f,
-    /** Likeness loses this much per unit of energy gap to the seed (the semantic head's energy; 0 = audio and style only). */
-    val energyWeight: Float = 0f,
-)

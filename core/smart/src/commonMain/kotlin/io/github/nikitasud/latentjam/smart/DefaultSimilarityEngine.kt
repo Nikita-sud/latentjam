@@ -15,7 +15,6 @@ import io.github.nikitasud.latentjam.smart.chain.PersonalTerm
 import io.github.nikitasud.latentjam.smart.chain.PickTrace
 import io.github.nikitasud.latentjam.smart.chain.PredictorRuntime
 import io.github.nikitasud.latentjam.smart.chain.QueueClasses
-import io.github.nikitasud.latentjam.smart.chain.SimilarityGuard
 import io.github.nikitasud.latentjam.smart.chain.ThemePool
 import io.github.nikitasud.latentjam.smart.chain.SmartChain
 import io.github.nikitasud.latentjam.smart.chain.SmartSnapshot
@@ -1039,7 +1038,6 @@ internal class DefaultSimilarityEngine(
                     soundFloor = Rerank.SOUND_FLOOR,
                     artistRunPenalty = runPenalty,
                     queueClasses = config.queueClassPenalty.takeIf { it > 0f }?.let(::QueueClasses),
-                    similarityGuard = config.similarityGuardShare.takeIf { it > 0f }?.let { SimilarityGuard(it, config.similarityGuardEnergy) },
                     theme = config.themeWeights?.let { ThemePool(it.toFloatArray(), config.themeSlots, config.themeBonus) },
                     themeDump = SmartTraceHook.themeSink?.let { sink -> { reference: Int, features: FloatArray -> sink(SmartTraceHook.themeLine(snapshot, reference, features)) } },
                     companionPoints = Rerank.COMPANION_POINTS,

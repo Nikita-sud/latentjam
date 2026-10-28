@@ -692,10 +692,6 @@ internal class SmartChain(
             // Every candidate is scored first, then picked: the run penalty is sized by the hop's spread.
             val hopScores = FloatArray(pool.size)
             val hopScored = BooleanArray(pool.size)
-            // ChainTuning.similarityGuard: each scored candidate's likeness to the flow and the seed (audio to the previous
-            // pick, audio to the seed, artist descriptor to the seed), read only when the guard is on.
-            val guard = tuning.similarityGuard
-            val likeness = if (guard != null) FloatArray(pool.size) else null
             val hopTerms = if (trace != null) arrayOfNulls<FloatArray>(pool.size) else null
             // The personal stage's inputs: K (the keep-together command) and R (the recency penalty) per candidate.
             val staged = personal != null || affinity != null
@@ -716,12 +712,6 @@ internal class SmartChain(
                 // the re-anchored effective seed (effSeed).
                 val seedCos = seedGravityCos(effSeed, seedRow, row)
                 score += seedPull * ChainConfig.CHAIN_SEED_GRAVITY * seedCos
-                if (likeness != null) {
-                    val eSeed = snapshot.tracks[seedRow].energy
-                    val eRow = snapshot.tracks[row].energy
-                    val energyGap = if (eSeed.isNaN() || eRow.isNaN()) 0f else kotlin.math.abs(eRow - eSeed)
-                    likeness[i] = anchorCos + seedCos + (snapshot.descriptorCosine(seedRow, row) ?: 0f) - guard!!.energyWeight * energyGap
-                }
                 // Semantic gravity/blend: same shape as the audio terms, in the descriptor+text
                 // spaces and pool-normalized (see zSeed/zPrev construction). Zero when the seed or
                 // anchor has no semantic vector or too few pool members do, leaving score unchanged.
@@ -816,8 +806,6 @@ internal class SmartChain(
             // A run of one artist: the next of its tracks in a row gives up runLength spreads of this
             // hop's scores per unit of the penalty, so it still wins when it clearly fits best.
             val runPenalised = tuning.artistRunPenalty > 0f && runLength > 0
-            var bestBeforeRun = -1
-            if (guard != null) for (i in pool.indices) if (hopScored[i] && (bestBeforeRun < 0 || hopScores[i] > hopScores[bestBeforeRun])) bestBeforeRun = i
             val themeBonus = if ((tuning.theme?.bonus ?: 0f) > 0f) themeRanking(intentRow).let { themeZ } else null
             val spread = if (runPenalised || points != null || classRows != null || themeBonus != null) scoreSpread(hopScores, hopScored) else 0f
             // The queue theme as a prior: a candidate gains the theme's z-score times ThemePool.bonus spreads.
@@ -900,32 +888,6 @@ internal class SmartChain(
             }
             if (bestIndex < 0) break
 
-            var guardChanged = false
-            // Similarity guard: when the artist cap kept a candidate out of this hop, or the run penalty took the best one
-            // down, the slot goes to the best-scoring candidate among the most similar [SimilarityGuard.share] of the pool
-            // (pool-relative likeness), so the blocked artist is not replaced by whatever the other terms favour.
-            if (guard != null && likeness != null) {
-                // The continuation mode drops capped artists from the pool before scoring, so the cap shows as a recent
-                // artist (the run the queue was on) that has reached it.
-                val capBlocked = recentArtists.any { recent -> recent.any { (artistPlays[it] ?: 0) >= ChainConfig.CHAIN_ARTIST_QUEUE_CAP } }
-                val runBlocked = runPenalised && bestBeforeRun >= 0 && bestBeforeRun != bestIndex &&
-                    snapshot.tracks[pool[bestBeforeRun]].meta.hasArtist(runArtist)
-                if (capBlocked || runBlocked) {
-                    val scoredIdx = pool.indices.filter { hopScored[it] }
-                    val sorted = scoredIdx.map { likeness[it] }.sortedDescending()
-                    val keep = maxOf(1, kotlin.math.ceil(sorted.size * guard.share).toInt())
-                    val floor = sorted[keep - 1]
-                    var best = -1
-                    for (i in scoredIdx) if (likeness[i] >= floor && (best < 0 || hopScores[i] > hopScores[best])) best = i
-                    if (best >= 0 && best != bestIndex) {
-                        guardChanged = true
-                        bestIndex = best
-                        bestScore = hopScores[best]
-                        if (hopTerms != null) bestTerms = hopTerms[best]
-                    }
-                }
-            }
-
             // The quota hop: see COMPANION_QUOTA_STRIDE. Falls through to the normal pick when
             // the seed has no marked groups or no member survived this hop's eligibility.
             val quotaHop = points == null && seedCompanionGroups.isNotEmpty() &&
@@ -951,8 +913,8 @@ internal class SmartChain(
             // The personal stage (PLAN_PERSONAL v2 §1): δ and the mask M come from the mask core (the shipped score without
             // the keep-together command and, as novelty, without recency); rows in M gain t (and a strong habit's recency
             // relief), rows outside keep the shipped score. Without additions the pick is the shipped one, bit for bit.
-            // The guard's and the quota's picks are the core's and stand (G).
-            if (staged && !guardChanged && chosenIndex == bestIndex) {
+            // The quota's picks are the core's and stand (G).
+            if (staged && chosenIndex == bestIndex) {
                 val novelty = personal?.recencyMode != io.github.nikitasud.latentjam.smart.personal.RecencyMode.CREDIT
                 val mask = FloatArray(pool.size) { i ->
                     if (!hopScored[i]) 0f else hopScores[i] - keep!![i] + (if (novelty && recencyLoss != null) recencyLoss[i] else 0f)

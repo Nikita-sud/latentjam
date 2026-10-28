@@ -541,8 +541,6 @@ class SmartStandRunner {
             queueClassPenalty = System.getenv("LJ_STAND_CLASS")?.toFloat() ?: SMART_QUEUE_CLASS_PENALTY,
             judgedCorrection = if (System.getenv("LJ_STAND_JUDGED") != null) true else if (System.getenv("LJ_STAND_NO_JUDGED") != null) false else SMART_JUDGED_CORRECTION,
             correctionWeights = System.getenv("LJ_STAND_CORRECTION")?.split(',')?.map { it.trim().toFloat() },
-            similarityGuardShare = System.getenv("LJ_STAND_SIMGUARD")?.toFloat() ?: 0f,
-            similarityGuardEnergy = System.getenv("LJ_STAND_SIMGUARD_E")?.toFloat() ?: 0f,
             // LJ_STAND_ARTIST_SETS=1/0 overrides the app's artist identity; LJ_STAND_THEME = 8 weights (or "off").
             artistSets = System.getenv("LJ_STAND_ARTIST_SETS")?.let { it == "1" } ?: SMART_ARTIST_SETS,
             themeWeights = System.getenv("LJ_STAND_THEME").let { env ->

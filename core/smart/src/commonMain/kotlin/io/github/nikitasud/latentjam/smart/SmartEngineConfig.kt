@@ -66,9 +66,6 @@ public data class SmartEngineConfig(
     public val queueClassPenalty: Float = 0f,
     public val judgedCorrection: Boolean = true,
     public val correctionWeights: List<Float>? = null,
-    /** With [judgedScoring]: ChainTuning.similarityGuard's share of the pool (0 is off). */
-    public val similarityGuardShare: Float = 0f,
-    public val similarityGuardEnergy: Float = 0f,
     /**
      * The chain's artist identity from the artist list (ArtistSets over the pack's named entities): a credit's every
      * artist counts for the cap, the run penalty, the spacing and same-artist, so "Queen feat. David Bowie" is Queen and
