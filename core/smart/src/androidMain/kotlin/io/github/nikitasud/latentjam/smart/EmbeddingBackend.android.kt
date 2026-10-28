@@ -451,7 +451,7 @@ public actual fun smartEngineBackendModule(): Module = module {
     // smartEngineModule; Koin last-definition-wins).
     // One audio-vector file per encoder (VersionedIndexStore): a test build on another encoder never wipes the
     // release build's vectors, and the other way round.
-    single<IndexStore> { VersionedIndexStore("smart_index") { name -> FileIndexStore(context = get(), fileName = name) } }
+    single<IndexStore> { VersionedIndexStore("smart_index") { name -> FileIndexStore(context = get(), fileName = name, half = true) } }
 
     single<IndexStore>(smartTextIndexQualifier) {
         FileIndexStore(context = get(), fileName = "smart_text_index.bin")
@@ -461,7 +461,7 @@ public actual fun smartEngineBackendModule(): Module = module {
     // override the common heap-backed bindings the same way.
     single<VectorIndex> {
         val dim = get<SmartEngineConfig>().embeddingDim
-        InMemoryVectorIndex(dim = dim, store = MappedRowStore.forIndex(get(), dim, "audio"))
+        InMemoryVectorIndex(dim = dim, store = MappedRowStore.forIndex(get(), dim, "audio", half = true))
     }
 
     single<VectorIndex>(smartTextIndexQualifier) {

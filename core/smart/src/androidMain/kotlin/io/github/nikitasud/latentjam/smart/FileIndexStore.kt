@@ -35,12 +35,19 @@ internal class FileIndexStore private constructor(
     private val file: File,
     private val tempFile: File,
     private val maximumSnapshotBytes: Long,
+    /**
+     * Vectors are kept as halves ([HalfFloat], format v4): half the file, the floats rounded to three significant
+     * digits. A float file written by an earlier build is rewritten as halves on its first load, after the new file
+     * was written and read back equal ([migrateToHalves]); the old file stays until then.
+     */
+    private val half: Boolean = false,
 ) : IndexStore {
 
-    constructor(context: Context, fileName: String = FILE_NAME) : this(
+    constructor(context: Context, fileName: String = FILE_NAME, half: Boolean = false) : this(
         file = File(context.filesDir, fileName),
         tempFile = File(context.filesDir, "$fileName.tmp"),
         maximumSnapshotBytes = MAX_ANDROID_INDEX_SNAPSHOT_BYTES,
+        half = half,
     )
 
     /** File-based seam for host corruption/atomicity tests; production uses the Context overload. */
@@ -48,10 +55,12 @@ internal class FileIndexStore private constructor(
         directory: File,
         fileName: String = FILE_NAME,
         maximumSnapshotBytes: Long = MAX_ANDROID_INDEX_SNAPSHOT_BYTES,
+        half: Boolean = false,
     ) : this(
         file = File(directory, fileName),
         tempFile = File(directory, "$fileName.tmp"),
         maximumSnapshotBytes = maximumSnapshotBytes,
+        half = half,
     )
 
     init {
@@ -87,8 +96,76 @@ internal class FileIndexStore private constructor(
                     )
                 }
                 decoded?.takeIf { bounded.bytesRead == declaredSize }
-            }
+            }?.also { if (half) migrateToHalves(modelVersion) }
         }
+
+    /** This file's format version, or null when it cannot be read. */
+    private fun formatVersion(): Int? = runCatching {
+        DataInputStream(file.inputStream().buffered()).use { input ->
+            if (input.readInt() != MAGIC) null else input.readInt()
+        }
+    }.getOrNull()
+
+    /**
+     * A half store's float file (formats 1–3) rewritten as halves, streaming (a 10,000-song index never sits in memory
+     * twice): the rows go to a staged file beside the old one while a hash of every (id, halves, identity) is taken,
+     * the staged file is read back and must hash the same with the same rows and failures, and only then is it renamed
+     * over the old file. Any failure leaves the old file as it was; the next load tries again.
+     */
+    private fun migrateToHalves(modelVersion: String) {
+        if (formatVersion() !in FileIndexStore.LEGACY_FORMAT_VERSION..FileIndexStore.FORMAT_VERSION) return
+        val staged = File(file.parentFile, file.name + ".half")
+        fun stream(source: File, row: (TrackId, FloatArray, String?) -> Unit): Map<TrackId, String>? =
+            DataInputStream(source.inputStream().buffered()).use { input ->
+                decodeStoredIndexRows(input, modelVersion, source.length(), maximumSnapshotBytes, row)
+            }
+        try {
+            var count = 0
+            var dim = 0
+            val failed = stream(file) { _, v, _ -> count++; dim = v.size } ?: return
+            val written = RowHash()
+            FileOutputStream(staged).use { raw ->
+                val output = DataOutputStream(raw.buffered())
+                output.writeInt(MAGIC)
+                output.writeInt(HALF_FORMAT_VERSION)
+                output.writeSizedUtf8(modelVersion)
+                output.writeInt(dim)
+                output.writeInt(count)
+                var rows = 0
+                stream(file) { id, vector, identity ->
+                    output.writeSizedUtf8(id.value)
+                    val halves = ShortArray(vector.size) { HalfFloat.toHalf(vector[it]) }
+                    for (h in halves) output.writeShort(h.toInt())
+                    output.writeNullableSizedUtf8(identity)
+                    written.add(id, halves, identity)
+                    rows++
+                } ?: return
+                check(rows == count) { "The float file changed while it was rewritten" }
+                output.writeInt(failed.size)
+                for ((id, identity) in failed) {
+                    output.writeSizedUtf8(id.value)
+                    output.writeSizedUtf8(identity)
+                }
+                output.flush()
+                raw.fd.sync()
+            }
+            val read = RowHash()
+            var readRows = 0
+            val readFailed = stream(staged) { id, vector, identity ->
+                read.add(id, ShortArray(vector.size) { HalfFloat.toHalf(vector[it]) }, identity)
+                readRows++
+            }
+            if (readFailed == failed && readRows == count && read.value == written.value) {
+                check(staged.renameTo(file)) { "Could not replace ${file.name}" }
+            }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (failure: Throwable) {
+            // The float file stays as it was.
+        } finally {
+            if (staged.exists()) staged.delete()
+        }
+    }
 
     /**
      * Runs a read: the file's own damage (truncated, malformed, over the limit) is null — no usable snapshot — while
@@ -146,7 +223,7 @@ internal class FileIndexStore private constructor(
                 )
             }
             failed?.takeIf { bounded.bytesRead == declaredSize }
-        }
+        }?.also { if (half) migrateToHalves(modelVersion) }
     }
 
     override suspend fun save(modelVersion: String, entries: Map<TrackId, FloatArray>): Unit =
@@ -176,7 +253,7 @@ internal class FileIndexStore private constructor(
             require(entries.values.all { vector ->
                 vector.size == dim && vector.all(Float::isFinite)
             }) { "Index vectors must have one finite, consistent dimension" }
-            val encodedSize = encodedV3SnapshotSize(modelVersion, snapshot, dim)
+            val encodedSize = encodedV3SnapshotSize(modelVersion, snapshot, dim, if (half) Short.SIZE_BYTES else Float.SIZE_BYTES)
             // The same envelope as load (see the class KDoc): a snapshot this store would refuse on the
             // next launch is refused here, before the temp file is touched, and it is a size answer
             // rather than an analysis failure.
@@ -185,31 +262,42 @@ internal class FileIndexStore private constructor(
             }
             file.parentFile?.mkdirs()
             try {
-                FileOutputStream(tempFile).use { raw ->
-                    val output = DataOutputStream(raw.buffered())
-                    output.writeInt(MAGIC)
-                    output.writeInt(FORMAT_VERSION)
-                    output.writeSizedUtf8(modelVersion)
-                    output.writeInt(dim)
-                    output.writeInt(entries.size)
-                    for ((id, vector) in entries) {
-                        output.writeSizedUtf8(id.value)
-                        for (component in vector) output.writeFloat(component)
-                        output.writeNullableSizedUtf8(snapshot.identities[id])
-                    }
-                    output.writeInt(failedIdentities.size)
-                    for ((id, identity) in failedIdentities) {
-                        output.writeSizedUtf8(id.value)
-                        output.writeSizedUtf8(identity)
-                    }
-                    output.flush()
-                    raw.fd.sync()
-                }
+                writeSnapshot(tempFile, modelVersion, snapshot)
                 check(tempFile.renameTo(file)) { "Could not atomically replace ${file.name}" }
             } finally {
                 if (tempFile.exists()) tempFile.delete()
             }
         }
+
+    /** Writes [snapshot] to [target] in this store's format (v3 floats, or v4 halves) and syncs it. */
+    private fun writeSnapshot(target: File, modelVersion: String, snapshot: StoredIndexSnapshot) {
+        val entries = snapshot.entries
+        val dim = entries.values.firstOrNull()?.size ?: 0
+        FileOutputStream(target).use { raw ->
+            val output = DataOutputStream(raw.buffered())
+            output.writeInt(MAGIC)
+            output.writeInt(if (half) HALF_FORMAT_VERSION else FORMAT_VERSION)
+            output.writeSizedUtf8(modelVersion)
+            output.writeInt(dim)
+            output.writeInt(entries.size)
+            for ((id, vector) in entries) {
+                output.writeSizedUtf8(id.value)
+                if (half) {
+                    for (component in vector) output.writeShort(HalfFloat.toHalf(component).toInt())
+                } else {
+                    for (component in vector) output.writeFloat(component)
+                }
+                output.writeNullableSizedUtf8(snapshot.identities[id])
+            }
+            output.writeInt(snapshot.failedIdentities.size)
+            for ((id, identity) in snapshot.failedIdentities) {
+                output.writeSizedUtf8(id.value)
+                output.writeSizedUtf8(identity)
+            }
+            output.flush()
+            raw.fd.sync()
+        }
+    }
 
     override suspend fun clear(): Unit = withContext(Dispatchers.IO) {
         check(!file.exists() || file.delete()) { "Could not delete ${file.name}" }
@@ -222,6 +310,8 @@ internal class FileIndexStore private constructor(
         const val LEGACY_FORMAT_VERSION = 1
         const val IDENTITY_FORMAT_VERSION = 2
         const val FORMAT_VERSION = 3
+        /** Format 3 with every vector component a big-endian half ([HalfFloat]). */
+        const val HALF_FORMAT_VERSION = 4
         const val MAX_DIMENSION = 4096
         const val MAX_ENTRIES = 1_000_000
         const val MAX_STRING_BYTES = 1_048_576
@@ -236,6 +326,12 @@ internal class FileIndexStore private constructor(
 public suspend fun readIndexSnapshotFile(file: File, modelVersion: String): StoredIndexSnapshot? =
     FileIndexStore(file.absoluteFile.parentFile, file.name, maximumSnapshotBytes = Long.MAX_VALUE - 1).loadSnapshot(modelVersion)
 
+/** Host tools: a snapshot file's vectors as the audio index keeps them, rounded to halves (never rewrites the file). */
+public suspend fun readHalfIndexSnapshotFile(file: File, modelVersion: String): StoredIndexSnapshot? =
+    readIndexSnapshotFile(file, modelVersion)?.let { s ->
+        StoredIndexSnapshot(s.entries.mapValuesTo(LinkedHashMap()) { (_, v) -> FloatArray(v.size) { HalfFloat.round(v[it]) } }, s.identities, s.failedIdentities)
+    }
+
 /**
  * Host tools (the offline product-check stand): the phone's similarity engine as DI builds it (in-memory audio and text
  * indexes restored from [store] / [textStore], the e cache from [energyStore]) around a host [backend].
@@ -247,9 +343,11 @@ public fun createHostSimilarityEngine(
     textStore: IndexStore?,
     energyStore: IndexStore?,
     artistKnowledge: io.github.nikitasud.latentjam.smart.text.ArtistKnowledge?,
+    /** Keep the audio vectors as halves, as the app does from 0.9.3 on (false: the float32 index of earlier builds). */
+    half: Boolean = true,
 ): SimilarityEngine = DefaultSimilarityEngine(
     backend = backend,
-    index = InMemoryVectorIndex(config.embeddingDim),
+    index = InMemoryVectorIndex(config.embeddingDim, if (half) HalfRowStore(config.embeddingDim) else HeapRowStore(config.embeddingDim)),
     store = store,
     config = config,
     dispatcher = kotlinx.coroutines.Dispatchers.Default,
@@ -292,10 +390,12 @@ internal fun decodeStoredIndexRows(
     val formatVersion = input.readInt()
     if (formatVersion != FileIndexStore.LEGACY_FORMAT_VERSION &&
         formatVersion != FileIndexStore.IDENTITY_FORMAT_VERSION &&
-        formatVersion != FileIndexStore.FORMAT_VERSION
+        formatVersion != FileIndexStore.FORMAT_VERSION &&
+        formatVersion != FileIndexStore.HALF_FORMAT_VERSION
     ) {
         return null
     }
+    val halves = formatVersion == FileIndexStore.HALF_FORMAT_VERSION
     val modelVersion = if (formatVersion == FileIndexStore.LEGACY_FORMAT_VERSION) {
         input.readUTF()
     } else {
@@ -315,7 +415,7 @@ internal fun decodeStoredIndexRows(
     } else {
         2L * Int.SIZE_BYTES.toLong()
     }
-    val minimumRowBytes = dim.toLong() * Float.SIZE_BYTES.toLong() + stringOverheadBytes
+    val minimumRowBytes = dim.toLong() * (if (halves) Short.SIZE_BYTES else Float.SIZE_BYTES).toLong() + stringOverheadBytes
     if (count.toLong() * minimumRowBytes > encodedSizeBytes) return null
     // Do not trust a corrupt header enough to preallocate a million-entry table before even one
     // complete row has been read. The map grows normally for a genuinely large valid snapshot.
@@ -325,7 +425,7 @@ internal fun decodeStoredIndexRows(
             if (formatVersion == FileIndexStore.LEGACY_FORMAT_VERSION) input.readUTF()
             else input.readSizedUtf8(),
         )
-        val vector = FloatArray(dim) { input.readFloat() }
+        val vector = if (halves) FloatArray(dim) { HalfFloat.toFloat(input.readShort()) } else FloatArray(dim) { input.readFloat() }
         val identity = if (formatVersion >= FileIndexStore.IDENTITY_FORMAT_VERSION) {
             input.readNullableSizedUtf8()
         } else {
@@ -335,7 +435,7 @@ internal fun decodeStoredIndexRows(
         if (vector.all(Float::isFinite)) row(id, vector, identity)
     }
     val failedIdentities = LinkedHashMap<TrackId, String>()
-    if (formatVersion == FileIndexStore.FORMAT_VERSION) {
+    if (formatVersion >= FileIndexStore.FORMAT_VERSION) {
         val failedCount = input.readInt()
         if (failedCount !in 0..FileIndexStore.MAX_ENTRIES || count + failedCount > FileIndexStore.MAX_ENTRIES) {
             return null
@@ -391,11 +491,12 @@ private fun encodedV3SnapshotSize(
     modelVersion: String,
     snapshot: StoredIndexSnapshot,
     dimension: Int,
+    componentBytes: Int = Float.SIZE_BYTES,
 ): Long {
     val modelBytes = modelVersion.encodeToByteArray()
     require(modelBytes.size <= FileIndexStore.MAX_STRING_BYTES) { "Model version is too large" }
     var total = FileIndexStore.HEADER_BYTES.toLong() + modelBytes.size.toLong() + Int.SIZE_BYTES
-    val vectorBytes = dimension.toLong() * Float.SIZE_BYTES.toLong()
+    val vectorBytes = dimension.toLong() * componentBytes.toLong()
     for (id in snapshot.entries.keys) {
         val idBytes = id.value.encodeToByteArray()
         require(idBytes.size <= FileIndexStore.MAX_STRING_BYTES) { "Track id is too large" }
@@ -451,3 +552,21 @@ private class CountingBoundedInputStream(
 
 /** The file grew past the read limit while being read: damage (a replaced or growing file), not a failed read. */
 internal class SnapshotOverLimit : IOException("Index snapshot exceeded the bounded read limit")
+
+/** A 64-bit hash of a sequence of index rows (id, halves, identity): the migration's read-back check. */
+private class RowHash {
+    var value: Long = -0x340d631b7bdddcdbL
+        private set
+
+    private fun mix(x: Long) {
+        value = (value xor x) * 0x100000001b3L
+    }
+
+    fun add(id: TrackId, halves: ShortArray, identity: String?) {
+        for (c in id.value) mix(c.code.toLong())
+        mix(-1L)
+        for (h in halves) mix(h.toLong())
+        if (identity == null) mix(-2L) else for (c in identity) mix(c.code.toLong())
+        mix(-3L)
+    }
+}

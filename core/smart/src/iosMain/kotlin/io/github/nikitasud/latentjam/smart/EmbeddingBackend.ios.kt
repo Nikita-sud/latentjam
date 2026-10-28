@@ -181,7 +181,7 @@ public actual fun smartEngineBackendModule(): Module = module {
     IosAppTransitions.count
     single<BatchDotProducts> { IosBatchDotProducts }
     single<EmbeddingBackend> { IosEmbeddingBackend(config = get()) }
-    single<IndexStore> { VersionedIndexStore("smart_index") { name -> IosFileIndexStore(fileName = name) } }
+    single<IndexStore> { VersionedIndexStore("smart_index") { name -> IosFileIndexStore(fileName = name, half = true) } }
     single<IndexStore>(smartTextIndexQualifier) {
         IosFileIndexStore(fileName = "smart_text_index.bin")
     }

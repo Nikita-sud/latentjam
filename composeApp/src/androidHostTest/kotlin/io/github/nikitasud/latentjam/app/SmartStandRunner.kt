@@ -551,6 +551,8 @@ class SmartStandRunner {
         val engine = io.github.nikitasud.latentjam.smart.createHostSimilarityEngine(
             config, backend, store(versioned(files, "smart_index", AUDIO_MODEL_VERSION).name), store("smart_text_index.bin"),
             store(versioned(files, "smart_energy", "semantic-energy-v1-$AUDIO_MODEL_VERSION").name), knowledge,
+            // LJ_STAND_FP32=1: the float32 audio index of builds before the half vectors (the fp16 comparison).
+            half = System.getenv("LJ_STAND_FP32") != "1",
         )
         engine.initialize().getOrThrow()
         engine.synchronizeLibrary(library = library, pruneMissing = false)
