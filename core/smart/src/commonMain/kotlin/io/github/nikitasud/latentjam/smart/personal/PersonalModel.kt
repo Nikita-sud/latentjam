@@ -292,28 +292,28 @@ private const val DAY_MS_CONST: Long = 86_400_000L
 /** A pair's evidence while building: per session the best grade of each kind, and the occurrence weights. */
 private class PairAcc {
     /** Session id → best (grade × decay) of the listener's own evidence, SMART's own, and rejections. */
-    val own = HashMap<Long, Double>()
-    val smart = HashMap<Long, Double>()
-    val rejected = HashMap<Long, Double>()
+    val own = LinkedHashMap<Long, Double>()
+    val smart = LinkedHashMap<Long, Double>()
+    val rejected = LinkedHashMap<Long, Double>()
     /** Imported session strength, kept apart for the per-anchor cap. */
-    val imported = HashMap<Long, Double>()
+    val imported = LinkedHashMap<Long, Double>()
     var weightOwn = 0.0
     var weightSmart = 0.0
     var squaresOwn = 0.0
     var squaresSmart = 0.0
 
-    fun best(map: HashMap<Long, Double>, session: Long, value: Double) {
+    fun best(map: LinkedHashMap<Long, Double>, session: Long, value: Double) {
         val held = map[session]
         if (held == null || value > held) map[session] = value
     }
 }
 
 private class PersonalBuilder(private val listens: List<PersonalListen>, private val library: List<PersonalTrack>) {
-    private val byId = HashMap<TrackId, PersonalTrack>(library.size * 2)
-    private val songOfTrack = HashMap<TrackId, Int>(library.size * 2)
-    private val artistsOfTrack = HashMap<TrackId, IntArray>(library.size * 2)
-    private val pairs = HashMap<Long, PairAcc>()
-    private val artistPairs = HashMap<Long, PairAcc>()
+    private val byId = LinkedHashMap<TrackId, PersonalTrack>(library.size * 2)
+    private val songOfTrack = LinkedHashMap<TrackId, Int>(library.size * 2)
+    private val artistsOfTrack = LinkedHashMap<TrackId, IntArray>(library.size * 2)
+    private val pairs = LinkedHashMap<Long, PairAcc>()
+    private val artistPairs = LinkedHashMap<Long, PairAcc>()
     private var artistCount = 0
 
     private fun key(a: Int, b: Int) = (a.toLong() shl 32) or (b.toLong() and 0xffffffffL)
@@ -321,11 +321,11 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
     fun build(): PersonalModel {
         // Songs in sorted hash order, so indices do not depend on library order (the JVM / iOS golden).
         val hashes = library.map { PersonalModel.hash(it.key) }.distinct().sorted()
-        val songIndex = HashMap<Long, Int>(hashes.size * 2)
+        val songIndex = LinkedHashMap<Long, Int>(hashes.size * 2)
         hashes.forEachIndexed { i, h -> songIndex[h] = i }
         val artistHashes = library.flatMap { t -> t.artists.filter(String::isNotEmpty).map(PersonalModel::hash) }.distinct().sorted()
         artistCount = artistHashes.size
-        val artistIndex = HashMap<Long, Int>(artistHashes.size * 2)
+        val artistIndex = LinkedHashMap<Long, Int>(artistHashes.size * 2)
         artistHashes.forEachIndexed { i, h -> artistIndex[h] = i }
         for (t in library) {
             byId[t.id] = t
@@ -335,9 +335,9 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
         }
         val songs = hashes.size
         val skips = FloatArray(songs)
-        val affinity = HashMap<Int, HashMap<Long, Double>>()
+        val affinity = LinkedHashMap<Int, LinkedHashMap<Long, Double>>()
         fun liked(song: Int, session: Long, value: Double) {
-            val held = affinity.getOrPut(song) { HashMap() }
+            val held = affinity.getOrPut(song) { LinkedHashMap() }
             if ((held[session] ?: 0.0) < value) held[session] = value
         }
 
@@ -412,7 +412,7 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
             }
             if (current.isNotEmpty()) runs += current
         }
-        val gramRuns = HashMap<Triple<Int, Int, Int>, Int>()
+        val gramRuns = LinkedHashMap<Triple<Int, Int, Int>, Int>()
         for (run in runs) {
             val seen = HashSet<Triple<Int, Int, Int>>()
             for (i in 2 until run.size) seen += Triple(song(run[i - 2]), song(run[i - 1]), song(run[i]))
@@ -440,7 +440,7 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
             }
         }
         // The per-anchor import cap: imported strength summed over A → * at most 12.
-        val importByAnchor = HashMap<Int, Double>()
+        val importByAnchor = LinkedHashMap<Int, Double>()
         for ((k, p) in pairs) {
             val a = (k ushr 32).toInt()
             importByAnchor[a] = (importByAnchor[a] ?: 0.0) + p.imported.values.sum()
@@ -545,7 +545,7 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
         }
         val effective = FloatArray(songs) { a -> if (squares[a] > 0.0) (out[a].toDouble() * out[a] / squares[a]).toFloat() else 0f }
         // Keep only links that can change a term: two own sessions (habit, D1) or two rejecting sessions.
-        val bySource = HashMap<Int, ArrayList<Pair<Int, PairAcc>>>()
+        val bySource = LinkedHashMap<Int, ArrayList<Pair<Int, PairAcc>>>()
         for ((k, p) in pairs) {
             if (p.own.size < PersonalModel.MIN_SESSIONS && p.rejected.size < PersonalModel.MIN_SESSIONS) continue
             bySource.getOrPut((k ushr 32).toInt()) { ArrayList() } += (k and 0xffffffffL).toInt() to p
@@ -559,7 +559,7 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
             kept += list.take(PersonalModel.TOP_PER_SONG).sortedBy { it.first }
         }
         start[songs] = kept.size
-        val artistBySource = HashMap<Int, ArrayList<Pair<Int, PairAcc>>>()
+        val artistBySource = LinkedHashMap<Int, ArrayList<Pair<Int, PairAcc>>>()
         for ((k, p) in artistPairs) {
             if (p.own.size < PersonalModel.MIN_SESSIONS) continue
             artistBySource.getOrPut((k ushr 32).toInt()) { ArrayList() } += (k and 0xffffffffL).toInt() to p

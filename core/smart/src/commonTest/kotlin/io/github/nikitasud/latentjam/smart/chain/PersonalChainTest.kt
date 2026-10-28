@@ -168,7 +168,7 @@ internal class PersonalChainTest {
         val now = t0 + 400 * day
         val back = background(30, now - 60 * day)
         val (_, gaps, _) = hopOne(term(back), back, now)
-        val b = gaps.filter { it.value in 0.05f..0.9f }.keys.first()
+        val b = gaps.entries.filter { it.value in 0.05f..0.9f }.sortedWith(compareBy({ it.value }, { it.key.value })).first().key
         val imports = (0 until 5).flatMap { k ->
             val at = now - 40 * day + k * 2 * day
             listOf(
@@ -252,7 +252,7 @@ internal class PersonalChainTest {
         val start = t0 + 400 * day
         val back = background(60, start - 2 * day)
         val (_, gaps, _) = hopOne(term(back), back, start)
-        val b = gaps.filter { it.value in 0.05f..0.9f }.keys.first()
+        val b = gaps.entries.filter { it.value in 0.05f..0.9f }.sortedWith(compareBy({ it.value }, { it.key.value })).first().key
         val listens = (back + picks(0, b.value.toInt(), 3, start - 3 * day)).sortedBy { it.startedAtMs }.toMutableList()
         var fullLeads = 0
         var coreLeads = 0
