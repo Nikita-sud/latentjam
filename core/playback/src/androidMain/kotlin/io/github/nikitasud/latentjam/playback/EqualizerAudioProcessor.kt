@@ -163,12 +163,13 @@ internal class StreamTaggingAudioRenderer(
     enableDecoderFallback: Boolean,
     eventHandler: Handler?,
     eventListener: AudioRendererEventListener?,
-    audioSink: AudioSink,
+    private val sink: AudioSink,
     private val streams: PcmStreams,
 ) : MediaCodecAudioRenderer(
-    context, codecAdapterFactory, mediaCodecSelector, enableDecoderFallback, eventHandler, eventListener, audioSink,
+    context, codecAdapterFactory, mediaCodecSelector, enableDecoderFallback, eventHandler, eventListener, sink,
 ) {
     private val read = ArrayDeque<PcmStream>()
+    private val codecSwitch = CodecStreamSwitch()
     private val window = Timeline.Window()
     private val period = Timeline.Period()
 
@@ -203,6 +204,40 @@ internal class StreamTaggingAudioRenderer(
         super.onPositionReset(positionUs, joining, sampleStreamIsResetToKeyFrame)
     }
 
+    override fun onCodecInitialized(
+        name: String,
+        configuration: MediaCodecAdapter.Configuration,
+        initializedTimestampMs: Long,
+        initializationDurationMs: Long,
+    ) {
+        codecSwitch.onCodecInitialized(read.lastOrNull())
+        super.onCodecInitialized(name, configuration, initializedTimestampMs, initializationDurationMs)
+    }
+
+    override fun processOutputBuffer(
+        positionUs: Long,
+        elapsedRealtimeUs: Long,
+        codec: MediaCodecAdapter?,
+        buffer: ByteBuffer?,
+        bufferIndex: Int,
+        bufferFlags: Int,
+        sampleCount: Int,
+        bufferPresentationTimeUs: Long,
+        isDecodeOnlyBuffer: Boolean,
+        isLastBuffer: Boolean,
+        format: Format,
+    ): Boolean {
+        codecSwitch.beforeOutput(streams.current, read)?.let { next ->
+            streams.current = next
+            sink.setOutputStreamOffsetUs(next.key)
+            sink.handleDiscontinuity()
+        }
+        return super.processOutputBuffer(
+            positionUs, elapsedRealtimeUs, codec, buffer, bufferIndex, bufferFlags, sampleCount,
+            bufferPresentationTimeUs, isDecodeOnlyBuffer, isLastBuffer, format,
+        )
+    }
+
     private fun windowOf(periodUid: Any): Timeline.Window? {
         val index = windowIndexOf(periodUid)
         if (index == C.INDEX_UNSET) return null
@@ -218,6 +253,40 @@ internal class StreamTaggingAudioRenderer(
 
     private companion object {
         const val MAX_READ_STREAMS = 4
+    }
+}
+
+/**
+ * Tells when output from the audio decoder belongs to the next track before Media3 says so.
+ *
+ * Media3 moves its output stream once a decoded buffer reaches the last time queued from the stream
+ * before. A decoder that does not reach it — an Opus file whose decoded audio runs on past what
+ * its pages say (0.99 s on the phone, 2026-10-28) — moves it only partway into the next track, so
+ * the sink and [CrossfadeAudioProcessor] took the next track's first second for the old one's.
+ * The crossfade join landed that second late: the opening already heard played over again from
+ * the start, and the sink logged an unexpected discontinuity.
+ *
+ * A decoder created while a newer stream is being read — the next track needs another codec, as
+ * Opus into MP3 does — was created for that stream, and the old one's output was all drained
+ * before it. Its first output buffer therefore starts the newer stream. The renderer marks the
+ * change then, as Media3 would; Media3's own later mark finds it already made.
+ */
+internal class CodecStreamSwitch {
+    private var codecStream: PcmStream? = null
+
+    /** A decoder was created; [reading] is the stream the renderer reads now. */
+    fun onCodecInitialized(reading: PcmStream?) {
+        codecStream = reading
+    }
+
+    /** Before the decoder's next output buffer: the stream to switch to, when it is not current. */
+    fun beforeOutput(current: PcmStream?, read: List<PcmStream>): PcmStream? {
+        val stream = codecStream ?: return null
+        codecStream = null
+        if (stream === current) return null
+        val index = read.indexOf(stream)
+        // Only forward: never back to a stream before the current one.
+        return stream.takeIf { index >= 0 && index > read.indexOf(current) }
     }
 }
 

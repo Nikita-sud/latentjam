@@ -33,7 +33,7 @@ kotlin {
         // The media notification carries the SMART-shuffle glyph as a drawable
         // (Media3 CommandButton takes a resource id, not a Compose vector).
         androidResources.enable = true
-        withHostTest {}
+        withHostTest { isReturnDefaultValues = true }
         withDeviceTest {
             applicationId = "io.github.nikitasud.latentjam.playback.test"
             instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
