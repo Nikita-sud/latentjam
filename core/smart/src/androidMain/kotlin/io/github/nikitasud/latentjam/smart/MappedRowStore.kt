@@ -11,6 +11,7 @@ import java.io.File
 import java.io.RandomAccessFile
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
+import java.nio.ShortBuffer
 import java.nio.channels.FileChannel
 
 /**
@@ -140,11 +141,114 @@ internal class MappedRowStore(
          * The store for one index: mapped on 64-bit processes, the heap store elsewhere (a 32-bit process has too
          * little address space to spend on it) and when the scratch file cannot be made.
          */
-        fun forIndex(context: Context, dim: Int, name: String): RowStore {
-            if (!Process.is64Bit()) return HeapRowStore(dim)
+        fun forIndex(context: Context, dim: Int, name: String, half: Boolean = false): RowStore {
+            if (!Process.is64Bit()) return if (half) HalfRowStore(dim) else HeapRowStore(dim)
             return runCatching {
-                MappedRowStore(dim, File(context.noBackupFilesDir, "smart_rows"), name)
-            }.getOrElse { HeapRowStore(dim) }
+                val directory = File(context.noBackupFilesDir, "smart_rows")
+                if (half) MappedHalfRowStore(dim, directory, name) else MappedRowStore(dim, directory, name)
+            }.getOrElse { if (half) HalfRowStore(dim) else HeapRowStore(dim) }
+        }
+    }
+}
+
+/**
+ * [MappedRowStore] for halves ([HalfFloat]): the same mapped, unlinked scratch file at half the size, each row read back
+ * as the floats its halves represent. The audio index keeps its rows here, as it stores them on disk (LJIX v4).
+ */
+internal class MappedHalfRowStore(
+    override val dim: Int,
+    private val directory: File,
+    private val name: String,
+) : RowStore {
+
+    init {
+        require(dim > 0) { "Row dimension must be positive, got $dim" }
+    }
+
+    private val segmentHalves = MappedRowStore.SEGMENT_ROWS * dim
+    private val segmentBytes = segmentHalves.toLong() * Short.SIZE_BYTES
+
+    private var file: RandomAccessFile = openScratch()
+    private val segments = ArrayList<ShortBuffer>()
+    private var rows = 0
+    private var sealed = false
+    private val encoded = ShortArray(dim)
+
+    override val rowCount: Int get() = rows
+
+    override fun append(values: FloatArray): Int {
+        check(!sealed) { "Store is sealed" }
+        require(values.size == dim) { "Row has dimension ${values.size}, expected $dim" }
+        val row = rows
+        val segment = row / MappedRowStore.SEGMENT_ROWS
+        if (segment == segments.size) segments += mapSegment(segment)
+        for (d in 0 until dim) encoded[d] = HalfFloat.toHalf(values[d])
+        val buffer = segments[segment].duplicate()
+        buffer.position((row % MappedRowStore.SEGMENT_ROWS) * dim)
+        buffer.put(encoded)
+        rows++
+        return row
+    }
+
+    override fun row(row: Int): StoredVectorRow {
+        require(row in 0 until rows) { "Row $row is not stored (rows: $rows)" }
+        return MappedHalfRow(segments[row / MappedRowStore.SEGMENT_ROWS], (row % MappedRowStore.SEGMENT_ROWS) * dim, dim)
+    }
+
+    override fun compact(rows: IntArray) {
+        val kept = rows.map { row(it) }
+        restart()
+        val scratch = FloatArray(dim)
+        for (row in kept) {
+            row.copyInto(scratch)
+            append(scratch)
+        }
+    }
+
+    override fun clear() {
+        restart()
+    }
+
+    override fun seal() {
+        sealed = true
+        runCatching { file.close() }
+    }
+
+    private fun restart() {
+        val old = file
+        file = openScratch()
+        segments.clear()
+        rows = 0
+        sealed = false
+        runCatching { old.close() }
+    }
+
+    private fun mapSegment(segment: Int): ShortBuffer {
+        val start = segment * segmentBytes
+        val mapped = runCatching {
+            Os.posix_fallocate(file.fd, start, segmentBytes)
+            file.channel.map(FileChannel.MapMode.READ_WRITE, start, segmentBytes)
+        }.getOrNull()
+        return mapped?.order(ByteOrder.nativeOrder())?.asShortBuffer() ?: ShortBuffer.allocate(segmentHalves)
+    }
+
+    private fun openScratch(): RandomAccessFile {
+        directory.mkdirs()
+        val path = File.createTempFile("$name-", ".rows", directory)
+        val access = RandomAccessFile(path, "rw")
+        path.delete()
+        return access
+    }
+
+    private class MappedHalfRow(
+        private val segment: ShortBuffer,
+        private val offset: Int,
+        override val size: Int,
+    ) : StoredVectorRow {
+        override fun get(d: Int): Float = HalfFloat.toFloat(segment.get(offset + d))
+
+        override fun copyInto(out: FloatArray, offset: Int) {
+            for (d in 0 until size) out[offset + d] = HalfFloat.toFloat(segment.get(this.offset + d))
         }
     }
 }

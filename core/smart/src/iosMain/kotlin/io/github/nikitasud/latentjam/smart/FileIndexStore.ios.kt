@@ -26,6 +26,11 @@ import platform.posix.memcpy
 @OptIn(ExperimentalForeignApi::class)
 internal class IosFileIndexStore(
     private val fileName: String,
+    /**
+     * Vectors are kept as halves ([HalfFloat], format v4). A float file of an earlier build is rewritten on its first
+     * load: the halves are staged beside it, read back and compared, and only then renamed over it.
+     */
+    private val half: Boolean = false,
 ) : IndexStore {
 
     override suspend fun load(modelVersion: String): Map<TrackId, FloatArray>? =
@@ -35,8 +40,37 @@ internal class IosFileIndexStore(
         withContext(Dispatchers.Default) {
             val path = indexPath(fileName) ?: return@withContext null
             val bytes = readBoundedSnapshot(path) ?: return@withContext null
-            runCatching { decodeIosIndexSnapshot(bytes, modelVersion) }.getOrNull()
+            val snapshot = runCatching { decodeIosIndexSnapshot(bytes, modelVersion) }.getOrNull() ?: return@withContext null
+            if (half && snapshotFormatVersion(bytes) != HALF_FORMAT_VERSION) migrateToHalves(path, modelVersion, snapshot)
+            snapshot
         }
+
+    /**
+     * Rewrites a float snapshot as halves without ever losing it: the half file is staged at `<path>.half`, read back
+     * and decoded, compared with the halves of [loaded], and renamed over [path] (an atomic replace) only when equal.
+     */
+    private fun migrateToHalves(path: String, modelVersion: String, loaded: StoredIndexSnapshot) {
+        val staged = "$path.half"
+        val manager = NSFileManager.defaultManager
+        try {
+            val encoded = encodeIosIndexSnapshot(modelVersion, loaded, half = true)
+            if (!encoded.toNSData().writeToFile(staged, false)) return
+            val back = readBoundedSnapshot(staged) ?: return
+            if (!back.contentEquals(encoded)) return
+            val check = decodeIosIndexSnapshot(back, modelVersion) ?: return
+            val same = check.entries.size == loaded.entries.size && check.identities == loaded.identities &&
+                check.failedIdentities == loaded.failedIdentities &&
+                loaded.entries.all { (id, v) ->
+                    val got = check.entries[id] ?: return@all false
+                    got.size == v.size && v.indices.all { got[it] == HalfFloat.round(v[it]) }
+                }
+            if (same) platform.posix.rename(staged, path)
+        } catch (failure: Throwable) {
+            // The float file stays; the next load tries again.
+        } finally {
+            if (manager.fileExistsAtPath(staged)) manager.removeItemAtPath(staged, null)
+        }
+    }
 
     override suspend fun save(
         modelVersion: String,
@@ -50,7 +84,7 @@ internal class IosFileIndexStore(
         val path = checkNotNull(indexPath(fileName)) { "Caches directory is unavailable" }
         // NSData's atomically=true writes through a sibling temporary file and rename, so a crash
         // cannot replace a valid snapshot with a half-written one.
-        check(encodeIosIndexSnapshot(modelVersion, snapshot).toNSData().writeToFile(path, true)) {
+        check(encodeIosIndexSnapshot(modelVersion, snapshot, half = half).toNSData().writeToFile(path, true)) {
             "Could not atomically replace $fileName"
         }
     }
@@ -90,6 +124,14 @@ private fun readBoundedSnapshot(path: String): ByteArray? {
     return data.toByteArray()
 }
 
+/** The format version a snapshot's bytes declare, or null. */
+private fun snapshotFormatVersion(bytes: ByteArray): Int? {
+    if (bytes.size < 8) return null
+    fun int(at: Int) = ((bytes[at].toInt() and 0xff) shl 24) or ((bytes[at + 1].toInt() and 0xff) shl 16) or
+        ((bytes[at + 2].toInt() and 0xff) shl 8) or (bytes[at + 3].toInt() and 0xff)
+    return if (int(0) != MAGIC) null else int(4)
+}
+
 internal fun isLoadableIosIndexSnapshotSize(
     sizeBytes: Long,
     maximumSnapshotBytes: Long = MAX_IOS_INDEX_SNAPSHOT_BYTES,
@@ -118,6 +160,7 @@ internal fun encodeIosIndexSnapshot(
     modelVersion: String,
     snapshot: StoredIndexSnapshot,
     maximumSnapshotBytes: Long = MAX_IOS_INDEX_SNAPSHOT_BYTES,
+    half: Boolean = false,
 ): ByteArray {
     require(maximumSnapshotBytes in 1L..Int.MAX_VALUE.toLong()) {
         "Snapshot byte limit must be positive and fit in a ByteArray"
@@ -156,7 +199,7 @@ internal fun encodeIosIndexSnapshot(
     }
 
     requireSupportedSize(total)
-    val vectorBytes = dim.toLong() * Float.SIZE_BYTES.toLong()
+    val vectorBytes = dim.toLong() * (if (half) Short.SIZE_BYTES else Float.SIZE_BYTES).toLong()
     for (id in entries.keys) {
         val idBytes = id.value.encodeToByteArray()
         require(idBytes.size <= MAX_STRING_BYTES) { "Track id is too large" }
@@ -187,13 +230,17 @@ internal fun encodeIosIndexSnapshot(
     // buffer so the app can never write a cache that it will reject on the next launch.
     val writer = SnapshotWriter(ByteArray(total.toInt()))
     writer.int(MAGIC)
-    writer.int(FORMAT_VERSION)
+    writer.int(if (half) HALF_FORMAT_VERSION else FORMAT_VERSION)
     writer.bytesWithLength(versionBytes)
     writer.int(dim)
     writer.int(entries.size)
     for ((id, vector) in entries) {
         writer.bytesWithLength(ids.getValue(id))
-        for (component in vector) writer.int(component.toBits())
+        if (half) {
+            for (component in vector) writer.short(HalfFloat.toHalf(component))
+        } else {
+            for (component in vector) writer.int(component.toBits())
+        }
         writer.nullableBytesWithLength(identityBytes.getValue(id))
     }
     writer.int(failedIdentities.size)
@@ -214,8 +261,10 @@ internal fun decodeIosIndexSnapshot(
     if (
         formatVersion != LEGACY_FORMAT_VERSION &&
         formatVersion != IDENTITY_FORMAT_VERSION &&
-        formatVersion != FORMAT_VERSION
+        formatVersion != FORMAT_VERSION &&
+        formatVersion != HALF_FORMAT_VERSION
     ) return null
+    val halves = formatVersion == HALF_FORMAT_VERSION
     if (reader.bytesWithLength().decodeToString() != expectedModelVersion) return null
     val dim = reader.int()
     val count = reader.int()
@@ -228,7 +277,7 @@ internal fun decodeIosIndexSnapshot(
     val seen = HashSet<TrackId>(minOf(count, 1_024))
     repeat(count) {
         val id = TrackId(reader.bytesWithLength().decodeToString())
-        val vector = FloatArray(dim) { Float.fromBits(reader.int()) }
+        val vector = if (halves) FloatArray(dim) { HalfFloat.toFloat(reader.short()) } else FloatArray(dim) { Float.fromBits(reader.int()) }
         val identity = if (formatVersion >= IDENTITY_FORMAT_VERSION) {
             reader.nullableBytesWithLength()?.decodeToString()
         } else {
@@ -241,7 +290,7 @@ internal fun decodeIosIndexSnapshot(
         }
     }
     val failedIdentities = LinkedHashMap<TrackId, String>()
-    if (formatVersion == FORMAT_VERSION) {
+    if (formatVersion >= FORMAT_VERSION) {
         val failedCount = reader.int()
         if (failedCount !in 0..MAX_ENTRIES || count + failedCount > MAX_ENTRIES) return null
         repeat(failedCount) {
@@ -263,6 +312,12 @@ private class SnapshotWriter(private val output: ByteArray) {
         output[position++] = (value ushr 24).toByte()
         output[position++] = (value ushr 16).toByte()
         output[position++] = (value ushr 8).toByte()
+        output[position++] = value.toByte()
+    }
+
+    fun short(value: Short) {
+        require(position <= output.size - Short.SIZE_BYTES)
+        output[position++] = (value.toInt() ushr 8).toByte()
         output[position++] = value.toByte()
     }
 
@@ -296,6 +351,11 @@ private class SnapshotReader(private val input: ByteArray) {
             ((input[position++].toInt() and 0xff) shl 16) or
             ((input[position++].toInt() and 0xff) shl 8) or
             (input[position++].toInt() and 0xff)
+    }
+
+    fun short(): Short {
+        require(position <= input.size - Short.SIZE_BYTES)
+        return (((input[position++].toInt() and 0xff) shl 8) or (input[position++].toInt() and 0xff)).toShort()
     }
 
     fun bytesWithLength(): ByteArray {
@@ -333,6 +393,8 @@ private const val MAGIC = 0x4C4A4958 // "LJIX"
 private const val LEGACY_FORMAT_VERSION = 1
 private const val IDENTITY_FORMAT_VERSION = 2
 private const val FORMAT_VERSION = 3
+/** Format 3 with every vector component a big-endian half ([HalfFloat]); the same bytes as Android's. */
+private const val HALF_FORMAT_VERSION = 4
 private const val HEADER_BYTES = Int.SIZE_BYTES * 5
 private const val MAX_DIMENSION = 4096
 private const val MAX_ENTRIES = 1_000_000

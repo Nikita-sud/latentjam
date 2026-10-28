@@ -14,6 +14,7 @@ import io.github.nikitasud.latentjam.smart.SmartClock
 import io.github.nikitasud.latentjam.smart.SmartEngineConfig
 import io.github.nikitasud.latentjam.smart.VectorIndex
 import io.github.nikitasud.latentjam.smart.text.ArtistKnowledge
+import io.github.nikitasud.latentjam.smart.HalfRowStore
 import io.github.nikitasud.latentjam.smart.RowStoreFactory
 import io.github.nikitasud.latentjam.smart.text.TextEncoder
 import kotlinx.coroutines.CoroutineDispatcher
@@ -104,7 +105,8 @@ public val smartEngineModule: Module = module {
     }
 
     single<VectorIndex> {
-        InMemoryVectorIndex(dim = get<SmartEngineConfig>().embeddingDim)
+        // The audio vectors are kept as halves, as on disk (HalfFloat, LJIX v4): half the memory, float32 maths.
+        get<SmartEngineConfig>().embeddingDim.let { dim -> InMemoryVectorIndex(dim = dim, store = HalfRowStore(dim)) }
     }
 
     // The chain's metadata-text vectors: same structure as the audio index, different
