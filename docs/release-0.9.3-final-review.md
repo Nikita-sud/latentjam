@@ -131,3 +131,12 @@ killed mid-analysis):
   AnalysisTimeoutTest, not on the device.
 
 Checks at HEAD: host tests, iOS simulator tests and the iOS app compile pass; arm64 release APK 36,969,048 bytes.
+
+## Artist variety Off (owner request, ce5dc5cf)
+
+Off (penalty 0) now also lifts the per-queue artist cap of 6; Low to Very high keep the cap and their penalty. The
+default level is Balanced (0.5), so default queues are unchanged. Test: SmartContinuationEngineTest (one-artist
+library: Off fills a 10-track plan; 0.25 / 0.5 / 1 / 2 stop at 6). Stand (FMA, 12 seeds each, 40-track queues, CORE),
+Off vs default: pop-mix top artist 34 % vs 15 %, dance-pop 36 % vs 14 %, ambient-chill 40 % vs 15 %,
+classical-instrumental 47 % vs 14 %; queues with more than 6 songs by one artist 43 / 48 vs 0 / 48. Host tests, iOS
+simulator tests and the iOS app compile pass; arm64 release APK 36,969,048 bytes (unchanged).
