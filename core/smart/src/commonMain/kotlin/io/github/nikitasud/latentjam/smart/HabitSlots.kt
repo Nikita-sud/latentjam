@@ -25,6 +25,11 @@ public data class HabitListen(
     public val countsAsNext: Boolean = true,
     /** PLAN_LISTENW: how much this listen credits the transition into it (1 = a full listen; models without listenWeight). */
     public val credit: Double = 1.0,
+    /**
+     * Skipped plays came between the previous listen and this one: the listener was skipping through other songs, so
+     * this listen is no transition from the previous one (2026-10-28, round 4: one such pair led every queue of an artist).
+     */
+    public val afterSkip: Boolean = false,
 )
 
 /**
@@ -85,7 +90,7 @@ public object HabitSlots {
     /**
      * How often [seed] was directly followed by each track, and how often any track of the seed's
      * artist was: consecutive listens at most [PAIR_GAP_MS] apart, repeats of one track skipped,
-     * and only pairs whose second listen [HabitListen.countsAsNext].
+     * and only pairs whose second listen [HabitListen.countsAsNext] and did not come after skipped plays.
      */
     public fun transitionCounts(
         listens: List<HabitListen>,
@@ -99,7 +104,7 @@ public object HabitSlots {
             val a = listens[index - 1]
             val b = listens[index]
             if (b.startedAtMs - a.startedAtMs > PAIR_GAP_MS || a.trackId == b.trackId) continue
-            if (!b.countsAsNext) continue
+            if (!b.countsAsNext || b.afterSkip) continue
             if (a.trackId == seed) byTrack[b.trackId] = (byTrack[b.trackId] ?: 0) + 1
             if (seedArtist.isNotEmpty() && artistKey(a.trackId) == seedArtist) {
                 byArtist[b.trackId] = (byArtist[b.trackId] ?: 0) + 1

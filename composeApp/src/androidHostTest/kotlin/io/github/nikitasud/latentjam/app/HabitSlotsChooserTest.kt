@@ -33,10 +33,10 @@ class HabitSlotsChooserTest {
     private val library = listOf(seed) + habits + planned
 
     /**
-     * Three days ago (outside the novelty window): seed → habit-1 twice, seed → habit-2 once, then
+     * Three days ago (outside the novelty window): seed → habit-1 [habitOneRepeats] times, seed → habit-2 once, then
      * habit-3..6 alone (frequent and recent, but never after the seed), newest last.
      */
-    private fun log(): List<ListenEvent> {
+    private fun log(habitOneRepeats: Int = 3): List<ListenEvent> {
         val base = epochMillis() - 3L * 86_400_000L
         val oldestFirst = mutableListOf<ListenEvent>()
         var at = base
@@ -47,7 +47,7 @@ class HabitSlotsChooserTest {
             )
             at += 4 * 60_000L
         }
-        repeat(2) {
+        repeat(habitOneRepeats) {
             play(seed, ListenStart.USER_PICK)
             play(habits[0], ListenStart.USER_PICK)
             at += 3_600_000L
@@ -103,8 +103,8 @@ class HabitSlotsChooserTest {
     @Test
     fun `a queue started from a seed gives its first slots to habits that outweigh their incoherence`() = runTest {
         val served = queue(enabled = true, events = log(), rows = 20).map { it.track.id.value }
-        // c: habit-1 = 2 + 0.5 * 2 = 3, habit-2 = 1 + 0.5 = 1.5; P = 1/3 for both.
-        // habit-1: 1 - 2/3 > 0 enters; habit-2: ln 2.5 / ln 4 - 2/3 < 0 stays out; habit-3..6 never followed.
+        // habit-1 followed the seed three times: a habit strong enough for slot 1 (1 - 2/3 > 0 against its incoherence);
+        // habit-2 followed it once: no habit; habit-3..6 never followed.
         assertEquals("habit-1", served[0])
         assertEquals((1..12).map { "planned-$it" }, served.subList(1, 13))
         // The next plan tops up a running queue: SMART's own order, nothing personal.
@@ -131,8 +131,26 @@ class HabitSlotsChooserTest {
         val listens = habitListens(auto, library.mapTo(HashSet()) { it.id }, epochMillis())
         val (byTrack, byArtist) = HabitSlots.transitionCounts(listens, seed.id) { it.value }
         assertTrue(habits[0].id !in byTrack && habits[0].id !in byArtist)
-        // habit-1 lost its transitions and its slot; habit-2 is now the strongest (t = 1) and enters.
+        // habit-1 lost its transitions and its slot; habit-2 followed once, which is no habit.
         val served = queue(enabled = true, events = auto, rows = 10).map { it.track.id.value }
-        assertEquals(listOf("habit-2") + (1..9).map { "planned-$it" }, served)
+        assertEquals((1..10).map { "planned-$it" }, served)
+    }
+
+    @Test
+    fun `a habit of two repeats gets a slot but the queue opens with SMART's pick`() = runTest {
+        val served = queue(enabled = true, events = log(habitOneRepeats = 2), rows = 12).map { it.track.id.value }
+        assertEquals("planned-1", served[0])
+        assertEquals("habit-1", served[1])
+    }
+
+    @Test
+    fun `a pick after skipped plays is no transition`() = runTest {
+        val bridged = log().flatMap { event ->
+            if (event.trackId != habits[0].id) listOf(event)
+            else listOf(event.copy(trackId = planned[23].id, startedAtMs = event.startedAtMs - 1_000, skipped = true, completed = false), event)
+        }
+        val listens = habitListens(bridged, library.mapTo(HashSet()) { it.id }, epochMillis())
+        val (byTrack, _) = HabitSlots.transitionCounts(listens, seed.id) { it.value }
+        assertTrue(habits[0].id !in byTrack)
     }
 }

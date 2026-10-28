@@ -50,12 +50,32 @@ internal suspend fun withHabitSlots(
     val score = flow?.incoherence(seed, library)
     // No flow scorer judges nothing: every part unknown, which λ = 2 never lets through.
     val incoherence = rows.associateWith { id -> score?.let { s -> byId[id]?.let { s(it) } } ?: HabitFlow.UNKNOWN }
-    val personal = HabitFlow.pick(rows, count = { habitCount(it, byTrack, byArtist) }, incoherence)
+    // Evidence (2026-10-28, round 4): a habit is a repeat — at least HABIT_MIN_TRACK_TRANSITIONS after this very track or
+    // HABIT_MIN_ARTIST_TRANSITIONS after any of its artist's; one evening's pair is no habit.
+    val evidenced = rows.filter {
+        (byTrack[it] ?: 0) >= HABIT_MIN_TRACK_TRANSITIONS || (byArtist[it] ?: 0) >= HABIT_MIN_ARTIST_TRANSITIONS
+    }
+    val personal = HabitFlow.pick(evidenced, count = { habitCount(it, byTrack, byArtist) }, incoherence)
     // Aggregate on purpose: no title, artist or id leaves the app through the system log.
-    println("SMART: habit slots placed ${personal.size} of ${rows.size} real transitions")
-    // As FIT's arm: the chosen rows spread over the first ten slots by their own number (slots.py).
-    if (personal.isEmpty()) chain else HabitSlots.interleave(personal, chain, personalSlots = personal.size)
+    println("SMART: habit slots placed ${personal.size} of ${rows.size} real transitions (${evidenced.size} repeated)")
+    when {
+        personal.isEmpty() -> chain
+        // As FIT's arm: the chosen rows spread over the first ten slots by their own number (slots.py)...
+        (byTrack[personal.first()] ?: 0) >= HABIT_SLOT1_TRACK_TRANSITIONS || chain.isEmpty() ->
+            HabitSlots.interleave(personal, chain, personalSlots = personal.size)
+        // ...but the queue opens with SMART's own pick unless the first row is a strong habit of this very track.
+        else -> listOf(chain.first()) + HabitSlots.interleave(personal - chain.first(), chain.drop(1), personalSlots = personal.size)
+    }
 }
+
+/** A habit row needs at least this many transitions from the seed track... */
+internal const val HABIT_MIN_TRACK_TRANSITIONS: Int = 2
+
+/** ...or at least this many from any track of the seed's artist. */
+internal const val HABIT_MIN_ARTIST_TRANSITIONS: Int = 3
+
+/** The first slot goes to a habit row only with this many transitions from the seed track itself. */
+internal const val HABIT_SLOT1_TRACK_TRANSITIONS: Int = 3
 
 /** LW2's listen weighting (smart_ranker_full.json's listenWeight in vc40), for the chain's habit list in the FB build. */
 internal val HABIT_LISTEN_WEIGHT_LW2: io.github.nikitasud.latentjam.smart.ranker.RankerModel.ListenWeight =
@@ -84,7 +104,7 @@ internal fun rejectedHabits(
     for (index in 1 until listens.size) {
         val a = listens[index - 1]
         val b = listens[index]
-        if (b.startedAtMs - a.startedAtMs > HabitSlots.PAIR_GAP_MS || a.trackId == b.trackId || !b.countsAsNext) continue
+        if (b.startedAtMs - a.startedAtMs > HabitSlots.PAIR_GAP_MS || a.trackId == b.trackId || !b.countsAsNext || b.afterSkip) continue
         if (a.trackId == seed) credited[b.trackId] = (credited[b.trackId] ?: 0.0) + b.credit
     }
     return gated.filter { (pair, v) -> (credited[pair.second] ?: 0.0) - lw.negWeight * v.first <= 0.0 }.keys.mapTo(HashSet()) { it.second }
@@ -105,15 +125,28 @@ internal fun habitListens(
     seedMs: Long,
     /** PLAN_LISTENW: each listen's credit as what followed (null = 1, every model without listenWeight). */
     credit: ((ListenEvent) -> Double)? = null,
-): List<HabitListen> = oldestFirst.mapNotNull { event ->
-    if (event.skipped || event.startedAtMs >= seedMs || event.trackId !in libraryIds) return@mapNotNull null
-    HabitListen(
-        trackId = event.trackId,
-        startedAtMs = event.startedAtMs,
-        countsAsNext = event.origin?.start == ListenStart.USER_PICK,
-        credit = credit?.invoke(event) ?: 1.0,
-    )
-}.sortedBy(HabitListen::startedAtMs) // the log is in recording order; a merged or restored one may not be
+): List<HabitListen> {
+    // The log is in recording order; a merged or restored one may not be.
+    val out = ArrayList<HabitListen>()
+    var skippedSince = false
+    for (event in oldestFirst.sortedBy(ListenEvent::startedAtMs)) {
+        if (event.startedAtMs >= seedMs) break
+        if (event.skipped) {
+            skippedSince = true
+            continue
+        }
+        if (event.trackId !in libraryIds) continue
+        out += HabitListen(
+            trackId = event.trackId,
+            startedAtMs = event.startedAtMs,
+            countsAsNext = event.origin?.start == ListenStart.USER_PICK,
+            credit = credit?.invoke(event) ?: 1.0,
+            afterSkip = skippedSince,
+        )
+        skippedSince = false
+    }
+    return out
+}
 
 /**
  * PLAN_NOVELTY (3): the tracks played right after [seed] — the next listen in the log (a skip heard under 30 s in between

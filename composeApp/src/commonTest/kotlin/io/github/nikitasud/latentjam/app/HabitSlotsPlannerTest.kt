@@ -40,7 +40,7 @@ class HabitSlotsPlannerTest {
             listOf(
                 HabitListen(TrackId("a"), 1_000, true),
                 HabitListen(TrackId("b"), 2_000, false),
-                HabitListen(TrackId("c"), 3_000, true),
+                HabitListen(TrackId("c"), 3_000, true, afterSkip = true), // b was skipped in between
                 HabitListen(TrackId("d"), 4_000, false),
                 HabitListen(TrackId("a"), 6_000, false),
             ),
