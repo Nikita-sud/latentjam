@@ -268,12 +268,12 @@ internal class PersonalChainTest {
     }
 
     @Test
-    fun `loop always-accept for 60 days from a habit at the D1 threshold stays bounded`() {
+    fun `loop always-accept for 60 days SMART's own evidence adds at most 5 presses and B leads at most 60 percent`() {
         val (full, core) = loopLeads(RecencyMode.NOVELTY, ownOnly = false)
-        val (static, _) = loopLeads(RecencyMode.NOVELTY, ownOnly = true)
-        val (credit, creditCore) = loopLeads(RecencyMode.CREDIT, ownOnly = false)
-        println("loop: B pick 1 in $full / 60 FULL (NOVELTY), $static / 60 with SMART's own evidence dropped, $credit / 60 CREDIT; CORE $core / $creditCore")
-        assertTrue(full <= maxOf(18, core), "FULL $full vs CORE $core")
+        val (own, _) = loopLeads(RecencyMode.NOVELTY, ownOnly = true)
+        println("loop: B pick 1 in $full / 60 presses, $own / 60 with SMART's own evidence excluded; CORE $core / 60")
+        assertTrue(full - own <= 5, "SMART's own evidence added ${full - own} presses")
+        assertTrue(full <= 36, "B led $full / 60 presses")
     }
 
     @Test

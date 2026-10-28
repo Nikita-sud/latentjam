@@ -318,6 +318,32 @@ internal class PersonalModelTest {
     }
 
     @Test
+    fun `track affinity repeats and returns over two sessions or more`() {
+        val once = model(Log(t0).play(0, PersonalStart.PICK).play(0, PersonalStart.REPEAT))
+        assertEquals(0f, once.affinity(once.s(0)), "one session is chance")
+        val log = Log(t0)
+        log.session().play(0, PersonalStart.PICK).play(0, PersonalStart.REPEAT)
+        log.session().play(5, PersonalStart.PICK).play(0, PersonalStart.PICK).play(0, PersonalStart.PICK)
+        log.session().play(5, PersonalStart.PICK).play(0, PersonalStart.SKIP_PREVIOUS)
+        val m = model(log)
+        assertEquals(1f, m.affinity(m.s(0)), tol)
+        val two = Log(t0)
+        repeat(2) { two.session().play(0, PersonalStart.PICK).play(0, PersonalStart.REPEAT) }
+        val tm = model(two)
+        assertEquals(2f / 3f, tm.affinity(tm.s(0)), tol)
+    }
+
+    @Test
+    fun `the own strength leaves SMART's evidence out`() {
+        val log = Log(t0)
+        repeat(2) { log.session().play(0, PersonalStart.PICK).play(1, PersonalStart.PICK) }
+        repeat(10) { log.session().play(0, PersonalStart.PICK).play(1, PersonalStart.AUTO, smart = true) }
+        val m = model(log)
+        assertEquals(1.7f / 6f, m.ownStrength(m.s(0), m.s(1)), tol)
+        assertEquals((1.7f + 0.425f) / 6f, m.str(0, 1), tol)
+    }
+
+    @Test
     fun `no history is empty`() {
         assertTrue(PersonalModel.build(emptyList(), library()).isEmpty)
         assertTrue(PersonalModel.EMPTY.isEmpty)

@@ -78,6 +78,8 @@ public class PersonalModel internal constructor(
     private val edgeStart: IntArray,
     private val edgeTo: IntArray,
     private val edgePositive: ShortArray,
+    /** The listener's own part of [edgePositive] (no SMART-sourced evidence): what may relieve recency. */
+    private val edgeOwn: ShortArray,
     private val edgeSessions: ByteArray,
     private val edgeNegative: ShortArray,
     private val edgeNegativeSessions: ByteArray,
@@ -87,6 +89,9 @@ public class PersonalModel internal constructor(
     private val inWeight: FloatArray,
     private val totalWeight: Float,
     private val earlySkips: FloatArray,
+    /** Per song: the decayed strength of the sessions the listener repeated it or went back to it in, and their count. */
+    private val affinityStrength: FloatArray,
+    private val affinitySessions: ByteArray,
     private val artistStart: IntArray,
     private val artistTo: IntArray,
     private val artistPositive: ShortArray,
@@ -139,6 +144,22 @@ public class PersonalModel internal constructor(
         return min(1f, unhalf(edgePositive[e]) / FULL_STRENGTH)
     }
 
+    /**
+     * s of the listener's own evidence alone, min(1, S_non / 6) from two own sessions: the recency brake is never relieved
+     * by SMART-sourced evidence (PERSONALISATION_RULES v5.1 item 6).
+     */
+    public fun ownStrength(a: Int, b: Int): Float {
+        val e = edge(a, b).takeIf { it >= 0 } ?: return 0f
+        if ((edgeSessions[e].toInt() and 0xff) < MIN_SESSIONS) return 0f
+        return min(1f, unhalf(edgeOwn[e]) / FULL_STRENGTH)
+    }
+
+    /** Track affinity: min(1, decayed sessions with a repeat or a return to the song / 3), from two sessions on. */
+    public fun affinity(song: Int): Float {
+        if (song < 0 || (affinitySessions[song].toInt() and 0xff) < MIN_SESSIONS) return 0f
+        return min(1f, affinityStrength[song] / FULL_AFFINITY)
+    }
+
     /** The artist level (A3): the strongest s over the artist pairs of [from] and [to], each with two own sessions. */
     public fun artistStrength(from: IntArray, to: IntArray): Float {
         if (from.isEmpty() || to.isEmpty()) return 0f
@@ -183,7 +204,8 @@ public class PersonalModel internal constructor(
         8L * trackHashes.size +
             4L * (trackSong.size + trackArtistStart.size + trackArtistList.size + edgeStart.size + edgeTo.size +
                 outWeight.size + outEffective.size + inWeight.size + earlySkips.size + artistStart.size + artistTo.size) +
-            2L * (edgePositive.size + edgeNegative.size + edgeWeight.size + artistPositive.size) +
+            2L * (edgePositive.size + edgeOwn.size + edgeNegative.size + edgeWeight.size + artistPositive.size) +
+            4L * affinityStrength.size + affinitySessions.size +
             edgeSessions.size + edgeNegativeSessions.size + artistSessions.size
 
     /** Diagnostics: how many links the store keeps. */
@@ -222,6 +244,7 @@ public class PersonalModel internal constructor(
         public const val SMART_SHARE: Float = 0.25f
         public const val FULL_STRENGTH: Float = 6f
         public const val FULL_REJECTION: Float = 2f
+        public const val FULL_AFFINITY: Float = 3f
         public const val MIN_SESSIONS: Int = 2
         public const val D1_SESSIONS: Int = 3
         public const val LIFT_FILTER: Float = 2f
@@ -312,6 +335,11 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
         }
         val songs = hashes.size
         val skips = FloatArray(songs)
+        val affinity = HashMap<Int, HashMap<Long, Double>>()
+        fun liked(song: Int, session: Long, value: Double) {
+            val held = affinity.getOrPut(song) { HashMap() }
+            if ((held[session] ?: 0.0) < value) held[session] = value
+        }
 
         // Listens of library tracks; tracks over 20 minutes (sets, podcasts) are no evidence.
         val known = listens.filter { l ->
@@ -357,6 +385,9 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
                 continue
             }
             autoStreak = if (l.start == PersonalStart.AUTO) autoStreak + 1 else 0
+            // A repeat, a return to the song, or the song again right after itself: affinity for the song, no transition.
+            val again = a != null && l.startedAtMs - anchorEnd <= PersonalModel.TRANSITION_GAP_MS && song(a) == song(l)
+            if (l.start == PersonalStart.REPEAT || l.start == PersonalStart.SKIP_PREVIOUS || again) liked(song(l), session, w)
             if (l.start != PersonalStart.REPEAT && l.start != PersonalStart.SKIP_PREVIOUS && follows) {
                 val grade = deviceGrade(a!!, l, afterRejection = rejectedRun, autoStreak)
                 if (grade > 0.0) add(a.trackId, l.trackId, session, grade * w, l.smartSourced, imported = false)
@@ -419,7 +450,13 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
             val scale = if (total > PersonalModel.IMPORT_ANCHOR_CAP) PersonalModel.IMPORT_ANCHOR_CAP / total else 1.0
             for ((sessionId, v) in p.imported) p.best(p.own, sessionId, v * scale)
         }
-        return pack(songs, skips, isEmpty = known.isEmpty())
+        val affinityStrength = FloatArray(songs)
+        val affinitySessions = ByteArray(songs)
+        for ((song, sessions) in affinity) {
+            affinityStrength[song] = sessions.values.sum().toFloat()
+            affinitySessions[song] = sessions.size.coerceAtMost(255).toByte()
+        }
+        return pack(songs, skips, affinityStrength, affinitySessions, isEmpty = known.isEmpty())
     }
 
     /** A 3-gram's stable id (no platform hash). */
@@ -491,7 +528,7 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
         return p.weightOwn + cap * p.weightSmart
     }
 
-    private fun pack(songs: Int, skips: FloatArray, isEmpty: Boolean): PersonalModel {
+    private fun pack(songs: Int, skips: FloatArray, affinityStrength: FloatArray, affinitySessions: ByteArray, isEmpty: Boolean): PersonalModel {
         val out = FloatArray(songs)
         val squares = DoubleArray(songs)
         val inbound = FloatArray(songs)
@@ -553,6 +590,7 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
             edgeStart = start,
             edgeTo = IntArray(kept.size) { kept[it].first },
             edgePositive = ShortArray(kept.size) { half(positive(kept[it].second).toFloat()) },
+            edgeOwn = ShortArray(kept.size) { half(kept[it].second.own.values.sum().toFloat()) },
             edgeSessions = ByteArray(kept.size) { kept[it].second.own.size.coerceAtMost(255).toByte() },
             edgeNegative = ShortArray(kept.size) { half(kept[it].second.rejected.values.sum().toFloat()) },
             edgeNegativeSessions = ByteArray(kept.size) { kept[it].second.rejected.size.coerceAtMost(255).toByte() },
@@ -562,6 +600,8 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
             inWeight = inbound,
             totalWeight = total.toFloat(),
             earlySkips = skips,
+            affinityStrength = affinityStrength,
+            affinitySessions = affinitySessions,
             artistStart = artistStart,
             artistTo = IntArray(artistKept.size) { artistKept[it].first },
             artistPositive = ShortArray(artistKept.size) { half(positive(artistKept[it].second).toFloat()) },

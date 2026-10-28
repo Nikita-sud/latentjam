@@ -11,8 +11,8 @@ import kotlin.math.min
 
 /**
  * The personal addition of one hop for a candidate in the mask M (PERSONALISATION_RULES v5…v5.5, PLAN_PERSONAL v2 §4): the
- * term t = clamp(min(δ, habit + artist + playlists + heart [+ D1credit]) − rejection − E7, ±δ), plus, as novelty, a
- * D1-strong habit's relief of its own recency penalty. Only with "Learn from my habits" on; [SmartChain] applies it to M.
+ * term t = clamp(min(δ, habit + artist + playlists + heart + affinity [+ D1credit]) − rejection − E7, ±δ), plus, as novelty,
+ * a D1-strong habit's relief of its own recency penalty (from the listener's own evidence only). Only with "Learn from my habits" on; [SmartChain] applies it to M.
  */
 internal class PersonalTerm(snapshot: SmartSnapshot, private val inputs: PersonalInputs) {
     private val model = inputs.model
@@ -46,9 +46,11 @@ internal class PersonalTerm(snapshot: SmartSnapshot, private val inputs: Persona
         if (inputs.artistTerm) positives += ARTIST * delta * model.artistStrength(artists[anchor], artists[row])
         if (sharePlaylist(anchor, row)) positives += PLAYLIST * delta
         if (hearted[row]) positives += HEART * delta
+        positives += AFFINITY * delta * model.affinity(b)
         if (strong && inputs.recency == RecencyMode.CREDIT) positives += min(delta, s * recencyLoss)
         val t = (min(delta, positives) - delta * model.rejection(a, b) - delta * model.skipPenalty(b)).coerceIn(-delta, delta)
-        val relief = if (strong && inputs.recency == RecencyMode.NOVELTY) s * recencyLoss else 0f
+        // The recency brake is relieved by the listener's own evidence only, never by SMART-sourced evidence.
+        val relief = if (strong && inputs.recency == RecencyMode.NOVELTY) model.ownStrength(a, b) * recencyLoss else 0f
         return t + relief
     }
 
@@ -69,6 +71,7 @@ internal class PersonalTerm(snapshot: SmartSnapshot, private val inputs: Persona
         const val ARTIST = 0.3f
         const val PLAYLIST = 0.15f
         const val HEART = 0.15f
+        const val AFFINITY = 0.15f
         const val MARGIN_K = 0.5f
         const val MARGIN_TOP = 50
         private val NONE = IntArray(0)
