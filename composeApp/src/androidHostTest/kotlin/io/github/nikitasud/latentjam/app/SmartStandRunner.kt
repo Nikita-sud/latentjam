@@ -211,6 +211,10 @@ class SmartStandRunner {
                     presses = SmartPresses(MemoryPresses()), smartLog = log,
                     favourites = { favourites }, useFavourites = { true }, clock = { now }, userPlaylists = { userPlaylists },
                     varietyScale = { varietyScale }, companionGroups = { marks },
+                    // LJ_STAND_CHAIN_FLOW=1: the chain's habit slots judged by the app's flow scorer (without one no row passes
+                    // λ = 2, so the earlier chain FULL equals CORE); LJ_STAND_CHAIN_LW=1 adds LW2 on the habit list (FB build).
+                    habitFlow = if (System.getenv("LJ_STAND_CHAIN_FLOW") == "1") io.github.nikitasud.latentjam.smart.HabitFlow(knowledge) else null,
+                    habitListenWeight = if (System.getenv("LJ_STAND_CHAIN_LW") == "1") HABIT_LISTEN_WEIGHT_LW2 else null,
                 )
                 suspend fun played(track: TrackDescriptor, at: Long, start: io.github.nikitasud.latentjam.history.ListenStart): Long {
                     val heard = track.durationMs ?: 180_000L

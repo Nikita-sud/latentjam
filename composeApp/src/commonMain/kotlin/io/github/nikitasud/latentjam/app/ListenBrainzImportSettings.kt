@@ -172,7 +172,7 @@ internal fun ListenBrainzImportSection(
                 }
             },
             confirmButton = {
-                if (offerHabits && smartRanker) {
+                if (offerHabits && (smartRanker || !SMART_RANKER_SHIPPED)) {
                     TextButton(
                         onClick = {
                             settings.setLearnFromHabits(true)
@@ -185,7 +185,7 @@ internal fun ListenBrainzImportSection(
                     TextButton(onClick = dismiss) { Text(stringResource(Res.string.action_close)) }
                 }
             },
-            dismissButton = if (offerHabits && smartRanker) {
+            dismissButton = if (offerHabits && (smartRanker || !SMART_RANKER_SHIPPED)) {
                 { TextButton(onClick = dismiss) { Text(stringResource(Res.string.action_close)) } }
             } else {
                 null

@@ -210,9 +210,10 @@ object AppGraph {
                                 engine = get(),
                                 history = get(),
                                 companionGroups = { smartCompanionGroups.value },
-                                // Habit slots are withdrawn; "Learn from my habits" now picks the ranker's FULL model.
-                                learnFromHabits = { false },
-                                useRanker = { settings.smartRanker.value },
+                                // FB build: no ranker ships; "Learn from my habits" puts habit slots (with LW2) on the chain.
+                                learnFromHabits = { !SMART_RANKER_SHIPPED && settings.learnFromHabits.value },
+                                useRanker = { SMART_RANKER_SHIPPED && settings.smartRanker.value },
+                                habitListenWeight = HABIT_LISTEN_WEIGHT_LW2,
                                 ranker = getOrNull<SmartRankerAssets>().let { assets -> { assets?.ranker } },
                                 rankerHealthy = getOrNull<SmartRankerAssets>().let { assets -> { assets?.healthy ?: false } },
                                 personalRanker = { settings.learnFromHabits.value },
@@ -447,6 +448,7 @@ object AppGraph {
      */
     internal suspend fun diagnoseSmartStarts(): String? {
         val log = smartImpressionLog ?: return null
+        if (!SMART_RANKER_SHIPPED) return null
         val ranker = koin.getOrNull<SmartRankerAssets>()?.ranker ?: return null
         val hearts = koin.getOrNull<Favorites>()?.all().orEmpty()
         val times = koin.getOrNull<FavoriteTimes>()?.all().orEmpty()
@@ -688,7 +690,7 @@ object AppGraph {
                 }
                 // Audits 04 #2 / 05 #5: the audio tagger's output for every indexed track, once (no plan-time budget).
                 try {
-                    val ranker = koin.getOrNull<SmartRankerAssets>()?.ranker
+                    val ranker = if (SMART_RANKER_SHIPPED) koin.getOrNull<SmartRankerAssets>()?.ranker else null
                     if (ranker != null) {
                         val computed = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                             ranker.backfillImputations(smartLibraryTracks.value)
@@ -714,6 +716,7 @@ object AppGraph {
     /** SmartRanker.warm off the main thread; a failure only means the first press computes it. */
     private suspend fun warmSmartRanker(tracks: List<TrackDescriptor>) {
         try {
+            if (!SMART_RANKER_SHIPPED) return
             val ranker = koin.getOrNull<SmartRankerAssets>()?.ranker ?: return
             val started = kotlin.time.TimeSource.Monotonic.markNow()
             val scored = withContext(Dispatchers.Default) { ranker.warm(tracks) }
@@ -735,6 +738,13 @@ object AppGraph {
             "AppGraph.start() must be called by the platform entry point before use"
         }.koin
 }
+
+
+/**
+ * Whether this build ships the learned ranker and its assets. The FB build (0.9.2's chain + habit slots with LW2, no
+ * ranker tables) leaves them out of the app: SMART plans with the chain, and the ranker settings are hidden.
+ */
+internal const val SMART_RANKER_SHIPPED: Boolean = false
 
 /**
  * Optional background analysis must not crash playback when storage or foreground promotion

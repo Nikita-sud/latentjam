@@ -31,15 +31,19 @@ internal suspend fun withHabitSlots(
     chain: List<TrackId>,
     seedMs: Long,
     flow: HabitFlow?,
+    /** LW2 on the habit list (FB build): a seed → row pair rejected twice is no habit (null = unweighted, as before). */
+    lw: io.github.nikitasud.latentjam.smart.ranker.RankerModel.ListenWeight? = null,
 ): List<TrackId> = withContext(Dispatchers.Default) {
     val events = runCatching { history.recentEvents(SMART_HABIT_HISTORY_LIMIT) }.getOrNull()
         ?: return@withContext chain
     val artistKeys = HashMap<TrackId, String>(library.size + 1)
     for (track in library) artistKeys[track.id] = HabitSlots.artistKey(track)
     artistKeys[seed.id] = HabitSlots.artistKey(seed)
-    val listens = habitListens(events.asReversed(), artistKeys.keys, seedMs)
+    val credit = lw?.let { w -> { e: ListenEvent -> listenCredit(e, w.zeroMs) } }
+    val listens = habitListens(events.asReversed(), artistKeys.keys, seedMs, credit)
     val artistKey = { id: TrackId -> artistKeys[id].orEmpty() }
-    val rows = habitRows(listens, seed.id, seedMs, candidates.map(TrackDescriptor::id), artistKey, salt = seedMs)
+    val all = habitRows(listens, seed.id, seedMs, candidates.map(TrackDescriptor::id), artistKey, salt = seedMs)
+    val rows = if (lw == null) all else all - rejectedHabits(events.asReversed(), artistKeys.keys, listens, seed.id, seedMs, lw)
     if (rows.isEmpty()) return@withContext chain
     val (byTrack, byArtist) = HabitSlots.transitionCounts(listens, seed.id, artistKey)
     val byId = candidates.associateBy(TrackDescriptor::id)
@@ -51,6 +55,39 @@ internal suspend fun withHabitSlots(
     println("SMART: habit slots placed ${personal.size} of ${rows.size} real transitions")
     // As FIT's arm: the chosen rows spread over the first ten slots by their own number (slots.py).
     if (personal.isEmpty()) chain else HabitSlots.interleave(personal, chain, personalSlots = personal.size)
+}
+
+/** LW2's listen weighting (smart_ranker_full.json's listenWeight in vc40), for the chain's habit list in the FB build. */
+internal val HABIT_LISTEN_WEIGHT_LW2: io.github.nikitasud.latentjam.smart.ranker.RankerModel.ListenWeight =
+    io.github.nikitasud.latentjam.smart.ranker.RankerModel.ListenWeight(
+        zeroMs = 30_000L, negWeight = 1.5, midS = 30.0, tauS = 7.0, pairMode = "gate2", picksOnly = true,
+    )
+
+/**
+ * LW2 ("one rejection is noise, a repeat is a signal", PLAN_LISTENW2) on the habit list: the rows B whose seed → B pair the
+ * ranker would gate in ([lw]'s pairMode gate2: at least two rejections) and whose credited seed → B transitions do not
+ * outweigh its negative — Σ credit − negWeight · Σ σ ≤ 0, the ranker's pair credit and pair negative on one count. The
+ * artist-level count is left as it is (the ranker's negatives are keyed by the anchor track).
+ */
+internal fun rejectedHabits(
+    oldestFirst: List<ListenEvent>,
+    libraryIds: Set<TrackId>,
+    listens: List<HabitListen>,
+    seed: TrackId,
+    seedMs: Long,
+    lw: io.github.nikitasud.latentjam.smart.ranker.RankerModel.ListenWeight,
+): Set<TrackId> {
+    val gated = abandonNegatives(oldestFirst, libraryIds, seedMs, lw)
+        .filter { (pair, v) -> pair.first == seed && v.second >= 2.0 - 1e-9 }
+    if (gated.isEmpty()) return emptySet()
+    val credited = HashMap<TrackId, Double>()
+    for (index in 1 until listens.size) {
+        val a = listens[index - 1]
+        val b = listens[index]
+        if (b.startedAtMs - a.startedAtMs > HabitSlots.PAIR_GAP_MS || a.trackId == b.trackId || !b.countsAsNext) continue
+        if (a.trackId == seed) credited[b.trackId] = (credited[b.trackId] ?: 0.0) + b.credit
+    }
+    return gated.filter { (pair, v) -> (credited[pair.second] ?: 0.0) - lw.negWeight * v.first <= 0.0 }.keys.mapTo(HashSet()) { it.second }
 }
 
 /**

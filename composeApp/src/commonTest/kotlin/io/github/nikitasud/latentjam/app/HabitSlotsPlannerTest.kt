@@ -211,4 +211,22 @@ class HabitSlotsPlannerTest {
             skipPairs = true, unskippedOnly = false, lw = lw(picksOnly = false, auto = 1.0)) { "" }
         assertEquals(0.0, st.row(TrackId("b"), TrackId("a"), "").transTrackNats, 1e-12) // only one counted: gate closed
     }
+
+    @Test
+    fun `LW2 on the habit list drops a follower rejected twice after the seed unless its listens outweigh the rejections`() {
+        val library = setOf("a", "b", "d", "e").mapTo(HashSet(), ::TrackId)
+        val pick = ListenStart.USER_PICK
+        val events = ArrayList<ListenEvent>()
+        var t = 0L
+        fun after(id: String, heardMs: Long) {
+            events += play("a", t, 200_000, pick, completed = true); t += 201_000
+            events += play(id, t, heardMs, pick, completed = heardMs >= 200_000); t += 3_600_000
+        }
+        after("b", 200_000); after("b", 10_000); after("b", 10_000) // one listen, two rejections: no habit
+        repeat(3) { after("d", 200_000) }; after("d", 10_000); after("d", 10_000) // three listens outweigh 1.5 · 2 · σ
+        after("e", 200_000); after("e", 10_000) // one rejection is noise: the gate stays closed
+        val listens = habitListens(events, library, t) { listenCredit(it, HABIT_LISTEN_WEIGHT_LW2.zeroMs) }
+        assertEquals(setOf(TrackId("b")), rejectedHabits(events, library, listens, TrackId("a"), t, HABIT_LISTEN_WEIGHT_LW2))
+        assertTrue(rejectedHabits(events, library, listens, TrackId("d"), t, HABIT_LISTEN_WEIGHT_LW2).isEmpty())
+    }
 }

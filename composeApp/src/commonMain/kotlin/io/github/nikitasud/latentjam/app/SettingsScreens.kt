@@ -2025,29 +2025,34 @@ private fun IntelligenceSettings(
                 )
                 SettingsBody(stringResource(Res.string.intelligence_queue_length_body))
                 ArtistVarietyRow(level = artistVariety, onLevel = settings::setArtistVariety)
-                SettingsSwitchRow(
-                    title = stringResource(Res.string.intelligence_smart_ranker),
-                    subtitle = stringResource(Res.string.intelligence_smart_ranker_body),
-                    checked = smartRanker,
-                    enabled = true,
-                    onCheckedChange = settings::setSmartRanker,
-                )
+                // A build without the ranker (FB) has no ranker switch, and its habit slots never read hearts.
+                if (SMART_RANKER_SHIPPED) {
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.intelligence_smart_ranker),
+                        subtitle = stringResource(Res.string.intelligence_smart_ranker_body),
+                        checked = smartRanker,
+                        enabled = true,
+                        onCheckedChange = settings::setSmartRanker,
+                    )
+                }
                 SettingsSwitchRow(
                     title = stringResource(Res.string.intelligence_learn_from_habits),
                     subtitle = stringResource(Res.string.intelligence_learn_from_habits_body),
                     checked = learnFromHabits,
-                    enabled = smartRanker,
+                    enabled = smartRanker || !SMART_RANKER_SHIPPED,
                     onCheckedChange = settings::setLearnFromHabits,
                 )
                 // Nested under habits: greyed out, and ignored by the ranker, while habits are off.
-                SettingsSwitchRow(
-                    title = stringResource(Res.string.intelligence_use_favourites),
-                    subtitle = stringResource(Res.string.intelligence_use_favourites_body),
-                    checked = useFavourites,
-                    enabled = smartRanker && learnFromHabits,
-                    onCheckedChange = settings::setUseFavourites,
-                    nestedIndent = 16.dp,
-                )
+                if (SMART_RANKER_SHIPPED) {
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.intelligence_use_favourites),
+                        subtitle = stringResource(Res.string.intelligence_use_favourites_body),
+                        checked = useFavourites,
+                        enabled = smartRanker && learnFromHabits,
+                        onCheckedChange = settings::setUseFavourites,
+                        nestedIndent = 16.dp,
+                    )
+                }
                 // Product-check tools: debuggable builds only.
                 if (isDebuggableBuild()) {
                     SettingsRow(

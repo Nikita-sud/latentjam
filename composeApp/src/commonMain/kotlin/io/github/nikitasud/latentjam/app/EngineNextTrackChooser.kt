@@ -52,6 +52,8 @@ class EngineNextTrackChooser(
     private val library: () -> List<TrackDescriptor> = { emptyList() },
     /** How far a habit row would pull the queue from its seed; null scores every row coherent. */
     private val habitFlow: HabitFlow? = null,
+    /** LW2 on the chain's habit list (FB build): pairs rejected twice after the seed are no habit; null = unweighted. */
+    private val habitListenWeight: io.github.nikitasud.latentjam.smart.ranker.RankerModel.ListenWeight? = null,
     /** The "learned ranker" setting: plans come from [ranker] instead of the engine's chain. */
     private val useRanker: () -> Boolean = { false },
     private val ranker: () -> SmartRanker? = { null },
@@ -217,6 +219,7 @@ class EngineNextTrackChooser(
             if (learned == null && recentIds.isEmpty() && plan.isNotEmpty() && learnFromHabits()) {
                 plan = withHabitSlots(
                     history, current, candidates, library(), plan, seedMs = events.last().startedAtMs, flow = habitFlow,
+                    lw = habitListenWeight,
                 )
             }
             planned = ArrayDeque(plan.withIndex().toList())

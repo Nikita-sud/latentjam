@@ -47,8 +47,8 @@ android {
         applicationId = "io.github.nikitasud.latentjam.kmp"
         minSdk = 24
         targetSdk = 36
-        versionCode = 40
-        versionName = "0.9.3-smart-vc40"
+        versionCode = 41
+        versionName = "0.9.3-smart-fb"
     }
 
     if (uploadKeystore != null) {
@@ -126,6 +126,14 @@ android {
     // storing these two costs the APK about 1.1 MB.
     androidResources {
         noCompress += listOf("music_entities_250k.bin", "artist_knowledge.bin", "artist_colisten.bin", "artist_lfm.bin", "audio_tagger.bin", "artist_pop.bin", "artist_family.bin", "artist_family_l2.bin")
+        // FB build (SMART_RANKER_SHIPPED = false): the learned ranker's model, tables and manifest stay in the tree for its
+        // host tests but are left out of the APK. The first part is AGP's default pattern.
+        ignoreAssetsPattern = "!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:" +
+            listOf(
+                "smart_manifest.json", "smart_ranker.json", "smart_ranker_full.json", "artist_colisten.bin", "artist_lfm.bin",
+                "artist_pop.bin", "artist_family.bin", "artist_family_l2.bin", "audio_tagger.bin", "audio_tagger.json",
+                "genre_families.json", "heads.json",
+            ).joinToString(":") { "!$it" }
     }
 
     splits {
