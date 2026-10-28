@@ -58,7 +58,7 @@ android {
         minSdk = 24
         targetSdk = 36
         versionCode = 43
-        versionName = "0.9.3-smart-c095"
+        versionName = "0.9.3"
     }
 
     if (uploadKeystore != null) {

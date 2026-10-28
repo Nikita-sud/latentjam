@@ -19,7 +19,7 @@ package keeps working.
 | ABI | digit | 0.9.3 example (base 43) | F-Droid APK, measured |
 |---|---|---|---|
 | armeabi-v7a | 1 | 431 | 33.5 MB |
-| arm64-v8a | 2 | 432 | 34.4 MB |
+| arm64-v8a | 2 | 432 | 28.6 MB (reduced runtime) |
 | x86 | 3 | 433 | 36.4 MB |
 | x86_64 | 4 | 434 | 36.3 MB |
 
@@ -130,8 +130,8 @@ ARM64 runtime, so the check lets them through.
     gradle:
       - yes
     prebuild:
-      - sdkmanager 'cmake;3.31.6'
-      - bash ../tools/runtime/ort_source_build.sh $$onnxruntime$$ $$NDK$$ $$SDK$$ -
+      - sdkmanager 'cmake;3.22.1' 'cmake;3.31.6'
+      - PATH=$$SDK$$/cmake/3.31.6/bin:$PATH bash ../tools/runtime/ort_source_build.sh $$onnxruntime$$ $$NDK$$ $$SDK$$ -
     scanignore: (as the armeabi-v7a entry)
     scandelete: (as the armeabi-v7a entry)
     ndk: r28c
@@ -141,8 +141,9 @@ ARM64 runtime, so the check lets them through.
 ```
 
 The script writes `build/reduced-ort/maven` in the repository, the default `latentjam.reducedOrtRepo`, so no further
-property is needed. Toolchain on F-Droid's image: CMake ≥ 3.28, Ninja, Python 3, JDK 17 (ORT's Java packaging step) and
-NDK r28c.
+property is needed. Toolchain: the SDK's CMake 3.31.6 and its Ninja (put on PATH above; the Debian image's own CMake is
+older than the 3.28 ORT needs), CMake 3.22.1 for the app's native code, Python 3, JDK 17 (ORT's Java packaging step)
+and NDK r28c.
 
 **Not verified here:**
 

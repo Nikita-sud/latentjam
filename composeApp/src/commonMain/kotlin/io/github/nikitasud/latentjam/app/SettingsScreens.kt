@@ -2025,7 +2025,8 @@ private fun IntelligenceSettings(
                 )
                 SettingsBody(stringResource(Res.string.intelligence_queue_length_body))
                 ArtistVarietyRow(level = artistVariety, onLevel = settings::setArtistVariety)
-                // A build without the ranker (FB) has no ranker switch, and its habit slots never read hearts.
+                // A build without the ranker (FB) has no ranker switch; its personal term reads hearts as a small prior while
+                // "Learn from my habits" is on.
                 if (SMART_RANKER_SHIPPED) {
                     SettingsSwitchRow(
                         title = stringResource(Res.string.intelligence_smart_ranker),
