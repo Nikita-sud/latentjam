@@ -66,6 +66,9 @@ internal fun personalTrack(track: TrackDescriptor, artists: List<String>): Perso
     durationMs = track.durationMs,
 )
 
+/** The shuffle mode SMART playback logs (ShuffleMode.SMART.name). */
+private const val SMART_SHUFFLE_MODE = "SMART"
+
 /** A history listen as the personal evidence reads it. */
 internal fun personalListen(event: ListenEvent): PersonalListen {
     val origin = event.origin
@@ -79,10 +82,11 @@ internal fun personalListen(event: ListenEvent): PersonalListen {
             ListenStart.SKIP_NEXT -> PersonalStart.SKIP_NEXT
             ListenStart.SKIP_PREVIOUS -> PersonalStart.SKIP_PREVIOUS
             ListenStart.REPEAT -> PersonalStart.REPEAT
-            ListenStart.IMPORTED -> PersonalStart.IMPORTED
             null -> PersonalStart.UNKNOWN
         }
     }
+    // A For You suggestion: started from For You without a plan position, unless queued by hand (PERSONALISATION_RULES v5.5).
+    val forYou = origin?.parentId == FOR_YOU_PARENT_ID && origin.smartPlanPosition == null && origin.start != ListenStart.QUEUED
     return PersonalListen(
         trackId = event.trackId,
         startedAtMs = event.startedAtMs,
@@ -98,8 +102,9 @@ internal fun personalListen(event: ListenEvent): PersonalListen {
             PickSurface.EXTERNAL -> PersonalSurface.EXTERNAL
             null -> null
         },
-        smartPlaced = origin?.smartPlanPosition != null,
-        personalChanged = origin?.personalChanged == true,
+        smartSourced = origin?.smartPlanPosition != null || forYou ||
+            (origin == null && event.shuffleMode == SMART_SHUFFLE_MODE && start != PersonalStart.IMPORTED),
+        forYou = forYou,
         albumParent = origin?.parentId?.startsWith("album:") == true,
         shuffleOff = event.shuffleMode == "OFF",
         playedMs = event.playedMs,

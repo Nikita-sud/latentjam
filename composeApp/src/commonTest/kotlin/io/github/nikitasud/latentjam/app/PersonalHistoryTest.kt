@@ -34,19 +34,31 @@ class PersonalHistoryTest {
         assertEquals(PersonalStart.QUEUED, personalListen(event(ListenOrigin(ListenStart.QUEUED))).start)
         assertEquals(PersonalStart.AUTO, personalListen(event(ListenOrigin(ListenStart.AUTO_ADVANCE))).start)
         assertEquals(PersonalStart.UNKNOWN, personalListen(event(ListenOrigin(start = null))).start)
-        assertEquals(PersonalStart.IMPORTED, personalListen(event(ListenOrigin(ListenStart.IMPORTED), listenedMs = null)).start)
-        // Imports written before the IMPORTED start: no origin, no listen time, no shuffle mode.
-        assertEquals(PersonalStart.IMPORTED, personalListen(event(null, listenedMs = null, shuffle = null)).start)
-        // A legacy listen of this device (it always logged its shuffle mode) is not an import.
-        assertEquals(PersonalStart.UNKNOWN, personalListen(event(null, listenedMs = null, shuffle = "OFF")).start)
+        // The importer's fingerprint: no origin, no listen time, a whole second, played its length, completed.
+        val imported = ListenEvent(TrackId("a"), 1_000_000L, 200_000L, 200_000L, completed = true, skipped = false)
+        assertEquals(PersonalStart.IMPORTED, personalListen(imported).start)
+        // A legacy listen of this device does not match it (a start off the whole second).
+        assertEquals(PersonalStart.UNKNOWN, personalListen(imported.copy(startedAtMs = 1_000_123L, shuffleMode = "OFF")).start)
+    }
+
+    @Test
+    fun smartSourcedCoversPlansLegacySmartModeAndForYouButNotQueuedRows() {
+        assertTrue(personalListen(event(ListenOrigin(ListenStart.AUTO_ADVANCE, smartPlanPosition = 3))).smartSourced)
+        assertTrue(personalListen(event(null, listenedMs = 200_000L, shuffle = "SMART")).smartSourced, "legacy SMART mode")
+        assertFalse(personalListen(event(null, listenedMs = 200_000L, shuffle = "ON")).smartSourced)
+        val forYou = personalListen(event(ListenOrigin(ListenStart.USER_PICK, parentId = FOR_YOU_PARENT_ID)))
+        assertTrue(forYou.forYou && forYou.smartSourced)
+        // Queued by hand inside a For You queue: the listener's own pick (PERSONALISATION_RULES v5.5).
+        val queued = personalListen(event(ListenOrigin(ListenStart.QUEUED, parentId = FOR_YOU_PARENT_ID)))
+        assertFalse(queued.forYou || queued.smartSourced)
+        // personalChanged plays no part in the evidence.
+        assertFalse(personalListen(event(ListenOrigin(ListenStart.USER_PICK, personalChanged = true))).smartSourced)
     }
 
     @Test
     fun originFieldsReachTheEvidence() {
         val listen = personalListen(event(ListenOrigin(ListenStart.AUTO_ADVANCE, smartPlanPosition = 3, parentId = "album:x",
-            pickSurface = PickSurface.SEARCH, personalChanged = true)))
-        assertTrue(listen.smartPlaced)
-        assertTrue(listen.personalChanged)
+            pickSurface = PickSurface.SEARCH)))
         assertTrue(listen.albumParent)
         assertTrue(listen.shuffleOff)
         assertEquals(PersonalSurface.SEARCH, listen.surface)

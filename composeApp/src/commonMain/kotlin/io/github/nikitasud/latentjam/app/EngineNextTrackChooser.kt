@@ -53,6 +53,8 @@ class EngineNextTrackChooser(
     private val library: () -> List<TrackDescriptor> = { emptyList() },
     /** The listener's personal evidence over a library (PersonalModelCache); null plans the old chain without it. */
     private val personalModel: (suspend (List<TrackDescriptor>) -> PersonalModel)? = null,
+    /** Research: the personal term's artist level (the stand's lover gate turns it off); the app leaves it on. */
+    private val personalArtistTerm: Boolean = true,
     /** The "learned ranker" setting: plans come from [ranker] instead of the engine's chain. */
     private val useRanker: () -> Boolean = { false },
     private val ranker: () -> SmartRanker? = { null },
@@ -211,15 +213,14 @@ class EngineNextTrackChooser(
                 queueSeedTrack = null
                 servedInQueue.clear()
                 queueModeSet = false
-                val personal = personalModel?.let { build ->
-                    val habits = learnFromHabits()
+                // "Learn from my habits" off: no personal inputs, so the chain is the shipped one (CORE).
+                val personal = personalModel?.takeIf { learnFromHabits() }?.let { build ->
                     PersonalInputs(
                         model = build(library().ifEmpty { candidates + current }),
-                        nowMs = events.last().startedAtMs,
-                        habits = habits,
-                        hearts = if (habits && useFavourites()) favourites().keys else emptySet(),
-                        playlists = if (habits) userPlaylists().map { it.toSet() } else emptyList(),
+                        hearts = if (useFavourites()) favourites().keys else emptySet(),
+                        playlists = userPlaylists().map { it.toSet() },
                         onPersonalChanged = { personalChanged = it },
+                        artistTerm = personalArtistTerm,
                     )
                 }
                 personalChanged = emptySet()
