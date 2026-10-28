@@ -118,6 +118,9 @@ internal fun List<Playlist>.presentationIdentity(): List<PlaylistPresentationIde
 internal fun List<Playlist>.smartUserPlaylists(): List<List<TrackId>> =
     map { playlist -> playlist.trackIds.map(::TrackId) }.filter { it.distinct().size >= 2 }
 
+/** The playlists the chain's personal term reads (PERSONALISATION_RULES O): unmarked ones; a marked one acts only through keep together. */
+internal fun List<Playlist>.smartPersonalPlaylists(): List<List<TrackId>> = filterNot(Playlist::includeInSmart).smartUserPlaylists()
+
 internal fun List<Playlist>.smartCompanionMemberships(): List<Set<TrackId>> {
     val normalized = asSequence()
         .filter(Playlist::includeInSmart)

@@ -148,10 +148,12 @@ class SmartStandRunner {
             ?.map(String::trim)?.filter(String::isNotEmpty)?.associate { TrackId(it) to null as Long? }.orEmpty()
         // Fast 3.3: the copy's own playlists reach FULL plans as on the phone (LJ_STAND_PLAYLISTS=0 leaves them out).
         val playlistLines = File(files, "playlists.txt").takeIf { it.isFile && System.getenv("LJ_STAND_PLAYLISTS") != "0" }?.readLines().orEmpty()
-        val userPlaylists = DefaultPlaylists(object : PlaylistStore {
+        val standPlaylists = DefaultPlaylists(object : PlaylistStore {
             override suspend fun read(): List<String> = playlistLines
             override suspend fun write(lines: List<String>) = Unit
-        }).all().smartUserPlaylists()
+        }).all()
+        val userPlaylists = standPlaylists.smartUserPlaylists()
+        val personalPlaylists = standPlaylists.smartPersonalPlaylists()
         println("SMART stand: ${userPlaylists.size} playlists")
         // The artist-variety setting as the ranker sees it (LJ_STAND_VARIETY, default 1 = the tuned values).
         val varietyScale = System.getenv("LJ_STAND_VARIETY")?.toDouble() ?: 1.0
@@ -233,6 +235,7 @@ class SmartStandRunner {
                     learnFromHabits = { full && (!chain || chainFull) }, personalRanker = { full },
                     presses = SmartPresses(MemoryPresses()), smartLog = log,
                     favourites = { favourites }, useFavourites = { true }, clock = { now }, userPlaylists = { userPlaylists },
+                    personalPlaylists = { personalPlaylists },
                     varietyScale = { varietyScale }, companionGroups = { marks },
                     // The chain's personal term as the app runs it (PLAN_PERSONAL): CORE = recency only, FULL = habits and
                     // priors too. LJ_STAND_PERSONAL=0 plans the chain without it (recency as the old multiplier).
@@ -282,7 +285,7 @@ class SmartStandRunner {
         io.github.nikitasud.latentjam.smart.personal.PersonalDiagnostics.hop = null
         io.github.nikitasud.latentjam.smart.personal.PersonalDiagnostics.sink = null
         File(out, "personal.txt").writeText("staged hops $stagedHops, with a personal addition $nonZeroHops, changed $changedHops\n" +
-            "habit pairs (>= 2 own sessions): " + PersonalModelCache(history, chainEngine?.let { it::artistKeysOf } ?: { emptyList() }).model(library).habitPairs() + "\n")
+            "habit pairs (>= 2 own sessions): " + PersonalModelCache(history, chainEngine?.let { it::artistKeysOf } ?: { emptyList() }).model(library)?.habitPairs() + "\n")
         File(out, "build.txt").writeText(
             "model ${ranker.modelName}\nfull ${ranker.fullModelName}\nencoder $AUDIO_MODEL_VERSION\n" +
                 "library ${library.size}\nvectors ${vectors.entries.size}\nenergies ${energies.size}\nseeds ${seeds.size}\n",

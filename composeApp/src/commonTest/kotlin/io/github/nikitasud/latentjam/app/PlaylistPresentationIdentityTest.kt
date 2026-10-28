@@ -64,6 +64,17 @@ internal class PlaylistPresentationIdentityTest {
     }
 
     @Test
+    fun thePersonalTermReadsOnlyUnmarkedPlaylists() {
+        val playlists = listOf(
+            Playlist(id = "marked", name = "Marked", trackIds = listOf("a", "b"), includeInSmart = true),
+            Playlist(id = "own", name = "Own", trackIds = listOf("c", "d")),
+            Playlist(id = "one", name = "One", trackIds = listOf("e")),
+        )
+        assertEquals(listOf(listOf(TrackId("c"), TrackId("d"))), playlists.smartPersonalPlaylists())
+        assertEquals(2, playlists.smartUserPlaylists().size)
+    }
+
+    @Test
     fun smartMembershipPolicyIsInvariantToPlaylistAndTrackReordering() {
         val first = Playlist(
             id = "first",

@@ -119,6 +119,9 @@ object AppGraph {
     /** Every playlist (app and imported M3U) as its ordered ids; read only by FULL ranker plans ("Learn from my habits"). */
     val smartUserPlaylists = MutableStateFlow<List<List<TrackId>>>(emptyList())
 
+    /** The unmarked playlists, as the chain's personal term reads them ("Learn from my habits"). */
+    val smartPersonalPlaylists = MutableStateFlow<List<List<TrackId>>>(emptyList())
+
     /** SMART's eligible library as the App last handed it to playback; read by the habit slots. */
     val smartLibraryTracks = MutableStateFlow<List<TrackDescriptor>>(emptyList())
     /** Advances after each accepted listening event so For You can apply feedback next time it opens. */
@@ -234,6 +237,7 @@ object AppGraph {
                                 },
                                 library = { smartLibraryTracks.value },
                                 userPlaylists = { smartUserPlaylists.value },
+                                personalPlaylists = { smartPersonalPlaylists.value },
                                 varietyScale = { ARTIST_VARIETY_RANKER_SCALES[sanitizeArtistVariety(settings.artistVariety.value)] },
                                 personalModel = get<SimilarityEngine>().let { engine ->
                                     val cache = PersonalModelCache(get(), engine::artistKeysOf)
