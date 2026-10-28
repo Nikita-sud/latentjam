@@ -60,3 +60,25 @@ sleep timer, ListenBrainz dedup/cancel paths, debug gating on both platforms and
 | B2-1, B2-2, B2-5 | ListenBrainz texts long in 14 / 9 locales; European Portuguese habits strings in Brazilian forms | agreed | owner text, proposed |
 | B2-3 | iOS: Smooth transitions now shown, no overlap for protected Apple Music items (like the EQ) | narrower | release-note line, owner |
 
+## Round 3
+
+Two fresh attackers over the whole diff: the round-2 fixes, Android glue (manifest, services, WorkManager, widgets,
+Android Auto, R8 keep rules, enum reads by name, dex registers 249 / 255), a downgrade to 0.9.2 (v5 history lines read
+as their v4 prefix, a v12 backup refused cleanly, new files ignored), iOS (Swift, Info.plist, BGTask, bundled assets
+byte-identical to the APK's, new stores' I/O off the main thread), Statistics / Plays / Recently played counts, public
+text. **No code defect found.**
+
+| id | finding | outcome |
+|---|---|---|
+| A3-1 | the launch-time pending count still decodes the whole region identity once (transient, ~1–1.7 MB at 10k) | 0.9.4 (count in the header) |
+| B3-1 | README describes the MPD-learned correction c095 turned off, and says SMART never ranks by the listener | owner text, proposed |
+| B3-2 | README says iOS has no smooth transitions or normalisation | owner text, proposed |
+| B3-3 | PRIVACY.md does not mention the ListenBrainz import or the SMART impression log | owner text, proposed |
+| B3-4 | 9.1 MB of ranker files in the iOS tree (not in the target; a test keeps the two folders equal) | left |
+| B3-5 | private machine paths in docs/smart-ranker.md | 7793c56e |
+
+Small heap (LJ-api30, heap growth limit 48 MB, 3,500 tracks, fresh install of this branch's arm64 release APK): the
+analysis finished (index stable, build-phase peak 34.7 MB), a play-all of 3,500 and a SMART press (12 slots from 3,497
+candidates, 2,086 ms first plan, 232 ms top-up) ran in one process with no OutOfMemoryError. The emulator's 10k set is
+damaged (3,500 files left), so 10k at 48 MB was not rerun.
+
