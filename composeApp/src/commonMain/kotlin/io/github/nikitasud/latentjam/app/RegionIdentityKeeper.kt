@@ -121,8 +121,14 @@ internal object RegionIdentityKeeper {
         return h.toULong().toString(16)
     }
 
-    /** Whether tracks have changed since the last rediscovery (the deferred rebuild has work). */
-    suspend fun pendingCount(): Int = snapshot(emptyMap())?.pendingCount ?: 0
+    /**
+     * Whether tracks have changed since the last rediscovery (the deferred rebuild has work). Read at every process
+     * start, so a stored snapshot is decoded for the count only and never kept: kept, it would hold a bare descriptor
+     * per track for the whole process, and a late launch read could replace a newer one.
+     */
+    suspend fun pendingCount(): Int =
+        (current ?: runCatching { AppGraph.regionIdentityStore.load() }.getOrNull()?.let(RegionIdentityCodec::decode))
+            ?.pendingCount ?: 0
 
     private suspend fun snapshot(descriptorOf: Map<TrackId, TrackDescriptor>): RegionIdentitySnapshot? =
         current ?: runCatching { AppGraph.regionIdentityStore.load() }.getOrNull()
