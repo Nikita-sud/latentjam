@@ -74,6 +74,47 @@ class EngineEnergyTest {
         assertEquals(3 to 3, second.energyCoverage())
     }
 
+    @Test
+    fun aColdProcessPlansWithTheStoredEnergyWithoutLoadingTheHead() = runTest {
+        // The snapshot's width: vectors whose first two values carry the head's energy.high / energy.low.
+        val dim = io.github.nikitasud.latentjam.smart.chain.SmartSnapshot.AUDIO_DIM
+        fun v(high: Float, low: Float, axis: Int) = FloatArray(dim).also { it[0] = high; it[1] = low; it[2 + axis] = 0.5f }
+        val backend = HeadBackend()
+        backend.fake.vectors[seed.id] = v(0.9f, 0.1f, 0)
+        backend.fake.vectors[near.id] = v(0.5f, 0.5f, 1)
+        backend.fake.vectors[far.id] = v(0.1f, 0.8f, 2)
+        val store = FakeIndexStore()
+        val energyStore = FakeIndexStore()
+        val library = listOf(seed, near, far)
+        fun wide(backend: EmbeddingBackend) = DefaultSimilarityEngine(
+            inferenceDispatcher = Dispatchers.Default.limitedParallelism(1, "energy-inference"),
+            backend = backend,
+            index = InMemoryVectorIndex(dim = dim),
+            store = store,
+            config = SmartEngineConfig(embeddingDim = dim, modelVersion = "test-model"),
+            dispatcher = Dispatchers.Default.limitedParallelism(1, "energy-engine"),
+            energyStore = energyStore,
+        )
+        val first = wide(backend)
+        first.initialize().getOrThrow()
+        first.synchronizeLibrary(library, pruneMissing = true)
+        first.indexLibrary(library)
+        assertEquals(3, first.ensureEnergies())
+
+        // A new process: the index and the energies restore from their stores, nothing loads the semantic head.
+        val again = HeadBackend().also { it.fake.vectors.putAll(backend.fake.vectors) }
+        val cold = wide(again)
+        cold.initialize().getOrThrow()
+        cold.synchronizeLibrary(library, pruneMissing = true)
+        val snapshot = kotlin.test.assertNotNull(cold.smartSnapshot(emptyList()))
+        val energy = snapshot.tracks.associate { it.id to it.energy }
+        kotlin.test.assertTrue(energy.values.none { it.isNaN() }, "the chain plans with energy: $energy")
+        // The library percentile of e = high − low: far is the calmest, seed the most energetic.
+        assertEquals(0f, energy.getValue(far.id))
+        assertEquals(1f, energy.getValue(seed.id))
+        assertEquals(0, again.classified, "the semantic head never ran")
+    }
+
     /** A backend whose inference waits on [gate] (indexing in the middle of a chunk). */
     private class SlowBackend(val fake: FakeEmbeddingBackend = FakeEmbeddingBackend()) : EmbeddingBackend by fake {
         val gate = kotlinx.coroutines.CompletableDeferred<Unit>()

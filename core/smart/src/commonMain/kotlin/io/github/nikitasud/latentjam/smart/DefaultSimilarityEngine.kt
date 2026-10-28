@@ -1739,7 +1739,10 @@ internal class DefaultSimilarityEngine(
         if (semanticModelLoaded) {
             cacheSemantics(rows.mapNotNull { row -> if (row.id in semanticCache) null else row.id to row.audioRow })
         }
-        return applyLibraryEnergy(rows, semanticCache)
+        // The energy pass's stored scores fill rows this process has not classified: a cold start or a process
+        // death leaves the semantic head unloaded (it loads only for new tracks or novelty mixes), and SMART would
+        // otherwise plan without energy until something else loaded it.
+        return applyLibraryEnergy(rows, semanticCache, energies)
     }
 
     /** Classifies [missing] audio vectors into [semanticCache]; rows the head rejects stay absent. */

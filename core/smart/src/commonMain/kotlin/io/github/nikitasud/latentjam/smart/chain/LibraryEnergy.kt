@@ -32,12 +32,17 @@ internal fun libraryEnergyRanks(scores: Map<TrackId, Float>): Map<TrackId, Float
 
 /**
  * [rows] with the energy the chain's smoothness term reads: each row's [libraryEnergyRanks] percentile
- * among the rows [semantics] covers. A row that already carries energy keeps it, and a row without
- * semantics keeps NaN, which the term ignores.
+ * among the rows [semantics] or [stored] cover. A row that already carries energy keeps it, and a row with
+ * neither keeps NaN, which the term ignores.
  */
-internal fun applyLibraryEnergy(rows: List<SmartTrack>, semantics: Map<TrackId, TrackSemantics>): List<SmartTrack> {
+internal fun applyLibraryEnergy(
+    rows: List<SmartTrack>,
+    semantics: Map<TrackId, TrackSemantics>,
+    /** Stored [energyScore]s (the persisted energy pass) for rows [semantics] does not cover; the same score. */
+    stored: Map<TrackId, Float> = emptyMap(),
+): List<SmartTrack> {
     val ranks = libraryEnergyRanks(
-        rows.mapNotNull { row -> semantics[row.id]?.let { row.id to it.energyScore() } }.toMap(),
+        rows.mapNotNull { row -> (semantics[row.id]?.energyScore() ?: stored[row.id])?.let { row.id to it } }.toMap(),
     )
     if (ranks.isEmpty()) return rows
     return rows.map { row -> if (!row.energy.isNaN()) row else ranks[row.id]?.let { row.copy(energy = it) } ?: row }
