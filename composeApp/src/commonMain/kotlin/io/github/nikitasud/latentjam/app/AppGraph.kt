@@ -223,7 +223,8 @@ object AppGraph {
                                 rankerHealthy = getOrNull<SmartRankerAssets>().let { assets -> { assets?.healthy ?: false } },
                                 personalRanker = { settings.learnFromHabits.value },
                                 // Nested under habits: rankerPlan reads hearts only for personal plans anyway.
-                                useFavourites = { settings.useFavourites.value },
+                                // Without the ranker the switch is not shown, so a value a test build stored cannot rule.
+                                useFavourites = { !SMART_RANKER_SHIPPED || settings.useFavourites.value },
                                 presses = getOrNull(),
                                 smartLog = getOrNull<SmartLogRecorder>(),
                                 favourites = run {
