@@ -31,6 +31,7 @@ import io.github.nikitasud.latentjam.smart.text.KnownArtists
 import io.github.nikitasud.latentjam.smart.text.TextEncoder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -638,24 +639,28 @@ internal class DefaultSimilarityEngine(
             val missing = audioVectorIdentities.ids().filter { it !in energies }
             if (missing.isEmpty() || ensureSemanticModel().isFailure) return@withLock 0
             var added = 0
-            for (batch in missing.chunked(SEMANTIC_BATCH_SIZE)) {
-                val rows = batch.mapNotNull { id -> index.vector(id)?.let { id to it } }
-                val outputs = inference.withLock { backend.classify(rows.map { it.second }) }.getOrNull()?.takeIf { it.size == rows.size } ?: continue
-                for (r in rows.indices) {
-                    val out = outputs[r]
-                    if (out.size <= ENERGY_HIGH_INDEX) continue
-                    val e = out[ENERGY_HIGH_INDEX] - out[ENERGY_LOW_INDEX]
-                    if (!e.isFinite()) continue
-                    energies[rows[r].first] = e
-                    audioVectorIdentities.tokenFor(rows[r].first)?.let { energyIdentities[rows[r].first] = it }
-                    added++
+            try {
+                for (batch in missing.chunked(SEMANTIC_BATCH_SIZE)) {
+                    val rows = batch.mapNotNull { id -> index.vector(id)?.let { id to it } }
+                    val outputs = inference.withLock { backend.classify(rows.map { it.second }) }.getOrNull()?.takeIf { it.size == rows.size } ?: continue
+                    for (r in rows.indices) {
+                        val out = outputs[r]
+                        if (out.size <= ENERGY_HIGH_INDEX) continue
+                        val e = out[ENERGY_HIGH_INDEX] - out[ENERGY_LOW_INDEX]
+                        if (!e.isFinite()) continue
+                        energies[rows[r].first] = e
+                        audioVectorIdentities.tokenFor(rows[r].first)?.let { energyIdentities[rows[r].first] = it }
+                        added++
+                    }
+                    yield()
                 }
-                yield()
-            }
-            if (added > 0) {
-                persistEnergies()
-                // The snapshot reads these scores (withEnergy) but is keyed on the index and the semantic cache only.
-                snapshotCache = null
+            } finally {
+                // Also when cancelled part-way: the scores already added stay in memory and are not missing next time.
+                if (added > 0) {
+                    // The snapshot reads these scores (withEnergy) but is keyed on the index and the semantic cache only.
+                    snapshotCache = null
+                    withContext(NonCancellable) { persistEnergies() }
+                }
             }
             added
         }
