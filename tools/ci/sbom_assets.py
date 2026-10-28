@@ -42,10 +42,22 @@ def main():
     android = ROOT / "androidApp/src/main/assets/ml"
     ios = ROOT / "iosApp/iosApp/ml"
     expected = set(manifest["assets"])
-    actual = {p.name for p in android.iterdir() if p.suffix in (".onnx", ".bin")} | {"text_vocab.txt"}
+    # Every model asset in the tree is reviewed, shipped or not: a new file must be added to the manifest.
+    actual = {p.name for p in android.iterdir() if p.suffix in (".onnx", ".bin", ".json")} | {"text_vocab.txt"}
     if actual != expected:
         raise ValueError("Review the asset inventory: " + str(actual ^ expected))
+    # Only what the APK packages belongs to the application's SBOM: androidResources.ignoreAssetsPattern leaves the
+    # learned ranker's files in the tree (its host tests) and out of the APK, and the iOS target excludes the same files.
+    gradle = (ROOT / "androidApp/build.gradle.kts").read_text()
+    block = re.search(r"ignoreAssetsPattern\s*=.*?listOf\((.*?)\)\.joinToString", gradle, re.S)
+    if block is None:
+        raise ValueError("androidApp/build.gradle.kts: ignoreAssetsPattern's file list not found")
+    unshipped = set(re.findall(r'"([^"]+)"', block.group(1)))
+    if not unshipped <= expected:
+        raise ValueError("ignoreAssetsPattern names files the inventory does not list: " + str(unshipped - expected))
     for name, entry in manifest["assets"].items():
+        if name in unshipped:
+            continue
         sha = digest(android / name)
         if digest(ios / name) != sha:
             raise ValueError("Android/iOS asset mismatch: " + name)
