@@ -5,13 +5,12 @@
 package io.github.nikitasud.latentjam.smart.personal
 
 import io.github.nikitasud.latentjam.smart.TrackId
-import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sqrt
 
-/** How a listen started, as the personal evidence reads it (the history's ListenStart, plus the legacy and import cases). */
+/** How a listen started, as the personal evidence reads it (the history's ListenStart, plus the import and unknown cases). */
 public enum class PersonalStart { PICK, QUEUED, AUTO, SKIP_NEXT, SKIP_PREVIOUS, REPEAT, IMPORTED, UNKNOWN }
 
 /** Where a pick came from (the history's PickSurface); null on a listen is unknown. */
@@ -38,8 +37,9 @@ public class PersonalTrack(
  * One listen of the history log, oldest first.
  *
  * @param listenedMs the time heard; null for legacy listens and imports
- * @param smartPlaced SMART planned the track (the listen's plan position)
- * @param personalChanged the personal term changed that planned pick
+ * @param smartSourced SMART suggested the track: a plan position, a legacy listen in SMART mode, or a For You suggestion
+ *   (PERSONALISATION_RULES v5.3–v5.5). Its positive evidence counts only up to a quarter of the listener's own.
+ * @param forYou a For You suggestion the listener picked (parent "foryou", no plan position, not queued by hand)
  * @param albumParent the queue was started from an album
  * @param shuffleOff shuffle was off when the track started
  */
@@ -51,8 +51,8 @@ public class PersonalListen(
     public val skipped: Boolean,
     public val start: PersonalStart,
     public val surface: PersonalSurface? = null,
-    public val smartPlaced: Boolean = false,
-    public val personalChanged: Boolean = false,
+    public val smartSourced: Boolean = false,
+    public val forYou: Boolean = false,
     public val albumParent: Boolean = false,
     public val shuffleOff: Boolean = false,
     /** For legacy listens without a listen time: the furthest position played. */
@@ -60,48 +60,38 @@ public class PersonalListen(
 )
 
 /**
- * The listener's personal evidence (PERSONALISATION_RULES.md, PLAN_PERSONAL.md): graded transitions A → B between version
- * groups, their rejections, the artist-level links, and per-song recency, skips and affinity. A cache rebuilt from the
- * history log: nothing here is stored, and clearing the history clears it.
+ * The listener's personal evidence (PERSONALISATION_RULES v5…v5.5, PLAN_PERSONAL v2): for each pair of songs A → B the
+ * decayed strength of the sessions in which B followed A — S⁺ for the positives, the listener's own plus SMART's own up to
+ * a quarter of them, and S⁻ for early skips of B offered right after A — with the distinct sessions behind them, the
+ * same over artist pairs, the occurrence weights the lift filter reads, and per-song early skips. A cache rebuilt from
+ * the history log: nothing is stored, and clearing the history clears it.
  *
- * Packed and bounded: songs and artists are 64-bit key hashes in sorted arrays, and each song keeps its [TOP_PER_SONG]
- * strongest successors (each artist its [TOP_PER_ARTIST]) in flat arrays. Weights are decayed to each source's own
- * newest listen ([HALF_LIFE_MS]), so an old import is not zeroed by on-device listening and the cache needs no clock.
+ * Packed and bounded: songs are 64-bit key hashes in a sorted array, and each song keeps its [TOP_PER_SONG] strongest
+ * successors that can change a term (each artist its [TOP_PER_ARTIST]) in flat half-precision arrays.
  */
 public class PersonalModel internal constructor(
-    private val songHashes: LongArray,
-    /** Library tracks by the hash of their id, sorted, with each one's song and artists (CSR). */
+    private val songCount: Int,
     private val trackHashes: LongArray,
     private val trackSong: IntArray,
     private val trackArtistStart: IntArray,
     private val trackArtistList: IntArray,
     private val edgeStart: IntArray,
     private val edgeTo: IntArray,
-    /** Half-precision weights ([half]): raw positive, countable, far-countable and negative. */
-    private val edgeWeight: ShortArray,
-    private val edgeCountable: ShortArray,
-    private val edgeFar: ShortArray,
-    private val edgeNegative: ShortArray,
+    private val edgePositive: ShortArray,
     private val edgeSessions: ByteArray,
-    private val edgeFarSessions: ByteArray,
-    /** Days since the epoch of the last far-countable session; 0 = none. */
-    private val edgeFarDay: ShortArray,
+    private val edgeNegative: ShortArray,
+    private val edgeNegativeSessions: ByteArray,
+    private val edgeWeight: ShortArray,
     private val outWeight: FloatArray,
-    private val outCountable: FloatArray,
-    private val outFar: FloatArray,
+    private val outEffective: FloatArray,
     private val inWeight: FloatArray,
     private val totalWeight: Float,
-    /** Minutes since the epoch of the song's latest listen; [Int.MIN_VALUE] = never. */
-    private val lastListenMinute: IntArray,
     private val earlySkips: FloatArray,
-    private val affinity: FloatArray,
     private val artistStart: IntArray,
     private val artistTo: IntArray,
-    private val artistWeight: FloatArray,
-    private val artistOut: FloatArray,
-    private val artistIn: FloatArray,
-    private val artistTotal: Float,
-    /** Whether any listen was read: no history means no personal term at all (C1). */
+    private val artistPositive: ShortArray,
+    private val artistSessions: ByteArray,
+    /** Whether any listen was read: no history means no personal term at all (C). */
     public val isEmpty: Boolean,
 ) {
     private fun trackIndex(id: TrackId): Int {
@@ -136,110 +126,81 @@ public class PersonalModel internal constructor(
         return -1
     }
 
-    /**
-     * habit_track(A → B) in [0, 1]: smoothed P(B|A) times its clipped log lift over B's base rate (A1, A2), on countable
-     * evidence: SMART's own placements count up to [SMART_SHARE] of the listener's own, so SMART never teaches itself.
-     */
-    public fun habit(a: Int, b: Int): Float {
+    /** S⁺(A → B): decayed session strength of the positives, SMART's own capped at a quarter of the listener's. */
+    public fun positive(a: Int, b: Int): Float = edge(a, b).takeIf { it >= 0 }?.let { unhalf(edgePositive[it]) } ?: 0f
+
+    /** Distinct sessions of the listener's own (non-SMART) evidence that A → B appeared in. */
+    public fun sessions(a: Int, b: Int): Int = edge(a, b).takeIf { it >= 0 }?.let { edgeSessions[it].toInt() and 0xff } ?: 0
+
+    /** s(A → B) = min(1, S⁺ / 6) once the pair has two sessions of the listener's own, else 0 (a one-off is chance). */
+    public fun strength(a: Int, b: Int): Float {
         val e = edge(a, b).takeIf { it >= 0 } ?: return 0f
-        return habitOf(unhalf(edgeCountable[e]), outCountable[a], inWeight[b], totalWeight, songHashes.size)
+        if ((edgeSessions[e].toInt() and 0xff) < MIN_SESSIONS) return 0f
+        return min(1f, unhalf(edgePositive[e]) / FULL_STRENGTH)
     }
 
-    /** Diagnostics and tests: A → B's countable weight, which the habit reads. */
-    public fun countableWeight(a: Int, b: Int): Float = edge(a, b).takeIf { it >= 0 }?.let { unhalf(edgeCountable[it]) } ?: 0f
-
-    /** habit at the artist level (A3): the strongest link from one of [from]'s artists to one of [to]'s. */
-    public fun artistHabit(from: IntArray, to: IntArray): Float {
+    /** The artist level (A3): the strongest s over the artist pairs of [from] and [to], each with two own sessions. */
+    public fun artistStrength(from: IntArray, to: IntArray): Float {
         if (from.isEmpty() || to.isEmpty()) return 0f
         var best = 0f
         for (x in from) for (e in artistStart[x] until artistStart[x + 1]) {
-            if (artistTo[e] in to) {
-                best = max(best, habitOf(artistWeight[e], artistOut[x], artistIn[artistTo[e]], artistTotal, artistIn.size))
+            if ((artistSessions[e].toInt() and 0xff) >= MIN_SESSIONS && artistTo[e] in to) {
+                best = max(best, min(1f, unhalf(artistPositive[e]) / FULL_STRENGTH))
             }
         }
         return best
     }
 
-    public fun artistHabit(from: TrackId, to: TrackId): Float = artistHabit(artistsOf(from), artistsOf(to))
+    public fun artistStrength(from: TrackId, to: TrackId): Float = artistStrength(artistsOf(from), artistsOf(to))
 
-    /** Rejection of B after A, in [0, 1): early skips of B offered right after A (E4). */
+    /** neg(A → B) = min(1, S⁻ / 2) once two sessions of any source rejected B after A, else 0. */
     public fun rejection(a: Int, b: Int): Float {
         val e = edge(a, b).takeIf { it >= 0 } ?: return 0f
-        val n = unhalf(edgeNegative[e])
-        return if (n <= 0f) 0f else n / (n + unhalf(edgeWeight[e]) + ALPHA)
+        if ((edgeNegativeSessions[e].toInt() and 0xff) < MIN_SESSIONS) return 0f
+        return min(1f, unhalf(edgeNegative[e]) / FULL_REJECTION)
     }
 
-    /** The Wilson lower bound of P(B|A) on countable evidence (SMART's own capped at [SMART_SHARE]). */
-    public fun confidence(a: Int, b: Int): Float {
+    /**
+     * The lift filter: the Wilson lower bound (z [Z]) of the shrunk P(B | A) on the Kish effective count of A's
+     * occurrence weights, over B's base rate q_B. A pair at or under its base rate is no habit, however often it played.
+     */
+    public fun lift(a: Int, b: Int): Float {
         val e = edge(a, b).takeIf { it >= 0 } ?: return 0f
-        return wilson(unhalf(edgeCountable[e]), outCountable[a])
+        val p = unhalf(edgeWeight[e]) / (outWeight[a] + ALPHA)
+        val lcb = wilson(p, outEffective[a])
+        val q = (inWeight[b] + 1f) / (totalWeight + songCount.coerceAtLeast(1))
+        return lcb / q
     }
 
-    /** Distinct sessions with countable evidence for A → B. */
-    public fun sessions(a: Int, b: Int): Int = edge(a, b).takeIf { it >= 0 }?.let { edgeSessions[it].toInt() and 0xff } ?: 0
+    /** D1: ≥ 3 own sessions and the lift filter, so a strong habit may relieve its recency penalty. */
+    public fun strong(a: Int, b: Int): Boolean = sessions(a, b) >= D1_SESSIONS && lift(a, b) >= LIFT_FILTER
 
-    /** D1: a strong, repeated link, for which recency is relieved by its confidence. */
-    public fun strong(a: Int, b: Int): Boolean = sessions(a, b) >= D1_SESSIONS && confidence(a, b) >= D1_LCB
-
-    /** D2 far habits from A at [nowMs], best first: on-device, non-SMART evidence only, repeated and recent. */
-    public fun farHabits(a: Int, nowMs: Long): IntArray {
-        if (a < 0) return IntArray(0)
-        val nowDay = (nowMs / DAY_MS).toInt()
-        val out = ArrayList<Pair<Int, Float>>()
-        for (e in edgeStart[a] until edgeStart[a + 1]) {
-            if ((edgeFarSessions[e].toInt() and 0xff) < D2_SESSIONS) continue
-            val farDay = edgeFarDay[e].toInt() and 0xffff
-            if (farDay == 0 || nowDay - farDay > D2_RECENT_DAYS) continue
-            val lcb = wilson(unhalf(edgeFar[e]), outFar[a])
-            if (lcb >= D2_LCB) out += edgeTo[e] to lcb
-        }
-        return out.sortedByDescending { it.second }.map { it.first }.toIntArray()
-    }
-
-    /** g(age) of the song's latest non-skipped listen at [nowMs] (O3): 1 this session down to 0 after 90 days. */
-    public fun recency(song: Int, nowMs: Long): Float {
-        if (song < 0) return 0f
-        val last = lastListenMinute[song]
-        if (last == Int.MIN_VALUE) return 0f
-        val age = (nowMs - last.toLong() * MINUTE_MS).coerceAtLeast(0L)
-        return when {
-            age <= SESSION_GAP_MS -> 1f
-            age < DAY_MS -> 0.60f
-            age < 7 * DAY_MS -> 0.26f
-            age < 30 * DAY_MS -> 0.097f
-            age < 90 * DAY_MS -> 0.036f
-            else -> 0f
-        }
-    }
-
-    /** The song's track prior in δ units (O2 + E7 + affinity), within [−0.5, +0.15]. */
-    public fun trackPrior(song: Int, hearted: Boolean): Float {
-        val skips = if (song >= 0) earlySkips[song] else 0f
-        val liked = if (song >= 0) min(affinity[song], 3f) else 0f
-        return ((if (hearted) HEART else 0f) + AFFINITY * liked - SKIP * skips).coerceIn(PRIOR_MIN, PRIOR_MAX)
-    }
+    /** E7 in δ units: 0.1 per decayed early skip of the song, at most 0.5. */
+    public fun skipPenalty(song: Int): Float = if (song < 0) 0f else min(E7_CAP, E7 * earlySkips[song])
 
     /** Bytes the packed arrays retain (the store budget). */
     public fun retainedBytes(): Long =
-        8L * (songHashes.size + trackHashes.size) +
+        8L * trackHashes.size +
             4L * (trackSong.size + trackArtistStart.size + trackArtistList.size + edgeStart.size + edgeTo.size +
-                outWeight.size + outCountable.size + outFar.size + inWeight.size + lastListenMinute.size + earlySkips.size +
-                affinity.size + artistStart.size + artistTo.size + artistWeight.size + artistOut.size + artistIn.size) +
-            2L * (edgeWeight.size + edgeCountable.size + edgeFar.size + edgeNegative.size + edgeFarDay.size) +
-            edgeSessions.size + edgeFarSessions.size
+                outWeight.size + outEffective.size + inWeight.size + earlySkips.size + artistStart.size + artistTo.size) +
+            2L * (edgePositive.size + edgeNegative.size + edgeWeight.size + artistPositive.size) +
+            edgeSessions.size + edgeNegativeSessions.size + artistSessions.size
 
     /** Diagnostics: how many links the store keeps. */
-    public fun sizes(): String = "songs=${songHashes.size} edges=${edgeTo.size} artistEdges=${artistTo.size} tracks=${trackHashes.size}"
+    public fun sizes(): String = "songs=$songCount edges=${edgeTo.size} artistEdges=${artistTo.size} tracks=${trackHashes.size}"
 
-    /** Diagnostics and tests: A → B's decayed positive weight (the stored links only). */
-    public fun weight(a: Int, b: Int): Float = edge(a, b).takeIf { it >= 0 }?.let { unhalf(edgeWeight[it]) } ?: 0f
+    /** Diagnostics: S⁻(A → B). */
+    public fun negative(a: Int, b: Int): Float = edge(a, b).takeIf { it >= 0 }?.let { unhalf(edgeNegative[it]) } ?: 0f
+
+    /** Diagnostics: how many pairs carry two or more own sessions (the owner report). */
+    public fun habitPairs(): Int = edgeSessions.count { (it.toInt() and 0xff) >= MIN_SESSIONS }
 
     public companion object {
-        // PLAN_PERSONAL.md §2–§4, frozen before any test.
+        // PLAN_PERSONAL v2 §2–§4, frozen before the v2 tests.
         public const val PICK: Float = 1.0f
         public const val PICK_QUEUE: Float = 0.7f
         public const val PICK_UNKNOWN: Float = 0.85f
-        public const val FOR_YOU_FACTOR: Float = 0.5f
+        public const val FOR_YOU: Float = 0.35f
         public const val ACCEPT: Float = 0.25f
         public const val SMART_FACTOR: Float = 0.5f
         public const val ALBUM_FACTOR: Float = 0.1f
@@ -247,52 +208,43 @@ public class PersonalModel internal constructor(
         public const val ATTENTION_DECAY: Float = 0.7f
         public const val IMPORT: Float = 0.4f
         public const val REPLAY_FACTOR: Float = 0.2f
-        public const val SKIP_EARLY: Float = -1.0f
-        public const val SKIP_LATE: Float = -0.5f
+        public const val SKIP_EARLY: Float = 1.0f
+        public const val SKIP_LATE: Float = 0.5f
         public const val ACCIDENTAL_SKIP_MS: Long = 2_000L
         public const val EARLY_SKIP_MS: Long = 10_000L
         public const val SHORT_TRACK_MS: Long = 60_000L
         public const val LONG_TRACK_MS: Long = 20L * 60_000L
-        public const val SESSION_GAP_MS: Long = 15L * 60_000L
+        /** E5: a transition needs B to start within this of A's end. */
+        public const val TRANSITION_GAP_MS: Long = 15L * 60_000L
+        /** A session: events with end-to-start gaps of at most this. */
+        public const val SESSION_GAP_MS: Long = 30L * 60_000L
         public const val HALF_LIFE_MS: Long = 120L * DAY_MS_CONST
-        public const val IMPORT_CAP_PICKS: Int = 300
-        public const val ALPHA: Float = 4f
-        public const val LIFT_MAX: Float = 3f
-        public const val Z: Float = 1.645f
         public const val SMART_SHARE: Float = 0.25f
-        public const val D1_LCB: Float = 0.2f
+        public const val FULL_STRENGTH: Float = 6f
+        public const val FULL_REJECTION: Float = 2f
+        public const val MIN_SESSIONS: Int = 2
         public const val D1_SESSIONS: Int = 3
-        public const val D2_LCB: Float = 0.3f
-        public const val D2_SESSIONS: Int = 6
-        public const val D2_RECENT_DAYS: Int = 60
+        public const val LIFT_FILTER: Float = 2f
+        public const val ALPHA: Float = 4f
+        public const val Z: Float = 1.645f
+        public const val IMPORT_ANCHOR_CAP: Float = 12f
+        public const val E7: Float = 0.1f
+        public const val E7_CAP: Float = 0.5f
         public const val TOP_PER_SONG: Int = 16
         public const val TOP_PER_ARTIST: Int = 8
-        public const val HEART: Float = 0.15f
-        public const val AFFINITY: Float = 0.05f
-        public const val SKIP: Float = 0.1f
-        public const val PRIOR_MIN: Float = -0.5f
-        public const val PRIOR_MAX: Float = 0.15f
         internal const val DAY_MS: Long = DAY_MS_CONST
-        private const val MINUTE_MS = 60_000L
         private val NO_ARTISTS = IntArray(0)
 
         public val EMPTY: PersonalModel = build(emptyList(), emptyList())
 
-        internal fun habitOf(w: Float, out: Float, inbound: Float, total: Float, keys: Int): Float {
-            if (w <= 0f) return 0f
-            val p = w / (out + ALPHA)
-            val q = (inbound + 1f) / (total + keys.coerceAtLeast(1))
-            val lift = ln((p / q).toDouble()).toFloat().coerceIn(0f, LIFT_MAX)
-            return p * lift / LIFT_MAX
-        }
-
-        internal fun wilson(hits: Float, n: Float): Float {
-            if (n <= 0f || hits <= 0f) return 0f
-            val p = (hits / n).coerceIn(0f, 1f).toDouble()
+        /** Wilson lower bound of a proportion [p] on [n] effective trials. */
+        internal fun wilson(p: Float, n: Float): Float {
+            if (n <= 0f || p <= 0f) return 0f
+            val pp = p.coerceIn(0f, 1f).toDouble()
             val nn = n.toDouble()
             val z2 = (Z * Z).toDouble()
-            val centre = p + z2 / (2 * nn)
-            val margin = Z * sqrt(p * (1 - p) / nn + z2 / (4 * nn * nn))
+            val centre = pp + z2 / (2 * nn)
+            val margin = Z * sqrt(pp * (1 - pp) / nn + z2 / (4 * nn * nn))
             return ((centre - margin) / (1 + z2 / nn)).toFloat().coerceAtLeast(0f)
         }
 
@@ -314,34 +266,43 @@ public class PersonalModel internal constructor(
 
 private const val DAY_MS_CONST: Long = 86_400_000L
 
-/** One A → B pair while building. */
-private class EdgeAcc {
-    var device = 0.0
-    var smart = 0.0
-    var imported = 0.0
-    var far = 0.0
-    var negative = 0.0
-    var sessions = 0
-    var lastSession = -1L
-    var farSessions = 0
-    var lastFarSession = -1L
-    var lastFarMs = Long.MIN_VALUE
+/** A pair's evidence while building: per session the best grade of each kind, and the occurrence weights. */
+private class PairAcc {
+    /** Session id → best (grade × decay) of the listener's own evidence, SMART's own, and rejections. */
+    val own = HashMap<Long, Double>()
+    val smart = HashMap<Long, Double>()
+    val rejected = HashMap<Long, Double>()
+    /** Imported session strength, kept apart for the per-anchor cap. */
+    val imported = HashMap<Long, Double>()
+    var weightOwn = 0.0
+    var weightSmart = 0.0
+    var squaresOwn = 0.0
+    var squaresSmart = 0.0
+
+    fun best(map: HashMap<Long, Double>, session: Long, value: Double) {
+        val held = map[session]
+        if (held == null || value > held) map[session] = value
+    }
 }
 
 private class PersonalBuilder(private val listens: List<PersonalListen>, private val library: List<PersonalTrack>) {
     private val byId = HashMap<TrackId, PersonalTrack>(library.size * 2)
-    private val songIndex = HashMap<Long, Int>()
     private val songOfTrack = HashMap<TrackId, Int>(library.size * 2)
-    private val artistIndex = HashMap<Long, Int>()
     private val artistsOfTrack = HashMap<TrackId, IntArray>(library.size * 2)
-    private val edges = HashMap<Long, EdgeAcc>()
-    private val artistEdges = HashMap<Long, DoubleArray>()
+    private val pairs = HashMap<Long, PairAcc>()
+    private val artistPairs = HashMap<Long, PairAcc>()
+    private var artistCount = 0
+
+    private fun key(a: Int, b: Int) = (a.toLong() shl 32) or (b.toLong() and 0xffffffffL)
 
     fun build(): PersonalModel {
         // Songs in sorted hash order, so indices do not depend on library order (the JVM / iOS golden).
         val hashes = library.map { PersonalModel.hash(it.key) }.distinct().sorted()
+        val songIndex = HashMap<Long, Int>(hashes.size * 2)
         hashes.forEachIndexed { i, h -> songIndex[h] = i }
         val artistHashes = library.flatMap { t -> t.artists.filter(String::isNotEmpty).map(PersonalModel::hash) }.distinct().sorted()
+        artistCount = artistHashes.size
+        val artistIndex = HashMap<Long, Int>(artistHashes.size * 2)
         artistHashes.forEachIndexed { i, h -> artistIndex[h] = i }
         for (t in library) {
             byId[t.id] = t
@@ -350,161 +311,158 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
                 .distinct().sorted().toIntArray()
         }
         val songs = hashes.size
-        val lastListen = LongArray(songs) { Long.MIN_VALUE }
         val skips = FloatArray(songs)
-        val affinity = FloatArray(songs)
 
-        val known = listens.filter { byId[it.trackId] != null }
+        // Listens of library tracks; tracks over 20 minutes (sets, podcasts) are no evidence.
+        val known = listens.filter { l ->
+            val track = byId[l.trackId] ?: return@filter false
+            (track.durationMs ?: 0L) <= PersonalModel.LONG_TRACK_MS
+        }
         val device = known.filter { it.start != PersonalStart.IMPORTED }
         val imported = known.filter { it.start == PersonalStart.IMPORTED }
         val deviceRef = device.maxOfOrNull { it.startedAtMs } ?: 0L
         val importRef = imported.maxOfOrNull { it.startedAtMs } ?: 0L
         fun decay(at: Long, ref: Long) = 0.5.pow((ref - at).coerceAtLeast(0L).toDouble() / PersonalModel.HALF_LIFE_MS)
+        fun song(l: PersonalListen) = songOfTrack.getValue(l.trackId)
 
-        for (l in known) {
-            if (l.skipped) continue
-            val s = songOfTrack.getValue(l.trackId)
-            if (l.startedAtMs > lastListen[s]) lastListen[s] = l.startedAtMs
-        }
-
-        // On-device listens: picks, acceptances, skip-then-pick, repeats.
+        // On-device listens: sessions by end-to-start gaps, transitions within 15 minutes of the anchor's end.
         var session = 0L
         var lastEnd = Long.MIN_VALUE
         var anchor: PersonalListen? = null
         var anchorEnd = Long.MIN_VALUE
-        var rejected: PersonalListen? = null
+        var rejectedRun = false
         var autoStreak = 0
         for (l in device) {
-            val track = byId.getValue(l.trackId)
-            val duration = track.durationMs
-            if (duration != null && duration > PersonalModel.LONG_TRACK_MS) continue
             val heard = l.listenedMs ?: l.playedMs
             if (lastEnd != Long.MIN_VALUE && l.startedAtMs - lastEnd > PersonalModel.SESSION_GAP_MS) {
                 session++
                 anchor = null
-                rejected = null
+                rejectedRun = false
                 autoStreak = 0
             }
             lastEnd = max(lastEnd, l.startedAtMs + heard)
-            val song = songOfTrack.getValue(l.trackId)
             val w = decay(l.startedAtMs, deviceRef)
+            val a = anchor
+            val follows = a != null && l.startedAtMs - anchorEnd <= PersonalModel.TRANSITION_GAP_MS && song(a) != song(l)
             if (l.skipped) {
                 if (heard < PersonalModel.ACCIDENTAL_SKIP_MS) continue
-                skips[song] += w.toFloat()
-                val a = anchor
-                if (rejected == null && a != null && l.startedAtMs - anchorEnd <= PersonalModel.SESSION_GAP_MS &&
-                    songOfTrack.getValue(a.trackId) != song
-                ) {
-                    rejected = l
+                skips[song(l)] += w.toFloat()
+                // E4: the first skip after the anchor is the run's one rejection, from any source.
+                if (!rejectedRun && follows) {
                     val grade = if (heard < PersonalModel.EARLY_SKIP_MS) PersonalModel.SKIP_EARLY else PersonalModel.SKIP_LATE
-                    edgeOf(a.trackId, l.trackId).negative += -grade * w
+                    val p = pair(a!!.trackId, l.trackId)
+                    p.best(p.rejected, session, grade * w)
                 }
+                rejectedRun = true
                 continue
             }
             autoStreak = if (l.start == PersonalStart.AUTO) autoStreak + 1 else 0
-            val a = anchor
-            if (l.start == PersonalStart.REPEAT || l.start == PersonalStart.SKIP_PREVIOUS) {
-                affinity[song] += w.toFloat()
-            } else if (a != null && l.startedAtMs - anchorEnd <= PersonalModel.SESSION_GAP_MS) {
-                if (songOfTrack.getValue(a.trackId) == song) {
-                    affinity[song] += w.toFloat()
-                } else {
-                    val grade = deviceGrade(a, l, afterRejection = rejected != null, autoStreak)
-                    if (grade > 0.0) {
-                        val e = edgeOf(a.trackId, l.trackId)
-                        val value = grade * w
-                        val ownPick = l.smartPlaced || l.surface == PersonalSurface.FOR_YOU
-                        if (ownPick) e.smart += value else e.device += value
-                        if (!ownPick && e.lastSession != session) {
-                            e.sessions++
-                            e.lastSession = session
-                        }
-                        // D2 counts the listener's own picks on this device only.
-                        val pick = l.start == PersonalStart.PICK || l.start == PersonalStart.QUEUED
-                        if (pick && !ownPick) {
-                            e.far += value
-                            if (e.lastFarSession != session) {
-                                e.farSessions++
-                                e.lastFarSession = session
-                            }
-                            e.lastFarMs = max(e.lastFarMs, l.startedAtMs)
-                        }
-                        addArtists(a.trackId, l.trackId, value)
-                    }
-                }
+            if (l.start != PersonalStart.REPEAT && l.start != PersonalStart.SKIP_PREVIOUS && follows) {
+                val grade = deviceGrade(a!!, l, afterRejection = rejectedRun, autoStreak)
+                if (grade > 0.0) add(a.trackId, l.trackId, session, grade * w, l.smartSourced, imported = false)
             }
             anchor = l
             anchorEnd = l.startedAtMs + heard
-            rejected = null
+            rejectedRun = false
         }
 
-        // Imports: scrobbles of unknown source, counted by session; album order and replayed sequences discounted.
-        val importRuns = ArrayList<List<PersonalListen>>()
+        // Imports: sessions by end-to-start gaps; a replayed 3-gram is one session (its own id).
+        val runs = ArrayList<List<PersonalListen>>()
         run {
-            var run = ArrayList<PersonalListen>()
+            var current = ArrayList<PersonalListen>()
             var end = Long.MIN_VALUE
             for (l in imported) {
-                val duration = byId.getValue(l.trackId).durationMs
-                if (duration != null && duration > PersonalModel.LONG_TRACK_MS) continue
                 if (end != Long.MIN_VALUE && l.startedAtMs - end > PersonalModel.SESSION_GAP_MS) {
-                    if (run.isNotEmpty()) importRuns += run
-                    run = ArrayList()
+                    if (current.isNotEmpty()) runs += current
+                    current = ArrayList()
                 }
-                run += l
-                end = l.startedAtMs + (duration ?: DEFAULT_DURATION_MS)
+                current += l
+                end = l.startedAtMs + (byId.getValue(l.trackId).durationMs ?: DEFAULT_DURATION_MS)
             }
-            if (run.isNotEmpty()) importRuns += run
+            if (current.isNotEmpty()) runs += current
         }
-        val gramSessions = HashMap<Triple<Int, Int, Int>, Int>()
-        for (run in importRuns) {
+        val gramRuns = HashMap<Triple<Int, Int, Int>, Int>()
+        for (run in runs) {
             val seen = HashSet<Triple<Int, Int, Int>>()
-            for (i in 2 until run.size) seen += gram(run, i - 2)
-            for (g in seen) gramSessions[g] = (gramSessions[g] ?: 0) + 1
+            for (i in 2 until run.size) seen += Triple(song(run[i - 2]), song(run[i - 1]), song(run[i]))
+            for (g in seen) gramRuns[g] = (gramRuns[g] ?: 0) + 1
         }
-        val importValues = ArrayList<Triple<TrackId, TrackId, Double>>()
-        for ((r, run) in importRuns.withIndex()) {
-            for (i in 1 until run.size) {
-                val a = run[i - 1]
+        for ((r, run) in runs.withIndex()) {
+            var end = Long.MIN_VALUE
+            for (i in run.indices) {
                 val b = run[i]
-                val sa = songOfTrack.getValue(a.trackId)
-                val sb = songOfTrack.getValue(b.trackId)
-                if (sa == sb) continue
-                var grade = PersonalModel.IMPORT.toDouble()
-                if (albumNext(byId.getValue(a.trackId), byId.getValue(b.trackId))) grade *= PersonalModel.ALBUM_FACTOR
-                val replayed = (i >= 2 && (gramSessions[gram(run, i - 2)] ?: 0) >= 2) ||
-                    (i + 1 < run.size && (gramSessions[gram(run, i - 1)] ?: 0) >= 2)
-                if (replayed) grade *= PersonalModel.REPLAY_FACTOR
-                importValues += Triple(a.trackId, b.trackId, grade * decay(b.startedAtMs, importRef))
-                val e = edgeOf(a.trackId, b.trackId)
-                if (e.lastSession != r.toLong() + IMPORT_SESSION_BASE) {
-                    e.sessions++
-                    e.lastSession = r.toLong() + IMPORT_SESSION_BASE
+                if (i > 0) {
+                    val a = run[i - 1]
+                    if (b.startedAtMs - end <= PersonalModel.TRANSITION_GAP_MS && song(a) != song(b)) {
+                        var grade = PersonalModel.IMPORT.toDouble()
+                        if (albumNext(byId.getValue(a.trackId), byId.getValue(b.trackId))) grade *= PersonalModel.ALBUM_FACTOR
+                        val before = if (i >= 2) Triple(song(run[i - 2]), song(a), song(b)) else null
+                        val after = if (i + 1 < run.size) Triple(song(a), song(b), song(run[i + 1])) else null
+                        val gram = before?.takeIf { (gramRuns[it] ?: 0) >= 2 } ?: after?.takeIf { (gramRuns[it] ?: 0) >= 2 }
+                        if (gram != null) grade *= PersonalModel.REPLAY_FACTOR
+                        // A replayed sequence is one session however often it played: the 3-gram's own id.
+                        val sessionId = if (gram != null) GRAM_SESSION_BASE + gramId(gram) else IMPORT_SESSION_BASE + r
+                        add(a.trackId, b.trackId, sessionId, grade * decay(b.startedAtMs, importRef), smart = false, imported = true)
+                    }
                 }
+                end = b.startedAtMs + (byId.getValue(b.trackId).durationMs ?: DEFAULT_DURATION_MS)
             }
         }
-        val importTotal = importValues.sumOf { it.third }
-        val cap = PersonalModel.IMPORT_CAP_PICKS * PersonalModel.PICK_UNKNOWN.toDouble()
-        val importScale = if (importTotal > cap) cap / importTotal else 1.0
-        for ((a, b, value) in importValues) {
-            edgeOf(a, b).imported += value * importScale
-            addArtists(a, b, value * importScale)
+        // The per-anchor import cap: imported strength summed over A → * at most 12.
+        val importByAnchor = HashMap<Int, Double>()
+        for ((k, p) in pairs) {
+            val a = (k ushr 32).toInt()
+            importByAnchor[a] = (importByAnchor[a] ?: 0.0) + p.imported.values.sum()
         }
-        return pack(hashes.toLongArray(), lastListen, skips, affinity, isEmpty = known.isEmpty())
+        for ((k, p) in pairs) {
+            val total = importByAnchor[(k ushr 32).toInt()] ?: 0.0
+            val scale = if (total > PersonalModel.IMPORT_ANCHOR_CAP) PersonalModel.IMPORT_ANCHOR_CAP / total else 1.0
+            for ((sessionId, v) in p.imported) p.best(p.own, sessionId, v * scale)
+        }
+        return pack(songs, skips, isEmpty = known.isEmpty())
     }
 
-    /** The positive grade of A → B for an on-device listen B (PLAN_PERSONAL §2), before decay. */
-    private fun deviceGrade(a: PersonalListen, b: PersonalListen, afterRejection: Boolean, autoStreak: Int): Double {
-        if (b.personalChanged) return 0.0
-        fun pickGrade(): Double = when {
-            b.start == PersonalStart.QUEUED || b.surface == PersonalSurface.QUEUE -> PersonalModel.PICK_QUEUE.toDouble()
-            b.surface == PersonalSurface.FOR_YOU -> (PersonalModel.PICK_QUEUE * PersonalModel.FOR_YOU_FACTOR).toDouble()
-            b.surface == null -> PersonalModel.PICK_UNKNOWN.toDouble()
-            else -> PersonalModel.PICK.toDouble()
+    /** A 3-gram's stable id (no platform hash). */
+    private fun gramId(g: Triple<Int, Int, Int>): Long = ((g.first.toLong() * 1_000_003L + g.second) * 1_000_003L + g.third) and 0xffffffffffL
+
+    private fun add(a: TrackId, b: TrackId, session: Long, value: Double, smart: Boolean, imported: Boolean) {
+        val p = pair(a, b)
+        when {
+            imported -> p.best(p.imported, session, value)
+            smart -> p.best(p.smart, session, value)
+            else -> p.best(p.own, session, value)
         }
-        if (b.start == PersonalStart.PICK || b.start == PersonalStart.QUEUED) return pickGrade()
+        if (smart) {
+            p.weightSmart += value
+            p.squaresSmart += value * value
+        } else {
+            p.weightOwn += value
+            p.squaresOwn += value * value
+        }
+        val from = artistsOfTrack.getValue(a)
+        val to = artistsOfTrack.getValue(b)
+        for (x in from) for (y in to) {
+            if (x == y) continue
+            val q = artistPairs.getOrPut(key(x, y)) { PairAcc() }
+            q.best(if (smart) q.smart else q.own, session, value)
+        }
+    }
+
+    /** The positive grade of A → B for an on-device listen B (PLAN_PERSONAL v2 §2), before decay. */
+    private fun deviceGrade(a: PersonalListen, b: PersonalListen, afterRejection: Boolean, autoStreak: Int): Double {
+        when (b.start) {
+            PersonalStart.QUEUED -> return PersonalModel.PICK_QUEUE.toDouble()
+            PersonalStart.PICK -> return when {
+                b.forYou || b.surface == PersonalSurface.FOR_YOU -> PersonalModel.FOR_YOU.toDouble()
+                b.surface == PersonalSurface.QUEUE -> PersonalModel.PICK_QUEUE.toDouble()
+                b.surface == null -> PersonalModel.PICK_UNKNOWN.toDouble()
+                else -> PersonalModel.PICK.toDouble()
+            }
+            else -> Unit
+        }
         if (!b.completed) return 0.0
-        val smart = if (b.smartPlaced) PersonalModel.SMART_FACTOR.toDouble() else 1.0
-        // A song the listener stopped skipping at: chosen by skipping, E2 strength (E4's positive half).
+        val smart = if (b.smartSourced) PersonalModel.SMART_FACTOR.toDouble() else 1.0
+        // A song the listener stopped skipping at: chosen by skipping (E4's positive half).
         if (afterRejection) return PersonalModel.PICK_QUEUE * smart
         val track = byId.getValue(b.trackId)
         val duration = track.durationMs
@@ -518,79 +476,66 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
         return PersonalModel.ACCEPT * smart * length * attention * album
     }
 
-    private fun gram(run: List<PersonalListen>, i: Int) =
-        Triple(songOfTrack.getValue(run[i].trackId), songOfTrack.getValue(run[i + 1].trackId), songOfTrack.getValue(run[i + 2].trackId))
+    private fun pair(a: TrackId, b: TrackId): PairAcc =
+        pairs.getOrPut(key(songOfTrack.getValue(a), songOfTrack.getValue(b))) { PairAcc() }
 
-    private fun edgeOf(a: TrackId, b: TrackId): EdgeAcc {
-        val key = (songOfTrack.getValue(a).toLong() shl 32) or songOfTrack.getValue(b).toLong()
-        return edges.getOrPut(key) { EdgeAcc() }
+    /** S⁺: the listener's own session strength plus SMART's own, at most a quarter of it (positives only). */
+    private fun positive(p: PairAcc): Double {
+        val own = p.own.values.sum()
+        return own + min(p.smart.values.sum(), PersonalModel.SMART_SHARE * own)
     }
 
-    private fun addArtists(a: TrackId, b: TrackId, value: Double) {
-        val from = artistsOfTrack.getValue(a)
-        val to = artistsOfTrack.getValue(b)
-        if (from.isEmpty() || to.isEmpty()) return
-        val share = value / (from.size * to.size)
-        for (x in from) for (y in to) {
-            if (x == y) continue
-            artistEdges.getOrPut((x.toLong() shl 32) or y.toLong()) { DoubleArray(1) }[0] += share
-        }
+    /** The pair's occurrence weight for the lift filter, SMART's own capped like the strength. */
+    private fun weightOf(p: PairAcc): Double {
+        val cap = if (p.weightSmart > 0.0) min(1.0, PersonalModel.SMART_SHARE * p.weightOwn / p.weightSmart) else 0.0
+        return p.weightOwn + cap * p.weightSmart
     }
 
-    private fun pack(hashes: LongArray, lastListen: LongArray, skips: FloatArray, affinity: FloatArray, isEmpty: Boolean): PersonalModel {
-        val songs = hashes.size
+    private fun pack(songs: Int, skips: FloatArray, isEmpty: Boolean): PersonalModel {
         val out = FloatArray(songs)
-        val outCountable = FloatArray(songs)
-        val outFar = FloatArray(songs)
+        val squares = DoubleArray(songs)
         val inbound = FloatArray(songs)
         var total = 0.0
-        val bySource = HashMap<Int, ArrayList<Pair<Int, EdgeAcc>>>()
-        for ((key, e) in edges) {
-            val a = (key ushr 32).toInt()
-            val b = (key and 0xffffffffL).toInt()
-            val positive = e.device + e.smart + e.imported
-            out[a] += positive.toFloat()
-            outCountable[a] += countable(e).toFloat()
-            outFar[a] += e.far.toFloat()
-            // The base rate the lift divides by, on the same countable evidence as the habit.
-            inbound[b] += countable(e).toFloat()
-            total += countable(e)
-            // A link of SMART's own placements alone changes no term (the habit, D1, D2 and rejections read countable
-            // evidence), so the store keeps only links with the listener's own evidence or a rejection.
-            if (countable(e) > 0.0 || e.negative > 0.0) bySource.getOrPut(a) { ArrayList() } += b to e
+        for ((k, p) in pairs) {
+            val a = (k ushr 32).toInt()
+            val b = (k and 0xffffffffL).toInt()
+            val cap = if (p.weightSmart > 0.0) min(1.0, PersonalModel.SMART_SHARE * p.weightOwn / p.weightSmart) else 0.0
+            val w = weightOf(p)
+            out[a] += w.toFloat()
+            squares[a] += p.squaresOwn + cap * cap * p.squaresSmart
+            inbound[b] += w.toFloat()
+            total += w
+        }
+        val effective = FloatArray(songs) { a -> if (squares[a] > 0.0) (out[a].toDouble() * out[a] / squares[a]).toFloat() else 0f }
+        // Keep only links that can change a term: two own sessions (habit, D1) or two rejecting sessions.
+        val bySource = HashMap<Int, ArrayList<Pair<Int, PairAcc>>>()
+        for ((k, p) in pairs) {
+            if (p.own.size < PersonalModel.MIN_SESSIONS && p.rejected.size < PersonalModel.MIN_SESSIONS) continue
+            bySource.getOrPut((k ushr 32).toInt()) { ArrayList() } += (k and 0xffffffffL).toInt() to p
         }
         val start = IntArray(songs + 1)
-        val kept = ArrayList<Pair<Int, EdgeAcc>>()
+        val kept = ArrayList<Pair<Int, PairAcc>>()
         for (a in 0 until songs) {
             start[a] = kept.size
             val list = bySource[a] ?: continue
-            // The strongest successors by weight, rejections included (a rejection is evidence too).
-            list.sortWith(compareByDescending<Pair<Int, EdgeAcc>> { it.second.device + it.second.smart + it.second.imported + it.second.negative }.thenBy { it.first })
+            list.sortWith(compareByDescending<Pair<Int, PairAcc>> { positive(it.second) + it.second.rejected.values.sum() }.thenBy { it.first })
             kept += list.take(PersonalModel.TOP_PER_SONG).sortedBy { it.first }
         }
         start[songs] = kept.size
-        val artists = artistIndex.size
-        val artistOut = FloatArray(artists)
-        val artistIn = FloatArray(artists)
-        var artistTotal = 0.0
-        val artistBySource = HashMap<Int, ArrayList<Pair<Int, Double>>>()
-        for ((key, v) in artistEdges) {
-            val x = (key ushr 32).toInt()
-            val y = (key and 0xffffffffL).toInt()
-            artistOut[x] += v[0].toFloat()
-            artistIn[y] += v[0].toFloat()
-            artistTotal += v[0]
-            artistBySource.getOrPut(x) { ArrayList() } += y to v[0]
+        val artistBySource = HashMap<Int, ArrayList<Pair<Int, PairAcc>>>()
+        for ((k, p) in artistPairs) {
+            if (p.own.size < PersonalModel.MIN_SESSIONS) continue
+            artistBySource.getOrPut((k ushr 32).toInt()) { ArrayList() } += (k and 0xffffffffL).toInt() to p
         }
-        val artistStart = IntArray(artists + 1)
-        val artistKept = ArrayList<Pair<Int, Double>>()
-        for (x in 0 until artists) {
+        val artistStart = IntArray(artistCount + 1)
+        val artistKept = ArrayList<Pair<Int, PairAcc>>()
+        for (x in 0 until artistCount) {
             artistStart[x] = artistKept.size
             val list = artistBySource[x] ?: continue
-            list.sortWith(compareByDescending<Pair<Int, Double>> { it.second }.thenBy { it.first })
+            list.sortWith(compareByDescending<Pair<Int, PairAcc>> { positive(it.second) }.thenBy { it.first })
             artistKept += list.take(PersonalModel.TOP_PER_ARTIST).sortedBy { it.first }
         }
-        artistStart[artists] = artistKept.size
+        artistStart[artistCount] = artistKept.size
         val tracks = library.map { PersonalModel.hash(it.id.value) to it.id }.distinctBy { it.first }.sortedBy { it.first }
         val trackArtistStart = IntArray(tracks.size + 1)
         val trackArtistList = ArrayList<Int>()
@@ -600,47 +545,35 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
         }
         trackArtistStart[tracks.size] = trackArtistList.size
         return PersonalModel(
-            songHashes = hashes,
+            songCount = songs,
             trackHashes = LongArray(tracks.size) { tracks[it].first },
             trackSong = IntArray(tracks.size) { songOfTrack.getValue(tracks[it].second) },
             trackArtistStart = trackArtistStart,
             trackArtistList = trackArtistList.toIntArray(),
             edgeStart = start,
             edgeTo = IntArray(kept.size) { kept[it].first },
-            edgeWeight = ShortArray(kept.size) { kept[it].second.let { e -> half((e.device + e.smart + e.imported).toFloat()) } },
-            edgeCountable = ShortArray(kept.size) { half(countable(kept[it].second).toFloat()) },
-            edgeFar = ShortArray(kept.size) { half(kept[it].second.far.toFloat()) },
-            edgeNegative = ShortArray(kept.size) { half(kept[it].second.negative.toFloat()) },
-            edgeSessions = ByteArray(kept.size) { kept[it].second.sessions.coerceAtMost(255).toByte() },
-            edgeFarSessions = ByteArray(kept.size) { kept[it].second.farSessions.coerceAtMost(255).toByte() },
-            edgeFarDay = ShortArray(kept.size) { kept[it].second.lastFarMs.let { ms -> if (ms == Long.MIN_VALUE) 0 else (ms / PersonalModel.DAY_MS).toInt().toShort() } },
+            edgePositive = ShortArray(kept.size) { half(positive(kept[it].second).toFloat()) },
+            edgeSessions = ByteArray(kept.size) { kept[it].second.own.size.coerceAtMost(255).toByte() },
+            edgeNegative = ShortArray(kept.size) { half(kept[it].second.rejected.values.sum().toFloat()) },
+            edgeNegativeSessions = ByteArray(kept.size) { kept[it].second.rejected.size.coerceAtMost(255).toByte() },
+            edgeWeight = ShortArray(kept.size) { half(weightOf(kept[it].second).toFloat()) },
             outWeight = out,
-            outCountable = outCountable,
-            outFar = outFar,
+            outEffective = effective,
             inWeight = inbound,
             totalWeight = total.toFloat(),
-            lastListenMinute = IntArray(songs) { if (lastListen[it] == Long.MIN_VALUE) Int.MIN_VALUE else (lastListen[it] / 60_000L).toInt() },
             earlySkips = skips,
-            affinity = affinity,
             artistStart = artistStart,
             artistTo = IntArray(artistKept.size) { artistKept[it].first },
-            artistWeight = FloatArray(artistKept.size) { artistKept[it].second.toFloat() },
-            artistOut = artistOut,
-            artistIn = artistIn,
-            artistTotal = artistTotal.toFloat(),
+            artistPositive = ShortArray(artistKept.size) { half(positive(artistKept[it].second).toFloat()) },
+            artistSessions = ByteArray(artistKept.size) { artistKept[it].second.own.size.coerceAtMost(255).toByte() },
             isEmpty = isEmpty,
         )
-    }
-
-    /** Countable positives (loop guard): the listener's own and imported evidence, SMART's own up to [PersonalModel.SMART_SHARE] of it. */
-    private fun countable(e: EdgeAcc): Double {
-        val own = e.device + e.imported
-        return own + min(e.smart, PersonalModel.SMART_SHARE * own)
     }
 
     private companion object {
         const val DEFAULT_DURATION_MS = 180_000L
         const val IMPORT_SESSION_BASE = 1L shl 40
+        const val GRAM_SESSION_BASE = 1L shl 50
     }
 }
 
@@ -654,19 +587,6 @@ internal fun albumNext(a: PersonalTrack, b: PersonalTrack): Boolean {
     val db = b.discNumber ?: 1
     return (db == da && nb == na + 1) || (db == da + 1 && nb == 1)
 }
-
-/**
- * What one SMART plan personalises with: the [model], the plan's clock, whether "Learn from my habits" is on (off, only
- * recency applies), the listener's hearts and own playlists, and where to report picks the personal term changed.
- */
-public class PersonalInputs(
-    public val model: PersonalModel,
-    public val nowMs: Long,
-    public val habits: Boolean,
-    public val hearts: Set<TrackId> = emptySet(),
-    public val playlists: List<Set<TrackId>> = emptyList(),
-    public val onPersonalChanged: (Set<TrackId>) -> Unit = {},
-)
 
 /** IEEE half precision, round to nearest: the store's link weights (three significant digits are plenty). */
 internal fun half(value: Float): Short {
@@ -696,10 +616,31 @@ internal fun unhalf(value: Short): Float {
 
 private const val HALF_SUBNORMAL = 5.9604645e-8f
 
-/** Research: every hop the personal stage decided, as (the pick's core gap to the best, in δ; a far habit; changed). */
-public object PersonalDiagnostics {
-    public var sink: ((gapOverDelta: Float, far: Boolean, changed: Boolean) -> Unit)? = null
+/**
+ * What one SMART plan personalises with ("Learn from my habits" on): the [model], the listener's hearts and own
+ * (unmarked) playlists, how recency meets a strong habit ([recency]), and where to report picks the personal term changed.
+ */
+public class PersonalInputs(
+    public val model: PersonalModel,
+    public val hearts: Set<TrackId> = emptySet(),
+    public val playlists: List<Set<TrackId>> = emptyList(),
+    public val recency: RecencyMode = RecencyMode.NOVELTY,
+    public val onPersonalChanged: (Set<TrackId>) -> Unit = {},
+    /** Research: the artist-level term (A3) on or off; the app always leaves it on. */
+    public val artistTerm: Boolean = true,
+)
 
-    /** Research: each hop's δ and every scored candidate's core gap to the best, in δ. */
-    public var hop: ((delta: Float, gaps: Map<TrackId, Float>) -> Unit)? = null
+/**
+ * How recency meets a strong habit (the owner's D1 seam). [NOVELTY], shipped: recency is a novelty rule, so δ and the
+ * mask are measured without it and a D1-strong habit relieves its penalty in proportion to its strength. [CREDIT]: recency
+ * stays in the core and a D1-strong habit earns a tie-break credit of at most δ.
+ */
+public enum class RecencyMode { NOVELTY, CREDIT }
+
+/** Research: every hop the personal stage decided (the pick's mask-core gap to the best in δ, whether it changed). */
+public object PersonalDiagnostics {
+    public var sink: ((gapOverDelta: Float, changed: Boolean) -> Unit)? = null
+
+    /** Research: each hop's δ, every scored candidate's mask-core gap to the best in δ, and its personal addition. */
+    public var hop: ((delta: Float, gaps: Map<TrackId, Float>, additions: Map<TrackId, Float>) -> Unit)? = null
 }

@@ -191,10 +191,6 @@ internal data class ChainWalk(
     /** The ring the walk had widened to around [intent] ([ChainTuning.ringStep]). */
     val ring: Float = Reanchor.NICHE_COS,
     val intentPicks: Set<TrackId> = picks.takeLast(picksUnderIntent.coerceIn(0, picks.size)).toSet(),
-    /** Hops this press has planned so far, across its top-ups (a D2 far habit never takes the first three). */
-    val pressHops: Int = 0,
-    /** Whether this press already placed its one D2 far habit. */
-    val farUsed: Boolean = false,
 ) {
     /**
      * Remember the order handed to playback, including the artist run at its tail. The sequencer
@@ -436,14 +432,13 @@ internal class SmartChain(
             pool.asSequence().map { snapshot.tracks[it].meta }.asIterable(),
         )
         val recency = RecencyRerank(historyEvents)
-        // The personal stage (PLAN_PERSONAL §1): null, or no history, leaves every pick to the core.
+        // The personal stage (PLAN_PERSONAL v2 §1): null, or no history, leaves every pick to the shipped chain.
         val personal = tuning.personal?.takeIf { it.active }
         val affinity = tuning.personalAffinity?.takeIf { tuning.personalWeight != 0f }
         val personalChanged = HashSet<Int>()
-        var pressHops = 0
-        var farUsed = false
-        // This hop's D2 far habit in the pool, by pool position; -1 when none.
-        var farIndex = -1
+        // Rows the starvation guard let back in from this session: no habit relieves or credits their recency.
+        val readmitted: Set<Int> = if (personal == null) emptySet() else
+            context.sessionRows.keys.filterTo(HashSet()) { it != seedRow && it !in excludedRows }
         var seedFamilyPicks = 0
         // Quota turns rotate through the seed's marked groups. A single union-wide best candidate
         // lets one acoustically strong playlist win every quota and starve another forever.
@@ -484,10 +479,6 @@ internal class SmartChain(
         }
         val intentPicks = HashSet<TrackId>()
         val played = resumed?.picks.orEmpty().map(snapshot::rowOf).filter { it >= 0 }
-        if (resumed != null) {
-            pressHops = resumed.pressHops
-            farUsed = resumed.farUsed
-        }
         if (resumed != null) {
             val resumedIntent = snapshot.rowOf(resumed.intent)
             if (resumedIntent >= 0) {
@@ -591,16 +582,6 @@ internal class SmartChain(
                     buildPool(intentRow, state, unavailable, among = nearby, provenance = provenance)
                 }
                 if (pool.isEmpty()) break
-                // D2: one far habit of the previous pick may join the pool, once a press and never in its first slots.
-                farIndex = -1
-                if (personal != null && !farUsed && pressHops + chain.size >= PersonalTerm.FAR_EARLIEST_SLOT) {
-                    val far = personal.farHabits(anchorRow).firstOrNull { it !in unavailable && it !in pool }
-                    if (far != null) {
-                        pool = if (pool.size >= PredictorRuntime.POOL_SIZE) pool.dropLast(1) + far else pool + far
-                        farIndex = pool.lastIndex
-                        provenance?.put(far, "far-habit")
-                    }
-                }
                 consideredRows.addAll(pool)
                 poolRows = pool.toIntArray()
                 ScorerPacking.packCandidates(
@@ -716,11 +697,14 @@ internal class SmartChain(
             val guard = tuning.similarityGuard
             val likeness = if (guard != null) FloatArray(pool.size) else null
             val hopTerms = if (trace != null) arrayOfNulls<FloatArray>(pool.size) else null
+            // The personal stage's inputs: K (the keep-together command) and R (the recency penalty) per candidate.
+            val staged = personal != null || affinity != null
+            val keep = if (staged) FloatArray(pool.size) else null
+            val recencyLoss = if (personal != null) FloatArray(pool.size) else null
             for (i in pool.indices) {
                 if (!isEligible(i)) continue
-                // A D2 far habit is far by definition: the gates do not hold it, the far margin does (below).
-                if (styleGated && !inStyle(i) && i != farIndex) continue
-                if (soundGated && !inSound(i) && i != farIndex) continue
+                if (styleGated && !inStyle(i)) continue
+                if (soundGated && !inSound(i)) continue
                 val row = pool[i]
                 val meta = snapshot.tracks[row].meta
 
@@ -755,7 +739,9 @@ internal class SmartChain(
                 // marked group with the current anchor, weighted by how SPECIFIC the smallest
                 // shared group is. No groups — no term, see COMPANION_BONUS. As points, below.
                 if (points == null && companions.sharesGroup(anchorRow, row)) {
-                    score += tuning.companionBonus * companions.weight(anchorRow, row)
+                    val bonus = tuning.companionBonus * companions.weight(anchorRow, row)
+                    score += bonus
+                    keep?.let { it[i] += bonus }
                 }
                 if (softNeighbourhood && row in hopNearby) score += tuning.neighbourhoodBonus
                 tuning.coreBonus?.let { score += it(row) }
@@ -774,15 +760,22 @@ internal class SmartChain(
                 // days. Inside the session it is an exclusion applied at pool construction (see
                 // sessionExclusions), so this multiplier only orders rows that survived that
                 // exclusion — including any the starvation guard re-admitted.
-                if (personal == null) multiplier *= recency.multiplier(snapshot.tracks[row].id)
+                // The same multiplier without recency, for the personal stage's counterfactual R(B) (after the clamps).
+                var withoutRecency = multiplier
+                multiplier *= recency.multiplier(snapshot.tracks[row].id)
                 // The raw-cosine pool carries no CSLS correction, so the dense cinematic/game/anime
                 // cluster leaks into chains from sparse seeds unless damped here.
                 if (meta.isHub && !anchorMeta.isHub) {
                     multiplier = (multiplier * ChainConfig.HUB_CHAIN_DAMP)
                         .coerceAtLeast(ChainConfig.MULTIPLIER_MIN)
+                    withoutRecency = (withoutRecency * ChainConfig.HUB_CHAIN_DAMP).coerceAtLeast(ChainConfig.MULTIPLIER_MIN)
                 }
                 multiplier = (multiplier * energySmoothness(anchorRow, row))
                     .coerceAtLeast(ChainConfig.MULTIPLIER_MIN)
+                if (recencyLoss != null) {
+                    withoutRecency = (withoutRecency * energySmoothness(anchorRow, row)).coerceAtLeast(ChainConfig.MULTIPLIER_MIN)
+                    recencyLoss[i] = ln(withoutRecency) - ln(multiplier)
+                }
                 val beforeMultiplier = score
                 score += ln(multiplier)
                 val beforePenalty = score
@@ -859,6 +852,7 @@ internal class SmartChain(
                             } else {
                                 penalty
                             }
+                            keep?.let { it[i] += penalty - paid }
                             hopScores[i] -= paid
                             hopTerms?.get(i)?.let { it[5] -= paid }
                         }
@@ -879,8 +873,10 @@ internal class SmartChain(
                         }
                     }
                     val together = if (companions.sharesGroup(anchorRow, row)) companions.weight(anchorRow, row) else 0f
-                    val bonus = (points.together * together + points.comeback * comeback) * spread
+                    // The comeback is bounded at one spread (owner): it cannot pull an arbitrarily dissimilar member.
+                    val bonus = (points.together * together + minOf(points.comeback * comeback, CompanionPoints.COMEBACK_CAP)) * spread
                     if (bonus != 0f) {
+                        keep?.let { it[i] += bonus }
                         hopScores[i] += bonus
                         hopTerms?.get(i)?.let { it[6] += bonus }
                     }
@@ -905,16 +901,6 @@ internal class SmartChain(
             if (bestIndex < 0) break
 
             var guardChanged = false
-            // The far habit takes the core's best only through the personal stage, within its own margin.
-            if (bestIndex == farIndex && farIndex >= 0) {
-                var next = -1
-                for (i in pool.indices) if (hopScored[i] && i != farIndex && (next < 0 || hopScores[i] > hopScores[next])) next = i
-                if (next >= 0) {
-                    bestIndex = next
-                    bestScore = hopScores[next]
-                    if (hopTerms != null) bestTerms = hopTerms[next]
-                }
-            }
             // Similarity guard: when the artist cap kept a candidate out of this hop, or the run penalty took the best one
             // down, the slot goes to the best-scoring candidate among the most similar [SimilarityGuard.share] of the pool
             // (pool-relative likeness), so the blocked artist is not replaced by whatever the other terms favour.
@@ -962,46 +948,48 @@ internal class SmartChain(
                 }
             }
 
-            // The personal stage: core + t (clamped to ±δ) over the candidates within δ of the core's best (3δ for the
-            // far habit). The guard's and the quota's picks are the core's and stand.
-            if ((personal != null || affinity != null) && !guardChanged && chosenIndex == bestIndex) {
-                val delta = PersonalTerm.delta(hopScores, hopScored)
+            // The personal stage (PLAN_PERSONAL v2 §1): δ and the mask M come from the mask core (the shipped score without
+            // the keep-together command and, as novelty, without recency); rows in M gain t (and a strong habit's recency
+            // relief), rows outside keep the shipped score. Without additions the pick is the shipped one, bit for bit.
+            // The guard's and the quota's picks are the core's and stand (G).
+            if (staged && !guardChanged && chosenIndex == bestIndex) {
+                val novelty = personal?.recencyMode != io.github.nikitasud.latentjam.smart.personal.RecencyMode.CREDIT
+                val mask = FloatArray(pool.size) { i ->
+                    if (!hopScored[i]) 0f else hopScores[i] - keep!![i] + (if (novelty && recencyLoss != null) recencyLoss[i] else 0f)
+                }
+                val delta = PersonalTerm.delta(mask, hopScored)
                 if (delta > 0f) {
-                    fun total(i: Int, full: Boolean): Float {
-                        var t = personal?.term(anchorRow, pool[i], delta, full) ?: 0f
-                        if (affinity != null && full) t = (t + tuning.personalWeight * affinity(pool[i])).coerceIn(-delta, delta)
-                        return hopScores[i] + t
+                    var bestMask = Float.NEGATIVE_INFINITY
+                    for (i in pool.indices) if (hopScored[i] && mask[i] > bestMask) bestMask = mask[i]
+                    val additions = FloatArray(pool.size)
+                    for (i in pool.indices) {
+                        if (!hopScored[i] || mask[i] < bestMask - delta) continue
+                        var t = personal?.addition(anchorRow, pool[i], delta, recencyLoss?.get(i) ?: 0f, pool[i] in readmitted) ?: 0f
+                        if (affinity != null) t += (tuning.personalWeight * affinity(pool[i])).coerceIn(-delta, delta)
+                        additions[i] = t
                     }
-                    fun argmax(full: Boolean): Int {
-                        var pick = bestIndex
-                        var pickScore = total(bestIndex, full)
-                        for (i in pool.indices) {
-                            if (!hopScored[i] || i == bestIndex) continue
-                            // The far habit is the habits' own: recency alone never reaches it.
-                            if (i == farIndex && !full) continue
-                            val floor = bestScore - if (i == farIndex) PersonalTerm.FAR_MARGIN * delta else delta
-                            if (hopScores[i] < floor) continue
-                            val value = total(i, full)
-                            if (value > pickScore) {
-                                pick = i
-                                pickScore = value
-                            }
+                    var pick = bestIndex
+                    var pickScore = hopScores[bestIndex] + additions[bestIndex]
+                    for (i in pool.indices) {
+                        if (!hopScored[i] || i == bestIndex) continue
+                        val value = hopScores[i] + additions[i]
+                        if (value > pickScore) {
+                            pick = i
+                            pickScore = value
                         }
-                        return pick
                     }
-                    val pick = argmax(full = personal?.habits ?: true)
                     chosenIndex = pick
+                    if (pick != bestIndex) personalChanged += pool[pick]
                     io.github.nikitasud.latentjam.smart.personal.PersonalDiagnostics.hop?.let { hop ->
                         val gaps = HashMap<TrackId, Float>()
-                        for (i in pool.indices) if (hopScored[i]) gaps[snapshot.tracks[pool[i]].id] = (bestScore - hopScores[i]) / delta
-                        hop(delta, gaps)
+                        val adds = HashMap<TrackId, Float>()
+                        for (i in pool.indices) if (hopScored[i]) {
+                            gaps[snapshot.tracks[pool[i]].id] = (bestMask - mask[i]) / delta
+                            adds[snapshot.tracks[pool[i]].id] = additions[i]
+                        }
+                        hop(delta, gaps, adds)
                     }
-                    io.github.nikitasud.latentjam.smart.personal.PersonalDiagnostics.sink?.invoke(
-                        (bestScore - hopScores[pick]) / delta, pick == farIndex, pick != bestIndex,
-                    )
-                    // The loop guard: the habits changed this pick from what recency alone would play.
-                    if (personal != null && personal.habits && pick != argmax(full = false)) personalChanged += pool[pick]
-                    if (pick == farIndex) farUsed = true
+                    io.github.nikitasud.latentjam.smart.personal.PersonalDiagnostics.sink?.invoke((bestMask - mask[pick]) / delta, pick != bestIndex)
                 }
             }
 
@@ -1062,8 +1050,6 @@ internal class SmartChain(
                 // Keep the whole plan's membership until followingOrder clips its actual playback
                 // tail: a plan longer than WINDOW can move an earlier pick into the retained tail.
                 intentPicks = intentPicks,
-                pressHops = pressHops + chain.size,
-                farUsed = farUsed,
             )
         } else {
             null
@@ -1071,9 +1057,6 @@ internal class SmartChain(
         personal?.changed(personalChanged)
         return ChainResult(chain, consideredRows.toList(), walk, personalChanged)
     }
-
-    /** One session window everywhere with the personal term (PLAN_PERSONAL §2); the old chain keeps 30 minutes. */
-    private val sessionGapMs: Long = if (tuning.personal != null) PersonalTerm.SESSION_GAP_MS else SESSION_GAP_MS
 
     private fun encode(
         history: FloatArray,
@@ -1116,7 +1099,7 @@ internal class SmartChain(
         var sessionStart = aligned.lastIndex
         while (sessionStart > 0) {
             val gap = aligned[sessionStart].timestamp - aligned[sessionStart - 1].timestamp
-            if (gap < 0 || gap > sessionGapMs) break
+            if (gap < 0 || gap > SESSION_GAP_MS) break
             sessionStart--
         }
         val sessionEvents = aligned.subList(sessionStart, aligned.size)

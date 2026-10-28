@@ -130,7 +130,12 @@ internal data class CompanionPoints(
      * last played: a playlist that sounds unlike the walk gains with every pick it misses.
      */
     val comeback: Float,
-)
+) {
+    companion object {
+        /** The comeback part of the points is at most this many spreads (owner, PERSONALISATION_RULES v5.1). */
+        const val COMEBACK_CAP: Float = 1.0f
+    }
+}
 
 /**
  * Damping for tracks that are poor queue citizens regardless of sound: second-long jingles and

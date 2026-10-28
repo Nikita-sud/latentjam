@@ -6,21 +6,15 @@ package io.github.nikitasud.latentjam.smart.chain
 
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.personal.PersonalInputs
-import io.github.nikitasud.latentjam.smart.personal.PersonalModel
+import io.github.nikitasud.latentjam.smart.personal.RecencyMode
 import kotlin.math.min
 
 /**
- * The personal term of one hop (PERSONALISATION_RULES.md v3, PLAN_PERSONAL.md §1, §4), over a snapshot's rows: recency
- * with D1's relief, and — with "Learn from my habits" on — the habits, rejections, playlists and the track prior. In
- * units of the hop's δ and clamped to ±δ, so it only decides among candidates the core already scores within δ of its
- * best ([SmartChain] masks the rest).
+ * The personal addition of one hop for a candidate in the mask M (PERSONALISATION_RULES v5…v5.5, PLAN_PERSONAL v2 §4): the
+ * term t = clamp(min(δ, habit + artist + playlists + heart [+ D1credit]) − rejection − E7, ±δ), plus, as novelty, a
+ * D1-strong habit's relief of its own recency penalty. Only with "Learn from my habits" on; [SmartChain] applies it to M.
  */
-internal class PersonalTerm(
-    snapshot: SmartSnapshot,
-    private val inputs: PersonalInputs,
-    /** D1's recency relief; tests turn it off to show what it does. */
-    private val relief: Boolean = true,
-) {
+internal class PersonalTerm(snapshot: SmartSnapshot, private val inputs: PersonalInputs) {
     private val model = inputs.model
     private val ids: List<TrackId> = snapshot.tracks.map { it.id }
     private val songs = IntArray(snapshot.size) { model.songOf(ids[it]) }
@@ -32,43 +26,33 @@ internal class PersonalTerm(
         Array(snapshot.size) { row -> of[ids[row]]?.toIntArray() ?: NONE }
     }
 
-    /** No history: no term at all (C1), so the chain stays the core. */
-    val active: Boolean = !model.isEmpty
+    /** No history and no priors: no addition at all (C), so the chain stays the shipped one. */
+    val active: Boolean = !model.isEmpty || inputs.hearts.isNotEmpty() || inputs.playlists.isNotEmpty()
 
-    val habits: Boolean get() = inputs.habits
+    val recencyMode: RecencyMode get() = inputs.recency
 
     /**
-     * t for [row] after [anchor]. [full] = false gives recency alone (what "Learn from my habits" off plans with): the
-     * loop guard's reference, so an acceptance the habits decided is never counted again as evidence.
+     * The addition for [row] after [anchor] in a hop of [delta]: t plus, in [RecencyMode.NOVELTY], the relief s · R of a
+     * D1-strong habit. [recencyLoss] is R(B), the recency penalty's counterfactual log size; [readmitted] marks a row
+     * the starvation guard let back in, which no habit relieves.
      */
-    fun term(anchor: Int, row: Int, delta: Float, full: Boolean = inputs.habits): Float {
-        if (!active || delta <= 0f) return 0f
+    fun addition(anchor: Int, row: Int, delta: Float, recencyLoss: Float, readmitted: Boolean): Float {
+        if (delta <= 0f) return 0f
         val a = songs[anchor]
         val b = songs[row]
-        var t = 0f
-        var relief = 0f
-        if (full && a >= 0 && b >= 0) {
-            if (this.relief && model.strong(a, b)) relief = min(1f, model.confidence(a, b))
-            t += delta * (model.habit(a, b) + ARTIST * model.artistHabit(artists[anchor], artists[row]) - model.rejection(a, b))
-            if (sharePlaylist(anchor, row)) t += PLAYLIST * delta
-        }
-        if (full) t += delta * model.trackPrior(b, hearted[row])
-        t -= delta * model.recency(b, inputs.nowMs) * (1f - relief)
-        return t.coerceIn(-delta, delta)
+        val s = model.strength(a, b)
+        val strong = !readmitted && recencyLoss > 0f && s > 0f && model.strong(a, b)
+        var positives = delta * s
+        if (inputs.artistTerm) positives += ARTIST * delta * model.artistStrength(artists[anchor], artists[row])
+        if (sharePlaylist(anchor, row)) positives += PLAYLIST * delta
+        if (hearted[row]) positives += HEART * delta
+        if (strong && inputs.recency == RecencyMode.CREDIT) positives += min(delta, s * recencyLoss)
+        val t = (min(delta, positives) - delta * model.rejection(a, b) - delta * model.skipPenalty(b)).coerceIn(-delta, delta)
+        val relief = if (strong && inputs.recency == RecencyMode.NOVELTY) s * recencyLoss else 0f
+        return t + relief
     }
 
-    /** D2: the anchor's far habits as snapshot rows, best first; none with "Learn from my habits" off. */
-    fun farHabits(anchor: Int): IntArray {
-        if (!active || !inputs.habits) return NONE
-        val a = songs[anchor]
-        if (a < 0) return NONE
-        val far = model.farHabits(a, inputs.nowMs)
-        if (far.isEmpty()) return NONE
-        // Each far song as its first row in the snapshot.
-        return far.toList().mapNotNull { song -> songs.indices.firstOrNull { songs[it] == song } }.toIntArray()
-    }
-
-    /** Reports the rows whose pick the personal term changed (the loop guard's personalChanged). */
+    /** Reports the rows whose pick the personal term changed (logged as personalChanged). */
     fun changed(rows: Set<Int>) {
         if (rows.isNotEmpty()) inputs.onPersonalChanged(rows.map { ids[it] }.toSet())
     }
@@ -84,13 +68,12 @@ internal class PersonalTerm(
     companion object {
         const val ARTIST = 0.3f
         const val PLAYLIST = 0.15f
+        const val HEART = 0.15f
         const val MARGIN_K = 0.5f
         const val MARGIN_TOP = 50
-        const val FAR_MARGIN = 3f
-        const val FAR_EARLIEST_SLOT = 3
         private val NONE = IntArray(0)
 
-        /** δ = [MARGIN_K] × the IQR of the best [MARGIN_TOP] core scores (all of them when fewer); 0 when degenerate. */
+        /** δ = [MARGIN_K] × the IQR of the best [MARGIN_TOP] scores (all of them when fewer); 0 when degenerate. */
         fun delta(scores: FloatArray, scored: BooleanArray): Float {
             val values = ArrayList<Float>()
             for (i in scores.indices) if (scored[i]) values += scores[i]
@@ -108,8 +91,5 @@ internal class PersonalTerm(
             val high = min(low + 1, sorted.size - 1)
             return sorted[low] + (sorted[high] - sorted[low]) * (position - low)
         }
-
-        /** The personal model's decayed evidence is per song; the session window it uses is also the chain's. */
-        const val SESSION_GAP_MS: Long = PersonalModel.SESSION_GAP_MS
     }
 }

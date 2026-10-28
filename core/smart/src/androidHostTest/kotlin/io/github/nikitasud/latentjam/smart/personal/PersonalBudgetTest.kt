@@ -37,7 +37,7 @@ class PersonalBudgetTest {
                 }
                 val heard = if (skipped) 8_000L else 210_000L
                 listens += PersonalListen(TrackId("t$current"), at, if (imported) null else heard, !skipped, skipped, start,
-                    smartPlaced = start == PersonalStart.AUTO && random.nextBoolean())
+                    smartSourced = start == PersonalStart.AUTO && random.nextBoolean())
                 at += heard
             }
             at += 4 * 3_600_000L
