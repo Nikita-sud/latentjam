@@ -672,8 +672,6 @@
     <string name="settings_crossfade">Weiche Übergänge</string>
     <string name="settings_crossfade_subtitle">Das Ende eines Titels überlappt den Anfang des nächsten</string>
     <string name="settings_crossfade_value">%1$d s</string>
-    <string name="settings_crossfade_adaptive">SMART passt die Länge an</string>
-    <string name="settings_crossfade_adaptive_body">Länger zwischen Titeln, die zusammenpassen, kürzer bei einem Wechsel von Klang oder Tempo</string>
     <string name="duplicates_keep_this">Diesen behalten</string>
     <string name="snack_duplicates_merged">Duplikate zusammengeführt: Playlists zeigen jetzt auf die behaltene Kopie</string>
     <string name="info_lyrics">Songtext</string>

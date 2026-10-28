@@ -669,8 +669,6 @@
     <string name="settings_crossfade">Transizioni morbide</string>
     <string name="settings_crossfade_subtitle">La fine di un brano si sovrappone all’inizio del successivo</string>
     <string name="settings_crossfade_value">%1$d s</string>
-    <string name="settings_crossfade_adaptive">SMART adatta la durata</string>
-    <string name="settings_crossfade_adaptive_body">Più lunga tra brani affini, più breve quando cambiano suono o ritmo</string>
     <string name="duplicates_keep_this">Tieni questo</string>
     <string name="snack_duplicates_merged">Duplicati uniti: le playlist ora puntano alla copia conservata</string>
     <string name="info_lyrics">Testo</string>

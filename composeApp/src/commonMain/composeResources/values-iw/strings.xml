@@ -686,8 +686,6 @@
     <string name="settings_crossfade">מעברים חלקים</string>
     <string name="settings_crossfade_subtitle">סוף השיר חופף לתחילת השיר הבא</string>
     <string name="settings_crossfade_value">%1$d שנ׳</string>
-    <string name="settings_crossfade_adaptive">SMART מתאים את האורך</string>
-    <string name="settings_crossfade_adaptive_body">ארוך יותר בין שירים שמתאימים זה לזה, קצר יותר כשהצליל או הקצב משתנים</string>
     <string name="duplicates_keep_this">לשמור את זה</string>
     <string name="snack_duplicates_merged">הכפילויות מוזגו: הפלייליסטים מפנים עכשיו לעותק שנשמר</string>
     <string name="info_lyrics">מילים</string>

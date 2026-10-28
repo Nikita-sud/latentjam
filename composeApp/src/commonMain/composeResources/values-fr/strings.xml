@@ -674,8 +674,6 @@
     <string name="settings_crossfade">Transitions douces</string>
     <string name="settings_crossfade_subtitle">La fin d’un titre se superpose au début du suivant</string>
     <string name="settings_crossfade_value">%1$d s</string>
-    <string name="settings_crossfade_adaptive">SMART adapte la durée</string>
-    <string name="settings_crossfade_adaptive_body">Plus long entre des titres qui vont ensemble, plus court quand le son ou le rythme change</string>
     <string name="duplicates_keep_this">Garder celui-ci</string>
     <string name="snack_duplicates_merged">Doublons fusionnés : les playlists pointent vers la copie conservée</string>
     <string name="info_lyrics">Paroles</string>

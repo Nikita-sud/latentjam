@@ -91,10 +91,6 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
     )
     override val crossfadeSeconds: StateFlow<Int> = mutableCrossfadeSeconds.asStateFlow()
 
-    private val mutableAdaptiveCrossfade = MutableStateFlow(
-        runCatching { preferences.getBoolean(KEY_ADAPTIVE_CROSSFADE, false) }.getOrNull() ?: false,
-    )
-    override val adaptiveCrossfade: StateFlow<Boolean> = mutableAdaptiveCrossfade.asStateFlow()
     private val mutableRelativePlaylistPaths = MutableStateFlow(
         relativePlaylistPathsPreferenceFromPersisted(
             runCatching { preferences.getBoolean(KEY_RELATIVE_PLAYLIST_PATHS, false) }.getOrNull(),
@@ -205,11 +201,6 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         val sanitized = sanitizeCrossfadeSeconds(seconds)
         preferences.edit().putInt(KEY_CROSSFADE_SECONDS, sanitized).apply()
         mutableCrossfadeSeconds.value = sanitized
-    }
-
-    override fun setAdaptiveCrossfade(enabled: Boolean) {
-        preferences.edit().putBoolean(KEY_ADAPTIVE_CROSSFADE, enabled).apply()
-        mutableAdaptiveCrossfade.value = enabled
     }
 
     override fun setRelativePlaylistPaths(enabled: Boolean) {
@@ -460,7 +451,6 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         const val KEY_LOCK_SCREEN_PLAYER = "lock_screen_player"
         const val KEY_NORMALIZE_VOLUME = "normalize_volume"
         const val KEY_CROSSFADE_SECONDS = "crossfade_seconds"
-        const val KEY_ADAPTIVE_CROSSFADE = "crossfade_adaptive"
         const val KEY_RELATIVE_PLAYLIST_PATHS = "relative_playlist_paths"
         const val KEY_ARTIST_VARIETY = "artist_variety"
         const val KEY_SONG_SORT = "song_sort"

@@ -714,8 +714,6 @@
     <string name="settings_crossfade">Płynne przejścia</string>
     <string name="settings_crossfade_subtitle">Koniec utworu nakłada się na początek następnego</string>
     <string name="settings_crossfade_value">%1$d s</string>
-    <string name="settings_crossfade_adaptive">SMART dobiera długość</string>
-    <string name="settings_crossfade_adaptive_body">Dłużej między pasującymi utworami, krócej przy zmianie brzmienia lub tempa</string>
     <string name="duplicates_keep_this">Zachowaj ten</string>
     <string name="snack_duplicates_merged">Duplikaty scalone: playlisty wskazują teraz zachowaną kopię</string>
     <string name="info_lyrics">Tekst utworu</string>

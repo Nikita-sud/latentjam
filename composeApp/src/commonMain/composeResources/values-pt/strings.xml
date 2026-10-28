@@ -682,8 +682,6 @@
     <string name="settings_crossfade">Transições suaves</string>
     <string name="settings_crossfade_subtitle">O fim de uma faixa se sobrepõe ao início da próxima</string>
     <string name="settings_crossfade_value">%1$d s</string>
-    <string name="settings_crossfade_adaptive">O SMART ajusta a duração</string>
-    <string name="settings_crossfade_adaptive_body">Mais longa entre faixas que combinam, mais curta quando o som ou o ritmo mudam</string>
     <string name="duplicates_keep_this">Manter esta</string>
     <string name="snack_duplicates_merged">Duplicados fundidos: as playlists agora apontam para a cópia mantida</string>
     <string name="info_lyrics">Letra</string>

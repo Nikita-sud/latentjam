@@ -714,8 +714,6 @@
     <string name="settings_crossfade">Плавні переходи</string>
     <string name="settings_crossfade_subtitle">Кінець треку накладається на початок наступного</string>
     <string name="settings_crossfade_value">%1$d с</string>
-    <string name="settings_crossfade_adaptive">Довжину підбирає SMART</string>
-    <string name="settings_crossfade_adaptive_body">Довше між схожими треками, коротше при зміні звучання чи темпу</string>
     <string name="duplicates_keep_this">Залишити цей</string>
     <string name="snack_duplicates_merged">Дублікати об'єднано: плейлисти тепер вказують на залишену копію</string>
     <string name="info_lyrics">Текст пісні</string>

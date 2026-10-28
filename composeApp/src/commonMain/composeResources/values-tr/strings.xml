@@ -662,8 +662,6 @@
     <string name="settings_crossfade">Yumuşak geçişler</string>
     <string name="settings_crossfade_subtitle">Bir parçanın sonu bir sonrakinin başlangıcıyla örtüşür</string>
     <string name="settings_crossfade_value">%1$d sn</string>
-    <string name="settings_crossfade_adaptive">Süreyi SMART ayarlasın</string>
-    <string name="settings_crossfade_adaptive_body">Birbirine uyan parçalar arasında daha uzun, ses veya tempo değişince daha kısa</string>
     <string name="duplicates_keep_this">Bunu tut</string>
     <string name="snack_duplicates_merged">Kopyalar birleştirildi: çalma listeleri artık tutulan kopyayı gösteriyor</string>
     <string name="info_lyrics">Şarkı sözleri</string>
