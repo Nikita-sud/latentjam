@@ -1518,7 +1518,11 @@ internal class LocalBackupService(
         existing: List<ListenEvent>,
         imported: List<ListenEvent>,
     ): List<ListenEvent> = (existing + imported)
-        .distinctBy { event -> event.copy(origin = event.origin?.copy(pickSurface = null, personalChanged = null)) }
+        .distinctBy { event ->
+            val origin = event.origin
+            if (origin?.pickSurface == null && origin?.personalChanged == null) event
+            else event.copy(origin = origin.copy(pickSurface = null, personalChanged = null))
+        }
         .sortedBy(ListenEvent::startedAtMs)
 
     private fun mergePlaylists(existing: List<Playlist>, imported: List<Playlist>): List<Playlist> {
