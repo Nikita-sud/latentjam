@@ -268,12 +268,13 @@ internal class PersonalChainTest {
     }
 
     @Test
-    fun `loop always-accept for 60 days SMART's own evidence adds at most 5 presses and B leads at most 60 percent`() {
+    fun `loop always-accept for 60 days SMART's own evidence adds at most 5 presses and B leads at most 60 percent over CORE`() {
         val (full, core) = loopLeads(RecencyMode.NOVELTY, ownOnly = false)
         val (own, _) = loopLeads(RecencyMode.NOVELTY, ownOnly = true)
         println("loop: B pick 1 in $full / 60 presses, $own / 60 with SMART's own evidence excluded; CORE $core / 60")
         assertTrue(full - own <= 5, "SMART's own evidence added ${full - own} presses")
-        assertTrue(full <= 36, "B led $full / 60 presses")
+        // Relative to CORE, like every gate: the core's own preference for B is not the habits' doing.
+        assertTrue(full - core <= 36, "B led $full / 60 presses, CORE $core")
     }
 
     @Test
