@@ -1,0 +1,143 @@
+# F-Droid for 0.9.3: per-ABI APKs and the reduced ONNX Runtime
+
+Draft for the owner, who submits the fdroiddata merge request himself. Nothing here was pushed or submitted.
+
+## 1. Per-ABI APKs (built and checked on release/0.9.3-full)
+
+`androidApp/build.gradle.kts` now takes `-Platentjam.fdroidAbi=<abi>` together with `-Platentjam.fdroid=true`. Each
+F-Droid build entry produces **one unsigned APK for one ABI**:
+
+- ABI splits are on with only that ABI included;
+- native libraries stay compressed (F-Droid's download size);
+- no signing.
+
+Without `fdroidAbi`, `latentjam.fdroid=true` still builds the universal APK, so the CI check of the four-ABI F-Droid
+package keeps working.
+
+**versionCode scheme**, for every ABI split in every channel (GitHub releases included): `base × 10 + digit`.
+
+| ABI | digit | 0.9.3 example (base 43) | F-Droid APK, measured |
+|---|---|---|---|
+| armeabi-v7a | 1 | 431 | 33.5 MB |
+| arm64-v8a | 2 | 432 | 34.4 MB |
+| x86 | 3 | 433 | 36.4 MB |
+| x86_64 | 4 | 434 | 36.3 MB |
+
+The universal APK keeps the base. 0.9.2 was 16, so every split code is far above any installed release or test build
+(the owner's phone runs test builds up to 43). The release's base versionCode is the owner's choice. The table uses
+the current 43; if he sets it lower than 44, the phone's test build (43) will not be replaced by the 0.9.3 release
+without an uninstall.
+
+Measured: `assembleRelease -Platentjam.fdroid=true -Platentjam.fdroidAbi=<abi>` for each of the four ABIs gives one
+`androidApp-<abi>-release-unsigned.apk` with versionCode 431 / 432 / 433 / 434 and only that ABI's `lib/` directory.
+The plain release (`assembleRelease`) gives the three signed split APKs with 431 / 432 / 434.
+
+## 2. Metadata draft (fdroiddata `metadata/io.github.nikitasud.latentjam.kmp.yml`)
+
+Replace the single build entry per version with one entry per ABI. Example for 0.9.3, assuming base versionCode 43
+and the tag `v0.9.3`; put the real commit hash once tagged:
+
+```yaml
+  - versionName: 0.9.3
+    versionCode: 431
+    commit: v0.9.3
+    subdir: androidApp
+    gradle:
+      - yes
+    prebuild: sdkmanager 'cmake;3.22.1'
+    scanignore:
+      - androidApp/src/main/assets/ml/artist_adapter.bin
+      - androidApp/src/main/assets/ml/artist_knowledge.bin
+      - androidApp/src/main/assets/ml/music_entities_250k.bin
+    scandelete: &scandelete093
+      - core/library/src/androidDeviceTest/resources
+      - core/playback/src/androidDeviceTest/assets
+      - tools/fuzz/corpus
+      - core/smart/src/commonTest/resources/embedding_fixture.bin
+      - core/smart/src/androidHostTest/resources/artist_known.bin
+      # in the tree for the learned ranker's host tests, left out of the APK (androidResources.ignoreAssetsPattern)
+      - androidApp/src/main/assets/ml/artist_colisten.bin
+      - androidApp/src/main/assets/ml/artist_family.bin
+      - androidApp/src/main/assets/ml/artist_family_l2.bin
+      - androidApp/src/main/assets/ml/artist_lfm.bin
+      - androidApp/src/main/assets/ml/artist_pop.bin
+      - androidApp/src/main/assets/ml/audio_tagger.bin
+      - iosApp/iosApp/ml
+    ndk: r28c
+    gradleprops:
+      - latentjam.fdroid=true
+      - latentjam.fdroidAbi=armeabi-v7a
+
+  # versionCode 432 / 433 / 434: the same entry with latentjam.fdroidAbi=arm64-v8a / x86 / x86_64
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags ^v[0-9.]+$
+VercodeOperation:
+  - 10 * %c + 1
+  - 10 * %c + 2
+  - 10 * %c + 3
+  - 10 * %c + 4
+CurrentVersion: 0.9.3
+CurrentVersionCode: 434
+```
+
+Notes for the merge request:
+
+- `iosApp/iosApp/ml` is scan-deleted whole: the Android build never reads it.
+- `artist_known.bin` is a host-test fixture added after 0.9.1.
+- The six ranker tables are new since 0.9.1, and none of them is packaged.
+- `fdroid lint`, `fdroid rewritemeta` and a local `fdroid build` were **not** run here: fdroidserver is not installed on
+  this machine. Run them before submitting.
+
+## 3. Can F-Droid build the reduced ONNX Runtime from source?
+
+The reduced runtime replaces only `lib/arm64-v8a/libonnxruntime.so` and its JNI wrapper. Other ABIs keep the stock
+Maven Central runtime that F-Droid already accepts. For the Gradle-built GitHub APK it saves about 15.7 MB on arm64
+(2026-10-15: 52.96 → 37.15 MB). On F-Droid the libraries are compressed, so the saving in download size is smaller;
+measure it after the first from-source build.
+
+**Feasible, with three changes, at roughly 20–40 minutes per arm64 build on F-Droid's server.** Locally the native
+build took about 5 minutes (M-series, 4 jobs; the 2026-10-15 log runs 07:58 → 08:03).
+
+What it needs:
+
+1. **The operator list committed to the repository.** Today `build_reduced_ort.py` converts the models with the
+   `onnxruntime` Python wheel to find the operators. That wheel is a prebuilt binary, which F-Droid's build should not
+   download.
+   - Proposal: commit `tools/runtime/required-operators.config` (plain text, about 1 KB), generated by
+     `build_reduced_ort.py` for the shipped models.
+   - The init script already rejects a model set that differs from the manifest, so a stale list cannot slip through.
+2. **ORT source as a srclib**: `onnxruntime@v1.26.0` (commit `8c546c37`), with its submodules.
+   - ORT's CMake fetches its dependencies (abseil, protobuf, flatbuffers, …) as source archives.
+   - Either the build server allows those downloads during `build`, or they become srclibs passed through
+     `--cmake_deps_mirror_dir`. The mirror is the safer F-Droid answer and needs one srclib per dependency.
+3. **Gradle reading the candidate without an init script.** F-Droid's `gradle:` step cannot pass `-I`.
+   - Proposal: move the substitution logic from `use-reduced-ort.init.gradle` into `settings.gradle.kts`, behind
+     `-Platentjam.reducedOrtRepo` (a `gradleprops` entry).
+   - Verify the AAR against the committed operator list and the model hashes, not against a fixed AAR hash: a source
+     build on another machine is not bit-identical.
+
+Toolchain on F-Droid's image: NDK r28c (already in the recipe), CMake ≥ 3.28 (sdkmanager `cmake;3.31.x`), Ninja,
+Python 3 (ORT's `tools/ci_build/build.py` runs with `--skip_pip_install`), and JDK 17 for ORT's Java packaging step.
+
+`tools/runtime/fdroid_reduced_ort.sh` is the self-contained build step: srclib path in, local Maven repository out.
+**It is a draft that has not been run**: this session could not download the ORT source. Run it locally with the
+srclib checkout before proposing it.
+
+Recipe sketch for the arm64 entry only (the other ABIs need nothing new):
+
+```yaml
+    srclibs:
+      - onnxruntime@v1.26.0
+    prebuild:
+      - sdkmanager 'cmake;3.31.6'
+      - bash tools/runtime/fdroid_reduced_ort.sh $$onnxruntime$$ $$NDK$$ $$SDK$$ $$MVN$$/../reduced-ort
+    gradleprops:
+      - latentjam.fdroid=true
+      - latentjam.fdroidAbi=arm64-v8a
+      - latentjam.reducedOrtRepo=$$MVN$$/../reduced-ort
+```
+
+Recommendation: ship 0.9.3 on F-Droid with per-ABI APKs and the stock runtime first. Already that cuts each download
+from the universal APK's 69 MB to 33–36 MB. Then land items 1–3 and the reduced arm64 runtime as a follow-up once the
+local srclib build passes the Android parity probe.
