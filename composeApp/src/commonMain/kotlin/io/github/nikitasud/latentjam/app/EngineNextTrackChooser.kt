@@ -52,7 +52,7 @@ class EngineNextTrackChooser(
     /** SMART's library, whose listens the personal evidence reads (not only what may still be queued). */
     private val library: () -> List<TrackDescriptor> = { emptyList() },
     /** The listener's personal evidence over a library (PersonalModelCache); null plans the old chain without it. */
-    private val personalModel: (suspend (List<TrackDescriptor>) -> PersonalModel)? = null,
+    private val personalModel: (suspend (List<TrackDescriptor>) -> PersonalModel?)? = null,
     /** Research: the personal term's artist level (the stand's lover gate turns it off); the app leaves it on. */
     private val personalArtistTerm: Boolean = true,
     /** The "learned ranker" setting: plans come from [ranker] instead of the engine's chain. */
@@ -72,6 +72,8 @@ class EngineNextTrackChooser(
     private val useFavourites: () -> Boolean = { true },
     /** The listener's own playlists (app and imported M3U), each in its order: FULL plans only (fast 3.3). */
     private val userPlaylists: () -> List<List<TrackId>> = { emptyList() },
+    /** The unmarked playlists for the chain's personal term: a marked playlist acts only through keep together. */
+    private val personalPlaylists: () -> List<List<TrackId>> = { emptyList() },
     /** The artist-variety setting for the learned ranker (ARTIST_VARIETY_RANKER_SCALES; 1 = the tuned values). */
     private val varietyScale: () -> Double = { 1.0 },
     /** Wall time; the offline product-check stand plans at a fixed simulated time. */
@@ -214,11 +216,11 @@ class EngineNextTrackChooser(
                 servedInQueue.clear()
                 queueModeSet = false
                 // "Learn from my habits" off: no personal inputs, so the chain is the shipped one (CORE).
-                val personal = personalModel?.takeIf { learnFromHabits() }?.let { build ->
+                val personal = personalModel?.takeIf { learnFromHabits() }?.let { build -> build(library().ifEmpty { candidates + current }) }?.let { model ->
                     PersonalInputs(
-                        model = build(library().ifEmpty { candidates + current }),
+                        model = model,
                         hearts = if (useFavourites()) favourites().keys else emptySet(),
-                        playlists = userPlaylists().map { it.toSet() },
+                        playlists = personalPlaylists().map { it.toSet() },
                         onPersonalChanged = { personalChanged = it },
                         artistTerm = personalArtistTerm,
                     )

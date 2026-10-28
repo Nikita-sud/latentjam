@@ -37,18 +37,40 @@ internal class PersonalModelCache(
     private var stamp: List<Long>? = null
     private var model: PersonalModel = PersonalModel.EMPTY
 
-    suspend fun model(library: List<TrackDescriptor>): PersonalModel = mutex.withLock {
+    /** The history size and library hash of a build that did not fit in memory: not retried until either moves on. */
+    private var failedEvents = -1
+    private var failedLibraryHash = 0L
+
+    /** The model, or null when building it did not fit in memory (a long imported history on a small heap). */
+    suspend fun model(library: List<TrackDescriptor>): PersonalModel? = mutex.withLock {
         val events = history.allEvents()
         var libraryHash = 0L
         for (t in library) libraryHash = libraryHash * 31 + t.id.value.hashCode()
         val now = listOf(events.size.toLong(), events.maxOfOrNull { it.startedAtMs } ?: 0L, library.size.toLong(), libraryHash)
         if (now != stamp) {
-            model = withContext(Dispatchers.Default) {
-                PersonalModel.build(
-                    events.sortedBy { it.startedAtMs }.map(::personalListen),
-                    library.map { personalTrack(it, artistKeysOf(it)) },
-                )
+            // A quarter more history or another library before the next attempt, so top-ups do not keep
+            // allocating toward the same failure.
+            if (failedEvents >= 0 && libraryHash == failedLibraryHash && events.size < failedEvents + failedEvents / 4) {
+                return@withLock null
             }
+            try {
+                model = withContext(Dispatchers.Default) {
+                    PersonalModel.build(
+                        events.sortedBy { it.startedAtMs }.map(::personalListen),
+                        library.map { personalTrack(it, artistKeysOf(it)) },
+                    )
+                }
+            } catch (exhausted: Error) {
+                // OutOfMemoryError, which common Kotlin cannot name. The half-built maps are local and unreachable
+                // now; SMART plans without the personal term (CORE), as with "Learn from my habits" off.
+                failedEvents = events.size
+                failedLibraryHash = libraryHash
+                stamp = null
+                model = PersonalModel.EMPTY
+                println("SMART: personal evidence did not fit in memory (${exhausted::class.simpleName}, ${events.size} listens)")
+                return@withLock null
+            }
+            failedEvents = -1
             stamp = now
         }
         model

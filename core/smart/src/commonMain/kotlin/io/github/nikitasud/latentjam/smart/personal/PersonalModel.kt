@@ -289,23 +289,60 @@ public class PersonalModel internal constructor(
 
 private const val DAY_MS_CONST: Long = 86_400_000L
 
+/**
+ * Session id → the best value seen in it, in first-seen order. Most pairs have one session, so the first one is held
+ * inline and a map is made only for a second: a long imported history has hundreds of thousands of pairs.
+ */
+private class SessionBest {
+    private var hasFirst = false
+    private var firstSession = 0L
+    private var firstValue = 0.0
+    private var rest: LinkedHashMap<Long, Double>? = null
+
+    val size: Int get() = (if (hasFirst) 1 else 0) + (rest?.size ?: 0)
+
+    fun best(session: Long, value: Double) {
+        if (!hasFirst) {
+            hasFirst = true
+            firstSession = session
+            firstValue = value
+            return
+        }
+        if (session == firstSession) {
+            if (value > firstValue) firstValue = value
+            return
+        }
+        val map = rest ?: LinkedHashMap<Long, Double>().also { rest = it }
+        val held = map[session]
+        if (held == null || value > held) map[session] = value
+    }
+
+    /** The values summed in first-seen order, as `values.sum()` over the map did. */
+    fun sum(): Double {
+        var total = 0.0
+        if (hasFirst) total += firstValue
+        rest?.values?.forEach { total += it }
+        return total
+    }
+
+    inline fun forEach(action: (Long, Double) -> Unit) {
+        if (hasFirst) action(firstSession, firstValue)
+        rest?.forEach { (session, value) -> action(session, value) }
+    }
+}
+
 /** A pair's evidence while building: per session the best grade of each kind, and the occurrence weights. */
 private class PairAcc {
     /** Session id → best (grade × decay) of the listener's own evidence, SMART's own, and rejections. */
-    val own = LinkedHashMap<Long, Double>()
-    val smart = LinkedHashMap<Long, Double>()
-    val rejected = LinkedHashMap<Long, Double>()
+    val own = SessionBest()
+    val smart = SessionBest()
+    val rejected = SessionBest()
     /** Imported session strength, kept apart for the per-anchor cap. */
-    val imported = LinkedHashMap<Long, Double>()
+    val imported = SessionBest()
     var weightOwn = 0.0
     var weightSmart = 0.0
     var squaresOwn = 0.0
     var squaresSmart = 0.0
-
-    fun best(map: LinkedHashMap<Long, Double>, session: Long, value: Double) {
-        val held = map[session]
-        if (held == null || value > held) map[session] = value
-    }
 }
 
 private class PersonalBuilder(private val listens: List<PersonalListen>, private val library: List<PersonalTrack>) {
@@ -379,7 +416,7 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
                 if (!rejectedRun && follows) {
                     val grade = if (heard < PersonalModel.EARLY_SKIP_MS) PersonalModel.SKIP_EARLY else PersonalModel.SKIP_LATE
                     val p = pair(a!!.trackId, l.trackId)
-                    p.best(p.rejected, session, grade * w)
+                    p.rejected.best(session, grade * w)
                 }
                 rejectedRun = true
                 continue
@@ -443,12 +480,12 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
         val importByAnchor = LinkedHashMap<Int, Double>()
         for ((k, p) in pairs) {
             val a = (k ushr 32).toInt()
-            importByAnchor[a] = (importByAnchor[a] ?: 0.0) + p.imported.values.sum()
+            importByAnchor[a] = (importByAnchor[a] ?: 0.0) + p.imported.sum()
         }
         for ((k, p) in pairs) {
             val total = importByAnchor[(k ushr 32).toInt()] ?: 0.0
             val scale = if (total > PersonalModel.IMPORT_ANCHOR_CAP) PersonalModel.IMPORT_ANCHOR_CAP / total else 1.0
-            for ((sessionId, v) in p.imported) p.best(p.own, sessionId, v * scale)
+            p.imported.forEach { sessionId, v -> p.own.best(sessionId, v * scale) }
         }
         val affinityStrength = FloatArray(songs)
         val affinitySessions = ByteArray(songs)
@@ -465,9 +502,9 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
     private fun add(a: TrackId, b: TrackId, session: Long, value: Double, smart: Boolean, imported: Boolean) {
         val p = pair(a, b)
         when {
-            imported -> p.best(p.imported, session, value)
-            smart -> p.best(p.smart, session, value)
-            else -> p.best(p.own, session, value)
+            imported -> p.imported.best(session, value)
+            smart -> p.smart.best(session, value)
+            else -> p.own.best(session, value)
         }
         if (smart) {
             p.weightSmart += value
@@ -481,7 +518,7 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
         for (x in from) for (y in to) {
             if (x == y) continue
             val q = artistPairs.getOrPut(key(x, y)) { PairAcc() }
-            q.best(if (smart) q.smart else q.own, session, value)
+            (if (smart) q.smart else q.own).best(session, value)
         }
     }
 
@@ -518,8 +555,8 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
 
     /** S⁺: the listener's own session strength plus SMART's own, at most a quarter of it (positives only). */
     private fun positive(p: PairAcc): Double {
-        val own = p.own.values.sum()
-        return own + min(p.smart.values.sum(), PersonalModel.SMART_SHARE * own)
+        val own = p.own.sum()
+        return own + min(p.smart.sum(), PersonalModel.SMART_SHARE * own)
     }
 
     /** The pair's occurrence weight for the lift filter, SMART's own capped like the strength. */
@@ -555,7 +592,7 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
         for (a in 0 until songs) {
             start[a] = kept.size
             val list = bySource[a] ?: continue
-            list.sortWith(compareByDescending<Pair<Int, PairAcc>> { positive(it.second) + it.second.rejected.values.sum() }.thenBy { it.first })
+            list.sortWith(compareByDescending<Pair<Int, PairAcc>> { positive(it.second) + it.second.rejected.sum() }.thenBy { it.first })
             kept += list.take(PersonalModel.TOP_PER_SONG).sortedBy { it.first }
         }
         start[songs] = kept.size
@@ -590,9 +627,9 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
             edgeStart = start,
             edgeTo = IntArray(kept.size) { kept[it].first },
             edgePositive = ShortArray(kept.size) { half(positive(kept[it].second).toFloat()) },
-            edgeOwn = ShortArray(kept.size) { half(kept[it].second.own.values.sum().toFloat()) },
+            edgeOwn = ShortArray(kept.size) { half(kept[it].second.own.sum().toFloat()) },
             edgeSessions = ByteArray(kept.size) { kept[it].second.own.size.coerceAtMost(255).toByte() },
-            edgeNegative = ShortArray(kept.size) { half(kept[it].second.rejected.values.sum().toFloat()) },
+            edgeNegative = ShortArray(kept.size) { half(kept[it].second.rejected.sum().toFloat()) },
             edgeNegativeSessions = ByteArray(kept.size) { kept[it].second.rejected.size.coerceAtMost(255).toByte() },
             edgeWeight = ShortArray(kept.size) { half(weightOf(kept[it].second).toFloat()) },
             outWeight = out,
