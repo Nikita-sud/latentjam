@@ -1,5 +1,37 @@
 # Smaller Android ONNX Runtime candidate
 
+## Every channel (release/0.9.3-full, 2026-10-28)
+
+Every release build packages the reduced ARM64 runtime: GitHub release APKs, the Play bundle and F-Droid.
+Debug and test builds keep Maven Central's full runtime.
+
+- `tools/runtime/required-operators.config` is the committed operator list for the shipped models. When a model
+  changes, regenerate it with `build_reduced_ort.py` (it needs the matching onnxruntime wheel), commit it, rebuild
+  and rerun the parity probe.
+- `tools/runtime/ort_source_build.sh ORT_SOURCE NDK SDK STOCK_AAR|-` builds the runtime from source: no wheel, no
+  prebuilt protoc, source archives checked by SHA-1. It writes the local Maven repository `build/reduced-ort/maven`.
+- `settings.gradle.kts` substitutes that runtime into release configurations after checking the ORT version, the exact
+  model set, the operator list and the AAR hash. `latentjam.reducedOrtRepo` points elsewhere.
+- `androidApp:checkReleaseOnnxRuntime` fails a release whose ARM64 `libonnxruntime.so` is not the reduced one.
+  `-Platentjam.stockOrt=true` packages the full runtime on purpose; the app CI workflow does this, and
+  `compact-release.yml` builds and checks the reduced runtime.
+
+```sh
+git clone --depth 1 --branch v1.26.0 --recursive --shallow-submodules https://github.com/microsoft/onnxruntime.git /tmp/ort
+JAVA_HOME=/path/to/jdk17 bash tools/runtime/ort_source_build.sh /tmp/ort "$ANDROID_HOME/ndk/28.2.13676358" "$ANDROID_HOME" -
+./gradlew :androidApp:assembleRelease
+```
+
+2026-10-28 result for the c095 models (A0 encoder 4c2570aa, semantic head c9ceb0f3, text encoder 81386311):
+
+- The operator list changed (MatMulNBits and HardSigmoid gone; FusedGemm kept by 940b8b51).
+- The ARM64 runtime is 11.28 MB (full: 27.41 MB).
+- Android parity is bitwise on emulator-5586, 13 / 13 cases with three real excerpts, for both the wheel-based and the
+  from-source build.
+- Release APKs: arm64-v8a 36,955,416 bytes (full runtime: 53,077,360); armeabi-v7a and x86_64 unchanged.
+- F-Droid arm64-v8a (compressed native libraries, unsigned): 28,555,060 bytes.
+
+
 ## Reliability upgrade gate (2026-10-14)
 
 The application still uses full ORT **1.26.0**. Environment telemetry is explicitly
