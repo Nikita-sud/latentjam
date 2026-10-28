@@ -40,3 +40,23 @@ defenders. 25 findings.
 Not a finding but a release fact: 0.9.3 ships a new audio encoder (`embedding_version.txt` changed), so an upgrade
 analyses the library again; history and settings stay (emulator: 0.9.2 → 0.9.3, 4 plays kept, 125 tracks re-analysed).
 
+## Round 2
+
+Three attackers (the round-1 fixes; everything a user sees on both platforms with every new string measured in 22
+locales; playback, Map, import and memory at runtime), one defender. The fades, lock-screen player, crossfade capture,
+sleep timer, ListenBrainz dedup/cancel paths, debug gating on both platforms and the placeholders were traced clean.
+
+| id | finding | verdict | outcome |
+|---|---|---|---|
+| A2-1 | after a failed personal build, a cleared or smaller history was not retried until it outgrew the failed size | agreed | c7daf345 (test) |
+| A2-2 | the fallback caught every `Error` (bugs too); it cannot act on iOS (Kotlin/Native aborts) | agreed (narrower) | c7daf345: `OutOfMemoryError` only, others rethrown (test); comment says Android |
+| A2-3 | backup merge copied every listen to match it | agreed | cef44306 |
+| A2-4 | a doc named the deleted logs | agreed | 90610c04 |
+| A2-5 | an energy pass cancelled part-way left the snapshot stale | agreed (very low) | 35c34b4c |
+| D1-4 / C1-5 | hidden "Use favourites" still ruled hearts | agreed: option (c) | 1ea26e3d: ignored without the ranker (no 0.9.2 user can have it stored) |
+| C2-1 | the Map's region identity was decoded at every process start and kept for the process: 1.70 MB at 10k (measured), new since 0.9.2; a late launch read could replace a newer snapshot | agreed (regression) | the pending count decodes without keeping |
+| B2-4 | debug-only Diagnose row always failed without the ranker | agreed | 90610c04 |
+| C2-2 | ListenBrainz import peak (boxed list, list copies): a 200k import on 48 MB fails | agreed (low; caught, history untouched; feature new) | 0.9.4 |
+| B2-1, B2-2, B2-5 | ListenBrainz texts long in 14 / 9 locales; European Portuguese habits strings in Brazilian forms | agreed | owner text, proposed |
+| B2-3 | iOS: Smooth transitions now shown, no overlap for protected Apple Music items (like the EQ) | narrower | release-note line, owner |
+
