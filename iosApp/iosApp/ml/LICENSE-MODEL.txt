@@ -29,25 +29,9 @@ builds that ship the ranker.
 
 Copyright (c) 2026 LatentJam Project
 
-mnv4_audio.onnx is the A0 MobileNetV4-Conv-M student from the 2026-10-10
-clean-data experiment. It was randomly initialized at the pruned p50 shape,
-then distilled from EfficientAT MN10 on 6,311 FMA tracks whose recorded
-licences are CC BY, CC0 or public domain (256.98 hours). No MPD preview audio,
-playlist labels, previous student weights or generated audio trained A0.
-Its 46 pointwise/projection operators use LatentJam Q4Conv1x1; other
-convolutions are INT8. Export calibration uses 200 windows from the same
-licence-filtered FMA training set. The contract is waveform [1,320000] to
-embedding [1,960]. The teacher itself was pretrained on AudioSet; the
-student's data filtering does not assert independent rights clearance of
-the teacher's original training corpus.
+mnv4_audio.onnx is a student model distilled from EfficientAT MN10 on FMA tracks licensed CC BY, CC0 or public domain. The teacher was pretrained on AudioSet. Apache-2.0 by LatentJam.
 
-universal_semantic_head.onnx is the A0-nosyn head: 27 logistic regressions
-with freshly fitted coefficients, trained on clean FMA embeddings and
-EfficientAT MN10 targets, plus the FMA genre labels. It uses no synthetic
-clips and no MPD-fitted weights. The output order remains the 27-label
-semantic_scores contract. The routing scores are not general probabilities
-of a listener's preference. Both replacement weight files are licensed
-Apache-2.0 by LatentJam.
+universal_semantic_head.onnx is a classification head trained on the same FMA embeddings and labels. Apache-2.0 by LatentJam.
 
 Weights in the app's code. The SMART queue theme (8 weights) was fitted to queues composed by DeepSeek-V4.1-Flash (whose terms permit using its outputs) for licence-filtered Free Music Archive libraries and a private test library (track lists only).
 
