@@ -14,6 +14,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -533,5 +534,22 @@ internal class ListeningHistoryTest {
         val reloaded = DefaultListeningHistory(store)
         assertEquals(emptyMap(), reloaded.stats())
         assertEquals(emptyList(), reloaded.recentEvents(10))
+    }
+
+    @Test
+    fun anImportIsToldByTheImportersFingerprintAlone() {
+        val imported = ListenEvent(TrackId("a"), 1_700_000_000_000L, 200_000L, 200_000L, completed = true, skipped = false)
+        assertTrue(imported.isImported)
+        // Unknown length: played 0, not completed.
+        assertTrue(ListenEvent(TrackId("a"), 1_700_000_000_000L, 0L, null, completed = false, skipped = false).isImported)
+        // An origin with every field unknown is no origin.
+        assertTrue(imported.copy(origin = ListenOrigin()).isImported)
+        // Anything the player would have written breaks it.
+        assertFalse(imported.copy(listenedMs = 200_000L).isImported)
+        assertFalse(imported.copy(startedAtMs = 1_700_000_000_123L).isImported)
+        assertFalse(imported.copy(playedMs = 150_000L).isImported)
+        assertFalse(imported.copy(skipped = true, completed = false).isImported)
+        assertFalse(imported.copy(origin = ListenOrigin(ListenStart.USER_PICK)).isImported)
+        assertFalse(imported.copy(completed = false).isImported)
     }
 }

@@ -108,7 +108,9 @@ internal class QueueSourceTest {
         assertNull(QueueSource(QueueSourceKind.MAP, "Evening").parentCollectionId())
         assertNull(QueueSource(QueueSourceKind.SEARCH, "query").parentCollectionId())
         assertNull(QueueSource(QueueSourceKind.TRACKS).parentCollectionId())
-        assertNull(QueueSource(QueueSourceKind.FOR_YOU).parentCollectionId())
+        // For You has no reference yet one identity: SMART's personal evidence tells its suggestions by it.
+        assertEquals("foryou", QueueSource(QueueSourceKind.FOR_YOU).parentCollectionId())
+        assertEquals("foryou", QueueSource(QueueSourceKind.FOR_YOU, "For You", "ignored").parentCollectionId())
         assertNull(QueueSource(QueueSourceKind.COLLECTION, "Shared", reference = "").parentCollectionId())
     }
 

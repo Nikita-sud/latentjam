@@ -71,6 +71,8 @@ private val LIBRARY_GROUP_PREFIXES = setOf("album", "artist", "genre", "folder",
  * search, the whole library) has no parent.
  */
 internal fun QueueSource.parentCollectionId(): String? {
+    // For You has no reference but one identity: SMART's personal evidence tells its suggestions by it (PERSONALISATION_RULES v5.4).
+    if (kind == QueueSourceKind.FOR_YOU) return FOR_YOU_PARENT_ID
     val id = reference?.takeIf(String::isNotBlank) ?: return null
     return when (kind) {
         QueueSourceKind.COLLECTION -> "playlist:$id"
@@ -78,6 +80,9 @@ internal fun QueueSource.parentCollectionId(): String? {
         QueueSourceKind.TRACKS, QueueSourceKind.SEARCH, QueueSourceKind.MAP, QueueSourceKind.FOR_YOU -> null
     }
 }
+
+/** The listening log's parent id for a queue started from For You. */
+internal const val FOR_YOU_PARENT_ID = "foryou"
 
 /** An auto playlist is identified by its kind, never by its localized title. */
 internal fun QueueSource.autoPlaylistKind(): AutoPlaylistKind? {

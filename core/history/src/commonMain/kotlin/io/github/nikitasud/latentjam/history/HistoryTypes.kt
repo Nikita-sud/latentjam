@@ -234,22 +234,19 @@ public enum class ListenStart {
      */
     QUEUED,
 
-    /**
-     * A listen imported from another service's history (a ListenBrainz export): heard elsewhere, so how it started is
-     * unknown; consecutive imported listens are scrobbles, which may be album or radio playback. Builds before 0.9.3
-     * read it as no start at all, as they read imports written without an origin.
-     */
-    IMPORTED,
 }
 
 /**
- * A listen another service recorded (a ListenBrainz import): [ListenStart.IMPORTED], or the shape importers wrote
- * before that start existed — no origin, no listen time, no shuffle mode, not skipped. The player always logged its
- * shuffle mode, so a legacy listen of this device keeps reading as its own.
+ * A listen another service recorded (a ListenBrainz import), told by the importer's fingerprint
+ * (PERSONALISATION_RULES v5.3): no origin (or one with every field unknown), no listen time, not skipped, a start on a
+ * whole second, played exactly the track's length (0 when unknown) and completed exactly when that length is known. The
+ * importer writes nothing else to mark it, so every installed build, old or new, reads its listens the same way.
  */
 public val ListenEvent.isImported: Boolean
-    get() = origin?.start == ListenStart.IMPORTED ||
-        (origin == null && listenedMs == null && shuffleMode == null && !skipped)
+    get() = (origin == null || (origin.start == null && origin.smartPlanPosition == null && origin.parentId == null &&
+        origin.pickSurface == null && origin.personalChanged == null)) &&
+        listenedMs == null && !skipped && startedAtMs % 1000L == 0L &&
+        playedMs == (trackDurationMs ?: 0L) && completed == (trackDurationMs != null)
 
 /** Adds non-negative listening durations without wrapping a corrupt/extreme total below zero. */
 internal fun saturatingDurationAdd(left: Long, right: Long): Long =

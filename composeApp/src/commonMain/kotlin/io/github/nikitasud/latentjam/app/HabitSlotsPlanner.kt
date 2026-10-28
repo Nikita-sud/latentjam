@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.history.ListenEvent
 import io.github.nikitasud.latentjam.history.ListenStart
+import io.github.nikitasud.latentjam.history.isImported
 import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.smart.HabitFlow
@@ -419,7 +420,7 @@ internal suspend fun rankerPlan(
                         io.github.nikitasud.latentjam.smart.ranker.PlayEvent(
                             it.trackId, it.startedAtMs, it.effectiveListenedMs, it.trackDurationMs ?: 0L, it.skipped, it.origin?.start?.name,
                             // An import (no origin, no listen time, no skip) — what a ListenBrainz importer writes.
-                            imported = it.origin == null && it.listenedMs == null && !it.skipped,
+                            imported = it.isImported,
                         )
                     },
                     seedMs, cfg,
