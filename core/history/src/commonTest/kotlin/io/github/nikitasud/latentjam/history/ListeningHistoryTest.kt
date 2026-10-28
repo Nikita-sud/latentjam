@@ -200,11 +200,26 @@ internal class ListeningHistoryTest {
     @Test
     fun aLineFromANewerFormatKeepsTheFieldsThisBuildKnows() {
         // Later versions only append fields; a downgrade must not drop what a newer build recorded.
-        val newer = v4Line().replaceFirst("v4|", "v5|") + "|a field from the future"
-        assertEquals(ListenEvent.parse(v4Line()), ListenEvent.parse(newer))
-        assertEquals(v4Line(), assertNotNull(ListenEvent.parse(newer)).serialize())
-        assertNull(ListenEvent.parse("v5|3432|1|2||1|0"), "too short to hold the fields this build reads")
+        val newer = v4Line().replaceFirst("v4|", "v6|") + "|SEARCH|1|a field from the future"
+        val read = assertNotNull(ListenEvent.parse(newer))
+        assertEquals(ListenEvent.parse(v4Line())?.origin?.copy(pickSurface = PickSurface.SEARCH, personalChanged = true), read.origin)
+        assertEquals(v4Line().replaceFirst("v4|", "v5|") + "|SEARCH|1", read.serialize())
+        assertNull(ListenEvent.parse("v6|3432|1|2||1|0"), "too short to hold the fields this build reads")
         assertNull(ListenEvent.parse(v4Line().replaceFirst("v4|", "vx|")), "not a version")
+    }
+
+    @Test
+    fun aPickSurfaceAndThePersonalFlagRoundTripAsV5AndOlderBuildsReadV4() {
+        val base = assertNotNull(ListenEvent.parse(v4Line()))
+        val event = base.copy(origin = base.origin?.copy(pickSurface = PickSurface.FOR_YOU, personalChanged = false))
+        val line = event.serialize()
+        assertTrue(line.startsWith("v5|"), line)
+        assertEquals(event, ListenEvent.parse(line))
+        // Without either field the line stays v4.
+        assertEquals(v4Line(), base.serialize())
+        // A surface this build does not know reads as unknown; a corrupt flag drops the line.
+        assertEquals(null, ListenEvent.parse(line.replace("|FOR_YOU|", "|SOMEWHERE_NEW|"))?.origin?.pickSurface)
+        assertNull(ListenEvent.parse(line.substringBeforeLast('|') + "|x"))
     }
 
     @Test

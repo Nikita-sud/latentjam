@@ -38,12 +38,14 @@ public data class ListenEvent(
     /**
      * Versioned line format. Arbitrary identifiers are hex-escaped before delimiters are added.
      *
-     * An event with an [origin] is written as v4; one without stays v3, so a legacy event rewritten
-     * by a restore or merge keeps saying that its origin is unknown rather than acquiring an empty
-     * record that would claim it was observed.
+     * An event with an [origin] is written as v4, or as v5 when it knows the pick surface or whether
+     * the personal term changed it; one without stays v3, so a legacy event rewritten by a restore or
+     * merge keeps saying that its origin is unknown rather than acquiring an empty record that would
+     * claim it was observed.
      */
     public fun serialize(): String = buildList {
-        add(if (origin == null) FORMAT_V3 else FORMAT_V4)
+        val v5 = origin != null && (origin.pickSurface != null || origin.personalChanged != null)
+        add(if (origin == null) FORMAT_V3 else if (v5) FORMAT_V5 else FORMAT_V4)
         add(trackId.value.encodeHex())
         add(startedAtMs.toString())
         add(playedMs.toString())
@@ -56,6 +58,10 @@ public data class ListenEvent(
             add(origin.start?.name ?: "")
             add(origin.smartPlanPosition?.toString() ?: "")
             add(origin.parentId?.encodeHex() ?: "")
+            if (v5) {
+                add(origin.pickSurface?.name ?: "")
+                add(origin.personalChanged?.let { if (it) "1" else "0" } ?: "")
+            }
         }
     }.joinToString("|")
 
@@ -64,22 +70,24 @@ public data class ListenEvent(
         private const val FORMAT_V2 = "v2"
         private const val FORMAT_V3 = "v3"
         private const val FORMAT_V4 = "v4"
+        private const val FORMAT_V5 = "v5"
         private const val V4_FIELDS = 12
+        private const val V5_FIELDS = 14
 
         private fun isLaterVersion(version: String): Boolean =
-            version.startsWith('v') && (version.drop(1).toIntOrNull() ?: 0) > 4
+            version.startsWith('v') && (version.drop(1).toIntOrNull() ?: 0) > 5
 
         /**
          * Returns `null` for corrupt or unknown-version lines (they are skipped).
          *
-         * A line from a version newer than v4 is read as its v4 prefix, because later versions only
+         * A line from a version newer than v5 is read as its v5 prefix, because later versions only
          * append fields. After a downgrade, a listen written by the newer build then keeps the fields
          * this build knows instead of disappearing the next time the log is rewritten.
          */
         public fun parse(line: String): ListenEvent? {
             val raw = line.split("|")
-            val parts = if (isLaterVersion(raw[0]) && raw.size >= V4_FIELDS) {
-                listOf(FORMAT_V4) + raw.subList(1, V4_FIELDS)
+            val parts = if (isLaterVersion(raw[0]) && raw.size >= V5_FIELDS) {
+                listOf(FORMAT_V5) + raw.subList(1, V5_FIELDS)
             } else {
                 raw
             }
@@ -88,6 +96,7 @@ public data class ListenEvent(
                 FORMAT_V1, FORMAT_V2 -> 8
                 FORMAT_V3 -> 9
                 FORMAT_V4 -> V4_FIELDS
+                FORMAT_V5 -> V5_FIELDS
                 else -> return null
             }
             if (parts.size != expectedFields) return null
@@ -107,7 +116,7 @@ public data class ListenEvent(
             val listenedMs = parts.getOrNull(8)?.takeIf(String::isNotEmpty)?.let {
                 it.toLongOrNull()?.takeIf { duration -> duration >= 0 } ?: return null
             }
-            val origin = if (version != FORMAT_V4) null else ListenOrigin(
+            val origin = if (version != FORMAT_V4 && version != FORMAT_V5) null else ListenOrigin(
                 // A start this build does not know was written by a newer one: unknown, not corrupt.
                 start = parts[9].takeIf(String::isNotEmpty)?.let { name ->
                     ListenStart.entries.firstOrNull { it.name == name }
@@ -116,6 +125,15 @@ public data class ListenEvent(
                     it.toIntOrNull()?.takeIf { position -> position >= 1 } ?: return null
                 },
                 parentId = parts[11].takeIf(String::isNotEmpty)?.let { it.decodeHex() ?: return null },
+                pickSurface = parts.getOrNull(12)?.takeIf(String::isNotEmpty)?.let { name ->
+                    PickSurface.entries.firstOrNull { it.name == name }
+                },
+                personalChanged = when (parts.getOrNull(13)) {
+                    "1" -> true
+                    "0" -> false
+                    "", null -> null
+                    else -> return null
+                },
             )
             return ListenEvent(
                 trackId = TrackId(id),
@@ -159,12 +177,36 @@ public data class ListenEvent(
  *   `playlist:<id>` or `album:<key>`; null when that source has no stable id. In SMART mode it stays
  *   that collection while SMART draws later tracks from the whole library; [smartPlanPosition] tells
  *   those tracks apart.
+ * @property pickSurface Where the listener picked the track, for a [ListenStart.USER_PICK]; null when
+ *   unknown (every listen before 0.9.3, and starts the app did not tag).
+ * @property personalChanged Whether SMART's personal term (“Learn from my habits”) changed this
+ *   planned pick from what the similarity core chose; null when unknown or not a SMART pick.
  */
 public data class ListenOrigin(
     public val start: ListenStart? = null,
     public val smartPlanPosition: Int? = null,
     public val parentId: String? = null,
+    public val pickSurface: PickSurface? = null,
+    public val personalChanged: Boolean? = null,
 )
+
+/** Where a listener's pick came from. Persisted by name; a name this build does not know reads as null. */
+public enum class PickSurface {
+    /** A search result. */
+    SEARCH,
+
+    /** The queue: a row the player had already lined up. */
+    QUEUE,
+
+    /** A collection: an album, playlist, artist, folder or the song list. */
+    COLLECTION,
+
+    /** A For You suggestion. */
+    FOR_YOU,
+
+    /** Outside the app's screens: the media notification, a headset, a car, a voice assistant. */
+    EXTERNAL,
+}
 
 /** How playback reached a track. Persisted by name; a name this build does not know reads as null. */
 public enum class ListenStart {
@@ -202,10 +244,12 @@ public enum class ListenStart {
 
 /**
  * A listen another service recorded (a ListenBrainz import): [ListenStart.IMPORTED], or the shape importers wrote
- * before that start existed — no origin, no listen time, not skipped.
+ * before that start existed — no origin, no listen time, no shuffle mode, not skipped. The player always logged its
+ * shuffle mode, so a legacy listen of this device keeps reading as its own.
  */
 public val ListenEvent.isImported: Boolean
-    get() = origin?.start == ListenStart.IMPORTED || (origin == null && listenedMs == null && !skipped)
+    get() = origin?.start == ListenStart.IMPORTED ||
+        (origin == null && listenedMs == null && shuffleMode == null && !skipped)
 
 /** Adds non-negative listening durations without wrapping a corrupt/extreme total below zero. */
 internal fun saturatingDurationAdd(left: Long, right: Long): Long =
