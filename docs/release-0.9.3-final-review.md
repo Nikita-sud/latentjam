@@ -104,3 +104,30 @@ on both platforms, the impression log, loudness, every locale's keys and placeho
 Left for the owner: the base versionCode (≥ 44 to replace the phone's 43) and the changelog file names; the public-text
 proposals (changelog wording, README, PRIVACY, ListenBrainz texts, European Portuguese); C1-4 (proposal); 0.9.4 notes:
 C1-6, C2-2, A3-1, D1-7, B2-3 if not taken as a release note.
+
+## Round 5 (added work, clean)
+
+- **5558248f** (cherry-pick of 0d4c427e from `fix/crossfade-join-resync`): a crossfade into a track on another decoder
+  (Opus into MP3) re-syncs the sink at the new decoder's first buffer instead of ~1 s into the next track. Attacker:
+  include; diagnosis matches Media3 1.10.1's bytecode, marks once, no-op when Media3 already marked, no reflection,
+  Android only; `isReturnDefaultValues` made no host test vacuous (36 suites pass). One overstated comment fixed
+  (bd7255dc). Not covered: a decoder reused across an overshooting file (unchanged behaviour); no device test for
+  Opus into MP3.
+- **2de173ac** (owner request): Never played and Rediscover leave the Playlists page; For You's rows, the Map's
+  never-played lens and their strings are untouched. The rail is the four kinds; the Rediscover-only clock is gone;
+  `auto_playlist_never_played` / `auto_playlist_rediscover` removed in 22 locales (nothing else used them). A queue
+  saved by 0.9.2 from those lists restores with its saved title and no kind; old listens from them drop out of
+  Statistics' top playlists. Tests: AutoPlaylistsTest.suggestionListsAreNotPlaylists, PlaylistsRailTest,
+  PlaylistsTest, QueueSourceTest. Attacker: CLEAN.
+
+User reports, emulator LJ-api30 (muted, 3,500 synthetic tracks plus empty, random-byte, truncated, junk-frame M4A and
+FLAC, and a 700 MB zero-filled MP3; 0.9.2 analysed it, then this branch's arm64 release APK over it, the process
+killed mid-analysis):
+- Map "Indexing" email: 0.9.2 itself reached a ready Map here; after the upgrade the analysis finished (3,502 of
+  3,506, energy for all), the Map showed "3468 of 3502 tracks across 10 regions" and showed it again at once after a
+  restart.
+- #27: the four unreadable files are named under Analysis problems ("could not be read or decoded") and analysis
+  completed. None of the crafted files hung the decoder, so the timeout path for a real hang rests on
+  AnalysisTimeoutTest, not on the device.
+
+Checks at HEAD: host tests, iOS simulator tests and the iOS app compile pass; arm64 release APK 36,969,048 bytes.
