@@ -653,7 +653,11 @@ internal class DefaultSimilarityEngine(
                 }
                 yield()
             }
-            if (added > 0) persistEnergies()
+            if (added > 0) {
+                persistEnergies()
+                // The snapshot reads these scores (withEnergy) but is keyed on the index and the semantic cache only.
+                snapshotCache = null
+            }
             added
         }
     }

@@ -115,6 +115,41 @@ class EngineEnergyTest {
         assertEquals(0, again.classified, "the semantic head never ran")
     }
 
+    @Test
+    fun theEnergyPassReachesASnapshotBuiltBeforeIt() = runTest {
+        // An upgrade: the index restores, the energy pass has not run yet, and a press builds the snapshot first.
+        val dim = io.github.nikitasud.latentjam.smart.chain.SmartSnapshot.AUDIO_DIM
+        fun v(high: Float, low: Float, axis: Int) = FloatArray(dim).also { it[0] = high; it[1] = low; it[2 + axis] = 0.5f }
+        val backend = HeadBackend()
+        backend.fake.vectors[seed.id] = v(0.9f, 0.1f, 0)
+        backend.fake.vectors[near.id] = v(0.5f, 0.5f, 1)
+        backend.fake.vectors[far.id] = v(0.1f, 0.8f, 2)
+        val store = FakeIndexStore()
+        val library = listOf(seed, near, far)
+        fun wide(backend: EmbeddingBackend) = DefaultSimilarityEngine(
+            inferenceDispatcher = Dispatchers.Default.limitedParallelism(1, "energy-inference"),
+            backend = backend,
+            index = InMemoryVectorIndex(dim = dim),
+            store = store,
+            config = SmartEngineConfig(embeddingDim = dim, modelVersion = "test-model"),
+            dispatcher = Dispatchers.Default.limitedParallelism(1, "energy-engine"),
+            energyStore = FakeIndexStore(),
+        )
+        val first = wide(backend)
+        first.initialize().getOrThrow()
+        first.synchronizeLibrary(library, pruneMissing = true)
+        first.indexLibrary(library)
+
+        val upgraded = wide(HeadBackend().also { it.fake.vectors.putAll(backend.fake.vectors) })
+        upgraded.initialize().getOrThrow()
+        upgraded.synchronizeLibrary(library, pruneMissing = true)
+        val before = kotlin.test.assertNotNull(upgraded.smartSnapshot(emptyList()))
+        kotlin.test.assertTrue(before.tracks.all { it.energy.isNaN() }, "no energy before the pass")
+        assertEquals(3, upgraded.ensureEnergies())
+        val after = kotlin.test.assertNotNull(upgraded.smartSnapshot(emptyList()))
+        kotlin.test.assertTrue(after.tracks.none { it.energy.isNaN() }, "the next press plans with energy")
+    }
+
     /** A backend whose inference waits on [gate] (indexing in the middle of a chunk). */
     private class SlowBackend(val fake: FakeEmbeddingBackend = FakeEmbeddingBackend()) : EmbeddingBackend by fake {
         val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
