@@ -82,3 +82,25 @@ analysis finished (index stable, build-phase peak 34.7 MB), a play-all of 3,500 
 candidates, 2,086 ms first plan, 232 ms top-up) ran in one process with no OutOfMemoryError. The emulator's 10k set is
 damaged (3,500 files left), so 10k at 48 MB was not rerun.
 
+## Round 4 (clean)
+
+One fresh attacker over the fix commits and the least-reviewed areas (equaliser chain, widgets, QS tile, library scan
+and identity registry, MP4 tag probe, playlist Plays order, Statistics cache, For You picks, the ListenBrainz ZIP reader
+on both platforms, the impression log, loudness, every locale's keys and placeholders): **CLEAN**. The loop stops.
+
+### Final checks
+
+- Host tests (`testAndroidHostTest`, every module): 3,523 tests, 0 failures. build-logic tests and the Python tool tests
+  (runtime, taglib, fuzz, release, ci) pass.
+- iOS: `tools/ci/ios_verify.py` (core:smart, library, playback, history and composeApp on an arm64 simulator) passes;
+  the app (Swift, CocoaPods, Compose) compiles for the simulator.
+- Release APKs, reduced runtime, per-ABI: arm64-v8a 36,969,552 bytes (versionCode 432), armeabi-v7a 44,494,348,
+  x86_64 58,855,710; dex registers at most 249 (limit 255); native-library and runtime checks pass.
+- Upgrade (LJ-fold emulator, muted, 80 CC tracks): 0.9.2 analysed the library and logged 4 plays; installing this
+  branch's arm64 APK over it kept the plays, re-analysed the library once (new encoder) and computed energy for every
+  track; after a cold start the SMART mode planned a queue without loading the semantic head first; no crash.
+- Small heap: see round 3.
+
+Left for the owner: the base versionCode (≥ 44 to replace the phone's 43) and the changelog file names; the public-text
+proposals (changelog wording, README, PRIVACY, ListenBrainz texts, European Portuguese); C1-4 (proposal); 0.9.4 notes:
+C1-6, C2-2, A3-1, D1-7, B2-3 if not taken as a release note.
