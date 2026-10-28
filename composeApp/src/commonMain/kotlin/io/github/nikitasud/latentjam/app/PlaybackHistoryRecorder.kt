@@ -52,6 +52,8 @@ fun CoroutineScope.launchPlaybackHistoryRecorder(
     onSnapshot: suspend (NowPlaying) -> Unit = {},
     /** Each listen once recorded. */
     onListen: suspend (ListenEvent) -> Unit = {},
+    /** Adds what the player cannot see to a finished listen before it is recorded (PersonalSignals). */
+    annotate: (ListenEvent) -> ListenEvent = { it },
 ): Job = launch {
     val gate = PlaybackHistoryGate(initiallyEnabled = enabled.value)
     // One merged stream, one collector: snapshots and flushes are serialized through the same
@@ -73,7 +75,7 @@ fun CoroutineScope.launchPlaybackHistoryRecorder(
                 // that the sitting is over.
                 if (playback.state.value.isPlaying) null else gate.flush(command.nowMs)
         }
-        finished?.let { event ->
+        finished?.let(annotate)?.let { event ->
             try {
                 history.record(event)
                 onRecorded()

@@ -17,59 +17,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-/**
- * "Learn from my habits" (docs/habit-slots.md): gives tracks that really followed [seed] or its
- * artist the 1-based slots 1, 3, 5, 7 and 9 of SMART's [chain], those whose transition strength
- * outweighs how far they would pull the queue from the seed ([HabitFlow]; without one, every row
- * counts as coherent). Returns [chain] unchanged when none qualifies.
- */
-internal suspend fun withHabitSlots(
-    history: ListeningHistory,
-    seed: TrackDescriptor,
-    candidates: List<TrackDescriptor>,
-    library: List<TrackDescriptor>,
-    chain: List<TrackId>,
-    seedMs: Long,
-    flow: HabitFlow?,
-    /** LW2 on the habit list (FB build): a seed → row pair rejected twice is no habit (null = unweighted, as before). */
-    lw: io.github.nikitasud.latentjam.smart.ranker.RankerModel.ListenWeight? = null,
-    /** The artist a habit "after this artist" counts under (SimilarityEngine.artistKeyOf). */
-    artistKeyOf: (TrackDescriptor) -> String = HabitSlots::artistKey,
-): List<TrackId> = withContext(Dispatchers.Default) {
-    val events = runCatching { history.recentEvents(SMART_HABIT_HISTORY_LIMIT) }.getOrNull()
-        ?: return@withContext chain
-    val artistKeys = HashMap<TrackId, String>(library.size + 1)
-    for (track in library) artistKeys[track.id] = artistKeyOf(track)
-    artistKeys[seed.id] = artistKeyOf(seed)
-    val credit = lw?.let { w -> { e: ListenEvent -> listenCredit(e, w.zeroMs) } }
-    val listens = habitListens(events.asReversed(), artistKeys.keys, seedMs, credit)
-    val artistKey = { id: TrackId -> artistKeys[id].orEmpty() }
-    val all = habitRows(listens, seed.id, seedMs, candidates.map(TrackDescriptor::id), artistKey, salt = seedMs)
-    val rows = if (lw == null) all else all - rejectedHabits(events.asReversed(), artistKeys.keys, listens, seed.id, seedMs, lw)
-    if (rows.isEmpty()) return@withContext chain
-    val (byTrack, byArtist) = HabitSlots.transitionCounts(listens, seed.id, artistKey)
-    val byId = candidates.associateBy(TrackDescriptor::id)
-    val score = flow?.incoherence(seed, library)
-    // No flow scorer judges nothing: every part unknown, which λ = 2 never lets through.
-    val incoherence = rows.associateWith { id -> score?.let { s -> byId[id]?.let { s(it) } } ?: HabitFlow.UNKNOWN }
-    // Evidence (2026-10-28, round 4): a habit is a repeat — at least HABIT_MIN_TRACK_TRANSITIONS after this very track or
-    // HABIT_MIN_ARTIST_TRANSITIONS after any of its artist's; one evening's pair is no habit.
-    val evidenced = rows.filter {
-        (byTrack[it] ?: 0) >= HABIT_MIN_TRACK_TRANSITIONS || (byArtist[it] ?: 0) >= HABIT_MIN_ARTIST_TRANSITIONS
-    }
-    val personal = HabitFlow.pick(evidenced, count = { habitCount(it, byTrack, byArtist) }, incoherence)
-    // Aggregate on purpose: no title, artist or id leaves the app through the system log.
-    println("SMART: habit slots placed ${personal.size} of ${rows.size} real transitions (${evidenced.size} repeated)")
-    when {
-        personal.isEmpty() -> chain
-        // As FIT's arm: the chosen rows spread over the first ten slots by their own number (slots.py)...
-        (byTrack[personal.first()] ?: 0) >= HABIT_SLOT1_TRACK_TRANSITIONS || chain.isEmpty() ->
-            HabitSlots.interleave(personal, chain, personalSlots = personal.size)
-        // ...but the queue opens with SMART's own pick unless the first row is a strong habit of this very track.
-        else -> listOf(chain.first()) + HabitSlots.interleave(personal - chain.first(), chain.drop(1), personalSlots = personal.size)
-    }
-}
-
 /** A habit row needs at least this many transitions from the seed track... */
 internal const val HABIT_MIN_TRACK_TRANSITIONS: Int = 2
 

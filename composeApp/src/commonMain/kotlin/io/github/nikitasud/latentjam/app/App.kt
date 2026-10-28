@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.history.PickSurface
 import io.github.nikitasud.latentjam.smart.idList
 import io.github.nikitasud.latentjam.smart.associateById
 import androidx.compose.animation.core.LinearEasing
@@ -2219,6 +2220,7 @@ private fun AppShell(
                                 else -> QueueSource(QueueSourceKind.TRACKS)
                             }
                             updateTrackSelection(emptySet())
+                            PersonalSignals.pick(if (showSearch) PickSurface.SEARCH else PickSurface.COLLECTION)
                             scope.launch { playback.play(selection, 0) }
                         },
                         onAdd = {
@@ -2677,6 +2679,7 @@ private fun AppShell(
                                                     val tail = queue.mapNotNull(byId::get)
                                                     AppGraph.queueSource.value =
                                                         QueueSource(QueueSourceKind.FOR_YOU)
+                                                    PersonalSignals.pick(PickSurface.FOR_YOU)
                                                     playback.play(
                                                         listOf(hero.track) + tail,
                                                         0,
@@ -2740,6 +2743,7 @@ private fun AppShell(
                                                             QueueSourceKind.MAP,
                                                             shownRegionNames.getOrNull(region) ?: world.name,
                                                         )
+                                                        PersonalSignals.pick(PickSurface.COLLECTION)
                                                         scope.launch { playback.play(members, 0) }
                                                     }
                                                 }
@@ -2756,6 +2760,7 @@ private fun AppShell(
                                                                 QueueSourceKind.MAP,
                                                                 shownRegionNames.getOrNull(region) ?: world.name,
                                                             )
+                                                            PersonalSignals.pick(PickSurface.COLLECTION)
                                                             playback.play(unheard, 0)
                                                         }
                                                     }
@@ -2793,6 +2798,7 @@ private fun AppShell(
                                                             QueueSourceKind.MAP,
                                                             shownRegionNames.getOrNull(region) ?: world.name,
                                                         )
+                                                        PersonalSignals.pick(PickSurface.COLLECTION)
                                                         playback.play(
                                                             listOf(seed) + tail,
                                                             0,
@@ -2964,6 +2970,7 @@ private fun AppShell(
                                                 onPlay = { queue, index ->
                                                     AppGraph.queueSource.value =
                                                         QueueSource(QueueSourceKind.TRACKS)
+                                                    PersonalSignals.pick(PickSurface.COLLECTION)
                                                     scope.launch { playback.play(queue, index) }
                                                 },
                                                 onTrackMenu = {
@@ -3410,6 +3417,7 @@ private fun AppShell(
                                     AppGraph.queueSource.value = QueueSource(QueueSourceKind.TRACKS)
                                     // The library action chooses a random starting track, not a
                                     // playback mode. In SMART this track seeds a fresh smart queue.
+                                    PersonalSignals.pick(PickSurface.COLLECTION)
                                     playback.play(songs, songs.indices.random())
                                 }
                             },
@@ -3518,6 +3526,7 @@ private fun AppShell(
                                 scope.launch {
                                     AppGraph.queueSource.value = selection.queueSource()
                                     playback.setShuffleMode(ShuffleMode.SMART)
+                                    PersonalSignals.pick(PickSurface.COLLECTION)
                                     playback.play(selection.tracks, 0)
                                 }
                             },
@@ -3562,18 +3571,21 @@ private fun AppShell(
                                 if (selection.tracks.isNotEmpty()) scope.launch {
                                     AppGraph.queueSource.value = selection.queueSource()
                                     playback.setShuffleMode(ShuffleMode.OFF)
+                                    PersonalSignals.pick(PickSurface.COLLECTION)
                                     playback.play(selection.tracks, 0)
                                 }
                             },
                             onPlayTrack = { index ->
                                 AppGraph.queueSource.value =
                                     selection.queueSource()
+                                PersonalSignals.pick(PickSurface.COLLECTION)
                                 scope.launch { playback.play(selection.tracks, index) }
                             },
                             onShuffle = {
                                 if (selection.tracks.isNotEmpty()) scope.launch {
                                     AppGraph.queueSource.value = selection.queueSource()
                                     playback.setShuffleMode(ShuffleMode.ON)
+                                    PersonalSignals.pick(PickSurface.COLLECTION)
                                     playback.play(selection.tracks, selection.tracks.indices.random())
                                 }
                             },
@@ -3640,7 +3652,7 @@ private fun AppShell(
                                 updateTrackSelection(setOf(track.id))
                             },
                             onClearSelection = { updateTrackSelection(emptySet()) },
-                            onPlay = { queue, index -> scope.launch { playback.play(queue, index) } },
+                            onPlay = { queue, index -> PersonalSignals.pick(PickSurface.SEARCH); scope.launch { playback.play(queue, index) } },
                             onTrackMenu = { sheets.trackMenuRequest = TrackMenuRequest(it) },
                             // A selection made among search results has no surface to live on once
                             // the results are gone.
@@ -4249,6 +4261,7 @@ private fun AppShell(
                         )
                         val byId = songs.associateById()
                         AppGraph.queueSource.value = QueueSource(QueueSourceKind.FOR_YOU)
+                        PersonalSignals.pick(PickSurface.FOR_YOU)
                         playback.play(
                             listOf(target.track) + queue.mapNotNull(byId::get),
                             0,

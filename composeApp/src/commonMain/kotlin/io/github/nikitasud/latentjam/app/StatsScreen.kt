@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.history.PickSurface
 import io.github.nikitasud.latentjam.smart.associateById
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -491,6 +492,7 @@ internal fun ListeningStatsSettings(
             if (start >= 0) {
                 // A hand-picked set from this page has no single honest source to name.
                 AppGraph.queueSource.value = null
+                PersonalSignals.pick(PickSurface.COLLECTION)
                 scope.launch { AppGraph.playback.play(rows, start) }
             }
         }

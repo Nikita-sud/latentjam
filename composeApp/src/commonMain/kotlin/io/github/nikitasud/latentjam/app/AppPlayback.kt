@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.history.PickSurface
 import io.github.nikitasud.latentjam.smart.associateByIdValue
 import androidx.compose.runtime.*
 import io.github.nikitasud.latentjam.library.MusicLibrary
@@ -120,6 +121,7 @@ internal fun PlaybackRestoreEffect(
         onBegin = { resumeAttempted = true },
         onPlay = { track ->
             AppGraph.queueSource.value = null
+            PersonalSignals.pick(PickSurface.EXTERNAL)
             playback.play(listOf(track), 0)
             onOpenPlayer()
         },

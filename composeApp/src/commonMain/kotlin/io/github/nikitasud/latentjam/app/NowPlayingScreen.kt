@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.history.PickSurface
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.testTag
@@ -466,7 +467,7 @@ fun NowPlayingScreen(
                             showPauseButton = now.showPauseButton,
                             onTogglePlayback = { scope.launch { playback.togglePlayPause() } },
                             canReorder = true,
-                            onPlayAt = { index -> scope.launch { playback.playAt(index) } },
+                            onPlayAt = { index -> PersonalSignals.pick(PickSurface.QUEUE); scope.launch { playback.playAt(index) } },
                             onTrackMenu = onQueueTrackMenu?.takeIf { surface.allows(PlayerEntry.QUEUE_ROW_MENU) },
                             onRemoveAt = { index -> scope.launch { playback.removeQueueItem(index) } },
                             onMove = { from, to ->

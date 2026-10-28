@@ -8,7 +8,6 @@ import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.playback.NextTrackChooser
 import io.github.nikitasud.latentjam.playback.SmartChoice
-import io.github.nikitasud.latentjam.smart.HabitFlow
 import io.github.nikitasud.latentjam.history.SmartPresses
 import io.github.nikitasud.latentjam.smart.ranker.PlanPick
 import io.github.nikitasud.latentjam.smart.ranker.SaltedKey
@@ -18,6 +17,8 @@ import io.github.nikitasud.latentjam.smart.SmartHistoryEvent
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.continuesSmartPlan
+import io.github.nikitasud.latentjam.smart.personal.PersonalInputs
+import io.github.nikitasud.latentjam.smart.personal.PersonalModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -46,14 +47,12 @@ class EngineNextTrackChooser(
     private val history: ListeningHistory,
     /** Live view of the playlists the listener marked "keep together in SMART". */
     private val companionGroups: () -> List<Set<TrackId>> = { emptyList() },
-    /** The "Learn from my habits" setting: personal slots in queues SMART starts from a seed. */
+    /** The "Learn from my habits" setting: the chain's personal term uses habits and priors, not only recency. */
     private val learnFromHabits: () -> Boolean = { false },
-    /** SMART's library, whose listens the habit list reads (not only what may still be queued). */
+    /** SMART's library, whose listens the personal evidence reads (not only what may still be queued). */
     private val library: () -> List<TrackDescriptor> = { emptyList() },
-    /** How far a habit row would pull the queue from its seed; null scores every row coherent. */
-    private val habitFlow: HabitFlow? = null,
-    /** LW2 on the chain's habit list (FB build): pairs rejected twice after the seed are no habit; null = unweighted. */
-    private val habitListenWeight: io.github.nikitasud.latentjam.smart.ranker.RankerModel.ListenWeight? = null,
+    /** The listener's personal evidence over a library (PersonalModelCache); null plans the old chain without it. */
+    private val personalModel: (suspend (List<TrackDescriptor>) -> PersonalModel)? = null,
     /** The "learned ranker" setting: plans come from [ranker] instead of the engine's chain. */
     private val useRanker: () -> Boolean = { false },
     private val ranker: () -> SmartRanker? = { null },
@@ -78,6 +77,8 @@ class EngineNextTrackChooser(
 ) : NextTrackChooser {
 
     private val mutex = Mutex()
+    /** The rows of the latest chain plan the personal term changed (reported by the engine while it plans). */
+    private var personalChanged: Set<TrackId> = emptySet()
     /** The press of the SMART queue being served: set when a queue starts from its seed, reused by its top-ups. */
     private var queuePress = 0L
     /** Ranker failures and spent budgets in this SMART queue; at [BREAKER_LIMIT] the queue runs rule-only (§7.2). */
@@ -210,17 +211,21 @@ class EngineNextTrackChooser(
                 queueSeedTrack = null
                 servedInQueue.clear()
                 queueModeSet = false
+                val personal = personalModel?.let { build ->
+                    val habits = learnFromHabits()
+                    PersonalInputs(
+                        model = build(library().ifEmpty { candidates + current }),
+                        nowMs = events.last().startedAtMs,
+                        habits = habits,
+                        hearts = if (habits && useFavourites()) favourites().keys else emptySet(),
+                        playlists = if (habits) userPlaylists().map { it.toSet() } else emptyList(),
+                        onPersonalChanged = { personalChanged = it },
+                    )
+                }
+                personalChanged = emptySet()
                 engine.continueSmartQueue(
-                    current, candidates, CHAIN_LENGTH, events, groups, precedingTrackIds = recentIds,
-                )
-            }
-            // A queue SMART starts from a seed is that seed alone (the controllers replace the
-            // queue with the tapped track); top-ups of a running queue keep SMART's own order.
-            if (learned == null && recentIds.isEmpty() && plan.isNotEmpty() && learnFromHabits()) {
-                plan = withHabitSlots(
-                    history, current, candidates, library(), plan, seedMs = events.last().startedAtMs, flow = habitFlow,
-                    lw = habitListenWeight, artistKeyOf = engine::artistKeyOf,
-                )
+                    current, candidates, CHAIN_LENGTH, events, groups, precedingTrackIds = recentIds, personal = personal,
+                ).also { PersonalSignals.planned(it, personalChanged) }
             }
             planned = ArrayDeque(plan.withIndex().toList())
             smartLog?.let { log ->

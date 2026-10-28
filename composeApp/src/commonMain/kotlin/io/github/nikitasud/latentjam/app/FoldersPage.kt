@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.history.PickSurface
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -389,6 +390,7 @@ private fun FolderTreeBrowser(
         )
         scope.launch {
             playback.setShuffleMode(mode)
+            PersonalSignals.pick(PickSurface.COLLECTION)
             playback.play(tracks, if (mode == ShuffleMode.ON) tracks.indices.random() else 0)
         }
     }
@@ -429,6 +431,7 @@ private fun FolderTreeBrowser(
                         // A tapped track plays the tracks beside it, as the folder's own page does,
                         // and keeps the shuffle mode the listener chose.
                         AppGraph.queueSource.value = folderTrackSource(node, labels.of(node))
+                        PersonalSignals.pick(PickSurface.COLLECTION)
                         scope.launch { playback.play(node.tracks, index) }
                     },
                     onTrackMenu = onTrackMenu,

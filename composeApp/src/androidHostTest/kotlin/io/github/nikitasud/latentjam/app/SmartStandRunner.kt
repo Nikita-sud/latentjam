@@ -111,6 +111,13 @@ class SmartStandRunner {
             MusicEntityResolver { read("music_entities_250k.bin") },
             loadAdapter = { File(ml, "artist_adapter.bin").takeIf { it.isFile }?.readBytes() },
         ) { read("artist_knowledge.bin") }
+        // LJ_STAND_PERSONAL_SIM=1: PLAN_PERSONAL's synthetic listeners on this library (no copied history is read).
+        if (System.getenv("LJ_STAND_PERSONAL_SIM") == "1") {
+            val engine = chainEngine(dir, files, knowledge, library)
+            val lines = PersonalListenerSim(engine, library, seeds).runAll(out)
+            lines.forEach { println("PERSONAL SIM ${dir.name} $it") }
+            return
+        }
         // LJ_STAND_AS2=1: artist_sets.py's as2 rules (audit 07 #4 / #7 / #10), to preview them before the FIT rebuild.
         val assets = SmartRankerAssets(knowledge, ::read, audio = audio, artistSetsAs2 = System.getenv("LJ_STAND_AS2") == "1")
         val ranker = assets.ranker
@@ -221,10 +228,12 @@ class SmartStandRunner {
                     presses = SmartPresses(MemoryPresses()), smartLog = log,
                     favourites = { favourites }, useFavourites = { true }, clock = { now }, userPlaylists = { userPlaylists },
                     varietyScale = { varietyScale }, companionGroups = { marks },
-                    // LJ_STAND_CHAIN_FLOW=1: the chain's habit slots judged by the app's flow scorer (without one no row passes
-                    // λ = 2, so the earlier chain FULL equals CORE); LJ_STAND_CHAIN_LW=1 adds LW2 on the habit list (FB build).
-                    habitFlow = if (System.getenv("LJ_STAND_CHAIN_FLOW") == "1") io.github.nikitasud.latentjam.smart.HabitFlow(knowledge) else null,
-                    habitListenWeight = if (System.getenv("LJ_STAND_CHAIN_LW") == "1") HABIT_LISTEN_WEIGHT_LW2 else null,
+                    // The chain's personal term as the app runs it (PLAN_PERSONAL): CORE = recency only, FULL = habits and
+                    // priors too. LJ_STAND_PERSONAL=0 plans the chain without it (recency as the old multiplier).
+                    personalModel = if (chainEngine == null || System.getenv("LJ_STAND_PERSONAL") == "0") null else {
+                        val cache = PersonalModelCache(seedHistory, chainEngine::artistKeysOf)
+                        ({ lib: List<TrackDescriptor> -> cache.model(lib) })
+                    },
                 )
                 suspend fun played(track: TrackDescriptor, at: Long, start: io.github.nikitasud.latentjam.history.ListenStart): Long {
                     val heard = track.durationMs ?: 180_000L

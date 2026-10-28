@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.history.PickSurface
 import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.playback.PlaybackController
 import io.github.nikitasud.latentjam.playback.RepeatMode
@@ -65,6 +66,7 @@ internal suspend fun playFromForYou(
     // The rows start at once; the continuation is planned behind them. Waiting for the planner
     // before play() left a tap silent for seconds and could let a late For You start override
     // something the listener picked elsewhere in the meantime.
+    PersonalSignals.pick(PickSurface.FOR_YOU)
     playback.play(tracks, index)
     val seed = tracks.last()
     val planned = runCatching { plan(seed) }.getOrElse { failure ->

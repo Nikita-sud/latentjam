@@ -217,10 +217,9 @@ object AppGraph {
                                 engine = get(),
                                 history = get(),
                                 companionGroups = { smartCompanionGroups.value },
-                                // FB build: no ranker ships; "Learn from my habits" puts habit slots (with LW2) on the chain.
+                                // No ranker ships; "Learn from my habits" turns on the chain's habits and priors (PLAN_PERSONAL).
                                 learnFromHabits = { !SMART_RANKER_SHIPPED && settings.learnFromHabits.value },
                                 useRanker = { SMART_RANKER_SHIPPED && settings.smartRanker.value },
-                                habitListenWeight = HABIT_LISTEN_WEIGHT_LW2,
                                 ranker = getOrNull<SmartRankerAssets>().let { assets -> { assets?.ranker } },
                                 rankerHealthy = getOrNull<SmartRankerAssets>().let { assets -> { assets?.healthy ?: false } },
                                 personalRanker = { settings.learnFromHabits.value },
@@ -240,8 +239,9 @@ object AppGraph {
                                 library = { smartLibraryTracks.value },
                                 userPlaylists = { smartUserPlaylists.value },
                                 varietyScale = { ARTIST_VARIETY_RANKER_SCALES[sanitizeArtistVariety(settings.artistVariety.value)] },
-                                habitFlow = get<SimilarityEngine>().let { engine ->
-                                    HabitFlow(getOrNull(), audio = { id -> engine.embedding(id) })
+                                personalModel = get<SimilarityEngine>().let { engine ->
+                                    val cache = PersonalModelCache(get(), engine::artistKeysOf)
+                                    ({ library: List<TrackDescriptor> -> cache.model(library) })
                                 },
                             )
                         }
@@ -276,6 +276,7 @@ object AppGraph {
                 onRecorded = { mutableHistoryRevision.value += 1L },
                 onSnapshot = { now -> smartLog?.onNowPlaying(now) },
                 onListen = { event -> smartLog?.onListen(event) },
+                annotate = PersonalSignals::annotate,
             )
             // Hearts: their times for FULL's favourite features, and the events for SMART's impression log.
             koin.getOrNull<FavoriteTimes>()?.let { heartTimes ->
