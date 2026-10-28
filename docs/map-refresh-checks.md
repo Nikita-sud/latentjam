@@ -431,7 +431,7 @@ a bad identity map are purity on average linkage, the new placed-agreement row a
 - **Also:** a join with pending tracks now goes through `MapRebuild.requested`, so the 24 h fallback
   timer starts.
 
-**Pilots 3–5** (pilot data only; logs `piece4-pilot3..5-2026-10-26.txt`):
+**Pilots 3–5** (pilot data only; their raw logs are not kept):
 
 - **Pilot 3** (final harness, δ ∈ {0.1, 0.2, 0.3}) found a mechanism weakness. On the k-means
   switch, new, changed and previously unassigned tracks were poured into the one fine region their

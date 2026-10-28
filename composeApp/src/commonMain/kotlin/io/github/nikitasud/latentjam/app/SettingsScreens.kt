@@ -2068,25 +2068,28 @@ private fun IntelligenceSettings(
                             )
                         },
                     )
-                    SettingsRow(
-                        title = stringResource(Res.string.intelligence_smart_diagnose),
-                        subtitle = stringResource(Res.string.intelligence_smart_diagnose_body),
-                        onClick = {
-                            if (diagnosing) return@SettingsRow
-                            diagnosing = true
-                            scope.launch {
-                                val path = try {
-                                    withContext(Dispatchers.Default) { AppGraph.diagnoseSmartStarts() }
-                                } catch (cancelled: CancellationException) {
-                                    throw cancelled
-                                } catch (_: Exception) {
-                                    null
+                    // The diagnosis reads the ranker's plans; a build without it has none to read.
+                    if (SMART_RANKER_SHIPPED) {
+                        SettingsRow(
+                            title = stringResource(Res.string.intelligence_smart_diagnose),
+                            subtitle = stringResource(Res.string.intelligence_smart_diagnose_body),
+                            onClick = {
+                                if (diagnosing) return@SettingsRow
+                                diagnosing = true
+                                scope.launch {
+                                    val path = try {
+                                        withContext(Dispatchers.Default) { AppGraph.diagnoseSmartStarts() }
+                                    } catch (cancelled: CancellationException) {
+                                        throw cancelled
+                                    } catch (_: Exception) {
+                                        null
+                                    }
+                                    diagnosing = false
+                                    snackbarHostState.showSnackbar(if (path != null) diagnoseDone else diagnoseFailed)
                                 }
-                                diagnosing = false
-                                snackbarHostState.showSnackbar(if (path != null) diagnoseDone else diagnoseFailed)
-                            }
-                        },
-                    )
+                            },
+                        )
+                    }
                 }
                 SettingsSwitchRow(
                     title = stringResource(Res.string.intelligence_include_novelty_mixes),
