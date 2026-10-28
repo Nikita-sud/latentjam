@@ -192,6 +192,12 @@ class SmartStandRunner {
                 ?.groupBy({ it[0] }, { TrackId(it[1]) })?.values?.map { it.toSet() }
         }.orEmpty()
         val queues = StringBuilder()
+        // The owner report (PLAN_PERSONAL v2 §5): FULL hops with a personal addition, and the changes the stage made.
+        var stagedHops = 0
+        var nonZeroHops = 0
+        var changedHops = 0
+        io.github.nikitasud.latentjam.smart.personal.PersonalDiagnostics.hop = { _, _, adds -> if (adds.values.any { it != 0f }) nonZeroHops++ }
+        io.github.nikitasud.latentjam.smart.personal.PersonalDiagnostics.sink = { _, changed -> stagedHops++; if (changed) changedHops++ }
         for (seed in seeds) {
             for (full in listOf(false, true)) {
                 // PLAN_TRANSGRAPH: LJ_STAND_NOW (epoch ms) fixes the plan clock (a years-old import must age from it).
@@ -273,6 +279,10 @@ class SmartStandRunner {
             }
         }
         File(out, "queues.jsonl").writeText(queues.toString())
+        io.github.nikitasud.latentjam.smart.personal.PersonalDiagnostics.hop = null
+        io.github.nikitasud.latentjam.smart.personal.PersonalDiagnostics.sink = null
+        File(out, "personal.txt").writeText("staged hops $stagedHops, with a personal addition $nonZeroHops, changed $changedHops\n" +
+            "habit pairs (>= 2 own sessions): " + PersonalModelCache(history, chainEngine?.let { it::artistKeysOf } ?: { emptyList() }).model(library).habitPairs() + "\n")
         File(out, "build.txt").writeText(
             "model ${ranker.modelName}\nfull ${ranker.fullModelName}\nencoder $AUDIO_MODEL_VERSION\n" +
                 "library ${library.size}\nvectors ${vectors.entries.size}\nenergies ${energies.size}\nseeds ${seeds.size}\n",
