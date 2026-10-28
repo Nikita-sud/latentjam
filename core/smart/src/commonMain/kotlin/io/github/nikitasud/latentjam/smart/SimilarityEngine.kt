@@ -365,6 +365,12 @@ public interface SimilarityEngine {
      */
     public fun artistKeyOf(track: TrackDescriptor): String = HabitSlots.artistKey(track)
 
+    /** Forgets the continuation walks remembered from earlier plans, so the next press starts afresh (offline comparisons). */
+    public suspend fun forgetWalks() {}
+
+    /** Every artist key SMART counts [track] under (its whole credit when the engine resolves artist lists). */
+    public fun artistKeysOf(track: TrackDescriptor): List<String> = listOf(artistKeyOf(track)).filter(String::isNotEmpty)
+
     /**
      * Extends a SMART queue from its last planned track [seed]. When a matching walk is still
      * available, it carries the preceding plan's intent and recent picks into this plan; otherwise
@@ -390,6 +396,20 @@ public interface SimilarityEngine {
         companionGroups: List<Set<TrackId>> = emptyList(),
         precedingTrackIds: List<TrackId> = emptyList(),
     ): List<TrackId> = smartQueue(seed, library, length, history, companionGroups)
+
+    /**
+     * [continueSmartQueue] with the listener's personal term ([PersonalInputs]): recency and, with "Learn from my habits",
+     * habits and priors as a tie-breaker within the core's margin (PLAN_PERSONAL). Engines without it ignore [personal].
+     */
+    public suspend fun continueSmartQueue(
+        seed: TrackDescriptor,
+        library: List<TrackDescriptor>,
+        length: Int,
+        history: List<SmartHistoryEvent>,
+        companionGroups: List<Set<TrackId>>,
+        precedingTrackIds: List<TrackId>,
+        personal: io.github.nikitasud.latentjam.smart.personal.PersonalInputs?,
+    ): List<TrackId> = continueSmartQueue(seed, library, length, history, companionGroups, precedingTrackIds)
 
     /**
      * How strongly SMART avoids several tracks in a row by one artist, for plans requested from now on (the

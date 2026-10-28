@@ -103,14 +103,18 @@ internal data class ChainTuning(
     /** Whether extreme track durations are damped; the fixture's rows have no durations. */
     val durationSanity: Boolean = true,
     /**
-     * EXPERIMENTAL personal-preference term: `score += personalWeight * personalAffinity(row)`.
-     * Null and 0 by default, so shipped queues and the recorded parity replays are
-     * byte-identical without it. It exists for the offline personalization simulation —
-     * enabling it in production is a product decision against SMART's objectivity principle,
-     * not a tuning tweak, and must carry its own harness evidence.
+     * EXPERIMENTAL personal-preference term for the offline simulation: `personalWeight * personalAffinity(row)`, added
+     * after the core inside the personal stage's ±δ clamp (PLAN_PERSONAL §1). Null and 0 by default.
      */
     val personalAffinity: ((Int) -> Float)? = null,
     val personalWeight: Float = 0f,
+    /** Tests only: a bonus added inside the core score, to make one candidate win a hop; the app never sets it. */
+    val coreBonus: ((Int) -> Float)? = null,
+    /**
+     * The listener's personal term ([PersonalTerm]): recency and, with "Learn from my habits", habits and priors, as a
+     * tie-breaker within δ of the core's best. Null keeps the old chain: recency as a multiplier inside the score.
+     */
+    val personal: PersonalTerm? = null,
 )
 
 /**

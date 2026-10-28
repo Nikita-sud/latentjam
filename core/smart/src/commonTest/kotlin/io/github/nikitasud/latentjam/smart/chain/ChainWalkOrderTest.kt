@@ -36,8 +36,7 @@ internal class ChainWalkOrderTest {
             neighbourhoodBonus = 0f,
             artistRunPenalty = 0.5f,
             // Keep A's next track the winner so its recorded repeat/run penalty can be inspected.
-            personalAffinity = { row -> if (row == 13) 1f else 0f },
-            personalWeight = 100f,
+            coreBonus = { row -> if (row == 13) 100f else 0f },
         )
         fun firstTrace(walk: ChainWalk): PickTrace {
             val traces = mutableListOf<PickTrace>()
@@ -74,8 +73,7 @@ internal class ChainWalkOrderTest {
         val planner = SmartChain(snapshot, null, eligible, tuning = ChainTuning(
             continueAfterExhaustion = true,
             neighbourhoodBonus = 0f,
-            personalAffinity = { row -> if (row == 13) 1f else 0f },
-            personalWeight = 100f,
+            coreBonus = { row -> if (row == 13) 100f else 0f },
         ))
         fun trace(walk: ChainWalk): PickTrace {
             val traces = mutableListOf<PickTrace>()
@@ -151,8 +149,7 @@ internal class ChainWalkOrderTest {
             neighbourhoodBonus = 0f,
             artistRunPenalty = 0.5f,
             // Keep A's next track the winner so its recorded repeat/run penalty can be inspected.
-            personalAffinity = { row -> if (row == 13) 1f else 0f },
-            personalWeight = 100f,
+            coreBonus = { row -> if (row == 13) 100f else 0f },
         )
         fun resume(walk: ChainWalk): Pair<ChainResult, PickTrace> {
             val traces = mutableListOf<PickTrace>()
@@ -189,8 +186,7 @@ internal class ChainWalkOrderTest {
         val tuning = ChainTuning(
             continueAfterExhaustion = true,
             neighbourhoodBonus = 0f,
-            personalAffinity = { row -> if (row == 13) 1f else 0f },
-            personalWeight = 100f,
+            coreBonus = { row -> if (row == 13) 100f else 0f },
         )
         val eligible = BooleanArray(snapshot.size) { it > 4 }
         fun firstPick(walk: ChainWalk): Int = SmartChain(snapshot, null, eligible, tuning = tuning)

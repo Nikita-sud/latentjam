@@ -11,6 +11,7 @@ import io.github.nikitasud.latentjam.smart.chain.ChainWalk
 import io.github.nikitasud.latentjam.smart.chain.CompanionMembership
 import io.github.nikitasud.latentjam.smart.chain.JourneySequencer
 import io.github.nikitasud.latentjam.smart.chain.MetadataFallbackQueue
+import io.github.nikitasud.latentjam.smart.chain.PersonalTerm
 import io.github.nikitasud.latentjam.smart.chain.PickTrace
 import io.github.nikitasud.latentjam.smart.chain.PredictorRuntime
 import io.github.nikitasud.latentjam.smart.chain.QueueClasses
@@ -897,6 +898,19 @@ internal class DefaultSimilarityEngine(
         seed, library, length, history, companionGroups, continueWalk = true, precedingTrackIds = precedingTrackIds,
     )
 
+    override suspend fun continueSmartQueue(
+        seed: TrackDescriptor,
+        library: List<TrackDescriptor>,
+        length: Int,
+        history: List<SmartHistoryEvent>,
+        companionGroups: List<Set<TrackId>>,
+        precedingTrackIds: List<TrackId>,
+        personal: io.github.nikitasud.latentjam.smart.personal.PersonalInputs?,
+    ): List<TrackId> = planQueue(
+        seed, library, length, history, companionGroups, continueWalk = true, precedingTrackIds = precedingTrackIds,
+        personal = personal,
+    )
+
     private suspend fun planQueue(
         seed: TrackDescriptor,
         library: List<TrackDescriptor>,
@@ -905,6 +919,7 @@ internal class DefaultSimilarityEngine(
         companionGroups: List<Set<TrackId>>,
         continueWalk: Boolean,
         precedingTrackIds: List<TrackId> = emptyList(),
+        personal: io.github.nikitasud.latentjam.smart.personal.PersonalInputs? = null,
     ): List<TrackId> = withContext(dispatcher) {
         mutex.withLock {
             if (mutableState.value !is EngineState.Ready) return@withLock emptyList()
@@ -1024,9 +1039,13 @@ internal class DefaultSimilarityEngine(
                     theme = config.themeWeights?.let { ThemePool(it.toFloatArray(), config.themeSlots, config.themeBonus) },
                     themeDump = SmartTraceHook.themeSink?.let { sink -> { reference: Int, features: FloatArray -> sink(SmartTraceHook.themeLine(snapshot, reference, features)) } },
                     companionPoints = Rerank.COMPANION_POINTS,
+                    personal = personal?.let { PersonalTerm(snapshot, it) },
                 )
             } else {
-                ChainTuning(continueAfterExhaustion = config.continueAfterExhaustion)
+                ChainTuning(
+                    continueAfterExhaustion = config.continueAfterExhaustion,
+                    personal = personal?.let { PersonalTerm(snapshot, it) },
+                )
             }
             val planner = SmartChain(
                 snapshot,
@@ -1776,6 +1795,13 @@ internal class DefaultSimilarityEngine(
 
     override fun artistKeyOf(track: TrackDescriptor): String =
         if (config.artistSets) artistSetOf(track).firstOrNull().orEmpty() else HabitSlots.artistKey(track)
+
+    override suspend fun forgetWalks() {
+        withContext(dispatcher) { mutex.withLock { walks.clear() } }
+    }
+
+    override fun artistKeysOf(track: TrackDescriptor): List<String> =
+        if (config.artistSets) artistSetOf(track).filter(String::isNotEmpty) else super.artistKeysOf(track)
 
     /** The artist list ArtistSets resolves credits against: the pack's named entities, read once. */
     private val knownArtists: KnownArtists by lazy { artistKnowledge?.knownArtists() ?: KnownArtists.NONE }
