@@ -536,7 +536,8 @@ class SmartStandRunner {
         val config = io.github.nikitasud.latentjam.smart.SmartEngineConfig(
             embeddingDim = 960, modelLocator = "ml/mnv4_audio.onnx", modelVersion = AUDIO_MODEL_VERSION, typicalityWeight = 0f,
             continueAfterExhaustion = true, judgedScoring = true,
-            artistRunPenalty = ARTIST_VARIETY_PENALTIES[DEFAULT_ARTIST_VARIETY],
+            // LJ_STAND_ARTIST_VARIETY: the Artist variety level (0 = Off … 4), the app's default otherwise.
+            artistRunPenalty = ARTIST_VARIETY_PENALTIES[System.getenv("LJ_STAND_ARTIST_VARIETY")?.toInt() ?: DEFAULT_ARTIST_VARIETY],
             // LJ_STAND_CLASS (spreads) and LJ_STAND_NO_JUDGED override the app's chain for tuning runs.
             queueClassPenalty = System.getenv("LJ_STAND_CLASS")?.toFloat() ?: SMART_QUEUE_CLASS_PENALTY,
             judgedCorrection = if (System.getenv("LJ_STAND_JUDGED") != null) true else if (System.getenv("LJ_STAND_NO_JUDGED") != null) false else SMART_JUDGED_CORRECTION,

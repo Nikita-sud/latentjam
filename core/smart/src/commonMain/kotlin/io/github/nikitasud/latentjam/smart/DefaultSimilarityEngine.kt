@@ -1042,6 +1042,8 @@ internal class DefaultSimilarityEngine(
                     rerankWeights = (config.correctionWeights?.toFloatArray() ?: Rerank.JUDGED_WEIGHTS).takeIf { config.judgedCorrection },
                     soundFloor = Rerank.SOUND_FLOOR,
                     artistRunPenalty = runPenalty,
+                    // Artist variety Off (no run penalty) means no per-queue artist cap either.
+                    artistQueueCap = runPenalty > 0f,
                     queueClasses = config.queueClassPenalty.takeIf { it > 0f }?.let(::QueueClasses),
                     theme = config.themeWeights?.let { ThemePool(it.toFloatArray(), config.themeSlots, config.themeBonus) },
                     themeDump = SmartTraceHook.themeSink?.let { sink -> { reference: Int, features: FloatArray -> sink(SmartTraceHook.themeLine(snapshot, reference, features)) } },

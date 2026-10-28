@@ -360,6 +360,21 @@ internal class SmartContinuationEngineTest {
     }
 
     @Test
+    fun `artist variety Off lifts the per-queue artist cap and every other level keeps it`() = runTest {
+        val band = tracks.map { it.copy(artist = "The Band") }
+        val length = ChainConfig.CHAIN_ARTIST_QUEUE_CAP + 4
+        check(band.size > length)
+        // Off: the slider's 0 is no run penalty and no cap, so one artist fills the whole plan.
+        val engine = engine(continuation = true, judged = true, runPenalty = 0f, library = band)
+        assertEquals(length, engine.smartQueue(band.first(), band.drop(1), length).size)
+        // Every other level (0.25 is Low) keeps the cap.
+        for (penalty in listOf(0.25f, 0.5f, 1f, 2f)) {
+            engine.setArtistRunPenalty(penalty)
+            assertEquals(ChainConfig.CHAIN_ARTIST_QUEUE_CAP, engine.smartQueue(band.first(), band.drop(1), length).size, "penalty $penalty")
+        }
+    }
+
+    @Test
     fun `under judged scoring marked playlists are points and the run penalty still counts`() = runTest {
         val groups = listOf(setOf(tracks[1].id, tracks[2].id, tracks[3].id))
         val engine = engine(continuation = true, judged = true, runPenalty = 0.5f)

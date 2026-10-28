@@ -525,7 +525,7 @@ internal class SmartChain(
             if (pool[i] in used) return false
             val meta = snapshot.tracks[pool[i]].meta
             if (meta.titleArtistKey in seenTitles) return false
-            if (meta.artists.any { (artistPlays[it] ?: 0) >= ChainConfig.CHAIN_ARTIST_QUEUE_CAP }) return false
+            if (tuning.artistQueueCap && meta.artists.any { (artistPlays[it] ?: 0) >= ChainConfig.CHAIN_ARTIST_QUEUE_CAP }) return false
             return true
         }
 
@@ -539,7 +539,7 @@ internal class SmartChain(
                 for (row in snapshot.tracks.indices) {
                     val meta = snapshot.tracks[row].meta
                     if (!eligibleRows[row] || row in used || meta.titleArtistKey in seenTitles ||
-                        meta.artists.any { (artistPlays[it] ?: 0) >= ChainConfig.CHAIN_ARTIST_QUEUE_CAP }
+                        (tuning.artistQueueCap && meta.artists.any { (artistPlays[it] ?: 0) >= ChainConfig.CHAIN_ARTIST_QUEUE_CAP })
                     ) unavailable.add(row)
                 }
                 fun closeRows(reference: Int): Set<Int> {

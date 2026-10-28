@@ -72,6 +72,8 @@ internal data class ChainTuning(
      * better by more. JourneySequencer takes the same value for the order. 0 is off. EXPERIMENTAL.
      */
     val artistRunPenalty: Float = 0f,
+    /** Whether an artist stops after [ChainConfig.CHAIN_ARTIST_QUEUE_CAP] songs in one queue; off only at Artist variety Off. */
+    val artistQueueCap: Boolean = true,
     /** Kinds of track that jar after a seed outside them ([QueueClasses]); null is off. */
     val queueClasses: QueueClasses? = null,
     /** A learned queue theme as a candidate channel ([ThemePool]); null is off. */
