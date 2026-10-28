@@ -49,16 +49,7 @@ semantic_scores contract. The routing scores are not general probabilities
 of a listener's preference. Both replacement weight files are licensed
 Apache-2.0 by LatentJam.
 
-Weights in the app's code. The SMART queue theme (8 weights) was fitted on
-2026-10-28 to queues DeepSeek-V4.1-Flash composed for licence-filtered Free
-Music Archive libraries and for the developer's own library (its track list
-and derived sound hints only), on features the app computes on the device;
-no Million Playlist Dataset data. DeepSeek's terms of use permit using its
-outputs, including for training. The SMART chain's learned score correction
-(12 weights) was refitted the same day to rankings by local Claude judges of
-the chain's own candidates in those Free Music Archive libraries; it no
-longer uses weights fitted on the Million Playlist Dataset, and this build
-does not apply it.
+Weights in the app's code. The SMART queue theme (8 weights) was fitted to queues composed by DeepSeek-V4.1-Flash (whose terms permit using its outputs) for licence-filtered Free Music Archive libraries and a private test library (track lists only).
 
 The student implementation used PyTorch Image Models (timm), licensed
 Apache-2.0. The EfficientAT repository (code) is licensed MIT; its release
