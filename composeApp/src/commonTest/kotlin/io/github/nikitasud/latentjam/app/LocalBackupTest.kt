@@ -13,6 +13,7 @@ import io.github.nikitasud.latentjam.history.HistoryStore
 import io.github.nikitasud.latentjam.history.ListenEvent
 import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.history.ListenOrigin
+import io.github.nikitasud.latentjam.history.PickSurface
 import io.github.nikitasud.latentjam.history.ListenStart
 import io.github.nikitasud.latentjam.history.RecentSearchStore
 import io.github.nikitasud.latentjam.history.SmartExclusionStore
@@ -158,7 +159,7 @@ internal class LocalBackupTest {
         val encoded = LocalBackupCodec.encode(snapshot)
 
         assertEquals(snapshot, LocalBackupCodec.decode(encoded))
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t11\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t12\n"))
         assertFalse(encoded.contains("Группа крови"), "User strings must be safely encoded")
     }
 
@@ -248,7 +249,7 @@ internal class LocalBackupTest {
             assertFailsWith<LocalBackupFormatException>(bad) { LocalBackupCodec.decode(encoded.replace(record, bad)) }
         }
         assertFailsWith<LocalBackupFormatException> {
-            LocalBackupCodec.decode(encoded.replaceFirst("LOCAL-BACKUP\t11", "LOCAL-BACKUP\t10"))
+            LocalBackupCodec.decode(encoded.replaceFirst("LOCAL-BACKUP\t12", "LOCAL-BACKUP\t10"))
         }
         assertFailsWith<LocalBackupFormatException> {
             LocalBackupCodec.encode(snapshot.copy(settings = snapshot.settings.copy(appearance = Appearance(albumColumns = 7))))
@@ -280,7 +281,7 @@ internal class LocalBackupTest {
             }
         }
         assertFailsWith<LocalBackupFormatException> {
-            LocalBackupCodec.decode(encoded.replaceFirst("LOCAL-BACKUP\t11", "LOCAL-BACKUP\t7"))
+            LocalBackupCodec.decode(encoded.replaceFirst("LOCAL-BACKUP\t12", "LOCAL-BACKUP\t7"))
         }
     }
 
@@ -478,13 +479,15 @@ internal class LocalBackupTest {
                 listen(1, ListenOrigin(ListenStart.AUTO_ADVANCE, 3, "folder:/Music/Кино\tLive")),
                 listen(2, ListenOrigin()),
                 listen(3, origin = null),
+                listen(4, ListenOrigin(ListenStart.USER_PICK, pickSurface = PickSurface.SEARCH, personalChanged = false)),
+                listen(5, ListenOrigin(ListenStart.AUTO_ADVANCE, 2, personalChanged = true)),
             ),
         )
 
         val encoded = LocalBackupCodec.encode(snapshot)
 
         assertEquals(snapshot, LocalBackupCodec.decode(encoded))
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t11\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t12\n"))
     }
 
     @Test
@@ -538,7 +541,7 @@ internal class LocalBackupTest {
         // One version past the current format: a file from a newer build is refused whole, before
         // any record of it is read.
         assertFailsWith<LocalBackupFormatException> {
-            LocalBackupCodec.decode(valid.replaceFirst("LOCAL-BACKUP\t11", "LOCAL-BACKUP\t12"))
+            LocalBackupCodec.decode(valid.replaceFirst("LOCAL-BACKUP\t12", "LOCAL-BACKUP\t13"))
         }
         assertFailsWith<LocalBackupFormatException> {
             LocalBackupCodec.decode(valid + "Q\tnot-hex\n")
@@ -633,7 +636,7 @@ internal class LocalBackupTest {
         val encoded = source.service.exportEncoded()
         destination.service.importEncoded(encoded, LocalBackupRestoreMode.REPLACE)
 
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t11\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t12\n"))
         assertEquals(layout, destination.settings.pageLayout.value)
         assertEquals(StartPage.STATISTICS, destination.settings.startPage.value)
     }
@@ -820,6 +823,29 @@ internal class LocalBackupTest {
         fixture.history.record(listen)
 
         fixture.service.importEncoded(fixture.service.exportEncoded(), LocalBackupRestoreMode.MERGE)
+
+        assertContentEquals(listOf(listen), fixture.history.recentEvents(Int.MAX_VALUE))
+    }
+
+    @Test
+    fun mergingAV11BackupOfTheSameListensAddsNothing() = runTest {
+        val song = track("song", "Song", "Artist", "Album", 120_000)
+        val fixture = fixture(listOf(song))
+        val listen = event(song.id, 100).copy(
+            origin = ListenOrigin(ListenStart.USER_PICK, parentId = "playlist:p", pickSurface = PickSurface.COLLECTION),
+        )
+        fixture.history.record(listen)
+        // v11 had no pick surface field: the same listen comes back without it.
+        val v11 = LocalBackupCodec.encode(
+            fixture.service.capture().let { snapshot ->
+                snapshot.copy(
+                    formatVersion = 11,
+                    listeningHistory = snapshot.listeningHistory.map { it.copy(origin = it.origin?.copy(pickSurface = null)) },
+                )
+            },
+        )
+
+        fixture.service.importEncoded(v11, LocalBackupRestoreMode.MERGE)
 
         assertContentEquals(listOf(listen), fixture.history.recentEvents(Int.MAX_VALUE))
     }
@@ -1161,7 +1187,7 @@ internal class LocalBackupTest {
         val encoded = LocalBackupCodec.encode(snapshot)
 
         assertEquals(snapshot, LocalBackupCodec.decode(encoded))
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t11\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t12\n"))
         // One record per heart, newest first; one per verdict, every track of it on the line.
         assertEquals(
             listOf("F\ts63", "F\ts${"file:\nКИНО\t1".hex()}", "F\ts62"),

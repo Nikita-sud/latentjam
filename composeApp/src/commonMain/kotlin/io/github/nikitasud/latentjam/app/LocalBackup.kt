@@ -10,6 +10,7 @@ import io.github.nikitasud.latentjam.history.ListenEvent
 import io.github.nikitasud.latentjam.history.ListenOrigin
 import io.github.nikitasud.latentjam.history.ListenStart
 import io.github.nikitasud.latentjam.history.ListeningHistory
+import io.github.nikitasud.latentjam.history.PickSurface
 import io.github.nikitasud.latentjam.history.RecentSearches
 import io.github.nikitasud.latentjam.history.SmartExclusionState
 import io.github.nikitasud.latentjam.history.SmartExclusions
@@ -168,6 +169,9 @@ private const val FIRST_VERSION_WITH_FAVORITES = 9
 /** The format version that brought the look ("K") record and the custom track colour mode. */
 private const val FIRST_VERSION_WITH_APPEARANCE = 11
 
+/** The format version that brought a listen's pick surface and personal-term flag (two more "H" fields). */
+private const val FIRST_VERSION_WITH_PICK_SURFACE = 12
+
 internal enum class LocalBackupSection {
     PLAYLISTS,
     LISTENING_HISTORY,
@@ -266,11 +270,12 @@ internal object LocalBackupCodec {
     /**
      * The version every export writes. A record arrives together with the version number that
      * carries it — "L" with v4, "V" with v6, "O" with v7, "G" with v8, the favourites ("F") and
-     * the duplicate finder's verdicts ("N") with v9, the look ("K") with v11 — so a build that knows only an older
+     * the duplicate finder's verdicts ("N") with v9, the look ("K") with v11, a listen's pick surface and personal flag
+     * (two more "H" fields) with v12 — so a build that knows only an older
      * version refuses such a file with "Unsupported backup version" instead of tripping over a
      * record it does not know ("Unknown backup record at line N").
      */
-    const val FORMAT_VERSION: Int = 11
+    const val FORMAT_VERSION: Int = 12
     private const val LEGACY_FORMAT_VERSION: Int = 1
     private const val HEADER = "LATENTJAM-LOCAL-BACKUP"
     private const val MAX_TEXT_CHARS = 64 * 1024 * 1024
@@ -383,6 +388,10 @@ internal object LocalBackupCodec {
                             add(origin?.start?.name.encodeNullableField())
                             add(origin?.smartPlanPosition?.toLong().encodeNullableLong())
                             add(origin?.parentId.encodeNullableField())
+                            if (snapshot.formatVersion >= FIRST_VERSION_WITH_PICK_SURFACE) {
+                                add(origin?.pickSurface?.name.encodeNullableField())
+                                add(origin?.personalChanged?.toBit().encodeNullableField())
+                            }
                         }
                     },
                 )
@@ -572,6 +581,7 @@ internal object LocalBackupCodec {
                 "H" -> {
                     record.requireFieldCount(
                         when {
+                            version >= FIRST_VERSION_WITH_PICK_SURFACE -> 15
                             version >= 5 -> 13
                             version >= 3 -> 9
                             else -> 8
@@ -591,7 +601,7 @@ internal object LocalBackupCodec {
                         } else {
                             null
                         },
-                        origin = if (version >= 5) record.decodeListenOrigin() else null,
+                        origin = if (version >= 5) record.decodeListenOrigin(version) else null,
                     )
                 }
                 "Q" -> {
@@ -788,6 +798,11 @@ internal object LocalBackupCodec {
         if (snapshot.formatVersion < 5 && snapshot.listeningHistory.any { it.origin != null }) {
             formatError("Legacy backups cannot encode listening origins")
         }
+        if (snapshot.formatVersion < FIRST_VERSION_WITH_PICK_SURFACE &&
+            snapshot.listeningHistory.any { it.origin?.pickSurface != null || it.origin?.personalChanged != null }
+        ) {
+            formatError("Older backups cannot encode pick surfaces")
+        }
         snapshot.recentSearches.forEach { search ->
             // The store refuses a query past these bounds, so a foreign document must be refused
             // here, before any section is applied, rather than mid-restore.
@@ -903,14 +918,20 @@ internal object LocalBackupCodec {
     private fun String.decodeNullableField(label: String): String? =
         if (this == "n") null else decodeField(label)
 
-    /** The four origin fields of a v5 history record; see [encode]. */
-    private fun FieldCursor.decodeListenOrigin(): ListenOrigin? {
+    /** The origin fields of a history record (four from v5, six from v12); see [encode]. */
+    private fun FieldCursor.decodeListenOrigin(version: Int): ListenOrigin? {
         val present = nextField().parseBit("history origin flag")
         val start = nextField().decodeNullableField("history start")
         val planPosition = nextField().decodeNullableLong("history plan position")
         val parentId = nextField().decodeNullableField("history parent")
+        val surface = if (version >= FIRST_VERSION_WITH_PICK_SURFACE) nextField().decodeNullableField("history pick surface") else null
+        val personalChanged = if (version >= FIRST_VERSION_WITH_PICK_SURFACE) {
+            nextField().decodeNullableField("history personal flag")?.parseBit("history personal flag")
+        } else {
+            null
+        }
         if (!present) {
-            if (start != null || planPosition != null || parentId != null) invalid()
+            if (start != null || planPosition != null || parentId != null || surface != null || personalChanged != null) invalid()
             return null
         }
         return ListenOrigin(
@@ -921,6 +942,9 @@ internal object LocalBackupCodec {
                 it.toInt()
             },
             parentId = parentId,
+            // Like the start: a surface named by a newer build is unknown here.
+            pickSurface = surface?.let { name -> PickSurface.entries.firstOrNull { it.name == name } },
+            personalChanged = personalChanged,
         )
     }
 
@@ -1487,12 +1511,15 @@ internal class LocalBackupService(
      * duplicate instead of doubling that part of the history. [ListeningHistory.merge] hands over
      * the current log under its lock and enforces the size bound before anything is written, so
      * this function only has to keep the log ordered: a stable sort leaves listens recorded in the
-     * same millisecond in local-before-imported order.
+     * same millisecond in local-before-imported order. A v11 backup carries no pick surface or personal flag, so
+     * those two fields are left out of a listen's identity and the copy already on the device wins.
      */
     private fun mergeHistoryLog(
         existing: List<ListenEvent>,
         imported: List<ListenEvent>,
-    ): List<ListenEvent> = (existing + imported).distinct().sortedBy(ListenEvent::startedAtMs)
+    ): List<ListenEvent> = (existing + imported)
+        .distinctBy { event -> event.copy(origin = event.origin?.copy(pickSurface = null, personalChanged = null)) }
+        .sortedBy(ListenEvent::startedAtMs)
 
     private fun mergePlaylists(existing: List<Playlist>, imported: List<Playlist>): List<Playlist> {
         val result = existing.toMutableList()
