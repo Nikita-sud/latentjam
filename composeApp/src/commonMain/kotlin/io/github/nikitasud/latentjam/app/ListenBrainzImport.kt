@@ -5,6 +5,9 @@
 package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.history.ListenEvent
+import io.github.nikitasud.latentjam.history.ListenOrigin
+import io.github.nikitasud.latentjam.history.ListenStart
+import io.github.nikitasud.latentjam.history.isImported
 import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.library.MusicLibrary
@@ -246,8 +249,8 @@ internal class ListenBrainzLibraryEmptyException : IllegalStateException("The li
 /**
  * Loads a ListenBrainz export into the listening history.
  *
- * Every matched listen is written in the shape the rest of the app reads as an import: no origin,
- * no listen time, not skipped (see HabitSlotsPlanner and TransGraph), starting at `listened_at`,
+ * Every matched listen is written in the shape the rest of the app reads as an import (ListenEvent.isImported): start
+ * IMPORTED, no listen time, not skipped (see HabitSlotsPlanner and TransGraph), starting at `listened_at`,
  * and lasting the library track's duration, which ListenBrainz's own rule (half the track or four
  * minutes) makes the honest estimate. With a known duration it counts as completed.
  *
@@ -352,8 +355,7 @@ internal class ListenBrainzImporter(
         for (event in existing) {
             val index = indexById[event.trackId.value]?.let { groups[it] } ?: continue
             allStarts.getOrPut(index) { PackedLongs() }.add(event.startedAtMs)
-            val importShaped = event.origin == null && event.listenedMs == null && !event.skipped
-            if (!importShaped) inAppStarts.getOrPut(index) { PackedLongs() }.add(event.startedAtMs)
+            if (!event.isImported) inAppStarts.getOrPut(index) { PackedLongs() }.add(event.startedAtMs)
         }
         val sortedAll = allStarts.mapValues { it.value.sorted() }
         val sortedInApp = inAppStarts.mapValues { it.value.sorted() }
@@ -384,6 +386,7 @@ internal class ListenBrainzImporter(
                 trackDurationMs = duration,
                 completed = duration != null,
                 skipped = false,
+                origin = ListenOrigin(start = ListenStart.IMPORTED),
             )
         }
         return Fold(added, songs.size, alreadyPresent, fresh.size - kept.size)

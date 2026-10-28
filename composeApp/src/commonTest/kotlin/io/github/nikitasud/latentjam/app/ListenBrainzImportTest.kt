@@ -9,6 +9,7 @@ import io.github.nikitasud.latentjam.history.HistoryStore
 import io.github.nikitasud.latentjam.history.ListenEvent
 import io.github.nikitasud.latentjam.history.ListenOrigin
 import io.github.nikitasud.latentjam.history.ListenStart
+import io.github.nikitasud.latentjam.history.isImported
 import io.github.nikitasud.latentjam.library.LibrarySource
 import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
@@ -163,11 +164,14 @@ class ListenBrainzImportTest {
             ListenEvent(
                 trackId = TrackId("t1"), startedAtMs = 1_700_000_000_000L, playedMs = 200_000L,
                 trackDurationMs = 200_000L, completed = true, skipped = false,
+                origin = ListenOrigin(start = ListenStart.IMPORTED),
             ),
             first,
         )
-        // Exactly what TransGraph and the habit planner read as an import.
-        assertTrue(events.all { it.origin == null && it.listenedMs == null && !it.skipped && it.shuffleMode == null })
+        // Exactly what TransGraph and the habit planner read as an import (ListenEvent.isImported), and the line format
+        // keeps it: an IMPORTED start, no listen time, no skip, no shuffle mode.
+        assertTrue(events.all { it.isImported && it.origin?.start == ListenStart.IMPORTED && it.listenedMs == null && !it.skipped && it.shuffleMode == null })
+        assertEquals(events, events.map { ListenEvent.parse(it.serialize()) })
         val unknownLength = events.single { it.trackId == TrackId("t3") }
         assertEquals(0L, unknownLength.playedMs)
         assertEquals(false, unknownLength.completed)

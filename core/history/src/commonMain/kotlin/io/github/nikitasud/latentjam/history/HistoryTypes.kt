@@ -191,7 +191,21 @@ public enum class ListenStart {
      * before 0.9.3 read it as no start at all.
      */
     QUEUED,
+
+    /**
+     * A listen imported from another service's history (a ListenBrainz export): heard elsewhere, so how it started is
+     * unknown; consecutive imported listens are scrobbles, which may be album or radio playback. Builds before 0.9.3
+     * read it as no start at all, as they read imports written without an origin.
+     */
+    IMPORTED,
 }
+
+/**
+ * A listen another service recorded (a ListenBrainz import): [ListenStart.IMPORTED], or the shape importers wrote
+ * before that start existed — no origin, no listen time, not skipped.
+ */
+public val ListenEvent.isImported: Boolean
+    get() = origin?.start == ListenStart.IMPORTED || (origin == null && listenedMs == null && !skipped)
 
 /** Adds non-negative listening durations without wrapping a corrupt/extreme total below zero. */
 internal fun saturatingDurationAdd(left: Long, right: Long): Long =
