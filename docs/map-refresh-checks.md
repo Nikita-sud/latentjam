@@ -668,7 +668,7 @@ Ignore these fields:
 
 ```
 MAP_REGIONS=1 MAP_REGIONS_MODE=check MAP_REGIONS_DELTAS=0.2 MAP_REGIONS_SEEDS=47,53,59 \
-MAP_REGIONS_FMA=/private/tmp/claude-501/-Users-nichitabulgaru-Documents-LJ-latentjam--claude-worktrees-research-map-cost-91141c/a70fc488-7434-4db2-8aee-455a6707983f/scratchpad/fma-p4-s707/fma-5000,/private/tmp/claude-501/-Users-nichitabulgaru-Documents-LJ-latentjam--claude-worktrees-research-map-cost-91141c/a70fc488-7434-4db2-8aee-455a6707983f/scratchpad/fma-p4-s808/fma-5000,/private/tmp/claude-501/-Users-nichitabulgaru-Documents-LJ-latentjam--claude-worktrees-research-map-cost-91141c/a70fc488-7434-4db2-8aee-455a6707983f/scratchpad/fma-p4-s909/fma-6500 \
+MAP_REGIONS_FMA=<scratch>/fma-p4-s707/fma-5000,<scratch>/fma-p4-s808/fma-5000,<scratch>/fma-p4-s909/fma-6500 \
 MAP_REGIONS_EXCLUDE_STYLE="Hip-Hop Beats" MAP_REGIONS_LOG=<scratch>/p4-check.log \
 ./gradlew :core:smart:testAndroidHostTest --tests '*MapRegionIdentityReplay' --rerun
 ```

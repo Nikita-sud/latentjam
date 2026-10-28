@@ -188,11 +188,7 @@ object AppGraph {
                                 // Thematic libraries (the owner's) lose playlist share; history-mode
                                 // evidence exists only for that library.
                                 continueAfterExhaustion = true,
-                                // The correction learned from a listening judge, a sound floor and a soft
-                                // penalty for runs of one artist. Against the mode above on held-out and
-                                // fresh MPD libraries both judges prefer it (+0.26/+0.15 and +0.13/+0.10),
-                                // playlist share +1.3/+0.7 pp, harsh transitions -0.5 pp, a blind listener
-                                // panel 12:6; the owner's library +5 pp playlist share. The listener's
+                                // Judged scoring: a sound floor and a soft penalty for runs of one artist.
                                 // The saved artist-variety level from the first plan on, so a process the UI never
                                 // composes (Android Auto, a headset resume) does not plan at the default; App's
                                 // ArtistVarietyApplier then follows changes.
@@ -203,7 +199,7 @@ object AppGraph {
                                 themeWeights = SMART_THEME_WEIGHTS,
                                 themeSlots = SMART_THEME_SLOTS,
                                 themeBonus = SMART_THEME_BONUS,
-                                // c095: no learned correction — the theme replaces it (stand gates, FINDINGS §51).
+                                // c095: no learned correction — the queue theme replaces it.
                                 judgedCorrection = SMART_JUDGED_CORRECTION,
                             )
                         }
@@ -764,7 +760,7 @@ internal const val SMART_ARTIST_SETS: Boolean = true
  * The learned queue theme's weights (ThemePool; audio z, descriptor z, family Jaccard, family any, same language, same era,
  * shared artist, energy gap): P(a track belongs in the queue | its start), fitted to DeepSeek's queues for the owner's
  * library (track list and sound hints, by the owner's leave) and the 16 FMA stand libraries on the device's own features
- * (ablation/c095/fit_theme.py gate; a shared artist counts only when it also sounds alike; held out: top-15 overlap with the
+ * (a shared artist counts only when it also sounds alike; held out: top-15 overlap with the
  * teacher 4.73 owner / 4.25 FMA vs audio alone 2.61 / 2.70).
  * No MPD data. Null is off.
  */

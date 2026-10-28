@@ -9,7 +9,7 @@ import kotlin.math.sqrt
 
 /**
  * A queue's theme as a candidate channel (2026-10-28): which library tracks belong in a queue started from a reference,
- * scored as a whole set rather than one hop at a time. The DeepSeek pool check (FINDINGS §51) found half of what a
+ * scored as a whole set rather than one hop at a time. The DeepSeek pool check found half of what a
  * queue teacher picks never enters the chain's pool, which is built from sound neighbours; a small linear model over
  * [FEATURES] seed-relative features, fitted to the teacher's queues (P(track in the queue | seed)), recovers them.
  * Its top rows take up to [slots] of the pool, outside the continuation mode's sound neighbourhood; the walk still
