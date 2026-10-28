@@ -66,4 +66,7 @@ public data class SmartEngineConfig(
     public val queueClassPenalty: Float = 0f,
     public val judgedCorrection: Boolean = true,
     public val correctionWeights: List<Float>? = null,
+    /** With [judgedScoring]: ChainTuning.similarityGuard's share of the pool (0 is off). */
+    public val similarityGuardShare: Float = 0f,
+    public val similarityGuardEnergy: Float = 0f,
 )

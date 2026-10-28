@@ -514,6 +514,8 @@ class SmartStandRunner {
             queueClassPenalty = System.getenv("LJ_STAND_CLASS")?.toFloat() ?: SMART_QUEUE_CLASS_PENALTY,
             judgedCorrection = System.getenv("LJ_STAND_NO_JUDGED") == null,
             correctionWeights = System.getenv("LJ_STAND_CORRECTION")?.split(',')?.map { it.trim().toFloat() },
+            similarityGuardShare = System.getenv("LJ_STAND_SIMGUARD")?.toFloat() ?: 0f,
+            similarityGuardEnergy = System.getenv("LJ_STAND_SIMGUARD_E")?.toFloat() ?: 0f,
         )
         val engine = io.github.nikitasud.latentjam.smart.createHostSimilarityEngine(
             config, backend, store(versioned(files, "smart_index", AUDIO_MODEL_VERSION).name), store("smart_text_index.bin"),

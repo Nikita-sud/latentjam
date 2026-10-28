@@ -14,6 +14,7 @@ import io.github.nikitasud.latentjam.smart.chain.MetadataFallbackQueue
 import io.github.nikitasud.latentjam.smart.chain.PickTrace
 import io.github.nikitasud.latentjam.smart.chain.PredictorRuntime
 import io.github.nikitasud.latentjam.smart.chain.QueueClasses
+import io.github.nikitasud.latentjam.smart.chain.SimilarityGuard
 import io.github.nikitasud.latentjam.smart.chain.SmartChain
 import io.github.nikitasud.latentjam.smart.chain.SmartSnapshot
 import io.github.nikitasud.latentjam.smart.chain.SmartTrack
@@ -1016,6 +1017,7 @@ internal class DefaultSimilarityEngine(
                     soundFloor = Rerank.SOUND_FLOOR,
                     artistRunPenalty = runPenalty,
                     queueClasses = config.queueClassPenalty.takeIf { it > 0f }?.let(::QueueClasses),
+                    similarityGuard = config.similarityGuardShare.takeIf { it > 0f }?.let { SimilarityGuard(it, config.similarityGuardEnergy) },
                     companionPoints = Rerank.COMPANION_POINTS,
                 )
             } else {
