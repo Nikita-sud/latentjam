@@ -4,6 +4,7 @@
  */
 import com.android.build.api.artifact.SingleArtifact
 import java.io.ByteArrayOutputStream
+import java.security.MessageDigest
 import java.util.Properties
 import javax.inject.Inject
 import org.gradle.process.ExecOperations
@@ -175,6 +176,10 @@ androidComponents {
 // disabling the gate for the very APK used in release device checks.
 val buildOnlyTargetAbi = providers.gradleProperty("android.buildOnlyTargetAbi").orNull != "false"
 val supportedDeviceAbis = setOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+// Set by settings.gradle.kts: the reduced ONNX Runtime's ARM64 library hash (empty when none is in use), and whether
+// -Platentjam.stockOrt=true asked for the full runtime. Plain values, read now (configuration cache).
+val reducedOrtLibrarySha256: String = gradle.extensions.extraProperties["latentjam.reducedOrtLibrarySha256"] as String
+val stockOrtRequested: Boolean = gradle.extensions.extraProperties["latentjam.stockOrt"] as Boolean
 // A plain list, read now: a provider lambda would capture this script, which the configuration cache
 // cannot store, and every release build would then fail.
 val deviceAbis: List<String> = providers.gradleProperty("android.injected.build.abi").orNull
@@ -194,6 +199,19 @@ androidComponents {
         }
         tasks.named { it == "assemble$variantName" || it == "bundle$variantName" }
             .configureEach { dependsOn(verify) }
+        // Every release channel ships the reduced ARM64 ONNX Runtime (settings.gradle.kts), unless one asks for the
+        // full one: an ARM64 libonnxruntime.so that is not the reduced runtime's fails the build.
+        if (variant.buildType == "release") {
+            val ort = tasks.register<CheckReleaseOnnxRuntime>("check${variantName}OnnxRuntime") {
+                group = LifecycleBasePlugin.VERIFICATION_GROUP
+                description = "Fails when this release packages a full ARM64 ONNX Runtime instead of the reduced one."
+                nativeLibraries.set(variant.artifacts.get(SingleArtifact.MERGED_NATIVE_LIBS))
+                expectedSha256.set(reducedOrtLibrarySha256)
+                // The merged libraries hold every ABI; an F-Droid entry for another ABI packages no ARM64 runtime.
+                stockAllowed.set(stockOrtRequested || (fdroidAbi != null && fdroidAbi != "arm64-v8a"))
+            }
+            tasks.named { it == "assemble$variantName" || it == "bundle$variantName" }.configureEach { dependsOn(ort) }
+        }
         // R8 mis-encodes a method that needs more than 256 registers, and the verifier then rejects
         // its class at launch: the 0.8.1 candidate fe24e12c crashed on start in every release build.
         // Every release channel, including universal and device-targeted APKs, runs the gate.
@@ -265,6 +283,42 @@ abstract class CheckDexRegisters : DefaultTask() {
                     "and rerun checkReleaseDexRegisters:\n$text",
             )
         }
+    }
+}
+
+/**
+ * The ARM64 ONNX Runtime a release packages is the reduced one settings.gradle.kts substituted (its library hash), or
+ * the build asked for the full runtime or packages no ARM64 library ([stockAllowed]: an F-Droid entry for another ABI).
+ */
+@DisableCachingByDefault(because = "Hashing one library again is as quick as a cache lookup")
+abstract class CheckReleaseOnnxRuntime : DefaultTask() {
+
+    @get:InputFiles
+    @get:IgnoreEmptyDirectories
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val nativeLibraries: DirectoryProperty
+
+    @get:Input
+    abstract val expectedSha256: Property<String>
+
+    @get:Input
+    abstract val stockAllowed: Property<Boolean>
+
+    @TaskAction
+    fun check() {
+        val library = nativeLibraries.get().asFile.walkTopDown()
+            .firstOrNull { it.name == "libonnxruntime.so" && it.parentFile.name == "arm64-v8a" } ?: return
+        if (stockAllowed.get()) return
+        val expected = expectedSha256.get()
+        if (expected.isEmpty()) {
+            throw GradleException(
+                "This release would package the full ARM64 ONNX Runtime. Build the reduced one first " +
+                    "(tools/runtime/ort_source_build.sh, see tools/runtime/README.md) or pass -Platentjam.stockOrt=true.",
+            )
+        }
+        val actual = MessageDigest.getInstance("SHA-256").digest(library.readBytes())
+            .joinToString("") { "%02x".format(it) }
+        if (actual != expected) throw GradleException("The packaged ARM64 libonnxruntime.so is not the reduced runtime's")
     }
 }
 
