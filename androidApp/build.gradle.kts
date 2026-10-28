@@ -21,6 +21,15 @@ val playSigningRequested = providers.gradleProperty("latentjam.playSigning").orN
 // splits (they would share a versionCode, and fdroidserver expects exactly one output), and
 // no signing at all, because F-Droid signs with its own key after the build.
 val fdroidBuild = providers.gradleProperty("latentjam.fdroid").orNull == "true"
+// `-Platentjam.fdroidAbi=<abi>` (with latentjam.fdroid): F-Droid builds one APK per ABI, one recipe entry each, instead
+// of the universal one. Every ABI split, in every channel, carries its own versionCode (abiVersionCode below), so
+// the four APKs of one release never share a code and an upgrade never goes down.
+val fdroidAbi: String? = providers.gradleProperty("latentjam.fdroidAbi").orNull
+/** The last digit of an ABI split's versionCode: base × 10 + this. */
+val abiVersionDigits = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2, "x86" to 3, "x86_64" to 4)
+require(fdroidAbi == null || (fdroidBuild && fdroidAbi in abiVersionDigits)) {
+    "latentjam.fdroidAbi needs latentjam.fdroid=true and one of ${abiVersionDigits.keys}"
+}
 val uploadKeystore: Properties? = rootProject.file("keystore.properties")
     .takeIf { it.isFile }
     ?.let { file -> Properties().apply { file.inputStream().use(::load) } }
@@ -138,10 +147,24 @@ android {
 
     splits {
         abi {
-            isEnable = !playSigningRequested && !fdroidBuild
+            isEnable = !playSigningRequested && (!fdroidBuild || fdroidAbi != null)
             reset()
-            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            if (fdroidAbi != null) include(fdroidAbi) else include("arm64-v8a", "armeabi-v7a", "x86_64")
             isUniversalApk = false
+        }
+    }
+}
+
+// Per-ABI versionCodes: base × 10 + the ABI's digit for every split APK; a universal APK (the Play bundle's input, the
+// plain F-Droid build) keeps the base. Read now, as a plain Int: the configuration cache cannot store this script.
+val baseVersionCode: Int = checkNotNull(android.defaultConfig.versionCode)
+androidComponents {
+    onVariants { variant ->
+        for (output in variant.outputs) {
+            val abi = output.filters
+                .firstOrNull { it.filterType == com.android.build.api.variant.FilterConfiguration.FilterType.ABI }
+                ?.identifier ?: continue
+            output.versionCode.set(baseVersionCode * 10 + abiVersionDigits.getValue(abi))
         }
     }
 }
