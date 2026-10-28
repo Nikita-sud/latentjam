@@ -56,11 +56,12 @@ internal class ThemePool(
         private const val UNKNOWN_ERA = 0.5f
         private const val UNKNOWN_ENERGY_GAP = 0.3f
         private const val ERA_YEARS = 10
+        private const val POOL_NEIGHBOURS = 100
 
         /**
          * Row-major `n × FEATURES` features of every row against [reference]: audio and descriptor cosines as z-scores over
          * the library (rows without a descriptor 0), genre-family Jaccard and any-overlap, the same script language, the same
-         * era (years within [ERA_YEARS]), a shared artist (the credit's artist set) and the energy gap.
+         * era (years within [ERA_YEARS]), a shared artist (the credit's artist set) that also sounds alike, and the energy gap.
          */
         fun features(snapshot: SmartSnapshot, reference: Int): FloatArray {
             val n = snapshot.size
@@ -69,6 +70,8 @@ internal class ThemePool(
             val descriptorCos = snapshot.descriptorCosines(reference)
             val has = snapshot.hasDescriptor
             val descriptor = if (descriptorCos != null && has != null && has[reference]) zScores(descriptorCos, has) else null
+            val sameArtistFloor = audio.filterIndexed { i, _ -> i != reference }.sortedDescending()
+                .take(POOL_NEIGHBOURS).let { top -> if (top.isEmpty()) Float.NEGATIVE_INFINITY else top[top.size / 2] }
             val ref = snapshot.tracks[reference]
             val refMeta = ref.meta
             for (row in 0 until n) {
@@ -88,7 +91,9 @@ internal class ThemePool(
                 val ya = refMeta.eraYear
                 val yb = meta.eraYear
                 out[o + 5] = if (ya != null && yb != null) (if (abs(ya - yb) <= ERA_YEARS) 1f else 0f) else UNKNOWN_ERA
-                out[o + 6] = if (refMeta.sharesArtistWith(meta)) 1f else 0f
+                // Similarity, not the artist (owner, §46): a shared artist counts only for a track that also sounds like
+                // the reference, at or above the median of its POOL_NEIGHBOURS nearest by sound.
+                out[o + 6] = if (refMeta.sharesArtistWith(meta) && audio[row] >= sameArtistFloor) 1f else 0f
                 out[o + 7] = if (ref.energy.isNaN() || track.energy.isNaN()) UNKNOWN_ENERGY_GAP else abs(ref.energy - track.energy)
             }
             return out

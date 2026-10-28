@@ -763,10 +763,11 @@ internal const val SMART_ARTIST_SETS: Boolean = true
  * The learned queue theme's weights (ThemePool; audio z, descriptor z, family Jaccard, family any, same language, same era,
  * shared artist, energy gap): P(a track belongs in the queue | its start), fitted to DeepSeek's queues for the owner's
  * library (track list and sound hints, by the owner's leave) and the 16 FMA stand libraries on the device's own features
- * (ablation/c095/fit_theme.py; held out: top-15 overlap with the teacher 4.85 owner / 4.61 FMA vs audio alone 2.61 / 2.70).
+ * (ablation/c095/fit_theme.py gate; a shared artist counts only when it also sounds alike; held out: top-15 overlap with the
+ * teacher 4.73 owner / 4.25 FMA vs audio alone 2.61 / 2.70).
  * No MPD data. Null is off.
  */
-internal val SMART_THEME_WEIGHTS: List<Float>? = listOf(0.7372f, 0.5859f, 0.4165f, 0.5001f, 0.9738f, 0.1302f, 1.3054f, -2.7184f)
+internal val SMART_THEME_WEIGHTS: List<Float>? = listOf(0.7455f, 0.6732f, 0.6191f, 0.3468f, 0.9851f, 0.1879f, 0.4924f, -2.7054f)
 
 /** Pool rows the queue theme may take. */
 internal const val SMART_THEME_SLOTS: Int = 25
