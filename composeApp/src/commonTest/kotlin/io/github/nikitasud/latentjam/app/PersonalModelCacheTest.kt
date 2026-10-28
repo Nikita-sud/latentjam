@@ -26,7 +26,7 @@ class PersonalModelCacheTest {
         var builds = 0
         val cache = PersonalModelCache(history) {
             builds++
-            if (!fits) throw Error("out of memory") // as OutOfMemoryError, which common Kotlin cannot name
+            if (!fits) throw OutOfMemoryError()
             listOf("artist")
         }
 
@@ -41,6 +41,25 @@ class PersonalModelCacheTest {
         assertNotNull(cache.model(library), "a quarter more history is tried again")
     }
 
+    @Test
+    fun aClearedHistoryIsTriedAgainAfterAFailure() = runTest {
+        val history = DefaultListeningHistory(MemoryHistoryStore())
+        val library = listOf("a", "b").map { TrackDescriptor(id = TrackId(it), artist = "Artist", title = it, durationMs = 200_000L) }
+        suspend fun listen(at: Long) = history.record(ListenEvent(TrackId("a"), at, 200_000L, 200_000L, completed = true, skipped = false))
+        repeat(8) { listen(it * 1_000_000L) }
+        var fits = false
+        val cache = PersonalModelCache(history) {
+            if (!fits) throw OutOfMemoryError()
+            listOf("artist")
+        }
+        assertNull(cache.model(library))
+
+        fits = true
+        history.clear()
+        listen(1L)
+        assertNotNull(cache.model(library), "a smaller history is not the one that failed")
+    }
+
     private class MemoryHistoryStore : HistoryStore {
         private val lines = mutableListOf<String>()
         override suspend fun append(line: String) { lines += line }
@@ -50,5 +69,18 @@ class PersonalModelCacheTest {
             this.lines += lines
         }
         override suspend fun clear() { lines.clear() }
+    }
+
+    /** Named as the JVM's, which common Kotlin cannot name: the cache recognises it by its name. */
+    private class OutOfMemoryError : Error("out of memory")
+
+    @Test
+    fun anErrorThatIsNotMemoryIsNotHidden() = runTest {
+        val history = DefaultListeningHistory(MemoryHistoryStore())
+        history.record(ListenEvent(TrackId("a"), 1L, 200_000L, 200_000L, completed = true, skipped = false))
+        val cache = PersonalModelCache(history) { throw AssertionError("a bug") }
+        kotlin.test.assertFailsWith<AssertionError> {
+            cache.model(listOf(TrackDescriptor(id = TrackId("a"), artist = "Artist", title = "a", durationMs = 200_000L)))
+        }
     }
 }

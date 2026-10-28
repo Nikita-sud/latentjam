@@ -48,9 +48,9 @@ internal class PersonalModelCache(
         for (t in library) libraryHash = libraryHash * 31 + t.id.value.hashCode()
         val now = listOf(events.size.toLong(), events.maxOfOrNull { it.startedAtMs } ?: 0L, library.size.toLong(), libraryHash)
         if (now != stamp) {
-            // A quarter more history or another library before the next attempt, so top-ups do not keep
-            // allocating toward the same failure.
-            if (failedEvents >= 0 && libraryHash == failedLibraryHash && events.size < failedEvents + failedEvents / 4) {
+            // A quarter more history, a smaller one (cleared, restored) or another library before the next attempt, so
+            // top-ups do not keep allocating toward the same failure.
+            if (failedEvents >= 0 && libraryHash == failedLibraryHash && events.size in failedEvents until failedEvents + failedEvents / 4) {
                 return@withLock null
             }
             try {
@@ -61,8 +61,10 @@ internal class PersonalModelCache(
                     )
                 }
             } catch (exhausted: Error) {
-                // OutOfMemoryError, which common Kotlin cannot name. The half-built maps are local and unreachable
-                // now; SMART plans without the personal term (CORE), as with "Learn from my habits" off.
+                // Android: OutOfMemoryError, which common Kotlin cannot name; any other Error is a bug and goes on.
+                // (Kotlin/Native aborts on a failed allocation, but iOS has no small fixed heap.) The half-built maps
+                // are local and unreachable now; SMART plans without the personal term (CORE), as with habits off.
+                if (exhausted::class.simpleName != "OutOfMemoryError") throw exhausted
                 failedEvents = events.size
                 failedLibraryHash = libraryHash
                 stamp = null
