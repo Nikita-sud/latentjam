@@ -68,6 +68,15 @@ public class ArtistKnowledgePack private constructor(
     /** The confident entity [descriptor] reads for [artist], or null. */
     public fun entityOf(entityIds: IntArray, artist: String): Int? = entity(entityIds, artist)
 
+    /**
+     * The confident entity whose own name is [artist] (its name fingerprint matches), or null: a whole-name match, never
+     * a member, an alias token or a single word of a longer name (the entity index also stores those).
+     */
+    public fun namedEntity(entityIds: IntArray, artist: String): Int? {
+        val own = fingerprint(artist)
+        return entityIds.firstOrNull { it in 0 until entityCount && confidence(it) >= MIN_CONFIDENCE && fingerprintOf(it) == own }
+    }
+
     private fun entity(entityIds: IntArray, artist: String): Int? {
         val confident = entityIds.filter { it in 0 until entityCount && confidence(it) >= MIN_CONFIDENCE }
         if (confident.isEmpty()) return null

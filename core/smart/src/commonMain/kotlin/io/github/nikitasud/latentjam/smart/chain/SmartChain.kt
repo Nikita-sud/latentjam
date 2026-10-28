@@ -444,7 +444,7 @@ internal class SmartChain(
                 walked.asReversed().takeWhile { !companions.contains(comebackGroups[g], it) }.size
             }
         }
-        val recentArtists = ArrayDeque<String>()
+        val recentArtists = ArrayDeque<List<String>>()
         // The seed establishes intent, so it carries no repeat penalty. Subsequent picks enter
         // this short window; the penalty accumulates if both recent picks share an artist.
         val seenTitles = HashSet<Pair<String, String>>()
@@ -485,15 +485,15 @@ internal class SmartChain(
             for (row in played) {
                 val meta = snapshot.tracks[row].meta
                 meta.titleArtistKey?.let(seenTitles::add)
-                artistPlays[meta.artistKey] = (artistPlays[meta.artistKey] ?: 0) + 1
-                recentArtists.addLast(meta.artistKey)
+                for (a in meta.artists) artistPlays[a] = (artistPlays[a] ?: 0) + 1
+                recentArtists.addLast(meta.artists)
                 while (recentArtists.size > ChainConfig.CHAIN_ARTIST_SPACING) recentArtists.removeFirst()
             }
             // The plan's seed ends the walk; the run it ends counts back through what played.
             if (played.isNotEmpty()) {
                 runArtist = snapshot.tracks[played.last()].meta.artistKey
                 runLength = if (runArtist.isEmpty()) 0 else {
-                    played.asReversed().takeWhile { snapshot.tracks[it].meta.artistKey == runArtist }.size
+                    played.asReversed().takeWhile { snapshot.tracks[it].meta.hasArtist(runArtist) }.size
                 }
             }
         }
@@ -512,9 +512,7 @@ internal class SmartChain(
             if (pool[i] in used) return false
             val meta = snapshot.tracks[pool[i]].meta
             if (meta.titleArtistKey in seenTitles) return false
-            if (meta.artistKey.isNotEmpty() &&
-                (artistPlays[meta.artistKey] ?: 0) >= ChainConfig.CHAIN_ARTIST_QUEUE_CAP
-            ) return false
+            if (meta.artists.any { (artistPlays[it] ?: 0) >= ChainConfig.CHAIN_ARTIST_QUEUE_CAP }) return false
             return true
         }
 
@@ -528,8 +526,7 @@ internal class SmartChain(
                 for (row in snapshot.tracks.indices) {
                     val meta = snapshot.tracks[row].meta
                     if (!eligibleRows[row] || row in used || meta.titleArtistKey in seenTitles ||
-                        (meta.artistKey.isNotEmpty() &&
-                            (artistPlays[meta.artistKey] ?: 0) >= ChainConfig.CHAIN_ARTIST_QUEUE_CAP)
+                        meta.artists.any { (artistPlays[it] ?: 0) >= ChainConfig.CHAIN_ARTIST_QUEUE_CAP }
                     ) unavailable.add(row)
                 }
                 fun closeRows(reference: Int): Set<Int> {
@@ -761,16 +758,16 @@ internal class SmartChain(
                 val beforeMultiplier = score
                 score += ln(multiplier)
                 val beforePenalty = score
-                if (meta.artistKey.isNotEmpty()) {
+                if (meta.artists.isNotEmpty()) {
                     score -= ChainConfig.CHAIN_ARTIST_REPEAT_PENALTY *
-                        recentArtists.count { it == meta.artistKey }
+                        recentArtists.count { recent -> recent.any { it in meta.artists } }
                 }
                 val artistPenalty = score - beforePenalty
                 var correction = 0f
                 if (features != null) {
                     Rerank.features(
                         snapshot, features, row, anchorRow, referenceRow, seedRow, anchorCos, seedCos, scorerTerm,
-                        sameArtist = meta.artistKey.isNotEmpty() && meta.artistKey == anchorMeta.artistKey,
+                        sameArtist = meta.sharesArtistWith(anchorMeta),
                         inNeighbourhood = row in hopNearby,
                     )
                     if (rerankWeights != null) correction = Rerank.term(rerankWeights, features)
@@ -800,7 +797,18 @@ internal class SmartChain(
             val runPenalised = tuning.artistRunPenalty > 0f && runLength > 0
             var bestBeforeRun = -1
             if (guard != null) for (i in pool.indices) if (hopScored[i] && (bestBeforeRun < 0 || hopScores[i] > hopScores[bestBeforeRun])) bestBeforeRun = i
-            val spread = if (runPenalised || points != null || classRows != null) scoreSpread(hopScores, hopScored) else 0f
+            val themeBonus = if ((tuning.theme?.bonus ?: 0f) > 0f) themeRanking(intentRow).let { themeZ } else null
+            val spread = if (runPenalised || points != null || classRows != null || themeBonus != null) scoreSpread(hopScores, hopScored) else 0f
+            // The queue theme as a prior: a candidate gains the theme's z-score times ThemePool.bonus spreads.
+            if (themeBonus != null && spread > 0f) {
+                val bonus = tuning.theme!!.bonus * spread
+                for (i in pool.indices) {
+                    if (!hopScored[i]) continue
+                    val paid = bonus * themeBonus[pool[i]]
+                    hopScores[i] += paid
+                    hopTerms?.get(i)?.let { it[6] += paid }
+                }
+            }
             // Jarring kinds (QueueClasses): soft, sized by this hop's spread like the run penalty.
             if (classRows != null && spread > 0f) {
                 val paid = tuning.queueClasses!!.lambda * spread
@@ -815,7 +823,7 @@ internal class SmartChain(
                 val penalty = tuning.artistRunPenalty * runLength * spread
                 if (penalty > 0f) {
                     for (i in pool.indices) {
-                        if (hopScored[i] && snapshot.tracks[pool[i]].meta.artistKey == runArtist) {
+                        if (hopScored[i] && snapshot.tracks[pool[i]].meta.hasArtist(runArtist)) {
                             // Within a marked playlist the run is the listener's own, as far as the playlist is
                             // specific: a small one lifts the penalty almost entirely, a broad one keeps most of it.
                             val paid = if (points != null && companions.sharesGroup(anchorRow, pool[i])) {
@@ -874,9 +882,9 @@ internal class SmartChain(
             if (guard != null && likeness != null) {
                 // The continuation mode drops capped artists from the pool before scoring, so the cap shows as a recent
                 // artist (the run the queue was on) that has reached it.
-                val capBlocked = recentArtists.any { it.isNotEmpty() && (artistPlays[it] ?: 0) >= ChainConfig.CHAIN_ARTIST_QUEUE_CAP }
+                val capBlocked = recentArtists.any { recent -> recent.any { (artistPlays[it] ?: 0) >= ChainConfig.CHAIN_ARTIST_QUEUE_CAP } }
                 val runBlocked = runPenalised && bestBeforeRun >= 0 && bestBeforeRun != bestIndex &&
-                    snapshot.tracks[pool[bestBeforeRun]].meta.artistKey == runArtist
+                    snapshot.tracks[pool[bestBeforeRun]].meta.hasArtist(runArtist)
                 if (capBlocked || runBlocked) {
                     val scoredIdx = pool.indices.filter { hopScored[it] }
                     val sorted = scoredIdx.map { likeness[it] }.sortedDescending()
@@ -929,10 +937,10 @@ internal class SmartChain(
             val pickedMeta = snapshot.tracks[pickedRow].meta
             if (pickedMeta.genreFamilies.any { it in seedGenres }) seedFamilyPicks++
             pickedMeta.titleArtistKey?.let(seenTitles::add)
-            artistPlays[pickedMeta.artistKey] = (artistPlays[pickedMeta.artistKey] ?: 0) + 1
-            recentArtists.addLast(pickedMeta.artistKey)
+            for (a in pickedMeta.artists) artistPlays[a] = (artistPlays[a] ?: 0) + 1
+            recentArtists.addLast(pickedMeta.artists)
             while (recentArtists.size > ChainConfig.CHAIN_ARTIST_SPACING) recentArtists.removeFirst()
-            if (pickedMeta.artistKey.isNotEmpty() && pickedMeta.artistKey == runArtist) {
+            if (pickedMeta.hasArtist(runArtist)) {
                 runLength++
             } else {
                 runArtist = pickedMeta.artistKey
@@ -1208,6 +1216,24 @@ internal class SmartChain(
      * @param ranking [seedRow]'s reference-only rankings, when the caller keeps them between pools;
      *   used only without [among] and computed here when missing. The pool is the same either way.
      */
+    private var themeReference = -1
+    private var themeOrder: IntArray = IntArray(0)
+    private var themeZ: FloatArray? = null
+
+    /** [ChainTuning.theme]'s ranking for [reference], computed once per reference (the walk's intent). */
+    private fun themeRanking(reference: Int): IntArray {
+        val theme = tuning.theme
+        if ((theme == null && tuning.themeDump == null) || reference < 0) return IntArray(0)
+        if (reference != themeReference) {
+            val features = ThemePool.features(snapshot, reference)
+            tuning.themeDump?.invoke(reference, features)
+            themeOrder = theme?.ranking(snapshot, reference, eligibleRows, features) ?: IntArray(0)
+            themeZ = theme?.takeIf { it.bonus > 0f }?.zScores(snapshot.size, features)
+            themeReference = reference
+        }
+        return themeOrder
+    }
+
     private fun buildPool(
         seedRow: Int,
         state: FloatArray,
@@ -1234,13 +1260,17 @@ internal class SmartChain(
         val textTurn = if (descriptorOrder.isEmpty()) channels.text else IntArray(0)
         val pool = ArrayList<Int>(PredictorRuntime.POOL_SIZE)
         val seen = HashSet<Int>()
+        val themeRows = themeRanking(seedRow)
+        val themeSlots = tuning.theme?.slots ?: 0
+        var themeAt = 0
+        var themeTaken = 0
         var i = 0
-        while (pool.size < PredictorRuntime.POOL_SIZE && i < anchorOrder.size) {
-            if (seen.add(anchorOrder[i])) {
+        while (pool.size < PredictorRuntime.POOL_SIZE && (i < anchorOrder.size || (themeTaken < themeSlots && themeAt < themeRows.size))) {
+            if (i < anchorOrder.size && seen.add(anchorOrder[i])) {
                 pool.add(anchorOrder[i])
                 provenance?.put(anchorOrder[i], "audio")
             }
-            if (pool.size < PredictorRuntime.POOL_SIZE && seen.add(stateOrder[i])) {
+            if (pool.size < PredictorRuntime.POOL_SIZE && i < stateOrder.size && seen.add(stateOrder[i])) {
                 pool.add(stateOrder[i])
                 provenance?.put(stateOrder[i], "state")
             }
@@ -1251,6 +1281,15 @@ internal class SmartChain(
             if (pool.size < PredictorRuntime.POOL_SIZE && i < descriptorOrder.size && seen.add(descriptorOrder[i])) {
                 pool.add(descriptorOrder[i])
                 provenance?.put(descriptorOrder[i], "descriptor")
+            }
+            // The theme's turn: its next row the walk may still take, wherever it sounds (never limited by [among]).
+            while (pool.size < PredictorRuntime.POOL_SIZE && themeTaken < themeSlots && themeAt < themeRows.size) {
+                val row = themeRows[themeAt++]
+                if (row in excluded || !seen.add(row)) continue
+                pool.add(row)
+                provenance?.put(row, "theme")
+                themeTaken++
+                break
             }
             i++
         }

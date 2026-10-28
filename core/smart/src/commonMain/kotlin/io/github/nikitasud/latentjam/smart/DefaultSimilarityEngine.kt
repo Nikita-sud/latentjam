@@ -15,6 +15,7 @@ import io.github.nikitasud.latentjam.smart.chain.PickTrace
 import io.github.nikitasud.latentjam.smart.chain.PredictorRuntime
 import io.github.nikitasud.latentjam.smart.chain.QueueClasses
 import io.github.nikitasud.latentjam.smart.chain.SimilarityGuard
+import io.github.nikitasud.latentjam.smart.chain.ThemePool
 import io.github.nikitasud.latentjam.smart.chain.SmartChain
 import io.github.nikitasud.latentjam.smart.chain.SmartSnapshot
 import io.github.nikitasud.latentjam.smart.chain.SmartTrack
@@ -25,6 +26,8 @@ import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorRows
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorFusion
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorSpace
 import io.github.nikitasud.latentjam.smart.text.ArtistKnowledge
+import io.github.nikitasud.latentjam.smart.text.ArtistSets
+import io.github.nikitasud.latentjam.smart.text.KnownArtists
 import io.github.nikitasud.latentjam.smart.text.TextEncoder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -1018,6 +1021,8 @@ internal class DefaultSimilarityEngine(
                     artistRunPenalty = runPenalty,
                     queueClasses = config.queueClassPenalty.takeIf { it > 0f }?.let(::QueueClasses),
                     similarityGuard = config.similarityGuardShare.takeIf { it > 0f }?.let { SimilarityGuard(it, config.similarityGuardEnergy) },
+                    theme = config.themeWeights?.let { ThemePool(it.toFloatArray(), config.themeSlots, config.themeBonus) },
+                    themeDump = SmartTraceHook.themeSink?.let { sink -> { reference: Int, features: FloatArray -> sink(SmartTraceHook.themeLine(snapshot, reference, features)) } },
                     companionPoints = Rerank.COMPANION_POINTS,
                 )
             } else {
@@ -1762,8 +1767,27 @@ internal class DefaultSimilarityEngine(
             title, artist, album, genre, year, durationMs,
             primaryArtist = artists.firstOrNull(),
             originalYear = originalYear,
+            artistSet = if (config.artistSets) artistSetOf(this) else null,
         ),
     )
+
+    override fun artistKeyOf(track: TrackDescriptor): String =
+        if (config.artistSets) artistSetOf(track).firstOrNull().orEmpty() else HabitSlots.artistKey(track)
+
+    /** The artist list ArtistSets resolves credits against: the pack's named entities, read once. */
+    private val knownArtists: KnownArtists by lazy { artistKnowledge?.knownArtists() ?: KnownArtists.NONE }
+    /**
+     * [SmartEngineConfig.artistSets]: the track's artists as stable keys, primary first. Credits the file lists one by
+     * one (ARTISTS tags) are parsed each; otherwise the display credit and the title's "(feat. …)" are.
+     */
+    private fun artistSetOf(track: TrackDescriptor): List<String> {
+        val credits = if (track.artists.size > 1) track.artists else listOf(track.artist.orEmpty())
+        val keys = LinkedHashSet<Long>()
+        for ((i, credit) in credits.withIndex()) {
+            keys += ArtistSets.parse(credit, if (i == 0) track.title else null, knownArtists).artists
+        }
+        return keys.map { it.toULong().toString(36) }
+    }
 
     private fun metadataFallback(
         seed: TrackDescriptor,

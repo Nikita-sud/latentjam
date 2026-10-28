@@ -32,6 +32,9 @@ public class ArtistSet(
 public fun interface KnownArtists {
     public fun canonical(matchKey: Long): Long?
 
+    /** [raw] (one credit part as written) → its canonical key, or null when not known; by default through its match key. */
+    public fun canonicalOf(raw: String): Long? = canonical(ArtistSets.keyHash(ArtistSets.normalize(raw)))
+
     public companion object {
         /** Nothing is known: every part stays whole (the parser still splits at feat.). */
         public val NONE: KnownArtists = KnownArtists { null }
@@ -171,11 +174,11 @@ public object ArtistSets {
         return ArtistSet(keys, feat, composerKey, rules)
     }
 
-    private fun known(raw: String, known: KnownArtists): Boolean = known.canonical(keyHash(normalize(raw))) != null
+    private fun known(raw: String, known: KnownArtists): Boolean = known.canonicalOf(raw) != null
 
     private fun key(raw: String, known: KnownArtists): Long {
         val k = keyHash(normalize(raw))
-        return if (k == 0L) 0L else known.canonical(k) ?: k
+        return if (k == 0L) 0L else known.canonicalOf(raw) ?: k
     }
 
     private fun strip(part: String): String = part.trim { it in BRACKETS }

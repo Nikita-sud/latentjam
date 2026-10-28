@@ -69,4 +69,16 @@ public data class SmartEngineConfig(
     /** With [judgedScoring]: ChainTuning.similarityGuard's share of the pool (0 is off). */
     public val similarityGuardShare: Float = 0f,
     public val similarityGuardEnergy: Float = 0f,
+    /**
+     * The chain's artist identity from the artist list (ArtistSets over the pack's named entities): a credit's every
+     * artist counts for the cap, the run penalty, the spacing and same-artist, so "Queen feat. David Bowie" is Queen and
+     * Bowie. Off keeps the one display-string key.
+     */
+    public val artistSets: Boolean = false,
+    /** With [judgedScoring]: the learned queue theme's weights, one per ThemePool feature (null is off). */
+    public val themeWeights: List<Float>? = null,
+    /** How many of the pool's rows the theme may take. */
+    public val themeSlots: Int = 25,
+    /** With [themeWeights]: spreads of a hop's scores per unit of a candidate's theme z-score (0: a pool channel only). */
+    public val themeBonus: Float = 0f,
 )

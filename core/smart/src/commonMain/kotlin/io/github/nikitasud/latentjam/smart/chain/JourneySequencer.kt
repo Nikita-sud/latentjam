@@ -129,8 +129,7 @@ internal object JourneySequencer {
         if (spread <= 0f) return
         for (a in 0 until n) for (b in 0 until a) {
             val together = companions?.takeIf { it.sharesGroup(rows[a], rows[b]) }?.weight(rows[a], rows[b]) ?: 0f
-            val artist = snapshot.tracks[rows[a]].meta.artistKey
-            if (weight > 0f && artist.isNotEmpty() && artist == snapshot.tracks[rows[b]].meta.artistKey) {
+            if (weight > 0f && snapshot.tracks[rows[a]].meta.sharesArtistWith(snapshot.tracks[rows[b]].meta)) {
                 costs[a][b] += if (together == 0f) weight * spread else weight * spread * (1f - together)
             }
             if (togetherCost > 0f) costs[a][b] -= togetherCost * together * spread

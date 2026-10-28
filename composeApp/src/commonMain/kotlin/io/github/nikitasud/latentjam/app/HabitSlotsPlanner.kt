@@ -33,12 +33,14 @@ internal suspend fun withHabitSlots(
     flow: HabitFlow?,
     /** LW2 on the habit list (FB build): a seed → row pair rejected twice is no habit (null = unweighted, as before). */
     lw: io.github.nikitasud.latentjam.smart.ranker.RankerModel.ListenWeight? = null,
+    /** The artist a habit "after this artist" counts under (SimilarityEngine.artistKeyOf). */
+    artistKeyOf: (TrackDescriptor) -> String = HabitSlots::artistKey,
 ): List<TrackId> = withContext(Dispatchers.Default) {
     val events = runCatching { history.recentEvents(SMART_HABIT_HISTORY_LIMIT) }.getOrNull()
         ?: return@withContext chain
     val artistKeys = HashMap<TrackId, String>(library.size + 1)
-    for (track in library) artistKeys[track.id] = HabitSlots.artistKey(track)
-    artistKeys[seed.id] = HabitSlots.artistKey(seed)
+    for (track in library) artistKeys[track.id] = artistKeyOf(track)
+    artistKeys[seed.id] = artistKeyOf(seed)
     val credit = lw?.let { w -> { e: ListenEvent -> listenCredit(e, w.zeroMs) } }
     val listens = habitListens(events.asReversed(), artistKeys.keys, seedMs, credit)
     val artistKey = { id: TrackId -> artistKeys[id].orEmpty() }

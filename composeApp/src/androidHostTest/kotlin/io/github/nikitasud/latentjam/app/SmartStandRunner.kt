@@ -56,6 +56,11 @@ class SmartStandRunner {
 
     private suspend fun run(dir: File, out: File) {
         // LJ_STAND_TRACE: every chain pick's scored candidates to out/trace.jsonl (refitting the judged correction).
+        // LJ_STAND_THEME_DUMP: every queue theme's features to out/themes.jsonl (refitting the theme's weights).
+        io.github.nikitasud.latentjam.smart.SmartTraceHook.themeSink = if (System.getenv("LJ_STAND_THEME_DUMP") == null) null else {
+            val themeFile = File(out, "themes.jsonl").also { it.delete() }
+            ({ line: String -> themeFile.appendText(line + "\n") })
+        }
         io.github.nikitasud.latentjam.smart.SmartTraceHook.sink = if (System.getenv("LJ_STAND_TRACE") == null) null else {
             val traceFile = File(out, "trace.jsonl").also { it.delete() }
             ({ line: String -> traceFile.appendText(line + "\n") })
@@ -512,10 +517,17 @@ class SmartStandRunner {
             artistRunPenalty = ARTIST_VARIETY_PENALTIES[DEFAULT_ARTIST_VARIETY],
             // LJ_STAND_CLASS (spreads) and LJ_STAND_NO_JUDGED override the app's chain for tuning runs.
             queueClassPenalty = System.getenv("LJ_STAND_CLASS")?.toFloat() ?: SMART_QUEUE_CLASS_PENALTY,
-            judgedCorrection = System.getenv("LJ_STAND_NO_JUDGED") == null,
+            judgedCorrection = if (System.getenv("LJ_STAND_JUDGED") != null) true else if (System.getenv("LJ_STAND_NO_JUDGED") != null) false else SMART_JUDGED_CORRECTION,
             correctionWeights = System.getenv("LJ_STAND_CORRECTION")?.split(',')?.map { it.trim().toFloat() },
             similarityGuardShare = System.getenv("LJ_STAND_SIMGUARD")?.toFloat() ?: 0f,
             similarityGuardEnergy = System.getenv("LJ_STAND_SIMGUARD_E")?.toFloat() ?: 0f,
+            // LJ_STAND_ARTIST_SETS=1/0 overrides the app's artist identity; LJ_STAND_THEME = 8 weights (or "off").
+            artistSets = System.getenv("LJ_STAND_ARTIST_SETS")?.let { it == "1" } ?: SMART_ARTIST_SETS,
+            themeWeights = System.getenv("LJ_STAND_THEME").let { env ->
+                if (env == null) SMART_THEME_WEIGHTS else if (env == "off") null else env.split(',').map { it.trim().toFloat() }
+            },
+            themeSlots = System.getenv("LJ_STAND_THEME_SLOTS")?.toInt() ?: SMART_THEME_SLOTS,
+            themeBonus = System.getenv("LJ_STAND_THEME_BONUS")?.toFloat() ?: SMART_THEME_BONUS,
         )
         val engine = io.github.nikitasud.latentjam.smart.createHostSimilarityEngine(
             config, backend, store(versioned(files, "smart_index", AUDIO_MODEL_VERSION).name), store("smart_text_index.bin"),
@@ -523,6 +535,9 @@ class SmartStandRunner {
         )
         engine.initialize().getOrThrow()
         engine.synchronizeLibrary(library = library, pruneMissing = false)
+        // LJ_STAND_SEMANTICS=1: the semantic head classifies the library first, as the app's For You / Map do, so the chain
+        // sees energy (smoothness) and the calm guard's inputs; without it the stand plans with neither.
+        if (System.getenv("LJ_STAND_SEMANTICS") == "1") engine.libraryMixFeatures(library.map { it.id }, loadMissingSemantics = true)
         return engine
     }
 

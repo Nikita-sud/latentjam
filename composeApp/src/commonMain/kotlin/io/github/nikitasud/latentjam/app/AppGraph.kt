@@ -199,6 +199,12 @@ object AppGraph {
                                 judgedScoring = true,
                                 artistRunPenalty = ARTIST_VARIETY_PENALTIES[sanitizeArtistVariety(get<AppSettings>().artistVariety.value)],
                                 queueClassPenalty = SMART_QUEUE_CLASS_PENALTY,
+                                artistSets = SMART_ARTIST_SETS,
+                                themeWeights = SMART_THEME_WEIGHTS,
+                                themeSlots = SMART_THEME_SLOTS,
+                                themeBonus = SMART_THEME_BONUS,
+                                // c095: no learned correction — the theme replaces it (stand gates, FINDINGS §51).
+                                judgedCorrection = SMART_JUDGED_CORRECTION,
                             )
                         }
                         // SMART's on-device impression and outcome log: local only, read by nothing in ranking.
@@ -749,6 +755,27 @@ internal const val SMART_RANKER_SHIPPED: Boolean = false
 
 /** Spreads a SMART candidate loses for a kind of track that jars after its seed (QueueClasses); 0 is off. */
 internal const val SMART_QUEUE_CLASS_PENALTY: Float = 1f
+
+/** SMART counts every credited artist (the artist list: "Queen feat. David Bowie" is Queen and Bowie) for its cap and runs. */
+internal const val SMART_ARTIST_SETS: Boolean = true
+
+/**
+ * The learned queue theme's weights (ThemePool; audio z, descriptor z, family Jaccard, family any, same language, same era,
+ * shared artist, energy gap): P(a track belongs in the queue | its start), fitted to DeepSeek's queues for the owner's
+ * library (track list and sound hints, by the owner's leave) and the 16 FMA stand libraries on the device's own features
+ * (ablation/c095/fit_theme.py; held out: top-15 overlap with the teacher 4.85 owner / 4.61 FMA vs audio alone 2.61 / 2.70).
+ * No MPD data. Null is off.
+ */
+internal val SMART_THEME_WEIGHTS: List<Float>? = listOf(0.7372f, 0.5859f, 0.4165f, 0.5001f, 0.9738f, 0.1302f, 1.3054f, -2.7184f)
+
+/** Pool rows the queue theme may take. */
+internal const val SMART_THEME_SLOTS: Int = 25
+
+/** Spreads of a hop's scores per unit of a candidate's queue-theme z-score; 0 keeps the theme a pool channel only. */
+internal const val SMART_THEME_BONUS: Float = 1.5f
+
+/** Whether the chain adds Rerank.JUDGED_WEIGHTS' learned correction to every candidate (c093's judge refit). */
+internal const val SMART_JUDGED_CORRECTION: Boolean = false
 
 /**
  * Optional background analysis must not crash playback when storage or foreground promotion

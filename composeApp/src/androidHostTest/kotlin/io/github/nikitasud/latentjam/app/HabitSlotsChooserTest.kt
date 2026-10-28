@@ -71,7 +71,9 @@ class HabitSlotsChooserTest {
         var calls = 0
         return Proxy.newProxyInstance(
             SimilarityEngine::class.java.classLoader, arrayOf(SimilarityEngine::class.java),
-        ) { _, method, _ ->
+        ) { _, method, args ->
+            // The habit list asks the engine whose artist a track counts under: the display-string key, as without the artist list.
+            if (method.name == "artistKeyOf") return@newProxyInstance io.github.nikitasud.latentjam.smart.HabitSlots.artistKey(args[0] as io.github.nikitasud.latentjam.smart.TrackDescriptor)
             check(method.name == "continueSmartQueue") { "Unexpected engine call: ${method.name}" }
             planned.drop(12 * calls++).take(12).map { it.id }
         } as SimilarityEngine

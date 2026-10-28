@@ -128,7 +128,7 @@ internal object MetadataRerank {
         if (!anchor.album.isNullOrEmpty() && anchor.album == candidate.album) {
             multiplier -= SAME_ALBUM_PENALTY
         }
-        if (anchor.artistKey.isNotEmpty() && anchor.artistKey == candidate.artistKey) {
+        if (anchor.sharesArtistWith(candidate)) {
             // Only one such neighbour can appear before artist spacing activates, so this modest
             // confidence signal improves the first hop without turning SMART into "play artist".
             multiplier *= SAME_ARTIST_BONUS
@@ -192,6 +192,12 @@ internal data class TrackMeta(
     val primaryArtist: String? = null,
     /** First-release year; the era term prefers it so a remaster keeps its real decade. */
     val originalYear: Int? = null,
+    /**
+     * The credit's artists as resolved against the artist list (ArtistSets: "Queen feat. David Bowie" is Queen and
+     * Bowie), primary first, as stable keys; empty for a placeholder or empty credit. Null (every caller without the
+     * artist list) keeps the one display-string key, so the recorded parity replays are unchanged.
+     */
+    val artistSet: List<String>? = null,
 ) {
     val language: String = MetadataRerank.detectLanguage(title, artist)
     val normalizedTitle: String = MetadataRerank.normalizeTitle(title)
@@ -203,7 +209,14 @@ internal data class TrackMeta(
      * Artist under the chain's spacing and cap rules. An empty key supplies no artist identity
      * and must not group unrelated untagged tracks under one artist.
      */
-    val artistKey: String = MetadataRerank.normalizeArtist(primaryArtist ?: artist)
+    val artistKey: String = if (artistSet != null) artistSet.firstOrNull().orEmpty() else MetadataRerank.normalizeArtist(primaryArtist ?: artist)
+
+    /** Every artist the cap, the run, the spacing and same-artist count this track under; empty = no identity. */
+    val artists: List<String> = artistSet ?: if (artistKey.isEmpty()) emptyList() else listOf(artistKey)
+
+    fun hasArtist(key: String): Boolean = key.isNotEmpty() && key in artists
+
+    fun sharesArtistWith(other: TrackMeta): Boolean = artists.any { it in other.artists }
 
     /** A shared title alone cannot identify a repeat across different or unknown artists. */
     val titleArtistKey: Pair<String, String>? =

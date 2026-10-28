@@ -59,6 +59,22 @@ public class ArtistKnowledge(
     public fun entity(artist: String?, primaryArtist: String? = null): Int? =
         pack?.let { firstKnown(artist, primaryArtist, it::entityOf) }
 
+    /**
+     * The artist list for [ArtistSets.parse]: a credit part is known when the pack holds an entity of exactly that name,
+     * and its key is that entity, so aliases and spellings of one artist share a key. [KnownArtists.NONE] without the pack.
+     */
+    public fun knownArtists(): KnownArtists {
+        val knowledge = pack ?: return KnownArtists.NONE
+        return object : KnownArtists {
+            override fun canonical(matchKey: Long): Long? = null
+
+            override fun canonicalOf(raw: String): Long? {
+                val ids = entities.resolve(raw).takeIf(IntArray::isNotEmpty) ?: return null
+                return knowledge.namedEntity(ids, raw)?.let { ENTITY_KEY or it.toLong() }
+            }
+        }
+    }
+
     private inline fun <T : Any> firstKnown(
         artist: String?,
         primaryArtist: String?,
@@ -67,3 +83,7 @@ public class ArtistKnowledge(
         .filter(String::isNotBlank)
         .firstNotNullOfOrNull { name -> entities.resolve(name).takeIf(IntArray::isNotEmpty)?.let { read(it, name) } }
 }
+
+/** Marks an artist key that names a pack entity, so it never equals a name hash (ArtistSets.keyHash). */
+private const val ENTITY_KEY: Long = 0x4000_0000_0000_0000L
+

@@ -76,6 +76,10 @@ internal data class ChainTuning(
     val queueClasses: QueueClasses? = null,
     /** When the artist cap or the run penalty blocks a candidate, pick among the most similar ([SimilarityGuard]); null is off. */
     val similarityGuard: SimilarityGuard? = null,
+    /** A learned queue theme as a candidate channel ([ThemePool]); null is off. */
+    val theme: ThemePool? = null,
+    /** Research: every theme the walk computes, as (reference row, row-major features); the app never sets it. */
+    val themeDump: ((Int, FloatArray) -> Unit)? = null,
     /**
      * A learned correction added to every candidate's score: one weight per [Rerank] feature, in
      * score units. Null is off. EXPERIMENTAL.

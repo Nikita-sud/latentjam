@@ -219,7 +219,7 @@ class EngineNextTrackChooser(
             if (learned == null && recentIds.isEmpty() && plan.isNotEmpty() && learnFromHabits()) {
                 plan = withHabitSlots(
                     history, current, candidates, library(), plan, seedMs = events.last().startedAtMs, flow = habitFlow,
-                    lw = habitListenWeight,
+                    lw = habitListenWeight, artistKeyOf = engine::artistKeyOf,
                 )
             }
             planned = ArrayDeque(plan.withIndex().toList())

@@ -360,6 +360,12 @@ public interface SimilarityEngine {
     ): List<TrackId>
 
     /**
+     * The artist identity SMART's queues count [track] under for habits: the primary of its credit as the artist list
+     * resolves it when the engine uses one ([SmartEngineConfig.artistSets]), else the display-string key.
+     */
+    public fun artistKeyOf(track: TrackDescriptor): String = HabitSlots.artistKey(track)
+
+    /**
      * Extends a SMART queue from its last planned track [seed]. When a matching walk is still
      * available, it carries the preceding plan's intent and recent picks into this plan; otherwise
      * it starts from [seed]. [precedingTrackIds] are the queue's recent tracks immediately before

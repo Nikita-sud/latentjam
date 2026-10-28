@@ -18,6 +18,22 @@ public object SmartTraceHook {
     @Volatile
     public var sink: ((String) -> Unit)? = null
 
+    /** Research only: every queue theme the chain computes, as [themeLine]s (refitting the theme's weights). */
+    @Volatile
+    public var themeSink: ((String) -> Unit)? = null
+
+    internal fun themeLine(snapshot: SmartSnapshot, reference: Int, features: FloatArray): String = buildString {
+        append("{\"reference\":\"").append(snapshot.tracks[reference].id.value).append("\",\"rows\":[")
+        val k = io.github.nikitasud.latentjam.smart.chain.ThemePool.FEATURES
+        for (row in 0 until snapshot.size) {
+            if (row > 0) append(',')
+            append("[\"").append(snapshot.tracks[row].id.value).append('"')
+            for (j in 0 until k) append(',').append(round(features[row * k + j] * 1000f) / 1000f)
+            append(']')
+        }
+        append("]}")
+    }
+
     internal fun line(snapshot: SmartSnapshot, seed: TrackId, t: PickTrace): String = buildString {
         append("{\"seed\":\"").append(seed.value).append("\",\"pick\":\"").append(snapshot.tracks[t.row].id.value)
         append("\",\"position\":").append(t.position).append(",\"candidates\":[")
