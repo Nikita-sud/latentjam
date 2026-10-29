@@ -411,10 +411,10 @@ private const val MAX_DECODED_RESUME_QUEUE_IDS = 10_000
 private val DEFAULT_APPEARANCE: StateFlow<Appearance> = kotlinx.coroutines.flow.MutableStateFlow(Appearance())
 
 /**
- * "Learn from my habits" (the FULL ranker) is off until the listener turns it on. The preference moved to a new key so
- * a value stored by earlier test builds does not carry over.
+ * "Learn from my habits" (the chain's personal term) is on until the listener turns it off; a choice the listener stored
+ * stays. The preference moved to a new key so a value stored by earlier test builds does not carry over.
  */
-internal const val DEFAULT_LEARN_FROM_HABITS = false
+internal const val DEFAULT_LEARN_FROM_HABITS = true
 private val LEARN_FROM_HABITS_DEFAULT_FLOW: StateFlow<Boolean> = MutableStateFlow(DEFAULT_LEARN_FROM_HABITS)
 
 /** "Use favourites" (under "Learn from my habits") is on until the listener turns it off. */
@@ -460,7 +460,7 @@ interface AppSettings {
 
     /**
      * "Learn from my habits": whether the learned ranker plans with the FULL model, which reads the
-     * listener's own history, rather than the objective one. Off by default
+     * listener's own history, rather than the objective one. On by default
      * ([DEFAULT_LEARN_FROM_HABITS]); implementations without the preference keep that default.
      */
     val learnFromHabits: StateFlow<Boolean> get() = LEARN_FROM_HABITS_DEFAULT_FLOW
