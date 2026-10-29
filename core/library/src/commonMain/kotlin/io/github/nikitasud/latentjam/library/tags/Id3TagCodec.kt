@@ -28,7 +28,9 @@ internal object Id3TagCodec : TagCodec {
         if (refusal(head) != null) return null
         if (head.tagLength == 0) return emptyList()
         return Id3Tags.userTexts(head.prefix) +
-            Id3Tags.musicBrainzRecordingIds(head.prefix).map { "MUSICBRAINZ_TRACKID" to it }
+            Id3Tags.musicBrainzRecordingIds(head.prefix).map { "MUSICBRAINZ_TRACKID" to it } +
+            // ID3 keeps the ISRC in its own text frame, not in a user text.
+            Id3Tags.textValues(head.prefix, "TSRC").map { "ISRC" to it }
     }
 
     private fun head(source: RandomAccessSource): Head? {
