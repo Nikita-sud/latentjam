@@ -102,8 +102,10 @@ class ListenBrainzMatcherTest {
     @Test
     fun aLoneCandidateFarFromTheListenedLengthIsAnotherVersion() {
         val matcher = ListenBrainzMatcher(listOf(track("1", "Band", "Song", durationMs = 200_000)))
-        // An extended mix ("Song (Extended Mix)" loses its suffix in the loose pass) is not this track.
-        assertEquals(ListenBrainzMatcher.AMBIGUOUS, matcher.match(row("Band", "Song (Extended Mix)", durationMs = 420_000)))
+        // An extended mix ("Song (Extended Mix)" loses its suffix in the loose pass) is not this track: its version marker
+        // refuses it, and the length would too.
+        assertTrue(matcher.match(row("Band", "Song (Extended Mix)", durationMs = 420_000)) < 0)
+        assertEquals(ListenBrainzMatcher.AMBIGUOUS, matcher.match(row("Band", "Song (Radio Edit)", durationMs = 420_000)))
         // Rounded or edition-to-edition differences still match.
         assertEquals("1", matcher.id(row("Band", "Song", durationMs = 225_000)))
         assertEquals("1", matcher.id(row("Band", "Song")))

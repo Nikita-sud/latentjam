@@ -373,12 +373,15 @@ internal object ListenBrainzExportReader {
             while (true) {
                 parser.skipWhitespace()
                 if (bytes.peek() < 0) return
+                val line = bytes.newlines
                 val parsed = try {
                     parser.startRecord()
                     parser.value(0)
                 } catch (malformed: JsonSyntaxError) {
                     state.unreadable++
-                    parser.skipLine()
+                    // A record broken by a raw line feed (inside a string, say) has already ended its line: the next
+                    // line is the next record.
+                    if (bytes.newlines == line) parser.skipLine()
                     continue
                 }
                 state.value(parsed)
@@ -681,6 +684,10 @@ internal class ByteReader(private val input: ExportByteInput, capacity: Int = 64
     /** Bytes taken from the reader so far. */
     val consumed: Long get() = discarded + position
 
+    /** Line feeds taken through [next]: a JSONL record that broke past its own line end must not skip the next line. */
+    var newlines: Long = 0L
+        private set
+
     fun available(): Int = limit - position
 
     /** Reads more after compacting; false at the end of the input. */
@@ -715,7 +722,12 @@ internal class ByteReader(private val input: ExportByteInput, capacity: Int = 64
 
     fun peek(): Int = if (ensure(1)) buffer[position].toInt() and 0xFF else -1
 
-    fun next(): Int = if (ensure(1)) buffer[position++].toInt() and 0xFF else -1
+    fun next(): Int {
+        if (!ensure(1)) return -1
+        val c = buffer[position++].toInt() and 0xFF
+        if (c == '\n'.code) newlines++
+        return c
+    }
 
     fun at(offset: Int): Int = buffer[position + offset].toInt() and 0xFF
 

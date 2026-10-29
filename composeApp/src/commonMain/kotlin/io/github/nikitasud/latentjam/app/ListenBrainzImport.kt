@@ -10,6 +10,8 @@ import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import io.github.nikitasud.latentjam.smart.text.ArtistSets
+import io.github.nikitasud.latentjam.smart.text.KnownArtists
 import io.github.nikitasud.latentjam.smart.text.UnicodeForm
 import io.github.nikitasud.latentjam.smart.text.normalizeUnicode
 import kotlin.coroutines.coroutineContext
@@ -35,6 +37,14 @@ import kotlinx.coroutines.withContext
  *    under each credited individual of the track's own tags.
  * 3. Steps 1 and 2 again with MusicBrainz's names (`mbid_mapping`) when ListenBrainz mapped the
  *    listen and the names as submitted found nothing.
+ * 4. Only then the credit as a set of artists (ArtistSets), first as submitted, then as mapped: a separator-free whole
+ *    credit ("A, B", "A & B", "A x B" and "A feat. B" all read "a b"), and the credit split at its separators into the
+ *    library's own artists (and the artist list's, when given). Each artist is looked up with the loose title; the tracks
+ *    sharing the most artists are the candidates.
+ *
+ * A listen is only credited to a track of its own version: the version markers of the title the
+ * lookup used (live, instrumental, remix, acoustic, sped up …, see [versionMarks]) must equal the
+ * candidate's. A remaster or a single edit is no other version.
  *
  * Several candidates (copies of one song, an album and a compilation, a live version) are narrowed
  * by the release name, then by duration: with a duration on the row the closest candidate within
@@ -42,13 +52,27 @@ import kotlinx.coroutines.withContext
  * one recording), and the first in id order is taken. Anything else is ambiguous and matches none —
  * a listen credited to the wrong version teaches SMART a transition that never happened.
  */
-internal class ListenBrainzMatcher(library: List<TrackDescriptor>) {
+internal class ListenBrainzMatcher(
+    library: List<TrackDescriptor>,
+    /** The artist list ArtistSets may split credits into, besides the library's own artists. */
+    known: KnownArtists = KnownArtists.NONE,
+) {
     /** Library tracks in id order, so ties resolve the same way on every run. */
     val tracks: List<TrackDescriptor> = library.distinctBy { it.id }.sortedBy { it.id.value }
     private val strict = HashMap<String, IntArray>()
     private val loose = HashMap<String, IntArray>()
+    /** Artist key (ArtistSets) and loose title → the tracks crediting that artist. */
+    private val credited = HashMap<String, IntArray>()
     private val albums = arrayOfNulls<String>(tracks.size)
+    private val marks = Array(tracks.size) { versionMarks(tracks[it].title) }
     private val lookups = HashMap<String, Lookup>()
+    private val setLookups = HashMap<String, Lookup>()
+
+    /** The library's individual artists (each credit's artists, its feat. pieces, its whole credit) as ArtistSets keys. */
+    private val atoms = HashSet<Long>()
+
+    /** What a credit may split into: an artist of this library, or else one of [known]. */
+    private val splitInto: KnownArtists = KnownArtists { key -> if (key in atoms) key else known.canonical(key) }
 
     /**
      * Per track, the lowest index of the tracks sharing one of its strict artist and title keys:
@@ -58,6 +82,14 @@ internal class ListenBrainzMatcher(library: List<TrackDescriptor>) {
     val groups: IntArray = IntArray(tracks.size) { it }
 
     init {
+        for (track in tracks) {
+            for (credit in listOfNotNull(track.artist) + track.artists) {
+                atoms += ArtistSets.keyHash(ArtistSets.normalize(credit))
+                atoms += ArtistSets.parse(credit).artists
+            }
+        }
+        atoms -= 0L
+        val creditedLists = HashMap<String, MutableList<Int>>()
         val strictLists = HashMap<String, MutableList<Int>>()
         val looseLists = HashMap<String, MutableList<Int>>()
         tracks.forEachIndexed { index, track ->
@@ -76,7 +108,11 @@ internal class ListenBrainzMatcher(library: List<TrackDescriptor>) {
                 val key = looseForm(artist, isTitle = false)?.let { key(it, looseTitle) } ?: continue
                 looseLists.getOrPut(key) { mutableListOf() }.addDistinct(index)
             }
+            val creditKeys = LinkedHashSet<Long>()
+            for (artist in artists) creditKeys += creditKeys(artist, title)
+            for (artistKey in creditKeys) creditedLists.getOrPut(key(artistKey.toString(), looseTitle)) { mutableListOf() }.addDistinct(index)
         }
+        creditedLists.forEach { (key, list) -> credited[key] = list.toIntArray() }
         strictLists.forEach { (key, list) ->
             strict[key] = list.toIntArray()
             val lowest = list.min()
@@ -87,14 +123,52 @@ internal class ListenBrainzMatcher(library: List<TrackDescriptor>) {
 
     /** The index into [tracks] the row names, or [NONE] / [AMBIGUOUS]. */
     fun match(row: ListenBrainzRow): Int {
-        val submitted = candidates(row.artist, row.title)
-        if (submitted is Lookup.Found) return choose(submitted.indices, row)
-        val mapped = if (row.mappedArtist != null || row.mappedTitle != null) {
-            candidates(row.mappedArtist ?: row.artist, row.mappedTitle ?: row.title)
-        } else {
-            Lookup.Missing
+        val isMapped = row.mappedArtist != null || row.mappedTitle != null
+        val mappedArtist = row.mappedArtist ?: row.artist
+        val mappedTitle = row.mappedTitle ?: row.title
+        sameVersion(candidates(row.artist, row.title), row.title)?.let { return choose(it, row) }
+        if (isMapped) sameVersion(candidates(mappedArtist, mappedTitle), mappedTitle)?.let { return choose(it, row) }
+        sameVersion(setCandidates(row.artist, row.title), row.title)?.let { return choose(it, row) }
+        if (isMapped) sameVersion(setCandidates(mappedArtist, mappedTitle), mappedTitle)?.let { return choose(it, row) }
+        return NONE
+    }
+
+    /** The found candidates of [title]'s own version, or null when none is (a live take is not the studio track). */
+    private fun sameVersion(lookup: Lookup, title: String?): IntArray? {
+        if (lookup !is Lookup.Found) return null
+        val wanted = versionMarks(title)
+        val same = lookup.indices.filter { marks[it] == wanted }
+        return if (same.isEmpty()) null else same.toIntArray()
+    }
+
+    /**
+     * The credit as a set (step 4): the tracks crediting the most of the listen's artists under the loose title. The
+     * listen's artists are its ArtistSets split (into this library's artists, or [splitInto]'s) and its whole credit.
+     */
+    private fun setCandidates(artist: String?, title: String?): Lookup {
+        if (artist == null || title == null) return Lookup.Missing
+        val raw = artist + '\u0000' + title
+        setLookups[raw]?.let { return it }
+        val found = run {
+            val looseTitle = looseForm(title, isTitle = true) ?: return@run Lookup.Missing
+            val shared = LinkedHashMap<Int, Int>()
+            for (artistKey in creditKeys(artist, title)) {
+                credited[key(artistKey.toString(), looseTitle)]?.forEach { shared[it] = (shared[it] ?: 0) + 1 }
+            }
+            val most = shared.values.maxOrNull() ?: return@run Lookup.Missing
+            Lookup.Found(shared.filterValues { it == most }.keys.sorted().toIntArray())
         }
-        return if (mapped is Lookup.Found) choose(mapped.indices, row) else NONE
+        if (setLookups.size < MAX_REMEMBERED_LOOKUPS) setLookups[raw] = found
+        return found
+    }
+
+    /** A credit's artists as ArtistSets keys: its split (title feat. credits too) and its separator-free whole credit. */
+    private fun creditKeys(credit: String, title: String?): Set<Long> {
+        val keys = LinkedHashSet<Long>()
+        keys += ArtistSets.parse(credit, title, splitInto).artists
+        keys += ArtistSets.keyHash(ArtistSets.normalize(credit.replace(WORD_SEPARATOR, " ")))
+        keys -= 0L
+        return keys
     }
 
     private sealed interface Lookup {
@@ -181,6 +255,51 @@ internal class ListenBrainzMatcher(library: List<TrackDescriptor>) {
             RegexOption.IGNORE_CASE,
         )
         private val PUNCTUATION = Regex("[^\\p{L}\\p{N} ]+")
+
+        /** Word separators of a credit ("A x B", "A with B", "A feat. B"); ArtistSets.normalize drops the punctuation ones. */
+        private val WORD_SEPARATOR = Regex("(?i)\\s+(x|×|with|vs\\.?|and|feat\\.?|ft\\.?|featuring)\\s+")
+
+        /** A title's version parts: what is in brackets, and what follows a spaced dash. */
+        private val VERSION_PART = Regex("[(\\[]([^()\\[\\]]*)[)\\]]|\\s[-–—]\\s(.*)$")
+
+        /** Version markers (canonical word → its spellings). A remaster, a mono mix or a single edit is no other version. */
+        private val VERSION_WORDS: List<Pair<String, List<String>>> = listOf(
+            "live" to listOf("live"),
+            "instrumental" to listOf("instrumental", "inst"),
+            "remix" to listOf("remix", "remixed", "rmx"),
+            "acoustic" to listOf("acoustic"),
+            "demo" to listOf("demo"),
+            "karaoke" to listOf("karaoke"),
+            "cover" to listOf("cover"),
+            "unplugged" to listOf("unplugged"),
+            "sped up" to listOf("sped up", "spedup", "speed up"),
+            "slowed" to listOf("slowed"),
+            "reverb" to listOf("reverb"),
+            "nightcore" to listOf("nightcore"),
+            "8d" to listOf("8d"),
+            "extended" to listOf("extended"),
+            "rework" to listOf("rework"),
+            "bootleg" to listOf("bootleg"),
+            "mashup" to listOf("mashup", "mash up"),
+            "orchestral" to listOf("orchestral"),
+            "piano" to listOf("piano version"),
+        )
+        private val VERSION_PATTERNS: List<Pair<String, Regex>> = VERSION_WORDS.flatMap { (word, spellings) ->
+            spellings.map { word to Regex("(?<![\\p{L}\\p{N}])" + Regex.escape(it) + "(?![\\p{L}\\p{N}])") }
+        }
+        /** Markers that are versions wherever they stand ("Me Gustas Tu Sped Up"). */
+        private val ANYWHERE = setOf("sped up", "slowed", "nightcore", "8d")
+
+        /** A title's version markers, sorted and joined: "" for an unmarked (studio, or remastered) title. */
+        internal fun versionMarks(title: String?): String {
+            val text = strictForm(title) ?: return ""
+            val parts = VERSION_PART.findAll(text).map { m -> m.groupValues[1].ifEmpty { m.groupValues[2] } }.toList()
+            val found = sortedSetOf<String>()
+            for ((word, pattern) in VERSION_PATTERNS) {
+                if (parts.any { pattern.containsMatchIn(it) } || (word in ANYWHERE && pattern.containsMatchIn(text))) found += word
+            }
+            return found.joinToString(",")
+        }
 
         private fun key(artist: String, title: String) = artist + '\u0000' + title
 
@@ -350,21 +469,35 @@ internal class ListenBrainzImporter(
         // recorded in the app.
         val allStarts = HashMap<Int, PackedLongs>()
         val inAppStarts = HashMap<Int, PackedLongs>()
+        val importedStarts = HashMap<Int, PackedLongs>()
         for (event in existing) {
             val index = indexById[event.trackId.value]?.let { groups[it] } ?: continue
             allStarts.getOrPut(index) { PackedLongs() }.add(event.startedAtMs)
             if (!event.isImported) inAppStarts.getOrPut(index) { PackedLongs() }.add(event.startedAtMs)
+            else importedStarts.getOrPut(index) { PackedLongs() }.add(event.startedAtMs)
         }
         val sortedAll = allStarts.mapValues { it.value.sorted() }
         val sortedInApp = inAppStarts.mapValues { it.value.sorted() }
+        val sortedImported = importedStarts.mapValues { it.value.sorted() }
         val fresh = ArrayList<Long>()
         var alreadyPresent = 0
+        // The last kept start per song: two scrobblers submit one listen twice a few seconds apart (L1).
+        val lastKept = HashMap<Int, Long>()
         for (packed in candidates) {
-            val index = groups[unpackIndex(packed)]
+            val track = unpackIndex(packed)
+            val index = groups[track]
             val startMs = unpackSeconds(packed) * 1000
             val exact = sortedAll[index]?.anyWithin(startMs, 0L) == true
             val nearInApp = sortedInApp[index]?.let { starts -> starts.anyWithin(startMs, IN_APP_WINDOW_MS) } == true
-            if (exact || nearInApp) alreadyPresent++ else fresh += packed
+            val window = doubleScrobbleWindow(tracks[track])
+            val doubled = lastKept[index]?.let { startMs - it <= window } == true ||
+                sortedImported[index]?.anyWithin(startMs, window) == true
+            if (exact || nearInApp || doubled) {
+                alreadyPresent++
+            } else {
+                fresh += packed
+                lastKept[index] = startMs
+            }
         }
         // A little room is left for the plays recorded after the import: a log filled to the bound
         // would pass it with the next listen, and backup export refuses a log past it.
@@ -387,6 +520,15 @@ internal class ListenBrainzImporter(
             )
         }
         return Fold(added, songs.size, alreadyPresent, fresh.size - kept.size)
+    }
+
+    /**
+     * How close two imported listens of [track] may start and still be one listen submitted twice: [DOUBLE_SCROBBLE_MS],
+     * and less than the track lasts, so a back-to-back repeat (a whole play apart) stays two listens.
+     */
+    private fun doubleScrobbleWindow(track: TrackDescriptor): Long {
+        val duration = track.durationMs?.takeIf { it > 0 } ?: return DOUBLE_SCROBBLE_MS
+        return minOf(DOUBLE_SCROBBLE_MS, duration - 1)
     }
 
     /**
@@ -460,10 +602,14 @@ internal class ListenBrainzImporter(
         /** A row this close to a play recorded in the app is that play, scrobbled. */
         const val IN_APP_WINDOW_MS: Long = 2 * 60_000L
 
+        /** See [doubleScrobbleWindow]. */
+        const val DOUBLE_SCROBBLE_MS: Long = 120_000L
+
         private const val INDEX_BITS = 30
         private const val INDEX_MASK = (1L shl INDEX_BITS) - 1
         private const val MAX_SECONDS = 1L shl 33
-        private const val FUTURE_TOLERANCE_MS = 24 * 60 * 60_000L
+        /** A row this far ahead of now is a clock error, not a listen (the LB-import check, L4). */
+        private const val FUTURE_TOLERANCE_MS = 10 * 60_000L
         private const val PROGRESS_EVERY = 5_000L
         private const val MIN_COMPACT_AT = 1024
 
