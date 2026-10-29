@@ -87,6 +87,9 @@ internal class PersonalListenerSim(
         var nonZero = 0
         var stageHops = 0
         var maxChangedGap = 0f
+        var changedBeyondM = 0
+        var guardPassed = 0L
+        var guardTotal = 0L
         var edits = 0
         var probes = 0
         val counts = HashMap<TrackId, Int>()
@@ -102,12 +105,15 @@ internal class PersonalListenerSim(
                 if (changed) {
                     tally.changed++
                     if (gap > tally.maxChangedGap) tally.maxChangedGap = gap
+                    if (gap > 1f + 1e-4f) tally.changedBeyondM++
                 }
             }
             PersonalDiagnostics.hop = { _, _, adds -> if (adds.values.any { it != 0f }) tally.nonZero++ }
+            PersonalDiagnostics.guard = { passed, total -> tally.guardPassed += passed; tally.guardTotal += total }
             val full = press(chooser(run, true), seed).map { it.first.id }
             PersonalDiagnostics.sink = null
             PersonalDiagnostics.hop = null
+            PersonalDiagnostics.guard = null
             val core = press(chooser(run, false), seed).map { it.first.id }
             tally.hops += full.size
             tally.edits += editDistance(full, core)
@@ -140,6 +146,8 @@ internal class PersonalListenerSim(
             "changedRate" to t.changed.toDouble() / t.hops.coerceAtLeast(1),
             "nonZeroShare" to t.nonZero.toDouble() / t.stageHops.coerceAtLeast(1),
             "maxChangedGapOverDelta" to t.maxChangedGap,
+            "changedBeyondM" to t.changedBeyondM,
+            "guardPassRate" to t.guardPassed.toDouble() / t.guardTotal.coerceAtLeast(1),
             "meanEditDistance" to t.edits.toDouble() / t.probes.coerceAtLeast(1),
             "collapseViolations" to collapse,
             "worstShareOverCore" to worst,

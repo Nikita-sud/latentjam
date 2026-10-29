@@ -879,4 +879,7 @@ public object PersonalDiagnostics {
 
     /** Research: each hop's δ, every scored candidate's mask-core gap to the best in δ, and its personal addition. */
     public var hop: ((delta: Float, gaps: Map<TrackId, Float>, additions: Map<TrackId, Float>) -> Unit)? = null
+
+    /** Research (the v6 FMA gate): per staged hop, how many scored candidates pass the cluster guard after the anchor. */
+    public var guard: ((passed: Int, total: Int) -> Unit)? = null
 }

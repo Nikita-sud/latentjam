@@ -961,6 +961,15 @@ internal class SmartChain(
                         hop(delta, gaps, adds)
                     }
                     io.github.nikitasud.latentjam.smart.personal.PersonalDiagnostics.sink?.invoke((bestMask - mask[pick]) / delta, pick != bestIndex)
+                    io.github.nikitasud.latentjam.smart.personal.PersonalDiagnostics.guard?.let { report ->
+                        var total = 0
+                        var passed = 0
+                        for (i in pool.indices) if (hopScored[i] && pool[i] != anchorRow) {
+                            total++
+                            if (clusterGuard(anchorRow, pool[i])) passed++
+                        }
+                        report(passed, total)
+                    }
                 }
             }
 
