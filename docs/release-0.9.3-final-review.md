@@ -148,3 +148,18 @@ Moving the slider changed the value text's width, so the title and description r
 longest level name in the current locale and font size (hidden copies, excluded from accessibility). Checked on
 LJ-api30 with the release APK: EN, RU, DE and UK at font scale 1.0 and 1.3, every level, title, description and slider
 bounds identical. Queue length uses fixed chips with no changing value text, so it has no such jump. No string changed.
+
+## Crossfade after a seek into the window (owner report)
+
+Phone log, 2026-10-29 09:34: "I Wanna Rock" → "Welcome to the Jungle" (both Opus) faded instead of overlapping, "opening
+5577 ms late". The log shows a seek at 09:34:44.3 (the change fade, a decoder flush), landing about 2.4 s into the
+overlap window; the capture of the next opening started at the seek and was ready 3.2 s later, just past the 3 s that a
+seek into the window waits, so the processor fell back to the fade as designed. In normal playback the capture starts
+10 s before the overlap; an emulator Opus → Opus seam without a seek overlapped on time. Not a queue replan.
+
+Reproduced on LJ-fold (muted): a seek 2.2 s into the window faded 3 / 3 times, opening ready 3.1–3.2 s after the seek.
+Cause of the slowness: the capture player's fixed 10 ms work tick paced decoding at about 7× real time. Fix: the capture
+player uses Media3's dynamic scheduling, so the renderer runs whenever it can make progress; the same seek then
+overlapped 3 / 3 times, opening ready 1.6–2.3 s after the seek. A normal seam still overlaps on time;
+CrossfadeOverlapDeviceTest 9 / 9 on the emulator; host tests green; arm64 APK 36,969,048 bytes. A seek landing later
+than about 3 s before the opening can be ready still fades, by design.
