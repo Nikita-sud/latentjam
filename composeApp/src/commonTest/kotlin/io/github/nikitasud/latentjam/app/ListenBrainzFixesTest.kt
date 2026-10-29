@@ -57,6 +57,9 @@ class ListenBrainzFixesTest {
         val matcher = ListenBrainzMatcher(duets)
         assertNull(matcher.id(row("Totally Different Band", "Duet number 1")))
         assertNull(matcher.id(row("Someone, Else", "Duet number 1")))
+        // A shared guest in the title is not a shared artist.
+        val guest = ListenBrainzMatcher(listOf(track("p", "Herr Kuchen feat. Punjizz", "Plastikshit II (feat. Punjizz)")))
+        assertNull(guest.id(row("Totally Different Band", "Plastikshit II (feat. Punjizz)")))
     }
 
     @Test

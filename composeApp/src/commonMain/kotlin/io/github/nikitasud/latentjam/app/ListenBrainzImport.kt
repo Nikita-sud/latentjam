@@ -109,7 +109,7 @@ internal class ListenBrainzMatcher(
                 looseLists.getOrPut(key) { mutableListOf() }.addDistinct(index)
             }
             val creditKeys = LinkedHashSet<Long>()
-            for (artist in artists) creditKeys += creditKeys(artist, title)
+            for (artist in artists) creditKeys += creditKeys(artist)
             for (artistKey in creditKeys) creditedLists.getOrPut(key(artistKey.toString(), looseTitle)) { mutableListOf() }.addDistinct(index)
         }
         creditedLists.forEach { (key, list) -> credited[key] = list.toIntArray() }
@@ -152,7 +152,7 @@ internal class ListenBrainzMatcher(
         val found = run {
             val looseTitle = looseForm(title, isTitle = true) ?: return@run Lookup.Missing
             val shared = LinkedHashMap<Int, Int>()
-            for (artistKey in creditKeys(artist, title)) {
+            for (artistKey in creditKeys(artist)) {
                 credited[key(artistKey.toString(), looseTitle)]?.forEach { shared[it] = (shared[it] ?: 0) + 1 }
             }
             val most = shared.values.maxOrNull() ?: return@run Lookup.Missing
@@ -163,13 +163,13 @@ internal class ListenBrainzMatcher(
     }
 
     /**
-     * A credit's artists as ArtistSets keys: its split (title feat. credits too), its separator-free whole credit, and
-     * the pieces between its separators, so a listen crediting more artists than the track ("A, B" for a track by A)
-     * still shares A with it.
+     * A credit's artists as ArtistSets keys: its split, its separator-free whole credit, and the pieces between its
+     * separators, so a listen crediting more artists than the track ("A, B" for a track by A) still shares A with it.
+     * A title's feat. credit is not used: a shared guest alone does not make another artist's song this one.
      */
-    private fun creditKeys(credit: String, title: String?): Set<Long> {
+    private fun creditKeys(credit: String): Set<Long> {
         val keys = LinkedHashSet<Long>()
-        keys += ArtistSets.parse(credit, title, splitInto).artists
+        keys += ArtistSets.parse(credit, known = splitInto).artists
         keys += ArtistSets.keyHash(ArtistSets.normalize(credit.replace(WORD_SEPARATOR, " ")))
         for (piece in credit.split(CREDIT_SEPARATOR)) keys += ArtistSets.keyHash(ArtistSets.normalize(piece))
         keys -= 0L
