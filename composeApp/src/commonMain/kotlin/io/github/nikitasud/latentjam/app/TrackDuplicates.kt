@@ -8,9 +8,16 @@ import androidx.compose.ui.text.intl.Locale
 import io.github.nikitasud.latentjam.history.Favorites
 import io.github.nikitasud.latentjam.history.TrackStats
 import io.github.nikitasud.latentjam.library.Playlists
+import io.github.nikitasud.latentjam.library.tags.TrackRecordingIds
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import io.github.nikitasud.latentjam.playback.SoundSpan
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.time.TimeSource
 import kotlinx.coroutines.sync.withLock
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -24,9 +31,124 @@ import kotlin.math.sqrt
 internal const val DUPLICATE_SIMILARITY = 0.99f
 
 /**
+ * How much lower the similarity of two files may be when their tags name one recording (an equal
+ * MusicBrainz recording id or a shared ISRC): a low-bitrate copy of a FLAC can fall just under
+ * [DUPLICATE_SIMILARITY]. The audio still has to agree — tags can be wrong.
+ */
+internal const val SAME_RECORDING_SIMILARITY_SLACK = 0.01f
+
+/** Two copies of one recording differ in length by at most this much. */
+internal const val DUPLICATE_LENGTH_TOLERANCE_MS = 2_000L
+
+/**
+ * The length gap tags naming one recording can explain: one master fades out a few seconds later,
+ * a digital release adds a pause. MusicBrainz gives a different edit its own recording.
+ */
+internal const val SAME_RECORDING_LENGTH_TOLERANCE_MS = 10_000L
+
+/**
+ * The widest gap between two files' declared lengths the finder ever looks across. Past it no
+ * silence at the edges or shared tag makes two files one copy: the scan's duration windows stay
+ * this narrow, so a large library is never compared all against all.
+ */
+internal const val DUPLICATE_MAX_LENGTH_GAP_MS = 15_000L
+
+/**
+ * What the finder knows of one file beyond its audio vector. Every field is optional: unknown
+ * evidence never makes a pair a duplicate, and never stops one the audio and lengths alone accept.
+ */
+internal data class DuplicateEvidence(
+    /** Length from the first to the last sound, without the silence at either edge; null when unmeasured. */
+    val soundMs: Long? = null,
+    /** Tag identity; null when not read (or unreadable). */
+    val ids: TrackRecordingIds? = null,
+)
+
+/**
+ * Whether two files' tags name one recording. An equal MusicBrainz recording id says so. A shared
+ * ISRC says so too, unless the two recording ids are both present and differ: a compilation can
+ * reuse an ISRC, while MusicBrainz recording ids are curated. Different recording ids do not veto
+ * the audio itself — MusicBrainz still holds unmerged duplicate recordings, and labels reissue the
+ * same audio under new ISRCs — they only withhold this extra trust.
+ */
+internal fun namesSameRecording(a: TrackRecordingIds?, b: TrackRecordingIds?): Boolean {
+    if (a == null || b == null) return false
+    val left = a.recording
+    val right = b.recording
+    if (left != null && right != null) return left == right
+    return a.isrcs.any { it in b.isrcs }
+}
+
+/**
+ * The finder's rule for one pair of files, given their audio [similarity] (cosine), declared
+ * durations and [DuplicateEvidence]:
+ * - [threshold] similarity and declared lengths within [DUPLICATE_LENGTH_TOLERANCE_MS] (or a
+ *   length unknown): the rule as it always was;
+ * - [threshold] similarity and sound lengths within the same tolerance: copies that differ only in
+ *   the silence before the first sound or after the last one, such as a digital release with two
+ *   more seconds of silence at its end;
+ * - tags naming one recording ([namesSameRecording]): similarity down to [threshold] minus
+ *   [SAME_RECORDING_SIMILARITY_SLACK] and lengths (declared or sound) within
+ *   [SAME_RECORDING_LENGTH_TOLERANCE_MS].
+ *
+ * Declared lengths further apart than [DUPLICATE_MAX_LENGTH_GAP_MS] are never one copy.
+ */
+internal fun isDuplicatePair(
+    similarity: Float,
+    threshold: Float,
+    durationA: Long?,
+    durationB: Long?,
+    evidenceA: DuplicateEvidence?,
+    evidenceB: DuplicateEvidence?,
+): Boolean = similarity.isFinite() && isDuplicatePair(
+    audioMatches = similarity >= threshold,
+    audioMatchesSameRecording = similarity >= threshold - SAME_RECORDING_SIMILARITY_SLACK,
+    durationA = durationA,
+    durationB = durationB,
+    evidenceA = evidenceA,
+    evidenceB = evidenceB,
+)
+
+/**
+ * [isDuplicatePair] with the similarity already compared: [audioMatches] against the threshold,
+ * [audioMatchesSameRecording] against the threshold less [SAME_RECORDING_SIMILARITY_SLACK]. The
+ * scan compares squared distances, exactly as it always did, and hands over only the verdicts.
+ */
+internal fun isDuplicatePair(
+    audioMatches: Boolean,
+    audioMatchesSameRecording: Boolean,
+    durationA: Long?,
+    durationB: Long?,
+    evidenceA: DuplicateEvidence?,
+    evidenceB: DuplicateEvidence?,
+): Boolean {
+    if (!audioMatchesSameRecording) return false
+    val declaredGap = if (durationA != null && durationB != null) abs(durationA - durationB) else null
+    if (declaredGap != null && declaredGap > DUPLICATE_MAX_LENGTH_GAP_MS) return false
+    val soundA = evidenceA?.soundMs
+    val soundB = evidenceB?.soundMs
+    val soundGap = if (soundA != null && soundB != null) abs(soundA - soundB) else null
+    fun lengthsWithin(tolerance: Long): Boolean =
+        declaredGap == null || declaredGap <= tolerance || (soundGap != null && soundGap <= tolerance)
+    if (audioMatches && lengthsWithin(DUPLICATE_LENGTH_TOLERANCE_MS)) return true
+    return namesSameRecording(evidenceA?.ids, evidenceB?.ids) &&
+        lengthsWithin(SAME_RECORDING_LENGTH_TOLERANCE_MS)
+}
+
+/** Two files the audio nearly matches but that the rule could not accept with what it knew. */
+internal data class UndecidedDuplicatePair(val a: TrackId, val b: TrackId, val similarity: Float)
+
+/** A scan's complete-link groups, and the pairs more evidence might still turn into duplicates. */
+internal class DuplicateScan(
+    val groups: List<List<TrackId>>,
+    val undecided: List<UndecidedDuplicatePair>,
+)
+
+/**
  * Groups tracks whose stored audio embeddings are near-identical — the tag-blind duplicate
- * finder. Every pair in a group meets [threshold], so whichever row the listener keeps is a
- * near-duplicate of every row that will be hidden. Biggest group first; singletons are dropped.
+ * finder; [isDuplicatePair] is the rule, with [threshold] its similarity. Every pair in a group
+ * meets the rule, so whichever row the listener keeps is a near-duplicate of every row that will
+ * be hidden. Biggest group first; singletons are dropped.
  *
  * Pair checks short-circuit as soon as their squared distance exceeds the normalized-vector
  * threshold. This preserves exact cosine semantics while avoiding a full high-dimensional dot
@@ -41,9 +163,33 @@ internal fun audioDuplicateGroups(
     threshold: Float = DUPLICATE_SIMILARITY,
     durationsMs: Map<TrackId, Long?> = emptyMap(),
     dismissed: DuplicateExclusions = DuplicateExclusions(emptyList()),
+    evidence: Map<TrackId, DuplicateEvidence> = emptyMap(),
     cancellationCheck: () -> Unit = {},
     onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
-): List<List<TrackId>> {
+): List<List<TrackId>> = scanAudioDuplicates(
+    vectors = vectors,
+    threshold = threshold,
+    durationsMs = durationsMs,
+    dismissed = dismissed,
+    evidence = evidence,
+    cancellationCheck = cancellationCheck,
+    onProgress = onProgress,
+).groups
+
+/** The most undecided pairs one scan keeps; past it the rest stay as the plain rule left them. */
+internal const val MAX_UNDECIDED_DUPLICATE_PAIRS = 2_000
+
+/** [audioDuplicateGroups], also returning the undecided pairs (at most [maxUndecided]). */
+internal fun scanAudioDuplicates(
+    vectors: Map<TrackId, FloatArray>,
+    threshold: Float = DUPLICATE_SIMILARITY,
+    durationsMs: Map<TrackId, Long?> = emptyMap(),
+    dismissed: DuplicateExclusions = DuplicateExclusions(emptyList()),
+    evidence: Map<TrackId, DuplicateEvidence> = emptyMap(),
+    maxUndecided: Int = MAX_UNDECIDED_DUPLICATE_PAIRS,
+    cancellationCheck: () -> Unit = {},
+    onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
+): DuplicateScan {
     require(threshold.isFinite()) { "Duplicate threshold must be finite" }
     cancellationCheck()
     val ids = vectors.keys.sortedBy(TrackId::value)
@@ -55,33 +201,82 @@ internal fun audioDuplicateGroups(
         if (index and 127 == 0) cancellationCheck()
         unitRowOrNull(vectors.getValue(id))
     }
-    val maximumSquaredDistance = 2f * (1f - threshold.coerceIn(-1f, 1f))
+    // The loosest similarity any evidence can make acceptable bounds the distance computation;
+    // the rule itself then decides with the exact similarity.
+    val strictSquaredDistance = 2f * (1f - threshold.coerceIn(-1f, 1f))
+    val maximumSquaredDistance =
+        2f * (1f - (threshold - SAME_RECORDING_SIMILARITY_SLACK).coerceIn(-1f, 1f))
     val durations = ids.map { id -> durationsMs[id]?.takeIf { it > 0 } }
+    val facts = ids.map { id -> evidence[id] }
+    val undecided = ArrayList<UndecidedDuplicatePair>()
 
-    fun areDuplicates(aIndex: Int, bIndex: Int): Boolean {
-        if (dismissed.excludes(ids[aIndex], ids[bIndex])) return false
-        val a = rows[aIndex] ?: return false
-        val b = rows[bIndex] ?: return false
-        if (a.size != b.size) return false
+    /** The pair's squared distance when it is at most [bound], else null. */
+    fun squaredDistanceOrNull(aIndex: Int, bIndex: Int, bound: Float): Float? {
+        if (dismissed.excludes(ids[aIndex], ids[bIndex])) return null
+        val a = rows[aIndex] ?: return null
+        val b = rows[bIndex] ?: return null
+        if (a.size != b.size) return null
         // For unit vectors, ||a-b||² = 2 - 2*cos(a,b). Accumulated squared distance is
-        // monotonic, so most unrelated tracks can be rejected after only a few dimensions.
+        // monotonic, so most unrelated tracks can be rejected after only a few dimensions. It is
+        // checked every four dimensions, which only delays a rejection: the sum is the same.
         var squaredDistance = 0f
-        for (dimension in a.indices) {
+        var dimension = 0
+        val blocked = a.size - a.size % 4
+        while (dimension < blocked) {
+            val d0 = a[dimension] - b[dimension]
+            val d1 = a[dimension + 1] - b[dimension + 1]
+            val d2 = a[dimension + 2] - b[dimension + 2]
+            val d3 = a[dimension + 3] - b[dimension + 3]
+            squaredDistance += d0 * d0
+            squaredDistance += d1 * d1
+            squaredDistance += d2 * d2
+            squaredDistance += d3 * d3
+            if (squaredDistance > bound) return null
+            dimension += 4
+        }
+        while (dimension < a.size) {
             val difference = a[dimension] - b[dimension]
             squaredDistance += difference * difference
-            if (squaredDistance > maximumSquaredDistance) return false
+            dimension++
         }
-        return true
+        return squaredDistance.takeIf { it <= bound }
+    }
+
+    fun areDuplicates(aIndex: Int, bIndex: Int): Boolean {
+        val durationA = durations[aIndex]
+        val durationB = durations[bIndex]
+        // Past the id rule's length tolerance only the plain similarity can still be won (by
+        // sound lengths), so the cheaper bound suffices there.
+        val bound = if (durationA != null && durationB != null &&
+            abs(durationA - durationB) > SAME_RECORDING_LENGTH_TOLERANCE_MS
+        ) strictSquaredDistance else maximumSquaredDistance
+        val squaredDistance = squaredDistanceOrNull(aIndex, bIndex, bound) ?: return false
+        val duplicate = isDuplicatePair(
+            audioMatches = squaredDistance <= strictSquaredDistance,
+            audioMatchesSameRecording = true,
+            durationA = durationA,
+            durationB = durationB,
+            evidenceA = facts[aIndex],
+            evidenceB = facts[bIndex],
+        )
+        if (!duplicate && undecided.size < maxUndecided) {
+            undecided += UndecidedDuplicatePair(ids[bIndex], ids[aIndex], 1f - squaredDistance / 2f)
+        }
+        return duplicate
     }
 
     // A connected component is unsafe here: A≈B and B≈C does not imply A≈C. Build deterministic
     // complete-link groups, but only decode vector pairs whose known durations can represent the
-    // same recording. Duration buckets turn a normal large library from all-pairs work into local
-    // windows; unknown durations remain conservative and compare against every earlier row.
-    val durationToleranceMs = 2_000L
-    val durationBucketWidthMs = durationToleranceMs + 1L
-    val knownDurationBuckets = mutableMapOf<Long, MutableList<Int>>()
-    val unknownDurationIndices = mutableListOf<Int>()
+    // same recording. Rows sorted by duration turn a normal large library from all-pairs work into
+    // local windows, found by binary search with no per-row allocation; unknown durations remain
+    // conservative and compare against every earlier row.
+    val window = DUPLICATE_MAX_LENGTH_GAP_MS
+    val byDuration = ids.indices.filter { durations[it] != null }
+        .sortedWith(compareBy<Int> { durations[it]!! }.thenBy { it })
+        .toIntArray()
+    val sortedDurations = LongArray(byDuration.size) { durations[byDuration[it]]!! }
+    val unknownDurationIndices = IntArray(ids.size)
+    var unknownCount = 0
     val completeLinkGroups = mutableListOf<MutableList<Int>>()
     val groupOf = IntArray(ids.size) { -1 }
     var pairChecks = 0
@@ -91,29 +286,20 @@ internal fun audioDuplicateGroups(
             onProgress(candidate, ids.size)
         }
         val duration = durations[candidate]
-        val possibleMatches = if (duration == null) {
-            (0 until candidate).toMutableList()
-        } else {
-            buildList {
-                addAll(unknownDurationIndices)
-                val bucket = duration / durationBucketWidthMs
-                for (candidateBucket in (bucket - 1)..(bucket + 1)) {
-                    knownDurationBuckets[candidateBucket].orEmpty().forEach { prior ->
-                        val priorDuration = durations[prior] ?: return@forEach
-                        val difference = if (duration >= priorDuration) {
-                            duration - priorDuration
-                        } else {
-                            priorDuration - duration
-                        }
-                        if (difference <= durationToleranceMs) add(prior)
-                    }
-                }
-            }.sorted()
-        }
         val duplicatePrior = HashSet<Int>()
-        for (prior in possibleMatches) {
+        fun consider(prior: Int) {
             if (pairChecks++ and 1023 == 0) cancellationCheck()
             if (areDuplicates(candidate, prior)) duplicatePrior += prior
+        }
+        if (duration == null) {
+            for (prior in 0 until candidate) consider(prior)
+        } else {
+            for (unknown in 0 until unknownCount) consider(unknownDurationIndices[unknown])
+            var position = lowerBound(sortedDurations, duration - window)
+            while (position < sortedDurations.size && sortedDurations[position] <= duration + window) {
+                val prior = byDuration[position++]
+                if (prior < candidate) consider(prior)
+            }
         }
         val compatibleGroupIndex = duplicatePrior.asSequence()
             .map { groupOf[it] }
@@ -131,19 +317,162 @@ internal fun audioDuplicateGroups(
             compatibleGroupIndex
         }
         groupOf[candidate] = groupIndex
-        if (duration == null) {
-            unknownDurationIndices += candidate
-        } else {
-            knownDurationBuckets.getOrPut(duration / durationBucketWidthMs, ::mutableListOf) +=
-                candidate
-        }
+        if (duration == null) unknownDurationIndices[unknownCount++] = candidate
     }
     onProgress(ids.size, ids.size)
 
-    return completeLinkGroups
+    val groups = completeLinkGroups
         .filter { it.size > 1 }
         .map { group -> group.map { ids[it] } }
         .sortedWith(compareByDescending<List<TrackId>> { it.size }.thenBy { it.first().value })
+    return DuplicateScan(groups, undecided)
+}
+
+/** The first position in ascending [values] holding at least [key]. */
+private fun lowerBound(values: LongArray, key: Long): Int {
+    var low = 0
+    var high = values.size
+    while (low < high) {
+        val middle = (low + high) ushr 1
+        if (values[middle] < key) low = middle + 1 else high = middle
+    }
+    return low
+}
+
+/** Per-scan bounds on the evidence the finder gathers for undecided pairs. */
+internal object DuplicateEvidenceLimits {
+    /** Files whose tags are read (each read is bounded to the metadata, at most 8 MiB). */
+    const val MAX_TAG_READS = 256
+
+    /** Files decoded to find where their sound begins and ends. */
+    const val MAX_SOUND_MEASUREMENTS = 24
+
+    /** One file's decode; a slower one stays unmeasured. */
+    const val SOUND_MEASUREMENT_TIMEOUT_MS = 30_000L
+
+    /** All decodes of one scan together. */
+    const val SOUND_BUDGET_MS = 90_000L
+}
+
+/** A measured end may run this far past the file's declared duration (container rounding). */
+private const val SOUND_SPAN_SLACK_MS = 2_000L
+
+/**
+ * The length of [span]'s sound — from its first sound to its last, the silence at both edges left
+ * out — or null when there is no span or it does not fit a file of [durationMs].
+ */
+internal fun soundLengthMs(span: SoundSpan?, durationMs: Long?): Long? {
+    if (span == null || !span.isValid()) return null
+    if (durationMs != null && durationMs > 0 && span.endMs > durationMs + SOUND_SPAN_SLACK_MS) return null
+    return span.endMs - span.startMs
+}
+
+/**
+ * The duplicate finder's whole scan: [scanAudioDuplicates] on the audio and declared lengths, then,
+ * only for the pairs the audio nearly matches but that rule could not accept, evidence gathered on
+ * demand — the files' recording ids and ISRCs ([readIds]), then, where the declared lengths still
+ * disagree, the length of their sound without edge silence ([knownSoundMs] first, which costs
+ * nothing, else [measureSoundMs], a decode) — and one more scan with it.
+ *
+ * Gathering is bounded by [DuplicateEvidenceLimits] and cancellable; a read or decode that fails,
+ * times out or is over budget leaves its file unknown, which only means the plain rule decides.
+ * [onProgress] runs from 0 to 1 over the whole scan.
+ */
+internal suspend fun findAudioDuplicates(
+    vectors: Map<TrackId, FloatArray>,
+    durationsMs: Map<TrackId, Long?>,
+    dismissed: DuplicateExclusions,
+    readIds: suspend (TrackId) -> TrackRecordingIds?,
+    measureSoundMs: suspend (TrackId) -> Long?,
+    knownSoundMs: (TrackId) -> Long? = { null },
+    threshold: Float = DUPLICATE_SIMILARITY,
+    timeSource: TimeSource = TimeSource.Monotonic,
+    onProgress: (Float) -> Unit = {},
+): List<List<TrackId>> {
+    val context = currentCoroutineContext()
+    val cancellationCheck = { context.ensureActive() }
+    val first = scanAudioDuplicates(
+        vectors = vectors,
+        threshold = threshold,
+        durationsMs = durationsMs,
+        dismissed = dismissed,
+        cancellationCheck = cancellationCheck,
+        onProgress = { done, total -> if (total > 0) onProgress(FIRST_SCAN_SHARE * done / total) },
+    )
+    if (first.undecided.isEmpty()) {
+        onProgress(1f)
+        return first.groups
+    }
+
+    val ids = HashMap<TrackId, TrackRecordingIds>()
+    first.undecided.asSequence().flatMap { sequenceOf(it.a, it.b) }.distinct()
+        .take(DuplicateEvidenceLimits.MAX_TAG_READS)
+        .forEach { id ->
+            context.ensureActive()
+            gathered { readIds(id) }?.let { ids[id] = it }
+        }
+
+    fun duration(id: TrackId): Long? = durationsMs[id]?.takeIf { it > 0 }
+    val wantsSound = LinkedHashSet<TrackId>()
+    for (pair in first.undecided) {
+        val a = DuplicateEvidence(ids = ids[pair.a])
+        val b = DuplicateEvidence(ids = ids[pair.b])
+        val durationA = duration(pair.a) ?: continue
+        val durationB = duration(pair.b) ?: continue
+        if (isDuplicatePair(pair.similarity, threshold, durationA, durationB, a, b)) continue
+        // Only a pair whose audio passes, or whose tags name one recording, can be won by sound lengths.
+        if (pair.similarity < threshold && !namesSameRecording(a.ids, b.ids)) continue
+        wantsSound += pair.a
+        wantsSound += pair.b
+    }
+    val sound = HashMap<TrackId, Long>()
+    val started = timeSource.markNow()
+    var measured = 0
+    for (id in wantsSound) {
+        context.ensureActive()
+        gathered { knownSoundMs(id) }?.takeIf { it > 0 }?.let { sound[id] = it; continue }
+        if (measured >= DuplicateEvidenceLimits.MAX_SOUND_MEASUREMENTS) continue
+        val left = DuplicateEvidenceLimits.SOUND_BUDGET_MS - started.elapsedNow().inWholeMilliseconds
+        if (left <= 0L) break
+        measured++
+        val length = withTimeoutOrNull(minOf(left, DuplicateEvidenceLimits.SOUND_MEASUREMENT_TIMEOUT_MS)) {
+            gathered { measureSoundMs(id) }
+        }
+        length?.takeIf { it > 0 }?.let { sound[id] = it }
+        onProgress(FIRST_SCAN_SHARE + EVIDENCE_SHARE * measured / wantsSound.size.coerceAtLeast(1))
+    }
+
+    val evidence = HashMap<TrackId, DuplicateEvidence>()
+    (ids.keys + sound.keys).forEach { id -> evidence[id] = DuplicateEvidence(soundMs = sound[id], ids = ids[id]) }
+    if (evidence.isEmpty()) {
+        onProgress(1f)
+        return first.groups
+    }
+    val secondStart = FIRST_SCAN_SHARE + EVIDENCE_SHARE
+    return scanAudioDuplicates(
+        vectors = vectors,
+        threshold = threshold,
+        durationsMs = durationsMs,
+        dismissed = dismissed,
+        evidence = evidence,
+        maxUndecided = 0,
+        cancellationCheck = cancellationCheck,
+        onProgress = { done, total ->
+            if (total > 0) onProgress(secondStart + (1f - secondStart) * done / total)
+        },
+    ).groups
+}
+
+private const val FIRST_SCAN_SHARE = 0.8f
+private const val EVIDENCE_SHARE = 0.1f
+
+/** [block]'s result, or null where it failed: evidence that cannot be gathered is unknown. */
+private suspend fun <T> gathered(block: suspend () -> T?): T? = try {
+    block()
+} catch (cancelled: CancellationException) {
+    throw cancelled
+} catch (_: Throwable) {
+    null
 }
 
 /**

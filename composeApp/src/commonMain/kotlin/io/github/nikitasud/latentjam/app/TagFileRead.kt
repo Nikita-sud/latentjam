@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.library.tags.TagCodecs
 import io.github.nikitasud.latentjam.library.tags.TagSnapshot
+import io.github.nikitasud.latentjam.library.tags.TrackRecordingIds
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 
 /** What the editor learns from a file before the user types anything (spec §6.1). */
@@ -30,3 +31,9 @@ internal fun tagFileReadOf(snapshot: TagSnapshot?): TagFileRead {
  * [TagProblem.UNREADABLE]. The editor then shows that instead of fields it could not fill honestly.
  */
 internal expect suspend fun readTagFile(track: TrackDescriptor): TagFileRead
+
+/**
+ * [track]'s recording id and ISRCs for the duplicate finder, read like [readTagFile] (random access,
+ * the metadata only, bounded); null when the file cannot be opened or its tags read completely.
+ */
+internal expect suspend fun readTrackRecordingIds(track: TrackDescriptor): TrackRecordingIds?

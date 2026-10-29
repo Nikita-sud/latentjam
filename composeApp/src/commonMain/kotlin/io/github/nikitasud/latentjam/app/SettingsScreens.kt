@@ -2279,8 +2279,10 @@ private fun IntelligenceProblemsSettings(
 
 /**
  * The tag-blind duplicate report: tracks whose stored audio embeddings are near-identical are
- * the same recording, whatever their files are named. Runs entirely from the SMART index — no
- * decoding, no network — so the scan is a background pass of dot products. Every group names the
+ * the same recording, whatever their files are named. Runs from the SMART index — no network — so
+ * the scan is a background pass of dot products; only for the few pairs the audio nearly matches but
+ * the lengths do not does it read their tags and, if need be, decode them for their edge silence
+ * ([findAudioDuplicates], bounded). Every group names the
  * copy worth keeping (lossless first, then bitrate, then what the listener already loves); the
  * listener can take that verdict for every group at once, override it per group, hide or delete
  * the rest, or declare a group two different recordings, which the finder remembers.
@@ -2325,7 +2327,6 @@ private fun DuplicatesSettings(
         var showFailure = false
         try {
             val computed = withContext(Dispatchers.Default) {
-                val scanContext = currentCoroutineContext()
                 // Indexing may still be running; tracks without a vector simply sit this scan out.
                 val vectors = LinkedHashMap<TrackId, FloatArray>(tracks.size)
                 for (track in tracks) {
@@ -2335,6 +2336,11 @@ private fun DuplicatesSettings(
                 val byId = tracks.associateById()
                 val durations = tracks.associate { track -> track.id to track.durationMs }
                 val dismissed = DuplicateDismissals.decode(settings.readDuplicateDismissalsPayload())
+                // Where playback already measured a track's sound edges (normalization or smooth
+                // transitions), the finder reuses them for free while the file is unchanged. Decoded
+                // only when a pair needs it: most scans never do.
+                val loudness by lazy { decodeTrackLoudness(settings.readTrackLoudnessPayload().orEmpty()) }
+                val meter = AppGraph.loudnessMeter
                 val stats = history.stats()
                 val favoriteIds = AppGraph.favorites.all().toSet()
                 val playlistCounts = HashMap<TrackId, Int>()
@@ -2344,14 +2350,23 @@ private fun DuplicatesSettings(
                         playlistCounts[id] = (playlistCounts[id] ?: 0) + 1
                     }
                 }
-                audioDuplicateGroups(
+                findAudioDuplicates(
                     vectors = vectors,
                     durationsMs = durations,
                     dismissed = dismissed,
-                    cancellationCheck = { scanContext.ensureActive() },
-                    onProgress = { done, total ->
-                        if (total > 0) scanProgress = done.toFloat() / total
+                    readIds = { id -> byId[id]?.let { readTrackRecordingIds(it) } },
+                    measureSoundMs = { id ->
+                        val track = byId[id]
+                        if (track == null || meter == null) null
+                        else soundLengthMs(meter.measure(track)?.sound, track.durationMs)
                     },
+                    knownSoundMs = { id ->
+                        val track = byId[id]
+                        loudness[id.value]
+                            ?.takeIf { track != null && it.audioIdentity == track.loudnessAudioIdentity() }
+                            ?.let { soundLengthMs(it.measurement.sound, track?.durationMs) }
+                    },
+                    onProgress = { scanProgress = it },
                 ).map { group ->
                     describeDuplicateGroup(
                         group = group.mapNotNull(byId::get),

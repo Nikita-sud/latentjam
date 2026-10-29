@@ -450,6 +450,10 @@ object AppGraph {
     val library: MusicLibrary
         get() = koin.get()
 
+    /** This platform's full-track loudness and sound-edge scan; null where none is bound. */
+    internal val loudnessMeter: TrackLoudnessMeter?
+        get() = koin.getOrNull()
+
     /** Shell-level user preferences (theme). */
     /**
      * The test-only "Diagnose recent SMART starts": re-plans the last eight ranker queues with full diagnostics and

@@ -6,6 +6,8 @@ package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.library.IosTagFiles
 import io.github.nikitasud.latentjam.library.tags.TagCodecs
+import io.github.nikitasud.latentjam.library.tags.TrackRecordingIds
+import io.github.nikitasud.latentjam.library.tags.readTrackRecordingIds as readRecordingIds
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CancellationException
@@ -35,5 +37,25 @@ internal actual suspend fun readTagFile(track: TrackDescriptor): TagFileRead = w
         throw cancelled
     } catch (_: Exception) {
         TagFileRead.NotEditable(TagProblem.UNREADABLE)
+    }
+}
+
+@OptIn(ExperimentalForeignApi::class)
+internal actual suspend fun readTrackRecordingIds(track: TrackDescriptor): TrackRecordingIds? = withContext(Dispatchers.IO) {
+    // The Music library's files are Apple's: no app reads their tags.
+    if (IosTagFiles.isMusicLibraryTrack(track.id.value)) return@withContext null
+    try {
+        val url = track.audioUri?.takeIf(String::isNotBlank)?.let(NSURL::URLWithString)
+        val path = url?.takeIf { it.isFileURL() }?.path ?: return@withContext null
+        val handle = NSFileHandle.fileHandleForReadingAtPath(path) ?: return@withContext null
+        try {
+            readRecordingIds(FileHandleSource(handle))
+        } finally {
+            handle.closeFile()
+        }
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        null
     }
 }

@@ -22,6 +22,17 @@ class SoundEdgesTest {
     }
 
     @Test
+    fun twoReleasesThatDifferOnlyInTrailingSilenceHaveTheSameSound() {
+        // The duplicate finder's Dragonborn case: the same audio until 234.97 s, then 0.66 s of
+        // silence on the CD and 2.66 s on the digital release (declared lengths 2,004 ms apart).
+        val music = { frame: Int -> if (frame < 234_970) 0.2f + 0.1f * ((frame / 1_000) % 3) else 0f }
+        val cd = spanOf(235_636, music)!!
+        val digital = spanOf(237_640, music)!!
+        assertEquals(cd, digital)
+        assertEquals(235_000L, digital.endMs - digital.startMs)
+    }
+
+    @Test
     fun leadingAndTrailingSilenceLieOutsideTheSpan() {
         val span = spanOf(10_000) { frame -> if (frame in 1_200 until 8_600) 0.3f else 0f }
         assertEquals(SoundSpan(1_200, 8_600), span)

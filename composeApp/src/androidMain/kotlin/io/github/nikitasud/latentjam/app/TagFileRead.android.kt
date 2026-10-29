@@ -6,6 +6,8 @@ package io.github.nikitasud.latentjam.app
 
 import android.net.Uri
 import io.github.nikitasud.latentjam.library.tags.TagCodecs
+import io.github.nikitasud.latentjam.library.tags.TrackRecordingIds
+import io.github.nikitasud.latentjam.library.tags.readTrackRecordingIds as readRecordingIds
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -28,5 +30,19 @@ internal actual suspend fun readTagFile(track: TrackDescriptor): TagFileRead = w
         throw cancelled
     } catch (_: Exception) {
         TagFileRead.NotEditable(TagProblem.UNREADABLE)
+    }
+}
+
+internal actual suspend fun readTrackRecordingIds(track: TrackDescriptor): TrackRecordingIds? = withContext(Dispatchers.IO) {
+    try {
+        val uri = track.audioUri?.takeIf(String::isNotBlank)?.let(Uri::parse) ?: return@withContext null
+        if (uri.scheme != "content" && uri.scheme != "file") return@withContext null
+        AndroidAppContext.value.contentResolver.openFileDescriptor(uri, "r")?.use {
+            readRecordingIds(FileChannelSource(FileInputStream(it.fileDescriptor).channel))
+        }
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        null
     }
 }
