@@ -476,10 +476,10 @@
     <string name="intelligence_artist_variety_max">Máxima</string>
     <string name="intelligence_include_novelty_mixes">Incluir mixes inusitados</string>
     <string name="intelligence_include_novelty_mixes_body">Mostra no separador Para ti mixes separados de memes, áudios virais e efeitos sonoros.</string>
-    <string name="intelligence_learn_from_habits">Aprender com meus hábitos</string>
-    <string name="intelligence_learn_from_habits_body">O SMART também aprende com o que você ouve: o que você ouve muito e o que costuma tocar em seguida. Tudo fica neste dispositivo.</string>
+    <string name="intelligence_learn_from_habits">Aprender com os meus hábitos</string>
+    <string name="intelligence_learn_from_habits_body">O SMART também aprende com o que ouve: o que ouve muitas vezes e o que costuma ouvir a seguir. Tudo fica neste dispositivo.</string>
     <string name="intelligence_use_favourites">Ter em conta os favoritos</string>
-    <string name="intelligence_use_favourites_body">As faixas que marcou como favoritas, e há quanto tempo, contam nas escolhas do SMART. Funciona com Aprender com meus hábitos.</string>
+    <string name="intelligence_use_favourites_body">As faixas que marcou como favoritas, e há quanto tempo, contam nas escolhas do SMART. Funciona com Aprender com os meus hábitos.</string>
     <string name="intelligence_smart_log_export">Exportar registo do SMART (teste)</string>
     <string name="intelligence_smart_log_export_body">O que o SMART propôs e o que aconteceu a cada faixa, guardado apenas neste dispositivo. Guarda uma cópia para verificações do produto.</string>
     <string name="intelligence_smart_log_exported">Registo do SMART exportado</string>
@@ -653,7 +653,7 @@
     <string name="listenbrainz_import_result_over_limit">Audições mais antigas deixadas de fora (o histórico está cheio): %1$d</string>
     <string name="listenbrainz_import_result_unreadable">Entradas ilegíveis ignoradas: %1$d</string>
     <string name="listenbrainz_import_result_truncated">Esta exportação é muito grande; só foi lida a primeira parte.</string>
-    <string name="listenbrainz_import_habits_hint">As estatísticas e Para ti já usam estas audições. O SMART aprende com elas quando “Aprender com meus hábitos” estiver ativado (Definições → Motor SMART).</string>
+    <string name="listenbrainz_import_habits_hint">As estatísticas e Para ti já usam estas audições. O SMART aprende com elas quando “Aprender com os meus hábitos” estiver ativado (Definições → Motor SMART).</string>
     <string name="listenbrainz_import_habits_on">Ativar</string>
     <string name="listenbrainz_import_invalid">Este ficheiro não é uma exportação do ListenBrainz.</string>
     <string name="listenbrainz_import_failed">Não foi possível importar a exportação do ListenBrainz.</string>
