@@ -910,11 +910,13 @@ internal class SmartChain(
                 }
             }
 
-            // The personal stage (PLAN_PERSONAL v2 §1): δ and the mask M come from the mask core (the shipped score without
-            // the keep-together command and, as novelty, without recency); rows in M gain t (and a strong habit's recency
-            // relief), rows outside keep the shipped score. Without additions the pick is the shipped one, bit for bit.
-            // The quota's picks are the core's and stand (G).
+            // The personal stage (PLAN_PERSONAL v2 §1, v6): δ and the mask M come from the mask core (the shipped score
+            // without the keep-together command and, as novelty, without recency); rows in M gain t (and a strong habit's
+            // recency relief), rows outside keep the shipped score unless a tier-2 habit that passes the cluster guard
+            // reaches them (within δ_habit). Without additions the pick is the shipped one, bit for bit. The quota's
+            // picks are the core's and stand (G), and so does a keep-together pick (K > 0): no habit outvotes it.
             if (staged && chosenIndex == bestIndex) {
+                val kept = keep!![bestIndex] > 0f
                 val novelty = personal?.recencyMode != io.github.nikitasud.latentjam.smart.personal.RecencyMode.CREDIT
                 val mask = FloatArray(pool.size) { i ->
                     if (!hopScored[i]) 0f else hopScores[i] - keep!![i] + (if (novelty && recencyLoss != null) recencyLoss[i] else 0f)
@@ -924,15 +926,22 @@ internal class SmartChain(
                     var bestMask = Float.NEGATIVE_INFINITY
                     for (i in pool.indices) if (hopScored[i] && mask[i] > bestMask) bestMask = mask[i]
                     val additions = FloatArray(pool.size)
+                    val reach = PersonalTerm.HABIT * delta
                     for (i in pool.indices) {
-                        if (!hopScored[i] || mask[i] < bestMask - delta) continue
-                        var t = personal?.addition(anchorRow, pool[i], delta, recencyLoss?.get(i) ?: 0f, pool[i] in readmitted) ?: 0f
-                        if (affinity != null) t += (tuning.personalWeight * affinity(pool[i])).coerceIn(-delta, delta)
+                        if (!hopScored[i]) continue
+                        val inMask = mask[i] >= bestMask - delta
+                        if (!inMask && (personal == null || mask[i] < bestMask - reach)) continue
+                        val row = pool[i]
+                        var t = personal?.addition(anchorRow, row, delta, recencyLoss?.get(i) ?: 0f, row in readmitted, inMask) {
+                            clusterGuard(anchorRow, row)
+                        } ?: 0f
+                        if (inMask && affinity != null) t += (tuning.personalWeight * affinity(row)).coerceIn(-delta, delta)
                         additions[i] = t
                     }
                     var pick = bestIndex
                     var pickScore = hopScores[bestIndex] + additions[bestIndex]
                     for (i in pool.indices) {
+                        if (kept) break
                         if (!hopScored[i] || i == bestIndex) continue
                         val value = hopScores[i] + additions[i]
                         if (value > pickScore) {
@@ -952,6 +961,15 @@ internal class SmartChain(
                         hop(delta, gaps, adds)
                     }
                     io.github.nikitasud.latentjam.smart.personal.PersonalDiagnostics.sink?.invoke((bestMask - mask[pick]) / delta, pick != bestIndex)
+                    io.github.nikitasud.latentjam.smart.personal.PersonalDiagnostics.guard?.let { report ->
+                        var total = 0
+                        var passed = 0
+                        for (i in pool.indices) if (hopScored[i] && pool[i] != anchorRow) {
+                            total++
+                            if (clusterGuard(anchorRow, pool[i])) passed++
+                        }
+                        report(passed, total)
+                    }
                 }
             }
 
@@ -1250,6 +1268,28 @@ internal class SmartChain(
      * @param ranking [seedRow]'s reference-only rankings, when the caller keeps them between pools;
      *   used only without [among] and computed here when missing. The pool is the same either way.
      */
+    private var guardAnchor = -1
+    private var guardZ: FloatArray? = null
+
+    /**
+     * The personal cluster guard of [row] after [anchor] (PLAN_PERSONAL v6): genre families and the theme z-score of
+     * [row] for reference [anchor], with the shipped theme weights (computed once per anchor, only when a tier-2 habit asks).
+     */
+    private fun clusterGuard(anchor: Int, row: Int): Boolean {
+        val theme = tuning.theme
+        val z = if (theme == null) null else {
+            if (anchor != guardAnchor) {
+                guardZ = theme.zScores(snapshot.size, ThemePool.features(snapshot, anchor))
+                guardAnchor = anchor
+            }
+            guardZ!![row]
+        }
+        return PersonalTerm.clusterGuard(snapshot.tracks[anchor].meta.genreFamilies, snapshot.tracks[row].meta.genreFamilies, z)
+    }
+
+    /** Research: the share of [rows] that pass the cluster guard after [anchor] (the v6 FMA gate). */
+    internal fun clusterGuardPasses(anchor: Int, rows: IntArray): Int = rows.count { it != anchor && clusterGuard(anchor, it) }
+
     private var themeReference = -1
     private var themeOrder: IntArray = IntArray(0)
     private var themeZ: FloatArray? = null

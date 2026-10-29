@@ -57,6 +57,8 @@ public class PersonalListen(
     public val shuffleOff: Boolean = false,
     /** For legacy listens without a listen time: the furthest position played. */
     public val playedMs: Long = 0L,
+    /** SMART's personal term chose this track: accepting it is no evidence (v6), skipping it is a full rejection. */
+    public val personalChanged: Boolean = false,
 )
 
 /**
@@ -83,6 +85,10 @@ public class PersonalModel internal constructor(
     private val edgeSessions: ByteArray,
     private val edgeNegative: ShortArray,
     private val edgeNegativeSessions: ByteArray,
+    /** The jar b(A → B) (v6): the time-ordered fold of the pair's sessions, decayed to each source's newest event. */
+    private val edgeJar: ShortArray,
+    /** Distinct calendar days (UTC) of the pair's own sessions, at most 255. */
+    private val edgeDays: ByteArray,
     private val edgeWeight: ShortArray,
     private val outWeight: FloatArray,
     private val outEffective: FloatArray,
@@ -154,6 +160,34 @@ public class PersonalModel internal constructor(
         return min(1f, unhalf(edgeOwn[e]) / FULL_STRENGTH)
     }
 
+    /** The jar b(A → B) in [JAR_MIN, JAR_MAX] (v6): what the habit term and the relief read. */
+    public fun jar(a: Int, b: Int): Float = edge(a, b).takeIf { it >= 0 }?.let { unhalf(edgeJar[it]) } ?: 0f
+
+    /** Distinct calendar days of the pair's own sessions (tier 2 needs [TIER2_DAYS]). */
+    public fun days(a: Int, b: Int): Int = edge(a, b).takeIf { it >= 0 }?.let { edgeDays[it].toInt() and 0xff } ?: 0
+
+    /** Distinct sessions that rejected B right after A, from any source. */
+    public fun rejectionSessions(a: Int, b: Int): Int =
+        edge(a, b).takeIf { it >= 0 }?.let { edgeNegativeSessions[it].toInt() and 0xff } ?: 0
+
+    /** ρ = clamp(b, 0, 6) / 6 once two sessions rejected B after A, else 1: how much of D1's relief and credit survives. */
+    public fun jarWeight(a: Int, b: Int): Float =
+        if (rejectionSessions(a, b) < MIN_SESSIONS) 1f else jar(a, b).coerceIn(0f, JAR_MAX) / JAR_MAX
+
+    /**
+     * The habit's reach before the cluster guard (v6): 2 with [D1_SESSIONS] own sessions on [TIER2_DAYS] calendar days,
+     * 1 with [MIN_SESSIONS], else 0. Positive evidence only: skips never lower it.
+     */
+    public fun tier(a: Int, b: Int): Int {
+        val e = edge(a, b).takeIf { it >= 0 } ?: return 0
+        val sessions = edgeSessions[e].toInt() and 0xff
+        return when {
+            sessions >= D1_SESSIONS && (edgeDays[e].toInt() and 0xff) >= TIER2_DAYS -> 2
+            sessions >= MIN_SESSIONS -> 1
+            else -> 0
+        }
+    }
+
     /** Track affinity: min(1, decayed sessions with a repeat or a return to the song / 3), from two sessions on. */
     public fun affinity(song: Int): Float {
         if (song < 0 || (affinitySessions[song].toInt() and 0xff) < MIN_SESSIONS) return 0f
@@ -204,9 +238,9 @@ public class PersonalModel internal constructor(
         8L * trackHashes.size +
             4L * (trackSong.size + trackArtistStart.size + trackArtistList.size + edgeStart.size + edgeTo.size +
                 outWeight.size + outEffective.size + inWeight.size + earlySkips.size + artistStart.size + artistTo.size) +
-            2L * (edgePositive.size + edgeOwn.size + edgeNegative.size + edgeWeight.size + artistPositive.size) +
+            2L * (edgePositive.size + edgeOwn.size + edgeNegative.size + edgeJar.size + edgeWeight.size + artistPositive.size) +
             4L * affinityStrength.size + affinitySessions.size +
-            edgeSessions.size + edgeNegativeSessions.size + artistSessions.size
+            edgeSessions.size + edgeNegativeSessions.size + edgeDays.size + artistSessions.size
 
     /** Diagnostics: how many links the store keeps. */
     public fun sizes(): String = "songs=$songCount edges=${edgeTo.size} artistEdges=${artistTo.size} tracks=${trackHashes.size}"
@@ -255,6 +289,11 @@ public class PersonalModel internal constructor(
         public const val E7_CAP: Float = 0.5f
         public const val TOP_PER_SONG: Int = 16
         public const val TOP_PER_ARTIST: Int = 8
+        // PLAN_PERSONAL v6, frozen before the v6 tests.
+        /** The jar's bounds: b is clamped to these after every step. */
+        public const val JAR_MIN: Float = -1.8f
+        public const val JAR_MAX: Float = 6f
+        public const val TIER2_DAYS: Int = 2
         internal const val DAY_MS: Long = DAY_MS_CONST
         private val NO_ARTISTS = IntArray(0)
 
@@ -297,24 +336,38 @@ private class SessionBest {
     private var hasFirst = false
     private var firstSession = 0L
     private var firstValue = 0.0
+    private var firstAt = 0L
     private var rest: LinkedHashMap<Long, Double>? = null
+    /** When each later session first showed this kind (the jar's order). */
+    private var restAt: LinkedHashMap<Long, Long>? = null
 
     val size: Int get() = (if (hasFirst) 1 else 0) + (rest?.size ?: 0)
 
-    fun best(session: Long, value: Double) {
+    /** Keeps the session's best [value]; [at] is when the session first showed it. True for a session not seen before. */
+    fun best(session: Long, value: Double, at: Long = 0L): Boolean {
         if (!hasFirst) {
             hasFirst = true
             firstSession = session
             firstValue = value
-            return
+            firstAt = at
+            return true
         }
         if (session == firstSession) {
             if (value > firstValue) firstValue = value
-            return
+            return false
         }
         val map = rest ?: LinkedHashMap<Long, Double>().also { rest = it }
         val held = map[session]
+        if (held == null) (restAt ?: LinkedHashMap<Long, Long>().also { restAt = it })[session] = at
         if (held == null || value > held) map[session] = value
+        return held == null
+    }
+
+    /** Each session's value with its first-seen time, in first-seen order. */
+    inline fun forEachAt(action: (Long, Double, Long) -> Unit) {
+        if (hasFirst) action(firstSession, firstValue, firstAt)
+        val times = restAt
+        rest?.forEach { (session, value) -> action(session, value, times!!.getValue(session)) }
     }
 
     /** The values summed in first-seen order, as `values.sum()` over the map did. */
@@ -331,6 +384,19 @@ private class SessionBest {
     }
 }
 
+/** Distinct calendar days, held inline for the usual one. */
+private class DaySet {
+    private var first = Long.MIN_VALUE
+    private var more: LinkedHashSet<Long>? = null
+
+    val size: Int get() = (if (first == Long.MIN_VALUE) 0 else 1) + (more?.size ?: 0)
+
+    fun add(day: Long) {
+        if (first == Long.MIN_VALUE) first = day
+        else if (day != first) (more ?: LinkedHashSet<Long>().also { more = it }) += day
+    }
+}
+
 /** A pair's evidence while building: per session the best grade of each kind, and the occurrence weights. */
 private class PairAcc {
     /** Session id → best (grade × decay) of the listener's own evidence, SMART's own, and rejections. */
@@ -339,6 +405,10 @@ private class PairAcc {
     val rejected = SessionBest()
     /** Imported session strength, kept apart for the per-anchor cap. */
     val imported = SessionBest()
+    /** Calendar days of the own sessions (device and import), each session's start day once. */
+    val days = DaySet()
+    /** The per-anchor import cap's scale, for the import jar. */
+    var importScale = 1.0
     var weightOwn = 0.0
     var weightSmart = 0.0
     var squaresOwn = 0.0
@@ -352,6 +422,8 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
     private val pairs = LinkedHashMap<Long, PairAcc>()
     private val artistPairs = LinkedHashMap<Long, PairAcc>()
     private var artistCount = 0
+    private var deviceRef = 0L
+    private var importRef = 0L
 
     private fun key(a: Int, b: Int) = (a.toLong() shl 32) or (b.toLong() and 0xffffffffL)
 
@@ -385,13 +457,14 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
         }
         val device = known.filter { it.start != PersonalStart.IMPORTED }
         val imported = known.filter { it.start == PersonalStart.IMPORTED }
-        val deviceRef = device.maxOfOrNull { it.startedAtMs } ?: 0L
-        val importRef = imported.maxOfOrNull { it.startedAtMs } ?: 0L
+        deviceRef = device.maxOfOrNull { it.startedAtMs } ?: 0L
+        importRef = imported.maxOfOrNull { it.startedAtMs } ?: 0L
         fun decay(at: Long, ref: Long) = 0.5.pow((ref - at).coerceAtLeast(0L).toDouble() / PersonalModel.HALF_LIFE_MS)
         fun song(l: PersonalListen) = songOfTrack.getValue(l.trackId)
 
         // On-device listens: sessions by end-to-start gaps, transitions within 15 minutes of the anchor's end.
         var session = 0L
+        var sessionDay = 0L
         var lastEnd = Long.MIN_VALUE
         var anchor: PersonalListen? = null
         var anchorEnd = Long.MIN_VALUE
@@ -405,6 +478,7 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
                 rejectedRun = false
                 autoStreak = 0
             }
+            if (lastEnd == Long.MIN_VALUE || l.startedAtMs - lastEnd > PersonalModel.SESSION_GAP_MS) sessionDay = dayOf(l.startedAtMs)
             lastEnd = max(lastEnd, l.startedAtMs + heard)
             val w = decay(l.startedAtMs, deviceRef)
             val a = anchor
@@ -416,7 +490,7 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
                 if (!rejectedRun && follows) {
                     val grade = if (heard < PersonalModel.EARLY_SKIP_MS) PersonalModel.SKIP_EARLY else PersonalModel.SKIP_LATE
                     val p = pair(a!!.trackId, l.trackId)
-                    p.rejected.best(session, grade * w)
+                    p.rejected.best(session, grade * w, l.startedAtMs)
                 }
                 rejectedRun = true
                 continue
@@ -425,9 +499,10 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
             // A repeat, a return to the song, or the song again right after itself: affinity for the song, no transition.
             val again = a != null && l.startedAtMs - anchorEnd <= PersonalModel.TRANSITION_GAP_MS && song(a) == song(l)
             if (l.start == PersonalStart.REPEAT || l.start == PersonalStart.SKIP_PREVIOUS || again) liked(song(l), session, w)
-            if (l.start != PersonalStart.REPEAT && l.start != PersonalStart.SKIP_PREVIOUS && follows) {
+            // An accepted pick the personal term made is no evidence (v6): the habit must not feed itself.
+            if (l.start != PersonalStart.REPEAT && l.start != PersonalStart.SKIP_PREVIOUS && follows && !l.personalChanged) {
                 val grade = deviceGrade(a!!, l, afterRejection = rejectedRun, autoStreak)
-                if (grade > 0.0) add(a.trackId, l.trackId, session, grade * w, l.smartSourced, imported = false)
+                if (grade > 0.0) add(a.trackId, l.trackId, session, grade * w, l.smartSourced, imported = false, l.startedAtMs, sessionDay)
             }
             anchor = l
             anchorEnd = l.startedAtMs + heard
@@ -470,7 +545,8 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
                         if (gram != null) grade *= PersonalModel.REPLAY_FACTOR
                         // A replayed sequence is one session however often it played: the 3-gram's own id.
                         val sessionId = if (gram != null) GRAM_SESSION_BASE + gramId(gram) else IMPORT_SESSION_BASE + r
-                        add(a.trackId, b.trackId, sessionId, grade * decay(b.startedAtMs, importRef), smart = false, imported = true)
+                        add(a.trackId, b.trackId, sessionId, grade * decay(b.startedAtMs, importRef), smart = false, imported = true,
+                            b.startedAtMs, dayOf(run[0].startedAtMs))
                     }
                 }
                 end = b.startedAtMs + (byId.getValue(b.trackId).durationMs ?: DEFAULT_DURATION_MS)
@@ -485,7 +561,8 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
         for ((k, p) in pairs) {
             val total = importByAnchor[(k ushr 32).toInt()] ?: 0.0
             val scale = if (total > PersonalModel.IMPORT_ANCHOR_CAP) PersonalModel.IMPORT_ANCHOR_CAP / total else 1.0
-            p.imported.forEach { sessionId, v -> p.own.best(sessionId, v * scale) }
+            p.importScale = scale
+            p.imported.forEachAt { sessionId, v, at -> p.own.best(sessionId, v * scale, at) }
         }
         val affinityStrength = FloatArray(songs)
         val affinitySessions = ByteArray(songs)
@@ -496,15 +573,18 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
         return pack(songs, skips, affinityStrength, affinitySessions, isEmpty = known.isEmpty())
     }
 
+    private fun dayOf(ms: Long): Long = floorDiv(ms, PersonalModel.DAY_MS)
+
     /** A 3-gram's stable id (no platform hash). */
     private fun gramId(g: Triple<Int, Int, Int>): Long = ((g.first.toLong() * 1_000_003L + g.second) * 1_000_003L + g.third) and 0xffffffffffL
 
-    private fun add(a: TrackId, b: TrackId, session: Long, value: Double, smart: Boolean, imported: Boolean) {
+    private fun add(a: TrackId, b: TrackId, session: Long, value: Double, smart: Boolean, imported: Boolean, at: Long, day: Long) {
         val p = pair(a, b)
         when {
-            imported -> p.imported.best(session, value)
-            smart -> p.smart.best(session, value)
-            else -> p.own.best(session, value)
+            // A session's day is its start's, counted once (a replayed import 3-gram is one session over many days).
+            imported -> if (p.imported.best(session, value, at)) p.days.add(day)
+            smart -> p.smart.best(session, value, at)
+            else -> if (p.own.best(session, value, at)) p.days.add(day)
         }
         if (smart) {
             p.weightSmart += value
@@ -552,6 +632,21 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
 
     private fun pair(a: TrackId, b: TrackId): PairAcc =
         pairs.getOrPut(key(songOfTrack.getValue(a), songOfTrack.getValue(b))) { PairAcc() }
+
+    /**
+     * The jar b(A → B) (PLAN_PERSONAL v6): the device sessions folded in time order, decayed to the device's newest event,
+     * plus the imported sessions folded alone (positives under the per-anchor cap), decayed to the import's newest.
+     */
+    private fun jarOf(p: PairAcc): Double {
+        val steps = ArrayList<Jar.Step>()
+        p.own.forEachAt { session, v, at -> if (session < IMPORT_SESSION_BASE) steps += Jar.Step(at, v, Jar.OWN) }
+        p.smart.forEachAt { _, v, at -> steps += Jar.Step(at, v, Jar.SMART) }
+        p.rejected.forEachAt { _, v, at -> steps += Jar.Step(at, v, Jar.REJECT) }
+        val imports = ArrayList<Jar.Step>()
+        p.imported.forEachAt { _, v, at -> imports += Jar.Step(at, v * p.importScale, Jar.OWN) }
+        val b = Jar.fold(steps, deviceRef) + Jar.fold(imports, importRef)
+        return b.coerceIn(Jar.LOW, Jar.HIGH)
+    }
 
     /** S⁺: the listener's own session strength plus SMART's own, at most a quarter of it (positives only). */
     private fun positive(p: PairAcc): Double {
@@ -631,6 +726,8 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
             edgeSessions = ByteArray(kept.size) { kept[it].second.own.size.coerceAtMost(255).toByte() },
             edgeNegative = ShortArray(kept.size) { half(kept[it].second.rejected.sum().toFloat()) },
             edgeNegativeSessions = ByteArray(kept.size) { kept[it].second.rejected.size.coerceAtMost(255).toByte() },
+            edgeJar = ShortArray(kept.size) { half(jarOf(kept[it].second).toFloat()) },
+            edgeDays = ByteArray(kept.size) { kept[it].second.days.size.coerceAtMost(255).toByte() },
             edgeWeight = ShortArray(kept.size) { half(weightOf(kept[it].second).toFloat()) },
             outWeight = out,
             outEffective = effective,
@@ -652,6 +749,68 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
         const val IMPORT_SESSION_BASE = 1L shl 40
         const val GRAM_SESSION_BASE = 1L shl 50
     }
+}
+
+private fun floorDiv(a: Long, b: Long): Long = if (a >= 0) a / b else -((-a + b - 1) / b)
+
+/**
+ * The jar (PLAN_PERSONAL v6): b(A → B) as a time-ordered fold of the pair's sessions. In the natural form each step is
+ * b ← clamp(b · 2^(−Δt / 120 d) ± g, −1.8, 6); here every value is already decayed to the reference, so the same fold is
+ * B ← clamp(B ± V, −1.8 w, 6 w) with w the step's own decay. A SMART positive adds at most a quarter of the own
+ * positives so far minus SMART's so far (causal), and rejections are held until the pair's second rejection session.
+ */
+internal object Jar {
+    const val OWN = 0
+    const val SMART = 1
+    const val REJECT = 2
+    /** [PersonalModel.JAR_MIN] and [PersonalModel.JAR_MAX] exactly (a Float −1.8 is −1.79999995). */
+    const val LOW = -1.8
+    const val HIGH = 6.0
+
+    /** One session's contribution: [value] is its grade decayed to the reference, [atMs] when the session first showed it. */
+    class Step(val atMs: Long, val value: Double, val kind: Int)
+
+    /** The fold of [steps] (any order; sorted by time here), decayed to [refMs]; unclamped across sources. */
+    fun fold(steps: List<Step>, refMs: Long): Double {
+        if (steps.isEmpty()) return 0.0
+        val ordered = steps.sortedWith(compareBy<Step> { it.atMs }.thenBy { it.kind })
+        val low = LOW
+        val high = HIGH
+        var b = 0.0
+        var own = 0.0
+        var smart = 0.0
+        var rejections = 0
+        var held = 0.0
+        for (step in ordered) {
+            val w = decay(step.atMs, refMs)
+            when (step.kind) {
+                OWN -> {
+                    own += step.value
+                    b += step.value
+                }
+                SMART -> {
+                    val added = min(step.value, max(0.0, PersonalModel.SMART_SHARE * own - smart))
+                    smart += added
+                    b += added
+                }
+                else -> {
+                    rejections++
+                    if (rejections < PersonalModel.MIN_SESSIONS) {
+                        held += step.value
+                        continue
+                    }
+                    b -= held + step.value
+                    held = 0.0
+                }
+            }
+            b = b.coerceIn(low * w, high * w)
+        }
+        return b
+    }
+
+    /** 2^(−age / 120 d), as the store decays every value. */
+    fun decay(atMs: Long, refMs: Long): Double =
+        0.5.pow((refMs - atMs).coerceAtLeast(0L).toDouble() / PersonalModel.HALF_LIFE_MS)
 }
 
 /** On-device album order, or an import's: the same release, the next track (a disc's first after the previous disc). */
@@ -720,4 +879,7 @@ public object PersonalDiagnostics {
 
     /** Research: each hop's δ, every scored candidate's mask-core gap to the best in δ, and its personal addition. */
     public var hop: ((delta: Float, gaps: Map<TrackId, Float>, additions: Map<TrackId, Float>) -> Unit)? = null
+
+    /** Research (the v6 FMA gate): per staged hop, how many scored candidates pass the cluster guard after the anchor. */
+    public var guard: ((passed: Int, total: Int) -> Unit)? = null
 }

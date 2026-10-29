@@ -64,10 +64,10 @@ internal class PersonalChainTest {
         SmartChain(snapshot, null, eligible ?: BooleanArray(snapshot.size) { true }, tuning = tuning(personal, theme))
             .build(TrackId(seed), length, FloatArray(5), historyEvents = if (listens.isEmpty()) emptyList() else events(listens, seed, now))
 
-    /** Picks of [b] right after [a] in [sessions] sessions a day apart, the last ending at [end]. */
-    private fun picks(a: Int, b: Int, sessions: Int, end: Long): List<PersonalListen> = buildList {
+    /** Picks of [b] right after [a] in [sessions] sessions [every] apart (a day: tier 2 from 3; hours on one day: tier 1), the last ending at [end]. */
+    private fun picks(a: Int, b: Int, sessions: Int, end: Long, every: Long = day): List<PersonalListen> = buildList {
         for (k in 0 until sessions) {
-            val at = end - (sessions - 1 - k) * day
+            val at = end - (sessions - 1 - k) * every
             add(PersonalListen(TrackId("$a"), at, 200_000L, true, false, PersonalStart.PICK))
             add(PersonalListen(TrackId("$b"), at + 200_000L, 200_000L, true, false, PersonalStart.PICK))
         }
@@ -84,6 +84,9 @@ internal class PersonalChainTest {
     }
 
     private fun id(row: Int) = snapshot.tracks[row].id.value.toInt()
+
+    /** The shipped theme weights (c095) as the cluster guard's z only: no pool slots, no bonus, so the walk is unchanged. */
+    private val guardTheme = ThemePool(floatArrayOf(0.7455f, 0.6732f, 0.6191f, 0.3468f, 0.9851f, 0.1879f, 0.4924f, -2.7054f), slots = 0, bonus = 0f)
 
     /** Hop 1's δ, the mask-core gaps (in δ) and the additions, read from the personal stage. */
     private fun hopOne(personal: PersonalTerm, listens: List<PersonalListen>, now: Long, theme: ThemePool? = null): Triple<Float, Map<TrackId, Float>, Map<TrackId, Float>> {
@@ -110,8 +113,9 @@ internal class PersonalChainTest {
     fun `P0 nothing outside the mask is ever lifted with or without the theme channel`() {
         val now = t0 + 400 * day
         for (theme in listOf(null, ThemePool(floatArrayOf(0f, 0f, 1f, 1f, 1f, 1f, 0f, 0f), slots = 10, bonus = 0f))) {
-            // Heavy evidence from the seed to every song: whatever lies outside M must stay as it was.
-            val listens = (1..119).flatMap { b -> picks(0, b, 8, now - 30 * day - b * 3_600_000L) }.sortedBy { it.startedAtMs }
+            // Heavy evidence from the seed to every song, each pair's eight sessions on one day (tier 1, v6): whatever
+            // lies outside M must stay as it was.
+            val listens = (1..119).flatMap { b -> picks(0, b, 8, now - 30 * day - b * day, every = 90 * 60_000L) }.sortedBy { it.startedAtMs }
             val (delta, gaps, adds) = hopOne(term(listens), listens, now, theme)
             assertTrue(delta > 0f)
             for ((id, gap) in gaps) if (gap > 1f + 1e-4f) assertEquals(0f, adds.getValue(id), "row $id outside M was lifted")
@@ -119,6 +123,26 @@ internal class PersonalChainTest {
             PersonalDiagnostics.sink = { gap, _ -> if (pickGap.isNaN()) pickGap = gap }
             build(term(listens), listens, length = 1, now = now, theme = theme)
             assertTrue(pickGap <= 1f + 1e-4f, "the pick lies $pickGap delta below the best")
+        }
+    }
+
+    @Test
+    fun `P0 v6 beyond the mask only a guarded tier-2 habit and never past delta_habit`() {
+        val now = t0 + 400 * day
+        for (theme in listOf(null, guardTheme)) {
+            // Eight sessions on eight days from the seed to every song: tier 2 wherever the guard passes.
+            val listens = (1..119).flatMap { b -> picks(0, b, 8, now - 30 * day - b * 3_600_000L) }.sortedBy { it.startedAtMs }
+            val (delta, gaps, adds) = hopOne(term(listens), listens, now, theme)
+            assertTrue(delta > 0f)
+            for ((id, gap) in gaps) {
+                if (gap <= 1f + 1e-4f || adds.getValue(id) == 0f) continue
+                assertTrue(gap <= PersonalTerm.HABIT + 1e-4f, "row $id lifted at $gap delta")
+                assertTrue(id !in far || theme == null, "far row $id passed the guard under the shipped theme")
+            }
+            var pickGap = Float.NaN
+            PersonalDiagnostics.sink = { gap, _ -> if (pickGap.isNaN()) pickGap = gap }
+            build(term(listens), listens, length = 1, now = now, theme = theme)
+            assertTrue(pickGap <= PersonalTerm.HABIT + 1e-4f, "the pick lies $pickGap delta below the best")
         }
     }
 
@@ -155,7 +179,8 @@ internal class PersonalChainTest {
     @Test
     fun `CREDIT mode the credit is at most delta and only on M`() {
         val now = t0 + 400 * day
-        val listens = (background(60, now - 2 * day) + (1..60).flatMap { picks(0, it, 4, now - 20 * 3_600_000L - it * 60_000L) }).sortedBy { it.startedAtMs }
+        // Three sessions per pair on one day (D1-strong, tier 1 in v6), so the bound is the credit's alone.
+        val listens = (background(60, now - 2 * day) + (1..60).flatMap { picks(0, it, 3, now - it * day - 14 * 3_600_000L, every = 2 * 3_600_000L) }).sortedBy { it.startedAtMs }
         val (delta, gaps, adds) = hopOne(term(listens, RecencyMode.CREDIT), listens, now)
         for ((id, add) in adds) {
             assertTrue(add <= delta + 1e-4f, "credit mode addition $add > delta $delta")
@@ -227,7 +252,8 @@ internal class PersonalChainTest {
         // Only seven songs to choose from, five of them heard this session: the guard lets them back in.
         val eligible = BooleanArray(snapshot.size) { it in 0..7 }
         val session = (1..5).map { PersonalListen(TrackId("$it"), now - 10 * 60_000L + it * 1000L, 200_000L, true, false, PersonalStart.AUTO) }
-        val listens = (picks(0, 3, 8, now - 2 * day) + session).sortedBy { it.startedAtMs }
+        // Three sessions on one day: D1-strong, tier 1 (v6), so t alone is at most delta.
+        val listens = (picks(0, 3, 3, now - 2 * day, every = 2 * 3_600_000L) + session).sortedBy { it.startedAtMs }
         var adds: Map<TrackId, Float>? = null
         var delta = 0f
         PersonalDiagnostics.hop = { d, _, a -> if (adds == null) { adds = a; delta = d } }
@@ -242,18 +268,23 @@ internal class PersonalChainTest {
         listens += PersonalListen(TrackId("0"), clock, 200_000L, true, false, PersonalStart.PICK)
         clock += 200_000L
         for (row in result.rows.take(3)) {
-            listens += PersonalListen(snapshot.tracks[row].id, clock, 200_000L, true, false, PersonalStart.AUTO, smartSourced = true)
+            listens += PersonalListen(snapshot.tracks[row].id, clock, 200_000L, true, false, PersonalStart.AUTO, smartSourced = true,
+                personalChanged = row in result.personalChanged)
             clock += 200_000L
         }
     }
 
-    /** B's pick-1 presses from A over 60 days of always-accept; [ownOnly] drops SMART-sourced listens from the evidence. */
-    private fun loopLeads(mode: RecencyMode, ownOnly: Boolean): Pair<Int, Int> {
+    /**
+     * B's pick-1 presses from A over 60 days of always-accept; [ownOnly] drops SMART-sourced listens from the evidence.
+     * The three planted own sessions are a day apart (tier 2) or, with [tier1], two hours apart on one day.
+     */
+    private fun loopLeads(mode: RecencyMode, ownOnly: Boolean, tier1: Boolean = false): Pair<Int, Int> {
         val start = t0 + 400 * day
         val back = background(60, start - 2 * day)
         val (_, gaps, _) = hopOne(term(back), back, start)
         val b = gaps.entries.filter { it.value in 0.05f..0.9f }.sortedWith(compareBy({ it.value }, { it.key.value })).first().key
-        val listens = (back + picks(0, b.value.toInt(), 3, start - 3 * day)).sortedBy { it.startedAtMs }.toMutableList()
+        val planted = if (tier1) picks(0, b.value.toInt(), 3, start - 3 * day, every = 2 * 3_600_000L) else picks(0, b.value.toInt(), 3, start - 3 * day)
+        val listens = (back + planted).sortedBy { it.startedAtMs }.toMutableList()
         var fullLeads = 0
         var coreLeads = 0
         for (d in 0 until 60) {
@@ -268,13 +299,23 @@ internal class PersonalChainTest {
     }
 
     @Test
-    fun `loop always-accept for 60 days SMART's own evidence adds at most 5 presses and B leads at most 60 percent over CORE`() {
-        val (full, core) = loopLeads(RecencyMode.NOVELTY, ownOnly = false)
-        val (own, _) = loopLeads(RecencyMode.NOVELTY, ownOnly = true)
-        println("loop: B pick 1 in $full / 60 presses, $own / 60 with SMART's own evidence excluded; CORE $core / 60")
+    fun `loop tier 1 always-accept for 60 days SMART's own evidence adds at most 5 presses and B leads at most 60 percent over CORE`() {
+        val (full, core) = loopLeads(RecencyMode.NOVELTY, ownOnly = false, tier1 = true)
+        val (own, _) = loopLeads(RecencyMode.NOVELTY, ownOnly = true, tier1 = true)
+        println("loop tier 1: B pick 1 in $full / 60 presses, $own / 60 with SMART's own evidence excluded; CORE $core / 60")
         assertTrue(full - own <= 5, "SMART's own evidence added ${full - own} presses")
         // Relative to CORE, like every gate: the core's own preference for B is not the habits' doing.
         assertTrue(full - core <= 36, "B led $full / 60 presses, CORE $core")
+    }
+
+    @Test
+    fun `loop tier 2 always-accept for 60 days SMART's own evidence adds at most 5 presses`() {
+        // Owner (PLAN_PERSONAL v6 amendment): a strong own habit leads unless a stronger one competes, so a tier-2 pair
+        // has no ceiling over CORE; only SMART's own evidence must not feed it.
+        val (full, core) = loopLeads(RecencyMode.NOVELTY, ownOnly = false)
+        val (own, _) = loopLeads(RecencyMode.NOVELTY, ownOnly = true)
+        println("loop tier 2: B pick 1 in $full / 60 presses, $own / 60 with SMART's own evidence excluded; CORE $core / 60")
+        assertTrue(full - own <= 5, "SMART's own evidence added ${full - own} presses")
     }
 
     @Test
@@ -300,7 +341,10 @@ internal class PersonalChainTest {
     }
 
     @Test
-    fun `D2-final a cluster-jumper and a far-habit lover get every pick within delta`() {
+    fun `D2-final a cluster-jumper and a far-habit lover never reach a far song and pass M only by a guarded habit`() {
+        // v6: with the shipped theme weights as the cluster guard's z, a far-sounding pair fails the guard. The lover's
+        // sessions also interleave (a's session k and a+36's session k+1 share a time), planting same-cluster tier-2
+        // pairs such as 2 → 38 on seven days: those may reach up to δ_habit, never further.
         val random = Random(7)
         val now = t0 + 400 * day
         val jumper = ArrayList<PersonalListen>()
@@ -316,12 +360,14 @@ internal class PersonalChainTest {
             val gaps = ArrayList<Float>()
             PersonalDiagnostics.sink = { gap, changed -> if (changed) gaps += gap }
             for (seed in 1..20) {
-                val result = build(term(listens), listens, seed = "$seed", now = now)
-                assertTrue(result.rows.none { snapshot.tracks[it].id in far } || build(null, listens, seed = "$seed", now = now).rows.any { snapshot.tracks[it].id in far },
+                val result = build(term(listens), listens, seed = "$seed", now = now, theme = guardTheme)
+                assertTrue(result.rows.none { snapshot.tracks[it].id in far } || build(null, listens, seed = "$seed", now = now, theme = guardTheme).rows.any { snapshot.tracks[it].id in far },
                     "a far song entered only through the habits")
             }
             PersonalDiagnostics.sink = null
-            assertTrue(gaps.all { it <= 1f + 1e-4f }, "a pick beyond delta: ${gaps.maxOrNull()}")
+            assertTrue(gaps.all { it <= PersonalTerm.HABIT + 1e-4f }, "a pick beyond delta_habit: ${gaps.maxOrNull()}")
+            val chain = SmartChain(snapshot, null, BooleanArray(snapshot.size) { true }, tuning = tuning(term(listens), guardTheme))
+            for (a in 1..60) assertEquals(0, chain.clusterGuardPasses(snapshot.rowOf(TrackId("$a")), far.map { snapshot.rowOf(it) }.toIntArray()), "far passed from $a")
         }
     }
 

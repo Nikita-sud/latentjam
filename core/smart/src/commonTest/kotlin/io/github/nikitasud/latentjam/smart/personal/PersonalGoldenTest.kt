@@ -77,7 +77,50 @@ internal class PersonalGoldenTest {
         for (i in got.indices) assertTrue(abs(got[i] - GOLDEN[i]) <= 1e-5f + 1e-5f * abs(GOLDEN[i]), "value $i: ${got[i]} vs ${GOLDEN[i]}")
     }
 
+    @Test
+    fun `the v6 jar days and tiers match the pinned values`() {
+        val m = fixture()
+        val got = ArrayList<Float>()
+        for (k in 0 until 30) {
+            val a = m.songOf(TrackId("g${(k * 7) % 40}"))
+            val b = m.songOf(TrackId("g${(k * 11 + 3) % 40}"))
+            got += m.jar(a, b)
+            got += m.days(a, b).toFloat()
+            got += m.tier(a, b).toFloat()
+            got += m.rejectionSessions(a, b).toFloat()
+            got += m.jarWeight(a, b)
+        }
+        var jars = 0f
+        for (a in 0 until 40) for (b in 0 until 40) jars += m.jar(a, b)
+        got += jars
+        if (GOLDEN_V6.isEmpty()) {
+            println("GOLDEN_V6 = floatArrayOf(" + got.joinToString(", ") { "${it}f" } + ")")
+            return
+        }
+        assertTrue(got.size == GOLDEN_V6.size, "size ${got.size}")
+        for (i in got.indices) assertTrue(abs(got[i] - GOLDEN_V6[i]) <= 1e-5f + 1e-5f * abs(GOLDEN_V6[i]), "value $i: ${got[i]} vs ${GOLDEN_V6[i]}")
+    }
+
     private companion object {
+        val GOLDEN_V6: FloatArray = floatArrayOf(
+            1.0244141f, 2.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+            0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+            0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+            0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+            0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+            0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+            0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+            0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+            0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+            0.92626953f, 2.0f, 2.0f, 2.0f, 0.15437825f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+            0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+            0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+            0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+            0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+            0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 2.3066406f, 5.0f, 2.0f, 0.0f, 1.0f,
+            92.816376f,
+        )
+
         val GOLDEN = floatArrayOf(
             0.17073567f, 1.0f, 0.0f, 0.35802448f, 0.5f, 2.0f, 0.13655598f, 1.0f,
             0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
