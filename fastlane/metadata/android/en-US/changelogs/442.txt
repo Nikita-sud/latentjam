@@ -1,0 +1,9 @@
+Crossfade: the end of a track really overlaps the start of the next.
+SMART runs on licence-clean data and learns from your habits.
+Import your ListenBrainz history.
+Optional full player on the lock screen.
+Sort playlists and Favorites by plays.
+Artist variety Off now means off.
+Analysis no longer stalls on a file that never decodes.
+The library is analysed once more after the update.
+Many fixes.

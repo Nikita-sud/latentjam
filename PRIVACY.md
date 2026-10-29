@@ -1,6 +1,6 @@
 # LatentJam privacy policy
 
-Effective 21 October 2026. Applies to the LatentJam app for Android and iOS, whether
+Effective 29 October 2026. Applies to the LatentJam app for Android and iOS, whether
 installed from Google Play, the App Store, or a build downloaded from this repository.
 
 ## The short version
@@ -21,8 +21,10 @@ assistant, can read them on their own terms.
   device with bundled models; no audio or metadata is uploaded.
 - **Listening history** — which tracks you played, skipped or finished, and when; how each one
   started (you picked it, the previous track ended, you skipped or repeated, or the
-  recommendations queued it, with its place in that queue); and the playlist, album, artist,
-  genre or folder playback started from — used for statistics, "For You" and the
+  recommendations queued it, with its place in that queue); the playlist, album, artist,
+  genre or folder playback started from; where you picked a track (search, the queue, a
+  collection, For You or outside the app); which songs the recommendations lined up and whether
+  you played them; and when you hearted a song — used for statistics, "For You" and the
   recommendations. It is recorded only while *Save listening history* is on in Settings, where
   it can also be cleared at any time.
 - **Your playlists, favourites, hidden tracks, duplicate decisions and settings.**
@@ -48,6 +50,8 @@ developer or with any third party.
 - **Local backup** writes a backup file to the location you choose, and restores from it. The file
   carries your playlists, favourites, listening history, recent searches, hidden tracks, SMART
   exclusions, the duplicate finder's decisions and settings.
+- **ListenBrainz import** reads an export file you choose, on the device, and adds the listens
+  that match your library to the listening history.
 
 ## Third parties
 

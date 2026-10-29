@@ -63,13 +63,13 @@ download. Use F-Droid if you already do (it updates the app for you), but it can
 behind, so the newest features may not have arrived there yet. On iPhone, sideload the IPA.
 
 - **Android APK** — from the [Releases page](https://github.com/Nikita-sud/latentjam/releases/latest),
-  download `LatentJam-vX.Y.Z-arm64.apk` (about 36 MB; fits almost any phone from the last decade).
-  Old 32-bit phones need the `armv7` APK (about 43 MB). Open it on the phone, allow installing
+  download `LatentJam-vX.Y.Z-arm64.apk` (about 37 MB; fits almost any phone from the last decade).
+  Old 32-bit phones need the `armv7` APK (about 44 MB). Open it on the phone, allow installing
   unknown apps and tap through Play Protect's warning. Requires **Android 7.0+**.
 - **[F-Droid](https://f-droid.org/packages/io.github.nikitasud.latentjam.kmp/)** builds LatentJam
   from this source on its own schedule, so it can trail the newest release here; it ships one larger
   APK for every processor type (64 MiB).
-- **iPhone IPA** — not on the App Store or TestFlight. The IPA (about 40 MB) is **unsigned**: install
+- **iPhone IPA** — not on the App Store or TestFlight. The IPA (about 42 MB) is **unsigned**: install
   it with AltStore Classic, SideStore or Sideloadly, which re-sign it with your Apple ID; with a free
   Apple ID the install must be refreshed every 7 days. Requires **iOS 15.1+**. To get new versions in
   AltStore Classic or SideStore, add this source (Sources → +):
@@ -147,7 +147,7 @@ a while at first.
     seek bar previews the lyric line as you scrub.
   - An editable queue that survives restarts; playlists with M3U import/export, drag-to-reorder and
     their own sort order; album, artist and genre browsing, and folders as a tree or a flat list.
-  - Fades on pause, optional smooth transitions (a fade of up to 12 s at each track boundary),
+  - Fades on pause and track changes, an optional crossfade of up to 12 s,
     volume normalisation, an equaliser, a sleep timer.
   - A duplicate finder that recognises the same recording saved twice even when the tags differ,
     and tells you which copy to keep.
@@ -161,8 +161,8 @@ a while at first.
 - 🌍 **18 languages** — including Russian, Romanian, Arabic and Hebrew (right-to-left), Chinese,
   Japanese and Korean, with correct plural forms.
 
-iOS has everything above except the Android extras, smooth transitions and volume normalisation
-(see [the platform table](#one-engine-two-platforms)).
+iOS has everything above except the Android extras; crossfade, the equaliser and volume normalisation work on imported
+files, not on Music-library items (see [the platform table](#one-engine-two-platforms)).
 
 ## How SMART works
 
@@ -187,9 +187,8 @@ queues without them were as good, and plans are built several times faster.
 
 **The queue.** A scoring chain balances local coherence (closeness to the previous pick) against a
 steady pull back toward the track you chose, and uses pool-relative semantic scores so niche corners
-of a library stay intact. On top sits a small correction learned from a blind judge's rankings of
-real playlists (public MPD data): it passes over a candidate that would change the sound abruptly
-while a closer one is left, and the walk carries on across top-ups. Metadata rules nudge repeated
+of a library stay intact. A small learned queue theme adds songs that belong
+with the track you chose and gives them a bounded bonus; the walk carries on across top-ups. Metadata rules nudge repeated
 artists down instead of banning them (each further song by one artist in a row must fit better by
 more; Settings → SMART engine → Artist variety), suppress duplicate titles, other versions of a song
 included, and keep one very dense cluster (cinematic and anime soundtracks) from crowding the queue.
@@ -203,11 +202,10 @@ can't inject a genre claim. The language word comes from the file's tag, then fr
 artist pack says they sing in, then from the script of the title, never from its words. A track with
 no year carries its artist's decade.
 
-**Tuning.** Every model SMART uses is frozen and *objective*: SMART ranks by what the music is, not
-by who is listening. Listening history is used as runtime context, **never trained on and never
-uploaded**. The chain's constants (its weights, the learned correction, spacing) are chosen by
-replaying simulated listeners through the full chain and by blind judges on public playlists, not by
-hand.
+**Tuning.** Every model SMART uses is frozen and *objective*: SMART ranks by what the music is.
+*Learn from my habits* only decides between songs that fit equally well. Listening history is used on
+the device, **never trained on and never uploaded**. The chain's constants are chosen by replaying
+simulated listeners through the full chain and by blind judges, not by hand.
 
 **Cold start.** The audio index builds in small persisted batches spread over the whole library.
 Until it covers enough of the library, SMART builds the queue from the trusted metadata vectors
@@ -238,7 +236,7 @@ seams.
 | Playback | Media3 (ExoPlayer) | AVAudioEngine (imported files) · MPMusicPlayerController (Music library) |
 | Tag editing (MP3 · FLAC · M4A · Ogg · Opus) | ✓ | ✓ (imported files; Music library is read-only) |
 | Equaliser | system effect | own AVAudioEngine graph (imported files) |
-| Smooth transitions · volume normalisation | ✓ | — not yet |
+| Crossfade · volume normalisation | ✓ | ✓ (imported files) |
 | Widgets · QS tile · Android Auto | ✓ | n/a |
 
 ## Building
