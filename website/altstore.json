@@ -18,13 +18,20 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "0.9.3",
+          "date": "2026-10-29T13:58:59Z",
+          "localizedDescription": "Crossfades that really overlap, a SMART engine retrained on licence-clean data that can now learn from your own habits, and your ListenBrainz history imported in one go. Still fully on-device: no account, no catalogue, no network.",
+          "downloadURL": "https://github.com/Nikita-sud/latentjam/releases/download/v0.9.3/LatentJam-v0.9.3-unsigned.ipa",
+          "size": 41746122,
+          "buildVersion": "44",
+          "minOSVersion": "15.1"
+        },
+        {
           "version": "0.9.2",
           "date": "2026-10-21T16:28:31Z",
           "localizedDescription": "Make LatentJam look the way you like: your own accent colour, pure black, rounder or sharper shapes, five page-header styles and a left-handed layout. Statistics now show how you listen, not only how much, several playlists import at once, and seeks and skips no longer click. Still fully on-device: no account, no catalogue, no network. Nothing about your listening leaves the phone.",
           "downloadURL": "https://github.com/Nikita-sud/latentjam/releases/download/v0.9.2/LatentJam-v0.9.2-unsigned.ipa",
-          "size": 45104282,
-          "buildVersion": "16",
-          "minOSVersion": "15.1"
+          "size": 45104282
         },
         {
           "version": "0.9.1",
@@ -117,11 +124,11 @@
           "NSAppleMusicUsageDescription": "LatentJam uses your on-device music library to organize tracks and make private recommendations locally."
         }
       },
-      "version": "0.9.2",
-      "versionDate": "2026-10-21T16:28:31Z",
-      "versionDescription": "Make LatentJam look the way you like: your own accent colour, pure black, rounder or sharper shapes, five page-header styles and a left-handed layout. Statistics now show how you listen, not only how much, several playlists import at once, and seeks and skips no longer click. Still fully on-device: no account, no catalogue, no network. Nothing about your listening leaves the phone.",
-      "downloadURL": "https://github.com/Nikita-sud/latentjam/releases/download/v0.9.2/LatentJam-v0.9.2-unsigned.ipa",
-      "size": 45104282
+      "version": "0.9.3",
+      "versionDate": "2026-10-29T13:58:59Z",
+      "versionDescription": "Crossfades that really overlap, a SMART engine retrained on licence-clean data that can now learn from your own habits, and your ListenBrainz history imported in one go. Still fully on-device: no account, no catalogue, no network.",
+      "downloadURL": "https://github.com/Nikita-sud/latentjam/releases/download/v0.9.3/LatentJam-v0.9.3-unsigned.ipa",
+      "size": 41746122
     }
   ],
   "news": []
