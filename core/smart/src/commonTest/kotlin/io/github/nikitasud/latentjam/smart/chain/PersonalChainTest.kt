@@ -300,19 +300,18 @@ internal class PersonalChainTest {
     }
 
     @Test
-    fun `loop tier 1 always-accept for 60 days SMART's own evidence adds at most 5 presses and B leads at most 60 percent over CORE`() {
+    fun `loop tier 1 always-accept for 60 days SMART's own evidence adds at most 5 presses`() {
+        // Owner (PLAN_PERSONAL v6.1 amendment): no ceiling over CORE for any tier; only SMART's own evidence must not feed it.
         val (full, core) = loopLeads(RecencyMode.NOVELTY, ownOnly = false, tier1 = true)
         val (own, _) = loopLeads(RecencyMode.NOVELTY, ownOnly = true, tier1 = true)
         println("loop tier 1: B pick 1 in $full / 60 presses, $own / 60 with SMART's own evidence excluded; CORE $core / 60")
         assertTrue(full - own <= 5, "SMART's own evidence added ${full - own} presses")
-        // Relative to CORE, like every gate: the core's own preference for B is not the habits' doing.
-        assertTrue(full - core <= 36, "B led $full / 60 presses, CORE $core")
     }
 
     @Test
     fun `loop tier 2 always-accept for 60 days SMART's own evidence adds at most 5 presses`() {
-        // Owner (PLAN_PERSONAL v6 amendment): a strong own habit leads unless a stronger one competes, so a tier-2 pair
-        // has no ceiling over CORE; only SMART's own evidence must not feed it.
+        // Owner (PLAN_PERSONAL v6 / v6.1 amendments): a strong own habit leads unless a stronger one competes, so no
+        // ceiling over CORE; only SMART's own evidence must not feed it.
         val (full, core) = loopLeads(RecencyMode.NOVELTY, ownOnly = false)
         val (own, _) = loopLeads(RecencyMode.NOVELTY, ownOnly = true)
         println("loop tier 2: B pick 1 in $full / 60 presses, $own / 60 with SMART's own evidence excluded; CORE $core / 60")
