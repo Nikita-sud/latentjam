@@ -162,11 +162,16 @@ internal class ListenBrainzMatcher(
         return found
     }
 
-    /** A credit's artists as ArtistSets keys: its split (title feat. credits too) and its separator-free whole credit. */
+    /**
+     * A credit's artists as ArtistSets keys: its split (title feat. credits too), its separator-free whole credit, and
+     * the pieces between its separators, so a listen crediting more artists than the track ("A, B" for a track by A)
+     * still shares A with it.
+     */
     private fun creditKeys(credit: String, title: String?): Set<Long> {
         val keys = LinkedHashSet<Long>()
         keys += ArtistSets.parse(credit, title, splitInto).artists
         keys += ArtistSets.keyHash(ArtistSets.normalize(credit.replace(WORD_SEPARATOR, " ")))
+        for (piece in credit.split(CREDIT_SEPARATOR)) keys += ArtistSets.keyHash(ArtistSets.normalize(piece))
         keys -= 0L
         return keys
     }
@@ -251,13 +256,16 @@ internal class ListenBrainzMatcher(
         private val FEATURING = Regex("\\s*[(\\[]?\\s*\\b(feat\\.?|ft\\.?|featuring)\\s.*$", RegexOption.IGNORE_CASE)
         private val BRACKETED_SUFFIX = Regex("\\s*[(\\[][^()\\[\\]]*[)\\]]\\s*$")
         private val DASH_SUFFIX = Regex(
-            "\\s+[-–—]\\s+[^-–—]*\\b(remaster(ed)?|live|version|edit|mix|remix|mono|stereo|deluxe|bonus|single|acoustic|demo|instrumental)\\b[^-–—]*$",
+            "\\s+[-–—]\\s+(from\\s.*|[^-–—]*\\b(remaster(ed)?|live|version|edit|mix|remix|mono|stereo|deluxe|bonus|single|acoustic|demo|instrumental)\\b[^-–—]*)$",
             RegexOption.IGNORE_CASE,
         )
         private val PUNCTUATION = Regex("[^\\p{L}\\p{N} ]+")
 
         /** Word separators of a credit ("A x B", "A with B", "A feat. B"); ArtistSets.normalize drops the punctuation ones. */
         private val WORD_SEPARATOR = Regex("(?i)\\s+(x|×|with|vs\\.?|and|feat\\.?|ft\\.?|featuring)\\s+")
+
+        /** Every separator between a credit's artists, punctuation ones too. */
+        private val CREDIT_SEPARATOR = Regex("(?i)\\s*[,;，；、／/＆&+×]\\s*|\\s+(x|with|vs\\.?|and|feat\\.?|ft\\.?|featuring)\\s+")
 
         /** A title's version parts: what is in brackets, and what follows a spaced dash. */
         private val VERSION_PART = Regex("[(\\[]([^()\\[\\]]*)[)\\]]|\\s[-–—]\\s(.*)$")
@@ -294,11 +302,11 @@ internal class ListenBrainzMatcher(
         internal fun versionMarks(title: String?): String {
             val text = strictForm(title) ?: return ""
             val parts = VERSION_PART.findAll(text).map { m -> m.groupValues[1].ifEmpty { m.groupValues[2] } }.toList()
-            val found = sortedSetOf<String>()
+            val found = LinkedHashSet<String>()
             for ((word, pattern) in VERSION_PATTERNS) {
                 if (parts.any { pattern.containsMatchIn(it) } || (word in ANYWHERE && pattern.containsMatchIn(text))) found += word
             }
-            return found.joinToString(",")
+            return found.sorted().joinToString(",")
         }
 
         private fun key(artist: String, title: String) = artist + '\u0000' + title

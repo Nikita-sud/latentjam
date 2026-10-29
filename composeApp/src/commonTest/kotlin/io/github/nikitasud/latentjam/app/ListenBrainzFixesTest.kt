@@ -69,6 +69,18 @@ class ListenBrainzFixesTest {
         assertEquals("t", matcher.id(row("Tom Jones, Mousse T.", "Sex Bomb")))
     }
 
+    @Test
+    fun aListenCreditingMoreArtistsThanTheTrackStillMatches() {
+        val matcher = ListenBrainzMatcher(listOf(
+            track("w", "Karan Aujla", "Winning Speech"),
+            track("i", "Faheem Abdullah, Rauhan Malik & Amir Ameer", "Ishq"),
+        ))
+        assertEquals("w", matcher.id(row("Karan Aujla, Seshnolan", "Winning Speech")))
+        assertEquals("i", matcher.id(row("Faheem Abdullah, Rauhan Malik, Amir Ameer", "Ishq - From \"Lost;Found\"")))
+        // Sharing an artist is not enough under another title.
+        assertNull(matcher.id(row("Karan Aujla, Seshnolan", "Other Speech")))
+    }
+
     // ---- L2: another version is not this track
 
     @Test
