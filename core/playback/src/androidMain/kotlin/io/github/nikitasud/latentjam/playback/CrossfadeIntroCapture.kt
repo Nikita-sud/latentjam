@@ -165,6 +165,10 @@ internal class CrossfadeIntroCapture(
                     .build(),
             )
             .setLooper(Looper.getMainLooper())
+            // The renderer is woken when it can make progress instead of every 10 ms, so the opening
+            // decodes as fast as the codec allows (a fixed tick paced it at about 7× real time: 3 s
+            // for a 12 s overlap's opening, too slow after a seek into the window).
+            .experimentalSetDynamicSchedulingEnabled(true)
             .build()
         player = built
         built.addListener(object : Player.Listener {
