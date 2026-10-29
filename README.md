@@ -69,6 +69,11 @@ behind, so the newest features may not have arrived there yet. On iPhone, sidelo
 - **[F-Droid](https://f-droid.org/packages/io.github.nikitasud.latentjam.kmp/)** builds LatentJam
   from this source on its own schedule, so it can trail the newest release here; it builds one APK
   per processor type.
+- **Google Play (closed test)** — join the [LatentJam testers group](https://groups.google.com/g/latentjam-test),
+  then open the [test link](https://play.google.com/apps/testing/io.github.nikitasud.latentjam.kmp) on your
+  phone and install [from Google Play](https://play.google.com/store/apps/details?id=io.github.nikitasud.latentjam.kmp).
+  Please stay in the test for at least 14 days: Google requires 12 testers for two weeks before the
+  app can be published there.
 - **iPhone IPA** — not on the App Store or TestFlight. The IPA (about 42 MB) is **unsigned**: install
   it with AltStore Classic, SideStore or Sideloadly, which re-sign it with your Apple ID; with a free
   Apple ID the install must be refreshed every 7 days. Requires **iOS 15.1+**. To get new versions in
