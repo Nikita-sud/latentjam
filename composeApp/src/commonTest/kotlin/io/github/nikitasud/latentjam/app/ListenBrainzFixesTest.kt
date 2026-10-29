@@ -78,13 +78,37 @@ class ListenBrainzFixesTest {
             track("w", "Karan Aujla", "Winning Speech"),
             track("i", "Faheem Abdullah, Rauhan Malik & Amir Ameer", "Ishq"),
         ))
-        assertEquals("w", matcher.id(row("Karan Aujla, Seshnolan", "Winning Speech")))
+        // The guest is unknown, so the credit stays whole: its first name qualifies only with a close length.
+        assertEquals("w", matcher.id(row("Karan Aujla, Seshnolan", "Winning Speech", durationMs = 201_000L)))
+        assertNull(matcher.id(row("Karan Aujla, Seshnolan", "Winning Speech")))
+        assertNull(matcher.id(row("Karan Aujla, Seshnolan", "Winning Speech", durationMs = 210_000L)))
         assertEquals("i", matcher.id(row("Faheem Abdullah, Rauhan Malik, Amir Ameer", "Ishq - From \"Lost;Found\"")))
         // Sharing an artist is not enough under another title.
         assertNull(matcher.id(row("Karan Aujla, Seshnolan", "Other Speech")))
     }
 
     // ---- L7-2: only the listen's whole credit or its lead artist qualifies a track
+
+    @Test
+    fun theFirstNameOfABandIsNotAnotherArtistsSong() {
+        // A one-word artist named like a band's first word, with the same title and another length.
+        val matcher = ListenBrainzMatcher(listOf(
+            track("earth", "Earth", "September", durationMs = 180_000L),
+            track("tyler", "Tyler", "See You Again", durationMs = 150_000L),
+            track("simon", "Simon", "America", durationMs = 240_000L),
+            track("chase", "Chase", "Blind Faith", durationMs = 200_000L),
+        ))
+        assertNull(matcher.id(row("Earth, Wind & Fire", "September", durationMs = 215_000L)))
+        assertNull(matcher.id(row("Tyler, The Creator", "See You Again", durationMs = 180_000L)))
+        assertNull(matcher.id(row("Simon & Garfunkel", "America")))
+        assertNull(matcher.id(row("Chase & Status", "Blind Faith", durationMs = 213_000L)))
+    }
+
+    @Test
+    fun aGuestCreditedWithAnyWhitespaceStillCounts() {
+        val matcher = ListenBrainzMatcher(listOf(track("c", "Calvin Harris", "Summer")))
+        assertEquals("c", matcher.id(row("Calvin Harris　x　Rihanna", "Summer", durationMs = 200_500L)))
+    }
 
     @Test
     fun aSecondArtistAGuestOrAPieceOfABandNameDoesNotQualifyATrack() {
@@ -101,7 +125,8 @@ class ListenBrainzFixesTest {
         refused("Unknown Artist", "Track 01", "Somebody & Unknown Artist")
         refused("X", "Hello", "Adele x X")
         // The lead artist still qualifies.
-        assertEquals("j", ListenBrainzMatcher(listOf(track("j", "Drake", "Jumpman"))).id(row("Drake, Future", "Jumpman")))
+        // Future is unknown to this library, so the credit stays whole and its first name needs a close length.
+        assertEquals("j", ListenBrainzMatcher(listOf(track("j", "Drake", "Jumpman"))).id(row("Drake, Future", "Jumpman", durationMs = 199_000L)))
     }
 
     // ---- L7-3: misses are remembered as hashes only

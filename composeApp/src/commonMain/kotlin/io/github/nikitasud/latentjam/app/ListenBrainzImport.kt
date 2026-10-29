@@ -140,9 +140,24 @@ internal class ListenBrainzMatcher(
             .filter(String::isNotEmpty).distinct().sorted().joinToString(",")
         sameVersion(candidates(row.artist, row.title), submittedMarks)?.let { return choose(it, row) }
         if (isMapped) sameVersion(candidates(mappedArtist, mappedTitle), mappedMarks)?.let { return choose(it, row) }
-        sameVersion(setCandidates(row.artist, row.title), submittedMarks)?.let { return choose(it, row) }
-        if (isMapped) sameVersion(setCandidates(mappedArtist, mappedTitle), mappedMarks)?.let { return choose(it, row) }
+        setCandidates(row.artist, row.title).let { set -> sameVersion(set, submittedMarks)?.let { return chooseFromSet(set, it, row) } }
+        if (isMapped) {
+            setCandidates(mappedArtist, mappedTitle).let { set -> sameVersion(set, mappedMarks)?.let { return chooseFromSet(set, it, row) } }
+        }
         return NONE
+    }
+
+    /**
+     * A set match by the lead name of an unsplit credit ("Simon" of "Simon & Garfunkel", or "Karan Aujla" of "Karan
+     * Aujla, Seshnolan" whose guest the library does not know) is the same song only when its length agrees closely too.
+     */
+    private fun chooseFromSet(set: Lookup, candidates: IntArray, row: ListenBrainzRow): Int {
+        if (!(set as Lookup.Found).byLeadNameOnly) return choose(candidates, row)
+        val listened = row.durationMs ?: return NONE
+        val close = candidates.filter { index ->
+            tracks[index].durationMs?.let { kotlin.math.abs(it - listened) <= LEAD_NAME_TOLERANCE_MS } == true
+        }
+        return if (close.isEmpty()) NONE else choose(close.toIntArray(), row)
     }
 
     /** The found candidates with the [wanted] version marks, or null when none has them (a live take is not the studio track). */
@@ -167,16 +182,20 @@ internal class ListenBrainzMatcher(
         val found = run {
             val looseTitle = looseForm(title, isTitle = true) ?: return@run Lookup.Missing
             val qualifying = HashSet<Int>()
-            for (artistKey in listOf(wholeKey(artist), leadKey(artist))) {
+            val lead = leadKey(artist)
+            for (artistKey in listOf(wholeKey(artist), if (lead.split) lead.key else 0L)) {
                 if (artistKey != 0L) credited[key(artistKey.toString(), looseTitle)]?.forEach { qualifying += it }
             }
+            // An unsplit credit's first name alone qualifies only under a close length ([chooseFromSet]).
+            val byLeadNameOnly = qualifying.isEmpty()
+            if (byLeadNameOnly && lead.key != 0L) credited[key(lead.key.toString(), looseTitle)]?.forEach { qualifying += it }
             if (qualifying.isEmpty()) return@run Lookup.Missing
             val shared = LinkedHashMap<Int, Int>()
             for (artistKey in creditKeys(artist)) {
                 credited[key(artistKey.toString(), looseTitle)]?.forEach { if (it in qualifying) shared[it] = (shared[it] ?: 0) + 1 }
             }
             val most = shared.values.maxOrNull() ?: return@run Lookup.Missing
-            Lookup.Found(shared.filterValues { it == most }.keys.sorted().toIntArray())
+            Lookup.Found(shared.filterValues { it == most }.keys.sorted().toIntArray(), byLeadNameOnly)
         }
         remember(setLookups, raw, miss, found)
         return found
@@ -226,14 +245,17 @@ internal class ListenBrainzMatcher(
      * separator ArtistSets splits at, or a spaced feat. ("and" and "/" are no separators: "Belle and Sebastian", "AC/DC").
      * 0 when that is a placeholder or a single letter: then only the whole credit may qualify a track.
      */
-    private fun leadKey(credit: String): Long {
+    private fun leadKey(credit: String): Lead {
         val set = ArtistSets.parse(credit, known = splitInto)
         if ("cond_split" in set.rules || "feat_split" in set.rules) {
-            val lead = set.artists.firstOrNull() ?: return 0L
-            return if (lead in unusableKeys(credit)) 0L else lead
+            val lead = set.artists.firstOrNull() ?: return Lead(0L, split = true)
+            return Lead(if (lead in unusableKeys(credit)) 0L else lead, split = true)
         }
-        return usableKey(credit.split(LEAD_SEPARATOR).first())
+        return Lead(usableKey(credit.split(LEAD_SEPARATOR).first()), split = false)
     }
+
+    /** A credit's lead artist key; [split] when ArtistSets split the credit, not only its first separator. */
+    private class Lead(val key: Long, val split: Boolean)
 
     /** [raw]'s ArtistSets key, or 0 for a placeholder or a name under two characters. */
     private fun usableKey(raw: String): Long {
@@ -256,7 +278,7 @@ internal class ListenBrainzMatcher(
 
     private sealed interface Lookup {
         data object Missing : Lookup
-        class Found(val indices: IntArray) : Lookup
+        class Found(val indices: IntArray, val byLeadNameOnly: Boolean = false) : Lookup
     }
 
     /**
@@ -331,6 +353,9 @@ internal class ListenBrainzMatcher(
         /** See [plausible]: a lone candidate is refused only more than 30 s and a quarter apart. */
         const val LONE_CANDIDATE_TOLERANCE_MS: Long = 30_000L
 
+        /** See [chooseFromSet]: a match by an unsplit credit's first name wants the lengths this close. */
+        const val LEAD_NAME_TOLERANCE_MS: Long = 3_000L
+
         private const val MAX_REMEMBERED_LOOKUPS = 200_000
         private const val MAX_REMEMBERED_MISSES = 100_000
 
@@ -355,7 +380,7 @@ internal class ListenBrainzMatcher(
         )
 
         /** Every separator between a credit's artists, punctuation ones too. */
-        private val CREDIT_SEPARATOR = Regex("(?i)\\s*[,;，；、／/＆&+×]\\s*|\\s+(x|with|vs\\.?|and|feat\\.?|ft\\.?|featuring)\\s+")
+        private val CREDIT_SEPARATOR = Regex("(?i)$WS*[,;，；、／/＆&+×]$WS*|$WS+(x|with|vs\\.?|and|feat\\.?|ft\\.?|featuring)$WS+")
 
         /** A title's version parts: what is in brackets, and what follows a spaced dash. */
         private val VERSION_PART = Regex("[(\\[]([^()\\[\\]]*)[)\\]]|\\s[-–—]\\s(.*)$")
