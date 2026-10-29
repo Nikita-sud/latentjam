@@ -248,6 +248,25 @@ internal class PersonalV6Test {
     }
 
     @Test
+    fun `D1 an imported habit then 6 hard device skips leaves t at most 0 and no relief`() {
+        val end = t0 + 400 * day
+        // A saturated imported habit: fifteen imported runs A → B on fifteen days.
+        val imported = (0 until 15).flatMap { k ->
+            listOf(
+                PersonalListen(TrackId("0"), end - 200 * day + k * day, null, true, false, PersonalStart.IMPORTED),
+                PersonalListen(TrackId("1"), end - 200 * day + k * day + 200_000L, null, true, false, PersonalStart.IMPORTED),
+            )
+        }
+        val before = withBackground(imported, end)
+        assertTrue(addition(before) > 1f, "tier 2 before the skips: ${addition(before)}")
+        val after = withBackground(imported + (0 until 6).flatMap { skip(0, 1, end - 50 * day + it * day) }, end)
+        val t = addition(after, recencyLoss = 0f)
+        println("v6: imported habit then 6 hard skips t = $t, jar ${model(after).jarOf(0, 1)}")
+        assertTrue(t <= 0f, "t $t")
+        assertEquals(t, addition(after, recencyLoss = 1f), 1e-6f, "relief 0")
+    }
+
+    @Test
     fun `one skip leaves the habit term unchanged and E7 alone moves t`() {
         val end = t0 + 400 * day
         // A later unrelated listen is the device's newest event in both, so both decay to the same reference.

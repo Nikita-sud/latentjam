@@ -249,7 +249,7 @@ internal class PersonalModelTest {
     }
 
     @Test
-    fun `an untouched habit halves in 730 calendar days from each source's newest event`() {
+    fun `an untouched habit halves in 730 calendar days and imports age to the same reference`() {
         val log = Log(t0)
         repeat(2) { log.session().play(0, PersonalStart.PICK).play(1, PersonalStart.PICK) }
         log.clock += 730 * day
@@ -262,7 +262,8 @@ internal class PersonalModelTest {
         }
         listens += PersonalListen(TrackId("t5"), t0 + 730 * day, 200_000L, true, false, PersonalStart.PICK)
         val m = PersonalModel.build(listens, library())
-        assertEquals(0.8f, m.positive(m.songOf(TrackId("t0")), m.songOf(TrackId("t1"))), tol)
+        // The LB-import fixes (D3): an import keeps aging after it, to the newest event of either source.
+        assertEquals(0.4f, m.positive(m.songOf(TrackId("t0")), m.songOf(TrackId("t1"))), tol)
     }
 
     @Test

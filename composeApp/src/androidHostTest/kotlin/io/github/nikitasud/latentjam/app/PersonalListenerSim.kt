@@ -51,7 +51,7 @@ internal class PersonalListenerSim(
 
     private fun chooser(run: Run, full: Boolean, artistTerm: Boolean = true) = EngineNextTrackChooser(
         engine = engine, history = run.history, library = { library }, learnFromHabits = { full },
-        personalModel = PersonalModelCache(run.history, engine::artistKeysOf).let { cache -> { lib: List<TrackDescriptor> -> cache.model(lib) } },
+        personalModel = PersonalModelCache(run.history, engine::artistKeysOf, clock = { run.now }).let { cache -> { lib: List<TrackDescriptor> -> cache.model(lib) } },
         personalArtistTerm = artistTerm,
         clock = { run.now },
     )

@@ -240,7 +240,7 @@ class SmartStandRunner {
                     // The chain's personal term as the app runs it (PLAN_PERSONAL): CORE = recency only, FULL = habits and
                     // priors too. LJ_STAND_PERSONAL=0 plans the chain without it (recency as the old multiplier).
                     personalModel = if (chainEngine == null || System.getenv("LJ_STAND_PERSONAL") == "0") null else {
-                        val cache = PersonalModelCache(seedHistory, chainEngine::artistKeysOf)
+                        val cache = PersonalModelCache(seedHistory, chainEngine::artistKeysOf, clock = { now })
                         ({ lib: List<TrackDescriptor> -> cache.model(lib) })
                     },
                 )
@@ -285,7 +285,7 @@ class SmartStandRunner {
         io.github.nikitasud.latentjam.smart.personal.PersonalDiagnostics.hop = null
         io.github.nikitasud.latentjam.smart.personal.PersonalDiagnostics.sink = null
         File(out, "personal.txt").writeText("staged hops $stagedHops, with a personal addition $nonZeroHops, changed $changedHops\n" +
-            "habit pairs (>= 2 own sessions): " + PersonalModelCache(history, chainEngine?.let { it::artistKeysOf } ?: { emptyList() }).model(library)?.habitPairs() + "\n")
+            "habit pairs (>= 2 own sessions): " + PersonalModelCache(history, chainEngine?.let { it::artistKeysOf } ?: { emptyList() }, clock = { lastListen + 60_000 }).model(library)?.habitPairs() + "\n")
         File(out, "build.txt").writeText(
             "model ${ranker.modelName}\nfull ${ranker.fullModelName}\nencoder $AUDIO_MODEL_VERSION\n" +
                 "library ${library.size}\nvectors ${vectors.entries.size}\nenergies ${energies.size}\nseeds ${seeds.size}\n",

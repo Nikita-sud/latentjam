@@ -35,6 +35,8 @@ internal class PersonalModelCache(
     private val artistKeysOf: (TrackDescriptor) -> List<String>,
     /** The listener's calendar day of a time: a habit's clock moves by the days A was played (PLAN_PERSONAL v6.1). */
     private val localDay: (Long) -> Long = { localTimePoint(it).epochDay },
+    /** Now: evidence of both sources ages to it (the LB-import fixes, D3), so the cache is rebuilt once a local day. */
+    private val clock: () -> Long = ::epochMillis,
 ) {
     private val mutex = Mutex()
     private var stamp: List<Long>? = null
@@ -49,7 +51,8 @@ internal class PersonalModelCache(
         val events = history.allEvents()
         var libraryHash = 0L
         for (t in library) libraryHash = libraryHash * 31 + t.id.value.hashCode()
-        val now = listOf(events.size.toLong(), events.maxOfOrNull { it.startedAtMs } ?: 0L, library.size.toLong(), libraryHash)
+        val nowMs = clock()
+        val now = listOf(events.size.toLong(), events.maxOfOrNull { it.startedAtMs } ?: 0L, library.size.toLong(), libraryHash, localDay(nowMs))
         if (now != stamp) {
             // A quarter more history, a smaller one (cleared, restored) or another library before the next attempt, so
             // top-ups do not keep allocating toward the same failure.
@@ -62,6 +65,7 @@ internal class PersonalModelCache(
                         events.sortedBy { it.startedAtMs }.map(::personalListen),
                         library.map { personalTrack(it, artistKeysOf(it)) },
                         localDay,
+                        nowMs = maxOf(nowMs, events.maxOfOrNull { it.startedAtMs } ?: 0L),
                     )
                 }
             } catch (exhausted: Error) {
