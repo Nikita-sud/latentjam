@@ -210,3 +210,23 @@ LJ-api30 (3,500 tracks, release APK, a 60,009-listen ListenBrainz export importe
 So on 48 MB phones a long imported history keeps the personal term off rather than crashing. Follow-ups (0.9.4): a
 lighter build for that case; "A resource failed to call close" warnings seen while the Tracks page loaded covers after
 the import (no stack in a release build). JVM and iOS suites green; iOS simulator SMART smoke ok.
+
+## Duplicate finder: edge silence and recording ids (0e1cacb1..27c4d761)
+
+The owner's fix (fix/duplicate-silence-id) rebased onto ad07bc8d: the finder reads MusicBrainz recording ids and ISRCs
+(Android, iOS), compares lengths of sound with the silent edges trimmed, and lets equal ids widen the length check.
+Attacker findings, all fixed:
+
+- A. A shared ISRC lowered the similarity bar like a recording id. One ISRC is often copied onto every track of a badly
+  tagged album, so two different songs at 0.985 could pair. Now only an equal recording id lowers it; an ISRC alone
+  only widens the length gap (test `copiedIsrc`).
+- B. With one length unknown the tag rule had no length check at all. It now needs both lengths.
+- C (treated as a defect on the owner's word). The finder's decodes shared the app-wide loudness lock with playback,
+  so a scan could hold back a new track's loudness and crossfade edges. The lock is static on both platforms, so a
+  second meter would not help: the finder now measures no sound edges while music plays and keeps to stored edges
+  and the plain rule. A decode already running when playback starts still finishes (bounded by its timeout).
+
+Fresh verifier on 27c4d761: clean; the Dragonborn 2.004 s case is still found three ways. JVM and iOS suites green.
+Deferred (0.9.4): with an unknown length the prefilter still admits 0.98–0.99 pairs that can no longer be accepted
+(wasted tag reads); a stalled openFileDescriptor on cloud providers; no cache of sound lengths; the scan restarts when
+the track list changes; no 10k timing at 48/96 MB; the ID3v2.2 TRC frame is not read.
