@@ -83,12 +83,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -1850,11 +1852,22 @@ private fun ArtistVarietyRow(level: Int, onLevel: (Int) -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Text(
-                text = stringResource(names[sanitizeArtistVariety(level)]),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            // The value's box is as wide as the longest level name in this locale and font size, so moving the
+            // slider never changes how the title and description wrap.
+            Box(contentAlignment = Alignment.CenterEnd) {
+                names.forEach { name ->
+                    Text(
+                        text = stringResource(name),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.alpha(0f).clearAndSetSemantics {},
+                    )
+                }
+                Text(
+                    text = stringResource(names[sanitizeArtistVariety(level)]),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         AppSlider(
             value = sanitizeArtistVariety(level).toFloat(),
