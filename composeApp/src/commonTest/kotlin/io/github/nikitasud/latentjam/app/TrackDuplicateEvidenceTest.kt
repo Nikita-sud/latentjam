@@ -134,6 +134,13 @@ internal class TrackDuplicateEvidenceTest {
             b to DuplicateEvidence(ids = TrackRecordingIds(recording, setOf("QMTH31100021"))),
         )
         assertEquals(listOf(listOf(a, b)), groups(close, mapOf(a to 200_000L, b to 205_000L), isrcOnly))
+        // …but not the similarity: one ISRC copied onto every track of an album must not pair two of its songs.
+        val lower = mapOf(a to at(1.0), b to at(0.985))
+        val copiedIsrc = mapOf(
+            a to DuplicateEvidence(ids = TrackRecordingIds(null, setOf("QMTH31100021"))),
+            b to DuplicateEvidence(ids = TrackRecordingIds(null, setOf("QMTH31100021"))),
+        )
+        assertTrue(groups(lower, mapOf(a to 200_000L, b to 201_000L), copiedIsrc).isEmpty())
     }
 
     @Test
@@ -142,8 +149,9 @@ internal class TrackDuplicateEvidenceTest {
         assertEquals(listOf(listOf(a, b)), groups(mapOf(a to at(1.0), b to at(0.995)), unknown))
         val slightlyLower = mapOf(a to at(1.0), b to at(0.985))
         assertTrue(groups(slightlyLower, unknown).isEmpty())
+        // Tags never loosen a pair whose lengths cannot be compared.
         val ids = mapOf(a to DuplicateEvidence(ids = sameIds), b to DuplicateEvidence(ids = sameIds))
-        assertEquals(listOf(listOf(a, b)), groups(slightlyLower, unknown, ids))
+        assertTrue(groups(slightlyLower, unknown, ids).isEmpty())
         // One duration known: still no length to compare.
         assertEquals(listOf(listOf(a, b)), groups(mapOf(a to at(1.0), b to at(0.995)), mapOf(a to 1_000L, b to null)))
     }

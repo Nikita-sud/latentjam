@@ -32,8 +32,8 @@ import kotlin.math.sqrt
 internal const val DUPLICATE_SIMILARITY = 0.99f
 
 /**
- * How much lower the similarity of two files may be when their tags name one recording (an equal
- * MusicBrainz recording id or a shared ISRC): a low-bitrate copy of a FLAC can fall just under
+ * How much lower the similarity of two files may be when they carry an equal MusicBrainz recording
+ * id: a low-bitrate copy of a FLAC can fall just under
  * [DUPLICATE_SIMILARITY]. The audio still has to agree — tags can be wrong.
  */
 internal const val SAME_RECORDING_SIMILARITY_SLACK = 0.01f
@@ -88,10 +88,10 @@ internal fun namesSameRecording(a: TrackRecordingIds?, b: TrackRecordingIds?): B
  * - [threshold] similarity and sound lengths within the same tolerance: copies that differ only in
  *   the silence before the first sound or after the last one, such as a digital release with two
  *   more seconds of silence at its end;
- * - tags naming one recording ([namesSameRecording]): similarity down to [threshold] minus
- *   [SAME_RECORDING_SIMILARITY_SLACK] and declared lengths within
- *   [SAME_RECORDING_LENGTH_TOLERANCE_MS] (or a length unknown). Sound lengths do not widen this:
- *   a gap the shared tag cannot explain needs the plain similarity.
+ * - tags naming one recording ([namesSameRecording]): declared lengths, both known, within
+ *   [SAME_RECORDING_LENGTH_TOLERANCE_MS]; an equal recording id ([sameRecordingId]) also lowers the similarity to
+ *   [threshold] minus [SAME_RECORDING_SIMILARITY_SLACK], a shared ISRC alone does not. Sound lengths do not
+ *   widen this: a gap the shared tag cannot explain needs the plain similarity.
  *
  * Declared lengths further apart than [DUPLICATE_MAX_LENGTH_GAP_MS] are never one copy.
  */
@@ -133,9 +133,17 @@ internal fun isDuplicatePair(
     fun lengthsWithin(tolerance: Long): Boolean =
         declaredGap == null || declaredGap <= tolerance || (soundGap != null && soundGap <= tolerance)
     if (audioMatches && lengthsWithin(DUPLICATE_LENGTH_TOLERANCE_MS)) return true
-    return namesSameRecording(evidenceA?.ids, evidenceB?.ids) &&
-        (declaredGap == null || declaredGap <= SAME_RECORDING_LENGTH_TOLERANCE_MS)
+    // The tags' wider length gap needs both lengths: an unknown one would leave no length check at all.
+    if (declaredGap == null || declaredGap > SAME_RECORDING_LENGTH_TOLERANCE_MS) return false
+    if (!namesSameRecording(evidenceA?.ids, evidenceB?.ids)) return false
+    // Only an equal recording id lowers the similarity: one ISRC is often copied onto every track of a badly tagged
+    // album, so a shared ISRC alone widens the length gap but keeps the plain similarity.
+    return audioMatches || sameRecordingId(evidenceA?.ids, evidenceB?.ids)
 }
+
+/** Whether both files carry the same MusicBrainz recording id. */
+internal fun sameRecordingId(a: TrackRecordingIds?, b: TrackRecordingIds?): Boolean =
+    a?.recording != null && a.recording == b?.recording
 
 /**
  * Two files the audio nearly matches but that the rule could not accept with what it knew.

@@ -2357,7 +2357,9 @@ private fun DuplicatesSettings(
                     readIds = { id -> byId[id]?.let { readTrackRecordingIds(it) } },
                     measureSoundMs = { id ->
                         val track = byId[id]
-                        if (track == null || meter == null) null
+                        // The meter decodes one file at a time for the whole app: while music plays, its
+                        // loudness and crossfade edges come first, and the finder keeps to stored edges.
+                        if (track == null || meter == null || AppGraph.playback.state.value.isPlaying) null
                         else soundLengthMs(meter.measure(track)?.sound, track.durationMs)
                     },
                     knownSoundMs = { id ->
