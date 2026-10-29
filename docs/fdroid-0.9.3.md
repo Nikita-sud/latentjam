@@ -16,30 +16,28 @@ package keeps working.
 
 **versionCode scheme**, for every ABI split in every channel (GitHub releases included): `base × 10 + digit`.
 
-| ABI | digit | 0.9.3 example (base 43) | F-Droid APK, measured |
+| ABI | digit | 0.9.3 example (base 44) | F-Droid APK, measured |
 |---|---|---|---|
-| armeabi-v7a | 1 | 431 | 33.5 MB |
-| arm64-v8a | 2 | 432 | 28.6 MB (reduced runtime) |
-| x86 | 3 | 433 | 36.4 MB |
-| x86_64 | 4 | 434 | 36.3 MB |
+| armeabi-v7a | 1 | 441 | 33.5 MB |
+| arm64-v8a | 2 | 442 | 28.6 MB (reduced runtime) |
+| x86 | 3 | 443 | 36.4 MB |
+| x86_64 | 4 | 444 | 36.3 MB |
 
-The universal APK keeps the base. 0.9.2 was 16, so every split code is far above any installed release or test build
-(the owner's phone runs test builds up to 43). The release's base versionCode is the owner's choice. The table uses
-the current 43; if he sets it lower than 44, the phone's test build (43) will not be replaced by the 0.9.3 release
-without an uninstall.
+The universal APK keeps the base. 0.9.2 was 16; 0.9.3's base is 44, above every test build (up to 43), so its splits
+replace any installed release or test build in place.
 
 Measured: `assembleRelease -Platentjam.fdroid=true -Platentjam.fdroidAbi=<abi>` for each of the four ABIs gives one
-`androidApp-<abi>-release-unsigned.apk` with versionCode 431 / 432 / 433 / 434 and only that ABI's `lib/` directory.
-The plain release (`assembleRelease`) gives the three signed split APKs with 431 / 432 / 434.
+`androidApp-<abi>-release-unsigned.apk` with versionCode 441 / 442 / 443 / 444 and only that ABI's `lib/` directory.
+The plain release (`assembleRelease`) gives the three signed split APKs with 441 / 442 / 444.
 
 ## 2. Metadata draft (fdroiddata `metadata/io.github.nikitasud.latentjam.kmp.yml`)
 
-Replace the single build entry per version with one entry per ABI. Example for 0.9.3, assuming base versionCode 43
+Replace the single build entry per version with one entry per ABI. Example for 0.9.3 (base versionCode 44)
 and the tag `v0.9.3`; put the real commit hash once tagged:
 
 ```yaml
   - versionName: 0.9.3
-    versionCode: 431
+    versionCode: 441
     commit: v0.9.3
     subdir: androidApp
     gradle:
@@ -68,7 +66,7 @@ and the tag `v0.9.3`; put the real commit hash once tagged:
       - latentjam.fdroid=true
       - latentjam.fdroidAbi=armeabi-v7a
 
-  # versionCode 432 / 433 / 434: the same entry with latentjam.fdroidAbi=arm64-v8a / x86 / x86_64
+  # versionCode 442 / 443 / 444: the same entry with latentjam.fdroidAbi=arm64-v8a / x86 / x86_64
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v[0-9.]+$
@@ -78,7 +76,7 @@ VercodeOperation:
   - 10 * %c + 3
   - 10 * %c + 4
 CurrentVersion: 0.9.3
-CurrentVersionCode: 434
+CurrentVersionCode: 444
 ```
 
 Notes for the merge request:
@@ -122,7 +120,7 @@ ARM64 runtime, so the check lets them through.
 
 ```yaml
   - versionName: 0.9.3
-    versionCode: 432
+    versionCode: 442
     commit: v0.9.3
     subdir: androidApp
     srclibs:
