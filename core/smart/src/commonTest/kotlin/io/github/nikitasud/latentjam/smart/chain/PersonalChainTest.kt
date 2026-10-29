@@ -274,13 +274,17 @@ internal class PersonalChainTest {
         }
     }
 
-    /** B's pick-1 presses from A over 60 days of always-accept; [ownOnly] drops SMART-sourced listens from the evidence. */
-    private fun loopLeads(mode: RecencyMode, ownOnly: Boolean): Pair<Int, Int> {
+    /**
+     * B's pick-1 presses from A over 60 days of always-accept; [ownOnly] drops SMART-sourced listens from the evidence.
+     * The three planted own sessions are a day apart (tier 2) or, with [tier1], two hours apart on one day.
+     */
+    private fun loopLeads(mode: RecencyMode, ownOnly: Boolean, tier1: Boolean = false): Pair<Int, Int> {
         val start = t0 + 400 * day
         val back = background(60, start - 2 * day)
         val (_, gaps, _) = hopOne(term(back), back, start)
         val b = gaps.entries.filter { it.value in 0.05f..0.9f }.sortedWith(compareBy({ it.value }, { it.key.value })).first().key
-        val listens = (back + picks(0, b.value.toInt(), 3, start - 3 * day)).sortedBy { it.startedAtMs }.toMutableList()
+        val planted = if (tier1) picks(0, b.value.toInt(), 3, start - 3 * day, every = 2 * 3_600_000L) else picks(0, b.value.toInt(), 3, start - 3 * day)
+        val listens = (back + planted).sortedBy { it.startedAtMs }.toMutableList()
         var fullLeads = 0
         var coreLeads = 0
         for (d in 0 until 60) {
@@ -295,13 +299,23 @@ internal class PersonalChainTest {
     }
 
     @Test
-    fun `loop always-accept for 60 days SMART's own evidence adds at most 5 presses and B leads at most 60 percent over CORE`() {
-        val (full, core) = loopLeads(RecencyMode.NOVELTY, ownOnly = false)
-        val (own, _) = loopLeads(RecencyMode.NOVELTY, ownOnly = true)
-        println("loop: B pick 1 in $full / 60 presses, $own / 60 with SMART's own evidence excluded; CORE $core / 60")
+    fun `loop tier 1 always-accept for 60 days SMART's own evidence adds at most 5 presses and B leads at most 60 percent over CORE`() {
+        val (full, core) = loopLeads(RecencyMode.NOVELTY, ownOnly = false, tier1 = true)
+        val (own, _) = loopLeads(RecencyMode.NOVELTY, ownOnly = true, tier1 = true)
+        println("loop tier 1: B pick 1 in $full / 60 presses, $own / 60 with SMART's own evidence excluded; CORE $core / 60")
         assertTrue(full - own <= 5, "SMART's own evidence added ${full - own} presses")
         // Relative to CORE, like every gate: the core's own preference for B is not the habits' doing.
         assertTrue(full - core <= 36, "B led $full / 60 presses, CORE $core")
+    }
+
+    @Test
+    fun `loop tier 2 always-accept for 60 days SMART's own evidence adds at most 5 presses`() {
+        // Owner (PLAN_PERSONAL v6 amendment): a strong own habit leads unless a stronger one competes, so a tier-2 pair
+        // has no ceiling over CORE; only SMART's own evidence must not feed it.
+        val (full, core) = loopLeads(RecencyMode.NOVELTY, ownOnly = false)
+        val (own, _) = loopLeads(RecencyMode.NOVELTY, ownOnly = true)
+        println("loop tier 2: B pick 1 in $full / 60 presses, $own / 60 with SMART's own evidence excluded; CORE $core / 60")
+        assertTrue(full - own <= 5, "SMART's own evidence added ${full - own} presses")
     }
 
     @Test

@@ -369,6 +369,29 @@ internal class PersonalV6Test {
     }
 
     @Test
+    fun `competing tier-2 habits the stronger leads and when both are full the higher core wins`() {
+        val now = t0 + 400 * day
+        val back = background(30, now - 200 * day)
+        val bs = candidates(0.05f..0.9f, now)
+        assertTrue(bs.size >= 2)
+        // The closer one (higher core) gets the weaker habit: three own sessions; the further one six.
+        val close = bs.first()
+        val farther = bs.last()
+        fun sessions(b: TrackId, n: Int, from: Long) = (0 until n).flatMap { pick(0, b.value.toInt(), from + it * day) }
+        fun first(planted: List<PersonalListen>): TrackId {
+            val listens = (back + planted).sortedBy { it.startedAtMs }
+            return snapshot.tracks[build(term(listens), listens, length = 1, now = now).rows.single()].id
+        }
+        val weakClose = sessions(close, 3, now - 120 * day) + sessions(farther, 6, now - 110 * day)
+        val m = model(back + weakClose)
+        println("v6: competing habits jar close ${m.jarOf(0, close.value.toInt())} vs farther ${m.jarOf(0, farther.value.toInt())}")
+        assertEquals(farther, first(weakClose), "the stronger habit leads")
+        // Both saturated (eight sessions each): equally full, so the core decides.
+        val bothFull = sessions(close, 8, now - 120 * day) + sessions(farther, 8, now - 110 * day)
+        assertEquals(close, first(bothFull), "both full: the higher core wins")
+    }
+
+    @Test
     fun `keep-together is never outvoted`() {
         val now = t0 + 400 * day
         val back = background(30, now - 40 * day)
