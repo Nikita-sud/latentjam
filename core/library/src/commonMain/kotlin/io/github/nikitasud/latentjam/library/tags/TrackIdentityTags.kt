@@ -62,16 +62,16 @@ internal fun trackRecordingIdsOf(comments: List<Pair<String, String>>): TrackRec
         .map { value -> value.filterNot { it == '-' || it == ' ' || it == '\t' }.uppercase() }
         .filter(isrc::matches)
         .distinct()
-        .take(MAX_ISRCS)
+        .take(MAX_ISRCS + 1)
         .toSet()
-    return TrackRecordingIds(recording, isrcs)
+    return TrackRecordingIds(recording, if (isrcs.size > MAX_ISRCS) emptySet() else isrcs)
 }
 
 private fun identityKey(name: String): String = name.filterNot { it == ' ' || it == '_' }.uppercase()
 
 private val isrc = Regex("[A-Z]{2}[A-Z0-9]{3}[0-9]{7}")
 
-/** A file listing more ISRCs than this is not describing one recording any more. */
+/** A file listing more ISRCs than this is not describing one recording any more: none is trusted. */
 private const val MAX_ISRCS = 16
 
 private fun boundedIdentityComments(source: RandomAccessSource): List<Pair<String, String>>? {

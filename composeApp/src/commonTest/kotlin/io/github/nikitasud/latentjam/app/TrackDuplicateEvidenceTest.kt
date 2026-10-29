@@ -99,8 +99,16 @@ internal class TrackDuplicateEvidenceTest {
             b to DuplicateEvidence(soundMs = 190_000L, ids = sameIds),
         )
         assertTrue(groups(close, mapOf(a to 200_000L, b to 216_000L), everything).isEmpty())
-        // Within it, the id rule may also use the sound lengths.
+        // Within it, equal sound lengths join a pair the plain similarity accepts.
         assertEquals(listOf(listOf(a, b)), groups(close, mapOf(a to 200_000L, b to 214_000L), everything))
+        // But the id rule's lower similarity never reaches past its own declared tolerance.
+        val lower = mapOf(a to at(1.0), b to at(0.985))
+        val nearSound = mapOf(
+            a to DuplicateEvidence(soundMs = 190_000L, ids = sameIds),
+            b to DuplicateEvidence(soundMs = 191_000L, ids = sameIds),
+        )
+        assertTrue(groups(lower, mapOf(a to 200_000L, b to 212_000L), nearSound).isEmpty())
+        assertTrue(!isDuplicatePair(0.985f, DUPLICATE_SIMILARITY, 200_000L, 212_000L, nearSound[a], nearSound[b]))
     }
 
     @Test
@@ -298,5 +306,132 @@ internal class TrackDuplicateEvidenceTest {
         )
         assertEquals(DuplicateEvidenceLimits.MAX_SOUND_MEASUREMENTS, decodes)
         assertEquals(DuplicateEvidenceLimits.MAX_SOUND_MEASUREMENTS / 2, found.size)
+    }
+
+    @Test
+    fun aReaderCancellingItselfIsAnUnreadFileNotACancelledScan() = runTest {
+        val found = findAudioDuplicates(
+            vectors = dragonVectors,
+            durationsMs = dragonDurations,
+            dismissed = DuplicateExclusions(emptyList()),
+            readIds = { throw kotlinx.coroutines.CancellationException("provider gave up") },
+            measureSoundMs = { id -> soundLengthMs(dragonSpans[id], dragonDurations[id]) },
+        )
+        assertEquals(listOf(listOf(digital, cd)), found)
+    }
+
+    @Test
+    fun anExhaustedDecodeBudgetStillUsesStoredSoundLengths() = runTest {
+        val clock = kotlin.time.TestTimeSource()
+        val p = TrackId("p"); val q = TrackId("q"); val r = TrackId("r"); val s = TrackId("s")
+        val t = TrackId("t"); val u = TrackId("u")
+        val vectors = mapOf(
+            p to floatArrayOf(1f, 0f, 0f), q to floatArrayOf(1f, 0f, 0f),
+            r to floatArrayOf(0f, 1f, 0f), s to floatArrayOf(0f, 1f, 0f),
+            t to floatArrayOf(0f, 0f, 1f), u to floatArrayOf(0f, 0f, 1f),
+        )
+        val durations = mapOf(
+            p to 100_000L, q to 104_000L, r to 200_000L, s to 204_000L, t to 300_000L, u to 304_000L,
+        )
+        val decoded = mutableListOf<TrackId>()
+        val found = findAudioDuplicates(
+            vectors = vectors,
+            durationsMs = durations,
+            dismissed = DuplicateExclusions(emptyList()),
+            readIds = { null },
+            measureSoundMs = { id ->
+                decoded += id
+                clock += kotlin.time.Duration.parse("60s") // two decodes spend the whole budget
+                99_000L
+            },
+            // Playback measured r and s already; t and u would need decodes.
+            knownSoundMs = { id -> if (id == r || id == s) 150_000L else null },
+            timeSource = clock,
+        )
+        assertEquals(listOf(p, q), decoded)
+        assertEquals(setOf(setOf(p, q), setOf(r, s)), found.map { it.toSet() }.toSet())
+    }
+
+    @Test
+    fun withoutEvidenceTheScanEqualsThePlainRuleOnHighDimensionalVectors() {
+        val random = kotlin.random.Random(42)
+        for (dimensions in listOf(512, 513, 7)) {
+            val centres = List(6) { FloatArray(dimensions) { random.nextFloat() - 0.5f } }
+            val vectors = LinkedHashMap<TrackId, FloatArray>()
+            val durations = HashMap<TrackId, Long?>()
+            repeat(300) { index ->
+                val centre = centres[index % centres.size]
+                // Tight clusters: many pairs sit right around the 0.99 threshold.
+                val spread = 0.02f + random.nextFloat() * 0.13f
+                val row = FloatArray(dimensions) { centre[it] + spread * (random.nextFloat() - 0.5f) }
+                val id = TrackId("t" + index.toString().padStart(4, '0'))
+                vectors[id] = row
+                durations[id] = when (index % 7) {
+                    0 -> null
+                    else -> 180_000L + random.nextLong(0L, 8_000L)
+                }
+            }
+            val dismissed = DuplicateExclusions(listOf(listOf(TrackId("t0000"), TrackId("t0006"))))
+            val expected = plainRuleGroups(vectors, durations, dismissed)
+            assertTrue(expected.size > 3, "the fixture must hold several groups")
+            assertEquals(
+                expected,
+                audioDuplicateGroups(vectors, durationsMs = durations, dismissed = dismissed),
+                "dimensions $dimensions",
+            )
+        }
+    }
+
+    /** The finder as it was before evidence: cosine via squared distance, 2 s duration buckets. */
+    private fun plainRuleGroups(
+        vectors: Map<TrackId, FloatArray>,
+        durationsMs: Map<TrackId, Long?>,
+        dismissed: DuplicateExclusions,
+        threshold: Float = DUPLICATE_SIMILARITY,
+    ): List<List<TrackId>> {
+        val ids = vectors.keys.sortedBy(TrackId::value)
+        val rows = ids.map { id ->
+            val row = vectors.getValue(id)
+            var norm = 0.0
+            for (x in row) norm += x.toDouble() * x
+            val scale = 1.0 / kotlin.math.sqrt(norm)
+            if (kotlin.math.abs(scale - 1.0) < 1e-4) row else FloatArray(row.size) { (row[it] * scale).toFloat() }
+        }
+        val maximumSquaredDistance = 2f * (1f - threshold)
+        val durations = ids.map { durationsMs[it]?.takeIf { d -> d > 0 } }
+        fun areDuplicates(x: Int, y: Int): Boolean {
+            if (dismissed.excludes(ids[x], ids[y])) return false
+            val a = rows[x]
+            val b = rows[y]
+            var squared = 0f
+            for (d in a.indices) {
+                val difference = a[d] - b[d]
+                squared += difference * difference
+                if (squared > maximumSquaredDistance) return false
+            }
+            return true
+        }
+        val groups = mutableListOf<MutableList<Int>>()
+        val groupOf = IntArray(ids.size) { -1 }
+        for (candidate in ids.indices) {
+            val duration = durations[candidate]
+            val priors = (0 until candidate).filter { prior ->
+                val other = durations[prior]
+                duration == null || other == null || kotlin.math.abs(duration - other) <= 2_000L
+            }
+            val duplicatePrior = priors.filter { areDuplicates(candidate, it) }.toHashSet()
+            val compatible = duplicatePrior.map { groupOf[it] }.filter { it >= 0 }.distinct().sorted()
+                .firstOrNull { group -> groups[group].all { it in duplicatePrior } }
+            val index = if (compatible == null) {
+                groups += mutableListOf(candidate)
+                groups.lastIndex
+            } else {
+                groups[compatible] += candidate
+                compatible
+            }
+            groupOf[candidate] = index
+        }
+        return groups.filter { it.size > 1 }.map { group -> group.map { ids[it] } }
+            .sortedWith(compareByDescending<List<TrackId>> { it.size }.thenBy { it.first().value })
     }
 }

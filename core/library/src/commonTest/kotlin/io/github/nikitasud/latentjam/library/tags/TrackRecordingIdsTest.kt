@@ -48,6 +48,12 @@ internal class TrackRecordingIdsTest {
         assertNull(ids.recording)
     }
 
+    @Test fun aFileListingTooManyIsrcsIsTrustedForNone() {
+        val many = (0 until 17).map { "ISRC" to "QMTH311" + it.toString().padStart(5, '0') }
+        assertTrue(trackRecordingIdsOf(many).isrcs.isEmpty())
+        assertEquals(16, trackRecordingIdsOf(many.take(16)).isrcs.size)
+    }
+
     @Test fun aMalformedReleaseIdDoesNotEraseTheRecordingIdHere() {
         val ids = trackRecordingIdsOf(listOf(
             "MUSICBRAINZ_RELEASETRACKID" to "garbage",

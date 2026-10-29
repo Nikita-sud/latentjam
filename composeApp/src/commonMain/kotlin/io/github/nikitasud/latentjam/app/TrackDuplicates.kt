@@ -15,6 +15,7 @@ import io.github.nikitasud.latentjam.playback.SoundSpan
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.TimeSource
@@ -88,8 +89,9 @@ internal fun namesSameRecording(a: TrackRecordingIds?, b: TrackRecordingIds?): B
  *   the silence before the first sound or after the last one, such as a digital release with two
  *   more seconds of silence at its end;
  * - tags naming one recording ([namesSameRecording]): similarity down to [threshold] minus
- *   [SAME_RECORDING_SIMILARITY_SLACK] and lengths (declared or sound) within
- *   [SAME_RECORDING_LENGTH_TOLERANCE_MS].
+ *   [SAME_RECORDING_SIMILARITY_SLACK] and declared lengths within
+ *   [SAME_RECORDING_LENGTH_TOLERANCE_MS] (or a length unknown). Sound lengths do not widen this:
+ *   a gap the shared tag cannot explain needs the plain similarity.
  *
  * Declared lengths further apart than [DUPLICATE_MAX_LENGTH_GAP_MS] are never one copy.
  */
@@ -132,11 +134,14 @@ internal fun isDuplicatePair(
         declaredGap == null || declaredGap <= tolerance || (soundGap != null && soundGap <= tolerance)
     if (audioMatches && lengthsWithin(DUPLICATE_LENGTH_TOLERANCE_MS)) return true
     return namesSameRecording(evidenceA?.ids, evidenceB?.ids) &&
-        lengthsWithin(SAME_RECORDING_LENGTH_TOLERANCE_MS)
+        (declaredGap == null || declaredGap <= SAME_RECORDING_LENGTH_TOLERANCE_MS)
 }
 
-/** Two files the audio nearly matches but that the rule could not accept with what it knew. */
-internal data class UndecidedDuplicatePair(val a: TrackId, val b: TrackId, val similarity: Float)
+/**
+ * Two files the audio nearly matches but that the rule could not accept with what it knew.
+ * [audioMatches]: the similarity meets the plain threshold, as the scan compared it.
+ */
+internal data class UndecidedDuplicatePair(val a: TrackId, val b: TrackId, val audioMatches: Boolean)
 
 /** A scan's complete-link groups, and the pairs more evidence might still turn into duplicates. */
 internal class DuplicateScan(
@@ -245,14 +250,15 @@ internal fun scanAudioDuplicates(
     fun areDuplicates(aIndex: Int, bIndex: Int): Boolean {
         val durationA = durations[aIndex]
         val durationB = durations[bIndex]
-        // Past the id rule's length tolerance only the plain similarity can still be won (by
-        // sound lengths), so the cheaper bound suffices there.
+        // Past the id rule's length tolerance only the plain similarity can still win (with sound
+        // lengths, see isDuplicatePair), so the cheaper bound suffices there.
         val bound = if (durationA != null && durationB != null &&
             abs(durationA - durationB) > SAME_RECORDING_LENGTH_TOLERANCE_MS
         ) strictSquaredDistance else maximumSquaredDistance
         val squaredDistance = squaredDistanceOrNull(aIndex, bIndex, bound) ?: return false
+        val audioMatches = squaredDistance <= strictSquaredDistance
         val duplicate = isDuplicatePair(
-            audioMatches = squaredDistance <= strictSquaredDistance,
+            audioMatches = audioMatches,
             audioMatchesSameRecording = true,
             durationA = durationA,
             durationB = durationB,
@@ -260,7 +266,7 @@ internal fun scanAudioDuplicates(
             evidenceB = facts[bIndex],
         )
         if (!duplicate && undecided.size < maxUndecided) {
-            undecided += UndecidedDuplicatePair(ids[bIndex], ids[aIndex], 1f - squaredDistance / 2f)
+            undecided += UndecidedDuplicatePair(ids[bIndex], ids[aIndex], audioMatches)
         }
         return duplicate
     }
@@ -296,7 +302,8 @@ internal fun scanAudioDuplicates(
         } else {
             for (unknown in 0 until unknownCount) consider(unknownDurationIndices[unknown])
             var position = lowerBound(sortedDurations, duration - window)
-            while (position < sortedDurations.size && sortedDurations[position] <= duration + window) {
+            val last = if (duration > Long.MAX_VALUE - window) Long.MAX_VALUE else duration + window
+            while (position < sortedDurations.size && sortedDurations[position] <= last) {
                 val prior = byDuration[position++]
                 if (prior < candidate) consider(prior)
             }
@@ -343,6 +350,12 @@ private fun lowerBound(values: LongArray, key: Long): Int {
 internal object DuplicateEvidenceLimits {
     /** Files whose tags are read (each read is bounded to the metadata, at most 8 MiB). */
     const val MAX_TAG_READS = 256
+
+    /** One file's tag read; a slower one (a provider that fetches the file) stays unknown. */
+    const val TAG_READ_TIMEOUT_MS = 5_000L
+
+    /** All tag reads of one scan together. */
+    const val TAG_READ_BUDGET_MS = 20_000L
 
     /** Files decoded to find where their sound begins and ends. */
     const val MAX_SOUND_MEASUREMENTS = 24
@@ -405,50 +418,72 @@ internal suspend fun findAudioDuplicates(
     }
 
     val ids = HashMap<TrackId, TrackRecordingIds>()
-    first.undecided.asSequence().flatMap { sequenceOf(it.a, it.b) }.distinct()
-        .take(DuplicateEvidenceLimits.MAX_TAG_READS)
-        .forEach { id ->
-            context.ensureActive()
-            gathered { readIds(id) }?.let { ids[id] = it }
-        }
+    val toRead = first.undecided.asSequence().flatMap { sequenceOf(it.a, it.b) }.distinct()
+        .take(DuplicateEvidenceLimits.MAX_TAG_READS).toList()
+    val readsStarted = timeSource.markNow()
+    for ((index, id) in toRead.withIndex()) {
+        context.ensureActive()
+        val left = DuplicateEvidenceLimits.TAG_READ_BUDGET_MS - readsStarted.elapsedNow().inWholeMilliseconds
+        if (left <= 0L) break
+        withTimeoutOrNull(minOf(left, DuplicateEvidenceLimits.TAG_READ_TIMEOUT_MS)) { gathered { readIds(id) } }
+            ?.takeUnless { it.isEmpty() }
+            ?.let { ids[id] = it }
+        onProgress(FIRST_SCAN_SHARE + TAG_SHARE * (index + 1) / toRead.size)
+    }
 
     fun duration(id: TrackId): Long? = durationsMs[id]?.takeIf { it > 0 }
-    val wantsSound = LinkedHashSet<TrackId>()
-    for (pair in first.undecided) {
-        val a = DuplicateEvidence(ids = ids[pair.a])
-        val b = DuplicateEvidence(ids = ids[pair.b])
-        val durationA = duration(pair.a) ?: continue
-        val durationB = duration(pair.b) ?: continue
-        if (isDuplicatePair(pair.similarity, threshold, durationA, durationB, a, b)) continue
-        // Only a pair whose audio passes, or whose tags name one recording, can be won by sound lengths.
-        if (pair.similarity < threshold && !namesSameRecording(a.ids, b.ids)) continue
-        wantsSound += pair.a
-        wantsSound += pair.b
+    fun evidenceOf(id: TrackId, sound: Map<TrackId, Long>) = DuplicateEvidence(soundMs = sound[id], ids = ids[id])
+    fun decides(pair: UndecidedDuplicatePair, sound: Map<TrackId, Long>): Boolean = isDuplicatePair(
+        audioMatches = pair.audioMatches,
+        audioMatchesSameRecording = true,
+        durationA = duration(pair.a),
+        durationB = duration(pair.b),
+        evidenceA = evidenceOf(pair.a, sound),
+        evidenceB = evidenceOf(pair.b, sound),
+    )
+    // Sound lengths can only win a pair whose audio meets the plain threshold and whose declared
+    // lengths are both known (and, being undecided, more than the tolerance apart).
+    val wantsSound = first.undecided.filter { pair ->
+        pair.audioMatches && duration(pair.a) != null && duration(pair.b) != null && !decides(pair, emptyMap())
     }
     val sound = HashMap<TrackId, Long>()
-    val started = timeSource.markNow()
+    val unmeasurable = HashSet<TrackId>()
+    val soundStarted = timeSource.markNow()
     var measured = 0
-    for (id in wantsSound) {
-        context.ensureActive()
-        gathered { knownSoundMs(id) }?.takeIf { it > 0 }?.let { sound[id] = it; continue }
-        if (measured >= DuplicateEvidenceLimits.MAX_SOUND_MEASUREMENTS) continue
-        val left = DuplicateEvidenceLimits.SOUND_BUDGET_MS - started.elapsedNow().inWholeMilliseconds
-        if (left <= 0L) break
+    suspend fun soundOf(id: TrackId): Long? {
+        sound[id]?.let { return it }
+        if (id in unmeasurable) return null
+        gathered { knownSoundMs(id) }?.takeIf { it > 0 }?.let { sound[id] = it; return it }
+        // Decodes are reserved a pair at a time below; this one is within the cap.
+        val left = DuplicateEvidenceLimits.SOUND_BUDGET_MS - soundStarted.elapsedNow().inWholeMilliseconds
+        if (left <= 0L) {
+            unmeasurable += id
+            return null
+        }
         measured++
         val length = withTimeoutOrNull(minOf(left, DuplicateEvidenceLimits.SOUND_MEASUREMENT_TIMEOUT_MS)) {
             gathered { measureSoundMs(id) }
-        }
-        length?.takeIf { it > 0 }?.let { sound[id] = it }
-        onProgress(FIRST_SCAN_SHARE + EVIDENCE_SHARE * measured / wantsSound.size.coerceAtLeast(1))
+        }?.takeIf { it > 0 }
+        if (length == null) unmeasurable += id else sound[id] = length
+        return length
+    }
+    for ((index, pair) in wantsSound.withIndex()) {
+        context.ensureActive()
+        // A decode is spent only when the pair's other side can be had too: half a pair decides nothing.
+        val cached = listOf(pair.a, pair.b).count { it in sound || gathered { knownSoundMs(it) }?.takeIf { l -> l > 0 } != null }
+        if (measured + (2 - cached) > DuplicateEvidenceLimits.MAX_SOUND_MEASUREMENTS) continue
+        if (soundOf(pair.a) != null) soundOf(pair.b)
+        onProgress(FIRST_SCAN_SHARE + TAG_SHARE + SOUND_SHARE * (index + 1) / wantsSound.size)
     }
 
-    val evidence = HashMap<TrackId, DuplicateEvidence>()
-    (ids.keys + sound.keys).forEach { id -> evidence[id] = DuplicateEvidence(soundMs = sound[id], ids = ids[id]) }
-    if (evidence.isEmpty()) {
+    // A second full scan only when the evidence turns at least one undecided pair into a duplicate.
+    if (first.undecided.none { decides(it, sound) }) {
         onProgress(1f)
         return first.groups
     }
-    val secondStart = FIRST_SCAN_SHARE + EVIDENCE_SHARE
+    val evidence = HashMap<TrackId, DuplicateEvidence>()
+    (ids.keys + sound.keys).forEach { id -> evidence[id] = evidenceOf(id, sound) }
+    val secondStart = FIRST_SCAN_SHARE + TAG_SHARE + SOUND_SHARE
     return scanAudioDuplicates(
         vectors = vectors,
         threshold = threshold,
@@ -463,14 +498,19 @@ internal suspend fun findAudioDuplicates(
     ).groups
 }
 
-private const val FIRST_SCAN_SHARE = 0.8f
-private const val EVIDENCE_SHARE = 0.1f
+private const val FIRST_SCAN_SHARE = 0.75f
+private const val TAG_SHARE = 0.05f
+private const val SOUND_SHARE = 0.1f
 
-/** [block]'s result, or null where it failed: evidence that cannot be gathered is unknown. */
+/**
+ * [block]'s result, or null where it failed: evidence that cannot be gathered is unknown. A
+ * cancellation from inside [block] (a reader's own timeout) is a failure too while the scan itself
+ * is still active; the scan's own cancellation always propagates.
+ */
 private suspend fun <T> gathered(block: suspend () -> T?): T? = try {
     block()
 } catch (cancelled: CancellationException) {
-    throw cancelled
+    if (currentCoroutineContext().isActive) null else throw cancelled
 } catch (_: Throwable) {
     null
 }
