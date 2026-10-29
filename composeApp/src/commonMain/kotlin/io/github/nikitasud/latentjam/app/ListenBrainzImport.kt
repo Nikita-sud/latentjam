@@ -155,7 +155,7 @@ internal class ListenBrainzMatcher(
         if (!(set as Lookup.Found).byLeadNameOnly) return choose(candidates, row)
         val listened = row.durationMs ?: return NONE
         val close = candidates.filter { index ->
-            tracks[index].durationMs?.let { kotlin.math.abs(it - listened) <= LEAD_NAME_TOLERANCE_MS } == true
+            tracks[index].durationMs?.takeIf { it > 0 }?.let { kotlin.math.abs(it - listened) <= LEAD_NAME_TOLERANCE_MS } == true
         }
         return if (close.isEmpty()) NONE else choose(close.toIntArray(), row)
     }
