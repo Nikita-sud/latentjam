@@ -87,7 +87,7 @@ public class PersonalModel internal constructor(
     private val edgeNegativeSessions: ByteArray,
     /** The jar b(A → B) (v6, the LB-import fixes): the time-ordered fold of both sources' sessions, decayed to the reference. */
     private val edgeJar: ShortArray,
-    /** Distinct calendar days (UTC) of the pair's own sessions, at most 255. */
+    /** Distinct local calendar days ([build]'s localDay) of the pair's own sessions, at most 255. */
     private val edgeDays: ByteArray,
     private val edgeWeight: ShortArray,
     private val outWeight: FloatArray,
@@ -328,7 +328,6 @@ public class PersonalModel internal constructor(
             return h
         }
 
-        /** Builds the model from [listens] (oldest first) over [library]; listens of tracks outside it are skipped. */
         /**
          * Builds the model from [listens] (oldest first) over [library]; listens of tracks outside it are skipped. [localDay]
          * is the listener's calendar day of a time; [nowMs] the reference evidence decays to (the newest event when null).
@@ -356,9 +355,10 @@ private class SessionBest {
     private var firstSession = 0L
     private var firstValue = 0.0
     private var firstAt = 0L
-    private var rest: LinkedHashMap<Long, Double>? = null
-    /** When each later session first showed this kind (the jar's order). */
-    private var restAt: LinkedHashMap<Long, Long>? = null
+    /** The later sessions: each one's best value and when it first showed this kind (the jar's order). */
+    private var rest: LinkedHashMap<Long, Slot>? = null
+
+    private class Slot(var value: Double, val at: Long)
 
     val size: Int get() = (if (hasFirst) 1 else 0) + (rest?.size ?: 0)
 
@@ -375,31 +375,33 @@ private class SessionBest {
             if (value > firstValue) firstValue = value
             return false
         }
-        val map = rest ?: LinkedHashMap<Long, Double>().also { rest = it }
+        val map = rest ?: LinkedHashMap<Long, Slot>().also { rest = it }
         val held = map[session]
-        if (held == null) (restAt ?: LinkedHashMap<Long, Long>().also { restAt = it })[session] = at
-        if (held == null || value > held) map[session] = value
-        return held == null
+        if (held == null) {
+            map[session] = Slot(value, at)
+            return true
+        }
+        if (value > held.value) held.value = value
+        return false
     }
 
     /** Each session's value with its first-seen time, in first-seen order. */
     inline fun forEachAt(action: (Long, Double, Long) -> Unit) {
         if (hasFirst) action(firstSession, firstValue, firstAt)
-        val times = restAt
-        rest?.forEach { (session, value) -> action(session, value, times!!.getValue(session)) }
+        rest?.forEach { (session, slot) -> action(session, slot.value, slot.at) }
     }
 
     /** The values summed in first-seen order, as `values.sum()` over the map did. */
     fun sum(): Double {
         var total = 0.0
         if (hasFirst) total += firstValue
-        rest?.values?.forEach { total += it }
+        rest?.values?.forEach { total += it.value }
         return total
     }
 
     inline fun forEach(action: (Long, Double) -> Unit) {
         if (hasFirst) action(firstSession, firstValue)
-        rest?.forEach { (session, value) -> action(session, value) }
+        rest?.forEach { (session, slot) -> action(session, slot.value) }
     }
 }
 
@@ -422,16 +424,16 @@ private class PairAcc {
     val own = SessionBest()
     val smart = SessionBest()
     val rejected = SessionBest()
-    /** Imported session strength, kept apart for the per-anchor cap. */
-    val imported = SessionBest()
+    /** Imported session strength, kept apart for the per-anchor cap; null when none, and after its merge into [own]. */
+    var imported: SessionBest? = null
     /** Calendar days of the own sessions (device and import), each session's start day once. */
     val days = DaySet()
-    /** The per-anchor import cap's scale, for the import jar. */
-    var importScale = 1.0
     var weightOwn = 0.0
     var weightSmart = 0.0
     var squaresOwn = 0.0
     var squaresSmart = 0.0
+
+    fun importedSessions(): SessionBest = imported ?: SessionBest().also { imported = it }
 }
 
 private class PersonalBuilder(
@@ -619,13 +621,14 @@ private class PersonalBuilder(
             val importByAnchor = LinkedHashMap<Int, Double>()
             for ((k, p) in table) {
                 val a = (k ushr 32).toInt()
-                importByAnchor[a] = (importByAnchor[a] ?: 0.0) + p.imported.sum()
+                importByAnchor[a] = (importByAnchor[a] ?: 0.0) + (p.imported?.sum() ?: 0.0)
             }
             for ((k, p) in table) {
                 val total = importByAnchor[(k ushr 32).toInt()] ?: 0.0
                 val scale = if (total > PersonalModel.IMPORT_ANCHOR_CAP) PersonalModel.IMPORT_ANCHOR_CAP / total else 1.0
-                p.importScale = scale
-                p.imported.forEachAt { sessionId, v, at -> p.own.best(sessionId, v * scale, at) }
+                p.imported?.forEachAt { sessionId, v, at -> p.own.best(sessionId, v * scale, at) }
+                // Nothing reads the imported sessions after the merge.
+                p.imported = null
             }
         }
         val affinityStrength = FloatArray(songs)
@@ -656,7 +659,7 @@ private class PersonalBuilder(
         val p = pair(a, b)
         when {
             // A session's day is its start's, counted once (a replayed import 3-gram is one session over many days).
-            imported -> if (p.imported.best(session, value, at)) p.days.add(day)
+            imported -> if (p.importedSessions().best(session, value, at)) p.days.add(day)
             smart -> p.smart.best(session, value, at)
             else -> if (p.own.best(session, value, at)) p.days.add(day)
         }
@@ -673,7 +676,7 @@ private class PersonalBuilder(
             if (x == y) continue
             val q = artistPairs.getOrPut(key(x, y)) { PairAcc() }
             when {
-                imported -> q.imported.best(session, value, at)
+                imported -> q.importedSessions().best(session, value, at)
                 smart -> q.smart.best(session, value)
                 else -> q.own.best(session, value)
             }
@@ -853,7 +856,7 @@ internal object Jar {
     /** One session's contribution: [value] is its grade decayed to the reference, [atMs] when the session first showed it. */
     class Step(val atMs: Long, val value: Double, val kind: Int)
 
-    /** The fold of [steps] (any order; sorted by time here); [decay] is a time's factor to the reference. Unclamped across sources. */
+    /** The fold of [steps] (any order; sorted by time here); [decay] is a time's factor to the reference. Every step is clamped; one jar for both sources (D1). */
     fun fold(steps: List<Step>, decay: (Long) -> Double): Double {
         if (steps.isEmpty()) return 0.0
         val ordered = steps.sortedWith(compareBy<Step> { it.atMs }.thenBy { it.kind })
@@ -901,31 +904,13 @@ internal object Jar {
  */
 internal class DayClock(private val localDay: (Long) -> Long, private val refMs: Long) {
     private class Anchor {
-        val days = ArrayList<Long>()
-        val best = ArrayList<Double>()
-        val bestSong = ArrayList<Int>()
-        val second = ArrayList<Double>()
-        var openDay = Long.MIN_VALUE
-        val open = LinkedHashMap<Int, Double>()
-        /** Follows as they come (two sources, so not in time order): (time, follower, class). */
-        val pending = ArrayList<Triple<Long, Int, Double>>()
+        /** Follows as they come (two sources, so not in time order): (time, follower, class); emptied by [finish]. */
+        var pending = ArrayList<Triple<Long, Int, Double>>()
+        /** A's local days with a follower, ascending, and the prefix sums of each day's strongest class. */
+        var days = LongArray(0)
         var prefix = DoubleArray(0)
         /** Per follower song: the day positions where it was the strongest, and the cumulative (best − second) there. */
         val corrections = LinkedHashMap<Int, Pair<IntArray, DoubleArray>>()
-
-        fun close() {
-            if (open.isEmpty()) return
-            var top = -1
-            var topWeight = 0.0
-            for ((song, w) in open) if (w > topWeight) { top = song; topWeight = w }
-            var other = 0.0
-            for ((song, w) in open) if (song != top && w > other) other = w
-            days += openDay
-            best += topWeight
-            bestSong += top
-            second += other
-            open.clear()
-        }
     }
 
     private val anchors = LinkedHashMap<Int, Anchor>()
@@ -938,25 +923,46 @@ internal class DayClock(private val localDay: (Long) -> Long, private val refMs:
 
     fun finish() {
         for (a in anchors.values) {
+            // Per day: the strongest follower's class and song, and the strongest class of the others (build phase only).
+            val days = ArrayList<Long>()
+            val best = ArrayList<Double>()
+            val bestSong = ArrayList<Int>()
+            val second = ArrayList<Double>()
+            var openDay = Long.MIN_VALUE
+            val open = LinkedHashMap<Int, Double>()
+            fun close() {
+                if (open.isEmpty()) return
+                var top = -1
+                var topWeight = 0.0
+                for ((song, w) in open) if (w > topWeight) { top = song; topWeight = w }
+                var other = 0.0
+                for ((song, w) in open) if (song != top && w > other) other = w
+                days += openDay
+                best += topWeight
+                bestSong += top
+                second += other
+                open.clear()
+            }
             // Device and import follows interleave in time: sorted (stable) before the days are formed.
             for ((atMs, follower, weight) in a.pending.sortedBy { it.first }) {
                 val day = localDay(atMs)
-                if (day != a.openDay) {
-                    a.close()
-                    a.openDay = day
+                if (day != openDay) {
+                    close()
+                    openDay = day
                 }
-                a.open[follower] = max(a.open[follower] ?: 0.0, weight)
+                open[follower] = max(open[follower] ?: 0.0, weight)
             }
-            a.pending.clear()
-            a.close()
-            a.prefix = DoubleArray(a.days.size + 1)
-            for (i in a.days.indices) a.prefix[i + 1] = a.prefix[i] + a.best[i]
+            a.pending = ArrayList(0)
+            close()
+            a.days = days.toLongArray()
+            a.prefix = DoubleArray(days.size + 1)
+            for (i in days.indices) a.prefix[i + 1] = a.prefix[i] + best[i]
             val at = LinkedHashMap<Int, ArrayList<Int>>()
-            for (i in a.days.indices) if (a.second[i] < a.best[i]) at.getOrPut(a.bestSong[i]) { ArrayList() } += i
+            for (i in days.indices) if (second[i] < best[i]) at.getOrPut(bestSong[i]) { ArrayList() } += i
             for ((song, positions) in at) {
                 val cumulative = DoubleArray(positions.size)
                 var sum = 0.0
-                positions.forEachIndexed { j, i -> sum += a.best[i] - a.second[i]; cumulative[j] = sum }
+                positions.forEachIndexed { j, i -> sum += best[i] - second[i]; cumulative[j] = sum }
                 a.corrections[song] = positions.toIntArray() to cumulative
             }
         }
@@ -988,7 +994,7 @@ internal class DayClock(private val localDay: (Long) -> Long, private val refMs:
         return if (low == 0) 0.0 else cumulative[low - 1]
     }
 
-    private fun upperBound(days: List<Long>, day: Long): Int {
+    private fun upperBound(days: LongArray, day: Long): Int {
         var low = 0
         var high = days.size
         while (low < high) {
