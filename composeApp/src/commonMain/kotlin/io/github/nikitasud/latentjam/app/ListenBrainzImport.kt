@@ -39,12 +39,14 @@ import kotlinx.coroutines.withContext
  *    listen and the names as submitted found nothing.
  * 4. Only then the credit as a set of artists (ArtistSets), first as submitted, then as mapped: a separator-free whole
  *    credit ("A, B", "A & B", "A x B" and "A feat. B" all read "a b"), and the credit split at its separators into the
- *    library's own artists (and the artist list's, when given). Each artist is looked up with the loose title; the tracks
- *    sharing the most artists are the candidates.
+ *    library's own artists (and the artist list's, when given). Each artist is looked up with the loose title; a track
+ *    qualifies only when it credits the listen's whole credit or its lead artist, and the qualifying tracks sharing the
+ *    most artists are the candidates.
  *
  * A listen is only credited to a track of its own version: the version markers of the title the
  * lookup used (live, instrumental, remix, acoustic, sped up …, see [versionMarks]) must equal the
- * candidate's. A remaster or a single edit is no other version.
+ * candidate's; a mapped lookup wants the markers of the submitted and the mapped title together.
+ * A remaster or a single edit is no other version.
  *
  * Several candidates (copies of one song, an album and a compilation, a live version) are narrowed
  * by the release name, then by duration: with a duration on the row the closest candidate within
@@ -65,8 +67,14 @@ internal class ListenBrainzMatcher(
     private val credited = HashMap<String, IntArray>()
     private val albums = arrayOfNulls<String>(tracks.size)
     private val marks = Array(tracks.size) { versionMarks(tracks[it].title) }
-    private val lookups = HashMap<String, Lookup>()
-    private val setLookups = HashMap<String, Lookup>()
+    private val lookups = HashMap<String, Lookup.Found>()
+    private val setLookups = HashMap<String, Lookup.Found>()
+
+    /** The lookups that found nothing, as ArtistSets.keyHash of the step's tag and the raw names (both steps share it). */
+    private val misses = HashSet<Long>()
+
+    /** Remembered found lookups of both steps (tests: misses never fill the string caches). */
+    internal val rememberedLookups: Int get() = lookups.size + setLookups.size
 
     /** The library's individual artists (each credit's artists, its feat. pieces, its whole credit) as ArtistSets keys. */
     private val atoms = HashSet<Long>()
@@ -109,7 +117,7 @@ internal class ListenBrainzMatcher(
                 looseLists.getOrPut(key) { mutableListOf() }.addDistinct(index)
             }
             val creditKeys = LinkedHashSet<Long>()
-            for (artist in artists) creditKeys += creditKeys(artist)
+            for (artist in artists) creditKeys += trackKeys(artist)
             for (artistKey in creditKeys) creditedLists.getOrPut(key(artistKey.toString(), looseTitle)) { mutableListOf() }.addDistinct(index)
         }
         creditedLists.forEach { (key, list) -> credited[key] = list.toIntArray() }
@@ -126,46 +134,66 @@ internal class ListenBrainzMatcher(
         val isMapped = row.mappedArtist != null || row.mappedTitle != null
         val mappedArtist = row.mappedArtist ?: row.artist
         val mappedTitle = row.mappedTitle ?: row.title
-        sameVersion(candidates(row.artist, row.title), row.title)?.let { return choose(it, row) }
-        if (isMapped) sameVersion(candidates(mappedArtist, mappedTitle), mappedTitle)?.let { return choose(it, row) }
-        sameVersion(setCandidates(row.artist, row.title), row.title)?.let { return choose(it, row) }
-        if (isMapped) sameVersion(setCandidates(mappedArtist, mappedTitle), mappedTitle)?.let { return choose(it, row) }
+        val submittedMarks = versionMarks(row.title)
+        // MusicBrainz leaves "live" or a remix credit out of recording names: a mapped lookup wants the marks of both titles.
+        val mappedMarks = (submittedMarks.split(',') + versionMarks(mappedTitle).split(','))
+            .filter(String::isNotEmpty).distinct().sorted().joinToString(",")
+        sameVersion(candidates(row.artist, row.title), submittedMarks)?.let { return choose(it, row) }
+        if (isMapped) sameVersion(candidates(mappedArtist, mappedTitle), mappedMarks)?.let { return choose(it, row) }
+        sameVersion(setCandidates(row.artist, row.title), submittedMarks)?.let { return choose(it, row) }
+        if (isMapped) sameVersion(setCandidates(mappedArtist, mappedTitle), mappedMarks)?.let { return choose(it, row) }
         return NONE
     }
 
-    /** The found candidates of [title]'s own version, or null when none is (a live take is not the studio track). */
-    private fun sameVersion(lookup: Lookup, title: String?): IntArray? {
+    /** The found candidates with the [wanted] version marks, or null when none has them (a live take is not the studio track). */
+    private fun sameVersion(lookup: Lookup, wanted: String): IntArray? {
         if (lookup !is Lookup.Found) return null
-        val wanted = versionMarks(title)
         val same = lookup.indices.filter { marks[it] == wanted }
         return if (same.isEmpty()) null else same.toIntArray()
     }
 
     /**
-     * The credit as a set (step 4): the tracks crediting the most of the listen's artists under the loose title. The
-     * listen's artists are its ArtistSets split (into this library's artists, or [splitInto]'s) and its whole credit.
+     * The credit as a set (step 4): the tracks crediting the most of the listen's artists under the loose title. Only a
+     * track that credits the listen's whole credit or its lead artist qualifies ([leadKey]): a guest, a second artist
+     * or a word of a band name ("Sebastian" of "Belle and Sebastian") alone does not make another artist's song this
+     * one. Among those, the listen's artists ([creditKeys]) are counted.
      */
     private fun setCandidates(artist: String?, title: String?): Lookup {
         if (artist == null || title == null) return Lookup.Missing
         val raw = artist + '\u0000' + title
         setLookups[raw]?.let { return it }
+        val miss = ArtistSets.keyHash("set\u0000" + raw)
+        if (miss in misses) return Lookup.Missing
         val found = run {
             val looseTitle = looseForm(title, isTitle = true) ?: return@run Lookup.Missing
+            val qualifying = HashSet<Int>()
+            for (artistKey in listOf(wholeKey(artist), leadKey(artist))) {
+                if (artistKey != 0L) credited[key(artistKey.toString(), looseTitle)]?.forEach { qualifying += it }
+            }
+            if (qualifying.isEmpty()) return@run Lookup.Missing
             val shared = LinkedHashMap<Int, Int>()
             for (artistKey in creditKeys(artist)) {
-                credited[key(artistKey.toString(), looseTitle)]?.forEach { shared[it] = (shared[it] ?: 0) + 1 }
+                credited[key(artistKey.toString(), looseTitle)]?.forEach { if (it in qualifying) shared[it] = (shared[it] ?: 0) + 1 }
             }
             val most = shared.values.maxOrNull() ?: return@run Lookup.Missing
             Lookup.Found(shared.filterValues { it == most }.keys.sorted().toIntArray())
         }
-        if (setLookups.size < MAX_REMEMBERED_LOOKUPS) setLookups[raw] = found
+        remember(setLookups, raw, miss, found)
         return found
     }
 
+    /** Keeps a found lookup under its names, a miss only as its hash: an export of unknown songs must not fill memory. */
+    private fun remember(cache: HashMap<String, Lookup.Found>, raw: String, miss: Long, found: Lookup) {
+        when (found) {
+            is Lookup.Found -> if (cache.size < MAX_REMEMBERED_LOOKUPS) cache[raw] = found
+            Lookup.Missing -> if (misses.size < MAX_REMEMBERED_MISSES) misses += miss
+        }
+    }
+
     /**
-     * A credit's artists as ArtistSets keys: its split, its separator-free whole credit, and the pieces between its
-     * separators, so a listen crediting more artists than the track ("A, B" for a track by A) still shares A with it.
-     * A title's feat. credit is not used: a shared guest alone does not make another artist's song this one.
+     * A listen's artists as ArtistSets keys, for counting: its split, its separator-free whole credit, and the pieces
+     * between its separators, so a listen crediting more artists than the track ("A, B" for a track by A) still shares A
+     * with it. A title's feat. credit is not used: a shared guest alone does not make another artist's song this one.
      */
     private fun creditKeys(credit: String): Set<Long> {
         val keys = LinkedHashSet<Long>()
@@ -176,6 +204,56 @@ internal class ListenBrainzMatcher(
         return keys
     }
 
+    /**
+     * A track credit's artists as ArtistSets keys, what a listen must name: its split and its separator-free whole
+     * credit. Not the raw pieces between separators ("Fire" of "Earth, Wind & Fire"), no placeholder and no one-letter
+     * name ("X").
+     */
+    private fun trackKeys(credit: String): Set<Long> {
+        val keys = LinkedHashSet<Long>()
+        keys += ArtistSets.parse(credit, known = splitInto).artists
+        keys += wholeKey(credit)
+        keys -= unusableKeys(credit)
+        keys -= 0L
+        return keys
+    }
+
+    /** The separator-free whole credit ("A, B", "A & B", "A x B" and "A feat. B" all read "a b"); 0 when unusable. */
+    private fun wholeKey(credit: String): Long = usableKey(credit.replace(WORD_SEPARATOR, " "))
+
+    /**
+     * The listen's lead artist: the first of its ArtistSets split when the credit split, else its first piece before a
+     * separator ArtistSets splits at, or a spaced feat. ("and" and "/" are no separators: "Belle and Sebastian", "AC/DC").
+     * 0 when that is a placeholder or a single letter: then only the whole credit may qualify a track.
+     */
+    private fun leadKey(credit: String): Long {
+        val set = ArtistSets.parse(credit, known = splitInto)
+        if ("cond_split" in set.rules || "feat_split" in set.rules) {
+            val lead = set.artists.firstOrNull() ?: return 0L
+            return if (lead in unusableKeys(credit)) 0L else lead
+        }
+        return usableKey(credit.split(LEAD_SEPARATOR).first())
+    }
+
+    /** [raw]'s ArtistSets key, or 0 for a placeholder or a name under two characters. */
+    private fun usableKey(raw: String): Long {
+        val normalized = ArtistSets.normalize(raw)
+        if (normalized.length < 2 || ArtistSets.isPlaceholder(raw)) return 0L
+        return ArtistSets.keyHash(normalized)
+    }
+
+    /** The keys a credit's placeholder or one-letter pieces could take (as written, or through the artist list). */
+    private fun unusableKeys(credit: String): Set<Long> {
+        val unusable = HashSet<Long>()
+        for (piece in credit.split(LEAD_SEPARATOR)) {
+            if (usableKey(piece) != 0L) continue
+            unusable += ArtistSets.keyHash(ArtistSets.normalize(piece))
+            splitInto.canonicalOf(piece)?.let { unusable += it }
+        }
+        unusable -= 0L
+        return unusable
+    }
+
     private sealed interface Lookup {
         data object Missing : Lookup
         class Found(val indices: IntArray) : Lookup
@@ -183,14 +261,17 @@ internal class ListenBrainzMatcher(
 
     /**
      * The candidates for one artist and title. An export repeats the same few thousand songs many
-     * times, so the normalised lookups are remembered (bounded by [MAX_REMEMBERED_LOOKUPS]).
+     * times, so the normalised lookups are remembered (bounded by [MAX_REMEMBERED_LOOKUPS], misses by
+     * [MAX_REMEMBERED_MISSES]).
      */
     private fun candidates(artist: String?, title: String?): Lookup {
         if (artist == null || title == null) return Lookup.Missing
         val raw = artist + '\u0000' + title
         lookups[raw]?.let { return it }
+        val miss = ArtistSets.keyHash("text\u0000" + raw)
+        if (miss in misses) return Lookup.Missing
         val found = lookup(artist, title)
-        if (lookups.size < MAX_REMEMBERED_LOOKUPS) lookups[raw] = found
+        remember(lookups, raw, miss, found)
         return found
     }
 
@@ -251,18 +332,27 @@ internal class ListenBrainzMatcher(
         const val LONE_CANDIDATE_TOLERANCE_MS: Long = 30_000L
 
         private const val MAX_REMEMBERED_LOOKUPS = 200_000
+        private const val MAX_REMEMBERED_MISSES = 100_000
 
         private val WHITESPACE = Regex("\\s+")
         private val FEATURING = Regex("\\s*[(\\[]?\\s*\\b(feat\\.?|ft\\.?|featuring)\\s.*$", RegexOption.IGNORE_CASE)
         private val BRACKETED_SUFFIX = Regex("\\s*[(\\[][^()\\[\\]]*[)\\]]\\s*$")
         private val DASH_SUFFIX = Regex(
-            "\\s+[-–—]\\s+(from\\s.*|[^-–—]*\\b(remaster(ed)?|live|version|edit|mix|remix|mono|stereo|deluxe|bonus|single|acoustic|demo|instrumental)\\b[^-–—]*)$",
+            "\\s+[-–—]\\s+(from\\s[^\"]*\".*|from\\s+(the\\s+)?(original\\s+)?(motion\\s+picture|film|movie|series|musical|soundtrack)\\b.*|[^-–—]*\\b(remaster(ed)?|live|version|edit|mix|remix|mono|stereo|deluxe|bonus|single|acoustic|demo|instrumental)\\b[^-–—]*)$",
             RegexOption.IGNORE_CASE,
         )
         private val PUNCTUATION = Regex("[^\\p{L}\\p{N} ]+")
 
+        // ArtistSets' whitespace (Python's \s) spelled out, so the JVM, Android and iOS split a credit alike.
+        private const val WS = "[\\t\\n\\u000B\\f\\r\\u001C-\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+
         /** Word separators of a credit ("A x B", "A with B", "A feat. B"); ArtistSets.normalize drops the punctuation ones. */
-        private val WORD_SEPARATOR = Regex("(?i)\\s+(x|×|with|vs\\.?|and|feat\\.?|ft\\.?|featuring)\\s+")
+        private val WORD_SEPARATOR = Regex("(?i)$WS+(x|×|with|vs\\.?|and|feat\\.?|ft\\.?|featuring)$WS+")
+
+        /** ArtistSets' conditional separators and a spaced feat.: where a credit's lead artist ends ([leadKey]). */
+        private val LEAD_SEPARATOR = Regex(
+            "(?i)$WS*[,;，；、／＆&+×]$WS*|$WS+(?:with|vs\\.?|x)$WS+|$WS+[(\\[（［]?$WS*(?:feat\\.?|ft\\.?|featuring)$WS+",
+        )
 
         /** Every separator between a credit's artists, punctuation ones too. */
         private val CREDIT_SEPARATOR = Regex("(?i)\\s*[,;，；、／/＆&+×]\\s*|\\s+(x|with|vs\\.?|and|feat\\.?|ft\\.?|featuring)\\s+")

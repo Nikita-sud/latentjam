@@ -84,6 +84,52 @@ class ListenBrainzFixesTest {
         assertNull(matcher.id(row("Karan Aujla, Seshnolan", "Other Speech")))
     }
 
+    // ---- L7-2: only the listen's whole credit or its lead artist qualifies a track
+
+    @Test
+    fun aSecondArtistAGuestOrAPieceOfABandNameDoesNotQualifyATrack() {
+        fun refused(trackArtist: String, title: String, listenArtist: String) {
+            val matcher = ListenBrainzMatcher(listOf(track("t", trackArtist, title)))
+            assertNull(matcher.id(row(listenArtist, title)), "[$listenArtist] for [$trackArtist]")
+        }
+        refused("Drake", "Intro", "Future & Drake")
+        refused("Adele", "Hello", "Lionel Richie feat. Adele")
+        refused("Sebastian", "Intro", "Belle and Sebastian")
+        refused("Belle and Sebastian", "Intro", "Sebastian")
+        refused("Earth, Wind & Fire", "September", "Fire")
+        refused("Various Artists", "Intro", "Drake, Various Artists")
+        refused("Unknown Artist", "Track 01", "Somebody & Unknown Artist")
+        refused("X", "Hello", "Adele x X")
+        // The lead artist still qualifies.
+        assertEquals("j", ListenBrainzMatcher(listOf(track("j", "Drake", "Jumpman"))).id(row("Drake, Future", "Jumpman")))
+    }
+
+    // ---- L7-3: misses are remembered as hashes only
+
+    @Test
+    fun missingLookupsDoNotFillTheNameCaches() {
+        val matcher = ListenBrainzMatcher(listOf(track("s", "Band", "Song")))
+        assertEquals("s", matcher.id(row("Band", "Song")))
+        val found = matcher.rememberedLookups
+        for (i in 0 until 2_000) {
+            val missing = ListenBrainzRow(1_700_000_000, "Nobody $i", "Nothing $i", null, null, mappedArtist = "No One $i", mappedTitle = "None $i")
+            assertEquals(ListenBrainzMatcher.NONE, matcher.match(missing))
+            assertEquals(ListenBrainzMatcher.NONE, matcher.match(missing))
+        }
+        assertEquals(found, matcher.rememberedLookups)
+        assertEquals("s", matcher.id(row("Band", "Song")))
+    }
+
+    // ---- L7-5: only a "From" naming a film, a show or a quoted work is a suffix
+
+    @Test
+    fun aFromSuffixIsDroppedOnlyForAQuotedWorkOrAFilm() {
+        val matcher = ListenBrainzMatcher(listOf(track("l", "Band", "Letters"), track("g", "Idina Menzel", "Let It Go")))
+        assertNull(matcher.id(row("Band", "Letters - From Home")))
+        assertEquals("g", matcher.id(row("Idina Menzel", "Let It Go - From \"Frozen\"")))
+        assertEquals("g", matcher.id(row("Idina Menzel", "Let It Go - From the Motion Picture Frozen")))
+    }
+
     // ---- L2: another version is not this track
 
     @Test
@@ -101,6 +147,18 @@ class ListenBrainzFixesTest {
         assertEquals("x", matcher.id(row("Band", "Other Song (Live)")))
         assertEquals("x", matcher.id(row("Band", "Other Song - Live")))
         assertNull(matcher.id(row("Band", "Other Song")))
+    }
+
+    @Test
+    fun aMappedTitleKeepsTheSubmittedVersion() {
+        fun mapped(artist: String, title: String, mappedTitle: String) =
+            ListenBrainzRow(1_700_000_000, artist, title, null, null, mappedArtist = artist, mappedTitle = mappedTitle)
+        val studio = ListenBrainzMatcher(listOf(track("q", "Queen", "Somebody to Love"), track("s", "Band", "Song")))
+        assertNull(studio.id(mapped("Queen", "Somebody to Love - Live", "Somebody to Love")))
+        assertNull(studio.id(mapped("Band", "Song (DJ Remix)", "Song")))
+        assertEquals("s", studio.id(mapped("Band", "Song", "Song")))
+        val live = ListenBrainzMatcher(listOf(track("l", "Band", "Song (Live)")))
+        assertEquals("l", live.id(mapped("Band", "Song - Live", "Song")))
     }
 
     @Test
