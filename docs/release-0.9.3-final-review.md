@@ -163,3 +163,33 @@ player uses Media3's dynamic scheduling, so the renderer runs whenever it can ma
 overlapped 3 / 3 times, opening ready 1.6–2.3 s after the seek. A normal seam still overlaps on time;
 CrossfadeOverlapDeviceTest 9 / 9 on the emulator; host tests green; arm64 APK 36,969,048 bytes. A seek landing later
 than about 3 s before the opening can be ready still fades, by design.
+
+## Round 7–9: personalisation v6 / v6.1 and the ListenBrainz import fixes (bf0519af..043044ba)
+
+Two fresh attackers (P personal v6 / v6.1 / 1950c164; L the import fixes), two defenders, then fresh checks of the fix
+commits. Owner rule for the import: never the wrong song; missing a true match is acceptable.
+
+| id | finding | verdict | outcome |
+|---|---|---|---|
+| L7-1 | a MusicBrainz-mapped title drops "live" / a remix credit, so the version check passed a live or remix listen to the studio track | agreed | 57ba1fe2: mapped steps want the union of the submitted and mapped titles' marks |
+| L7-2 | the set lookup credited another artist's song on one shared piece ("Future & Drake" → Drake, "Lionel Richie feat. Adele" → Adele, "Belle and Sebastian" ↔ "Sebastian", placeholders, one-letter pieces) | agreed (narrower) | 57ba1fe2: only the listen's whole credit or its ArtistSets lead qualifies; placeholders and one-letter pieces dropped |
+| L7-3 | the new lookup cache kept every miss: 35.9 → 68.2 MB after 100k unique misses (JVM, 10k library) | agreed | 57ba1fe2: caches keep found results only; misses as a capped set of key hashes |
+| L7-5 | " - From Home" stripped as a soundtrack suffix | agreed | 57ba1fe2: only a quoted work or a film / series / musical / soundtrack |
+| L7-8 | `\s` differs between JVM, Android and Kotlin/Native in the credit splitters | agreed (narrower) | 57ba1fe2 and bf2386fb: ArtistSets' whitespace class spelled out |
+| R8-F1 | an unsplit band credit's first word credited another one-word artist ("Simon & Garfunkel" → "Simon", "Earth, Wind & Fire" → "Earth") | agreed | bf2386fb: that lead qualifies only with a close length (both known, within 3 s); "Karan Aujla, Seshnolan" with a length still matches, without one it is refused |
+| L7-4, L7-6, L7-7 | refusals of loose live / off-vocal titles; a phone clock > 10 min behind; doubles counted as already present | disputed: refusals intended, rare, accurate count | left |
+| P7-1 | PersonalModel.build peak heap 1.7–2.1× bf0519af at 100k listens (SessionBest's second map, `imported` kept after the merge, boxed DayClock lists) | agreed | 52c1d007: one map per session set, `imported` freed after the merge, DayClock build lists local; model digest equal on 10 builds; 100k listens ½ imported 201 → 145 MB, all imported 249 → 170 MB, local walk 113 → 57–65 MB (bf0519af 49–137 MB) |
+| P7-6 | stale comments (UTC days, "unclamped", a duplicated KDoc) | agreed | 52c1d007 |
+| P7-2 | past listens are bucketed by the current time zone, so travel can re-bucket tier days | narrower: PLAN L347 chooses the app's time zone | 0.9.4 (zone snapshot per build; a plan note) |
+| P7-3 | the A-day is the anchor's day, the evidence the follower's | disputed: PLAN defines the evidence time | owner, 0.9.4 |
+| P7-4, P7-5 | cluster guard recomputes the theme features per anchor; `localDay` 3–4× per listen (iOS NSDate each) | narrower (perf) | 0.9.4 |
+
+Checked clean by the attackers: Learn from my habits off is bit-identical to CORE; no history keeps the term off;
+outside M only a tier-2 positive jar within 3δ that passes the guard adds; SMART, For You, personal-changed and
+shuffle followers never age a habit; imports are never picks; the jar is monotone and NaN-free; DST uses the offset at
+each instant; sorts and keys are platform-stable; the dedupe window keeps real repeats; re-imports add nothing; no debug
+code and no UI text in the range.
+
+Checks at the final commit: core:smart and composeApp host tests green; `tools/ci/ios_verify.py` (all KMP modules on an
+arm64 simulator, PersonalGoldenTest 2 / 2 unchanged) green; arm64 release APK 36,985,432 bytes (+16 KB of v6 code),
+dex registers and native libraries checks pass. Final fresh check of the last commit: CLEAN.
