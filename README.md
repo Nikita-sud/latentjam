@@ -67,8 +67,8 @@ behind, so the newest features may not have arrived there yet. On iPhone, sidelo
   Old 32-bit phones need the `armv7` APK (about 44 MB). Open it on the phone, allow installing
   unknown apps and tap through Play Protect's warning. Requires **Android 7.0+**.
 - **[F-Droid](https://f-droid.org/packages/io.github.nikitasud.latentjam.kmp/)** builds LatentJam
-  from this source on its own schedule, so it can trail the newest release here; it ships one larger
-  APK for every processor type (64 MiB).
+  from this source on its own schedule, so it can trail the newest release here; it builds one APK
+  per processor type.
 - **iPhone IPA** — not on the App Store or TestFlight. The IPA (about 42 MB) is **unsigned**: install
   it with AltStore Classic, SideStore or Sideloadly, which re-sign it with your Apple ID; with a free
   Apple ID the install must be refreshed every 7 days. Requires **iOS 15.1+**. To get new versions in
