@@ -326,10 +326,8 @@ your library, you can fund its next release through
 whenever you like — or send a one-off donation through **[PayPal](https://paypal.me/NichitaBulgaru)**
 if you don't use GitHub.
 
-Sponsorship goes towards the maintainer's time on the parts nobody sees: the offline training data
-and the devices behind each release, and the release work that keeps F-Droid, the APKs and the
-iPhone build in step. Stars, issues and pull requests help just as much — see
-[Contributing](#contributing).
+If donations cover Apple's developer fee, LatentJam will come to the App Store. Stars, issues and
+pull requests help just as much — see [Contributing](#contributing).
 
 Thank you to everyone who already supports LatentJam — see [SUPPORTERS.md](SUPPORTERS.md).
 
