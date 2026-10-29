@@ -194,8 +194,9 @@ internal class PersonalChainTest {
         val back = background(30, now - 60 * day)
         val (_, gaps, _) = hopOne(term(back), back, now)
         val b = gaps.entries.filter { it.value in 0.05f..0.9f }.sortedWith(compareBy({ it.value }, { it.key.value })).first().key
+        // The press is within 14 days of the newest import (PLAN_PERSONAL v6.1 gate 8).
         val imports = (0 until 5).flatMap { k ->
-            val at = now - 40 * day + k * 2 * day
+            val at = now - 22 * day + k * 2 * day
             listOf(
                 PersonalListen(TrackId("${90 + k}"), at, null, true, false, PersonalStart.IMPORTED),
                 PersonalListen(TrackId("0"), at + 200_000L, null, true, false, PersonalStart.IMPORTED),

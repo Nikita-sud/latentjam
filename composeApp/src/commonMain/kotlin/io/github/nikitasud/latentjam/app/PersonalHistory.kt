@@ -10,6 +10,7 @@ import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.history.PickSurface
 import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.history.isImported
+import io.github.nikitasud.latentjam.history.localTimePoint
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.personal.PersonalListen
@@ -32,6 +33,8 @@ internal class PersonalModelCache(
     private val history: ListeningHistory,
     /** The track's artist keys, as SMART's chain reads them (multi-valued). */
     private val artistKeysOf: (TrackDescriptor) -> List<String>,
+    /** The listener's calendar day of a time: a habit's clock moves by the days A was played (PLAN_PERSONAL v6.1). */
+    private val localDay: (Long) -> Long = { localTimePoint(it).epochDay },
 ) {
     private val mutex = Mutex()
     private var stamp: List<Long>? = null
@@ -58,6 +61,7 @@ internal class PersonalModelCache(
                     PersonalModel.build(
                         events.sortedBy { it.startedAtMs }.map(::personalListen),
                         library.map { personalTrack(it, artistKeysOf(it)) },
+                        localDay,
                     )
                 }
             } catch (exhausted: Error) {

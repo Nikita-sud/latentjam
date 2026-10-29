@@ -24,11 +24,11 @@ class PersonalModelCacheTest {
         repeat(8) { listen(it * 1_000_000L) }
         var fits = false
         var builds = 0
-        val cache = PersonalModelCache(history) {
+        val cache = PersonalModelCache(history, artistKeysOf = {
             builds++
             if (!fits) throw OutOfMemoryError()
             listOf("artist")
-        }
+        })
 
         assertNull(cache.model(library), "a heap too small: CORE, not a dead app")
         val tried = builds
@@ -48,10 +48,10 @@ class PersonalModelCacheTest {
         suspend fun listen(at: Long) = history.record(ListenEvent(TrackId("a"), at, 200_000L, 200_000L, completed = true, skipped = false))
         repeat(8) { listen(it * 1_000_000L) }
         var fits = false
-        val cache = PersonalModelCache(history) {
+        val cache = PersonalModelCache(history, artistKeysOf = {
             if (!fits) throw OutOfMemoryError()
             listOf("artist")
-        }
+        })
         assertNull(cache.model(library))
 
         fits = true
@@ -78,7 +78,7 @@ class PersonalModelCacheTest {
     fun anErrorThatIsNotMemoryIsNotHidden() = runTest {
         val history = DefaultListeningHistory(MemoryHistoryStore())
         history.record(ListenEvent(TrackId("a"), 1L, 200_000L, 200_000L, completed = true, skipped = false))
-        val cache = PersonalModelCache(history) { throw AssertionError("a bug") }
+        val cache = PersonalModelCache(history, artistKeysOf = { throw AssertionError("a bug") })
         kotlin.test.assertFailsWith<AssertionError> {
             cache.model(listOf(TrackDescriptor(id = TrackId("a"), artist = "Artist", title = "a", durationMs = 200_000L)))
         }

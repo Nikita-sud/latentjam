@@ -175,7 +175,7 @@ internal class PersonalV6Test {
             val times = (0 until 1 + random.nextInt(25)).map { ref - random.nextLong(300 * day) }.sorted()
             val kinds = times.map { random.nextInt(3) }
             val grades = kinds.map { k -> if (k == Jar.REJECT) listOf(1.0, 0.5)[random.nextInt(2)] else listOf(1.0, 0.85, 0.7, 0.35, 0.25)[random.nextInt(5)] }
-            val steps = times.indices.map { Jar.Step(times[it], grades[it] * Jar.decay(times[it], ref), kinds[it]) }
+            val steps = times.indices.map { Jar.Step(times[it], grades[it] * decay120(times[it], ref), kinds[it]) }
             // The natural form: b ← clamp(b · 2^(−Δt / 120 d) ± g), then decayed to the reference.
             var b = 0.0
             var own = 0.0
@@ -199,7 +199,7 @@ internal class PersonalV6Test {
                 b = b.coerceIn(-1.8, 6.0)
             }
             b *= 2.0.pow(-(ref - last) / half)
-            assertEquals(b, Jar.fold(steps, ref), 1e-9)
+            assertEquals(b, Jar.fold(steps) { decay120(it, ref) }, 1e-9)
         }
     }
 
@@ -211,9 +211,9 @@ internal class PersonalV6Test {
             val steps = (0 until 12).map {
                 val at = ref - random.nextLong(200 * day)
                 val kind = random.nextInt(3)
-                Jar.Step(at, (if (kind == Jar.REJECT) 1.0 else 0.85) * Jar.decay(at, ref), kind)
+                Jar.Step(at, (if (kind == Jar.REJECT) 1.0 else 0.85) * decay120(at, ref), kind)
             }
-            Jar.fold(steps, ref)
+            Jar.fold(steps) { decay120(it, ref) }
         }
         if (GOLDEN_JAR.isEmpty()) {
             println("GOLDEN_JAR = doubleArrayOf(" + got.joinToString(", ") + ")")
@@ -466,6 +466,9 @@ internal class PersonalV6Test {
         }
         println("v6: after 4 rejections B's pick-1 shares $shares over ${shares.size} B reaching 4 rejections")
     }
+
+    /** A fixed 120-day calendar decay: the fold is the same whatever clock supplies its factors. */
+    private fun decay120(at: Long, ref: Long): Double = 0.5.pow((ref - at).coerceAtLeast(0L).toDouble() / (120.0 * day))
 
     private companion object {
         val GOLDEN_JAR: DoubleArray = doubleArrayOf(

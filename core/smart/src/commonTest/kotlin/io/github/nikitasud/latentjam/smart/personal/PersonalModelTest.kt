@@ -117,7 +117,8 @@ internal class PersonalModelTest {
 
     @Test
     fun `E4 a skip run is one rejection and a sub-2-second skip is ignored and SMART placement does not matter`() {
-        val log = Log(t0)
+        // Both sessions on one calendar day (UTC 20:13 and 21:13): no A-day of the clock lies between them.
+        val log = Log(t0 - 3 * 3_600_000L)
         repeat(2) {
             log.session().play(0, PersonalStart.PICK).play(1, PersonalStart.AUTO, skippedAfterMs = 5_000L, smart = true)
                 .play(2, PersonalStart.SKIP_NEXT, skippedAfterMs = 4_000L).play(3, PersonalStart.PICK)
@@ -126,7 +127,7 @@ internal class PersonalModelTest {
         assertEquals(1f, m.rejection(m.s(0), m.s(1)), tol)
         assertEquals(0f, m.rejection(m.s(0), m.s(2)), "the run is one rejection")
         assertEquals(2 * 0.85f, m.pos(0, 3), tol)
-        val late = Log(t0)
+        val late = Log(t0 - 3 * 3_600_000L)
         repeat(2) { k -> late.session().play(0, PersonalStart.PICK).play(1, PersonalStart.AUTO, skippedAfterMs = if (k == 0) 5_000L else 20_000L).play(3, PersonalStart.PICK) }
         val lm = model(late)
         assertEquals(0.75f, lm.rejection(lm.s(0), lm.s(1)), tol)
@@ -248,10 +249,10 @@ internal class PersonalModelTest {
     }
 
     @Test
-    fun `decay halves at 120 days from each source's newest event`() {
+    fun `an untouched habit halves in 730 calendar days from each source's newest event`() {
         val log = Log(t0)
         repeat(2) { log.session().play(0, PersonalStart.PICK).play(1, PersonalStart.PICK) }
-        log.clock += 120 * day
+        log.clock += 730 * day
         log.play(30, PersonalStart.PICK)
         assertEquals(0.85f, model(log).pos(0, 1), tol)
         val listens = ArrayList<PersonalListen>()

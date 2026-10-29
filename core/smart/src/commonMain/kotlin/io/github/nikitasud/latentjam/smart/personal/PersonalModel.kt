@@ -294,6 +294,14 @@ public class PersonalModel internal constructor(
         public const val JAR_MIN: Float = -1.8f
         public const val JAR_MAX: Float = 6f
         public const val TIER2_DAYS: Int = 2
+        // PLAN_PERSONAL v6.1, frozen before the v6.1 tests: the weighted A-day clock.
+        /** Weighted A-days per halving: a day the listener picked something else after A moves the clock 1 / 20. */
+        public const val CLOCK_A_DAYS: Double = 20.0
+        /** Calendar days per halving: an untouched habit halves in two years. */
+        public const val CLOCK_CALENDAR_DAYS: Double = 730.0
+        public const val FOLLOW_PICK: Double = 1.0
+        public const val FOLLOW_CONTINUATION: Double = 0.25
+        public const val FOLLOW_IMPORT: Double = 0.4
         internal const val DAY_MS: Long = DAY_MS_CONST
         private val NO_ARTISTS = IntArray(0)
 
@@ -321,8 +329,11 @@ public class PersonalModel internal constructor(
         }
 
         /** Builds the model from [listens] (oldest first) over [library]; listens of tracks outside it are skipped. */
-        public fun build(listens: List<PersonalListen>, library: List<PersonalTrack>): PersonalModel =
-            PersonalBuilder(listens, library).build()
+        public fun build(listens: List<PersonalListen>, library: List<PersonalTrack>, localDay: (Long) -> Long = ::utcDay): PersonalModel =
+            PersonalBuilder(listens, library, localDay).build()
+
+        /** The UTC calendar day of [ms]: the default A-day clock's day when no timezone is given (tests). */
+        public fun utcDay(ms: Long): Long = floorDiv(ms, DAY_MS)
     }
 }
 
@@ -415,7 +426,11 @@ private class PairAcc {
     var squaresSmart = 0.0
 }
 
-private class PersonalBuilder(private val listens: List<PersonalListen>, private val library: List<PersonalTrack>) {
+private class PersonalBuilder(
+    private val listens: List<PersonalListen>,
+    private val library: List<PersonalTrack>,
+    private val localDay: (Long) -> Long,
+) {
     private val byId = LinkedHashMap<TrackId, PersonalTrack>(library.size * 2)
     private val songOfTrack = LinkedHashMap<TrackId, Int>(library.size * 2)
     private val artistsOfTrack = LinkedHashMap<TrackId, IntArray>(library.size * 2)
@@ -424,6 +439,8 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
     private var artistCount = 0
     private var deviceRef = 0L
     private var importRef = 0L
+    private lateinit var deviceClock: DayClock
+    private lateinit var importClock: DayClock
 
     private fun key(a: Int, b: Int) = (a.toLong() shl 32) or (b.toLong() and 0xffffffffL)
 
@@ -459,10 +476,15 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
         val imported = known.filter { it.start == PersonalStart.IMPORTED }
         deviceRef = device.maxOfOrNull { it.startedAtMs } ?: 0L
         importRef = imported.maxOfOrNull { it.startedAtMs } ?: 0L
+        // E7 early skips and affinity keep the calendar decay; pair evidence decays on its anchor's A-day clock (v6.1).
         fun decay(at: Long, ref: Long) = 0.5.pow((ref - at).coerceAtLeast(0L).toDouble() / PersonalModel.HALF_LIFE_MS)
         fun song(l: PersonalListen) = songOfTrack.getValue(l.trackId)
+        deviceClock = DayClock(localDay, deviceRef)
+        importClock = DayClock(localDay, importRef)
 
-        // On-device listens: sessions by end-to-start gaps, transitions within 15 minutes of the anchor's end.
+        // On-device listens: sessions by end-to-start gaps, transitions within 15 minutes of the anchor's end. The walk runs
+        // twice: first it reads every anchor's A-days (what followed A, day by day), then it adds the evidence on that clock.
+        for (clockPass in listOf(true, false)) {
         var session = 0L
         var sessionDay = 0L
         var lastEnd = Long.MIN_VALUE
@@ -485,12 +507,14 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
             val follows = a != null && l.startedAtMs - anchorEnd <= PersonalModel.TRANSITION_GAP_MS && song(a) != song(l)
             if (l.skipped) {
                 if (heard < PersonalModel.ACCIDENTAL_SKIP_MS) continue
-                skips[song(l)] += w.toFloat()
-                // E4: the first skip after the anchor is the run's one rejection, from any source.
-                if (!rejectedRun && follows) {
-                    val grade = if (heard < PersonalModel.EARLY_SKIP_MS) PersonalModel.SKIP_EARLY else PersonalModel.SKIP_LATE
-                    val p = pair(a!!.trackId, l.trackId)
-                    p.rejected.best(session, grade * w, l.startedAtMs)
+                if (!clockPass) {
+                    skips[song(l)] += w.toFloat()
+                    // E4: the first skip after the anchor is the run's one rejection, from any source.
+                    if (!rejectedRun && follows) {
+                        val grade = if (heard < PersonalModel.EARLY_SKIP_MS) PersonalModel.SKIP_EARLY else PersonalModel.SKIP_LATE
+                        val p = pair(a!!.trackId, l.trackId)
+                        p.rejected.best(session, grade * deviceClock.factor(song(a), song(l), l.startedAtMs), l.startedAtMs)
+                    }
                 }
                 rejectedRun = true
                 continue
@@ -498,15 +522,25 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
             autoStreak = if (l.start == PersonalStart.AUTO) autoStreak + 1 else 0
             // A repeat, a return to the song, or the song again right after itself: affinity for the song, no transition.
             val again = a != null && l.startedAtMs - anchorEnd <= PersonalModel.TRANSITION_GAP_MS && song(a) == song(l)
-            if (l.start == PersonalStart.REPEAT || l.start == PersonalStart.SKIP_PREVIOUS || again) liked(song(l), session, w)
-            // An accepted pick the personal term made is no evidence (v6): the habit must not feed itself.
-            if (l.start != PersonalStart.REPEAT && l.start != PersonalStart.SKIP_PREVIOUS && follows && !l.personalChanged) {
-                val grade = deviceGrade(a!!, l, afterRejection = rejectedRun, autoStreak)
-                if (grade > 0.0) add(a.trackId, l.trackId, session, grade * w, l.smartSourced, imported = false, l.startedAtMs, sessionDay)
+            val transition = l.start != PersonalStart.REPEAT && l.start != PersonalStart.SKIP_PREVIOUS && follows
+            if (clockPass) {
+                if (transition) deviceClock.follow(song(a!!), a.startedAtMs, song(l), followClass(l))
+            } else {
+                if (l.start == PersonalStart.REPEAT || l.start == PersonalStart.SKIP_PREVIOUS || again) liked(song(l), session, w)
+                // An accepted pick the personal term made is no evidence (v6): the habit must not feed itself.
+                if (transition && !l.personalChanged) {
+                    val grade = deviceGrade(a!!, l, afterRejection = rejectedRun, autoStreak)
+                    if (grade > 0.0) {
+                        val value = grade * deviceClock.factor(song(a), song(l), l.startedAtMs)
+                        add(a.trackId, l.trackId, session, value, l.smartSourced, imported = false, l.startedAtMs, sessionDay)
+                    }
+                }
             }
             anchor = l
             anchorEnd = l.startedAtMs + heard
             rejectedRun = false
+        }
+        if (clockPass) deviceClock.finish()
         }
 
         // Imports: sessions by end-to-start gaps; a replayed 3-gram is one session (its own id).
@@ -530,6 +564,24 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
             for (i in 2 until run.size) seen += Triple(song(run[i - 2]), song(run[i - 1]), song(run[i]))
             for (g in seen) gramRuns[g] = (gramRuns[g] ?: 0) + 1
         }
+        // The import clock: what followed each imported A, day by day (an album's next track is a continuation; the last
+        // track of a run is an end, so it moves nothing).
+        for (run in runs) {
+            var end = Long.MIN_VALUE
+            for (i in run.indices) {
+                val b = run[i]
+                if (i > 0) {
+                    val a = run[i - 1]
+                    if (b.startedAtMs - end <= PersonalModel.TRANSITION_GAP_MS && song(a) != song(b)) {
+                        val next = albumNext(byId.getValue(a.trackId), byId.getValue(b.trackId))
+                        importClock.follow(song(a), a.startedAtMs, song(b),
+                            if (next) PersonalModel.FOLLOW_CONTINUATION else PersonalModel.FOLLOW_IMPORT)
+                    }
+                }
+                end = b.startedAtMs + (byId.getValue(b.trackId).durationMs ?: DEFAULT_DURATION_MS)
+            }
+        }
+        importClock.finish()
         for ((r, run) in runs.withIndex()) {
             var end = Long.MIN_VALUE
             for (i in run.indices) {
@@ -545,7 +597,7 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
                         if (gram != null) grade *= PersonalModel.REPLAY_FACTOR
                         // A replayed sequence is one session however often it played: the 3-gram's own id.
                         val sessionId = if (gram != null) GRAM_SESSION_BASE + gramId(gram) else IMPORT_SESSION_BASE + r
-                        add(a.trackId, b.trackId, sessionId, grade * decay(b.startedAtMs, importRef), smart = false, imported = true,
+                        add(a.trackId, b.trackId, sessionId, grade * importClock.factor(song(a), song(b), b.startedAtMs), smart = false, imported = true,
                             b.startedAtMs, dayOf(run[0].startedAtMs))
                     }
                 }
@@ -574,6 +626,18 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
     }
 
     private fun dayOf(ms: Long): Long = floorDiv(ms, PersonalModel.DAY_MS)
+
+    /**
+     * How far a device follower of A moves A's clock for every other B (PLAN_PERSONAL v6.1): the listener's own pick 1;
+     * an album, playlist or queue continuation 0.25; shuffle, SMART, For You and the personal term's picks 0.
+     */
+    private fun followClass(l: PersonalListen): Double = when {
+        l.smartSourced || l.forYou || l.personalChanged || l.surface == PersonalSurface.FOR_YOU -> 0.0
+        l.start == PersonalStart.PICK -> PersonalModel.FOLLOW_PICK
+        l.start == PersonalStart.QUEUED || l.start == PersonalStart.SKIP_NEXT -> PersonalModel.FOLLOW_CONTINUATION
+        (l.start == PersonalStart.AUTO || l.start == PersonalStart.UNKNOWN) && l.shuffleOff -> PersonalModel.FOLLOW_CONTINUATION
+        else -> 0.0
+    }
 
     /** A 3-gram's stable id (no platform hash). */
     private fun gramId(g: Triple<Int, Int, Int>): Long = ((g.first.toLong() * 1_000_003L + g.second) * 1_000_003L + g.third) and 0xffffffffffL
@@ -637,14 +701,16 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
      * The jar b(A → B) (PLAN_PERSONAL v6): the device sessions folded in time order, decayed to the device's newest event,
      * plus the imported sessions folded alone (positives under the per-anchor cap), decayed to the import's newest.
      */
-    private fun jarOf(p: PairAcc): Double {
+    private fun jarOf(k: Long, p: PairAcc): Double {
+        val a = (k ushr 32).toInt()
+        val bSong = (k and 0xffffffffL).toInt()
         val steps = ArrayList<Jar.Step>()
         p.own.forEachAt { session, v, at -> if (session < IMPORT_SESSION_BASE) steps += Jar.Step(at, v, Jar.OWN) }
         p.smart.forEachAt { _, v, at -> steps += Jar.Step(at, v, Jar.SMART) }
         p.rejected.forEachAt { _, v, at -> steps += Jar.Step(at, v, Jar.REJECT) }
         val imports = ArrayList<Jar.Step>()
         p.imported.forEachAt { _, v, at -> imports += Jar.Step(at, v * p.importScale, Jar.OWN) }
-        val b = Jar.fold(steps, deviceRef) + Jar.fold(imports, importRef)
+        val b = Jar.fold(steps) { deviceClock.factor(a, bSong, it) } + Jar.fold(imports) { importClock.factor(a, bSong, it) }
         return b.coerceIn(Jar.LOW, Jar.HIGH)
     }
 
@@ -684,11 +750,15 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
         }
         val start = IntArray(songs + 1)
         val kept = ArrayList<Pair<Int, PairAcc>>()
+        val keptKeys = ArrayList<Long>()
         for (a in 0 until songs) {
             start[a] = kept.size
             val list = bySource[a] ?: continue
             list.sortWith(compareByDescending<Pair<Int, PairAcc>> { positive(it.second) + it.second.rejected.sum() }.thenBy { it.first })
-            kept += list.take(PersonalModel.TOP_PER_SONG).sortedBy { it.first }
+            for (link in list.take(PersonalModel.TOP_PER_SONG).sortedBy { it.first }) {
+                kept += link
+                keptKeys += key(a, link.first)
+            }
         }
         start[songs] = kept.size
         val artistBySource = LinkedHashMap<Int, ArrayList<Pair<Int, PairAcc>>>()
@@ -726,7 +796,7 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
             edgeSessions = ByteArray(kept.size) { kept[it].second.own.size.coerceAtMost(255).toByte() },
             edgeNegative = ShortArray(kept.size) { half(kept[it].second.rejected.sum().toFloat()) },
             edgeNegativeSessions = ByteArray(kept.size) { kept[it].second.rejected.size.coerceAtMost(255).toByte() },
-            edgeJar = ShortArray(kept.size) { half(jarOf(kept[it].second).toFloat()) },
+            edgeJar = ShortArray(kept.size) { half(jarOf(keptKeys[it], kept[it].second).toFloat()) },
             edgeDays = ByteArray(kept.size) { kept[it].second.days.size.coerceAtMost(255).toByte() },
             edgeWeight = ShortArray(kept.size) { half(weightOf(kept[it].second).toFloat()) },
             outWeight = out,
@@ -754,9 +824,9 @@ private class PersonalBuilder(private val listens: List<PersonalListen>, private
 private fun floorDiv(a: Long, b: Long): Long = if (a >= 0) a / b else -((-a + b - 1) / b)
 
 /**
- * The jar (PLAN_PERSONAL v6): b(A → B) as a time-ordered fold of the pair's sessions. In the natural form each step is
- * b ← clamp(b · 2^(−Δt / 120 d) ± g, −1.8, 6); here every value is already decayed to the reference, so the same fold is
- * B ← clamp(B ± V, −1.8 w, 6 w) with w the step's own decay. A SMART positive adds at most a quarter of the own
+ * The jar (PLAN_PERSONAL v6, v6.1): b(A → B) as a time-ordered fold of the pair's sessions. In the natural form each step is
+ * b ← clamp(b · 2^(−Δc) ± g, −1.8, 6) on the pair's clock c; here every value is already decayed to the reference, so the
+ * same fold is B ← clamp(B ± V, −1.8 w, 6 w) with w the step's own decay to the reference. A SMART positive adds at most a quarter of the own
  * positives so far minus SMART's so far (causal), and rejections are held until the pair's second rejection session.
  */
 internal object Jar {
@@ -770,8 +840,8 @@ internal object Jar {
     /** One session's contribution: [value] is its grade decayed to the reference, [atMs] when the session first showed it. */
     class Step(val atMs: Long, val value: Double, val kind: Int)
 
-    /** The fold of [steps] (any order; sorted by time here), decayed to [refMs]; unclamped across sources. */
-    fun fold(steps: List<Step>, refMs: Long): Double {
+    /** The fold of [steps] (any order; sorted by time here); [decay] is a time's factor to the reference. Unclamped across sources. */
+    fun fold(steps: List<Step>, decay: (Long) -> Double): Double {
         if (steps.isEmpty()) return 0.0
         val ordered = steps.sortedWith(compareBy<Step> { it.atMs }.thenBy { it.kind })
         val low = LOW
@@ -782,7 +852,7 @@ internal object Jar {
         var rejections = 0
         var held = 0.0
         for (step in ordered) {
-            val w = decay(step.atMs, refMs)
+            val w = decay(step.atMs)
             when (step.kind) {
                 OWN -> {
                     own += step.value
@@ -807,10 +877,107 @@ internal object Jar {
         }
         return b
     }
+}
 
-    /** 2^(−age / 120 d), as the store decays every value. */
-    fun decay(atMs: Long, refMs: Long): Double =
-        0.5.pow((refMs - atMs).coerceAtLeast(0L).toDouble() / PersonalModel.HALF_LIFE_MS)
+/**
+ * One source's A-day clocks (PLAN_PERSONAL v6.1). Per anchor A and pair A → B the clock reads
+ * c(t) = elapsed calendar days / 730 + Σ over A's local days up to t of w_d(B) / 20, where w_d(B) is the strongest class
+ * among that day's followers of A other than B. Evidence for A → B decays from t to the reference [refMs] (the source's
+ * newest event) by 2^(−(c(ref) − c(t))): a habit fades on the days the listener plays A and goes elsewhere, and only slowly
+ * with the calendar. [follow] is called in time order; [finish] before any [factor].
+ */
+internal class DayClock(private val localDay: (Long) -> Long, private val refMs: Long) {
+    private class Anchor {
+        val days = ArrayList<Long>()
+        val best = ArrayList<Double>()
+        val bestSong = ArrayList<Int>()
+        val second = ArrayList<Double>()
+        var openDay = Long.MIN_VALUE
+        val open = LinkedHashMap<Int, Double>()
+        var prefix = DoubleArray(0)
+        /** Per follower song: the day positions where it was the strongest, and the cumulative (best − second) there. */
+        val corrections = LinkedHashMap<Int, Pair<IntArray, DoubleArray>>()
+
+        fun close() {
+            if (open.isEmpty()) return
+            var top = -1
+            var topWeight = 0.0
+            for ((song, w) in open) if (w > topWeight) { top = song; topWeight = w }
+            var other = 0.0
+            for ((song, w) in open) if (song != top && w > other) other = w
+            days += openDay
+            best += topWeight
+            bestSong += top
+            second += other
+            open.clear()
+        }
+    }
+
+    private val anchors = LinkedHashMap<Int, Anchor>()
+
+    /** A day's follower [follower] of [anchor] heard at [atMs] (the anchor's start), with its class [weight]. */
+    fun follow(anchor: Int, atMs: Long, follower: Int, weight: Double) {
+        if (weight <= 0.0) return
+        val a = anchors.getOrPut(anchor) { Anchor() }
+        val day = localDay(atMs)
+        if (day != a.openDay) {
+            a.close()
+            a.openDay = day
+        }
+        a.open[follower] = max(a.open[follower] ?: 0.0, weight)
+    }
+
+    fun finish() {
+        for (a in anchors.values) {
+            a.close()
+            a.prefix = DoubleArray(a.days.size + 1)
+            for (i in a.days.indices) a.prefix[i + 1] = a.prefix[i] + a.best[i]
+            val at = LinkedHashMap<Int, ArrayList<Int>>()
+            for (i in a.days.indices) if (a.second[i] < a.best[i]) at.getOrPut(a.bestSong[i]) { ArrayList() } += i
+            for ((song, positions) in at) {
+                val cumulative = DoubleArray(positions.size)
+                var sum = 0.0
+                positions.forEachIndexed { j, i -> sum += a.best[i] - a.second[i]; cumulative[j] = sum }
+                a.corrections[song] = positions.toIntArray() to cumulative
+            }
+        }
+    }
+
+    /** 2^(−(c(ref) − c(t))) for A → B: the factor evidence of the pair heard at [atMs] keeps at the reference. */
+    fun factor(anchor: Int, b: Int, atMs: Long): Double {
+        var delta = (refMs - atMs).coerceAtLeast(0L).toDouble() / (PersonalModel.CLOCK_CALENDAR_DAYS * PersonalModel.DAY_MS)
+        val a = anchors[anchor]
+        if (a != null && a.days.isNotEmpty()) {
+            // A-days up to and including the day of [atMs] are already behind it; the rest lie between it and the reference.
+            val k = upperBound(a.days, localDay(atMs))
+            val total = a.prefix[a.days.size] - correction(a, b, a.days.size)
+            val before = a.prefix[k] - correction(a, b, k)
+            delta += (total - before) / PersonalModel.CLOCK_A_DAYS
+        }
+        return 0.5.pow(delta)
+    }
+
+    /** The part of A's first [k] day weights that came from [b] itself (B is no "elsewhere" for its own pair). */
+    private fun correction(a: Anchor, b: Int, k: Int): Double {
+        val (positions, cumulative) = a.corrections[b] ?: return 0.0
+        var low = 0
+        var high = positions.size
+        while (low < high) {
+            val mid = (low + high) ushr 1
+            if (positions[mid] < k) low = mid + 1 else high = mid
+        }
+        return if (low == 0) 0.0 else cumulative[low - 1]
+    }
+
+    private fun upperBound(days: List<Long>, day: Long): Int {
+        var low = 0
+        var high = days.size
+        while (low < high) {
+            val mid = (low + high) ushr 1
+            if (days[mid] <= day) low = mid + 1 else high = mid
+        }
+        return low
+    }
 }
 
 /** On-device album order, or an import's: the same release, the next track (a disc's first after the previous disc). */
