@@ -140,3 +140,11 @@ library: Off fills a 10-track plan; 0.25 / 0.5 / 1 / 2 stop at 6). Stand (FMA, 1
 Off vs default: pop-mix top artist 34 % vs 15 %, dance-pop 36 % vs 14 %, ambient-chill 40 % vs 15 %,
 classical-instrumental 47 % vs 14 %; queues with more than 6 songs by one artist 43 / 48 vs 0 / 48. Host tests, iOS
 simulator tests and the iOS app compile pass; arm64 release APK 36,969,048 bytes (unchanged).
+
+## Artist variety row layout (owner report)
+
+Moving the slider changed the value text's width, so the title and description re-wrapped and the slider jumped
+(RU before the fix: the slider moved by up to 176 px between levels). The value now sits in a box as wide as the
+longest level name in the current locale and font size (hidden copies, excluded from accessibility). Checked on
+LJ-api30 with the release APK: EN, RU, DE and UK at font scale 1.0 and 1.3, every level, title, description and slider
+bounds identical. Queue length uses fixed chips with no changing value text, so it has no such jump. No string changed.
