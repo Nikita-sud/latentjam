@@ -6,6 +6,7 @@ import com.android.build.api.artifact.SingleArtifact
 import java.io.ByteArrayOutputStream
 import java.security.MessageDigest
 import java.util.Properties
+import java.util.zip.ZipFile
 import javax.inject.Inject
 import org.gradle.process.ExecOperations
 import org.gradle.work.DisableCachingByDefault
@@ -180,6 +181,31 @@ val supportedDeviceAbis = setOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
 // -Platentjam.stockOrt=true asked for the full runtime. Plain values, read now (configuration cache).
 val reducedOrtLibrarySha256: String = gradle.extensions.extraProperties["latentjam.reducedOrtLibrarySha256"] as String
 val stockOrtRequested: Boolean = gradle.extensions.extraProperties["latentjam.stockOrt"] as Boolean
+// The reduced runtime's AAR carries ARM64 only (tools/runtime/ort_source_build.sh). A release that uses it takes every
+// other ABI it packages from Maven Central's onnxruntime-android, the same dependency debug builds use: resolved by
+// Gradle, checked against tools/runtime/onnxruntime-android-<version>.aar.sha256 and never kept in the source tree.
+// An F-Droid entry for arm64-v8a skips this task and packages none of it.
+val reducedOrtAbis: Set<String> = (gradle.extensions.extraProperties["latentjam.reducedOrtAbis"] as String)
+    .split(',').filter(String::isNotEmpty).toSet()
+val stockOrtAbis: List<String> = if (reducedOrtAbis.isEmpty()) emptyList()
+    else (fdroidAbi?.let(::listOf) ?: listOf("armeabi-v7a", "x86", "x86_64")).filterNot { it in reducedOrtAbis }
+val ortVersion: String = libs.versions.onnxruntime.get()
+val stockOrtJniLibs: TaskProvider<StockOrtJniLibs>? = if (stockOrtAbis.isEmpty()) null
+    else tasks.register<StockOrtJniLibs>("stockOrtJniLibs") {
+        description = "Extracts the non-ARM64 ONNX Runtime libraries of Maven Central's AAR for release builds."
+        aar.from(
+            configurations.detachedConfiguration(
+                dependencies.create("com.microsoft.onnxruntime:onnxruntime-android:$ortVersion@aar"),
+            ),
+        )
+        expectedSha256.set(
+            providers.fileContents(
+                rootProject.layout.projectDirectory.file("tools/runtime/onnxruntime-android-$ortVersion.aar.sha256"),
+            ).asText.map(String::trim),
+        )
+        abis.set(stockOrtAbis)
+        outputDirectory.set(layout.buildDirectory.dir("generated/stockOrtJniLibs"))
+    }
 // A plain list, read now: a provider lambda would capture this script, which the configuration cache
 // cannot store, and every release build would then fail.
 val deviceAbis: List<String> = providers.gradleProperty("android.injected.build.abi").orNull
@@ -195,13 +221,15 @@ androidComponents {
             group = LifecycleBasePlugin.VERIFICATION_GROUP
             description = "Fails when an ABI of this build lacks LatentJam's native libraries."
             nativeLibraries.set(variant.artifacts.get(SingleArtifact.MERGED_NATIVE_LIBS))
-            requestedAbis.set(deviceAbis)
+            // An F-Droid entry packages only its ABI; the merged libraries may hold others (stockOrtJniLibs skips them).
+            requestedAbis.set(deviceAbis.ifEmpty { listOfNotNull(fdroidAbi) })
         }
         tasks.named { it == "assemble$variantName" || it == "bundle$variantName" }
             .configureEach { dependsOn(verify) }
         // Every release channel ships the reduced ARM64 ONNX Runtime (settings.gradle.kts), unless one asks for the
         // full one: an ARM64 libonnxruntime.so that is not the reduced runtime's fails the build.
         if (variant.buildType == "release") {
+            stockOrtJniLibs?.let { variant.sources.jniLibs?.addGeneratedSourceDirectory(it, StockOrtJniLibs::outputDirectory) }
             val ort = tasks.register<CheckReleaseOnnxRuntime>("check${variantName}OnnxRuntime") {
                 group = LifecycleBasePlugin.VERIFICATION_GROUP
                 description = "Fails when this release packages a full ARM64 ONNX Runtime instead of the reduced one."
@@ -319,6 +347,48 @@ abstract class CheckReleaseOnnxRuntime : DefaultTask() {
         val actual = MessageDigest.getInstance("SHA-256").digest(library.readBytes())
             .joinToString("") { "%02x".format(it) }
         if (actual != expected) throw GradleException("The packaged ARM64 libonnxruntime.so is not the reduced runtime's")
+    }
+}
+
+/**
+ * The non-ARM64 libraries of Maven Central's onnxruntime-android AAR ([aar], checked against [expectedSha256]) for
+ * [abis], laid out as a jniLibs directory: what a release with the ARM64-only reduced runtime packages for those ABIs.
+ */
+@DisableCachingByDefault(because = "Unzipping a few libraries is as quick as a cache lookup")
+abstract class StockOrtJniLibs : DefaultTask() {
+
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val aar: ConfigurableFileCollection
+
+    @get:Input
+    abstract val expectedSha256: Property<String>
+
+    @get:Input
+    abstract val abis: ListProperty<String>
+
+    @get:OutputDirectory
+    abstract val outputDirectory: DirectoryProperty
+
+    @TaskAction
+    fun extract() {
+        val file = aar.singleFile
+        val actual = MessageDigest.getInstance("SHA-256").digest(file.readBytes()).joinToString("") { "%02x".format(it) }
+        if (actual != expectedSha256.get()) throw GradleException("$file is not Maven Central's onnxruntime-android AAR")
+        val output = outputDirectory.get().asFile
+        output.deleteRecursively()
+        val wanted = abis.get().toSet()
+        ZipFile(file).use { zip ->
+            for (entry in zip.entries().asSequence()) {
+                val parts = entry.name.split('/')
+                if (parts.size != 3 || parts[0] != "jni" || parts[1] !in wanted || !parts[2].endsWith(".so")) continue
+                val target = output.resolve("${parts[1]}/${parts[2]}")
+                target.parentFile.mkdirs()
+                zip.getInputStream(entry).use { input -> target.outputStream().use(input::copyTo) }
+            }
+        }
+        val missing = wanted.filterNot { output.resolve("$it/libonnxruntime.so").isFile }
+        if (missing.isNotEmpty()) throw GradleException("$file has no ONNX Runtime for $missing")
     }
 }
 

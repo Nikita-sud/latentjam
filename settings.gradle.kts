@@ -38,9 +38,10 @@ dependencyResolutionManagement {
 // The reduced ARM64 ONNX Runtime (tools/runtime/README.md, "Every channel"): release builds take it from the local
 // Maven repository tools/runtime/ort_source_build.sh writes (build/reduced-ort/maven unless latentjam.reducedOrtRepo
 // says otherwise), after checking that it was built for exactly the shipped models, the committed operator list and
-// the app's ORT version. Debug and test builds keep Maven Central's full runtime, whose outputs the reduced one
-// matches bitwise (the parity probe). androidApp's checkReleaseOnnxRuntime fails a release that would package the
-// full ARM64 runtime, unless -Platentjam.stockOrt=true asks for it.
+// the app's ORT version. That AAR holds only ARM64; androidApp's stockOrtJniLibs adds the other ABIs from Maven
+// Central's runtime. Debug and test builds keep Maven Central's full runtime, whose outputs the reduced one matches
+// bitwise (the parity probe). androidApp's checkReleaseOnnxRuntime fails a release that would package the full ARM64
+// runtime, unless -Platentjam.stockOrt=true asks for it.
 val stockOrt = providers.gradleProperty("latentjam.stockOrt").orNull == "true"
 val reducedOrtRepo: File = (providers.gradleProperty("latentjam.reducedOrtRepo").orNull ?: "build/reduced-ort/maven")
     .let { File(it).takeIf(File::isAbsolute) ?: File(settingsDir, it) }
@@ -73,10 +74,13 @@ val reducedOrt: Map<String, String>? = run {
     if (!aar.isFile || sha256(aar.readBytes()) != manifest["candidate_aar_sha256"]) {
         throw GradleException("$reducedOrtRepo: the AAR is missing or differs from its manifest")
     }
-    val library = java.util.zip.ZipFile(aar).use { zip ->
-        zip.getEntry("jni/arm64-v8a/libonnxruntime.so")?.let { zip.getInputStream(it).readBytes() }
-    } ?: throw GradleException("$reducedOrtRepo: the AAR has no ARM64 runtime")
-    mapOf("stock" to stockVersion!!, "candidate" to version, "librarySha256" to sha256(library))
+    val (library, abis) = java.util.zip.ZipFile(aar).use { zip ->
+        val abis = zip.entries().asSequence().map { it.name }.filter { it.startsWith("jni/") && it.endsWith(".so") }
+            .map { it.split('/')[1] }.toSortedSet().joinToString(",")
+        zip.getEntry("jni/arm64-v8a/libonnxruntime.so")?.let { zip.getInputStream(it).readBytes() } to abis
+    }
+    library ?: throw GradleException("$reducedOrtRepo: the AAR has no ARM64 runtime")
+    mapOf("stock" to stockVersion!!, "candidate" to version, "librarySha256" to sha256(library), "abis" to abis)
 }
 if (reducedOrt != null) {
     dependencyResolutionManagement.repositories.maven {
@@ -96,6 +100,8 @@ if (reducedOrt != null) {
 }
 // Read by androidApp's checkReleaseOnnxRuntime: the reduced runtime's ARM64 library hash, empty when none is in use.
 gradle.extensions.extraProperties["latentjam.reducedOrtLibrarySha256"] = reducedOrt?.get("librarySha256").orEmpty()
+// Read by androidApp's stockOrtJniLibs: the ABIs the reduced AAR itself carries (arm64-v8a), empty when none is in use.
+gradle.extensions.extraProperties["latentjam.reducedOrtAbis"] = reducedOrt?.get("abis").orEmpty()
 gradle.extensions.extraProperties["latentjam.stockOrt"] = stockOrt
 
 rootProject.name = "latentjam-monorepo"
