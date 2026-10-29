@@ -320,14 +320,10 @@ Gradle doesn't track these variables, so add `--rerun` to the test task, e.g.
 
 ## Support
 
-LatentJam is free and has no paid tier: no account, no ads, no analytics. If it earns its place in
-your library, you can fund its next release through
-**[GitHub Sponsors](https://github.com/sponsors/Nikita-sud)** — monthly or one-off, and you can stop
-whenever you like — or send a one-off donation through **[PayPal](https://paypal.me/NichitaBulgaru)**
-if you don't use GitHub.
-
-If donations cover Apple's developer fee, LatentJam will come to the App Store. Stars, issues and
-pull requests help just as much — see [Contributing](#contributing).
+LatentJam is free and has no paid tier: no account, no ads, no analytics. You can support it through
+**[GitHub Sponsors](https://github.com/sponsors/Nikita-sud)** or **[PayPal](https://paypal.me/NichitaBulgaru)**.
+Donations go towards an App Store release and keep the project going. Stars, issues and pull
+requests help just as much — see [Contributing](#contributing).
 
 Thank you to everyone who already supports LatentJam — see [SUPPORTERS.md](SUPPORTERS.md).
 
