@@ -331,6 +331,8 @@ and the devices behind each release, and the release work that keeps F-Droid, th
 iPhone build in step. Stars, issues and pull requests help just as much — see
 [Contributing](#contributing).
 
+Thank you to everyone who already supports LatentJam — see [SUPPORTERS.md](SUPPORTERS.md).
+
 ## Credits
 
 LatentJam builds on:
