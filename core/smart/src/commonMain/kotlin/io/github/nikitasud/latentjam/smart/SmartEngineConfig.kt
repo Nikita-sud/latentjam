@@ -41,8 +41,7 @@ package io.github.nikitasud.latentjam.smart
  *   the listener's pick before it moves on, and the engine carries that walk from one plan to the
  *   next when [SimilarityEngine.continueSmartQueue] explicitly continues from the last track of the
  *   plan it answered (the app tops up the queue that way). Off by default here, which is the 0.7.1 chain
- *   exactly; the app turns it on (AppGraph). `docs/model-diet-fixes-2026-10-06.md` has the measurements
- *   and what is unmeasured.
+ *   exactly; the app turns it on (AppGraph).
  * @property judgedScoring With [continueAfterExhaustion]: the chain adds the correction learned from a
  *   listening judge's choices (Rerank.JUDGED_WEIGHTS), passes over a candidate that sounds far from the
  *   previous pick while another remains (a sound floor), and weighs the pick's neighbourhood instead of

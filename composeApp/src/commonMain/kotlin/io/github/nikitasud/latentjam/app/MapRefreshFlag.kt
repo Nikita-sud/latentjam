@@ -5,8 +5,7 @@
 package io.github.nikitasud.latentjam.app
 
 /**
- * Whether the Map refreshes small library changes instead of rebuilding them
- * (docs/map-cost-research-2026-10-25.md, implementation plan, piece 5).
+ * Whether the Map refreshes small library changes instead of rebuilding them.
  * On since 0.9.3 (device checks passed; the owner accepted the identity trade). The debug switches below stay
  * for builds that need it on without the default: Android `adb shell run-as <pkg>
  * touch files/map_refresh_enabled`; iOS the `map_refresh_enabled` user default (e.g. the launch
@@ -25,7 +24,7 @@ internal object MapRefreshFlag {
 /**
  * Whether the Map's regions keep their identity across rebuilds (plan piece 4). It follows [MapRefreshFlag]: turning
  * the refresh on turns identity on, and identity alone can be switched off ([regionIdentityOffOverride]). The owner
- * accepted the frozen check's purity trade (docs/map-refresh-checks.md, piece 4 override, 26 October 2026).
+ * accepted the frozen check's purity trade (26 October 2026).
  */
 internal object RegionIdentityFlag {
     fun enabled(refreshEnabled: Boolean = MapRefreshFlag.enabled, switchedOff: Boolean = regionIdentityOffOverride()): Boolean =

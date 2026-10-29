@@ -13,7 +13,7 @@ import kotlin.test.Test
 import kotlinx.coroutines.runBlocking
 
 /**
- * Piece 1 check of docs/map-refresh-checks.md, through the production [LibraryLayoutRefresh]. Opt-in:
+ * Map refresh check, piece 1, through the production [LibraryLayoutRefresh]. Opt-in:
  * `MAP_CHECK=1 MAP_CHECK_LOG=<file> [MAP_CHECK_SEEDS=37,41,43] [MAP_CHECK_FMA=<draw dir>,...]
  * ./gradlew :core:smart:testAndroidHostTest --tests "*MapRefreshCheck*" --rerun`. Public data only.
  */

@@ -13,7 +13,7 @@ import kotlin.random.Random
 import kotlin.test.Test
 
 /**
- * Piece 4 of docs/map-refresh-checks.md: region identity through [RegionIdentity] against a fresh
+ * Map refresh check, piece 4: region identity through [RegionIdentity] against a fresh
  * rediscovery. `MAP_REGIONS=1 MAP_REGIONS_MODE=pilot|check MAP_REGIONS_LOG=<file> [MAP_REGIONS_SEEDS=..]
  * [MAP_REGIONS_FMA=<draw dir>,..] [MAP_REGIONS_DELTAS=0,0.02,..]`. Public data only.
  */

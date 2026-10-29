@@ -39,8 +39,8 @@ internal object Rerank {
      * [FEATURES] order: fitted to local Claude judges' top-3 rankings of the chain's own candidates at 1,279 hops on the
      * 16 FMA general-stand libraries (licence-filtered CC audio; songs shown as artist, title, genre, year and an audio
      * note), with the model_diet recipe (rank_candidates.py sampling, fit_rerank.py top-3 Plackett-Luce, penalty by
-     * leave-one-library-out) and the base score's weight held at 1 (c093, 2026-10-28). It replaces weights fitted on
-     * the Million Playlist Dataset. Read it, never write it.
+     * leave-one-library-out) and the base score's weight held at 1 (c093, 2026-10-28). It replaces earlier weights
+     * fitted on other data. Read it, never write it.
      */
     val JUDGED_WEIGHTS: FloatArray = floatArrayOf(
         -1.746999f,
@@ -61,7 +61,7 @@ internal object Rerank {
     const val SOUND_FLOOR = 0.2f
 
     /**
-     * Marked playlists in the judged scoring ([ChainTuning.companionPoints]): chosen from a 3 x 3 grid on MPD
+     * Marked playlists in the judged scoring ([ChainTuning.companionPoints]): chosen from a 3 x 3 grid on held-out
      * libraries with real playlists marked, by both judges against the shipped quota (protocol-companions.json).
      */
     val COMPANION_POINTS: CompanionPoints = CompanionPoints(together = 1f, comeback = 1f)

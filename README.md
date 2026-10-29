@@ -219,10 +219,6 @@ vocabulary, the artist index and the knowledge pack) is about 20 MB on both Andr
 is no precomputed per-track catalogue: an imported track takes exactly the same local path as
 everything else.
 
-**Further reading:** [docs/model-selection.md](docs/model-selection.md) (architecture choice,
-benchmarks, rejected candidates) and [docs/for-you-ux.md](docs/for-you-ux.md) (the research behind
-For You).
-
 ## One engine, two platforms
 
 The intelligence, SMART included, lives in shared Kotlin; each platform supplies only the native

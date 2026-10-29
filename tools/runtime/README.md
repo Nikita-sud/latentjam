@@ -265,9 +265,7 @@ The exact three-model ORT 1.26.0 rebuild passes physical-device CPU parity:
 13 cases / 42,807 Float32 values, including three public FMA excerpts, with
 matching shapes and bitwise outputs; invalid-model/shape rejection and recovery
 pass. ARM64 APK size is 37,145,894 bytes (35.43 MiB). Only the ORT native libraries
-differ from the 52,956,542-byte full-runtime UI APK. See the
-[artifact and size audit](../../docs/apk-size-audit-2026-10-15.md) and
-[aggregate validation](../../docs/compact-runtime-validation-2026-10-15.json).
+differ from the 52,956,542-byte full-runtime UI APK.
 The stored candidate's manifest and AAR are required inputs to the wrapper;
 an ordinary `assembleRelease` still intentionally builds the full runtime.
 

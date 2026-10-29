@@ -12,7 +12,7 @@ import kotlin.math.ln
  *
  * Chosen over UMAP, PaCMAP, PCA and a kNN force layout by measurement on the real library, not by
  * reputation: UMAP and PaCMAP were both significantly worse under a paired bootstrap over
- * hand-made playlists, and PCA was far worse. See docs/map-page.md section 3.
+ * hand-made playlists, and PCA was far worse.
  *
  * Exact O(n^2) pair forces preserve the measured layout. Symmetric pairs are stored and evaluated
  * once, with the same per-point accumulation order as a dense sweep. Layouts are cached between

@@ -36,8 +36,7 @@ class MapEmbeddingBackendTest {
     }
 
     @Test fun largeLibraryLimitsArePinnedToTheMeasuredSize() {
-        // Raised from 3,000 only after the 256 MB-heap device run in
-        // docs/map-scaling-10k-2026-10-15.md. Raising it again needs a new measurement.
+        // Raised from 3,000 only after a 10,000-track run on a 256 MB-heap device. Raising it again needs a new measurement.
         assertEquals(10_000, LibraryLayout.MAX_TRACKS)
         assertEquals(LibraryLayout.MAX_TRACKS, AverageLinkageClustering.MAX_LIBRARY_TRACKS)
         assertIs<ExactMapEmbedding>(LibraryLayout.backendFor(LibraryLayout.EXACT_MAX_TRACKS))

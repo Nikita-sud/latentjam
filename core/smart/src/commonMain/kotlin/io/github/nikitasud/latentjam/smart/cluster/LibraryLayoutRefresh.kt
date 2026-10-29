@@ -54,7 +54,7 @@ public class MapLayoutResult(
 )
 
 /**
- * The Map refresh (docs/map-cost-research-2026-10-25.md, implementation plan, piece 1): a small
+ * The Map refresh: a small
  * library change since the last full build is laid out by projecting the changed rows with the
  * stored basis, patching the stored 60-NN lists, placing each changed track at its nearest unchanged
  * neighbours and running [REFRESH_ITERATIONS] iterations without exaggeration from the stored

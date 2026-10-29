@@ -60,7 +60,7 @@ public object LibraryLayout {
      * Up to [EXACT_MAX_TRACKS] the map uses exact t-SNE ([Tsne]), whose quadratic matrices hold
      * `n * (n - 1)` floats. Above it [BarnesHutTsne] keeps memory linear: about 30 MB of its own
      * working set at 10,000 tracks, plus the 54 MB fused input and PCA buffers. This ceiling is the
-     * largest size measured on a 256 MB heap (docs/map-scaling-10k-2026-10-15.md). Above it the
+     * largest size measured on a 256 MB heap. Above it the
      * caller shows an explicit limit instead of silently drawing a subset; [compute] also enforces
      * the guard independently of the UI.
      */
@@ -69,7 +69,7 @@ public object LibraryLayout {
     /**
      * Largest library laid out with exact t-SNE; larger libraries use [BarnesHutTsne].
      *
-     * Measured (docs/map-scaling-10k-2026-10-15.md): Barnes-Hut matches exact on trustworthiness,
+     * Measured: Barnes-Hut matches exact on trustworthiness,
      * neighbour recall and same-playlist neighbours at 1,104 real and 3,000 synthetic tracks, and
      * is several times faster from about 1,000 tracks. Exact stays below this size so small
      * libraries, including the 1,107-track library the map was tuned on, keep their pictures.
@@ -247,7 +247,7 @@ public object LibraryLayout {
     }
 
     /**
-     * Prototype "sample and place" layout (docs/map-sample-place-2026-10-16.md): [compute]'s warm
+     * Prototype "sample and place" layout: [compute]'s warm
      * start, alignment and normalization around [SampledTsne], reading rows from [source] one at a
      * time instead of from a held matrix.
      */

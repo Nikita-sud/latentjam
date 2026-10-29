@@ -19,7 +19,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * Piece 2 of docs/map-refresh-checks.md on a device: synthetic 10,000 tracks (seed 61). Untimed setup: a full build
+ * Map refresh check, piece 2, on a device: synthetic 10,000 tracks (seed 61). Untimed setup: a full build
  * through LibraryLayoutRefresh.build on 99 % (or on the pre-change vectors for change1), its state saved with
  * FileMapRefreshStateStore and loaded back mapped. Measured: `-e mapMode today` (LibraryLayout.compute, streamed,
  * warm) or `refresh` (LibraryLayoutRefresh.refresh from the mapped state). Logs time, sampled Java heap peak delta and

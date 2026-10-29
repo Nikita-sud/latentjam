@@ -141,8 +141,7 @@ Do not mix these results with the full-compilation interaction benchmarks.
 
 ## Recorded phone validation
 
-[The 2026-10-15 aggregate report](../../docs/ui-optimization-phone-2026-10-15.json)
-records the exact source/APK/harness hashes and the unchanged 1,110-track fixture.
+The 2026-10-15 aggregate report recorded the exact source/APK/harness hashes and the unchanged 1,110-track fixture.
 It covers stock ORT 1.26.0 APKs only. The interaction comparison is inconclusive:
 thermal conditions changed, and NotificationShade interrupted one injected swipe
 in the after suite. A one-iteration scroll retry passed. The successful player

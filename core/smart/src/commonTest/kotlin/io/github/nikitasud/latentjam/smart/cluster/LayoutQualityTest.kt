@@ -12,7 +12,7 @@ import kotlin.test.assertTrue
 /**
  * Guards against a layout that still runs but is quietly *worse* -- the failure mode determinism
  * tests (see [LibraryLayoutTest]) cannot see, because the whole Map rests on one measured claim:
- * that on-screen neighbours are real neighbours (docs/map-page.md section 3).
+ * that on-screen neighbours are real neighbours.
  *
  * Both thresholds below were measured against this implementation, not carried over from the task
  * brief: [LibraryLayout.normalize] became a uniform-scale box fit, [LibraryLayout.reduceForEmbedding]

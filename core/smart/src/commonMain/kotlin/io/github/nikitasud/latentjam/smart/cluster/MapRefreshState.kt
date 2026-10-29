@@ -8,7 +8,7 @@ import io.github.nikitasud.latentjam.smart.TrackId
 
 /**
  * What a full Map build leaves behind so a later small library change can be refreshed instead of
- * rebuilt (docs/map-cost-research-2026-10-25.md, implementation plan, piece 0): the centring mean
+ * rebuilt: the centring mean
  * and PCA basis, every track's reduced row, its 60 nearest neighbours by row index (no distances:
  * they are recomputed from the reduced rows with [BarnesHutTsne.nearestNeighbours]' arithmetic) and
  * a hash of the raw fused row it was built from. All in layout order, fp32.

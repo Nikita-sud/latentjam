@@ -47,8 +47,7 @@ internal const val START_OF_ROW_MS: Long = 500L
 private const val NEXT_AT_TAIL_WAIT_MS: Long = 15_000L
 
 /**
- * The pause, resume and manual-change fades for every source, owned by the service. See
- * `docs/service-side-fades-plan.md`.
+ * The pause, resume and manual-change fades for every source, owned by the service.
  *
  * [player] is the ExoPlayer itself: actions reach it directly, never the session player's
  * overrides. A command that may wait for its fade is *deferrable*; one from the app's own

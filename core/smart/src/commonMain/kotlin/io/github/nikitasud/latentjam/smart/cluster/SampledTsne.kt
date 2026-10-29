@@ -15,8 +15,7 @@ internal fun interface LayoutRowSource {
 }
 
 /**
- * "Sample and place" layout for very large libraries (prototype, see
- * docs/map-sample-place-2026-10-16.md).
+ * "Sample and place" layout for very large libraries (prototype).
  *
  * A stable sample, chosen by [AverageLinkageClustering.stableKey] like sampled regions, is laid
  * out with [BarnesHutTsne]. The PCA basis is fitted on the sample, so every row is reduced one at

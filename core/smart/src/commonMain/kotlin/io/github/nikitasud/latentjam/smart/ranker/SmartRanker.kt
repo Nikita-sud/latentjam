@@ -887,7 +887,7 @@ internal class PlanTrace {
 }
 
 /**
- * SMART's learned ranker (docs/smart-ranker.md, PLAN_FINAL §1, §7, §8): exclusions, candidates (the whole eligible
+ * SMART's learned ranker (PLAN_FINAL §1, §7, §8): exclusions, candidates (the whole eligible
  * pool when small, else the retrievers' quotas), features with audio-tagger imputation, the [RankerQueue] decoder with
  * song-version dedup and a time budget, then the ladder until the queue is full. Never throws for bad metadata and
  * never returns an empty plan while another eligible track exists.

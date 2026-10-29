@@ -11,7 +11,7 @@ import kotlinx.coroutines.runBlocking
 
 /**
  * Opt-in quality and stability comparison of the "sample and place" prototype against full
- * Barnes-Hut (docs/map-sample-place-2026-10-16.md). Prints aggregates only.
+ * Barnes-Hut. Prints aggregates only.
  *
  * `MAP_SAMPLE_REPLAY=1 [MAP_SAMPLE_SIZES=5000,10000] [MAP_SAMPLE_VARIANTS=r0,r30] [MAP_DIAG_DIR=..]`
  * Variants: `r<refine>[@rate][k<neighbours>][f<full BH iterations>][i<sample iterations>][s<fraction>][P = PCA on the sample only]`,

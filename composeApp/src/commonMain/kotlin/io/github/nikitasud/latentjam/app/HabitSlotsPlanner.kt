@@ -67,7 +67,7 @@ internal fun rejectedHabits(
  * listener started this track (ListenStart.USER_PICK) — counts as what followed the previous
  * listen: a playlist's or album's own order, shuffle draws, skips into the queue, SMART's own
  * plays and listens logged before origins were (legacy lines) teach no habit. This is the
- * Statistics page's play-counting rule (docs/statistics-insights-proposal.md, "Pick", Addendum A).
+ * Statistics page's play-counting rule.
  */
 internal fun habitListens(
     oldestFirst: List<ListenEvent>,
@@ -362,7 +362,7 @@ private suspend fun contentHashOf(t: TrackDescriptor): String {
 }
 
 /**
- * The learned ranker's plan from [seed] (docs/smart-ranker.md): [candidates] minus what the listener heard in the
+ * The learned ranker's plan from [seed]: [candidates] minus what the listener heard in the
  * last 24 hours or earlier in this session (the novelty rule the models trained with), the queue's [recentIds] as the
  * song-version dedup window, the listener's history for FULL ([personal]) and the ladder's recency rung. [ruleOnly]
  * runs PLAN_FINAL §7.2's rule-only path. Returns null when the ranker failed; the caller counts it.

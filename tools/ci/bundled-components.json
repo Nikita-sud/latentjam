@@ -118,7 +118,7 @@
     },
     "universal_semantic_head.onnx": {
       "license": "Apache-2.0",
-      "provenance": "LICENSE-MODEL.txt; A0-nosyn head (sha256 c9ceb0f3), fitted on clean FMA embeddings, no synthetic clips, no MPD-fitted weights"
+      "provenance": "LICENSE-MODEL.txt; A0-nosyn head (sha256 c9ceb0f3), fitted on clean FMA embeddings, no synthetic clips"
     },
     "smart_ranker.json": {
       "license": "Apache-2.0",

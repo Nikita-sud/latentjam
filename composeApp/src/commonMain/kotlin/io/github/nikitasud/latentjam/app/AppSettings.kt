@@ -136,7 +136,7 @@ val SMART_QUEUE_LENGTH_OPTIONS: List<Int> = listOf(10, DEFAULT_SMART_QUEUE_LENGT
 /**
  * The artist-variety setting's levels, as SMART's artist-run penalty (SmartEngineConfig.artistRunPenalty):
  * from runs of one artist allowed freely to the most variety. Every level was measured; the middle one was
- * accepted as the default (docs/model-diet-fixes-2026-10-06.md).
+ * accepted as the default.
  */
 val ARTIST_VARIETY_PENALTIES: List<Float> = listOf(0f, 0.25f, 0.5f, 1f, 2f)
 const val DEFAULT_ARTIST_VARIETY: Int = 2
@@ -474,7 +474,7 @@ interface AppSettings {
     fun setUseFavourites(enabled: Boolean) {}
 
     /**
-     * Whether SMART plans its queues with the learned ranker (docs/smart-ranker.md) instead of its
+     * Whether SMART plans its queues with the learned ranker instead of its
      * chain. On by default ([DEFAULT_SMART_RANKER]); implementations without the preference keep it off.
      */
     val smartRanker: StateFlow<Boolean> get() = SMART_RANKER_FALLBACK_FLOW

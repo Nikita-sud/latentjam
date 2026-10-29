@@ -89,8 +89,6 @@ internal object AverageLinkageClustering {
      * Nearest seeds are found among [PROJECTION_CANDIDATES] candidates ranked in a fixed
      * [PROJECTION_DIM]-dimensional random projection, then compared exactly. Rows are reordered in
      * place (sample first) rather than copied.
-     *
-     * Replays against the exact hierarchy: docs/map-scaling-10k-2026-10-15.md.
      */
     private fun clusterSampled(
         rows: FloatArray,

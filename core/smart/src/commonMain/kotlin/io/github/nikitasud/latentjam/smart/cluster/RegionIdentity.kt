@@ -21,8 +21,7 @@ public class IdentityRegion(
 )
 
 /**
- * Regions that keep their identity while the library changes (docs/map-cost-research-2026-10-25.md,
- * implementation plan, piece 4). Between rebuilds a new or changed track [join]s the nearest region; at a
+ * Regions that keep their identity while the library changes. Between rebuilds a new or changed track [join]s the nearest region; at a
  * full rebuild [rediscover] matches the freshly discovered worlds to the old regions by membership, keeps
  * matched regions' ids, colours and names, and moves a settled track only when its new region is clearly
  * better (by `delta` in cosine to the regions' centroids).

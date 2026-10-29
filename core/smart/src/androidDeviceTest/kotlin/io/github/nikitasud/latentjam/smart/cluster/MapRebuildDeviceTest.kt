@@ -22,7 +22,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * Piece 3 of docs/map-refresh-checks.md on a device: the deferred rebuild's work at 10,000 synthetic tracks (seed 61)
+ * Map refresh check, piece 3, on a device: the deferred rebuild's work at 10,000 synthetic tracks (seed 61)
  * on a background-priority thread, as MapRebuild runs it: region discovery on the path the app's budget formula
  * picks, identity rediscovery, the full layout build, the state write. `-e mapRebuild 1 [-e mapRebuildCancels 10]`.
  * Logs to files/map-rebuild.log: path, peak heap against the budget, total time, the longest gap between two
@@ -34,7 +34,7 @@ class MapRebuildDeviceTest {
         val args = InstrumentationRegistry.getArguments()
         assumeTrue(args.getString("mapRebuild") == "1")
         val cancels = args.getString("mapRebuildCancels")?.toInt() ?: 10
-        // Supplementary set (docs/map-refresh-checks.md, piece 3 result): deadlines in [0, mapRebuildDeadlineMaxMs).
+        // Supplementary set: deadlines in [0, mapRebuildDeadlineMaxMs).
         deadlineMaxMs = args.getString("mapRebuildDeadlineMaxMs")?.toDouble()
         val priority = Process.getThreadPriority(Process.myTid())
         Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND)

@@ -170,7 +170,7 @@ object AppGraph {
                                 // Must match assets/ml/embedding_version.txt;
                                 // keys the persisted index snapshot, so a new encoder
                                 // re-indexes the library instead of mixing two spaces.
-                                // The FMA-only A0 encoder (no MPD audio or labels): every audio asset the ranker
+                                // The FMA-only A0 encoder: every audio asset the ranker
                                 // uses (tagger, semantic head, audioWeight, the energy constants) was fitted on it.
                                 modelVersion = io.github.nikitasud.latentjam.smart.AUDIO_MODEL_VERSION,
                                 // EXPERIMENT CONCLUDED, off. Two weeks live at 0.3f
@@ -184,8 +184,8 @@ object AppGraph {
                                 // hypothesis and its own before/after window.
                                 typicalityWeight = 0f,
                                 // Queues spend the pick's neighbourhood before moving on, across the
-                                // plans the queue is topped up with. Against 0.7.1 on held-out MPD
-                                // libraries (450 starts each, docs/model-diet-fixes-2026-10-06.md): more
+                                // plans the queue is topped up with. Against 0.7.1 on held-out
+                                // libraries (450 starts each): more
                                 // tracks from the pick's playlists (+1.0 pp top-up, +1.5 at length 10),
                                 // smoother transitions and fewer abrupt ones at every queue length.
                                 // Thematic libraries (the owner's) lose playlist share; history-mode
@@ -410,7 +410,7 @@ object AppGraph {
     val layoutStore: IndexStore
         get() = koin.get(smartLayoutQualifier)
 
-    /** The Map's refresh state (docs/map-cost-research-2026-10-25.md, piece 0), beside [layoutStore]. */
+    /** The Map's refresh state, beside [layoutStore]. */
     val mapRefreshStateStore: io.github.nikitasud.latentjam.smart.cluster.MapRefreshStateStore
         get() = koin.get()
 
@@ -771,7 +771,7 @@ internal const val SMART_ARTIST_SETS: Boolean = true
  * library (track list and sound hints, by the owner's leave) and the 16 FMA stand libraries on the device's own features
  * (a shared artist counts only when it also sounds alike; held out: top-15 overlap with the
  * teacher 4.73 owner / 4.25 FMA vs audio alone 2.61 / 2.70).
- * No MPD data. Null is off.
+ * Null is off.
  */
 internal val SMART_THEME_WEIGHTS: List<Float>? = listOf(0.7455f, 0.6732f, 0.6191f, 0.3468f, 0.9851f, 0.1879f, 0.4924f, -2.7054f)
 

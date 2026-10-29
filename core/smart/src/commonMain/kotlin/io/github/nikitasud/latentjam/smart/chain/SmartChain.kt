@@ -1328,7 +1328,7 @@ internal class SmartChain(
         // A fourth channel ranks by the descriptor space (what a teacher knows about the artist),
         // when the seed has a descriptor. It then also takes the trusted-text channel's turn: the
         // descriptor is what the teacher knows about the same artist, and swapping measured
-        // +1.5 cold / +1.0 history P@10 on the listener, MPD +-1 (smart-bench exp_desc_quota.py).
+        // +1.5 cold / +1.0 history P@10 on the listener, +-1 on held-out libraries.
         // Without a descriptor it is empty, so the pool is exactly the three-channel one.
         val descriptorOrder = channels.descriptor
         val textTurn = if (descriptorOrder.isEmpty()) channels.text else IntArray(0)

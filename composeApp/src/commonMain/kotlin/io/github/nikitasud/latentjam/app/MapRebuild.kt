@@ -30,8 +30,7 @@ internal expect fun scheduleMapRebuild()
 internal expect fun onExternalPower(): Boolean
 
 /**
- * The deferred full rebuild of the Map (docs/map-cost-research-2026-10-25.md, implementation plan,
- * piece 3): regions rediscovered with identity, then a full layout build that rewrites the refresh
+ * The deferred full rebuild of the Map: regions rediscovered with identity, then a full layout build that rewrites the refresh
  * state, all from persisted inputs and without UI. Runs from the platform's background scheduler, or
  * in-app on a Map visit while charging when no scheduled run has happened for [FALLBACK_AFTER_MS].
  */

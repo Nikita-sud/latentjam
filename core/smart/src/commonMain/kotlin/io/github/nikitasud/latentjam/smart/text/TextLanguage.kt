@@ -16,7 +16,7 @@ package io.github.nikitasud.latentjam.smart.text
  *
  * The pack's word (2026-09-24, multilingual text encoder): a "<language> songs" search found 82 %
  * of its top ten in that language instead of 16 %, and SMART queues kept the seed's language more
- * often (listener 0.84 → 0.89, MPD libraries +1 to +7 pp) with P@10 within half a point. Every
+ * often (listener 0.84 → 0.89, held-out libraries +1 to +7 pp) with P@10 within half a point. Every
  * pack language has a word; the ones beyond the first nineteen measured neutral on libraries that
  * hold few of them.
  *

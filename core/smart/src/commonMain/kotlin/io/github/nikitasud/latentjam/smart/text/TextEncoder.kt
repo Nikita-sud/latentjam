@@ -53,7 +53,7 @@ public interface TextEncoder {
          * genre into this channel.
          *
          * A track without any year ends in the pack's [artistDecade] instead (`"; 1980s"`), which
-         * raised P@10 on the year-less MPD libraries by 0.3–2.7 pp.
+         * raised P@10 on year-less libraries by 0.3–2.7 pp.
          *
          * Field order and separator are part of the model contract, not a formatting choice — the
          * measured retrieval win is specific to this arrangement, and vectors built any other way

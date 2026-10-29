@@ -25,8 +25,7 @@ import org.junit.Test
  * [-e mapBallastMb B]`. Logs to `LJMapScale` and appends to `files/map-scale.log`.
  *
  * The test APK's manifest sets largeHeap, so the heap limit is whatever the device gives a
- * large-heap app: run it where `dalvik.vm.heapsize` equals the app's growth limit (see
- * docs/map-scaling-10k-2026-10-15.md) and check the logged `heap_limit_bytes`.
+ * large-heap app: run it where `dalvik.vm.heapsize` equals the app's growth limit and check the logged `heap_limit_bytes`.
  */
 class MapScaleDeviceTest {
     @Test

@@ -17,8 +17,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * The library's worlds (For You's mixes, the Map's regions), discovered outside composition so a
- * background Map rebuild can run them without UI (docs/map-cost-research-2026-10-25.md, implementation
- * plan, piece 3a). The body is the one the For You / Map effect in App ran, moved unchanged; App
+ * background Map rebuild can run them without UI. The body is the one the For You / Map effect in App ran, moved unchanged; App
  * still decides when to call it.
  */
 internal object LibraryRegionsService {

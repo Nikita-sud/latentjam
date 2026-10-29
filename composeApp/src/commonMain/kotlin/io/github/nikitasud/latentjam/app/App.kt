@@ -1104,7 +1104,7 @@ private fun AppShell(
                     .filter { smartExclusionState.excludes(it) }
                     .mapTo(this) { it.id }
                 currentTrack?.id?.let(::add)
-                // What is already queued to play next is not offered again (for-you-ux.md §8.3) —
+                // What is already queued to play next is not offered again —
                 // only the near part of the queue, so playing the whole library does not empty the page.
                 val now = playback.state.value
                 now.queue.asSequence()

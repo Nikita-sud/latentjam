@@ -14,7 +14,7 @@ import kotlin.math.sqrt
  * One listen as the habit list reads it: a play (not a skip) of a track still in the library.
  *
  * @property countsAsNext Whether this listen may be counted as what the listener played *after* the
- *   previous one. The app sets it from the listen's origin (docs/habit-slots.md): only the
+ *   previous one. The app sets it from the listen's origin: only the
  *   listener's own picks count, so a playlist's or album's own order and SMART's own picks never
  *   teach the list a habit. The listen still takes its place in the sequence, the recency model and
  *   the novelty set either way.
@@ -39,7 +39,7 @@ public data class HabitListen(
  * A port of the ListenBrainz evaluation's personal `transition` baseline (score.py `baselines`,
  * `transitions`, `novelty`, `activation`) and of slots.py `interleave` with five personal rows —
  * the layout pre-registered as the W4 candidate. Golden cases from that harness pin the port
- * (HabitSlotsGoldenTest); docs/habit-slots.md lists the app's intended deviations.
+ * (HabitSlotsGoldenTest).
  */
 public object HabitSlots {
     /** Consecutive listens further apart than this (start to start) are not a transition. */
@@ -189,7 +189,7 @@ public object HabitSlots {
 
 /**
  * How far a personal row would pull the queue away from its seed — the FIT arm SOFT(λ = 2) of
- * PLAN_ITEM5 v5 (slots3.py `incoherence` and `build`; docs/habit-slots.md, deviation 4b).
+ * PLAN_ITEM5 v5 (slots3.py `incoherence` and `build`).
  * Incoherence P is the mean of three parts in [0, 1]: genre family and pack language (0 same,
  * 1 different, [UNKNOWN] when either side has none) and the artist-descriptor distance (0 at cosine
  * ≥ [DESCRIPTOR_NEAR], 1 at ≤ [DESCRIPTOR_FAR], linear between, [UNKNOWN] without both pack
