@@ -132,6 +132,7 @@ internal fun personalListen(event: ListenEvent): PersonalListen {
         albumParent = origin?.parentId?.startsWith("album:") == true,
         shuffleOff = event.shuffleMode == "OFF",
         playedMs = event.playedMs,
+        personalChanged = origin?.personalChanged == true,
     )
 }
 
