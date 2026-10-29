@@ -193,3 +193,20 @@ code and no UI text in the range.
 Checks at the final commit: core:smart and composeApp host tests green; `tools/ci/ios_verify.py` (all KMP modules on an
 arm64 simulator, PersonalGoldenTest 2 / 2 unchanged) green; arm64 release APK 36,985,432 bytes (+16 KB of v6 code),
 dex registers and native libraries checks pass. Final fresh check of the last commit: CLEAN.
+
+## Learn from my habits on by default (owner decision, eac33177)
+
+`DEFAULT_LEARN_FROM_HABITS` = true. Both platforms read a stored choice first, so a listener who turned it off keeps it
+off; 0.9.2 had no such setting, so upgraders get it on. Nothing writes the default (no migration), the preference is
+not in the local backup (a restore leaves it alone), and every chooser in tests and the stand passes its own value, so
+goldens stay CORE. Attacker check: no defect in the flip itself. Its one material point, memory, was measured on
+LJ-api30 (3,500 tracks, release APK, a 60,009-listen ListenBrainz export imported through the app):
+
+- 48 MB heap: the import itself succeeded (all 60,009 listens, 3,500 songs); the next SMART press could not build the
+  personal model ("did not fit in memory"), fell back to CORE and planned in 4.8 s; same process, no crash. The
+  finalizer thread also logged an OutOfMemoryError during that spike, caught by the runtime.
+- 96 MB heap: the personal model builds; first plan 2.7 s, top-up 0.3 s; no OutOfMemoryError.
+
+So on 48 MB phones a long imported history keeps the personal term off rather than crashing. Follow-ups (0.9.4): a
+lighter build for that case; "A resource failed to call close" warnings seen while the Tracks page loaded covers after
+the import (no stack in a release build). JVM and iOS suites green; iOS simulator SMART smoke ok.
