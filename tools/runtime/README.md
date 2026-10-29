@@ -1,6 +1,6 @@
 # Smaller Android ONNX Runtime candidate
 
-## Every channel (release/0.9.3-full, 2026-10-28)
+## Every channel (release/0.9.3-full, 2026-10-28; native-only build 2026-10-29)
 
 Every release build packages the reduced ARM64 runtime: GitHub release APKs, the Play bundle and F-Droid.
 Debug and test builds keep Maven Central's full runtime.
@@ -8,17 +8,29 @@ Debug and test builds keep Maven Central's full runtime.
 - `tools/runtime/required-operators.config` is the committed operator list for the shipped models. When a model
   changes, regenerate it with `build_reduced_ort.py` (it needs the matching onnxruntime wheel), commit it, rebuild
   and rerun the parity probe.
-- `tools/runtime/ort_source_build.sh ORT_SOURCE NDK SDK STOCK_AAR|-` builds the runtime from source: no wheel, no
-  prebuilt protoc, source archives checked by SHA-1. It writes the local Maven repository `build/reduced-ort/maven`.
+- `tools/runtime/ort_source_build.sh ORT_SOURCE NDK SDK` builds the runtime from source and nothing else: protoc
+  from the protobuf sources, `libonnxruntime.so` with ORT's `build.py` (native only, no `--build_java`, so no ORT
+  Gradle build and no AGP 7.4.2), the `ai.onnxruntime` classes with `javac`, and `libonnxruntime4j_jni.so` with
+  `onnxruntime4j_jni/CMakeLists.txt` (ORT's flags; byte-identical to the JNI library ORT's own target builds). The
+  AAR it writes to `build/reduced-ort/maven` holds only those: `classes.jar`, the manifest and `jni/arm64-v8a`. No
+  prebuilt binary, nothing patched in the ORT source, intermediates in `$TMPDIR/latentjam-ort-<version>` (deleted at
+  the end). JDK 17 or newer, CMake ≥ 3.28, Ninja, Python 3 with `flatbuffers`, a host C++ compiler.
 - `settings.gradle.kts` substitutes that runtime into release configurations after checking the ORT version, the exact
   model set, the operator list and the AAR hash. `latentjam.reducedOrtRepo` points elsewhere.
+- The other ABIs (armeabi-v7a, x86, x86_64) come from Maven Central's `onnxruntime-android`, resolved by Gradle like
+  any dependency: `androidApp:stockOrtJniLibs` checks it against `onnxruntime-android-<version>.aar.sha256` and adds
+  its non-ARM64 libraries to release builds. An F-Droid `latentjam.fdroidAbi=arm64-v8a` build skips that task, so
+  its APK contains no prebuilt ORT binary (Gradle still resolves the stock AAR for `:core:smart`'s compile classpath,
+  as for any Maven dependency; nothing of it is packaged).
 - `androidApp:checkReleaseOnnxRuntime` fails a release whose ARM64 `libonnxruntime.so` is not the reduced one.
   `-Platentjam.stockOrt=true` packages the full runtime on purpose; the app CI workflow does this, and
   `compact-release.yml` builds and checks the reduced runtime.
+- Before every release, the F-Droid recipe (fdroiddata `io.github.nikitasud.latentjam.kmp.yml`, the arm64-v8a entry
+  that runs this script in its `build:` step) is test-built in the fork's CI.
 
 ```sh
 git clone --depth 1 --branch v1.26.0 --recursive --shallow-submodules https://github.com/microsoft/onnxruntime.git /tmp/ort
-JAVA_HOME=/path/to/jdk17 bash tools/runtime/ort_source_build.sh /tmp/ort "$ANDROID_HOME/ndk/28.2.13676358" "$ANDROID_HOME" -
+bash tools/runtime/ort_source_build.sh /tmp/ort "$ANDROID_HOME/ndk/28.2.13676358" "$ANDROID_HOME"
 ./gradlew :androidApp:assembleRelease
 ```
 
@@ -185,8 +197,9 @@ existing strict init script and release/DEX/native gates, then verifies both pac
 against the candidate AAR after the same NDK `llvm-strip --strip-unneeded` packaging transform,
 by SHA256. Raw AAR and expected packaged native hashes are recorded separately, along with the
 strip tool hash/version and commands. An accidentally packaged full ARM64 runtime is a hard failure.
-The stock AAR must match the manifest; every non-ARM64 native library in the candidate must match
-that stock artifact. **Only ARM64 is reduced; ARMv7 and x86_64 retain full ORT.**
+The candidate AAR must hold exactly the ARM64 runtime; the stock AAR must match
+`onnxruntime-android-<version>.aar.sha256`, and every non-ARM64 library in the APKs must match it.
+**Only ARM64 is reduced; ARMv7 and x86_64 retain full ORT.**
 
 `build/reports/compact-release/provenance.json` records the exact commands, source revision and
 dirty-file fingerprints, manifest/AAR/native hashes, APK sizes and hashes, and verification status.

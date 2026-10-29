@@ -35,6 +35,7 @@ def native_members(path):
 
 
 def validate_candidate(root, repo, stock):
+    """The reduced AAR carries ARM64 only; every other ABI is packaged from the stock AAR Gradle resolves."""
     manifest_path = repo / "manifest.json"
     manifest = json.loads(manifest_path.read_text())
     match = re.search(r'^onnxruntime\s*=\s*"([^"]+)"',
@@ -49,45 +50,48 @@ def validate_candidate(root, repo, stock):
     if not models or models != manifest["models"]:
         raise ValueError("Reduced ORT must match the exact shipped model set and hashes")
     candidate = repo / f"com/microsoft/onnxruntime/onnxruntime-android/{version}/onnxruntime-android-{version}.aar"
-    if sha(candidate) != manifest["candidate_aar_sha256"] or sha(stock) != manifest["stock_aar_sha256"]:
-        raise ValueError("Candidate or stock AAR differs from the manifest")
-    if manifest["custom_abis"] != ["arm64-v8a"] or set(manifest["retained_stock_abis"]) != {"armeabi-v7a", "x86", "x86_64"}:
-        raise ValueError("Expected only ARM64 custom runtime; all other ABIs must retain stock")
-    expected, original = native_members(candidate), native_members(stock)
-    if expected.keys() != original.keys():
-        raise ValueError("Candidate changed the native library inventory")
+    stock_pin = root / f'tools/runtime/onnxruntime-android-{manifest["ort_version"]}.aar.sha256'
+    if sha(candidate) != manifest["candidate_aar_sha256"] or sha(stock) != stock_pin.read_text().strip():
+        raise ValueError("Candidate AAR differs from the manifest, or the stock AAR from its pinned hash")
+    if manifest["custom_abis"] != ["arm64-v8a"]:
+        raise ValueError("Expected only an ARM64 custom runtime")
+    reduced, original = native_members(candidate), native_members(stock)
+    wanted = {f"jni/arm64-v8a/{library}" for library in ("libonnxruntime.so", "libonnxruntime4j_jni.so")}
+    if reduced.keys() != wanted:
+        raise ValueError(f"The reduced AAR must hold exactly the ARM64 runtime, got {sorted(reduced)}")
     for abi in ABIS:
         for library in ("libonnxruntime.so", "libonnxruntime4j_jni.so"):
-            if f"jni/{abi}/{library}" not in expected:
-                raise ValueError(f"Candidate lacks {abi}/{library}")
-    for name in expected:
-        if not name.startswith("jni/arm64-v8a/") and expected[name] != original[name]:
-            raise ValueError(f"Non-ARM64 runtime must be stock: {name}")
+            if f"jni/{abi}/{library}" not in original:
+                raise ValueError(f"Stock AAR lacks {abi}/{library}")
     arm64 = "jni/arm64-v8a/libonnxruntime.so"
-    if expected[arm64]["bytes"] >= original[arm64]["bytes"]:
+    if reduced[arm64]["bytes"] >= original[arm64]["bytes"]:
         raise ValueError("ARM64 candidate is not smaller than stock; refusing a silently full runtime")
     for name, count in manifest["native_bytes"].items():
-        if name not in expected or expected[name]["bytes"] != count:
+        if name not in reduced or reduced[name]["bytes"] != count:
             raise ValueError(f"Native size differs from manifest: {name}")
+    sources = {name: str(candidate) for name in reduced}
+    sources.update({name: str(stock) for name in original if not name.startswith("jni/arm64-v8a/")})
+    expected = {name: (reduced if sources[name] == str(candidate) else original)[name] for name in sources}
     return {"manifest": manifest, "manifest_sha256": sha(manifest_path),
             "candidate_aar": str(candidate), "candidate_aar_sha256": sha(candidate),
-            "stock_aar": str(stock), "stock_aar_sha256": sha(stock), "native": expected}
+            "stock_aar": str(stock), "stock_aar_sha256": sha(stock), "sources": sources, "native": expected}
 
 
 
-def packaged_native(candidate, strip_tool):
-    """Reproduce AGP's native stripping on disposable copies; never mutate the candidate AAR."""
+def packaged_native(sources, strip_tool):
+    """Reproduce AGP's native stripping on disposable copies; never mutate an AAR. sources: member -> AAR path."""
     result = {"tool": str(strip_tool), "tool_sha256": sha(strip_tool),
               "tool_version": subprocess.check_output([str(strip_tool), "--version"], text=True).strip(),
               "commands": [], "native": {}}
-    with zipfile.ZipFile(candidate) as archive, tempfile.TemporaryDirectory(prefix="latentjam-ort-strip-") as temporary:
-        for name in sorted(native_members(candidate)):
+    with tempfile.TemporaryDirectory(prefix="latentjam-ort-strip-") as temporary:
+        for name in sorted(sources):
             # Only generated paths below our temporary directory, never archive-controlled paths.
             copy = Path(temporary) / (str(len(result["commands"])) + ".so")
-            copy.write_bytes(archive.read(name))
+            with zipfile.ZipFile(sources[name]) as archive:
+                copy.write_bytes(archive.read(name))
             command = [str(strip_tool), "--strip-unneeded", str(copy)]
             subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            result["commands"].append({"member": name, "argv": command})
+            result["commands"].append({"member": name, "source": sources[name], "argv": command})
             result["native"][name] = {"bytes": copy.stat().st_size, "sha256": sha(copy)}
     return result
 
@@ -154,7 +158,7 @@ def validate_strip_tool(root, tool):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--reduced-repo", required=True, type=Path, help="Local Maven directory containing manifest.json")
-    parser.add_argument("--stock-aar", required=True, type=Path, help="Original AAR identified by manifest.stock_aar_sha256")
+    parser.add_argument("--stock-aar", required=True, type=Path, help="Maven Central's AAR (tools/runtime/onnxruntime-android-<v>.aar.sha256): the expected non-ARM64 libraries")
     parser.add_argument("--strip-tool", required=True, type=Path, help="llvm-strip from the same NDK used by AGP (currently 28.2.13676358)")
     parser.add_argument("--output", type=Path, default=Path("build/reports/compact-release"))
     parser.add_argument("--max-workers", type=int, default=2)
@@ -177,7 +181,7 @@ def main():
         validate_source(report["source"], args.allow_dirty)
         report["ndk_version"] = validate_strip_tool(root, strip_tool)
         report["runtime"] = validate_candidate(root, repo, stock)
-        report["native_packaging"] = packaged_native(Path(report["runtime"]["candidate_aar"]), strip_tool)
+        report["native_packaging"] = packaged_native(report["runtime"]["sources"], strip_tool)
         init = root / "tools/runtime/use-reduced-ort.init.gradle"
         report["init_script_sha256"] = sha(init)
         command = [str(root / "gradlew"), ":androidApp:assembleRelease", ":androidApp:checkReleaseDexRegisters",

@@ -31,7 +31,7 @@ jobs:
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
@@ -43,21 +43,18 @@ jobs:
       - name: Install native build tools
         run: |
           sdkmanager "platforms;android-36" "build-tools;36.0.0" "platforms;android-34" "build-tools;30.0.3" "ndk;28.2.13676358" "cmake;3.22.1"
-          python -m pip install cmake ninja
+          python -m pip install cmake ninja flatbuffers
       - name: Read the application's runtime version
         run: |
           python -c 'import os,tomllib; v=tomllib.load(open("gradle/libs.versions.toml","rb"))["versions"]["onnxruntime"]; print("ORT_VERSION="+v, file=open(os.environ["GITHUB_ENV"],"a"))'
       - name: Build the reduced ARM64 runtime from source, as every release channel does
-        # No onnxruntime wheel, no prebuilt protoc: the committed operator list, the SHA-1-checked dependency mirror
-        # and protoc from the protobuf sources (tools/runtime/ort_source_build.sh).
+        # No onnxruntime wheel, no prebuilt binary, no ORT Gradle build: the committed operator list, the SHA-1-checked
+        # dependency mirror, protoc from the protobuf sources, javac and the NDK (tools/runtime/ort_source_build.sh).
         run: |
           git clone --depth 1 --branch "v$ORT_VERSION" --recursive --shallow-submodules https://github.com/microsoft/onnxruntime.git "$RUNNER_TEMP/ort-source"
-          curl --fail --location --retry 3 "https://repo.maven.apache.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/$ORT_VERSION/onnxruntime-android-$ORT_VERSION.aar" -o "$RUNNER_TEMP/onnxruntime-android-$ORT_VERSION.aar"
-          JOBS=2 bash tools/runtime/ort_source_build.sh "$RUNNER_TEMP/ort-source" "$ANDROID_HOME/ndk/28.2.13676358" "$ANDROID_HOME" "$RUNNER_TEMP/onnxruntime-android-$ORT_VERSION.aar"
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: "21"
+          JOBS=2 LATENTJAM_ORT_WORK="$RUNNER_TEMP/ort-work" bash tools/runtime/ort_source_build.sh "$RUNNER_TEMP/ort-source" "$ANDROID_HOME/ndk/28.2.13676358" "$ANDROID_HOME"
+      - name: Fetch Maven Central's AAR, whose other ABIs the release packages
+        run: curl --fail --location --retry 3 "https://repo.maven.apache.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/$ORT_VERSION/onnxruntime-android-$ORT_VERSION.aar" -o "$RUNNER_TEMP/onnxruntime-android-$ORT_VERSION.aar"
       - uses: gradle/actions/setup-gradle@v5
       - name: Verify exact packaged runtime, DEX and all split ABIs
         run: |

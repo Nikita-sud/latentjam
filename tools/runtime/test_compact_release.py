@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Small fixtures: reject stale models, modified artifacts and a stock runtime packaged by mistake."""
+"""Small fixtures: reject stale models, modified artifacts and a stock ARM64 runtime packaged by mistake."""
 import importlib.util
 import json
 from pathlib import Path
@@ -33,17 +33,19 @@ class CompactReleaseTest(unittest.TestCase):
         self.stock = self.root / "stock.aar"
         self.stock_entries = {f"jni/{abi}/{lib}": b"stock" * 400 for abi in (*compact.ABIS, "x86")
                               for lib in ("libonnxruntime.so", "libonnxruntime4j_jni.so")}
-        self.reduced_entries = dict(self.stock_entries)
-        self.reduced_entries["jni/arm64-v8a/libonnxruntime.so"] = b"reduced" * 100
-        self.reduced_entries["jni/arm64-v8a/libonnxruntime4j_jni.so"] = b"reduced-jni"
+        # The reduced AAR holds ARM64 only; the packaged APKs take every other ABI from the stock AAR.
+        self.reduced_entries = {"jni/arm64-v8a/libonnxruntime.so": b"reduced" * 100,
+                                "jni/arm64-v8a/libonnxruntime4j_jni.so": b"reduced-jni"}
+        self.packaged_entries = {**{k: v for k, v in self.stock_entries.items() if not k.startswith("jni/arm64-v8a/")},
+                                 **self.reduced_entries}
         self.write_zip(self.stock, self.stock_entries)
         self.write_zip(self.candidate, self.reduced_entries)
+        (self.root / "tools/runtime").mkdir(parents=True)
+        (self.root / "tools/runtime/onnxruntime-android-1.26.0.aar.sha256").write_text(compact.sha(self.stock) + "\n")
         self.manifest = {"ort_version": "1.26.0", "candidate_version": version,
                          "models": {"graph.onnx": compact.sha(models / "graph.onnx")},
-                         "stock_aar_sha256": compact.sha(self.stock), "candidate_aar_sha256": compact.sha(self.candidate),
-                         "custom_abis": ["arm64-v8a"], "retained_stock_abis": ["armeabi-v7a", "x86", "x86_64"],
-                         "native_bytes": {name: len(value) for name, value in self.reduced_entries.items()
-                                          if name.startswith("jni/arm64-v8a/")}}
+                         "candidate_aar_sha256": compact.sha(self.candidate), "custom_abis": ["arm64-v8a"],
+                         "native_bytes": {name: len(value) for name, value in self.reduced_entries.items()}}
         self.save_manifest()
 
     @staticmethod
@@ -62,7 +64,7 @@ class CompactReleaseTest(unittest.TestCase):
         checked = self.validate()
         for abi in compact.ABIS:
             apk = self.root / f"{abi}.apk"
-            entries = {name.replace("jni/", "lib/", 1): value for name, value in self.reduced_entries.items()
+            entries = {name.replace("jni/", "lib/", 1): value for name, value in self.packaged_entries.items()
                        if name.startswith(f"jni/{abi}/")}
             self.write_zip(apk, entries)
             compact.verify_runtime(apk, abi, checked["native"])
@@ -87,19 +89,32 @@ class CompactReleaseTest(unittest.TestCase):
             self.validate()
 
     def test_stock_runtime_masquerading_as_reduced_fails(self):
-        self.candidate.write_bytes(self.stock.read_bytes())
+        self.write_zip(self.candidate, {k: v for k, v in self.stock_entries.items() if k.startswith("jni/arm64-v8a/")})
         self.manifest["candidate_aar_sha256"] = compact.sha(self.candidate)
         self.save_manifest()
         with self.assertRaisesRegex(ValueError, "not smaller than stock"):
             self.validate()
 
-    def test_other_abis_cannot_change(self):
+    def test_reduced_aar_must_hold_only_arm64(self):
         self.reduced_entries["jni/x86_64/libonnxruntime.so"] = b"modified"
         self.write_zip(self.candidate, self.reduced_entries)
         self.manifest["candidate_aar_sha256"] = compact.sha(self.candidate)
         self.save_manifest()
-        with self.assertRaisesRegex(ValueError, "Non-ARM64 runtime must be stock"):
+        with self.assertRaisesRegex(ValueError, "exactly the ARM64 runtime"):
             self.validate()
+
+    def test_stock_aar_must_match_its_pinned_hash(self):
+        self.write_zip(self.stock, {**self.stock_entries, "jni/x86_64/libonnxruntime.so": b"modified"})
+        with self.assertRaisesRegex(ValueError, "pinned hash"):
+            self.validate()
+
+    def test_other_abis_are_packaged_from_stock(self):
+        checked = self.validate()
+        apk = self.root / "x86_64.apk"
+        self.write_zip(apk, {"lib/x86_64/libonnxruntime.so": b"modified",
+                             "lib/x86_64/libonnxruntime4j_jni.so": self.stock_entries["jni/x86_64/libonnxruntime4j_jni.so"]})
+        with self.assertRaisesRegex(ValueError, "Packaged ORT does not match"):
+            compact.verify_runtime(apk, "x86_64", checked["native"])
 
     def test_dirty_source_is_rejected_unless_explicitly_requested(self):
         compact.validate_source({"status": ""})
@@ -146,16 +161,17 @@ class CompactReleaseTest(unittest.TestCase):
 
     def test_packaged_hash_uses_stripped_bytes_without_changing_aar(self):
         before = compact.sha(self.candidate)
+        sources = self.validate()["sources"]
         tool = self.root / "strip"
         tool.write_bytes(b"strip fixture")
         def strip(argv, **kwargs):
             p = Path(argv[-1])
             p.write_bytes(p.read_bytes() + b"stripped")
         with patch.object(compact.subprocess, "check_output", return_value="fixture"), patch.object(compact.subprocess, "run", side_effect=strip):
-            result = compact.packaged_native(self.candidate, tool)
+            result = compact.packaged_native(sources, tool)
         self.assertEqual(before, compact.sha(self.candidate))
-        self.assertEqual(len(self.reduced_entries), len(result["commands"]))
-        for name, value in self.reduced_entries.items():
+        self.assertEqual(len(self.packaged_entries), len(result["commands"]))
+        for name, value in self.packaged_entries.items():
             self.assertEqual(compact.hashlib.sha256(value + b"stripped").hexdigest(), result["native"][name]["sha256"])
 
 
