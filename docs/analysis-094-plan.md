@@ -1097,6 +1097,71 @@ Nothing is pushed, tagged or released by this session.
 | Fused (audio) Map / For You regions before a pass completes | no: 0.9.3 behaviour, metadata-only until complete | A separate design would be needed (rounds 11–14 showed the risks to region identity) |
 | WorkManager slices and the speed mode | parked | — |
 
+## Implementation log
+
+The owner said go on 2026-11-01 ("Делай всё что считаешь нужным"), with the default for every §7 call, D1–D5 included.
+
+### Slice A (Step 0, emulator part)
+
+- Corpus: 459 files built from commercial-CC FMA clips (`~/Documents/LJ/analysis-094/make_corpus.py`, outside the repo,
+  licences in its `LICENSES.tsv`): 200 MP3 originals, 12 sources × 20 transcodes (AAC in M4A/ADTS/MKV, FLAC native,
+  24-bit, in Ogg and MP4, Vorbis, Opus in Ogg/WebM, WAV s16/s24/f32, mono, 5.1, 22.05/48/96 kHz, VBR MP3 without a
+  Xing header), short (6 s) and long (21 min) files, 4 exact duplicates, and the `tools/fuzz/corpus` audio seeds. The
+  FMA sources are 30 s clips, so the window positions are closer together than on full tracks.
+- Tool: `AnalysisGoldenDeviceTest` (52c43398) reads the corpus from the test package's files, never MediaStore, and
+  writes the CRC of every decoded window and of every track vector the chunked pass computes.
+- **G-a / G-c baseline on Pixel_7_Pro (API 36, 4 cores, emulator):** two runs of the 0.9.3 code are byte-identical:
+  1,303 windows, 437 vectors, 22 failures (the fuzz seeds and 3 FMA files the platform rejects). Noise band: none.
+  Timing (relative only): decode 0.96–0.99 s/track sequential, chunked pass 0.73–0.80 s/track.
+- Not done yet: the physical-phone minimum set (†), G-b, G-d, G-e, G-f, the platform matrix.
+
+### Slice B1 (9bfd518b, f6c2263f, 981af414)
+
+- FGS: one gate (`AnalysisForegroundGate`) decides starts, updates and stops under **one lock** (the plan said "one
+  thread"; a lock gives the same ordering and lets a refused start reach the caller synchronously). Progress posts via
+  `NotificationManager.notify`; a stop before `startForeground` is deferred; runs hold sessions, opened before the old
+  run is cancelled; explicit `dataSync` type. A refused start ends the pass as an exception did.
+- iOS: `beginBackgroundTask` again after every expiry, on the next background or active transition.
+- 2a.1: the codec list is built once per process. Review round 1 pointed out that the framework already shares a
+  static list, so this saves only the per-window copy; the gain is expected to be small, and the comment says so.
+- 2-0 (thread priority) is **not** built: it needs the physical phone and its predeclared rule.
+- Review round B1-1: engineering READY, platform READY (no blocking, no major). The 9 minor findings were fixed in
+  981af414 (timeout then destroy, refused start on the way to a stop, stale content, blank channel name, double
+  relaunch before dispatch) or reworded (codec comment).
+
+### Slice B2 (52afc8d2, 3bbda9b7, 8c4a3302)
+
+- Rows 1–6 as in §4, thresholds T = MODERATE, H = 0.85 (defaults; Step 0 on a phone may move them), budget 90 min per
+  24 h counting charging, wake lock 5 min renewed per track, receivers take a 3 s lock on screen and power events only
+  (not on every battery broadcast).
+- **Envelope refusal** uses the engine's existing refusal latch through a lock-free query. The size estimate before the
+  first refused save (`IndexStore.encodedSizeOf`) is left for Slice C: until then a cold process over the envelope may
+  hold the wake lock for at most one checkpoint window (32 tracks) before the first refusal.
+- Stop reasons USER, TIMEOUT, SHOW_FAILED, EXCEPTION are persisted; restart rules per call kind as in §4. The pending
+  Retry-ids latch belongs to D3 and comes with Slice C.
+- Strings in `values*/analysis_control.xml`, all 22 locale folders.
+- Review round B2-1: engineering NOT READY (M1 Continue during steps 1–3 ran the pass unseen; M2 no tests above the
+  gate; M3 failures not listed while paused), platform NOT READY (same M1, M2). Fixed in b52c4cf5: the audio pass moved
+  into `GatedAudioPass` with host tests, failures listed via a read-only engine query, and the minors.
+- Emulator check (Pixel_7_Pro, API 36, 1,299 tracks incl. the corpus): FGS `dataSync` with a Pause action; screen off →
+  `LatentJam:analysis` wake lock held and progress went on (923 → 1,046 in a minute); notification Pause → service
+  stopped, "Paused by you" notice, `userPaused`/`stopReason=user` persisted, no wake lock; notice Continue → app opened,
+  pass resumed, notice gone; pass completed with clean preferences. It also found a real defect: the fixed headroom 0.85
+  held the emulator in a heat wait at 30 °C (its MODERATE threshold is 0.967), fixed in 7f37dada by using the device's
+  own threshold on API 35+.
+- Review round B2-2: NOT READY (M-A: the "pass is finishing" Continue branch fired during steps 1–3 and could undo a
+  later Pause). Fixed in a5f9ca7e with a flag set by the paused stop, plus the round-2 minors.
+
+### Slice C (started)
+
+- 1a (49f74872): directory fsync on Android; iOS streaming writer (POSIX, `F_FULLFSYNC`, directory fsync) and a
+  one-copy reader. Byte equality of the streamed path is tested in `IosFileIndexStoreTest`, but **the iOS tests could
+  not run** in this session (`simctl` hung); iOS compiles. The Application Support move is not done.
+- P4 (eeebfdd9) instead of the full `AnalysisRun`: the engine passes the next chunk as a hint, and the Android
+  pipeline starts its decodes once the current chunk's are all started; the next call reuses them. The press path,
+  the locks and the install are 0.9.3's. This is a smaller design than §4 1b, chosen because it keeps every install and
+  lock as they were; per-window `inference` (press latency) is not done.
+
 ## Review log
 
 ### Round 1 (2026-11-01): two fresh reviewers on v1 → NOT READY
