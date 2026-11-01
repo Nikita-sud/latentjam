@@ -271,8 +271,7 @@ internal class AndroidAudioDecoder(private val context: Context) {
                 // Resolve support separately from allocation. A null result is a stable property of
                 // this device + stream format and may be remembered for unchanged bytes; failures
                 // while creating/starting the chosen codec remain retryable availability failures.
-                val decoderName = MediaCodecList(MediaCodecList.REGULAR_CODECS)
-                    .findDecoderForFormat(inputFormat)
+                val decoderName = regularCodecs.findDecoderForFormat(inputFormat)
                     ?: return AudioDecodeResult.InvalidAudio("No decoder for $mime")
                 if (stages != null) lap { stages.lookup += it }
                 val codec = MediaCodec.createByCodecName(decoderName)
@@ -573,6 +572,15 @@ internal class AndroidAudioDecoder(private val context: Context) {
     }
 
     private companion object {
+        /**
+         * The device's codec list, built once per process: building it enumerates every codec, and
+         * that used to happen for each window (docs/analysis-094-plan.md 2a.1). The list does not
+         * change while the process lives, so every window still gets the decoder a fresh list
+         * would name; the lookup only reads it, from any thread. A failed build is retried on the
+         * next window, as before.
+         */
+        val regularCodecs: MediaCodecList by lazy { MediaCodecList(MediaCodecList.REGULAR_CODECS) }
+
         const val DEQUEUE_TIMEOUT_US = 10_000L
         const val DECODE_WALL_BUDGET_NANOS = 30_000_000_000L
         const val DECODE_IDLE_BUDGET_NANOS = 5_000_000_000L
