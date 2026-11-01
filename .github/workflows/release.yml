@@ -1,0 +1,283 @@
+# Release files for a v* tag, signed only after the owner approves the `release` environment, ending in a draft
+# GitHub release. A push to a release/<version> branch is the dry run: the same builds, the four F-Droid blocks and
+# a signing rehearsal with a throwaway key; nothing is signed with the release key and nothing is published.
+# docs/release-build-094-plan.md, section C.
+name: Release
+on:
+  push:
+    tags: ["v*"]
+    branches: ["release/**"]
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  # Dry runs make way for a newer push; a tag run is never cancelled (tags cannot be moved).
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/heads/') }}
+env:
+  GRADLE_OPTS: -Dorg.gradle.workers.max=2 -Dorg.gradle.jvmargs=-Xmx4g -Dkotlin.daemon.jvm.options=-Xmx2g
+  # The certificate of every GitHub release APK so far (tools/release/build.sh RELEASE_CERT_SHA256).
+  RELEASE_CERT_SHA256: dd7001b32e9693c346d596fccdd65e6d307590a21878c49d785a2cabb4554a2b
+  BUILD_TOOLS: "36.0.0"
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Free runner disk
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL && df -h /
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.11"
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+        with:
+          packages: platform-tools
+      - name: Android SDK and native build tools
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;$BUILD_TOOLS" "ndk;28.2.13676358" "cmake;3.22.1"
+          python -m pip install cmake ninja flatbuffers
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          # No Gradle cache written by other runs reaches release files.
+          cache-disabled: true
+      - name: Expected version
+        id: version
+        run: |
+          case "$GITHUB_REF" in
+            refs/tags/v*) version=${GITHUB_REF_NAME#v};;
+            refs/heads/release/*) version=${GITHUB_REF_NAME#release/};;
+          esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Unsigned per-ABI APKs, the reduced ONNX Runtime built from source
+        run: LATENTJAM_ORT_CACHE=0 LATENTJAM_ORT_WORK="$RUNNER_TEMP/ort" tools/release/build.sh android
+      - name: Unsigned Play bundle
+        run: LATENTJAM_REDUCED_ORT_REPO="$GITHUB_WORKSPACE/build/reduced-ort/maven" tools/release/build.sh bundle
+      - name: Versions match the tag or branch
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          out="build/release/$VERSION"
+          test -d "$out" || { echo "build.gradle.kts does not say versionName $VERSION"; exit 1; }
+          base=$(sed -n 's/^ *versionCode = \([0-9]*\)$/\1/p' androidApp/build.gradle.kts)
+          aapt2="$ANDROID_HOME/build-tools/$BUILD_TOOLS/aapt2"
+          for pair in armv7:1 arm64:2 x86_64:4; do
+            apk="$out/LatentJam-v$VERSION-${pair%:*}-unsigned.apk"
+            "$aapt2" dump badging "$apk" | head -1 | tee /dev/stderr \
+              | grep -q "versionCode='$((base * 10 + ${pair#*:}))' versionName='$VERSION'"
+          done
+      - name: CycloneDX SBOM, a separate invocation so the shipped command keeps its configuration cache
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          ./gradlew -I tools/ci/sbom.init.gradle cyclonedxBom --no-configuration-cache --max-workers=2
+          python3 tools/ci/sbom_assets.py --input build/reports/cyclonedx/bom.json \
+            --output "build/release/$VERSION/LatentJam-v$VERSION-sbom.cdx.json"
+      - id: upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-unsigned
+          path: build/release/${{ steps.version.outputs.version }}/
+          if-no-files-found: error
+          retention-days: 14
+
+  # The four F-Droid build blocks, each in a fresh buildserver container as fdroiddata's CI builds an MR. In a dry run
+  # they are the gate (release.py preflight requires them green on the commit being tagged); in a tag run they are
+  # informational and do not hold back signing.
+  fdroid:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [armeabi-v7a, arm64-v8a, x86, x86_64]
+    steps:
+      - name: Free runner disk (host side; the build runs in a container)
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/local/lib/android /opt/hostedtoolcache
+          docker system prune -af > /dev/null
+          df -h /
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: fdroid build (commit as F-Droid's recipe pins it)
+        run: |
+          commit=$(git rev-parse "$GITHUB_SHA^{commit}")
+          docker run --rm -v "$GITHUB_WORKSPACE:/src:ro" \
+            registry.gitlab.com/fdroid/fdroidserver:buildserver-trixie@sha256:1ea8bef1820bff06c2974e31b4fc4c79c364cd24231b86e71fa4b926797e0dac \
+            bash /src/tools/release/ci_fdroid_build.sh "${{ matrix.abi }}" "$commit"
+
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 120
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          cache-disabled: true
+      - name: Unsigned IPA
+        run: tools/release/build.sh ios
+      - id: upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-unsigned
+          path: build/release/*/*.ipa
+          if-no-files-found: error
+          retention-days: 14
+
+  # Dry run only: the sign job's exact commands with a key made here, which must NOT pass as the release key.
+  sign-dry:
+    if: startsWith(github.ref, 'refs/heads/release/')
+    needs: android
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.android.outputs.artifact-id }}
+          path: unsigned
+          digest-mismatch: error
+      - name: Sign and verify with a throwaway key
+        env:
+          LJ_KS_PASS: dry-run-only
+        run: |
+          set -euo pipefail
+          keytool -genkeypair -keystore "$RUNNER_TEMP/dry.p12" -storetype PKCS12 -alias release -keyalg RSA \
+            -keysize 2048 -validity 1 -dname CN=dry-run -storepass:env LJ_KS_PASS
+          tools="$ANDROID_HOME/build-tools/$BUILD_TOOLS"
+          test -x "$tools/apksigner" || "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;$BUILD_TOOLS" > /dev/null
+          mkdir signed
+          for apk in unsigned/*/*-unsigned.apk unsigned/*-unsigned.apk; do
+            [ -f "$apk" ] || continue
+            if "$tools/apksigner" verify "$apk" > /dev/null 2>&1; then echo "$apk is already signed"; exit 1; fi
+            out="signed/$(basename "${apk%-unsigned.apk}").apk"
+            "$tools/apksigner" sign --ks "$RUNNER_TEMP/dry.p12" --ks-type PKCS12 --ks-key-alias release \
+              --ks-pass env:LJ_KS_PASS --key-pass env:LJ_KS_PASS --v1-signing-enabled false \
+              --v2-signing-enabled true --v3-signing-enabled false --v4-signing-enabled false --out "$out" "$apk"
+            report=$("$tools/apksigner" verify --verbose --print-certs "$out")
+            grep -qx 'Number of signers: 1' <<<"$report"
+            grep -qx 'Verified using v2 scheme (APK Signature Scheme v2): true' <<<"$report"
+            digest=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' <<<"$report" | tr -d ': ' | tr 'A-F' 'a-f')
+            if [ "$digest" = "$RELEASE_CERT_SHA256" ]; then echo "a throwaway key passed as the release key"; exit 1; fi
+            "$tools/zipalign" -c -P 16 -v 4 "$out" > /dev/null
+            echo "$out: signed, v2 only, aligned; certificate check rejects it as expected"
+          done
+          ls signed/*.apk
+          rm -f "$RUNNER_TEMP/dry.p12"
+
+  # Runs only third-party-free steps: the artifact download (by id) and the SDK's own apksigner and zipalign.
+  sign:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: android
+    runs-on: ubuntu-24.04
+    environment: release
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.android.outputs.artifact-id }}
+          path: unsigned
+          digest-mismatch: error
+      - name: Sign with the release key and verify
+        env:
+          KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
+          LJ_KS_PASS: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          LJ_KEY_PASS: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          VERSION: ${{ needs.android.outputs.version }}
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.p12"
+          unset KEYSTORE_B64
+          tools="$ANDROID_HOME/build-tools/$BUILD_TOOLS"
+          test -x "$tools/apksigner" || "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;$BUILD_TOOLS" > /dev/null
+          mkdir signed
+          for short in arm64 armv7; do
+            apk=$(find unsigned -name "LatentJam-v$VERSION-$short-unsigned.apk")
+            test -n "$apk"
+            if "$tools/apksigner" verify "$apk" > /dev/null 2>&1; then echo "$apk is already signed"; exit 1; fi
+            out="signed/LatentJam-v$VERSION-$short.apk"
+            "$tools/apksigner" sign --ks "$RUNNER_TEMP/release.p12" --ks-type PKCS12 --ks-key-alias release \
+              --ks-pass env:LJ_KS_PASS --key-pass env:LJ_KEY_PASS --v1-signing-enabled false \
+              --v2-signing-enabled true --v3-signing-enabled false --v4-signing-enabled false --out "$out" "$apk"
+            report=$("$tools/apksigner" verify --verbose --print-certs "$out")
+            grep -qx 'Number of signers: 1' <<<"$report"
+            grep -qx 'Verified using v2 scheme (APK Signature Scheme v2): true' <<<"$report"
+            digest=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' <<<"$report" | tr -d ': ' | tr 'A-F' 'a-f')
+            test "$digest" = "$RELEASE_CERT_SHA256" || { echo "$out: not the release certificate"; exit 1; }
+            "$tools/zipalign" -c -P 16 -v 4 "$out" > /dev/null
+          done
+      - name: Remove the keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.p12"
+      - id: upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-signed
+          path: signed/
+          if-no-files-found: error
+          retention-days: 14
+
+  draft:
+    if: always() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && needs.sign.result == 'success'
+    needs: [android, ios, sign]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.sign.outputs.artifact-id }}
+          path: assets
+          merge-multiple: true
+          digest-mismatch: error
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.android.outputs.artifact-id }}
+          path: android
+          digest-mismatch: error
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: needs.ios.result == 'success'
+        with:
+          artifact-ids: ${{ needs.ios.outputs.artifact-id }}
+          path: assets
+          merge-multiple: true
+          digest-mismatch: error
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.android.outputs.version }}
+          IOS: ${{ needs.ios.result }}
+        run: |
+          set -euo pipefail
+          tag="$GITHUB_REF_NAME"
+          if gh release view "$tag" > /dev/null 2>&1; then echo "a release for $tag already exists"; exit 1; fi
+          find android -name "*-sbom.cdx.json" -exec cp {} assets/ \;
+          find assets -mindepth 2 -type f -exec mv {} assets/ \;
+          (cd assets && sha256sum -- * | LC_ALL=C sort -k2 > SHA256SUMS)
+          git fetch --force origin "refs/tags/$tag:refs/tags/$tag"
+          base=$(sed -n 's/^ *versionCode = \([0-9]*\)$/\1/p' androidApp/build.gradle.kts)
+          {
+            git tag -l --format='%(contents)' "$tag"
+            echo
+            echo "### Changelog"
+            cat "fastlane/metadata/android/en-US/changelogs/$base.txt"
+            if [ "$IOS" != success ]; then
+              echo
+              echo "<!-- iOS IPA not built in CI: attach it, then run tools/release/release.py sums -->"
+            fi
+          } > notes.md
+          gh release create "$tag" --draft --verify-tag --title "LatentJam $VERSION" --notes-file notes.md assets/*

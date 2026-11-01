@@ -21,6 +21,7 @@
 #   LATENTJAM_ORT_SOURCE       onnxruntime v<version> checkout with submodules (default: cloned into the cache)
 #   LATENTJAM_ORT_CACHE=0      build the reduced runtime afresh into build/reduced-ort/maven (CI); default: cached
 #                              under ~/.cache/latentjam/ort/<key>, key = tools/runtime/ + toolchain versions
+#   LATENTJAM_REDUCED_ORT_REPO an already built reduced-ORT repository to use as is (CI: bundle after android)
 #   ANDROID_HOME               Android SDK (default ~/Library/Android/sdk on macOS)
 set -euo pipefail
 
@@ -69,6 +70,7 @@ reduced_ort_repo() {
   version=$(ort_version)
   ndk="$sdk/ndk/$NDK_VERSION"
   [ -d "$ndk" ] || die "NDK $NDK_VERSION missing: sdkmanager 'ndk;$NDK_VERSION'"
+  if [ -n "${LATENTJAM_REDUCED_ORT_REPO:-}" ]; then echo "$LATENTJAM_REDUCED_ORT_REPO"; return; fi
   if [ "${LATENTJAM_ORT_CACHE:-1}" = 0 ]; then
     repo="$ROOT/build/reduced-ort/maven"
   else
