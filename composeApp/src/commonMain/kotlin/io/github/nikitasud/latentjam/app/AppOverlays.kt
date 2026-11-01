@@ -23,6 +23,22 @@ import androidx.compose.material3.SheetState
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxDefaults
+import androidx.compose.material3.SwipeToDismissBoxState
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.ui.graphics.graphicsLayer
+import io.github.nikitasud.latentjam.app.generated.resources.Res
+import io.github.nikitasud.latentjam.app.generated.resources.action_close
+import org.jetbrains.compose.resources.stringResource
+import kotlin.math.abs
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.geometry.Size
@@ -125,20 +141,55 @@ internal fun AppAlertDialog(
 
 /**
  * Undo and notices: a dark card with the mini player's corner, instead of Material's light
- * rectangle that flashed against the dark library right above the player.
+ * rectangle that flashed against the dark library right above the player. A sideways swipe puts
+ * it away; that counts as a dismissal (as its close button or the timeout would), never as Undo.
  */
 @Composable
 internal fun AppSnackbarHost(hostState: SnackbarHostState, modifier: Modifier = Modifier) {
     SnackbarHost(hostState, modifier) { data ->
-        Snackbar(
-            snackbarData = data,
-            shape = OverlayShape,
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            actionColor = MaterialTheme.colorScheme.onSurface,
-            actionContentColor = MaterialTheme.colorScheme.onSurface,
-            dismissActionContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        // Plain remember, not the saveable state: each snackbar the host shows starts settled.
+        val threshold = SwipeToDismissBoxDefaults.positionalThreshold
+        val swipe = remember { SwipeToDismissBoxState(SwipeToDismissBoxValue.Settled, threshold) }
+        // The margin sits outside the swipe area: around the data overload's card (which pads
+        // itself) it would catch taps and drags meant for the rows underneath.
+        SwipeToDismissBox(
+            state = swipe,
+            backgroundContent = {},
+            modifier = Modifier.padding(12.dp),
+            onDismiss = { data.dismiss() },
+        ) {
+            val actionLabel = data.visuals.actionLabel
+            Snackbar(
+                // On a wide screen the card is narrower than the window, so it fades as it goes
+                // rather than stopping half way out.
+                modifier = Modifier.graphicsLayer {
+                    val offset = runCatching { swipe.requireOffset() }.getOrDefault(0f)
+                    alpha = if (size.width > 0f) (1f - abs(offset) / size.width).coerceIn(0f, 1f) else 1f
+                },
+                action = actionLabel?.let { label ->
+                    {
+                        TextButton(
+                            onClick = { data.performAction() },
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
+                        ) { Text(label) }
+                    }
+                },
+                dismissAction = if (data.visuals.withDismissAction) {
+                    {
+                        IconButton(onClick = { data.dismiss() }) {
+                            Icon(Icons.Rounded.Close, contentDescription = stringResource(Res.string.action_close))
+                        }
+                    }
+                } else {
+                    null
+                },
+                shape = OverlayShape,
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                actionContentColor = MaterialTheme.colorScheme.onSurface,
+                dismissActionContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            ) { Text(data.visuals.message) }
+        }
     }
 }
 
