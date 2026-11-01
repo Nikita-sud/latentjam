@@ -1,0 +1,98 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# The frozen F-Droid recipe (docs/release-build-094-plan.md, section B): the four build blocks fdroiddata holds for
+# every release, without versionName/versionCode/commit, which tools/release/fdroid_recipe.py fills in. F-Droid's
+# checkupdates bot copies the last four blocks verbatim for every new v* tag, so nothing here may change per release.
+# A change to anything in this file needs an fdroiddata MR (fdroid_recipe.py check says so).
+appid: io.github.nikitasud.latentjam.kmp
+
+# The NDK `ndk:` names; checked against ndkVersion in core/{ort-ops,map-native,audio-dsp}.
+ndk_version: 28.2.13676358
+
+# App-level fields the bot depends on.
+app:
+  AutoUpdateMode: Version
+  UpdateCheckMode: Tags ^v[0-9.]+$
+  VercodeOperation:
+    - 10 * %c + 1
+    - 10 * %c + 2
+    - 10 * %c + 3
+    - 10 * %c + 4
+
+srclibs:
+  onnxruntime:
+    RepoType: git
+    Repo: https://github.com/microsoft/onnxruntime.git
+    Prepare: git submodule update --init --recursive --depth 1
+
+# Ascending ABI digit (androidApp/build.gradle.kts abiVersionDigits): the bot zips these with the sorted codes.
+builds:
+  - subdir: androidApp
+    gradle:
+      - yes
+    prebuild: bash ../tools/release/build.sh fdroid-prebuild armeabi-v7a
+    scanignore:
+      - androidApp/src/main/assets/ml/*.bin
+    scandelete:
+      - tools/fuzz/corpus
+      - core/smart/src/commonTest/resources
+      - core/smart/src/androidHostTest/resources
+      - iosApp/iosApp/ml
+    ndk: r28c
+    gradleprops:
+      - latentjam.fdroid=true
+      - latentjam.fdroidAbi=armeabi-v7a
+
+  - subdir: androidApp
+    sudo:
+      - apt-get update
+      - apt-get install -y g++ make ninja-build python3-flatbuffers
+    gradle:
+      - yes
+    srclibs:
+      - onnxruntime@v1.26.0
+    prebuild: bash ../tools/release/build.sh fdroid-prebuild arm64-v8a $$onnxruntime$$ $$NDK$$ $$SDK$$
+    scanignore:
+      - androidApp/src/main/assets/ml/*.bin
+      - build/reduced-ort/maven
+    scandelete:
+      - tools/fuzz/corpus
+      - core/smart/src/commonTest/resources
+      - core/smart/src/androidHostTest/resources
+      - iosApp/iosApp/ml
+    ndk: r28c
+    gradleprops:
+      - latentjam.fdroid=true
+      - latentjam.fdroidAbi=arm64-v8a
+
+  - subdir: androidApp
+    gradle:
+      - yes
+    prebuild: bash ../tools/release/build.sh fdroid-prebuild x86
+    scanignore:
+      - androidApp/src/main/assets/ml/*.bin
+    scandelete:
+      - tools/fuzz/corpus
+      - core/smart/src/commonTest/resources
+      - core/smart/src/androidHostTest/resources
+      - iosApp/iosApp/ml
+    ndk: r28c
+    gradleprops:
+      - latentjam.fdroid=true
+      - latentjam.fdroidAbi=x86
+
+  - subdir: androidApp
+    gradle:
+      - yes
+    prebuild: bash ../tools/release/build.sh fdroid-prebuild x86_64
+    scanignore:
+      - androidApp/src/main/assets/ml/*.bin
+    scandelete:
+      - tools/fuzz/corpus
+      - core/smart/src/commonTest/resources
+      - core/smart/src/androidHostTest/resources
+      - iosApp/iosApp/ml
+    ndk: r28c
+    gradleprops:
+      - latentjam.fdroid=true
+      - latentjam.fdroidAbi=x86_64
