@@ -1,6 +1,6 @@
 # 0.9.4 track 1: library analysis, fast and reliable
 
-Status: **v15**, under adversarial review (log at the end). Nothing is implemented until the owner says go.
+Status: **v16**, under adversarial review (log at the end). Nothing is implemented until the owner says go.
 
 Scope: the on-device library analysis on Android and iOS. It covers:
 - audio decoding;
@@ -25,6 +25,10 @@ Code baseline: `dev/0.9.4` = origin/main 1730aa24, the released 0.9.3 code plus 
   presses no longer wait behind a whole chunk of analysis. Fixes for hung decoders and failure handling (D1–D5).
 - **D:** iOS background tasks and Battery Saver slow-down.
 - **E:** optional speed items, each only if its measured rule passes.
+
+**The trade-off users feel.** On a cheap phone a first analysis of 10k tracks takes about 2–3 days with daily app
+opens. Without app opens it stops after the first day's share, and an app open or Continue resumes it. While the pass
+is incomplete or paused, the Map and For You regions use metadata only, as in 0.9.3.
 
 **What does not change:** stored vectors and their order (except D1–D6), SMART's answers, the model, and the Map's
 behaviour.
@@ -675,10 +679,14 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
     existing rows. So deleted tracks lose their rows and new tracks get text rows while paused. The check lives
     inside `ensureAutomaticIndexing`, so a configuration-change re-fire cannot bypass it. A gated or stopped pass
     never sets `complete = true`.
-  - **Retry** (D3) calls `engine.retryFailedTracks(chosen)` directly and persists. It then calls
+  - **Retry** (D3) runs the clear for the chosen ids inside the relaunched pass, right after `initialize()`, as 0.9.3
+    does at AG:609. So it also works while the engine is still Initializing. `retryFailedTracks` returns 0 when the
+    engine is not Ready (ENG:375-377). It then calls
     `ensureAutomaticIndexing(rerun = true)`. `rerun` is a new relaunch flag, separate from today's retry-all `force`
     (AG:609). It relaunches even a `complete` pass, and a pass that is mid-way restarts its audio pass so that
-    already-visited chunks are covered. The audio pass is still gated by the table (`userPaused`).
+    already-visited chunks are covered. Like 0.9.3's `force`, it resets `complete` and `metadataReady` for the new
+    run, so the map regions are metadata-only until the run completes again. That is the same as 0.9.3, not a
+    regression. The audio pass is still gated by the table (`userPaused`).
     Host/G-f cases: Retry after `complete` re-analyses the chosen ids; Retry mid-pass covers ids already visited.
   - **`stopReason`.** It is persisted with the stopped pass: user, battery, wait-30, timeout-6h, show-failed, stuck,
     restore-blocked, exception.
@@ -691,12 +699,20 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
        start or an open permission gate never loses a tap.
 
     Each re-calls `ensureAutomaticIndexing` with the cached key. **Every** call into `ensureAutomaticIndexing`
-    honours the persisted `stopReason` rules, not only these two triggers. That includes a `LaunchedEffect` re-fire
+    honours the persisted `stopReason` rules for its own kind of call (automatic, Continue or Retry; the rules
+    follow), not only these two triggers. That includes a `LaunchedEffect` re-fire
     after a MediaStore rescan.
     - **ON_START restarts only:**
       - wait-30, timeout-6h and show-failed;
       - battery, when row 2 no longer matches (plugged in, or > 15 %);
       - exception, with backoff: 1 min, then 10 min, then the next cold start.
+    - **Retry restarts:**
+      - exception, which also resets its backoff;
+      - show-failed, wait-30, timeout-6h and battery.
+
+      The live table still applies afterwards, so row 2 can stop it again with a visible notice. Retry leaves
+      `userPaused` alone and asks "Continue analysis too?". For stuck and restore-blocked, Retry is disabled and shows
+      the reason.
     - **Continue restarts every reason** except stuck and restore-blocked, user included. It clears `userPaused` and
       arms row 2's 10 % threshold.
     - A same-key relaunch carries over `metadataReady` and `done`, and shows the paused state until the gate passes.
@@ -748,8 +764,27 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
     - MapRebuild.kt:198.
   - `analysisStall` (AnalysisStall.kt:24-34) returns null while `phase` is a waiting or pausing state, so the #27
     stall text never fires on a wait.
-  - The Settings Retry button (`onRetryIndexing`, which today goes through `force`) becomes the D3 path for the
-    failures it lists, with `rerun`. The `force` path stays only for a Failed or uninitialised engine.
+  - `analysisStall`'s `produceState` (AnalysisStall.kt:53-66) also keys on `phase`, through `rememberUpdatedState`.
+    `progressAt` is reset whenever the pass goes back to a running row, so the stall text fires neither during a
+    wait nor right after a resume.
+  - When the pass enters a waiting or pausing phase, `etaMinutes` is set to null, and the wait is left out of the
+    ETA pace. MapTab.kt:1645-1650 and SettingsScreens.kt:1984-1995 show the phase text instead of "X of Y · ETA".
+  - **Controls per state** (Settings → Intelligence; the Map's "Stopped" help at MapTab.kt:272/1690 follows the same
+    rules). The callers of `retryAutomaticIndexing` are SettingsScreens.kt:2019 and 2244 and MapTab.kt:272/1690.
+
+    | state | shown | controls |
+    |---|---|---|
+    | running | progress, ETA | **Pause** |
+    | waiting (hot / screen) or pausing | phase text, no ETA | **Pause** (waiting); Retry and Rebuild disabled, as for any live pass in 0.9.3 |
+    | stopped: user | "Paused by you: N tracks waiting" | **Continue**; Retry if failures exist (asks "Continue analysis too?") |
+    | stopped: battery / wait-30 / timeout-6h / open-app | "Paused at X of Y", with the reason | **Continue**; Retry if failures exist |
+    | stopped: exception | "Analysis stopped" | **Retry** (restarts and resets the backoff) |
+    | stopped: stuck / restore-blocked | the reason, and "restart the app" | Retry disabled, with the reason |
+    | engine Failed or uninitialised | as in 0.9.3 | the 0.9.3 `force` recovery Retry |
+    | complete, with failures | as in 0.9.3 | Retry (D3, for the listed failures) |
+
+    `needsRecovery` (SettingsScreens.kt:2009-2024) leaves out the table-stopped reasons, so Continue is never shown
+    as "Retry". **Rebuild** is an explicit user action: it clears `userPaused`. There are host UI tests for each row.
 - **Stopped notices** are best-effort. On API 33+ without `POST_NOTIFICATIONS` they are not shown, so the in-app
   state is the source of truth. This is tested with the permission denied.
 - **Map readiness: unchanged from 0.9.3.** `libraryWorlds.audioVectorsReady` stays `complete` with a matching
@@ -1688,3 +1723,34 @@ built, it must meet requirements 1–8, which carry every store finding from rou
 - iOS observers registered before the read.
 - The map-job re-enqueue happens once per run.
 - An owner summary at the top.
+
+### Round 15 (2026-11-01): two fresh reviewers on v15 → NOT READY (no blocking findings)
+
+**Both reviewers found one major each, in the same area: Retry and the controls.**
+- **Product:**
+  - the Settings recovery Retry (`needsRecovery`, SettingsScreens.kt:2009-2024) would show as "Retry" in every new
+    stopped state;
+  - there was no in-app Pause or Continue.
+- **Correctness:**
+  - `rerun` contradicted "every call honours `stopReason`", so Retry could not recover an exception stop that
+    0.9.3's `force` does recover;
+  - not all three call sites were named.
+- **Minor:**
+  - the stall `produceState` keys (AnalysisStall.kt:53-66);
+  - an ETA and a frozen "X of Y" while waiting;
+  - Retry and Rebuild disabled during waits;
+  - what `rerun` resets;
+  - Retry when the engine is not Ready;
+  - Rebuild while paused;
+  - the summary missed the user trade-off.
+
+**v16 response, all taken:**
+- A controls-per-state table, with every caller named and Continue never shown as "Retry".
+- Retry has its own restart row: it restarts exception (and resets its backoff), show-failed, wait-30, timeout-6h
+  and battery; it is disabled for stuck and restore-blocked.
+- The Retry clear runs inside the relaunched pass after `initialize()`.
+- `rerun` resets like `force`, as in 0.9.3.
+- Stall keys on `phase`, and `progressAt` resets on resume.
+- ETA is null while waiting.
+- Rebuild clears `userPaused`.
+- The trade-off is in the summary.
