@@ -234,7 +234,7 @@ def fdroid_mr(_args):
     problems = dry_run_problems(version, head)
     if problems:
         sys.exit("fdroid-mr needs a green dry run of this commit first:\n" + "\n".join(problems))
-    if git("status", "--porcelain", cwd=FDROIDDATA):
+    if git("status", "--porcelain", "--untracked-files=no", cwd=FDROIDDATA):
         sys.exit(f"{FDROIDDATA} has uncommitted changes")
     git("fetch", "--quiet", "origin", "master", cwd=FDROIDDATA)
     branch = f"latentjam-{version}"
