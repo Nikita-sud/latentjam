@@ -1845,8 +1845,11 @@ private fun AppShell(
             }
         }
 
-        fun retryAutomaticIndexing() {
+        // D3: Retry clears the failures it was pressed for ([ids], from the problems list); without ids it is the
+        // recovery Retry of the status page and the map, which clears every remembered failure as 0.9.3 did.
+        fun retryAutomaticIndexing(ids: Collection<TrackId>? = null) {
             val loaded = tracks ?: return
+            val retryIds = ids?.toSet()
             scope.launch {
                 val notificationTitle = getString(Res.string.indexing_notification_title)
                 AppGraph.ensureAutomaticIndexing(
@@ -1855,6 +1858,7 @@ private fun AppShell(
                         libraryIndexingRequest?.librarySnapshotAuthoritative ?: false,
                     notificationTitle = notificationTitle,
                     force = true,
+                    retryIds = retryIds,
                     notices = ::analysisNoticeText,
                 ) { done, total, etaMinutes ->
                     if (etaMinutes == null) {
@@ -2732,7 +2736,7 @@ private fun AppShell(
                                                 ),
                                         ) {
                                         MapTab(
-                                            onRetryIndexing = ::retryAutomaticIndexing,
+                                            onRetryIndexing = { retryAutomaticIndexing() },
                                             currentAccent = browseAccentInk(accent.value),
                                             state = shownMapState,
                                             contentPadding = listPadding,
@@ -4584,7 +4588,8 @@ private fun AppShell(
                     }
                 },
                 onImportAudio = importAudio,
-                onRetryIndexing = ::retryAutomaticIndexing,
+                onRetryIndexing = { retryAutomaticIndexing() },
+                onRetryTracks = { ids -> retryAutomaticIndexing(ids) },
                 onRebuildAnalysis = {
                     libraryWorlds.metadataVectorsReady = false
                     libraryWorlds.audioVectorsReady = false

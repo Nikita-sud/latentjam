@@ -459,6 +459,7 @@ internal fun SettingsScreen(
     onRefreshLibrary: () -> Unit,
     onImportAudio: () -> Unit,
     onRetryIndexing: () -> Unit,
+    onRetryTracks: (Collection<TrackId>) -> Unit,
     onRebuildAnalysis: suspend () -> Unit,
     onHideTrack: suspend (TrackDescriptor) -> Unit,
     onHideTracks: suspend (List<TrackDescriptor>) -> Unit,
@@ -669,7 +670,7 @@ internal fun SettingsScreen(
                         engine = engine,
                         tracks = tracks,
                         libraryLoading = libraryLoading,
-                        onRetryIndexing = onRetryIndexing,
+                        onRetryTracks = onRetryTracks,
                         onHideTrack = onHideTrack,
                         snackbarHostState = snackbarHostState,
                     )
@@ -2302,7 +2303,8 @@ private fun IntelligenceProblemsSettings(
     engine: SimilarityEngine,
     tracks: List<TrackDescriptor>,
     libraryLoading: Boolean,
-    onRetryIndexing: () -> Unit,
+    /** D3: Retry clears only the failures it is pressed for. */
+    onRetryTracks: (Collection<TrackId>) -> Unit,
     onHideTrack: suspend (TrackDescriptor) -> Unit,
     snackbarHostState: SnackbarHostState,
 ) {
@@ -2323,6 +2325,10 @@ private fun IntelligenceProblemsSettings(
     var removing by remember { mutableStateOf<TrackId?>(null) }
     val manageFailed = stringResource(Res.string.settings_library_manage_failed)
     val removedMessage = stringResource(Res.string.snack_removed_from_latentjam)
+    val userPaused by AppGraph.analysisUserPaused.collectAsState()
+    // While the user's Pause holds, Retry asks whether to continue too, as on the status page.
+    var confirmRetry by remember { mutableStateOf<List<TrackId>?>(null) }
+    val retry: (Collection<TrackId>) -> Unit = { ids -> if (userPaused) confirmRetry = ids.toList() else onRetryTracks(ids) }
 
     FadingLazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -2346,7 +2352,7 @@ private fun IntelligenceProblemsSettings(
                         title = stringResource(Res.string.intelligence_retry),
                         subtitle = stringResource(Res.string.intelligence_analysis_failed, failures.size),
                         enabled = !indexing.running && removing == null,
-                        onClick = onRetryIndexing,
+                        onClick = { retry(failures.keys) },
                     )
                 }
             }
@@ -2360,6 +2366,8 @@ private fun IntelligenceProblemsSettings(
                 title = track?.title ?: stringResource(Res.string.track_untitled),
                 artist = track?.artist ?: stringResource(Res.string.track_unknown_artist),
                 error = error.toUserMessage(),
+                canRetry = !indexing.running && removing == null,
+                onRetry = { retry(listOf(id)) },
                 canRemove = track != null && removing == null,
                 onRemove = {
                     val target = track ?: return@IndexingProblemRow
@@ -2379,6 +2387,30 @@ private fun IntelligenceProblemsSettings(
                 },
             )
         }
+    }
+
+    confirmRetry?.let { ids ->
+        AlertDialog(
+            onDismissRequest = { confirmRetry = null },
+            title = { Text(stringResource(Res.string.analysis_retry_continue_title)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmRetry = null
+                        AppGraph.clearAnalysisPause()
+                        onRetryTracks(ids)
+                    },
+                ) { Text(stringResource(Res.string.analysis_retry_continue_yes)) }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        confirmRetry = null
+                        onRetryTracks(ids)
+                    },
+                ) { Text(stringResource(Res.string.analysis_retry_continue_no)) }
+            },
+        )
     }
 }
 
@@ -2919,28 +2951,33 @@ private fun DuplicateCopyRow(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun IndexingProblemRow(
     title: String,
     artist: String,
     error: String,
+    canRetry: Boolean,
+    onRetry: () -> Unit,
     canRemove: Boolean,
     onRemove: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge.metadata())
-            Text(
-                text = joinBidiWrapped(listOf(artist, error)),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        TextButton(onClick = onRemove, enabled = canRemove) {
-            Text(stringResource(Res.string.action_remove_from_latentjam))
+    // The actions sit under the text, so the title keeps the row's width in every language.
+    Column(modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 10.dp, bottom = 4.dp)) {
+        Text(title, style = MaterialTheme.typography.bodyLarge.metadata())
+        Text(
+            text = joinBidiWrapped(listOf(artist, error)),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        // Wraps under a large font or a long translation; TalkBack reads the title just before them.
+        FlowRow(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = onRetry, enabled = canRetry) {
+                Text(stringResource(Res.string.action_retry))
+            }
+            TextButton(onClick = onRemove, enabled = canRemove) {
+                Text(stringResource(Res.string.action_remove_from_latentjam))
+            }
         }
     }
 }

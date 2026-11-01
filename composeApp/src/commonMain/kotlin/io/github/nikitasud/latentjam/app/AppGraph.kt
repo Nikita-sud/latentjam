@@ -548,6 +548,11 @@ object AppGraph {
         librarySnapshotAuthoritative: Boolean,
         notificationTitle: String,
         force: Boolean = false,
+        /**
+         * With [force], the remembered failures Retry clears (D3: only those it was pressed for); null clears every
+         * one in the library and every waiting timeout, as 0.9.3's Retry did.
+         */
+        retryIds: Collection<TrackId>? = null,
         call: AnalysisCall = if (force) AnalysisCall.RETRY else AnalysisCall.AUTOMATIC,
         notices: suspend (AnalysisNotice) -> String = { "" },
         notificationText: suspend (done: Int, total: Int, etaMinutes: Int?) -> String,
@@ -566,6 +571,10 @@ object AppGraph {
             store.pendingContinue = false
             control.setUserPaused(false)
             if (store.stopReason == AnalysisStopReason.USER) store.stopReason = null
+        }
+        if (force) {
+            val request = RetryRequest(all = retryIds == null, ids = retryIds?.toSet().orEmpty())
+            pendingRetry.update { it?.plus(request) ?: request }
         }
         val trackIds = tracks.idList()
         val existing = automaticIndexingJob
@@ -679,11 +688,24 @@ object AppGraph {
                     library = tracks,
                     pruneMissing = librarySnapshotAuthoritative,
                 )
-                if (force) engine.retryFailedTracks(trackIds)
                 // D2: a file that timed out twice waits out its hour, left out of this pass and of the count of work
-                // left; Retry makes every such file eligible again.
+                // left; Retry makes the files it was pressed for eligible again (every one for the recovery Retry).
                 val retries = analysisRetries
-                if (force) retries.prune(emptyList()) else retries.prune(trackIds)
+                val retry = pendingRetry.value
+                if (retry != null) engine.retryFailedTracks(if (retry.all) trackIds else retry.ids.toList())
+                retries.prune(if (retry?.all == true) emptyList() else trackIds)
+                retry?.ids?.forEach(retries::forget)
+                // Carried out: what a later Retry added meanwhile stays for the next pass.
+                if (retry != null) {
+                    pendingRetry.update { now ->
+                        // (now == retry is only a shortcut: the subtraction below gives null for it too.)
+                        if (now == null || now == retry) {
+                            null
+                        } else {
+                            RetryRequest(now.all && !retry.all, now.ids - retry.ids).takeIf { it.all || it.ids.isNotEmpty() }
+                        }
+                    }
+                }
                 // Only what is still missing: a held track a press analysed meanwhile is plain done.
                 val held = tracks.filter(retries::holding)
                 val holding = if (held.isEmpty() || engine.missingFromIndexOf(held) == held.size) {
@@ -1080,6 +1102,18 @@ object AppGraph {
     /** The current pass stopped for the user's pause and is only finishing; reset by each new pass. */
     @kotlin.concurrent.Volatile
     private var pauseStopPublished = false
+
+    /**
+     * Retries pressed and not yet carried out (D3): every Retry adds its ids here, and a pass removes what it cleared
+     * only after the engine and the retry ledger both let go of them. A second Retry that cancels the first pass before
+     * it got there therefore never loses the first one's tracks. [RetryRequest.all] is the recovery Retry: every
+     * remembered failure and every waiting timeout.
+     */
+    private val pendingRetry = kotlinx.coroutines.flow.MutableStateFlow<RetryRequest?>(null)
+
+    private data class RetryRequest(val all: Boolean, val ids: Set<TrackId>) {
+        operator fun plus(other: RetryRequest): RetryRequest = RetryRequest(all || other.all, ids + other.ids)
+    }
     private var timeoutNotice: AnalysisNotice? = null
     private val restartRules = AnalysisRestartRules()
 
