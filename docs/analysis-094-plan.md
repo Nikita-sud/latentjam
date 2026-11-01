@@ -1179,6 +1179,26 @@ The owner said go on 2026-11-01 ("Делай всё что считаешь ну
   field); "stuck → Broken" (1c) is not built; nothing schedules the 1 h retry (it waits for the next pass).
 - D3 (per-track Retry), D4 and D5 are not built.
 
+### iOS round (87b83d03)
+
+- The hang was CoreSimulator, not the tests: a fresh simulator (iPhone 17, iOS 27.0), pinned by a Gradle init script,
+  runs them. At 648e6a45 `:core:smart:iosSimulatorArm64Test` passes 738 tests (incl. `ServingReferenceGoldenTest`,
+  `IosFileIndexStoreTest`, `TrackDeadlineTest`, `AnalysisTimeoutTest`) and `:composeApp:iosSimulatorArm64Test` 1,220
+  (incl. the B2 and D2 tests); none skipped.
+- iOS G-a/G-c at app level (rule frozen first): the 0.9.3 app (400c8719) and the branch app, each freshly installed
+  with the FMA corpus in Documents, run their pass to the end. **The 0.9.3 app terminates** on the corpus's FLAC-in-MP4
+  files: AVAudioFile raises an Objective-C exception from `setFramePosition` (`'!dat'`, even at frame 0), which Swift
+  cannot catch, so it crashes on every launch. Fixed in 87b83d03 (an Objective-C wrapper turns the exception into a
+  durable decode error; review READY, its minors applied). The rule was amended before any index existed: parity on
+  the corpus without those 12 files, then the branch alone on the full corpus.
+- Result: audio (253 rows), text (207) and energy rows and their order are **identical** between 0.9.3 and the
+  branch; the text file is byte-identical. The audio and energy files differ only in the identity tokens, a digest of
+  the URI that holds the per-install container path (two installs of the same build differ the same way). On the
+  full corpus the branch finishes without a crash and stores the 3 FLAC-in-MP4 tracks in the library as failures;
+  every other row is unchanged.
+- Not covered: iOS playback opens files with AVAudioFile too (`IosAudioEngine`), and was not tried on these files
+  (no audible audio on the Mac).
+
 ## Review log
 
 ### Round 1 (2026-11-01): two fresh reviewers on v1 → NOT READY
