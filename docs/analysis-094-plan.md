@@ -1211,6 +1211,30 @@ The owner said go on 2026-11-01 ("Делай всё что считаешь ну
 - Not covered: iOS playback opens files with AVAudioFile too (`IosAudioEngine`), and was not tried on these files
   (no audible audio on the Mac).
 
+### Round after iOS (7c5a542b..2766846e)
+
+Each piece reviewed by fresh subagents until READY (rounds noted).
+- 7c5a542b iOS playback (2 rounds): a file AVAudioFile opens but cannot decode (32-bit FLAC in MP4) is unplayable; ramp-in
+  and loudness scan read through @try helpers. Measured: the player itself did not crash on such a file (load returned
+  true, silence); the crossfade ramp-in and the loudness scan would have.
+- 8b31f1bb per-unit inference lock (3 rounds): Android per window with a session re-check, iOS per track; a seed decode
+  lane; a timeout with ≥ a tenth of the budget spent waiting for the lock is plain Unavailable, not a D2 attempt.
+  Emulator goldens with the lock (carry on and off) byte-identical; 24 seed-lane embeds equal the pass's vectors.
+  Not built: generation re-check under the lock (phase 3 drops stale results), a release() mid-chunk leaves queued
+  prefetches to time out (no production caller), iOS still waits a whole track. Press latency not measured on a phone.
+- 5f9b2109 1c codec start back-off (3 rounds): contention retried 250/750/2000 ms, ≤ 3 s per track; golden
+  byte-identical. Not built: the playback-aware codec cap (no playback signal), stuck-worker → Broken.
+- b256516e 2d text cache (1 round): LRU of 64 encoder outputs for the engine's lifetime (not per pass); encodes stay
+  under the engine lock.
+- 7e62ec2b D3 (2 rounds): per-track Try again and "retry these" on the problems page; status/map Retry stays the
+  recovery Retry; pending Retry ids survive a restarted pass.
+- 2766846e 1g + 2e (2 rounds): look-ahead within a quarter of the free heap (0 on low system memory); Battery Saver
+  decodes one track at a time. iOS not wired (no device signals there).
+- Not done, with reasons: D4 (needs a partial-vector channel from the backend; 1c covers its usual cause), 1f black
+  box (useful only with a user export, a privacy call for the owner), Slice D iOS background tasks (the plan gates
+  them on a 1e-ios review round, and the simulator cannot exercise them), WorkManager slices (need the owner's yes).
+- iOS suites after this round: core:smart 752, composeApp 1220, core:playback 241, all pass.
+
 ## Review log
 
 ### Round 1 (2026-11-01): two fresh reviewers on v1 → NOT READY
