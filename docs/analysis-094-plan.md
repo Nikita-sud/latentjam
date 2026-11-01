@@ -1161,6 +1161,23 @@ The owner said go on 2026-11-01 ("Делай всё что считаешь ну
   pipeline starts its decodes once the current chunk's are all started; the next call reuses them. The press path,
   the locks and the install are 0.9.3's. This is a smaller design than §4 1b, chosen because it keeps every install and
   lock as they were; per-window `inference` (press latency) is not done.
+- Review round C-1: stores READY (minors: directory `F_FULLFSYNC`, fixed); carry NOT READY (major: carried work
+  orphaned when a press replaced the pool between chunks). Fixed in c5a911e0 with a pool generation; round C-2 then found
+  two majors in D1/D2 (below), fixed in 1ef4991f; round C-3 READY; its minors fixed in 87e764b8.
+- G-a/G-c with carry on and off (Pixel_7_Pro emulator, two pairs): **byte-identical to the 0.9.3 golden** in every
+  run, but carry was slower: 527 and 487 ms/track against 470 and 461 without. Rule frozen after the fact and stated
+  plainly: carry stays **off** (`ANALYSIS_CARRY_DECODING = false`) until the physical phone with full-length tracks
+  shows it faster; the 30 s clips and 4 emulator cores make the gap a small share and the extra concurrent decodes cost.
+
+### D1/D2 (c5a911e0, 1ef4991f, 87e764b8)
+
+- D1: a timeout is `AudioUnavailable` (transient). D2 is app-side (`AnalysisRetryLedger`, persisted in the analysis
+  preferences rather than a `.retry` sidecar): retried at the next pass, then no sooner than 1 h after the second, and
+  the third is remembered by the engine (`rememberAudioFailures`) and listed with Retry. Only timeouts count; a passing
+  failure between timeouts keeps the count. A press does not wait again on a seed that timed out in this process.
+- Narrower than §4 1d: SOURCE_OPEN `Unavailable` is still retried at every pass as in 0.9.3 (needs the 1b-0 stage
+  field); "stuck → Broken" (1c) is not built; nothing schedules the 1 h retry (it waits for the next pass).
+- D3 (per-track Retry), D4 and D5 are not built.
 
 ## Review log
 

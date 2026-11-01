@@ -157,7 +157,11 @@ internal class GatedAudioPass(
                 }
                 val missingBefore = engine.missingFromIndex(chunk.map(TrackDescriptor::id))
                 // No hand-over when the pass will stop at the next boundary: nothing decodes past a pause.
-                val upcoming = if (gated && control.userPaused.value) emptyList() else chunks.getOrNull(position + 1).orEmpty()
+                val upcoming = if (!ANALYSIS_CARRY_DECODING || (gated && control.userPaused.value)) {
+                    emptyList()
+                } else {
+                    chunks.getOrNull(position + 1).orEmpty()
+                }
                 val report = engine.stage(chunk, upcoming)
                 failures.putAll(report.errors)
                 visited += chunk.size
@@ -210,3 +214,10 @@ internal class GatedAudioPass(
         return failures.toMap()
     }
 }
+
+/**
+ * Whether the pass hands each chunk its successor, so decoding carries on through the gap between chunks (plan P4).
+ * Off: on the 4-core emulator with the 30 s test clips it was byte-identical but slower (487–527 ms per track against
+ * 461–470 without), so it stays off until a physical phone with full-length tracks shows a gain.
+ */
+internal const val ANALYSIS_CARRY_DECODING: Boolean = false
