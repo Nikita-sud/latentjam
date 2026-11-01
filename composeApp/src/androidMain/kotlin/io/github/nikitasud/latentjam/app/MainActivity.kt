@@ -54,6 +54,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.permission_not_now
 import io.github.nikitasud.latentjam.app.generated.resources.permission_notifications_rationale
 import io.github.nikitasud.latentjam.app.generated.resources.permission_notifications_title
 import io.github.nikitasud.latentjam.app.generated.resources.permission_open_settings
+import io.github.nikitasud.latentjam.playback.PlaybackTileService
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -86,12 +87,16 @@ class MainActivity : ComponentActivity() {
     private var audioPermissionGranted by mutableStateOf(false)
     private var audioPermissionGateDismissed by mutableStateOf(false)
 
+    /** The Quick Settings tile could not start playback from the background; see [onResume]. */
+    private var playOnResume = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         applyStoredWindowTheme()
         // SavedStateHandle already owns any unfinished request after recreation. Re-reading the
         // launch intent here would replay an already consumed file after a locale/rotation change.
         if (savedInstanceState == null) externalAudioOpener.submit(intent?.action, intent?.dataString)
+        if (savedInstanceState == null) takePlayRequest(intent)
         audioPermissionGranted = hasAudioPermission()
         audioPermissionGateDismissed = getSharedPreferences(
             AUDIO_GATE_PREFERENCES,
@@ -136,6 +141,19 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         externalAudioOpener.submit(intent.action, intent.dataString)
+        takePlayRequest(intent)
+    }
+
+    /**
+     * Once per tile tap. A recreated activity skips this (onCreate checks the saved state) and a
+     * launch from recents is ignored here: both replay the system's stored copy of the intent.
+     */
+    private fun takePlayRequest(intent: Intent?) {
+        if (intent?.getBooleanExtra(PlaybackTileService.EXTRA_PLAY_ON_OPEN, false) != true) return
+        intent.removeExtra(PlaybackTileService.EXTRA_PLAY_ON_OPEN)
+        // From recents the old launch intent comes back with its extras.
+        if (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return
+        playOnResume = true
     }
 
     override fun onPause() {
@@ -149,6 +167,13 @@ class MainActivity : ComponentActivity() {
         audioPermissionGranted = hasAudioPermission()
         AppGraph.permissions.refresh()
         externalAudioOpener.setActive(true)
+        // On screen the app may start the playback service in the foreground, which Android 14
+        // refused the tile; the press is the tile's own, so the saved queue comes back as it would
+        // have from the shade.
+        if (playOnResume) {
+            playOnResume = false
+            PlaybackTileService.startPlayPress(this)
+        }
     }
 
     private fun setAudioGateDismissed(dismissed: Boolean) {

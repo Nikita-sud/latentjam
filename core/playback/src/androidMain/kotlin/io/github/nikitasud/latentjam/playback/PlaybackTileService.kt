@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.playback
 
 import android.app.PendingIntent
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Handler
@@ -53,26 +54,13 @@ public class PlaybackTileService : TileService() {
         null
     }
 
-    /**
-     * A Play key for the service, as [androidx.media3.session.MediaButtonReceiver] sends one. The
-     * service enters the foreground before Media3 handles it, and Media3 restores the saved queue
-     * when the player is empty, restarts an ended track, or resumes the loaded one.
-     */
     private fun play(now: Long) {
-        val intent = Intent(Intent.ACTION_MEDIA_BUTTON)
-            .setComponent(ComponentName(this, PlaybackService::class.java))
-            .putExtra(Intent.EXTRA_KEY_EVENT, KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY))
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(intent)
-            } else {
-                startService(intent)
-            }
-        } catch (refused: RuntimeException) {
-            // ForegroundServiceStartNotAllowedException or a background-start refusal: the app can
-            // still be opened from a tile tap.
+        if (!startPlayPress(this)) {
+            // Android 14 grants a tile tap no foreground-service start from the background (measured
+            // on API 34; 31–33 and 35+ do). Opening the app is allowed, and from the screen it may
+            // start the same press, so the tap still ends in music.
             PlaybackSessionState.clearStartPending()
-            openApp()
+            openApp(play = true)
             return
         }
         PlaybackSessionState.markStartPending(now)
@@ -100,9 +88,14 @@ public class PlaybackTileService : TileService() {
         }, mainThreadExecutor)
     }
 
-    /** Nothing the tile can play: in the app the listener picks something, or grants music access. */
-    private fun openApp() {
+    /**
+     * Opens LatentJam: with nothing the tile can play, the listener picks something there or grants
+     * music access; with [play] (the start was refused), the app sends the press itself once it is on
+     * screen ([EXTRA_PLAY_ON_OPEN]).
+     */
+    private fun openApp(play: Boolean = false) {
         val launch = packageManager.getLaunchIntentForPackage(packageName) ?: return
+        if (play) launch.putExtra(EXTRA_PLAY_ON_OPEN, true)
         launch.addFlags(
             Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
                 Intent.FLAG_ACTIVITY_SINGLE_TOP,
@@ -142,7 +135,33 @@ public class PlaybackTileService : TileService() {
         Handler(Looper.getMainLooper()).post(runnable)
     }
 
-    private companion object {
-        const val OPEN_APP_REQUEST_CODE = 4203
+    public companion object {
+        private const val OPEN_APP_REQUEST_CODE = 4203
+
+        /** On the launch intent: the app should start playback as soon as it is on screen. */
+        public const val EXTRA_PLAY_ON_OPEN: String = "io.github.nikitasud.latentjam.playback.PLAY_ON_OPEN"
+
+        /**
+         * Sends the service a Play key, as [androidx.media3.session.MediaButtonReceiver] does: the
+         * service enters the foreground before Media3 handles it, and Media3 restores the saved
+         * queue when the player is empty, restarts an ended track, or resumes the loaded one.
+         * False when Android refused the start.
+         */
+        public fun startPlayPress(context: Context): Boolean {
+            val intent = Intent(Intent.ACTION_MEDIA_BUTTON)
+                .setComponent(ComponentName(context, PlaybackService::class.java))
+                .putExtra(Intent.EXTRA_KEY_EVENT, KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY))
+            return try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+                true
+            } catch (_: RuntimeException) {
+                // ForegroundServiceStartNotAllowedException or a background-start refusal.
+                false
+            }
+        }
     }
 }
