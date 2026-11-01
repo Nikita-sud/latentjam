@@ -12,6 +12,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
 import java.util.zip.CRC32
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 
@@ -67,6 +68,8 @@ class AnalysisGoldenDeviceTest {
             SmartEngineConfig(embeddingDim = 960, modelLocator = "ml/mnv4_audio.onnx", modelVersion = AUDIO_MODEL_VERSION),
         )
         backend.loadModel().getOrThrow()
+        // As the engine runs it: the backend takes the inference lock per window ("lock" = false: no lock, 0.9.3's path).
+        if (InstrumentationRegistry.getArguments().getString("lock") != "false") backend.takeInferenceLock(Mutex())
         val vectors = HashMap<String, String>()
         val passStarted = System.nanoTime()
         // As the pass hands them over: each chunk with the next one as its upcoming tracks ("carry" = false keeps
@@ -83,6 +86,14 @@ class AnalysisGoldenDeviceTest {
             }
         }
         val passMs = (System.nanoTime() - passStarted) / 1e6
+        // A press's seed embed (its own decode lane) gives the analysis pass's vector.
+        for (track in tracks.take(SEED_CHECKS)) {
+            val seed = backend.embed(track).fold(
+                onSuccess = { "V\t${crcOf(it).toString(16)}" },
+                onFailure = { "F\t${(it as? SmartEngineException)?.error?.let { e -> e::class.simpleName } ?: it::class.simpleName}" },
+            )
+            check(seed == vectors.getValue(track.id.value)) { "seed embed of ${track.id.value}: $seed, pass ${vectors[track.id.value]}" }
+        }
         backend.close()
         for (track in tracks) {
             val (kind, value) = vectors.getValue(track.id.value).split('\t', limit = 2)
@@ -126,5 +137,6 @@ class AnalysisGoldenDeviceTest {
         const val WINDOW_SAMPLES = 320_000
         const val WINDOW_MS = WINDOW_SAMPLES * 1000L / SAMPLE_RATE
         const val CHUNK = 8
+        const val SEED_CHECKS = 24
     }
 }

@@ -146,11 +146,27 @@ internal class DeadlineDecoding(
     /** [block] on a worker, awaited. */
     suspend fun <T> decode(block: suspend CoroutineScope.() -> T): T = await(start(block))
 
-    /** [analyse]'s result, or [analysisTimedOut] once [budget] passes; the workers are then replaced. */
-    suspend fun withinBudget(analyse: suspend () -> Result<FloatArray>): Result<FloatArray> {
+    /**
+     * [analyse]'s result, or [analysisTimedOut] once [budget] passes; the workers are then replaced. A track that
+     * spent a tenth of the budget or more waiting for the inference lock ([waited], a running total that includes a
+     * wait still in progress: a press's windows, a model load)
+     * is not the file's fault: it fails as plainly unavailable, retried at the next pass and never a D2 attempt.
+     */
+    suspend fun withinBudget(
+        waited: (() -> Duration)? = null,
+        analyse: suspend () -> Result<FloatArray>,
+    ): Result<FloatArray> {
         freshWorkersIfStale()
+        // [waited] is a running total: only what this track added counts.
+        val waitedBefore = waited?.invoke() ?: Duration.ZERO
         withTimeoutOrNull(budget) { analyse() }?.let { return it }
         abandonWorkers()
+        val lockWait = (waited?.invoke() ?: Duration.ZERO) - waitedBefore
+        if (lockWait >= budget / 10) {
+            return Result.failure(
+                SmartEngineException(EngineError.AudioUnavailable("Analysis waited ${lockWait.inWholeSeconds} s for the model")),
+            )
+        }
         return Result.failure(SmartEngineException(analysisTimedOut(budget)))
     }
 
@@ -166,13 +182,14 @@ internal class DeadlineDecoding(
         prefetch: suspend (TrackDescriptor) -> D,
         finish: suspend (TrackDescriptor, D) -> Result<FloatArray>,
         upcoming: List<TrackDescriptor> = emptyList(),
+        waited: (() -> Duration)? = null,
         onResult: suspend (TrackDescriptor, Result<FloatArray>) -> Unit,
     ) {
         val queue = ArrayDeque<Pair<TrackDescriptor, Deferred<D>>>()
         // What the last call started for this one, by descriptor; anything else it started is dropped now.
         val reusable = LinkedHashMap<TrackDescriptor, Deferred<D>>()
         val (handedOver, generation) = takeCarriedWithGeneration()
-        // Work started on a pool replaced since (a press's timeout or cancellation) may never run: decode afresh.
+        // Work started on a pool replaced since (a timeout or a cancellation) may never run: decode afresh.
         val usable = generation == poolGeneration
         for ((track, work) in handedOver) {
             @Suppress("UNCHECKED_CAST")
@@ -205,7 +222,7 @@ internal class DeadlineDecoding(
                 val (track, decoding) = queue.removeFirst()
                 var finished = false
                 val generationBefore = poolGeneration
-                val result = withinBudget {
+                val result = withinBudget(waited) {
                     val decoded = await(decoding)
                     refill()
                     finish(track, decoded).also { finished = true }

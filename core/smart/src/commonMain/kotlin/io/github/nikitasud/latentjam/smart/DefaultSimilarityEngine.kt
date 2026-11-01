@@ -97,6 +97,13 @@ internal class DefaultSimilarityEngine(
      */
     private val inference = Mutex()
 
+    /** Whether [backend] takes [inference] per unit of inference itself; then embeds run without the engine's hold. */
+    private val backendLocksInference: Boolean = backend.takeInferenceLock(inference)
+
+    /** [block] (an [EmbeddingBackend.embed] or [EmbeddingBackend.embedEach]) under [inference], unless the backend locks itself. */
+    private suspend fun <T> embedding(block: suspend () -> T): T =
+        if (backendLocksInference) block() else inference.withLock { block() }
+
     /** Advances when the index is cleared or released: inference results from an older generation are dropped. */
     private var generation = 0L
 
@@ -321,7 +328,7 @@ internal class DefaultSimilarityEngine(
                     ?.let { TrackInAnalysis(it.id, TimeSource.Monotonic.markNow()) }
             }
             try {
-                inference.withLock {
+                embedding {
                     analysingFrom(0)
                     // The upcoming tracks go only to a backend that can use them; without any, 0.9.3's call.
                     withContext(inferenceDispatcher) { backend.embedEachWith(prepared.toEmbed, prepared.upcoming) { track, result ->
@@ -551,7 +558,7 @@ internal class DefaultSimilarityEngine(
                     ensureAudioModel().onFailure { throwable ->
                         return@withLock NextTrackResult.Failure(throwable.toEngineError())
                     }
-                    inference.withLock { backend.embed(seed) }.getOrElse { throwable ->
+                    embedding { backend.embed(seed) }.getOrElse { throwable ->
                         val error = throwable.toEngineError()
                         if (error is EngineError.InvalidAudio) {
                             rememberAudioFailure(seed)
@@ -1007,7 +1014,7 @@ internal class DefaultSimilarityEngine(
                 }
                 val timedOutBefore = seed.audioVectorIdentity() == seedTimeouts[seed.id]
                 val vector = (if (timedOutBefore) null else ensureAudioModel().getOrNull()?.let {
-                    inference.withLock { backend.embed(seed) }.fold(
+                    embedding { backend.embed(seed) }.fold(
                         onSuccess = { it },
                         onFailure = { throwable ->
                             val error = throwable.toEngineError()

@@ -109,6 +109,51 @@ internal class TrackDeadlineTest {
         assertNull(result.getOrNull())
     }
 
+    @Test
+    fun aTimeoutSpentWaitingForTheInferenceLockIsNotTheFilesFault() = runTest {
+        val decoding = DeadlineDecoding(CountingWorkers(), budget = 200.milliseconds)
+        // A running total, as the backend keeps it: 50 ms already on it from earlier tracks.
+        var total = 50.milliseconds
+        val excused = withContext(Dispatchers.Default) {
+            decoding.withinBudget(waited = { total }) {
+                total += 30.milliseconds
+                decoding.decode { hang() }
+                Result.success(floatArrayOf(1f))
+            }
+        }
+        val error = (excused.exceptionOrNull() as SmartEngineException).error
+        assertIs<EngineError.AudioUnavailable>(error)
+        assertTrue(!error.isAnalysisTimeout(), "a tenth of the budget waited: no D2 attempt")
+        val counted = withContext(Dispatchers.Default) {
+            decoding.withinBudget(waited = { total }) {
+                total += 10.milliseconds
+                decoding.decode { hang() }
+                Result.success(floatArrayOf(1f))
+            }
+        }
+        assertTrue((counted.exceptionOrNull() as SmartEngineException).error.isAnalysisTimeout())
+    }
+
+    @Test
+    fun anEarlierTracksLockWaitNeverExcusesTheNextTracksHang() = runTest {
+        val decoding = DeadlineDecoding(CountingWorkers(), budget = 300.milliseconds)
+        var waitedTotal = kotlin.time.Duration.ZERO
+        val results = mutableListOf<Pair<TrackId, Result<FloatArray>>>()
+        withContext(Dispatchers.Default) {
+            decoding.each(
+                tracks = tracks.take(2),
+                ahead = 1,
+                prefetch = { track -> if (track.id.value == "b") hang(); vector(track) },
+                // "a" waited 100 ms for the lock (a third of the budget) and finished; "b" hangs in its decode.
+                finish = { track, decoded -> if (track.id.value == "a") waitedTotal += 100.milliseconds; Result.success(decoded) },
+                waited = { waitedTotal },
+                onResult = { track, result -> results += track.id to result },
+            )
+        }
+        assertTrue(results[0].second.isSuccess)
+        assertTrue((results[1].second.exceptionOrNull() as SmartEngineException).error.isAnalysisTimeout())
+    }
+
     private val decodedLock = kotlinx.coroutines.sync.Mutex()
 
     private val chunkB = listOf("e", "f", "g").map { TrackDescriptor(TrackId(it), audioUri = "test://$it") }

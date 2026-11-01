@@ -24,6 +24,10 @@ import kotlin.math.sqrt
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.nanoseconds
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
@@ -88,6 +92,36 @@ internal class OnnxEmbeddingBackend(
         },
     )
 
+    /**
+     * A SMART press's seed decodes on a lane of its own, so it never queues behind the analysis decodes running ahead
+     * on [decoding] (docs/analysis-094-plan.md 1b-0); its thread keeps the default priority.
+     */
+    private val seedDecoding = DeadlineDecoding(
+        ExecutorDecodeWorkers(1) { task -> Thread(task, "smart-seed-decode").apply { isDaemon = true } },
+    )
+
+    /** The engine's inference lock, taken here per window (see [takeInferenceLock]). */
+    private var inferenceLock: Mutex? = null
+
+    /** Time the track in hand on each lane has waited for [inferenceLock]; its budget excuses it (withinBudget). */
+    private class LockWaits {
+        @Volatile var nanos = 0L
+        /** When the wait in progress began, or 0. */
+        @Volatile var since = 0L
+        val waited: () -> Duration = {
+            val open = since
+            (nanos + if (open != 0L) System.nanoTime() - open else 0L).nanoseconds
+        }
+    }
+    private val analysisWaits = LockWaits()
+    private val seedWaits = LockWaits()
+
+    override fun takeInferenceLock(lock: Mutex): Boolean {
+        check(inferenceLock == null) { "One engine per backend" }
+        inferenceLock = lock
+        return true
+    }
+
     override suspend fun loadModel(): Result<Unit> {
         if (session != null) return Result.success(Unit)
         return try {
@@ -130,8 +164,14 @@ internal class OnnxEmbeddingBackend(
         }
     }
 
-    override suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray> =
-        decoding.withinBudget { embedDecoded(descriptor, null) }
+    override suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray> {
+        return seedDecoding.withinBudget(seedWaits.waited) { embedDecoded(descriptor, null, seedDecoding, seedWaits) }
+    }
+
+    /** [embed] for analysis: on the analysis lane. */
+    private suspend fun analyse(descriptor: TrackDescriptor): Result<FloatArray> {
+        return decoding.withinBudget(analysisWaits.waited) { embedDecoded(descriptor, null, decoding, analysisWaits) }
+    }
 
     override suspend fun embedEach(
         tracks: List<TrackDescriptor>,
@@ -145,7 +185,7 @@ internal class OnnxEmbeddingBackend(
     ) {
         if ((tracks.size < 2 && upcoming.isEmpty()) || session == null) {
             decoding.dropCarried()
-            for (track in tracks) onResult(track, embed(track))
+            for (track in tracks) onResult(track, analyse(track))
             return
         }
         // Decoding runs ahead by the workers plus one ready track, on into the next chunk; inference takes them in
@@ -154,7 +194,8 @@ internal class OnnxEmbeddingBackend(
             tracks = tracks,
             ahead = decodeWorkers,
             prefetch = { track -> prefetch(track) },
-            finish = { track, decoded -> embedDecoded(track, decoded) },
+            finish = { track, decoded -> embedDecoded(track, decoded, decoding, analysisWaits) },
+            waited = analysisWaits.waited,
             onResult = onResult,
             upcoming = upcoming,
         )
@@ -190,6 +231,8 @@ internal class OnnxEmbeddingBackend(
     private suspend fun embedDecoded(
         descriptor: TrackDescriptor,
         prefetched: Map<Long, AudioDecodeResult>?,
+        lane: DeadlineDecoding,
+        waits: LockWaits,
     ): Result<FloatArray> {
         val activeSession = session
             ?: return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
@@ -230,12 +273,35 @@ internal class OnnxEmbeddingBackend(
                 return null
             }
 
+            // One window's inference under the engine's lock, so a press waits for one window, never a chunk. The lock
+            // is free between windows, when the engine may close the session: a closed session is never run.
+            suspend fun inferWindow(run: () -> FloatArray?): FloatArray? {
+                val lock = inferenceLock ?: return run()
+                val asked = System.nanoTime()
+                waits.since = asked
+                fun stopWaiting() {
+                    if (waits.since == 0L) return
+                    waits.nanos += System.nanoTime() - asked
+                    waits.since = 0L
+                }
+                return try {
+                    lock.withLock {
+                        stopWaiting()
+                        if (session !== activeSession) throw SmartEngineException(EngineError.ModelUnavailable)
+                        run()
+                    }
+                } finally {
+                    // Cancelled (the budget ran out) while still waiting: the wait counts, and is over.
+                    stopWaiting()
+                }
+            }
+
             suspend fun tryWindow(startMs: Long) {
                 currentCoroutineContext().ensureActive()
                 val ready = prefetched?.get(startMs)?.takeUnless { it is AudioDecodeResult.Unavailable }
                 // On a worker, never here: a decode stuck in a platform call must not take the inference
                 // thread with it (issue #27).
-                when (val decoded = ready ?: decoding.decode {
+                when (val decoded = ready ?: lane.decode {
                     val worker = this
                     decoder.decodeWindowMono(
                         uri = uri,
@@ -247,7 +313,7 @@ internal class OnnxEmbeddingBackend(
                 }) {
                     is AudioDecodeResult.Success -> {
                         currentCoroutineContext().ensureActive()
-                        val embedding = inferStable(decoded.waveform, startMs) ?: return
+                        val embedding = inferWindow { inferStable(decoded.waveform, startMs) } ?: return
                         for (i in pooled.indices) pooled[i] += embedding[i]
                         windows++
                     }
@@ -287,6 +353,8 @@ internal class OnnxEmbeddingBackend(
             Result.success(pooled)
         } catch (cancellation: CancellationException) {
             throw cancellation
+        } catch (closed: SmartEngineException) {
+            Result.failure(closed)
         } catch (t: Throwable) {
             Result.failure(
                 SmartEngineException(
@@ -344,6 +412,7 @@ internal class OnnxEmbeddingBackend(
         session = null
         semanticSession = null
         decoding.close()
+        seedDecoding.close()
         // The process-global OrtEnvironment is deliberately left open.
     }
 

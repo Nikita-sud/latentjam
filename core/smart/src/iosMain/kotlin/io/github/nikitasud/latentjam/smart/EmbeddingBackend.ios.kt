@@ -12,6 +12,8 @@ import io.github.nikitasud.latentjam.smart.di.smartLayoutQualifier
 import io.github.nikitasud.latentjam.smart.di.smartTextIndexQualifier
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.IO
 import org.koin.core.module.Module
 import org.koin.dsl.module
@@ -82,7 +84,21 @@ internal class IosEmbeddingBackend(
         }
     }
 
+    /** The engine's inference lock, taken here per track (see [takeInferenceLock]). */
+    private var inferenceLock: Mutex? = null
+
+    // Decoding and inference are one native call here, so the unit a press may wait for is one track, not a chunk.
+    override fun takeInferenceLock(lock: Mutex): Boolean {
+        inferenceLock = lock
+        return true
+    }
+
     override suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray> {
+        val lock = inferenceLock ?: return embedTimed(descriptor)
+        return lock.withLock { embedTimed(descriptor) }
+    }
+
+    private suspend fun embedTimed(descriptor: TrackDescriptor): Result<FloatArray> {
         // iOS suspends the app soon after it leaves the screen, while the deadline's clock keeps running: a
         // track timed out across that is analysed again, not remembered as timed out.
         val transitionsBefore = IosAppTransitions.count
