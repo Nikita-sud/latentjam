@@ -220,6 +220,12 @@ public interface SimilarityEngine {
     public suspend fun energyCoverage(): Pair<Int, Int> = 0 to 0
 
     /**
+     * Whether the audio store refused the index's last snapshot as too large to keep: analysed work
+     * then lasts only as long as the process. Lock-free, so a system event can read it at once.
+     */
+    public fun audioEnvelopeRefused(): Boolean = false
+
+    /**
      * Builds the strongest covered, one-shot vector space for library-level My Mixes.
      *
      * The engine reads its audio and metadata indexes under one lock and writes directly into one

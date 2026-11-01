@@ -127,6 +127,10 @@ internal class DefaultSimilarityEngine(
      * [EnvelopeRefusal].
      */
     private val audioEnvelopeRefusal = EnvelopeRefusal()
+
+    /** [audioEnvelopeRefusal] is outstanding, for [audioEnvelopeRefused]'s lock-free read. */
+    @Volatile
+    private var audioEnvelopeRefusedNow = false
     private val textEnvelopeRefusal = EnvelopeRefusal()
     private var indexRevision = 0L
     private var transitionSample: Pair<Long, List<TrackId>>? = null
@@ -628,6 +632,8 @@ internal class DefaultSimilarityEngine(
         }
         AudioRows(vectors, es)
     }
+
+    override fun audioEnvelopeRefused(): Boolean = audioEnvelopeRefusedNow
 
     override suspend fun energyCoverage(): Pair<Int, Int> = withContext(dispatcher) {
         mutex.withLock { index.size to energies.size }
@@ -1261,6 +1267,7 @@ internal class DefaultSimilarityEngine(
                 textIndexDirty = false
                 audioEnvelopeRefusal.reset()
                 textEnvelopeRefusal.reset()
+                audioEnvelopeRefusedNow = false
                 semanticCache.clear()
                 energies.clear()
                 energyIdentities.clear()
@@ -1292,6 +1299,7 @@ internal class DefaultSimilarityEngine(
                 textIndexDirty = false
                 audioEnvelopeRefusal.reset()
                 textEnvelopeRefusal.reset()
+                audioEnvelopeRefusedNow = false
                 semanticCache.clear()
                 energies.clear()
                 energyIdentities.clear()
@@ -1551,10 +1559,12 @@ internal class DefaultSimilarityEngine(
             store.saveSnapshot(config.modelVersion, snapshot)
         } catch (refusal: IllegalArgumentException) {
             noteRefusedSnapshot("audio", rows, refusal, audioEnvelopeRefusal)
+            audioEnvelopeRefusedNow = true
             return
         }
         audioIndexDirty = false
         audioEnvelopeRefusal.reset()
+        audioEnvelopeRefusedNow = false
     }
 
     private suspend fun persistTextIndex() {
