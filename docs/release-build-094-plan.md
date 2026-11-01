@@ -494,3 +494,29 @@ measures on a real 1 CPU / 2 GB (VM or cpuset + memory.max); A–D merged to mai
 `bump` before the first dry run, merge commit when main moved, cut from `origin/main`; fastlane/audit checks in the
 port and preflight; `--verify-tag` and no second draft; `--ks-key-alias release`; Gradle cache disabled in
 release.yml.
+
+## Implementation status (2026-11-01, branch claude/release-build-094-cd5256, not pushed)
+
+Done: `build/ort-native-only` reviewed (MERGEABLE) and taken over, plus hardening of `ort_source_build.sh`;
+Gradle switches `latentjam.unsigned` / `latentjam.bundle`; `tools/release/build.sh`; frozen recipe
+`tools/release/fdroid/recipe.yml` + `fdroid_recipe.py` (render, check); `ci_fdroid_build.sh`;
+`.github/workflows/release.yml`; `tools/release/release.py`; tests (`tools/release/test_*.py`, run by app.yml; the
+fdroidserver-backed ones need `~/.cache/latentjam/fdroidserver-venv`). One adversarial code review: no serious
+findings; its minor ones are fixed.
+
+Verified locally:
+- `build.sh android` (6 min, ORT from source): three unsigned APKs, arm64 with the reduced runtime; `bundle`: an
+  unsigned AAB with all four ABIs; `ios`: an unsigned IPA (Xcode 27.2 on the Mac).
+- Signing checks: the published 0.9.3 APK passes `verify-signed`; an APK signed with a throwaway key fails it.
+- `fdroid_recipe.py check`: fdroidserver's scanner passes all four blocks on a `git archive` of HEAD; exit 3
+  against fdroiddata master (MR needed: expected for 0.9.4).
+- Real fdroidserver runs: `render` → `rewritemeta` changes nothing, `lint` passes; `checkupdates --auto` on a
+  repository tagged v0.9.4/v0.9.5 produces exactly the blocks a fresh render for 0.9.5 gives (now a unit test);
+  `fdroid build --test` of block 442 (arm64: prebuild builds ORT from the srclib, scanner deletes/ignores exactly
+  the listed paths, no Unused/Non-exist) and of block 443 (x86) both succeed on the Mac.
+- fdroiddata: draft branch `latentjam-0.9.4-draft` (provisional commit hash, lint clean), not pushed;
+  `release.py fdroid-mr` re-renders it on the real release commit.
+
+Not verified (needs the owner's push of a `release/0.9.4` branch): the GitHub workflow itself — the Linux
+`android` job, the four `fdroid` containers (ci_fdroid_build.sh), the macOS `ios` job on Xcode 26.3, `sign-dry`,
+and the E3 timing of the ORT prebuild on 1 CPU / 2 GB. The `sign` and `draft` jobs run first on the real tag.
