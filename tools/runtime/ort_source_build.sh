@@ -60,9 +60,9 @@ JAVAC=${JAVA_HOME:+$JAVA_HOME/bin/}javac
   echo "ORT source lacks its submodules (git submodule update --init --recursive)" >&2; exit 2; }
 case "$WORK" in /*) ;; *) echo "LATENTJAM_ORT_WORK must be an absolute path" >&2; exit 2;; esac
 case "$WORK/" in "$ROOT"/*|"$ORT_SOURCE"/*) echo "LATENTJAM_ORT_WORK must be outside both source trees" >&2; exit 2;; esac
-# Ninja's output goes to these logs; print the one of a failed step.
-trap 'status=$?; [ $status = 0 ] || for log in "$WORK/protoc.log" "$WORK/jni.log"; do
-  [ -f "$log" ] && tail -n 80 "$log" >&2; done' EXIT
+# protoc's and the JNI library's Ninja output goes to a log; when one of those steps fails, print its log.
+STEP_LOG=
+trap 'status=$?; [ $status = 0 ] || [ -z "$STEP_LOG" ] || tail -n 80 "$STEP_LOG" >&2' EXIT
 
 python3 "$HERE/ort_deps_mirror.py" "$ORT_SOURCE" "$MIRROR" ${LATENTJAM_ORT_OFFLINE:+--offline}
 rm -rf "$WORK/protoc" "$WORK/native" "$WORK/java" "$WORK/jni" "$WORK/aar"
@@ -72,10 +72,11 @@ mkdir -p "$WORK/protoc"
 PROTOBUF_ZIP=$(find "$MIRROR" -path "*protocolbuffers/protobuf/*" -name "*.zip" | head -1)
 (cd "$WORK/protoc" && unzip -q "$PROTOBUF_ZIP")
 PROTOBUF_SRC=$(find "$WORK/protoc" -maxdepth 1 -type d -name "protobuf-*" | head -1)
+STEP_LOG="$WORK/protoc.log"
 cmake -S "$PROTOBUF_SRC" -B "$WORK/protoc/build" -G Ninja -DCMAKE_BUILD_TYPE=Release -Dprotobuf_BUILD_TESTS=OFF \
   -Dprotobuf_WITH_ZLIB=OFF > "$WORK/protoc.log"
-rm -f "$WORK/jni.log"
 cmake --build "$WORK/protoc/build" --target protoc -j "${JOBS:-4}" >> "$WORK/protoc.log"
+STEP_LOG=
 
 # 2. libonnxruntime.so: the configuration build_reduced_ort.py builds (its manifest's build_command), from the
 # committed operator list, without the Java parts.
@@ -97,11 +98,13 @@ find "$ORT_SOURCE/java/src/main/java" "$ORT_SOURCE/java/src/main/android" -name 
 "$JAVAC" --release 17 -encoding UTF-8 -nowarn -h "$WORK/java/headers" -d "$WORK/java/classes" @"$WORK/java/sources.txt"
 
 # 4. The JNI library, linked against the runtime just built.
+STEP_LOG="$WORK/jni.log"
 cmake -S "$HERE/onnxruntime4j_jni" -B "$WORK/jni" -G Ninja -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" -DANDROID_USE_LEGACY_TOOLCHAIN_FILE=OFF \
   -DANDROID_ABI="$ABI" -DANDROID_PLATFORM="$API" -DORT_SOURCE="$ORT_SOURCE" -DORT_BUILD_DIR="$WORK/native/Release" \
   -DJNI_HEADERS="$WORK/java/headers" > "$WORK/jni.log"
 cmake --build "$WORK/jni" -j "${JOBS:-4}" >> "$WORK/jni.log"
+STEP_LOG=
 
 # 5. The AAR.
 STRIP=$(ls "$NDK"/toolchains/llvm/prebuilt/*/bin/llvm-strip | head -1)
