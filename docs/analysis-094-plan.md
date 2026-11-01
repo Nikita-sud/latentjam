@@ -1,6 +1,6 @@
 # 0.9.4 track 1: library analysis, fast and reliable
 
-Status: **v10**, under adversarial review (log at the end). Nothing is implemented until the owner says go.
+Status: **v11**, under adversarial review (log at the end). Nothing is implemented until the owner says go.
 
 Scope: the on-device library analysis on Android and iOS. It covers:
 - audio decoding;
@@ -301,7 +301,7 @@ physical phone. Everything else ships on the host and emulator gates.
 1. **Slice A.** The Step 0 minimum set (the † parts as soon as the phone exists), the platform matrix, and G-a, G-c,
    G-d. G-b, G-e and G-f each come just before the items they gate.
 2. **Slice B, quick wins:**
-   - 1e-min: the state table (rows 1–6), the budget, the FGS race fix, notify-only progress, the explicit type, a
+   - 1e-min: the state table (rows 0–6), the budget, the FGS race fix, notify-only progress, the explicit type, a
      non-fatal `show()`, Pause and Continue, the first-run consent if the owner agrees;
    - 2-0 †, if its rule passes;
    - 2a.1, the codec-list cache;
@@ -403,8 +403,12 @@ If built, it must meet every requirement the review found. Each one has a G-e ca
   - `pool(handle)`.
 - `WindowResult.failed` carries the `AudioDecodeFailureStage`, which drives back-off and D2 (1c).
   `AudioDecodeResult.Unavailable` gains a stage field. Today it has none (DEC:64-68). The null descriptor (DEC:219)
-  and the invalid fd (DEC:244) map to SOURCE_OPEN. On iOS, UNAVAILABLE from `localURL` maps to SOURCE_OPEN, and the
-  other UNAVAILABLE causes map to CODEC.
+  and the invalid fd (DEC:244) map to SOURCE_OPEN.
+  On iOS, `localURL` returns at once for `file://` URIs (SW:334-336). So the mapping follows `classifyAudioDecodeError`
+  (SW:171-187):
+  - no-such-file, no read permission and not-readable map to SOURCE_OPEN;
+  - protected-data-unavailable, `NSFileReadUnknownError` and `NSFileReadTooLargeError` are non-attempts;
+  - the rest map to CODEC.
 - **iOS:**
   - The handle is opaque, and waveforms never cross the bridge.
   - Pooling and normalisation stay in Swift (SW:426-440).
@@ -412,7 +416,8 @@ If built, it must meet every requirement the review found. Each one has a G-e ca
   - A per-session lock covers every run, including late runs from a timed-out call. It is taken by **try-lock, in a
     non-timed step**. If a late call holds it, the new call returns **BUSY**, which is transient, never an attempt,
     and never stuck. The Kotlin side retries after the late call ends. Only the call that held the lock can be
-    classed stuck. G-f has this case.
+    classed stuck, and when the lock holder is classed stuck, analysis pauses **at once** (one is enough on iOS),
+    so BUSY can never loop. G-f has this case.
   - Every handle has an explicit `release(handle)`. Cancel and abandon release in the completion path, so a late
     `decodeTrack` never strands about 3.8 MB of native buffers. The fault suite checks for leaks.
 - **Android:** `embed` = the same calls in sequence, with the same arithmetic.
@@ -570,9 +575,10 @@ re-read on every chunk and on every system event: screen on/off, playback start/
 
 | # | condition | pass | wake lock | FGS / notification |
 |---|---|---|---|---|
+| 0 | not consented (`consented` is false) | audio pass not started | no | no FGS; the UI shows "Analyse library" (a tap = consent + Continue) |
 | 1 | user paused (`userPaused`) | stopped | no | stopped; "Paused by you", with a Continue action |
 | 2 | too hot: thermal status ≥ MODERATE (API 29+), or battery temperature ≥ 42 °C from `ACTION_BATTERY_CHANGED` (API 24–28) | waiting; **stopped once the shared wait timer passes 30 min** | no | stays up; "Waiting: continues when cooler"; resumes after ≤ LIGHT / < 38 °C for 2 min; on the 30 min stop: "Paused at X of Y" with Continue |
-| 3 | battery ≤ 15 % and unplugged (after a Continue on this row: ≤ 10 % for the rest of the session) | stopped | no | stopped; "Paused at X of Y (battery low)", with a Continue action |
+| 3 | battery ≤ 15 % and unplugged (after a Continue: ≤ 10 % for the rest of the process) | stopped | no | stopped; "Paused at X of Y (battery low)", with a Continue action |
 | 4 | screen on, or playing | runs | no (the CPU is awake anyway) | up; progress |
 | 5 | screen off, not playing, budget left | runs | **yes**: 5 min timeout, renewed per track | up; progress |
 | 6 | screen off, not playing, budget spent | waiting; **stopped once the shared wait timer passes 30 min** | no | stays up; "Waiting: continues when the screen is on or music plays"; on the 30 min stop: "Paused at X of Y" with Continue |
@@ -592,8 +598,9 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
     `librarySnapshotAuthoritative` and the localised strings (App.kt:1185-1214 → AG:538-556). A user tap on a
     notification action may open an activity on every API level. The service's start exemption
     (restrictions-bg-start) is not relied on.
-  - **No live pass.** If `onStartCommand` runs with no live pass behind it, it calls `startForeground` and then
-    `stopSelf` at once. It never leaves an empty ongoing notification.
+  - **No live pass.** If `onStartCommand` runs with no live pass behind it, it calls `startForeground` only when the
+    intent was started with `startForegroundService` (a marker extra), and then `stopSelf` at once. A plain
+    `startService` (a Pause) just stops. It never leaves an empty ongoing notification.
   - Tapping the notification body also opens the app.
   - Tests:
     - a Continue tap after process death;
@@ -627,28 +634,42 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
     existing rows. So deleted tracks lose their rows and new tracks get text rows while paused. The check lives
     inside `ensureAutomaticIndexing`, so a configuration-change re-fire cannot bypass it. A gated or stopped pass
     never sets `complete = true`.
-  - **Retry** (D3) calls `engine.retryFailedTracks` directly and persists, instead of going through `force` inside
-    the pass (AG:609).
+  - **Retry** (D3) calls `engine.retryFailedTracks(chosen)` directly and persists. It then calls
+    `ensureAutomaticIndexing(rerun = true)`. `rerun` is a new relaunch flag, separate from today's retry-all `force`
+    (AG:609). It relaunches even a `complete` pass, and a pass that is mid-way restarts its audio pass so that
+    already-visited chunks are covered. The audio pass is still gated by the table (`userPaused`, consent).
+    Host/G-f cases: Retry after `complete` re-analyses the chosen ids; Retry mid-pass covers ids already visited.
   - **`stopReason`.** It is persisted with the stopped pass: user, battery, wait-30, timeout-6h, show-failed, stuck,
     restore-blocked, exception.
   - **Restart triggers:**
-    1. ON_START;
-    2. the `userPaused` StateFlow turning false, which covers the in-app Continue and a notification tap while the
-       activity is resumed (`onNewIntent` without ON_START).
+    1. ON_START, which is automatic;
+    2. **Continue**, an explicit one-shot event (`continueRequests`). It fires from the in-app button, from the
+       consent tap, and from the notification extra in `onCreate`/`onNewIntent`, whatever `userPaused` was.
 
-    Each re-calls `ensureAutomaticIndexing` with the cached key. A trigger restarts only these stop reasons:
-    - wait-30, timeout-6h and show-failed;
-    - battery, only when row 3 no longer matches (plugged in, or > 15 %), or with a Continue extra;
-    - exception, with backoff: 1 min, then 10 min, then the next cold start.
+    Each re-calls `ensureAutomaticIndexing` with the cached key.
+    - **ON_START restarts only:**
+      - wait-30, timeout-6h and show-failed;
+      - battery, when row 3 no longer matches (plugged in, or > 15 %);
+      - exception, with backoff: 1 min, then 10 min, then the next cold start.
+    - **Continue restarts every reason** except stuck and restore-blocked, user included. It clears `userPaused` and
+      arms row 3's 10 % threshold.
+    - A same-key relaunch carries over `metadataReady` and `done`, and shows the paused state until the gate passes.
+      So `metadataVectorsReady` never flips, and the map regions are not rebuilt (App.kt:1298-1310).
 
     Stuck waits for the next cold start; restore-blocked waits for the next process. The state table is evaluated
     **before** `show()`, so a stop row never starts the FGS.
-  - **The Continue extra** is handled in `onCreate` / `onNewIntent` **before** `setContent`. It clears `userPaused`
-    and arms row 3's 10 % threshold for the rest of the **process**. Its `PendingIntent` has its own requestCode and
+  - **The Continue extra** is handled in `onCreate` / `onNewIntent` before the trigger runs. It is consumed once:
+    `removeExtra` + `setIntent`, only when `savedInstanceState == null`, and never with
+    `FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY`. So a recreation or a relaunch from recents cannot undo a later Pause. The
+    10 % threshold holds for the rest of the **process**; the table's row 3 says the same. Its `PendingIntent` has its own requestCode and
     action, distinct from `appLaunchPendingIntent()`, so `FLAG_UPDATE_CURRENT` never merges extras.
   - **Pause** is a service `PendingIntent` with its own action. It never opens the app. `onStartCommand` tells it
-    apart from progress intents, which today it does not (NOT:80-110). On a tap the wake lock is released at once
-    and "Pausing…" is shown; the stop lands at the next chunk boundary.
+    apart from progress intents, which today it does not (NOT:80-110). Pause is a table event:
+    - a **waiting** pass stops and flushes at once;
+    - a **running** pass shows "Pausing…", keeps its wake lock until the next chunk boundary (≤ 8 tracks), then
+      stops and flushes.
+
+    A stale Pause that reaches a service with no pass only persists `userPaused = true`.
   - **Flush.** Entering any waiting or stopped row runs `persistPendingAnalysis` in Slice B too.
   - **Tests.** Host and G-f cover each stop reason and each trigger. They include:
     - UI Continue;
@@ -659,10 +680,18 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
   bound, never with a `delay`. A night-time row-6 wait usually ends with the screen turning on, which is row 4 and
   resumes. A charging `ACTION_BATTERY_CHANGED` that arrives after 30 min stops the pass instead. The notice and the
   estimate say "may resume, or may need Continue".
-- **Battery Saver slow-down** is 2e (Slice D). Slice B ships rows 1–6 only.
-- **Where stops take effect.** In Slice B, the user, battery and 30 min stops take effect at the **next chunk
-  boundary** (at most 8 tracks), never mid-decode. So no workers are abandoned, and no codecs are left held for a
-  quick Continue. `onTimeout` stays immediate.
+- **Battery Saver slow-down** is 2e (Slice D). Slice B ships rows 0–6 only.
+- **Where stops take effect.** The user, battery and 30 min stops take effect at the **next chunk boundary** (at most
+  8 tracks), never mid-decode. `onTimeout` stays immediate.
+  - In Slice B nothing is in flight at a boundary, so no workers are abandoned.
+  - From Slice C, AnalysisRun at a table stop or wait stops submitting, **drains** its in-flight look-ahead
+    (discarding the results), and only then cancels, so a quick Continue never meets the old codecs.
+- **Stopped notices** are best-effort. On API 33+ without `POST_NOTIFICATIONS` they are not shown, so the in-app
+  state is the source of truth. This is tested with the permission denied.
+- **Consent.** `consented` is persisted and migrated once at upgrade: true if the index already holds any analysed
+  row, false otherwise. It is never re-derived. Before consent, steps 1–3 run as in 0.9.3, but the audio pass, the
+  FGS and Retry's relaunch do not start. Tests cover a fresh install, an upgrade with rows and an upgrade with zero
+  rows.
 - **Wake-lock renewal** happens on every per-track `analysing` change (ENG:305-307), which exists today.
 - **Map rebuild job.** Its time is measured, and it counts against the same 90 min, because the blog counts job wake
   locks. The job (MapRebuild.android.kt:22-26) needs charging and device idle. It returns `Result.retry()` while
@@ -750,7 +779,9 @@ detection exists):
   then the map. `BGContinuedProcessingTask` needs the Xcode 26 SDK in the Swift target. It rebuilds the work list from the library scan and
   the index. That cold-launch path gets its own test with the device locked (class C before first unlock). Neither task runs after a force-quit, and the UI says nothing that suggests otherwise.
 - **Storage move to Application Support:**
-  - **Before the move:** write a fresh full base. Then copy each store file (and the `.retry` sidecar) to a `.tmp` in
+  - **Before the move:** if this session restored cleanly, write a fresh full base. Never write it while
+    `IndexRestoreFailure` is set or the file is unreadable; then the plain copy alone is used. Then copy each store
+    file (and the `.retry` sidecar) to a `.tmp` in
     Application Support, fsync it, rename it, and fsync the directory. Which copy wins is decided **per store**, after
     its rename. VIS's versioned file and its legacy file count as one unit, versioned first, so a mixed
     Caches/Application Support pair is never read. A torn copy can never win. The fault suite kills the app mid-copy.
@@ -1388,3 +1419,47 @@ built, it must meet requirements 1–8, which carry every store finding from rou
 - The back-off only under contention or transient errors, capped at 3 s per track.
 - A stage field, with its mapping.
 - The VIS pair copied as one unit.
+
+### Round 10 (2026-11-01): two fresh reviewers on v10 → NOT READY (no blocking findings)
+
+**Both reviewers, independently:**
+- Continue fires no trigger for stops where `userPaused` is already false (battery, wait-30, timeout) while the
+  activity is resumed (singleTop, `onNewIntent`, MainActivity.kt:135-139).
+- The restartable list also left out `user`.
+
+**Product / platform: 2 major, 4 minor.**
+- **Major:**
+  - The Continue trigger gap above.
+  - The first-run consent was not in the state machine.
+- **Minor:**
+  - Pause while waiting has no chunk boundary.
+  - Row 3 said "session" in one place and "process" in another.
+  - Stopped notices need `POST_NOTIFICATIONS`.
+  - "No live pass" calls `startForeground` for a plain `startService`.
+
+**Correctness: 2 major, 5 minor.**
+- **Major:**
+  - Retry no longer relaunched a `complete` pass (AG:551-556), a regression in Slice B on its own.
+  - The Continue trigger gap above.
+- **Minor:**
+  - A replayed Continue extra undoes a later Pause.
+  - The iOS stage mapping (`localURL` returns at once for `file://`).
+  - A same-key relaunch resets the state and rebuilds map regions.
+  - Slice C stops at a boundary still abandon look-ahead; Pause released the wake lock too early.
+  - iOS: a stuck lock holder loops BUSY; the move's fresh base during a restore failure.
+
+**v11 response, all taken:**
+- Continue is an explicit one-shot `continueRequests` event that restarts every reason except stuck and
+  restore-blocked. ON_START restarts only the automatic reasons.
+- Row 0 (consent): persisted and migrated once, with tests.
+- Retry: `retryFailedTracks(chosen)`, then `rerun = true`.
+- Extras consumed once, with guards.
+- iOS mapping per error code.
+- A same-key relaunch carries its state over.
+- AnalysisRun drains its look-ahead at a stop.
+- Pause is a table event that keeps the wake lock to the boundary.
+- A stuck holder pauses iOS at once.
+- The fresh base is written only after a clean restore.
+- Best-effort stopped notices.
+- The `startForegroundService` marker.
+- Row 3 scoped to the process.
