@@ -1,6 +1,6 @@
 # 0.9.4 track 1: library analysis, fast and reliable
 
-Status: **v20**, under adversarial review (log at the end). Nothing is implemented until the owner says go.
+Status: **v21**, under adversarial review (log at the end). Nothing is implemented until the owner says go.
 
 Scope: the on-device library analysis on Android and iOS. It covers:
 - audio decoding;
@@ -27,14 +27,13 @@ Code baseline: `dev/0.9.4` = origin/main 1730aa24, the released 0.9.3 code plus 
 - **E:** optional speed items, each only if its measured rule passes.
 
 **The trade-off users feel.** On a cheap phone a first analysis of 10k tracks takes about 2–3 days with daily app
-opens. On API 35+, without app opens, it stops after the first day's share (on API ≤ 34 it resumes by itself), and an app open or Continue resumes it. While the pass
+opens. Without app opens it keeps going on screen-on and playback time (on API 35+ until the system's 6 h cap), and an app open or Continue resumes it. While the pass
 is incomplete or paused, the Map and For You regions use metadata only, as in 0.9.3.
 
 **Compared with 0.9.3:**
-- On API ≤ 34, 0.9.4 adds **no** new automatic stops. Heat, low battery and a spent budget only make it wait, and it
-  resumes on its own, as 0.9.3 does on screen-on. A hung file is skipped on fresh workers, as in 0.9.3.
-- On API 35+, 0.9.3 also loses its service at the 6 h cap. 0.9.4 stops after 30 min of a long screen-off wait or of
-  heat, and at low battery. The next app open or a Continue tap resumes it.
+- 0.9.4 adds **no new automatic stops on any API level**. Heat, low battery and a spent budget only make it wait, and
+  it resumes by itself, as 0.9.3 does on screen-on. A hung file is skipped on fresh workers, as in 0.9.3.
+- On API 35+ the system's 6 h cap still ends the service, as in 0.9.3. The next app open resumes it.
 
 **What does not change:**
 - stored vectors and their order (except D1–D5);
@@ -387,10 +386,12 @@ tracks, at most 39 lost on a kill, as today) and fixes only what does not touch 
 If a restore fails (an I/O error, or an OOM on Android, ENG:1371-1378), the file is never deleted. **An unreadable
 index behaves exactly as in 0.9.3**: it is not a stop reason, and the audio pass is **not gated** by the table and
 takes no wake lock while the engine reports the restore failure (a new engine query that reflects
-`audioRestoreFailed`). So every chunk fails at once with `ModelUnavailable`, and the pass sets `complete` within
+`audioRestoreFailed`). The pass's one restore retry (ENG:259-264) runs **before** the gate is evaluated, so a pass that
+heals there is gated normally. The ungated path still skips `show()` while `userPaused` is set. So every chunk fails at once with `ModelUnavailable`, and the pass sets `complete` within
 seconds, as in 0.9.3. The engine's press-time retries (`retryRestoreIfDue`, ENG:1332-1343)
 can heal it within the process; after a heal, the `force` Retry resumes analysis, as in 0.9.3. Rebuild asks first:
-"The stored analysis will be deleted, and the whole library analysed again (on a slow phone that can take days)".
+"The stored analysis will be deleted, and analysis restarts now for the whole library (on a slow phone that can take
+days)". The relaunch runs in a `finally`, so a failed `clearAnalysis` still relaunches.
 While that engine query reports the failure, the pending Retry-ids latch is not consumed.
 
 - **Presses persist as in 0.9.3.** `retryFailedTracks` persists before it returns.
@@ -571,7 +572,7 @@ paired with the new vector (ENG:672-679).
 - **No cross-thread `codec.release()`.** MediaCodec is not thread-safe, and most hang sites are outside the codec.
 - **Stuck:** a thread still alive 30 s after abandonment. Analysis **carries on with fresh workers, as in 0.9.3**
   (TrackDeadline.kt:34-35, 158); there is no stuck pause. A track whose worker became stuck is remembered as Broken
-  (D1). This
+  (D1), unless it is indexed by then, in which case it is skipped, as phase 1 does with `id !in index`. This
   happens through a `mutex` install that re-checks the identity, followed by a persist.
 - **Codec cap:** the analysis gets `workers` codecs, or `min(workers, 2)` while playback is active, plus **one extra
   slot for the seed lane**. One-worker devices therefore keep 1 analysis codec and 1 seed codec. Stuck or abandoned codecs
@@ -585,7 +586,9 @@ paired with the new vector (ENG:672-679).
 - **iOS:** a cancellation flag is checked between windows, and late results are dropped. A native call counts as
   stuck only after 30 s of **foreground running time** past its budget. The time is counted by a watchdog that
   advances only while the app is active, and it is gated by the same transition and background signals as
-  `timeoutUnlessSuspended` (DL:45-67). So a suspension is never classed stuck. G-f case: suspend mid-call, then
+  `timeoutUnlessSuspended` (DL:45-67). So a suspension is never classed stuck. This covers hung decodes as well as
+  lock holders. `forgivenBefore` is kept (DL:45-67): a second forgiven timeout of the same track counts as a D2
+  attempt, so a really hung file cannot be retried forever. G-f case: suspend mid-call, then
   resume.
 - **Back-off:** the sleep counts toward the 90 s budget, as every wait does.
 
@@ -624,28 +627,26 @@ re-read on every chunk and on every system event: screen on/off, playback start/
 | # | condition | pass | wake lock | FGS / notification |
 |---|---|---|---|---|
 | 1 | user paused (`userPaused`) | stopped | no | stopped; "Paused by you", with a Continue action |
-| 2 | battery ≤ 15 % and unplugged (after a Continue: ≤ 10 % for the rest of the process) | **API 35+:** stopped. **API ≤ 34:** waiting, resuming on power-connected (dynamic receiver; the FGS keeps the process alive) or above 20 % | no | API 35+: stopped, "Paused at X of Y (battery low)", with a Continue action. API ≤ 34: "Waiting: continues when charging" |
-| 3 | too hot: thermal status ≥ T, or headroom > H (API 30+; read on every table event and chunk, at most once per second; NaN = no signal), or battery temperature ≥ 42 °C (`ACTION_BATTERY_CHANGED`; on API 24–28, and on any API where headroom is NaN and status has never left NONE, i.e. no thermal HAL). Headroom uses `forecastSeconds = 10` | waiting. **API 35+:** stopped once 30 min of row-3 wait time accumulates. **API ≤ 34: unbounded**, resumes on cooling | no | stays up; "Waiting: continues when cooler"; resumes after status ≤ T−1 **and** headroom < H − 0.1 (or < 38 °C) for 2 min; on the wait-bound stop: "Paused at X of Y" with Continue |
+| 2 | battery ≤ 15 % and unplugged | waiting, **unbounded**; resumes on power-connected (a dynamic receiver; the FGS keeps the process alive) or above 20 % | no | stays up; "Waiting: continues when charging" |
+| 3 | too hot: thermal status ≥ T, or headroom > H (API 30+; read on every table event and chunk, at most once per second; NaN = no signal), or battery temperature ≥ 42 °C (`ACTION_BATTERY_CHANGED`; on API 24–28, and on any API where headroom is NaN and status has never left NONE, i.e. no thermal HAL). Headroom uses `forecastSeconds = 10` | waiting, **unbounded**; resumes after status ≤ T−1 **and** headroom < H − 0.1 (or < 38 °C) for 2 min | no | stays up; "Waiting: continues when cooler" |
 | 4 | screen on, or playing | runs | no (the CPU is awake anyway) | up; progress |
-| 5 | screen off, not playing, budget left | runs | **yes**: 5 min timeout, renewed per track | up; progress |
-| 6 | screen off, not playing, budget spent | waiting. **API 35+:** stopped once the wait timer passes 30 min, because waiting burns the 6 h dataSync cap. **API ≤ 34: unbounded**, as in 0.9.3, whose FGS stays up and resumes on any screen-on | no | stays up; "Waiting: continues when the screen is on or music plays"; on the wait-bound stop: "Paused at X of Y" with Continue |
+| 5 | screen off, not playing, budget left, and **no audio envelope refusal active** | runs | **yes**: 5 min timeout, renewed per track | up; progress |
+| 6 | screen off, not playing, and budget spent **or** an audio envelope refusal active | waiting, **unbounded**, as in 0.9.3 | no | stays up; "Waiting: continues when the screen is on or music plays" |
 
-**Wait timers.**
-- **API ≤ 34:** no wait row is bounded. The only stops are the user's Pause, an exception and show-failed, which 0.9.3
-  also ends on. So 0.9.4 never stops where 0.9.3 would keep going.
-- **Row 3 on API 35+** stops after 30 min of wait time accumulated **in row 3**, counted since the last running row
-  (4 or 5), and only while row 4 or 5 would otherwise match. Heat while row 6 would hold anyway is governed by
-  row 6.
-- **Row 6 on API 35+** stops after 30 min of total waiting in rows 3 and 6 together, counted since the last running
-  row.
-- **Row 6 on API ≤ 34** has no bound.
+**No automatic stops on any API level.** Waiting rows are unbounded on every API. The only cap-driven stop is
+`onTimeout` (the API 35+ 6 h dataSync cap), exactly as in 0.9.3. Coming back to the foreground resets that cap, and
+ON_START restarts the pass. Stopping earlier to save the cap would save nothing, because any restart needs the same
+app open.
+
+**Envelope refusal.** Above about 30k audio rows (64 MiB), every audio save is refused (`EnvelopeRefusal`,
+ENG:1546-1557), and that work dies with the process. A new engine query reports an active refusal. While it is set,
+row 5 behaves as row 6: no wake lock, with analysis only while the screen is on or music plays. The UI says "This
+library is too large to keep its analysis between launches". Slice D's `BGProcessingTask` follows the same rule.
+There is a host case for it.
 
 **Rules around the table.**
-- **The 30 min bound** is measured with `elapsedRealtime` and checked at the next wake event, since no timer runs
-  while the CPU sleeps. A stale "Waiting" notice during sleep is accepted. Waiting time counts toward the 6 h
-  dataSync cap. The matrix tests whether a short wait spent asleep counts too; if it does, row 6 stops at once on
-  API 35+. The matrix also records which event first arrives after 30 min of screen-off: `ACTION_BATTERY_CHANGED`
-  and the thermal listener fire during sleep, so on API 35+ a night wait most likely stops before morning.
+- **A stale "Waiting" notice** during sleep is accepted. The matrix records whether waiting time spent asleep counts
+  toward the 6 h dataSync cap. It is informational only: no stop depends on it.
 - **No ETA** while waiting, and no frozen progress claim.
 - **Taps.**
   - **Continue** is an **activity** `PendingIntent`. It opens the app and clears `userPaused`, and the restart trigger
@@ -678,8 +679,8 @@ re-read on every chunk and on every system event: screen on/off, playback start/
 
   | how the phone is used | when the analysis finishes |
   |---|---|
-  | app opened daily | about 1.5–2 h of work per day (90 min budget + screen-on and playing time inside the 30 min waits + time with the app open): **2–3 days** |
-  | app not opened | only the first day's share, then it waits for an app open or a Continue tap |
+  | app opened daily | about 1.5–2 h of work per day (the 90 min budget, plus screen-on and playing time, plus time with the app open): **2–3 days** |
+  | app not opened | the same daily share, from screen-on and playing time and the refilled budget. On API 35+ it lasts until the system's 6 h cap; after that it waits for an app open |
   | charging overnight | the same 90 min cap |
 
   The table is the honest statement; the release notes say no more than it.
@@ -702,8 +703,7 @@ re-read on every chunk and on every system event: screen on/off, playback start/
     regression. One exception: when the pass stays user-paused after the Retry, `metadataReady` is carried over and
     only `complete` is reset. The audio pass is still gated by the table (`userPaused`).
     Host/G-f cases: Retry after `complete` re-analyses the chosen ids; Retry mid-pass covers ids already visited.
-  - **`stopReason`.** It is persisted with the stopped pass: user, battery (API 35+), wait-bound (API 35+),
-    timeout-6h, show-failed, exception. An unreadable index is **not** a stop reason (see 1a).
+  - **`stopReason`.** It is persisted with the stopped pass: user, timeout-6h, show-failed, exception. An unreadable index is **not** a stop reason (see 1a).
   - **What the restart rules decide.** They decide only whether the **audio pass** may run. Every explicit call
     (Retry, Continue, Rebuild), and every ON_START with a changed key, always relaunches steps 1–3 and Retry's
     failure clear. Host case: Retry while user-paused, answered "no". The failures are cleared, the tracks count as
@@ -711,8 +711,9 @@ re-read on every chunk and on every system event: screen on/off, playback start/
   - **Rebuild** is its own kind of call (App.kt:4594: `clearAnalysis`, then a relaunch). It clears `userPaused` and
     the persisted `stopReason`, then relaunches like Continue. The Rebuild row shows in every non-live state. It is
     never disabled, apart from while a pass is live. `onRebuildAnalysis` **cancels and joins** the automatic job
-    (a new AppGraph call) before `clearAnalysis`, and `clearAnalysis` bumps `generation`, which `ensureMetadataVectors`
-    and `AnalysisRun` check. So no old job installs rows after the clear. Host and G-f cases:
+    (a new AppGraph call) before `clearAnalysis`. AG takes a generation token at job start and passes it to
+    `stageMetadataVectors` / `ensureMetadataVectors` and `AnalysisRun`; `clearAnalysis` bumps `generation`, and a call
+    with a stale token installs nothing. So no old job installs rows after the clear. Host and G-f cases:
     - a restore OOM, then Rebuild (after the confirmation), then the pass runs;
     - a restore that fails, then heals on a press, then the `force` Retry resumes with nothing deleted;
     - Rebuild during a gated relaunch's metadata pass.
@@ -728,7 +729,7 @@ re-read on every chunk and on every system event: screen on/off, playback start/
   - **Restart triggers:**
     1. ON_START, which is automatic;
     2. **Continue.** It first writes **persisted state**, synchronously, while the intent or tap is handled: it clears
-       `userPaused` and sets a persisted pending-continue latch. The 10 % flag is held in memory for the process. The event (`continueRequests`) then
+       `userPaused` and sets a persisted pending-continue latch. The event (`continueRequests`) then
        wakes a warm process. It fires from the in-app button and from the notification extra in
        `onCreate`/`onNewIntent`, whatever `userPaused` was. The latch is consumed once a cached key exists, so a cold
        start or an open permission gate never loses a tap.
@@ -738,17 +739,15 @@ re-read on every chunk and on every system event: screen on/off, playback start/
     follow), not only these two triggers. That includes a `LaunchedEffect` re-fire
     after a MediaStore rescan.
     - **ON_START restarts only:**
-      - wait-bound, timeout-6h and show-failed;
-      - battery, when row 2 no longer matches (plugged in, or > 15 %);
+      - timeout-6h; show-failed is restarted silently (the in-app state shows "Analysis continues now");
       - exception, with backoff: 1 min, then 10 min, then the next cold start.
     - **Retry restarts:**
       - exception, which also resets its backoff;
-      - show-failed, wait-bound, timeout-6h and battery.
+      - show-failed and timeout-6h.
 
-      The live table still applies afterwards, so row 2 can stop it again with a visible notice. Retry leaves
+      The live table still applies afterwards. Retry leaves
       `userPaused` alone and asks "Continue analysis too?".
-    - **Continue restarts every reason**, user included. It clears `userPaused` and
-      arms row 2's 10 % threshold.
+    - **Continue restarts every reason**, user included. It clears `userPaused`.
     - A same-key relaunch carries over `metadataReady`, `done`, `running = false`, `phase`, `stopReason` and
       `failures`, and shows the paused state until the gate passes. So steps 1–3 never flash a busy bar, disable
       Retry and Rebuild, or re-arm the stall timer.
@@ -758,8 +757,8 @@ re-read on every chunk and on every system event: screen on/off, playback start/
     **before** `show()`, so a stop row never starts the FGS.
   - **The Continue extra** is handled in `onCreate` / `onNewIntent` before the trigger runs. It is consumed once:
     `removeExtra` + `setIntent`, only when `savedInstanceState == null`, and never with
-    `FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY`. So a recreation or a relaunch from recents cannot undo a later Pause. The
-    10 % threshold holds for the rest of the **process**; the table's row 2 says the same. Its `PendingIntent` has its own requestCode and
+    `FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY`. So a recreation or a relaunch from recents cannot undo a later Pause. Its
+    `PendingIntent` has its own requestCode and
     action, distinct from `appLaunchPendingIntent()`, so `FLAG_UPDATE_CURRENT` never merges extras.
   - **Pause** is a service `PendingIntent` with its own action. It never opens the app. `onStartCommand` tells it
     apart from progress intents, which today it does not (NOT:80-110). Pause is a table event:
@@ -780,12 +779,10 @@ re-read on every chunk and on every system event: screen on/off, playback start/
     - a shade tap while resumed;
     - a cold start with the extra;
     - a config change while paused.
-- **Cooling hysteresis.** Row 3's "for 2 min" is measured with `elapsedRealtime` between events, like the 30 min
-  bound, never with a `delay`. A night-time row-6 wait usually ends with the screen turning on, which is row 4 and
-  resumes. A charging `ACTION_BATTERY_CHANGED` that arrives after 30 min stops the pass instead. The notice and the
-  estimate say "may resume, or may need Continue".
+- **Cooling hysteresis.** Row 3's "for 2 min" is measured with `elapsedRealtime` between events, never with a `delay`. A night-time row-6 wait ends with the screen turning on (row 4) or with the budget
+  refilling, and then it resumes.
 - **Battery Saver slow-down** is 2e (Slice D). Slice B2 ships rows 1–6 only.
-- **Where stops take effect.** The user, battery and wait-bound stops take effect at the **next chunk boundary** (at most
+- **Where stops take effect.** The user's Pause takes effect at the **next chunk boundary** (at most
   8 tracks), never mid-decode. `onTimeout` stays immediate.
   - In Slice B2 nothing is in flight at a boundary, so no workers are abandoned.
   - From Slice C, AnalysisRun at a table stop or wait stops submitting, **drains** its in-flight look-ahead
@@ -814,9 +811,10 @@ re-read on every chunk and on every system event: screen on/off, playback start/
     | state | shown | controls |
     |---|---|---|
     | running | progress, ETA | **Pause** |
-    | waiting (hot / screen) or pausing | phase text, no ETA | **Pause** (waiting); Retry and Rebuild disabled, as for any live pass in 0.9.3 |
+    | waiting (hot / battery / screen) or pausing | phase text, no ETA | **Pause**; Retry disabled; Rebuild shows "Pause to rebuild" |
     | stopped: user | "Paused by you: N tracks waiting" | **Continue**; Retry if failures exist (asks "Continue analysis too?"); Rebuild |
-    | stopped: battery / wait-bound / timeout-6h / show-failed | "Paused at X of Y", with the reason ("open the app to continue" for show-failed) | **Continue**; Retry if failures exist; Rebuild |
+    | stopped: timeout-6h | "Paused at X of Y" | **Continue**; Retry if failures exist; Rebuild |
+    | stopped: show-failed | "Analysis continues now" (it is restarted at ON_START) | Rebuild |
     | stopped: exception | "Analysis stopped" | **Retry** (restarts and resets the backoff); Rebuild |
     | engine Failed or uninitialised | as in 0.9.3 | the 0.9.3 `force` recovery Retry |
     | complete, with failures | as in 0.9.3 | Retry (D3, for the listed failures) |
@@ -880,7 +878,7 @@ re-read on every chunk and on every system event: screen on/off, playback start/
 - **Stopping for good:**
   - when the pass is done;
   - on `onTimeout` (the 6 h cap);
-  - on table rows 1 and 2, and on the wait-bound stop of rows 3 and 6.
+  - on table row 1 (the user's Pause).
 
   Swiping the notification away does not stop the service on Android 14+. Task Manager's Stop would end the music
   too, so the Pause action is the user's way to stop analysis. Opening the app resets the 6 h cap.
@@ -1064,7 +1062,7 @@ Nothing is pushed, tagged or released by this session.
 
 | call | default | if no |
 |---|---|---|
-| D1–D5 (table in §0) | yes | 0.9.3 failure rules stay. Hung files remain failed for good, transient ones are retried forever, partial rows stay, and libraries over about 30k never persist |
+| D1–D5 (table in §0) | yes | 0.9.3 failure rules stay. Hung files remain failed for good, transient ones are retried forever, and partial rows stay |
 | A test phone, or a test build on the S24 reading only the corpus folder | S24, corpus folder only | 2-0 stays undecided, and emulator numbers count as relative only |
 | Wake-lock budget: charging counts | yes, on every channel | If charging is free: first analysis finishes in one night on charge, but this relies on the one Google page that excludes charging, and it risks the store listing if that page is wrong |
 | Play declaration (affects Play tracks only; F-Droid, GitHub and AltStore are unaffected) | **default: keep 0.9.3's automatic start.** Risk: Play may reject the `dataSync` declaration or an update, because "Local processing: Other" requires user-initiated work (answer 13392821). 0.9.4's wake lock adds time under the same declaration but does not change the question. The owner says whether 0.9.3's declaration was accepted for the closed test | The alternative is a separate, reviewed first-run consent design |
@@ -1930,3 +1928,44 @@ dropped as well: analysis carries on with fresh workers, as in 0.9.3, and stuck 
 - Summary wording per API level.
 - The battery-temperature rule.
 - The Rebuild cost stated.
+
+### Round 20 (2026-11-01): two fresh reviewers on v20 → NOT READY (no blocking findings)
+
+**Product / platform: 1 major, 5 minor.**
+- **Major:**
+  - The API 35+ wait-bound and battery stops save nothing. A dataSync restart needs the same app open, which also
+    resets the 6 h cap. They cost the morning auto-resume that 0.9.3 has, plus a whole API split.
+- **Minor:**
+  - "Pauses" vs "waits" in the summary.
+  - No Rebuild during long waits.
+  - The 10 % threshold only arms on API 35+.
+  - The show-failed in-app text.
+  - The Rebuild confirmation does not say analysis restarts.
+
+**Correctness: 1 major, 5 minor.**
+- **Major:**
+  - With D6 parked, libraries above about 30k get a daily wake lock for work that can never be saved
+    (`EnvelopeRefusal`, ENG:1546-1557).
+- **Minor:**
+  - A D6 leftover in §7.
+  - Stuck → Broken for an id indexed meanwhile.
+  - iOS forgiven timeouts could retry forever (keep `forgivenBefore`).
+  - The generation check inside one hold is empty (needs a job token).
+  - The restore retry must run before the gate, and the ungated path must respect `userPaused`.
+  - Rebuild must relaunch in a `finally`.
+
+**v21 response, all taken:**
+- **No automatic stops on any API level:**
+  - rows 2, 3 and 6 wait unbounded;
+  - `onTimeout` is the only cap stop, as in 0.9.3;
+  - wait timers, battery and wait-bound stops, and the 10 % flag are removed.
+- **Envelope refusal:** row 5 acts as row 6 (no wake lock), with a "too large to keep" message.
+- **Rebuild:** "Pause to rebuild" while waiting; a confirmation that says analysis restarts; relaunch in `finally`.
+- **show-failed** restarts silently.
+- **Engine and iOS fixes:**
+  - stuck skips indexed ids;
+  - `forgivenBefore` kept;
+  - a generation token from AG;
+  - the restore retry before the gate;
+  - the ungated path skips `show()` while paused.
+- **Summary and estimate** rewritten.
