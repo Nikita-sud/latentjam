@@ -1,6 +1,6 @@
 # 0.9.4 track 1: library analysis, fast and reliable
 
-Status: **v22**, under adversarial review (log at the end). Nothing is implemented until the owner says go.
+Status: **v22 — READY** after 22 adversarial review rounds (log at the end). Nothing is implemented until the owner says go.
 
 Scope: the on-device library analysis on Android and iOS. It covers:
 - audio decoding;
@@ -64,7 +64,6 @@ is incomplete or paused, the Map and For You regions use metadata only, as in 0.
    | D2 | A transient failure that is **track-local** stops after 3 attempts with backoff and is shown as failed with Retry. Track-local means `Unavailable` at the SOURCE_OPEN stage or a source-access failure, or a timeout of the track's own decode or inference segment. CODEC-stage `Unavailable` (contention), model, session, generation, cancel and OOM outcomes never count as an attempt. 0.9.3 retries every transient failure at every pass, forever | R11 |
    | D3 | Retry clears only the tracks it is pressed for, not every remembered failure | R11 |
    | D4 | A track whose window was `Unavailable` twice is stored first from its other windows, in chunk order, as 0.9.3 does. After the pass it gets one more try. If that succeeds, its row is upserted in place with the full 3-window vector (the upsert keeps its position), which is what a clean 0.9.3 run stores | R14 |
-
    | D5 | The codec cap and the back-off (§4 1c) let some windows succeed that 0.9.3 would leave `Unavailable`. Those tracks get the full clean-run vector, not the partial row 0.9.3 would store. G-f reports the set | R14 |
 
    What a user notices:
@@ -74,7 +73,8 @@ is incomplete or paused, the Map and For You regions use metadata only, as in 0.
    - D4/D5: a few more tracks get their complete vector (typically the ones hit by codec contention). Nothing else
      changes.
 
-   Rows may differ from a 0.9.3 run only for tracks covered by D1–D5. The tests list that set.
+   Rows may differ from a 0.9.3 run only for tracks covered by D1–D5. The tests list that set. After a Rebuild, rows
+   equal a clean run; the 0.9.3 oracle has no defined state for a Rebuild during a gated relaunch.
 
    Anything else that cannot be exact needs a tolerance declared before it is measured, plus a SMART check;
    otherwise it is dropped. The yardstick for "harmless" is a difference that already exists between the platforms:
@@ -318,7 +318,7 @@ at all, which is unverified) come before any iOS duty-cycle number is chosen.
 
 | item | build or keep only if |
 |---|---|
-| 2-0 priority | Over ≥ 3 runs per arm, each starting at the same battery level (± 5 %) and temperature (± 2 °C), and outside the measured noise. All must hold: tracks done in 30 min rise ≥ 15 %, with an abort if thermal status reaches SEVERE; jank % stays inside the 0.9.3 band; measured energy per track (the `BATTERY_PROPERTY_CHARGE_COUNTER` delta; batterystats per UID is reported but does not decide) rises ≤ 10 %; no underrun or decoder-init failure during muted crossfade. Each state, visible and screen-off FGS, is decided on its own |
+| 2-0 priority | Over ≥ 3 runs per arm, each starting at the same battery level (± 5 %) and temperature (± 2 °C), and outside the measured noise. All must hold: tracks done in 30 min rise ≥ 15 %, with an abort if thermal status reaches SEVERE; jank % stays inside the 0.9.3 band; measured energy per track (the `BATTERY_PROPERTY_CHARGE_COUNTER` delta; batterystats per UID is reported but does not decide; if the counter is unsupported or coarse, energy is undecided and `BACKGROUND` stays) rises ≤ 10 %; no underrun or decoder-init failure during muted crossfade. Each state, visible and screen-off FGS, is decided on its own |
 | 2a.2 / 2a.3 | Per (container × mime × codec name) triple: G-a **equals the 0.9.3 golden** on every corpus file of that triple, on that device, in 2 runs |
 | 2c parallel inference | Inference is ≥ 35 % of wall time after 2-0, 2a and 1b, and peak memory fits the device-class budget |
 | `:analysis` process | At least 1 real hang on the physical phone (corpus + fuzz) after 1c, or a user report of one. It also needs a single-writer store design |
@@ -348,11 +348,11 @@ physical phone. Everything else ships on the host and emulator gates.
 4. **Slice C:**
    1. 1a fixes: directory fsync, and the streaming iOS `loadRows`, writer and half migration; then the iOS
       Application Support copy (it needs the directory fsync);
-   3. 1b-0, the API split;
-   4. 1b, locks and `AnalysisRun`;
-   5. 2d, the text cache with single-hold installs;
-   6. 1c;
-   7. 1d (D1–D5).
+   2. 1b-0, the API split;
+   3. 1b, locks and `AnalysisRun`;
+   4. 2d, the text cache with single-hold installs;
+   5. 1c;
+   6. 1d (D1–D5).
 
    1a-tail follows only if its rule fires.
 5. **Slice D:** 1e-ios (the background tasks, own review round), then 2e pacing with its pause state machine.
@@ -557,7 +557,7 @@ inference. Model loads (`loadModel`, `loadSemanticModel`) are a declared inferen
 - the `mutex` wait, bounded by the longest of a phase-3 install, a snapshot write, or `cacheSemantics`;
 - the text-lock wait, bounded by one encode batch.
 
-Both of the last two are measured in Step 0 and reported.
+All three are measured in Step 0 and reported.
 
 **Energy.** `ensureEnergies` releases `mutex` between its batches of 128. Before installing each energy it re-checks the
 `audioVectorIdentities` token and the generation, and it clears `snapshotCache` in each hold. A D4 in-place upsert
@@ -640,7 +640,9 @@ app open.
 
 **Envelope refusal.** Above about 30k audio rows (64 MiB), every audio save is refused (`EnvelopeRefusal`,
 ENG:1546-1557), and that work dies with the process. A new engine query reports an active refusal. It is also true **before the first refused save in a process**: it
-compares the index's estimated encoded size with the envelope, using the same sizing as `encodedV3SnapshotSize`. It
+compares the index's estimated encoded size with the envelope. A new `IndexStore.encodedSizeOf` API exposes the
+sizing that today is private to each store (FIS:490, FISI:408), and the engine keeps an incremental byte counter on
+upsert, remove and failure changes, so the query costs O(1). It
 turns false when a shrink brings the size back under, as `covers()` does. A host case covers a cold process. While it is set,
 row 5 behaves as row 6: no wake lock, with analysis only while the screen is on or music plays. The UI says "This
 library is too large to keep its analysis between launches". Slice D's `BGProcessingTask` follows the same rule.
@@ -677,7 +679,9 @@ There is a host case for it.
   Exemptions are audio, location and **user-initiated** jobs only, and the blog counts WorkManager and JobScheduler
   wake locks. The user-initiated data transfer route would need a network constraint, which the app does not have.
   So "charging counts" is the default, and dropping it everywhere is an owner call.
-- **Estimate**, 10k library on a cheap phone (3–5× the S24's 0.34 s/track, so 2.8–4.7 h of compute):
+- **Estimate** (pre-Step-0, before Slice C; release notes quote only Step 0 numbers), 10k library on a cheap phone
+  (3–5× the S24's pre-0.9.3 0.34 s/track, so 2.8–4.7 h of compute, plus up to 30–50 % chunk-drain overhead until
+  Slice C):
 
   | how the phone is used | when the analysis finishes |
   |---|---|
@@ -718,7 +722,8 @@ There is a host case for it.
     with a stale token installs nothing. That overrides ENG:350-356 (text for a non-current chunk), which is
     unreachable after cancel-and-join, and it is a listed G-f exclusion. A job with a stale token **aborts as not
     complete** (its own cancellation; `stopReason` is unchanged). Rebuild's `finally` relaunch bypasses the dedup, as
-    `force = true` does today (App.kt:1854). So no old job installs rows after the clear, and no stale job can latch
+    `force = true` does today (App.kt:1854), but as a **Continue-kind** call, never through `force`'s retry-all
+(AG:609), so a failed clear does not clear every remembered failure (D3). So no old job installs rows after the clear, and no stale job can latch
     `complete`. Host and G-f cases:
     - a restore OOM, then Rebuild (after the confirmation), then the pass runs;
     - a restore that fails, then heals on a press, then the `force` Retry resumes with nothing deleted;
@@ -789,14 +794,16 @@ There is a host case for it.
   - **Hysteresis.** Row 3's "for 2 min" is measured with `elapsedRealtime`.
   - **Missing headroom.** In the exit test a NaN headroom counts as satisfied. The test then falls back to status
     alone, or to battery temperature when status is NONE.
-  - **Re-checking.** While a wait row holds, the table is re-evaluated on a 60 s `Handler`/`delay` tick (harmless if
-    the CPU suspends it, because it fires on wake), on ON_START, on screen-on, and when the cool condition first
-    holds. That tick also notices row 6's budget refill. A night-time row-6 wait ends with the screen turning on
+  - **Re-checking.** While a wait row holds, the table is re-evaluated on a 60 s `Handler`/`delay` tick once the CPU is
+    awake (the tick runs on uptime), at every table event (screen on/off, playback, the receivers), on ON_START, and
+    when the cool condition first holds. A budget refill during sleep is therefore seen at the next table event after
+    a wake, and no alarm is added. Each dynamic receiver takes a short-timeout wake lock in `onReceive` before it
+    signals, so the CPU cannot sleep before row 5 takes its own wake lock. A night-time row-6 wait ends with the screen turning on
     (row 4) or with the refill, and then it resumes.
   - **Host cases:**
     - a status-entered heat wait with NaN headroom;
     - headroom-only heat, cooling with no further events;
-    - a budget refill while asleep.
+    - a budget refill, seen at the next screen event.
 - **Battery Saver slow-down** is 2e (Slice D). Slice B2 ships rows 1–6 only.
 - **Where stops take effect.** The user's Pause takes effect at the **next chunk boundary** (at most
   8 tracks), never mid-decode. `onTimeout` stays immediate.
@@ -829,8 +836,8 @@ There is a host case for it.
     | running | progress, ETA | **Pause** |
     | waiting (hot / battery / screen) or pausing | phase text, no ETA | **Pause**; Retry disabled; Rebuild shows "Pause to rebuild" |
     | stopped: user | "Paused by you: N tracks waiting" | **Continue**; Retry if failures exist (asks "Continue analysis too?"); Rebuild |
-    | stopped: timeout-6h | "Paused at X of Y" | **Continue**; Retry if failures exist; Rebuild |
-    | stopped: show-failed | "Analysis continues now" (it is restarted at ON_START) | Rebuild |
+    | stopped: timeout-6h | notification only ("Paused at X of Y" with Continue); the app restarts it at ON_START, so in-app the state shows running | — |
+    | stopped: show-failed | notification only; in-app "Analysis continues now", restarted at ON_START | — |
     | stopped: exception | "Analysis stopped" | **Retry** (restarts and resets the backoff); Rebuild |
     | engine Failed or uninitialised | as in 0.9.3 | the 0.9.3 `force` recovery Retry |
     | complete, with failures | as in 0.9.3 | Retry (D3, for the listed failures) |
@@ -861,10 +868,9 @@ There is a host case for it.
   only; what the map computes is unchanged.
 - **Wake-lock renewal** happens on every per-track `analysing` change (ENG:305-307), which exists today. The lock is
   `setReferenceCounted(false)`, so renewals never stack. Budget time is recorded from acquire and release timestamps.
-- **Map rebuild job.** Its time is measured, and it counts against the same 90 min, because the blog counts job wake
-  locks. The job (MapRebuild.android.kt:22-26) needs charging and device idle. It returns `Result.retry()` while
-  the analysis is unfinished (:54-58), so its repeated wakes during a partial analysis are counted in Step 0. The
-  map's behaviour is not changed here.
+- **Map rebuild job.** Its time is measured and counts against the same 90 min, because the blog counts job wake
+  locks. Its scheduling is as stated under "Map rebuild job" above: today `retry()`; in waiting or stopped states
+  `success()` plus a re-enqueue. What the map computes is unchanged.
 - **`userPaused`.**
   - It is persisted, and respected at every app open.
   - Only Continue (the notification or the UI), Rebuild, or a pass that finds nothing missing (above) clears it. A library change does not. An explicit Retry clears the chosen
@@ -899,8 +905,10 @@ There is a host case for it.
   Swiping the notification away does not stop the service on Android 14+. Task Manager's Stop would end the music
   too, so the Pause action is the user's way to stop analysis. Opening the app resets the 6 h cap.
 
-  Every stopped notice is plain and dismissible. It is re-posted through `NotificationManager` with a non-ongoing
-  builder after `stopForeground(STOP_FOREGROUND_REMOVE)`, so it survives the service stop; B2 tests check this. Its text is localised and passed in from the run, because the
+  Every stopped notice is plain and dismissible. It is posted through `NotificationManager` on its **own
+  notification id**, not the FGS's 4201 (NOT:150), with a non-ongoing builder, after
+  `stopForeground(STOP_FOREGROUND_REMOVE)`. So it survives the service stop and the "no live pass" path. B2 tests check
+  this. Its text is localised and passed in from the run, because the
   Service has no Android string resources (NOT:125-137). On reboot it is the same: there is no
   `RECEIVE_BOOT_COMPLETED`, and adding it is the owner's call.
 
