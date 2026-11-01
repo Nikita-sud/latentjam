@@ -2025,3 +2025,34 @@ dropped as well: analysis carries on with fresh workers, as in 0.9.3, and stuck 
 - The refusal query predicts from estimated size.
 - Stopped notices are re-posted as non-ongoing.
 - "Possibly within the first night" added; summary wording fixed.
+
+### Round 22 (2026-11-01): two fresh reviewers on v22 → **READY** (both roles: no blocking, no major)
+
+**Minor findings, product / platform:**
+- The tick runs on uptime.
+- The estimate is built on numbers not yet measured.
+- The map-job text contradicted itself.
+- The timeout and show-failed rows exist only as notifications.
+- A fallback for the charge counter; formatting fixes.
+
+**Minor findings, correctness:**
+- The token rule conflicts with §0.2.
+- A failed clear followed by `force` wipes every failure.
+- The envelope sizing API and its cost.
+- Stopped notices share the FGS notification id.
+- The receiver should take a wake lock before signalling; the tick wording.
+
+**All taken as text fixes in the final v22:**
+- Tick and event wording.
+- A short wake lock in `onReceive`.
+- The estimate is marked "pre-Step-0", including drain overhead.
+- One rule for the map job.
+- Notification-only rows.
+- A fallback for undecided energy.
+- A §0.2 note on Rebuild.
+- Rebuild relaunches as a Continue-kind call.
+- `IndexStore.encodedSizeOf` with an incremental counter.
+- A separate notification id for stopped notices.
+- Formatting fixes.
+
+**The plan is READY for the owner's decision.**
