@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import android.Manifest
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
@@ -11,6 +12,7 @@ import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -20,6 +22,7 @@ import android.graphics.RadialGradient
 import android.graphics.Rect
 import android.graphics.Shader
 import android.net.Uri
+import android.os.Build
 import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
@@ -119,6 +122,26 @@ public abstract class LivePlaybackWidgetProvider internal constructor(
 /** All widget controls stay behind an explicit, non-exported app receiver. */
 public class PlaybackWidgetActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        // Revoking the permission kills the process, so widgets drawn before it still send their
+        // taps here. Redraw them so the next tap opens the app, and try to open it for this one.
+        if (context.widgetControlTarget() == WidgetControlTarget.APP) {
+            // This tap may be what started the process; keep it alive until the redraw is pushed.
+            val pending = goAsync()
+            try {
+                refreshPlaybackWidgets(context, pending::finish)
+            } catch (failure: RuntimeException) {
+                pending.finish()
+                Log.w(WIDGET_LOG_TAG, "Unable to redraw widgets without media access", failure)
+            }
+            try {
+                // Android 10+ drops a refused background start without throwing, so whether this
+                // opened anything is not known here; the redraw above is what the next tap relies on.
+                context.startActivity(audioAccessIntent(context).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            } catch (refused: RuntimeException) {
+                Log.w(WIDGET_LOG_TAG, "Widget could not open the app for the media permission", refused)
+            }
+            return
+        }
         val pending = goAsync()
         AppGraph.appScope.launchWidgetAction(pending) {
             val playback = AppGraph.playback
@@ -204,8 +227,8 @@ internal enum class WidgetStyle(
 }
 
 /** Rebuild size/type decisions instead of letting a host reapply stale RemoteViews actions. */
-internal fun refreshPlaybackWidgets(context: Context) {
-    WidgetUpdateCoordinator.requestAll(context)
+internal fun refreshPlaybackWidgets(context: Context, onComplete: () -> Unit = {}) {
+    WidgetUpdateCoordinator.requestAll(context, onComplete)
 }
 
 private object WidgetUpdateCoordinator {
@@ -671,12 +694,56 @@ private fun appLaunch(context: Context): PendingIntent = PendingIntent.getActivi
     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
 )
 
+/**
+ * Where a transport tap on the widget goes. Every control acts on the library, so without the
+ * permission to read it (revoked, or never granted and the gate skipped) a tap could only restore
+ * nothing, silently: it opens the app instead, whose gate says what is missing and how to fix it.
+ */
+internal enum class WidgetControlTarget { RECEIVER, APP }
+
+internal fun widgetControlTarget(sdkInt: Int, isGranted: (String) -> Boolean): WidgetControlTarget =
+    if (isGranted(audioReadPermission(sdkInt))) WidgetControlTarget.RECEIVER else WidgetControlTarget.APP
+
+/** The permission the library needs to read audio on [sdkInt]; the same one MainActivity asks for. */
+internal fun audioReadPermission(sdkInt: Int): String =
+    if (sdkInt >= Build.VERSION_CODES.TIRAMISU) {
+        Manifest.permission.READ_MEDIA_AUDIO
+    } else {
+        @Suppress("DEPRECATION")
+        Manifest.permission.READ_EXTERNAL_STORAGE
+    }
+
+private fun Context.widgetControlTarget(): WidgetControlTarget =
+    widgetControlTarget(Build.VERSION.SDK_INT) { permission ->
+        checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
+    }
+
+/** Asked of [MainActivity] by a control tapped without library access: show the permission gate. */
+internal const val EXTRA_REQUEST_AUDIO_ACCESS: String = "io.github.nikitasud.latentjam.extra.REQUEST_AUDIO_ACCESS"
+
+private fun audioAccessIntent(context: Context): Intent =
+    Intent(context, MainActivity::class.java)
+        .putExtra(EXTRA_REQUEST_AUDIO_ACCESS, true)
+        .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+
+// Its own request code: the body's launch (code 0) carries no extra, and FLAG_UPDATE_CURRENT on a
+// shared identity would hand one intent's extras to the other.
+private fun audioAccessLaunch(context: Context): PendingIntent = PendingIntent.getActivity(
+    context,
+    AUDIO_ACCESS_REQUEST_CODE,
+    audioAccessIntent(context),
+    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+)
+
+private const val AUDIO_ACCESS_REQUEST_CODE = 1
+
 private fun widgetAction(
     context: Context,
     style: WidgetStyle,
     appWidgetId: Int,
     action: String,
 ): PendingIntent {
+    if (context.widgetControlTarget() == WidgetControlTarget.APP) return audioAccessLaunch(context)
     val actionCode = when (action) {
         PlaybackWidgetActionReceiver.ACTION_PREVIOUS -> 1
         PlaybackWidgetActionReceiver.ACTION_PLAY_PAUSE -> 2

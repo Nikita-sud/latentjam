@@ -100,6 +100,8 @@ class MainActivity : ComponentActivity() {
             AUDIO_GATE_PREFERENCES,
             Context.MODE_PRIVATE,
         ).getBoolean(KEY_AUDIO_GATE_DISMISSED, false)
+        // A recreation keeps the launch intent: asking again would undo a later "Not now".
+        if (savedInstanceState == null) reopenAudioGateIfAsked(intent)
         setContent {
             if (audioPermissionGranted || audioPermissionGateDismissed) {
                 Box(Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
@@ -117,6 +119,7 @@ class MainActivity : ComponentActivity() {
                     onGranted = {
                         audioPermissionGranted = true
                         setAudioGateDismissed(false)
+                        refreshPlaybackWidgets(this)
                     },
                     onContinueWithoutAccess = { setAudioGateDismissed(true) },
                 )
@@ -138,6 +141,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        reopenAudioGateIfAsked(intent)
         externalAudioOpener.submit(intent.action, intent.dataString, intent.resolveType(contentResolver))
     }
 
@@ -149,9 +153,27 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         // Returning from the system settings page is a normal part of permission recovery.
+        val wasGranted = audioPermissionGranted
         audioPermissionGranted = hasAudioPermission()
+        // Widgets drawn without access send their controls to this activity; give them back.
+        if (audioPermissionGranted && !wasGranted) refreshPlaybackWidgets(this)
         AppGraph.permissions.refresh()
         externalAudioOpener.setActive(true)
+    }
+
+    /**
+     * A widget control tapped without library access lands here to fix it. A gate skipped earlier
+     * would otherwise show the empty library with no way to grant, so the tap brings the gate back.
+     */
+    private fun reopenAudioGateIfAsked(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_REQUEST_AUDIO_ACCESS, false) != true) return
+        if (hasAudioPermission()) {
+            // Granted while the process was gone: no resume here sees it flip, so the widgets that
+            // still open the app are given back their controls now.
+            refreshPlaybackWidgets(this)
+        } else {
+            setAudioGateDismissed(false)
+        }
     }
 
     private fun setAudioGateDismissed(dismissed: Boolean) {
@@ -229,14 +251,9 @@ private fun ContextualNotificationPermissionRequest(permissions: AppPermissions)
     )
 }
 
-/** The media-read permission appropriate for this API level. */
+/** The media-read permission appropriate for this API level; the widgets check the same one. */
 private val audioPermission: String
-    get() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        Manifest.permission.READ_MEDIA_AUDIO
-    } else {
-        @Suppress("DEPRECATION")
-        Manifest.permission.READ_EXTERNAL_STORAGE
-    }
+    get() = audioReadPermission(Build.VERSION.SDK_INT)
 
 private fun Context.hasAudioPermission(): Boolean =
     checkSelfPermission(audioPermission) == PackageManager.PERMISSION_GRANTED
