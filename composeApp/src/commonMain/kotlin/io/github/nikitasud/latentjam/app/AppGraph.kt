@@ -557,12 +557,18 @@ object AppGraph {
 
         automaticIndexingKey = key
         automaticIndexingJob = appScope.launch {
-            // Library changes are uncommon, but if one arrives mid-scan the obsolete worker must
-            // finish cancellation (including removing its notification) before the replacement
-            // announces itself. Otherwise the old finally block can erase the new progress bar.
-            existing?.cancelAndJoin()
+            // Opened before the old run is cancelled: its close then leaves the foreground service to
+            // this run instead of stopping it, and a background start is never needed for the handover.
+            val notifier = indexingNotifier.open()
+            try {
+                // Library changes are uncommon, but if one arrives mid-scan the obsolete worker must
+                // finish cancellation (including its final checkpoint) before the replacement starts.
+                existing?.cancelAndJoin()
+            } catch (cancelled: CancellationException) {
+                notifier.close()
+                throw cancelled
+            }
 
-            val notifier = indexingNotifier
             val failures = LinkedHashMap<TrackId, EngineError>()
             val total = tracks.size
             var reportProgress = false
@@ -577,7 +583,7 @@ object AppGraph {
             )
             runAutomaticIndexingSafely(
                 checkpoint = { engine.persistPendingAnalysis() },
-                finishNotification = { if (reportProgress) notifier.finish() },
+                finishNotification = { notifier.close() },
                 cancelNotificationPrompt = { permissions.cancelNotificationPrompt() },
                 onStopped = {
                     // Cancellation and failure are not completion. A retry must be allowed to
@@ -621,7 +627,10 @@ object AppGraph {
                     done = progress.analysed,
                     progressKnown = true,
                 )
-                if (missing > 0) {
+                if (missing == 0) {
+                    // Nothing to analyse: let a service still up from the replaced run stop now.
+                    notifier.close()
+                } else {
                     reportProgress = true
                     // This signal only offers a rationale in the active UI. It never waits for or
                     // requires permission: indexing remains fully functional after "Not now".

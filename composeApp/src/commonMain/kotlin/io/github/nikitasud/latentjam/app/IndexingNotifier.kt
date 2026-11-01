@@ -26,16 +26,28 @@ import org.koin.core.module.Module
 interface IndexingNotifier {
 
     /**
+     * Opens one run's hold on the report.
+     *
+     * A run that replaces another opens its session before it cancels the old run, so the old
+     * run's [IndexingSession.close] cannot take the foreground state away from the new one.
+     */
+    fun open(): IndexingSession
+}
+
+/** One analysis run's report. */
+interface IndexingSession {
+
+    /**
      * Shows or updates the progress report.
      *
      * The first call is also what promotes the work to the foreground on
      * platforms that require it, so it must happen before the first chunk
-     * rather than after it.
+     * rather than after it. Ignored after [close].
      */
     fun show(title: String, text: String, done: Int, total: Int)
 
-    /** Analysis has stopped, whether it completed or was abandoned. */
-    fun finish()
+    /** The run has stopped, whether it completed or was abandoned. Idempotent. */
+    fun close()
 }
 
 /**
