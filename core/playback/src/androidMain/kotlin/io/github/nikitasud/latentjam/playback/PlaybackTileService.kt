@@ -38,8 +38,8 @@ public class PlaybackTileService : TileService() {
         val now = SystemClock.elapsedRealtime()
         val state = PlaybackSessionState
         // Read only when nothing is loaded: it decodes the saved queue's preferences.
-        val hasSavedQueue = if (state.showsPause || state.hasQueue) null else savedQueue()
-        when (tileClickAction(state.showsPause, state.hasQueue, state.startPending(now), hasSavedQueue)) {
+        val canRestoreSavedQueue = if (state.showsPause || state.hasQueue) null else savedQueueRestorable()
+        when (tileClickAction(state.showsPause, state.hasQueue, state.startPending(now), canRestoreSavedQueue)) {
             TileClick.Pause -> pause()
             TileClick.Play -> play(now)
             TileClick.OpenApp -> openApp()
@@ -47,8 +47,8 @@ public class PlaybackTileService : TileService() {
         }
     }
 
-    private fun savedQueue(): Boolean? = try {
-        MediaBrowseRegistry.hasSavedQueue?.invoke()
+    private fun savedQueueRestorable(): Boolean? = try {
+        MediaBrowseRegistry.canRestoreSavedQueue?.invoke()
     } catch (_: RuntimeException) {
         null
     }
@@ -100,7 +100,7 @@ public class PlaybackTileService : TileService() {
         }, mainThreadExecutor)
     }
 
-    /** Nothing to play: the app is where the listener can pick something. */
+    /** Nothing the tile can play: in the app the listener picks something, or grants music access. */
     private fun openApp() {
         val launch = packageManager.getLaunchIntentForPackage(packageName) ?: return
         launch.addFlags(

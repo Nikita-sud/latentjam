@@ -62,25 +62,26 @@ internal class MediaButtonPromotionTest {
 
     @Test
     fun aTapWhilePlayingPauses() {
-        assertEquals(TileClick.Pause, tileClickAction(true, hasQueue = true, startPending = false, hasSavedQueue = false))
-        assertEquals(TileClick.Pause, tileClickAction(true, hasQueue = true, startPending = true, hasSavedQueue = true))
+        assertEquals(TileClick.Pause, tileClickAction(true, hasQueue = true, startPending = false, canRestoreSavedQueue = false))
+        assertEquals(TileClick.Pause, tileClickAction(true, hasQueue = true, startPending = true, canRestoreSavedQueue = true))
     }
 
     @Test
     fun aTapWithALoadedOrSavedQueuePlays() {
-        assertEquals(TileClick.Play, tileClickAction(false, hasQueue = true, startPending = false, hasSavedQueue = false))
-        assertEquals(TileClick.Play, tileClickAction(false, hasQueue = false, startPending = false, hasSavedQueue = true))
+        assertEquals(TileClick.Play, tileClickAction(false, hasQueue = true, startPending = false, canRestoreSavedQueue = false))
+        assertEquals(TileClick.Play, tileClickAction(false, hasQueue = false, startPending = false, canRestoreSavedQueue = true))
     }
 
     @Test
     fun aTapWithNothingToPlayOpensTheApp() {
-        assertEquals(TileClick.OpenApp, tileClickAction(false, hasQueue = false, startPending = false, hasSavedQueue = false))
-        assertEquals(TileClick.OpenApp, tileClickAction(false, hasQueue = false, startPending = false, hasSavedQueue = null))
+        // False also when a queue is saved but music access was revoked: the app asks for it.
+        assertEquals(TileClick.OpenApp, tileClickAction(false, hasQueue = false, startPending = false, canRestoreSavedQueue = false))
+        assertEquals(TileClick.OpenApp, tileClickAction(false, hasQueue = false, startPending = false, canRestoreSavedQueue = null))
     }
 
     @Test
     fun aSecondTapWhileTheFirstIsStartingIsIgnored() {
-        assertEquals(TileClick.Ignore, tileClickAction(false, hasQueue = false, startPending = true, hasSavedQueue = true))
-        assertEquals(TileClick.Ignore, tileClickAction(false, hasQueue = true, startPending = true, hasSavedQueue = true))
+        assertEquals(TileClick.Ignore, tileClickAction(false, hasQueue = false, startPending = true, canRestoreSavedQueue = true))
+        assertEquals(TileClick.Ignore, tileClickAction(false, hasQueue = true, startPending = true, canRestoreSavedQueue = true))
     }
 }

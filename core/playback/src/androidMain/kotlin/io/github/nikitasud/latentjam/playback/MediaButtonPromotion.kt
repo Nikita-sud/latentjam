@@ -56,17 +56,17 @@ internal enum class TileClick { Pause, Play, OpenApp, Ignore }
  *
  * Waiting for a controller to connect first lost the tap whenever the shade closed in between, and
  * the controller itself was the service's only client: its release destroyed the service while the
- * saved queue was still being read. [hasSavedQueue] is null when the app has not said.
+ * saved queue was still being read. [canRestoreSavedQueue] is null when the app has not said.
  */
 internal fun tileClickAction(
     showsPause: Boolean,
     hasQueue: Boolean,
     startPending: Boolean,
-    hasSavedQueue: Boolean?,
+    canRestoreSavedQueue: Boolean?,
 ): TileClick = when {
     showsPause -> TileClick.Pause
     startPending -> TileClick.Ignore
-    hasQueue || hasSavedQueue == true -> TileClick.Play
+    hasQueue || canRestoreSavedQueue == true -> TileClick.Play
     else -> TileClick.OpenApp
 }
 

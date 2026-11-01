@@ -5,7 +5,10 @@
 package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.smart.associateByIdValue
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import io.github.nikitasud.latentjam.app.shared.R
 import io.github.nikitasud.latentjam.playback.MediaBrowseCatalog
 import io.github.nikitasud.latentjam.playback.MediaBrowseCollection
@@ -57,7 +60,10 @@ internal fun installMediaBrowseCatalog(context: Context) {
     // started: keeping that source would label the player and the listening log with it.
     MediaBrowseRegistry.onExternalQueue = { AppGraph.queueSource.value = null }
     // Settings load their saved queue eagerly from preferences, so this answers without waiting.
-    MediaBrowseRegistry.hasSavedQueue = { AppGraph.settings.resumePlayback.value != null }
+    // Without music access the queue cannot be read: the tile then opens the app, which asks again.
+    MediaBrowseRegistry.canRestoreSavedQueue = {
+        AppGraph.settings.resumePlayback.value != null && hasMusicAccess(appContext)
+    }
     MediaBrowseRegistry.resumption = {
         try {
             buildMediaPlaybackResume()?.also { resume ->
@@ -131,4 +137,15 @@ private suspend fun buildMediaPlaybackResume(): MediaPlaybackResume? {
         shuffleMode = mode,
         sourceTracks = fallbackSource,
     )
+}
+
+/** The same permission the app's grant screen asks for ([AndroidAppPermissions]). */
+private fun hasMusicAccess(context: Context): Boolean {
+    val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        Manifest.permission.READ_MEDIA_AUDIO
+    } else {
+        @Suppress("DEPRECATION")
+        Manifest.permission.READ_EXTERNAL_STORAGE
+    }
+    return context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
 }
