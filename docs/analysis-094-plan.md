@@ -1,6 +1,6 @@
 # 0.9.4 track 1: library analysis, fast and reliable
 
-Status: **v18**, under adversarial review (log at the end). Nothing is implemented until the owner says go.
+Status: **v19**, under adversarial review (log at the end). Nothing is implemented until the owner says go.
 
 Scope: the on-device library analysis on Android and iOS. It covers:
 - audio decoding;
@@ -21,7 +21,7 @@ Code baseline: `dev/0.9.4` = origin/main 1730aa24, the released 0.9.3 code plus 
   move to the background.
 - **B2:** analysis keeps going with the screen off (a wake lock, capped at 90 min a day). Pauses for heat or low
   battery, honest "Waiting / Paused at X of Y" notices, and Pause / Continue buttons.
-- **C:** safer index files (directory fsync, a streaming iOS store, libraries above about 30k tracks persist). SMART
+- **C:** safer index files (directory fsync, a streaming iOS store, libraries above about 30k tracks persist, unless the device is too small to read them back, which the UI then says). SMART
   presses no longer wait behind a whole chunk of analysis. Fixes for hung decoders and failure handling (D1–D5).
 - **D:** iOS background tasks and Battery Saver slow-down.
 - **E:** optional speed items, each only if its measured rule passes.
@@ -31,7 +31,8 @@ opens. Without app opens it stops after the first day's share, and an app open o
 is incomplete or paused, the Map and For You regions use metadata only, as in 0.9.3.
 
 **Compared with 0.9.3:**
-- On API ≤ 34 the foreground service waits without a limit and resumes on screen-on, as in 0.9.3.
+- On API ≤ 34, 0.9.4 adds **no** new automatic stops. Heat, low battery and a spent budget only make it wait, and it
+  resumes on its own, as 0.9.3 does on screen-on.
 - On API 35+, 0.9.3 also loses its service at the 6 h cap. 0.9.4 stops a long screen-off wait after 30 min, and the
   next app open or a Continue tap resumes it.
 
@@ -47,7 +48,8 @@ is incomplete or paused, the Map and For You regions use metadata only, as in 0.
 - whether charging counts in the wake-lock budget;
 - the Play declaration risk;
 - per-row Retry;
-- the iOS "keep analysing" action.
+- the iOS "keep analysing" action;
+- snapshot reuse during analysis, and fused regions before completion (both default "no").
 
 ## 0. Hard rules
 
@@ -401,10 +403,21 @@ The envelope gate reloads the 40k and 100k files on the 48 MB emulator. If a rel
 **per-device cap** is declared, from heap class and `MemoryInfo`, so a device never writes a file it cannot read
 back.
 
-If a restore runs out of memory, the existing `IndexRestoreFailure` path runs (ENG:1371-1378): the file is never
-deleted. Analysis is then blocked for that session, and the UI says so. This is still better than 0.9.3, which could
-never restore such a library.
-- **Presses persist as in 0.9.3.** `retryFailedTracks` persists before it returns.
+If a restore runs out of memory on Android, the existing `IndexRestoreFailure` path runs (ENG:1371-1378): the file is
+never deleted. **An unreadable index behaves exactly as in 0.9.3**: it is not a stop reason, so the pass runs to
+`complete` with `ModelUnavailable` failures. The engine's press-time retries (`retryRestoreIfDue`, ENG:1332-1343)
+can heal it within the process. The `force` Retry and Rebuild work as in 0.9.3, and Rebuild asks first: "the stored
+analysis will be deleted". While `audioRestoreFailed` is set, the pending Retry-ids latch is not consumed.
+
+**iOS:** an out-of-memory error there is an uncatchable jetsam kill. So:
+- the 40k/100k reload gate also runs on the smallest supported iPhone class, and an iOS cap is declared from
+  `os_proc_available_memory`;
+- a "restore in progress" marker is written before the load. If it is still present at the next launch, the store
+  counts as unreadable for that session without being read, so a launch crash loop is impossible.
+
+A capped device tells the user "This library is too large to keep on this device", and re-analyses at launch as
+0.9.3 does above 64 MiB.
+- **Presses persist as in 0.9.3 at ≤ 64 MiB** (above it, see D6). `retryFailedTracks` persists before it returns.
 - **`.retry` sidecar** for D2 attempt state (see 1d). It is not part of the snapshot format.
 
 **1a-tail (conditional).** Built only if Step 0 shows, at 10k on the physical phone, one of:
@@ -631,14 +644,18 @@ re-read on every chunk and on every system event: screen on/off, playback start/
 | # | condition | pass | wake lock | FGS / notification |
 |---|---|---|---|---|
 | 1 | user paused (`userPaused`) | stopped | no | stopped; "Paused by you", with a Continue action |
-| 2 | battery ≤ 15 % and unplugged (after a Continue: ≤ 10 % for the rest of the process) | stopped | no | stopped; "Paused at X of Y (battery low)", with a Continue action |
-| 3 | too hot: thermal status ≥ T, or headroom > H (API 30+; read on every table event and chunk, at most once per second; NaN = no signal), or battery temperature ≥ 42 °C (API 24–28, `ACTION_BATTERY_CHANGED`) | waiting; **stopped once 30 min of row-3 wait time accumulates** | no | stays up; "Waiting: continues when cooler"; resumes after status ≤ T−1 **and** headroom < H − 0.1 (or < 38 °C) for 2 min; on the wait-bound stop: "Paused at X of Y" with Continue |
+| 2 | battery ≤ 15 % and unplugged (after a Continue: ≤ 10 % for the rest of the process) | **API 35+:** stopped. **API ≤ 34:** waiting, resuming on power-connected (dynamic receiver; the FGS keeps the process alive) or above 20 % | no | API 35+: stopped, "Paused at X of Y (battery low)", with a Continue action. API ≤ 34: "Waiting: continues when charging" |
+| 3 | too hot: thermal status ≥ T, or headroom > H (API 30+; read on every table event and chunk, at most once per second; NaN = no signal), or battery temperature ≥ 42 °C (`ACTION_BATTERY_CHANGED`; on API 24–28, and on any API where headroom is NaN and status has never left NONE, i.e. no thermal HAL). Headroom uses `forecastSeconds = 10` | waiting. **API 35+:** stopped once 30 min of row-3 wait time accumulates. **API ≤ 34: unbounded**, resumes on cooling | no | stays up; "Waiting: continues when cooler"; resumes after status ≤ T−1 **and** headroom < H − 0.1 (or < 38 °C) for 2 min; on the wait-bound stop: "Paused at X of Y" with Continue |
 | 4 | screen on, or playing | runs | no (the CPU is awake anyway) | up; progress |
 | 5 | screen off, not playing, budget left | runs | **yes**: 5 min timeout, renewed per track | up; progress |
 | 6 | screen off, not playing, budget spent | waiting. **API 35+:** stopped once the wait timer passes 30 min, because waiting burns the 6 h dataSync cap. **API ≤ 34: unbounded**, as in 0.9.3, whose FGS stays up and resumes on any screen-on | no | stays up; "Waiting: continues when the screen is on or music plays"; on the wait-bound stop: "Paused at X of Y" with Continue |
 
 **Wait timers.**
-- **Row 3** stops after 30 min of wait time accumulated **in row 3**, counted since the last running row (4 or 5).
+- **API ≤ 34:** no wait row is bounded. The only stops are user, stuck, exception, `onTimeout`-free completion and
+  show-failed, so 0.9.4 never stops where 0.9.3 would keep going.
+- **Row 3 on API 35+** stops after 30 min of wait time accumulated **in row 3**, counted since the last running row
+  (4 or 5), and only while row 4 or 5 would otherwise match. Heat while row 6 would hold anyway is governed by
+  row 6.
 - **Row 6 on API 35+** stops after 30 min of total waiting in rows 3 and 6 together, counted since the last running
   row.
 - **Row 6 on API ≤ 34** has no bound.
@@ -705,18 +722,19 @@ re-read on every chunk and on every system event: screen on/off, playback start/
     regression. One exception: when the pass stays user-paused after the Retry, `metadataReady` is carried over and
     only `complete` is reset. The audio pass is still gated by the table (`userPaused`).
     Host/G-f cases: Retry after `complete` re-analyses the chosen ids; Retry mid-pass covers ids already visited.
-  - **`stopReason`.** It is persisted with the stopped pass: user, battery, wait-bound, timeout-6h, show-failed, stuck,
-    restore-blocked, exception.
+  - **`stopReason`.** It is persisted with the stopped pass: user, battery (API 35+), wait-bound (API 35+),
+    timeout-6h, show-failed, stuck, exception. An unreadable index is **not** a stop reason (see 1a).
   - **What the restart rules decide.** They decide only whether the **audio pass** may run. Every explicit call
     (Retry, Continue, Rebuild), and every ON_START with a changed key, always relaunches steps 1–3 and Retry's
     failure clear. Host case: Retry while user-paused, answered "no". The failures are cleared, the tracks count as
     missing, no audio pass runs, `stopReason` stays user, and Continue is still shown.
   - **Rebuild** is its own kind of call (App.kt:4594: `clearAnalysis`, then a relaunch). It clears `userPaused` and
     the persisted `stopReason`, then relaunches like Continue. The Rebuild row shows in every non-live state. It is
-    disabled, with the reason, only for **stuck**. For restore-blocked it stays enabled, as in 0.9.3, where it is the
-    way out of an unreadable index. Host case: a restore OOM, then Rebuild, then the pass runs.
-  - **Stuck and restore-blocked are process-scoped.** They are dropped at process start, so a persisted value can
-    never block analysis for good.
+    disabled, with the reason, only for **stuck**. Host cases:
+    - a restore OOM, then Rebuild (after the confirmation), then the pass runs;
+    - a restore that fails, then heals on a press, then ON_START resumes with nothing deleted.
+  - **Stuck is process-scoped.** It is dropped at process start, so a persisted value can never block analysis for
+    good.
   - **Pending Retry ids** are a persisted latch, like Continue's. Any pass consumes them at AG:609's position, and
     they are cleared only after `retryFailedTracks` returns, so a cancel during `initialize` never loses them.
     "Retry + Continue" (the "yes" answer) is **one** call. G-f case: Retry, then Continue inside the `initialize`
@@ -747,14 +765,15 @@ re-read on every chunk and on every system event: screen on/off, playback start/
       - show-failed, wait-bound, timeout-6h and battery.
 
       The live table still applies afterwards, so row 2 can stop it again with a visible notice. Retry leaves
-      `userPaused` alone and asks "Continue analysis too?". For stuck and restore-blocked, Retry is disabled and shows
-      the reason.
-    - **Continue restarts every reason** except stuck and restore-blocked, user included. It clears `userPaused` and
+      `userPaused` alone and asks "Continue analysis too?". For stuck, Retry is disabled and shows the reason.
+    - **Continue restarts every reason** except stuck, user included. It clears `userPaused` and
       arms row 2's 10 % threshold.
-    - A same-key relaunch carries over `metadataReady` and `done`, and shows the paused state until the gate passes.
+    - A same-key relaunch carries over `metadataReady`, `done`, `running = false`, `phase`, `stopReason` and
+      `failures`, and shows the paused state until the gate passes. So steps 1–3 never flash a busy bar, disable
+      Retry and Rebuild, or re-arm the stall timer.
       So `metadataVectorsReady` never flips, and the map regions are not rebuilt (App.kt:1298-1310).
 
-    Stuck waits for the next cold start; restore-blocked waits for the next process. The state table is evaluated
+    Stuck waits for the next cold start. The state table is evaluated
     **before** `show()`, so a stop row never starts the FGS.
   - **The Continue extra** is handled in `onCreate` / `onNewIntent` before the trigger runs. It is consumed once:
     `removeExtra` + `setIntent`, only when `savedInstanceState == null`, and never with
@@ -819,7 +838,6 @@ re-read on every chunk and on every system event: screen on/off, playback start/
     | stopped: battery / wait-bound / timeout-6h / show-failed | "Paused at X of Y", with the reason ("open the app to continue" for show-failed) | **Continue**; Retry if failures exist; Rebuild |
     | stopped: exception | "Analysis stopped" | **Retry** (restarts and resets the backoff); Rebuild |
     | stopped: stuck | the reason, and "restart the app" | Retry and Rebuild disabled, with the reason |
-    | stopped: restore-blocked | "The stored analysis could not be read"; when it repeats, "Rebuild analysis to start over" | **Rebuild** (as in 0.9.3, `clearAnalysis` resets the block, ENG:1246-1253); Retry disabled |
     | engine Failed or uninitialised | as in 0.9.3 | the 0.9.3 `force` recovery Retry |
     | complete, with failures | as in 0.9.3 | Retry (D3, for the listed failures) |
 
@@ -827,7 +845,7 @@ re-read on every chunk and on every system event: screen on/off, playback start/
     as "Retry". There are host UI tests for each row and for Rebuild in each stopped row.
 
     **iOS.** The controls live in commonMain, so iOS gets in-app Pause and Continue through the common `userPaused`
-    gate. Before Slice D, the stop reasons that exist on iOS are user, exception, stuck and restore-blocked. The host
+    gate. Before Slice D, the stop reasons that exist on iOS are user, exception and stuck. The host
     UI tests cover them.
 - **Stopped notices** are best-effort. On API 33+ without `POST_NOTIFICATIONS` they are not shown, so the in-app
   state is the source of truth. This is tested with the permission denied.
@@ -898,8 +916,8 @@ re-read on every chunk and on every system event: screen on/off, playback start/
 triggers are a library change while the app is in the background, and the refcount handover. The tests cover
 exactly those.
 
-**Visible states** in the analysis UI, one per table row: running, waiting-hot, waiting-screen, paused-battery,
-paused, paused-by-you, paused-stuck, paused-open-app (when `show()` failed). Slowed (Battery Saver) comes with 2e. The notification is optional, because Android 14+ lets users swipe it away.
+**Visible states** in the analysis UI: one per row of the controls-per-state table below. Slowed (Battery Saver) comes
+with 2e. The notification is optional, because Android 14+ lets users swipe it away.
 
 **Definitions.**
 - *Screen off*: `PowerManager.isInteractive == false`. Always-on display counts as off.
@@ -1860,3 +1878,39 @@ built, it must meet requirements 1–8, which carry every store finding from rou
 - Stuck and restore-blocked are process-scoped.
 - No stale Pause after `complete`.
 - The Problems phase text shows above its branches.
+
+### Round 18 (2026-11-01): two fresh reviewers on v18
+
+**Product / platform → READY (no blocking or major).** Minor findings:
+- The heat stop on API ≤ 34 is new.
+- The low-battery stop never resumes on plug-in.
+- No heat signal without a thermal HAL.
+- The envelope cap is not mentioned in the summary or for iOS.
+- "Visible states" and the summary list were incomplete.
+
+**Correctness → NOT READY: 1 major, 6 minor.**
+- **Major:**
+  - The engine can heal restore-blocked within a process (`retryRestoreIfDue`, ENG:1332-1343). v18 kept the pass
+    stopped and steered the user to Rebuild, which deletes a now-readable file. 0.9.3 completes with
+    `ModelUnavailable` failures, and its `force` Retry recovers.
+- **Minor:**
+  - An iOS OOM is an uncatchable jetsam kill.
+  - The Retry latch is consumed while blocked.
+  - The row-3 timer counts while idle anyway.
+  - The press-persistence wording contradicted itself.
+  - A gated relaunch resets the visible state.
+  - The map readiness change for restore-blocked was undeclared.
+
+**v19 response, all taken:**
+- An unreadable index is **not a stop reason**: it behaves exactly as in 0.9.3. That also restores the 0.9.3 map
+  readiness.
+- Rebuild asks for confirmation.
+- No latch consumption while blocked.
+- iOS: a reload gate and an `os_proc_available_memory` cap, plus a restore marker against crash loops. A capped
+  device says "too large to keep".
+- **API ≤ 34 has no new automatic stops:** heat and low battery wait and resume.
+- The row-3 timer counts only while a running row would match.
+- Battery-temperature fallback without a thermal HAL; `forecastSeconds` stated.
+- A gated relaunch carries `running = false`, phase, `stopReason` and failures.
+- The press wording is qualified.
+- Visible states point to the controls table; the summary lists all owner calls.
