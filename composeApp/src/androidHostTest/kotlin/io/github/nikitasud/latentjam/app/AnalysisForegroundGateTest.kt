@@ -124,6 +124,24 @@ class AnalysisForegroundGateTest {
     }
 
     @Test
+    fun theOldInstancesDestroyDoesNotDisturbAStartInFlight() {
+        val first = gate.open()
+        first.show(content(0))
+        deliverStart()
+        first.close()
+        val second = gate.open()
+        second.show(content(1))
+        gate.onDestroy()
+        second.show(content(2))
+        deliverStart()
+        second.close()
+        assertEquals(
+            listOf("requestStart", "startForeground 0", "stop", "requestStart", "startForeground 2", "stop"),
+            platform.events,
+        )
+    }
+
+    @Test
     fun noUpdateIsPostedAfterTheTimeout() {
         val session = gate.open()
         session.show(content(0))
@@ -132,6 +150,39 @@ class AnalysisForegroundGateTest {
         session.show(content(8))
         session.close()
         assertEquals(listOf("requestStart", "startForeground 0", "stop"), platform.events)
+    }
+
+    @Test
+    fun aRunCancelledByTheTimeoutDoesNotStartTheServiceAgainAfterItsDestroy() {
+        val session = gate.open()
+        session.show(content(0))
+        deliverStart()
+        gate.onTimeout { platform.events += "stop" }
+        gate.onDestroy()
+        session.show(content(8))
+        session.close()
+        val next = gate.open()
+        next.show(content(0))
+        assertEquals(listOf("requestStart", "startForeground 0", "stop", "requestStart"), platform.events)
+    }
+
+    @Test
+    fun aRefusalOnTheWayToAStopIsNotRethrown() {
+        val session = gate.open()
+        session.show(content(4))
+        session.close()
+        deliverStart(failForeground = true)
+        assertEquals(listOf("requestStart", "stop"), platform.events)
+    }
+
+    @Test
+    fun aStrayStartDoesNotShowTheLastRunsProgress() {
+        val session = gate.open()
+        session.show(content(7))
+        deliverStart()
+        session.close()
+        deliverStart()
+        assertEquals(listOf("requestStart", "startForeground 7", "stop", "startForeground 0", "stop"), platform.events)
     }
 
     @Test

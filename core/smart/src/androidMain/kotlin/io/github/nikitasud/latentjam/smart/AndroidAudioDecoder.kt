@@ -573,11 +573,11 @@ internal class AndroidAudioDecoder(private val context: Context) {
 
     private companion object {
         /**
-         * The device's codec list, built once per process: building it enumerates every codec, and
-         * that used to happen for each window (docs/analysis-094-plan.md 2a.1). The list does not
-         * change while the process lives, so every window still gets the decoder a fresh list
-         * would name; the lookup only reads it, from any thread. A failed build is retried on the
-         * next window, as before.
+         * The device's codec list, built once per process instead of once per window
+         * (docs/analysis-094-plan.md 2a.1). The framework already shares one static list between
+         * instances, so this saves only the per-window copy; the lookup itself is unchanged. Every
+         * window therefore still gets the decoder a fresh list would name, and the lookup only
+         * reads the list, from any thread. A failed build is retried on the next window, as before.
          */
         val regularCodecs: MediaCodecList by lazy { MediaCodecList(MediaCodecList.REGULAR_CODECS) }
 

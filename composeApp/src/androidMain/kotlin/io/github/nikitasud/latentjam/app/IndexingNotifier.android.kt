@@ -86,8 +86,11 @@ class IndexingService : Service() {
         try {
             if (activeGate == null) {
                 // No run in this process asked for the service (the notifier was never created).
-                startForegroundWith(AnalysisForegroundGate.Content("", "", 0, 0))
-                stop()
+                try {
+                    startForegroundWith(AnalysisForegroundGate.Content("", "", 0, 0))
+                } finally {
+                    stop()
+                }
             } else {
                 activeGate.onStartCommand(startForeground = ::startForegroundWith, stop = stop)
             }
@@ -182,6 +185,8 @@ internal fun analysisNotification(context: Context, content: AnalysisForegroundG
  */
 private fun ensureChannel(context: Context, title: String) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+    // A blank title (a stray start with no run behind it) would name the channel for good.
+    if (title.isBlank()) return
     val manager = context.getSystemService(NotificationManager::class.java) ?: return
     if (manager.getNotificationChannel(CHANNEL_ID) != null) return
     manager.createNotificationChannel(

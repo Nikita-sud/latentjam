@@ -63,7 +63,12 @@ internal class AnalysisForegroundGate(private val platform: Platform) {
             if (!open) return
             open = false
             sessions--
-            if (sessions == 0) stopLocked()
+            if (sessions == 0 && phase == Phase.Lost) phase = Phase.Idle
+            if (sessions == 0) {
+                // A stray start later must not show this run's progress.
+                latest = null
+                stopLocked()
+            }
         }
     }
 
@@ -92,7 +97,9 @@ internal class AnalysisForegroundGate(private val platform: Platform) {
 
     /**
      * The service's `onStartCommand`. [startForeground] runs first in every case; [stop] runs at once
-     * when no run wants the service any more, and is kept for the later stop otherwise.
+     * when no run wants the service any more, and is kept for the later stop otherwise. Rethrows a
+     * refused [startForeground] only when a run wanted the service: a refusal on the way to an
+     * immediate stop concerns nobody.
      */
     fun onStartCommand(startForeground: (Content) -> Unit, stop: () -> Unit) = synchronized(lock) {
         val content = latest ?: Content(title = "", text = "", done = 0, total = 0)
@@ -101,6 +108,8 @@ internal class AnalysisForegroundGate(private val platform: Platform) {
             if (phase != Phase.Lost) phase = Phase.Idle
             try {
                 startForeground(content)
+            } catch (refused: RuntimeException) {
+                println("SMART: analysis foreground start refused on the way to a stop: $refused")
             } finally {
                 stop()
             }
@@ -123,9 +132,17 @@ internal class AnalysisForegroundGate(private val platform: Platform) {
         stop()
     }
 
-    /** The service was destroyed; the next update starts it again. */
+    /**
+     * The service was destroyed; the next update starts it again. A run that lost the foreground
+     * state stays without it until it closes: it is being cancelled, and must not start the service
+     * again on its way out.
+     */
     fun onDestroy() = synchronized(lock) {
-        if (phase != Phase.Starting) phase = Phase.Idle
+        when (phase) {
+            Phase.Starting -> Unit
+            Phase.Lost -> if (sessions == 0) phase = Phase.Idle
+            else -> phase = Phase.Idle
+        }
     }
 
     private fun stopLocked() {

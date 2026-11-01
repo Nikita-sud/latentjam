@@ -556,6 +556,9 @@ object AppGraph {
         }
 
         automaticIndexingKey = key
+        // Cancelled here as well as joined below: a replacement that is itself replaced before it
+        // starts never runs its body, and would otherwise leave this run going beside the newest.
+        existing?.cancel()
         automaticIndexingJob = appScope.launch {
             // Opened before the old run is cancelled: its close then leaves the foreground service to
             // this run instead of stopping it, and a background start is never needed for the handover.
