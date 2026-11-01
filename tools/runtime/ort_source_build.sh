@@ -62,6 +62,7 @@ case "$WORK" in /*) ;; *) echo "LATENTJAM_ORT_WORK must be an absolute path" >&2
 case "$WORK/" in "$ROOT"/*|"$ORT_SOURCE"/*) echo "LATENTJAM_ORT_WORK must be outside both source trees" >&2; exit 2;; esac
 # protoc's and the JNI library's Ninja output goes to a log; when one of those steps fails, print its log.
 STEP_LOG=
+# shellcheck disable=SC2154  # status is assigned inside the trap
 trap 'status=$?; [ $status = 0 ] || [ -z "$STEP_LOG" ] || tail -n 80 "$STEP_LOG" >&2' EXIT
 
 python3 "$HERE/ort_deps_mirror.py" "$ORT_SOURCE" "$MIRROR" ${LATENTJAM_ORT_OFFLINE:+--offline}
@@ -107,7 +108,7 @@ cmake --build "$WORK/jni" -j "${JOBS:-4}" >> "$WORK/jni.log"
 STEP_LOG=
 
 # 5. The AAR.
-STRIP=$(ls "$NDK"/toolchains/llvm/prebuilt/*/bin/llvm-strip | head -1)
+STRIPS=("$NDK"/toolchains/llvm/prebuilt/*/bin/llvm-strip); STRIP=${STRIPS[0]}
 mkdir -p "$WORK/aar/jni/$ABI" "$WORK/aar/META-INF/com/android/build/gradle"
 "$STRIP" --strip-unneeded -o "$WORK/aar/jni/$ABI/libonnxruntime.so" "$RUNTIME"
 "$STRIP" --strip-unneeded -o "$WORK/aar/jni/$ABI/libonnxruntime4j_jni.so" "$WORK/jni/libonnxruntime4j_jni.so"

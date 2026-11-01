@@ -22,6 +22,7 @@ apt-get -y dist-upgrade
 # shellcheck disable=SC1091
 source /etc/profile.d/bsenv.sh                 # home_vagrant, ANDROID_HOME, gradlew-fdroid on PATH
 export ANDROID_HOME=/opt/android-sdk
+: "${home_vagrant:?bsenv.sh did not set home_vagrant}"
 sdkmanager "platform-tools" "build-tools;31.0.0"
 
 # fdroidserver from git master, as fdroiddata installs it for every MR and bot pipeline.
