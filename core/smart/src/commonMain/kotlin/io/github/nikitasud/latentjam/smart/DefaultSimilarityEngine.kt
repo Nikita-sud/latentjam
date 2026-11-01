@@ -1345,6 +1345,7 @@ internal class DefaultSimilarityEngine(
                 inference.withLock { backend.close() }
                 predictor?.close()
                 textEncoder?.close()
+                textEncodeCache.clear()
                 index.clear()
                 textIndex?.clear()
                 knownTracks.clear()
@@ -1460,6 +1461,26 @@ internal class DefaultSimilarityEngine(
     }
 
     /**
+     * The last [TEXT_ENCODE_CACHE] text-encoder outputs by input string, as encoded; read and written only under
+     * [mutex] (every [indexTextVector] caller holds it). Failed or blank encodes are never kept. It lives as long as
+     * the encoder (about 100 KB), not one pass as §5 2d says: an album split over two passes still hits.
+     */
+    private val textEncodeCache = LinkedHashMap<String, FloatArray>()
+
+    /** [metadata]'s cached encoder output, made the most recent; null when not cached. */
+    private fun cachedTextEncode(metadata: String): FloatArray? {
+        val hit = textEncodeCache.remove(metadata) ?: return null
+        textEncodeCache[metadata] = hit
+        return hit
+    }
+
+    private fun cacheTextEncode(metadata: String, output: FloatArray) {
+        textEncodeCache.remove(metadata)
+        textEncodeCache[metadata] = output
+        if (textEncodeCache.size > TEXT_ENCODE_CACHE) textEncodeCache.remove(textEncodeCache.keys.first())
+    }
+
+    /**
      * Encodes and stores this track's metadata text vector.
      *
      * @return true when a new vector was added, so the caller knows whether to persist.
@@ -1470,7 +1491,12 @@ internal class DefaultSimilarityEngine(
         if (track.id in target) return false
         val metadata = track.textString()
         if (metadata.isBlank()) return false
-        val vector = runCatching { encoder.encode(metadata) }.getOrNull() ?: return false
+        // An album's tracks usually share one string ("genre; artist; year; language"): the encoder's output for it
+        // is reused (2d). The encoder is deterministic, so a copy of its output is the row a fresh encode stores.
+        val vector = cachedTextEncode(metadata)?.copyOf()
+            ?: runCatching { encoder.encode(metadata) }.getOrNull()
+                ?.also { if (it.size == TextEncoder.TEXT_DIM) cacheTextEncode(metadata, it.copyOf()) }
+            ?: return false
         if (vector.size != TextEncoder.TEXT_DIM) return false
         return runCatching { target.upsert(track.id, vector) }
             .onSuccess {
@@ -2014,6 +2040,9 @@ internal class DefaultSimilarityEngine(
 
 /** Fixed, so the same library always compares a transition against the same tracks. */
 private const val TRANSITION_SAMPLE_SEED: Int = 25
+
+/** Text-encoder outputs kept for reuse (2d): an album's worth and more. */
+private const val TEXT_ENCODE_CACHE: Int = 64
 
 private suspend fun EmbeddingBackend.embedEachWith(
     tracks: List<TrackDescriptor>,

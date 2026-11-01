@@ -241,6 +241,68 @@ internal class DefaultSimilarityEngineTest {
     }
 
     @Test
+    fun tracksSharingAMetadataStringAreEncodedOnceAndStoreTheSameRows() = runTest {
+        // An album: three tracks whose text string is the same ("Rock; Band").
+        val album = listOf(seed, near, far).map { it.copy(genre = "Rock", artist = "Band") }
+        val other = TrackDescriptor(id = TrackId("other"), audioUri = "test://other", genre = "Dance", artist = "DJ")
+        val encoder = FakeTextEncoder()
+        val textStore = FakeIndexStore()
+        val engine = engine(
+            backend = FakeEmbeddingBackend(
+                mutableMapOf(
+                    seed.id to floatArrayOf(1f, 0f, 0f), near.id to floatArrayOf(0.9f, 0.1f, 0f),
+                    far.id to floatArrayOf(0f, 1f, 0f), other.id to floatArrayOf(0f, 0f, 1f),
+                ),
+            ),
+            store = FakeIndexStore(),
+            textEncoder = encoder,
+            textIndex = InMemoryVectorIndex(TextEncoder.TEXT_DIM),
+            textStore = textStore,
+        )
+        engine.initialize()
+        engine.indexLibrary(album + other)
+
+        assertEquals(listOf("Rock; Band", "Dance; DJ"), encoder.encodedMetadata)
+        val rows = assertNotNull(textStore.snapshots[TEXT_INDEX_VERSION])
+        assertEquals((album + other).map { it.id }, rows.keys.toList())
+        val fresh = FakeTextEncoder()
+        for (track in album + other) {
+            val expected = fresh.encode(if (track === other) "Dance; DJ" else "Rock; Band")
+            assertContentEquals(expected, rows.getValue(track.id), "row ${track.id.value}")
+        }
+    }
+
+    @Test
+    fun aFailedTextEncodeIsNeverReusedAndACachedRowIsACopy() = runTest {
+        val album = listOf(seed, near, far).map { it.copy(genre = "Rock", artist = "Band") }
+        var calls = 0
+        // Fails the first time, then returns a vector that is not unit length (so the store normalises it).
+        val encoder = object : TextEncoder {
+            override suspend fun load(): Result<Unit> = Result.success(Unit)
+            override fun encode(metadata: String): FloatArray? =
+                if (calls++ == 0) null else FloatArray(TextEncoder.TEXT_DIM) { (it % 7 + 1).toFloat() }
+            override fun close() = Unit
+        }
+        val textIndex = InMemoryVectorIndex(TextEncoder.TEXT_DIM)
+        val engine = engine(
+            backend = FakeEmbeddingBackend(
+                mutableMapOf(seed.id to floatArrayOf(1f, 0f, 0f), near.id to floatArrayOf(0.9f, 0.1f, 0f), far.id to floatArrayOf(0f, 1f, 0f)),
+            ),
+            store = FakeIndexStore(),
+            textEncoder = encoder,
+            textIndex = textIndex,
+            textStore = FakeIndexStore(),
+        )
+        engine.initialize()
+        engine.indexLibrary(album)
+        // The failure was not cached: the second track encoded again, and the third reused that output.
+        assertEquals(2, calls)
+        assertTrue(seed.id !in textIndex)
+        val second = assertNotNull(textIndex.vector(near.id))
+        assertContentEquals(second, assertNotNull(textIndex.vector(far.id)))
+    }
+
+    @Test
     fun aFailedRestoreIsReadAgainByALaterAudioReadAfterTheGap() = runTest {
         val first = Harness()
         first.registerTriangle()
