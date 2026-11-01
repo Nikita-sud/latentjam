@@ -64,6 +64,9 @@ internal interface AnalysisControlStore {
 
     /** When the held wake lock was last renewed. */
     var wakeLockRenewedAt: Long?
+
+    /** [AnalysisRetryLedger.encoded]. */
+    var retryLedger: String?
 }
 
 internal class InMemoryAnalysisControlStore : AnalysisControlStore {
@@ -74,6 +77,7 @@ internal class InMemoryAnalysisControlStore : AnalysisControlStore {
     override var wakeLockSpans: String? = null
     override var wakeLockHeldSince: Long? = null
     override var wakeLockRenewedAt: Long? = null
+    override var retryLedger: String? = null
 }
 
 /**
@@ -185,6 +189,7 @@ internal class AnalysisRunControl(
             if (since == null) {
                 heldSinceWallMs = wallClockMs()
                 store.wakeLockHeldSince = heldSinceWallMs
+                store.wakeLockRenewedAt = heldSinceWallMs
             }
             device.holdWakeLock(WAKE_LOCK_TIMEOUT_MS)
         } else if (since != null) {

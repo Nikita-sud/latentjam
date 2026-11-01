@@ -18,6 +18,8 @@ import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.library.Playlists
 import io.github.nikitasud.latentjam.library.musicLibraryModule
 import io.github.nikitasud.latentjam.library.nowMillis
+import io.github.nikitasud.latentjam.smart.IndexReport
+import io.github.nikitasud.latentjam.smart.isAnalysisTimeout
 import io.github.nikitasud.latentjam.playback.NextTrackChooser
 import io.github.nikitasud.latentjam.playback.PlaybackController
 import io.github.nikitasud.latentjam.playback.SleepTimerController
@@ -51,6 +53,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -677,13 +680,19 @@ object AppGraph {
                     pruneMissing = librarySnapshotAuthoritative,
                 )
                 if (force) engine.retryFailedTracks(trackIds)
+                // D2: a file that timed out twice waits out its hour, left out of this pass and of the count of work
+                // left; Retry makes every such file eligible again.
+                val retries = analysisRetries
+                if (force) retries.prune(emptyList()) else retries.prune(trackIds)
+                val holding = tracks.filter(retries::holding).mapTo(HashSet()) { it.id }
+                store.retryLedger = retries.encoded()
                 // The foreground service and its notification are only warranted when audio
                 // embedding will actually run. The dedup key lives in process memory, so every
                 // cold start re-enters this job — and used to flash a "0 of N" notification at
                 // an already-complete library on every single launch. Promotion still happens
                 // BEFORE the first audio batch, which is the work the service protects; the
                 // window during model loading is seconds and carries no batch to lose.
-                val missing = if (total > 0) engine.missingFromIndex(trackIds) else 0
+                val missing = if (total > 0) (engine.missingFromIndex(trackIds) - holding.size).coerceAtLeast(0) else 0
                 // Counted before the metadata phase: a pass that only re-encodes text vectors (a
                 // year learned after an upgrade) must not read as analysis lost.
                 progress.started(missing)
@@ -714,7 +723,7 @@ object AppGraph {
                             text = notificationText(progress.analysed, total, null),
                             done = progress.analysed,
                             total = total,
-                            pauseLabel = pauseLabel,
+                            pauseLabel = pauseLabel.takeIf { gated },
                         )
                     }
                 }
@@ -747,7 +756,7 @@ object AppGraph {
                 // Spread over the library rather than in title order, so the SMART pool is
                 // representative long before a big library finishes (see analysisOrder).
                 val end = pass.run(
-                    order = analysisOrder(tracks),
+                    order = analysisOrder(tracks).filterNot { it.id in holding },
                     allIds = trackIds,
                     total = total,
                     progress = progress,
@@ -772,7 +781,8 @@ object AppGraph {
                         )
                     }
                     // A Continue that came while the stop was being published: answer it now the stop is out.
-                    if (!control.userPaused.value) appScope.launch { continueAfterStop(automaticIndexingJob) }
+                    val thisPass = currentCoroutineContext()[Job]
+                    if (!control.userPaused.value) appScope.launch { continueAfterStop(thisPass) }
                     return@runAutomaticIndexingSafely
                 }
                 mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(progressAt = null)
@@ -864,6 +874,8 @@ object AppGraph {
         val live = automaticIndexingJob?.isActive == true
         // A stale Pause after a finished pass holds nothing back.
         if (!live && analysisStore.lastPassComplete) return
+        // A Pause supersedes a Continue not yet consumed.
+        analysisStore.pendingContinue = false
         analysisControl.setUserPaused(true)
     }
 
@@ -1009,8 +1021,10 @@ object AppGraph {
     private val audioPassEngine: AudioPassEngine by lazy {
         object : AudioPassEngine {
             override suspend fun missingFromIndex(ids: List<TrackId>) = engine.missingFromIndex(ids)
-            override suspend fun stage(chunk: List<TrackDescriptor>, upcoming: List<TrackDescriptor>) =
-                engine.stageLibraryIndex(chunk, upcoming)
+            override suspend fun stage(chunk: List<TrackDescriptor>, upcoming: List<TrackDescriptor>): IndexReport {
+                val report = engine.stageLibraryIndex(chunk, upcoming)
+                return settleRetries(chunk, report)
+            }
             override suspend fun persist() = engine.persistPendingAnalysis()
             override fun envelopeRefused() = engine.audioEnvelopeRefused()
             override suspend fun rememberedFailures(tracks: List<TrackDescriptor>) = engine.rememberedAudioFailures(tracks)
@@ -1020,6 +1034,31 @@ object AppGraph {
         }
     }
     private var lastAnalysisCall: LastAnalysisCall? = null
+
+    private val analysisRetries: AnalysisRetryLedger by lazy { AnalysisRetryLedger(analysisStore.retryLedger, ::nowMillis) }
+
+    /**
+     * D1/D2 after a chunk: a timeout is retried later (the engine no longer remembers it), and the third one is handed
+     * to the engine to remember, shown as failed with Retry. Any other outcome ends the track's entry.
+     */
+    private suspend fun settleRetries(chunk: List<TrackDescriptor>, report: IndexReport): IndexReport {
+        val retries = analysisRetries
+        val exhausted = ArrayList<TrackDescriptor>()
+        for (track in chunk) {
+            val error = report.errors[track.id]
+            if (error != null && error.isAnalysisTimeout()) {
+                if (retries.timedOut(track)) exhausted += track
+            } else {
+                retries.forget(track.id)
+            }
+        }
+        analysisStore.retryLedger = retries.encoded()
+        if (exhausted.isEmpty()) return report
+        engine.rememberAudioFailures(exhausted)
+        val errors = LinkedHashMap(report.errors)
+        for (track in exhausted) errors[track.id] = EngineError.InvalidAudio("Analysis timed out ${AnalysisRetryLedger.CAP} times")
+        return report.copy(errors = errors)
+    }
 
     /** The current pass stopped for the user's pause and is only finishing; reset by each new pass. */
     @kotlin.concurrent.Volatile

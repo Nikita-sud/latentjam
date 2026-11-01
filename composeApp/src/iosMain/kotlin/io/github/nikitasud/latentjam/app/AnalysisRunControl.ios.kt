@@ -41,10 +41,14 @@ private object UserDefaultsAnalysisControlStore : AnalysisControlStore {
     override var wakeLockRenewedAt: Long?
         get() = null
         set(value) = Unit
+    override var retryLedger: String?
+        get() = defaults.stringForKey(KEY_RETRY_LEDGER)
+        set(value) = defaults.setObject(value, KEY_RETRY_LEDGER)
 
     private const val KEY_PAUSED = "analysis.userPaused"
     private const val KEY_STOP_REASON = "analysis.stopReason"
     private const val KEY_PENDING_CONTINUE = "analysis.pendingContinue"
     private const val KEY_LAST_COMPLETE = "analysis.lastPassComplete"
     private const val KEY_SPANS = "analysis.wakeLockSpans"
+    private const val KEY_RETRY_LEDGER = "analysis.retryLedger"
 }

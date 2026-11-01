@@ -65,7 +65,9 @@ internal class TrackDeadlineTest {
 
         assertEquals(listOf("a", "b", "c", "d"), results.map { it.first.value })
         val timedOut = (results[1].second.exceptionOrNull() as SmartEngineException).error
-        assertIs<EngineError.InvalidAudio>(timedOut)
+        // D1: a timeout is transient now, retried by the app's ledger (0.9.3 remembered it as invalid audio).
+        assertIs<EngineError.AudioUnavailable>(timedOut)
+        assertTrue(timedOut.isAnalysisTimeout())
         assertTrue(timedOut.technicalDetail.orEmpty().contains("timed out"))
         for (index in listOf(0, 2, 3)) {
             assertEquals(vector(tracks[index])[0], results[index].second.getOrThrow()[0])
@@ -103,7 +105,7 @@ internal class TrackDeadlineTest {
         val result = withContext(Dispatchers.Default) {
             decoding.withinBudget { decoding.decode { hang() }; Result.success(floatArrayOf(1f)) }
         }
-        assertIs<EngineError.InvalidAudio>((result.exceptionOrNull() as SmartEngineException).error)
+        assertIs<EngineError.AudioUnavailable>((result.exceptionOrNull() as SmartEngineException).error)
         assertNull(result.getOrNull())
     }
 
@@ -184,5 +186,29 @@ internal class TrackDeadlineTest {
             kotlinx.coroutines.delay(50)
         }
         assertTrue(cancelled)
+    }
+
+    @Test
+    fun `carried decoding is not reused after the workers were replaced between chunks`() = runTest {
+        val workers = CountingWorkers()
+        val decoding = DeadlineDecoding(workers, budget = 2_000.milliseconds)
+        val decoded = mutableListOf<String>()
+        val results = mutableListOf<Pair<String, Boolean>>()
+        suspend fun chunk(items: List<TrackDescriptor>, upcoming: List<TrackDescriptor>) = decoding.each(
+            tracks = items,
+            ahead = 2,
+            prefetch = { track -> decodedLock.withLock { decoded += track.id.value }; vector(track) },
+            finish = { _, vector -> Result.success(vector) },
+            upcoming = upcoming,
+            onResult = { track, result -> results += track.id.value to result.isSuccess },
+        )
+        withContext(Dispatchers.Default) {
+            chunk(tracks, chunkB)
+            // A press's decode timed out in the gap: the pool was replaced under the carried work.
+            decoding.withinBudget { decoding.decode { hang() }; Result.success(floatArrayOf(0f)) }
+            chunk(chunkB, emptyList())
+        }
+        assertTrue(results.all { it.second }, "$results")
+        assertEquals(listOf("e", "f", "g"), results.drop(4).map { it.first })
     }
 }

@@ -240,6 +240,12 @@ public interface SimilarityEngine {
     public suspend fun rememberedAudioFailures(tracks: List<TrackDescriptor>): Map<TrackId, EngineError> = emptyMap()
 
     /**
+     * Remembers [tracks] as failed audio until Retry, as a deterministic failure is: the app's retry ledger hands over
+     * a file whose analysis timed out three times (D2). A track indexed meanwhile, or changed, is left alone.
+     */
+    public suspend fun rememberAudioFailures(tracks: List<TrackDescriptor>): Unit = Unit
+
+    /**
      * Builds the strongest covered, one-shot vector space for library-level My Mixes.
      *
      * The engine reads its audio and metadata indexes under one lock and writes directly into one

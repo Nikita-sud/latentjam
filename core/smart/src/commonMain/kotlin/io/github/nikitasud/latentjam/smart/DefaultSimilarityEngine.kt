@@ -646,6 +646,16 @@ internal class DefaultSimilarityEngine(
 
     override fun audioEnvelopeRefused(): Boolean = audioEnvelopeRefusedNow
 
+    override suspend fun rememberAudioFailures(tracks: List<TrackDescriptor>): Unit = withContext(dispatcher) {
+        mutex.withLock {
+            for (track in tracks) {
+                if (track.id in index) continue
+                if (knownTracks[track.id]?.audioVectorIdentity() != track.audioVectorIdentity()) continue
+                rememberAudioFailure(track)
+            }
+        }
+    }
+
     override suspend fun rememberedAudioFailures(tracks: List<TrackDescriptor>): Map<TrackId, EngineError> =
         withContext(dispatcher) {
             mutex.withLock {

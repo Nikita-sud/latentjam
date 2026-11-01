@@ -94,7 +94,7 @@ internal class IosFileIndexStore(
 }
 
 /**
- * Reads a regenerable cache only after its metadata proves the two-copy NSData -> ByteArray load
+ * Reads a regenerable cache only after its metadata proves the one-copy load
  * is bounded. The second size check also turns a concurrent replacement into a cache miss rather
  * than decoding a truncated or extended snapshot.
  */
@@ -178,7 +178,7 @@ private fun syncParentDirectory(path: String) {
     val directory = path.substringBeforeLast('/', missingDelimiterValue = ".")
     val fd = platform.posix.open(directory, platform.posix.O_RDONLY)
     if (fd < 0) return
-    platform.posix.fsync(fd)
+    if (platform.posix.fcntl(fd, platform.posix.F_FULLFSYNC) != 0) platform.posix.fsync(fd)
     platform.posix.close(fd)
 }
 

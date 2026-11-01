@@ -67,7 +67,7 @@ internal class ExecutorDecodeWorkersTest {
 
         assertEquals(listOf("a", "b", "c", "d", "e"), results.map { it.first })
         assertEquals(listOf(true, false, true, true, true), results.map { it.second.isSuccess })
-        assertIs<EngineError.InvalidAudio>((results[1].second.exceptionOrNull() as SmartEngineException).error)
+        assertIs<EngineError.AudioUnavailable>((results[1].second.exceptionOrNull() as SmartEngineException).error)
     }
 
     @Test

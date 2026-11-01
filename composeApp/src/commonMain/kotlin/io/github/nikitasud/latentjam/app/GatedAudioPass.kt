@@ -95,7 +95,7 @@ internal class GatedAudioPass(
             launch { engine.trackChanges.collect { control.renew() } }
             launch {
                 control.userPaused.collect { paused ->
-                    if (!paused || !shown) return@collect
+                    if (!paused || !shown || !gated) return@collect
                     state.update { it.copy(phase = AnalysisPhase.PAUSING, etaMinutes = null) }
                     // At once, not at the boundary: the chunk's own update below says the same while still paused.
                     runCatching { show(notices(AnalysisNotice.Waiting(AnalysisPhase.PAUSING)), state.value.done, null) }
@@ -156,7 +156,9 @@ internal class GatedAudioPass(
                     state.update { it.copy(progressAt = TimeSource.Monotonic.markNow()) }
                 }
                 val missingBefore = engine.missingFromIndex(chunk.map(TrackDescriptor::id))
-                val report = engine.stage(chunk, chunks.getOrNull(position + 1).orEmpty())
+                // No hand-over when the pass will stop at the next boundary: nothing decodes past a pause.
+                val upcoming = if (gated && control.userPaused.value) emptyList() else chunks.getOrNull(position + 1).orEmpty()
+                val report = engine.stage(chunk, upcoming)
                 failures.putAll(report.errors)
                 visited += chunk.size
                 progress.visited(missingBefore)

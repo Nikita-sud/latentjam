@@ -48,8 +48,18 @@ internal interface DecodeWorkers {
 }
 
 /** The failure a timed-out track gets: remembered while the file is unchanged, listed with a Retry. */
-internal fun analysisTimedOut(budget: Duration): EngineError.InvalidAudio =
-    EngineError.InvalidAudio("Analysis timed out after ${budget.inWholeSeconds} s")
+/**
+ * D1 (docs/analysis-094-plan.md §0): a timeout is transient, not remembered. Its cause may pass (a slow card, a busy
+ * codec); the app's retry ledger stops a file that keeps timing out after three tries (D2).
+ */
+internal fun analysisTimedOut(budget: Duration): EngineError.AudioUnavailable =
+    EngineError.AudioUnavailable("$ANALYSIS_TIMED_OUT ${budget.inWholeSeconds} s")
+
+private const val ANALYSIS_TIMED_OUT = "Analysis timed out after"
+
+/** Whether this failure is a track's analysis running out of its budget. */
+public fun EngineError.isAnalysisTimeout(): Boolean =
+    this is EngineError.AudioUnavailable && technicalDetail.orEmpty().startsWith(ANALYSIS_TIMED_OUT)
 
 /**
  * [result], except that a track timed out after [budget] while the app was suspended becomes the retryable
@@ -93,6 +103,26 @@ internal class DeadlineDecoding(
      * when no call comes within [CARRY_FOR] (a wait, or the end of the pass), so decoded audio is never kept around.
      */
     private var carried: List<Pair<TrackDescriptor, Deferred<*>>> = emptyList()
+
+    /** The pool replacements so far: carried work started on a pool that was replaced since never runs, so it is dropped. */
+    @kotlin.concurrent.Volatile
+    private var poolGeneration = 0
+    private var carriedGeneration = 0
+
+    /** Work was dropped that may sit in a stuck call: the next work starts on fresh workers. */
+    @kotlin.concurrent.Volatile
+    private var staleWorkDropped = false
+
+    private fun abandonWorkers() {
+        poolGeneration++
+        staleWorkDropped = false
+        workers.abandon()
+    }
+
+    /** Replaces the workers first when dropped work might still hold one, so new work never queues behind it. */
+    private fun freshWorkersIfStale() {
+        if (staleWorkDropped) abandonWorkers()
+    }
     private var carryExpiry: Job? = null
     private val carryLock = Mutex()
 
@@ -110,7 +140,7 @@ internal class DeadlineDecoding(
         work.await()
     } catch (cancellation: CancellationException) {
         work.cancel()
-        if (!work.isCompleted && cancellation !is TimeoutCancellationException) workers.abandon()
+        if (!work.isCompleted && cancellation !is TimeoutCancellationException) abandonWorkers()
         throw cancellation
     }
 
@@ -119,8 +149,9 @@ internal class DeadlineDecoding(
 
     /** [analyse]'s result, or [analysisTimedOut] once [budget] passes; the workers are then replaced. */
     suspend fun withinBudget(analyse: suspend () -> Result<FloatArray>): Result<FloatArray> {
+        freshWorkersIfStale()
         withTimeoutOrNull(budget) { analyse() }?.let { return it }
-        workers.abandon()
+        abandonWorkers()
         return Result.failure(SmartEngineException(analysisTimedOut(budget)))
     }
 
@@ -141,10 +172,19 @@ internal class DeadlineDecoding(
         val queue = ArrayDeque<Pair<TrackDescriptor, Deferred<D>>>()
         // What the last call started for this one, by descriptor; anything else it started is dropped now.
         val reusable = LinkedHashMap<TrackDescriptor, Deferred<D>>()
-        for ((track, work) in takeCarried()) {
+        val (handedOver, generation) = takeCarriedWithGeneration()
+        // Work started on a pool replaced since (a press's timeout or cancellation) may never run: decode afresh.
+        val usable = generation == poolGeneration
+        for ((track, work) in handedOver) {
             @Suppress("UNCHECKED_CAST")
-            if (track in tracks && track !in reusable) reusable[track] = work as Deferred<D> else work.cancel()
+            if (usable && track in tracks && track !in reusable) {
+                reusable[track] = work as Deferred<D>
+            } else {
+                if (!work.isCompleted) staleWorkDropped = true
+                work.cancel()
+            }
         }
+        freshWorkersIfStale()
         var next = 0
         val ahead2 = ArrayDeque<Pair<TrackDescriptor, Deferred<D>>>()
         var nextUpcoming = 0
@@ -204,6 +244,7 @@ internal class DeadlineDecoding(
             if (handOver.isNotEmpty()) {
                 carryLock.withLock {
                     carried = handOver
+                    carriedGeneration = poolGeneration
                     carryExpiry = scope.launch {
                         delay(CARRY_FOR)
                         dropCarried()
@@ -213,21 +254,26 @@ internal class DeadlineDecoding(
         } finally {
             // Decoding left behind by a cancelled pass may be stuck; later passes start on fresh workers.
             val left = queue + ahead2 + reusable.map { (track, work) -> track to work }
-            if (left.any { (_, work) -> !work.isCompleted }) workers.abandon()
+            if (left.any { (_, work) -> !work.isCompleted }) abandonWorkers()
             for ((_, work) in left) work.cancel()
         }
     }
 
     /** Cancels decoding carried for a call that did not come. */
     suspend fun dropCarried() {
-        for ((_, work) in takeCarried()) work.cancel()
+        for ((_, work) in takeCarriedWithGeneration().first) {
+            // Not replaced here (that would race new work on the pool): the next work starts on fresh workers.
+            if (!work.isCompleted) staleWorkDropped = true
+            work.cancel()
+        }
     }
 
-    private suspend fun takeCarried(): List<Pair<TrackDescriptor, Deferred<*>>> = carryLock.withLock {
-        carryExpiry?.cancel()
-        carryExpiry = null
-        carried.also { carried = emptyList() }
-    }
+    private suspend fun takeCarriedWithGeneration(): Pair<List<Pair<TrackDescriptor, Deferred<*>>>, Int> =
+        carryLock.withLock {
+            carryExpiry?.cancel()
+            carryExpiry = null
+            (carried to carriedGeneration).also { carried = emptyList() }
+        }
 
     fun close() {
         workers.close()

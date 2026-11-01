@@ -190,6 +190,11 @@ private object PreferencesAnalysisControlStore : AnalysisControlStore {
         set(value) {
             preferences.edit().putLong(KEY_RENEWED_AT, value ?: -1L).apply()
         }
+    override var retryLedger: String?
+        get() = preferences.getString(KEY_RETRY_LEDGER, null)
+        set(value) {
+            preferences.edit().putString(KEY_RETRY_LEDGER, value).apply()
+        }
 
     private const val KEY_PAUSED = "userPaused"
     private const val KEY_STOP_REASON = "stopReason"
@@ -198,4 +203,5 @@ private object PreferencesAnalysisControlStore : AnalysisControlStore {
     private const val KEY_SPANS = "wakeLockSpans"
     private const val KEY_HELD_SINCE = "wakeLockHeldSince"
     private const val KEY_RENEWED_AT = "wakeLockRenewedAt"
+    private const val KEY_RETRY_LEDGER = "retryLedger"
 }
