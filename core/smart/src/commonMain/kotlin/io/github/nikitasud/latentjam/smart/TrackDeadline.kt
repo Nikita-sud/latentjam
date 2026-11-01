@@ -12,7 +12,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -24,6 +29,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  * extractor, a seek, a codec start or release) and the track is given up.
  */
 internal val TRACK_ANALYSIS_BUDGET: Duration = 90.seconds
+
+/** How long decoding carried to the next chunk waits for it: the gap between chunks is about a second. */
+internal val CARRY_FOR: Duration = 10.seconds
 
 /** Threads for blocking platform decoding, so the inference thread itself never enters a call that can hang. */
 internal interface DecodeWorkers {
@@ -79,6 +87,15 @@ internal class DeadlineDecoding(
 ) {
     private val scope = CoroutineScope(SupervisorJob())
 
+    /**
+     * Decoding started for the next [each] call's tracks while the last one finished its own: the decoders keep working
+     * while the engine installs and checkpoints between chunks. Dropped when the next call does not ask for them, or
+     * when no call comes within [CARRY_FOR] (a wait, or the end of the pass), so decoded audio is never kept around.
+     */
+    private var carried: List<Pair<TrackDescriptor, Deferred<*>>> = emptyList()
+    private var carryExpiry: Job? = null
+    private val carryLock = Mutex()
+
     /** Starts [block] on a worker. */
     fun <T> start(block: suspend CoroutineScope.() -> T): Deferred<T> =
         scope.async(workers.dispatcher, block = block)
@@ -118,14 +135,29 @@ internal class DeadlineDecoding(
         ahead: Int,
         prefetch: suspend (TrackDescriptor) -> D,
         finish: suspend (TrackDescriptor, D) -> Result<FloatArray>,
+        upcoming: List<TrackDescriptor> = emptyList(),
         onResult: suspend (TrackDescriptor, Result<FloatArray>) -> Unit,
     ) {
         val queue = ArrayDeque<Pair<TrackDescriptor, Deferred<D>>>()
+        // What the last call started for this one, by descriptor; anything else it started is dropped now.
+        val reusable = LinkedHashMap<TrackDescriptor, Deferred<D>>()
+        for ((track, work) in takeCarried()) {
+            @Suppress("UNCHECKED_CAST")
+            if (track in tracks && track !in reusable) reusable[track] = work as Deferred<D> else work.cancel()
+        }
         var next = 0
+        val ahead2 = ArrayDeque<Pair<TrackDescriptor, Deferred<D>>>()
+        var nextUpcoming = 0
         fun refill() {
             while (next < tracks.size && queue.size <= ahead) {
                 val track = tracks[next++]
-                queue.addLast(track to start { prefetch(track) })
+                queue.addLast(track to (reusable.remove(track) ?: start { prefetch(track) }))
+            }
+            // The pool stays as busy as it was: once this call's tracks are all started, the next call's start.
+            while (next >= tracks.size && nextUpcoming < upcoming.size && queue.size + ahead2.size <= ahead) {
+                val track = upcoming[nextUpcoming++]
+                if (track in tracks) continue
+                ahead2.addLast(track to start { prefetch(track) })
             }
         }
         try {
@@ -150,15 +182,51 @@ internal class DeadlineDecoding(
                             queue.addLast(later to start { prefetch(later) })
                         }
                     }
+                    // So may what was started for later: started again on the fresh workers when it is reached.
+                    for ((later, work) in reusable.entries.toList()) {
+                        if (!work.isCompleted) {
+                            work.cancel()
+                            reusable.remove(later)
+                        }
+                    }
+                    val upcomingStarted = ahead2.toList()
+                    ahead2.clear()
+                    for ((later, work) in upcomingStarted) {
+                        if (work.isCompleted) ahead2.addLast(later to work) else work.cancel()
+                    }
                     refill()
                 }
                 onResult(track, result)
             }
+            // Finished normally: the next call's decoding carries over.
+            val handOver = ahead2.toList()
+            ahead2.clear()
+            if (handOver.isNotEmpty()) {
+                carryLock.withLock {
+                    carried = handOver
+                    carryExpiry = scope.launch {
+                        delay(CARRY_FOR)
+                        dropCarried()
+                    }
+                }
+            }
         } finally {
             // Decoding left behind by a cancelled pass may be stuck; later passes start on fresh workers.
-            if (queue.any { (_, work) -> !work.isCompleted }) workers.abandon()
-            for ((_, work) in queue) work.cancel()
+            val left = queue + ahead2 + reusable.map { (track, work) -> track to work }
+            if (left.any { (_, work) -> !work.isCompleted }) workers.abandon()
+            for ((_, work) in left) work.cancel()
         }
+    }
+
+    /** Cancels decoding carried for a call that did not come. */
+    suspend fun dropCarried() {
+        for ((_, work) in takeCarried()) work.cancel()
+    }
+
+    private suspend fun takeCarried(): List<Pair<TrackDescriptor, Deferred<*>>> = carryLock.withLock {
+        carryExpiry?.cancel()
+        carryExpiry = null
+        carried.also { carried = emptyList() }
     }
 
     fun close() {

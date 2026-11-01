@@ -65,6 +65,17 @@ public interface EmbeddingBackend {
     }
 
     /**
+     * [embedEach], told which tracks the next call will probably bring ([upcoming]): a backend that decodes ahead may
+     * start on them once [tracks] are all started, and hand the decoded audio to that next call. Results stay exactly
+     * [embedEach]'s; decoded audio nobody asks for is dropped.
+     */
+    public suspend fun embedEach(
+        tracks: List<TrackDescriptor>,
+        upcoming: List<TrackDescriptor>,
+        onResult: suspend (TrackDescriptor, Result<FloatArray>) -> Unit,
+    ): Unit = embedEach(tracks, onResult)
+
+    /**
      * Runs the optional compact semantic head over stored audio embeddings.
      *
      * The default keeps alternate/test backends source-compatible and means a missing head only

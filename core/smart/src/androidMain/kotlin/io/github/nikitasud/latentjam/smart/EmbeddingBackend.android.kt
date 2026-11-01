@@ -136,18 +136,27 @@ internal class OnnxEmbeddingBackend(
     override suspend fun embedEach(
         tracks: List<TrackDescriptor>,
         onResult: suspend (TrackDescriptor, Result<FloatArray>) -> Unit,
+    ) = embedEach(tracks, emptyList(), onResult)
+
+    override suspend fun embedEach(
+        tracks: List<TrackDescriptor>,
+        upcoming: List<TrackDescriptor>,
+        onResult: suspend (TrackDescriptor, Result<FloatArray>) -> Unit,
     ) {
-        if (tracks.size < 2 || session == null) {
+        if ((tracks.size < 2 && upcoming.isEmpty()) || session == null) {
+            decoding.dropCarried()
             for (track in tracks) onResult(track, embed(track))
             return
         }
-        // Decoding runs ahead by the workers plus one ready track; inference takes them in order.
+        // Decoding runs ahead by the workers plus one ready track, on into the next chunk; inference takes them in
+        // order. A prefetched track and an inline one decode the same windows the same way (embedDecoded).
         decoding.each(
             tracks = tracks,
             ahead = decodeWorkers,
             prefetch = { track -> prefetch(track) },
             finish = { track, decoded -> embedDecoded(track, decoded) },
             onResult = onResult,
+            upcoming = upcoming,
         )
     }
 

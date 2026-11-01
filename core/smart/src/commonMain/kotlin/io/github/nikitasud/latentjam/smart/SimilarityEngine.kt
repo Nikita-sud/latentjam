@@ -137,6 +137,14 @@ public interface SimilarityEngine {
         indexLibrary(tracks)
 
     /**
+     * [stageLibraryIndex], told which tracks the next call will bring: a backend may start decoding them while this
+     * chunk is installed and checkpointed, so the decoders never sit idle between chunks (docs/analysis-094-plan.md
+     * P4). What is stored, and in which order, is exactly [stageLibraryIndex]'s.
+     */
+    public suspend fun stageLibraryIndex(tracks: List<TrackDescriptor>, upcoming: List<TrackDescriptor>): IndexReport =
+        stageLibraryIndex(tracks)
+
+    /**
      * Clears durable invalid-audio markers for [ids], making those unchanged tracks eligible for
      * the next [indexLibrary] call again.
      *

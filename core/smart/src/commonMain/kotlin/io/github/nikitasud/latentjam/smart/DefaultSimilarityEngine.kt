@@ -251,9 +251,13 @@ internal class DefaultSimilarityEngine(
     override suspend fun stageLibraryIndex(tracks: List<TrackDescriptor>): IndexReport =
         indexLibrary(tracks, persistAfterBatch = false)
 
+    override suspend fun stageLibraryIndex(tracks: List<TrackDescriptor>, upcoming: List<TrackDescriptor>): IndexReport =
+        indexLibrary(tracks, persistAfterBatch = false, upcoming = upcoming)
+
     private suspend fun indexLibrary(
         tracks: List<TrackDescriptor>,
         persistAfterBatch: Boolean,
+        upcoming: List<TrackDescriptor> = emptyList(),
     ): IndexReport = withContext(dispatcher) {
         // Phase 1, under the engine lock: partition, remember known failures, load the model.
         val prepared = mutex.withLock {
@@ -301,7 +305,13 @@ internal class DefaultSimilarityEngine(
                 ensureAudioModel().exceptionOrNull()?.toEngineError()
             }
             if (modelFailure != null) for (track in toEmbed) errors[track.id] = modelFailure
-            PreparedIndexing(alreadyIndexed, errors, if (modelFailure == null) toEmbed else emptyList(), generation)
+            // What the next chunk's phase 1 would embed as things stand: only a hint, which that phase 1 decides again.
+            val upcomingToEmbed = if (modelFailure == null) {
+                upcoming.filter { it.id !in index && it.audioUri != null && !hasRememberedAudioFailure(it) }
+            } else {
+                emptyList()
+            }
+            PreparedIndexing(alreadyIndexed, errors, if (modelFailure == null) toEmbed else emptyList(), generation, upcomingToEmbed)
         } ?: return@withContext IndexReport(indexed = 0, failed = tracks.size, errors = tracks.associate { it.id to EngineError.ModelUnavailable })
         // Phase 2, outside the engine lock: inference only (decoding and the model), results kept aside.
         val results = ArrayList<Pair<TrackDescriptor, Result<FloatArray>>>(prepared.toEmbed.size)
@@ -313,7 +323,8 @@ internal class DefaultSimilarityEngine(
             try {
                 inference.withLock {
                     analysingFrom(0)
-                    withContext(inferenceDispatcher) { backend.embedEach(prepared.toEmbed) { track, result ->
+                    // The upcoming tracks go only to a backend that can use them; without any, 0.9.3's call.
+                    withContext(inferenceDispatcher) { backend.embedEachWith(prepared.toEmbed, prepared.upcoming) { track, result ->
                         results += track to result
                         analysingFrom(results.size)
                         // Let foreground dispatchers run between independent tracks.
@@ -1867,6 +1878,7 @@ internal class DefaultSimilarityEngine(
         val errors: LinkedHashMap<TrackId, EngineError>,
         val toEmbed: List<TrackDescriptor>,
         val generation: Long,
+        val upcoming: List<TrackDescriptor> = emptyList(),
     )
     /** Everything a snapshot row's descriptor is read from; the text row compares by its exact floats. */
     private class DescriptorKey(val artist: String?, val primaryArtist: String?, val text: StoredVectorRow?) {
@@ -1966,3 +1978,9 @@ internal class DefaultSimilarityEngine(
 
 /** Fixed, so the same library always compares a transition against the same tracks. */
 private const val TRANSITION_SAMPLE_SEED: Int = 25
+
+private suspend fun EmbeddingBackend.embedEachWith(
+    tracks: List<TrackDescriptor>,
+    upcoming: List<TrackDescriptor>,
+    onResult: suspend (TrackDescriptor, Result<FloatArray>) -> Unit,
+) = if (upcoming.isEmpty()) embedEach(tracks, onResult) else embedEach(tracks, upcoming, onResult)

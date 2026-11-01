@@ -69,8 +69,13 @@ class AnalysisGoldenDeviceTest {
         backend.loadModel().getOrThrow()
         val vectors = HashMap<String, String>()
         val passStarted = System.nanoTime()
-        for (chunk in tracks.chunked(CHUNK)) {
-            backend.embedEach(chunk) { track, result ->
+        // As the pass hands them over: each chunk with the next one as its upcoming tracks ("carry" = false keeps
+        // 0.9.3's chunk-by-chunk decoding for comparison).
+        val carry = InstrumentationRegistry.getArguments().getString("carry") != "false"
+        val chunks = tracks.chunked(CHUNK)
+        for ((position, chunk) in chunks.withIndex()) {
+            val upcoming = if (carry) chunks.getOrNull(position + 1).orEmpty() else emptyList()
+            backend.embedEach(chunk, upcoming) { track, result ->
                 vectors[track.id.value] = result.fold(
                     onSuccess = { "V\t${crcOf(it).toString(16)}" },
                     onFailure = { "F\t${(it as? SmartEngineException)?.error?.let { e -> e::class.simpleName } ?: it::class.simpleName}" },
@@ -85,7 +90,7 @@ class AnalysisGoldenDeviceTest {
         }
         File(testContext.filesDir, "golden-$label.tsv").writeText(out.toString())
         println(
-            "LJ_GOLDEN label=$label tracks=${tracks.size} decode_ms_per_track=${"%.0f".format(decodeMs / tracks.size)} " +
+            "LJ_GOLDEN label=$label carry=$carry tracks=${tracks.size} decode_ms_per_track=${"%.0f".format(decodeMs / tracks.size)} " +
                 "pass_ms_per_track=${"%.0f".format(passMs / tracks.size)} cores=${Runtime.getRuntime().availableProcessors()}",
         )
     }

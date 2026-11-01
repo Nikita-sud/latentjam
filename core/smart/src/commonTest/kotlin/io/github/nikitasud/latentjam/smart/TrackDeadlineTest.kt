@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -104,5 +105,84 @@ internal class TrackDeadlineTest {
         }
         assertIs<EngineError.InvalidAudio>((result.exceptionOrNull() as SmartEngineException).error)
         assertNull(result.getOrNull())
+    }
+
+    private val decodedLock = kotlinx.coroutines.sync.Mutex()
+
+    private val chunkB = listOf("e", "f", "g").map { TrackDescriptor(TrackId(it), audioUri = "test://$it") }
+
+    @Test
+    fun `decoding carried into the next chunk is reused once and the results are unchanged`() = runTest {
+        val decoding = DeadlineDecoding(CountingWorkers())
+        val decoded = mutableListOf<String>()
+        val results = mutableListOf<Pair<String, Float>>()
+        suspend fun chunk(items: List<TrackDescriptor>, upcoming: List<TrackDescriptor>) = decoding.each(
+            tracks = items,
+            ahead = 2,
+            prefetch = { track -> decodedLock.withLock { decoded += track.id.value }; vector(track) },
+            finish = { _, vector -> Result.success(vector) },
+            onResult = { track, result -> results += track.id.value to result.getOrThrow()[0] },
+            upcoming = upcoming,
+        )
+        withContext(Dispatchers.Default) {
+            chunk(tracks, chunkB)
+            chunk(chunkB, emptyList())
+        }
+        assertEquals((tracks + chunkB).map { it.id.value to vector(it)[0] }, results)
+        // Every track decoded exactly once, the next chunk's head while the first one finished.
+        assertEquals((tracks + chunkB).map { it.id.value }.sorted(), decodedLock.withLock { decoded.sorted() })
+    }
+
+    @Test
+    fun `carried decoding the next chunk does not ask for is dropped and decoded afresh when asked`() = runTest {
+        val decoding = DeadlineDecoding(CountingWorkers())
+        val decoded = mutableListOf<String>()
+        val results = mutableListOf<String>()
+        suspend fun chunk(items: List<TrackDescriptor>, upcoming: List<TrackDescriptor>) = decoding.each(
+            tracks = items,
+            ahead = 2,
+            prefetch = { track -> decodedLock.withLock { decoded += track.id.value }; vector(track) },
+            finish = { _, vector -> Result.success(vector) },
+            onResult = { track, _ -> results += track.id.value },
+            upcoming = upcoming,
+        )
+        withContext(Dispatchers.Default) {
+            chunk(tracks, chunkB)
+            // A press indexed "e" meanwhile: the next call brings only f and g.
+            chunk(chunkB.drop(1), emptyList())
+        }
+        assertEquals(listOf("a", "b", "c", "d", "f", "g"), results)
+        assertEquals(1, decodedLock.withLock { decoded.count { it == "f" } })
+    }
+
+    @Test
+    fun `carried decoding expires when no call comes`() = runTest {
+        val decoding = DeadlineDecoding(CountingWorkers())
+        val started = CompletableDeferred<Unit>()
+        var cancelled = false
+        withContext(Dispatchers.Default) {
+            decoding.each(
+                tracks = tracks.take(1),
+                ahead = 1,
+                prefetch = { track ->
+                    if (track.id.value == "e") {
+                        started.complete(Unit)
+                        try {
+                            kotlinx.coroutines.awaitCancellation()
+                        } finally {
+                            cancelled = true
+                        }
+                    }
+                    vector(track)
+                },
+                finish = { _, vector -> Result.success(vector) },
+                onResult = { _, _ -> },
+                upcoming = chunkB,
+            )
+            started.await()
+            decoding.dropCarried()
+            kotlinx.coroutines.delay(50)
+        }
+        assertTrue(cancelled)
     }
 }
