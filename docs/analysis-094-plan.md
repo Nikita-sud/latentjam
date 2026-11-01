@@ -1,6 +1,6 @@
 # 0.9.4 track 1: library analysis, fast and reliable
 
-Status: **v13**, under adversarial review (log at the end). Nothing is implemented until the owner says go.
+Status: **v14**, under adversarial review (log at the end). Nothing is implemented until the owner says go.
 
 Scope: the on-device library analysis on Android and iOS. It covers:
 - audio decoding;
@@ -288,7 +288,7 @@ at all, which is unverified) come before any iOS duty-cycle number is chosen.
 | 2c parallel inference | Inference is ≥ 35 % of wall time after 2-0, 2a and 1b, and peak memory fits the device-class budget |
 | `:analysis` process | At least 1 real hang on the physical phone (corpus + fuzz) after 1c, or a user report of one. It also needs a single-writer store design |
 | P10 resample/downmix | More than 5 % of wall time |
-| Row 2 thermal threshold (T, H) | Status and headroom are recorded **with the pass running** at the chosen 2-0 arm: the Step 0 30 min runs plus one charging night. Default: T = MODERATE, H = 0.85. If MODERATE covers ≥ 10 % of charging-under-load time, then T = SEVERE, H = 0.95. Resume uses T−1 and H − 0.1 (row 2). The headroom part ships in Slice B2 (API 30+). 2e has no thresholds of its own |
+| Thermal threshold (T, H), table row 3 | Status and headroom are recorded **with the pass running** at the chosen 2-0 arm: the Step 0 30 min runs plus one charging night. Default: T = MODERATE, H = 0.85. If MODERATE covers ≥ 10 % of charging-under-load time, then T = SEVERE, H = 0.95. Resume uses T−1 and H − 0.1 (row 3). These defaults come from one phone; on API 35+ H is taken from `getThermalHeadroomThresholds()` for status T, and iOS uses `.serious`, as the per-device check. The headroom part ships in Slice B2 (API 30+). 2e has no thresholds of its own |
 | Snapshot reuse during analysis | Owner decision |
 
 The geometric cadence of v3 is **dropped**: it made the kill-loss window worse than 0.9.3. The 0.9.3 cadence stays,
@@ -411,7 +411,8 @@ If built, it must meet every requirement the review found. Each one has a G-e ca
   - `NSFileReadUnknownError` and `NSFileReadTooLargeError` are non-attempts;
   - Data protection is tracked with an atomic flag plus a flip counter, fed by the
     `protectedDataWillBecomeUnavailable` / `protectedDataDidBecomeAvailable` notifications.
-    `isProtectedDataAvailable` is main-thread only, so it is not read directly. If the flag was false, or the counter
+    `isProtectedDataAvailable` is main-thread only, so it is read only once, on the main thread at startup. Until
+    that read, data counts as unavailable, so every outcome is a non-attempt. The locked cold-launch test covers this. If the flag was false, or the counter
     changed during the call, the outcome is a non-attempt whatever the error code (a data-protection denial looks
     like EPERM);
   - the rest map to CODEC.
@@ -422,10 +423,12 @@ If built, it must meet every requirement the review found. Each one has a G-e ca
   - A per-session lock covers every **model run and model load** (never a decode), including late runs from a
     timed-out call. The late call signals its completion, and the BUSY retry waits on that signal. It is taken by **try-lock, in a
     non-timed step**. If a late call holds it, the new call returns **BUSY**, which is transient, never an attempt,
-    and never stuck. The Kotlin side retries after the late call ends. **On the press path**, BUSY waits at most
+    and never stuck. The Kotlin side retries after the late call ends. **On the analysis side** BUSY releases `inference`, waits for the completion signal outside every lock, then retakes
+    it. **On the press path**, BUSY waits at most
     one model-run bound. After that the seed embed fails as transient (it is not remembered), and the press takes its
     existing no-audio-seed fallback, so a press never waits unbounded while it holds `mutex`. The completion signal
-    also fires when the holder is classed stuck. Only the call that held the lock can be
+    also fires when the holder is classed stuck. After that, presses skip the seed embed at once for the rest of the
+    process. G-f case: a press during an analysis BUSY. Only the call that held the lock can be
     classed stuck, and when the lock holder is classed stuck, analysis pauses **at once** (one is enough on iOS),
     so BUSY can never loop. G-f has this case.
   - Every handle has an explicit `release(handle)`. Cancel and abandon release in the completion path, so a late
@@ -586,13 +589,13 @@ re-read on every chunk and on every system event: screen on/off, playback start/
 | # | condition | pass | wake lock | FGS / notification |
 |---|---|---|---|---|
 | 1 | user paused (`userPaused`) | stopped | no | stopped; "Paused by you", with a Continue action |
-| 2 | too hot: thermal status ≥ T, or headroom > H (API 30+, read once per chunk), or battery temperature ≥ 42 °C (API 24–28, `ACTION_BATTERY_CHANGED`) | waiting; **stopped once the shared wait timer passes 30 min** | no | stays up; "Waiting: continues when cooler"; resumes after status ≤ T−1 **and** headroom < H − 0.1 (or < 38 °C) for 2 min; on the 30 min stop: "Paused at X of Y" with Continue |
-| 3 | battery ≤ 15 % and unplugged (after a Continue: ≤ 10 % for the rest of the process) | stopped | no | stopped; "Paused at X of Y (battery low)", with a Continue action |
+| 2 | battery ≤ 15 % and unplugged (after a Continue: ≤ 10 % for the rest of the process) | stopped | no | stopped; "Paused at X of Y (battery low)", with a Continue action |
+| 3 | too hot: thermal status ≥ T, or headroom > H (API 30+; read on every table event and chunk, at most once per second; NaN = no signal), or battery temperature ≥ 42 °C (API 24–28, `ACTION_BATTERY_CHANGED`) | waiting; **stopped once the shared wait timer passes 30 min** | no | stays up; "Waiting: continues when cooler"; resumes after status ≤ T−1 **and** headroom < H − 0.1 (or < 38 °C) for 2 min; on the 30 min stop: "Paused at X of Y" with Continue |
 | 4 | screen on, or playing | runs | no (the CPU is awake anyway) | up; progress |
 | 5 | screen off, not playing, budget left | runs | **yes**: 5 min timeout, renewed per track | up; progress |
 | 6 | screen off, not playing, budget spent | waiting; **stopped once the shared wait timer passes 30 min** | no | stays up; "Waiting: continues when the screen is on or music plays"; on the 30 min stop: "Paused at X of Y" with Continue |
 
-Rows 2 and 6 share **one wait timer**. It starts when the pass enters either row and keeps running while the pass
+Rows 3 and 6 share **one wait timer**. It starts when the pass enters either row and keeps running while the pass
 moves between them. It resets only when the pass reaches a running row (4 or 5).
 
 **Rules around the table.**
@@ -639,8 +642,8 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
   The table is the honest statement; the release notes say no more than it.
 - **Stop and restart semantics.**
   - **What the table gates.** Waits, stops and `userPaused` gate only the **audio pass** (AG step 4) and the D4
-    retries, and only while `missingFromIndex > 0`. With nothing missing, the pass finishes exactly as in 0.9.3:
-    `complete` is set, and `userPaused` is cleared. A Pause that reaches a service whose last pass completed does
+    retries, and only while `missingFromIndex > 0` or D4-pending tracks exist. With nothing missing, the pass finishes exactly as in 0.9.3:
+    `complete` is set, and `userPaused` is cleared (only when both sets are empty). A Pause that reaches a service whose last pass completed does
     nothing. Host case: a stale Pause after completion, then a cold start; `complete` and the map tier must match
     0.9.3. Steps 1–3 always run, as in 0.9.3: sync, tag carry-over and the metadata pass. So do energies on
     existing rows. So deleted tracks lose their rows and new tracks get text rows while paused. The check lives
@@ -666,10 +669,10 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
     after a MediaStore rescan.
     - **ON_START restarts only:**
       - wait-30, timeout-6h and show-failed;
-      - battery, when row 3 no longer matches (plugged in, or > 15 %);
+      - battery, when row 2 no longer matches (plugged in, or > 15 %);
       - exception, with backoff: 1 min, then 10 min, then the next cold start.
     - **Continue restarts every reason** except stuck and restore-blocked, user included. It clears `userPaused` and
-      arms row 3's 10 % threshold.
+      arms row 2's 10 % threshold.
     - A same-key relaunch carries over `metadataReady` and `done`, and shows the paused state until the gate passes.
       So `metadataVectorsReady` never flips, and the map regions are not rebuilt (App.kt:1298-1310).
 
@@ -678,7 +681,7 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
   - **The Continue extra** is handled in `onCreate` / `onNewIntent` before the trigger runs. It is consumed once:
     `removeExtra` + `setIntent`, only when `savedInstanceState == null`, and never with
     `FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY`. So a recreation or a relaunch from recents cannot undo a later Pause. The
-    10 % threshold holds for the rest of the **process**; the table's row 3 says the same. Its `PendingIntent` has its own requestCode and
+    10 % threshold holds for the rest of the **process**; the table's row 2 says the same. Its `PendingIntent` has its own requestCode and
     action, distinct from `appLaunchPendingIntent()`, so `FLAG_UPDATE_CURRENT` never merges extras.
   - **Pause** is a service `PendingIntent` with its own action. It never opens the app. `onStartCommand` tells it
     apart from progress intents, which today it does not (NOT:80-110). Pause is a table event:
@@ -691,15 +694,15 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
       runs outside `mutex`. The wake lock ends when the drain ends (≤ one budget). G-f case: Pause with a hung
       look-ahead.
 
-    A stale Pause that reaches a service with no live pass persists `userPaused = true` only while tracks are still
-    missing.
+    A stale Pause that reaches a service with no live pass always persists `userPaused = true`; the gate above makes
+    it harmless when nothing is missing.
   - **Flush.** Entering any waiting or stopped row runs `persistPendingAnalysis` in Slice B2 too.
   - **Tests.** Host and G-f cover each stop reason and each trigger. They include:
     - UI Continue;
     - a shade tap while resumed;
     - a cold start with the extra;
     - a config change while paused.
-- **Cooling hysteresis.** Row 2's "for 2 min" is measured with `elapsedRealtime` between events, like the 30 min
+- **Cooling hysteresis.** Row 3's "for 2 min" is measured with `elapsedRealtime` between events, like the 30 min
   bound, never with a `delay`. A night-time row-6 wait usually ends with the screen turning on, which is row 4 and
   resumes. A charging `ACTION_BATTERY_CHANGED` that arrives after 30 min stops the pass instead. The notice and the
   estimate say "may resume, or may need Continue".
@@ -709,20 +712,30 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
   - In Slice B2 nothing is in flight at a boundary, so no workers are abandoned.
   - From Slice C, AnalysisRun at a table stop or wait stops submitting, **drains** its in-flight look-ahead
     (discarding the results), and only then cancels, so a quick Continue never meets the old codecs.
+- **`running` in waiting and stopped rows.** It is false while waiting or stopped, so the #27 stall message
+  (AnalysisStall.kt:24-34) and MapRebuild.kt:198 never mistake a wait for a stall. "Pausing…" suppresses the stall
+  text.
 - **Stopped notices** are best-effort. On API 33+ without `POST_NOTIFICATIONS` they are not shown, so the in-app
   state is the source of truth. This is tested with the permission denied.
 - **Map readiness.** Today `libraryWorlds.audioVectorsReady` is `complete` with a matching track list
-  (App.kt:1194-1197, 1221-1229), and a relaunch resets it (AG:574-577).
-  - While a pass is gated or stopped, a sticky `audioReady` field in `AutomaticIndexingState` decides instead. It is
-    true when the audio coverage of the current library is ≥ 90 %, so it also holds after a cold start and after a
-    library change. LibraryVectorFusion already handles sparse coverage.
-  - Both App.kt sites read it.
-  - A running pass behaves as in 0.9.3.
-  - Host cases: Retry on a complete library while paused; a library change while paused; a cold start while
-    paused. In each, the map tier must not drop.
+  (App.kt:1194-1197, 1221-1229). Other code reads it as "analysis finished": AppMapPage.kt:77, 175, 201 and 231,
+  LibraryRegionsService.kt:54 and RegionIdentityKeeper.kt:69.
+  - **It stays exactly 0.9.3's.**
+  - A separate `audioTierReady` is used **only** as the `audioReady` argument of `LibraryRegionsService.refresh`
+    (App.kt:1298-1310).
+  - It is true when `complete`, or when the audio coverage of the analysable tracks of the current library is
+    ≥ 90 %. Analysable means remembered failures and no-URI rows are left out.
+  - It is decided at run start, after the sync, and is **monotonic for the same library key** across waiting,
+    running, Continue and `rerun`. So the fused regions never flip.
+  - Host cases:
+    - waiting → running → waiting, with no regions rebuild;
+    - no `MapRebuild.requested` and no refresh-state save while incomplete;
+    - Retry, a library change and a cold start while paused, where the regions tier must not drop.
 - **Map rebuild job.** While the audio pass is in **any waiting or stopped state**, `MapRebuildWorker` returns
   `success()` on NOT_READY instead of `retry()` (MapRebuild.android.kt:56-58), and it is re-enqueued at the restart
-  trigger. `missingFromIndexOf` (MapRebuild.kt:220) leaves out D2-capped tracks, as `missingFromIndex` does. This changes scheduling
+  trigger. It is also re-enqueued when a pass sets `complete` and on every move from waiting to running
+  (`MapRebuild.resumePending`), so a pass that resumes by itself still gets its rebuild. `missingFromIndexOf`
+  (MapRebuild.kt:220) leaves out D2-capped tracks, as `missingFromIndex` does. This changes scheduling
   only; what the map computes is unchanged.
 - **Wake-lock renewal** happens on every per-track `analysing` change (ENG:305-307), which exists today. The lock is
   `setReferenceCounted(false)`, so renewals never stack. Budget time is recorded from acquire and release timestamps.
@@ -760,7 +773,7 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
   - when the pass is done;
   - on `onTimeout` (the 6 h cap);
   - after 2 stuck threads;
-  - on table rows 1 and 3, and on the 30 min wait stop of rows 2 and 6.
+  - on table rows 1 and 2, and on the 30 min wait stop of rows 3 and 6.
 
   Swiping the notification away does not stop the service on Android 14+. Task Manager's Stop would end the music
   too, so the Pause action is the user's way to stop analysis. Opening the app resets the 6 h cap.
@@ -769,7 +782,8 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
   Service has no Android string resources (NOT:125-137). On reboot it is the same: there is no
   `RECEIVE_BOOT_COMPLETED`, and adding it is the owner's call.
 
-**Failed `show()`** (a background start is refused): no wake lock; analysis stops at the next chunk, and the UI shows
+**Failed `show()` in B1 alone:** the pass ends not complete, as an exception does today, with a log line.
+**With B2** (a background start is refused): no wake lock; analysis stops at the next chunk, and the UI shows
 "Paused: open the app to continue". Today a run starts only from composition (AG:565-580, NOT:46-58). So the real
 triggers are a library change while the app is in the background, and the refcount handover. The tests cover
 exactly those.
@@ -1578,3 +1592,36 @@ built, it must meet requirements 1–8, which carry every store finding from rou
 - The map job returns success in every waiting or stopped state; `missingFromIndexOf` excludes capped tracks.
 - Slice B split into B1/B2; the iOS copy moves to Slice C.
 - Done conditions added; the §7 Play row rewritten.
+
+### Round 13 (2026-11-01): two fresh reviewers on v13
+
+**Correctness → READY (no blocking or major).** Minor findings:
+- A waiting pass that resumes by itself loses its map rebuild.
+- A running relaunch drops the sticky tier.
+- D4 retries ran through a Pause; a cold-started service cannot know what is missing.
+- The iOS analysis side must wait for BUSY outside `inference`.
+- The protected-data flag had no starting value.
+
+**Product / platform → NOT READY: 1 major, 5 minor.**
+- **Major:**
+  - The sticky readiness leaked into every reader of `audioVectorsReady`, which treats it as "analysis finished"
+    (AppMapPage.kt:77, 175, 201, 231; LibraryRegionsService.kt:54; RegionIdentityKeeper.kt:69). It also flipped on
+    every move between waiting and running.
+- **Minor:**
+  - No headroom reader while waiting; NaN handling.
+  - The #27 stall message fires in waiting states.
+  - B1's failed `show()` was undefined without B2.
+  - Heat outranked low battery in the table.
+  - Thermal defaults come from one phone.
+
+**v14 response, all taken:**
+- `audioVectorsReady` stays 0.9.3's. A separate monotonic `audioTierReady` feeds only the regions refresh. It is
+  computed over analysable tracks and decided at run start.
+- The map rebuild is re-enqueued at completion and at waiting → running.
+- The gate includes D4-pending tracks; Pause always persists.
+- iOS: BUSY is handled outside the locks; presses skip after a stuck holder; the protected-data flag reads once at
+  startup.
+- Headroom is read on events; NaN means no signal.
+- `running` is false while waiting.
+- B1 `show()` behaviour defined.
+- Battery row placed above heat; per-device thermal checks.
