@@ -226,6 +226,12 @@ public interface SimilarityEngine {
     public fun audioEnvelopeRefused(): Boolean = false
 
     /**
+     * The remembered audio failures among [tracks], as a chunk's phase 1 would report them, without staging anything:
+     * a paused or waiting pass still lists them (docs/analysis-094-plan.md 1e-min, "The failure list while gated").
+     */
+    public suspend fun rememberedAudioFailures(tracks: List<TrackDescriptor>): Map<TrackId, EngineError> = emptyMap()
+
+    /**
      * Builds the strongest covered, one-shot vector space for library-level My Mixes.
      *
      * The engine reads its audio and metadata indexes under one lock and writes directly into one

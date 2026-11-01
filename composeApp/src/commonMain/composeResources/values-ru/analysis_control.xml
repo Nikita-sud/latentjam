@@ -10,7 +10,7 @@
     <string name="analysis_stopped">Анализ остановлен</string>
     <string name="analysis_continues_now">Анализ сейчас продолжится</string>
     <string name="analysis_pause_to_rebuild">Поставьте на паузу, чтобы пересобрать</string>
-    <string name="analysis_retry_continue_title">Продолжить и анализ?</string>
+    <string name="analysis_retry_continue_title">Также продолжить анализ?</string>
     <string name="analysis_retry_continue_yes">Повторить и продолжить</string>
     <string name="analysis_retry_continue_no">Только повторить</string>
     <string name="analysis_too_large">Библиотека слишком большая, чтобы сохранять анализ между запусками</string>

@@ -97,6 +97,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
+import io.github.nikitasud.latentjam.app.generated.resources.analysis_action_continue
+import io.github.nikitasud.latentjam.app.generated.resources.analysis_paused_by_you
 import io.github.nikitasud.latentjam.app.generated.resources.count_regions
 import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_world_open
@@ -1631,7 +1633,16 @@ internal fun nearest(
  */
 internal sealed interface MapIndexingHelp {
     /** The analysis is running: how far it has got. */
-    data class Progress(val done: Int, val total: Int, val etaMinutes: Int? = null) : MapIndexingHelp
+    data class Progress(
+        val done: Int,
+        val total: Int,
+        val etaMinutes: Int? = null,
+        /** A waiting or pausing pass shows why instead of its count. */
+        val phase: AnalysisPhase? = null,
+    ) : MapIndexingHelp
+
+    /** The user paused the analysis: nothing moves until Continue. */
+    data class Paused(val done: Int, val total: Int) : MapIndexingHelp
 
     /** Nothing will happen by itself: the engine failed, or the pass stopped before finishing. */
     data class Stopped(val engine: EngineState) : MapIndexingHelp
@@ -1647,7 +1658,11 @@ internal fun mapIndexingHelp(indexing: AutomaticIndexingState, engine: EngineSta
             indexing.done.coerceAtMost(indexing.trackIds.size),
             indexing.trackIds.size,
             indexing.etaMinutes,
+            indexing.phase,
         )
+    !indexing.running && !indexing.complete && indexing.trackIds.isNotEmpty() &&
+        indexing.stopReason == AnalysisStopReason.USER ->
+        MapIndexingHelp.Paused(indexing.done.coerceAtMost(indexing.trackIds.size), indexing.trackIds.size)
     // A pass for this library ran and ended without even the metadata phase: it was interrupted.
     !indexing.running && indexing.trackIds.isNotEmpty() && !indexing.metadataReady ->
         MapIndexingHelp.Stopped(engine)
@@ -1681,7 +1696,9 @@ private fun MapIndexingStatus(onRetry: () -> Unit) {
                     modifier = Modifier.padding(top = 16.dp).width(MAP_PROGRESS_WIDTH),
                 )
                 Text(
-                    text = if (help.etaMinutes == null) {
+                    text = if (help.phase != null) {
+                        analysisPhaseText(help.phase)
+                    } else if (help.etaMinutes == null) {
                         stringResource(Res.string.intelligence_analysis_progress, help.done, help.total)
                     } else {
                         stringResource(Res.string.indexing_notification_progress_eta, help.done, help.total, help.etaMinutes)
@@ -1693,6 +1710,17 @@ private fun MapIndexingStatus(onRetry: () -> Unit) {
             }
             is MapIndexingHelp.Stopped -> OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 16.dp)) {
                 Text(stringResource(Res.string.intelligence_retry))
+            }
+            is MapIndexingHelp.Paused -> {
+                Text(
+                    text = stringResource(Res.string.analysis_paused_by_you, help.done, help.total),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+                OutlinedButton(onClick = AppGraph::continueAutomaticIndexing, modifier = Modifier.padding(top = 16.dp)) {
+                    Text(stringResource(Res.string.analysis_action_continue))
+                }
             }
             // Usually seconds with no measure to show: a spinner, and only once the wait is
             // long enough to notice, so a quick start does not flash one.

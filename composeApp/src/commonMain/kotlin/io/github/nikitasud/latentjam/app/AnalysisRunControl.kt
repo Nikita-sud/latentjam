@@ -25,6 +25,9 @@ internal interface AnalysisDevice {
     fun holdWakeLock(timeoutMs: Long)
 
     fun releaseWakeLock()
+
+    /** Whether a gated pass listens to the signals (event wake locks are taken only then). */
+    fun listen(active: Boolean) = Unit
 }
 
 /** No signals, no wake lock: the pass always runs unless the user paused it. */
@@ -55,6 +58,9 @@ internal interface AnalysisControlStore {
     var pendingContinue: Boolean
     var lastPassComplete: Boolean
     var wakeLockSpans: String?
+
+    /** When the current wake lock was taken; set while it is held. */
+    var wakeLockHeldSince: Long?
 }
 
 internal class InMemoryAnalysisControlStore : AnalysisControlStore {
@@ -63,6 +69,7 @@ internal class InMemoryAnalysisControlStore : AnalysisControlStore {
     override var pendingContinue = false
     override var lastPassComplete = false
     override var wakeLockSpans: String? = null
+    override var wakeLockHeldSince: Long? = null
 }
 
 /**
@@ -77,7 +84,15 @@ internal class AnalysisRunControl(
     private val monotonicMs: () -> Long,
 ) {
     private val rules = AnalysisGateRules()
-    private val budget = WakeLockBudget(decodeWakeLockSpans(store.wakeLockSpans))
+    private val budget = WakeLockBudget(decodeWakeLockSpans(store.wakeLockSpans)).also { budget ->
+        // A process that died holding the lock never recorded its span: count it as one full lock timeout.
+        store.wakeLockHeldSince?.let { since ->
+            val now = wallClockMs()
+            budget.record(since, minOf(WAKE_LOCK_TIMEOUT_MS, (now - since).coerceAtLeast(0)), now)
+            store.wakeLockSpans = encodeWakeLockSpans(budget.persisted)
+            store.wakeLockHeldSince = null
+        }
+    }
     private val lock = Mutex()
     private var heldSinceWallMs: Long? = null
 
@@ -115,6 +130,8 @@ internal class AnalysisRunControl(
     ): Boolean {
         var waiting = false
         while (true) {
+            // Read before deciding, so a change during the decision or the flush below still wakes the wait.
+            val seen = Triple(device.conditions.value, playing.value, mutableUserPaused.value)
             val decision = decide(envelopeRefused())
             applyWakeLock(decision.wakeLock)
             val phase = decision.phase ?: return false
@@ -124,7 +141,6 @@ internal class AnalysisRunControl(
                 waiting = true
                 onWaitStart()
             }
-            val seen = Triple(device.conditions.value, playing.value, mutableUserPaused.value)
             withTimeoutOrNull(RECHECK_MS) {
                 combine(device.conditions, playing, mutableUserPaused, ::Triple).first { it != seen }
             }
@@ -147,12 +163,21 @@ internal class AnalysisRunControl(
     }
 
     /** The pass ended or the foreground state was lost. */
-    suspend fun release() = applyWakeLock(false)
+    suspend fun release() {
+        applyWakeLock(false)
+        device.listen(false)
+    }
+
+    /** A gated pass starts listening to the signals. */
+    fun listen() = device.listen(true)
 
     private suspend fun applyWakeLock(hold: Boolean) = lock.withLock {
         val since = heldSinceWallMs
         if (hold) {
-            if (since == null) heldSinceWallMs = wallClockMs()
+            if (since == null) {
+                heldSinceWallMs = wallClockMs()
+                store.wakeLockHeldSince = heldSinceWallMs
+            }
             device.holdWakeLock(WAKE_LOCK_TIMEOUT_MS)
         } else if (since != null) {
             device.releaseWakeLock()
@@ -160,6 +185,7 @@ internal class AnalysisRunControl(
             val now = wallClockMs()
             budget.record(startWallMs = since, lengthMs = now - since, nowWallMs = now)
             store.wakeLockSpans = encodeWakeLockSpans(budget.persisted)
+            store.wakeLockHeldSince = null
         }
     }
 
@@ -168,6 +194,48 @@ internal class AnalysisRunControl(
         const val RECHECK_MS = 60_000L
     }
 }
+
+/**
+ * Whether an automatic call for the same library restarts a pass that stopped (docs/analysis-094-plan.md 1e-min):
+ * the 6 h cap and a refused start always, a failure after 1 min and then 10 min (then only at the next cold start), the
+ * user's pause never (only Continue does).
+ */
+internal class AnalysisRestartRules(private val nowMs: () -> Long = ::analysisElapsedMs) {
+    private var restarts = 0
+    private var failedAtMs: Long? = null
+
+    fun allowed(reason: AnalysisStopReason?): Boolean = when (reason) {
+        null, AnalysisStopReason.TIMEOUT, AnalysisStopReason.SHOW_FAILED -> true
+        AnalysisStopReason.USER -> false
+        AnalysisStopReason.EXCEPTION -> {
+            val after = when (restarts) {
+                0 -> 60_000L
+                1 -> 10 * 60_000L
+                else -> null
+            }
+            val since = failedAtMs
+            if (after == null || (since != null && nowMs() - since < after)) {
+                false
+            } else {
+                restarts++
+                true
+            }
+        }
+    }
+
+    fun failed() {
+        failedAtMs = nowMs()
+    }
+
+    /** A Retry or a completed pass starts the backoff over. */
+    fun reset() {
+        restarts = 0
+        failedAtMs = null
+    }
+}
+
+/** A clock that keeps counting in deep sleep (Android's elapsedRealtime), for the heat wait's hysteresis. */
+internal expect fun analysisElapsedMs(): Long
 
 /** This platform's [AnalysisDevice]. */
 internal expect fun analysisDevice(): AnalysisDevice

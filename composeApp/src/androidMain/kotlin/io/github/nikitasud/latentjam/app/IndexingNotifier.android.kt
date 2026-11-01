@@ -67,6 +67,10 @@ internal class AndroidIndexingNotifier(context: Context) : IndexingNotifier {
         }
     }
 
+    override fun clearNotice() {
+        context.getSystemService(NotificationManager::class.java)?.cancel(IndexingService.NOTICE_ID)
+    }
+
     /** Posted on its own id, after the service removed its own: it survives the service's stop. */
     override fun notice(title: String, text: String, continueLabel: String?) {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
@@ -128,9 +132,9 @@ class IndexingService : Service() {
             }
         } catch (failure: RuntimeException) {
             // The system refused the foreground start (a background start past its exemption). The
-            // run cannot keep its promise to finish, so it ends now, as onTimeout ends it.
+            // run cannot keep its promise to finish, so it ends now and restarts at the next app open.
             println("SMART: analysis foreground start refused: $failure")
-            AppGraph.cancelAutomaticIndexing()
+            AppGraph.onAnalysisForegroundRefused()
         }
         // Not sticky: if the process dies mid-analysis there is nothing to
         // resume from here — the engine persists at chunk granularity and the
@@ -157,7 +161,8 @@ class IndexingService : Service() {
     override fun onTimeout(startId: Int, fgsType: Int) {
         val stop = {
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
-            stopSelf(startId)
+            stopSelfResult(maxOf(startId, latestStartId))
+            Unit
         }
         gate?.onTimeout(stop) ?: stop()
         AppGraph.onAnalysisForegroundTimeout()

@@ -115,6 +115,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.analysis_retry_cont
 import io.github.nikitasud.latentjam.app.generated.resources.analysis_retry_continue_title
 import io.github.nikitasud.latentjam.app.generated.resources.analysis_retry_continue_yes
 import io.github.nikitasud.latentjam.app.generated.resources.analysis_stopped
+import io.github.nikitasud.latentjam.app.generated.resources.analysis_too_large
 import io.github.nikitasud.latentjam.app.generated.resources.action_back
 import io.github.nikitasud.latentjam.app.generated.resources.settings_pages_order
 import io.github.nikitasud.latentjam.app.generated.resources.settings_opens_on_launch
@@ -2026,7 +2027,16 @@ private fun IntelligenceSettings(
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
                         )
                     }
-                    if (done < tracks.size && phase != AnalysisPhase.PAUSING && !userPaused) {
+                    if (indexing.tooLarge) {
+                        Text(
+                            text = stringResource(Res.string.analysis_too_large),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                        )
+                    }
+                    // Only where it acts: an audio pass under the state table, not yet pausing.
+                    if (indexing.pausable && phase != AnalysisPhase.PAUSING && !userPaused) {
                         OutlinedButton(
                             onClick = AppGraph::pauseAutomaticIndexing,
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
@@ -2068,8 +2078,15 @@ private fun IntelligenceSettings(
                         (
                             tracks.isNotEmpty() &&
                                 !indexing.running &&
-                                // A pause is continued, not retried, unless failures are listed.
-                                (if (pausedByUser) failures.isNotEmpty() else !indexing.complete || failures.isNotEmpty())
+                                // A pause is continued, not retried, unless failures are listed; a pass the
+                                // 6 h cap or a refused start stopped continues by itself at the next app open.
+                                when {
+                                    pausedByUser -> failures.isNotEmpty()
+                                    !indexing.complete && indexingMatchesLibrary &&
+                                        (indexing.stopReason == AnalysisStopReason.TIMEOUT ||
+                                            indexing.stopReason == AnalysisStopReason.SHOW_FAILED) -> failures.isNotEmpty()
+                                    else -> !indexing.complete || failures.isNotEmpty()
+                                }
                             )
                     )
                 if (needsRecovery) {
@@ -2316,6 +2333,8 @@ private fun IntelligenceProblemsSettings(
                 SettingsBody(stringResource(Res.string.intelligence_problems_body))
                 // Issue #27: never a frozen bar alone; say what analysis has been waiting on.
                 if (stall != null) SettingsBody(analysisStallText(stall, tracks))
+                // A waiting or pausing pass says why, whether or not failures are listed.
+                indexing.phase?.takeIf { indexing.running }?.let { SettingsBody(analysisPhaseText(it)) }
                 if (libraryLoading || (indexing.running && failures.isEmpty())) {
                     AppLinearProgress(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),

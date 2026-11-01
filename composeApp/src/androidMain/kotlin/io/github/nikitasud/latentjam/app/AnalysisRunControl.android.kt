@@ -21,6 +21,8 @@ internal actual fun analysisDevice(): AnalysisDevice = AndroidAnalysisDevice
 
 internal actual fun analysisControlStore(): AnalysisControlStore = PreferencesAnalysisControlStore
 
+internal actual fun analysisElapsedMs(): Long = SystemClock.elapsedRealtime()
+
 /**
  * Screen, power, battery and thermal signals for the state table, and the analysis wake lock.
  * Registered once for the process, on first use; the receivers cost nothing while nothing changes.
@@ -52,16 +54,18 @@ private object AndroidAnalysisDevice : AnalysisDevice {
     private fun register() {
         if (registered) return
         registered = true
+        val status = thermalStatus()
         state.value = DeviceConditions(
             screenOn = power.isInteractive,
-            thermalStatus = thermalStatus(),
+            thermalStatus = status,
+            thermalStatusSeen = status != null && status != 0,
         )
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(receiverContext: Context, intent: Intent) {
+                // Only where the CPU could sleep before the pass takes its own lock, and only while a pass listens.
                 when (intent.action) {
-                    Intent.ACTION_SCREEN_OFF, Intent.ACTION_SCREEN_ON,
-                    Intent.ACTION_POWER_CONNECTED, Intent.ACTION_POWER_DISCONNECTED,
-                    -> eventLock.acquire(EVENT_LOCK_MS)
+                    Intent.ACTION_SCREEN_OFF, Intent.ACTION_POWER_CONNECTED, Intent.ACTION_POWER_DISCONNECTED,
+                    -> if (passListening) eventLock.acquire(EVENT_LOCK_MS)
                 }
                 when (intent.action) {
                     Intent.ACTION_SCREEN_OFF -> state.update { it.copy(screenOn = false) }
@@ -115,10 +119,21 @@ private object AndroidAnalysisDevice : AnalysisDevice {
         state.update { it.copy(thermalHeadroom = headroom, thermalStatus = thermalStatus()) }
     }
 
-    override fun holdWakeLock(timeoutMs: Long) = wakeLock.acquire(timeoutMs)
+    /** A gated pass is running; set by the first wake-lock decision and cleared at release. */
+    @Volatile
+    private var passListening = false
+
+    override fun holdWakeLock(timeoutMs: Long) {
+        passListening = true
+        wakeLock.acquire(timeoutMs)
+    }
 
     override fun releaseWakeLock() {
         if (wakeLock.isHeld) wakeLock.release()
+    }
+
+    override fun listen(active: Boolean) {
+        passListening = active
     }
 
     private const val EVENT_LOCK_MS = 3_000L
@@ -157,10 +172,16 @@ private object PreferencesAnalysisControlStore : AnalysisControlStore {
         set(value) {
             preferences.edit().putString(KEY_SPANS, value).apply()
         }
+    override var wakeLockHeldSince: Long?
+        get() = preferences.getLong(KEY_HELD_SINCE, -1L).takeIf { it >= 0 }
+        set(value) {
+            preferences.edit().putLong(KEY_HELD_SINCE, value ?: -1L).apply()
+        }
 
     private const val KEY_PAUSED = "userPaused"
     private const val KEY_STOP_REASON = "stopReason"
     private const val KEY_PENDING_CONTINUE = "pendingContinue"
     private const val KEY_LAST_COMPLETE = "lastPassComplete"
     private const val KEY_SPANS = "wakeLockSpans"
+    private const val KEY_HELD_SINCE = "wakeLockHeldSince"
 }

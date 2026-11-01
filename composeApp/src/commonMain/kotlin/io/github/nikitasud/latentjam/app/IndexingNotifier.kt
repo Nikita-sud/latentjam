@@ -39,6 +39,9 @@ interface IndexingNotifier {
      * platforms without such a surface, or without the permission, show nothing.
      */
     fun notice(title: String, text: String, continueLabel: String?) = Unit
+
+    /** Removes the last [notice], once the user continued. */
+    fun clearNotice() = Unit
 }
 
 /** One analysis run's report. */

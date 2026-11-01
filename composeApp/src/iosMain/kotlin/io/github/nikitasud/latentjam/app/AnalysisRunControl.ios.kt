@@ -11,6 +11,10 @@ internal actual fun analysisDevice(): AnalysisDevice = NoAnalysisDevice
 
 internal actual fun analysisControlStore(): AnalysisControlStore = UserDefaultsAnalysisControlStore
 
+private val analysisClockStart = kotlin.time.TimeSource.Monotonic.markNow()
+
+internal actual fun analysisElapsedMs(): Long = analysisClockStart.elapsedNow().inWholeMilliseconds
+
 private object UserDefaultsAnalysisControlStore : AnalysisControlStore {
     private val defaults get() = NSUserDefaults.standardUserDefaults
 
@@ -29,6 +33,11 @@ private object UserDefaultsAnalysisControlStore : AnalysisControlStore {
     override var wakeLockSpans: String?
         get() = defaults.stringForKey(KEY_SPANS)
         set(value) = defaults.setObject(value, KEY_SPANS)
+
+    // iOS holds no wake lock.
+    override var wakeLockHeldSince: Long?
+        get() = null
+        set(value) = Unit
 
     private const val KEY_PAUSED = "analysis.userPaused"
     private const val KEY_STOP_REASON = "analysis.stopReason"

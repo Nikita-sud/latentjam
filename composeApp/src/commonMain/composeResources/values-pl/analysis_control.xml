@@ -5,7 +5,7 @@
     <string name="analysis_waiting_hot">Czeka: ruszy, gdy urządzenie ostygnie</string>
     <string name="analysis_waiting_screen">Czeka: ruszy przy włączonym ekranie lub podczas muzyki</string>
     <string name="analysis_pausing">Wstrzymywanie…</string>
-    <string name="analysis_paused_by_you">Wstrzymane przez ciebie · przeanalizowano %1$d z %2$d</string>
+    <string name="analysis_paused_by_you">Wstrzymane przez Ciebie · przeanalizowano %1$d z %2$d</string>
     <string name="analysis_paused_at">Zatrzymano na %1$d z %2$d</string>
     <string name="analysis_stopped">Analiza zatrzymana</string>
     <string name="analysis_continues_now">Analiza zaraz ruszy dalej</string>
