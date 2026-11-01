@@ -974,7 +974,13 @@ So it is its own small design with its own review round, built only if the owner
   - **Copy and keep:** the index is copied into Application Support and the Caches copy stays until 0.9.5.
     Application Support is authoritative whenever it exists.
   - **Downgrade:** a downgrade to 0.9.3 (AltStore allows it) uses the old Caches copy. Progress made under 0.9.3
-    after that is lost on re-upgrade. This is stated.
+    after that is lost on re-upgrade. This is stated. A Rebuild done under 0.9.3 is undone too: the
+    Application Support copy from before the downgrade wins again (vectors are regenerable and checked by identity).
+  - **As built (iOS round):** one marker for all stores, not a decision per store: every store file is copied
+    through a synced `.tmp` and rename, then the marker; without it the process stays on Caches and the next launch
+    empties the target and copies again. The bytes are copied as they are (Caches files only change by rename, so a
+    torn source cannot exist). Gone or never-readable files are cache misses; any other refusal, EPERM among them,
+    waits for the next launch. There is no `.retry` sidecar on iOS (D2 lives in the app preferences).
 - **QoS:** analysis on dedicated threads with an explicit QoS. Kotlin/Native `Dispatchers.IO` cannot be set.
 
 ### 1f, 1g and the Android slices (Slice E)
@@ -1196,6 +1202,12 @@ The owner said go on 2026-11-01 ("Делай всё что считаешь ну
   the URI that holds the per-install container path (two installs of the same build differ the same way). On the
   full corpus the branch finishes without a crash and stores the 3 FLAC-in-MP4 tracks in the library as failures;
   every other row is unchanged.
+- Application Support move (1e-ios, see "As built" there): reviewed in two rounds (round 1 NOT READY, a cut-short
+  copy could bring back data cleared later; round 2 READY, its minors applied). `IosIndexDirectoryMoveTest` (6) and
+  `IosFileIndexStoreTest` pass on the simulator. Live upgrade on the simulator: the 0.9.3 app analyses the corpus,
+  the branch app is installed over it; the files move, the pass does not run again, and audio, text and energy rows
+  and their order equal 0.9.3's (identity tokens re-keyed, because the simulator gives the reinstalled app a new
+  container path). The EPERM path (locked device) has no simulator stand-in and is not exercised.
 - Not covered: iOS playback opens files with AVAudioFile too (`IosAudioEngine`), and was not tried on these files
   (no audible audio on the Mac).
 
