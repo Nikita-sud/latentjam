@@ -19,6 +19,12 @@ data class DeviceConditions(
     val thermalStatus: Int? = null,
     /** `PowerManager.getThermalHeadroom(10)`; NaN when the device gives none. */
     val thermalHeadroom: Float = Float.NaN,
+    /**
+     * The device's own headroom for the hot status (API 35+ `getThermalHeadroomThresholds()`); NaN where it gives
+     * none, and the fixed default applies. A device whose HAL throttles early reaches the default long before it is
+     * hot: the emulator's headroom sits near 0.9 at 30 °C.
+     */
+    val hotHeadroomThreshold: Float = Float.NaN,
     /** Whether the thermal status has ever left NONE in this process: a device with a thermal HAL. */
     val thermalStatusSeen: Boolean = false,
     /** From `ACTION_BATTERY_CHANGED`, in °C; null when unknown. */
@@ -101,6 +107,7 @@ class AnalysisGateRules(
     private fun updateHeat(conditions: DeviceConditions, nowMs: Long) {
         val status = conditions.thermalStatus
         val headroom = conditions.thermalHeadroom
+        val hotHeadroom = conditions.hotHeadroomThreshold.takeUnless { it.isNaN() } ?: hotHeadroom
         // Battery temperature stands in where there is no thermal HAL: below API 29, or a device whose
         // headroom is NaN and whose status has never left NONE.
         val useTemperature = status == null || (headroom.isNaN() && !conditions.thermalStatusSeen)

@@ -75,6 +75,15 @@ class AnalysisGateTest {
     }
 
     @Test
+    fun theDevicesOwnThresholdReplacesTheDefault() {
+        // The emulator: headroom 0.9 with its MODERATE threshold at 0.967 is not hot.
+        val emulator = awake.copy(thermalStatusSeen = true, thermalHeadroom = 0.9f, hotHeadroomThreshold = 0.9667f)
+        assertEquals(AnalysisPhase.RUNNING, AnalysisGateRules().at(emulator).phase)
+        assertEquals(AnalysisPhase.WAITING_HOT, AnalysisGateRules().at(emulator.copy(hotHeadroomThreshold = Float.NaN)).phase)
+        assertEquals(AnalysisPhase.WAITING_HOT, AnalysisGateRules().at(emulator.copy(thermalHeadroom = 0.97f)).phase)
+    }
+
+    @Test
     fun aStatusWaitWithNanHeadroomLeavesOnTheStatus() {
         val rules = AnalysisGateRules()
         val noHeadroom = awake.copy(thermalStatusSeen = true)

@@ -116,7 +116,12 @@ private object AndroidAnalysisDevice : AnalysisDevice {
         if (now - lastHeadroomReadMs < 1_000) return
         lastHeadroomReadMs = now
         val headroom = runCatching { power.getThermalHeadroom(HEADROOM_FORECAST_S) }.getOrDefault(Float.NaN)
-        state.update { it.copy(thermalHeadroom = headroom, thermalStatus = thermalStatus()) }
+        val threshold = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            runCatching { power.thermalHeadroomThresholds[HOT_STATUS] }.getOrNull() ?: Float.NaN
+        } else {
+            Float.NaN
+        }
+        state.update { it.copy(thermalHeadroom = headroom, hotHeadroomThreshold = threshold, thermalStatus = thermalStatus()) }
     }
 
     /** A gated pass is running; set by the first wake-lock decision and cleared at release. */
@@ -138,6 +143,9 @@ private object AndroidAnalysisDevice : AnalysisDevice {
 
     private const val EVENT_LOCK_MS = 3_000L
     private const val HEADROOM_FORECAST_S = 10
+
+    /** The status the table calls hot (AnalysisGateRules' default, MODERATE). */
+    private const val HOT_STATUS = PowerManager.THERMAL_STATUS_MODERATE
 }
 
 /** Plain preferences: the service reads them too, with no composition or coroutine in reach. */
