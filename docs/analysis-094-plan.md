@@ -1,6 +1,6 @@
 # 0.9.4 track 1: library analysis, fast and reliable
 
-Status: **v14**, under adversarial review (log at the end). Nothing is implemented until the owner says go.
+Status: **v15**, under adversarial review (log at the end). Nothing is implemented until the owner says go.
 
 Scope: the on-device library analysis on Android and iOS. It covers:
 - audio decoding;
@@ -12,6 +12,30 @@ Scope: the on-device library analysis on Android and iOS. It covers:
 Out of scope: SMART ranking, the release build, unrelated UI, and the beat/BPM experiment.
 
 Code baseline: `dev/0.9.4` = origin/main 1730aa24, the released 0.9.3 code plus README changes.
+
+## Summary for the owner (one page)
+
+**What users get, slice by slice:**
+- **B1:** fixes for the analysis foreground service (crash-prone start/stop and background updates), a faster codec
+  lookup, possibly higher analysis thread priority (only if a measured rule passes), and iOS background time on every
+  move to the background.
+- **B2:** analysis keeps going with the screen off (a wake lock, capped at 90 min a day). Pauses for heat or low
+  battery, honest "Waiting / Paused at X of Y" notices, and Pause / Continue buttons.
+- **C:** safer index files (directory fsync, a streaming iOS store, libraries above about 30k tracks persist). SMART
+  presses no longer wait behind a whole chunk of analysis. Fixes for hung decoders and failure handling (D1–D5).
+- **D:** iOS background tasks and Battery Saver slow-down.
+- **E:** optional speed items, each only if its measured rule passes.
+
+**What does not change:** stored vectors and their order (except D1–D6), SMART's answers, the model, and the Map's
+behaviour.
+
+**What the owner decides (§7):**
+- D1–D6;
+- a test phone, or a test build on the S24 that reads only a test-files folder;
+- whether charging counts in the wake-lock budget;
+- the Play declaration risk;
+- per-row Retry;
+- the iOS "keep analysing" action.
 
 ## 0. Hard rules
 
@@ -302,7 +326,8 @@ physical phone. Everything else ships on the host and emulator gates.
 1. **Slice A.** The Step 0 minimum set (the † parts as soon as the phone exists), the platform matrix, and G-a, G-c,
    G-d. G-b, G-e and G-f each come just before the items they gate.
 2. **Slice B1, quick wins:**
-   - the FGS start/stop race fix, notify-only progress, the explicit type, a non-fatal `show()`;
+   - the FGS start/stop race fix, notify-only progress, the explicit type; a failed `show()` ends the pass as an
+     exception does today (no crash), with a log line;
    - 2a.1, the codec-list cache;
    - 2-0 †, if its rule passes;
    - iOS: `beginBackgroundTask` on every move to the background (the `expired` latch, NOTI:39).
@@ -411,7 +436,8 @@ If built, it must meet every requirement the review found. Each one has a G-e ca
   - `NSFileReadUnknownError` and `NSFileReadTooLargeError` are non-attempts;
   - Data protection is tracked with an atomic flag plus a flip counter, fed by the
     `protectedDataWillBecomeUnavailable` / `protectedDataDidBecomeAvailable` notifications.
-    `isProtectedDataAvailable` is main-thread only, so it is read only once, on the main thread at startup. Until
+    `isProtectedDataAvailable` is main-thread only. Both observers are registered first, and only then is it read
+    once, on the main thread at startup. Until
     that read, data counts as unavailable, so every outcome is a non-attempt. The locked cold-launch test covers this. If the flag was false, or the counter
     changed during the call, the outcome is a non-attempt whatever the error code (a data-protection denial looks
     like EPERM);
@@ -644,8 +670,8 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
   - **What the table gates.** Waits, stops and `userPaused` gate only the **audio pass** (AG step 4) and the D4
     retries, and only while `missingFromIndex > 0` or D4-pending tracks exist. With nothing missing, the pass finishes exactly as in 0.9.3:
     `complete` is set, and `userPaused` is cleared (only when both sets are empty). A Pause that reaches a service whose last pass completed does
-    nothing. Host case: a stale Pause after completion, then a cold start; `complete` and the map tier must match
-    0.9.3. Steps 1–3 always run, as in 0.9.3: sync, tag carry-over and the metadata pass. So do energies on
+    not block it: the gate ignores the persisted flag and clears it. Host case: a stale Pause after completion, then a
+    cold start; `complete` and the map must match 0.9.3. Steps 1–3 always run, as in 0.9.3: sync, tag carry-over and the metadata pass. So do energies on
     existing rows. So deleted tracks lose their rows and new tracks get text rows while paused. The check lives
     inside `ensureAutomaticIndexing`, so a configuration-change re-fire cannot bypass it. A gated or stopped pass
     never sets `complete = true`.
@@ -712,29 +738,34 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
   - In Slice B2 nothing is in flight at a boundary, so no workers are abandoned.
   - From Slice C, AnalysisRun at a table stop or wait stops submitting, **drains** its in-flight look-ahead
     (discarding the results), and only then cancels, so a quick Continue never meets the old codecs.
-- **`running` in waiting and stopped rows.** It is false while waiting or stopped, so the #27 stall message
-  (AnalysisStall.kt:24-34) and MapRebuild.kt:198 never mistake a wait for a stall. "Pausing…" suppresses the stall
-  text.
+- **`running` and `phase`.**
+  - `running` stays **true** in the waiting rows (3 and 6), because the pass is alive, and it is false only in the
+    stopped rows, as in 0.9.3.
+  - A new `phase` field (running / waiting-hot / waiting-screen / pausing) drives the display.
+  - The readers of `running` therefore keep their 0.9.3 meaning:
+    - SettingsScreens.kt:1984, 2009-2024, 2145 and 2233-2246 (progress bar, recovery Retry, Rebuild);
+    - MapTab.kt:1645;
+    - MapRebuild.kt:198.
+  - `analysisStall` (AnalysisStall.kt:24-34) returns null while `phase` is a waiting or pausing state, so the #27
+    stall text never fires on a wait.
+  - The Settings Retry button (`onRetryIndexing`, which today goes through `force`) becomes the D3 path for the
+    failures it lists, with `rerun`. The `force` path stays only for a Failed or uninitialised engine.
 - **Stopped notices** are best-effort. On API 33+ without `POST_NOTIFICATIONS` they are not shown, so the in-app
   state is the source of truth. This is tested with the permission denied.
-- **Map readiness.** Today `libraryWorlds.audioVectorsReady` is `complete` with a matching track list
-  (App.kt:1194-1197, 1221-1229). Other code reads it as "analysis finished": AppMapPage.kt:77, 175, 201 and 231,
-  LibraryRegionsService.kt:54 and RegionIdentityKeeper.kt:69.
-  - **It stays exactly 0.9.3's.**
-  - A separate `audioTierReady` is used **only** as the `audioReady` argument of `LibraryRegionsService.refresh`
-    (App.kt:1298-1310).
-  - It is true when `complete`, or when the audio coverage of the analysable tracks of the current library is
-    ≥ 90 %. Analysable means remembered failures and no-URI rows are left out.
-  - It is decided at run start, after the sync, and is **monotonic for the same library key** across waiting,
-    running, Continue and `rerun`. So the fused regions never flip.
-  - Host cases:
-    - waiting → running → waiting, with no regions rebuild;
-    - no `MapRebuild.requested` and no refresh-state save while incomplete;
-    - Retry, a library change and a cold start while paused, where the regions tier must not drop.
+- **Map readiness: unchanged from 0.9.3.** `libraryWorlds.audioVectorsReady` stays `complete` with a matching
+  track list (App.kt:1194-1229), for every reader:
+  - AppMapPage.kt:77, 175, 201 and 231;
+  - `LibraryRegionsService.refresh` and its `identityOn` (LibraryRegionsService.kt:54);
+  - RegionIdentityKeeper.kt:69.
+
+  Rounds 11–14 tried a "sticky" or coverage-based audio tier. Each version leaked into readers that mean "analysis
+  finished", or changed region identity, so it is **dropped**. The known limitation, as in 0.9.3: while a pass is
+  incomplete (now also while it waits or is paused), the Map and For You regions use metadata only. Changing that is
+  a separate owner call (§7).
 - **Map rebuild job.** While the audio pass is in **any waiting or stopped state**, `MapRebuildWorker` returns
   `success()` on NOT_READY instead of `retry()` (MapRebuild.android.kt:56-58), and it is re-enqueued at the restart
-  trigger. It is also re-enqueued when a pass sets `complete` and on every move from waiting to running
-  (`MapRebuild.resumePending`), so a pass that resumes by itself still gets its rebuild. `missingFromIndexOf`
+  trigger. It is also re-enqueued when a pass sets `complete`, through `MapRebuild.resumePending`, at most once per
+  run, so a pass that resumes by itself still gets its rebuild without repeated night wakes. `missingFromIndexOf`
   (MapRebuild.kt:220) leaves out D2-capped tracks, as `missingFromIndex` does. This changes scheduling
   only; what the map computes is unchanged.
 - **Wake-lock renewal** happens on every per-track `analysing` change (ENG:305-307), which exists today. The lock is
@@ -745,7 +776,7 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
   map's behaviour is not changed here.
 - **`userPaused`.**
   - It is persisted, and respected at every app open.
-  - Only Continue (the notification or the UI) clears it. A library change does not. An explicit Retry clears the chosen
+  - Only Continue (the notification or the UI), or a pass that finds nothing missing (above), clears it. A library change does not. An explicit Retry clears the chosen
     failures but leaves the pause, and asks "Continue analysis too?".
   - It also shows in the existing SMART partial-analysis hint as "Analysis paused by you: N tracks waiting", where
     its cost is felt.
@@ -964,6 +995,7 @@ Nothing is pushed, tagged or released by this session.
 | Per-row Retry button in the UI | yes, plus "retry these" | Only "retry these" |
 | iOS "Keep analysing in the background" action (iOS 26+) | yes | iOS analysis continues only in the foreground and in short background windows |
 | Snapshot reuse during analysis: SMART would answer from a snapshot up to one chunk old instead of rebuilding it on every press | no | (default) Presses during analysis stay slower |
+| Fused (audio) Map / For You regions before a pass completes | no: 0.9.3 behaviour, metadata-only until complete | A separate design would be needed (rounds 11–14 showed the risks to region identity) |
 | WorkManager slices and the speed mode | parked | — |
 
 ## Review log
@@ -1625,3 +1657,34 @@ built, it must meet requirements 1–8, which carry every store finding from rou
 - `running` is false while waiting.
 - B1 `show()` behaviour defined.
 - Battery row placed above heat; per-device thermal checks.
+
+### Round 14 (2026-11-01): two fresh reviewers on v14 → NOT READY (no blocking findings)
+
+**Both reviewers found the same defect independently.**
+- `audioTierReady` fed the very `audioReady` argument that LibraryRegionsService.kt:54 reads as "analysis
+  finished". With `RegionIdentityFlag` on by default, region identity was saved while analysis was still incomplete.
+- Because the tier was monotonic, completion no longer triggered a refresh.
+- **Correctness also found:**
+  - the tier survived Rebuild analysis;
+  - the cold-start order of tier and metadata.
+- **Product also found:**
+  - the fused-before-complete behaviour is undeclared and visible to users.
+  - `running = false` while waiting re-enabled the force-Retry and Rebuild buttons in Settings
+    (SettingsScreens.kt:2009-2024, 2145).
+- **Minor findings:**
+  - contradictions about Pause;
+  - B1's "non-fatal show";
+  - the iOS observer order;
+  - a home for the per-row Retry;
+  - throttling map-job re-enqueues;
+  - a one-page owner summary.
+
+**v15 response:**
+- The coverage tier is **dropped**. The Map and For You keep 0.9.3 readiness for every reader. Fused regions before
+  completion become a separate owner call.
+- `running` stays true while waiting; a new `phase` field drives the display and the stall text.
+- The Settings Retry moves to the D3 path.
+- Pause wording unified; B1 `show()` defined.
+- iOS observers registered before the read.
+- The map-job re-enqueue happens once per run.
+- An owner summary at the top.
