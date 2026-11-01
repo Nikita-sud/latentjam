@@ -54,7 +54,11 @@ class MainActivityManifestTest {
         }
         val data = view.childElements().filter { it.elementName() == "data" }
         assertEquals(setOf("content", "file"), data.map { it.getAttributeNS(ANDROID, "scheme") }.filter(String::isNotEmpty).toSet())
-        assertTrue("audio/*" in data.map { it.getAttributeNS(ANDROID, "mimeType") })
+        val types = data.map { it.getAttributeNS(ANDROID, "mimeType") }
+        assertTrue("audio/*" in types)
+        // M3U senders that do not say audio/x-mpegurl still reach the playlist import.
+        assertTrue("application/x-mpegurl" in types)
+        assertTrue("application/vnd.apple.mpegurl" in types)
         assertTrue(view.childElements().any {
             it.elementName() == "category" && it.getAttributeNS(ANDROID, "name") == "android.intent.category.DEFAULT"
         })

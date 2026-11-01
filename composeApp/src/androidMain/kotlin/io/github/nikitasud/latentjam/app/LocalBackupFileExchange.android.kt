@@ -359,6 +359,18 @@ private fun copyToDocument(resolver: ContentResolver, uri: Uri, staged: File) {
     staged.inputStream().use { input -> output.use { input.copyTo(it) } }
 }
 
+/**
+ * Reads one playlist file another app handed over, with the in-app importer's bound and its text
+ * check: a file named `.m3u` that is really audio is refused after its first bytes.
+ */
+internal suspend fun readExternalPlaylist(resolver: ContentResolver, source: String): ImportedLocalDocument {
+    val uri = Uri.parse(source)
+    val document = readDocument(resolver, uri, ImportReadBudget(textOnly = true))
+    // A file:// sender has no provider to name it; its path does.
+    if (document.displayName != null || uri.scheme != "file") return document
+    return document.copy(displayName = uri.lastPathSegment)
+}
+
 private suspend fun readDocument(
     resolver: ContentResolver,
     uri: Uri,

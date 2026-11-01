@@ -41,6 +41,43 @@ interface ExternalAudioOpener {
     fun consume(request: ExternalAudioRequest): Boolean
 }
 
+/**
+ * Playlist files opened from outside, already read while their sender's grant still held. They go
+ * to the same import offer as files picked in the app, never to playback. Implemented by the
+ * platform openers that can receive files.
+ */
+internal interface ExternalPlaylistOpener {
+    /** The read result of the latest playlist opened from outside; null when none waits. */
+    val pendingPlaylist: StateFlow<LocalBackupFileResult<ImportedLocalDocuments>?>
+
+    /** Claims [result] once, so a recomposition or a new UI does not offer the same file twice. */
+    fun consumePlaylist(result: LocalBackupFileResult<ImportedLocalDocuments>): Boolean
+}
+
+private val PLAYLIST_MIME_TYPES = setOf(
+    "audio/x-mpegurl",
+    "audio/mpegurl",
+    "application/x-mpegurl",
+    "application/vnd.apple.mpegurl",
+)
+
+/** The non-`audio/` track types the VIEW filter accepts. */
+private val TRACK_TYPES = setOf("application/ogg", "application/x-flac", "vnd.android.cursor.item/audio")
+
+/**
+ * Whether a file opened from outside is an M3U playlist rather than a track. The audio filter that
+ * lets file managers offer LatentJam for music matches `audio/x-mpegurl` too, and a playlist played
+ * as a track can only fail. A stated playlist type decides; any other stated audio type means a
+ * track; with no useful type the name decides.
+ */
+internal fun isPlaylistRequest(mimeType: String?, uri: String): Boolean {
+    val type = mimeType?.substringBefore(';')?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+    if (type in PLAYLIST_MIME_TYPES) return true
+    if (type != null && type != "audio/*" && (type.startsWith("audio/") || type in TRACK_TYPES)) return false
+    val path = uri.substringBefore('#').substringBefore('?').lowercase()
+    return path.endsWith(".m3u") || path.endsWith(".m3u8")
+}
+
 @Composable
 internal fun ExternalAudioOpenEffect(
     opener: ExternalAudioOpener?,

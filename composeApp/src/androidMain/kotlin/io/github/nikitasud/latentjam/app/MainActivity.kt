@@ -75,6 +75,7 @@ class MainActivity : ComponentActivity() {
                 AndroidExternalAudioOpener(
                     createSavedStateHandle(),
                     userPlaybackRevision = { AppGraph.playback.userPlaybackRevision },
+                    readPlaylist = { uri -> readExternalPlaylist(context.contentResolver, uri) },
                 ) { uri, tracks, library ->
                     resolveExternalAudio(context, uri, tracks, library)
                 }
@@ -91,7 +92,9 @@ class MainActivity : ComponentActivity() {
         applyStoredWindowTheme()
         // SavedStateHandle already owns any unfinished request after recreation. Re-reading the
         // launch intent here would replay an already consumed file after a locale/rotation change.
-        if (savedInstanceState == null) externalAudioOpener.submit(intent?.action, intent?.dataString)
+        if (savedInstanceState == null) {
+            externalAudioOpener.submit(intent?.action, intent?.dataString, intent?.resolveType(contentResolver))
+        }
         audioPermissionGranted = hasAudioPermission()
         audioPermissionGateDismissed = getSharedPreferences(
             AUDIO_GATE_PREFERENCES,
@@ -135,7 +138,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        externalAudioOpener.submit(intent.action, intent.dataString)
+        externalAudioOpener.submit(intent.action, intent.dataString, intent.resolveType(contentResolver))
     }
 
     override fun onPause() {
