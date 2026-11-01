@@ -179,6 +179,38 @@ int lj_eq_ios_connect(AVAudioEngine *engine, AVAudioNode *source, AVAudioUnit *u
     }
 }
 
+int lj_eq_ios_file_decodes(AVAudioFile *file) {
+    @try {
+        AVAudioFrameCount frames = (AVAudioFrameCount)MIN(file.length, (AVAudioFramePosition)1024);
+        if (frames == 0) return 0;
+        AVAudioPCMBuffer *probe = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat frameCapacity:frames];
+        if (probe == nil) return 0;
+        file.framePosition = 0;
+        BOOL read = [file readIntoBuffer:probe frameCount:frames error:nil] && probe.frameLength > 0;
+        file.framePosition = 0;
+        return read ? 1 : 0;
+    } @catch (NSException *exception) {
+        return 0;
+    }
+}
+
+int lj_eq_ios_read_at(AVAudioFile *file, AVAudioPCMBuffer *buffer, int64_t start, uint32_t frames) {
+    @try {
+        file.framePosition = start;
+        return [file readIntoBuffer:buffer frameCount:frames error:nil] && buffer.frameLength > 0 ? 1 : 0;
+    } @catch (NSException *exception) {
+        return 0;
+    }
+}
+
+int lj_eq_ios_read_next(AVAudioFile *file, AVAudioPCMBuffer *buffer) {
+    @try {
+        return [file readIntoBuffer:buffer error:nil] ? 1 : 0;
+    } @catch (NSException *exception) {
+        return -1;
+    }
+}
+
 int lj_eq_ios_connect_deck(AVAudioEngine *engine, AVAudioPlayerNode *player, AVAudioMixerNode *mixer, int bus, AVAudioFormat *format) {
     if (bus < 0) return 0;
     @try {

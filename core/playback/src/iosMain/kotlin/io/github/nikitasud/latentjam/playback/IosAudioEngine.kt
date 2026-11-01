@@ -368,8 +368,7 @@ internal class IosAudioEngine : EqualizerController {
         val reader = runCatching { AVAudioFile(forReading = file.url, error = null) }.getOrNull() ?: return 0L
         val buffer = AVAudioPCMBuffer(pCMFormat = reader.processingFormat, frameCapacity = frames.toUInt())
             ?: return 0L
-        reader.framePosition = startFrame
-        if (!reader.readIntoBuffer(buffer, frameCount = frames.toUInt(), error = null)) return 0L
+        if (lj_eq_ios_read_at(reader, buffer, startFrame, frames.toUInt()) == 0) return 0L
         val read = buffer.frameLength.toInt()
         val channels = buffer.floatChannelData ?: return 0L
         for (channel in 0 until reader.processingFormat.channelCount.toInt()) {
@@ -574,9 +573,11 @@ internal class IosAudioEngine : EqualizerController {
         )
     }
 
+    // A file AVAudioFile opens but cannot decode (32-bit FLAC in MP4) is unplayable, like an unreadable one, so the
+    // controller walks on: scheduled, it plays nothing, and a crossfade's ramp-in read of it would end the app.
     private fun supportsFormat(file: AVAudioFile): Boolean =
         file.processingFormat.channelCount in 1u..32u && file.processingFormat.sampleRate > 0 &&
-            file.processingFormat.sampleRate <= 768000
+            file.processingFormat.sampleRate <= 768000 && lj_eq_ios_file_decodes(file) != 0
 
     private fun configureFileGraph(file: AVAudioFile): Boolean {
         // A prepared graph can allocate the AU after changing only one bus, briefly leaving its

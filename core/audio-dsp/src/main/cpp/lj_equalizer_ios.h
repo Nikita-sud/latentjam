@@ -17,6 +17,15 @@ int lj_eq_ios_connect(AVAudioEngine *engine, AVAudioNode *source, AVAudioUnit *u
 /* Connects a player to one input bus of a mixer in its own format; the mixer converts. Allowed on
  * a running graph, which is how a second track joins for an overlap. False on any graph error. */
 int lj_eq_ios_connect_deck(AVAudioEngine *engine, AVAudioPlayerNode *player, AVAudioMixerNode *mixer, int bus, AVAudioFormat *format);
+/* Whether [file] really decodes: reads its first frames, then rewinds. AVAudioFile opens some files it cannot decode
+ * (32-bit FLAC in MP4) and raises an Objective-C exception from framePosition and every read, which ends the app if it
+ * crosses the Kotlin boundary; such a file returns false. */
+int lj_eq_ios_file_decodes(AVAudioFile *file);
+/* framePosition = start, then readIntoBuffer; false on an error, an exception or no frames. */
+int lj_eq_ios_read_at(AVAudioFile *file, AVAudioPCMBuffer *buffer, int64_t start, uint32_t frames);
+/* readIntoBuffer from the current position: 1 read (frameLength 0 at the end), 0 an error, -1 an exception (the file
+ * cannot decode). */
+int lj_eq_ios_read_next(AVAudioFile *file, AVAudioPCMBuffer *buffer);
 int lj_eq_ios_sample_rate(AVAudioUnit *unit);
 float lj_eq_ios_take_meter_gain(AVAudioUnit *unit);
 #ifdef __cplusplus
