@@ -1053,6 +1053,8 @@ object AppGraph {
         object : AudioPassEngine {
             override suspend fun missingFromIndex(ids: List<TrackId>) = engine.missingFromIndex(ids)
             override suspend fun stage(chunk: List<TrackDescriptor>, upcoming: List<TrackDescriptor>): IndexReport {
+                // Battery Saver slows the pass, chunk by chunk, and never stops it (2e).
+                engine.setAnalysisPacing(slow = analysisDevice.conditions.value.powerSave)
                 val report = engine.stageLibraryIndex(chunk, upcoming)
                 return settleRetries(chunk, report)
             }

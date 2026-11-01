@@ -59,6 +59,7 @@ private object AndroidAnalysisDevice : AnalysisDevice {
             screenOn = power.isInteractive,
             thermalStatus = status,
             thermalStatusSeen = status != null && status != 0,
+            powerSave = power.isPowerSaveMode,
         )
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(receiverContext: Context, intent: Intent) {
@@ -73,6 +74,7 @@ private object AndroidAnalysisDevice : AnalysisDevice {
                     Intent.ACTION_POWER_CONNECTED -> state.update { it.copy(plugged = true) }
                     Intent.ACTION_POWER_DISCONNECTED -> state.update { it.copy(plugged = false) }
                     Intent.ACTION_BATTERY_CHANGED -> state.update { it.withBattery(intent) }
+                    PowerManager.ACTION_POWER_SAVE_MODE_CHANGED -> state.update { it.copy(powerSave = power.isPowerSaveMode) }
                 }
             }
         }
@@ -82,6 +84,7 @@ private object AndroidAnalysisDevice : AnalysisDevice {
             addAction(Intent.ACTION_POWER_CONNECTED)
             addAction(Intent.ACTION_POWER_DISCONNECTED)
             addAction(Intent.ACTION_BATTERY_CHANGED)
+            addAction(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED)
         }
         // The sticky battery broadcast is delivered at once, so the first read already has it.
         ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)

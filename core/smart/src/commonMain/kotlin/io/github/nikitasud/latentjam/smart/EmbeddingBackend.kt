@@ -72,6 +72,9 @@ public interface EmbeddingBackend {
      */
     public fun takeInferenceLock(lock: kotlinx.coroutines.sync.Mutex): Boolean = false
 
+    /** Battery Saver: [slow] decodes one track at a time from the next call on (2e). Results are unchanged. */
+    public fun setAnalysisPacing(slow: Boolean): Unit = Unit
+
     /**
      * [embedEach], told which tracks the next call will probably bring ([upcoming]): a backend that decodes ahead may
      * start on them once [tracks] are all started, and hand the decoded audio to that next call. Results stay exactly

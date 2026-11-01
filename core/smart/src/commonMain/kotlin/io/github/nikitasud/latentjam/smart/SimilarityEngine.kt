@@ -239,6 +239,9 @@ public interface SimilarityEngine {
      */
     public suspend fun rememberedAudioFailures(tracks: List<TrackDescriptor>): Map<TrackId, EngineError> = emptyMap()
 
+    /** Battery Saver (2e): [slow] analysis decodes one track at a time; the vectors are the same. */
+    public fun setAnalysisPacing(slow: Boolean): Unit = Unit
+
     /**
      * Remembers [tracks] as failed audio until Retry, as a deterministic failure is: the app's retry ledger hands over
      * a file whose analysis timed out three times (D2). A track indexed meanwhile, or changed, is left alone.

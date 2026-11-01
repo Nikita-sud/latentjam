@@ -677,6 +677,8 @@ internal class DefaultSimilarityEngine(
     /** Seeds whose embed timed out in this process, by their vector identity (D1); cleared when the pass analyses them. */
     private val seedTimeouts = HashMap<TrackId, String>()
 
+    override fun setAnalysisPacing(slow: Boolean): Unit = backend.setAnalysisPacing(slow)
+
     override suspend fun rememberedAudioFailures(tracks: List<TrackDescriptor>): Map<TrackId, EngineError> =
         withContext(dispatcher) {
             mutex.withLock {

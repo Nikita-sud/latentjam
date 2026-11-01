@@ -188,17 +188,37 @@ internal class OnnxEmbeddingBackend(
             for (track in tracks) onResult(track, analyse(track))
             return
         }
-        // Decoding runs ahead by the workers plus one ready track, on into the next chunk; inference takes them in
+        // Decoding runs ahead by up to the workers plus one ready track (fewer when memory is short or Battery Saver
+        // is on), on into the next chunk; inference takes them in
         // order. A prefetched track and an inline one decode the same windows the same way (embedDecoded).
         decoding.each(
             tracks = tracks,
-            ahead = decodeWorkers,
+            ahead = if (slow || systemMemoryLow()) 0 else lookAheadFor(decodeWorkers, freeHeapBytes()),
             prefetch = { track -> prefetch(track) },
             finish = { track, decoded -> embedDecoded(track, decoded, decoding, analysisWaits) },
             waited = analysisWaits.waited,
             onResult = onResult,
             upcoming = upcoming,
         )
+    }
+
+    @Volatile private var slow = false
+
+    override fun setAnalysisPacing(slow: Boolean) {
+        this.slow = slow
+    }
+
+    /** The system is short of RAM (codec buffers are native, outside the heap): decode one track at a time. */
+    private fun systemMemoryLow(): Boolean = runCatching {
+        val info = ActivityManager.MemoryInfo()
+        context.getSystemService(ActivityManager::class.java)?.getMemoryInfo(info)
+        info.lowMemory
+    }.getOrDefault(false)
+
+    /** What the Java heap can still give before it reaches its limit. */
+    private fun freeHeapBytes(): Long {
+        val runtime = Runtime.getRuntime()
+        return runtime.maxMemory() - (runtime.totalMemory() - runtime.freeMemory())
     }
 
     /** A track's windows decoded ahead, and what is left of its codec back-off allowance for the rest. */

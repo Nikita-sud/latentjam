@@ -303,3 +303,26 @@ internal class DeadlineDecoding(
         workers.close()
     }
 }
+
+/** The waveforms of one track decoded ahead: three 10 s windows of 32 kHz floats. */
+internal const val PREFETCHED_TRACK_BYTES: Long = 3L * 320_000L * Float.SIZE_BYTES
+
+/** What one busy decode worker holds besides its output: the decoded PCM and its copy at 48 kHz, about 5 MB. */
+internal const val DECODE_TRANSIENT_BYTES: Long = 5L * 1024L * 1024L
+
+/**
+ * How far ahead tracks may be decoded (1g), as [DeadlineDecoding.each]'s `ahead`: the largest depth up to [workers]
+ * whose memory fits a quarter of the [freeHeapBytes] left. At depth `a` up to `a + 2` tracks' waveforms are held (the
+ * queue, the track in hand, a carried one) and `min(workers, a + 1)` workers decode at once. At 0 one track still
+ * decodes while the one before it runs inference.
+ */
+internal fun lookAheadFor(workers: Int, freeHeapBytes: Long): Int {
+    val budget = freeHeapBytes / 4
+    var depth = workers
+    while (depth > 0 &&
+        (depth + 2) * PREFETCHED_TRACK_BYTES + minOf(workers, depth + 1) * DECODE_TRANSIENT_BYTES > budget
+    ) {
+        depth--
+    }
+    return depth.coerceAtLeast(0)
+}

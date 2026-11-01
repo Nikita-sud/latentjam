@@ -29,6 +29,8 @@ data class DeviceConditions(
     val thermalStatusSeen: Boolean = false,
     /** From `ACTION_BATTERY_CHANGED`, in °C; null when unknown. */
     val batteryTemperatureC: Float? = null,
+    /** Battery Saver: the pass goes on, slower (2e, "soft first"), never waits for it. */
+    val powerSave: Boolean = false,
 )
 
 /** Where the audio pass stands, for the notification and the in-app display. */

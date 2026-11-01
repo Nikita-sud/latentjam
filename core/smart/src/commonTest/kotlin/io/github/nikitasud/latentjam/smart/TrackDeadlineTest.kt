@@ -154,6 +154,17 @@ internal class TrackDeadlineTest {
         assertTrue((results[1].second.exceptionOrNull() as SmartEngineException).error.isAnalysisTimeout())
     }
 
+    @Test
+    fun theLookAheadShrinksWithTheFreeHeap() {
+        val mb = 1024L * 1024L
+        // Depth 3: 5 waveforms (3.66 MiB each) and 3 busy workers (5 MiB each) = 33.3 MiB, a quarter of 134 MiB.
+        assertEquals(3, lookAheadFor(workers = 3, freeHeapBytes = 200 * mb))
+        // Depth 1: 3 waveforms and 2 workers = 21 MiB; depth 2 would need 29.7 MiB.
+        assertEquals(1, lookAheadFor(workers = 3, freeHeapBytes = 90 * mb))
+        assertEquals(0, lookAheadFor(workers = 3, freeHeapBytes = 40 * mb))
+        assertEquals(0, lookAheadFor(workers = 3, freeHeapBytes = -1))
+    }
+
     private val decodedLock = kotlinx.coroutines.sync.Mutex()
 
     private val chunkB = listOf("e", "f", "g").map { TrackDescriptor(TrackId(it), audioUri = "test://$it") }
