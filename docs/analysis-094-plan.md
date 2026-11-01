@@ -1235,6 +1235,31 @@ Each piece reviewed by fresh subagents until READY (rounds noted).
   them on a 1e-ios review round, and the simulator cannot exercise them), WorkManager slices (need the owner's yes).
 - iOS suites after this round: core:smart 752, composeApp 1220, core:playback 241, all pass.
 
+### Night round (1e98883b..)
+
+- 1e98883b generation re-check: a chunk's inference stops after its current track once `clearAnalysis`/`release`
+  advanced the generation (phase 3 already dropped the results). Reviewed with b5a9491b, READY.
+- b5a9491b iOS press waits one window (review READY, its minors applied): the Swift embed takes the inference lock
+  through a gate around the model load and each window's run, never decoding; the gate refuses once the track's result
+  was given or its lease changed; the seed runs on its own lane. Simulator corpus (447 files, fresh install): audio
+  253 rows, energy, text: rows, order and bytes equal head1 (rule frozen in ios-golden-rule.md before the run).
+  iOS core:smart 755, host core:smart 875 and composeApp 1377 pass. Press latency itself not measured (no device).
+- D4 closed for 0.9.4. A row from 2 of 3 windows needs a window `Unavailable` twice: once prefetched and once
+  decoded again inline. Since 1c the inline retry also waits out codec contention (≤ 3 s per track), the one cause
+  seen to pass. What is left is a source going away mid-track, which usually takes the other windows too (a whole
+  failure, retried by D1/D2), and per-window codec errors that are deterministic, which a later retry would not fix.
+  No partial row has appeared in any corpus run: five emulator passes of 459 files are byte-identical to 0.9.3. The
+  channel it needs (a partial flag from the backend, a `.retry` entry, an in-place upsert) is not worth building
+  without one observed case. Reopen if the G-c phone logs show `Unavailable` windows on tracks that still got a
+  vector.
+- Slice E: nothing qualifies tonight. 2a.1 (one `MediaCodecList`) was already in (`regularCodecs` lazy). 2a.2,
+  2a.3 and 2b are gated by G-a "on that device, in 2 runs", i.e. the phone and the iPhone. 2c needs 2-0 and 2a first,
+  and 2-0 is a phone measurement.
+- 5a5e9241: the D2 ledger is pruned only against an authoritative library (from the Slice D rounds; host composeApp
+  1378 pass).
+- Slice D: four review rounds, none READY; stopped, not built, with the reasons and the next step in
+  docs/analysis-094-slice-d.md. Drafts on branch `wip/slice-d-ios-background`.
+
 ## Review log
 
 ### Round 1 (2026-11-01): two fresh reviewers on v1 → NOT READY
