@@ -357,12 +357,14 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
         // duration, especially for damaged VBR files, so reject that window before
         // touching the exception-raising setter. Other valid windows can still be used.
         guard requestedFrame < file.length else { return nil }
-        file.framePosition = requestedFrame
+        // A FLAC-in-MP4 file opens but raises from both calls below, even at frame 0. Caught, that
+        // is a durable decode error like any other (0.9.3 crashed here on every pass).
+        try LJSafeAudioFile.setFramePosition(requestedFrame, of: file)
         let inputFrames = AVAudioFrameCount((10 * inputFormat.sampleRate).rounded(.up))
         guard let input = AVAudioPCMBuffer(pcmFormat: inputFormat, frameCapacity: inputFrames) else {
             return nil
         }
-        try file.read(into: input, frameCount: inputFrames)
+        try LJSafeAudioFile.read(file, into: input, frameCount: inputFrames)
         guard input.frameLength > 0,
               let outputFormat = AVAudioFormat(
                 commonFormat: .pcmFormatFloat32,

@@ -5,3 +5,4 @@
 #import <onnxruntime/onnxruntime_c_api.h>
 #import <LatentJamOrtOps/ljq4.h>
 #import <LatentJamOrtOps/ljdots.h>
+#import "LJSafeAudioFile.h"
