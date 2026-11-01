@@ -1,6 +1,6 @@
 # 0.9.4 track 1: library analysis, fast and reliable
 
-Status: **v21**, under adversarial review (log at the end). Nothing is implemented until the owner says go.
+Status: **v22**, under adversarial review (log at the end). Nothing is implemented until the owner says go.
 
 Scope: the on-device library analysis on Android and iOS. It covers:
 - audio decoding;
@@ -19,8 +19,8 @@ Code baseline: `dev/0.9.4` = origin/main 1730aa24, the released 0.9.3 code plus 
 - **B1:** fixes for the analysis foreground service (crash-prone start/stop and background updates), a faster codec
   lookup, possibly higher analysis thread priority (only if a measured rule passes), and iOS background time on every
   move to the background.
-- **B2:** analysis keeps going with the screen off (a wake lock, capped at 90 min a day). Pauses for heat or low
-  battery, honest "Waiting / Paused at X of Y" notices, and Pause / Continue buttons.
+- **B2:** analysis keeps going with the screen off (a wake lock, capped at 90 min a day). Waits for heat or low
+  battery and resumes by itself; honest "Waiting / Paused at X of Y" notices, and Pause / Continue buttons.
 - **C:** safer index files (directory fsync, a streaming iOS store, libraries above about 30k tracks still behave as in 0.9.3; raising that limit is parked). SMART
   presses no longer wait behind a whole chunk of analysis. Fixes for hung decoders and failure handling (D1–D5).
 - **D:** iOS background tasks and Battery Saver slow-down.
@@ -639,7 +639,9 @@ ON_START restarts the pass. Stopping earlier to save the cap would save nothing,
 app open.
 
 **Envelope refusal.** Above about 30k audio rows (64 MiB), every audio save is refused (`EnvelopeRefusal`,
-ENG:1546-1557), and that work dies with the process. A new engine query reports an active refusal. While it is set,
+ENG:1546-1557), and that work dies with the process. A new engine query reports an active refusal. It is also true **before the first refused save in a process**: it
+compares the index's estimated encoded size with the envelope, using the same sizing as `encodedV3SnapshotSize`. It
+turns false when a shrink brings the size back under, as `covers()` does. A host case covers a cold process. While it is set,
 row 5 behaves as row 6: no wake lock, with analysis only while the screen is on or music plays. The UI says "This
 library is too large to keep its analysis between launches". Slice D's `BGProcessingTask` follows the same rule.
 There is a host case for it.
@@ -680,7 +682,7 @@ There is a host case for it.
   | how the phone is used | when the analysis finishes |
   |---|---|
   | app opened daily | about 1.5–2 h of work per day (the 90 min budget, plus screen-on and playing time, plus time with the app open): **2–3 days** |
-  | app not opened | the same daily share, from screen-on and playing time and the refilled budget. On API 35+ it lasts until the system's 6 h cap; after that it waits for an app open |
+  | app not opened | the same daily share, from screen-on and playing time and the refilled budget. On API 35+ it lasts until the system's 6 h cap, **possibly within the first night** if waiting time counts toward the cap (the matrix settles this); after that it waits for an app open |
   | charging overnight | the same 90 min cap |
 
   The table is the honest statement; the release notes say no more than it.
@@ -713,7 +715,11 @@ There is a host case for it.
     never disabled, apart from while a pass is live. `onRebuildAnalysis` **cancels and joins** the automatic job
     (a new AppGraph call) before `clearAnalysis`. AG takes a generation token at job start and passes it to
     `stageMetadataVectors` / `ensureMetadataVectors` and `AnalysisRun`; `clearAnalysis` bumps `generation`, and a call
-    with a stale token installs nothing. So no old job installs rows after the clear. Host and G-f cases:
+    with a stale token installs nothing. That overrides ENG:350-356 (text for a non-current chunk), which is
+    unreachable after cancel-and-join, and it is a listed G-f exclusion. A job with a stale token **aborts as not
+    complete** (its own cancellation; `stopReason` is unchanged). Rebuild's `finally` relaunch bypasses the dedup, as
+    `force = true` does today (App.kt:1854). So no old job installs rows after the clear, and no stale job can latch
+    `complete`. Host and G-f cases:
     - a restore OOM, then Rebuild (after the confirmation), then the pass runs;
     - a restore that fails, then heals on a press, then the `force` Retry resumes with nothing deleted;
     - Rebuild during a gated relaunch's metadata pass.
@@ -779,8 +785,18 @@ There is a host case for it.
     - a shade tap while resumed;
     - a cold start with the extra;
     - a config change while paused.
-- **Cooling hysteresis.** Row 3's "for 2 min" is measured with `elapsedRealtime` between events, never with a `delay`. A night-time row-6 wait ends with the screen turning on (row 4) or with the budget
-  refilling, and then it resumes.
+- **Leaving a wait.**
+  - **Hysteresis.** Row 3's "for 2 min" is measured with `elapsedRealtime`.
+  - **Missing headroom.** In the exit test a NaN headroom counts as satisfied. The test then falls back to status
+    alone, or to battery temperature when status is NONE.
+  - **Re-checking.** While a wait row holds, the table is re-evaluated on a 60 s `Handler`/`delay` tick (harmless if
+    the CPU suspends it, because it fires on wake), on ON_START, on screen-on, and when the cool condition first
+    holds. That tick also notices row 6's budget refill. A night-time row-6 wait ends with the screen turning on
+    (row 4) or with the refill, and then it resumes.
+  - **Host cases:**
+    - a status-entered heat wait with NaN headroom;
+    - headroom-only heat, cooling with no further events;
+    - a budget refill while asleep.
 - **Battery Saver slow-down** is 2e (Slice D). Slice B2 ships rows 1–6 only.
 - **Where stops take effect.** The user's Pause takes effect at the **next chunk boundary** (at most
   8 tracks), never mid-decode. `onTimeout` stays immediate.
@@ -883,13 +899,14 @@ There is a host case for it.
   Swiping the notification away does not stop the service on Android 14+. Task Manager's Stop would end the music
   too, so the Pause action is the user's way to stop analysis. Opening the app resets the 6 h cap.
 
-  Every stopped notice is plain and dismissible. Its text is localised and passed in from the run, because the
+  Every stopped notice is plain and dismissible. It is re-posted through `NotificationManager` with a non-ongoing
+  builder after `stopForeground(STOP_FOREGROUND_REMOVE)`, so it survives the service stop; B2 tests check this. Its text is localised and passed in from the run, because the
   Service has no Android string resources (NOT:125-137). On reboot it is the same: there is no
   `RECEIVE_BOOT_COMPLETED`, and adding it is the owner's call.
 
 **Failed `show()` in B1 alone:** the pass ends not complete, as an exception does today, with a log line.
 **With B2** (a background start is refused): no wake lock; analysis stops at the next chunk, and the UI shows
-"Paused: open the app to continue". Today a run starts only from composition (AG:565-580, NOT:46-58). So the real
+"Analysis continues now". ON_START restarts it silently, as the controls table says. Today a run starts only from composition (AG:565-580, NOT:46-58). So the real
 triggers are a library change while the app is in the background, and the refcount handover. The tests cover
 exactly those.
 
@@ -1969,3 +1986,34 @@ dropped as well: analysis carries on with fresh workers, as in 0.9.3, and stuck 
   - the restore retry before the gate;
   - the ungated path skips `show()` while paused.
 - **Summary and estimate** rewritten.
+
+### Round 21 (2026-11-01): two fresh reviewers on v21
+
+**Product / platform → READY (no blocking or major).** Minor findings:
+- The cooling resume can stall with no event.
+- The budget refill is noticed late.
+- The show-failed text was inconsistent.
+- Stopped notices must survive the service stop.
+- The API 35+ "not opened" window may end within the first night.
+
+**Correctness → NOT READY: 1 major, 5 minor.**
+- **Major:**
+  - A row-3 heat wait could stay stuck for the process. NaN headroom never satisfied the exit test, and nothing
+    re-checks after cooling. Since the pass stays live, an app open dedups and does not resume it.
+- **Minor:**
+  - The show-failed text.
+  - The generation token against ENG:350-356.
+  - A stale-token job latching `complete`.
+  - The envelope-refusal query false before the first refusal.
+  - Summary wording.
+
+**v22 response, all taken:**
+- NaN headroom is satisfied at exit, with a status or battery-temperature fallback.
+- A 60 s re-evaluation tick while waiting, plus ON_START, screen-on and first-cool re-checks; the same tick catches
+  the budget refill.
+- show-failed text unified.
+- The token overrides ENG:350-356 and is a listed G-f exclusion; a stale-token job aborts as not complete; Rebuild
+  bypasses the dedup.
+- The refusal query predicts from estimated size.
+- Stopped notices are re-posted as non-ongoing.
+- "Possibly within the first night" added; summary wording fixed.
