@@ -634,7 +634,7 @@ re-read on every chunk and on every system event: screen on/off, playback start/
 | 6 | screen off, not playing, budget spent | waiting; **stopped once the shared wait timer passes the row-6 bound**: 30 min on API 35+, where waiting burns the 6 h dataSync cap; 6 h on API ≤ 34, where 0.9.3 keeps its FGS up indefinitely and resumes on screen-on, so 0.9.4 is not worse | no | stays up; "Waiting: continues when the screen is on or music plays"; on the 30 min stop: "Paused at X of Y" with Continue |
 
 Rows 3 and 6 share **one wait timer**. It starts when the pass enters either row and keeps running while the pass
-moves between them. It resets only when the pass reaches a running row (4 or 5).
+moves between them. It resets only when the pass reaches a running row (4 or 5). The pass stops when the timer passes the bound of the row it is in now: 30 min in row 3, the API-dependent bound in row 6.
 
 **Rules around the table.**
 - **The 30 min bound** is measured with `elapsedRealtime` and checked at the next wake event, since no timer runs
@@ -862,7 +862,7 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
   - when the pass is done;
   - on `onTimeout` (the 6 h cap);
   - after 2 stuck threads;
-  - on table rows 1 and 2, and on the 30 min wait stop of rows 3 and 6.
+  - on table rows 1 and 2, and on the wait-bound stop of rows 3 and 6.
 
   Swiping the notification away does not stop the service on Android 14+. Task Manager's Stop would end the music
   too, so the Pause action is the user's way to stop analysis. Opening the app resets the 6 h cap.
