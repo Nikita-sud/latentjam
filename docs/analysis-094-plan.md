@@ -1,6 +1,6 @@
 # 0.9.4 track 1: library analysis, fast and reliable
 
-Status: **v19**, under adversarial review (log at the end). Nothing is implemented until the owner says go.
+Status: **v20**, under adversarial review (log at the end). Nothing is implemented until the owner says go.
 
 Scope: the on-device library analysis on Android and iOS. It covers:
 - audio decoding;
@@ -21,29 +21,29 @@ Code baseline: `dev/0.9.4` = origin/main 1730aa24, the released 0.9.3 code plus 
   move to the background.
 - **B2:** analysis keeps going with the screen off (a wake lock, capped at 90 min a day). Pauses for heat or low
   battery, honest "Waiting / Paused at X of Y" notices, and Pause / Continue buttons.
-- **C:** safer index files (directory fsync, a streaming iOS store, libraries above about 30k tracks persist, unless the device is too small to read them back, which the UI then says). SMART
+- **C:** safer index files (directory fsync, a streaming iOS store, libraries above about 30k tracks still behave as in 0.9.3; raising that limit is parked). SMART
   presses no longer wait behind a whole chunk of analysis. Fixes for hung decoders and failure handling (D1–D5).
 - **D:** iOS background tasks and Battery Saver slow-down.
 - **E:** optional speed items, each only if its measured rule passes.
 
 **The trade-off users feel.** On a cheap phone a first analysis of 10k tracks takes about 2–3 days with daily app
-opens. Without app opens it stops after the first day's share, and an app open or Continue resumes it. While the pass
+opens. On API 35+, without app opens, it stops after the first day's share (on API ≤ 34 it resumes by itself), and an app open or Continue resumes it. While the pass
 is incomplete or paused, the Map and For You regions use metadata only, as in 0.9.3.
 
 **Compared with 0.9.3:**
 - On API ≤ 34, 0.9.4 adds **no** new automatic stops. Heat, low battery and a spent budget only make it wait, and it
-  resumes on its own, as 0.9.3 does on screen-on.
-- On API 35+, 0.9.3 also loses its service at the 6 h cap. 0.9.4 stops a long screen-off wait after 30 min, and the
-  next app open or a Continue tap resumes it.
+  resumes on its own, as 0.9.3 does on screen-on. A hung file is skipped on fresh workers, as in 0.9.3.
+- On API 35+, 0.9.3 also loses its service at the 6 h cap. 0.9.4 stops after 30 min of a long screen-off wait or of
+  heat, and at low battery. The next app open or a Continue tap resumes it.
 
 **What does not change:**
-- stored vectors and their order (except D1–D6);
-- SMART's answers (except on the D1–D6 tracks);
+- stored vectors and their order (except D1–D5);
+- SMART's answers (except on the D1–D5 tracks);
 - the model;
 - the Map's behaviour.
 
 **What the owner decides (§7):**
-- D1–D6;
+- D1–D5;
 - a test phone, or a test build on the S24 that reads only a test-files folder;
 - whether charging counts in the wake-lock budget;
 - the Play declaration risk;
@@ -67,7 +67,6 @@ is incomplete or paused, the Map and For You regions use metadata only, as in 0.
    | D4 | A track whose window was `Unavailable` twice is stored first from its other windows, in chunk order, as 0.9.3 does. After the pass it gets one more try. If that succeeds, its row is upserted in place with the full 3-window vector (the upsert keeps its position), which is what a clean 0.9.3 run stores | R14 |
 
    | D5 | The codec cap and the back-off (§4 1c) let some windows succeed that 0.9.3 would leave `Unavailable`. Those tracks get the full clean-run vector, not the partial row 0.9.3 would store. G-f reports the set | R14 |
-   | D6 | Libraries above 64 MiB (about 30k tracks) are persisted: the envelope rises to 512 MiB. 0.9.3 stores nothing for them | R9 |
 
    What a user notices:
    - D1/D2: a file that is briefly unavailable or slow is analysed later instead of being marked failed for good. A
@@ -75,9 +74,8 @@ is incomplete or paused, the Map and For You regions use metadata only, as in 0.
    - D3: Retry affects only the tracks chosen.
    - D4/D5: a few more tracks get their complete vector (typically the ones hit by codec contention). Nothing else
      changes.
-   - D6: very large libraries survive a restart.
 
-   Rows may differ from a 0.9.3 run only for tracks covered by D1–D6. The tests list that set.
+   Rows may differ from a 0.9.3 run only for tracks covered by D1–D5. The tests list that set.
 
    Anything else that cannot be exact needs a tolerance declared before it is measured, plus a SMART check;
    otherwise it is dropped. The yardstick for "harmless" is a difference that already exists between the platforms:
@@ -326,6 +324,7 @@ at all, which is unverified) come before any iOS duty-cycle number is chosen.
 | 2c parallel inference | Inference is ≥ 35 % of wall time after 2-0, 2a and 1b, and peak memory fits the device-class budget |
 | `:analysis` process | At least 1 real hang on the physical phone (corpus + fuzz) after 1c, or a user report of one. It also needs a single-writer store design |
 | P10 resample/downmix | More than 5 % of wall time |
+| Battery-temperature fallback (row 3) | Battery temperature is recorded in the charging night too. 42 °C / 38 °C stay only if ≥ 42 °C covers < 10 % of charging-under-load time; otherwise 45 °C / 41 °C |
 | Thermal threshold (T, H), table row 3 | Status and headroom are recorded **with the pass running** at the chosen 2-0 arm: the Step 0 30 min runs plus one charging night. Default: T = MODERATE, H = 0.85. If MODERATE covers ≥ 10 % of charging-under-load time, then T = SEVERE, H = 0.95. Resume uses T−1 and H − 0.1 (row 3). These defaults come from one phone; on API 35+ H is taken from `getThermalHeadroomThresholds()` for status T, and iOS uses `.serious`, as the per-device check. The headroom part ships in Slice B2 (API 30+). 2e has no thresholds of its own |
 | Snapshot reuse during analysis | Owner decision |
 
@@ -350,7 +349,6 @@ physical phone. Everything else ships on the host and emulator gates.
 4. **Slice C:**
    1. 1a fixes: directory fsync, and the streaming iOS `loadRows`, writer and half migration; then the iOS
       Application Support copy (it needs the directory fsync);
-   2. the envelope (D6);
    3. 1b-0, the API split;
    4. 1b, locks and `AnalysisRun`;
    5. 2d, the text cache with single-hold installs;
@@ -382,42 +380,20 @@ tracks, at most 39 lost on a kill, as today) and fixes only what does not touch 
 - **Streaming iOS reader and writer.** POSIX `open/write/fsync/rename`, with `F_FULLFSYNC` for the base, and never
   `-[NSFileHandle writeData:]`. Today the whole snapshot is built in memory, and the read holds both NSData and a
   ByteArray (FISI:84-125).
-- **Envelope (D6).** Once both readers stream (iOS: `loadRows`, the writer and `migrateToHalves`, which today is built
-  in memory and renamed without fsync, FISI:52-73), it rises from 64 MiB to 512 MiB for the audio and text stores only, so
-  libraries above about 30k persist at all (R9). Map, imputation and energy stores keep 64 MiB. A downgrade to 0.9.3
-  treats a file over 64 MiB as absent and overwrites it, so 0.9.4's progress for that store is lost. 0.9.3 could not
-  keep such a library anyway. Above 64 MiB, where 0.9.3 stores nothing, presses (`persistForPlayback` at ENG:938-941; the seed persists at
-ENG:521-534 and 955-976) **only mark the index dirty**; the write is left to the D6 cadence. At 64 MiB and below,
-presses persist as in 0.9.3. The envelope gate also reports press latency at 40k and 100k.
+- **Envelope: unchanged (64 MiB).** Raising it was D6 in v5–v19. Every version drew new findings (size-scaled
+  cadence, per-device caps that move with free memory, iOS jetsam on restore), so it is **parked** for a later
+  release with its own design. Libraries above about 30k tracks behave as in 0.9.3.
 
-D6 uses a size-scaled cadence: a checkpoint once the unsaved work reaches
-max(32 tracks, 2 % of rows). A time trigger also fires once ≥ 32 tracks are unsaved and at least 10 min **and**
-20 × the last save's duration have passed. That keeps written bytes linear, at about 50 × the file, and keeps the
-press `mutex` wait bounded. At 64 MiB and below, the 0.9.3 cadence is unchanged. The 1a-tail rule is also evaluated
-at 30k, 50k and 100k.
+If a restore fails (an I/O error, or an OOM on Android, ENG:1371-1378), the file is never deleted. **An unreadable
+index behaves exactly as in 0.9.3**: it is not a stop reason, and the audio pass is **not gated** by the table and
+takes no wake lock while the engine reports the restore failure (a new engine query that reflects
+`audioRestoreFailed`). So every chunk fails at once with `ModelUnavailable`, and the pass sets `complete` within
+seconds, as in 0.9.3. The engine's press-time retries (`retryRestoreIfDue`, ENG:1332-1343)
+can heal it within the process; after a heal, the `force` Retry resumes analysis, as in 0.9.3. Rebuild asks first:
+"The stored analysis will be deleted, and the whole library analysed again (on a slow phone that can take days)".
+While that engine query reports the failure, the pending Retry-ids latch is not consumed.
 
-The envelope is gated by G-c, which reports written bytes and the `mutex` p95, with synthetic 40k and 100k indexes on LJ-api24 (48 MB heap) and on a 96 MB
-emulator.
-
-The envelope gate reloads the 40k and 100k files on the 48 MB emulator. If a reload runs out of memory there, a
-**per-device cap** is declared, from heap class and `MemoryInfo`, so a device never writes a file it cannot read
-back.
-
-If a restore runs out of memory on Android, the existing `IndexRestoreFailure` path runs (ENG:1371-1378): the file is
-never deleted. **An unreadable index behaves exactly as in 0.9.3**: it is not a stop reason, so the pass runs to
-`complete` with `ModelUnavailable` failures. The engine's press-time retries (`retryRestoreIfDue`, ENG:1332-1343)
-can heal it within the process. The `force` Retry and Rebuild work as in 0.9.3, and Rebuild asks first: "the stored
-analysis will be deleted". While `audioRestoreFailed` is set, the pending Retry-ids latch is not consumed.
-
-**iOS:** an out-of-memory error there is an uncatchable jetsam kill. So:
-- the 40k/100k reload gate also runs on the smallest supported iPhone class, and an iOS cap is declared from
-  `os_proc_available_memory`;
-- a "restore in progress" marker is written before the load. If it is still present at the next launch, the store
-  counts as unreadable for that session without being read, so a launch crash loop is impossible.
-
-A capped device tells the user "This library is too large to keep on this device", and re-analyses at launch as
-0.9.3 does above 64 MiB.
-- **Presses persist as in 0.9.3 at ≤ 64 MiB** (above it, see D6). `retryFailedTracks` persists before it returns.
+- **Presses persist as in 0.9.3.** `retryFailedTracks` persists before it returns.
 - **`.retry` sidecar** for D2 attempt state (see 1d). It is not part of the snapshot format.
 
 **1a-tail (conditional).** Built only if Step 0 shows, at 10k on the physical phone, one of:
@@ -482,10 +458,10 @@ If built, it must meet every requirement the review found. Each one has a G-e ca
     it. **On the press path**, BUSY waits at most
     one model-run bound. After that the seed embed fails as transient (it is not remembered), and the press takes its
     existing no-audio-seed fallback, so a press never waits unbounded while it holds `mutex`. The completion signal
-    also fires when the holder is classed stuck. After that, presses skip the seed embed at once for the rest of the
-    process. G-f case: a press during an analysis BUSY. Only the call that held the lock can be
-    classed stuck, and when the lock holder is classed stuck, analysis pauses **at once** (one is enough on iOS),
-    so BUSY can never loop. G-f has this case.
+    also fires when the holder is classed stuck. G-f case: a press during an analysis BUSY. Only the call that held the lock can be
+    classed stuck. When the lock holder is classed stuck, the provider opens **one fresh session** for the rest of
+    the process, so BUSY can never loop. A second stuck holder makes presses skip the seed embed, and analysis
+    tracks fail as transient for that process. G-f has this case.
   - Every handle has an explicit `release(handle)`. Cancel and abandon release in the completion path, so a late
     `decodeTrack` never strands about 3.8 MB of native buffers. The fault suite checks for leaks.
 - **Android:** `embed` = the same calls in sequence, with the same arithmetic.
@@ -593,8 +569,9 @@ paired with the new vector (ENG:672-679).
   hold or in `await`'s catch (DL:96). A worker still busy after that is abandoned and counts as possibly
   stuck.
 - **No cross-thread `codec.release()`.** MediaCodec is not thread-safe, and most hang sites are outside the codec.
-- **Stuck:** a thread still alive 30 s after abandonment. After 2 stuck threads, analysis pauses with a visible reason,
-  and the pause lifts at the next cold start. A track whose worker became stuck is remembered as Broken (D1). This
+- **Stuck:** a thread still alive 30 s after abandonment. Analysis **carries on with fresh workers, as in 0.9.3**
+  (TrackDeadline.kt:34-35, 158); there is no stuck pause. A track whose worker became stuck is remembered as Broken
+  (D1). This
   happens through a `mutex` install that re-checks the identity, followed by a persist.
 - **Codec cap:** the analysis gets `workers` codecs, or `min(workers, 2)` while playback is active, plus **one extra
   slot for the seed lane**. One-worker devices therefore keep 1 analysis codec and 1 seed codec. Stuck or abandoned codecs
@@ -605,8 +582,11 @@ paired with the new vector (ENG:672-679).
   `CodecException` / `InsufficientResource`, and also the IOException or RuntimeException that
   `createByCodecName` usually throws on exhaustion (DEC:79-95, 284). Only then is the window returned `Unavailable`.
   It never counts as a D2 attempt.
-- **iOS:** a cancellation flag is checked between windows, and late results are dropped. A native call still running
-  30 s after its budget ran out counts as stuck: Broken, and counted toward the 2-stuck pause.
+- **iOS:** a cancellation flag is checked between windows, and late results are dropped. A native call counts as
+  stuck only after 30 s of **foreground running time** past its budget. The time is counted by a watchdog that
+  advances only while the app is active, and it is gated by the same transition and background signals as
+  `timeoutUnlessSuspended` (DL:45-67). So a suspension is never classed stuck. G-f case: suspend mid-call, then
+  resume.
 - **Back-off:** the sleep counts toward the 90 s budget, as every wait does.
 
 ### 1d. Failure classes (D1–D5)
@@ -651,8 +631,8 @@ re-read on every chunk and on every system event: screen on/off, playback start/
 | 6 | screen off, not playing, budget spent | waiting. **API 35+:** stopped once the wait timer passes 30 min, because waiting burns the 6 h dataSync cap. **API ≤ 34: unbounded**, as in 0.9.3, whose FGS stays up and resumes on any screen-on | no | stays up; "Waiting: continues when the screen is on or music plays"; on the wait-bound stop: "Paused at X of Y" with Continue |
 
 **Wait timers.**
-- **API ≤ 34:** no wait row is bounded. The only stops are user, stuck, exception, `onTimeout`-free completion and
-  show-failed, so 0.9.4 never stops where 0.9.3 would keep going.
+- **API ≤ 34:** no wait row is bounded. The only stops are the user's Pause, an exception and show-failed, which 0.9.3
+  also ends on. So 0.9.4 never stops where 0.9.3 would keep going.
 - **Row 3 on API 35+** stops after 30 min of wait time accumulated **in row 3**, counted since the last running row
   (4 or 5), and only while row 4 or 5 would otherwise match. Heat while row 6 would hold anyway is governed by
   row 6.
@@ -723,18 +703,19 @@ re-read on every chunk and on every system event: screen on/off, playback start/
     only `complete` is reset. The audio pass is still gated by the table (`userPaused`).
     Host/G-f cases: Retry after `complete` re-analyses the chosen ids; Retry mid-pass covers ids already visited.
   - **`stopReason`.** It is persisted with the stopped pass: user, battery (API 35+), wait-bound (API 35+),
-    timeout-6h, show-failed, stuck, exception. An unreadable index is **not** a stop reason (see 1a).
+    timeout-6h, show-failed, exception. An unreadable index is **not** a stop reason (see 1a).
   - **What the restart rules decide.** They decide only whether the **audio pass** may run. Every explicit call
     (Retry, Continue, Rebuild), and every ON_START with a changed key, always relaunches steps 1–3 and Retry's
     failure clear. Host case: Retry while user-paused, answered "no". The failures are cleared, the tracks count as
     missing, no audio pass runs, `stopReason` stays user, and Continue is still shown.
   - **Rebuild** is its own kind of call (App.kt:4594: `clearAnalysis`, then a relaunch). It clears `userPaused` and
     the persisted `stopReason`, then relaunches like Continue. The Rebuild row shows in every non-live state. It is
-    disabled, with the reason, only for **stuck**. Host cases:
+    never disabled, apart from while a pass is live. `onRebuildAnalysis` **cancels and joins** the automatic job
+    (a new AppGraph call) before `clearAnalysis`, and `clearAnalysis` bumps `generation`, which `ensureMetadataVectors`
+    and `AnalysisRun` check. So no old job installs rows after the clear. Host and G-f cases:
     - a restore OOM, then Rebuild (after the confirmation), then the pass runs;
-    - a restore that fails, then heals on a press, then ON_START resumes with nothing deleted.
-  - **Stuck is process-scoped.** It is dropped at process start, so a persisted value can never block analysis for
-    good.
+    - a restore that fails, then heals on a press, then the `force` Retry resumes with nothing deleted;
+    - Rebuild during a gated relaunch's metadata pass.
   - **Pending Retry ids** are a persisted latch, like Continue's. Any pass consumes them at AG:609's position, and
     they are cleared only after `retryFailedTracks` returns, so a cancel during `initialize` never loses them.
     "Retry + Continue" (the "yes" answer) is **one** call. G-f case: Retry, then Continue inside the `initialize`
@@ -765,8 +746,8 @@ re-read on every chunk and on every system event: screen on/off, playback start/
       - show-failed, wait-bound, timeout-6h and battery.
 
       The live table still applies afterwards, so row 2 can stop it again with a visible notice. Retry leaves
-      `userPaused` alone and asks "Continue analysis too?". For stuck, Retry is disabled and shows the reason.
-    - **Continue restarts every reason** except stuck, user included. It clears `userPaused` and
+      `userPaused` alone and asks "Continue analysis too?".
+    - **Continue restarts every reason**, user included. It clears `userPaused` and
       arms row 2's 10 % threshold.
     - A same-key relaunch carries over `metadataReady`, `done`, `running = false`, `phase`, `stopReason` and
       `failures`, and shows the paused state until the gate passes. So steps 1–3 never flash a busy bar, disable
@@ -837,7 +818,6 @@ re-read on every chunk and on every system event: screen on/off, playback start/
     | stopped: user | "Paused by you: N tracks waiting" | **Continue**; Retry if failures exist (asks "Continue analysis too?"); Rebuild |
     | stopped: battery / wait-bound / timeout-6h / show-failed | "Paused at X of Y", with the reason ("open the app to continue" for show-failed) | **Continue**; Retry if failures exist; Rebuild |
     | stopped: exception | "Analysis stopped" | **Retry** (restarts and resets the backoff); Rebuild |
-    | stopped: stuck | the reason, and "restart the app" | Retry and Rebuild disabled, with the reason |
     | engine Failed or uninitialised | as in 0.9.3 | the 0.9.3 `force` recovery Retry |
     | complete, with failures | as in 0.9.3 | Retry (D3, for the listed failures) |
 
@@ -845,7 +825,7 @@ re-read on every chunk and on every system event: screen on/off, playback start/
     as "Retry". There are host UI tests for each row and for Rebuild in each stopped row.
 
     **iOS.** The controls live in commonMain, so iOS gets in-app Pause and Continue through the common `userPaused`
-    gate. Before Slice D, the stop reasons that exist on iOS are user, exception and stuck. The host
+    gate. Before Slice D, the stop reasons that exist on iOS are user and exception. The host
     UI tests cover them.
 - **Stopped notices** are best-effort. On API 33+ without `POST_NOTIFICATIONS` they are not shown, so the in-app
   state is the source of truth. This is tested with the permission denied.
@@ -900,7 +880,6 @@ re-read on every chunk and on every system event: screen on/off, playback start/
 - **Stopping for good:**
   - when the pass is done;
   - on `onTimeout` (the 6 h cap);
-  - after 2 stuck threads;
   - on table rows 1 and 2, and on the wait-bound stop of rows 3 and 6.
 
   Swiping the notification away does not stop the service on Android 14+. Task Manager's Stop would end the music
@@ -1059,7 +1038,7 @@ inference on track n. The overlap is capped in the background.
    until it exists, those parts are reported as emulator-relative and explicitly waived.
 2. Logical commits on `claude/analysis-094-939dfe`, each with tests.
 3. Step 0 numbers before and after, on the same devices.
-4. G-a … G-f pass on Android and iOS. Rows differ only on the reported D1–D6 set.
+4. G-a … G-f pass on Android and iOS. Rows differ only on the reported D1–D5 set.
 5. The fault suite passes. It covers:
    - a kill at random points, including mid-snapshot and mid-clear (and the 1a-tail cases if it is built);
    - a hung decoder (test hook);
@@ -1085,7 +1064,7 @@ Nothing is pushed, tagged or released by this session.
 
 | call | default | if no |
 |---|---|---|
-| D1–D6 (table in §0) | yes | 0.9.3 failure rules stay. Hung files remain failed for good, transient ones are retried forever, partial rows stay, and libraries over about 30k never persist |
+| D1–D5 (table in §0) | yes | 0.9.3 failure rules stay. Hung files remain failed for good, transient ones are retried forever, partial rows stay, and libraries over about 30k never persist |
 | A test phone, or a test build on the S24 reading only the corpus folder | S24, corpus folder only | 2-0 stays undecided, and emulator numbers count as relative only |
 | Wake-lock budget: charging counts | yes, on every channel | If charging is free: first analysis finishes in one night on charge, but this relies on the one Google page that excludes charging, and it risks the store listing if that page is wrong |
 | Play declaration (affects Play tracks only; F-Droid, GitHub and AltStore are unaffected) | **default: keep 0.9.3's automatic start.** Risk: Play may reject the `dataSync` declaration or an update, because "Local processing: Other" requires user-initiated work (answer 13392821). 0.9.4's wake lock adds time under the same declaration but does not change the question. The owner says whether 0.9.3's declaration was accepted for the closed test | The alternative is a separate, reviewed first-run consent design |
@@ -1914,3 +1893,40 @@ built, it must meet requirements 1–8, which carry every store finding from rou
 - A gated relaunch carries `running = false`, phase, `stopReason` and failures.
 - The press wording is qualified.
 - Visible states point to the controls table; the summary lists all owner calls.
+
+### Round 19 (2026-11-01): two fresh reviewers on v19 → NOT READY (no blocking findings)
+
+**Product / platform: 2 major, 5 minor.**
+- **Major:**
+  - The 2-stuck pause is a new automatic stop on every API level, which made the summary's claim false.
+  - On iOS, a suspension could be classed as stuck.
+- **Minor:**
+  - The summary and estimate wording by API level.
+  - Unstable envelope-cap inputs.
+  - The iOS restore marker's scope.
+  - No rule for the 42 °C fallback.
+  - The Rebuild confirmation did not state its cost.
+
+**Correctness: 3 major, 3 minor.**
+- **Major:**
+  - A cap that moves with free memory can overwrite a good index: an over-limit file reads as absent (FIS:190,
+    205-208).
+  - The iOS restore marker still leaves a crash path or a dead pass.
+  - Rebuild could run during a relaunch's steps 1–3 and interleave text rows (ENG:833-850 has no generation check).
+- **Minor:**
+  - The unreadable index was still gated by the table.
+  - The latch rule named a private field.
+  - A host case contradicted 0.9.3's dedup.
+
+**v20 decision:** most of the remaining defects sit in the D6 envelope raise (caps, iOS jetsam, size-scaled
+cadence), so **D6 is parked**. The 64 MiB envelope and libraries above ~30k stay as in 0.9.3. The stuck pause is
+dropped as well: analysis carries on with fresh workers, as in 0.9.3, and stuck tracks are Broken (D1).
+
+**Also taken:**
+- iOS stuck is counted on foreground running time; a stuck lock holder gets one fresh session.
+- An unreadable index is ungated, with no wake lock, via a new engine query, which also gates the latch.
+- Rebuild cancels and joins the job, and `clearAnalysis` bumps `generation`.
+- The host case rewritten to "force Retry resumes".
+- Summary wording per API level.
+- The battery-temperature rule.
+- The Rebuild cost stated.
