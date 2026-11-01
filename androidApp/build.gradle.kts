@@ -32,6 +32,16 @@ val abiVersionDigits = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2, "x86" to 3, "
 require(fdroidAbi == null || (fdroidBuild && fdroidAbi in abiVersionDigits)) {
     "latentjam.fdroidAbi needs latentjam.fdroid=true and one of ${abiVersionDigits.keys}"
 }
+// `-Platentjam.unsigned=true`: a release build with no signature at all — what tools/release/build.sh builds for
+// GitHub and Play, signed afterwards (CI behind the owner's approval, or locally with an interactive password).
+// Without it a plain release build is signed with the host's debug key.
+val unsignedRequested = providers.gradleProperty("latentjam.unsigned").orNull == "true"
+// `-Platentjam.bundle=true`: ABI splits off, as `bundleRelease` needs (Google Play splits by ABI itself).
+// `latentjam.playSigning=true` implies it.
+val bundleRequested = providers.gradleProperty("latentjam.bundle").orNull == "true" || playSigningRequested
+require(!(unsignedRequested && playSigningRequested)) {
+    "latentjam.unsigned and latentjam.playSigning exclude each other"
+}
 val uploadKeystore: Properties? = rootProject.file("keystore.properties")
     .takeIf { it.isFile }
     ?.let { file -> Properties().apply { file.inputStream().use(::load) } }
@@ -101,7 +111,7 @@ android {
             // for it — `bundleRelease -Platentjam.playSigning=true` — uses the upload key.
             signingConfig = when {
                 playSigningRequested -> signingConfigs.getByName("upload")
-                fdroidBuild -> null
+                fdroidBuild || unsignedRequested -> null
                 else -> signingConfigs.getByName("debug")
             }
         }
@@ -122,8 +132,8 @@ android {
     // architecture. No universal APK on purpose — shipping it would quietly re-bloat the release
     // download. Splits apply to every build type, so x86_64 stays in the list for Intel-hosted
     // emulators — the release upload simply never includes that file. A Play bundle splits by
-    // ABI on Google's side and AGP refuses to build one while these splits are on, so the
-    // Play-signed build turns them off.
+    // ABI on Google's side and AGP refuses to build one while these splits are on, so a bundle
+    // build (latentjam.bundle, or latentjam.playSigning) turns them off.
     packaging {
         // F-Droid serves one universal APK, so its download size matters more than the
         // install-time extraction that compressed native libraries cost. The other channels
@@ -149,7 +159,7 @@ android {
 
     splits {
         abi {
-            isEnable = !playSigningRequested && (!fdroidBuild || fdroidAbi != null)
+            isEnable = !bundleRequested && (!fdroidBuild || fdroidAbi != null)
             reset()
             if (fdroidAbi != null) include(fdroidAbi) else include("arm64-v8a", "armeabi-v7a", "x86_64")
             isUniversalApk = false

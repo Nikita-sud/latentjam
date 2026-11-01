@@ -88,7 +88,7 @@ reduced_ort_repo() {
 }
 
 gradle_release() {
-  (cd "$ROOT" && run ./gradlew "$@" -Platentjam.unsigned=true)
+  (cd "$ROOT" && ANDROID_HOME=$(sdk_root) run ./gradlew "$@" -Platentjam.unsigned=true)
 }
 
 cmd_android() {
