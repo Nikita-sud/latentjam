@@ -1,6 +1,6 @@
 # 0.9.4 track 1: library analysis, fast and reliable
 
-Status: **v16**, under adversarial review (log at the end). Nothing is implemented until the owner says go.
+Status: **v17**, under adversarial review (log at the end). Nothing is implemented until the owner says go.
 
 Scope: the on-device library analysis on Android and iOS. It covers:
 - audio decoding;
@@ -30,8 +30,16 @@ Code baseline: `dev/0.9.4` = origin/main 1730aa24, the released 0.9.3 code plus 
 opens. Without app opens it stops after the first day's share, and an app open or Continue resumes it. While the pass
 is incomplete or paused, the Map and For You regions use metadata only, as in 0.9.3.
 
-**What does not change:** stored vectors and their order (except D1–D6), SMART's answers, the model, and the Map's
-behaviour.
+**Compared with 0.9.3:**
+- On API ≤ 34 the foreground service can still wait for hours and resume on screen-on, as in 0.9.3.
+- On API 35+, 0.9.3 also loses its service at the 6 h cap. 0.9.4 stops a long screen-off wait after 30 min, and the
+  next app open or a Continue tap resumes it.
+
+**What does not change:**
+- stored vectors and their order (except D1–D6);
+- SMART's answers (except on the D1–D6 tracks);
+- the model;
+- the Map's behaviour.
 
 **What the owner decides (§7):**
 - D1–D6;
@@ -623,7 +631,7 @@ re-read on every chunk and on every system event: screen on/off, playback start/
 | 3 | too hot: thermal status ≥ T, or headroom > H (API 30+; read on every table event and chunk, at most once per second; NaN = no signal), or battery temperature ≥ 42 °C (API 24–28, `ACTION_BATTERY_CHANGED`) | waiting; **stopped once the shared wait timer passes 30 min** | no | stays up; "Waiting: continues when cooler"; resumes after status ≤ T−1 **and** headroom < H − 0.1 (or < 38 °C) for 2 min; on the 30 min stop: "Paused at X of Y" with Continue |
 | 4 | screen on, or playing | runs | no (the CPU is awake anyway) | up; progress |
 | 5 | screen off, not playing, budget left | runs | **yes**: 5 min timeout, renewed per track | up; progress |
-| 6 | screen off, not playing, budget spent | waiting; **stopped once the shared wait timer passes 30 min** | no | stays up; "Waiting: continues when the screen is on or music plays"; on the 30 min stop: "Paused at X of Y" with Continue |
+| 6 | screen off, not playing, budget spent | waiting; **stopped once the shared wait timer passes the row-6 bound**: 30 min on API 35+, where waiting burns the 6 h dataSync cap; 6 h on API ≤ 34, where 0.9.3 keeps its FGS up indefinitely and resumes on screen-on, so 0.9.4 is not worse | no | stays up; "Waiting: continues when the screen is on or music plays"; on the 30 min stop: "Paused at X of Y" with Continue |
 
 Rows 3 and 6 share **one wait timer**. It starts when the pass enters either row and keeps running while the pass
 moves between them. It resets only when the pass reaches a running row (4 or 5).
@@ -631,8 +639,9 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
 **Rules around the table.**
 - **The 30 min bound** is measured with `elapsedRealtime` and checked at the next wake event, since no timer runs
   while the CPU sleeps. A stale "Waiting" notice during sleep is accepted. Waiting time counts toward the 6 h
-  dataSync cap. The matrix tests whether a short wait spent asleep counts too. If it does, row 6 stops at once
-  instead of waiting.
+  dataSync cap. The matrix tests whether a short wait spent asleep counts too; if it does, row 6 stops at once on
+  API 35+. The matrix also records which event first arrives after 30 min of screen-off: `ACTION_BATTERY_CHANGED`
+  and the thermal listener fire during sleep, so on API 35+ a night wait most likely stops before morning.
 - **No ETA** while waiting, and no frozen progress claim.
 - **Taps.**
   - **Continue** is an **activity** `PendingIntent`. It opens the app and clears `userPaused`, and the restart trigger
@@ -679,17 +688,25 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
     existing rows. So deleted tracks lose their rows and new tracks get text rows while paused. The check lives
     inside `ensureAutomaticIndexing`, so a configuration-change re-fire cannot bypass it. A gated or stopped pass
     never sets `complete = true`.
-  - **Retry** (D3) runs the clear for the chosen ids inside the relaunched pass, right after `initialize()`, as 0.9.3
-    does at AG:609. So it also works while the engine is still Initializing. `retryFailedTracks` returns 0 when the
+  - **Retry** (D3) runs the clear for the chosen ids inside the relaunched pass, after `synchronizeLibrary`, at
+    AG:609's position. So it also works while the engine was still Initializing. `retryFailedTracks` returns 0 when the
     engine is not Ready (ENG:375-377). It then calls
     `ensureAutomaticIndexing(rerun = true)`. `rerun` is a new relaunch flag, separate from today's retry-all `force`
     (AG:609). It relaunches even a `complete` pass, and a pass that is mid-way restarts its audio pass so that
     already-visited chunks are covered. Like 0.9.3's `force`, it resets `complete` and `metadataReady` for the new
     run, so the map regions are metadata-only until the run completes again. That is the same as 0.9.3, not a
-    regression. The audio pass is still gated by the table (`userPaused`).
+    regression. One exception: when the pass stays user-paused after the Retry, `metadataReady` is carried over and
+    only `complete` is reset. The audio pass is still gated by the table (`userPaused`).
     Host/G-f cases: Retry after `complete` re-analyses the chosen ids; Retry mid-pass covers ids already visited.
   - **`stopReason`.** It is persisted with the stopped pass: user, battery, wait-30, timeout-6h, show-failed, stuck,
     restore-blocked, exception.
+  - **What the restart rules decide.** They decide only whether the **audio pass** may run. Every explicit call
+    (Retry, Continue, Rebuild), and every ON_START with a changed key, always relaunches steps 1–3 and Retry's
+    failure clear. Host case: Retry while user-paused, answered "no". The failures are cleared, the tracks count as
+    missing, no audio pass runs, `stopReason` stays user, and Continue is still shown.
+  - **Rebuild** is its own kind of call (App.kt:4594: `clearAnalysis`, then a relaunch). It clears `userPaused` and
+    the persisted `stopReason`, then relaunches like Continue. For stuck and restore-blocked it is disabled, with the
+    reason shown.
   - **Restart triggers:**
     1. ON_START, which is automatic;
     2. **Continue.** It first writes **persisted state**, synchronously, while the intent or tap is handled: it clears
@@ -770,21 +787,27 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
   - When the pass enters a waiting or pausing phase, `etaMinutes` is set to null, and the wait is left out of the
     ETA pace. MapTab.kt:1645-1650 and SettingsScreens.kt:1984-1995 show the phase text instead of "X of Y · ETA".
   - **Controls per state** (Settings → Intelligence; the Map's "Stopped" help at MapTab.kt:272/1690 follows the same
-    rules). The callers of `retryAutomaticIndexing` are SettingsScreens.kt:2019 and 2244 and MapTab.kt:272/1690.
+    rules). The callers of `retryAutomaticIndexing` are App.kt:2731 (Map), 4583 (Settings) and 4594 (Rebuild). The
+    buttons that reach them are SettingsScreens.kt:2019, 2145 and 2244 and MapTab.kt:272/1694. The Problems page's
+    indeterminate bar (SettingsScreens.kt:2233-2236) shows the phase text while waiting.
 
     | state | shown | controls |
     |---|---|---|
     | running | progress, ETA | **Pause** |
     | waiting (hot / screen) or pausing | phase text, no ETA | **Pause** (waiting); Retry and Rebuild disabled, as for any live pass in 0.9.3 |
     | stopped: user | "Paused by you: N tracks waiting" | **Continue**; Retry if failures exist (asks "Continue analysis too?") |
-    | stopped: battery / wait-30 / timeout-6h / open-app | "Paused at X of Y", with the reason | **Continue**; Retry if failures exist |
+    | stopped: battery / wait-30 / timeout-6h / show-failed | "Paused at X of Y", with the reason ("open the app to continue" for show-failed) | **Continue**; Retry if failures exist; Rebuild |
     | stopped: exception | "Analysis stopped" | **Retry** (restarts and resets the backoff) |
-    | stopped: stuck / restore-blocked | the reason, and "restart the app" | Retry disabled, with the reason |
+    | stopped: stuck / restore-blocked | the reason, and "restart the app" | Retry and Rebuild disabled, with the reason |
     | engine Failed or uninitialised | as in 0.9.3 | the 0.9.3 `force` recovery Retry |
     | complete, with failures | as in 0.9.3 | Retry (D3, for the listed failures) |
 
     `needsRecovery` (SettingsScreens.kt:2009-2024) leaves out the table-stopped reasons, so Continue is never shown
-    as "Retry". **Rebuild** is an explicit user action: it clears `userPaused`. There are host UI tests for each row.
+    as "Retry". There are host UI tests for each row and for Rebuild in each stopped row.
+
+    **iOS.** The controls live in commonMain, so iOS gets in-app Pause and Continue through the common `userPaused`
+    gate. Before Slice D, the stop reasons that exist on iOS are user, exception, stuck and restore-blocked. The host
+    UI tests cover them.
 - **Stopped notices** are best-effort. On API 33+ without `POST_NOTIFICATIONS` they are not shown, so the in-app
   state is the source of truth. This is tested with the permission denied.
 - **Map readiness: unchanged from 0.9.3.** `libraryWorlds.audioVectorsReady` stays `complete` with a matching
@@ -811,7 +834,7 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
   map's behaviour is not changed here.
 - **`userPaused`.**
   - It is persisted, and respected at every app open.
-  - Only Continue (the notification or the UI), or a pass that finds nothing missing (above), clears it. A library change does not. An explicit Retry clears the chosen
+  - Only Continue (the notification or the UI), Rebuild, or a pass that finds nothing missing (above) clears it. A library change does not. An explicit Retry clears the chosen
     failures but leaves the pause, and asks "Continue analysis too?".
   - It also shows in the existing SMART partial-analysis hint as "Analysis paused by you: N tracks waiting", where
     its cost is felt.
@@ -1754,3 +1777,32 @@ built, it must meet requirements 1–8, which carry every store finding from rou
 - ETA is null while waiting.
 - Rebuild clears `userPaused`.
 - The trade-off is in the summary.
+
+### Round 16 (2026-11-01): two fresh reviewers on v16 (the first launch was on unchanged text and was stopped)
+
+**Product / platform → READY (no blocking or major).** Minor findings:
+- Rebuild is a caller of its own.
+- The Problems page shows a busy bar while waiting.
+- The iOS scope of the controls was not stated.
+- Retry while paused reset `metadataReady`.
+- Honesty about the night wait, the 0.9.3 comparison, and "SMART's answers".
+
+**Correctness → NOT READY: 2 major, 3 minor.**
+- **Major:**
+  - Rebuild (App.kt:4594) was an unlisted caller with no call kind.
+  - Retry while user-paused did nothing, because the restart rules looked as if they gated the whole relaunch.
+- **Minor:**
+  - Rebuild versus the `userPaused` rule.
+  - "open-app" versus show-failed.
+  - Where the Retry clear runs (after `synchronizeLibrary`, at AG:609).
+
+**v17 response, all taken:**
+- The restart rules decide only the audio pass. Explicit calls always relaunch steps 1–3 and the clear.
+- Rebuild is its own kind: it clears `userPaused` and `stopReason`, and is disabled for stuck and restore-blocked.
+- Callers named (App.kt:2731, 4583, 4594).
+- Retry while paused carries `metadataReady` over.
+- The Problems bar shows the phase text.
+- iOS controls scope stated.
+- **Row-6 bound by API level:** 30 min on 35+, 6 h on ≤ 34, so 0.9.4 is never worse than 0.9.3's endless FGS.
+- Matrix records the first event after 30 min.
+- Summary gains the 0.9.3 comparison and qualifies "SMART's answers".
