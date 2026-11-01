@@ -1,6 +1,6 @@
 # 0.9.4 track 1: library analysis, fast and reliable
 
-Status: **v11**, under adversarial review (log at the end). Nothing is implemented until the owner says go.
+Status: **v12**, under adversarial review (log at the end). Nothing is implemented until the owner says go.
 
 Scope: the on-device library analysis on Android and iOS. It covers:
 - audio decoding;
@@ -288,6 +288,7 @@ at all, which is unverified) come before any iOS duty-cycle number is chosen.
 | 2c parallel inference | Inference is ≥ 35 % of wall time after 2-0, 2a and 1b, and peak memory fits the device-class budget |
 | `:analysis` process | At least 1 real hang on the physical phone (corpus + fuzz) after 1c, or a user report of one. It also needs a single-writer store design |
 | P10 resample/downmix | More than 5 % of wall time |
+| Row 2 thermal threshold | Thermal status is recorded through the Step 0 30 min runs and a charging night. MODERATE stays the threshold only if it occurs in < 10 % of ordinary charging time; otherwise the threshold is SEVERE, plus headroom > 0.95 |
 | Snapshot reuse during analysis | Owner decision |
 
 The geometric cadence of v3 is **dropped**: it made the kill-loss window worse than 0.9.3. The 0.9.3 cadence stays,
@@ -301,8 +302,8 @@ physical phone. Everything else ships on the host and emulator gates.
 1. **Slice A.** The Step 0 minimum set (the † parts as soon as the phone exists), the platform matrix, and G-a, G-c,
    G-d. G-b, G-e and G-f each come just before the items they gate.
 2. **Slice B, quick wins:**
-   - 1e-min: the state table (rows 0–6), the budget, the FGS race fix, notify-only progress, the explicit type, a
-     non-fatal `show()`, Pause and Continue, the first-run consent if the owner agrees;
+   - 1e-min: the state table (rows 1–6), the budget, the FGS race fix, notify-only progress, the explicit type, a
+     non-fatal `show()`, Pause and Continue;
    - 2-0 †, if its rule passes;
    - 2a.1, the codec-list cache;
    - the visible states in the UI;
@@ -407,13 +408,16 @@ If built, it must meet every requirement the review found. Each one has a G-e ca
   On iOS, `localURL` returns at once for `file://` URIs (SW:334-336). So the mapping follows `classifyAudioDecodeError`
   (SW:171-187):
   - no-such-file, no read permission and not-readable map to SOURCE_OPEN;
-  - protected-data-unavailable, `NSFileReadUnknownError` and `NSFileReadTooLargeError` are non-attempts;
+  - `NSFileReadUnknownError` and `NSFileReadTooLargeError` are non-attempts;
+  - `UIApplication.isProtectedDataAvailable` is snapshotted around the call. If it is false, the outcome is a
+    non-attempt whatever the error code (a data-protection denial looks like EPERM);
   - the rest map to CODEC.
 - **iOS:**
   - The handle is opaque, and waveforms never cross the bridge.
   - Pooling and normalisation stay in Swift (SW:426-440).
   - Models load once, under a lock.
-  - A per-session lock covers every run, including late runs from a timed-out call. It is taken by **try-lock, in a
+  - A per-session lock covers every **model run and model load** (never a decode), including late runs from a
+    timed-out call. The late call signals its completion, and the BUSY retry waits on that signal. It is taken by **try-lock, in a
     non-timed step**. If a late call holds it, the new call returns **BUSY**, which is transient, never an attempt,
     and never stuck. The Kotlin side retries after the late call ends. Only the call that held the lock can be
     classed stuck, and when the lock holder is classed stuck, analysis pauses **at once** (one is enough on iOS),
@@ -575,7 +579,6 @@ re-read on every chunk and on every system event: screen on/off, playback start/
 
 | # | condition | pass | wake lock | FGS / notification |
 |---|---|---|---|---|
-| 0 | not consented (`consented` is false) | audio pass not started | no | no FGS; the UI shows "Analyse library" (a tap = consent + Continue) |
 | 1 | user paused (`userPaused`) | stopped | no | stopped; "Paused by you", with a Continue action |
 | 2 | too hot: thermal status ≥ MODERATE (API 29+), or battery temperature ≥ 42 °C from `ACTION_BATTERY_CHANGED` (API 24–28) | waiting; **stopped once the shared wait timer passes 30 min** | no | stays up; "Waiting: continues when cooler"; resumes after ≤ LIGHT / < 38 °C for 2 min; on the 30 min stop: "Paused at X of Y" with Continue |
 | 3 | battery ≤ 15 % and unplugged (after a Continue: ≤ 10 % for the rest of the process) | stopped | no | stopped; "Paused at X of Y (battery low)", with a Continue action |
@@ -637,14 +640,17 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
   - **Retry** (D3) calls `engine.retryFailedTracks(chosen)` directly and persists. It then calls
     `ensureAutomaticIndexing(rerun = true)`. `rerun` is a new relaunch flag, separate from today's retry-all `force`
     (AG:609). It relaunches even a `complete` pass, and a pass that is mid-way restarts its audio pass so that
-    already-visited chunks are covered. The audio pass is still gated by the table (`userPaused`, consent).
+    already-visited chunks are covered. The audio pass is still gated by the table (`userPaused`).
     Host/G-f cases: Retry after `complete` re-analyses the chosen ids; Retry mid-pass covers ids already visited.
   - **`stopReason`.** It is persisted with the stopped pass: user, battery, wait-30, timeout-6h, show-failed, stuck,
     restore-blocked, exception.
   - **Restart triggers:**
     1. ON_START, which is automatic;
-    2. **Continue**, an explicit one-shot event (`continueRequests`). It fires from the in-app button, from the
-       consent tap, and from the notification extra in `onCreate`/`onNewIntent`, whatever `userPaused` was.
+    2. **Continue.** It first writes **persisted state**, synchronously, while the intent or tap is handled: it clears
+       `userPaused`, arms the 10 % flag, and sets a pending-continue latch. The event (`continueRequests`) then
+       wakes a warm process. It fires from the in-app button and from the notification extra in
+       `onCreate`/`onNewIntent`, whatever `userPaused` was. The latch is consumed once a cached key exists, so a cold
+       start or an open permission gate never loses a tap.
 
     Each re-calls `ensureAutomaticIndexing` with the cached key.
     - **ON_START restarts only:**
@@ -668,6 +674,10 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
     - a **waiting** pass stops and flushes at once;
     - a **running** pass shows "Pausing…", keeps its wake lock until the next chunk boundary (≤ 8 tracks), then
       stops and flushes.
+    - **Drain bound** (Slice C): at a stop, each in-flight look-ahead gets a segment clock from the moment the drain
+      starts, bounded by the 90 s budget. Leftovers go to the 1c watchdog (cancel, 5 s grace, abandon). The drain
+      runs outside `mutex`. The wake lock ends when the drain ends (≤ one budget). G-f case: Pause with a hung
+      look-ahead.
 
     A stale Pause that reaches a service with no pass only persists `userPaused = true`.
   - **Flush.** Entering any waiting or stopped row runs `persistPendingAnalysis` in Slice B too.
@@ -680,7 +690,7 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
   bound, never with a `delay`. A night-time row-6 wait usually ends with the screen turning on, which is row 4 and
   resumes. A charging `ACTION_BATTERY_CHANGED` that arrives after 30 min stops the pass instead. The notice and the
   estimate say "may resume, or may need Continue".
-- **Battery Saver slow-down** is 2e (Slice D). Slice B ships rows 0–6 only.
+- **Battery Saver slow-down** is 2e (Slice D). Slice B ships rows 1–6 only.
 - **Where stops take effect.** The user, battery and 30 min stops take effect at the **next chunk boundary** (at most
   8 tracks), never mid-decode. `onTimeout` stays immediate.
   - In Slice B nothing is in flight at a boundary, so no workers are abandoned.
@@ -688,11 +698,15 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
     (discarding the results), and only then cancels, so a quick Continue never meets the old codecs.
 - **Stopped notices** are best-effort. On API 33+ without `POST_NOTIFICATIONS` they are not shown, so the in-app
   state is the source of truth. This is tested with the permission denied.
-- **Consent.** `consented` is persisted and migrated once at upgrade: true if the index already holds any analysed
-  row, false otherwise. It is never re-derived. Before consent, steps 1–3 run as in 0.9.3, but the audio pass, the
-  FGS and Retry's relaunch do not start. Tests cover a fresh install, an upgrade with rows and an upgrade with zero
-  rows.
-- **Wake-lock renewal** happens on every per-track `analysing` change (ENG:305-307), which exists today.
+- **Map readiness.** `libraryWorlds.audioVectorsReady` today is `indexing.complete` (App.kt:1196-1197), and a
+  relaunch resets it (AG:574-577). While a pass is gated or stopped, it **keeps its previous value** for the process,
+  so a Retry or a new track during a pause never drops the fused map regions for hours. A running pass behaves as in
+  0.9.3. Host case: Retry on a complete library while paused, and the map tier must not drop.
+- **Map rebuild job.** While the audio pass is user-paused, `MapRebuildWorker` returns `success()` on NOT_READY
+  instead of `retry()` (MapRebuild.android.kt:56-58), and it is re-enqueued on Continue. This changes scheduling
+  only; what the map computes is unchanged.
+- **Wake-lock renewal** happens on every per-track `analysing` change (ENG:305-307), which exists today. The lock is
+  `setReferenceCounted(false)`, so renewals never stack. Budget time is recorded from acquire and release timestamps.
 - **Map rebuild job.** Its time is measured, and it counts against the same 90 min, because the blog counts job wake
   locks. The job (MapRebuild.android.kt:22-26) needs charging and device idle. It returns `Result.retry()` while
   the analysis is unfinished (:54-58), so its repeated wakes during a partial analysis are counted in Step 0. The
@@ -707,6 +721,8 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
 
 **FGS lifecycle.**
 - **Starting and stopping:**
+  - All stops use `stopSelfResult(startId)`, so a queued `startForegroundService` from a handover is never stopped
+    before its own `startForeground`.
   - `finish()`: if `startForeground` has run, stop now. Otherwise set a pending-stop flag; `onStartCommand` honours it
     by calling `startForeground(...)` first and then `stopSelf()`. Stopping before `startForeground` crashes on
     API 26+.
@@ -755,12 +771,16 @@ The wake lock is released the moment the FGS is lost.
 **Boot.** The boot permission question is moot for this FGS on API 35+, where `BOOT_COMPLETED` may not start a
 `dataSync` FGS. It only matters together with the parked WorkManager option.
 
-**Play declaration** (owner call, matrix row). Play's `dataSync` declaration ("Local processing: Other") asks for
-user-initiated work, but analysis today starts by itself. The default is the same on **every channel** (no channel
-detection exists):
-- a first-run "Analyse library" consent, which later updates follow;
-- existing 0.9.3 users who already have analysed tracks are treated as having consented;
-- `dataSync` stays.
+**Play declaration** (owner call, **outside this plan's state machine**). Play's `dataSync` declaration ("Local
+processing: Other") asks for user-initiated work that the review video shows starting from a user action (answer
+13392821), while analysis today starts by itself. This plan keeps 0.9.3's automatic start. A first-run consent
+would also need:
+- a place in the UI (the first-run flow after `AudioPermissionGate`, the Map empty state, Settings, the `NotIndexed`
+  hint);
+- an iOS scope;
+- a migration that survives restore failures.
+
+So it is its own small design with its own review round, built only if the owner wants it for Play.
 
 ### 1e-ios. Keep running, iOS (Slice D, own review round)
 
@@ -905,7 +925,7 @@ Nothing is pushed, tagged or released by this session.
 | D1–D6 (table in §0) | yes | 0.9.3 failure rules stay. Hung files remain failed for good, transient ones are retried forever, partial rows stay, and libraries over about 30k never persist |
 | A test phone, or a test build on the S24 reading only the corpus folder | S24, corpus folder only | 2-0 stays undecided, and emulator numbers count as relative only |
 | Wake-lock budget: charging counts | yes, on every channel | If charging is free: first analysis finishes in one night on charge, but this relies on the one Google page that excludes charging, and it risks the store listing if that page is wrong |
-| First-run "Analyse library" consent (every channel), with existing users treated as consented; keep `dataSync` | yes; the owner checks today's Console declaration text | Analysis keeps starting by itself, which risks Play's user-initiated requirement (Play FGS requirements, answer 13392821) |
+| Play declaration: a first-run "Analyse library" consent | not in this plan; the owner checks today's Console text and decides whether to commission a separate, reviewed consent design | Analysis keeps starting by itself as in 0.9.3, which risks Play's user-initiated requirement (answer 13392821) |
 | Per-row Retry button in the UI | yes, plus "retry these" | Only "retry these" |
 | iOS "Keep analysing in the background" action (iOS 26+) | yes | iOS analysis continues only in the foreground and in short background windows |
 | Snapshot reuse during analysis: SMART would answer from a snapshot up to one chunk old instead of rebuilding it on every press | no | (default) Presses during analysis stay slower |
@@ -1463,3 +1483,42 @@ built, it must meet requirements 1–8, which carry every store finding from rou
 - Best-effort stopped notices.
 - The `startForegroundService` marker.
 - Row 3 scoped to the process.
+
+### Round 11 (2026-11-01): two fresh reviewers on v11 → NOT READY (no blocking findings)
+
+**Product / platform: 1 major, 4 minor.**
+- **Major:**
+  - Row-0 consent had no UI place and no iOS scope, so a fresh install could stay unanalysed forever. The Map's
+    "still reading" text would be false.
+- **Minor:**
+  - A cold-start Continue is a state, not an event.
+  - Zero-row migration silently stops analysis.
+  - Map-job wakes while gated.
+  - The MODERATE thermal threshold is a guess.
+
+**Correctness: 3 major, 5 minor.**
+- **Major:**
+  - A gated relaunch drops the audio side of the map regions for hours (`audioVectorsReady = complete`).
+  - The consent migration can switch consent off after a failed restore.
+  - The look-ahead drain at a stop has no bound.
+- **Minor:**
+  - A Continue lost before anything listens.
+  - Reference-counted wake-lock renewals.
+  - The iOS try-lock scope and its completion signal.
+  - Protected-data detection.
+  - `stopSelfResult`.
+
+**v12 response:**
+- **Consent** keeps producing defects that belong to a product and policy feature, not to analysis reliability. It
+  is therefore **taken out of this plan**: 0.9.3's automatic start stays. A consent design would be separate and
+  reviewed on its own, and only on the owner's word (§7).
+- **Everything else is taken:**
+  - map readiness kept while gated or stopped;
+  - the map job returns success while user-paused;
+  - a bounded drain outside `mutex`;
+  - Continue as persisted state plus a latch;
+  - a non-reference-counted wake lock;
+  - the iOS lock only on model runs, with a completion signal;
+  - an `isProtectedDataAvailable` snapshot;
+  - `stopSelfResult`;
+  - a predeclared row-2 threshold rule.
