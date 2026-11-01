@@ -143,12 +143,14 @@ internal class IosFileIndexStoreTest {
             }
             assertEquals(snapshot.identities, loaded.identities)
             assertEquals(snapshot.failedIdentities, loaded.failedIdentities)
-            val caches = platform.Foundation.NSSearchPathForDirectoriesInDomains(
-                platform.Foundation.NSCachesDirectory,
-                platform.Foundation.NSUserDomainMask,
-                true,
-            ).first() as String
-            assertFalse(platform.Foundation.NSFileManager.defaultManager.fileExistsAtPath("$caches/$name.tmp"))
+            // Wherever the store lives (Application Support after the move, Caches before it).
+            for (kind in listOf(platform.Foundation.NSCachesDirectory, platform.Foundation.NSApplicationSupportDirectory)) {
+                val base = platform.Foundation.NSSearchPathForDirectoriesInDomains(kind, platform.Foundation.NSUserDomainMask, true)
+                    .first() as String
+                for (directory in listOf(base, "$base/smart")) {
+                    assertFalse(platform.Foundation.NSFileManager.defaultManager.fileExistsAtPath("$directory/$name.tmp"))
+                }
+            }
         } finally {
             store.clear()
         }

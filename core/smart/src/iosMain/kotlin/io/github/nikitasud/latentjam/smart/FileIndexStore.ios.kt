@@ -10,6 +10,7 @@ import kotlinx.cinterop.convert
 import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import platform.Foundation.NSApplicationSupportDirectory
 import platform.Foundation.NSCachesDirectory
 import platform.Foundation.NSData
 import platform.Foundation.NSFileManager
@@ -77,18 +78,21 @@ internal class IosFileIndexStore(
         modelVersion: String,
         snapshot: StoredIndexSnapshot,
     ): Unit = withContext(Dispatchers.Default) {
-        val path = checkNotNull(indexPath(fileName)) { "Caches directory is unavailable" }
+        val path = checkNotNull(indexPath(fileName)) { "Index directory is unavailable" }
         // Through a sibling temporary file, a full sync and a rename, so a crash or power loss cannot
         // replace a valid snapshot with a half-written one; streamed, so the snapshot is never held twice.
         writeDurably(path) { open -> writeIosIndexSnapshot(modelVersion, snapshot, half = half, open = open) }
     }
 
     override suspend fun clear(): Unit = withContext(Dispatchers.Default) {
-        val path = checkNotNull(indexPath(fileName)) { "Caches directory is unavailable" }
-        val manager = NSFileManager.defaultManager
-        if (manager.fileExistsAtPath(path)) {
-            check(manager.removeItemAtPath(path, null)) { "Could not delete $fileName" }
-            syncParentDirectory(path)
+        val path = checkNotNull(indexPath(fileName)) { "Index directory is unavailable" }
+        // The Caches copy a move left behind goes too: a downgrade after a clear must not bring the old vectors back.
+        for (copy in listOfNotNull(path, cachesTwin(fileName)?.takeIf { it != path })) {
+            val manager = NSFileManager.defaultManager
+            if (manager.fileExistsAtPath(copy)) {
+                check(manager.removeItemAtPath(copy, null)) { "Could not delete $fileName" }
+                syncParentDirectory(copy)
+            }
         }
     }
 }
@@ -137,6 +141,19 @@ private fun writeDurably(path: String, write: ((Long) -> SnapshotWriter) -> Unit
         writeFileSynced(staged) { sink ->
             write { total -> SnapshotWriter(ByteArray(WRITE_BUFFER_BYTES), expected = total, drain = sink) }
         }
+        check(platform.posix.rename(staged, path) == 0) { "Could not atomically replace ${path.substringAfterLast('/')}" }
+        syncParentDirectory(path)
+    } finally {
+        platform.posix.unlink(staged)
+    }
+}
+
+/** [writeDurably] for bytes already in hand. */
+@OptIn(ExperimentalForeignApi::class)
+private fun writeBytesDurably(path: String, bytes: ByteArray) {
+    val staged = "$path.tmp"
+    try {
+        writeFileSynced(staged) { sink -> if (bytes.isNotEmpty()) sink(bytes, bytes.size) }
         check(platform.posix.rename(staged, path) == 0) { "Could not atomically replace ${path.substringAfterLast('/')}" }
         syncParentDirectory(path)
     } finally {
@@ -199,20 +216,120 @@ internal fun isLoadableIosIndexSnapshotSize(
 
 @OptIn(ExperimentalForeignApi::class)
 private fun indexPath(fileName: String): String? {
-    val directory = NSSearchPathForDirectoriesInDomains(
-        // The index is fully regenerable, can be large, and contains listening-derived vectors.
-        // Caches is excluded from iCloud/device backup by the OS and may safely be purged.
-        NSCachesDirectory,
-        NSUserDomainMask,
-        true,
-    ).firstOrNull() as? String ?: return null
+    val directory = indexDirectory ?: return null
+    return if (directory.endsWith('/')) directory + fileName else "$directory/$fileName"
+}
+
+/** [fileName] in Caches, where builds before 0.9.4 kept it. */
+@OptIn(ExperimentalForeignApi::class)
+private fun cachesTwin(fileName: String): String? =
+    (NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, true).firstOrNull() as? String)
+        ?.let { "${it.trimEnd('/')}/$fileName" }
+
+/**
+ * Where the stores live, chosen once per process: Application Support once the one-time copy from Caches is complete,
+ * Caches until then (docs/analysis-094-plan.md 1e-ios, "Storage move"). iOS may purge Caches when the disk fills, which
+ * threw away hours of analysis; Application Support is never purged.
+ */
+@OptIn(ExperimentalForeignApi::class)
+private val indexDirectory: String? by lazy {
+    fun userDirectory(kind: platform.Foundation.NSSearchPathDirectory): String? =
+        NSSearchPathForDirectoriesInDomains(kind, NSUserDomainMask, true).firstOrNull() as? String
+    // The index is fully regenerable, can be large, and contains listening-derived vectors: Caches is left out of
+    // backups by the OS, and the Application Support copy is marked the same way.
+    val caches = userDirectory(NSCachesDirectory) ?: return@lazy null
+    val support = userDirectory(NSApplicationSupportDirectory)
+    if (support == null) {
+        ensureDirectory(caches)
+        return@lazy caches
+    }
+    resolveIndexDirectory(caches = caches, support = support)
+}
+
+/**
+ * The store directory under [support] once every store file in [caches] has been copied there, else [caches] (created
+ * if missing).
+ *
+ * The copy runs before any store is used and is complete only when its marker is written, after every file is copied
+ * through a synced `.tmp` and renamed, and the directory synced: a copy cut short by a kill or a file that cannot be
+ * read now (data protection before the first unlock) leaves no marker, so this process keeps using Caches and the next
+ * launch empties the target and copies everything again, newer Caches files included. After the marker, Caches is
+ * never read. Its files stay there until 0.9.5, so a downgrade to 0.9.3 finds its index (losing what was analysed
+ * since).
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal fun resolveIndexDirectory(caches: String, support: String): String {
+    val target = "${support.trimEnd('/')}/$INDEX_DIRECTORY_NAME"
+    val marker = "$target/$MOVED_MARKER"
+    val manager = NSFileManager.defaultManager
+    if (manager.fileExistsAtPath(marker)) return target
+    return try {
+        ensureDirectory(target)
+        excludeFromBackup(target)
+        // Whatever an earlier, cut-short copy left here is older than Caches, which that process went on writing (and
+        // clearing): it must never outlive this copy.
+        for (name in (manager.contentsOfDirectoryAtPath(target, null) ?: error("$target cannot be listed")).filterIsInstance<String>()) {
+            if (name != MOVED_MARKER) check(manager.removeItemAtPath("$target/$name", null)) { "Could not remove $name" }
+        }
+        val listed = manager.contentsOfDirectoryAtPath(caches, null)
+            ?: if (manager.fileExistsAtPath(caches)) error("Caches cannot be listed") else emptyList<Any?>()
+        val names = listed.filterIsInstance<String>().filter(::isIndexStoreFile)
+        for (name in names) {
+            val source = "${caches.trimEnd('/')}/$name"
+            // A file too large to load is a cache miss wherever it lies; it is not worth keeping Caches for.
+            val size = (manager.attributesOfItemAtPath(source, null)?.get(NSFileSize) as? NSNumber)?.longLongValue
+            if (size == null || !isLoadableIosIndexSnapshotSize(size)) continue
+            // A file that is gone or can never be read is a cache miss here, as it would be in Caches, so it does not
+            // pin the index to Caches. Anything else, data protection before the first unlock (EPERM) among it, may
+            // pass: the move waits for the next launch rather than drop a store for good.
+            val probe = platform.posix.open(source, platform.posix.O_RDONLY)
+            if (probe < 0) {
+                val code = platform.posix.errno
+                if (code in SKIPPED_OPEN_ERRORS) continue
+                error("$name cannot be opened now (errno $code)")
+            }
+            platform.posix.close(probe)
+            val bytes = readBoundedSnapshot(source) ?: error("$name could not be read whole")
+            writeBytesDurably("$target/$name", bytes)
+        }
+        writeBytesDurably(marker, ByteArray(0))
+        target
+    } catch (failure: Throwable) {
+        println("SMART: index stays in Caches for now: ${failure.message}")
+        ensureDirectory(caches)
+        caches
+    }
+}
+
+/** The files [IosFileIndexStore] writes, by the names its stores use; never a staged `.tmp` or `.half`. */
+internal fun isIndexStoreFile(name: String): Boolean =
+    name.endsWith(".bin") && INDEX_STORE_PREFIXES.any { name == "$it.bin" || name.startsWith("$it.") }
+
+private val INDEX_STORE_PREFIXES = listOf("smart_index", "smart_text_index", "map_layout", "smart_imputation", "smart_energy")
+private const val INDEX_DIRECTORY_NAME = "smart"
+private const val MOVED_MARKER = ".moved-from-caches"
+private val SKIPPED_OPEN_ERRORS = setOf(platform.posix.ENOENT, platform.posix.EACCES, platform.posix.EISDIR, platform.posix.ELOOP)
+
+@OptIn(ExperimentalForeignApi::class)
+private fun ensureDirectory(directory: String) {
     val manager = NSFileManager.defaultManager
     if (!manager.fileExistsAtPath(directory)) {
         check(manager.createDirectoryAtPath(directory, true, null, null)) {
-            "Could not create SMART cache directory"
+            "Could not create SMART index directory"
         }
     }
-    return if (directory.endsWith('/')) directory + fileName else "$directory/$fileName"
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private fun excludeFromBackup(directory: String) {
+    platform.Foundation.NSURL.fileURLWithPath(directory, isDirectory = true)
+        .setResourceValue(true, forKey = platform.Foundation.NSURLIsExcludedFromBackupKey, error = null)
+    // The default class, stated: readable in the background once the device was unlocked after boot.
+    NSFileManager.defaultManager.setAttributes(
+        mapOf(platform.Foundation.NSFileProtectionKey to platform.Foundation.NSFileProtectionCompleteUntilFirstUserAuthentication),
+        ofItemAtPath = directory,
+        error = null,
+    )
 }
 
 /** A compact portable snapshot format; every integer and float is big-endian. */
