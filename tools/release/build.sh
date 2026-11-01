@@ -83,7 +83,10 @@ reduced_ort_repo() {
     run git clone --quiet --depth 1 --branch "v$version" --recursive --shallow-submodules \
       https://github.com/microsoft/onnxruntime.git "$source" >&2
   fi
-  JOBS=${JOBS:-$(ort_jobs)} run bash "$ROOT/tools/runtime/ort_source_build.sh" "$source" "$ndk" "$sdk" "$repo" >&2
+  # Work dir and download mirror on disk, per output (two worktrees never share one); the mirror is kept.
+  local work=${LATENTJAM_ORT_WORK:-$(dirname "$repo")/work}
+  LATENTJAM_ORT_WORK=$work LATENTJAM_ORT_MIRROR=${LATENTJAM_ORT_MIRROR:-$HOME/.cache/latentjam/ort-mirror-$version} \
+    JOBS=${JOBS:-$(ort_jobs)} run bash "$ROOT/tools/runtime/ort_source_build.sh" "$source" "$ndk" "$sdk" "$repo" >&2
   echo "$repo"
 }
 

@@ -37,6 +37,9 @@
 set -euo pipefail
 
 [ $# -ge 3 ] && [ $# -le 4 ] || { sed -n '8,14p' "$0" >&2; exit 2; }
+# The 0.9.3 recipe passed a stock AAR (or "-") fourth; that argument is gone, and "-" must not become the output.
+case "${4:-}" in -|*.aar) echo "the STOCK_AAR argument is gone (tools/runtime/README.md); the 4th is OUTPUT_REPO" >&2
+  exit 2;; esac
 ORT_SOURCE=$(cd "$1" && pwd) NDK=$(cd "$2" && pwd) SDK=$3
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../.." && pwd)
@@ -55,7 +58,11 @@ JAVAC=${JAVA_HOME:+$JAVA_HOME/bin/}javac
   echo "ORT source is not the v$VERSION release the app uses" >&2; exit 2; }
 [ -f "$ORT_SOURCE/cmake/external/onnx/CMakeLists.txt" ] || {
   echo "ORT source lacks its submodules (git submodule update --init --recursive)" >&2; exit 2; }
-case "$WORK/" in "$ROOT"/*) echo "LATENTJAM_ORT_WORK must be outside the source tree" >&2; exit 2;; esac
+case "$WORK" in /*) ;; *) echo "LATENTJAM_ORT_WORK must be an absolute path" >&2; exit 2;; esac
+case "$WORK/" in "$ROOT"/*|"$ORT_SOURCE"/*) echo "LATENTJAM_ORT_WORK must be outside both source trees" >&2; exit 2;; esac
+# Ninja's output goes to these logs; print the one of a failed step.
+trap 'status=$?; [ $status = 0 ] || for log in "$WORK/protoc.log" "$WORK/jni.log"; do
+  [ -f "$log" ] && tail -n 80 "$log" >&2; done' EXIT
 
 python3 "$HERE/ort_deps_mirror.py" "$ORT_SOURCE" "$MIRROR" ${LATENTJAM_ORT_OFFLINE:+--offline}
 rm -rf "$WORK/protoc" "$WORK/native" "$WORK/java" "$WORK/jni" "$WORK/aar"
@@ -67,7 +74,8 @@ PROTOBUF_ZIP=$(find "$MIRROR" -path "*protocolbuffers/protobuf/*" -name "*.zip" 
 PROTOBUF_SRC=$(find "$WORK/protoc" -maxdepth 1 -type d -name "protobuf-*" | head -1)
 cmake -S "$PROTOBUF_SRC" -B "$WORK/protoc/build" -G Ninja -DCMAKE_BUILD_TYPE=Release -Dprotobuf_BUILD_TESTS=OFF \
   -Dprotobuf_WITH_ZLIB=OFF > "$WORK/protoc.log"
-cmake --build "$WORK/protoc/build" --target protoc >> "$WORK/protoc.log"
+rm -f "$WORK/jni.log"
+cmake --build "$WORK/protoc/build" --target protoc -j "${JOBS:-4}" >> "$WORK/protoc.log"
 
 # 2. libonnxruntime.so: the configuration build_reduced_ort.py builds (its manifest's build_command), from the
 # committed operator list, without the Java parts.
@@ -93,7 +101,7 @@ cmake -S "$HERE/onnxruntime4j_jni" -B "$WORK/jni" -G Ninja -DCMAKE_BUILD_TYPE=Re
   -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" -DANDROID_USE_LEGACY_TOOLCHAIN_FILE=OFF \
   -DANDROID_ABI="$ABI" -DANDROID_PLATFORM="$API" -DORT_SOURCE="$ORT_SOURCE" -DORT_BUILD_DIR="$WORK/native/Release" \
   -DJNI_HEADERS="$WORK/java/headers" > "$WORK/jni.log"
-cmake --build "$WORK/jni" >> "$WORK/jni.log"
+cmake --build "$WORK/jni" -j "${JOBS:-4}" >> "$WORK/jni.log"
 
 # 5. The AAR.
 STRIP=$(ls "$NDK"/toolchains/llvm/prebuilt/*/bin/llvm-strip | head -1)
