@@ -1,6 +1,6 @@
 # 0.9.4 track 1: library analysis, fast and reliable
 
-Status: **v17**, under adversarial review (log at the end). Nothing is implemented until the owner says go.
+Status: **v18**, under adversarial review (log at the end). Nothing is implemented until the owner says go.
 
 Scope: the on-device library analysis on Android and iOS. It covers:
 - audio decoding;
@@ -31,7 +31,7 @@ opens. Without app opens it stops after the first day's share, and an app open o
 is incomplete or paused, the Map and For You regions use metadata only, as in 0.9.3.
 
 **Compared with 0.9.3:**
-- On API ≤ 34 the foreground service can still wait for hours and resume on screen-on, as in 0.9.3.
+- On API ≤ 34 the foreground service waits without a limit and resumes on screen-on, as in 0.9.3.
 - On API 35+, 0.9.3 also loses its service at the 6 h cap. 0.9.4 stops a long screen-off wait after 30 min, and the
   next app open or a Continue tap resumes it.
 
@@ -397,6 +397,10 @@ at 30k, 50k and 100k.
 The envelope is gated by G-c, which reports written bytes and the `mutex` p95, with synthetic 40k and 100k indexes on LJ-api24 (48 MB heap) and on a 96 MB
 emulator.
 
+The envelope gate reloads the 40k and 100k files on the 48 MB emulator. If a reload runs out of memory there, a
+**per-device cap** is declared, from heap class and `MemoryInfo`, so a device never writes a file it cannot read
+back.
+
 If a restore runs out of memory, the existing `IndexRestoreFailure` path runs (ENG:1371-1378): the file is never
 deleted. Analysis is then blocked for that session, and the UI says so. This is still better than 0.9.3, which could
 never restore such a library.
@@ -631,10 +635,13 @@ re-read on every chunk and on every system event: screen on/off, playback start/
 | 3 | too hot: thermal status ≥ T, or headroom > H (API 30+; read on every table event and chunk, at most once per second; NaN = no signal), or battery temperature ≥ 42 °C (API 24–28, `ACTION_BATTERY_CHANGED`) | waiting; **stopped once the shared wait timer passes 30 min** | no | stays up; "Waiting: continues when cooler"; resumes after status ≤ T−1 **and** headroom < H − 0.1 (or < 38 °C) for 2 min; on the 30 min stop: "Paused at X of Y" with Continue |
 | 4 | screen on, or playing | runs | no (the CPU is awake anyway) | up; progress |
 | 5 | screen off, not playing, budget left | runs | **yes**: 5 min timeout, renewed per track | up; progress |
-| 6 | screen off, not playing, budget spent | waiting; **stopped once the shared wait timer passes the row-6 bound**: 30 min on API 35+, where waiting burns the 6 h dataSync cap; 6 h on API ≤ 34, where 0.9.3 keeps its FGS up indefinitely and resumes on screen-on, so 0.9.4 is not worse | no | stays up; "Waiting: continues when the screen is on or music plays"; on the 30 min stop: "Paused at X of Y" with Continue |
+| 6 | screen off, not playing, budget spent | waiting. **API 35+:** stopped once the wait timer passes 30 min, because waiting burns the 6 h dataSync cap. **API ≤ 34: unbounded**, as in 0.9.3, whose FGS stays up and resumes on any screen-on | no | stays up; "Waiting: continues when the screen is on or music plays"; on the wait-bound stop: "Paused at X of Y" with Continue |
 
-Rows 3 and 6 share **one wait timer**. It starts when the pass enters either row and keeps running while the pass
-moves between them. It resets only when the pass reaches a running row (4 or 5). The pass stops when the timer passes the bound of the row it is in now: 30 min in row 3, the API-dependent bound in row 6.
+**Wait timers.**
+- **Row 3** stops after 30 min of wait time accumulated **in row 3**, counted since the last running row (4 or 5).
+- **Row 6 on API 35+** stops after 30 min of total waiting in rows 3 and 6 together, counted since the last running
+  row.
+- **Row 6 on API ≤ 34** has no bound.
 
 **Rules around the table.**
 - **The 30 min bound** is measured with `elapsedRealtime` and checked at the next wake event, since no timer runs
@@ -698,15 +705,27 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
     regression. One exception: when the pass stays user-paused after the Retry, `metadataReady` is carried over and
     only `complete` is reset. The audio pass is still gated by the table (`userPaused`).
     Host/G-f cases: Retry after `complete` re-analyses the chosen ids; Retry mid-pass covers ids already visited.
-  - **`stopReason`.** It is persisted with the stopped pass: user, battery, wait-30, timeout-6h, show-failed, stuck,
+  - **`stopReason`.** It is persisted with the stopped pass: user, battery, wait-bound, timeout-6h, show-failed, stuck,
     restore-blocked, exception.
   - **What the restart rules decide.** They decide only whether the **audio pass** may run. Every explicit call
     (Retry, Continue, Rebuild), and every ON_START with a changed key, always relaunches steps 1–3 and Retry's
     failure clear. Host case: Retry while user-paused, answered "no". The failures are cleared, the tracks count as
     missing, no audio pass runs, `stopReason` stays user, and Continue is still shown.
   - **Rebuild** is its own kind of call (App.kt:4594: `clearAnalysis`, then a relaunch). It clears `userPaused` and
-    the persisted `stopReason`, then relaunches like Continue. For stuck and restore-blocked it is disabled, with the
-    reason shown.
+    the persisted `stopReason`, then relaunches like Continue. The Rebuild row shows in every non-live state. It is
+    disabled, with the reason, only for **stuck**. For restore-blocked it stays enabled, as in 0.9.3, where it is the
+    way out of an unreadable index. Host case: a restore OOM, then Rebuild, then the pass runs.
+  - **Stuck and restore-blocked are process-scoped.** They are dropped at process start, so a persisted value can
+    never block analysis for good.
+  - **Pending Retry ids** are a persisted latch, like Continue's. Any pass consumes them at AG:609's position, and
+    they are cleared only after `retryFailedTracks` returns, so a cancel during `initialize` never loses them.
+    "Retry + Continue" (the "yes" answer) is **one** call. G-f case: Retry, then Continue inside the `initialize`
+    window; the ids must still be cleared.
+  - **The failure list while gated.** A read-only engine query, under `mutex`, returns the remembered-failure map
+    exactly as phase 1 builds it, plus the D2-capped `.retry` entries. AG publishes it into `failures` whenever the
+    audio pass is gated or stopped, so the Problems page, `needsRecovery` and "Retry if failures exist" still see
+    them. Host case: a cold start while paused with remembered failures; the Problems page lists them and Retry
+    works.
   - **Restart triggers:**
     1. ON_START, which is automatic;
     2. **Continue.** It first writes **persisted state**, synchronously, while the intent or tap is handled: it clears
@@ -720,12 +739,12 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
     follow), not only these two triggers. That includes a `LaunchedEffect` re-fire
     after a MediaStore rescan.
     - **ON_START restarts only:**
-      - wait-30, timeout-6h and show-failed;
+      - wait-bound, timeout-6h and show-failed;
       - battery, when row 2 no longer matches (plugged in, or > 15 %);
       - exception, with backoff: 1 min, then 10 min, then the next cold start.
     - **Retry restarts:**
       - exception, which also resets its backoff;
-      - show-failed, wait-30, timeout-6h and battery.
+      - show-failed, wait-bound, timeout-6h and battery.
 
       The live table still applies afterwards, so row 2 can stop it again with a visible notice. Retry leaves
       `userPaused` alone and asks "Continue analysis too?". For stuck and restore-blocked, Retry is disabled and shows
@@ -753,8 +772,8 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
       runs outside `mutex`. The wake lock ends when the drain ends (≤ one budget). G-f case: Pause with a hung
       look-ahead.
 
-    A stale Pause that reaches a service with no live pass always persists `userPaused = true`; the gate above makes
-    it harmless when nothing is missing.
+    A stale Pause that reaches a service with no live pass persists `userPaused = true` only if the last pass did not
+    set `complete`.
   - **Flush.** Entering any waiting or stopped row runs `persistPendingAnalysis` in Slice B2 too.
   - **Tests.** Host and G-f cover each stop reason and each trigger. They include:
     - UI Continue;
@@ -789,16 +808,18 @@ moves between them. It resets only when the pass reaches a running row (4 or 5).
   - **Controls per state** (Settings → Intelligence; the Map's "Stopped" help at MapTab.kt:272/1690 follows the same
     rules). The callers of `retryAutomaticIndexing` are App.kt:2731 (Map), 4583 (Settings) and 4594 (Rebuild). The
     buttons that reach them are SettingsScreens.kt:2019, 2145 and 2244 and MapTab.kt:272/1694. The Problems page's
-    indeterminate bar (SettingsScreens.kt:2233-2236) shows the phase text while waiting.
+    page shows the phase text above its branches, next to the #27 stall line (SettingsScreens.kt:2232), so it
+    shows whether or not failures are listed.
 
     | state | shown | controls |
     |---|---|---|
     | running | progress, ETA | **Pause** |
     | waiting (hot / screen) or pausing | phase text, no ETA | **Pause** (waiting); Retry and Rebuild disabled, as for any live pass in 0.9.3 |
-    | stopped: user | "Paused by you: N tracks waiting" | **Continue**; Retry if failures exist (asks "Continue analysis too?") |
-    | stopped: battery / wait-30 / timeout-6h / show-failed | "Paused at X of Y", with the reason ("open the app to continue" for show-failed) | **Continue**; Retry if failures exist; Rebuild |
-    | stopped: exception | "Analysis stopped" | **Retry** (restarts and resets the backoff) |
-    | stopped: stuck / restore-blocked | the reason, and "restart the app" | Retry and Rebuild disabled, with the reason |
+    | stopped: user | "Paused by you: N tracks waiting" | **Continue**; Retry if failures exist (asks "Continue analysis too?"); Rebuild |
+    | stopped: battery / wait-bound / timeout-6h / show-failed | "Paused at X of Y", with the reason ("open the app to continue" for show-failed) | **Continue**; Retry if failures exist; Rebuild |
+    | stopped: exception | "Analysis stopped" | **Retry** (restarts and resets the backoff); Rebuild |
+    | stopped: stuck | the reason, and "restart the app" | Retry and Rebuild disabled, with the reason |
+    | stopped: restore-blocked | "The stored analysis could not be read"; when it repeats, "Rebuild analysis to start over" | **Rebuild** (as in 0.9.3, `clearAnalysis` resets the block, ENG:1246-1253); Retry disabled |
     | engine Failed or uninitialised | as in 0.9.3 | the 0.9.3 `force` recovery Retry |
     | complete, with failures | as in 0.9.3 | Retry (D3, for the listed failures) |
 
@@ -1806,3 +1827,36 @@ built, it must meet requirements 1–8, which carry every store finding from rou
 - **Row-6 bound by API level:** 30 min on 35+, 6 h on ≤ 34, so 0.9.4 is never worse than 0.9.3's endless FGS.
 - Matrix records the first event after 30 min.
 - Summary gains the 0.9.3 comparison and qualifies "SMART's answers".
+
+### Round 17 (2026-11-01): two fresh reviewers on v17 → NOT READY (no blocking findings)
+
+**Product / platform: 1 major, 4 minor.**
+- **Major:**
+  - Rebuild was disabled for restore-blocked. That removed 0.9.3's only way out of an unreadable index
+    (ENG:1246-1253), and D6 can make a restore fail every time.
+- **Minor:**
+  - Row 6 overclaimed "not worse".
+  - `wait-30` misnamed for the 6 h bound.
+  - Rebuild missing from some states.
+  - The Problems-page phase text covered only one branch.
+
+**Correctness: 3 major, 2 minor.**
+- **Major:**
+  - The failure list stays empty while the audio pass is gated, so D3 Retry and D2-capped tracks were unreachable.
+  - The 6 h bound and the shared timer made API ≤ 34 worse than 0.9.3: a heat blip after 30 min in row 6 stopped
+    the pass.
+  - Retry ids lived only in the relaunched pass and could be lost to a following relaunch (the "yes" path).
+- **Minor:**
+  - Persisted stuck and restore-blocked could block for good.
+  - A stale Pause after completion, followed by Retry.
+
+**v18 response, all taken:**
+- Rebuild stays enabled for restore-blocked and is disabled only for stuck.
+- A per-device envelope cap if a reload runs out of memory at 48 MB.
+- Row 6 is unbounded on API ≤ 34. Row 3 counts only its own wait time. The 30 min total applies only on 35+.
+  `wait-bound` renamed.
+- A gated-state failure query is published into `failures`.
+- A persisted Retry-ids latch; "Retry + Continue" is one call.
+- Stuck and restore-blocked are process-scoped.
+- No stale Pause after `complete`.
+- The Problems phase text shows above its branches.
