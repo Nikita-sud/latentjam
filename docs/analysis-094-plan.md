@@ -632,7 +632,7 @@ re-read on every chunk and on every system event: screen on/off, playback start/
 |---|---|---|---|---|
 | 1 | user paused (`userPaused`) | stopped | no | stopped; "Paused by you", with a Continue action |
 | 2 | battery ≤ 15 % and unplugged (after a Continue: ≤ 10 % for the rest of the process) | stopped | no | stopped; "Paused at X of Y (battery low)", with a Continue action |
-| 3 | too hot: thermal status ≥ T, or headroom > H (API 30+; read on every table event and chunk, at most once per second; NaN = no signal), or battery temperature ≥ 42 °C (API 24–28, `ACTION_BATTERY_CHANGED`) | waiting; **stopped once the shared wait timer passes 30 min** | no | stays up; "Waiting: continues when cooler"; resumes after status ≤ T−1 **and** headroom < H − 0.1 (or < 38 °C) for 2 min; on the 30 min stop: "Paused at X of Y" with Continue |
+| 3 | too hot: thermal status ≥ T, or headroom > H (API 30+; read on every table event and chunk, at most once per second; NaN = no signal), or battery temperature ≥ 42 °C (API 24–28, `ACTION_BATTERY_CHANGED`) | waiting; **stopped once 30 min of row-3 wait time accumulates** | no | stays up; "Waiting: continues when cooler"; resumes after status ≤ T−1 **and** headroom < H − 0.1 (or < 38 °C) for 2 min; on the wait-bound stop: "Paused at X of Y" with Continue |
 | 4 | screen on, or playing | runs | no (the CPU is awake anyway) | up; progress |
 | 5 | screen off, not playing, budget left | runs | **yes**: 5 min timeout, renewed per track | up; progress |
 | 6 | screen off, not playing, budget spent | waiting. **API 35+:** stopped once the wait timer passes 30 min, because waiting burns the 6 h dataSync cap. **API ≤ 34: unbounded**, as in 0.9.3, whose FGS stays up and resumes on any screen-on | no | stays up; "Waiting: continues when the screen is on or music plays"; on the wait-bound stop: "Paused at X of Y" with Continue |
@@ -785,7 +785,7 @@ re-read on every chunk and on every system event: screen on/off, playback start/
   resumes. A charging `ACTION_BATTERY_CHANGED` that arrives after 30 min stops the pass instead. The notice and the
   estimate say "may resume, or may need Continue".
 - **Battery Saver slow-down** is 2e (Slice D). Slice B2 ships rows 1–6 only.
-- **Where stops take effect.** The user, battery and 30 min stops take effect at the **next chunk boundary** (at most
+- **Where stops take effect.** The user, battery and wait-bound stops take effect at the **next chunk boundary** (at most
   8 tracks), never mid-decode. `onTimeout` stays immediate.
   - In Slice B2 nothing is in flight at a boundary, so no workers are abandoned.
   - From Slice C, AnalysisRun at a table stop or wait stops submitting, **drains** its in-flight look-ahead
