@@ -38,7 +38,8 @@ import kotlinx.coroutines.launch
  * when LatentJam itself is on screen at the moment the screen goes off, which counts as foreground;
  * from any other app the start is silently refused and the system media card stays the lock-screen
  * player. Display over other apps, which Settings asks for ([LockPlayerAccess]), is an exemption
- * (BAL_ALLOW_SAW_PERMISSION) and lets the same start through from any app.
+ * (BAL_ALLOW_SAW_PERMISSION) and lets the same start through from any app; measured on API 29, 36
+ * and 37. Before Android 10 there is no such limit (measured on API 24 and 28).
  */
 internal fun installLockScreenPlayer(context: Context) {
     val app = context.applicationContext
