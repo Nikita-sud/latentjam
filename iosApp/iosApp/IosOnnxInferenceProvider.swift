@@ -52,9 +52,19 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
     func embedAudio(
         uri: String,
         durationMs: Int64,
-        outputDim: Int32
+        outputDim: Int32,
+        gate: SmartIosInferenceGate?
     ) -> SmartIosAudioEmbeddingResult {
-        guard loadAudio() == nil, let audio else {
+        // With a gate the model is loaded, and each window run, under the engine's lock; decoding never is.
+        let loaded: OrtModel?
+        if let gate {
+            guard gate.enter() else { return audioFailure(.unavailable, "Analysis stopped") }
+            loaded = loadAudio() == nil ? audio : nil
+            gate.exit()
+        } else {
+            loaded = loadAudio() == nil ? audio : nil
+        }
+        guard let audio = loaded else {
             return audioFailure(.backendFailure, "Audio model is unavailable")
         }
         do {
@@ -88,9 +98,10 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
                 }
                 guard let waveform else { continue }
                 decoded += 1
-                guard let embedding = try stableAudioEmbedding(
-                    audio, waveform: waveform, outputDim: Int(outputDim)
-                ) else {
+                guard case let .ran(result) = try runWindow(
+                    audio, waveform: waveform, outputDim: Int(outputDim), gate: gate
+                ) else { return audioFailure(.unavailable, "Analysis stopped") }
+                guard let embedding = result else {
                     invalidEmbedding = true
                     continue
                 }
@@ -112,9 +123,10 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
                 }
                 if let waveform {
                     decoded += 1
-                    if let embedding = try stableAudioEmbedding(
-                        audio, waveform: waveform, outputDim: Int(outputDim)
-                    ) {
+                    guard case let .ran(result) = try runWindow(
+                        audio, waveform: waveform, outputDim: Int(outputDim), gate: gate
+                    ) else { return audioFailure(.unavailable, "Analysis stopped") }
+                    if let embedding = result {
                         for index in pooled.indices { pooled[index] += embedding[index] }
                         used = 1
                     } else {
@@ -401,6 +413,30 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
             waveform[index] = sample.isFinite ? min(1, max(-1, sample)) : 0
         }
         return waveform
+    }
+
+    private enum WindowRun {
+        /// The window's embedding, or nil when no gain made it usable.
+        case ran([Float]?)
+        /// The gate refused, or the model was closed while this window decoded.
+        case stopped
+    }
+
+    /// One window's inference, under `gate` when there is one (see `embedAudio`).
+    private func runWindow(
+        _ model: OrtModel,
+        waveform: [Float],
+        outputDim: Int,
+        gate: SmartIosInferenceGate?
+    ) throws -> WindowRun {
+        guard let gate else {
+            return .ran(try stableAudioEmbedding(model, waveform: waveform, outputDim: outputDim))
+        }
+        guard gate.enter() else { return .stopped }
+        defer { gate.exit() }
+        // A model closed between two windows is never run.
+        guard audio === model else { return .stopped }
+        return .ran(try stableAudioEmbedding(model, waveform: waveform, outputDim: outputDim))
     }
 
     private func stableAudioEmbedding(

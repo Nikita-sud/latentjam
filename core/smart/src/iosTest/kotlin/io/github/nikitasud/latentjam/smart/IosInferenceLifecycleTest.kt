@@ -151,6 +151,7 @@ class IosInferenceLifecycleTest {
             uri: String,
             durationMs: Long,
             outputDim: Int,
+            gate: IosInferenceGate?,
         ): IosAudioEmbeddingResult = audioResult
 
         override fun loadSemantic(): String? {

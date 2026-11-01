@@ -22,11 +22,15 @@ public interface IosInferenceProvider {
      * Native code returns a typed result so deterministic media failures can be remembered while
      * temporary file/decoder/ORT failures stay retryable. [IosAudioEmbeddingStatus.SUCCESS]
      * requires a non-null [IosAudioEmbeddingResult.embedding].
+     *
+     * With a [gate], native code holds it around the model load and each window's inference (never decoding), and
+     * stops when [IosInferenceGate.enter] refuses; without one (no engine lock, as in tests) it takes no lock.
      */
     public fun embedAudio(
         uri: String,
         durationMs: Long,
         outputDim: Int,
+        gate: IosInferenceGate?,
     ): IosAudioEmbeddingResult
 
     /** Returns null on success, otherwise a human-readable local error. */
@@ -58,6 +62,21 @@ public interface IosInferenceProvider {
     ): Boolean = false
 
     public fun close()
+}
+
+/**
+ * The engine's inference lock as native code takes it, one window at a time, so a SMART press waits for one window's
+ * inference rather than a whole track (docs/analysis-094-plan.md 1b).
+ */
+public interface IosInferenceGate {
+    /**
+     * Blocks the calling thread until the lock is held and returns true; or returns false, holding nothing, when the
+     * call should stop: the model was closed meanwhile, or the track's time ran out.
+     */
+    public fun enter(): Boolean
+
+    /** Releases what a true [enter] took. */
+    public fun exit()
 }
 
 /** Native iOS audio-embedding result classification. */
