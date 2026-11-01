@@ -908,6 +908,8 @@ private fun AppShell(
             // so the last track of the day stops vanishing from the history log.
             onLeave = { AppGraph.flushListeningSession() },
         ) {
+            // Restarts a pass that the 6 h cap, a refused start or a failure stopped.
+            AppGraph.onAppForeground()
             scope.launch {
                 // Not while a tag save is queued or running. The return from its consent dialog lands
                 // here just as the writes start, and a reload that already sees a written file's new
@@ -1200,6 +1202,7 @@ private fun AppShell(
                 tracks = loaded,
                 librarySnapshotAuthoritative = request.librarySnapshotAuthoritative,
                 notificationTitle = notificationTitle,
+                notices = ::analysisNoticeText,
             ) { done, total, etaMinutes ->
                 if (etaMinutes == null) {
                     getString(Res.string.indexing_notification_progress, done, total)
@@ -1842,16 +1845,19 @@ private fun AppShell(
             }
         }
 
-        fun retryAutomaticIndexing() {
+        fun retryAutomaticIndexing(continueToo: Boolean = false) {
             val loaded = tracks ?: return
             scope.launch {
                 val notificationTitle = getString(Res.string.indexing_notification_title)
+                // "Retry and continue" is one call: the pause is cleared before the relaunch reads it.
+                if (continueToo) AppGraph.clearAnalysisPause()
                 AppGraph.ensureAutomaticIndexing(
                     tracks = loaded,
                     librarySnapshotAuthoritative =
                         libraryIndexingRequest?.librarySnapshotAuthoritative ?: false,
                     notificationTitle = notificationTitle,
                     force = true,
+                    notices = ::analysisNoticeText,
                 ) { done, total, etaMinutes ->
                     if (etaMinutes == null) {
                         getString(Res.string.indexing_notification_progress, done, total)
@@ -4582,7 +4588,6 @@ private fun AppShell(
                 onImportAudio = importAudio,
                 onRetryIndexing = ::retryAutomaticIndexing,
                 onRebuildAnalysis = {
-                    engine.clearAnalysis()
                     libraryWorlds.metadataVectorsReady = false
                     libraryWorlds.audioVectorsReady = false
                     libraryWorlds.worlds = emptyList()
@@ -4591,7 +4596,9 @@ private fun AppShell(
                     // lets a same-inputs rebuild short-circuit, and worlds would stay empty.
                     libraryWorlds.builtWorldsKey = null
                     invalidateSmartRecommendationCaches()
-                    retryAutomaticIndexing()
+                    // The running pass is cancelled and joined before the clear, and the pass restarts
+                    // unpaused afterwards even when the clear fails.
+                    AppGraph.rebuildAnalysis { engine.clearAnalysis() }
                 },
                 onHideTrack = { target ->
                     hideTracksAndRefresh(

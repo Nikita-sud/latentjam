@@ -1,0 +1,17 @@
+<resources>
+    <string name="analysis_action_pause">Pauză</string>
+    <string name="analysis_action_continue">Continuă</string>
+    <string name="analysis_waiting_battery">În așteptare: continuă la încărcare</string>
+    <string name="analysis_waiting_hot">În așteptare: continuă când se răcește</string>
+    <string name="analysis_waiting_screen">În așteptare: continuă cu ecranul pornit sau cu muzică</string>
+    <string name="analysis_pausing">Se pune pe pauză…</string>
+    <string name="analysis_paused_by_you">Pus pe pauză de tine · %1$d din %2$d analizate</string>
+    <string name="analysis_paused_at">Oprit la %1$d din %2$d</string>
+    <string name="analysis_stopped">Analiză oprită</string>
+    <string name="analysis_continues_now">Analiza continuă acum</string>
+    <string name="analysis_pause_to_rebuild">Pune pe pauză pentru reconstruire</string>
+    <string name="analysis_retry_continue_title">Continui și analiza?</string>
+    <string name="analysis_retry_continue_yes">Reîncearcă și continuă</string>
+    <string name="analysis_retry_continue_no">Doar reîncearcă</string>
+    <string name="analysis_too_large">Biblioteca e prea mare pentru a-și păstra analiza între porniri</string>
+</resources>

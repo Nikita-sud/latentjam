@@ -65,7 +65,7 @@ internal class IosIndexingContinuation : IndexingNotifier {
         return object : IndexingSession {
             private var open = true
 
-            override fun show(title: String, text: String, done: Int, total: Int) {
+            override fun show(title: String, text: String, done: Int, total: Int, pauseLabel: String?) {
                 lock.withLock {
                     if (!open) return
                     reporting = true

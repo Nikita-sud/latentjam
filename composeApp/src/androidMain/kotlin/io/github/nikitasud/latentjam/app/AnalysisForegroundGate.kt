@@ -31,7 +31,14 @@ internal class AnalysisForegroundGate(private val platform: Platform) {
         fun post(content: Content)
     }
 
-    data class Content(val title: String, val text: String, val done: Int, val total: Int)
+    data class Content(
+        val title: String,
+        val text: String,
+        val done: Int,
+        val total: Int,
+        /** Adds a Pause action. */
+        val pauseLabel: String? = null,
+    )
 
     /** One run's hold on the foreground state. */
     inner class Session internal constructor() {
@@ -123,6 +130,15 @@ internal class AnalysisForegroundGate(private val platform: Platform) {
             stop()
             throw failure
         }
+    }
+
+    /**
+     * A plain start command (the notification's Pause): [stop] runs only when nothing holds or is
+     * starting the service, so it can never stop a start still on its way to `startForeground`.
+     */
+    fun onPlainStart(stop: () -> Unit) = synchronized(lock) {
+        val idle = phase == Phase.Idle || (phase == Phase.Lost && sessions == 0)
+        if (idle) stop()
     }
 
     /** The system's `onTimeout`: the foreground state is gone, and [stop] ends the service. */

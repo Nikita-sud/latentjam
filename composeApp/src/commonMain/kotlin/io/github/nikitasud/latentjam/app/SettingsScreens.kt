@@ -45,6 +45,7 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilledTonalButton
@@ -105,6 +106,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.Dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
+import io.github.nikitasud.latentjam.app.generated.resources.analysis_action_continue
+import io.github.nikitasud.latentjam.app.generated.resources.analysis_action_pause
+import io.github.nikitasud.latentjam.app.generated.resources.analysis_continues_now
+import io.github.nikitasud.latentjam.app.generated.resources.analysis_pause_to_rebuild
+import io.github.nikitasud.latentjam.app.generated.resources.analysis_paused_by_you
+import io.github.nikitasud.latentjam.app.generated.resources.analysis_retry_continue_no
+import io.github.nikitasud.latentjam.app.generated.resources.analysis_retry_continue_title
+import io.github.nikitasud.latentjam.app.generated.resources.analysis_retry_continue_yes
+import io.github.nikitasud.latentjam.app.generated.resources.analysis_stopped
 import io.github.nikitasud.latentjam.app.generated.resources.action_back
 import io.github.nikitasud.latentjam.app.generated.resources.settings_pages_order
 import io.github.nikitasud.latentjam.app.generated.resources.settings_opens_on_launch
@@ -1941,7 +1951,13 @@ private fun IntelligenceSettings(
     // The request belongs to this composition; restoring its old busy flag cannot restore its job.
     var rebuilding by remember { mutableStateOf(false) }
     var confirmRebuild by rememberSaveable { mutableStateOf(false) }
+    var confirmRetryContinue by rememberSaveable { mutableStateOf(false) }
     val operationFailed = stringResource(Res.string.settings_library_manage_failed)
+    val userPaused by AppGraph.analysisUserPaused.collectAsState()
+    // Stopped by the user's Pause: Continue is the way on, never "Retry".
+    val pausedByUser = !indexing.running && indexingMatchesLibrary && !indexing.complete &&
+        indexing.stopReason == AnalysisStopReason.USER
+    val retry: () -> Unit = { if (userPaused) confirmRetryContinue = true else onRetryIndexing() }
 
     FadingLazyColumn(
         state = listState,
@@ -1986,12 +2002,18 @@ private fun IntelligenceSettings(
                         progress = { done.toFloat() / tracks.size },
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
                     )
+                    val phase = indexing.phase
                     Text(
-                        text = stringResource(
-                            Res.string.intelligence_analysis_progress,
-                            done,
-                            tracks.size,
-                        ),
+                        // A waiting pass shows why, with no ETA and no frozen progress claim.
+                        text = if (phase != null) {
+                            analysisPhaseText(phase)
+                        } else {
+                            stringResource(
+                                Res.string.intelligence_analysis_progress,
+                                done,
+                                tracks.size,
+                            )
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
@@ -2004,6 +2026,41 @@ private fun IntelligenceSettings(
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
                         )
                     }
+                    if (done < tracks.size && phase != AnalysisPhase.PAUSING && !userPaused) {
+                        OutlinedButton(
+                            onClick = AppGraph::pauseAutomaticIndexing,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+                        ) {
+                            Text(stringResource(Res.string.analysis_action_pause))
+                        }
+                    }
+                }
+                if (!libraryLoading && pausedByUser && tracks.isNotEmpty()) {
+                    Text(
+                        text = stringResource(Res.string.analysis_paused_by_you, done, tracks.size),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                    )
+                    Button(
+                        onClick = AppGraph::continueAutomaticIndexing,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+                    ) {
+                        Text(stringResource(Res.string.analysis_action_continue))
+                    }
+                } else if (!libraryLoading && !indexing.running && !indexing.complete && indexingMatchesLibrary) {
+                    when (indexing.stopReason) {
+                        AnalysisStopReason.EXCEPTION -> Res.string.analysis_stopped
+                        AnalysisStopReason.SHOW_FAILED, AnalysisStopReason.TIMEOUT -> Res.string.analysis_continues_now
+                        else -> null
+                    }?.let { text ->
+                        Text(
+                            text = stringResource(text),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                        )
+                    }
                 }
                 val needsRecovery = !libraryLoading && (
                     state is EngineState.Uninitialized ||
@@ -2011,12 +2068,13 @@ private fun IntelligenceSettings(
                         (
                             tracks.isNotEmpty() &&
                                 !indexing.running &&
-                                (!indexing.complete || failures.isNotEmpty())
+                                // A pause is continued, not retried, unless failures are listed.
+                                (if (pausedByUser) failures.isNotEmpty() else !indexing.complete || failures.isNotEmpty())
                             )
                     )
                 if (needsRecovery) {
                     OutlinedButton(
-                        onClick = onRetryIndexing,
+                        onClick = retry,
                         enabled = !indexing.running && state !is EngineState.Initializing,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
                     ) {
@@ -2141,7 +2199,11 @@ private fun IntelligenceSettings(
                 }
                 SettingsActionRow(
                     title = stringResource(Res.string.intelligence_rebuild),
-                    subtitle = stringResource(Res.string.intelligence_rebuild_body),
+                    subtitle = if (indexing.running && indexing.phase != null) {
+                        stringResource(Res.string.analysis_pause_to_rebuild)
+                    } else {
+                        stringResource(Res.string.intelligence_rebuild_body)
+                    },
                     enabled = !indexing.running && !rebuilding,
                     destructive = true,
                     onClick = { confirmRebuild = true },
@@ -2176,6 +2238,30 @@ private fun IntelligenceSettings(
                 }
             },
             onDismiss = { confirmRebuild = false },
+        )
+    }
+
+    if (confirmRetryContinue) {
+        AlertDialog(
+            onDismissRequest = { confirmRetryContinue = false },
+            title = { Text(stringResource(Res.string.analysis_retry_continue_title)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmRetryContinue = false
+                        AppGraph.clearAnalysisPause()
+                        onRetryIndexing()
+                    },
+                ) { Text(stringResource(Res.string.analysis_retry_continue_yes)) }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        confirmRetryContinue = false
+                        onRetryIndexing()
+                    },
+                ) { Text(stringResource(Res.string.analysis_retry_continue_no)) }
+            },
         )
     }
 }

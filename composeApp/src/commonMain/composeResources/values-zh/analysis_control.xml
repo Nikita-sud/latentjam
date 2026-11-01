@@ -1,0 +1,17 @@
+<resources>
+    <string name="analysis_action_pause">暂停</string>
+    <string name="analysis_action_continue">继续</string>
+    <string name="analysis_waiting_battery">等待中：充电时继续</string>
+    <string name="analysis_waiting_hot">等待中：设备降温后继续</string>
+    <string name="analysis_waiting_screen">等待中：屏幕亮起或播放音乐时继续</string>
+    <string name="analysis_pausing">正在暂停…</string>
+    <string name="analysis_paused_by_you">已由你暂停 · 已分析 %1$d / %2$d</string>
+    <string name="analysis_paused_at">停在 %1$d / %2$d</string>
+    <string name="analysis_stopped">分析已停止</string>
+    <string name="analysis_continues_now">分析即将继续</string>
+    <string name="analysis_pause_to_rebuild">暂停后才能重建</string>
+    <string name="analysis_retry_continue_title">也继续分析吗？</string>
+    <string name="analysis_retry_continue_yes">重试并继续</string>
+    <string name="analysis_retry_continue_no">仅重试</string>
+    <string name="analysis_too_large">此音乐库太大，无法在两次启动之间保留分析结果</string>
+</resources>

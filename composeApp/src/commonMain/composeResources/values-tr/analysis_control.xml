@@ -1,0 +1,17 @@
+<resources>
+    <string name="analysis_action_pause">Duraklat</string>
+    <string name="analysis_action_continue">Devam et</string>
+    <string name="analysis_waiting_battery">Bekliyor: şarjda devam eder</string>
+    <string name="analysis_waiting_hot">Bekliyor: cihaz soğuyunca devam eder</string>
+    <string name="analysis_waiting_screen">Bekliyor: ekran açıkken veya müzik çalarken devam eder</string>
+    <string name="analysis_pausing">Duraklatılıyor…</string>
+    <string name="analysis_paused_by_you">Sizin tarafınızdan duraklatıldı · %2$d parçanın %1$d tanesi analiz edildi</string>
+    <string name="analysis_paused_at">%2$d parçanın %1$d tanesinde durdu</string>
+    <string name="analysis_stopped">Analiz durdu</string>
+    <string name="analysis_continues_now">Analiz şimdi devam ediyor</string>
+    <string name="analysis_pause_to_rebuild">Yeniden oluşturmak için duraklatın</string>
+    <string name="analysis_retry_continue_title">Analize de devam edilsin mi?</string>
+    <string name="analysis_retry_continue_yes">Yeniden dene ve devam et</string>
+    <string name="analysis_retry_continue_no">Yalnızca yeniden dene</string>
+    <string name="analysis_too_large">Bu kitaplık, analizini açılışlar arasında saklamak için çok büyük</string>
+</resources>

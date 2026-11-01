@@ -32,6 +32,13 @@ interface IndexingNotifier {
      * run's [IndexingSession.close] cannot take the foreground state away from the new one.
      */
     fun open(): IndexingSession
+
+    /**
+     * A plain, dismissible notice after a run stopped ("Paused by you"), apart from the progress
+     * report so it outlives it; [continueLabel] adds a Continue action that opens the app. Best effort:
+     * platforms without such a surface, or without the permission, show nothing.
+     */
+    fun notice(title: String, text: String, continueLabel: String?) = Unit
 }
 
 /** One analysis run's report. */
@@ -44,7 +51,7 @@ interface IndexingSession {
      * platforms that require it, so it must happen before the first chunk
      * rather than after it. Ignored after [close].
      */
-    fun show(title: String, text: String, done: Int, total: Int)
+    fun show(title: String, text: String, done: Int, total: Int, pauseLabel: String? = null)
 
     /** The run has stopped, whether it completed or was abandoned. Idempotent. */
     fun close()
@@ -61,7 +68,12 @@ interface IndexingSession {
  * "2 minutes" and "20 minutes" reads as broken even when each figure is
  * defensible.
  */
-class IndexingEta(private val startedAtMs: Long) {
+class IndexingEta(private var startedAtMs: Long) {
+
+    /** Leaves [ms] (a wait) out of the pace. */
+    fun skip(ms: Long) {
+        startedAtMs += ms
+    }
 
     /**
      * Milliseconds remaining, or `null` when there is not enough evidence yet.

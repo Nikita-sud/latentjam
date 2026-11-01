@@ -1,0 +1,17 @@
+<resources>
+    <string name="analysis_action_pause">रोकें</string>
+    <string name="analysis_action_continue">जारी रखें</string>
+    <string name="analysis_waiting_battery">प्रतीक्षा: चार्जिंग पर जारी रहेगा</string>
+    <string name="analysis_waiting_hot">प्रतीक्षा: डिवाइस ठंडा होने पर जारी रहेगा</string>
+    <string name="analysis_waiting_screen">प्रतीक्षा: स्क्रीन चालू होने या संगीत चलने पर जारी रहेगा</string>
+    <string name="analysis_pausing">रोका जा रहा है…</string>
+    <string name="analysis_paused_by_you">आपने रोका · %2$d में से %1$d का विश्लेषण हुआ</string>
+    <string name="analysis_paused_at">%2$d में से %1$d पर रुका</string>
+    <string name="analysis_stopped">विश्लेषण रुका</string>
+    <string name="analysis_continues_now">विश्लेषण अब जारी है</string>
+    <string name="analysis_pause_to_rebuild">फिर से बनाने के लिए रोकें</string>
+    <string name="analysis_retry_continue_title">विश्लेषण भी जारी रखें?</string>
+    <string name="analysis_retry_continue_yes">फिर से कोशिश करें और जारी रखें</string>
+    <string name="analysis_retry_continue_no">सिर्फ़ फिर से कोशिश करें</string>
+    <string name="analysis_too_large">यह लाइब्रेरी इतनी बड़ी है कि इसका विश्लेषण ऐप खोलने के बीच नहीं रखा जा सकता</string>
+</resources>

@@ -44,6 +44,8 @@ internal class AndroidIndexingNotifier(context: Context) : IndexingNotifier {
         object : AnalysisForegroundGate.Platform {
             override fun requestStart() {
                 ContextCompat.startForegroundService(context, Intent(context, IndexingService::class.java))
+                // A new run supersedes the last one's "Paused" notice.
+                context.getSystemService(NotificationManager::class.java)?.cancel(IndexingService.NOTICE_ID)
             }
 
             override fun post(content: AnalysisForegroundGate.Content) {
@@ -58,11 +60,29 @@ internal class AndroidIndexingNotifier(context: Context) : IndexingNotifier {
     override fun open(): IndexingSession {
         val session = gate.open()
         return object : IndexingSession {
-            override fun show(title: String, text: String, done: Int, total: Int) =
-                session.show(AnalysisForegroundGate.Content(title, text, done, total))
+            override fun show(title: String, text: String, done: Int, total: Int, pauseLabel: String?) =
+                session.show(AnalysisForegroundGate.Content(title, text, done, total, pauseLabel))
 
             override fun close() = session.close()
         }
+    }
+
+    /** Posted on its own id, after the service removed its own: it survives the service's stop. */
+    override fun notice(title: String, text: String, continueLabel: String?) {
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        ensureChannel(context, title)
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.stat_notify_sync)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setContentIntent(appLaunchPendingIntent(context))
+            .setAutoCancel(true)
+            .setSilent(true)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+        if (continueLabel != null) {
+            continuePendingIntent(context)?.let { builder.addAction(0, continueLabel, it) }
+        }
+        manager.notify(IndexingService.NOTICE_ID, builder.build())
     }
 }
 
@@ -76,13 +96,25 @@ class IndexingService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    /** The latest start command's id; stops name it, so a later plain start cannot keep the service alive. */
+    @Volatile
+    private var latestStartId = 0
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        latestStartId = startId
         val stop = {
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
-            stopSelfResult(startId)
+            stopSelfResult(latestStartId)
             Unit
         }
         val activeGate = gate
+        if (intent?.action == ACTION_PAUSE) {
+            // Plain startService from the notification's action: never promoted, so it never calls
+            // startForeground, and it stops only a service that nothing holds.
+            AppGraph.pauseAutomaticIndexing()
+            if (activeGate == null) stopSelfResult(startId) else activeGate.onPlainStart { stopSelfResult(startId) }
+            return START_NOT_STICKY
+        }
         try {
             if (activeGate == null) {
                 // No run in this process asked for the service (the notifier was never created).
@@ -128,7 +160,7 @@ class IndexingService : Service() {
             stopSelf(startId)
         }
         gate?.onTimeout(stop) ?: stop()
-        AppGraph.cancelAutomaticIndexing()
+        AppGraph.onAnalysisForegroundTimeout()
     }
 
     override fun onDestroy() {
@@ -139,13 +171,27 @@ class IndexingService : Service() {
     internal companion object {
         const val NOTIFICATION_ID = 4201
 
+        /** The stopped notice ("Paused by you"), apart from the service's own. */
+        const val NOTICE_ID = 4202
+        const val ACTION_PAUSE = "io.github.nikitasud.latentjam.action.PAUSE_ANALYSIS"
+        const val ACTION_CONTINUE = "io.github.nikitasud.latentjam.action.CONTINUE_ANALYSIS"
+        private const val PAUSE_REQUEST = 4203
+        const val CONTINUE_REQUEST = 4204
+
+        fun pausePendingIntent(context: Context): PendingIntent = PendingIntent.getService(
+            context,
+            PAUSE_REQUEST,
+            Intent(context, IndexingService::class.java).setAction(ACTION_PAUSE),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
         /** The process's notifier gate; null until the notifier exists. */
         @Volatile
         var gate: AnalysisForegroundGate? = null
     }
 }
 
-private const val CHANNEL_ID = "library_analysis"
+internal const val CHANNEL_ID = "library_analysis"
 
 /** The ongoing progress notification, built the same way for the start and for every update. */
 internal fun analysisNotification(context: Context, content: AnalysisForegroundGate.Content): Notification {
@@ -167,6 +213,9 @@ internal fun analysisNotification(context: Context, content: AnalysisForegroundG
         .setSilent(true)
         .setCategory(NotificationCompat.CATEGORY_PROGRESS)
         .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+        .apply {
+            content.pauseLabel?.let { label -> addAction(0, label, IndexingService.pausePendingIntent(context)) }
+        }
         .build()
 }
 
@@ -183,7 +232,7 @@ internal fun analysisNotification(context: Context, content: AnalysisForegroundG
  * Known cost: Android caches the channel name at creation, so switching
  * device language leaves it stale in system settings until reinstall.
  */
-private fun ensureChannel(context: Context, title: String) {
+internal fun ensureChannel(context: Context, title: String) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
     // A blank title (a stray start with no run behind it) would name the channel for good.
     if (title.isBlank()) return
@@ -199,7 +248,23 @@ private fun ensureChannel(context: Context, title: String) {
     )
 }
 
-private fun appLaunchPendingIntent(context: Context): PendingIntent? {
+/**
+ * Continue opens the app, which alone knows the library and can start a pass; its own request code
+ * and action keep its extras apart from the plain launch intent's.
+ */
+private fun continuePendingIntent(context: Context): PendingIntent? {
+    val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return null
+    launchIntent.setAction(IndexingService.ACTION_CONTINUE)
+    launchIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+    return PendingIntent.getActivity(
+        context,
+        IndexingService.CONTINUE_REQUEST,
+        launchIntent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+}
+
+internal fun appLaunchPendingIntent(context: Context): PendingIntent? {
     val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return null
     launchIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
     return PendingIntent.getActivity(

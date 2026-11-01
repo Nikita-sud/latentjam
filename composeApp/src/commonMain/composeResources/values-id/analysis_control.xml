@@ -1,0 +1,17 @@
+<resources>
+    <string name="analysis_action_pause">Jeda</string>
+    <string name="analysis_action_continue">Lanjutkan</string>
+    <string name="analysis_waiting_battery">Menunggu: lanjut saat mengisi daya</string>
+    <string name="analysis_waiting_hot">Menunggu: lanjut saat perangkat sudah dingin</string>
+    <string name="analysis_waiting_screen">Menunggu: lanjut saat layar menyala atau musik diputar</string>
+    <string name="analysis_pausing">Menjeda…</string>
+    <string name="analysis_paused_by_you">Dijeda oleh Anda · %1$d dari %2$d dianalisis</string>
+    <string name="analysis_paused_at">Berhenti di %1$d dari %2$d</string>
+    <string name="analysis_stopped">Analisis berhenti</string>
+    <string name="analysis_continues_now">Analisis berlanjut sekarang</string>
+    <string name="analysis_pause_to_rebuild">Jeda untuk membangun ulang</string>
+    <string name="analysis_retry_continue_title">Lanjutkan analisis juga?</string>
+    <string name="analysis_retry_continue_yes">Coba lagi dan lanjutkan</string>
+    <string name="analysis_retry_continue_no">Hanya coba lagi</string>
+    <string name="analysis_too_large">Pustaka ini terlalu besar untuk menyimpan analisisnya di antara peluncuran</string>
+</resources>

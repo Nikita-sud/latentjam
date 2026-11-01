@@ -40,6 +40,8 @@ import io.github.nikitasud.latentjam.smart.smartChainInputsModule
 import io.github.nikitasud.latentjam.smart.smartEngineBackendModule
 import io.github.nikitasud.latentjam.smart.text.smartTextEncoderModule
 import io.github.nikitasud.latentjam.smart.text.MusicEntityResolver
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineDispatcher
@@ -58,6 +60,8 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.core.Koin
@@ -540,21 +544,43 @@ object AppGraph {
         librarySnapshotAuthoritative: Boolean,
         notificationTitle: String,
         force: Boolean = false,
+        call: AnalysisCall = if (force) AnalysisCall.RETRY else AnalysisCall.AUTOMATIC,
+        notices: suspend (AnalysisNotice) -> String = { "" },
         notificationText: suspend (done: Int, total: Int, etaMinutes: Int?) -> String,
     ) {
         val key = AutomaticIndexingRequest(
             tracks = tracks,
             librarySnapshotAuthoritative = librarySnapshotAuthoritative,
         )
+        lastAnalysisCall = LastAnalysisCall(key, notificationTitle, notices, notificationText)
+        val control = analysisControl
+        val store = analysisStore
+        // A Continue tapped while no library was known yet (a cold start from the notification)
+        // is consumed by the first call that has one.
+        val kind = if (call == AnalysisCall.AUTOMATIC && store.pendingContinue) AnalysisCall.CONTINUE else call
+        if (kind == AnalysisCall.CONTINUE) {
+            store.pendingContinue = false
+            control.setUserPaused(false)
+            if (store.stopReason == AnalysisStopReason.USER) store.stopReason = null
+        }
         val trackIds = tracks.idList()
         val existing = automaticIndexingJob
-        if (!force &&
-            automaticIndexingKey == key &&
-            (existing?.isActive == true || automaticIndexing.value.complete)
+        val sameKey = automaticIndexingKey == key
+        val live = existing?.isActive == true
+        if (sameKey && kind != AnalysisCall.RETRY && kind != AnalysisCall.REBUILD &&
+            (live || (kind == AnalysisCall.AUTOMATIC && automaticIndexing.value.complete))
         ) {
+            // A live pass sees Continue through the cleared pause and resumes by itself.
             return
         }
+        if (sameKey && kind == AnalysisCall.AUTOMATIC && !automaticRestartAllowed(store.stopReason)) return
+        if (kind == AnalysisCall.RETRY) exceptionRestarts = 0
 
+        // A same-key relaunch keeps what the stopped pass showed, so its steps 1–3 never flash a
+        // busy bar or rebuild the map regions while the audio pass stays paused.
+        val previous = mutableAutomaticIndexing.value
+        val carry = sameKey && kind != AnalysisCall.RETRY && kind != AnalysisCall.REBUILD &&
+            previous.trackIds == trackIds && !previous.complete
         automaticIndexingKey = key
         // Cancelled here as well as joined below: a replacement that is itself replaced before it
         // starts never runs its body, and would otherwise leave this run going beside the newest.
@@ -580,13 +606,38 @@ object AppGraph {
             val checkpointCadence = AutomaticIndexCheckpointCadence(
                 tracksPerCheckpoint = AUTOMATIC_INDEX_CHECKPOINT_TRACKS,
             )
-            mutableAutomaticIndexing.value = AutomaticIndexingState(
-                trackIds = trackIds,
-                running = true,
-            )
+            val pausedAtStart = control.userPaused.value
+            mutableAutomaticIndexing.value = if (carry) {
+                previous.copy(running = !pausedAtStart, phase = null, etaMinutes = null, progressAt = null)
+            } else {
+                AutomaticIndexingState(
+                    trackIds = trackIds,
+                    running = true,
+                    stopReason = store.stopReason,
+                )
+            }
+            // The stopped notice to post once the service is gone (the user's pause, the 6 h cap).
+            var stoppedNotice: AnalysisNotice? = null
             runAutomaticIndexingSafely(
                 checkpoint = { engine.persistPendingAnalysis() },
-                finishNotification = { notifier.close() },
+                finishNotification = {
+                    control.release()
+                    notifier.close()
+                    val notice = stoppedNotice ?: timeoutNotice.also { timeoutNotice = null }
+                    if (notice != null) {
+                        indexingNotifier.notice(
+                            title = notificationTitle,
+                            text = notices(notice),
+                            continueLabel = notices(AnalysisNotice.ContinueAction),
+                        )
+                    }
+                },
+                onInterrupted = { failure ->
+                    val reason = if (failure is AnalysisShowFailed) AnalysisStopReason.SHOW_FAILED else AnalysisStopReason.EXCEPTION
+                    store.stopReason = reason
+                    if (reason == AnalysisStopReason.EXCEPTION) lastExceptionStop = TimeSource.Monotonic.markNow()
+                    mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(stopReason = reason)
+                },
                 cancelNotificationPrompt = { permissions.cancelNotificationPrompt() },
                 onStopped = {
                     // Cancellation and failure are not completion. A retry must be allowed to
@@ -594,6 +645,9 @@ object AppGraph {
                     if (!mutableAutomaticIndexing.value.complete) {
                         mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
                             running = false,
+                            phase = null,
+                            etaMinutes = null,
+                            stopReason = store.stopReason,
                             failures = failures.toMap(),
                         )
                     }
@@ -630,20 +684,32 @@ object AppGraph {
                     done = progress.analysed,
                     progressKnown = true,
                 )
+                val pauseLabel = notices(AnalysisNotice.PauseAction)
+                // The table gates only an audio pass with work to do, and never one whose index
+                // cannot be read (as in 0.9.3, every chunk then fails at once).
+                var gated = missing > 0 && !engine.audioIndexUnreadable
                 if (missing == 0) {
                     // Nothing to analyse: let a service still up from the replaced run stop now.
                     notifier.close()
+                    // A pause has nothing left to hold back, and a finished library is not stopped.
+                    if (control.userPaused.value) control.setUserPaused(false)
+                    store.stopReason = null
                 } else {
-                    reportProgress = true
-                    // This signal only offers a rationale in the active UI. It never waits for or
-                    // requires permission: indexing remains fully functional after "Not now".
-                    permissions.backgroundAnalysisNeedsNotifications()
-                    notifier.show(
-                        title = notificationTitle,
-                        text = notificationText(progress.analysed, total, null),
-                        done = progress.analysed,
-                        total = total,
-                    )
+                    store.lastPassComplete = false
+                    if (!control.userPaused.value) {
+                        reportProgress = true
+                        // This signal only offers a rationale in the active UI. It never waits for or
+                        // requires permission: indexing remains fully functional after "Not now".
+                        permissions.backgroundAnalysisNeedsNotifications()
+                        showOrFail(
+                            notifier,
+                            title = notificationTitle,
+                            text = notificationText(progress.analysed, total, null),
+                            done = progress.analysed,
+                            total = total,
+                            pauseLabel = pauseLabel,
+                        )
+                    }
                 }
                 tracks.chunked(AUTOMATIC_INDEX_CHUNK_SIZE).forEach { chunk ->
                     val added = engine.stageMetadataVectors(chunk)
@@ -658,12 +724,107 @@ object AppGraph {
                 )
 
                 var visited = 0
-                mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
-                    progressAt = TimeSource.Monotonic.markNow(),
-                )
+                var stoppedByUser = false
+                // A wait or a paused start held the map rebuild back; it is asked for again at completion.
+                var heldBackThisRun = carry || pausedAtStart
+                var shownPhase = AnalysisPhase.RUNNING
+                if (!gated || !control.userPaused.value) {
+                    mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
+                        progressAt = TimeSource.Monotonic.markNow(),
+                    )
+                }
+                val signals = if (gated) appScope.launch {
+                    launch {
+                        combine(analysisDevice.conditions, analysisPlaying) { _, _ -> Unit }
+                            .collect { control.onSignal(engine.audioEnvelopeRefused()) }
+                    }
+                    // The lock is renewed per track: a pass stuck inside one lets it lapse.
+                    launch { engine.analysing.collect { control.renew() } }
+                    launch {
+                        control.userPaused.collect { paused ->
+                            if (!paused || shownPhase != AnalysisPhase.RUNNING || !reportProgress) return@collect
+                            shownPhase = AnalysisPhase.PAUSING
+                            mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
+                                phase = AnalysisPhase.PAUSING,
+                                etaMinutes = null,
+                            )
+                            runCatching {
+                                notifier.show(
+                                    notificationTitle,
+                                    notices(AnalysisNotice.Waiting(AnalysisPhase.PAUSING)),
+                                    progress.analysed,
+                                    total,
+                                    pauseLabel = null,
+                                )
+                            }
+                        }
+                    }
+                } else null
+                try {
                 // Spread over the library rather than in title order, so the SMART pool is
                 // representative long before a big library finishes (see analysisOrder).
-                analysisOrder(tracks).chunked(AUTOMATIC_INDEX_CHUNK_SIZE).forEach { chunk ->
+                for (chunk in analysisOrder(tracks).chunked(AUTOMATIC_INDEX_CHUNK_SIZE)) {
+                    if (gated && engine.missingFromIndex(trackIds) == 0) gated = false
+                    if (gated) {
+                        var waitStarted: TimeMark? = null
+                        val runnable = control.awaitRunnable(
+                            envelopeRefused = engine::audioEnvelopeRefused,
+                            onPhase = { phase ->
+                                if (phase == AnalysisPhase.RUNNING) return@awaitRunnable
+                                if (phase == shownPhase) return@awaitRunnable
+                                shownPhase = phase
+                                mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
+                                    running = true,
+                                    phase = phase,
+                                    etaMinutes = null,
+                                    progressAt = null,
+                                )
+                                if (reportProgress) {
+                                    notifier.show(
+                                        notificationTitle,
+                                        notices(AnalysisNotice.Waiting(phase)),
+                                        progress.analysed,
+                                        total,
+                                        pauseLabel = pauseLabel,
+                                    )
+                                }
+                            },
+                            onWaitStart = {
+                                waitStarted = TimeSource.Monotonic.markNow()
+                                engine.persistPendingAnalysis()
+                            },
+                        )
+                        if (!runnable) {
+                            stoppedByUser = true
+                            break
+                        }
+                        if (waitStarted != null) heldBackThisRun = true
+                        // The wait is no part of the pass's pace.
+                        waitStarted?.let { eta.skip(it.elapsedNow().inWholeMilliseconds) }
+                        if (shownPhase != AnalysisPhase.RUNNING) {
+                            shownPhase = AnalysisPhase.RUNNING
+                            if (!reportProgress && missing > 0) {
+                                // Paused at the start, now continued: the pass shows itself.
+                                reportProgress = true
+                                permissions.backgroundAnalysisNeedsNotifications()
+                            }
+                            mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
+                                running = true,
+                                phase = null,
+                                progressAt = TimeSource.Monotonic.markNow(),
+                            )
+                            if (reportProgress) {
+                                showOrFail(
+                                    notifier,
+                                    title = notificationTitle,
+                                    text = notificationText(progress.analysed, total, null),
+                                    done = progress.analysed,
+                                    total = total,
+                                    pauseLabel = pauseLabel,
+                                )
+                            }
+                        }
+                    }
                     val missingBefore = engine.missingFromIndex(chunk.map(TrackDescriptor::id))
                     val report = engine.stageLibraryIndex(chunk)
                     failures.putAll(report.errors)
@@ -672,8 +833,9 @@ object AppGraph {
                     checkpointCadence.afterBatch(chunk.size, engine::persistPendingAnalysis)
                     // The pass's own pace: tracks already analysed cost it nothing.
                     val remaining = eta.remainingMs(visited, total, nowMillis())
-                    if (reportProgress) {
-                        notifier.show(
+                    if (reportProgress && shownPhase == AnalysisPhase.RUNNING) {
+                        showOrFail(
+                            notifier,
                             title = notificationTitle,
                             text = notificationText(
                                 progress.analysed,
@@ -682,13 +844,14 @@ object AppGraph {
                             ),
                             done = progress.analysed,
                             total = total,
+                            pauseLabel = pauseLabel,
                         )
                     }
                     mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
                         done = progress.analysed,
                         failures = failures.toMap(),
-                        etaMinutes = remaining?.let(IndexingEta::minutesFrom),
-                        progressAt = TimeSource.Monotonic.markNow(),
+                        etaMinutes = remaining?.takeIf { shownPhase == AnalysisPhase.RUNNING }?.let(IndexingEta::minutesFrom),
+                        progressAt = TimeSource.Monotonic.markNow().takeIf { shownPhase == AnalysisPhase.RUNNING },
                     )
                     // A short scheduling gap also gives thermal management a chance to settle;
                     // 75 ms per model batch is invisible beside audio inference but materially
@@ -697,8 +860,25 @@ object AppGraph {
                         delay(AUTOMATIC_INDEX_YIELD_MS)
                     }
                 }
+                } finally {
+                    signals?.cancel()
+                    control.release()
+                }
                 // Completion is published only after the short final checkpoint is durable.
                 checkpointCadence.flush(engine::persistPendingAnalysis)
+                if (stoppedByUser) {
+                    store.stopReason = AnalysisStopReason.USER
+                    if (reportProgress) stoppedNotice = AnalysisNotice.PausedByYou(progress.analysed, total)
+                    mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
+                        running = false,
+                        phase = null,
+                        etaMinutes = null,
+                        progressAt = null,
+                        stopReason = AnalysisStopReason.USER,
+                        failures = failures.toMap(),
+                    )
+                    return@runAutomaticIndexingSafely
+                }
                 mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(progressAt = null)
                 // PLAN_AUDIO_ON §8.8: e for every indexed track that lacks it — new rows, and a restored library's
                 // one-time backfill. Only the small semantic head runs, on the stored vectors.
@@ -728,10 +908,17 @@ object AppGraph {
                     println("SMART: tagger backfill failed (${failure::class.simpleName})")
                 }
                 warmSmartRanker(smartLibraryTracks.value)
+                // A finished pass is not paused: a Pause that arrived during its last chunk is moot.
+                if (control.userPaused.value) control.setUserPaused(false)
+                store.stopReason = null
+                store.lastPassComplete = true
+                if (heldBackThisRun) resumeMapRebuild()
                 mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
                     running = false,
                     complete = true,
                     done = total,
+                    phase = null,
+                    stopReason = null,
                     failures = failures.toMap(),
                 )
             }
@@ -757,6 +944,163 @@ object AppGraph {
     fun cancelAutomaticIndexing() {
         automaticIndexingJob?.cancel()
     }
+
+    /**
+     * The system's 6 h foreground cap ended the service: the pass stops, says where it stopped, and
+     * restarts at the next app open.
+     */
+    fun onAnalysisForegroundTimeout() {
+        val job = automaticIndexingJob
+        if (job?.isActive == true) {
+            analysisStore.stopReason = AnalysisStopReason.TIMEOUT
+            val state = automaticIndexing.value
+            timeoutNotice = AnalysisNotice.PausedAt(state.done, state.trackIds.size)
+        }
+        appScope.launch { analysisControl.release() }
+        job?.cancel()
+    }
+
+    /** The user's Pause: the pass stops at its next chunk boundary and stays paused across launches. */
+    fun pauseAutomaticIndexing() {
+        val live = automaticIndexingJob?.isActive == true
+        // A stale Pause after a finished pass holds nothing back.
+        if (!live && analysisStore.lastPassComplete && automaticIndexing.value.complete) return
+        analysisControl.setUserPaused(true)
+    }
+
+    /**
+     * The user's Continue. Written before anything else, so a cold start or an open permission gate
+     * never loses the tap; the first call that knows the library consumes it.
+     */
+    fun continueAutomaticIndexing() {
+        analysisStore.pendingContinue = true
+        analysisControl.setUserPaused(false)
+        val last = lastAnalysisCall ?: return
+        ensureAutomaticIndexing(
+            tracks = last.key.tracks,
+            librarySnapshotAuthoritative = last.key.librarySnapshotAuthoritative,
+            notificationTitle = last.title,
+            call = AnalysisCall.CONTINUE,
+            notices = last.notices,
+            notificationText = last.progressText,
+        )
+    }
+
+    /** The app came to the foreground: restarts a pass the platform or a failure stopped. */
+    fun onAppForeground() {
+        val last = lastAnalysisCall ?: return
+        ensureAutomaticIndexing(
+            tracks = last.key.tracks,
+            librarySnapshotAuthoritative = last.key.librarySnapshotAuthoritative,
+            notificationTitle = last.title,
+            call = AnalysisCall.AUTOMATIC,
+            notices = last.notices,
+            notificationText = last.progressText,
+        )
+    }
+
+    /**
+     * Rebuild: the running pass is cancelled and joined before [clear] deletes the analysis, so no
+     * old job installs rows after it; analysis then restarts for the whole library, unpaused.
+     */
+    suspend fun rebuildAnalysis(clear: suspend () -> Unit) {
+        automaticIndexingJob?.cancelAndJoin()
+        try {
+            clear()
+        } finally {
+            analysisControl.setUserPaused(false)
+            analysisStore.stopReason = null
+            mutableAutomaticIndexing.value = AutomaticIndexingState()
+            val last = lastAnalysisCall
+            if (last != null) {
+                ensureAutomaticIndexing(
+                    tracks = last.key.tracks,
+                    librarySnapshotAuthoritative = last.key.librarySnapshotAuthoritative,
+                    notificationTitle = last.title,
+                    call = AnalysisCall.REBUILD,
+                    notices = last.notices,
+                    notificationText = last.progressText,
+                )
+            }
+        }
+    }
+
+    /** Whether the audio pass waits or was stopped short of completing (not merely running or done). */
+    fun analysisHeldBack(): Boolean {
+        val state = automaticIndexing.value
+        return analysisControl.userPaused.value || state.phase != null ||
+            (!state.running && !state.complete && state.stopReason != null)
+    }
+
+    /** A map rebuild that gave up while analysis was held back is asked for again, once per resume. */
+    private fun resumeMapRebuild() {
+        appScope.launch {
+            runCatching { MapRebuild.resumePending(nowMillis()) }
+                .onFailure { println("Map rebuild: could not resume: $it") }
+        }
+    }
+
+    /** Clears the user's pause without a relaunch (the relaunch that follows reads it). */
+    fun clearAnalysisPause() = analysisControl.setUserPaused(false)
+
+    /** Whether the user paused analysis; persisted. */
+    val analysisUserPaused: StateFlow<Boolean> get() = analysisControl.userPaused
+
+    /** An automatic same-library call restarts only what the platform or a failure stopped. */
+    private fun automaticRestartAllowed(reason: AnalysisStopReason?): Boolean = when (reason) {
+        null, AnalysisStopReason.TIMEOUT, AnalysisStopReason.SHOW_FAILED -> true
+        AnalysisStopReason.USER -> false
+        AnalysisStopReason.EXCEPTION -> {
+            // 1 min, then 10 min, then only the next cold start.
+            val after = when (exceptionRestarts) {
+                0 -> 1.minutes
+                1 -> 10.minutes
+                else -> null
+            }
+            val since = lastExceptionStop
+            if (after == null || (since != null && since.elapsedNow() < after)) {
+                false
+            } else {
+                exceptionRestarts++
+                true
+            }
+        }
+    }
+
+    private suspend fun showOrFail(
+        session: IndexingSession,
+        title: String,
+        text: String,
+        done: Int,
+        total: Int,
+        pauseLabel: String?,
+    ) {
+        try {
+            session.show(title, text, done, total, pauseLabel)
+        } catch (refused: RuntimeException) {
+            throw AnalysisShowFailed(refused)
+        }
+    }
+
+    private val analysisStore: AnalysisControlStore by lazy { analysisControlStore() }
+    private val analysisDevice: AnalysisDevice by lazy { analysisDevice() }
+    private val analysisPlaying: StateFlow<Boolean> by lazy {
+        playback.state.map { it.isPlaying }.stateIn(appScope, SharingStarted.Eagerly, playback.state.value.isPlaying)
+    }
+    private val analysisControl: AnalysisRunControl by lazy {
+        val started = TimeSource.Monotonic.markNow()
+        AnalysisRunControl(
+            device = analysisDevice,
+            store = analysisStore,
+            playing = analysisPlaying,
+            wallClockMs = ::nowMillis,
+            monotonicMs = { started.elapsedNow().inWholeMilliseconds },
+        )
+    }
+    private var lastAnalysisCall: LastAnalysisCall? = null
+    private var timeoutNotice: AnalysisNotice? = null
+    private var exceptionRestarts = 0
+    private var lastExceptionStop: TimeMark? = null
 
     private val koin: Koin
         get() = checkNotNull(koinApp) {
@@ -804,9 +1148,10 @@ internal const val SMART_JUDGED_CORRECTION: Boolean = false
  */
 internal suspend fun runAutomaticIndexingSafely(
     checkpoint: suspend () -> Unit,
-    finishNotification: () -> Unit,
+    finishNotification: suspend () -> Unit,
     cancelNotificationPrompt: () -> Unit,
     onStopped: () -> Unit,
+    onInterrupted: (Exception) -> Unit = {},
     work: suspend () -> Unit,
 ) {
     try {
@@ -815,6 +1160,11 @@ internal suspend fun runAutomaticIndexingSafely(
         throw cancelled
     } catch (failure: Exception) {
         println("SMART: automatic indexing interrupted: $failure")
+        try {
+            onInterrupted(failure)
+        } catch (secondary: Exception) {
+            println("SMART: could not record the interruption: $secondary")
+        }
     } finally {
         // A batch can be cancelled after installing vectors but before reaching its checkpoint.
         // Persist that dirty window before allowing a replacement worker to acquire its resources.
@@ -827,7 +1177,7 @@ internal suspend fun runAutomaticIndexingSafely(
             }
         }
         try {
-            finishNotification()
+            withContext(NonCancellable) { finishNotification() }
         } catch (failure: Exception) {
             println("SMART: could not dismiss indexing notification: $failure")
         }
@@ -840,6 +1190,41 @@ internal suspend fun runAutomaticIndexingSafely(
         }
     }
 }
+
+/** Which kind of call relaunches analysis; each honours the stop reasons its own way (plan 1e-min). */
+enum class AnalysisCall {
+    /** A library change, a cold start or an app open. */
+    AUTOMATIC,
+
+    /** The user's Continue: clears the pause. */
+    CONTINUE,
+
+    /** The recovery Retry: clears remembered failures and restarts a stopped pass. */
+    RETRY,
+
+    /** After a Rebuild cleared the analysis. */
+    REBUILD,
+}
+
+/** What a notification needs beyond the progress line, resolved in the caller's locale. */
+sealed interface AnalysisNotice {
+    data class Waiting(val phase: AnalysisPhase) : AnalysisNotice
+    data class PausedByYou(val done: Int, val total: Int) : AnalysisNotice
+    data class PausedAt(val done: Int, val total: Int) : AnalysisNotice
+    data object PauseAction : AnalysisNotice
+    data object ContinueAction : AnalysisNotice
+}
+
+/** The last library and texts handed to analysis, for relaunches the UI does not drive. */
+internal class LastAnalysisCall(
+    val key: AutomaticIndexingRequest,
+    val title: String,
+    val notices: suspend (AnalysisNotice) -> String,
+    val progressText: suspend (done: Int, total: Int, etaMinutes: Int?) -> String,
+)
+
+/** The platform refused to show the analysis in the foreground (a background start). */
+internal class AnalysisShowFailed(cause: Throwable) : RuntimeException(cause)
 
 /** A completed UI library scan plus whether it proves which durable SMART rows are still live. */
 internal data class AutomaticIndexingRequest(
@@ -859,6 +1244,10 @@ data class AutomaticIndexingState(
     /** Minutes the pass expects to need, once it has seen enough to say ([IndexingEta]). */
     val etaMinutes: Int? = null,
     val failures: Map<TrackId, EngineError> = emptyMap(),
+    /** Why the pass waits or stops before its next chunk; null while it runs. */
+    val phase: AnalysisPhase? = null,
+    /** Why the last pass stopped before completing, persisted across launches. */
+    val stopReason: AnalysisStopReason? = null,
     /** When the audio pass last moved (started, or finished a chunk); null outside it ([analysisStall]). */
     val progressAt: TimeSource.Monotonic.ValueTimeMark? = null,
 )

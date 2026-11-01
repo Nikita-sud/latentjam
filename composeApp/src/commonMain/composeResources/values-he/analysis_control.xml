@@ -1,0 +1,17 @@
+<resources>
+    <string name="analysis_action_pause">השהיה</string>
+    <string name="analysis_action_continue">המשך</string>
+    <string name="analysis_waiting_battery">בהמתנה: ימשיך בזמן טעינה</string>
+    <string name="analysis_waiting_hot">בהמתנה: ימשיך כשהמכשיר יתקרר</string>
+    <string name="analysis_waiting_screen">בהמתנה: ימשיך כשהמסך דלוק או כשמוזיקה מתנגנת</string>
+    <string name="analysis_pausing">משהה…</string>
+    <string name="analysis_paused_by_you">הושהה על ידך · נותחו %1$d מתוך %2$d</string>
+    <string name="analysis_paused_at">נעצר ב־%1$d מתוך %2$d</string>
+    <string name="analysis_stopped">הניתוח נעצר</string>
+    <string name="analysis_continues_now">הניתוח ממשיך עכשיו</string>
+    <string name="analysis_pause_to_rebuild">יש להשהות כדי לבנות מחדש</string>
+    <string name="analysis_retry_continue_title">להמשיך גם את הניתוח?</string>
+    <string name="analysis_retry_continue_yes">לנסות שוב ולהמשיך</string>
+    <string name="analysis_retry_continue_no">רק לנסות שוב</string>
+    <string name="analysis_too_large">הספרייה גדולה מדי כדי לשמור את הניתוח שלה בין הפעלות</string>
+</resources>

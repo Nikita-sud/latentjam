@@ -1,0 +1,17 @@
+<resources>
+    <string name="analysis_action_pause">一時停止</string>
+    <string name="analysis_action_continue">続行</string>
+    <string name="analysis_waiting_battery">待機中: 充電中に続行します</string>
+    <string name="analysis_waiting_hot">待機中: 端末が冷えたら続行します</string>
+    <string name="analysis_waiting_screen">待機中: 画面オンまたは音楽再生中に続行します</string>
+    <string name="analysis_pausing">一時停止しています…</string>
+    <string name="analysis_paused_by_you">一時停止中 · %2$d 曲中 %1$d 曲を解析済み</string>
+    <string name="analysis_paused_at">%2$d 曲中 %1$d 曲で停止</string>
+    <string name="analysis_stopped">解析を停止しました</string>
+    <string name="analysis_continues_now">解析をまもなく続行します</string>
+    <string name="analysis_pause_to_rebuild">再構築するには一時停止してください</string>
+    <string name="analysis_retry_continue_title">解析も続行しますか?</string>
+    <string name="analysis_retry_continue_yes">再試行して続行</string>
+    <string name="analysis_retry_continue_no">再試行のみ</string>
+    <string name="analysis_too_large">このライブラリは大きすぎるため、起動の間で解析を保持できません</string>
+</resources>
