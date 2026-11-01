@@ -157,6 +157,7 @@ internal class FileIndexStore private constructor(
             }
             if (readFailed == failed && readRows == count && read.value == written.value) {
                 check(staged.renameTo(file)) { "Could not replace ${file.name}" }
+                syncDirectory(file.parentFile)
             }
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
             throw cancelled
@@ -264,6 +265,9 @@ internal class FileIndexStore private constructor(
             try {
                 writeSnapshot(tempFile, modelVersion, snapshot)
                 check(tempFile.renameTo(file)) { "Could not atomically replace ${file.name}" }
+                // The rename itself must reach the disk too: without it a power loss can bring back the
+                // old file, or none, after this save reported success.
+                syncDirectory(file.parentFile)
             } finally {
                 if (tempFile.exists()) tempFile.delete()
             }
@@ -302,6 +306,7 @@ internal class FileIndexStore private constructor(
     override suspend fun clear(): Unit = withContext(Dispatchers.IO) {
         check(!file.exists() || file.delete()) { "Could not delete ${file.name}" }
         check(!tempFile.exists() || tempFile.delete()) { "Could not delete ${tempFile.name}" }
+        syncDirectory(file.parentFile)
     }
 
     internal companion object {
@@ -568,5 +573,25 @@ private class RowHash {
         for (h in halves) mix(h.toLong())
         if (identity == null) mix(-2L) else for (c in identity) mix(c.code.toLong())
         mix(-3L)
+    }
+}
+
+/**
+ * Makes a rename or delete in [directory] durable (docs/analysis-094-plan.md 1a). Best effort: a file system that
+ * cannot sync a directory keeps 0.9.3's behaviour, and the file itself was already synced.
+ */
+internal fun syncDirectory(directory: File?) {
+    if (directory == null) return
+    try {
+        val fd = android.system.Os.open(directory.path, android.system.OsConstants.O_RDONLY, 0)
+        try {
+            android.system.Os.fsync(fd)
+        } finally {
+            android.system.Os.close(fd)
+        }
+    } catch (failure: Exception) {
+        // ErrnoException on a file system without directory sync; "Stub!" under host tests.
+    } catch (failure: LinkageError) {
+        // Host tests against stubbed framework classes.
     }
 }

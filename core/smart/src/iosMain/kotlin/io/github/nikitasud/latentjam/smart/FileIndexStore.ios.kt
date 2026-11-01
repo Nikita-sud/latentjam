@@ -6,21 +6,17 @@ package io.github.nikitasud.latentjam.smart
 
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
+import kotlinx.cinterop.convert
 import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSCachesDirectory
 import platform.Foundation.NSData
-import platform.Foundation.NSFileHandle
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSFileSize
 import platform.Foundation.NSNumber
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
 import platform.Foundation.NSUserDomainMask
-import platform.Foundation.dataWithBytes
-import platform.Foundation.fileHandleForReadingAtPath
-import platform.Foundation.writeToFile
-import platform.posix.memcpy
 
 /** Atomic, app-private persistence for an iOS vector index. */
 @OptIn(ExperimentalForeignApi::class)
@@ -54,7 +50,7 @@ internal class IosFileIndexStore(
         val manager = NSFileManager.defaultManager
         try {
             val encoded = encodeIosIndexSnapshot(modelVersion, loaded, half = true)
-            if (!encoded.toNSData().writeToFile(staged, false)) return
+            if (runCatching { writeFileSynced(staged) { sink -> sink(encoded, encoded.size) } }.isFailure) return
             val back = readBoundedSnapshot(staged) ?: return
             if (!back.contentEquals(encoded)) return
             val check = decodeIosIndexSnapshot(back, modelVersion) ?: return
@@ -64,7 +60,7 @@ internal class IosFileIndexStore(
                     val got = check.entries[id] ?: return@all false
                     got.size == v.size && v.indices.all { got[it] == HalfFloat.round(v[it]) }
                 }
-            if (same) platform.posix.rename(staged, path)
+            if (same && platform.posix.rename(staged, path) == 0) syncParentDirectory(path)
         } catch (failure: Throwable) {
             // The float file stays; the next load tries again.
         } finally {
@@ -82,11 +78,9 @@ internal class IosFileIndexStore(
         snapshot: StoredIndexSnapshot,
     ): Unit = withContext(Dispatchers.Default) {
         val path = checkNotNull(indexPath(fileName)) { "Caches directory is unavailable" }
-        // NSData's atomically=true writes through a sibling temporary file and rename, so a crash
-        // cannot replace a valid snapshot with a half-written one.
-        check(encodeIosIndexSnapshot(modelVersion, snapshot, half = half).toNSData().writeToFile(path, true)) {
-            "Could not atomically replace $fileName"
-        }
+        // Through a sibling temporary file, a full sync and a rename, so a crash or power loss cannot
+        // replace a valid snapshot with a half-written one; streamed, so the snapshot is never held twice.
+        writeDurably(path) { open -> writeIosIndexSnapshot(modelVersion, snapshot, half = half, open = open) }
     }
 
     override suspend fun clear(): Unit = withContext(Dispatchers.Default) {
@@ -94,6 +88,7 @@ internal class IosFileIndexStore(
         val manager = NSFileManager.defaultManager
         if (manager.fileExistsAtPath(path)) {
             check(manager.removeItemAtPath(path, null)) { "Could not delete $fileName" }
+            syncParentDirectory(path)
         }
     }
 }
@@ -109,20 +104,85 @@ private fun readBoundedSnapshot(path: String): ByteArray? {
     val declaredSize = (attributes[NSFileSize] as? NSNumber)?.longLongValue ?: return null
     if (!isLoadableIosIndexSnapshotSize(declaredSize)) return null
 
-    val handle = NSFileHandle.fileHandleForReadingAtPath(path) ?: return null
-    var closed = false
-    val data = try {
-        // Read one byte beyond the accepted maximum. Even if the file grows after the metadata
-        // preflight, Foundation can never allocate an unbounded NSData for this cache.
-        handle.readDataUpToLength((MAX_IOS_INDEX_SNAPSHOT_BYTES + 1L).toULong(), null)
+    // Read straight into one array of the declared size (no NSData copy beside it), plus a one-byte probe: a file that
+    // grew or shrank since the preflight is a cache miss, never a truncated or extended decode.
+    val fd = platform.posix.open(path, platform.posix.O_RDONLY)
+    if (fd < 0) return null
+    try {
+        val output = ByteArray(declaredSize.toInt())
+        var read = 0
+        while (read < output.size) {
+            val got = output.usePinned { pinned ->
+                platform.posix.read(fd, pinned.addressOf(read), (output.size - read).convert())
+            }
+            if (got <= 0L) return null
+            read += got.toInt()
+        }
+        val probe = ByteArray(1)
+        val extra = probe.usePinned { pinned -> platform.posix.read(fd, pinned.addressOf(0), 1.convert()) }
+        return if (extra == 0L) output else null
     } finally {
-        closed = handle.closeAndReturnError(null)
+        platform.posix.close(fd)
     }
-    if (!closed || data == null) return null
-    val observedSize = data.length.toLong()
-    if (observedSize != declaredSize || !isLoadableIosIndexSnapshotSize(observedSize)) return null
-    return data.toByteArray()
 }
+
+/**
+ * Replaces [path] with what [write] produces: a sibling `.tmp` written through a 64 KiB buffer, `F_FULLFSYNC`ed, renamed
+ * over [path], and the directory synced so the rename itself survives a power loss (docs/analysis-094-plan.md 1a).
+ */
+@OptIn(ExperimentalForeignApi::class)
+private fun writeDurably(path: String, write: ((Long) -> SnapshotWriter) -> Unit) {
+    val staged = "$path.tmp"
+    try {
+        writeFileSynced(staged) { sink ->
+            write { total -> SnapshotWriter(ByteArray(WRITE_BUFFER_BYTES), expected = total, drain = sink) }
+        }
+        check(platform.posix.rename(staged, path) == 0) { "Could not atomically replace ${path.substringAfterLast('/')}" }
+        syncParentDirectory(path)
+    } finally {
+        platform.posix.unlink(staged)
+    }
+}
+
+/** Creates [path] afresh, lets [write] fill it through the sink it is given, and syncs it to stable storage. */
+@OptIn(ExperimentalForeignApi::class)
+private fun writeFileSynced(path: String, write: (sink: (ByteArray, Int) -> Unit) -> Unit) {
+    val fd = platform.posix.open(path, platform.posix.O_WRONLY or platform.posix.O_CREAT or platform.posix.O_TRUNC, 384u)
+    check(fd >= 0) { "Could not create ${path.substringAfterLast('/')}" }
+    var closed = false
+    try {
+        write { bytes, count ->
+            var done = 0
+            while (done < count) {
+                val wrote = bytes.usePinned { pinned ->
+                    platform.posix.write(fd, pinned.addressOf(done), (count - done).convert())
+                }
+                check(wrote > 0L) { "Could not write ${path.substringAfterLast('/')}" }
+                done += wrote.toInt()
+            }
+        }
+        // F_FULLFSYNC asks the drive to flush its own cache too; plain fsync is the fallback where it is refused.
+        if (platform.posix.fcntl(fd, platform.posix.F_FULLFSYNC) != 0) {
+            check(platform.posix.fsync(fd) == 0) { "Could not sync ${path.substringAfterLast('/')}" }
+        }
+        closed = true
+        check(platform.posix.close(fd) == 0) { "Could not close ${path.substringAfterLast('/')}" }
+    } finally {
+        if (!closed) platform.posix.close(fd)
+    }
+}
+
+/** Best effort, as on Android: the file itself was already synced. */
+@OptIn(ExperimentalForeignApi::class)
+private fun syncParentDirectory(path: String) {
+    val directory = path.substringBeforeLast('/', missingDelimiterValue = ".")
+    val fd = platform.posix.open(directory, platform.posix.O_RDONLY)
+    if (fd < 0) return
+    platform.posix.fsync(fd)
+    platform.posix.close(fd)
+}
+
+private const val WRITE_BUFFER_BYTES = 64 * 1024
 
 /** The format version a snapshot's bytes declare, or null. */
 private fun snapshotFormatVersion(bytes: ByteArray): Int? {
@@ -162,6 +222,24 @@ internal fun encodeIosIndexSnapshot(
     maximumSnapshotBytes: Long = MAX_IOS_INDEX_SNAPSHOT_BYTES,
     half: Boolean = false,
 ): ByteArray {
+    var output: ByteArray? = null
+    writeIosIndexSnapshot(modelVersion, snapshot, maximumSnapshotBytes, half) { total ->
+        SnapshotWriter(ByteArray(total.toInt()).also { output = it })
+    }
+    return checkNotNull(output)
+}
+
+/**
+ * Writes the bytes [encodeIosIndexSnapshot] returns, through the writer [open] makes for their exact total size. The
+ * file store streams them to disk through a small buffer instead of holding the whole snapshot twice.
+ */
+internal fun writeIosIndexSnapshot(
+    modelVersion: String,
+    snapshot: StoredIndexSnapshot,
+    maximumSnapshotBytes: Long = MAX_IOS_INDEX_SNAPSHOT_BYTES,
+    half: Boolean = false,
+    open: (total: Long) -> SnapshotWriter,
+) {
     require(maximumSnapshotBytes in 1L..Int.MAX_VALUE.toLong()) {
         "Snapshot byte limit must be positive and fit in a ByteArray"
     }
@@ -228,7 +306,7 @@ internal fun encodeIosIndexSnapshot(
 
     // The same envelope guards reads and writes. Check it before allocating the contiguous output
     // buffer so the app can never write a cache that it will reject on the next launch.
-    val writer = SnapshotWriter(ByteArray(total.toInt()))
+    val writer = open(total)
     writer.int(MAGIC)
     writer.int(if (half) HALF_FORMAT_VERSION else FORMAT_VERSION)
     writer.bytesWithLength(versionBytes)
@@ -248,7 +326,7 @@ internal fun encodeIosIndexSnapshot(
         writer.bytesWithLength(failedIds.getValue(id))
         writer.bytesWithLength(failedIdentityBytes.getValue(id))
     }
-    return writer.result()
+    writer.finish()
 }
 
 internal fun decodeIosIndexSnapshot(
@@ -304,11 +382,29 @@ internal fun decodeIosIndexSnapshot(
     return StoredIndexSnapshot(result, identities, failedIdentities)
 }
 
-private class SnapshotWriter(private val output: ByteArray) {
+/**
+ * Big-endian writer into [output]: the whole snapshot when [drain] is null, or a buffer that [drain] empties whenever it
+ * fills, which must then see exactly [expected] bytes in all.
+ */
+internal class SnapshotWriter(
+    private val output: ByteArray,
+    private val expected: Long = output.size.toLong(),
+    private val drain: ((ByteArray, Int) -> Unit)? = null,
+) {
     private var position = 0
+    private var drained = 0L
+
+    private fun room(bytes: Int) {
+        if (drain != null && position > output.size - bytes) {
+            drain.invoke(output, position)
+            drained += position
+            position = 0
+        }
+        require(position <= output.size - bytes)
+    }
 
     fun int(value: Int) {
-        require(position <= output.size - Int.SIZE_BYTES)
+        room(Int.SIZE_BYTES)
         output[position++] = (value ushr 24).toByte()
         output[position++] = (value ushr 16).toByte()
         output[position++] = (value ushr 8).toByte()
@@ -316,16 +412,21 @@ private class SnapshotWriter(private val output: ByteArray) {
     }
 
     fun short(value: Short) {
-        require(position <= output.size - Short.SIZE_BYTES)
+        room(Short.SIZE_BYTES)
         output[position++] = (value.toInt() ushr 8).toByte()
         output[position++] = value.toByte()
     }
 
     fun bytesWithLength(bytes: ByteArray) {
         int(bytes.size)
-        require(position <= output.size - bytes.size)
-        bytes.copyInto(output, position)
-        position += bytes.size
+        var from = 0
+        while (from < bytes.size) {
+            val step = if (drain == null) bytes.size - from else minOf(bytes.size - from, output.size)
+            room(step)
+            bytes.copyInto(output, position, from, from + step)
+            position += step
+            from += step
+        }
     }
 
     fun nullableBytesWithLength(bytes: ByteArray?) {
@@ -336,9 +437,13 @@ private class SnapshotWriter(private val output: ByteArray) {
         }
     }
 
-    fun result(): ByteArray {
-        check(position == output.size)
-        return output
+    fun finish() {
+        if (drain != null && position > 0) {
+            drain.invoke(output, position)
+            drained += position
+            position = 0
+        }
+        check(drained + position == expected) { "Snapshot size changed while it was written" }
     }
 }
 
@@ -372,21 +477,6 @@ private class SnapshotReader(private val input: ByteArray) {
     }
 
     fun atEnd(): Boolean = position == input.size
-}
-
-@OptIn(ExperimentalForeignApi::class)
-private fun NSData.toByteArray(): ByteArray {
-    val size = length.toInt()
-    if (size == 0) return ByteArray(0)
-    val output = ByteArray(size)
-    output.usePinned { pinned -> memcpy(pinned.addressOf(0), bytes, length) }
-    return output
-}
-
-@OptIn(ExperimentalForeignApi::class)
-private fun ByteArray.toNSData(): NSData {
-    if (isEmpty()) return NSData()
-    return usePinned { pinned -> NSData.dataWithBytes(pinned.addressOf(0), size.toULong()) }
 }
 
 private const val MAGIC = 0x4C4A4958 // "LJIX"
