@@ -59,6 +59,8 @@ internal class AnalysisRetryLedger(encoded: String?, private val nowMs: () -> Lo
         return false
     }
 
+    fun has(id: TrackId): Boolean = id in entries
+
     /** [id] was analysed, failed some other way, or left the library. */
     fun forget(id: TrackId) {
         entries.remove(id)

@@ -1053,7 +1053,6 @@ object AppGraph {
     private suspend fun settleRetries(chunk: List<TrackDescriptor>, report: IndexReport): IndexReport {
         val retries = analysisRetries
         val exhausted = ArrayList<TrackDescriptor>()
-        val stillMissing = engine.missingFromIndexOf(chunk.filter { it.id !in report.errors })
         for (track in chunk) {
             val error = report.errors[track.id]
             when {
@@ -1061,12 +1060,18 @@ object AppGraph {
                 // Only an answer about the file ends its count: analysed, or failed for good. A passing failure
                 // (codec contention, a suspension on iOS, the model) or a track the chunk skipped keeps it.
                 error is EngineError.InvalidAudio -> retries.forget(track.id)
-                error == null && stillMissing == 0 -> retries.forget(track.id)
+                // Decided per track, and only for one the ledger holds: analysed means no longer missing.
+                error == null && retries.has(track.id) && engine.missingFromIndexOf(listOf(track)) == 0 ->
+                    retries.forget(track.id)
             }
         }
-        analysisStore.retryLedger = retries.encoded()
-        if (exhausted.isEmpty()) return report
+        if (exhausted.isEmpty()) {
+            analysisStore.retryLedger = retries.encoded()
+            return report
+        }
+        // The engine's failure rows first, then the ledger that let go of them: a kill between keeps the count.
         engine.rememberAudioFailures(exhausted)
+        analysisStore.retryLedger = retries.encoded()
         val errors = LinkedHashMap(report.errors)
         for (track in exhausted) errors[track.id] = EngineError.InvalidAudio("Analysis timed out ${AnalysisRetryLedger.CAP} times")
         return report.copy(errors = errors)

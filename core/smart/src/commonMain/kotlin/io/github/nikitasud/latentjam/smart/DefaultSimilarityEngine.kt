@@ -391,6 +391,7 @@ internal class DefaultSimilarityEngine(
         mutex.withLock {
             if (mutableState.value !is EngineState.Ready) return@withLock 0
             var cleared = 0
+            ids.forEach(seedTimeouts::remove)
             for (id in ids.toSet()) {
                 if (audioFailureIdentities.remove(id)) {
                     audioIndexDirty = true
@@ -1259,6 +1260,7 @@ internal class DefaultSimilarityEngine(
     override suspend fun clearAnalysis() {
         withContext(dispatcher) {
             mutex.withLock {
+                seedTimeouts.clear()
                 val audioSnapshot = currentAudioSnapshot()
                 val metadataSnapshot = currentTextSnapshot()
                 val failures = mutableListOf<Throwable>()
@@ -1332,6 +1334,7 @@ internal class DefaultSimilarityEngine(
         withContext(dispatcher) {
             mutex.withLock {
                 generation++
+                seedTimeouts.clear()
                 inference.withLock { backend.close() }
                 predictor?.close()
                 textEncoder?.close()
