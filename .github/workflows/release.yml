@@ -29,6 +29,8 @@ jobs:
       - name: Free runner disk
         run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL && df -h /
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
@@ -42,7 +44,7 @@ jobs:
       - name: Android SDK and native build tools
         run: |
           sdkmanager "platforms;android-36" "build-tools;$BUILD_TOOLS" "ndk;28.2.13676358" "cmake;3.22.1"
-          python -m pip install cmake ninja flatbuffers
+          python -m pip install cmake==3.31.6 ninja==1.13.2 flatbuffers==25.12.19
       - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
         with:
           # No Gradle cache written by other runs reaches release files.
@@ -104,6 +106,8 @@ jobs:
           docker system prune -af > /dev/null
           df -h /
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
       - name: fdroid build (commit as F-Droid's recipe pins it)
         run: |
           commit=$(git rev-parse "$GITHUB_SHA^{commit}")
@@ -116,10 +120,14 @@ jobs:
     timeout-minutes: 120
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      # gradle.properties' 8 GiB heaps for the Kotlin/Native Release link, not the workflow-wide 4 GiB.
+      GRADLE_OPTS: ""
     outputs:
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
@@ -267,11 +275,11 @@ jobs:
           if gh release view "$tag" > /dev/null 2>&1; then echo "a release for $tag already exists"; exit 1; fi
           find android -name "*-sbom.cdx.json" -exec cp {} assets/ \;
           find assets -mindepth 2 -type f -exec mv {} assets/ \;
-          (cd assets && sha256sum -- * | LC_ALL=C sort -k2 > SHA256SUMS)
+          (cd assets && sha256sum -- * | LC_ALL=C sort -k2 > ../SHA256SUMS) && mv SHA256SUMS assets/
           git fetch --force origin "refs/tags/$tag:refs/tags/$tag"
           base=$(sed -n 's/^ *versionCode = \([0-9]*\)$/\1/p' androidApp/build.gradle.kts)
           {
-            git tag -l --format='%(contents)' "$tag"
+            git tag -l --format='%(contents:body)' "$tag"
             echo
             echo "### Changelog"
             cat "fastlane/metadata/android/en-US/changelogs/$base.txt"

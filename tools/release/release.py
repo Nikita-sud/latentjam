@@ -246,6 +246,8 @@ def fdroid_mr(_args):
     subprocess.run([fdroid, "rewritemeta", APPID], cwd=FDROIDDATA, check=True, capture_output=True)
     subprocess.run([fdroid, "lint", APPID], cwd=FDROIDDATA, check=True)
     git("add", "metadata", "srclibs", cwd=FDROIDDATA)
+    if subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=FDROIDDATA).returncode == 0:
+        sys.exit(f"{branch}: nothing to commit (already rendered?)")
     git("commit", "--quiet", "-m", f"LatentJam {version} ({base * 10 + 1}-{base * 10 + 4}): frozen per-ABI recipe",
         cwd=FDROIDDATA)
     text = MR_TEXT.format(version=version, first=base * 10 + 1, last=base * 10 + 4, commit=head)
@@ -293,7 +295,8 @@ def tag(_args):
     print("\n== What handles the signing key (read before approving the release environment):\n")
     print(git("diff", f"{previous}..HEAD", "--", ".github/", "tools/release/"))
     notes = RELEASES / version / "tag-message.md"
-    print(f"\n== Owner: write the release notes into {notes} (first line: LatentJam {version}), then:\n"
+    print(f"\n== Owner: write {notes}: first line 'LatentJam {version}', a blank line, then the notes, starting with\n"
+          f"a one-paragraph summary (the GitHub release body and AltStore's description start there). Then:\n"
           f"git tag -a v{version} -F {notes} {head}\n"
           f"git push origin v{version}\n"
           "Push this tag alone (GitHub sends no push events for more than three tags at once).")
@@ -303,6 +306,7 @@ def tag(_args):
 
 def sums(_args):
     version, _base = app_version()
+    # Only after CI's ios job failed and the IPA was built on the Mac: two IPAs break the AltStore source.
     if not sys.stdin.isatty() or input(f"Replace SHA256SUMS of the v{version} draft on GitHub? [yes] ") != "yes":
         sys.exit("not confirmed")
     with tempfile.TemporaryDirectory() as tmp:

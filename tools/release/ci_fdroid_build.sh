@@ -53,7 +53,6 @@ CODE=$((CODE - 4 + DIGIT))
 fdroid lint "$APPID"
 fdroid rewritemeta "$APPID"
 git diff --exit-code                         # rewritemeta --list alone always exits 0
-python3 tools/check-fastlane.py "$APPID" || true   # fdroiddata reports these as code quality, not failures
 
 for d in logs tmp unsigned "$home_vagrant/.android" "$home_vagrant/.gradle" "$home_vagrant/metadata"; do
   mkdir -p "$d"; chown -R vagrant "$d"

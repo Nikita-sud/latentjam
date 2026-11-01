@@ -45,7 +45,12 @@ sdk_root() {
   [ -d "$sdk" ] || die "no Android SDK (set ANDROID_HOME)"
   echo "$sdk"
 }
-out_dir() { local d="$ROOT/build/release/$(app_version)"; mkdir -p "$d"; echo "$d"; }
+out_dir() {
+  local d
+  d="$ROOT/build/release/$(app_version)"
+  [ "${LATENTJAM_DRY_RUN:-0}" = 1 ] || mkdir -p "$d"
+  echo "$d"
+}
 
 # Parallel ORT compile jobs for the machine this really is: CPUs available to this process, and memory from the
 # cgroup limit when there is one (a container's /proc/meminfo shows the host). ORT's LTO steps need ~2 GB a job.
@@ -83,12 +88,13 @@ reduced_ort_repo() {
   source=${LATENTJAM_ORT_SOURCE:-$HOME/.cache/latentjam/onnxruntime-v$version}
   if [ ! -f "$source/cmake/external/onnx/CMakeLists.txt" ]; then
     run git clone --quiet --depth 1 --branch "v$version" --recursive --shallow-submodules \
-      https://github.com/microsoft/onnxruntime.git "$source" >&2
+      https://github.com/microsoft/onnxruntime.git "$source" >&2 || { rm -rf "$source"; exit 1; }
   fi
   # Work dir and download mirror on disk, per output (two worktrees never share one); the mirror is kept.
   local work=${LATENTJAM_ORT_WORK:-$(dirname "$repo")/work}
   LATENTJAM_ORT_WORK=$work LATENTJAM_ORT_MIRROR=${LATENTJAM_ORT_MIRROR:-$HOME/.cache/latentjam/ort-mirror-$version} \
-    JOBS=${JOBS:-$(ort_jobs)} run bash "$ROOT/tools/runtime/ort_source_build.sh" "$source" "$ndk" "$sdk" "$repo" >&2
+    JOBS=${JOBS:-$(ort_jobs)} run bash "$ROOT/tools/runtime/ort_source_build.sh" "$source" "$ndk" "$sdk" "$repo" >&2 \
+    || exit 1
   echo "$repo"
 }
 
@@ -98,11 +104,11 @@ gradle_release() {
 
 cmd_android() {
   local sdk repo out version
-  sdk=$(sdk_root); repo=$(reduced_ort_repo "$sdk"); version=$(app_version); out=$(out_dir)
+  sdk=$(sdk_root); repo=$(reduced_ort_repo "$sdk") || exit 1; version=$(app_version); out=$(out_dir)
   # The plain command, configuration cache as gradle.properties sets it: the command that is tested is the one shipped.
   gradle_release :androidApp:clean :androidApp:assembleRelease "-Platentjam.reducedOrtRepo=$repo"
   [ "${LATENTJAM_DRY_RUN:-0}" = 1 ] && return
-  rm -f "$out"/*-unsigned.apk
+  rm -f "$out"/*.apk "$out/apks.json" "$out/SHA256SUMS.unsigned"
   local apk abi short
   for apk in "$ROOT"/androidApp/build/outputs/apk/release/*-release-unsigned.apk; do
     abi=$(basename "$apk" | sed -nE 's/.*-(arm64-v8a|armeabi-v7a|x86_64|x86)-release-unsigned\.apk$/\1/p')
@@ -116,7 +122,7 @@ cmd_android() {
 
 cmd_bundle() {
   local sdk repo out version
-  sdk=$(sdk_root); repo=$(reduced_ort_repo "$sdk"); version=$(app_version); out=$(out_dir)
+  sdk=$(sdk_root); repo=$(reduced_ort_repo "$sdk") || exit 1; version=$(app_version); out=$(out_dir)
   gradle_release :androidApp:bundleRelease -Platentjam.bundle=true "-Platentjam.reducedOrtRepo=$repo"
   [ "${LATENTJAM_DRY_RUN:-0}" = 1 ] && return
   cp "$ROOT/androidApp/build/outputs/bundle/release/androidApp-release.aab" "$out/LatentJam-v$version-unsigned.aab"
@@ -180,12 +186,14 @@ cmd_sign() {
   [ "${2:-}" = --resign ] && resign=1
   [ -t 0 ] || die "sign asks for the keystore password: run it in your own terminal"
   [ -f "$key" ] || die "no keystore at $key"
-  for apk in "$dir"/*.apk; do
-    case "$apk" in *-signed.apk) continue;; esac
+  # The two APKs GitHub releases carry, named as every release so far (LatentJam-v<version>-arm64.apk).
+  for apk in "$dir"/*-arm64-unsigned.apk "$dir"/*-armv7-unsigned.apk; do
+    [ -f "$apk" ] || continue
     if [ $resign = 0 ] && "$(apksigner_bin)" verify "$apk" > /dev/null 2>&1; then
       die "$apk is already signed (--resign replaces a debug signature, for phone test builds only)"
     fi
-    signed="${apk%-unsigned.apk}"; signed="${signed%.apk}-signed.apk"
+    signed="${apk%-unsigned.apk}"; signed="${signed%.apk}.apk"
+    [ "$signed" != "$apk" ] || signed="${apk%.apk}-signed.apk"
     "$(apksigner_bin)" sign --ks "$key" --ks-type PKCS12 --ks-key-alias release \
       --v1-signing-enabled false --v2-signing-enabled true --v3-signing-enabled false --v4-signing-enabled false \
       --out "$signed" "$apk"
