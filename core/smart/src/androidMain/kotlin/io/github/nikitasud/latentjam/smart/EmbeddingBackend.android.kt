@@ -201,25 +201,32 @@ internal class OnnxEmbeddingBackend(
         )
     }
 
+    /** A track's windows decoded ahead, and what is left of its codec back-off allowance for the rest. */
+    private class Prefetched(val windows: Map<Long, AudioDecodeResult>, val backoff: CodecBackoff)
+
     /** The planned windows of [descriptor], decoded; null when there is nothing to decode ahead. */
-    private suspend fun prefetch(descriptor: TrackDescriptor): Map<Long, AudioDecodeResult>? {
+    private suspend fun prefetch(descriptor: TrackDescriptor): Prefetched? {
         val audioUri = descriptor.audioUri ?: return null
         val decodeContext = currentCoroutineContext()
+        val backoff = CodecBackoff()
         return try {
             val uri = Uri.parse(audioUri)
-            windowStartsMs(descriptor.durationMs).associateWith { startMs ->
+            val windows = windowStartsMs(descriptor.durationMs).associateWith { startMs ->
                 decoder.decodeWindowMono(
                     uri = uri,
                     startMs = startMs,
                     targetSampleRate = SAMPLE_RATE,
                     targetSamples = WINDOW_SAMPLES,
                     isCancelled = { !decodeContext.isActive },
+                    backoff = backoff,
                 )
             }
+            Prefetched(windows, backoff)
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (failure: Throwable) {
-            null // embedDecoded decodes the track itself, exactly as embed would.
+            // embedDecoded decodes the track itself, exactly as embed would, with what is left of the same allowance.
+            Prefetched(emptyMap(), backoff)
         }
     }
 
@@ -230,7 +237,7 @@ internal class OnnxEmbeddingBackend(
      */
     private suspend fun embedDecoded(
         descriptor: TrackDescriptor,
-        prefetched: Map<Long, AudioDecodeResult>?,
+        prefetched: Prefetched?,
         lane: DeadlineDecoding,
         waits: LockWaits,
     ): Result<FloatArray> {
@@ -238,6 +245,8 @@ internal class OnnxEmbeddingBackend(
             ?: return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
         val audioUri = descriptor.audioUri
             ?: return invalidAudio("No audio URI for ${descriptor.id.value}")
+        // What prefetching left of the track's codec back-off, or the whole allowance for a track decoded here.
+        val backoff = prefetched?.backoff ?: CodecBackoff()
 
         return try {
             val uri = Uri.parse(audioUri)
@@ -298,7 +307,7 @@ internal class OnnxEmbeddingBackend(
 
             suspend fun tryWindow(startMs: Long) {
                 currentCoroutineContext().ensureActive()
-                val ready = prefetched?.get(startMs)?.takeUnless { it is AudioDecodeResult.Unavailable }
+                val ready = prefetched?.windows?.get(startMs)?.takeUnless { it is AudioDecodeResult.Unavailable }
                 // On a worker, never here: a decode stuck in a platform call must not take the inference
                 // thread with it (issue #27).
                 when (val decoded = ready ?: lane.decode {
@@ -309,6 +318,7 @@ internal class OnnxEmbeddingBackend(
                         targetSampleRate = SAMPLE_RATE,
                         targetSamples = WINDOW_SAMPLES,
                         isCancelled = { !worker.isActive },
+                        backoff = backoff,
                     )
                 }) {
                     is AudioDecodeResult.Success -> {
