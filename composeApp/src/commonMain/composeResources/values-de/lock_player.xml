@@ -4,4 +4,12 @@
     <string name="lock_player_open_app">Entsperren und LatentJam öffnen</string>
     <string name="lock_player_cover_description">Cover. Zur Seite wischen, um den Titel zu wechseln, nach unten ziehen zum Schließen.</string>
     <string name="lock_player_mode_description">Wiedergabemodus: %1$s. Tippen zum Wechseln.</string>
+    <string name="settings_lock_screen_player_subtitle_ready">Geht der Bildschirm aus, während Musik läuft, öffnet sich der volle Player auf dem Sperrbildschirm</string>
+    <string name="lock_player_overlay_needed">Im Moment klappt das nur, wenn LatentJam offen ist, während der Bildschirm ausgeht. Damit es aus jeder App klappt, erlaube LatentJam die Einblendung über anderen Apps (öffnet sich eine Liste, wähle darin LatentJam).</string>
+    <string name="lock_player_overlay_unsupported">Dieses Telefon lässt keine Apps über dem Sperrbildschirm öffnen; es klappt also nur, wenn LatentJam offen ist, während der Bildschirm ausgeht.</string>
+    <string name="lock_player_overlay_allow">Erlauben</string>
+    <string name="lock_player_vendor_note">Erlaube LatentJam auf diesem Telefon außerdem in den App-Berechtigungen die Anzeige auf dem Sperrbildschirm und Pop-up-Fenster im Hintergrund.</string>
+    <string name="lock_player_vendor_open">App-Einstellungen</string>
+    <string name="lock_player_vendor_done">Erledigt</string>
+    <string name="lock_player_overlay_notice">Damit sich der Player auf dem Sperrbildschirm aus anderen Apps öffnet, braucht er deine Erlaubnis zur Einblendung über anderen Apps.</string>
 </resources>

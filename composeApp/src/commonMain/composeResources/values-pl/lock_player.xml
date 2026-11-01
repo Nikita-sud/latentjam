@@ -4,4 +4,12 @@
     <string name="lock_player_open_app">Odblokuj i otwórz LatentJam</string>
     <string name="lock_player_cover_description">Okładka. Przesuń w bok, aby zmienić utwór, przeciągnij w dół, aby zamknąć.</string>
     <string name="lock_player_mode_description">Tryb odtwarzania: %1$s. Dotknij, aby zmienić.</string>
+    <string name="settings_lock_screen_player_subtitle_ready">Gdy ekran zgaśnie podczas odtwarzania, na ekranie blokady otworzy się pełny odtwarzacz</string>
+    <string name="lock_player_overlay_needed">Na razie działa to tylko wtedy, gdy LatentJam jest otwarty w chwili wyłączenia ekranu. Aby działało z każdej aplikacji, zezwól LatentJam na wyświetlanie nad innymi aplikacjami (jeśli otworzy się lista, znajdź na niej LatentJam).</string>
+    <string name="lock_player_overlay_unsupported">Ten telefon nie pozwala aplikacjom otwierać się nad ekranem blokady, więc działa to tylko wtedy, gdy LatentJam jest otwarty w chwili wyłączenia ekranu.</string>
+    <string name="lock_player_overlay_allow">Zezwól</string>
+    <string name="lock_player_vendor_note">Na tym telefonie zezwól też LatentJam na wyświetlanie na ekranie blokady i otwieranie wyskakujących okien w tle, w uprawnieniach aplikacji.</string>
+    <string name="lock_player_vendor_open">Ustawienia aplikacji</string>
+    <string name="lock_player_vendor_done">Gotowe</string>
+    <string name="lock_player_overlay_notice">Aby otwierać się z innych aplikacji, odtwarzacz na ekranie blokady potrzebuje Twojej zgody na wyświetlanie nad innymi aplikacjami.</string>
 </resources>

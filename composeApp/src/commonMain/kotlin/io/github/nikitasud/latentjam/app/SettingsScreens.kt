@@ -334,6 +334,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_notificati
 import io.github.nikitasud.latentjam.app.generated.resources.settings_notification_favorite_subtitle
 import io.github.nikitasud.latentjam.app.generated.resources.settings_lock_screen_player
 import io.github.nikitasud.latentjam.app.generated.resources.settings_lock_screen_player_subtitle
+import io.github.nikitasud.latentjam.app.generated.resources.settings_lock_screen_player_subtitle_ready
 import io.github.nikitasud.latentjam.app.generated.resources.settings_stats
 import io.github.nikitasud.latentjam.app.generated.resources.settings_stats_subtitle
 import io.github.nikitasud.latentjam.app.generated.resources.settings_start_page
@@ -982,11 +983,25 @@ private fun AppearanceSettings(
                 }
                 if (lockScreenPlayerAvailable) {
                     val lockPlayer by settings.lockScreenPlayer.collectAsState()
+                    val lockPlayerDevice = rememberLockPlayerDevice(lockPlayer)
                     AppearanceSwitchRow(
                         title = stringResource(Res.string.settings_lock_screen_player),
-                        body = stringResource(Res.string.settings_lock_screen_player_subtitle),
+                        body = stringResource(
+                            if (lockPlayerDevice.access == LockPlayerAccess.Ready) {
+                                Res.string.settings_lock_screen_player_subtitle_ready
+                            } else {
+                                Res.string.settings_lock_screen_player_subtitle
+                            },
+                        ),
                         checked = lockPlayer,
                         onCheckedChange = settings::setLockScreenPlayer,
+                    )
+                    LockPlayerAccessNotes(
+                        device = lockPlayerDevice,
+                        vendorNoteHidden = settings.lockPlayerVendorNoteHidden.collectAsState().value,
+                        onHideVendorNote = { settings.setLockPlayerVendorNoteHidden(true) },
+                        // Seen here, the launch notice would only repeat it.
+                        onOverlayNoteShown = { settings.setLockPlayerOverlayNoticeShown(true) },
                     )
                 }
             }

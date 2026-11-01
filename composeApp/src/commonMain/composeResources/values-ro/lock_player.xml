@@ -4,4 +4,12 @@
     <string name="lock_player_open_app">Deblochează și deschide LatentJam</string>
     <string name="lock_player_cover_description">Copertă. Glisează lateral pentru a schimba piesa, trage în jos pentru a închide.</string>
     <string name="lock_player_mode_description">Mod de redare: %1$s. Atinge pentru a schimba.</string>
+    <string name="settings_lock_screen_player_subtitle_ready">Când ecranul se stinge în timp ce cântă muzica, playerul complet se deschide pe ecranul de blocare</string>
+    <string name="lock_player_overlay_needed">Deocamdată funcționează doar dacă LatentJam e deschis când se stinge ecranul. Ca să meargă din orice aplicație, permite-i lui LatentJam afișarea peste alte aplicații (dacă se deschide o listă, caută LatentJam în ea).</string>
+    <string name="lock_player_overlay_unsupported">Acest telefon nu lasă aplicațiile să se deschidă peste ecranul de blocare, așa că funcționează doar dacă LatentJam e deschis când se stinge ecranul.</string>
+    <string name="lock_player_overlay_allow">Permite</string>
+    <string name="lock_player_vendor_note">Pe acest telefon, permite-i lui LatentJam și afișarea pe ecranul de blocare și ferestrele pop-up în fundal, din permisiunile aplicației.</string>
+    <string name="lock_player_vendor_open">Setările aplicației</string>
+    <string name="lock_player_vendor_done">Gata</string>
+    <string name="lock_player_overlay_notice">Ca să se deschidă din alte aplicații, playerul de pe ecranul de blocare are nevoie de permisiunea ta de afișare peste alte aplicații.</string>
 </resources>

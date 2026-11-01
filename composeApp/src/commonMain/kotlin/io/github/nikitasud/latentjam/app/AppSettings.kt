@@ -504,6 +504,14 @@ interface AppSettings {
     val lockScreenPlayer: StateFlow<Boolean> get() = DEFAULT_LOCK_SCREEN_PLAYER
     fun setLockScreenPlayer(enabled: Boolean) {}
 
+    /** The listener said they allowed their phone maker's own lock-screen permissions. */
+    val lockPlayerVendorNoteHidden: StateFlow<Boolean> get() = DEFAULT_LOCK_SCREEN_PLAYER
+    fun setLockPlayerVendorNoteHidden(hidden: Boolean) {}
+
+    /** The one-time launch notice about display over other apps was shown (or made moot). */
+    val lockPlayerOverlayNoticeShown: StateFlow<Boolean> get() = DEFAULT_LOCK_SCREEN_PLAYER
+    fun setLockPlayerOverlayNoticeShown(shown: Boolean) {}
+
     /** The Tracks tab's order. */
     val songSort: StateFlow<SortChoice<SongSort>>
     fun setSongSort(choice: SortChoice<SongSort>)

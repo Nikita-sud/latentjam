@@ -4,4 +4,12 @@
     <string name="lock_player_open_app">Unlock and open LatentJam</string>
     <string name="lock_player_cover_description">Cover. Swipe sideways to change track, drag down to close.</string>
     <string name="lock_player_mode_description">Playback mode: %1$s. Tap to change.</string>
+    <string name="settings_lock_screen_player_subtitle_ready">When the screen turns off while music plays, the full player opens on the lock screen</string>
+    <string name="lock_player_overlay_needed">For now this works only if LatentJam is open when the screen turns off. To make it work from any app, allow LatentJam to display over other apps (if a list opens, find LatentJam in it).</string>
+    <string name="lock_player_overlay_unsupported">This phone does not let apps open over the lock screen, so this works only if LatentJam is open when the screen turns off.</string>
+    <string name="lock_player_overlay_allow">Allow</string>
+    <string name="lock_player_vendor_note">On this phone, also allow LatentJam to show on the lock screen and to open pop-up windows in the background, in its app permissions.</string>
+    <string name="lock_player_vendor_open">App settings</string>
+    <string name="lock_player_vendor_done">Done</string>
+    <string name="lock_player_overlay_notice">To open from other apps, the lock-screen player needs your permission to display over other apps.</string>
 </resources>

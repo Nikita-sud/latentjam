@@ -4,4 +4,12 @@
     <string name="lock_player_open_app">解锁并打开 LatentJam</string>
     <string name="lock_player_cover_description">封面。左右滑动切换曲目，向下拖动关闭。</string>
     <string name="lock_player_mode_description">播放模式：%1$s。点按切换。</string>
+    <string name="settings_lock_screen_player_subtitle_ready">播放音乐时屏幕关闭，完整播放器会在锁屏上打开</string>
+    <string name="lock_player_overlay_needed">目前只有在屏幕关闭时 LatentJam 处于打开状态才有效。要在任何应用中都有效，请允许 LatentJam 显示在其他应用上层（如果打开的是列表，请在其中找到 LatentJam）。</string>
+    <string name="lock_player_overlay_unsupported">此手机不允许应用在锁屏上方打开，因此只有在屏幕关闭时 LatentJam 处于打开状态才有效。</string>
+    <string name="lock_player_overlay_allow">允许</string>
+    <string name="lock_player_vendor_note">在此手机上，还请在应用权限中允许 LatentJam 在锁屏上显示以及在后台弹出窗口。</string>
+    <string name="lock_player_vendor_open">应用设置</string>
+    <string name="lock_player_vendor_done">完成</string>
+    <string name="lock_player_overlay_notice">要从其他应用打开锁屏播放器，需要你允许它显示在其他应用上层。</string>
 </resources>

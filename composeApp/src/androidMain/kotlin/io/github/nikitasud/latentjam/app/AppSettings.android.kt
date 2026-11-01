@@ -105,6 +105,14 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         runCatching { preferences.getBoolean(KEY_LOCK_SCREEN_PLAYER, false) }.getOrNull() ?: false,
     )
     override val lockScreenPlayer: StateFlow<Boolean> = mutableLockScreenPlayer.asStateFlow()
+    private val mutableLockPlayerVendorNoteHidden = MutableStateFlow(
+        runCatching { preferences.getBoolean(KEY_LOCK_PLAYER_VENDOR_NOTE_HIDDEN, false) }.getOrNull() ?: false,
+    )
+    override val lockPlayerVendorNoteHidden: StateFlow<Boolean> = mutableLockPlayerVendorNoteHidden.asStateFlow()
+    private val mutableLockPlayerOverlayNoticeShown = MutableStateFlow(
+        runCatching { preferences.getBoolean(KEY_LOCK_PLAYER_OVERLAY_NOTICE_SHOWN, false) }.getOrNull() ?: false,
+    )
+    override val lockPlayerOverlayNoticeShown: StateFlow<Boolean> = mutableLockPlayerOverlayNoticeShown.asStateFlow()
     private val mutableSongSort = MutableStateFlow(songSortFromPersisted(readString(KEY_SONG_SORT)))
     override val songSort: StateFlow<SortChoice<SongSort>> = mutableSongSort.asStateFlow()
     private val mutableAlbumSort = MutableStateFlow(albumSortFromPersisted(readString(KEY_ALBUM_SORT)))
@@ -216,6 +224,16 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
     override fun setLockScreenPlayer(enabled: Boolean) {
         preferences.edit().putBoolean(KEY_LOCK_SCREEN_PLAYER, enabled).apply()
         mutableLockScreenPlayer.value = enabled
+    }
+
+    override fun setLockPlayerVendorNoteHidden(hidden: Boolean) {
+        preferences.edit().putBoolean(KEY_LOCK_PLAYER_VENDOR_NOTE_HIDDEN, hidden).apply()
+        mutableLockPlayerVendorNoteHidden.value = hidden
+    }
+
+    override fun setLockPlayerOverlayNoticeShown(shown: Boolean) {
+        preferences.edit().putBoolean(KEY_LOCK_PLAYER_OVERLAY_NOTICE_SHOWN, shown).apply()
+        mutableLockPlayerOverlayNoticeShown.value = shown
     }
 
     override fun setArtistVariety(level: Int) {
@@ -449,6 +467,8 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         const val KEY_RESUME_SOURCE_NAME = "resume_source_name"
         const val KEY_NOTIFICATION_FAVORITE = "notification_favorite"
         const val KEY_LOCK_SCREEN_PLAYER = "lock_screen_player"
+        const val KEY_LOCK_PLAYER_VENDOR_NOTE_HIDDEN = "lock_player_vendor_note_hidden"
+        const val KEY_LOCK_PLAYER_OVERLAY_NOTICE_SHOWN = "lock_player_overlay_notice_shown"
         const val KEY_NORMALIZE_VOLUME = "normalize_volume"
         const val KEY_CROSSFADE_SECONDS = "crossfade_seconds"
         const val KEY_RELATIVE_PLAYLIST_PATHS = "relative_playlist_paths"

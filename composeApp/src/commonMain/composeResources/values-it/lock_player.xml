@@ -4,4 +4,12 @@
     <string name="lock_player_open_app">Sblocca e apri LatentJam</string>
     <string name="lock_player_cover_description">Copertina. Scorri di lato per cambiare brano, trascina in basso per chiudere.</string>
     <string name="lock_player_mode_description">Modalità di riproduzione: %1$s. Tocca per cambiare.</string>
+    <string name="settings_lock_screen_player_subtitle_ready">Quando lo schermo si spegne mentre suona la musica, il player completo si apre nella schermata di blocco</string>
+    <string name="lock_player_overlay_needed">Per ora funziona solo se LatentJam è aperto quando lo schermo si spegne. Perché funzioni da qualsiasi app, consenti a LatentJam la visualizzazione sopra altre app (se si apre un elenco, cerca LatentJam).</string>
+    <string name="lock_player_overlay_unsupported">Questo telefono non consente alle app di aprirsi sopra la schermata di blocco, quindi funziona solo se LatentJam è aperto quando lo schermo si spegne.</string>
+    <string name="lock_player_overlay_allow">Consenti</string>
+    <string name="lock_player_vendor_note">Su questo telefono consenti anche a LatentJam la visualizzazione nella schermata di blocco e le finestre pop-up in background, nei permessi dell'app.</string>
+    <string name="lock_player_vendor_open">Impostazioni app</string>
+    <string name="lock_player_vendor_done">Fatto</string>
+    <string name="lock_player_overlay_notice">Per aprirsi da altre app, il player nella schermata di blocco ha bisogno del tuo permesso di visualizzazione sopra altre app.</string>
 </resources>

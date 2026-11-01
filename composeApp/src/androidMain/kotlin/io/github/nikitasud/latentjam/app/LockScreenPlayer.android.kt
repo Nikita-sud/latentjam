@@ -33,10 +33,12 @@ import kotlinx.coroutines.launch
  * Listens for the screen turning off while the "Player on the lock screen" setting is on, and
  * opens [LockScreenPlayerActivity] then. The receiver exists only while the setting is on.
  *
- * Android lets an app start an activity from the background only with an exemption. A media
- * foreground service is none (measured on Android 16: BAL_BLOCK), so this works when LatentJam
- * itself is on screen at the moment the screen goes off, which counts as foreground. From any
- * other app the start is silently refused and the system media card stays the lock-screen player.
+ * From Android 10 an app may start an activity from the background only with an exemption. A
+ * media foreground service is none (measured on API 36: BAL_BLOCK), so without more this works only
+ * when LatentJam itself is on screen at the moment the screen goes off, which counts as foreground;
+ * from any other app the start is silently refused and the system media card stays the lock-screen
+ * player. Display over other apps, which Settings asks for ([LockPlayerAccess]), is an exemption
+ * (BAL_ALLOW_SAW_PERMISSION) and lets the same start through from any app.
  */
 internal fun installLockScreenPlayer(context: Context) {
     val app = context.applicationContext

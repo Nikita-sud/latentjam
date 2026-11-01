@@ -4,4 +4,12 @@
     <string name="lock_player_open_app">Déverrouiller et ouvrir LatentJam</string>
     <string name="lock_player_cover_description">Pochette. Balayez sur le côté pour changer de titre, tirez vers le bas pour fermer.</string>
     <string name="lock_player_mode_description">Mode de lecture : %1$s. Touchez pour changer.</string>
+    <string name="settings_lock_screen_player_subtitle_ready">Quand l'écran s'éteint pendant la lecture, le lecteur complet s'ouvre sur l'écran de verrouillage</string>
+    <string name="lock_player_overlay_needed">Pour l'instant, cela ne marche que si LatentJam est ouvert quand l'écran s'éteint. Pour que cela marche depuis n'importe quelle appli, autorisez LatentJam à s'afficher par-dessus les autres applis (si une liste s'ouvre, choisissez-y LatentJam).</string>
+    <string name="lock_player_overlay_unsupported">Ce téléphone ne permet pas aux applis de s'ouvrir par-dessus l'écran de verrouillage : cela ne marche donc que si LatentJam est ouvert quand l'écran s'éteint.</string>
+    <string name="lock_player_overlay_allow">Autoriser</string>
+    <string name="lock_player_vendor_note">Sur ce téléphone, autorisez aussi LatentJam à s'afficher sur l'écran de verrouillage et à ouvrir des fenêtres pop-up en arrière-plan, dans les autorisations de l'appli.</string>
+    <string name="lock_player_vendor_open">Paramètres de l'appli</string>
+    <string name="lock_player_vendor_done">Terminé</string>
+    <string name="lock_player_overlay_notice">Pour s'ouvrir depuis d'autres applis, le lecteur sur l'écran de verrouillage a besoin de votre autorisation de s'afficher par-dessus les autres applis.</string>
 </resources>

@@ -4,4 +4,12 @@
     <string name="lock_player_open_app">افتح القفل وافتح LatentJam</string>
     <string name="lock_player_cover_description">الغلاف. اسحب جانبًا لتغيير المقطع، واسحب للأسفل للإغلاق.</string>
     <string name="lock_player_mode_description">وضع التشغيل: %1$s. انقر للتغيير.</string>
+    <string name="settings_lock_screen_player_subtitle_ready">عندما تنطفئ الشاشة أثناء تشغيل الموسيقى، يُفتح المشغّل الكامل على شاشة القفل</string>
+    <string name="lock_player_overlay_needed">يعمل هذا حاليًا فقط إذا كان LatentJam مفتوحًا عند إطفاء الشاشة. ليعمل من أي تطبيق، اسمح لـ LatentJam بالظهور فوق التطبيقات الأخرى (إذا فُتحت قائمة، فابحث فيها عن LatentJam).</string>
+    <string name="lock_player_overlay_unsupported">لا يسمح هذا الهاتف للتطبيقات بالفتح فوق شاشة القفل، لذا يعمل هذا فقط إذا كان LatentJam مفتوحًا عند إطفاء الشاشة.</string>
+    <string name="lock_player_overlay_allow">السماح</string>
+    <string name="lock_player_vendor_note">على هذا الهاتف، اسمح أيضًا لـ LatentJam بالظهور على شاشة القفل وفتح النوافذ المنبثقة في الخلفية، من أذونات التطبيق.</string>
+    <string name="lock_player_vendor_open">إعدادات التطبيق</string>
+    <string name="lock_player_vendor_done">تم</string>
+    <string name="lock_player_overlay_notice">لكي يُفتح المشغّل على شاشة القفل من التطبيقات الأخرى، يحتاج إلى إذنك بالظهور فوق التطبيقات الأخرى.</string>
 </resources>

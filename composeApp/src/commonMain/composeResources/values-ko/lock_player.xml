@@ -4,4 +4,12 @@
     <string name="lock_player_open_app">잠금 해제 후 LatentJam 열기</string>
     <string name="lock_player_cover_description">커버. 옆으로 밀어 트랙을 바꾸고, 아래로 끌어 닫습니다.</string>
     <string name="lock_player_mode_description">재생 모드: %1$s. 탭하여 변경합니다.</string>
+    <string name="settings_lock_screen_player_subtitle_ready">음악 재생 중 화면이 꺼지면 잠금 화면에 전체 플레이어가 열립니다</string>
+    <string name="lock_player_overlay_needed">지금은 화면이 꺼질 때 LatentJam이 열려 있어야만 작동합니다. 어느 앱에서든 작동하게 하려면 LatentJam에 다른 앱 위에 표시 권한을 허용하세요(목록이 열리면 LatentJam을 찾으세요).</string>
+    <string name="lock_player_overlay_unsupported">이 휴대전화는 앱이 잠금 화면 위에 열리는 것을 허용하지 않으므로 화면이 꺼질 때 LatentJam이 열려 있어야만 작동합니다.</string>
+    <string name="lock_player_overlay_allow">허용</string>
+    <string name="lock_player_vendor_note">이 휴대전화에서는 앱 권한에서 LatentJam의 잠금 화면 표시와 백그라운드 팝업 창도 허용하세요.</string>
+    <string name="lock_player_vendor_open">앱 설정</string>
+    <string name="lock_player_vendor_done">완료</string>
+    <string name="lock_player_overlay_notice">잠금 화면 플레이어가 다른 앱에서 열리려면 다른 앱 위에 표시 권한이 필요합니다.</string>
 </resources>

@@ -4,4 +4,12 @@
     <string name="lock_player_open_app">Desbloquear y abrir LatentJam</string>
     <string name="lock_player_cover_description">Portada. Desliza a un lado para cambiar de pista y hacia abajo para cerrar.</string>
     <string name="lock_player_mode_description">Modo de reproducción: %1$s. Toca para cambiar.</string>
+    <string name="settings_lock_screen_player_subtitle_ready">Cuando la pantalla se apaga mientras suena música, el reproductor completo se abre en la pantalla de bloqueo</string>
+    <string name="lock_player_overlay_needed">Por ahora solo funciona si LatentJam está abierto cuando se apaga la pantalla. Para que funcione desde cualquier app, permite que LatentJam se muestre sobre otras apps (si se abre una lista, busca LatentJam en ella).</string>
+    <string name="lock_player_overlay_unsupported">Este teléfono no deja que las apps se abran sobre la pantalla de bloqueo, así que solo funciona si LatentJam está abierto cuando se apaga la pantalla.</string>
+    <string name="lock_player_overlay_allow">Permitir</string>
+    <string name="lock_player_vendor_note">En este teléfono, permite además que LatentJam se muestre en la pantalla de bloqueo y abra ventanas emergentes en segundo plano, en los permisos de la app.</string>
+    <string name="lock_player_vendor_open">Ajustes de la app</string>
+    <string name="lock_player_vendor_done">Hecho</string>
+    <string name="lock_player_overlay_notice">Para abrirse desde otras apps, el reproductor en la pantalla de bloqueo necesita tu permiso para mostrarse sobre otras apps.</string>
 </resources>

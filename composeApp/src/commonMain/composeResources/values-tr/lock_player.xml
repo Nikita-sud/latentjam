@@ -4,4 +4,12 @@
     <string name="lock_player_open_app">Kilidi aç ve LatentJam'i aç</string>
     <string name="lock_player_cover_description">Kapak. Parçayı değiştirmek için yana kaydırın, kapatmak için aşağı çekin.</string>
     <string name="lock_player_mode_description">Çalma modu: %1$s. Değiştirmek için dokunun.</string>
+    <string name="settings_lock_screen_player_subtitle_ready">Müzik çalarken ekran kapanınca tam oynatıcı kilit ekranında açılır</string>
+    <string name="lock_player_overlay_needed">Şimdilik bu yalnızca ekran kapanırken LatentJam açıksa çalışır. Her uygulamadan çalışması için LatentJam'e diğer uygulamaların üzerinde gösterme izni verin (bir liste açılırsa içinde LatentJam'i bulun).</string>
+    <string name="lock_player_overlay_unsupported">Bu telefon uygulamaların kilit ekranının üzerinde açılmasına izin vermiyor; bu yüzden bu yalnızca ekran kapanırken LatentJam açıksa çalışır.</string>
+    <string name="lock_player_overlay_allow">İzin ver</string>
+    <string name="lock_player_vendor_note">Bu telefonda uygulama izinlerinden LatentJam'e ayrıca kilit ekranında gösterme ve arka planda açılır pencere izni de verin.</string>
+    <string name="lock_player_vendor_open">Uygulama ayarları</string>
+    <string name="lock_player_vendor_done">Tamam</string>
+    <string name="lock_player_overlay_notice">Kilit ekranındaki oynatıcının diğer uygulamalardan açılabilmesi için diğer uygulamaların üzerinde gösterme izninize ihtiyacı var.</string>
 </resources>

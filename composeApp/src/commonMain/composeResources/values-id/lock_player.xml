@@ -4,4 +4,12 @@
     <string name="lock_player_open_app">Buka kunci dan buka LatentJam</string>
     <string name="lock_player_cover_description">Sampul. Geser ke samping untuk mengganti lagu, tarik ke bawah untuk menutup.</string>
     <string name="lock_player_mode_description">Mode pemutaran: %1$s. Ketuk untuk mengganti.</string>
+    <string name="settings_lock_screen_player_subtitle_ready">Saat layar mati ketika musik diputar, pemutar lengkap terbuka di layar kunci</string>
+    <string name="lock_player_overlay_needed">Untuk saat ini, ini hanya berfungsi jika LatentJam terbuka saat layar mati. Agar berfungsi dari aplikasi apa pun, izinkan LatentJam tampil di atas aplikasi lain (jika yang terbuka adalah daftar, cari LatentJam di sana).</string>
+    <string name="lock_player_overlay_unsupported">Ponsel ini tidak mengizinkan aplikasi terbuka di atas layar kunci, jadi ini hanya berfungsi jika LatentJam terbuka saat layar mati.</string>
+    <string name="lock_player_overlay_allow">Izinkan</string>
+    <string name="lock_player_vendor_note">Di ponsel ini, izinkan juga LatentJam tampil di layar kunci dan membuka jendela pop-up di latar belakang, di izin aplikasi.</string>
+    <string name="lock_player_vendor_open">Setelan aplikasi</string>
+    <string name="lock_player_vendor_done">Selesai</string>
+    <string name="lock_player_overlay_notice">Agar bisa terbuka dari aplikasi lain, pemutar di layar kunci memerlukan izin Anda untuk tampil di atas aplikasi lain.</string>
 </resources>
