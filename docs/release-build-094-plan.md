@@ -517,6 +517,16 @@ Verified locally:
 - fdroiddata: draft branch `latentjam-0.9.4-draft` (provisional commit hash, lint clean), not pushed;
   `release.py fdroid-mr` re-renders it on the real release commit.
 
+- Night of 2026-11-01: `fdroid build --test` of blocks 441 (armeabi-v7a) and 444 (x86_64) also succeed, so all four
+  blocks are built locally. `actionlint` and `shellcheck` are clean. `act -n` gives the intended job graph: a
+  `release/**` push runs android, fdroid x4, ios, sign-dry; a `v*` tag runs android, fdroid x4, ios, sign, draft.
+- E3: `build.sh fdroid-prebuild arm64-v8a` in a Debian trixie amd64 container with `--cpuset-cpus=0 --memory=2g
+  --memory-swap=2g` (Rosetta emulation on the Mac, so an upper bound): `ort_jobs` chose 1 job, no OOM, 3548 s
+  (59 min) to the 4.3 MB AAR; the work dir is removed afterwards. That leaves about an hour of fdroidserver's default
+  7200 s for Gradle on the smallest buildserver, so no `timeout:` is set now. If production ever times out, add
+  `timeout: 10800` to the arm64 block (an MR) or take D4. The first run failed only because that home-made image
+  lacked `patch`; the real buildserver installs it (fdroidserver `buildserver/provision-apt-get-install`).
+
 Not verified (needs the owner's push of a `release/0.9.4` branch): the GitHub workflow itself — the Linux
-`android` job, the four `fdroid` containers (ci_fdroid_build.sh), the macOS `ios` job on Xcode 26.3, `sign-dry`,
-and the E3 timing of the ORT prebuild on 1 CPU / 2 GB. The `sign` and `draft` jobs run first on the real tag.
+`android` job, the four `fdroid` containers (ci_fdroid_build.sh), the macOS `ios` job on Xcode 26.3 and `sign-dry`.
+The `sign` and `draft` jobs run first on the real tag.
