@@ -754,7 +754,7 @@ re-read on every chunk and on every system event: screen on/off, playback start/
       Retry and Rebuild, or re-arm the stall timer.
       So `metadataVectorsReady` never flips, and the map regions are not rebuilt (App.kt:1298-1310).
 
-    Stuck waits for the next cold start. The state table is evaluated
+    The state table is evaluated
     **before** `show()`, so a stop row never starts the FGS.
   - **The Continue extra** is handled in `onCreate` / `onNewIntent` before the trigger runs. It is consumed once:
     `removeExtra` + `setIntent`, only when `savedInstanceState == null`, and never with
