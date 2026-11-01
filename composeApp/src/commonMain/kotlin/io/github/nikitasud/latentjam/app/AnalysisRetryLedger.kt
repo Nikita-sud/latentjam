@@ -81,3 +81,18 @@ internal class AnalysisRetryLedger(encoded: String?, private val nowMs: () -> Lo
         private fun identityOf(track: TrackDescriptor): String = "${track.audioUri}|${track.durationMs}"
     }
 }
+
+/**
+ * What the D2 ledger keeps at the start of a pass, or null to leave it as it is: the recovery Retry clears it, and
+ * otherwise only an authoritative library says which tracks left. A partial scan (a source that came back empty, a
+ * permission not yet granted, a background launch) must not wipe the timeout counts of the tracks it did not see.
+ */
+internal fun ledgerKeeps(
+    trackIds: List<TrackId>,
+    recoveryRetry: Boolean,
+    librarySnapshotAuthoritative: Boolean,
+): List<TrackId>? = when {
+    recoveryRetry -> emptyList()
+    librarySnapshotAuthoritative -> trackIds
+    else -> null
+}

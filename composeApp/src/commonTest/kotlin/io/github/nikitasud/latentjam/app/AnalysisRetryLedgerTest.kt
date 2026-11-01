@@ -74,4 +74,12 @@ class AnalysisRetryLedgerTest {
         now += 61 * 60_000
         assertTrue(ledger.timedOut(track))
     }
+
+    @Test
+    fun onlyAnAuthoritativeLibraryOrTheRecoveryRetryPrunesTheLedger() {
+        val ids = listOf(TrackId("a"), TrackId("b"))
+        assertEquals(ids, ledgerKeeps(ids, recoveryRetry = false, librarySnapshotAuthoritative = true))
+        assertEquals(null, ledgerKeeps(ids, recoveryRetry = false, librarySnapshotAuthoritative = false))
+        assertEquals(emptyList(), ledgerKeeps(ids, recoveryRetry = true, librarySnapshotAuthoritative = false))
+    }
 }

@@ -693,7 +693,7 @@ object AppGraph {
                 val retries = analysisRetries
                 val retry = pendingRetry.value
                 if (retry != null) engine.retryFailedTracks(if (retry.all) trackIds else retry.ids.toList())
-                retries.prune(if (retry?.all == true) emptyList() else trackIds)
+                ledgerKeeps(trackIds, recoveryRetry = retry?.all == true, librarySnapshotAuthoritative)?.let(retries::prune)
                 retry?.ids?.forEach(retries::forget)
                 // Carried out: what a later Retry added meanwhile stays for the next pass.
                 if (retry != null) {
