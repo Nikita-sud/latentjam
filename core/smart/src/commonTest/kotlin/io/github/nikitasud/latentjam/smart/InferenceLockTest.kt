@@ -34,6 +34,7 @@ internal class InferenceLockTest {
     /** Locks per track when [locks]; between its first and second track it waits on [between], outside the lock. */
     private class GatedBackend(private val locks: Boolean) : EmbeddingBackend {
         val vectors = HashMap<TrackId, FloatArray>()
+        val embedded = ArrayList<TrackId>()
         val firstDone = CompletableDeferred<Unit>()
         val between = CompletableDeferred<Unit>()
         private var lock: Mutex? = null
@@ -47,6 +48,7 @@ internal class InferenceLockTest {
         override suspend fun loadModel(): Result<Unit> = Result.success(Unit)
 
         override suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray> {
+            embedded += descriptor.id
             val unit = { Result.success(vectors.getValue(descriptor.id).copyOf()) }
             return lock?.withLock { unit() } ?: unit()
         }
@@ -133,5 +135,26 @@ internal class InferenceLockTest {
         val b = held.snapshots.getValue("test-model")
         assertEquals(b.keys.toList(), a.keys.toList())
         for ((id, v) in b) assertTrue(v.contentEquals(a.getValue(id)), "row ${id.value}")
+    }
+
+    @Test
+    fun aClearMidChunkStopsTheChunkAfterItsCurrentTrack() = runBlocking {
+        withContext(Dispatchers.Default) {
+            val backend = GatedBackend(locks = true).apply { register() }
+            val store = FakeIndexStore()
+            val engine = engine(backend, store)
+            engine.initialize()
+            coroutineScope {
+                val analysis = async { engine.indexLibrary(chunk) }
+                backend.firstDone.await()
+                engine.clearAnalysis()
+                backend.between.complete(Unit)
+                val report = analysis.await()
+                assertEquals(0, report.indexed)
+                // The track in hand when the generation changed finishes; none after it starts.
+                assertEquals(chunk.take(2).map { it.id }, backend.embedded.filter { it in chunk.map { t -> t.id } })
+                assertEquals(0, store.snapshots["test-model"].orEmpty().size)
+            }
+        }
     }
 }

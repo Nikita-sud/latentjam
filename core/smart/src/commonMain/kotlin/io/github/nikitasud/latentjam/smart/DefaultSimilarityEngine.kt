@@ -104,7 +104,11 @@ internal class DefaultSimilarityEngine(
     private suspend fun <T> embedding(block: suspend () -> T): T =
         if (backendLocksInference) block() else inference.withLock { block() }
 
-    /** Advances when the index is cleared or released: inference results from an older generation are dropped. */
+    /**
+     * Advances when the index is cleared or released: inference results from an older generation are dropped, and a
+     * chunk still inferring stops after its current track. Written under [mutex]; read by that chunk without it.
+     */
+    @Volatile
     private var generation = 0L
 
     @Volatile
@@ -333,11 +337,15 @@ internal class DefaultSimilarityEngine(
                     // The upcoming tracks go only to a backend that can use them; without any, 0.9.3's call.
                     withContext(inferenceDispatcher) { backend.embedEachWith(prepared.toEmbed, prepared.upcoming) { track, result ->
                         results += track to result
+                        // Cleared or released meanwhile: phase 3 drops every result, so the rest is not worth decoding.
+                        if (generation != prepared.generation) throw StaleChunk()
                         analysingFrom(results.size)
                         // Let foreground dispatchers run between independent tracks.
                         yield()
                     } }
                 }
+            } catch (_: StaleChunk) {
+                // Phase 3 sees the new generation and keeps nothing.
             } finally {
                 mutableAnalysing.value = null
             }
@@ -2045,6 +2053,9 @@ private const val TRANSITION_SAMPLE_SEED: Int = 25
 
 /** Text-encoder outputs kept for reuse (2d): an album's worth and more. */
 private const val TEXT_ENCODE_CACHE: Int = 64
+
+/** Ends a chunk's inference once the engine was cleared or released under it. */
+private class StaleChunk : Exception()
 
 private suspend fun EmbeddingBackend.embedEachWith(
     tracks: List<TrackDescriptor>,
