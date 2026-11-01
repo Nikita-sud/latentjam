@@ -345,6 +345,7 @@ internal class DefaultSimilarityEngine(
                 if (!current || knownTracks[track.id]?.audioVectorIdentity() != track.audioVectorIdentity()) continue
                 result.fold(
                     onSuccess = { vector ->
+                        seedTimeouts.remove(track.id)
                         val rejection = validateAndUpsert(track, vector)
                         if (rejection == null) indexed++ else errors[track.id] = rejection
                     },
@@ -534,6 +535,11 @@ internal class DefaultSimilarityEngine(
                     if (hasRememberedAudioFailure(seed)) {
                         return@withLock NextTrackResult.Failure(EngineError.InvalidAudio())
                     }
+                    // D1: a seed whose embed timed out this session is not waited on again by a press; the pass
+                    // retries it (and its retry ledger decides when to give up).
+                    if (seed.audioVectorIdentity() == seedTimeouts[seed.id]) {
+                        return@withLock NextTrackResult.Failure(EngineError.AudioUnavailable("Seed analysis timed out earlier"))
+                    }
                     if (seed.audioUri.isNullOrBlank()) {
                         rememberAudioFailure(seed)
                         persistAudioIndex()
@@ -550,6 +556,7 @@ internal class DefaultSimilarityEngine(
                             rememberAudioFailure(seed)
                             persistAudioIndex()
                         }
+                        if (error.isAnalysisTimeout()) seedTimeouts[seed.id] = seed.audioVectorIdentity()
                         return@withLock NextTrackResult.Failure(error)
                     }
                 }
@@ -648,13 +655,19 @@ internal class DefaultSimilarityEngine(
 
     override suspend fun rememberAudioFailures(tracks: List<TrackDescriptor>): Unit = withContext(dispatcher) {
         mutex.withLock {
+            if (mutableState.value !is EngineState.Ready) return@withLock
             for (track in tracks) {
                 if (track.id in index) continue
                 if (knownTracks[track.id]?.audioVectorIdentity() != track.audioVectorIdentity()) continue
                 rememberAudioFailure(track)
             }
+            // Durable at once: the app's ledger has already let go of these tracks.
+            persistForPlayback("audio", ::persistAudioIndex)
         }
     }
+
+    /** Seeds whose embed timed out in this process, by their vector identity (D1); cleared when the pass analyses them. */
+    private val seedTimeouts = HashMap<TrackId, String>()
 
     override suspend fun rememberedAudioFailures(tracks: List<TrackDescriptor>): Map<TrackId, EngineError> =
         withContext(dispatcher) {
@@ -991,18 +1004,21 @@ internal class DefaultSimilarityEngine(
                         seed, library, length, history, companionGroups,
                     )
                 }
-                val vector = ensureAudioModel().getOrNull()?.let {
+                val timedOutBefore = seed.audioVectorIdentity() == seedTimeouts[seed.id]
+                val vector = (if (timedOutBefore) null else ensureAudioModel().getOrNull()?.let {
                     inference.withLock { backend.embed(seed) }.fold(
                         onSuccess = { it },
                         onFailure = { throwable ->
-                            if (throwable.toEngineError() is EngineError.InvalidAudio) {
+                            val error = throwable.toEngineError()
+                            if (error is EngineError.InvalidAudio) {
                                 rememberAudioFailure(seed)
                                 persistForPlayback("audio", ::persistAudioIndex)
                             }
+                            if (error.isAnalysisTimeout()) seedTimeouts[seed.id] = seed.audioVectorIdentity()
                             null
                         },
                     )
-                } ?: return@withLock metadataFallback(
+                }) ?: return@withLock metadataFallback(
                     seed, library, length, history, companionGroups,
                 )
                 if (validateAndUpsert(seed, vector) != null) {

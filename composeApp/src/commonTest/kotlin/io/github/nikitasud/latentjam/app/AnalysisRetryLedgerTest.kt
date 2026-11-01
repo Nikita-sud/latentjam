@@ -63,4 +63,15 @@ class AnalysisRetryLedgerTest {
         ledger.prune(listOf(TrackId("c")))
         assertEquals(0, ledger.size)
     }
+
+    @Test
+    fun aPassingFailureBetweenTimeoutsKeepsTheCount() {
+        // The app forgets an entry only on an answer about the file (analysed, or failed for good), so a forgiven
+        // suspension or codec contention between two timeouts leaves the count where it was.
+        val ledger = AnalysisRetryLedger(null) { now }
+        ledger.timedOut(track)
+        ledger.timedOut(track)
+        now += 61 * 60_000
+        assertTrue(ledger.timedOut(track))
+    }
 }

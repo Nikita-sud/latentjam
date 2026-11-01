@@ -684,7 +684,13 @@ object AppGraph {
                 // left; Retry makes every such file eligible again.
                 val retries = analysisRetries
                 if (force) retries.prune(emptyList()) else retries.prune(trackIds)
-                val holding = tracks.filter(retries::holding).mapTo(HashSet()) { it.id }
+                // Only what is still missing: a held track a press analysed meanwhile is plain done.
+                val held = tracks.filter(retries::holding)
+                val holding = if (held.isEmpty() || engine.missingFromIndexOf(held) == held.size) {
+                    held.mapTo(HashSet()) { it.id }
+                } else {
+                    held.filter { engine.missingFromIndexOf(listOf(it)) > 0 }.mapTo(HashSet()) { it.id }
+                }
                 store.retryLedger = retries.encoded()
                 // The foreground service and its notification are only warranted when audio
                 // embedding will actually run. The dedup key lives in process memory, so every
@@ -936,6 +942,9 @@ object AppGraph {
         try {
             clear()
         } finally {
+            // The ledger belongs to the analysis that was cleared.
+            analysisRetries.prune(emptyList())
+            analysisStore.retryLedger = analysisRetries.encoded()
             analysisControl.setUserPaused(false)
             analysisStore.stopReason = null
             mutableAutomaticIndexing.value = AutomaticIndexingState()
@@ -1044,12 +1053,15 @@ object AppGraph {
     private suspend fun settleRetries(chunk: List<TrackDescriptor>, report: IndexReport): IndexReport {
         val retries = analysisRetries
         val exhausted = ArrayList<TrackDescriptor>()
+        val stillMissing = engine.missingFromIndexOf(chunk.filter { it.id !in report.errors })
         for (track in chunk) {
             val error = report.errors[track.id]
-            if (error != null && error.isAnalysisTimeout()) {
-                if (retries.timedOut(track)) exhausted += track
-            } else {
-                retries.forget(track.id)
+            when {
+                error != null && error.isAnalysisTimeout() -> if (retries.timedOut(track)) exhausted += track
+                // Only an answer about the file ends its count: analysed, or failed for good. A passing failure
+                // (codec contention, a suspension on iOS, the model) or a track the chunk skipped keeps it.
+                error is EngineError.InvalidAudio -> retries.forget(track.id)
+                error == null && stillMissing == 0 -> retries.forget(track.id)
             }
         }
         analysisStore.retryLedger = retries.encoded()

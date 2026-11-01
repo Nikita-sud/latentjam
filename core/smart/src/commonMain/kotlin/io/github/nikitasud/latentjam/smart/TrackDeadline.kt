@@ -47,7 +47,6 @@ internal interface DecodeWorkers {
     fun close() {}
 }
 
-/** The failure a timed-out track gets: remembered while the file is unchanged, listed with a Retry. */
 /**
  * D1 (docs/analysis-094-plan.md §0): a timeout is transient, not remembered. Its cause may pass (a slow card, a busy
  * codec); the app's retry ledger stops a file that keeps timing out after three tries (D2).
@@ -64,11 +63,11 @@ public fun EngineError.isAnalysisTimeout(): Boolean =
 /**
  * [result], except that a track timed out after [budget] while the app was suspended becomes the retryable
  * [EngineError.AudioUnavailable]: its clock kept running while the track itself did not, so it is analysed again
- * by the next pass instead of being remembered as timed out. The app counts as suspended during the track when it
+ * by the next pass and is no attempt in the app's retry ledger. The app counts as suspended during the track when it
  * changed between foreground and background since the track started ([transitionsBefore] to [transitionsAfter]),
  * or when it is still in the background as the timeout fires ([inBackgroundAfter]). An app playing music in the
  * background is not suspended, so that is only a likely sign: a track already let off once ([forgivenBefore]) is
- * remembered as timed out, so a track that really hangs costs at most one more wait. Any other result is unchanged.
+ * reported as timed out (an attempt in the retry ledger), so a track that really hangs costs at most one more wait. Any other result is unchanged.
  */
 internal fun timeoutUnlessSuspended(
     result: Result<FloatArray>,
@@ -205,12 +204,14 @@ internal class DeadlineDecoding(
             while (queue.isNotEmpty()) {
                 val (track, decoding) = queue.removeFirst()
                 var finished = false
+                val generationBefore = poolGeneration
                 val result = withinBudget {
                     val decoded = await(decoding)
                     refill()
                     finish(track, decoded).also { finished = true }
                 }
-                if (!finished) {
+                // The workers were replaced (a timeout, also one that fired as the inference finished): restart.
+                if (!finished || poolGeneration != generationBefore) {
                     // The workers were replaced: what is still decoding may sit behind the stuck one.
                     val pending = queue.toList()
                     queue.clear()
@@ -261,10 +262,16 @@ internal class DeadlineDecoding(
 
     /** Cancels decoding carried for a call that did not come. */
     suspend fun dropCarried() {
-        for ((_, work) in takeCarriedWithGeneration().first) {
-            // Not replaced here (that would race new work on the pool): the next work starts on fresh workers.
-            if (!work.isCompleted) staleWorkDropped = true
-            work.cancel()
+        carryLock.withLock {
+            carryExpiry?.cancel()
+            carryExpiry = null
+            for ((_, work) in carried) {
+                // Not replaced here (that would race new work on the pool): the next work starts on fresh workers.
+                // Marked under the lock, so a call that takes the hand-over after this sees the mark first.
+                if (!work.isCompleted) staleWorkDropped = true
+                work.cancel()
+            }
+            carried = emptyList()
         }
     }
 
