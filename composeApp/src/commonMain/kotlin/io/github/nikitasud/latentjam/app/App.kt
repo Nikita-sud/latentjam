@@ -1845,12 +1845,10 @@ private fun AppShell(
             }
         }
 
-        fun retryAutomaticIndexing(continueToo: Boolean = false) {
+        fun retryAutomaticIndexing() {
             val loaded = tracks ?: return
             scope.launch {
                 val notificationTitle = getString(Res.string.indexing_notification_title)
-                // "Retry and continue" is one call: the pause is cleared before the relaunch reads it.
-                if (continueToo) AppGraph.clearAnalysisPause()
                 AppGraph.ensureAutomaticIndexing(
                     tracks = loaded,
                     librarySnapshotAuthoritative =

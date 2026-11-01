@@ -38,6 +38,9 @@ private object UserDefaultsAnalysisControlStore : AnalysisControlStore {
     override var wakeLockHeldSince: Long?
         get() = null
         set(value) = Unit
+    override var wakeLockRenewedAt: Long?
+        get() = null
+        set(value) = Unit
 
     private const val KEY_PAUSED = "analysis.userPaused"
     private const val KEY_STOP_REASON = "analysis.stopReason"

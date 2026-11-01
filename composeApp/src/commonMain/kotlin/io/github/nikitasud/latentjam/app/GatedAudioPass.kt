@@ -8,7 +8,6 @@ import io.github.nikitasud.latentjam.smart.EngineError
 import io.github.nikitasud.latentjam.smart.IndexReport
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
-import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
@@ -23,7 +22,8 @@ import kotlinx.coroutines.withContext
 /** What the gated audio pass needs from the engine; a seam so host tests can drive it. */
 internal interface AudioPassEngine {
     suspend fun missingFromIndex(ids: List<TrackId>): Int
-    suspend fun stage(chunk: List<TrackDescriptor>): IndexReport
+    /** Stages [chunk]; [upcoming] is the next chunk, whose decoding may start meanwhile. */
+    suspend fun stage(chunk: List<TrackDescriptor>, upcoming: List<TrackDescriptor>): IndexReport
     suspend fun persist()
     fun envelopeRefused(): Boolean
 
@@ -57,16 +57,15 @@ internal class GatedAudioPass(
     private val notices: suspend (AnalysisNotice) -> String,
     private val progressText: suspend (done: Int, total: Int, etaMinutes: Int?) -> String,
     private val onFirstShow: () -> Unit = {},
+    /** The pass ran its first chunk under the table: a stop reason left from an earlier pass no longer holds. */
+    private val onRunning: () -> Unit = {},
+    private val elapsedMs: () -> Long = ::analysisElapsedMs,
     private val nowMs: () -> Long,
     private val yieldMs: Long = AUTOMATIC_INDEX_YIELD_MS,
     private val checkpointTracks: Int = AUTOMATIC_INDEX_CHECKPOINT_TRACKS,
 ) {
     /** Whether the pass has been shown; read by the caller for the stopped notice. */
     var shown = false
-        private set
-
-    /** Whether a wait or a paused start held a map rebuild back during this pass. */
-    var heldBack = false
         private set
 
     suspend fun run(
@@ -80,7 +79,6 @@ internal class GatedAudioPass(
         shownAtStart: Boolean,
     ): AudioPassEnd {
         shown = shownAtStart
-        heldBack = !shownAtStart && gatedAtStart
         val pauseLabel = notices(AnalysisNotice.PauseAction)
         val cadence = AutomaticIndexCheckpointCadence(tracksPerCheckpoint = checkpointTracks)
         var gated = gatedAtStart
@@ -88,6 +86,7 @@ internal class GatedAudioPass(
         // The phase the pass last published; RUNNING only once it has actually run.
         var shownPhase: AnalysisPhase? = null
         var pausing = false
+        var ranGated = false
         state.update { it.copy(pausable = gated) }
         if (gated) control.listen()
         val watchers = if (gated) scope.launch {
@@ -98,17 +97,21 @@ internal class GatedAudioPass(
                 control.userPaused.collect { paused ->
                     if (!paused || !shown) return@collect
                     state.update { it.copy(phase = AnalysisPhase.PAUSING, etaMinutes = null) }
+                    // At once, not at the boundary: the chunk's own update below says the same while still paused.
+                    runCatching { show(notices(AnalysisNotice.Waiting(AnalysisPhase.PAUSING)), state.value.done, null) }
                 }
             }
         } else null
         try {
-            for (chunk in order.chunked(AUTOMATIC_INDEX_CHUNK_SIZE)) {
-                if (gated && engine.missingFromIndex(allIds) == 0) {
+            val chunks = order.chunked(AUTOMATIC_INDEX_CHUNK_SIZE)
+            for ((position, chunk) in chunks.withIndex()) {
+                // Nothing left to analyse: the table no longer applies (the count, not an O(N) query per chunk).
+                if (gated && progress.analysed >= total) {
                     gated = false
                     state.update { it.copy(pausable = false, phase = null) }
                 }
                 if (gated) {
-                    var waitStarted: TimeMark? = null
+                    var waitStarted: Long? = null
                     val runnable = control.awaitRunnable(
                         envelopeRefused = engine::envelopeRefused,
                         onPhase = { phase ->
@@ -116,21 +119,23 @@ internal class GatedAudioPass(
                             shownPhase = phase
                             state.update { it.copy(running = true, phase = phase, etaMinutes = null, progressAt = null) }
                             if (shown) show(notices(AnalysisNotice.Waiting(phase)), progress.analysed, pauseLabel)
+                            Unit
                         },
                         onWaitStart = {
-                            waitStarted = TimeSource.Monotonic.markNow()
+                            waitStarted = elapsedMs()
                             engine.persist()
                         },
                     )
                     if (!runnable) return AudioPassEnd.PAUSED
-                    waitStarted?.let {
-                        heldBack = true
-                        // The wait is no part of the pass's pace.
-                        eta.skip(it.elapsedNow().inWholeMilliseconds)
-                    }
+                    // The wait is no part of the pass's pace, deep sleep included.
+                    waitStarted?.let { eta.skip(elapsedMs() - it) }
                     if (shownPhase != AnalysisPhase.RUNNING) {
                         shownPhase = AnalysisPhase.RUNNING
                         val first = !shown
+                        if (!ranGated) {
+                            ranGated = true
+                            onRunning()
+                        }
                         if (first) {
                             // Paused at the start, and continued since (also during steps 1–3).
                             shown = true
@@ -140,7 +145,7 @@ internal class GatedAudioPass(
                             it.copy(
                                 running = true,
                                 phase = null,
-                                stopReason = if (it.stopReason == AnalysisStopReason.USER) null else it.stopReason,
+                                stopReason = null,
                                 progressAt = TimeSource.Monotonic.markNow(),
                             )
                         }
@@ -151,7 +156,7 @@ internal class GatedAudioPass(
                     state.update { it.copy(progressAt = TimeSource.Monotonic.markNow()) }
                 }
                 val missingBefore = engine.missingFromIndex(chunk.map(TrackDescriptor::id))
-                val report = engine.stage(chunk)
+                val report = engine.stage(chunk, chunks.getOrNull(position + 1).orEmpty())
                 failures.putAll(report.errors)
                 visited += chunk.size
                 progress.visited(missingBefore)
@@ -163,7 +168,8 @@ internal class GatedAudioPass(
                     if (pausing) {
                         show(notices(AnalysisNotice.Waiting(AnalysisPhase.PAUSING)), progress.analysed, null)
                     } else {
-                        show(progressText(progress.analysed, total, remaining), progress.analysed, pauseLabel)
+                        // Pause is offered only where it acts.
+                        show(progressText(progress.analysed, total, remaining), progress.analysed, pauseLabel.takeIf { gated })
                     }
                 }
                 state.update {

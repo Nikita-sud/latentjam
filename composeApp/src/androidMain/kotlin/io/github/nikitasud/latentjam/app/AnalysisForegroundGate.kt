@@ -45,36 +45,40 @@ internal class AnalysisForegroundGate(private val platform: Platform) {
         private var open = true
 
         /** Shows or updates the progress; ignored once closed. Rethrows a refused start. */
-        fun show(content: Content) = synchronized(lock) {
-            if (!open) return
-            latest = content
-            when (phase) {
-                Phase.Idle -> {
-                    phase = Phase.Starting
-                    stopPending = false
-                    try {
-                        platform.requestStart()
-                    } catch (failure: RuntimeException) {
-                        phase = Phase.Idle
-                        throw failure
+        fun show(content: Content) {
+            synchronized(lock) {
+                if (!open) return
+                latest = content
+                when (phase) {
+                    Phase.Idle -> {
+                        phase = Phase.Starting
+                        stopPending = false
+                        try {
+                            platform.requestStart()
+                        } catch (failure: RuntimeException) {
+                            phase = Phase.Idle
+                            throw failure
+                        }
                     }
+                    Phase.Starting -> stopPending = false
+                    is Phase.Foreground -> platform.post(content)
+                    Phase.Lost -> Unit
                 }
-                Phase.Starting -> stopPending = false
-                is Phase.Foreground -> platform.post(content)
-                Phase.Lost -> Unit
             }
         }
 
         /** Idempotent. The last open session's close stops the service. */
-        fun close() = synchronized(lock) {
-            if (!open) return
-            open = false
-            sessions--
-            if (sessions == 0 && phase == Phase.Lost) phase = Phase.Idle
-            if (sessions == 0) {
-                // A stray start later must not show this run's progress.
-                latest = null
-                stopLocked()
+        fun close() {
+            synchronized(lock) {
+                if (!open) return
+                open = false
+                sessions--
+                if (sessions == 0 && phase == Phase.Lost) phase = Phase.Idle
+                if (sessions == 0) {
+                    // A stray start later must not show this run's progress.
+                    latest = null
+                    stopLocked()
+                }
             }
         }
     }
@@ -108,27 +112,29 @@ internal class AnalysisForegroundGate(private val platform: Platform) {
      * refused [startForeground] only when a run wanted the service: a refusal on the way to an
      * immediate stop concerns nobody.
      */
-    fun onStartCommand(startForeground: (Content) -> Unit, stop: () -> Unit) = synchronized(lock) {
-        val content = latest ?: Content(title = "", text = "", done = 0, total = 0)
-        if (sessions == 0 || stopPending || phase == Phase.Lost) {
-            stopPending = false
-            if (phase != Phase.Lost) phase = Phase.Idle
+    fun onStartCommand(startForeground: (Content) -> Unit, stop: () -> Unit) {
+        synchronized(lock) {
+            val content = latest ?: Content(title = "", text = "", done = 0, total = 0)
+            if (sessions == 0 || stopPending || phase == Phase.Lost) {
+                stopPending = false
+                if (phase != Phase.Lost) phase = Phase.Idle
+                try {
+                    startForeground(content)
+                } catch (refused: RuntimeException) {
+                    println("SMART: analysis foreground start refused on the way to a stop: $refused")
+                } finally {
+                    stop()
+                }
+                return
+            }
             try {
                 startForeground(content)
-            } catch (refused: RuntimeException) {
-                println("SMART: analysis foreground start refused on the way to a stop: $refused")
-            } finally {
+                phase = Phase.Foreground(stop)
+            } catch (failure: RuntimeException) {
+                phase = Phase.Lost
                 stop()
+                throw failure
             }
-            return
-        }
-        try {
-            startForeground(content)
-            phase = Phase.Foreground(stop)
-        } catch (failure: RuntimeException) {
-            phase = Phase.Lost
-            stop()
-            throw failure
         }
     }
 
@@ -136,16 +142,20 @@ internal class AnalysisForegroundGate(private val platform: Platform) {
      * A plain start command (the notification's Pause): [stop] runs only when nothing holds or is
      * starting the service, so it can never stop a start still on its way to `startForeground`.
      */
-    fun onPlainStart(stop: () -> Unit) = synchronized(lock) {
-        val idle = phase == Phase.Idle || (phase == Phase.Lost && sessions == 0)
-        if (idle) stop()
+    fun onPlainStart(stop: () -> Unit) {
+        synchronized(lock) {
+            val idle = phase == Phase.Idle || (phase == Phase.Lost && sessions == 0)
+            if (idle) stop()
+        }
     }
 
     /** The system's `onTimeout`: the foreground state is gone, and [stop] ends the service. */
-    fun onTimeout(stop: () -> Unit) = synchronized(lock) {
-        phase = Phase.Lost
-        stopPending = false
-        stop()
+    fun onTimeout(stop: () -> Unit) {
+        synchronized(lock) {
+            phase = Phase.Lost
+            stopPending = false
+            stop()
+        }
     }
 
     /**
@@ -153,11 +163,13 @@ internal class AnalysisForegroundGate(private val platform: Platform) {
      * state stays without it until it closes: it is being cancelled, and must not start the service
      * again on its way out.
      */
-    fun onDestroy() = synchronized(lock) {
-        when (phase) {
-            Phase.Starting -> Unit
-            Phase.Lost -> if (sessions == 0) phase = Phase.Idle
-            else -> phase = Phase.Idle
+    fun onDestroy() {
+        synchronized(lock) {
+            when (phase) {
+                Phase.Starting -> Unit
+                Phase.Lost -> if (sessions == 0) phase = Phase.Idle
+                else -> phase = Phase.Idle
+            }
         }
     }
 

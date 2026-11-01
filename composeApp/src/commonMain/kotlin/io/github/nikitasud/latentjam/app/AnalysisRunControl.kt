@@ -61,6 +61,9 @@ internal interface AnalysisControlStore {
 
     /** When the current wake lock was taken; set while it is held. */
     var wakeLockHeldSince: Long?
+
+    /** When the held wake lock was last renewed. */
+    var wakeLockRenewedAt: Long?
 }
 
 internal class InMemoryAnalysisControlStore : AnalysisControlStore {
@@ -70,6 +73,7 @@ internal class InMemoryAnalysisControlStore : AnalysisControlStore {
     override var lastPassComplete = false
     override var wakeLockSpans: String? = null
     override var wakeLockHeldSince: Long? = null
+    override var wakeLockRenewedAt: Long? = null
 }
 
 /**
@@ -85,10 +89,11 @@ internal class AnalysisRunControl(
 ) {
     private val rules = AnalysisGateRules()
     private val budget = WakeLockBudget(decodeWakeLockSpans(store.wakeLockSpans)).also { budget ->
-        // A process that died holding the lock never recorded its span: count it as one full lock timeout.
+        // A process that died holding the lock never recorded its span: it lasted until the last renewal's timeout.
         store.wakeLockHeldSince?.let { since ->
             val now = wallClockMs()
-            budget.record(since, minOf(WAKE_LOCK_TIMEOUT_MS, (now - since).coerceAtLeast(0)), now)
+            val until = (store.wakeLockRenewedAt ?: since) + WAKE_LOCK_TIMEOUT_MS
+            budget.record(since, (minOf(until, now) - since).coerceAtLeast(0), now)
             store.wakeLockSpans = encodeWakeLockSpans(budget.persisted)
             store.wakeLockHeldSince = null
         }
@@ -159,7 +164,10 @@ internal class AnalysisRunControl(
 
     /** Renews a held wake lock; called per track. */
     suspend fun renew() = lock.withLock {
-        if (heldSinceWallMs != null) device.holdWakeLock(WAKE_LOCK_TIMEOUT_MS)
+        if (heldSinceWallMs != null) {
+            device.holdWakeLock(WAKE_LOCK_TIMEOUT_MS)
+            store.wakeLockRenewedAt = wallClockMs()
+        }
     }
 
     /** The pass ended or the foreground state was lost. */

@@ -569,9 +569,11 @@ object AppGraph {
         val sameKey = automaticIndexingKey == key
         val live = existing?.isActive == true
         if (sameKey && kind != AnalysisCall.RETRY && kind != AnalysisCall.REBUILD &&
-            (live || (kind == AnalysisCall.AUTOMATIC && automaticIndexing.value.complete))
+            (live || (kind != AnalysisCall.RETRY && automaticIndexing.value.complete))
         ) {
-            // A live pass sees Continue through the cleared pause and resumes by itself.
+            // A live pass sees Continue through the cleared pause and resumes by itself; a finished one has nothing to
+            // continue.
+            if (kind == AnalysisCall.CONTINUE) store.pendingContinue = false
             return
         }
         if (sameKey && kind == AnalysisCall.AUTOMATIC && !restartRules.allowed(store.stopReason)) return
@@ -588,6 +590,7 @@ object AppGraph {
         // Cancelled here as well as joined below: a replacement that is itself replaced before it
         // starts never runs its body, and would otherwise leave this run going beside the newest.
         existing?.cancel()
+        pauseStopPublished = false
         automaticIndexingJob = appScope.launch {
             // Opened before the old run is cancelled: its close then leaves the foreground service to
             // this run instead of stopping it, and a background start is never needed for the handover.
@@ -738,6 +741,7 @@ object AppGraph {
                     notices = notices,
                     progressText = notificationText,
                     onFirstShow = { permissions.backgroundAnalysisNeedsNotifications() },
+                    onRunning = { store.stopReason = null },
                     nowMs = ::nowMillis,
                 )
                 // Spread over the library rather than in title order, so the SMART pool is
@@ -753,6 +757,7 @@ object AppGraph {
                     shownAtStart = reportProgress,
                 )
                 if (end == AudioPassEnd.PAUSED) {
+                    pauseStopPublished = true
                     store.stopReason = AnalysisStopReason.USER
                     if (pass.shown) stoppedNotice = AnalysisNotice.PausedByYou(progress.analysed, total)
                     val published = pass.publishedFailures(tracks, failures)
@@ -766,6 +771,8 @@ object AppGraph {
                             failures = published,
                         )
                     }
+                    // A Continue that came while the stop was being published: answer it now the stop is out.
+                    if (!control.userPaused.value) appScope.launch { continueAfterStop(automaticIndexingJob) }
                     return@runAutomaticIndexingSafely
                 }
                 mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(progressAt = null)
@@ -870,13 +877,9 @@ object AppGraph {
         indexingNotifier.clearNotice()
         val last = lastAnalysisCall ?: return
         val job = automaticIndexingJob
-        val state = automaticIndexing.value
-        if (job?.isActive == true && !state.running && state.stopReason == AnalysisStopReason.USER) {
-            // The pass has published its stop and is finishing: relaunch once it has.
-            appScope.launch {
-                job.join()
-                continueAutomaticIndexing()
-            }
+        if (job?.isActive == true && pauseStopPublished) {
+            // The pass has stopped for the pause and is finishing: relaunch once it has.
+            appScope.launch { continueAfterStop(job) }
             return
         }
         ensureAutomaticIndexing(
@@ -887,6 +890,16 @@ object AppGraph {
             notices = last.notices,
             notificationText = last.progressText,
         )
+    }
+
+    /**
+     * Relaunches after [job], the pass that stopped for the pause, has finished, unless the user paused again since or
+     * another pass took over.
+     */
+    private suspend fun continueAfterStop(job: Job?) {
+        job?.join()
+        if (analysisControl.userPaused.value || automaticIndexingJob !== job) return
+        continueAutomaticIndexing()
     }
 
     /** The app came to the foreground: restarts a pass the platform or a failure stopped. */
@@ -996,7 +1009,8 @@ object AppGraph {
     private val audioPassEngine: AudioPassEngine by lazy {
         object : AudioPassEngine {
             override suspend fun missingFromIndex(ids: List<TrackId>) = engine.missingFromIndex(ids)
-            override suspend fun stage(chunk: List<TrackDescriptor>) = engine.stageLibraryIndex(chunk)
+            override suspend fun stage(chunk: List<TrackDescriptor>, upcoming: List<TrackDescriptor>) =
+                engine.stageLibraryIndex(chunk, upcoming)
             override suspend fun persist() = engine.persistPendingAnalysis()
             override fun envelopeRefused() = engine.audioEnvelopeRefused()
             override suspend fun rememberedFailures(tracks: List<TrackDescriptor>) = engine.rememberedAudioFailures(tracks)
@@ -1006,6 +1020,10 @@ object AppGraph {
         }
     }
     private var lastAnalysisCall: LastAnalysisCall? = null
+
+    /** The current pass stopped for the user's pause and is only finishing; reset by each new pass. */
+    @kotlin.concurrent.Volatile
+    private var pauseStopPublished = false
     private var timeoutNotice: AnalysisNotice? = null
     private val restartRules = AnalysisRestartRules()
 

@@ -185,6 +185,11 @@ private object PreferencesAnalysisControlStore : AnalysisControlStore {
         set(value) {
             preferences.edit().putLong(KEY_HELD_SINCE, value ?: -1L).apply()
         }
+    override var wakeLockRenewedAt: Long?
+        get() = preferences.getLong(KEY_RENEWED_AT, -1L).takeIf { it >= 0 }
+        set(value) {
+            preferences.edit().putLong(KEY_RENEWED_AT, value ?: -1L).apply()
+        }
 
     private const val KEY_PAUSED = "userPaused"
     private const val KEY_STOP_REASON = "stopReason"
@@ -192,4 +197,5 @@ private object PreferencesAnalysisControlStore : AnalysisControlStore {
     private const val KEY_LAST_COMPLETE = "lastPassComplete"
     private const val KEY_SPANS = "wakeLockSpans"
     private const val KEY_HELD_SINCE = "wakeLockHeldSince"
+    private const val KEY_RENEWED_AT = "wakeLockRenewedAt"
 }

@@ -43,7 +43,7 @@ class GatedAudioPassTest {
         var onStage: (Int) -> Unit = {}
         val remembered = mapOf(tracks.last().id to EngineError.InvalidAudio())
         override suspend fun missingFromIndex(ids: List<TrackId>) = ids.count { it !in indexed && it !in remembered }
-        override suspend fun stage(chunk: List<TrackDescriptor>): IndexReport {
+        override suspend fun stage(chunk: List<TrackDescriptor>, upcoming: List<TrackDescriptor>): IndexReport {
             staged += chunk.map { it.id }
             val todo = chunk.filter { it.id !in indexed && it.id !in remembered }
             indexed += todo.map { it.id }
@@ -86,6 +86,7 @@ class GatedAudioPassTest {
         progressText = { done, total, _ -> "$done of $total" },
         onFirstShow = { firstShows++ },
         nowMs = { wall },
+        elapsedMs = { wall },
         yieldMs = 0,
     )
 
@@ -160,6 +161,7 @@ class GatedAudioPassTest {
             notices = { notice -> if (notice is AnalysisNotice.Waiting) "waiting ${notice.phase}" else "Pause" },
             progressText = { done, total, _ -> "$done of $total" },
             nowMs = { wall },
+            elapsedMs = { wall },
             yieldMs = 0,
         )
         val result = async { pass.go() }
@@ -174,7 +176,6 @@ class GatedAudioPassTest {
         runCurrent()
         assertEquals(AudioPassEnd.COMPLETED, result.await())
         assertNull(state.value.phase)
-        assertTrue(pass.heldBack)
         assertTrue(shows.contains("8 of 20"))
     }
 
@@ -205,8 +206,10 @@ class GatedAudioPassTest {
     @Test
     fun aProcessThatDiedHoldingTheLockStillPaysForIt() {
         store.wakeLockHeldSince = wall - 60 * 60_000
+        store.wakeLockRenewedAt = wall - 30 * 60_000
         AnalysisRunControl(device, store, playing, wallClockMs = { wall }, monotonicMs = { wall })
-        assertEquals(listOf(wall - 60 * 60_000 to AnalysisRunControl.WAKE_LOCK_TIMEOUT_MS), decodeWakeLockSpans(store.wakeLockSpans))
+        // Held from its start until the last renewal's 5 min timeout.
+        assertEquals(listOf(wall - 60 * 60_000 to 35 * 60_000L), decodeWakeLockSpans(store.wakeLockSpans))
         assertNull(store.wakeLockHeldSince)
     }
 
