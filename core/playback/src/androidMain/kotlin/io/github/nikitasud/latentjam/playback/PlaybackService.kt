@@ -88,6 +88,9 @@ public class PlaybackService : MediaLibraryService() {
     /** Saved-queue reads still running for a play press: they end in a queue or in a refusal. */
     private val resumptionsInFlight = mutableSetOf<ListenableFuture<*>>()
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    /** The newest start delivered to [onStartCommand]; 0 before any. */
+    private var lastStartId = 0
     private val promotionWatch = object : Runnable {
         override fun run() {
             when (promotionWatch(promotionPending, resumptionsInFlight.isNotEmpty())) {
@@ -103,6 +106,34 @@ public class PlaybackService : MediaLibraryService() {
                 } else {
                     recordExternalMediaEvent("service", "foreground released: nothing started")
                     exitPromotion()
+                }
+            }
+        }
+    }
+
+    /** Gives back a foreground this process inherited with nothing to play; see [emptyServiceCheck]. */
+    private val emptyServiceWatch = object : Runnable {
+        override fun run() {
+            val check = emptyServiceCheck(
+                hasQueue = (playbackPlayer?.mediaItemCount ?: 0) > 0,
+                promotionPending = promotionPending,
+                resumptionInFlight = resumptionsInFlight.isNotEmpty(),
+            )
+            when (check) {
+                EmptyServiceCheck.Keep -> Unit
+                EmptyServiceCheck.Wait -> mainHandler.postDelayed(this, PROMOTION_RECHECK_MS)
+                EmptyServiceCheck.Release -> {
+                    val manager = getSystemService(NotificationManager::class.java)
+                    // The card a killed process left on Media3's id: an empty player has none.
+                    val leftCard = runCatching {
+                        manager?.activeNotifications?.any { it.id == MEDIA_NOTIFICATION_ID }
+                    }.getOrNull() == true
+                    if (leftCard) {
+                        recordExternalMediaEvent("service", "foreground released: empty after restart")
+                    }
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    manager?.cancel(MEDIA_NOTIFICATION_ID)
+                    stopStarted()
                 }
             }
         }
@@ -797,6 +828,8 @@ public class PlaybackService : MediaLibraryService() {
 
     override fun onCreate() {
         super.onCreate()
+        // After the foreground deadline of any start already delivered (10 s at most).
+        mainHandler.postDelayed(emptyServiceWatch, EMPTY_SERVICE_CHECK_MS)
         // The app-owned PCM chain applies tone controls on every local output route.
         val player = ExoPlayer.Builder(this, EqualizerRenderersFactory(this))
             // Every queue row is a local progressive file. The default factory first infers each
@@ -933,6 +966,7 @@ public class PlaybackService : MediaLibraryService() {
 
     override fun onDestroy() {
         mainHandler.removeCallbacks(promotionWatch)
+        mainHandler.removeCallbacks(emptyServiceWatch)
         promotionPending = false
         PlaybackSessionState.clear()
         requestTileRedraw()
@@ -1191,6 +1225,7 @@ public class PlaybackService : MediaLibraryService() {
         }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        lastStartId = startId
         if (intent != null) {
             val key = mediaButtonKeyEvent(intent)
             val promotes = promotesForMediaButton(
@@ -1276,8 +1311,17 @@ public class PlaybackService : MediaLibraryService() {
         PlaybackSessionState.clearStartPending()
         requestTileRedraw()
         stopForeground(STOP_FOREGROUND_REMOVE)
-        // Bound clients (the app's own controller) still keep the service alive.
-        stopSelf()
+        stopStarted()
+    }
+
+    /**
+     * Ends this service's started state, but not for a start Android delivered after the last one
+     * seen here: a `startForegroundService` still waiting for its `onStartCommand` would otherwise
+     * be torn down before it could enter the foreground, which Android answers with a crash. Bound
+     * clients (the app's own controller) still keep the service alive.
+     */
+    private fun stopStarted() {
+        if (lastStartId == 0) stopSelf() else stopSelfResult(lastStartId)
     }
 
     /**
@@ -1353,5 +1397,6 @@ public class PlaybackService : MediaLibraryService() {
 
         const val PROMOTION_WATCH_MS = 15_000L
         const val PROMOTION_RECHECK_MS = 5_000L
+        const val EMPTY_SERVICE_CHECK_MS = 15_000L
     }
 }

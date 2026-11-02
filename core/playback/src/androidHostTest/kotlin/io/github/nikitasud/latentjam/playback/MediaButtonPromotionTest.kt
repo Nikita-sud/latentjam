@@ -61,6 +61,45 @@ internal class MediaButtonPromotionTest {
     }
 
     @Test
+    fun aServiceRestartedWithNothingToPlayLetsGo() {
+        // Android restarts a killed foreground service already in the foreground (permission
+        // revoked while paused): Media3 never took it in this process, so nothing else releases it.
+        assertEquals(
+            EmptyServiceCheck.Release,
+            emptyServiceCheck(hasQueue = false, promotionPending = false, resumptionInFlight = false),
+        )
+    }
+
+    @Test
+    fun aServiceWithAQueueOrAStartUnderWayIsKept() {
+        assertEquals(
+            EmptyServiceCheck.Keep,
+            emptyServiceCheck(hasQueue = true, promotionPending = false, resumptionInFlight = false),
+        )
+        // The promotion's own watch ends a play press that finds nothing.
+        assertEquals(
+            EmptyServiceCheck.Keep,
+            emptyServiceCheck(hasQueue = false, promotionPending = true, resumptionInFlight = true),
+        )
+        assertEquals(
+            EmptyServiceCheck.Keep,
+            emptyServiceCheck(hasQueue = false, promotionPending = true, resumptionInFlight = false),
+        )
+        assertEquals(
+            EmptyServiceCheck.Keep,
+            emptyServiceCheck(hasQueue = true, promotionPending = false, resumptionInFlight = true),
+        )
+    }
+
+    @Test
+    fun anEmptyServiceWaitsForASavedQueueStillBeingRead() {
+        assertEquals(
+            EmptyServiceCheck.Wait,
+            emptyServiceCheck(hasQueue = false, promotionPending = false, resumptionInFlight = true),
+        )
+    }
+
+    @Test
     fun aTapWhilePlayingPauses() {
         assertEquals(TileClick.Pause, tileClickAction(true, hasQueue = true, startPending = false, canRestoreSavedQueue = false))
         assertEquals(TileClick.Pause, tileClickAction(true, hasQueue = true, startPending = true, canRestoreSavedQueue = true))

@@ -49,6 +49,27 @@ internal fun promotionWatch(pending: Boolean, resumptionInFlight: Boolean): Prom
     else -> PromotionWatch.Exit
 }
 
+internal enum class EmptyServiceCheck { Keep, Wait, Release }
+
+/**
+ * What the check some seconds after the service is created does. When music access is revoked
+ * while the service is in the foreground (playing, or paused within Media3's ten minutes), Android
+ * kills the process and restarts the service already in the foreground. Media3 never took that
+ * foreground in the new process, so with an empty player nothing ever gave it back: a stale card
+ * kept indefinitely on Android 11 and older, an invisible foreground service for 13 minutes and
+ * more on 12+. An empty player is released unless a start is still under way — a play press is
+ * ended by [promotionWatch], and a saved queue still being read may yet fill the player.
+ */
+internal fun emptyServiceCheck(
+    hasQueue: Boolean,
+    promotionPending: Boolean,
+    resumptionInFlight: Boolean,
+): EmptyServiceCheck = when {
+    hasQueue || promotionPending -> EmptyServiceCheck.Keep
+    resumptionInFlight -> EmptyServiceCheck.Wait
+    else -> EmptyServiceCheck.Release
+}
+
 internal enum class TileClick { Pause, Play, OpenApp, Ignore }
 
 /**
