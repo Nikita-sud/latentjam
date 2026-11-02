@@ -67,6 +67,14 @@ internal interface AnalysisControlStore {
 
     /** [AnalysisRetryLedger.encoded]. */
     var retryLedger: String?
+
+    /**
+     * iOS: the app-container roots (ContainerPaths) older builds' identities named, kept once found, since the loudness
+     * cache they come from is rewritten container-relative. Newline-separated. Nothing elsewhere.
+     */
+    var legacyContainerRoots: String?
+        get() = null
+        set(@Suppress("UNUSED_PARAMETER") value) = Unit
 }
 
 internal class InMemoryAnalysisControlStore : AnalysisControlStore {

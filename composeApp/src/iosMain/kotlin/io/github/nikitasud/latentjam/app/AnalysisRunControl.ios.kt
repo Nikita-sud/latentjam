@@ -44,6 +44,9 @@ private object UserDefaultsAnalysisControlStore : AnalysisControlStore {
     override var retryLedger: String?
         get() = defaults.stringForKey(KEY_RETRY_LEDGER)
         set(value) = defaults.setObject(value, KEY_RETRY_LEDGER)
+    override var legacyContainerRoots: String?
+        get() = defaults.stringForKey(KEY_CONTAINER_ROOTS)
+        set(value) = defaults.setObject(value, KEY_CONTAINER_ROOTS)
 
     private const val KEY_PAUSED = "analysis.userPaused"
     private const val KEY_STOP_REASON = "analysis.stopReason"
@@ -51,4 +54,5 @@ private object UserDefaultsAnalysisControlStore : AnalysisControlStore {
     private const val KEY_LAST_COMPLETE = "analysis.lastPassComplete"
     private const val KEY_SPANS = "analysis.wakeLockSpans"
     private const val KEY_RETRY_LEDGER = "analysis.retryLedger"
+    private const val KEY_CONTAINER_ROOTS = "analysis.legacyContainerRoots"
 }

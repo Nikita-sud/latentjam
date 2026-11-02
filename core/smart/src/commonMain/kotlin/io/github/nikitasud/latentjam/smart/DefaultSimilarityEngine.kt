@@ -457,8 +457,11 @@ internal class DefaultSimilarityEngine(
                 if (track.sourceRevision == carry.oldRevision) continue
                 settled += carry.trackId
                 // The identity the vector was made under, had the file kept its old revision.
-                val before = track.copy(sourceRevision = carry.oldRevision).audioVectorIdentity()
-                val unchanged = carry.trackId in index && audioVectorIdentities.matches(carry.trackId, before)
+                val previous = track.copy(sourceRevision = carry.oldRevision)
+                // Recorded container-relative, or (a build before 0.9.4) with the absolute URL: see legacyUris.
+                val unchanged = carry.trackId in index &&
+                    (sequenceOf(previous.audioVectorIdentity()) + legacyUris(track).map { previous.audioVectorIdentity(it) })
+                        .any { audioVectorIdentities.matches(carry.trackId, it) }
                 if (unchanged && track.sizeBytes == carry.newLength) {
                     audioVectorIdentities.put(carry.trackId, track.audioVectorIdentity())
                     applied += carry.trackId
@@ -479,6 +482,7 @@ internal class DefaultSimilarityEngine(
         withContext(dispatcher) {
             mutex.withLock {
                 if (mutableState.value !is EngineState.Ready) return@withLock 0
+                adoptMovedContainerIdentities(library)
                 val liveIds = library.mapTo(HashSet(library.size)) { it.id }
                 // ids(), not entries(): a copy of every vector only to read its key would be a
                 // second index at every launch.
@@ -551,6 +555,10 @@ internal class DefaultSimilarityEngine(
                 // already-mutated in-memory indexes appear to have their previous revision.
                 persistAudioIndex()
                 persistTextIndex()
+                if (energiesMoved && !audioIndexDirty) {
+                    energiesMoved = false
+                    persistEnergies()
+                }
                 rememberTracks(library)
                 shareLibraryIds()
                 mutableState.value = EngineState.Ready(indexedCount = index.size)
@@ -1622,16 +1630,21 @@ internal class DefaultSimilarityEngine(
         }
     }
 
-    private fun TrackDescriptor.audioVectorIdentity(): String = vectorIdentity(
+    private fun TrackDescriptor.audioVectorIdentity(): String = audioVectorIdentity(ContainerPaths.relative(audioUri))
+
+    /** The vector identity with [uri] in place of the track's (container-relative) URI: the form builds before 0.9.4 used. */
+    private fun TrackDescriptor.audioVectorIdentity(uri: String?): String = vectorIdentity(
         if (WindowCoverage.isSingleWindow(durationMs)) AUDIO_SHORT_IDENTITY_VERSION else AUDIO_IDENTITY_VERSION,
-        audioUri,
+        uri,
         durationMs?.toString(),
         sourceRevision,
     )
 
-    private fun TrackDescriptor.audioFailureIdentity(): String = vectorIdentity(
+    private fun TrackDescriptor.audioFailureIdentity(): String = audioFailureIdentity(ContainerPaths.relative(audioUri))
+
+    private fun TrackDescriptor.audioFailureIdentity(uri: String?): String = vectorIdentity(
         AUDIO_FAILURE_IDENTITY_VERSION,
-        audioUri,
+        uri,
         durationMs?.toString(),
         sourceRevision,
     )
@@ -1653,6 +1666,66 @@ internal class DefaultSimilarityEngine(
 
     /** The string itself: a vector is current exactly when it encodes what the track would encode now. */
     private fun TrackDescriptor.textVectorIdentity(): String = vectorIdentity(TEXT_IDENTITY_VERSION, textString())
+
+    /** Container roots older builds' absolute URLs were in ([rememberLegacyContainerRoots]); the current one is always tried. */
+    private val legacyContainerRoots = LinkedHashSet<String>()
+
+    override suspend fun rememberLegacyContainerRoots(roots: Collection<String>) {
+        if (roots.isEmpty()) return
+        withContext(dispatcher) { mutex.withLock { legacyContainerRoots += roots } }
+    }
+
+    /**
+     * Identities recorded by builds before 0.9.4 named an iOS file by its absolute URL, whose container UUID iOS changes
+     * across updates, reinstalls and restores. A row whose recorded identity is that form, with the file as it is now
+     * (same duration and revision) at its current URL or at one of [legacyContainerRoots], is re-recorded under the
+     * container-relative identity instead of being analysed again. A row matching neither stays a changed row.
+     */
+    private suspend fun adoptMovedContainerIdentities(library: List<TrackDescriptor>) {
+        var moved = 0
+        for (track in library) {
+            val uri = track.audioUri ?: continue
+            if (ContainerPaths.root(uri) == null) continue
+            val id = track.id
+            val candidates = legacyUris(track)
+            if (id in index && !audioVectorIdentities.matches(id, track.audioVectorIdentity()) &&
+                candidates.any { audioVectorIdentities.matches(id, track.audioVectorIdentity(it)) }
+            ) {
+                val before = audioVectorIdentities.tokenFor(id)
+                audioVectorIdentities.put(id, track.audioVectorIdentity())
+                if (before != null && energyIdentities[id] == before) {
+                    audioVectorIdentities.tokenFor(id)?.let { energyIdentities[id] = it }
+                }
+                audioIndexDirty = true
+                moved++
+            }
+            if (id in audioFailureIdentities && !audioFailureIdentities.matches(id, track.audioFailureIdentity()) &&
+                candidates.any { audioFailureIdentities.matches(id, track.audioFailureIdentity(it)) }
+            ) {
+                audioFailureIdentities.put(id, track.audioFailureIdentity())
+                audioIndexDirty = true
+                moved++
+            }
+        }
+        if (moved > 0) {
+            println("SMART: $moved stored identities moved to container-relative URLs, kept without analysing them again")
+            // Written after the audio index this sync saves (energy tokens must not get ahead of it).
+            energiesMoved = true
+        }
+    }
+
+    /** Set when [adoptMovedContainerIdentities] re-recorded energy tokens; the sync persists them after the index. */
+    private var energiesMoved = false
+
+    /** The absolute URLs a build before 0.9.4 may have recorded [track] under: as it is now, and in each known root. */
+    private fun legacyUris(track: TrackDescriptor): Sequence<String> {
+        val uri = track.audioUri ?: return emptySequence()
+        if (ContainerPaths.root(uri) == null) return emptySequence()
+        return sequence {
+            yield(uri)
+            for (root in legacyContainerRoots) ContainerPaths.moved(uri, root)?.takeIf { it != uri }?.let { yield(it) }
+        }
+    }
 
     private fun hasRememberedAudioFailure(track: TrackDescriptor): Boolean =
         audioFailureIdentities.matches(track.id, track.audioFailureIdentity())

@@ -68,6 +68,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.withLock
 import org.koin.core.Koin
 import org.koin.core.KoinApplication
 import org.koin.core.module.Module
@@ -268,7 +269,11 @@ object AppGraph {
                     meter = koin.get(),
                     onStatus = { normalizationStatus.value = it },
                 )
-                appScope.launch(Dispatchers.Default) { normalizer.start(appScope) }
+                appScope.launch(Dispatchers.Default) {
+                    // Before the normalizer rewrites the cache container-relative: keep the roots its old entries name.
+                    keepLegacyContainerRoots()
+                    normalizer.start(appScope)
+                }
                 // Boundary fades follow the preference where the platform implements them.
                 if (boundaryFadeControlsAvailable) appScope.launch {
                     settings.crossfadeSeconds.collect { playback.setCrossfadeSeconds(it) }
@@ -682,6 +687,10 @@ object AppGraph {
                 // so a later granted, genuinely empty rescan still reaches reconciliation.
                 // A verified tag edit left the audio as it was: re-key its vector before the sync
                 // below would discard it for the file's new revision (spec §6.5).
+                // iOS: identities of builds before 0.9.4 named imported files by their absolute URL, in a container iOS
+                // renames across updates; the loudness cache kept such URLs as they were, so their roots let the sync
+                // below keep those rows instead of analysing the library again.
+                engine.rememberLegacyContainerRoots(keepLegacyContainerRoots())
                 val carryOvers = audioCarryOvers.pending()
                 if (carryOvers.isNotEmpty()) {
                     audioCarryOvers.settle(carryOvers, engine.carryOverAudio(tracks, carryOvers))
@@ -1069,6 +1078,22 @@ object AppGraph {
         }
     }
     private var lastAnalysisCall: LastAnalysisCall? = null
+
+    private val legacyRootsLock = kotlinx.coroutines.sync.Mutex()
+
+    /**
+     * iOS: the app-container roots the loudness cache's entries of builds before 0.9.4 name, added to the ones kept
+     * before (the cache is rewritten container-relative as it is used); every root kept so far. Empty elsewhere.
+     */
+    private suspend fun keepLegacyContainerRoots(): Set<String> = legacyRootsLock.withLock {
+        val kept = analysisStore.legacyContainerRoots?.lines()?.filter(String::isNotBlank).orEmpty().toCollection(LinkedHashSet())
+        val found = legacyContainerRoots(settings.readTrackLoudnessPayload())
+        if (!kept.containsAll(found)) {
+            kept += found
+            analysisStore.legacyContainerRoots = kept.joinToString("\n")
+        }
+        kept
+    }
 
     private val analysisRetries: AnalysisRetryLedger by lazy { AnalysisRetryLedger(analysisStore.retryLedger, ::nowMillis) }
 

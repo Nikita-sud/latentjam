@@ -225,7 +225,7 @@ private const val LYRICS_READER_VERSION = "read2"
  * file can supply lyrics.
  */
 private fun TrackDescriptor.lyricsRevision(sourcesRevision: String): String =
-    "${audioUri.orEmpty()}\u0000${sourceRevision ?: "${sizeBytes.orEmptyRevision()}:${durationMs.orEmptyRevision()}"}" +
+    "${io.github.nikitasud.latentjam.smart.ContainerPaths.relative(audioUri).orEmpty()}\u0000${sourceRevision ?: "${sizeBytes.orEmptyRevision()}:${durationMs.orEmptyRevision()}"}" +
         "\u0000$LYRICS_READER_VERSION" +
         (if (sourcesRevision.isEmpty()) "" else "\u0000$sourcesRevision")
 

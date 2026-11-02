@@ -86,6 +86,13 @@ public interface SimilarityEngine {
     public suspend fun initialize(): Result<Unit>
 
     /**
+     * Container roots (ContainerPaths.root) that identities written by builds before 0.9.4 may name, from what the app
+     * kept of them (its loudness cache); the next [synchronizeLibrary] keeps those rows instead of analysing them
+     * again. A no-op where no file lives in an app container.
+     */
+    public suspend fun rememberLegacyContainerRoots(roots: Collection<String>) {}
+
+    /**
      * Reconciles both persisted indexes with the currently visible library.
      *
      * Call this after a library scan and before indexing chunks. Changed identities among the

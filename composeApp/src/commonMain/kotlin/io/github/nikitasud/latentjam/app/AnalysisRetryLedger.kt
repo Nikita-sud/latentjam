@@ -78,7 +78,8 @@ internal class AnalysisRetryLedger(encoded: String?, private val nowMs: () -> Lo
         const val CAP = 3
         const val SECOND_RETRY_AFTER_MS = 60 * 60_000L
 
-        private fun identityOf(track: TrackDescriptor): String = "${track.audioUri}|${track.durationMs}"
+        private fun identityOf(track: TrackDescriptor): String =
+            "${io.github.nikitasud.latentjam.smart.ContainerPaths.relative(track.audioUri)}|${track.durationMs}"
     }
 }
 

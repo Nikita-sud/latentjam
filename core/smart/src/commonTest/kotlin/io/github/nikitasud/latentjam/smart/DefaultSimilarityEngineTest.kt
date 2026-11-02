@@ -1265,6 +1265,100 @@ internal class DefaultSimilarityEngineTest {
     }
 
     @Test
+    fun `rows recorded under an iOS container that has since moved are kept`() = runTest {
+        val oldRoot = "file:///private/var/mobile/Containers/Data/Application/0A1B2C3D-4E5F-6071-8293-A4B5C6D7E8F9/"
+        val newRoot = "file:///private/var/mobile/Containers/Data/Application/FFFFFFFF-0000-1111-2222-333333333333/"
+        fun track(name: String, root: String, revision: String = "ios-import-v1:10:20") = TrackDescriptor(
+            id = TrackId("Imported/$name.mp3"), audioUri = "${root}Documents/Imported/$name.mp3", durationMs = 200_000, sourceRevision = revision,
+        )
+        fun legacy(track: TrackDescriptor, version: String) = buildString {
+            append(version)
+            for (field in listOf(track.audioUri, track.durationMs.toString(), track.sourceRevision)) append('|').append(field!!.length).append(':').append(field)
+        }
+        val kept = track("kept", oldRoot)
+        val edited = track("edited", oldRoot)
+        val failed = track("failed", oldRoot)
+        // As 0.9.3 recorded them: absolute URLs in the old container.
+        fun store() = FakeIndexStore().apply {
+            snapshots["test-model"] = mapOf(kept.id to floatArrayOf(1f, 0f, 0f), edited.id to floatArrayOf(0f, 1f, 0f))
+            identitySnapshots["test-model"] = mapOf(kept.id to legacy(kept, "audio-v1"), edited.id to legacy(edited, "audio-v1"))
+            failureSnapshots["test-model"] = mapOf(failed.id to legacy(failed, "audio-failure-v2"))
+        }
+        val now = listOf(track("kept", newRoot), track("edited", newRoot, revision = "ios-import-v1:11:21"), track("failed", newRoot))
+
+        // The old root is known (from the loudness cache): the unchanged rows stay, the edited file is analysed again.
+        val withRoot = store()
+        val backend = FakeEmbeddingBackend(mutableMapOf(now[1].id to floatArrayOf(0f, 0f, 1f)))
+        val engine = engine(backend, withRoot)
+        engine.initialize()
+        engine.rememberLegacyContainerRoots(listOf(oldRoot))
+        assertEquals(1, engine.synchronizeLibrary(now), "only the edited row is dropped")
+        engine.indexLibrary(now)
+        assertEquals(1, backend.embedCalls, "only the edited file")
+        assertContentEquals(floatArrayOf(1f, 0f, 0f), engine.embedding(kept.id))
+        assertEquals(setOf(failed.id), engine.rememberedAudioFailures(now).keys, "the failure is still remembered")
+
+        // Re-recorded container-relative: the next move needs no root at all.
+        val later = now.map { it.copy(audioUri = it.audioUri!!.replace(newRoot, "file:///var/mobile/Containers/Data/Application/12345678-1234-1234-1234-123456789ABC/")) }
+        val restarted = FakeEmbeddingBackend()
+        val again = engine(restarted, withRoot)
+        again.initialize()
+        again.synchronizeLibrary(later)
+        again.indexLibrary(later)
+        assertEquals(0, restarted.embedCalls)
+
+        // Without the old root nothing can be verified: the rows are analysed again, as before.
+        val unknown = FakeEmbeddingBackend(now.associate { it.id to floatArrayOf(0.5f, 0.5f, 0f) }.toMutableMap())
+        val cold = engine(unknown, store())
+        cold.initialize()
+        cold.synchronizeLibrary(now)
+        cold.indexLibrary(now)
+        assertEquals(3, unknown.embedCalls)
+    }
+
+    @Test
+    fun `a tag edit pending across the upgrade still keeps a row recorded with its absolute URL`() = runTest {
+        val root = "file:///private/var/mobile/Containers/Data/Application/0A1B2C3D-4E5F-6071-8293-A4B5C6D7E8F9/"
+        val before = TrackDescriptor(id = TrackId("Imported/t.mp3"), audioUri = "${root}Documents/Imported/t.mp3", durationMs = 200_000, sourceRevision = "ios-import-v1:10:1", sizeBytes = 10)
+        val after = before.copy(sourceRevision = "ios-import-v1:10:2")
+        val legacy = buildString {
+            append("audio-v1")
+            for (f in listOf(before.audioUri!!, "200000", before.sourceRevision!!)) append('|').append(f.length).append(':').append(f)
+        }
+        val store = FakeIndexStore().apply {
+            snapshots["test-model"] = mapOf(before.id to floatArrayOf(1f, 0f, 0f))
+            identitySnapshots["test-model"] = mapOf(before.id to legacy)
+        }
+        val backend = FakeEmbeddingBackend()
+        val engine = engine(backend, store)
+        engine.initialize()
+        val result = engine.carryOverAudio(listOf(after), listOf(AudioCarryOver(before.id, before.sourceRevision, 10)))
+        assertEquals(setOf(before.id), result.applied)
+        assertEquals(0, engine.synchronizeLibrary(listOf(after)))
+        engine.indexLibrary(listOf(after))
+        assertEquals(0, backend.embedCalls)
+    }
+
+    @Test
+    fun `a failure recorded in an old container is forgotten when its file changed`() = runTest {
+        val oldRoot = "file:///private/var/mobile/Containers/Data/Application/0A1B2C3D-4E5F-6071-8293-A4B5C6D7E8F9/"
+        val newRoot = "file:///var/mobile/Containers/Data/Application/FFFFFFFF-0000-1111-2222-333333333333/"
+        val old = TrackDescriptor(id = TrackId("Imported/f.mp3"), audioUri = "${oldRoot}Documents/Imported/f.mp3", durationMs = 200_000, sourceRevision = "ios-import-v1:1:1")
+        val legacy = buildString {
+            append("audio-failure-v2")
+            for (f in listOf(old.audioUri!!, "200000", old.sourceRevision!!)) append('|').append(f.length).append(':').append(f)
+        }
+        val store = FakeIndexStore().apply { failureSnapshots["test-model"] = mapOf(old.id to legacy) }
+        val now = old.copy(audioUri = "${newRoot}Documents/Imported/f.mp3", sourceRevision = "ios-import-v1:2:2")
+        val engine = engine(FakeEmbeddingBackend(mutableMapOf(now.id to floatArrayOf(1f, 0f, 0f))), store)
+        engine.initialize()
+        engine.rememberLegacyContainerRoots(listOf(oldRoot))
+        engine.synchronizeLibrary(listOf(now))
+        assertEquals(emptySet(), engine.rememberedAudioFailures(listOf(now)).keys)
+        assertEquals(1, engine.indexLibrary(listOf(now)).indexed)
+    }
+
+    @Test
     fun `legacy restart snapshot is reindexed on first full synchronization`() = runTest {
         val store = FakeIndexStore()
         store.snapshots["test-model"] = mapOf(seed.id to floatArrayOf(1f, 0f, 0f))
