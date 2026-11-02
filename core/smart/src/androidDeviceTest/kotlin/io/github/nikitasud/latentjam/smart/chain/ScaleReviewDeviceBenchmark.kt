@@ -53,6 +53,17 @@ class ScaleReviewDeviceBenchmark {
                 check(snapshot.size == n)
             }
             println("LJ_SCALE build rows=$n first_ms=${times[0]} second_ms=${times[1]}")
+            // As a press builds it with SmartEngineConfig.backgroundHub: the hub is handed in, never computed.
+            val supplied = DoubleArray(2)
+            for (r in supplied.indices) {
+                val started = System.nanoTime()
+                val snapshot = requireNotNull(
+                    SmartSnapshot.build(tracks, batchDotProducts = AndroidBatchDotProducts, hubPenaltyOf = { FloatArray(it.size) }),
+                )
+                supplied[r] = (System.nanoTime() - started) / 1e6
+                check(snapshot.size == n)
+            }
+            println("LJ_SCALE build_hub_supplied rows=$n first_ms=${supplied[0]} second_ms=${supplied[1]}")
         }
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val head = File(context.filesDir, "bench/head/universal_semantic_head.onnx")

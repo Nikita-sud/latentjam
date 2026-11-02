@@ -207,6 +207,8 @@ object AppGraph {
                                 artistRunPenalty = ARTIST_VARIETY_PENALTIES[sanitizeArtistVariety(get<AppSettings>().artistVariety.value)],
                                 queueClassPenalty = SMART_QUEUE_CLASS_PENALTY,
                                 artistSets = SMART_ARTIST_SETS,
+                                // A press no longer pays the hub penalty (external review 2026-11-02, SCALE-01).
+                                backgroundHub = true,
                                 themeWeights = SMART_THEME_WEIGHTS,
                                 themeSlots = SMART_THEME_SLOTS,
                                 themeBonus = SMART_THEME_BONUS,

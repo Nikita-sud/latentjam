@@ -142,6 +142,8 @@ public val smartEngineModule: Module = module {
             // A second engine-priority thread: indexing's inference never holds the one reads use.
             inferenceDispatcher = createPlatformSmartEngineDispatcher(),
             scratchRows = getOrNull<RowStoreFactory>() ?: RowStoreFactory.Heap,
+            // And a third for the background hub pass, which must not hold either.
+            hubDispatcher = createPlatformSmartEngineDispatcher(),
         )
     }
 }

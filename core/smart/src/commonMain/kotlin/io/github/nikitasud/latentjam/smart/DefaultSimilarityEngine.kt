@@ -7,7 +7,9 @@ package io.github.nikitasud.latentjam.smart
 import io.github.nikitasud.latentjam.smart.chain.ChainTuning
 import io.github.nikitasud.latentjam.smart.chain.Rerank
 import io.github.nikitasud.latentjam.smart.chain.BatchDotProducts
+import io.github.nikitasud.latentjam.smart.chain.CentredRows
 import io.github.nikitasud.latentjam.smart.chain.ChainWalk
+import io.github.nikitasud.latentjam.smart.chain.HubPass
 import io.github.nikitasud.latentjam.smart.chain.CompanionMembership
 import io.github.nikitasud.latentjam.smart.chain.JourneySequencer
 import io.github.nikitasud.latentjam.smart.chain.MetadataFallbackQueue
@@ -31,6 +33,10 @@ import io.github.nikitasud.latentjam.smart.text.KnownArtists
 import io.github.nikitasud.latentjam.smart.text.TextEncoder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -85,6 +91,8 @@ internal class DefaultSimilarityEngine(
     private val inferenceDispatcher: CoroutineDispatcher = dispatcher,
     /** Where a snapshot keeps the rows it computes (Android: mapped scratch files, off the Java heap). */
     private val scratchRows: RowStoreFactory = RowStoreFactory.Heap,
+    /** Where the [SmartEngineConfig.backgroundHub] pass computes, so its products never hold [dispatcher]. */
+    private val hubDispatcher: CoroutineDispatcher = dispatcher,
 ) : SimilarityEngine {
 
     private val mutex = Mutex()
@@ -167,6 +175,20 @@ internal class DefaultSimilarityEngine(
     internal var restoreRetryGap: kotlin.time.Duration = RESTORE_RETRY_GAP
     private var audioRestoreFailedAt: kotlin.time.TimeMark? = null
     private var snapshotCache: SnapshotCache? = null
+
+    /**
+     * Bumped by every change to the audio index's rows (an upsert, a removal, a restore, a clear), and only by those: the
+     * hub penalty reads nothing else, so a snapshot rebuilt for a tag or text change keeps its hub.
+     */
+    private var audioRevision = 0L
+
+    /** [SmartEngineConfig.backgroundHub]: the last hub penalty the background pass finished, for exactly its rows. */
+    private var hubCache: HubCache? = null
+    private var hubJob: Job? = null
+    private var hubJobKey: HubKey? = null
+    /** When the background hub pass last failed; a cached stand-in is retried [HUB_RETRY_AFTER] later. */
+    @Volatile private var hubFailedAt: TimeSource.Monotonic.ValueTimeMark? = null
+    private val hubScope = CoroutineScope(SupervisorJob() + hubDispatcher)
     private var mixCoverageCache: MixCoverageCache? = null
     private var predictorLoaded = false
     private var textEncoderLoaded = false
@@ -523,6 +545,7 @@ internal class DefaultSimilarityEngine(
                     indexRevision++
                     snapshotCache = null
                 }
+                if (staleAudio.isNotEmpty() || changedAudio.isNotEmpty()) audioRevision++
                 // Also retries an earlier failed save when reconciliation itself made no change.
                 // Cache invalidation above precedes I/O because a failed save must not make the
                 // already-mutated in-memory indexes appear to have their previous revision.
@@ -1339,6 +1362,7 @@ internal class DefaultSimilarityEngine(
                 mixCoverageCache = null
                 snapshotCache = null
                 indexRevision++
+                forgetHub()
                 walks.clear()
                 if (mutableState.value is EngineState.Ready) {
                     mutableState.value = EngineState.Ready(indexedCount = 0)
@@ -1373,6 +1397,7 @@ internal class DefaultSimilarityEngine(
                 mixCoverageCache = null
                 snapshotCache = null
                 indexRevision++
+                forgetHub()
                 walks.clear()
                 predictorLoaded = false
                 textEncoderLoaded = false
@@ -1427,6 +1452,7 @@ internal class DefaultSimilarityEngine(
         val startedEmpty = index.size == 0
         val adopted = ArrayList<TrackId>()
         fun discardAdopted() {
+            audioRevision++
             if (startedEmpty) {
                 index.clear()
                 audioVectorIdentities.clear()
@@ -1468,6 +1494,7 @@ internal class DefaultSimilarityEngine(
             }
         }
         if (index.size > 0) indexRevision++
+        if (adopted.isNotEmpty()) audioRevision++
     }
 
     /**
@@ -1549,6 +1576,7 @@ internal class DefaultSimilarityEngine(
         energies.remove(id)
         energyIdentities.remove(id)
         indexRevision++
+        audioRevision++
         snapshotCache = null
         return null
     }
@@ -1813,7 +1841,16 @@ internal class DefaultSimilarityEngine(
 
     private suspend fun snapshotFor(history: List<SmartHistoryEvent>): SmartSnapshot? {
         snapshotCache?.takeIf { it.revision == indexRevision && it.semanticCount == semanticCache.size }
-            ?.let { return it.snapshot }
+            ?.let { cache ->
+                // A pass that failed left a stand-in: try again, at most every HUB_RETRY_AFTER.
+                val key = cache.hubKey
+                if (!cache.hubExact && key != null && hubJob?.isActive != true &&
+                    hubFailedAt.let { it == null || it.elapsedNow() >= HUB_RETRY_AFTER }
+                ) {
+                    startHub(cache.snapshot.centeredAudio, cache.snapshot.tracks.map { it.id }, key)
+                }
+                return cache.snapshot
+            }
         // A stale snapshot goes before its replacement is built: holding both would double the peak.
         snapshotCache = null
         // The artist adapter loads on its first descriptor, and a load that runs out of memory leaves
@@ -1843,6 +1880,7 @@ internal class DefaultSimilarityEngine(
         // until it ends. A history row the library no longer lists has no tags to look one up by.
         // A descriptor depends only on the artist credits and the text vector, so songs that share all three (an
         // album, mostly) take the first one's instead of decoding it again.
+        var hub: HubAnswer? = null
         val snapshot = SmartSnapshot.build(
             withEnergy(rows),
             batchDotProducts,
@@ -1850,13 +1888,150 @@ internal class DefaultSimilarityEngine(
             descriptorKeyOf = { row ->
                 knownTracks[row.id]?.let { track -> DescriptorKey(track.artist, track.artists.firstOrNull(), row.textRow) }
             },
-        ) { row ->
-            knownTracks[row.id]?.let { track ->
-                artistKnowledge?.descriptor(track.artist, track.artists.firstOrNull(), row.text)
-            }
-        } ?: return null
-        snapshotCache = SnapshotCache(indexRevision, semanticCache.size, snapshot)
+            descriptorOf = { row ->
+                knownTracks[row.id]?.let { track ->
+                    artistKnowledge?.descriptor(track.artist, track.artists.firstOrNull(), row.text)
+                }
+            },
+            hubPenaltyOf = if (config.backgroundHub) { ids -> hubPenaltyFor(ids).let { (answer, penalty) -> hub = answer; penalty } } else null,
+        ) ?: return null
+        val built = hub
+        snapshotCache = SnapshotCache(indexRevision, semanticCache.size, snapshot, built?.key, built?.exact ?: true)
+        if (built != null && !built.exact) {
+            startHub(snapshot.centeredAudio, snapshot.tracks.map { it.id }, built.key)
+        } else if (built != null && hubJobKey != built.key) {
+            // Exact already: a pass still running for other rows would only replace this hub with theirs.
+            hubJob?.cancel()
+        }
         return snapshot
+    }
+
+    /** The rows a hub penalty was computed for: the audio rows' revision and the ids in row order. */
+    private data class HubKey(val audioRevision: Long, val rows: Int, val digest: Long)
+
+    private class HubCache(val key: HubKey, val ids: List<TrackId>, val penalty: FloatArray)
+
+    /** What [hubPenaltyFor] gave a build: for which rows, and whether it is the exact penalty or a stand-in. */
+    private class HubAnswer(val key: HubKey, val exact: Boolean)
+
+    private fun hubKeyOf(ids: List<TrackId>): HubKey {
+        var digest = -0x340d631b7bdddcdbL // FNV-1a over the ids' UTF-16 units, one separator between ids
+        for (id in ids) {
+            for (unit in id.value) digest = (digest xor unit.code.toLong()) * 0x100000001b3L
+            digest = (digest xor 0x1FL) * 0x100000001b3L
+        }
+        return HubKey(audioRevision, ids.size, digest)
+    }
+
+    /**
+     * A snapshot's hub penalty under [SmartEngineConfig.backgroundHub]: the background pass's for exactly these rows, or
+     * until it is ready the last one by track (0 for a track it did not have), or none (all 0) before the first pass.
+     */
+    private fun hubPenaltyFor(ids: List<TrackId>): Pair<HubAnswer, FloatArray> {
+        val key = hubKeyOf(ids)
+        val cached = hubCache ?: return HubAnswer(key, exact = false) to FloatArray(ids.size)
+        if (cached.key == key) return HubAnswer(key, exact = true) to cached.penalty
+        val byTrack = HashMap<TrackId, Float>(cached.ids.size * 2)
+        for ((row, id) in cached.ids.withIndex()) byTrack[id] = cached.penalty[row]
+        return HubAnswer(key, exact = false) to FloatArray(ids.size) { byTrack[ids[it]] ?: 0f }
+    }
+
+    /**
+     * Starts the background hub pass for the rows [key] names unless it already runs. It holds only the snapshot's
+     * centred audio rows (which read the index in place) and the ids, never the snapshot itself: a replaced snapshot
+     * is not kept alive by the pass.
+     */
+    private fun startHub(centered: CentredRows, ids: List<TrackId>, key: HubKey) {
+        if (hubJobKey == key && hubJob?.isActive == true) return
+        hubJob?.cancel()
+        hubJobKey = key
+        hubJob = hubScope.launch {
+            try {
+                runHub(centered, ids, key)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                // Out of memory for the anchors, say: plans keep their stand-in, and the next plan tries again.
+                println("SMART: the background hub pass failed (${failure::class.simpleName}); plans keep the last hub")
+                hubFailedAt = TimeSource.Monotonic.markNow()
+            }
+        }
+    }
+
+    /**
+     * [SmartSnapshot.computeHubPenalty] for [centered], a block of rows per hold of [mutex] and the products outside it,
+     * so a press waits at most for one block's copy. The rows read the audio index in place, which is sound while
+     * [audioRevision] is the one [key] names; any change ends the pass, and the next plan starts another. The same
+     * [HubPass] as a snapshot build, fed the same rows in the same order: the same floats. The result goes to every
+     * cached snapshot built for exactly these rows, whichever object it is.
+     */
+    private suspend fun runHub(centered: CentredRows, ids: List<TrackId>, key: HubKey) {
+        val n = ids.size
+        val dim = SmartSnapshot.AUDIO_DIM
+        val pass = mutex.withLock { HubPass(n, dim, SmartSnapshot.HUB_ANCHOR_SAMPLE, scratchRows, batchDotProducts) }
+        val penalty = try {
+            if (pass.k > 0) {
+                val row = FloatArray(dim)
+                var next = 0
+                while (next < pass.candidates) {
+                    val end = minOf(next + SmartSnapshot.HUB_ROW_BLOCK, pass.candidates)
+                    val current = mutex.withLock {
+                        (audioRevision == key.audioRevision).also { current ->
+                            if (current) {
+                                for (c in next until end) {
+                                    centered.copyRow(pass.anchorRow(c), row)
+                                    pass.addAnchor(row)
+                                }
+                            }
+                        }
+                    }
+                    if (!current) return
+                    next = end
+                    yield()
+                }
+                pass.sealAnchors()
+                val rows = FloatArray(minOf(SmartSnapshot.HUB_ROW_BLOCK, n) * dim)
+                var start = 0
+                while (start < n) {
+                    val count = minOf(SmartSnapshot.HUB_ROW_BLOCK, n - start)
+                    val current = mutex.withLock {
+                        (audioRevision == key.audioRevision).also { current ->
+                            if (current) for (r in 0 until count) centered.copyRow(start + r, rows, r * dim)
+                        }
+                    }
+                    if (!current) return
+                    pass.score(rows, start, count)
+                    start += count
+                    yield()
+                }
+                pass.finish()
+            } else {
+                FloatArray(n)
+            }
+        } finally {
+            pass.close()
+        }
+        mutex.withLock {
+            if (audioRevision != key.audioRevision) return@withLock
+            hubCache = HubCache(key, ids, penalty)
+            snapshotCache?.takeIf { it.hubKey == key && !it.hubExact }?.let { cache ->
+                snapshotCache = cache.copy(snapshot = cache.snapshot.withHubPenalty(penalty), hubExact = true)
+            }
+        }
+    }
+
+    /** Waits for the background hub pass in flight, if any (tests). */
+    internal suspend fun awaitBackgroundHub() {
+        hubJob?.join()
+    }
+
+    /** Drops the hub penalty and stops its pass: the rows it was for are gone. Under [mutex]. */
+    private fun forgetHub() {
+        audioRevision++
+        hubCache = null
+        hubJob?.cancel()
+        hubJob = null
+        hubJobKey = null
     }
 
     /**
@@ -1979,6 +2154,9 @@ internal class DefaultSimilarityEngine(
         val revision: Long,
         val semanticCount: Int,
         val snapshot: SmartSnapshot,
+        /** [SmartEngineConfig.backgroundHub]: the rows its hub penalty is for, and whether it is the exact one yet. */
+        val hubKey: HubKey? = null,
+        val hubExact: Boolean = true,
     )
 
     /** Keep the small coverage identity, never the one-shot matrix consumed by clustering. */
@@ -2029,6 +2207,7 @@ internal class DefaultSimilarityEngine(
         fun energyVersion(encoder: String): String = "$ENERGY_VERSION-$encoder"
 
         const val AUDIO_IDENTITY_VERSION = "audio-v1"
+        private val HUB_RETRY_AFTER = kotlin.time.Duration.parse("5m")
         /**
          * Tracks analysed in one window (duration unknown or at most 10 s): from 0.9.4 a window decoded short is
          * repeated to its length instead of zero-padded ([WindowCoverage]), so only these rows are analysed again.

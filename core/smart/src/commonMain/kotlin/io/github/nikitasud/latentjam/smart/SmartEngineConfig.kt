@@ -77,4 +77,10 @@ public data class SmartEngineConfig(
     public val themeSlots: Int = 25,
     /** With [themeWeights]: spreads of a hop's scores per unit of a candidate's theme z-score (0: a pool channel only). */
     public val themeBonus: Float = 0f,
+    /**
+     * The hub penalty (SmartSnapshot.computeHubPenalty, 1.9 s at 20k rows on an emulator) is computed after a plan, off
+     * the engine's lock, a block of rows per hold, and kept for the rows it was computed for; a plan reads it, or the
+     * last one by track until it is ready, and never computes it. Off computes it inside every snapshot build, as 0.9.3.
+     */
+    public val backgroundHub: Boolean = false,
 )

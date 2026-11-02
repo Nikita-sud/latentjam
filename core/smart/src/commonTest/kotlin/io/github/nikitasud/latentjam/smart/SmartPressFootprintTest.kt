@@ -67,6 +67,62 @@ internal class SmartPressFootprintTest {
         assertEquals(RECORDED_QUEUES, queues)
     }
 
+    @Test
+    fun `with the hub in the background a warm press plans the recorded queues and a cold one computes no hub`() = runTest {
+        val audioStore = FakeIndexStore()
+        val textStore = FakeIndexStore()
+        val first = engine(audioStore, textStore, backgroundHub = true)
+        first.initialize()
+        assertEquals(library.size, first.indexLibrary(library).indexed)
+        first.ensureMetadataVectors(library)
+        first.persistPendingAnalysis()
+
+        // Cold: the snapshot carries no hub (all 0) and the pass starts behind it.
+        val cold = requireNotNull(first.smartSnapshot(emptyList()))
+        assertEquals(true, cold.hubPenalty.all { it == 0f })
+        first.awaitBackgroundHub()
+        val planned = buildList {
+            for (seed in listOf(3, 404, 777)) add("plain $seed: " + first.smartQueue(library[seed], library, 12).text())
+        }
+        assertEquals(RECORDED_FIRST_SNAPSHOT, digest(requireNotNull(first.smartSnapshot(emptyList()))), "first engine's snapshot")
+
+        val restarted = engine(audioStore, textStore, judged = true, backgroundHub = true)
+        restarted.initialize()
+        val listed = library.dropLast(100)
+        val groups = listOf(
+            (200 until 230).map { library[it].id }.toSet(),
+            (600 until 612).map { library[it].id }.toSet(),
+        )
+        // A cold press (the restored library is listed by the press itself) starts the pass; the recorded ones run warm.
+        restarted.smartQueue(library[205], listed, 12, history, groups)
+        restarted.awaitBackgroundHub()
+        val start = restarted.smartQueue(library[205], listed, 12, history, groups)
+        val tail = listed.first { it.id == start.last() }
+        val rest = listed.filter { it.id !in start && it.id != library[205].id }
+        val topUp = restarted.continueSmartQueue(
+            tail, rest, 12, history, groups, precedingTrackIds = listOf(library[205].id) + start.dropLast(1),
+        )
+        assertEquals(RECORDED_RESTARTED_SNAPSHOT, digest(requireNotNull(restarted.smartSnapshot(history))), "restarted")
+        assertEquals(RECORDED_QUEUES, planned + listOf("judged start: " + start.text(), "judged top-up: " + topUp.text()))
+    }
+
+    @Test
+    fun `a snapshot rebuilt for a tag change while the hub pass runs still gets the exact hub`() = runTest {
+        val engine = engine(FakeIndexStore(), FakeIndexStore(), backgroundHub = true)
+        engine.initialize()
+        engine.indexLibrary(library)
+        engine.ensureMetadataVectors(library)
+        engine.smartSnapshot(emptyList())
+        // A tag edit re-encodes one text vector: the snapshot is rebuilt for the same audio rows, the pass keeps running.
+        val edited = library[10].copy(title = "Edited title")
+        engine.ensureMetadataVectors(listOf(edited))
+        engine.smartSnapshot(emptyList())
+        engine.awaitBackgroundHub()
+        val warm = requireNotNull(engine.smartSnapshot(emptyList()))
+        val exact = SmartSnapshot.computeHubPenalty(warm.centeredAudio)
+        assertEquals(exact.map(Float::toRawBits), warm.hubPenalty.map(Float::toRawBits))
+    }
+
     /** A real index that counts the calls that copy a stored vector: [VectorIndex.vector] and [VectorIndex.entries]. */
     private class CopyCountingIndex(private val inner: InMemoryVectorIndex) : VectorIndex by inner {
         var copiedVectors = 0
@@ -103,6 +159,7 @@ internal class SmartPressFootprintTest {
         judged: Boolean = false,
         audio: VectorIndex = InMemoryVectorIndex(SmartSnapshot.AUDIO_DIM),
         text: VectorIndex = InMemoryVectorIndex(TextEncoder.TEXT_DIM),
+        backgroundHub: Boolean = false,
     ) =
         DefaultSimilarityEngine(
             backend = FakeEmbeddingBackend(audioVectors),
@@ -111,6 +168,7 @@ internal class SmartPressFootprintTest {
             config = SmartEngineConfig(
                 embeddingDim = SmartSnapshot.AUDIO_DIM, modelVersion = "footprint",
                 continueAfterExhaustion = judged, judgedScoring = judged, artistRunPenalty = if (judged) 0.5f else 0f,
+                backgroundHub = backgroundHub,
             ),
             dispatcher = Dispatchers.Default.limitedParallelism(1, "footprint"),
             textEncoder = FixtureTextEncoder,
