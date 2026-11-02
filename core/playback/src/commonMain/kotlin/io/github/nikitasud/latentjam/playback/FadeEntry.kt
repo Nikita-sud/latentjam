@@ -257,27 +257,46 @@ internal class FadeEndTracker(sampleRate: Int, private val channels: Int) {
     private val keepBlocks = (TAIL_KEEP_S * 1000L / BLOCK_MS).toInt()
     private val ring = DoubleArray(keepBlocks)
     private var blocks = 0L
-    private var framesInBlock = 0L
+    private var framesInBlock = 0
     private var sumInBlock = 0.0
     private var frames = 0L
     private val rate = sampleRate
 
+    /** Hot: runs on every frame of every scanned track, so plain loops and the sum of channels squared. */
     fun add(samples: FloatArray, frameCount: Int) {
+        val perBlock = blockFrames.toInt()
+        val scale = 1.0 / (channels * channels)
         var index = 0
-        repeat(frameCount) {
-            var mono = 0.0
-            repeat(channels) { mono += samples[index++] }
-            mono /= channels
-            sumInBlock += mono * mono
-            frames++
-            if (++framesInBlock == blockFrames) closeBlock()
+        var frame = 0
+        while (frame < frameCount) {
+            // Up to the end of the current block, then close it.
+            val run = minOf(frameCount - frame, perBlock - framesInBlock)
+            var sum = 0.0
+            if (channels == 2) {
+                for (i in 0 until run) {
+                    val mono = samples[index].toDouble() + samples[index + 1]
+                    sum += mono * mono
+                    index += 2
+                }
+            } else {
+                for (i in 0 until run) {
+                    var mono = 0.0
+                    for (c in 0 until channels) mono += samples[index++]
+                    sum += mono * mono
+                }
+            }
+            sumInBlock += sum * scale
+            framesInBlock += run
+            frame += run
+            if (framesInBlock == perBlock) closeBlock()
         }
+        frames += frameCount
     }
 
     private fun closeBlock() {
         ring[(blocks % keepBlocks).toInt()] = sumInBlock
         blocks++
-        framesInBlock = 0L
+        framesInBlock = 0
         sumInBlock = 0.0
     }
 
