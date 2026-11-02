@@ -920,12 +920,6 @@ internal class AutomaticIndexCheckpointCadence(
 // the order of a shuffled/sorted/multi-selected Tracks or Search queue after restart.
 private const val MAX_RESUME_QUEUE = 10_000
 
-/**
- * Fade entries (experimental): the next track rises under an outgoing track's own fade-out. Off
- * until a listening round decides between the two readings of where a fade starts; that round
- * also picks [FADE_ENTRY_RULE].
- */
-private const val FADE_ENTRIES_ON: Boolean = false
 
 /** Where a fade entry starts, once [FADE_ENTRIES_ON]. */
 private val FADE_ENTRY_RULE: FadeEntryRule = FadeEntryRule.KNEE

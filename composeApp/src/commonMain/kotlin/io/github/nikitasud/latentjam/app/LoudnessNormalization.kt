@@ -67,6 +67,13 @@ private const val LOUDNESS_SOUND_CACHE_VERSION = "r128-v2"
  */
 private const val LOUDNESS_FADE_CACHE_VERSION = "r128-v3"
 
+/**
+ * Fade entries (experimental): the next track rises under an outgoing track's own fade-out. Off
+ * until a listening round decides between the two readings of where a fade starts; that round
+ * also picks the rule. Off, the scans measure no endings and the cache stays at [LOUDNESS_SOUND_CACHE_VERSION].
+ */
+internal const val FADE_ENTRIES_ON: Boolean = false
+
 internal fun encodeTrackLoudness(loudnessById: Map<String, StoredTrackLoudness>): String =
     loudnessById.entries.filter { it.value.measurement.isValid() }.joinToString("\n") { (id, stored) ->
         val withFade = stored.soundMeasured && stored.fadeMeasured
@@ -187,6 +194,7 @@ internal class LoudnessNormalizer(
     fun start(scope: CoroutineScope) {
         measureScope = scope
         measured.value = decodeTrackLoudness(settings.readTrackLoudnessPayload().orEmpty())
+            .let { rows -> if (fadeEntries || rows.values.none { it.fadeMeasured }) rows else rows.mapValues { withoutEndingsUnlessWanted(it.value) } }
         scope.launch {
             combine(measured, settings.normalizeVolume, ::normalizationVolumes)
                 .distinctUntilChanged()
@@ -272,9 +280,17 @@ internal class LoudnessNormalizer(
             failedThisSession += attemptIdentity
             return kept
         }
-        publish(measured.value + (id to StoredTrackLoudness(measurement, audioIdentity)))
+        publish(measured.value + (id to withoutEndingsUnlessWanted(StoredTrackLoudness(measurement, audioIdentity))))
         return Measured.Ready(measurement)
     }
+
+    /**
+     * With fade entries off nothing of a track's ending is kept: not in memory, not in the cache, which then holds
+     * the rows an 0.9.3 build writes.
+     */
+    private fun withoutEndingsUnlessWanted(stored: StoredTrackLoudness): StoredTrackLoudness =
+        if (fadeEntries || (stored.measurement.fade == null && !stored.fadeMeasured)) stored
+        else stored.copy(measurement = stored.measurement.copy(fade = null), fadeMeasured = false)
 
     private suspend fun measureOrNull(track: TrackDescriptor): IntegratedLoudness? = try {
         meter.measure(track)

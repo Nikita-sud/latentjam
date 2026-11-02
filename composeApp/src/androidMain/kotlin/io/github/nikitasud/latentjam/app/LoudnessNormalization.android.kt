@@ -19,7 +19,7 @@ internal actual val playbackGainControlsAvailable: Boolean = true
 
 private class AndroidTrackLoudnessMeter(context: Context) : TrackLoudnessMeter {
 
-    private val meter = AndroidIntegratedLoudnessMeter(context)
+    private val meter = AndroidIntegratedLoudnessMeter(context, measuresFadeEnds = FADE_ENTRIES_ON)
 
     override suspend fun measure(track: TrackDescriptor): IntegratedLoudness? {
         val uri = track.audioUri?.takeIf { it.isNotBlank() } ?: return null

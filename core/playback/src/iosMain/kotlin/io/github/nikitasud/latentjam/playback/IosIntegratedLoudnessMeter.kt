@@ -17,7 +17,8 @@ import platform.Foundation.NSProcessInfo
 
 /** Imported/local files only; protected Music.app playback has no app-owned gain stage. */
 @OptIn(ExperimentalForeignApi::class)
-public class IosIntegratedLoudnessMeter {
+/** See AndroidIntegratedLoudnessMeter: with [measuresFadeEnds] the pass also measures the track's ending. */
+public class IosIntegratedLoudnessMeter(private val measuresFadeEnds: Boolean = false) {
     public suspend fun measure(audioUri: String, durationMs: Long?): IntegratedLoudness? =
         withContext(Dispatchers.Default) {
             scanMutex.withLock {
@@ -37,7 +38,7 @@ public class IosIntegratedLoudnessMeter {
                     val samples = FloatArray(LoudnessScanLimits.CHUNK_FRAMES * channels)
                     val native = NativeLoudnessMeter(rate, channels).also { meter = it }
                     val sound = SoundSpanTracker(rate, channels)
-                    val fade = FadeEndTracker(rate, channels)
+                    val fade = if (measuresFadeEnds) FadeEndTracker(rate, channels) else null
                     var decodedFrames = 0L
                     // The file ran out before the length its header estimates (a junk tail).
                     var ranOut = false
@@ -57,7 +58,7 @@ public class IosIntegratedLoudnessMeter {
                         }
                         if (!native.add(samples, frames)) return@withLock null
                         sound.add(samples, frames)
-                        fade.add(samples, frames)
+                        fade?.add(samples, frames)
                         decodedFrames += frames
                     }
                     coroutine.ensureActive()
@@ -68,7 +69,7 @@ public class IosIntegratedLoudnessMeter {
                         decodedFrames == file.length && LoudnessScanLimits.complete(decodedFrames, rate, durationMs)
                     }
                     if (!complete) return@withLock null
-                    native.finish()?.copy(sound = sound.finish(), fade = fade.finish()).also { coroutine.ensureActive() }
+                    native.finish()?.copy(sound = sound.finish(), fade = fade?.finish()).also { coroutine.ensureActive() }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (failure: Exception) {

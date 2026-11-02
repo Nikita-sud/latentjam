@@ -55,7 +55,9 @@ class FadeEntryDeviceTest {
         val file = File(context.cacheDir, "fade-cost.wav")
         try {
             writeWav(file, rate * seconds, rate) { (6000 * sin(2 * PI * 220 * it / rate)).toInt() }
-            val meter = AndroidIntegratedLoudnessMeter(context)
+            // Off by default: the plain scan returns no ending at all.
+            assertNull(withTimeout(120_000) { AndroidIntegratedLoudnessMeter(context).measure(Uri.fromFile(file).toString(), seconds * 1000L) }!!.fade)
+            val meter = AndroidIntegratedLoudnessMeter(context, measuresFadeEnds = true)
             val scanMs = (0 until 3).map {
                 val started = System.nanoTime()
                 assertNotNull(withTimeout(120_000) { meter.measure(Uri.fromFile(file).toString(), seconds * 1000L) })
@@ -120,7 +122,7 @@ class FadeEntryDeviceTest {
         val incoming = File(context.cacheDir, "fade-entry-b.wav").also { writeWav(it, inFrames, RATE, ::saw) }
         try {
             val measured = runBlocking {
-                val meter = AndroidIntegratedLoudnessMeter(context)
+                val meter = AndroidIntegratedLoudnessMeter(context, measuresFadeEnds = true)
                 listOf(outgoing, incoming).map { withTimeout(60_000) { meter.measure(Uri.fromFile(it).toString(), null) } }
             }
             val fade = checkNotNull(measured[0]?.fade)
@@ -163,7 +165,7 @@ class FadeEntryDeviceTest {
         val incoming = File(context.cacheDir, "fade-entry-b2.wav").also { writeWav(it, inFrames, RATE, ::saw) }
         try {
             val measured = runBlocking {
-                withTimeout(60_000) { AndroidIntegratedLoudnessMeter(context).measure(Uri.fromFile(outgoing).toString(), null) }
+                withTimeout(60_000) { AndroidIntegratedLoudnessMeter(context, measuresFadeEnds = true).measure(Uri.fromFile(outgoing).toString(), null) }
             }
             val fade = checkNotNull(measured?.fade)
             assertNull(fade.kneeLeadMs)

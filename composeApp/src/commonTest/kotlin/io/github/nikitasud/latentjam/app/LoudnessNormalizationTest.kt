@@ -82,6 +82,37 @@ internal class LoudnessNormalizationTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
+    fun withFadeEntriesOffNoEndingIsKeptOrWritten() = runTest {
+        val settings = ThrowingSettings()
+        settings.crossfadeSeconds.value = 6
+        val fade = FadeEnd(lastSoundMs = 160_000, kneeLeadMs = 9_000, visibleLeadMs = 8_000)
+        val old = audioTrack("old", "revision-1")
+        // A row a test build with fade entries on wrote: its ending is dropped, its loudness and edges kept.
+        settings.storedLoudness = encodeTrackLoudness(
+            mapOf("old" to StoredTrackLoudness(IntegratedLoudness(-9f, -1f, SoundSpan(0, 150_000), fade), old.loudnessAudioIdentity())),
+        )
+        val playback = FakePlayback()
+        // A meter that reports an ending anyway: nothing of it may stay.
+        val meter = object : TrackLoudnessMeter {
+            override suspend fun measure(track: TrackDescriptor) = IntegratedLoudness(-8f, -2f, SoundSpan(900, 170_000), fade)
+        }
+        LoudnessNormalizer(settings, playback, meter, fadeEntries = FADE_ENTRIES_ON).start(backgroundScope)
+        runCurrent()
+        playback.nowPlaying.value = NowPlaying(track = audioTrack("song", "revision-1"))
+        runCurrent()
+
+        assertEquals(false, FADE_ENTRIES_ON)
+        val written = settings.attemptedLoudness.orEmpty()
+        val rows = decodeTrackLoudness(written)
+        assertEquals(setOf("old", "song"), rows.keys)
+        assertTrue(rows.values.all { it.measurement.fade == null && !it.fadeMeasured && it.soundMeasured }, "$rows")
+        // The cache holds exactly the rows an 0.9.3 build writes.
+        assertTrue(written.lines().all { it.startsWith("r128-v2|") }, written)
+        assertEquals(SoundSpan(0, 150_000), rows.getValue("old").measurement.sound)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
     fun smoothTransitionsAloneMeasureSoundEdgesWithoutChangingAnyVolume() = runTest {
         val settings = ThrowingSettings()
         settings.normalizeVolume.value = false
@@ -447,8 +478,11 @@ internal class LoudnessNormalizationTest {
         var storedLoudness: String? = null
         override fun readTrackLoudnessPayload(): String? = storedLoudness
         var writeAttempts = 0
+        /** What the last write tried to store, before it failed. */
+        var attemptedLoudness: String? = null
         override fun writeTrackLoudnessPayload(payload: String) {
             writeAttempts++
+            attemptedLoudness = payload
             error("disk unavailable")
         }
 

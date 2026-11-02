@@ -38,7 +38,9 @@ internal class FadeEntryCostIosTest {
                     assertTrue(file.writeFromBuffer(block, error = null))
                 }
             }
-            val meter = IosIntegratedLoudnessMeter()
+            // Off by default: the plain scan returns no ending at all.
+            assertNull(assertNotNull(IosIntegratedLoudnessMeter().measure(checkNotNull(url.absoluteString), seconds * 1000L)).fade)
+            val meter = IosIntegratedLoudnessMeter(measuresFadeEnds = true)
             var fade: FadeEnd? = null
             val scanMs = (0 until 3).map {
                 val mark = TimeSource.Monotonic.markNow()

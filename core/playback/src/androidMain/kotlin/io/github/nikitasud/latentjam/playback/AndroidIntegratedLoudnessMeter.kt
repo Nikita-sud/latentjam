@@ -18,8 +18,12 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-/** Full-track streaming analysis using platform decoders and the shared libebur128 core. */
-public class AndroidIntegratedLoudnessMeter(context: Context) {
+/**
+ * Full-track streaming analysis using platform decoders and the shared libebur128 core. With
+ * [measuresFadeEnds] the same pass also measures how the track ends ([FadeEnd]); off, nothing of it
+ * is allocated or returned.
+ */
+public class AndroidIntegratedLoudnessMeter(context: Context, private val measuresFadeEnds: Boolean = false) {
     private val context = context.applicationContext
 
     public suspend fun measure(audioUri: String, durationMs: Long?): IntegratedLoudness? =
@@ -94,7 +98,7 @@ public class AndroidIntegratedLoudnessMeter(context: Context) {
                             if (meter == null) {
                                 meter = NativeLoudnessMeter(rate, channels)
                                 sound = SoundSpanTracker(rate, channels)
-                                fade = FadeEndTracker(rate, channels)
+                                if (measuresFadeEnds) fade = FadeEndTracker(rate, channels)
                             }
                         }
                         while (!outputDone) {
