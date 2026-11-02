@@ -424,6 +424,18 @@ internal class AndroidPlaybackController(
         }
     }
 
+    override suspend fun setTrackFadeEnds(ends: Map<String, FadeEnd>) {
+        withContext(Dispatchers.Main.immediate) {
+            crossfade.fadeEnds = ends.filterValues { it.isValid() }
+        }
+    }
+
+    override suspend fun setFadeEntry(rule: FadeEntryRule?) {
+        withContext(Dispatchers.Main.immediate) {
+            crossfade.fadeEntryRule = rule
+        }
+    }
+
     override suspend fun setCrossfadeSeconds(seconds: Int) {
         withContext(Dispatchers.Main.immediate) {
             crossfade.fadeMs = sanitizeCrossfadeSeconds(seconds) * 1000L

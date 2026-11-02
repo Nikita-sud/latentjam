@@ -122,6 +122,21 @@ internal class IosPlaybackController(
     override suspend fun setTrackSoundSpans(spans: Map<String, SoundSpan>): Unit = withContext(Dispatchers.Main) {
         trackSoundSpans = spans.filterValues { it.isValid() }
     }
+
+    /** How each measured track ends, for fade entries ([fadeEntryRule]). */
+    private var trackFadeEnds: Map<String, FadeEnd> = emptyMap()
+
+    /** Fade entries' rule (experimental); null keeps every seam a crossfade. */
+    private var fadeEntryRule: FadeEntryRule? = null
+
+    override suspend fun setTrackFadeEnds(ends: Map<String, FadeEnd>): Unit = withContext(Dispatchers.Main) {
+        trackFadeEnds = ends.filterValues { it.isValid() }
+    }
+
+    override suspend fun setFadeEntry(rule: FadeEntryRule?): Unit = withContext(Dispatchers.Main) {
+        fadeEntryRule = rule
+        updateCrossfadeLoop()
+    }
     private var normalizationGain = 1f
     private var normalizationJob: Job? = null
 
@@ -197,6 +212,8 @@ internal class IosPlaybackController(
         val overlapMs: Long,
         val endMs: Long,
         val leadMs: Long,
+        /** A fade entry: the outgoing track keeps its own level; see [FadeEnd]. */
+        val holdsOutgoing: Boolean = false,
     ) {
         var started = false
     }
@@ -262,18 +279,24 @@ internal class IosPlaybackController(
         // of the track, so the fit is ready long before the seam is cued.
         val seamMs = next?.let { seamCrossfades.lengthFor(current.id, it.id, fadeMs) } ?: fadeMs
         var anchors = seamAnchors(durationMs, trackSoundSpans[current.id.value], next?.let { trackSoundSpans[it.id.value] })
+        // A fade entry reaches further back than the slider, so its next track is cued that much sooner.
+        val fade = fadeEntryRule?.let { rule -> trackFadeEnds[current.id.value]?.let { rule to it } }
+        fun entryMs(endMs: Long, incomingMs: Long): Long? =
+            fade?.let { (rule, end) -> fadeEntryOverlapMs(end, rule, endMs, incomingMs) }
+        val reachMs = maxOf(fadeMs, entryMs(anchors.outgoingEndMs, Long.MAX_VALUE) ?: 0L)
         // At or past its end the track is over, whatever reports that end next (a drained overlap
         // posts it on the main queue): cueing or late-starting the following track now would start
         // it part-way in, ahead of the advance that plays it from its start.
         val ended = durationMs > 0L && positionMs >= durationMs
         if (overlap == null && !ended && outgoingCurveMs <= 0L && fadeMs > 0L && !finishingTrack && durationMs > 0L && edges.fadeOut && next != null &&
-            anchors.outgoingEndMs - positionMs <= fadeMs + OVERLAP_CUE_AHEAD_MS
+            anchors.outgoingEndMs - positionMs <= reachMs + OVERLAP_CUE_AHEAD_MS
         ) {
             val key = "${current.id.value}>${next.id.value}"
             val url = next.audioUri?.let { NSURL.URLWithString(it) }
             if (url != null && key !in failedOverlaps) {
                 var incomingMs = audioEngine.prepareOverlap(url, fromMs = anchors.incomingStartMs)
-                var overlapMs = incomingMs?.let { overlapLengthMs(seamMs, anchors.outgoingEndMs, it - anchors.incomingStartMs) } ?: 0L
+                var entry = incomingMs?.let { entryMs(anchors.outgoingEndMs, it - anchors.incomingStartMs) }
+                var overlapMs = entry ?: incomingMs?.let { overlapLengthMs(seamMs, anchors.outgoingEndMs, it - anchors.incomingStartMs) } ?: 0L
                 val unanchored = SeamAnchors(outgoingEndMs = durationMs, incomingStartMs = 0L)
                 if (incomingMs != null && overlapMs > 0L && anchors != unanchored &&
                     overlapOutrunsIncoming(anchors, durationMs, incomingMs, overlapMs)
@@ -282,10 +305,14 @@ internal class IosPlaybackController(
                     // files' own edges instead, as Android re-plans such a seam.
                     anchors = unanchored
                     incomingMs = audioEngine.prepareOverlap(url)
-                    overlapMs = incomingMs?.let { overlapLengthMs(seamMs, durationMs, it) } ?: 0L
+                    entry = incomingMs?.let { entryMs(durationMs, it) }
+                    overlapMs = entry ?: incomingMs?.let { overlapLengthMs(seamMs, durationMs, it) } ?: 0L
                 }
                 if (overlapMs > 0L) {
-                    overlap = IosOverlap(current.id, next, overlapMs, endMs = anchors.outgoingEndMs, leadMs = anchors.incomingStartMs)
+                    overlap = IosOverlap(
+                        current.id, next, overlapMs, endMs = anchors.outgoingEndMs, leadMs = anchors.incomingStartMs,
+                        holdsOutgoing = entry != null,
+                    )
                 } else {
                     audioEngine.cancelOverlap()
                     failedOverlaps += key
@@ -304,8 +331,8 @@ internal class IosPlaybackController(
         return when {
             overlap?.started == true || releaseStartedAtMs >= 0L || outgoingCurveMs > 0L -> GAIN_RAMP_TICK_MS
             positionMs < windowMs -> GAIN_RAMP_TICK_MS
-            durationMs > 0L && anchors.outgoingEndMs - positionMs <= fadeMs + OVERLAP_CUE_AHEAD_MS -> GAIN_RAMP_TICK_MS
-            durationMs > 0L -> (anchors.outgoingEndMs - positionMs - fadeMs - OVERLAP_CUE_AHEAD_MS)
+            durationMs > 0L && anchors.outgoingEndMs - positionMs <= reachMs + OVERLAP_CUE_AHEAD_MS -> GAIN_RAMP_TICK_MS
+            durationMs > 0L -> (anchors.outgoingEndMs - positionMs - reachMs - OVERLAP_CUE_AHEAD_MS)
                 .coerceIn(GAIN_RAMP_TICK_MS, OVERLAP_IDLE_TICK_MS)
             else -> OVERLAP_IDLE_TICK_MS
         }
@@ -337,6 +364,7 @@ internal class IosPlaybackController(
             curveMs = curveMs,
             riseFromMs = incomingRiseFromMs,
             curveEndMs = curveEndMs,
+            holdsCurve = overlap?.holdsOutgoing == true,
         )
         var incoming = 0f
         if (active != null) {
@@ -393,15 +421,19 @@ internal class IosPlaybackController(
             // Not sounding yet, but the end already follows its curve: keep that, drop the rest.
             overlap = null
             audioEngine.cancelOverlap()
-            outgoingCurveMs = active.overlapMs
-            outgoingCurveEndMs = active.endMs
+            keepOutCurve(active)
             return
         }
         overlap = null
-        outgoingCurveMs = active.overlapMs
-        outgoingCurveEndMs = active.endMs
+        keepOutCurve(active)
         releaseFromGain = lastIncomingGain
         releaseStartedAtMs = transportTimeMs()
+    }
+
+    /** A let-go overlap's out-curve, kept to the track's end; a fade entry has none (its own fade leaves). */
+    private fun keepOutCurve(active: IosOverlap) {
+        outgoingCurveMs = if (active.holdsOutgoing) 0L else active.overlapMs
+        outgoingCurveEndMs = if (active.holdsOutgoing) -1L else active.endMs
     }
 
     /**

@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.library.AlbumSort
 import io.github.nikitasud.latentjam.library.SongSort
+import io.github.nikitasud.latentjam.playback.FadeEnd
 import io.github.nikitasud.latentjam.playback.IntegratedLoudness
 import kotlin.test.assertFalse
 import kotlinx.coroutines.awaitCancellation
@@ -61,6 +62,22 @@ internal class LoudnessNormalizationTest {
         // A legacy row is written in the format older builds read.
         assertTrue(payload.lines().single { it.startsWith("r128-v1|") }.split('|').size == 5)
         assertEquals(mapOf("edges" to SoundSpan(1_250, 201_400)), soundSpans(decodeTrackLoudness(payload)))
+    }
+
+    @Test
+    fun trackEndingsRoundTripAndRowsFromBeforeThemAreMarked() {
+        val fade = FadeEnd(lastSoundMs = 201_400, kneeLeadMs = 14_000, visibleLeadMs = null)
+        val original = mapOf(
+            "fades" to StoredTrackLoudness(IntegratedLoudness(-9f, -1.5f, SoundSpan(1_250, 201_400), fade), "f-v1"),
+            "cold" to StoredTrackLoudness(IntegratedLoudness(-9f, -1.5f, SoundSpan(0, 180_000)), "c-v1"),
+        )
+        val decoded = decodeTrackLoudness(encodeTrackLoudness(original))
+        assertEquals(original, decoded)
+        assertEquals(mapOf("fades" to fade), fadeEnds(decoded))
+        // A row an earlier build wrote keeps its edges, and is known to lack its ending.
+        val older = decodeTrackLoudness("r128-v2|6f6c64|6f2d7631|-900|-150|0|180000")
+        assertEquals(false, older.getValue("old").fadeMeasured)
+        assertEquals(SoundSpan(0, 180_000), older.getValue("old").measurement.sound)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)

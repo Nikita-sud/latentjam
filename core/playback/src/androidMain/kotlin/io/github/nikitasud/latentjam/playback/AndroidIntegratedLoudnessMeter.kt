@@ -39,6 +39,7 @@ public class AndroidIntegratedLoudnessMeter(context: Context) {
                 var codec: MediaCodec? = null
                 var meter: NativeLoudnessMeter? = null
                 var sound: SoundSpanTracker? = null
+                var fade: FadeEndTracker? = null
                 try {
                     if (durationMs != null && durationMs > LoudnessScanLimits.MAX_DURATION_MS) return@withLock null
                     val uri = Uri.parse(audioUri)
@@ -93,6 +94,7 @@ public class AndroidIntegratedLoudnessMeter(context: Context) {
                             if (meter == null) {
                                 meter = NativeLoudnessMeter(rate, channels)
                                 sound = SoundSpanTracker(rate, channels)
+                                fade = FadeEndTracker(rate, channels)
                             }
                         }
                         while (!outputDone) {
@@ -142,6 +144,7 @@ public class AndroidIntegratedLoudnessMeter(context: Context) {
                                             }
                                             if (meter?.add(samples, frames) != true) return@withLock null
                                             sound?.add(samples, frames)
+                                            fade?.add(samples, frames)
                                             decodedFrames += frames
                                             check(true)
                                         }
@@ -155,7 +158,7 @@ public class AndroidIntegratedLoudnessMeter(context: Context) {
                         if (!inputDone || !LoudnessScanLimits.complete(decodedFrames, rate, expectedDuration, sourceEnded = true)) {
                             return@withLock null
                         }
-                        meter?.finish()?.copy(sound = sound?.finish()).also { coroutine.ensureActive() }
+                        meter?.finish()?.copy(sound = sound?.finish(), fade = fade?.finish()).also { coroutine.ensureActive() }
                     }
                 } catch (cancelled: CancellationException) {
                     throw cancelled

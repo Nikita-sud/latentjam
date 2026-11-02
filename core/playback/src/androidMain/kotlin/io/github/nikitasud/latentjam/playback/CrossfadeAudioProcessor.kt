@@ -39,6 +39,16 @@ internal class CrossfadeSettings {
     /** Where each measured track's sound begins and ends, by media id; see [seamAnchors]. */
     @Volatile var soundSpans: Map<String, SoundSpan> = emptyMap()
 
+    /** How each measured track ends, by media id; read only while [fadeEntryRule] is set. */
+    @Volatile var fadeEnds: Map<String, FadeEnd> = emptyMap()
+
+    /** Fade entries' rule (experimental); null keeps every seam a crossfade. */
+    @Volatile var fadeEntryRule: FadeEntryRule? = null
+        set(value) {
+            field = value
+            onChange?.invoke()
+        }
+
     /**
      * Playback stops when the current track ends (the sleep timer's "end of track"): no overlap is
      * prepared, and one in progress lets the next track go, so the track fades out on its own.
@@ -123,7 +133,15 @@ internal class OverlapPlan(
     val slot: Int = -1,
     val outgoingEndUs: Long = C.TIME_UNSET,
     val incomingStartFrame: Int = 0,
-)
+    /**
+     * A fade entry ([FadeEnd]): the outgoing track keeps its own level through the overlap — its
+     * fade-out does the leaving — and the overlap may be longer than the slider.
+     */
+    val holdsOutgoing: Boolean = false,
+) {
+    /** How long before its end this plan's seam is settled: the slider, or a longer fade entry. */
+    fun windowUs(sliderUs: Long): Long = if (holdsOutgoing) maxOf(sliderUs, overlapUs) else sliderUs
+}
 
 /** See [CrossfadeSettings.pendingRise]. */
 internal data class PendingRise(val mediaId: String, val positionUs: Long, val riseUs: Long, val fromUs: Long = 0L)
@@ -369,8 +387,10 @@ internal class CrossfadeAudioProcessor(
         val fallbackFadeUs = minOf(fadeMs * 1000L, durationUs / 2L)
         // An overlap meets the outgoing track's last sound: its end is settled where that window
         // begins, which a long trailing silence puts before the file's own fade window.
-        val soundEndUs = livePlan?.takeIf { it.outgoingId == mediaId }?.let { anchorUs(it, durationUs) } ?: durationUs
-        val decideAtUs = minOf(durationUs - fallbackFadeUs, soundEndUs - minOf(fadeMs * 1000L, soundEndUs / 2L))
+        val ownPlan = livePlan?.takeIf { it.outgoingId == mediaId }
+        val soundEndUs = ownPlan?.let { anchorUs(it, durationUs) } ?: durationUs
+        val windowUs = ownPlan?.windowUs(fadeMs * 1000L) ?: (fadeMs * 1000L)
+        val decideAtUs = minOf(durationUs - fallbackFadeUs, soundEndUs - minOf(windowUs, soundEndUs / 2L))
         // A queue edit can end an album continuation, or begin one, under a fading track.
         if (segment.end == End.NONE && edges.fadeOut) segment.end = End.FADE
         if (segment.end == End.FADE && !edges.fadeOut) segment.end = End.NONE
@@ -410,7 +430,7 @@ internal class CrossfadeAudioProcessor(
             var introIndex = -1
             if (activeMix != null && index >= activeMix.startFrame) {
                 val progress = (index - activeMix.startFrame).toFloat() / activeMix.overlapFrames
-                envelope *= if (progress < 1f) overlapOutGain(progress) else 0f
+                envelope *= if (progress >= 1f) 0f else if (activeMix.plan.holdsOutgoing) 1f else overlapOutGain(progress)
                 if (incomingGain.isNaN()) incomingGain = settings.gainOf(activeMix.plan.incomingId)
                 val introTarget = if (activeMix.cancelled) 0f else overlapInGain(progress) * incomingGain
                 // Rising never faster than a cancel falls: a mix begun late comes in over that
@@ -582,7 +602,7 @@ internal class CrossfadeAudioProcessor(
             }
             val endUs = anchorUs(plan, durationUs)
             val mixStartUs = endUs - plan.overlapUs
-            val windowUs = endUs - minOf(settings.fadeMs * 1000L, endUs / 2L)
+            val windowUs = endUs - minOf(plan.windowUs(settings.fadeMs * 1000L), endUs / 2L)
             // A start before the window — the slider lowered after the opening was decoded for a
             // longer overlap — would cut the next track in loud and partway into its opening.
             val missedStart = mixStartUs < windowUs - LATE_START_US
@@ -610,7 +630,8 @@ internal class CrossfadeAudioProcessor(
             end = End.MIX
             mix = Mix(plan, startFrame, overlapFrames = (plan.overlapUs * rate / 1_000_000L).coerceAtLeast(1L))
             settings.seamLog(
-                "seam ${stream?.mediaId} -> ${plan.incomingId}: overlap ${plan.overlapUs / 1000} ms ending at " +
+                "seam ${stream?.mediaId} -> ${plan.incomingId}: ${if (plan.holdsOutgoing) "fade entry" else "overlap"} " +
+                    "${plan.overlapUs / 1000} ms ending at " +
                     "${endUs / 1000} of ${durationUs / 1000} ms, from frame ${plan.incomingStartFrame} at $rate Hz" +
                     (if (lateUs > LATE_START_US) ", ${lateUs / 1000} ms late" else "") +
                     (if (waitedUs > 0L) " (opening ready ${waitedUs / 1000} ms after the seek)" else ""),

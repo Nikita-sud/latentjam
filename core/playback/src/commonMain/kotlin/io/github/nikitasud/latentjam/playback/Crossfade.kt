@@ -187,7 +187,8 @@ internal fun overlapKnee(presence: Float): Float =
  * slider (a third of a short neighbour); a plain fade before it would sink the track and the curve
  * would then lift it back to full where the overlap starts. Met at sound edges ([seamAnchors]), the
  * rise begins at the track's first sound ([riseFromMs]) and the out-curve ends at its last
- * ([curveEndMs]), silent after it.
+ * ([curveEndMs]), silent after it. A fade entry's overlap ([holdsCurve]) keeps the track at its
+ * own level to that end: its fade-out does the leaving.
  */
 internal fun deckEnvelope(
     positionMs: Long,
@@ -199,6 +200,7 @@ internal fun deckEnvelope(
     curveMs: Long,
     riseFromMs: Long = 0L,
     curveEndMs: Long = durationMs,
+    holdsCurve: Boolean = false,
 ): Float {
     val start = when {
         riseMs > 0L && positionMs < riseFromMs + riseMs -> overlapInGain((positionMs - riseFromMs).toFloat() / riseMs)
@@ -209,7 +211,7 @@ internal fun deckEnvelope(
     val end = when {
         curveMs > 0L && durationMs > 0L -> {
             val progress = (positionMs - (curveEndMs - curveMs)).toFloat() / curveMs
-            if (progress < 1f) overlapOutGain(progress) else 0f
+            if (progress >= 1f) 0f else if (holdsCurve) 1f else overlapOutGain(progress)
         }
         fadeMs > 0L && edges.fadeOut -> crossfadeFactor(positionMs, durationMs, fadeMs, fadeIn = false, fadeOut = true)
         else -> 1f

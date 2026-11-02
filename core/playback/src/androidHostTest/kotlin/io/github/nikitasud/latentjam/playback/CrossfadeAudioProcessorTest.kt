@@ -82,6 +82,7 @@ internal class CrossfadeAudioProcessorTest {
         frames: Int,
         outgoingEndMs: Long? = null,
         incomingStartFrame: Int = 0,
+        holdsOutgoing: Boolean = false,
         samples: (Int) -> Int,
     ) =
         OverlapPlan(
@@ -97,6 +98,7 @@ internal class CrossfadeAudioProcessorTest {
             frames = frames,
             outgoingEndUs = outgoingEndMs?.times(1000L) ?: C.TIME_UNSET,
             incomingStartFrame = incomingStartFrame,
+            holdsOutgoing = holdsOutgoing,
         )
 
     private val loud = { _: Int -> 1000 }
@@ -129,6 +131,23 @@ internal class CrossfadeAudioProcessorTest {
         assertEquals((2_000 until 5_000).toList(), incoming)
         // Processed ahead of the speaker: until the player reports the join, Next still lands in B.
         assertTrue(settings.mixing === overlap)
+    }
+
+    @Test
+    fun aFadeEntryLongerThanTheSliderRisesUnderTheOutgoingTracksOwnLevel() {
+        settings.fadeMs = 2_000
+        val a = stream("a", 20_000)
+        // A fade entry of 6 s, three times the slider: decided that early, not missed as a late start.
+        settings.plan = plan("a", "b", overlapMs = 6_000, frames = 12_000, holdsOutgoing = true, samples = { 500 })
+        reposition(a, atMs = 10_000)
+        val outgoing = feed(loud, 10_000, 20_000)
+
+        assertTrue(outgoing.take(4_000).all { it == 1000 })
+        // The outgoing track stays at its own level; only the next one moves.
+        val expectedMiddle = 1000 + 500 * overlapInGain(0.5f)
+        assertTrue(abs(outgoing[7_000] - expectedMiddle) <= 1f, "middle of the fade entry was ${outgoing[7_000]}")
+        assertTrue(outgoing.last() in 1498..1500, "end of the fade entry was ${outgoing.last()}")
+        assertEquals(6_000_000L, join(stream("b", 30_000)))
     }
 
     @Test
