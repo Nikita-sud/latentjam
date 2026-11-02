@@ -83,10 +83,11 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
             var invalidEmbedding = false
             var invalidDecode: String?
             var unavailableDecode: String?
+            let single = durationMs <= 10_000
             for start in starts {
-                let waveform: [Float]?
+                let window: DecodedWindow?
                 do {
-                    waveform = try decodeWindow(url: url, startMs: start)
+                    window = try decodeWindow(url: url, startMs: start)
                 } catch {
                     switch classifyAudioDecodeError(error, url: url) {
                     case .invalidAudio:
@@ -96,8 +97,12 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
                     }
                     continue
                 }
-                guard let waveform else { continue }
+                guard let window else { continue }
                 decoded += 1
+                guard let waveform = coveredWaveform(window, mayBeShort: single) else {
+                    invalidDecode = invalidDecode ?? coverageDetail(window, startMs: start)
+                    continue
+                }
                 guard case let .ran(result) = try runWindow(
                     audio, waveform: waveform, outputDim: Int(outputDim), gate: gate
                 ) else { return audioFailure(.unavailable, "Analysis stopped") }
@@ -109,9 +114,9 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
                 used += 1
             }
             if used == 0, durationMs > 10_000 {
-                let waveform: [Float]?
+                let window: DecodedWindow?
                 do {
-                    waveform = try decodeWindow(url: url, startMs: 0)
+                    window = try decodeWindow(url: url, startMs: 0)
                 } catch {
                     switch classifyAudioDecodeError(error, url: url) {
                     case .invalidAudio:
@@ -119,9 +124,10 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
                     case .unavailable:
                         unavailableDecode = unavailableDecode ?? error.localizedDescription
                     }
-                    waveform = nil
+                    window = nil
                 }
-                if let waveform {
+                // The head retry holds all the audio the file may have: a short head is repeated, never dropped.
+                if let window, let waveform = coveredWaveform(window, mayBeShort: true) {
                     decoded += 1
                     guard case let .ran(result) = try runWindow(
                         audio, waveform: waveform, outputDim: Int(outputDim), gate: gate
@@ -358,7 +364,36 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
         return [0.2, 0.5, 0.8].map { Int64(Double(span) * $0) }
     }
 
-    private func decodeWindow(url: URL, startMs: Int64) throws -> [Float]? {
+    /// One decoded window: 320,000 samples, of which the first `valid` came from the file and the rest are zeros.
+    private struct DecodedWindow {
+        var waveform: [Float]
+        let valid: Int
+    }
+
+    /// WindowCoverage (core/smart commonMain) on this host's decode, the same rule as Android (AUD-02): a window short
+    /// by at most 3,200 samples is used as decoded; otherwise its audio is repeated from its start to fill it
+    /// (`samples[i] = samples[i % valid]`), unless a longer track should have filled it and less than half arrived,
+    /// when it is dropped (nil).
+    private func coveredWaveform(_ window: DecodedWindow, mayBeShort: Bool) -> [Float]? {
+        let size = window.waveform.count
+        let valid = window.valid
+        if valid >= size - 3_200 { return window.waveform }
+        guard valid > 0, mayBeShort || Double(valid) >= Double(size) * 0.5 else { return nil }
+        var samples = window.waveform
+        var at = valid
+        while at < size {
+            let count = min(valid, size - at)
+            for index in 0..<count { samples[at + index] = samples[index] }
+            at += count
+        }
+        return samples
+    }
+
+    private func coverageDetail(_ window: DecodedWindow, startMs: Int64) -> String {
+        "Window at \(startMs)ms decoded \(window.valid) of \(window.waveform.count) samples"
+    }
+
+    private func decodeWindow(url: URL, startMs: Int64) throws -> DecodedWindow? {
         let file = try AVAudioFile(forReading: url)
         let inputFormat = file.processingFormat
         let requestedFrame = AVAudioFramePosition(
@@ -412,7 +447,7 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
             let sample = waveform[index]
             waveform[index] = sample.isFinite ? min(1, max(-1, sample)) : 0
         }
-        return waveform
+        return DecodedWindow(waveform: waveform, valid: count)
     }
 
     private enum WindowRun {

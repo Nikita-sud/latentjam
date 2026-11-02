@@ -325,7 +325,8 @@ internal class OnnxEmbeddingBackend(
                 }
             }
 
-            suspend fun tryWindow(startMs: Long) {
+            // [mayBeShort]: the window holds all the audio the file may have (its only window, or the head retry).
+            suspend fun tryWindow(startMs: Long, mayBeShort: Boolean) {
                 currentCoroutineContext().ensureActive()
                 val ready = prefetched?.windows?.get(startMs)?.takeUnless { it is AudioDecodeResult.Unavailable }
                 // On a worker, never here: a decode stuck in a platform call must not take the inference
@@ -343,6 +344,19 @@ internal class OnnxEmbeddingBackend(
                 }) {
                     is AudioDecodeResult.Success -> {
                         currentCoroutineContext().ensureActive()
+                        // AUD-02: a window decoded short is repeated to its length, or dropped when a longer track
+                        // should have filled it and less than half arrived; a full one is used exactly as decoded.
+                        val valid = decoded.validSamples
+                        when (WindowCoverage.use(valid, decoded.waveform.size, mayBeShort)) {
+                            WindowCoverage.Use.AS_DECODED -> Unit
+                            WindowCoverage.Use.REPEATED -> WindowCoverage.repeat(decoded.waveform, valid)
+                            WindowCoverage.Use.DROPPED -> {
+                                if (invalidAudioFailure == null) {
+                                    invalidAudioFailure = "Window at ${startMs}ms decoded $valid of ${decoded.waveform.size} samples"
+                                }
+                                return
+                            }
+                        }
                         val embedding = inferWindow { inferStable(decoded.waveform, startMs) } ?: return
                         for (i in pooled.indices) pooled[i] += embedding[i]
                         windows++
@@ -356,15 +370,16 @@ internal class OnnxEmbeddingBackend(
                 }
             }
 
+            val single = WindowCoverage.isSingleWindow(descriptor.durationMs)
             for (startMs in windowStartsMs(descriptor.durationMs)) {
-                tryWindow(startMs)
+                tryWindow(startMs, mayBeShort = single)
             }
             // Several otherwise playable MP3/M4A files on real devices reject random access even
             // though decoding from the head works. Retry the beginning only after every preferred
             // 20/50/80% crop failed; successful tracks keep the original three-window contract and
             // pay no extra inference cost.
             if (windows == 0 && descriptor.durationMs?.let { it > WINDOW_MS } == true) {
-                tryWindow(0L)
+                tryWindow(0L, mayBeShort = true)
             }
             if (windows == 0) {
                 return Result.failure(

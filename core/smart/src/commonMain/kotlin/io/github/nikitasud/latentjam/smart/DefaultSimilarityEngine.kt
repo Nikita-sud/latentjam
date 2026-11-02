@@ -1595,7 +1595,7 @@ internal class DefaultSimilarityEngine(
     }
 
     private fun TrackDescriptor.audioVectorIdentity(): String = vectorIdentity(
-        AUDIO_IDENTITY_VERSION,
+        if (WindowCoverage.isSingleWindow(durationMs)) AUDIO_SHORT_IDENTITY_VERSION else AUDIO_IDENTITY_VERSION,
         audioUri,
         durationMs?.toString(),
         sourceRevision,
@@ -2029,6 +2029,11 @@ internal class DefaultSimilarityEngine(
         fun energyVersion(encoder: String): String = "$ENERGY_VERSION-$encoder"
 
         const val AUDIO_IDENTITY_VERSION = "audio-v1"
+        /**
+         * Tracks analysed in one window (duration unknown or at most 10 s): from 0.9.4 a window decoded short is
+         * repeated to its length instead of zero-padded ([WindowCoverage]), so only these rows are analysed again.
+         */
+        const val AUDIO_SHORT_IDENTITY_VERSION = "audio-v1-repeat"
         // v2 deliberately invalidates markers written before transient and deterministic audio
         // failures were separated. Existing vectors keep AUDIO_IDENTITY_VERSION and remain warm.
         const val AUDIO_FAILURE_IDENTITY_VERSION = "audio-failure-v2"

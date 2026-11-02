@@ -1241,6 +1241,30 @@ internal class DefaultSimilarityEngineTest {
     }
 
     @Test
+    fun `only one-window tracks stored by 0_9_3 are analysed again`() = runTest {
+        val store = FakeIndexStore()
+        val short = TrackDescriptor(id = TrackId("short"), audioUri = "content://media/2", durationMs = 6_000, sourceRevision = "r")
+        val long = TrackDescriptor(id = TrackId("long"), audioUri = "content://media/3", durationMs = 200_000, sourceRevision = "r")
+        val first = engine(FakeEmbeddingBackend(mutableMapOf(short.id to floatArrayOf(1f, 0f, 0f), long.id to floatArrayOf(0f, 1f, 0f))), store)
+        first.initialize()
+        first.indexLibrary(listOf(short, long))
+        // As 0.9.3 recorded it (a raw identity reads as its digest): the short track's vector came from a zero-padded
+        // window.
+        store.identitySnapshots["test-model"] = mapOf(
+            short.id to "audio-v1|17:content://media/2|4:6000|1:r",
+            long.id to "audio-v1|17:content://media/3|6:200000|1:r",
+        )
+
+        val backend = FakeEmbeddingBackend(mutableMapOf(short.id to floatArrayOf(0f, 0f, 1f)))
+        val restarted = engine(backend, store)
+        restarted.initialize()
+        assertEquals(1, restarted.synchronizeLibrary(listOf(short, long)))
+        assertEquals(1, restarted.indexLibrary(listOf(short, long)).indexed)
+        assertEquals(1, backend.embedCalls)
+        assertContentEquals(floatArrayOf(0f, 1f, 0f), restarted.embedding(long.id))
+    }
+
+    @Test
     fun `legacy restart snapshot is reindexed on first full synchronization`() = runTest {
         val store = FakeIndexStore()
         store.snapshots["test-model"] = mapOf(seed.id to floatArrayOf(1f, 0f, 0f))
