@@ -27,9 +27,10 @@ import kotlinx.coroutines.withContext
  *
  * One envelope guards reads and writes alike (`maximumSnapshotBytes`, 64 MiB by default): a snapshot
  * the next launch would refuse is never written, and its rejection leaves the previous file untouched.
- * An index that outgrows the envelope therefore has no durable cache at all — the in-memory index stays
+ * An index that outgrows the envelope therefore keeps only the last snapshot that fit — the in-memory index stays
  * complete, so a caller that checkpoints per batch must read the refusal as "not persistable", not as a
- * failed analysis pass. ~17,000 audio rows reach the envelope at 960 dims.
+ * failed analysis pass. As halves (format v4) about 32,600 audio rows reach the envelope at 960 dims, about 2,057
+ * bytes a row with a MediaStore id and identity; as floats about 16,800.
  */
 internal class FileIndexStore private constructor(
     private val file: File,

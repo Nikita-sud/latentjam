@@ -608,8 +608,8 @@ private const val MAX_ENTRIES = 1_000_000
 private const val MAX_STRING_BYTES = 1_048_576
 
 /**
- * Whole-file iOS loads briefly hold both NSData and ByteArray copies. 64 MiB still accommodates
- * roughly 17,000 960-dimensional tracks while bounding a corrupt/regenerable cache to a load a
- * mobile process can reject safely.
+ * Bounds a corrupt/regenerable cache to a load a mobile process can reject safely. With the audio index as halves
+ * (format v4) 64 MiB holds about 32,000 960-dimensional rows (about 2 KB each with id and identity); a larger index is
+ * refused at save and the last file that fit stays as it was.
  */
 internal const val MAX_IOS_INDEX_SNAPSHOT_BYTES: Long = 64L * 1024L * 1024L
