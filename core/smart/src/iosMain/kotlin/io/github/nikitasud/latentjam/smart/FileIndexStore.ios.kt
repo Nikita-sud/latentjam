@@ -609,7 +609,7 @@ private const val MAX_STRING_BYTES = 1_048_576
 
 /**
  * Bounds a corrupt/regenerable cache to a load a mobile process can reject safely. With the audio index as halves
- * (format v4) 64 MiB holds about 32,000 960-dimensional rows (about 2 KB each with id and identity); a larger index is
- * refused at save and the last file that fit stays as it was.
+ * (format v4) 64 MiB holds about 34,000 960-dimensional rows (about 2 KB each with id and identity digest); a larger
+ * index is refused at save and the last file that fit stays as it was.
  */
 internal const val MAX_IOS_INDEX_SNAPSHOT_BYTES: Long = 64L * 1024L * 1024L

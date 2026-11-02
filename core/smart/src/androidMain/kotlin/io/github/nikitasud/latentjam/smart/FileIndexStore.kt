@@ -29,8 +29,8 @@ import kotlinx.coroutines.withContext
  * the next launch would refuse is never written, and its rejection leaves the previous file untouched.
  * An index that outgrows the envelope therefore keeps only the last snapshot that fit — the in-memory index stays
  * complete, so a caller that checkpoints per batch must read the refusal as "not persistable", not as a
- * failed analysis pass. As halves (format v4) about 32,600 audio rows reach the envelope at 960 dims, about 2,057
- * bytes a row with a MediaStore id and identity; as floats about 16,800.
+ * failed analysis pass. As halves (format v4) about 34,000 audio rows reach the envelope at 960 dims, 1,974 bytes a
+ * row with a MediaStore id and the engine's 36-byte identity digest; as floats about 17,200.
  */
 internal class FileIndexStore private constructor(
     private val file: File,
