@@ -220,6 +220,19 @@ private fun indexPath(fileName: String): String? {
     return if (directory.endsWith('/')) directory + fileName else "$directory/$fileName"
 }
 
+/** The file names in the stores' directory (the one [IosFileIndexStore] resolves), for SegmentedIndexStore. */
+@OptIn(ExperimentalForeignApi::class)
+internal fun iosIndexFileNames(): List<String> {
+    val directory = checkNotNull(indexDirectory) { "Index directory is unavailable" }
+    val listed = checkNotNull(NSFileManager.defaultManager.contentsOfDirectoryAtPath(directory, null)) {
+        "the index directory cannot be listed"
+    }
+    return listed.filterIsInstance<String>()
+}
+
+/** Where [IosFileIndexStore] keeps [fileName] (tests). */
+internal fun iosIndexFilePath(fileName: String): String? = indexPath(fileName)
+
 /** [fileName] in Caches, where builds before 0.9.4 kept it. */
 @OptIn(ExperimentalForeignApi::class)
 private fun cachesTwin(fileName: String): String? =

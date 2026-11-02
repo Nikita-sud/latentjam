@@ -332,6 +332,23 @@ internal class FileIndexStore private constructor(
 public suspend fun readIndexSnapshotFile(file: File, modelVersion: String): StoredIndexSnapshot? =
     FileIndexStore(file.absoluteFile.parentFile, file.name, maximumSnapshotBytes = Long.MAX_VALUE - 1).loadSnapshot(modelVersion)
 
+/**
+ * Host tools: the audio index in [directory] as the app restores it (a copy of the phone's files): the segmented set
+ * (SegmentedIndexStore) of [baseName] for [modelVersion], else its single files. Read only; nothing is rewritten.
+ */
+public suspend fun readAudioIndexSnapshot(directory: File, baseName: String, modelVersion: String): StoredIndexSnapshot? =
+    VersionedIndexStore(baseName) { name ->
+        if (name == "$baseName.bin") {
+            FileIndexStore(directory, name, maximumSnapshotBytes = Long.MAX_VALUE - 1)
+        } else {
+            SegmentedIndexStore(
+                fileName = name,
+                segment = { file -> FileIndexStore(directory, file, maximumSnapshotBytes = Long.MAX_VALUE - 1) },
+                names = { checkNotNull(directory.list()) { "$directory cannot be listed" }.toList() },
+            )
+        }
+    }.loadSnapshot(modelVersion)
+
 /** Host tools: a snapshot file's vectors as the audio index keeps them, rounded to halves (never rewrites the file). */
 public suspend fun readHalfIndexSnapshotFile(file: File, modelVersion: String): StoredIndexSnapshot? =
     readIndexSnapshotFile(file, modelVersion)?.let { s ->

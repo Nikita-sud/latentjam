@@ -289,7 +289,23 @@ public actual fun smartEngineBackendModule(): Module = module {
     IosAppTransitions.count
     single<BatchDotProducts> { IosBatchDotProducts }
     single<EmbeddingBackend> { IosEmbeddingBackend(config = get()) }
-    single<IndexStore> { VersionedIndexStore("smart_index") { name -> IosFileIndexStore(fileName = name, half = true) } }
+    // Segments of the row order (SegmentedIndexStore): a library above one file's 64 MiB envelope keeps its analysis.
+    single<IndexStore> {
+        VersionedIndexStore("smart_index") { name ->
+            // The legacy unversioned file is read as it is; only per-encoder sets are segmented.
+            if (name == "smart_index.bin") {
+                IosFileIndexStore(fileName = name, half = true)
+            } else {
+                SegmentedIndexStore(
+                    fileName = name,
+                    segment = { file -> IosFileIndexStore(fileName = file, half = true) },
+                    names = ::iosIndexFileNames,
+                    // IosFileIndexStore reads a file whole before delivering a row: each file is read once.
+                    readsWhole = true,
+                )
+            }
+        }
+    }
     single<IndexStore>(smartTextIndexQualifier) {
         IosFileIndexStore(fileName = "smart_text_index.bin")
     }

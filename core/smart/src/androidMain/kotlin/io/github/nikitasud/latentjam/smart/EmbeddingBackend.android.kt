@@ -574,7 +574,22 @@ public actual fun smartEngineBackendModule(): Module = module {
     // smartEngineModule; Koin last-definition-wins).
     // One audio-vector file per encoder (VersionedIndexStore): a test build on another encoder never wipes the
     // release build's vectors, and the other way round.
-    single<IndexStore> { VersionedIndexStore("smart_index") { name -> FileIndexStore(context = get(), fileName = name, half = true) } }
+    // Segments of the row order (SegmentedIndexStore): a library above one file's 64 MiB envelope keeps its analysis.
+    single<IndexStore> {
+        val context = get<Context>()
+        VersionedIndexStore("smart_index") { name ->
+            // The legacy unversioned file is read as it is; only per-encoder sets are segmented.
+            if (name == "smart_index.bin") {
+                FileIndexStore(context = context, fileName = name, half = true)
+            } else {
+                SegmentedIndexStore(
+                    fileName = name,
+                    segment = { file -> FileIndexStore(context = context, fileName = file, half = true) },
+                    names = { checkNotNull(context.filesDir.list()) { "the index directory cannot be listed" }.toList() },
+                )
+            }
+        }
+    }
 
     single<IndexStore>(smartTextIndexQualifier) {
         FileIndexStore(context = get(), fileName = "smart_text_index.bin")
