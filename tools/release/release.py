@@ -173,8 +173,10 @@ def dry_run_problems(version, head):
     problems = [f"dry-run job {name}: {results.get(name) or 'not finished'}" for name in needed
                 if results.get(name) != "success"]
     # The unit tests (app.yml) on the same commit: the release jobs only build.
+    # The push run of the commit itself, never a pull request's merge-commit run.
     tests = subprocess.run(["gh", "run", "list", "--workflow", "app.yml", "--branch", f"release/{version}",
-                            "--json", "headSha,status,conclusion", "--limit", "20"], capture_output=True, text=True)
+                            "--event", "push", "--json", "headSha,status,conclusion", "--limit", "20"],
+                           capture_output=True, text=True)
     if tests.returncode:
         problems.append(f"gh run list (app.yml) failed: {tests.stderr.strip()}")
     else:
