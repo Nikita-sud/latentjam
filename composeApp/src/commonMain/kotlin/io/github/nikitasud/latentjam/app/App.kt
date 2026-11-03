@@ -170,7 +170,6 @@ import io.github.nikitasud.latentjam.history.localTimePoint
 import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.history.SmartExclusionState
 import io.github.nikitasud.latentjam.history.matcher
-import io.github.nikitasud.latentjam.history.excludesArtist
 import io.github.nikitasud.latentjam.library.AlbumSort
 import io.github.nikitasud.latentjam.library.ArtistGroup
 import io.github.nikitasud.latentjam.library.AutoPlaylistKind
@@ -3913,7 +3912,15 @@ private fun AppShell(
             val target = request.track
             val trackExcluded = target.id in smartExclusionState.trackIds
             val artist = target.artist?.trim()?.takeIf(String::isNotEmpty)
-            val artistExcluded = smartExclusionState.excludesArtist(artist)
+            // The excluded names that hide this track, by the same test SMART uses ("Queen" hides "Queen feat. David
+            // Bowie"); the display match until that test, off Main, has answered.
+            val hidingArtists by produceState(
+                smartExclusionState.artists.filterTo(LinkedHashSet()) { it.equals(artist, ignoreCase = true) } as Set<String>,
+                target, smartExclusionState,
+            ) {
+                value = withContext(Dispatchers.Default) { artistsHiding(target, smartExclusionState) }
+            }
+            val artistExcluded = hidingArtists.isNotEmpty()
             TrackActionsSheet(
                 track = target,
                 onPlay = {
@@ -4072,10 +4079,12 @@ private fun AppShell(
                 onToggleArtistSmartExclusion = artist?.let { artistName ->
                     {
                         if (artistExcluded) {
+                            // Every name that hides it: including only one would leave the track hidden.
+                            val names = hidingArtists
                             changeSmartExclusion(
                                 successMessage = Res.string.snack_artist_included_in_smart,
-                                change = { smartExclusions.includeArtist(artistName) },
-                                undo = { smartExclusions.excludeArtist(artistName) },
+                                change = { names.forEach { smartExclusions.includeArtist(it) } },
+                                undo = { names.forEach { smartExclusions.excludeArtist(it) } },
                             )
                         } else {
                             changeSmartExclusion(
@@ -4748,6 +4757,10 @@ private suspend fun eligibleFor(
 ): List<TrackDescriptor> =
     if (eligible.isFor(tracks, state)) eligible.tracks
     else withContext(Dispatchers.Default) { tracks.orEmpty().filterNot(state.hidesFromSmart()) }
+
+/** The excluded artist names that hide [track] from SMART, each by the test SMART uses ([hidesFromSmart]). */
+private fun artistsHiding(track: TrackDescriptor, state: SmartExclusionState): Set<String> =
+    state.artists.filterTo(LinkedHashSet()) { name -> AppGraph.engine.artistExclusion(listOf(name))(track) }
 
 /** What SMART must not suggest: excluded tracks, and excluded artists by artist keys and credit segments (X v5). */
 internal fun SmartExclusionState.hidesFromSmart(): (TrackDescriptor) -> Boolean = matcher(AppGraph.engine::artistExclusion)
