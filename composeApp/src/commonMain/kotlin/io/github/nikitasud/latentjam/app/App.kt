@@ -85,6 +85,7 @@ import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
@@ -971,8 +972,12 @@ private fun AppShell(
             }
         }
 
-        val smartEligibleTracks = remember(tracks, smartExclusionState) {
-            smartExclusionState.hidesFromSmart().let { hidden -> tracks.orEmpty().filterNot(hidden) }
+        // Off the main thread: with an excluded artist the test reads the artist pack and parses every credit. Until it
+        // ends the previous list stays (empty on the first composition, as before the library loads).
+        val smartEligibleTracks by produceState(emptyList<TrackDescriptor>(), tracks, smartExclusionState) {
+            value = withContext(Dispatchers.Default) {
+                smartExclusionState.hidesFromSmart().let { hidden -> tracks.orEmpty().filterNot(hidden) }
+            }
         }
 
         LaunchedEffect(tabNavigation.rootTabNavigationRevision, showSearch, showSettings, showNowPlaying) {
@@ -1103,10 +1108,11 @@ private fun AppShell(
                 return@LaunchedEffect
             }
             val (stats, recentEvents, firstListenAtMs) = historySnapshot
+            val hiddenIds = withContext(Dispatchers.Default) {
+                smartExclusionState.hidesFromSmart().let { hidden -> loaded.filter(hidden).map { it.id } }
+            }
             val excluded = buildSet {
-                loaded.asSequence()
-                    .filter(smartExclusionState.hidesFromSmart())
-                    .mapTo(this) { it.id }
+                addAll(hiddenIds)
                 currentTrack?.id?.let(::add)
                 // What is already queued to play next is not offered again —
                 // only the near part of the queue, so playing the whole library does not empty the page.
@@ -2050,7 +2056,7 @@ private fun AppShell(
             // another candidate using the old eligible library.
             try {
                 val state = smartExclusions.state.value
-                val eligible = tracks.orEmpty().filterNot(state.hidesFromSmart())
+                val eligible = withContext(Dispatchers.Default) { tracks.orEmpty().filterNot(state.hidesFromSmart()) }
                 playback.setSmartLibrary(eligible)
                 AppGraph.smartLibraryTracks.value = eligible
             } catch (cancelled: CancellationException) {
