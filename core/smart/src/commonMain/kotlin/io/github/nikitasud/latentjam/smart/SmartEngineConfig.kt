@@ -78,9 +78,11 @@ public data class SmartEngineConfig(
     /** With [themeWeights]: spreads of a hop's scores per unit of a candidate's theme z-score (0: a pool channel only). */
     public val themeBonus: Float = 0f,
     /**
-     * The hub penalty (SmartSnapshot.computeHubPenalty, 1.9 s at 20k rows on an emulator) is computed after a plan, off
-     * the engine's lock, a block of rows per hold, and kept for the rows it was computed for; a plan reads it, or the
-     * last one by track until it is ready, and never computes it. Off computes it inside every snapshot build, as 0.9.3.
+     * The hub penalty (SmartSnapshot.computeHubPenalty, 1.9 s at 20k rows on an emulator) is kept for the audio rows it
+     * was computed for: a snapshot rebuilt over the same rows (a tag edit, new semantics, history) reuses it, a build over
+     * other rows computes it inline as 0.9.3 did, and SimilarityEngine.warmSmart does that off the press path after a
+     * library change. A plan never uses a stand-in (review 0.9.4). Off computes it inside every snapshot build, as 0.9.3.
+     * (The block-wise background pass, startHub/runHub, is no longer started; kept for a later return.)
      */
     public val backgroundHub: Boolean = false,
 )

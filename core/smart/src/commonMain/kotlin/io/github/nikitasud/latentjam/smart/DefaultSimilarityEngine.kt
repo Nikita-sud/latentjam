@@ -2103,9 +2103,9 @@ internal class DefaultSimilarityEngine(
     }
 
     /**
-     * [SmartEngineConfig.backgroundHub]: with no hub yet, builds a snapshot only to start the background pass for its rows,
-     * so the first press of a process plans with the exact hub, as 0.9.3 and the evaluated queues do. A snapshot cached
-     * by nobody else is dropped again: the warm-up keeps no memory a press would not keep.
+     * [SmartEngineConfig.backgroundHub]: when the kept hub is not for the current audio rows, builds a snapshot (which
+     * computes the hub inline, under the engine lock like any build) so the next press finds it. A snapshot cached by
+     * nobody else is dropped again: the warm-up keeps no memory a press would not keep.
      */
     override suspend fun warmSmart() {
         if (!config.backgroundHub || warmRefused) return
