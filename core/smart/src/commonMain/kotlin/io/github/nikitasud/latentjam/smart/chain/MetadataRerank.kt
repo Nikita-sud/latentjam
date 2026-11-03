@@ -215,8 +215,16 @@ internal data class TrackMeta(
     /** The languages this track compares by: the pack's sung ones ("instrumental" left out), else its script language. */
     val languages: Set<String> = sharedLanguages(artistLanguages, language)
 
-    /** A shared language counts: a Russian and English duo meets either side. */
-    fun sharesLanguageWith(other: TrackMeta): Boolean = languages.any { it in other.languages }
+    /**
+     * A shared language counts: a Russian and English duo meets either side. The pack's languages ("uk", "ro") and the
+     * script guess ("en", "ru", "ja") are different vocabularies, so when either side has no sung pack language the two
+     * compare by script, as before 0.9.4 (rule K of smart-research lang/PLAN_LANG).
+     */
+    fun sharesLanguageWith(other: TrackMeta): Boolean =
+        if (!sung || !other.sung) language == other.language else languages.any { it in other.languages }
+
+    /** Whether [languages] are the pack's sung languages rather than the script guess. */
+    private val sung: Boolean get() = artistLanguages?.any { it != INSTRUMENTAL } == true
     val normalizedTitle: String = MetadataRerank.normalizeTitle(title)
     val isHub: Boolean = MetadataRerank.isHubGenre(genre)
     /** Immutable metadata is normalized once instead of reparsed for every candidate at every hop. */

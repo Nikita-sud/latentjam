@@ -201,6 +201,18 @@ class MetadataRerankTest {
     }
 
     @Test
+    fun `a pack language never meets the script guess of an unknown artist as a different language`() {
+        val known = TrackMeta("Обійми", "Океан Ельзи", null, "Rock", 2007, artistLanguages = setOf("uk"))
+        val unknown = TrackMeta("Пісня", "Невідомий гурт", null, "Rock", 2007)
+        assertTrue(known.sharesLanguageWith(unknown), "both Cyrillic: compared by script")
+        val romanian = TrackMeta("Dragostea", "Known", null, null, null, artistLanguages = setOf("ro"))
+        assertTrue(romanian.sharesLanguageWith(TrackMeta("Cântec", "Indie", null, null, null)))
+        assertFalse(known.sharesLanguageWith(TrackMeta("Song", "Indie", null, null, null)), "Cyrillic against Latin")
+        val instrumental = meta().copy(artistLanguages = setOf("instrumental"))
+        assertEquals(meta().sharesLanguageWith(meta()), instrumental.sharesLanguageWith(meta()))
+    }
+
+    @Test
     fun `a credit with no artist repeats by its placeholder identity`() {
         val untagged = TrackMeta("Song", null, "Album", null, null, dedupKey = "~album" to "song")
         assertEquals("~album" to "song", untagged.titleArtistKey)
