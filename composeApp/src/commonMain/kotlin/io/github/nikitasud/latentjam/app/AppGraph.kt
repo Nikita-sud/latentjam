@@ -20,6 +20,7 @@ import io.github.nikitasud.latentjam.library.musicLibraryModule
 import io.github.nikitasud.latentjam.library.nowMillis
 import io.github.nikitasud.latentjam.smart.IndexReport
 import io.github.nikitasud.latentjam.smart.isAnalysisTimeout
+import io.github.nikitasud.latentjam.playback.FadeEntryRule
 import io.github.nikitasud.latentjam.playback.NextTrackChooser
 import io.github.nikitasud.latentjam.playback.PlaybackController
 import io.github.nikitasud.latentjam.playback.SleepTimerController
@@ -268,12 +269,14 @@ object AppGraph {
                     playback = playback,
                     meter = koin.get(),
                     onStatus = { normalizationStatus.value = it },
+                    fadeEntries = FADE_ENTRIES_ON && boundaryFadeControlsAvailable,
                 )
                 appScope.launch(Dispatchers.Default) {
                     // Before the normalizer rewrites the cache container-relative: keep the roots its old entries name.
                     keepLegacyContainerRoots()
                     normalizer.start(appScope)
                 }
+                if (FADE_ENTRIES_ON && boundaryFadeControlsAvailable) appScope.launch { playback.setFadeEntry(FADE_ENTRY_RULE) }
                 // Boundary fades follow the preference where the platform implements them.
                 if (boundaryFadeControlsAvailable) appScope.launch {
                     settings.crossfadeSeconds.collect { playback.setCrossfadeSeconds(it) }
@@ -1365,3 +1368,7 @@ internal class AutomaticIndexCheckpointCadence(
 // preferences value (opaque ids dominate size), and persisting it is more truthful than inferring
 // the order of a shuffled/sorted/multi-selected Tracks or Search queue after restart.
 private const val MAX_RESUME_QUEUE = 10_000
+
+
+/** Where a fade entry starts, once [FADE_ENTRIES_ON]. */
+private val FADE_ENTRY_RULE: FadeEntryRule = FadeEntryRule.KNEE

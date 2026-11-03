@@ -16,7 +16,7 @@ internal actual val playbackGainControlsAvailable: Boolean = true
 internal actual val boundaryFadeControlsAvailable: Boolean = true
 
 private class IosTrackLoudnessMeter : TrackLoudnessMeter {
-    private val meter = IosIntegratedLoudnessMeter()
+    private val meter = IosIntegratedLoudnessMeter(measuresFadeEnds = FADE_ENTRIES_ON)
     override suspend fun measure(track: TrackDescriptor): IntegratedLoudness? {
         val uri = track.audioUri ?: return null
         return meter.measure(uri, track.durationMs)

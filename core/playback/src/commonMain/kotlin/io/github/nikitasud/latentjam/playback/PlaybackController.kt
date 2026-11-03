@@ -223,6 +223,19 @@ public interface PlaybackController {
     public suspend fun setTrackSoundSpans(spans: Map<String, SoundSpan>) {}
 
     /**
+     * How each measured track ends ([FadeEnd]), keyed by track id, for fade entries. Only read
+     * while [setFadeEntry] has a rule. Platforms without overlapping transitions keep the no-op.
+     */
+    public suspend fun setTrackFadeEnds(ends: Map<String, FadeEnd>) {}
+
+    /**
+     * Fade entries (experimental): with a [rule], a seam whose outgoing track fades out on its own
+     * brings the next track in under that fade, from where [rule] puts its start; other seams keep
+     * the crossfade. Null, the default, turns them off. Only with the crossfade slider above 0.
+     */
+    public suspend fun setFadeEntry(rule: FadeEntryRule?) {}
+
+    /**
      * Softens track boundaries by fading amplitude over the first/last [seconds] of each track;
      * 0 restores hard cuts. Composes multiplicatively with [setTrackVolumes]. Platforms without
      * an app-level gain stage keep the default no-op.

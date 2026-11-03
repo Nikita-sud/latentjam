@@ -18,8 +18,12 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-/** Full-track streaming analysis using platform decoders and the shared libebur128 core. */
-public class AndroidIntegratedLoudnessMeter(context: Context) {
+/**
+ * Full-track streaming analysis using platform decoders and the shared libebur128 core. With
+ * [measuresFadeEnds] the same pass also measures how the track ends ([FadeEnd]); off, nothing of it
+ * is allocated or returned.
+ */
+public class AndroidIntegratedLoudnessMeter(context: Context, private val measuresFadeEnds: Boolean = false) {
     private val context = context.applicationContext
 
     public suspend fun measure(audioUri: String, durationMs: Long?): IntegratedLoudness? =
@@ -39,6 +43,7 @@ public class AndroidIntegratedLoudnessMeter(context: Context) {
                 var codec: MediaCodec? = null
                 var meter: NativeLoudnessMeter? = null
                 var sound: SoundSpanTracker? = null
+                var fade: FadeEndTracker? = null
                 try {
                     if (durationMs != null && durationMs > LoudnessScanLimits.MAX_DURATION_MS) return@withLock null
                     val uri = Uri.parse(audioUri)
@@ -93,6 +98,7 @@ public class AndroidIntegratedLoudnessMeter(context: Context) {
                             if (meter == null) {
                                 meter = NativeLoudnessMeter(rate, channels)
                                 sound = SoundSpanTracker(rate, channels)
+                                if (measuresFadeEnds) fade = FadeEndTracker(rate, channels)
                             }
                         }
                         while (!outputDone) {
@@ -142,6 +148,7 @@ public class AndroidIntegratedLoudnessMeter(context: Context) {
                                             }
                                             if (meter?.add(samples, frames) != true) return@withLock null
                                             sound?.add(samples, frames)
+                                            fade?.add(samples, frames)
                                             decodedFrames += frames
                                             check(true)
                                         }
@@ -155,7 +162,7 @@ public class AndroidIntegratedLoudnessMeter(context: Context) {
                         if (!inputDone || !LoudnessScanLimits.complete(decodedFrames, rate, expectedDuration, sourceEnded = true)) {
                             return@withLock null
                         }
-                        meter?.finish()?.copy(sound = sound?.finish()).also { coroutine.ensureActive() }
+                        meter?.finish()?.copy(sound = sound?.finish(), fade = fade?.finish()).also { coroutine.ensureActive() }
                     }
                 } catch (cancelled: CancellationException) {
                     throw cancelled

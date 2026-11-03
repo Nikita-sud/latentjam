@@ -99,16 +99,21 @@ internal class CrossfadeCoordinator(
         } else {
             fadeMs
         }
+        val rule = settings.fadeEntryRule
+        val fade = current?.let { item -> rule?.let { settings.fadeEnds[item.mediaId] } }
         val wanted = if (fadeMs > 0L && !settings.finishingTrack && current != null &&
             next?.localConfiguration != null && settings.edgesAt(player.currentMediaItemIndex).fadeOut
-        ) Seam(current.mediaId, next.mediaId, plannedFadeMs(seamMs)) else null
+        ) Seam(current.mediaId, next.mediaId, plannedFadeMs(seamMs), rule.takeIf { fade != null }) else null
         if (seam != wanted) withdraw()
         if (wanted == null || seam != null || wanted in failed) return
         val durationMs = player.duration.takeIf { it != C.TIME_UNSET } ?: 0L
         val spans = settings.soundSpans
         val anchors = seamAnchors(durationMs, spans[wanted.outgoingId], spans[wanted.incomingId])
-        if (prerollsNow(player.currentPosition, anchors.outgoingEndMs, fadeMs)) {
-            begin(wanted, next!!, outgoingMs = durationMs, fadeMs = wanted.fadeMs, anchors = anchors)
+        // A fade entry reaches further back than the slider: its opening is decoded that much sooner.
+        // The incoming track's length is not known yet, so this is the longest the entry can be.
+        val entryMs = wanted.entryRule?.let { fadeEntryOverlapMs(fade, it, anchors.outgoingEndMs, Long.MAX_VALUE) } ?: 0L
+        if (prerollsNow(player.currentPosition, anchors.outgoingEndMs, maxOf(fadeMs, entryMs))) {
+            begin(wanted, next!!, outgoingMs = durationMs, fadeMs = maxOf(wanted.fadeMs, entryMs), anchors = anchors, fade = fade)
         }
     }
 
@@ -182,7 +187,14 @@ internal class CrossfadeCoordinator(
      * which it plays on over; one that cannot — over the capture's size cap, or a track shorter
      * than that — is decoded again for the seam at the files' own edges, the seam as it was before.
      */
-    private fun begin(target: Seam, next: MediaItem, outgoingMs: Long, fadeMs: Long, anchors: SeamAnchors) {
+    private fun begin(
+        target: Seam,
+        next: MediaItem,
+        outgoingMs: Long,
+        fadeMs: Long,
+        anchors: SeamAnchors,
+        fade: FadeEnd? = null,
+    ) {
         seam = target
         settings.preparingFor = target.outgoingId
         val anchored = anchors != SeamAnchors(outgoingMs, 0L)
@@ -195,12 +207,22 @@ internal class CrossfadeCoordinator(
             capture = null
             if (seam != target) return@CrossfadeIntroCapture
             settings.preparingFor = null
-            val overlapMs = intro?.let {
-                overlapLengthMs(fadeMs, anchors.outgoingEndMs, it.durationMs - leadMs)
+            if (intro == null && fade != null && fadeMs > target.fadeMs) {
+                // The longer opening a fade entry asks for did not decode (over the capture's cap at a
+                // high sample rate): the seam is the crossfade it would have been.
+                begin(target, next, outgoingMs, target.fadeMs, anchors)
+                return@CrossfadeIntroCapture
+            }
+            // A fade entry where the outgoing track fades on its own; else the crossfade.
+            val entryMs = intro?.let { opening ->
+                target.entryRule?.let { fadeEntryOverlapMs(fade, it, anchors.outgoingEndMs, opening.durationMs - leadMs) }
+            }
+            val overlapMs = entryMs ?: intro?.let {
+                overlapLengthMs(target.fadeMs, anchors.outgoingEndMs, it.durationMs - leadMs)
             } ?: 0L
             val coveredMs = intro?.let { it.frames * 1000L / it.sampleRate } ?: 0L
             if (anchored && (intro == null || overlapMs <= 0L || coveredMs < leadMs + overlapMs + trailMs)) {
-                begin(target, next, outgoingMs, fadeMs, SeamAnchors(outgoingMs, 0L))
+                begin(target, next, outgoingMs, fadeMs, SeamAnchors(outgoingMs, 0L), fade)
                 return@CrossfadeIntroCapture
             }
             if (intro == null || overlapMs <= 0L) {
@@ -219,6 +241,7 @@ internal class CrossfadeCoordinator(
                 slot = intro.slot,
                 outgoingEndUs = if (trailMs > 0L) anchors.outgoingEndMs * 1000L else C.TIME_UNSET,
                 incomingStartFrame = (leadMs * intro.sampleRate / 1000L).toInt(),
+                holdsOutgoing = entryMs != null,
             )
         }
         capture = pending
@@ -233,8 +256,11 @@ internal class CrossfadeCoordinator(
         settings.plan = null
     }
 
-    /** A seam at a given slider setting: moving the slider withdraws the plan and decodes anew. */
-    private data class Seam(val outgoingId: String, val incomingId: String, val fadeMs: Long)
+    /**
+     * A seam at a given slider setting: moving the slider withdraws the plan and decodes anew. With
+     * [entryRule], its outgoing track's end was measured and fade entries are on.
+     */
+    private data class Seam(val outgoingId: String, val incomingId: String, val fadeMs: Long, val entryRule: FadeEntryRule? = null)
 
     private companion object {
         const val TICK_MS = 500L

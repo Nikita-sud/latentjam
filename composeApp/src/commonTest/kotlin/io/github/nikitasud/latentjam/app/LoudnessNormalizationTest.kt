@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.library.AlbumSort
 import io.github.nikitasud.latentjam.library.SongSort
+import io.github.nikitasud.latentjam.playback.FadeEnd
 import io.github.nikitasud.latentjam.playback.IntegratedLoudness
 import kotlin.test.assertFalse
 import kotlinx.coroutines.awaitCancellation
@@ -61,6 +62,53 @@ internal class LoudnessNormalizationTest {
         // A legacy row is written in the format older builds read.
         assertTrue(payload.lines().single { it.startsWith("r128-v1|") }.split('|').size == 5)
         assertEquals(mapOf("edges" to SoundSpan(1_250, 201_400)), soundSpans(decodeTrackLoudness(payload)))
+    }
+
+    @Test
+    fun trackEndingsRoundTripAndRowsFromBeforeThemAreMarked() {
+        val fade = FadeEnd(lastSoundMs = 201_400, kneeLeadMs = 14_000, visibleLeadMs = null)
+        val original = mapOf(
+            "fades" to StoredTrackLoudness(IntegratedLoudness(-9f, -1.5f, SoundSpan(1_250, 201_400), fade), "f-v1"),
+            "cold" to StoredTrackLoudness(IntegratedLoudness(-9f, -1.5f, SoundSpan(0, 180_000)), "c-v1"),
+        )
+        val decoded = decodeTrackLoudness(encodeTrackLoudness(original))
+        assertEquals(original, decoded)
+        assertEquals(mapOf("fades" to fade), fadeEnds(decoded))
+        // A row an earlier build wrote keeps its edges, and is known to lack its ending.
+        val older = decodeTrackLoudness("r128-v2|6f6c64|6f2d7631|-900|-150|0|180000")
+        assertEquals(false, older.getValue("old").fadeMeasured)
+        assertEquals(SoundSpan(0, 180_000), older.getValue("old").measurement.sound)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun withFadeEntriesOffNoEndingIsKeptOrWritten() = runTest {
+        val settings = ThrowingSettings()
+        settings.crossfadeSeconds.value = 6
+        val fade = FadeEnd(lastSoundMs = 160_000, kneeLeadMs = 9_000, visibleLeadMs = 8_000)
+        val old = audioTrack("old", "revision-1")
+        // A row a test build with fade entries on wrote: its ending is dropped, its loudness and edges kept.
+        settings.storedLoudness = encodeTrackLoudness(
+            mapOf("old" to StoredTrackLoudness(IntegratedLoudness(-9f, -1f, SoundSpan(0, 150_000), fade), old.loudnessAudioIdentity())),
+        )
+        val playback = FakePlayback()
+        // A meter that reports an ending anyway: nothing of it may stay.
+        val meter = object : TrackLoudnessMeter {
+            override suspend fun measure(track: TrackDescriptor) = IntegratedLoudness(-8f, -2f, SoundSpan(900, 170_000), fade)
+        }
+        LoudnessNormalizer(settings, playback, meter, fadeEntries = FADE_ENTRIES_ON).start(backgroundScope)
+        runCurrent()
+        playback.nowPlaying.value = NowPlaying(track = audioTrack("song", "revision-1"))
+        runCurrent()
+
+        assertEquals(false, FADE_ENTRIES_ON)
+        val written = settings.attemptedLoudness.orEmpty()
+        val rows = decodeTrackLoudness(written)
+        assertEquals(setOf("old", "song"), rows.keys)
+        assertTrue(rows.values.all { it.measurement.fade == null && !it.fadeMeasured && it.soundMeasured }, "$rows")
+        // The cache holds exactly the rows an 0.9.3 build writes.
+        assertTrue(written.lines().all { it.startsWith("r128-v2|") }, written)
+        assertEquals(SoundSpan(0, 150_000), rows.getValue("old").measurement.sound)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -430,8 +478,11 @@ internal class LoudnessNormalizationTest {
         var storedLoudness: String? = null
         override fun readTrackLoudnessPayload(): String? = storedLoudness
         var writeAttempts = 0
+        /** What the last write tried to store, before it failed. */
+        var attemptedLoudness: String? = null
         override fun writeTrackLoudnessPayload(payload: String) {
             writeAttempts++
+            attemptedLoudness = payload
             error("disk unavailable")
         }
 
