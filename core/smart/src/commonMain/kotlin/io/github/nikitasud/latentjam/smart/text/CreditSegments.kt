@@ -24,7 +24,14 @@ public object CreditSegments {
         "version", "bonus track", "explicit", "clean", "intro", "outro", "interlude", "unplugged", "reprise",
     )
     private val CLAUSE = Regex(
-        "(?<![\\p{L}\\p{N}])(?:feat\\.?|ft\\.?|featuring|prod\\.?|produced by)\\s+([^()\\[\\]]*?)(?=\\s+-\\s+|[()\\[\\]]|$)",
+        "(?<![\\p{L}\\p{N}])(?:feat\\.?|ft\\.?|featuring|produced\\s+by|prod\\.?\\s+by|prod\\.?)\\s+([^()\\[\\]]*?)(?=\\s+-\\s+|[()\\[\\]]|$)",
+    )
+
+    /** Names of a work's parts: a credited "… - Air" or "… - Adagio" is a movement, even when a band shares the name. */
+    private val MOVEMENTS = setOf(
+        "air", "aria", "adagio", "andante", "allegro", "allegretto", "largo", "lento", "presto", "vivace", "moderato",
+        "scherzo", "rondo", "minuet", "menuet", "gavotte", "gigue", "sarabande", "courante", "prelude", "fugue",
+        "overture", "finale", "intermezzo", "nocturne", "berceuse", "toccata", "chaconne", "passacaglia", "requiem",
     )
 
     /** "(by X)" in brackets: a bare "by" is a title's own word ("Killed by Death", "Stand by Me"). */
@@ -42,7 +49,7 @@ public object CreditSegments {
         if (parts.size < 2) return false
         // A credited track's later " - " parts are mostly the song's own words (a movement "Air", a version): they name
         // an artist only when the pack knows the part as one. An uncredited track's parts are all the credit it has.
-        val later = parts.drop(1).filter { credit.isBlank() || knownWhole(it.trim()) }
+        val later = parts.drop(1).filter { credit.isBlank() || (it.trim() !in MOVEMENTS && knownWhole(it.trim())) }
         if (later.any { segmentMatch(it, name, knownWhole) }) return true
         return credit.isBlank() && segmentMatch(parts[0], name, knownWhole)
     }

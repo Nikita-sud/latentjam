@@ -72,4 +72,22 @@ class CreditSegmentsTest {
         assertTrue(matches("Various", "Song (by Kosta T)", "Kosta T"))
         assertTrue(matches("Simon & Garfunkel", "Song - simon & garfunkel", "Simon & Garfunkel"), "a part the pack knows")
     }
+
+    @Test
+    fun `a prod by clause names the producer`() {
+        assertTrue(matches("Future", "Mask Off (prod. by Metro Boomin)", "Metro Boomin"))
+        assertTrue(matches("Future", "Mask Off [Prod by Metro Boomin]", "Metro Boomin"))
+        assertTrue(matches("Future", "Mask Off (prod. Metro Boomin)", "Metro Boomin"))
+    }
+
+    @Test
+    fun `a movement named like a known band is not a credit`() {
+        val known = setOf("air", "adagio")
+        assertFalse(
+            CreditSegments.matches("Air", "Johann Sebastian Bach", "Orchestral Suite No. 3 in D Major, BWV 1068 - Air") {
+                it.lowercase() in known
+            },
+        )
+        assertFalse(CreditSegments.matches("Adagio", "Gustav Mahler", "Symphony No. 5 - Adagio") { it.lowercase() in known })
+    }
 }
