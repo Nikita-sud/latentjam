@@ -136,12 +136,12 @@ internal object MetadataRerank {
         val anchorGenres = anchor.genreFamilies
         val candidateGenres = candidate.genreFamilies
         if (anchorGenres.isNotEmpty() && candidateGenres.isNotEmpty()) {
-            // Any shared family counts: a "Trip Hop; Rock" track walking to a "Rock" track is a
-            // same-genre step. Single-genre tags reduce this to the old equality exactly.
-            val shared = anchorGenres.any { it in candidateGenres }
-            multiplier *= if (shared) SAME_GENRE_BONUS else CROSS_GENRE_MALUS
+            // Soft, by how much the two family sets overlap: the full bonus for identical or nested
+            // sets ("Rock" after "Trip Hop; Rock"), the malus for disjoint ones, in between otherwise.
+            multiplier *= CROSS_GENRE_MALUS +
+                (SAME_GENRE_BONUS - CROSS_GENRE_MALUS) * GenreSets.overlap(anchorGenres, candidateGenres)
         }
-        if (candidate.language != anchor.language) multiplier *= CROSS_LANGUAGE_PENALTY
+        if (!anchor.sharesLanguageWith(candidate)) multiplier *= CROSS_LANGUAGE_PENALTY
         val anchorYear = anchor.eraYear
         val candidateYear = candidate.eraYear
         if (anchorYear != null && candidateYear != null) {
@@ -198,8 +198,25 @@ internal data class TrackMeta(
      * artist list) keeps the one display-string key, so the recorded parity replays are unchanged.
      */
     val artistSet: List<String>? = null,
+    /**
+     * The credited artists' sung languages as the artist pack knows them (the engine reads them for the credit's main
+     * artists, a feat. guest left out). Null or empty: the script language of the title and credit stands in.
+     */
+    val artistLanguages: Set<String>? = null,
+    /**
+     * A credit with no artist (empty or a placeholder) still needs an identity for the title repeat test: its album's
+     * most credited artist when the album has credited rows, else the album artist, album or file name. Never an artist
+     * for the cap, runs or spacing.
+     */
+    val dedupKey: Pair<String, String>? = null,
 ) {
     val language: String = MetadataRerank.detectLanguage(title, artist)
+
+    /** The languages this track compares by: the pack's sung ones ("instrumental" left out), else its script language. */
+    val languages: Set<String> = artistLanguages?.minus(INSTRUMENTAL)?.takeIf { it.isNotEmpty() } ?: setOf(language)
+
+    /** A shared language counts: a Russian and English duo meets either side. */
+    fun sharesLanguageWith(other: TrackMeta): Boolean = languages.any { it in other.languages }
     val normalizedTitle: String = MetadataRerank.normalizeTitle(title)
     val isHub: Boolean = MetadataRerank.isHubGenre(genre)
     /** Immutable metadata is normalized once instead of reparsed for every candidate at every hop. */
@@ -220,12 +237,15 @@ internal data class TrackMeta(
 
     /** A shared title alone cannot identify a repeat across different or unknown artists. */
     val titleArtistKey: Pair<String, String>? =
-        if (normalizedTitle.isNotEmpty() && artistKey.isNotEmpty()) artistKey to normalizedTitle else null
+        if (normalizedTitle.isNotEmpty() && artistKey.isNotEmpty()) artistKey to normalizedTitle else dedupKey
 
     /** What era this track belongs to: the recording's year, not the edition's. */
     val eraYear: Int? get() = originalYear ?: year
 
     private companion object {
+        /** The pack's language for instrumental artists: no sung language to compare. */
+        const val INSTRUMENTAL = "instrumental"
+
         /**
          * One genre-family set per distinct genre tag, shared by every track that has it: a pure function of one
          * string, and a snapshot of 50,000 songs held a set per song. Copy-on-write and bounded (genre tags are few);

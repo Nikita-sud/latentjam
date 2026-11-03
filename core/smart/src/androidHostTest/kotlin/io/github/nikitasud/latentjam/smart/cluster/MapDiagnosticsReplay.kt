@@ -238,7 +238,7 @@ class MapDiagnosticsReplay {
                 "worst=${f(cohesion.min())} kNN10-in-own-world=${f(knnSpace)}",
         )
         val genrePurity = worlds.map { world ->
-            val families = world.tracks.map { Genres.families(library.firstOrNull { t -> t.id == it.id }?.genre) }
+            val families = world.tracks.map { Genres.nameFamilies(library.firstOrNull { t -> t.id == it.id }?.genre) }
             val labelled = families.count { it.isNotEmpty() }
             val dominant = families.flatten().groupingBy { it }.eachCount().maxOfOrNull { it.value } ?: 0
             if (labelled == 0) Double.NaN else dominant.toDouble() / labelled

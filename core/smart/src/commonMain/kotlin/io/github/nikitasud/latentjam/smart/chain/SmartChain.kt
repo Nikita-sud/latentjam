@@ -104,7 +104,22 @@ internal object ChainConfig {
     const val SEM_SOUND_GATE_HIGH = 0.2f
 
     const val HUB_CHAIN_DAMP = 0.6f
-    const val HUB_PENALTY_BETA = 1.0f
+
+    /**
+     * The CSLS weight on the audio channels' hub penalty (SmartSnapshot.hubPenalty): a row near many others is
+     * pulled back this much. 0.25 since 0.9.4 (smart-research hub/RESULTS_HUB.md, owner round 6); 1.0 before.
+     */
+    const val HUB_PENALTY_BETA = 0.25f
+
+    /**
+     * Queue hygiene (0.9.4, owner round 6 "CH"): spreads of a hop's scores a candidate gives up for being a kind that
+     * jars after its seed ([QueueClasses], on top of that class's own penalty) and again for a length outside
+     * [HYGIENE_SHORT_MS, HYGIENE_LONG_MS] (a fragment, an interlude, a long mix or an audiobook part). Soft: a track that
+     * fits clearly better still plays. 0 is off.
+     */
+    const val CHAIN_HYGIENE = 2f
+    const val HYGIENE_SHORT_MS = 60_000L
+    const val HYGIENE_LONG_MS = 600_000L
 
     // Prefer a different artist when scores are close, but let a substantially better musical
     // neighbour win despite a recent repeat. Repetition alone does not make a song unsuitable.
@@ -753,8 +768,9 @@ internal class SmartChain(
                 // The same multiplier without recency, for the personal stage's counterfactual R(B) (after the clamps).
                 var withoutRecency = multiplier
                 multiplier *= recency.multiplier(snapshot.tracks[row].id)
-                // The raw-cosine pool carries no CSLS correction, so the dense cinematic/game/anime
-                // cluster leaks into chains from sparse seeds unless damped here.
+                // Only the pool's audio channel carries a hub correction (HUB_PENALTY_BETA); the descriptor
+                // and theme channels do not, so the dense cinematic/game/anime cluster leaks into chains
+                // from sparse seeds unless damped here.
                 if (meta.isHub && !anchorMeta.isHub) {
                     multiplier = (multiplier * ChainConfig.HUB_CHAIN_DAMP)
                         .coerceAtLeast(ChainConfig.MULTIPLIER_MIN)
@@ -807,7 +823,12 @@ internal class SmartChain(
             // hop's scores per unit of the penalty, so it still wins when it clearly fits best.
             val runPenalised = tuning.artistRunPenalty > 0f && runLength > 0
             val themeBonus = if ((tuning.theme?.bonus ?: 0f) > 0f) themeRanking(intentRow).let { themeZ } else null
-            val spread = if (runPenalised || points != null || classRows != null || themeBonus != null) scoreSpread(hopScores, hopScored) else 0f
+            val hygiene = tuning.hygiene
+            val spread = if (runPenalised || points != null || classRows != null || themeBonus != null || hygiene > 0f) {
+                scoreSpread(hopScores, hopScored)
+            } else {
+                0f
+            }
             // The queue theme as a prior: a candidate gains the theme's z-score times ThemePool.bonus spreads.
             if (themeBonus != null && spread > 0f) {
                 val bonus = tuning.theme!!.bonus * spread
@@ -816,6 +837,20 @@ internal class SmartChain(
                     val paid = bonus * themeBonus[pool[i]]
                     hopScores[i] += paid
                     hopTerms?.get(i)?.let { it[6] += paid }
+                }
+            }
+            // Hygiene (ChainConfig.CHAIN_HYGIENE): a jarring kind and an odd length each cost one unit.
+            if (hygiene > 0f && spread > 0f) {
+                val unit = hygiene * spread
+                for (i in pool.indices) {
+                    if (!hopScored[i]) continue
+                    var paid = if (classRows?.get(pool[i]) == true) unit else 0f
+                    val ms = snapshot.tracks[pool[i]].meta.durationMs
+                    if (ms != null && ms > 0 && (ms < ChainConfig.HYGIENE_SHORT_MS || ms > ChainConfig.HYGIENE_LONG_MS)) paid += unit
+                    if (paid > 0f) {
+                        hopScores[i] -= paid
+                        hopTerms?.get(i)?.let { it[6] -= paid }
+                    }
                 }
             }
             // Jarring kinds (QueueClasses): soft, sized by this hop's spread like the run penalty.

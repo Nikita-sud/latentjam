@@ -27,7 +27,9 @@ import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorCoverage
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorRows
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorFusion
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorSpace
+import io.github.nikitasud.latentjam.smart.chain.MetadataRerank
 import io.github.nikitasud.latentjam.smart.text.ArtistKnowledge
+import io.github.nikitasud.latentjam.smart.text.EntityAliases
 import io.github.nikitasud.latentjam.smart.text.ArtistSets
 import io.github.nikitasud.latentjam.smart.text.KnownArtists
 import io.github.nikitasud.latentjam.smart.text.TextEncoder
@@ -1936,6 +1938,7 @@ internal class DefaultSimilarityEngine(
         // raw rows (see ScaledRows), which is safe because every change to either index drops the
         // cached snapshot, so it never reads a vector the index has since replaced.
         // Rows read in place (storedRow): on Android they stay in the index's mapped file, off the Java heap.
+        albumArtistGuess = albumArtists(knownTracks.values())
         val rows = knownTracks.values().mapNotNull { track ->
             track.toSmartTrack(audio = index.storedRow(track.id) ?: return@mapNotNull null, text = textIndex?.storedRow(track.id))
         }.toMutableList()
@@ -2149,8 +2152,57 @@ internal class DefaultSimilarityEngine(
             primaryArtist = artists.firstOrNull(),
             originalYear = originalYear,
             artistSet = if (config.artistSets) artistSetOf(this) else null,
+            artistLanguages = packLanguagesOf(this),
+            dedupKey = placeholderDedupKey(this),
         ),
     )
+
+    /**
+     * The credit's sung languages as the artist pack knows them: those of every main artist (a feat. guest never decides
+     * a song's language) that names a pack entity, else the whole-credit lookup the trusted text string reads
+     * ([ArtistKnowledge.facts]). Empty when the pack knows nothing; the chain then compares the script language.
+     */
+    private fun packLanguagesOf(track: TrackDescriptor): Set<String> {
+        val knowledge = artistKnowledge ?: return emptySet()
+        val out = LinkedHashSet<String>()
+        if (config.artistSets) for (key in mainArtistKeysOf(track)) knowledge.entityFacts(key)?.language?.let(out::add)
+        if (out.isEmpty()) knowledge.facts(track.artist, track.artists.firstOrNull())?.language?.let(out::add)
+        return out
+    }
+
+    /** Album (normalised) → its most credited artist key (ties: first seen), rebuilt with each snapshot. */
+    private var albumArtistGuess: Map<String, String> = emptyMap()
+
+    private fun albumArtists(tracks: Iterable<TrackDescriptor>): Map<String, String> {
+        val counts = LinkedHashMap<String, LinkedHashMap<String, Int>>()
+        for (t in tracks) {
+            val album = albumKey(t.album) ?: continue
+            val key = (if (config.artistSets) artistSetOf(t) else listOf(HabitSlots.artistKey(t))).firstOrNull { it.isNotEmpty() } ?: continue
+            val m = counts.getOrPut(album) { LinkedHashMap() }
+            m[key] = (m[key] ?: 0) + 1
+        }
+        return counts.mapValues { (_, m) -> m.entries.maxBy { it.value }.key }
+    }
+
+    private fun albumKey(album: String?): String? =
+        album?.takeIf { it.isNotBlank() && !ArtistSets.isPlaceholder(it) }?.let(ArtistSets::normalize)?.takeIf(String::isNotEmpty)
+
+    /**
+     * [TrackMeta.dedupKey]: a row with no artist gets a title-repeat identity, never an artist: its album's most credited
+     * artist key when the album has credited rows (so an uncredited copy meets its credited one), else
+     * ~(album artist / album / file name).
+     */
+    private fun placeholderDedupKey(track: TrackDescriptor): Pair<String, String>? {
+        val keys = if (config.artistSets) artistSetOf(track) else listOf(HabitSlots.artistKey(track)).filter(String::isNotEmpty)
+        if (keys.isNotEmpty()) return null
+        val title = MetadataRerank.normalizeTitle(track.title).ifEmpty { MetadataRerank.normalizeTitle(track.fileName?.substringBeforeLast('.')) }
+        if (title.isEmpty()) return null
+        albumKey(track.album)?.let { albumArtistGuess[it] }?.let { return it to title }
+        val identity = listOf(track.albumArtist, track.album, track.fileName?.substringBeforeLast('.'))
+            .firstOrNull { !it.isNullOrBlank() && !ArtistSets.isPlaceholder(it) }?.let(ArtistSets::normalize)?.takeIf(String::isNotEmpty)
+            ?: return null
+        return "~$identity" to title
+    }
 
     override fun artistKeyOf(track: TrackDescriptor): String =
         if (config.artistSets) artistSetOf(track).firstOrNull().orEmpty() else HabitSlots.artistKey(track)
@@ -2164,17 +2216,38 @@ internal class DefaultSimilarityEngine(
 
     /** The artist list ArtistSets resolves credits against: the pack's named entities, read once. */
     private val knownArtists: KnownArtists by lazy { artistKnowledge?.knownArtists() ?: KnownArtists.NONE }
+
+    /**
+     * One key space for [artistSetOf]: a part the pack names as entity E keys as the name hash of the first spelling seen
+     * for E, every other part keeps its own name hash, so spellings that normalise alike always share a key and two names
+     * of one entity share one through the alias.
+     */
+    private val unionKnown: KnownArtists by lazy { EntityAliases(knownArtists) }
+
     /**
      * [SmartEngineConfig.artistSets]: the track's artists as stable keys, primary first. Credits the file lists one by
      * one (ARTISTS tags) are parsed each; otherwise the display credit and the title's "(feat. …)" are.
      */
-    private fun artistSetOf(track: TrackDescriptor): List<String> {
+    private fun artistSetOf(track: TrackDescriptor): List<String> = artistKeyLongsOf(track, unionKnown).map { it.toULong().toString(36) }
+
+    /** The credit's main artists as pack keys (entity keys where the pack names one), feat. guests left out. */
+    private fun mainArtistKeysOf(track: TrackDescriptor): Set<Long> {
         val credits = if (track.artists.size > 1) track.artists else listOf(track.artist.orEmpty())
         val keys = LinkedHashSet<Long>()
         for ((i, credit) in credits.withIndex()) {
-            keys += ArtistSets.parse(credit, if (i == 0) track.title else null, knownArtists).artists
+            val set = ArtistSets.parse(credit, if (i == 0) track.title else null, knownArtists)
+            keys += set.artists.filter { it !in set.featured }
         }
-        return keys.map { it.toULong().toString(36) }
+        return keys
+    }
+
+    private fun artistKeyLongsOf(track: TrackDescriptor, known: KnownArtists): Set<Long> {
+        val credits = if (track.artists.size > 1) track.artists else listOf(track.artist.orEmpty())
+        val keys = LinkedHashSet<Long>()
+        for ((i, credit) in credits.withIndex()) {
+            keys += ArtistSets.parse(credit, if (i == 0) track.title else null, known).artists
+        }
+        return keys
     }
 
     private fun metadataFallback(

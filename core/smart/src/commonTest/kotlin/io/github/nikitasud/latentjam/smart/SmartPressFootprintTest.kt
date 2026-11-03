@@ -398,12 +398,16 @@ internal class SmartPressFootprintTest {
             hasDescriptor=961/1004:38536dbd15782020
         """.trimIndent()
 
+        // 0.9.4 (docs/review-0.9.4.md): the judged start changed with ChainConfig.HUB_PENALTY_BETA 1.0 → 0.25, the
+        // judged top-up with it and with the pack-language sets (TrackMeta.artistLanguages: the fixture's known
+        // artists carry pack languages). Both pieces reverted give the 0.9.3 queues back; queue hygiene, genre sets
+        // and the artist-key union do not move these queues. The plain chain's three are unchanged.
         val RECORDED_QUEUES = listOf(
             "plain 3: t1000 t0210 t0199 t0304 t0610 t0965 t0665 t0984 t0057 t0080 t0781 t0016",
             "plain 404: t0296 t0548 t0932 t0351 t0678 t0647 t0677 t0970 t0393 t0457 t0624 t0632",
             "plain 777: t0142 t0906 t0973 t1091 t0857 t0246 t0444 t0134 t0582 t0122 t0921 t0837",
-            "judged start: t0931 t0449 t0167 t0834 t0710 t0042 t0997 t0983 t0715 t0105 t0416 t0600",
-            "judged top-up: t0282 t0154 t0828 t0007 t0520 t0707 t0021 t0557 t0233 t0782 t0720 t0903",
+            "judged start: t0931 t0449 t0715 t0983 t0416 t0600 t0105 t0834 t0710 t0167 t0997 t0042",
+            "judged top-up: t0154 t0676 t0445 t0256 t0828 t0130 t0720 t0021 t0282 t0590 t0361 t0557",
         )
 
         /** ±1/16, ±1/8 and 0 as FP16 bit patterns: exact, so the decoded floats are too. */

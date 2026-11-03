@@ -76,6 +76,8 @@ internal data class ChainTuning(
     val artistQueueCap: Boolean = true,
     /** Kinds of track that jar after a seed outside them ([QueueClasses]); null is off. */
     val queueClasses: QueueClasses? = null,
+    /** See [ChainConfig.CHAIN_HYGIENE]; the jarring half needs [queueClasses], the length half does not. 0 is off. */
+    val hygiene: Float = ChainConfig.CHAIN_HYGIENE,
     /** A learned queue theme as a candidate channel ([ThemePool]); null is off. */
     val theme: ThemePool? = null,
     /** Research: every theme the walk computes, as (reference row, row-major features); the app never sets it. */

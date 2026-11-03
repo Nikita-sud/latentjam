@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.smart
 
+import io.github.nikitasud.latentjam.smart.chain.GenreSets
+
 /**
  * The coarse genre vocabulary the app reasons about.
  *
@@ -61,12 +63,17 @@ public object Genres {
     }
 
     /**
-     * Every coarse family of a possibly multi-genre tag ("Electronic; Rock; Trip Hop" carries
-     * three). For a single-genre tag this is exactly `setOf(normalize(tag))`, so set
-     * intersection degrades to the old equality — the chain's behaviour on single-genre
-     * libraries (and thus the recorded parity fixtures) is unchanged by construction.
+     * Every family of a possibly multi-genre tag, as a set ([GenreSets]): "Electronic; Rock; Trip Hop"
+     * carries {electronic, rock, hiphop}, a sub-genre carries its parent ("Metalcore" is {metal, rock}),
+     * and a value no family knows keeps itself. Compare two sets by overlap ([GenreSets.overlap]).
      */
-    public fun families(genre: String?): Set<String> =
+    public fun families(genre: String?): Set<String> = GenreSets.families(genre)
+
+    /**
+     * The coarse naming families of a possibly multi-genre tag: [normalize] of each value. The Map names its worlds in
+     * this vocabulary ("rap", "dance"), so anything compared with a world's names must use it, never [families].
+     */
+    public fun nameFamilies(genre: String?): Set<String> =
         rawList(genre).mapNotNullTo(LinkedHashSet()) { normalize(it) }
 
     /** The individual raw values of a joined genre tag, original casing preserved. */

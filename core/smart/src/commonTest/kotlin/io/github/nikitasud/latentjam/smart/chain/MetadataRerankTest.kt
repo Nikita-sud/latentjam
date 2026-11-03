@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.smart.chain
 
 import io.github.nikitasud.latentjam.smart.Genres
 import kotlin.test.Test
+import kotlin.test.assertFalse
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -17,7 +18,7 @@ class MetadataRerankTest {
         val edited = original.copy(genre = "Classical; Orchestral")
         assertEquals(Genres.families(original.genre), original.genreFamilies)
         assertEquals(setOf("classical"), edited.genreFamilies)
-        assertEquals(setOf("trip hop", "rock", "dance"), original.genreFamilies)
+        assertEquals(setOf("electronic", "hiphop", "rock", "dance"), original.genreFamilies)
         assertEquals(emptySet(), original.copy(genre = null).genreFamilies)
     }
 
@@ -169,6 +170,42 @@ class MetadataRerankTest {
             MetadataRerank.SAME_ARTIST_BONUS,
             MetadataRerank.adjustMultiplier(seed, neighbour),
         )
+    }
+
+    @Test
+    fun `genre families compare by overlap and score softly`() {
+        val rock = meta(genre = "Rock")
+        val metal = meta(genre = "Metalcore")
+        val jazz = meta(genre = "Jazz")
+        val half = meta(genre = "Rock; Jazz")
+        val same = MetadataRerank.adjustMultiplier(rock, metal)
+        assertEquals(MetadataRerank.adjustMultiplier(rock, rock), same, "a sub-genre carries its parent")
+        assertEquals(MetadataRerank.CROSS_GENRE_MALUS / MetadataRerank.SAME_GENRE_BONUS, MetadataRerank.adjustMultiplier(rock, jazz) / same, 1e-6f)
+        assertEquals(same, MetadataRerank.adjustMultiplier(rock, half), "nested sets overlap fully")
+        val pop = meta(genre = "Pop; Jazz")
+        val partial = MetadataRerank.adjustMultiplier(half, pop) / same
+        assertTrue(partial > MetadataRerank.CROSS_GENRE_MALUS / MetadataRerank.SAME_GENRE_BONUS && partial < 1f, "partial overlap: $partial")
+    }
+
+    @Test
+    fun `languages compare as sets with the script as the fallback`() {
+        val duo = meta().copy(artistLanguages = setOf("ru", "en"))
+        val english = meta().copy(artistLanguages = setOf("en"))
+        val instrumental = meta().copy(artistLanguages = setOf("instrumental"))
+        assertTrue(duo.sharesLanguageWith(english))
+        assertEquals(setOf(english.language), instrumental.languages, "instrumental is no sung language")
+        assertEquals(setOf(meta().language), meta().languages)
+        assertEquals(setOf("ru"), meta().copy(artistLanguages = setOf("ru")).languages)
+        assertTrue(meta().copy(artistLanguages = setOf("ru")).sharesLanguageWith(duo))
+        assertFalse(meta().copy(artistLanguages = setOf("ja")).sharesLanguageWith(duo))
+    }
+
+    @Test
+    fun `a credit with no artist repeats by its placeholder identity`() {
+        val untagged = TrackMeta("Song", null, "Album", null, null, dedupKey = "~album" to "song")
+        assertEquals("~album" to "song", untagged.titleArtistKey)
+        assertTrue(untagged.artists.isEmpty(), "a placeholder identity is never an artist")
+        assertEquals("artist" to "song", TrackMeta("Song", "Artist", null, null, null, dedupKey = "~x" to "song").titleArtistKey)
     }
 
     private fun meta(

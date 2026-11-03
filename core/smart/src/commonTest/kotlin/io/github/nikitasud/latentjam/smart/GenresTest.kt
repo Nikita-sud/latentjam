@@ -37,20 +37,25 @@ class GenresTest {
 
     @Test
     fun familiesOfAJoinedTagCarryEveryValue() {
-        // "Dirty Harry": five Vorbis GENRE fields joined canonically. Electronic and Hip Hop
-        // resolve to their families; the set is what the chain intersects on.
+        // "Dirty Harry": five Vorbis GENRE fields joined canonically. Every value adds its families
+        // (Trip Hop is electronic and hip hop); the set is what the chain compares by overlap.
         val families = Genres.families("Electronic; Rock; Trip Hop; Alternative Rock; Hip Hop")
-        assertTrue("dance" in families)
-        assertTrue("rock" in families)
-        assertTrue("rap" in families)
+        assertEquals(setOf("electronic", "rock", "hiphop"), families)
+        // The Map names worlds in the coarse naming vocabulary, value by value.
+        val named = Genres.nameFamilies("Electronic; Rock; Trip Hop; Alternative Rock; Hip Hop")
+        assertTrue("dance" in named)
+        assertTrue("rock" in named)
+        assertTrue("rap" in named)
     }
 
     @Test
     fun familiesOfASingleTagEqualsItsNormalization() {
-        // The chain's parity depends on this degradation: single-genre libraries behave
-        // exactly as before the multi-genre change.
-        assertEquals(setOf(Genres.normalize("Phonk")), Genres.families("Phonk"))
+        // The naming vocabulary of one value is its normalization; the chain's set carries the parent too.
+        assertEquals(setOf(Genres.normalize("Phonk")), Genres.nameFamilies("Phonk"))
+        assertEquals(setOf("hiphop"), Genres.families("Phonk"))
+        assertEquals(setOf("metal", "rock"), Genres.families("Metalcore"))
         assertEquals(emptySet<String>(), Genres.families(null))
         assertEquals(emptySet<String>(), Genres.families("<unknown>"))
+        assertEquals(emptySet<String>(), Genres.nameFamilies("<unknown>"))
     }
 }

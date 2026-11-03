@@ -56,10 +56,16 @@ public class ArtistKnowledgePack private constructor(
     public fun descriptor(entityIds: IntArray, artist: String): FloatArray? = entity(entityIds, artist)?.let(::decode)
 
     /** What the teacher says about the entity [descriptor] picks; null when none is confident. */
-    public fun facts(entityIds: IntArray, artist: String): ArtistFacts? = entity(entityIds, artist)?.let { entity ->
+    public fun facts(entityIds: IntArray, artist: String): ArtistFacts? = entity(entityIds, artist)?.let(::factsAt)
+
+    /** [facts] of one confident [entity] id, or null when the pack holds none for it. */
+    public fun factsOfEntity(entity: Int): ArtistFacts? =
+        entity.takeIf { it in 0 until entityCount && confidence(it) >= MIN_CONFIDENCE }?.let(::factsAt)
+
+    private fun factsAt(entity: Int): ArtistFacts {
         val at = record(entity) + subspaces + 2
         val decade = bytes[at + if (compact) 1 else 2].toInt() and 0xff
-        ArtistFacts(
+        return ArtistFacts(
             language = LANGUAGES.getOrNull((bytes[at].toInt() and 0xff) - 1),
             decade = if (decade == 0) null else 1000 + (decade - 1) * 10,
         )

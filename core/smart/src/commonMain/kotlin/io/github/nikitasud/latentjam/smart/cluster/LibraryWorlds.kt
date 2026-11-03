@@ -43,8 +43,8 @@ public data class LibraryWorld(
     /** Whether [track] can replace the medoid as a fresher cover without contradicting the name. */
     public fun supportsName(track: TrackDescriptor): Boolean = when (nameSource) {
         LibraryWorldNameSource.GENRE -> {
-            val sameGenre = Genres.families(track.genre)
-                .any { it in Genres.families(representative.genre) }
+            val sameGenre = Genres.nameFamilies(track.genre)
+                .any { it in Genres.nameFamilies(representative.genre) }
             val representativeDecade = representative.worldDecade()
             val nameClaimsDecade = representativeDecade != null && name.endsWith("${representativeDecade}s")
             sameGenre && (!nameClaimsDecade || track.worldDecade() == representativeDecade)
@@ -54,7 +54,7 @@ public data class LibraryWorld(
         LibraryWorldNameSource.GENRE_BLEND,
         LibraryWorldNameSource.MAJOR_FAMILIES,
         LibraryWorldNameSource.LEADING_STYLE,
-        -> Genres.families(track.genre).any { it in blendFamilies }
+        -> Genres.nameFamilies(track.genre).any { it in blendFamilies }
         LibraryWorldNameSource.DECADE ->
             track.worldDecade() != null && track.worldDecade() == representative.worldDecade()
         LibraryWorldNameSource.SEMANTIC -> true

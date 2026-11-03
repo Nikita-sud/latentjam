@@ -75,6 +75,15 @@ public class ArtistKnowledge(
         }
     }
 
+    /**
+     * The facts of the pack entity an [ArtistSets] key from [knownArtists] names, or null for a name-hash key or an
+     * entity the pack holds no confident record for.
+     */
+    public fun entityFacts(artistKey: Long): ArtistFacts? {
+        if (artistKey ushr 31 != ENTITY_KEY ushr 31) return null // entity keys: ENTITY_KEY or a 31-bit id
+        return pack?.factsOfEntity((artistKey and ENTITY_KEY.inv()).toInt())
+    }
+
     private inline fun <T : Any> firstKnown(
         artist: String?,
         primaryArtist: String?,
