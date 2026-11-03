@@ -94,13 +94,14 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         applyStoredWindowTheme()
+        // Every launch intent is consumed once: a recreation or a relaunch from recents replays the
+        // stored copy, which must not open a file or playlist again or undo a later Pause or "Not now".
+        val fromHistory = (intent?.flags ?: 0) and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
         // SavedStateHandle already owns any unfinished request after recreation. Re-reading the
         // launch intent here would replay an already consumed file after a locale/rotation change.
-        if (savedInstanceState == null) {
+        if (savedInstanceState == null && !fromHistory) {
             externalAudioOpener.submit(intent?.action, intent?.dataString, intent?.resolveType(contentResolver))
         }
-        // Consumed once: a recreation or a relaunch from recents must not undo a later Pause.
-        val fromHistory = (intent?.flags ?: 0) and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
         if (savedInstanceState == null && !fromHistory) consumeContinueAnalysis(intent)
         if (savedInstanceState == null) takePlayRequest(intent)
         audioPermissionGranted = hasAudioPermission()
@@ -109,7 +110,10 @@ class MainActivity : ComponentActivity() {
             Context.MODE_PRIVATE,
         ).getBoolean(KEY_AUDIO_GATE_DISMISSED, false)
         // A recreation keeps the launch intent: asking again would undo a later "Not now".
-        if (savedInstanceState == null) reopenAudioGateIfAsked(intent)
+        if (savedInstanceState == null && !fromHistory) reopenAudioGateIfAsked(intent)
+        // Access granted in the system settings while widgets were drawn without it: give them their controls back
+        // (onResume only sees a change made while this activity lived).
+        if (savedInstanceState == null && audioPermissionGranted) refreshPlaybackWidgets(this)
         setContent {
             if (audioPermissionGranted || audioPermissionGateDismissed) {
                 Box(Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
