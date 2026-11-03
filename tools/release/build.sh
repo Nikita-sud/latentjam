@@ -91,6 +91,8 @@ reduced_ort_repo() {
   if [ ! -f "$source/cmake/external/onnx/CMakeLists.txt" ]; then
     # Only a clone this script starts is removed when it fails; a checkout someone named is never touched.
     [ -n "${LATENTJAM_ORT_SOURCE:-}" ] && die "$source is not an onnxruntime v$version checkout with submodules"
+    # A directory already there (an interrupted clone, someone's own work) is never deleted for them.
+    [ -e "$source" ] && die "$source exists but is not a complete onnxruntime v$version checkout: move it away"
     run git clone --quiet --depth 1 --branch "v$version" --recursive --shallow-submodules \
       https://github.com/microsoft/onnxruntime.git "$source" >&2 || { rm -rf "$source"; exit 1; }
   fi
