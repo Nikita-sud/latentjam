@@ -238,4 +238,18 @@ class AnalysisForegroundGateTest {
             assertEquals(1, events.count { it == "stop" }, "round $round: $events")
         }
     }
+
+    @Test
+    fun aRunOpenedAfterTheTimeoutStartsTheServiceOnceTheOldRunHasClosed() {
+        val old = gate.open()
+        old.show(content(0))
+        deliverStart()
+        gate.onTimeout { platform.events += "stop" }
+        val replacement = gate.open()
+        old.show(content(1))
+        old.close()
+        gate.onDestroy()
+        replacement.show(content(8))
+        assertEquals(listOf("requestStart", "startForeground 0", "stop", "requestStart"), platform.events)
+    }
 }

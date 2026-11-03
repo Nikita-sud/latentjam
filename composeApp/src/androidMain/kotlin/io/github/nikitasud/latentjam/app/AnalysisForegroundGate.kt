@@ -41,7 +41,7 @@ internal class AnalysisForegroundGate(private val platform: Platform) {
     )
 
     /** One run's hold on the foreground state. */
-    inner class Session internal constructor() {
+    inner class Session internal constructor(private val serial: Int) {
         private var open = true
 
         /** Shows or updates the progress; ignored once closed. Rethrows a refused start. */
@@ -62,7 +62,18 @@ internal class AnalysisForegroundGate(private val platform: Platform) {
                     }
                     Phase.Starting -> stopPending = false
                     is Phase.Foreground -> platform.post(content)
-                    Phase.Lost -> Unit
+                    // A run that held the service when it was lost stays without it; one opened since is new work
+                    // (a replacement after the 6 h cap, say) and starts it again.
+                    Phase.Lost -> if (serial > lostThrough) {
+                        phase = Phase.Starting
+                        stopPending = false
+                        try {
+                            platform.requestStart()
+                        } catch (failure: RuntimeException) {
+                            phase = Phase.Lost
+                            throw failure
+                        }
+                    }
                 }
             }
         }
@@ -101,9 +112,13 @@ internal class AnalysisForegroundGate(private val platform: Platform) {
     private var stopPending = false
     private var latest: Content? = null
 
+    /** Sessions opened so far, and the last one open when the foreground state was lost. */
+    private var opened = 0
+    private var lostThrough = 0
+
     fun open(): Session = synchronized(lock) {
         sessions++
-        Session()
+        Session(++opened)
     }
 
     /**
@@ -132,6 +147,7 @@ internal class AnalysisForegroundGate(private val platform: Platform) {
                 phase = Phase.Foreground(stop)
             } catch (failure: RuntimeException) {
                 phase = Phase.Lost
+                lostThrough = opened
                 stop()
                 throw failure
             }
@@ -153,6 +169,7 @@ internal class AnalysisForegroundGate(private val platform: Platform) {
     fun onTimeout(stop: () -> Unit) {
         synchronized(lock) {
             phase = Phase.Lost
+            lostThrough = opened
             stopPending = false
             stop()
         }
