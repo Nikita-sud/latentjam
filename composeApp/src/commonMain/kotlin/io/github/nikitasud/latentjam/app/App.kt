@@ -86,6 +86,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.referentialEqualityPolicy
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
@@ -1344,6 +1345,8 @@ private fun AppShell(
         )
 
         var catalog by remember { mutableStateOf<LibraryCatalog?>(null) }
+        // The track list [catalog] was built from (by reference): a rebuild runs for frames after `tracks` changed.
+        var catalogSource by remember { mutableStateOf<List<TrackDescriptor>?>(null, referentialEqualityPolicy()) }
         // SMART colours follow the library: fit its colour axes as tracks are indexed.
         val paletteIds = remember(catalog) { catalog?.songs?.idList().orEmpty() }
         LatentPaletteUpdater(engine, paletteIds)
@@ -1365,10 +1368,12 @@ private fun AppShell(
                     albums to prepareSongsBrowse(albums.catalog.songs, settings.songSort.value)
                 }
                 catalog = derived.first.catalog
+                catalogSource = loaded
                 albumBrowse = derived.first
                 songsBrowse = derived.second
             } else {
                 catalog = null
+                catalogSource = null
                 albumBrowse = null
                 songsBrowse = null
             }
@@ -1754,9 +1759,11 @@ private fun AppShell(
         // match needs, and is claimed once.
         val externalPlaylists = externalAudioOpener as? ExternalPlaylistOpener
         val externalPlaylist = externalPlaylists?.pendingPlaylist?.collectAsState()?.value
-        // A library read with access: before the media permission is granted the scan is empty or partial, and the
-        // playlist would be used up against it.
-        val songsLoaded = catalog != null && libraryIndexingRequest?.librarySnapshotAuthoritative == true
+        // A catalog built from a library read with access: before the media permission is granted the scan is empty or
+        // partial, and right after the grant the catalog is still the old one for a few frames; either would use the
+        // playlist up against the wrong songs.
+        val songsLoaded = catalog != null && catalogSource === tracks &&
+            libraryIndexingRequest?.librarySnapshotAuthoritative == true
         LaunchedEffect(externalPlaylist, songsLoaded) {
             val result = externalPlaylist ?: return@LaunchedEffect
             if (!songsLoaded || !externalPlaylists.consumePlaylist(result)) return@LaunchedEffect
