@@ -2104,16 +2104,31 @@ internal class DefaultSimilarityEngine(
      * by nobody else is dropped again: the warm-up keeps no memory a press would not keep.
      */
     override suspend fun warmSmart() {
-        if (!config.backgroundHub) return
+        if (!config.backgroundHub || warmRefused) return
         withContext(dispatcher) {
             mutex.withLock {
-                if (hubCache != null || hubJob?.isActive == true) return@withLock
+                if (hubJob?.isActive == true) return@withLock
+                // As a press: too few analysed rows plan from metadata, and build no snapshot.
+                if (index.size < requiredAudioCorpus(knownTracks.size)) return@withLock
                 val cached = snapshotCache != null
-                snapshotFor(emptyList())
+                // A cached snapshot answers at once; a new one starts the pass when its hub is not exact for these rows.
+                try {
+                    snapshotFor(emptyList())
+                } catch (exhausted: Error) {
+                    // A heap too small for this library's snapshot: a press falls back to metadata, and the warm-up
+                    // stops trying for the life of the process instead of failing at every library change.
+                    snapshotCache = null
+                    warmRefused = true
+                    println("SMART: warm-up skipped, the audio snapshot did not fit in memory (${exhausted::class.simpleName})")
+                    return@withLock
+                }
                 if (!cached) snapshotCache = null
             }
         }
     }
+
+    /** [warmSmart] ran out of memory once in this process. */
+    @kotlin.concurrent.Volatile private var warmRefused = false
 
     /** Waits for the background hub pass in flight, if any (tests). */
     internal suspend fun awaitBackgroundHub() {
@@ -2223,17 +2238,20 @@ internal class DefaultSimilarityEngine(
      * artist key when the album has credited rows (so an uncredited copy meets its credited one), else
      * ~(album artist / album / file name).
      */
-    private fun placeholderDedupKey(track: TrackDescriptor, artistSet: List<String>?): Pair<String, String>? {
+    internal fun placeholderDedupKey(track: TrackDescriptor, artistSet: List<String>?): Pair<String, String>? {
         val keys = artistSet ?: listOf(HabitSlots.artistKey(track)).filter(String::isNotEmpty)
         if (keys.isNotEmpty()) return null
         val title = MetadataRerank.normalizeTitle(track.title).ifEmpty { MetadataRerank.normalizeTitle(track.fileName?.substringBeforeLast('.')) }
         if (title.isEmpty()) return null
         val guess = albumArtistGuess ?: albumArtists(knownTracks.values()).also { albumArtistGuess = it }
         albumKey(track.album)?.let { guess[it] }?.let { return it to title }
-        val identity = listOf(track.albumArtist, track.album, track.fileName?.substringBeforeLast('.'))
+        val named = listOf(track.albumArtist, track.album)
             .firstOrNull { !it.isNullOrBlank() && !ArtistSets.isPlaceholder(it) }?.let(ArtistSets::normalize)?.takeIf(String::isNotEmpty)
-            ?: return null
-        return "~$identity" to title
+        if (named != null) return "~$named" to title
+        // Only a file name: "01.mp3" in two folders are two songs, so the folder is part of the identity.
+        val file = track.fileName?.substringBeforeLast('.')?.takeIf { it.isNotBlank() && !ArtistSets.isPlaceholder(it) }
+            ?.let(ArtistSets::normalize)?.takeIf(String::isNotEmpty) ?: return null
+        return "~${track.folderPath.orEmpty()}/$file" to title
     }
 
     override fun artistKeyOf(track: TrackDescriptor): String =

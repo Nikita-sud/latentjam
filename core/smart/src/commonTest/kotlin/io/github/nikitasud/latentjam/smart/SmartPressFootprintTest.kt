@@ -131,6 +131,18 @@ internal class SmartPressFootprintTest {
         val first = requireNotNull(restarted.smartSnapshot(emptyList()))
         assertEquals(digest(expected), digest(first), "the first press after a warm-up has the exact hub")
         assertEquals(computed.smartQueue(library[3], library, 12), restarted.smartQueue(library[3], library, 12))
+
+        // The rows change (a removal here; new analysis alike): the next warm-up refreshes the hub, not a stand-in.
+        val smaller = library.dropLast(100)
+        computed.synchronizeLibrary(smaller, pruneMissing = true)
+        restarted.synchronizeLibrary(smaller, pruneMissing = true)
+        restarted.warmSmart()
+        restarted.awaitBackgroundHub()
+        assertEquals(
+            digest(requireNotNull(computed.smartSnapshot(emptyList()))),
+            digest(requireNotNull(restarted.smartSnapshot(emptyList()))),
+            "the warm-up after a change of rows has the exact hub",
+        )
     }
 
     @Test

@@ -54,4 +54,23 @@ internal class ArtistExclusionTest {
         assertFalse(hides(track("Queen")))
         assertFalse(hides(track(null)))
     }
+
+    @Test
+    fun `untagged files of one name in two folders are two songs`() {
+        val engine = engine(artistSets = true)
+        fun untagged(folder: String) = TrackDescriptor(
+            TrackId("$folder/01.mp3"), title = "01", fileName = "01.mp3", folderPath = folder,
+        )
+        val a = engine.placeholderDedupKey(untagged("Documents/A"), emptyList())
+        val b = engine.placeholderDedupKey(untagged("Documents/B"), emptyList())
+        kotlin.test.assertNotNull(a)
+        kotlin.test.assertNotEquals(a, b)
+        val sameAlbum = TrackDescriptor(TrackId("x"), title = "Intro", album = "Live 1999")
+        kotlin.test.assertEquals(
+            engine.placeholderDedupKey(sameAlbum, emptyList()),
+            engine.placeholderDedupKey(TrackDescriptor(TrackId("y"), title = "Intro", album = "Live 1999"), emptyList()),
+            "an album still names one identity",
+        )
+        kotlin.test.assertNull(engine.placeholderDedupKey(TrackDescriptor(TrackId("z"), title = "Song", artist = "Someone"), listOf("k")))
+    }
 }
