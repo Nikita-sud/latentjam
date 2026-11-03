@@ -326,6 +326,12 @@ internal fun resolveIndexDirectory(caches: String, support: String): String {
         target
     } catch (failure: Throwable) {
         println("SMART: index stays in Caches for now: ${failure.message}")
+        // A copy cut short (a full disk, say) is not left to hold space in a directory iOS never purges.
+        runCatching {
+            for (name in manager.contentsOfDirectoryAtPath(target, null).orEmpty().filterIsInstance<String>()) {
+                if (name != MOVED_MARKER) manager.removeItemAtPath("$target/$name", null)
+            }
+        }
         ensureDirectory(caches)
         caches
     }
