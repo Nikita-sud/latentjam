@@ -88,7 +88,8 @@ internal class QueueClasses(val lambda: Float) {
                     "spoken weird", "sound poetry", "radio art", "audio collage", "sound collage", "musique concrete", "sound art",
                 ),
                 tokens = setOf("radio"),
-                text = listOf("field recording", "audiobook", "interview", "christmas carol", "carol of the"),
+                // Not carols: "Carol of the Bells" is a song (and with queue hygiene a false match costs three spreads).
+                text = listOf("field recording", "audiobook", "interview"),
             ),
             Kind(
                 "energetic",
