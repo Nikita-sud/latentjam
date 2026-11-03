@@ -510,9 +510,18 @@ class SmartStandRunner {
     private suspend fun chainEngine(
         dir: File, files: File, knowledge: ArtistKnowledge, library: List<TrackDescriptor>,
     ): io.github.nikitasud.latentjam.smart.SimilarityEngine {
+        // LJ_STAND_KEEP_SHORT=1: one-window tracks (unknown or <= 10 s) keep their stored 0.9.3 vectors under the 0.9.4
+        // identity instead of dropping out as unanalysed (the phone analyses them again, with the window repeated; the
+        // stand has no audio). For parity runs against hooks on 0.9.3, where the library must keep every row.
+        val keepShort = System.getenv("LJ_STAND_KEEP_SHORT") == "1"
+        val shortIds = library.filter { (it.durationMs ?: 0L) <= 10_000L }.mapTo(HashSet()) { it.id } // WindowCoverage.isSingleWindow
         fun store(name: String) = object : io.github.nikitasud.latentjam.smart.IndexStore {
             override suspend fun load(modelVersion: String) = loadSnapshot(modelVersion)?.entries
-            override suspend fun loadSnapshot(modelVersion: String) = readIndexSnapshotFile(File(files, name), modelVersion)
+            override suspend fun loadSnapshot(modelVersion: String) = readIndexSnapshotFile(File(files, name), modelVersion)?.let { s ->
+                if (!keepShort) s else s.copy(identities = s.identities.mapValues { (id, identity) ->
+                    if (id in shortIds && identity.startsWith("audio-v1|")) "audio-v1-repeat|" + identity.removePrefix("audio-v1|") else identity
+                })
+            }
             override suspend fun save(modelVersion: String, entries: Map<TrackId, FloatArray>) = Unit
             override suspend fun saveSnapshot(modelVersion: String, snapshot: io.github.nikitasud.latentjam.smart.StoredIndexSnapshot) = Unit
             override suspend fun clear() = Unit
