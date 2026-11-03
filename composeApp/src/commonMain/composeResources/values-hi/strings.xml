@@ -622,10 +622,9 @@
     <string name="backup_invalid">यह मान्य LatentJam बैकअप नहीं है।</string>
     <string name="backup_destination_warning">बैकअप में ऐप का निजी डेटा होता है। सिस्टम पिकर में चुना गया क्लाउड या तृतीय-पक्ष स्थान इसे सिंक कर सकता है।</string>
     <string name="listenbrainz_import_section">सुनने का इतिहास आयात करें</string>
-    <string name="listenbrainz_import">ListenBrainz से सुने गए गाने आयात करें</string>
-    <string name="listenbrainz_import_body">listenbrainz.org से निर्यात फ़ाइल लोड करें (Settings → Export) — ZIP या JSON। सुने गए गानों का मिलान आपकी लाइब्रेरी के गानों से किया जाता है; कुछ भी डिवाइस से बाहर नहीं जाता।</string>
+    <string name="history_import">ListenBrainz या Last.fm से सुने गए गाने आयात करें</string>
+    <string name="history_import_body">listenbrainz.org से निर्यात फ़ाइल लोड करें (Settings → Export) — ZIP या JSON — या CSV के रूप में सहेजा गया Last.fm इतिहास, जैसे “last.fm to csv” से। सुने गए गानों का मिलान आपकी लाइब्रेरी के गानों से किया जाता है; कुछ भी डिवाइस से बाहर नहीं जाता।</string>
     <string name="listenbrainz_import_progress">पढ़ी गई प्रविष्टियाँ: %1$d</string>
-    <string name="listenbrainz_import_result_title">ListenBrainz आयात</string>
     <string name="listenbrainz_import_result_imported">आयात की गई प्रविष्टियाँ: %1$d</string>
     <string name="listenbrainz_import_result_songs">संबंधित गाने: %1$d</string>
     <string name="listenbrainz_import_result_not_in_library">उन गानों की प्रविष्टियाँ जो आपकी लाइब्रेरी में नहीं हैं: %1$d</string>
@@ -635,8 +634,8 @@
     <string name="listenbrainz_import_result_truncated">यह निर्यात बहुत बड़ा है; केवल इसका पहला भाग पढ़ा गया।</string>
     <string name="listenbrainz_import_habits_hint">आँकड़े और आपके लिए अभी से इन प्रविष्टियों का उपयोग करते हैं। “मेरी आदतों से सीखें” चालू करने पर SMART भी इनसे सीखता है (सेटिंग → SMART इंजन)।</string>
     <string name="listenbrainz_import_habits_on">चालू करें</string>
-    <string name="listenbrainz_import_invalid">यह फ़ाइल ListenBrainz निर्यात नहीं है।</string>
-    <string name="listenbrainz_import_failed">ListenBrainz निर्यात आयात नहीं किया जा सका।</string>
+    <string name="history_import_invalid">यह फ़ाइल न तो ListenBrainz निर्यात है और न ही Last.fm CSV।</string>
+    <string name="history_import_failed">यह फ़ाइल आयात नहीं की जा सकी।</string>
     <string name="listenbrainz_import_empty_library">आपकी लाइब्रेरी में अभी कोई गाना नहीं है, इसलिए किसी भी प्रविष्टि का मिलान नहीं हुआ।</string>
     <string name="settings_stats">आंकड़े</string>
     <string name="settings_stats_subtitle">आपकी सुनवाई, आँकड़ों में</string>

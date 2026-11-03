@@ -646,10 +646,9 @@
     <string name="backup_invalid">זה לא גיבוי תקין של LatentJam.</string>
     <string name="backup_destination_warning">הגיבוי מכיל נתוני אפליקציה פרטיים. יעד בענן או של צד שלישי שנבחר בבורר המערכת עשוי לסנכרן אותו.</string>
     <string name="listenbrainz_import_section">ייבוא היסטוריית האזנה</string>
-    <string name="listenbrainz_import">ייבוא האזנות מ־ListenBrainz</string>
-    <string name="listenbrainz_import_body">טענו את הייצוא מ־listenbrainz.org (Settings → Export) — ZIP או JSON. ההאזנות מותאמות לשירים בספרייה שלכם; שום דבר לא יוצא מהמכשיר.</string>
+    <string name="history_import">ייבוא האזנות מ־ListenBrainz או מ־Last.fm</string>
+    <string name="history_import_body">טענו את הייצוא מ־listenbrainz.org (Settings → Export) — ZIP או JSON — או היסטוריית Last.fm שנשמרה כ־CSV, למשל עם ‏“last.fm to csv”. ההאזנות מותאמות לשירים בספרייה שלכם; שום דבר לא יוצא מהמכשיר.</string>
     <string name="listenbrainz_import_progress">האזנות שנקראו: %1$d</string>
-    <string name="listenbrainz_import_result_title">ייבוא מ־ListenBrainz</string>
     <string name="listenbrainz_import_result_imported">האזנות שיובאו: %1$d</string>
     <string name="listenbrainz_import_result_songs">שירים שאליהם הן שייכות: %1$d</string>
     <string name="listenbrainz_import_result_not_in_library">האזנות לשירים שאינם בספרייה: %1$d</string>
@@ -659,8 +658,8 @@
     <string name="listenbrainz_import_result_truncated">הייצוא הזה גדול מאוד; נקרא רק החלק הראשון שלו.</string>
     <string name="listenbrainz_import_habits_hint">הסטטיסטיקה ו״בשבילך״ כבר משתמשות בהאזנות האלה. SMART ילמד מהן אחרי הפעלת ״ללמוד מההרגלים שלי״ (הגדרות ← מנוע SMART).</string>
     <string name="listenbrainz_import_habits_on">הפעלה</string>
-    <string name="listenbrainz_import_invalid">הקובץ הזה אינו ייצוא של ListenBrainz.</string>
-    <string name="listenbrainz_import_failed">לא ניתן לייבא את הייצוא של ListenBrainz.</string>
+    <string name="history_import_invalid">הקובץ הזה אינו ייצוא של ListenBrainz וגם לא קובץ CSV של Last.fm.</string>
+    <string name="history_import_failed">לא ניתן לייבא את הקובץ הזה.</string>
     <string name="listenbrainz_import_empty_library">בספרייה עדיין אין שירים, ולכן אף האזנה לא הותאמה.</string>
     <string name="settings_stats">סטטיסטיקה</string>
     <string name="settings_stats_subtitle">ההאזנה שלך במספרים</string>

@@ -599,10 +599,9 @@
     <string name="backup_invalid">这不是有效的 LatentJam 备份。</string>
     <string name="backup_destination_warning">备份包含私密应用数据。在系统选择器中选取的云端或第三方位置可能会同步这些数据。</string>
     <string name="listenbrainz_import_section">导入收听历史</string>
-    <string name="listenbrainz_import">导入 ListenBrainz 收听记录</string>
-    <string name="listenbrainz_import_body">载入从 listenbrainz.org 导出的文件（Settings → Export），ZIP 或 JSON 均可。收听记录会与你资料库中的歌曲匹配；所有数据都不会离开设备。</string>
+    <string name="history_import">导入 ListenBrainz 或 Last.fm 收听记录</string>
+    <string name="history_import_body">载入从 listenbrainz.org 导出的文件（Settings → Export，ZIP 或 JSON 均可），或保存为 CSV 的 Last.fm 记录（例如用“last.fm to csv”导出）。收听记录会与你资料库中的歌曲匹配；所有数据都不会离开设备。</string>
     <string name="listenbrainz_import_progress">已读取的收听记录：%1$d</string>
-    <string name="listenbrainz_import_result_title">ListenBrainz 导入</string>
     <string name="listenbrainz_import_result_imported">已导入的收听记录：%1$d</string>
     <string name="listenbrainz_import_result_songs">涉及的歌曲：%1$d</string>
     <string name="listenbrainz_import_result_not_in_library">资料库中没有的歌曲的收听记录：%1$d</string>
@@ -612,8 +611,8 @@
     <string name="listenbrainz_import_result_truncated">该导出文件非常大，只读取了前一部分。</string>
     <string name="listenbrainz_import_habits_hint">统计和“为你推荐”现在就会使用这些收听记录。开启“从我的习惯中学习”后，SMART 也会从中学习（设置 → SMART 引擎）。</string>
     <string name="listenbrainz_import_habits_on">开启</string>
-    <string name="listenbrainz_import_invalid">此文件不是 ListenBrainz 导出文件。</string>
-    <string name="listenbrainz_import_failed">无法导入 ListenBrainz 导出文件。</string>
+    <string name="history_import_invalid">此文件既不是 ListenBrainz 导出文件，也不是 Last.fm CSV。</string>
+    <string name="history_import_failed">无法导入此文件。</string>
     <string name="listenbrainz_import_empty_library">你的资料库中还没有歌曲，因此没有匹配到任何收听记录。</string>
     <string name="settings_stats">统计</string>
     <string name="settings_stats_subtitle">用数字看你的收听</string>

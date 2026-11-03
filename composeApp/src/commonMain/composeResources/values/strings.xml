@@ -698,10 +698,9 @@
     <string name="backup_invalid">This is not a valid LatentJam backup.</string>
     <string name="backup_destination_warning">The backup contains private app data. A cloud or third-party destination selected in the system picker may sync it.</string>
     <string name="listenbrainz_import_section">Import listening history</string>
-    <string name="listenbrainz_import">Import ListenBrainz listens</string>
-    <string name="listenbrainz_import_body">Load the export from listenbrainz.org (Settings → Export) — ZIP or JSON. Listens are matched to songs in your library; nothing leaves the device.</string>
+    <string name="history_import">Import ListenBrainz or Last.fm listens</string>
+    <string name="history_import_body">Load the export from listenbrainz.org (Settings → Export) — ZIP or JSON — or a Last.fm history saved as CSV, for example with “last.fm to csv”. Listens are matched to songs in your library; nothing leaves the device.</string>
     <string name="listenbrainz_import_progress">Listens read: %1$d</string>
-    <string name="listenbrainz_import_result_title">ListenBrainz import</string>
     <string name="listenbrainz_import_result_imported">Listens imported: %1$d</string>
     <string name="listenbrainz_import_result_songs">Songs they belong to: %1$d</string>
     <string name="listenbrainz_import_result_not_in_library">Listens of songs not in your library: %1$d</string>
@@ -711,8 +710,8 @@
     <string name="listenbrainz_import_result_truncated">This export is very large; only its first part was read.</string>
     <string name="listenbrainz_import_habits_hint">Statistics and For You use these listens now. SMART learns from them once “Learn from my habits” is on (Settings → SMART engine).</string>
     <string name="listenbrainz_import_habits_on">Turn on</string>
-    <string name="listenbrainz_import_invalid">This file is not a ListenBrainz export.</string>
-    <string name="listenbrainz_import_failed">Could not import the ListenBrainz export.</string>
+    <string name="history_import_invalid">This file is not a ListenBrainz export or a Last.fm CSV.</string>
+    <string name="history_import_failed">Could not import this file.</string>
     <string name="listenbrainz_import_empty_library">Your library has no songs yet, so no listen could be matched.</string>
     <string name="settings_stats">Statistics</string>
     <string name="settings_stats_subtitle">Your listening in numbers</string>

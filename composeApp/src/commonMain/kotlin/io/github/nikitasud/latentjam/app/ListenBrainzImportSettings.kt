@@ -22,20 +22,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.action_close
-import io.github.nikitasud.latentjam.app.generated.resources.listenbrainz_import
-import io.github.nikitasud.latentjam.app.generated.resources.listenbrainz_import_body
+import io.github.nikitasud.latentjam.app.generated.resources.history_import
+import io.github.nikitasud.latentjam.app.generated.resources.history_import_body
+import io.github.nikitasud.latentjam.app.generated.resources.history_import_failed
+import io.github.nikitasud.latentjam.app.generated.resources.history_import_invalid
 import io.github.nikitasud.latentjam.app.generated.resources.listenbrainz_import_empty_library
-import io.github.nikitasud.latentjam.app.generated.resources.listenbrainz_import_failed
 import io.github.nikitasud.latentjam.app.generated.resources.listenbrainz_import_habits_hint
 import io.github.nikitasud.latentjam.app.generated.resources.listenbrainz_import_habits_on
-import io.github.nikitasud.latentjam.app.generated.resources.listenbrainz_import_invalid
 import io.github.nikitasud.latentjam.app.generated.resources.listenbrainz_import_progress
 import io.github.nikitasud.latentjam.app.generated.resources.listenbrainz_import_result_already_present
 import io.github.nikitasud.latentjam.app.generated.resources.listenbrainz_import_result_imported
 import io.github.nikitasud.latentjam.app.generated.resources.listenbrainz_import_result_not_in_library
 import io.github.nikitasud.latentjam.app.generated.resources.listenbrainz_import_result_over_limit
 import io.github.nikitasud.latentjam.app.generated.resources.listenbrainz_import_result_songs
-import io.github.nikitasud.latentjam.app.generated.resources.listenbrainz_import_result_title
 import io.github.nikitasud.latentjam.app.generated.resources.listenbrainz_import_result_truncated
 import io.github.nikitasud.latentjam.app.generated.resources.listenbrainz_import_result_unreadable
 import io.github.nikitasud.latentjam.app.generated.resources.listenbrainz_import_section
@@ -65,7 +64,7 @@ internal object ListenBrainzImportState {
     val failure = MutableStateFlow<StringResource?>(null)
 }
 
-/** Settings → Local backup: loading a ListenBrainz export into the listening history. */
+/** Settings → Local backup: loading a ListenBrainz export or a Last.fm CSV into the listening history. */
 @Composable
 internal fun ListenBrainzImportSection(
     settings: AppSettings,
@@ -90,7 +89,7 @@ internal fun ListenBrainzImportSection(
         when (result) {
             LocalBackupFileResult.Cancelled -> Unit
             is LocalBackupFileResult.Failure -> scope.launch {
-                snackbarHostState.showSnackbar(getString(Res.string.listenbrainz_import_failed))
+                snackbarHostState.showSnackbar(getString(Res.string.history_import_failed))
             }
             is LocalBackupFileResult.Success -> {
                 if (ListenBrainzImportState.progress.value != null) {
@@ -115,8 +114,8 @@ internal fun ListenBrainzImportSection(
                         } catch (failure: Throwable) {
                             ListenBrainzImportState.failure.value = when (failure) {
                                 is ListenBrainzLibraryEmptyException -> Res.string.listenbrainz_import_empty_library
-                                is IllegalArgumentException -> Res.string.listenbrainz_import_invalid
-                                else -> Res.string.listenbrainz_import_failed
+                                is IllegalArgumentException -> Res.string.history_import_invalid
+                                else -> Res.string.history_import_failed
                             }
                         } finally {
                             result.value.release()
@@ -130,8 +129,8 @@ internal fun ListenBrainzImportSection(
 
     SettingsSection(stringResource(Res.string.listenbrainz_import_section)) {
         SettingsActionRow(
-            title = stringResource(Res.string.listenbrainz_import),
-            subtitle = stringResource(Res.string.listenbrainz_import_body),
+            title = stringResource(Res.string.history_import),
+            subtitle = stringResource(Res.string.history_import_body),
             enabled = progress == null,
             onClick = pick,
         )
@@ -146,7 +145,7 @@ internal fun ListenBrainzImportSection(
         val dismiss = { ListenBrainzImportState.report.value = null }
         AppAlertDialog(
             onDismissRequest = dismiss,
-            title = { Text(stringResource(Res.string.listenbrainz_import_result_title)) },
+            title = { Text(stringResource(Res.string.listenbrainz_import_section)) },
             text = {
                 Column(
                     modifier = Modifier.verticalScroll(rememberScrollState()),

@@ -45,8 +45,9 @@ internal class ListenBrainzFormatException(message: String) : IllegalArgumentExc
 /**
  * Streams the listens of a ListenBrainz export without holding it: the ZIP the site exports today
  * (`listens/<year>/<month>.jsonl`, next to `user.json`, `feedback.jsonl` and pinned recordings,
- * which are skipped), a plain JSON Lines file, or the older single JSON array. The format is told
- * from the first bytes, not from the file name, because document providers rename files.
+ * which are skipped), a plain JSON Lines file, or the older single JSON array — and a Last.fm history
+ * saved as CSV ([LastFmCsvReader]). The format is told from the first bytes, not from the file name,
+ * because document providers rename files.
  *
  * Memory stays bounded by one buffer, one inflater window and one record ([MAX_RECORD_BYTES]):
  * exports run to hundreds of megabytes and millions of rows. The ZIP is read front to back from its
@@ -72,9 +73,12 @@ internal object ListenBrainzExportReader {
         try {
             if (bytes.ensure(4) && bytes.le32(0) == ZIP_LOCAL) {
                 readZip(bytes, state)
-            } else {
-                if (!startsLikeJson(bytes)) throw ListenBrainzFormatException("Not a ZIP or JSON file")
+            } else if (startsLikeJson(bytes)) {
                 JsonRecords(bytes, state).readAll()
+            } else if (LastFmCsvReader.looksLikeCsv(bytes)) {
+                LastFmCsvReader.read(bytes, onRow = state::emit, onUnreadable = { state.unreadable++ })
+            } else {
+                throw ListenBrainzFormatException("Not a ZIP, JSON or Last.fm CSV file")
             }
         } catch (_: RowLimitReached) {
             return ListenBrainzReadSummary(state.rows, state.unreadable, truncated = true)
@@ -325,7 +329,7 @@ internal object ListenBrainzExportReader {
             }
         }
 
-        private fun emit(row: ListenBrainzRow) {
+        fun emit(row: ListenBrainzRow) {
             if (rows >= MAX_ROWS) throw RowLimitReached()
             rows++
             onRow(row)

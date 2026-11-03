@@ -674,10 +674,9 @@
     <string name="backup_invalid">To nie jest prawidłowa kopia LatentJam.</string>
     <string name="backup_destination_warning">Kopia zawiera prywatne dane aplikacji. Miejsce w chmurze lub usłudze zewnętrznej wybrane w oknie systemowym może je synchronizować.</string>
     <string name="listenbrainz_import_section">Importuj historię słuchania</string>
-    <string name="listenbrainz_import">Importuj odsłuchania z ListenBrainz</string>
-    <string name="listenbrainz_import_body">Wczytaj eksport z listenbrainz.org (Settings → Export) — ZIP lub JSON. Odsłuchania są dopasowywane do utworów w Twojej bibliotece; nic nie opuszcza urządzenia.</string>
+    <string name="history_import">Importuj odsłuchania z ListenBrainz lub Last.fm</string>
+    <string name="history_import_body">Wczytaj eksport z listenbrainz.org (Settings → Export) — ZIP lub JSON — albo historię Last.fm zapisaną jako CSV, na przykład za pomocą „last.fm to csv”. Odsłuchania są dopasowywane do utworów w Twojej bibliotece; nic nie opuszcza urządzenia.</string>
     <string name="listenbrainz_import_progress">Odczytane odsłuchania: %1$d</string>
-    <string name="listenbrainz_import_result_title">Import z ListenBrainz</string>
     <string name="listenbrainz_import_result_imported">Zaimportowane odsłuchania: %1$d</string>
     <string name="listenbrainz_import_result_songs">Utwory, których dotyczą: %1$d</string>
     <string name="listenbrainz_import_result_not_in_library">Odsłuchania utworów spoza biblioteki: %1$d</string>
@@ -687,8 +686,8 @@
     <string name="listenbrainz_import_result_truncated">Ten eksport jest bardzo duży; odczytano tylko jego pierwszą część.</string>
     <string name="listenbrainz_import_habits_hint">Statystyki i Dla Ciebie już korzystają z tych odsłuchań. SMART zacznie się z nich uczyć po włączeniu opcji „Ucz się z moich nawyków” (Ustawienia → Silnik SMART).</string>
     <string name="listenbrainz_import_habits_on">Włącz</string>
-    <string name="listenbrainz_import_invalid">Ten plik nie jest eksportem ListenBrainz.</string>
-    <string name="listenbrainz_import_failed">Nie udało się zaimportować eksportu ListenBrainz.</string>
+    <string name="history_import_invalid">Ten plik nie jest ani eksportem ListenBrainz, ani plikiem CSV z Last.fm.</string>
+    <string name="history_import_failed">Nie udało się zaimportować tego pliku.</string>
     <string name="listenbrainz_import_empty_library">Biblioteka nie zawiera jeszcze utworów, więc nie dopasowano żadnego odsłuchania.</string>
     <string name="settings_stats">Statystyki</string>
     <string name="settings_stats_subtitle">Twoje słuchanie w liczbach</string>

@@ -7,7 +7,7 @@ package io.github.nikitasud.latentjam.app
 import androidx.compose.runtime.Composable
 
 /**
- * A document the listener picked as a ListenBrainz export. It is read as a stream when the import
+ * A document the listener picked as a ListenBrainz export or a Last.fm CSV. It is read as a stream when the import
  * runs, never loaded whole: exports reach hundreds of megabytes.
  */
 internal class PickedExport(
@@ -21,7 +21,7 @@ internal class PickedExport(
     fun release() = releaser()
 }
 
-/** MIME types the Android picker offers: providers label .jsonl files variously or not at all. */
+/** MIME types the Android picker offers: providers label .jsonl and .csv files variously or not at all. */
 internal val LISTENBRAINZ_EXPORT_MIME_TYPES: Array<String> = arrayOf(
     "application/zip",
     "application/x-zip-compressed",
@@ -29,6 +29,11 @@ internal val LISTENBRAINZ_EXPORT_MIME_TYPES: Array<String> = arrayOf(
     "application/jsonl",
     "application/x-ndjson",
     "text/*",
+    // Last.fm CSV: providers label it as text, as CSV or as a spreadsheet.
+    "text/csv",
+    "text/comma-separated-values",
+    "application/csv",
+    "application/vnd.ms-excel",
     "application/octet-stream",
 )
 

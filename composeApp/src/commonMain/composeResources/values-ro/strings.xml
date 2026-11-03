@@ -637,10 +637,9 @@
     <string name="backup_invalid">Aceasta nu este o copie LatentJam validă.</string>
     <string name="backup_destination_warning">Copia de rezervă conține date private ale aplicației. O destinație cloud sau terță aleasă în selectorul sistemului le poate sincroniza.</string>
     <string name="listenbrainz_import_section">Importă istoricul de ascultare</string>
-    <string name="listenbrainz_import">Importă ascultările din ListenBrainz</string>
-    <string name="listenbrainz_import_body">Încarcă exportul de pe listenbrainz.org (Settings → Export) — ZIP sau JSON. Ascultările sunt potrivite cu melodiile din biblioteca ta; nimic nu părăsește dispozitivul.</string>
+    <string name="history_import">Importă ascultările din ListenBrainz sau Last.fm</string>
+    <string name="history_import_body">Încarcă exportul de pe listenbrainz.org (Settings → Export) — ZIP sau JSON — sau un istoric Last.fm salvat ca CSV, de exemplu cu „last.fm to csv”. Ascultările sunt potrivite cu melodiile din biblioteca ta; nimic nu părăsește dispozitivul.</string>
     <string name="listenbrainz_import_progress">Ascultări citite: %1$d</string>
-    <string name="listenbrainz_import_result_title">Import din ListenBrainz</string>
     <string name="listenbrainz_import_result_imported">Ascultări importate: %1$d</string>
     <string name="listenbrainz_import_result_songs">Melodii cărora le aparțin: %1$d</string>
     <string name="listenbrainz_import_result_not_in_library">Ascultări ale melodiilor care nu sunt în bibliotecă: %1$d</string>
@@ -650,8 +649,8 @@
     <string name="listenbrainz_import_result_truncated">Exportul este foarte mare; a fost citită doar prima lui parte.</string>
     <string name="listenbrainz_import_habits_hint">Statisticile și Pentru tine folosesc deja aceste ascultări. SMART învață din ele după ce activezi „Învață din obiceiurile mele” (Setări → Motorul SMART).</string>
     <string name="listenbrainz_import_habits_on">Activează</string>
-    <string name="listenbrainz_import_invalid">Acest fișier nu este un export ListenBrainz.</string>
-    <string name="listenbrainz_import_failed">Exportul ListenBrainz nu a putut fi importat.</string>
+    <string name="history_import_invalid">Acest fișier nu este nici un export ListenBrainz, nici un CSV Last.fm.</string>
+    <string name="history_import_failed">Acest fișier nu a putut fi importat.</string>
     <string name="listenbrainz_import_empty_library">Biblioteca nu are încă melodii, așa că nicio ascultare nu a putut fi potrivită.</string>
     <string name="settings_stats">Statistici</string>
     <string name="settings_stats_subtitle">Ascultarea ta în cifre</string>
