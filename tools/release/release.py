@@ -251,6 +251,9 @@ def fdroid_mr(_args):
         sys.exit("fdroid-mr needs a green dry run of this commit first:\n" + "\n".join(problems))
     if git("status", "--porcelain", "--untracked-files=no", cwd=FDROIDDATA):
         sys.exit(f"{FDROIDDATA} has uncommitted changes")
+    # render reads the version from this tree: it must be the commit the MR names.
+    if git("status", "--porcelain", "--untracked-files=no"):
+        sys.exit("this checkout has uncommitted changes; fdroid-mr renders the committed release")
     git("fetch", "--quiet", "origin", "master", cwd=FDROIDDATA)
     branch = f"latentjam-{version}"
     # A re-render replaces this command's own commit; a commit made by hand (a reviewer's request) is never reset.

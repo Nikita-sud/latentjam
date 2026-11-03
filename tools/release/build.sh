@@ -141,6 +141,10 @@ cmd_ios() {
   [ "$(uname)" = Darwin ] || die "ios builds need macOS"
   local out version work
   version=$(app_version); out=$(out_dir); work=${TMPDIR:-/tmp}/latentjam-ios-$version
+  # A release IPA comes from a commit: never from uncommitted work (LATENTJAM_IOS_DIRTY=1 for a test build).
+  if [ "${LATENTJAM_IOS_DIRTY:-0}" != 1 ] && [ -n "$(git -C "$ROOT" status --porcelain --untracked-files=no)" ]; then
+    die "uncommitted changes: commit them, or LATENTJAM_IOS_DIRTY=1 for a test build"
+  fi
   (cd "$ROOT/iosApp" && LANG=en_US.UTF-8 run pod install --deployment)
   run xcodebuild -workspace "$ROOT/iosApp/iosApp.xcworkspace" -scheme iosApp -configuration Release \
     -destination 'generic/platform=iOS' -derivedDataPath "$work/dd" CODE_SIGNING_ALLOWED=NO build
