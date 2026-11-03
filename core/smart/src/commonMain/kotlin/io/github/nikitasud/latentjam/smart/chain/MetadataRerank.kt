@@ -213,7 +213,7 @@ internal data class TrackMeta(
     val language: String = MetadataRerank.detectLanguage(title, artist)
 
     /** The languages this track compares by: the pack's sung ones ("instrumental" left out), else its script language. */
-    val languages: Set<String> = artistLanguages?.minus(INSTRUMENTAL)?.takeIf { it.isNotEmpty() } ?: setOf(language)
+    val languages: Set<String> = sharedLanguages(artistLanguages, language)
 
     /** A shared language counts: a Russian and English duo meets either side. */
     fun sharesLanguageWith(other: TrackMeta): Boolean = languages.any { it in other.languages }
@@ -221,6 +221,13 @@ internal data class TrackMeta(
     val isHub: Boolean = MetadataRerank.isHubGenre(genre)
     /** Immutable metadata is normalized once instead of reparsed for every candidate at every hop. */
     val genreFamilies: Set<String> = sharedFamilies(genre)
+
+    /**
+     * The coarse naming families ([Genres.nameFamilies]) the personal cluster guard was tuned on (PLAN_PERSONAL v6,
+     * before genres became sets); the guard keeps them so its thresholds keep their meaning.
+     */
+    val guardFamilies: Set<String> = sharedNameFamilies(genre)
+
 
     /**
      * Artist under the chain's spacing and cap rules. An empty key supplies no artist identity
@@ -259,6 +266,30 @@ internal data class TrackMeta(
             val value = Genres.families(genre)
             val current = families
             if (current.size < SHARED_LIMIT) families = HashMap(current).apply { put(genre, value) }
+            return value
+        }
+
+        /** As [sharedFamilies], for [guardFamilies]. */
+        @kotlin.concurrent.Volatile private var nameFamilies: Map<String?, Set<String>> = emptyMap()
+
+        fun sharedNameFamilies(genre: String?): Set<String> {
+            nameFamilies[genre]?.let { return it }
+            val value = Genres.nameFamilies(genre)
+            val current = nameFamilies
+            if (current.size < SHARED_LIMIT) nameFamilies = HashMap(current).apply { put(genre, value) }
+            return value
+        }
+
+        /** One [languages] set per distinct combination (they are few), shared like [sharedFamilies]. */
+        @kotlin.concurrent.Volatile private var languageSets: Map<String, Set<String>> = emptyMap()
+
+        fun sharedLanguages(artistLanguages: Set<String>?, script: String): Set<String> {
+            val sung = artistLanguages?.filter { it != INSTRUMENTAL }?.sorted().orEmpty()
+            val key = if (sung.isEmpty()) "#$script" else sung.joinToString("|")
+            languageSets[key]?.let { return it }
+            val value: Set<String> = if (sung.isEmpty()) setOf(script) else sung.toSet()
+            val current = languageSets
+            if (current.size < SHARED_LIMIT) languageSets = HashMap(current).apply { put(key, value) }
             return value
         }
     }

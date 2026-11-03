@@ -88,7 +88,10 @@ public interface SimilarityEngine {
     /**
      * Container roots (ContainerPaths.root) that identities written by builds before 0.9.4 may name, from what the app
      * kept of them (its loudness cache); the next [synchronizeLibrary] keeps those rows instead of analysing them
-     * again. A no-op where no file lives in an app container.
+     * again. A row whose file is still at its old absolute URL verifies without a root. When the container moved and
+     * no root was kept (on iOS the loudness cache stays empty with volume normalisation and crossfade off, the
+     * defaults), nothing names the old root and those rows are analysed once more. A no-op where no file lives in an
+     * app container.
      */
     public suspend fun rememberLegacyContainerRoots(roots: Collection<String>) {}
 

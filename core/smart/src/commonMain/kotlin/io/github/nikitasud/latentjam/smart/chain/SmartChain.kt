@@ -1319,7 +1319,7 @@ internal class SmartChain(
             }
             guardZ!![row]
         }
-        return PersonalTerm.clusterGuard(snapshot.tracks[anchor].meta.genreFamilies, snapshot.tracks[row].meta.genreFamilies, z)
+        return PersonalTerm.clusterGuard(snapshot.tracks[anchor].meta.guardFamilies, snapshot.tracks[row].meta.guardFamilies, z)
     }
 
     /** Research: the share of [rows] that pass the cluster guard after [anchor] (the v6 FMA gate). */

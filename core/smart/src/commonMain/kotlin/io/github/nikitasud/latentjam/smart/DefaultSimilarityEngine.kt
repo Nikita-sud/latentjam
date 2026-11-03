@@ -2168,8 +2168,13 @@ internal class DefaultSimilarityEngine(
         val out = LinkedHashSet<String>()
         if (config.artistSets) for (key in mainArtistKeysOf(track)) knowledge.entityFacts(key)?.language?.let(out::add)
         if (out.isEmpty()) knowledge.facts(track.artist, track.artists.firstOrNull())?.language?.let(out::add)
-        return out
+        if (out.isEmpty()) return emptySet()
+        // Few distinct combinations: one shared set each instead of a set per track (snapshot builds hold the lock).
+        return languageSets.getOrPut(out) { out }
     }
+
+    /** [packLanguagesOf]'s shared sets; written only by snapshot builds, under [mutex]. */
+    private val languageSets = HashMap<Set<String>, Set<String>>()
 
     /** Album (normalised) → its most credited artist key (ties: first seen), rebuilt with each snapshot. */
     private var albumArtistGuess: Map<String, String> = emptyMap()
