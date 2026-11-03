@@ -341,3 +341,26 @@ and four languages. Each run tops up 12 at a time from the queue's last track, a
 
 All pass: 29 s on the JVM host, and on the iOS simulator the 3,000-track runs take 2 to 9 minutes in a Kotlin/Native
 debug build (timeouts 20 minutes).
+
+**Emulator session played to the end** (dc56fb3e debug, arm64, LJ-api37-lock, muted, `-no-audio`). The library was
+42 tracks: 40 synthetic 25 s files and two 3-minute silences, all analysed. Started with "SMART from here" and played
+41 advances (39 natural track ends, 2 Next): every step PLAYING, 42 distinct tracks, no repeats. SMART planned
+12, 12, 12, then the last 5 unqueued tracks; the queue grew from 21 to the whole library. After the 42nd track the
+player stopped on the last row, which is the 0.9.3 behaviour once no eligible track is left unqueued. Log:
+`~/Documents/LJ/integ094-stand/dc56-smart-never-stops.txt`.
+
+**Widget after a force-stop** (same build): Pulse Strip, queue of 5 paused on track 0, `am force-stop`. On API 37
+the launcher first shows a stopped app's widget as a placeholder; after it redrew, Next gave queue 5, item 1. A cold
+launcher start restored queue 5, and a tap on a queue row played it.
+
+## Final checks
+
+- JVM host tests (all modules), iOS simulator tests for `core:smart` and `core:playback`, and
+  `checkNativeIdentifiers` on 7149894d: pass.
+- Android debug and release builds, the iOS simulator build, the F-Droid recipe (arm64 and armeabi-v7a), the R8
+  register gate (max 243) on d7be2f9a: pass. The commits after it touch only playback services, the widget, tests
+  and docs, not the `App()` lambda; the debug build of dc56fb3e builds.
+- Release launch on emulators (d7be2f9a, versionCode 442): API 30 and API 37 start, no VerifyError or FATAL.
+- 10k songs on LJ-api30 (d7be2f9a): no out-of-memory at 48m or 96m. Idle 17.2 MB (1564d809: 20.0), press 28.9 MB.
+  The first plan after analysis is 6.1 s at 48m and 4.6 s at 96m, because the hub is computed inline (1564d809:
+  3.7 s and 3.5 s). Top-ups take 0.3–0.5 s. Details: `~/Documents/LJ/integ094-stand/emulator-checks-final.md`.
