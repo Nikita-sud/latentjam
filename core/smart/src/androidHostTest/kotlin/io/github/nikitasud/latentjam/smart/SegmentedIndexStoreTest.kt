@@ -369,6 +369,35 @@ internal class SegmentedIndexStoreTest {
         }) { it.clear() }
     }
 
+    @Test
+    fun failedSavesLeaveNoUnnamedSegmentFiles() = runTest {
+        var allowed = Int.MAX_VALUE
+        fun store() = SegmentedIndexStore(
+            fileName = "smart_index.v.bin",
+            segment = { name ->
+                val real = FileIndexStore(directory, name, half = true)
+                object : IndexStore by real {
+                    override suspend fun saveSnapshot(modelVersion: String, snapshot: StoredIndexSnapshot) {
+                        if (".s" in name.removePrefix("smart_index.v") && allowed-- <= 0) throw java.io.IOException("No space left on device")
+                        real.saveSnapshot(modelVersion, snapshot)
+                    }
+                }
+            },
+            names = { directory.list()?.toList().orEmpty() },
+            segmentRows = 5,
+        )
+        val rows = LinkedHashMap<TrackId, FloatArray>()
+        for (i in 0 until 20) rows[TrackId("t$i")] = floatArrayOf(1f, i.toFloat(), 0f, 0f)
+        val snapshot = StoredIndexSnapshot(rows, rows.keys.associateWith { "id-${it.value}" })
+        fun segmentFiles() = directory.list().orEmpty().filter { it.startsWith("smart_index.v.s") && it.endsWith(".bin") }
+        repeat(3) { attempt ->
+            allowed = 2 // the disk takes two more segments, then is full
+            kotlin.test.assertFailsWith<java.io.IOException> { store().saveSnapshot(VERSION, snapshot) }
+            kotlin.test.assertNull(store().loadRows(VERSION) { _, _, _ -> })
+            assertEquals(0, segmentFiles().size, "attempt $attempt left unnamed segments")
+        }
+    }
+
     private companion object {
         const val VERSION = "v"
         const val SEQUENCES = 200

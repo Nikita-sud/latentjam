@@ -242,18 +242,30 @@ public class SegmentedIndexStore(
         require(entries.values.all { it.size == dim }) { "Index vectors must share one dimension" }
         val previous = state
         val first = maxOf(numbersOnDisk().lastOrNull() ?: -1, previous?.numbers()?.maxOrNull() ?: -1)
-        val written = previous?.let { writeKeeping(modelVersion, snapshot, dim, it, first) }
-            ?: writeAfresh(modelVersion, snapshot, dim, first)
-        var next = written.next
-        val failuresDigest = DigestBuilder(modelVersion).apply { addFailures(snapshot.failedIdentities) }.build()
-        val failures = when {
-            snapshot.failedIdentities.isEmpty() -> null
-            previous?.failures?.digest == failuresDigest -> previous.failures
-            else -> Segment(++next, 0, failuresDigest).also {
-                store(it.number).saveSnapshot(modelVersion, StoredIndexSnapshot(emptyMap(), emptyMap(), snapshot.failedIdentities))
-            }
-        }
+        lateinit var written: Written
+        var failures: Segment? = null
         val migratedFrom = pendingMigration ?: previous?.migratedFrom?.takeIf { it != CLEARED } ?: NONE
+        try {
+            written = previous?.let { writeKeeping(modelVersion, snapshot, dim, it, first) }
+                ?: writeAfresh(modelVersion, snapshot, dim, first)
+            var next = written.next
+            val failuresDigest = DigestBuilder(modelVersion).apply { addFailures(snapshot.failedIdentities) }.build()
+            failures = when {
+                snapshot.failedIdentities.isEmpty() -> null
+                previous?.failures?.digest == failuresDigest -> previous.failures
+                else -> Segment(++next, 0, failuresDigest).also {
+                    store(it.number).saveSnapshot(modelVersion, StoredIndexSnapshot(emptyMap(), emptyMap(), snapshot.failedIdentities))
+                }
+            }
+        } catch (failure: Throwable) {
+            // No manifest names them: the segments this attempt wrote (numbers above [first]) are garbage, and a disk
+            // that ran full would otherwise gain more at every retry. (The manifest is written after this block: a
+            // failure there may follow its rename, so its segments are never removed here.)
+            val committed = previous?.numbers()?.toHashSet().orEmpty()
+            val created = runCatching { numbersOnDisk(leftovers = true) }.getOrDefault(emptyList())
+            for (number in created) if (number > first && number !in committed) runCatching { store(number).clear() }
+            throw failure
+        }
         writeManifest(modelVersion, written.segments, failures, migratedFrom)
         state = State(written.segments, failures, migratedFrom, written.hashes, written.positions)
         pendingMigration = null
