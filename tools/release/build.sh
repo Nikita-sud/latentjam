@@ -93,7 +93,8 @@ reduced_ort_repo() {
       https://github.com/microsoft/onnxruntime.git "$source" >&2 || { rm -rf "$source"; exit 1; }
   fi
   # Work dir and download mirror on disk, per output (two worktrees never share one); the mirror is kept.
-  local work=${LATENTJAM_ORT_WORK:-$(dirname "$repo")/work}
+  # With the cache off the output sits in this tree, and the work dir must not (ort_source_build.sh refuses it).
+  local work=${LATENTJAM_ORT_WORK:-$( [ "${LATENTJAM_ORT_CACHE:-1}" = 0 ] && echo "${TMPDIR:-/tmp}/latentjam-ort-work" || echo "$(dirname "$repo")/work")}
   LATENTJAM_ORT_WORK=$work LATENTJAM_ORT_MIRROR=${LATENTJAM_ORT_MIRROR:-$HOME/.cache/latentjam/ort-mirror-$version} \
     JOBS=${JOBS:-$(ort_jobs)} run bash "$ROOT/tools/runtime/ort_source_build.sh" "$source" "$ndk" "$sdk" "$repo" >&2 \
     || exit 1
@@ -190,7 +191,9 @@ cmd_sign() {
   [ -f "$key" ] || die "no keystore at $key"
   # The two APKs GitHub releases carry, named as every release so far (LatentJam-v<version>-arm64.apk).
   # --resign also takes a phone test build as Gradle names it (androidApp-arm64-v8a-release.apk).
-  for apk in "$dir"/*-arm64-unsigned.apk "$dir"/*-armv7-unsigned.apk $( [ $resign = 1 ] && ls "$dir"/*-release.apk 2>/dev/null ); do
+  local candidates=("$dir"/*-arm64-unsigned.apk "$dir"/*-armv7-unsigned.apk)
+  [ $resign = 1 ] && candidates+=("$dir"/*-release.apk)
+  for apk in "${candidates[@]}"; do
     [ -f "$apk" ] || continue
     count=$((count + 1))
     if [ $resign = 0 ] && "$(apksigner_bin)" verify "$apk" > /dev/null 2>&1; then

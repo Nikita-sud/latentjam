@@ -23,6 +23,8 @@ tools/research/results/
 keystore.properties
 *.jks
 *.keystore
+*.p12
+*.pfx
 
 # research output is never committed: it carries the maintainer's own library
 output/
