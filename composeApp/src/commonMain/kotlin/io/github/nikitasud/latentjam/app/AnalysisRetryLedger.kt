@@ -79,7 +79,8 @@ internal class AnalysisRetryLedger(encoded: String?, private val nowMs: () -> Lo
         const val SECOND_RETRY_AFTER_MS = 60 * 60_000L
 
         private fun identityOf(track: TrackDescriptor): String =
-            "${io.github.nikitasud.latentjam.smart.ContainerPaths.relative(track.audioUri)}|${track.durationMs}"
+            // The file's revision too, as the engine's own identity: an edited file starts again.
+            "${io.github.nikitasud.latentjam.smart.ContainerPaths.relative(track.audioUri)}|${track.durationMs}|${track.sourceRevision}"
     }
 }
 
