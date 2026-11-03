@@ -31,6 +31,7 @@ import io.github.nikitasud.latentjam.smart.chain.MetadataRerank
 import io.github.nikitasud.latentjam.smart.text.ArtistKnowledge
 import io.github.nikitasud.latentjam.smart.text.EntityAliases
 import io.github.nikitasud.latentjam.smart.text.ArtistSets
+import io.github.nikitasud.latentjam.smart.text.CreditSegments
 import io.github.nikitasud.latentjam.smart.text.KnownArtists
 import io.github.nikitasud.latentjam.smart.text.TextEncoder
 import kotlinx.coroutines.CancellationException
@@ -2213,6 +2214,32 @@ internal class DefaultSimilarityEngine(
 
     override fun artistKeysOf(track: TrackDescriptor): List<String> =
         if (config.artistSets) artistSetOf(track).filter(String::isNotEmpty) else super.artistKeysOf(track)
+
+    /**
+     * X v5 (smart-research review_ext/FIXES_NIGHT4.md): an excluded name's artist keys against the track's (one artist:
+     * any credit of it; several: all of them), then whole segments of the credit and title ([CreditSegments]), then the
+     * display match. The names are parsed once here; each track's credit once per test.
+     */
+    override fun artistExclusion(names: Collection<String>): (TrackDescriptor) -> Boolean {
+        val display = super.artistExclusion(names)
+        if (!config.artistSets) return display
+        val wanted = names.mapNotNull { it.trim().takeIf(String::isNotEmpty) }
+        if (wanted.isEmpty()) return display
+        val nameKeys = wanted.map { ArtistSets.parse(it, null, unionKnown).artists.toSet() }
+        val knownWhole: (String) -> Boolean = { knownArtists.canonicalOf(it) != null }
+        return { track ->
+            display(track) || run {
+                val keys = artistKeyLongsOf(track, unionKnown)
+                val credit = track.artist.orEmpty()
+                val title = track.title.orEmpty()
+                wanted.indices.any { i ->
+                    val k = nameKeys[i]
+                    (k.isNotEmpty() && (if (k.size == 1) keys.any { it in k } else keys.containsAll(k))) ||
+                        CreditSegments.matches(wanted[i], credit, title, knownWhole)
+                }
+            }
+        }
+    }
 
     /** The artist list ArtistSets resolves credits against: the pack's named entities, read once. */
     private val knownArtists: KnownArtists by lazy { artistKnowledge?.knownArtists() ?: KnownArtists.NONE }

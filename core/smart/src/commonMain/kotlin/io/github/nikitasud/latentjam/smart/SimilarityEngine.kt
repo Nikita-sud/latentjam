@@ -408,6 +408,20 @@ public interface SimilarityEngine {
     public fun artistKeysOf(track: TrackDescriptor): List<String> = listOf(artistKeyOf(track)).filter(String::isNotEmpty)
 
     /**
+     * The test "Don't recommend artist" [names] (credits as the library shows them) put on a track: whether any of them
+     * hides it. By default the display credit must equal one; an engine that resolves artist lists also matches by
+     * artist keys and whole credit segments. Build it once per set of names and test every track with it.
+     */
+    public fun artistExclusion(names: Collection<String>): (TrackDescriptor) -> Boolean {
+        val wanted = names.mapNotNull { it.trim().takeIf(String::isNotEmpty) }
+        if (wanted.isEmpty()) return { false }
+        return { track ->
+            val credit = track.artist?.trim()?.takeIf(String::isNotEmpty)
+            credit != null && wanted.any { it.equals(credit, ignoreCase = true) }
+        }
+    }
+
+    /**
      * Extends a SMART queue from its last planned track [seed]. When a matching walk is still
      * available, it carries the preceding plan's intent and recent picks into this plan; otherwise
      * it starts from [seed]. [precedingTrackIds] are the queue's recent tracks immediately before

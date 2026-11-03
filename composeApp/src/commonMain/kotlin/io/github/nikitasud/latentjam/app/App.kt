@@ -167,7 +167,8 @@ import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artis
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_genre
 import io.github.nikitasud.latentjam.history.localTimePoint
 import io.github.nikitasud.latentjam.history.epochMillis
-import io.github.nikitasud.latentjam.history.excludes
+import io.github.nikitasud.latentjam.history.SmartExclusionState
+import io.github.nikitasud.latentjam.history.matcher
 import io.github.nikitasud.latentjam.history.excludesArtist
 import io.github.nikitasud.latentjam.library.AlbumSort
 import io.github.nikitasud.latentjam.library.ArtistGroup
@@ -971,7 +972,7 @@ private fun AppShell(
         }
 
         val smartEligibleTracks = remember(tracks, smartExclusionState) {
-            tracks.orEmpty().filterNot { smartExclusionState.excludes(it) }
+            smartExclusionState.hidesFromSmart().let { hidden -> tracks.orEmpty().filterNot(hidden) }
         }
 
         LaunchedEffect(tabNavigation.rootTabNavigationRevision, showSearch, showSettings, showNowPlaying) {
@@ -1104,7 +1105,7 @@ private fun AppShell(
             val (stats, recentEvents, firstListenAtMs) = historySnapshot
             val excluded = buildSet {
                 loaded.asSequence()
-                    .filter { smartExclusionState.excludes(it) }
+                    .filter(smartExclusionState.hidesFromSmart())
                     .mapTo(this) { it.id }
                 currentTrack?.id?.let(::add)
                 // What is already queued to play next is not offered again —
@@ -2049,7 +2050,7 @@ private fun AppShell(
             // another candidate using the old eligible library.
             try {
                 val state = smartExclusions.state.value
-                val eligible = tracks.orEmpty().filterNot { state.excludes(it) }
+                val eligible = tracks.orEmpty().filterNot(state.hidesFromSmart())
                 playback.setSmartLibrary(eligible)
                 AppGraph.smartLibraryTracks.value = eligible
             } catch (cancelled: CancellationException) {
@@ -4711,3 +4712,6 @@ private enum class LibraryPresentation { LOADING, CONTENT }
 
 /** Queue rows, from the playing one on, whose descriptors the tag pass refreshes in the player. */
 private const val SOON_QUEUED_ROWS = 16
+
+/** What SMART must not suggest: excluded tracks, and excluded artists by artist keys and credit segments (X v5). */
+internal fun SmartExclusionState.hidesFromSmart(): (TrackDescriptor) -> Boolean = matcher(AppGraph.engine::artistExclusion)

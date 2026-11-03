@@ -19,9 +19,21 @@ public data class SmartExclusionState(
     public val artists: Set<String> = emptySet(),
 )
 
-/** True when [track] must stay out of every SMART-generated recommendation surface. */
+/** True when [track] must stay out of every SMART-generated recommendation surface (artists by display credit only). */
 public fun SmartExclusionState.excludes(track: TrackDescriptor): Boolean =
     track.id in trackIds || excludesArtist(track.artist)
+
+/**
+ * The test for every SMART surface: excluded tracks, and excluded artists as [artistExclusion] matches them
+ * (SimilarityEngine.artistExclusion: artist keys and whole credit segments). Build once per state, test each track.
+ */
+public fun SmartExclusionState.matcher(
+    artistExclusion: (Collection<String>) -> (TrackDescriptor) -> Boolean,
+): (TrackDescriptor) -> Boolean {
+    if (artists.isEmpty()) return { it.id in trackIds }
+    val byArtist = artistExclusion(artists)
+    return { it.id in trackIds || byArtist(it) }
+}
 
 /** Artist exclusions match metadata robustly without changing the artist shown to the listener. */
 public fun SmartExclusionState.excludesArtist(artist: String?): Boolean {

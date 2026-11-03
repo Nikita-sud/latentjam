@@ -26,6 +26,23 @@ class SmartExclusionsTest {
     }
 
     @Test
+    fun matcherAsksTheArtistTestOnceAndKeepsTrackExclusions() {
+        val asked = mutableListOf<Collection<String>>()
+        val state = SmartExclusionState(trackIds = setOf(TrackId("t1")), artists = setOf("Queen"))
+        val hides = state.matcher { names -> asked += names; { track -> track.artist == "Queen & David Bowie" } }
+        assertEquals(true, hides(TrackDescriptor(TrackId("t1"), artist = "Anyone")))
+        assertEquals(true, hides(TrackDescriptor(TrackId("t2"), artist = "Queen & David Bowie")))
+        assertEquals(false, hides(TrackDescriptor(TrackId("t3"), artist = "ABBA")))
+        assertEquals(listOf<Collection<String>>(setOf("Queen")), asked)
+    }
+
+    @Test
+    fun noExcludedArtistsNeverAsksTheArtistTest() {
+        val hides = SmartExclusionState(trackIds = setOf(TrackId("t1"))).matcher { error("not asked") }
+        assertEquals(false, hides(TrackDescriptor(TrackId("t2"), artist = "Queen")))
+    }
+
+    @Test
     fun failedWriteDoesNotPublishOptimisticState() = runTest {
         val store = FakeStore(failWrites = true)
         val exclusions = SmartExclusions(store)
