@@ -971,9 +971,13 @@ internal class AndroidPlaybackController(
             if (playRequestGeneration.get() != requestGeneration) return@withContext
             // The platform started a queue while this restore prepared (the Android 14 tile opens the app and presses
             // play, and Media3's own resumption fills the player): that playing queue wins over a paused restore.
-            // The controller's view can lag the session by a few main-loop turns; Media3 announcing a resumption it is
-            // installing is the service's own word for it.
-            if ((player.mediaItemCount > 0 && player.playWhenReady) || MediaBrowseRegistry.currentActiveResumption() != null) {
+            // The controller's view can lag the session by a few main-loop turns. A resumption Media3 is installing was
+            // announced by the service and adopted as anticipatedResumption (by this very controller() call on a cold
+            // connect, or by the platform sync), or is still announced: either way it wins.
+            if ((player.mediaItemCount > 0 && player.playWhenReady) ||
+                anticipatedResumption != null ||
+                MediaBrowseRegistry.currentActiveResumption() != null
+            ) {
                 return@withContext
             }
             val live = prepared.first
