@@ -404,6 +404,12 @@ public interface SimilarityEngine {
      */
     public fun artistKeyOf(track: TrackDescriptor): String = HabitSlots.artistKey(track)
 
+    /**
+     * Prepares the library-wide SMART work a first press would otherwise go without (the hub penalty when it is computed
+     * in the background), off the press path. Holds nothing it did not hold before; a no-op where there is nothing to do.
+     */
+    public suspend fun warmSmart() {}
+
     /** Forgets the continuation walks remembered from earlier plans, so the next press starts afresh (offline comparisons). */
     public suspend fun forgetWalks() {}
 

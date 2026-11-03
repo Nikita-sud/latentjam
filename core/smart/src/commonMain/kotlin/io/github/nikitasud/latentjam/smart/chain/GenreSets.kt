@@ -44,7 +44,9 @@ internal object GenreSets {
         put(f("pop", "rock"), "britpop", "powerpop")
         put(f("electronic"), "electronic", "electronica", "electro", "idm", "glitch", "chiptune", "synthwave", "darkwave",
             "vaporwave", "dubstep", "breakbeat", "breakcore")
-        put(f("dance", "electronic"), "dance", "disco", "house", "techno", "trance", "edm", "eurodance", "electrohouse", "hardstyle", "club", "psytrance")
+        put(f("dance", "electronic"), "dance", "disco", "house", "techno", "trance", "edm", "eurodance", "electrohouse", "hardstyle", "club", "psytrance",
+            // "-core" dance styles the punk head would claim.
+            "nightcore", "frenchcore", "uptempo")
         put(f("dnb", "electronic"), "dnb", "jungle", "drumnbass")
         put(f("ambient", "electronic"), "downtempo", "chillout", "chill")
         put(f("ambient"), "ambient", "drone", "meditation")

@@ -884,9 +884,10 @@ object AppGraph {
         }
     }
 
-    /** SmartRanker.warm off the main thread; a failure only means the first press computes it. */
+    /** SmartRanker.warm and the engine's hub off the main thread; a failure only means the first press goes without. */
     private suspend fun warmSmartRanker(tracks: List<TrackDescriptor>) {
         try {
+            withContext(Dispatchers.Default) { engine.warmSmart() }
             if (!SMART_RANKER_SHIPPED) return
             val ranker = koin.getOrNull<SmartRankerAssets>()?.ranker ?: return
             val started = kotlin.time.TimeSource.Monotonic.markNow()

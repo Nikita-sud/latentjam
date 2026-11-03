@@ -1939,10 +1939,11 @@ internal class DefaultSimilarityEngine(
         // raw rows (see ScaledRows), which is safe because every change to either index drops the
         // cached snapshot, so it never reads a vector the index has since replaced.
         // Rows read in place (storedRow): on Android they stay in the index's mapped file, off the Java heap.
-        albumArtistGuess = albumArtists(knownTracks.values())
+        albumArtistGuess = null
         val rows = knownTracks.values().mapNotNull { track ->
             track.toSmartTrack(audio = index.storedRow(track.id) ?: return@mapNotNull null, text = textIndex?.storedRow(track.id))
         }.toMutableList()
+        albumArtistGuess = null
         val knownIds = rows.mapTo(HashSet()) { it.id }
         for (id in history.asSequence().map { it.trackId }.distinct()) {
             if (id in knownIds) continue
@@ -2097,6 +2098,23 @@ internal class DefaultSimilarityEngine(
         }
     }
 
+    /**
+     * [SmartEngineConfig.backgroundHub]: with no hub yet, builds a snapshot only to start the background pass for its rows,
+     * so the first press of a process plans with the exact hub, as 0.9.3 and the evaluated queues do. A snapshot cached
+     * by nobody else is dropped again: the warm-up keeps no memory a press would not keep.
+     */
+    override suspend fun warmSmart() {
+        if (!config.backgroundHub) return
+        withContext(dispatcher) {
+            mutex.withLock {
+                if (hubCache != null || hubJob?.isActive == true) return@withLock
+                val cached = snapshotCache != null
+                snapshotFor(emptyList())
+                if (!cached) snapshotCache = null
+            }
+        }
+    }
+
     /** Waits for the background hub pass in flight, if any (tests). */
     internal suspend fun awaitBackgroundHub() {
         hubJob?.join()
@@ -2143,7 +2161,11 @@ internal class DefaultSimilarityEngine(
         }
     }
 
-    private fun TrackDescriptor.toSmartTrack(audio: StoredVectorRow, text: StoredVectorRow?): SmartTrack = SmartTrack(
+    private fun TrackDescriptor.toSmartTrack(
+        audio: StoredVectorRow,
+        text: StoredVectorRow?,
+        keys: List<String>? = if (config.artistSets) artistSetOf(this) else null,
+    ): SmartTrack = SmartTrack(
         id = id,
         audioRow = audio,
         textRow = text,
@@ -2152,9 +2174,9 @@ internal class DefaultSimilarityEngine(
             title, artist, album, genre, year, durationMs,
             primaryArtist = artists.firstOrNull(),
             originalYear = originalYear,
-            artistSet = if (config.artistSets) artistSetOf(this) else null,
+            artistSet = keys,
             artistLanguages = packLanguagesOf(this),
-            dedupKey = placeholderDedupKey(this),
+            dedupKey = placeholderDedupKey(this, keys),
         ),
     )
 
@@ -2176,8 +2198,11 @@ internal class DefaultSimilarityEngine(
     /** [packLanguagesOf]'s shared sets; written only by snapshot builds, under [mutex]. */
     private val languageSets = HashMap<Set<String>, Set<String>>()
 
-    /** Album (normalised) → its most credited artist key (ties: first seen), rebuilt with each snapshot. */
-    private var albumArtistGuess: Map<String, String> = emptyMap()
+    /**
+     * Album (normalised) → its most credited artist key (ties: first seen): built by the first row of a snapshot build
+     * that needs it (a row with no artist, which most libraries lack), dropped by the next build. Under [mutex].
+     */
+    private var albumArtistGuess: Map<String, String>? = null
 
     private fun albumArtists(tracks: Iterable<TrackDescriptor>): Map<String, String> {
         val counts = LinkedHashMap<String, LinkedHashMap<String, Int>>()
@@ -2198,12 +2223,13 @@ internal class DefaultSimilarityEngine(
      * artist key when the album has credited rows (so an uncredited copy meets its credited one), else
      * ~(album artist / album / file name).
      */
-    private fun placeholderDedupKey(track: TrackDescriptor): Pair<String, String>? {
-        val keys = if (config.artistSets) artistSetOf(track) else listOf(HabitSlots.artistKey(track)).filter(String::isNotEmpty)
+    private fun placeholderDedupKey(track: TrackDescriptor, artistSet: List<String>?): Pair<String, String>? {
+        val keys = artistSet ?: listOf(HabitSlots.artistKey(track)).filter(String::isNotEmpty)
         if (keys.isNotEmpty()) return null
         val title = MetadataRerank.normalizeTitle(track.title).ifEmpty { MetadataRerank.normalizeTitle(track.fileName?.substringBeforeLast('.')) }
         if (title.isEmpty()) return null
-        albumKey(track.album)?.let { albumArtistGuess[it] }?.let { return it to title }
+        val guess = albumArtistGuess ?: albumArtists(knownTracks.values()).also { albumArtistGuess = it }
+        albumKey(track.album)?.let { guess[it] }?.let { return it to title }
         val identity = listOf(track.albumArtist, track.album, track.fileName?.substringBeforeLast('.'))
             .firstOrNull { !it.isNullOrBlank() && !ArtistSets.isPlaceholder(it) }?.let(ArtistSets::normalize)?.takeIf(String::isNotEmpty)
             ?: return null
