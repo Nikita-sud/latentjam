@@ -22,7 +22,7 @@ package io.github.nikitasud.latentjam.smart
  *   it names untouched, so a load restores exactly the old snapshot or exactly the new one.
  * - `X.bin`: the single file of earlier builds, read while there is no manifest. The first committed save records its
  *   digest and deletes it; one found later with another digest was written by an earlier build after a downgrade, and
- *   wins.
+ *   wins. (Android only: on iOS an earlier build keeps its file in Caches, which the moved stores never read again.)
  * A load checks each segment against the manifest's digest, so a damaged segment (cut short or overwritten) is skipped
  * and only its rows are analysed again.
  *

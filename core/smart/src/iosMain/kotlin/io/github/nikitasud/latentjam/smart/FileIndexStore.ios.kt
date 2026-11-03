@@ -86,8 +86,15 @@ internal class IosFileIndexStore(
 
     override suspend fun clear(): Unit = remove(withCachesTwin = true)
 
-    /** A migration only: the Caches copy stays for a downgrade to 0.9.3 (resolveIndexDirectory), until 0.9.5. */
-    override suspend fun retire(): Unit = remove(withCachesTwin = false)
+    /**
+     * A migration only: the Caches copy stays for a downgrade to 0.9.3 (resolveIndexDirectory), until 0.9.5. Where the
+     * move has not happened yet the stores still live in Caches and this file is that copy: it stays too.
+     */
+    override suspend fun retire() {
+        val path = indexPath(fileName) ?: return
+        if (path == cachesTwin(fileName)) return
+        remove(withCachesTwin = false)
+    }
 
     private suspend fun remove(withCachesTwin: Boolean): Unit = withContext(Dispatchers.Default) {
         val path = checkNotNull(indexPath(fileName)) { "Index directory is unavailable" }
