@@ -203,3 +203,24 @@ Stand after round 6 (32 seeds, 40 picks, `LJ_STAND_KEEP_SHORT=1`): 17/32 seeds i
 top-15 overlap with B 14.19/15 (B against 0.9.3: 11.12/15). The moves come from R2-S1 (rule K), R1-S2 and R6-S1
 (genre phrases), R6-S2 (whole class words) and R6-S3 (seed-aware length). Round 6 had confirmed medium findings, so
 round 7 runs.
+
+### Round 7 (HEAD 80800974)
+
+| # | area | sev | finding | verdict |
+|---|---|---|---|---|
+| R7-S1 | SMART | med | "birthday" as a kids text word now cost 3 spreads (The Birthday Massacre, The Birthday Party, "Birthday") | **fixed** (f47949d1): "happy birthday" only, test |
+| R7-S2 | SMART | low | modifier words: "Symphonic Metal" ⊇ classical, "Dub Techno" ⊇ reggae | **fixed** (f47949d1): phrases, test |
+| R7-S3 | SMART | low | config doc still described the warm-up | **fixed** (f47949d1) |
+| R7-S4 | SMART | low | length hygiene in classical/prog libraries after an ordinary seed (a 13-min movement after a 7-min one) | **by design** (CH as evaluated; owner may lower the unit or exempt shared album/work) |
+| R7-A1 | analysis | med | a failed segmented save (full disk) left its segments; retries piled more up | **fixed** (1e7c32de): attempt's segments removed before the manifest is written, test |
+| R7-A2 | analysis | med | API 30–34: the 0.85 default under a HAL's resting headroom held analysis in an endless heat wait (regression: 0.9.3 had no gate) | **fixed** (6cdec3c3): without the device threshold headroom counts only with status ≥ LIGHT, status NONE ends the wait, tests |
+| R7-P1 | playback | med | API 34 tile fallback: the app's launch restore could replace and pause the queue Media3's resumption had just started | **fixed** (b598e35b): a restore yields to a playing platform queue |
+| R7-U1 | UI | low | an M3U opened before the media permission was used up against an empty scan | **fixed** (b5dbda19) |
+| R7-U2 | UI | low | "Paused by you · 0 of N" (fourth report) | **fixed** (b5dbda19): the count is shown once known, no new string |
+| R7-R1 | release | low | build.sh removed a pre-existing ORT directory when its clone failed | **fixed** (26b09216) |
+| R7-R2 | release | low | `ndk:` not checked (= R5-R3) | **deferred** |
+| R7-R3 | release | low | app CI skips the 9 fdroidserver tests (= R2-R3) | **deferred** |
+| R7-I | iOS | — | no findings | — |
+
+Stand after round 7: 15/32 seeds identical to B (the R7-S1 class word moved 4 more seeds). Round 7 had confirmed
+medium findings, so round 8 runs.
