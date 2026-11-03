@@ -417,3 +417,7 @@ on the iOS simulator.
 | CSV2-5 | low | two plays of one sub-minute track in the same minute are one | **deferred**: the data cannot tell them apart |
 
 Round 2 (a fresh reviewer, the three commits) found no finding of medium or higher: **stop criterion met.**
+
+Final checks on 3dc8ea39: 6,276 tests pass with no failures (JVM host for every module, plus `composeApp` and the
+earlier `core` runs on the iOS simulator); `checkNativeIdentifiers` passes. `tools/release/build.sh android` builds the
+unsigned per-ABI APKs and the bundle, and `checkReleaseDexRegisters` passes.
