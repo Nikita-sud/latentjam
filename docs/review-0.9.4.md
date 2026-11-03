@@ -160,3 +160,24 @@ Round 3 had confirmed findings of medium or higher (all in the round-2 warm-up a
 | R4-U1 | UI | low | "Paused by you · 0 of N" for seconds after a cold start while paused | **deferred** |
 
 Round 4 had confirmed medium findings (R4-A1, R4-S1), so round 5 runs.
+
+### Round 5 (HEAD 1de71e53)
+
+| # | area | sev | finding | verdict |
+|---|---|---|---|---|
+| R5-R1 | release | med | app.yml now ran on release branches but nothing required it: a red unit-test run could still be tagged and signed | **fixed**: `dry_run_problems` requires a green app.yml run for the release commit |
+| R5-S1 | SMART | med | "(prod. by X)" never matched an excluded producer (the prod. alternative captured "by X") | **fixed**, test |
+| R5-S2 | SMART | med | track menu toggle still display-only (S7, R2-S5, R3-U2): a hidden track offered exclusion again, and could never be included | **fixed**: `artistsHiding()` off Main; include removes every hiding name |
+| R5-S3 | SMART | low | a credited "- Air" / "- Adagio" hid movements when the pack knows a band of that name | **fixed**: movement vocabulary, test |
+| R5-A1 | analysis | low | a run opened during the old run's teardown after the 6 h cap stays in Lost (= A2) | **deferred** |
+| R5-A2 | analysis | low | KDoc still described the unreachable background pass | **fixed** (doc); the dead `startHub`/`runHub` code stays for a later return |
+| R5-P1 | playback | low | tile shows active and ignores taps 20 s when a press cannot start playback (a call, an unreadable queue) | **deferred** |
+| R5-R2 | release | low | preflight does not verify that the `release` environment requires the owner's approval | **deferred** (owner: check the GitHub environment settings once) |
+| R5-R3 | release | low | NDK pin check does not compare the blocks' `ndk: r28c` | **deferred** |
+| R5-R4 | release | low | SBOM omits Microsoft's ORT for armv7/x86_64 (= R3) | **deferred** |
+| R5-I1 | iOS | low | a clear done in 0.9.3 after a downgrade is undone on re-upgrade | **deferred** |
+| R5-I2 | iOS | low | a move that keeps failing on a full disk retries each launch | **deferred** |
+| R5-U1 | UI | low | "Paused by you · 0 of N" after a cold start (= R4-U1) | **deferred** (needs a new string in 22 languages) |
+| R5-U2 | UI | low | "Only retry" while paused clears the rows but analyses nothing until Continue | **deferred** (wording or behaviour: owner) |
+
+Round 5 had confirmed medium findings, so round 6 runs.
