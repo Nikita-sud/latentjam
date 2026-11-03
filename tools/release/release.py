@@ -238,6 +238,14 @@ def fdroid_mr(_args):
         sys.exit(f"{FDROIDDATA} has uncommitted changes")
     git("fetch", "--quiet", "origin", "master", cwd=FDROIDDATA)
     branch = f"latentjam-{version}"
+    # A re-render replaces this command's own commit; a commit made by hand (a reviewer's request) is never reset.
+    exists = subprocess.run(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"], cwd=FDROIDDATA,
+                            capture_output=True).returncode == 0
+    if exists:
+        subjects = git("log", "--format=%s", f"origin/master..refs/heads/{branch}", cwd=FDROIDDATA).splitlines()
+        foreign = [x for x in subjects if not x.startswith(f"LatentJam {version} (")]
+        if foreign:
+            sys.exit(f"{FDROIDDATA}: {branch} has commits fdroid-mr did not make ({foreign[0]!r}); keep them by hand")
     git("switch", "--quiet", "-C", branch, "origin/master", cwd=FDROIDDATA)
     metadata = FDROIDDATA / "metadata" / f"{APPID}.yml"
     subprocess.run([str(FDROID_PYTHON), str(ROOT / "tools/release/fdroid_recipe.py"), "render", "--commit", head,

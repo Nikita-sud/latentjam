@@ -89,10 +89,13 @@ reduced_ort_repo() {
   if [ -f "$repo/manifest.json" ] && [ "${LATENTJAM_ORT_CACHE:-1}" != 0 ]; then echo "$repo"; return; fi
   source=${LATENTJAM_ORT_SOURCE:-$HOME/.cache/latentjam/onnxruntime-v$version}
   if [ ! -f "$source/cmake/external/onnx/CMakeLists.txt" ]; then
+    # Only a clone this script starts is removed when it fails; a checkout someone named is never touched.
+    [ -n "${LATENTJAM_ORT_SOURCE:-}" ] && die "$source is not an onnxruntime v$version checkout with submodules"
     run git clone --quiet --depth 1 --branch "v$version" --recursive --shallow-submodules \
       https://github.com/microsoft/onnxruntime.git "$source" >&2 || { rm -rf "$source"; exit 1; }
   fi
-  # Work dir and download mirror on disk, per output (two worktrees never share one); the mirror is kept.
+  # Work dir and download mirror on disk, per output; two worktrees with the same key share them, so build one at a
+  # time. The mirror is kept.
   # With the cache off the output sits in this tree, and the work dir must not (ort_source_build.sh refuses it).
   local work=${LATENTJAM_ORT_WORK:-$( [ "${LATENTJAM_ORT_CACHE:-1}" = 0 ] && echo "${TMPDIR:-/tmp}/latentjam-ort-work" || echo "$(dirname "$repo")/work")}
   LATENTJAM_ORT_WORK=$work LATENTJAM_ORT_MIRROR=${LATENTJAM_ORT_MIRROR:-$HOME/.cache/latentjam/ort-mirror-$version} \
