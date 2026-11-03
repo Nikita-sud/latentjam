@@ -140,3 +140,23 @@ Round 2 had confirmed findings of medium or higher (R2-U1 high, R2-S1, R2-S2), s
 | R3-R3 | release | low | `fdroid-mr` reset an MR branch with hand commits | **fixed** (6568e495): refuses when the branch holds commits it did not make |
 
 Round 3 had confirmed findings of medium or higher (all in the round-2 warm-up and the K placeholder key), so round 4 runs.
+
+### Round 4 (HEAD 427ca30a)
+
+| # | area | sev | finding | verdict |
+|---|---|---|---|---|
+| R4-A1 | analysis | med | presses during a long analysis (each chunk kills the background hub pass) and before the warm-up plan with a zero or stale hub | **fixed** (d5dafb00), and with it the whole class (S6, A4, R2-S2, R3-S2, R4-S4): a build reuses a kept hub only for exactly its rows and otherwise computes it inline as 0.9.3 did. **Trade-off for the owner:** SCALE-01's faster presses remain only for rebuilds over unchanged audio rows; the first press after an audio change pays the hub as in 0.9.3 (≈2 s at 20k on the emulator) |
+| R4-S1 | SMART | med | X v5 title legs: "Killed by Death" hidden by excluding Death, Bach "… - Air" by excluding Air | **fixed** (0fa7f0a9): bare "by" only in brackets; a credited track's later " - " parts only when the pack knows them. The 11 X3 units still pass |
+| R4-S2 | SMART | low | `EntityAliases` order dependence (= R2-S4) | **deferred** |
+| R4-S3 | SMART | low | the warm-up rebuilt a snapshot when the hub was already current | **fixed** (d5dafb00) |
+| R4-S4 | SMART | low | early presses before the warm-up | **fixed** with R4-A1 |
+| R4-S5 | SMART | low | hygiene's length unit ignores the seed's own length (a 12-min classical seed pushes away from long tracks) | **by design** (CH as evaluated); owner may condition it on the seed |
+| R4-A2 | analysis | low | Android decoded the whole loudness cache every pass for iOS-only roots (OOM risk at 50k/48 MB) | **fixed** (899502f6): `AnalysisControlStore.keepsContainerRoots` |
+| R4-P1 | playback | low | an exclusion change finishing after a rescan put the older library back | **fixed** (899502f6) |
+| R4-P2 | playback | low | QS tile does nothing when no saved track resolves (= R2-P1) | **deferred** |
+| R4-I1 | iOS | low | a failed Caches → Application Support copy left its files behind, every launch | **fixed** (308b7b7a) |
+| R4-R1 | release | low | release/** pushes did not run app.yml (unit tests) | **fixed** (55ed9c14) |
+| R4-R2 | release | low | `release.py bump` not re-runnable (burnt a versionCode) | **fixed** (55ed9c14): computed from the last tag |
+| R4-U1 | UI | low | "Paused by you · 0 of N" for seconds after a cold start while paused | **deferred** |
+
+Round 4 had confirmed medium findings (R4-A1, R4-S1), so round 5 runs.
