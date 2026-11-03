@@ -86,6 +86,13 @@ public interface SimilarityEngine {
     public suspend fun initialize(): Result<Unit>
 
     /**
+     * Container roots (ContainerPaths.root) that identities written by builds before 0.9.4 may name, from what the app
+     * kept of them (its loudness cache); the next [synchronizeLibrary] keeps those rows instead of analysing them
+     * again. A no-op where no file lives in an app container.
+     */
+    public suspend fun rememberLegacyContainerRoots(roots: Collection<String>) {}
+
+    /**
      * Reconciles both persisted indexes with the currently visible library.
      *
      * Call this after a library scan and before indexing chunks. Changed identities among the
@@ -135,6 +142,14 @@ public interface SimilarityEngine {
      */
     public suspend fun stageLibraryIndex(tracks: List<TrackDescriptor>): IndexReport =
         indexLibrary(tracks)
+
+    /**
+     * [stageLibraryIndex], told which tracks the next call will bring: a backend may start decoding them while this
+     * chunk is installed and checkpointed, so the decoders never sit idle between chunks (docs/analysis-094-plan.md
+     * P4). What is stored, and in which order, is exactly [stageLibraryIndex]'s.
+     */
+    public suspend fun stageLibraryIndex(tracks: List<TrackDescriptor>, upcoming: List<TrackDescriptor>): IndexReport =
+        stageLibraryIndex(tracks)
 
     /**
      * Clears durable invalid-audio markers for [ids], making those unchanged tracks eligible for
@@ -218,6 +233,27 @@ public interface SimilarityEngine {
 
     /** Indexed tracks and how many of them have e (the coverage gate: the two must match). */
     public suspend fun energyCoverage(): Pair<Int, Int> = 0 to 0
+
+    /**
+     * Whether the audio store refused the index's last snapshot as too large to keep: analysed work
+     * then lasts only as long as the process. Lock-free, so a system event can read it at once.
+     */
+    public fun audioEnvelopeRefused(): Boolean = false
+
+    /**
+     * The remembered audio failures among [tracks], as a chunk's phase 1 would report them, without staging anything:
+     * a paused or waiting pass still lists them (docs/analysis-094-plan.md 1e-min, "The failure list while gated").
+     */
+    public suspend fun rememberedAudioFailures(tracks: List<TrackDescriptor>): Map<TrackId, EngineError> = emptyMap()
+
+    /** Battery Saver (2e): [slow] analysis decodes one track at a time; the vectors are the same. */
+    public fun setAnalysisPacing(slow: Boolean): Unit = Unit
+
+    /**
+     * Remembers [tracks] as failed audio until Retry, as a deterministic failure is: the app's retry ledger hands over
+     * a file whose analysis timed out three times (D2). A track indexed meanwhile, or changed, is left alone.
+     */
+    public suspend fun rememberAudioFailures(tracks: List<TrackDescriptor>): Unit = Unit
 
     /**
      * Builds the strongest covered, one-shot vector space for library-level My Mixes.

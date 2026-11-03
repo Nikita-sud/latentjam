@@ -1,0 +1,17 @@
+<resources>
+    <string name="analysis_action_pause">Mettre en pause</string>
+    <string name="analysis_action_continue">Reprendre</string>
+    <string name="analysis_waiting_battery">En attente : reprend pendant la charge</string>
+    <string name="analysis_waiting_hot">En attente : reprend quand l’appareil aura refroidi</string>
+    <string name="analysis_waiting_screen">En attente : reprend écran allumé ou pendant la musique</string>
+    <string name="analysis_pausing">Mise en pause…</string>
+    <string name="analysis_paused_by_you">En pause à votre demande · %1$d sur %2$d analysés</string>
+    <string name="analysis_paused_at">Arrêté à %1$d sur %2$d</string>
+    <string name="analysis_stopped">Analyse arrêtée</string>
+    <string name="analysis_continues_now">L’analyse reprend maintenant</string>
+    <string name="analysis_pause_to_rebuild">Mettez en pause pour reconstruire</string>
+    <string name="analysis_retry_continue_title">Reprendre aussi l’analyse ?</string>
+    <string name="analysis_retry_continue_yes">Réessayer et reprendre</string>
+    <string name="analysis_retry_continue_no">Réessayer seulement</string>
+    <string name="analysis_too_large">Cette bibliothèque est trop grande pour garder son analyse entre deux lancements</string>
+</resources>

@@ -12,7 +12,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -24,6 +29,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  * extractor, a seek, a codec start or release) and the track is given up.
  */
 internal val TRACK_ANALYSIS_BUDGET: Duration = 90.seconds
+
+/** How long decoding carried to the next chunk waits for it: the gap between chunks is about a second. */
+internal val CARRY_FOR: Duration = 10.seconds
 
 /** Threads for blocking platform decoding, so the inference thread itself never enters a call that can hang. */
 internal interface DecodeWorkers {
@@ -39,18 +47,27 @@ internal interface DecodeWorkers {
     fun close() {}
 }
 
-/** The failure a timed-out track gets: remembered while the file is unchanged, listed with a Retry. */
-internal fun analysisTimedOut(budget: Duration): EngineError.InvalidAudio =
-    EngineError.InvalidAudio("Analysis timed out after ${budget.inWholeSeconds} s")
+/**
+ * D1 (docs/analysis-094-plan.md §0): a timeout is transient, not remembered. Its cause may pass (a slow card, a busy
+ * codec); the app's retry ledger stops a file that keeps timing out after three tries (D2).
+ */
+internal fun analysisTimedOut(budget: Duration): EngineError.AudioUnavailable =
+    EngineError.AudioUnavailable("$ANALYSIS_TIMED_OUT ${budget.inWholeSeconds} s")
+
+private const val ANALYSIS_TIMED_OUT = "Analysis timed out after"
+
+/** Whether this failure is a track's analysis running out of its budget. */
+public fun EngineError.isAnalysisTimeout(): Boolean =
+    this is EngineError.AudioUnavailable && technicalDetail.orEmpty().startsWith(ANALYSIS_TIMED_OUT)
 
 /**
  * [result], except that a track timed out after [budget] while the app was suspended becomes the retryable
  * [EngineError.AudioUnavailable]: its clock kept running while the track itself did not, so it is analysed again
- * by the next pass instead of being remembered as timed out. The app counts as suspended during the track when it
+ * by the next pass and is no attempt in the app's retry ledger. The app counts as suspended during the track when it
  * changed between foreground and background since the track started ([transitionsBefore] to [transitionsAfter]),
  * or when it is still in the background as the timeout fires ([inBackgroundAfter]). An app playing music in the
  * background is not suspended, so that is only a likely sign: a track already let off once ([forgivenBefore]) is
- * remembered as timed out, so a track that really hangs costs at most one more wait. Any other result is unchanged.
+ * reported as timed out (an attempt in the retry ledger), so a track that really hangs costs at most one more wait. Any other result is unchanged.
  */
 internal fun timeoutUnlessSuspended(
     result: Result<FloatArray>,
@@ -79,6 +96,35 @@ internal class DeadlineDecoding(
 ) {
     private val scope = CoroutineScope(SupervisorJob())
 
+    /**
+     * Decoding started for the next [each] call's tracks while the last one finished its own: the decoders keep working
+     * while the engine installs and checkpoints between chunks. Dropped when the next call does not ask for them, or
+     * when no call comes within [CARRY_FOR] (a wait, or the end of the pass), so decoded audio is never kept around.
+     */
+    private var carried: List<Pair<TrackDescriptor, Deferred<*>>> = emptyList()
+
+    /** The pool replacements so far: carried work started on a pool that was replaced since never runs, so it is dropped. */
+    @kotlin.concurrent.Volatile
+    private var poolGeneration = 0
+    private var carriedGeneration = 0
+
+    /** Work was dropped that may sit in a stuck call: the next work starts on fresh workers. */
+    @kotlin.concurrent.Volatile
+    private var staleWorkDropped = false
+
+    private fun abandonWorkers() {
+        poolGeneration++
+        staleWorkDropped = false
+        workers.abandon()
+    }
+
+    /** Replaces the workers first when dropped work might still hold one, so new work never queues behind it. */
+    private fun freshWorkersIfStale() {
+        if (staleWorkDropped) abandonWorkers()
+    }
+    private var carryExpiry: Job? = null
+    private val carryLock = Mutex()
+
     /** Starts [block] on a worker. */
     fun <T> start(block: suspend CoroutineScope.() -> T): Deferred<T> =
         scope.async(workers.dispatcher, block = block)
@@ -93,17 +139,34 @@ internal class DeadlineDecoding(
         work.await()
     } catch (cancellation: CancellationException) {
         work.cancel()
-        if (!work.isCompleted && cancellation !is TimeoutCancellationException) workers.abandon()
+        if (!work.isCompleted && cancellation !is TimeoutCancellationException) abandonWorkers()
         throw cancellation
     }
 
     /** [block] on a worker, awaited. */
     suspend fun <T> decode(block: suspend CoroutineScope.() -> T): T = await(start(block))
 
-    /** [analyse]'s result, or [analysisTimedOut] once [budget] passes; the workers are then replaced. */
-    suspend fun withinBudget(analyse: suspend () -> Result<FloatArray>): Result<FloatArray> {
+    /**
+     * [analyse]'s result, or [analysisTimedOut] once [budget] passes; the workers are then replaced. A track that
+     * spent a tenth of the budget or more waiting for the inference lock ([waited], a running total that includes a
+     * wait still in progress: a press's windows, a model load)
+     * is not the file's fault: it fails as plainly unavailable, retried at the next pass and never a D2 attempt.
+     */
+    suspend fun withinBudget(
+        waited: (() -> Duration)? = null,
+        analyse: suspend () -> Result<FloatArray>,
+    ): Result<FloatArray> {
+        freshWorkersIfStale()
+        // [waited] is a running total: only what this track added counts.
+        val waitedBefore = waited?.invoke() ?: Duration.ZERO
         withTimeoutOrNull(budget) { analyse() }?.let { return it }
-        workers.abandon()
+        abandonWorkers()
+        val lockWait = (waited?.invoke() ?: Duration.ZERO) - waitedBefore
+        if (lockWait >= budget / 10) {
+            return Result.failure(
+                SmartEngineException(EngineError.AudioUnavailable("Analysis waited ${lockWait.inWholeSeconds} s for the model")),
+            )
+        }
         return Result.failure(SmartEngineException(analysisTimedOut(budget)))
     }
 
@@ -118,14 +181,39 @@ internal class DeadlineDecoding(
         ahead: Int,
         prefetch: suspend (TrackDescriptor) -> D,
         finish: suspend (TrackDescriptor, D) -> Result<FloatArray>,
+        upcoming: List<TrackDescriptor> = emptyList(),
+        waited: (() -> Duration)? = null,
         onResult: suspend (TrackDescriptor, Result<FloatArray>) -> Unit,
     ) {
         val queue = ArrayDeque<Pair<TrackDescriptor, Deferred<D>>>()
+        // What the last call started for this one, by descriptor; anything else it started is dropped now.
+        val reusable = LinkedHashMap<TrackDescriptor, Deferred<D>>()
+        val (handedOver, generation) = takeCarriedWithGeneration()
+        // Work started on a pool replaced since (a timeout or a cancellation) may never run: decode afresh.
+        val usable = generation == poolGeneration
+        for ((track, work) in handedOver) {
+            @Suppress("UNCHECKED_CAST")
+            if (usable && track in tracks && track !in reusable) {
+                reusable[track] = work as Deferred<D>
+            } else {
+                if (!work.isCompleted) staleWorkDropped = true
+                work.cancel()
+            }
+        }
+        freshWorkersIfStale()
         var next = 0
+        val ahead2 = ArrayDeque<Pair<TrackDescriptor, Deferred<D>>>()
+        var nextUpcoming = 0
         fun refill() {
             while (next < tracks.size && queue.size <= ahead) {
                 val track = tracks[next++]
-                queue.addLast(track to start { prefetch(track) })
+                queue.addLast(track to (reusable.remove(track) ?: start { prefetch(track) }))
+            }
+            // The pool stays as busy as it was: once this call's tracks are all started, the next call's start.
+            while (next >= tracks.size && nextUpcoming < upcoming.size && queue.size + ahead2.size <= ahead) {
+                val track = upcoming[nextUpcoming++]
+                if (track in tracks) continue
+                ahead2.addLast(track to start { prefetch(track) })
             }
         }
         try {
@@ -133,12 +221,14 @@ internal class DeadlineDecoding(
             while (queue.isNotEmpty()) {
                 val (track, decoding) = queue.removeFirst()
                 var finished = false
-                val result = withinBudget {
+                val generationBefore = poolGeneration
+                val result = withinBudget(waited) {
                     val decoded = await(decoding)
                     refill()
                     finish(track, decoded).also { finished = true }
                 }
-                if (!finished) {
+                // The workers were replaced (a timeout, also one that fired as the inference finished): restart.
+                if (!finished || poolGeneration != generationBefore) {
                     // The workers were replaced: what is still decoding may sit behind the stuck one.
                     val pending = queue.toList()
                     queue.clear()
@@ -150,18 +240,89 @@ internal class DeadlineDecoding(
                             queue.addLast(later to start { prefetch(later) })
                         }
                     }
+                    // So may what was started for later: started again on the fresh workers when it is reached.
+                    for ((later, work) in reusable.entries.toList()) {
+                        if (!work.isCompleted) {
+                            work.cancel()
+                            reusable.remove(later)
+                        }
+                    }
+                    val upcomingStarted = ahead2.toList()
+                    ahead2.clear()
+                    for ((later, work) in upcomingStarted) {
+                        if (work.isCompleted) ahead2.addLast(later to work) else work.cancel()
+                    }
                     refill()
                 }
                 onResult(track, result)
             }
+            // Finished normally: the next call's decoding carries over.
+            val handOver = ahead2.toList()
+            ahead2.clear()
+            if (handOver.isNotEmpty()) {
+                carryLock.withLock {
+                    carried = handOver
+                    carriedGeneration = poolGeneration
+                    carryExpiry = scope.launch {
+                        delay(CARRY_FOR)
+                        dropCarried()
+                    }
+                }
+            }
         } finally {
             // Decoding left behind by a cancelled pass may be stuck; later passes start on fresh workers.
-            if (queue.any { (_, work) -> !work.isCompleted }) workers.abandon()
-            for ((_, work) in queue) work.cancel()
+            val left = queue + ahead2 + reusable.map { (track, work) -> track to work }
+            if (left.any { (_, work) -> !work.isCompleted }) abandonWorkers()
+            for ((_, work) in left) work.cancel()
         }
     }
+
+    /** Cancels decoding carried for a call that did not come. */
+    suspend fun dropCarried() {
+        carryLock.withLock {
+            carryExpiry?.cancel()
+            carryExpiry = null
+            for ((_, work) in carried) {
+                // Not replaced here (that would race new work on the pool): the next work starts on fresh workers.
+                // Marked under the lock, so a call that takes the hand-over after this sees the mark first.
+                if (!work.isCompleted) staleWorkDropped = true
+                work.cancel()
+            }
+            carried = emptyList()
+        }
+    }
+
+    private suspend fun takeCarriedWithGeneration(): Pair<List<Pair<TrackDescriptor, Deferred<*>>>, Int> =
+        carryLock.withLock {
+            carryExpiry?.cancel()
+            carryExpiry = null
+            (carried to carriedGeneration).also { carried = emptyList() }
+        }
 
     fun close() {
         workers.close()
     }
+}
+
+/** The waveforms of one track decoded ahead: three 10 s windows of 32 kHz floats. */
+internal const val PREFETCHED_TRACK_BYTES: Long = 3L * 320_000L * Float.SIZE_BYTES
+
+/** What one busy decode worker holds besides its output: the decoded PCM and its copy at 48 kHz, about 5 MB. */
+internal const val DECODE_TRANSIENT_BYTES: Long = 5L * 1024L * 1024L
+
+/**
+ * How far ahead tracks may be decoded (1g), as [DeadlineDecoding.each]'s `ahead`: the largest depth up to [workers]
+ * whose memory fits a quarter of the [freeHeapBytes] left. At depth `a` up to `a + 2` tracks' waveforms are held (the
+ * queue, the track in hand, a carried one) and `min(workers, a + 1)` workers decode at once. At 0 one track still
+ * decodes while the one before it runs inference.
+ */
+internal fun lookAheadFor(workers: Int, freeHeapBytes: Long): Int {
+    val budget = freeHeapBytes / 4
+    var depth = workers
+    while (depth > 0 &&
+        (depth + 2) * PREFETCHED_TRACK_BYTES + minOf(workers, depth + 1) * DECODE_TRANSIENT_BYTES > budget
+    ) {
+        depth--
+    }
+    return depth.coerceAtLeast(0)
 }

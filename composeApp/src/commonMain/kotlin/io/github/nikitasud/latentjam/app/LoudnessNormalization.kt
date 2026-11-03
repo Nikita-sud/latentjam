@@ -11,6 +11,7 @@ import io.github.nikitasud.latentjam.playback.SoundSpan
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import io.github.nikitasud.latentjam.smart.ContainerPaths
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -67,7 +68,11 @@ internal fun encodeTrackLoudness(loudnessById: Map<String, StoredTrackLoudness>)
             if (stored.soundMeasured) "|${sound?.startMs ?: -1}|${sound?.endMs ?: -1}" else ""
     }
 
-internal fun decodeTrackLoudness(payload: String): Map<String, StoredTrackLoudness> {
+/**
+ * [relocate]: identities an older build wrote with an iOS file's absolute URL are read container-relative, as
+ * [loudnessAudioIdentity] now makes them, so a measurement survives the container's move.
+ */
+internal fun decodeTrackLoudness(payload: String, relocate: Boolean = true): Map<String, StoredTrackLoudness> {
     val result = LinkedHashMap<String, StoredTrackLoudness>()
     for (line in payload.lineSequence()) {
         val parts = line.split('|')
@@ -77,7 +82,7 @@ internal fun decodeTrackLoudness(payload: String): Map<String, StoredTrackLoudne
             else -> continue
         }
         val id = parts[1].decodeLoudnessHex() ?: continue
-        val identity = parts[2].decodeLoudnessHex() ?: continue
+        val identity = parts[2].decodeLoudnessHex()?.let { if (relocate) relocatedLoudnessIdentity(it) else it } ?: continue
         val lufs = parts[3].toIntOrNull()?.div(100f) ?: continue
         val peak = parts[4].toIntOrNull()?.div(100f) ?: continue
         val sound = if (withSound) {
@@ -102,10 +107,29 @@ internal fun soundSpans(loudnessById: Map<String, StoredTrackLoudness>): Map<Str
 internal fun normalizationVolumes(loudnessById: Map<String, StoredTrackLoudness>, enabled: Boolean): Map<String, Float> =
     if (!enabled) emptyMap() else loudnessById.mapValues { it.value.measurement.normalizationVolume() }
 
+/** The app-container roots ([ContainerPaths.root]) the loudness cache's identities name. */
+internal fun legacyContainerRoots(payload: String?): Set<String> =
+    decodeTrackLoudness(payload.orEmpty(), relocate = false).values.flatMapTo(LinkedHashSet()) { ContainerPaths.rootsIn(it.audioIdentity) }
+
+private const val LOUDNESS_IDENTITY_PREFIX = "loudness-r128-v1-libebur128-1.2.6-hist"
+
+/** [identity] (a [loudnessAudioIdentity]) with its URI field container-relative; anything else as it is. */
+internal fun relocatedLoudnessIdentity(identity: String): String {
+    val head = "$LOUDNESS_IDENTITY_PREFIX|"
+    if (!identity.startsWith(head)) return identity
+    val colon = identity.indexOf(':', head.length)
+    val length = identity.substring(head.length, maxOf(head.length, colon)).toIntOrNull() ?: return identity
+    if (length < 0 || length > identity.length - colon - 1) return identity
+    val uri = identity.substring(colon + 1, colon + 1 + length)
+    val relative = ContainerPaths.relative(uri) ?: return identity
+    if (relative == uri) return identity
+    return head + relative.length + ":" + relative + identity.substring(colon + 1 + length)
+}
+
 /** Same id is not same audio: use every descriptor field that identifies the decoded bytes. */
 internal fun TrackDescriptor.loudnessAudioIdentity(): String = buildString {
-    append("loudness-r128-v1-libebur128-1.2.6-hist")
-    listOf(audioUri, durationMs?.toString(), sourceRevision).forEach { field ->
+    append(LOUDNESS_IDENTITY_PREFIX)
+    listOf(ContainerPaths.relative(audioUri), durationMs?.toString(), sourceRevision).forEach { field ->
         append('|')
         if (field == null) {
             append("-1:")

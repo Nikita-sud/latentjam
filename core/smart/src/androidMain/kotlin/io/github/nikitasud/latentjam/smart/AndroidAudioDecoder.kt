@@ -108,6 +108,66 @@ private fun Throwable.isSourceAccessFailure(): Boolean {
 }
 
 /**
+ * When a codec that could not be created or started is tried again (docs/analysis-094-plan.md 1c, D5): the delay
+ * before the next attempt, or null to give up and return the window `Unavailable` as 0.9.3 did.
+ *
+ * Only a failure that looks like contention is retried: one the codec calls transient, recoverable or short of
+ * resources, or any failure while another of our codecs is live (an exhausted codec pool usually shows as a plain
+ * IOException or RuntimeException from createByCodecName). Up to [CODEC_RETRY_DELAYS_MS] per window, and no more than
+ * the track's [CodecBackoff] has left.
+ */
+internal fun codecRetryDelayMs(attempt: Int, contention: Boolean, othersLive: Boolean, leftMs: Long): Long? {
+    if (!contention && !othersLive) return null
+    return CODEC_RETRY_DELAYS_MS.getOrNull(attempt)?.takeIf { it <= leftMs }
+}
+
+internal val CODEC_RETRY_DELAYS_MS = longArrayOf(250L, 750L, 2_000L).asList()
+
+/**
+ * Our codecs alive right now, over every decoder and lane, by start time: contention is likely while another one runs.
+ * One held longer than [STUCK_CODEC_NANOS] belongs to a worker that is stuck or abandoned and no longer counts.
+ */
+private val liveCodecs = java.util.concurrent.ConcurrentHashMap<MediaCodec, Long>()
+
+/** A codec held this long belongs to a stuck worker (1c's 30 s). */
+private const val STUCK_CODEC_NANOS = 30_000_000_000L
+
+private fun othersLive(): Boolean {
+    val now = System.nanoTime()
+    return liveCodecs.values.any { now - it < STUCK_CODEC_NANOS }
+}
+
+/**
+ * Whether [error], raised while another of our codecs runs, may be that contention: an exhausted pool shows as an
+ * IOException or an IllegalStateException (or a CodecException). An IllegalArgumentException is the format refused.
+ */
+internal fun Throwable.mayBeContention(): Boolean =
+    this is java.io.IOException || this is IllegalStateException
+
+/** One track's back-off allowance over all its windows: 3 s in total (1c). Shared by its decode workers. */
+internal class CodecBackoff(totalMs: Long = 3_000L) {
+    private val left = java.util.concurrent.atomic.AtomicLong(totalMs)
+    val leftMs: Long get() = left.get()
+
+    /** Takes [ms] from the allowance; false (and nothing taken) when it does not cover them. */
+    fun take(ms: Long): Boolean {
+        while (true) {
+            val now = left.get()
+            if (ms > now) return false
+            if (left.compareAndSet(now, now - ms)) return true
+        }
+    }
+}
+
+/** Whether [error] is MediaCodec saying it may work later: transient, recoverable, or out of resources. */
+internal fun Throwable.isCodecContention(): Boolean {
+    val codec = this as? MediaCodec.CodecException ?: return false
+    return codec.isTransient || codec.isRecoverable ||
+        codec.errorCode == MediaCodec.CodecException.ERROR_INSUFFICIENT_RESOURCE ||
+        codec.errorCode == MediaCodec.CodecException.ERROR_RECLAIMED
+}
+
+/**
  * Monotonic liveness guard for the synchronous MediaCodec polling loop.
  *
  * The wall budget is absolute. The idle budget is reset only after input or
@@ -179,6 +239,62 @@ internal class DecodeStageTimes {
  */
 internal class AndroidAudioDecoder(private val context: Context) {
 
+
+
+    /**
+     * Creates, configures and starts [name] for [format], trying again after a back-off when the failure looks like
+     * contention ([codecRetryDelayMs]); the last failure is thrown as 0.9.3 threw the first. A codec this returns
+     * counts in [liveCodecs] until [releaseCodec].
+     */
+    private fun startCodec(
+        name: String,
+        format: MediaFormat,
+        backoff: CodecBackoff?,
+        isCancelled: () -> Boolean,
+    ): MediaCodec {
+        var attempt = 0
+        while (true) {
+            var codec: MediaCodec? = null
+            try {
+                codec = MediaCodec.createByCodecName(name)
+                codec.configure(format, null, null, 0)
+                codec.start()
+                liveCodecs[codec] = System.nanoTime()
+                return codec
+            } catch (failure: Exception) {
+                codec?.let { runCatching { it.release() } }
+                val allowance = backoff ?: throw failure
+                val delay = codecRetryDelayMs(
+                    attempt,
+                    contention = failure.isCodecContention(),
+                    othersLive = failure.mayBeContention() && othersLive(),
+                    leftMs = allowance.leftMs,
+                )
+                    ?.takeIf(allowance::take)
+                    ?: throw failure
+                attempt++
+                val until = System.nanoTime() + delay * 1_000_000L
+                while (System.nanoTime() < until) {
+                    if (isCancelled()) throw CancellationException("Audio decoding cancelled")
+                    try {
+                        Thread.sleep(minOf(50L, delay))
+                    } catch (interrupted: InterruptedException) {
+                        // Workers being replaced: the window fails as the codec failure it was, Unavailable as in
+                        // 0.9.3, never a cancellation that would end the chunk.
+                        Thread.currentThread().interrupt()
+                        throw failure
+                    }
+                }
+            }
+        }
+    }
+
+    private fun releaseCodec(codec: MediaCodec) {
+        runCatching { codec.stop() }
+        runCatching { codec.release() }
+        liveCodecs.remove(codec)
+    }
+
     private data class DecodedWindow(
         val waveform: FloatArray,
         val validSamples: Int,
@@ -196,6 +312,8 @@ internal class AndroidAudioDecoder(private val context: Context) {
         downmixMode: AudioDownmixMode = AudioDownmixMode.AVERAGE,
         isCancelled: () -> Boolean,
         stages: DecodeStageTimes? = null,
+        /** The track's codec back-off allowance; null never retries a codec start (0.9.3). */
+        backoff: CodecBackoff? = null,
     ): AudioDecodeResult {
         if (isCancelled()) throw CancellationException("Audio decoding cancelled")
         stages?.windows = (stages?.windows ?: 0) + 1
@@ -271,14 +389,11 @@ internal class AndroidAudioDecoder(private val context: Context) {
                 // Resolve support separately from allocation. A null result is a stable property of
                 // this device + stream format and may be remembered for unchanged bytes; failures
                 // while creating/starting the chosen codec remain retryable availability failures.
-                val decoderName = MediaCodecList(MediaCodecList.REGULAR_CODECS)
-                    .findDecoderForFormat(inputFormat)
+                val decoderName = regularCodecs.findDecoderForFormat(inputFormat)
                     ?: return AudioDecodeResult.InvalidAudio("No decoder for $mime")
                 if (stages != null) lap { stages.lookup += it }
-                val codec = MediaCodec.createByCodecName(decoderName)
+                val codec = startCodec(decoderName, inputFormat, backoff, isCancelled)
                 try {
-                    codec.configure(inputFormat, null, null, 0)
-                    codec.start()
                     if (stages != null) lap { stages.start += it }
                     val decoded = decodeLoop(
                         codec,
@@ -294,8 +409,7 @@ internal class AndroidAudioDecoder(private val context: Context) {
                     mark = System.nanoTime()
                     AudioDecodeResult.Success(decoded.waveform, decoded.validSamples)
                 } finally {
-                    runCatching { codec.stop() }
-                    runCatching { codec.release() }
+                    releaseCodec(codec)
                 }
             }
         } catch (cancellation: CancellationException) {
@@ -573,6 +687,15 @@ internal class AndroidAudioDecoder(private val context: Context) {
     }
 
     private companion object {
+        /**
+         * The device's codec list, built once per process instead of once per window
+         * (docs/analysis-094-plan.md 2a.1). The framework already shares one static list between
+         * instances, so this saves only the per-window copy; the lookup itself is unchanged. Every
+         * window therefore still gets the decoder a fresh list would name, and the lookup only
+         * reads the list, from any thread. A failed build is retried on the next window, as before.
+         */
+        val regularCodecs: MediaCodecList by lazy { MediaCodecList(MediaCodecList.REGULAR_CODECS) }
+
         const val DEQUEUE_TIMEOUT_US = 10_000L
         const val DECODE_WALL_BUDGET_NANOS = 30_000_000_000L
         const val DECODE_IDLE_BUDGET_NANOS = 5_000_000_000L

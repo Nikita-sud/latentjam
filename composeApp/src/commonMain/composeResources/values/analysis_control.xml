@@ -1,0 +1,17 @@
+<resources>
+    <string name="analysis_action_pause">Pause</string>
+    <string name="analysis_action_continue">Continue</string>
+    <string name="analysis_waiting_battery">Waiting: continues when charging</string>
+    <string name="analysis_waiting_hot">Waiting: continues when cooler</string>
+    <string name="analysis_waiting_screen">Waiting: continues when the screen is on or music plays</string>
+    <string name="analysis_pausing">Pausing…</string>
+    <string name="analysis_paused_by_you">Paused by you · %1$d of %2$d analysed</string>
+    <string name="analysis_paused_at">Paused at %1$d of %2$d</string>
+    <string name="analysis_stopped">Analysis stopped</string>
+    <string name="analysis_continues_now">Analysis continues now</string>
+    <string name="analysis_pause_to_rebuild">Pause to rebuild</string>
+    <string name="analysis_retry_continue_title">Continue analysis too?</string>
+    <string name="analysis_retry_continue_yes">Retry and continue</string>
+    <string name="analysis_retry_continue_no">Only retry</string>
+    <string name="analysis_too_large">This library is too large to keep its analysis between launches</string>
+</resources>

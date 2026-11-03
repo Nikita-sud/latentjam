@@ -27,9 +27,10 @@ import kotlinx.coroutines.withContext
  *
  * One envelope guards reads and writes alike (`maximumSnapshotBytes`, 64 MiB by default): a snapshot
  * the next launch would refuse is never written, and its rejection leaves the previous file untouched.
- * An index that outgrows the envelope therefore has no durable cache at all — the in-memory index stays
+ * An index that outgrows the envelope therefore keeps only the last snapshot that fit — the in-memory index stays
  * complete, so a caller that checkpoints per batch must read the refusal as "not persistable", not as a
- * failed analysis pass. ~17,000 audio rows reach the envelope at 960 dims.
+ * failed analysis pass. As halves (format v4) about 34,000 audio rows reach the envelope at 960 dims, 1,974 bytes a
+ * row with a MediaStore id and the engine's 36-byte identity digest; as floats about 17,200.
  */
 internal class FileIndexStore private constructor(
     private val file: File,
@@ -157,6 +158,7 @@ internal class FileIndexStore private constructor(
             }
             if (readFailed == failed && readRows == count && read.value == written.value) {
                 check(staged.renameTo(file)) { "Could not replace ${file.name}" }
+                syncDirectory(file.parentFile)
             }
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
             throw cancelled
@@ -264,6 +266,9 @@ internal class FileIndexStore private constructor(
             try {
                 writeSnapshot(tempFile, modelVersion, snapshot)
                 check(tempFile.renameTo(file)) { "Could not atomically replace ${file.name}" }
+                // The rename itself must reach the disk too: without it a power loss can bring back the
+                // old file, or none, after this save reported success.
+                syncDirectory(file.parentFile)
             } finally {
                 if (tempFile.exists()) tempFile.delete()
             }
@@ -302,6 +307,7 @@ internal class FileIndexStore private constructor(
     override suspend fun clear(): Unit = withContext(Dispatchers.IO) {
         check(!file.exists() || file.delete()) { "Could not delete ${file.name}" }
         check(!tempFile.exists() || tempFile.delete()) { "Could not delete ${tempFile.name}" }
+        syncDirectory(file.parentFile)
     }
 
     internal companion object {
@@ -325,6 +331,23 @@ internal class FileIndexStore private constructor(
  */
 public suspend fun readIndexSnapshotFile(file: File, modelVersion: String): StoredIndexSnapshot? =
     FileIndexStore(file.absoluteFile.parentFile, file.name, maximumSnapshotBytes = Long.MAX_VALUE - 1).loadSnapshot(modelVersion)
+
+/**
+ * Host tools: the audio index in [directory] as the app restores it (a copy of the phone's files): the segmented set
+ * (SegmentedIndexStore) of [baseName] for [modelVersion], else its single files. Read only; nothing is rewritten.
+ */
+public suspend fun readAudioIndexSnapshot(directory: File, baseName: String, modelVersion: String): StoredIndexSnapshot? =
+    VersionedIndexStore(baseName) { name ->
+        if (name == "$baseName.bin") {
+            FileIndexStore(directory, name, maximumSnapshotBytes = Long.MAX_VALUE - 1)
+        } else {
+            SegmentedIndexStore(
+                fileName = name,
+                segment = { file -> FileIndexStore(directory, file, maximumSnapshotBytes = Long.MAX_VALUE - 1) },
+                names = { checkNotNull(directory.list()) { "$directory cannot be listed" }.toList() },
+            )
+        }
+    }.loadSnapshot(modelVersion)
 
 /** Host tools: a snapshot file's vectors as the audio index keeps them, rounded to halves (never rewrites the file). */
 public suspend fun readHalfIndexSnapshotFile(file: File, modelVersion: String): StoredIndexSnapshot? =
@@ -568,5 +591,25 @@ private class RowHash {
         for (h in halves) mix(h.toLong())
         if (identity == null) mix(-2L) else for (c in identity) mix(c.code.toLong())
         mix(-3L)
+    }
+}
+
+/**
+ * Makes a rename or delete in [directory] durable (docs/analysis-094-plan.md 1a). Best effort: a file system that
+ * cannot sync a directory keeps 0.9.3's behaviour, and the file itself was already synced.
+ */
+internal fun syncDirectory(directory: File?) {
+    if (directory == null) return
+    try {
+        val fd = android.system.Os.open(directory.path, android.system.OsConstants.O_RDONLY, 0)
+        try {
+            android.system.Os.fsync(fd)
+        } finally {
+            android.system.Os.close(fd)
+        }
+    } catch (failure: Exception) {
+        // ErrnoException on a file system without directory sync; "Stub!" under host tests.
+    } catch (failure: LinkageError) {
+        // Host tests against stubbed framework classes.
     }
 }

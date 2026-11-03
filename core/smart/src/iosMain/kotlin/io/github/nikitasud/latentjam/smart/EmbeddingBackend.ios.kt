@@ -12,7 +12,15 @@ import io.github.nikitasud.latentjam.smart.di.smartLayoutQualifier
 import io.github.nikitasud.latentjam.smart.di.smartTextIndexQualifier
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.IO
+import kotlinx.coroutines.runBlocking
+import kotlin.concurrent.Volatile
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.nanoseconds
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
@@ -30,13 +38,19 @@ internal class IosEmbeddingBackend(
 
     private var lease: IosInferenceLease? = null
 
-    private val decoding = DeadlineDecoding(
-        object : DecodeWorkers {
-            // Elastic: a stuck thread is one of 64, and the next call simply gets another.
-            override val dispatcher: CoroutineDispatcher = Dispatchers.IO
-            override fun abandon() {}
-        },
-    )
+    private val decoding = DeadlineDecoding(elasticWorkers())
+
+    /**
+     * A SMART press's seed runs on a lane of its own: without a lock around the whole track it may run beside the
+     * analysis track (docs/analysis-094-plan.md 1b-0).
+     */
+    private val seedDecoding = DeadlineDecoding(elasticWorkers())
+
+    private fun elasticWorkers() = object : DecodeWorkers {
+        // Elastic: a stuck thread is one of 64, and the next call simply gets another.
+        override val dispatcher: CoroutineDispatcher = Dispatchers.IO
+        override fun abandon() {}
+    }
 
     override suspend fun loadModel(): Result<Unit> {
         val existingLease = lease?.takeIf { it.currentProvider() != null }
@@ -82,32 +96,65 @@ internal class IosEmbeddingBackend(
         }
     }
 
-    override suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray> {
+    /** The engine's inference lock, taken by the native call per window through a [WindowGate] (see [takeInferenceLock]). */
+    private var inferenceLock: Mutex? = null
+
+    // Native code takes the lock around each window's inference, so the unit a press may wait for is one window.
+    override fun takeInferenceLock(lock: Mutex): Boolean {
+        inferenceLock = lock
+        return true
+    }
+
+    override suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray> = embedTimed(descriptor, seedDecoding)
+
+    override suspend fun embedEach(
+        tracks: List<TrackDescriptor>,
+        onResult: suspend (TrackDescriptor, Result<FloatArray>) -> Unit,
+    ) {
+        for (track in tracks) onResult(track, embedTimed(track, decoding))
+    }
+
+    private suspend fun embedTimed(descriptor: TrackDescriptor, lane: DeadlineDecoding): Result<FloatArray> {
         // iOS suspends the app soon after it leaves the screen, while the deadline's clock keeps running: a
         // track timed out across that is analysed again, not remembered as timed out.
         val transitionsBefore = IosAppTransitions.count
-        val result = decoding.withinBudget { embedNative(descriptor) }
+        val gate = inferenceLock?.let(::WindowGate)
+        val result = try {
+            lane.withinBudget(waited = gate?.let { it::waited }) { embedNative(descriptor, gate, lane) }
+        } finally {
+            // A native call left running past its time stops at its next window instead of taking the lock again.
+            gate?.stopped = true
+        }
         val file = descriptor.id.value to descriptor.audioUri
-        return timeoutUnlessSuspended(
-            result = result,
-            budget = TRACK_ANALYSIS_BUDGET,
-            transitionsBefore = transitionsBefore,
-            transitionsAfter = IosAppTransitions.count,
-            inBackgroundAfter = IosAppTransitions.inBackground,
-            forgivenBefore = file in forgivenTimeouts,
-        ).also { if (it.exceptionOrNull() !== result.exceptionOrNull()) forgivenTimeouts += file }
+        return forgivenLock.withLock {
+            timeoutUnlessSuspended(
+                result = result,
+                budget = TRACK_ANALYSIS_BUDGET,
+                transitionsBefore = transitionsBefore,
+                transitionsAfter = IosAppTransitions.count,
+                inBackgroundAfter = IosAppTransitions.inBackground,
+                forgivenBefore = file in forgivenTimeouts,
+            ).also { if (it.exceptionOrNull() !== result.exceptionOrNull()) forgivenTimeouts += file }
+        }
     }
 
-    /** Tracks (and files) whose timeout was let off as a suspension this run; embeds run one at a time. */
+    /** Tracks (and files) whose timeout was let off as a suspension this run, under [forgivenLock]: both lanes use it. */
     private val forgivenTimeouts = HashSet<Pair<String, String?>>()
+    private val forgivenLock = Mutex()
 
-    private suspend fun embedNative(descriptor: TrackDescriptor): Result<FloatArray> {
-        val provider = lease?.currentProvider()
+    private suspend fun embedNative(descriptor: TrackDescriptor, gate: WindowGate?, lane: DeadlineDecoding): Result<FloatArray> {
+        // Read under the lock, which close() holds to change the lease.
+        val held = if (gate != null) gate.locked { lease } else lease
+        val provider = held?.currentProvider()
             ?: return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
         val uri = descriptor.audioUri
             ?: return invalidAudio("No audio URI")
         val durationMs = descriptor.durationMs ?: -1L
-        val native = decoding.decode { provider.embedAudio(uri, durationMs, config.embeddingDim) }
+        // The lease the track started with: a release and re-initialisation meanwhile is not the same model.
+        gate?.current = { lease === held && held.currentProvider() === provider }
+        val native = lane.decode { provider.embedAudio(uri, durationMs, config.embeddingDim, gate) }
+        // Closed between two windows: not this file's failure.
+        if (gate?.closed == true) return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
         val output = when (native.status) {
             IosAudioEmbeddingStatus.SUCCESS -> native.embedding
                 ?: return backendFailure("Native audio provider returned success without output")
@@ -166,6 +213,67 @@ internal class IosEmbeddingBackend(
         lease = null
     }
 
+    /**
+     * The engine's inference lock for one native call, taken on its own (blocked) thread around each window. Refuses
+     * once [stopped] (the track's result was already given) or once the provider [current] checks for was closed.
+     */
+    private class WindowGate(val lock: Mutex) : IosInferenceGate {
+        @Volatile var stopped = false
+        @Volatile var closed = false
+        @Volatile var current: () -> Boolean = { true }
+        @Volatile private var waitedNanos = 0L
+        @Volatile private var waitingSince: TimeMark? = null
+
+        /** Time spent waiting for the lock so far, a wait still in progress included (see [DeadlineDecoding.withinBudget]). */
+        fun waited(): Duration = waitedNanos.nanoseconds + (waitingSince?.elapsedNow() ?: Duration.ZERO)
+
+        /** [block] under the lock from a coroutine, its wait counted like a window's. */
+        suspend fun <T> locked(block: () -> T): T {
+            val asked = TimeSource.Monotonic.markNow()
+            waitingSince = asked
+            try {
+                lock.lock()
+            } finally {
+                // Cleared first: a read in between undercounts for a moment rather than counting the wait twice.
+                waitingSince = null
+                waitedNanos += asked.elapsedNow().inWholeNanoseconds
+            }
+            return try { block() } finally { lock.unlock() }
+        }
+
+        override fun enter(): Boolean {
+            if (stopped) return false
+            val asked = TimeSource.Monotonic.markNow()
+            waitingSince = asked
+            try {
+                runBlocking { lock.lock() }
+            } finally {
+                // Cleared first: a read in between undercounts for a moment rather than counting the wait twice.
+                waitingSince = null
+                waitedNanos += asked.elapsedNow().inWholeNanoseconds
+            }
+            val proceed = try {
+                when {
+                    stopped -> false
+                    !current() -> {
+                        closed = true
+                        false
+                    }
+                    else -> true
+                }
+            } catch (failure: Throwable) {
+                // Never leave the lock held, nor let a Kotlin exception cross into Swift.
+                false
+            }
+            if (!proceed) lock.unlock()
+            return proceed
+        }
+
+        override fun exit() {
+            lock.unlock()
+        }
+    }
+
     private fun <T> backendFailure(message: String): Result<T> =
         Result.failure(SmartEngineException(EngineError.BackendFailure(message)))
 
@@ -181,7 +289,23 @@ public actual fun smartEngineBackendModule(): Module = module {
     IosAppTransitions.count
     single<BatchDotProducts> { IosBatchDotProducts }
     single<EmbeddingBackend> { IosEmbeddingBackend(config = get()) }
-    single<IndexStore> { VersionedIndexStore("smart_index") { name -> IosFileIndexStore(fileName = name, half = true) } }
+    // Segments of the row order (SegmentedIndexStore): a library above one file's 64 MiB envelope keeps its analysis.
+    single<IndexStore> {
+        VersionedIndexStore("smart_index") { name ->
+            // The legacy unversioned file is read as it is; only per-encoder sets are segmented.
+            if (name == "smart_index.bin") {
+                IosFileIndexStore(fileName = name, half = true)
+            } else {
+                SegmentedIndexStore(
+                    fileName = name,
+                    segment = { file -> IosFileIndexStore(fileName = file, half = true) },
+                    names = ::iosIndexFileNames,
+                    // IosFileIndexStore reads a file whole before delivering a row: each file is read once.
+                    readsWhole = true,
+                )
+            }
+        }
+    }
     single<IndexStore>(smartTextIndexQualifier) {
         IosFileIndexStore(fileName = "smart_text_index.bin")
     }

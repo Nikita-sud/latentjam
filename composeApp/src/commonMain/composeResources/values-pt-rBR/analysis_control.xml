@@ -1,0 +1,17 @@
+<resources>
+    <string name="analysis_action_pause">Pausar</string>
+    <string name="analysis_action_continue">Continuar</string>
+    <string name="analysis_waiting_battery">Aguardando: continua ao carregar</string>
+    <string name="analysis_waiting_hot">Aguardando: continua quando esfriar</string>
+    <string name="analysis_waiting_screen">Aguardando: continua com a tela ligada ou com música</string>
+    <string name="analysis_pausing">Pausando…</string>
+    <string name="analysis_paused_by_you">Pausado por você · %1$d de %2$d analisadas</string>
+    <string name="analysis_paused_at">Parado em %1$d de %2$d</string>
+    <string name="analysis_stopped">Análise parada</string>
+    <string name="analysis_continues_now">A análise continua agora</string>
+    <string name="analysis_pause_to_rebuild">Pause para reconstruir</string>
+    <string name="analysis_retry_continue_title">Continuar a análise também?</string>
+    <string name="analysis_retry_continue_yes">Tentar de novo e continuar</string>
+    <string name="analysis_retry_continue_no">Só tentar de novo</string>
+    <string name="analysis_too_large">Esta biblioteca é grande demais para manter a análise entre aberturas do app</string>
+</resources>

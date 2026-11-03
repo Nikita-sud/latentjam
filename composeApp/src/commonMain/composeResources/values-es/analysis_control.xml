@@ -1,0 +1,17 @@
+<resources>
+    <string name="analysis_action_pause">Pausar</string>
+    <string name="analysis_action_continue">Continuar</string>
+    <string name="analysis_waiting_battery">En espera: seguirá al cargar</string>
+    <string name="analysis_waiting_hot">En espera: seguirá cuando se enfríe</string>
+    <string name="analysis_waiting_screen">En espera: seguirá con la pantalla encendida o con música</string>
+    <string name="analysis_pausing">Pausando…</string>
+    <string name="analysis_paused_by_you">En pausa por ti · %1$d de %2$d analizadas</string>
+    <string name="analysis_paused_at">Detenido en %1$d de %2$d</string>
+    <string name="analysis_stopped">Análisis detenido</string>
+    <string name="analysis_continues_now">El análisis continúa ahora</string>
+    <string name="analysis_pause_to_rebuild">Pausa para reconstruir</string>
+    <string name="analysis_retry_continue_title">¿Continuar también el análisis?</string>
+    <string name="analysis_retry_continue_yes">Reintentar y continuar</string>
+    <string name="analysis_retry_continue_no">Solo reintentar</string>
+    <string name="analysis_too_large">Esta biblioteca es demasiado grande para conservar su análisis entre inicios</string>
+</resources>

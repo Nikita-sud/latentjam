@@ -100,28 +100,39 @@ internal class AnalysisTimeoutTest {
         assertEquals(3, report.indexed)
         assertEquals(setOf(stuckTrack), report.errors.keys)
         val error = report.errors.getValue(stuckTrack)
-        assertIs<EngineError.InvalidAudio>(error)
-        assertTrue(error.technicalDetail.orEmpty().contains("timed out"))
-        // A remembered failure no longer counts as missing: the progress bar can reach the end.
-        assertEquals(0, engine.missingFromIndex(tracks.map { it.id }))
+        // D1 (plan §0): a timeout is transient now. The engine does not remember it; the app's retry ledger
+        // decides when to try again and, after three timeouts, hands it back with rememberAudioFailures.
+        assertIs<EngineError.AudioUnavailable>(error)
+        assertTrue(error.isAnalysisTimeout())
+        assertEquals(1, engine.missingFromIndex(tracks.map { it.id }))
         assertNull(engine.analysing.value)
-        // Remembered durably, like other audio that cannot be analysed.
-        assertEquals(setOf(stuckTrack), store.failureSnapshots["test-model"]?.keys)
+        assertTrue(store.failureSnapshots["test-model"].isNullOrEmpty())
 
-        // The next pass skips it without decoding it again.
-        val decodesBefore = backend.decodes.size
-        val again = engine.indexLibrary(tracks)
-        assertEquals(0, again.indexed)
-        assertIs<EngineError.InvalidAudio>(again.errors[stuckTrack])
-        assertEquals(decodesBefore, backend.decodes.size)
-
-        // Retry clears the marker; once the file decodes, it is analysed.
+        // Once the file decodes, the next pass analyses it.
         backend.hanging = emptySet()
-        assertEquals(1, engine.retryFailedTracks(listOf(stuckTrack)))
         val retried = engine.indexLibrary(tracks)
         assertEquals(1, retried.indexed)
         assertTrue(retried.errors.isEmpty())
         assertEquals(0, engine.missingFromIndex(tracks.map { it.id }))
+    }
+
+    @Test
+    fun `a track the ledger gives up on is remembered until Retry`() = runTest {
+        val store = FakeIndexStore()
+        val backend = DecodingBackend(hanging = setOf(stuckTrack))
+        val engine = engine(backend, store)
+        engine.initialize()
+        engine.indexLibrary(tracks)
+        val stuck = tracks.single { it.id == stuckTrack }
+        engine.rememberAudioFailures(listOf(stuck))
+        assertEquals(0, engine.missingFromIndex(tracks.map { it.id }))
+        val decodesBefore = backend.decodes.size
+        assertIs<EngineError.InvalidAudio>(engine.indexLibrary(tracks).errors[stuckTrack])
+        assertEquals(decodesBefore, backend.decodes.size)
+        assertEquals(setOf(stuckTrack), store.failureSnapshots["test-model"]?.keys)
+        backend.hanging = emptySet()
+        assertEquals(1, engine.retryFailedTracks(listOf(stuckTrack)))
+        assertEquals(1, engine.indexLibrary(tracks).indexed)
     }
 
     @Test
@@ -149,7 +160,7 @@ internal class AnalysisTimeoutTest {
         val result = engine.nextTrack(ListeningContext(seed = tracks[1]))
 
         assertIs<NextTrackResult.Failure>(result)
-        assertIs<EngineError.InvalidAudio>(result.error)
+        assertIs<EngineError.AudioUnavailable>(result.error)
         // The engine still answers.
         assertEquals(0, engine.missingFromIndex(listOf(tracks[0].id)))
     }

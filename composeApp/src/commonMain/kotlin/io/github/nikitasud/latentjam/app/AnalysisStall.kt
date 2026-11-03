@@ -52,10 +52,12 @@ internal fun analysisStall(
 @Composable
 internal fun rememberAnalysisStall(engine: SimilarityEngine, indexing: AutomaticIndexingState): AnalysisStall? {
     val analysing by engine.analysing.collectAsState()
-    val stall by produceState<AnalysisStall?>(null, indexing.running, indexing.progressAt, analysing) {
+    // Never while the pass waits or pauses: a wait is not a stall (plan 1e-min).
+    val moving = indexing.running && indexing.phase == null
+    val stall by produceState<AnalysisStall?>(null, moving, indexing.progressAt, analysing) {
         while (true) {
             value = analysisStall(
-                running = indexing.running,
+                running = moving,
                 trackId = analysing?.trackId,
                 onTrackFor = analysing?.started?.elapsedNow(),
                 sinceProgress = indexing.progressAt?.elapsedNow(),

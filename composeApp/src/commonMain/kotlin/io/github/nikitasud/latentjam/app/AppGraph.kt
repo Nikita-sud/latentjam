@@ -18,6 +18,8 @@ import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.library.Playlists
 import io.github.nikitasud.latentjam.library.musicLibraryModule
 import io.github.nikitasud.latentjam.library.nowMillis
+import io.github.nikitasud.latentjam.smart.IndexReport
+import io.github.nikitasud.latentjam.smart.isAnalysisTimeout
 import io.github.nikitasud.latentjam.playback.NextTrackChooser
 import io.github.nikitasud.latentjam.playback.PlaybackController
 import io.github.nikitasud.latentjam.playback.SleepTimerController
@@ -40,6 +42,8 @@ import io.github.nikitasud.latentjam.smart.smartChainInputsModule
 import io.github.nikitasud.latentjam.smart.smartEngineBackendModule
 import io.github.nikitasud.latentjam.smart.text.smartTextEncoderModule
 import io.github.nikitasud.latentjam.smart.text.MusicEntityResolver
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineDispatcher
@@ -49,6 +53,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -58,8 +63,12 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.withLock
 import org.koin.core.Koin
 import org.koin.core.KoinApplication
 import org.koin.core.module.Module
@@ -199,6 +208,8 @@ object AppGraph {
                                 artistRunPenalty = ARTIST_VARIETY_PENALTIES[sanitizeArtistVariety(get<AppSettings>().artistVariety.value)],
                                 queueClassPenalty = SMART_QUEUE_CLASS_PENALTY,
                                 artistSets = SMART_ARTIST_SETS,
+                                // A press no longer pays the hub penalty (external review 2026-11-02, SCALE-01).
+                                backgroundHub = true,
                                 themeWeights = SMART_THEME_WEIGHTS,
                                 themeSlots = SMART_THEME_SLOTS,
                                 themeBonus = SMART_THEME_BONUS,
@@ -258,7 +269,11 @@ object AppGraph {
                     meter = koin.get(),
                     onStatus = { normalizationStatus.value = it },
                 )
-                appScope.launch(Dispatchers.Default) { normalizer.start(appScope) }
+                appScope.launch(Dispatchers.Default) {
+                    // Before the normalizer rewrites the cache container-relative: keep the roots its old entries name.
+                    keepLegacyContainerRoots()
+                    normalizer.start(appScope)
+                }
                 // Boundary fades follow the preference where the platform implements them.
                 if (boundaryFadeControlsAvailable) appScope.launch {
                     settings.crossfadeSeconds.collect { playback.setCrossfadeSeconds(it) }
@@ -540,29 +555,74 @@ object AppGraph {
         librarySnapshotAuthoritative: Boolean,
         notificationTitle: String,
         force: Boolean = false,
+        /**
+         * With [force], the remembered failures Retry clears (D3: only those it was pressed for); null clears every
+         * one in the library and every waiting timeout, as 0.9.3's Retry did.
+         */
+        retryIds: Collection<TrackId>? = null,
+        call: AnalysisCall = if (force) AnalysisCall.RETRY else AnalysisCall.AUTOMATIC,
+        notices: suspend (AnalysisNotice) -> String = { "" },
         notificationText: suspend (done: Int, total: Int, etaMinutes: Int?) -> String,
     ) {
         val key = AutomaticIndexingRequest(
             tracks = tracks,
             librarySnapshotAuthoritative = librarySnapshotAuthoritative,
         )
+        lastAnalysisCall = LastAnalysisCall(key, notificationTitle, notices, notificationText)
+        val control = analysisControl
+        val store = analysisStore
+        // A Continue tapped while no library was known yet (a cold start from the notification)
+        // is consumed by the first call that has one.
+        val kind = if (call == AnalysisCall.AUTOMATIC && store.pendingContinue) AnalysisCall.CONTINUE else call
+        if (kind == AnalysisCall.CONTINUE) {
+            store.pendingContinue = false
+            control.setUserPaused(false)
+            if (store.stopReason == AnalysisStopReason.USER) store.stopReason = null
+        }
+        if (force) {
+            val request = RetryRequest(all = retryIds == null, ids = retryIds?.toSet().orEmpty())
+            pendingRetry.update { it?.plus(request) ?: request }
+        }
         val trackIds = tracks.idList()
         val existing = automaticIndexingJob
-        if (!force &&
-            automaticIndexingKey == key &&
-            (existing?.isActive == true || automaticIndexing.value.complete)
+        val sameKey = automaticIndexingKey == key
+        val live = existing?.isActive == true
+        if (sameKey && kind != AnalysisCall.RETRY && kind != AnalysisCall.REBUILD &&
+            (live || (kind != AnalysisCall.RETRY && automaticIndexing.value.complete))
         ) {
+            // A live pass sees Continue through the cleared pause and resumes by itself; a finished one has nothing to
+            // continue.
+            if (kind == AnalysisCall.CONTINUE) store.pendingContinue = false
             return
         }
+        if (sameKey && kind == AnalysisCall.AUTOMATIC && !restartRules.allowed(store.stopReason)) return
+        if (kind == AnalysisCall.RETRY) restartRules.reset()
 
+        // A same-key relaunch keeps what the stopped pass showed, so its steps 1–3 never flash a
+        // busy bar or rebuild the map regions while the audio pass stays paused.
+        val previous = mutableAutomaticIndexing.value
+        // Retry while paused ("only retry") keeps it too: the audio pass stays paused, so nothing else changes.
+        val carry = sameKey && kind != AnalysisCall.REBUILD &&
+            (kind != AnalysisCall.RETRY || control.userPaused.value) &&
+            previous.trackIds == trackIds && !previous.complete
         automaticIndexingKey = key
+        // Cancelled here as well as joined below: a replacement that is itself replaced before it
+        // starts never runs its body, and would otherwise leave this run going beside the newest.
+        existing?.cancel()
+        pauseStopPublished = false
         automaticIndexingJob = appScope.launch {
-            // Library changes are uncommon, but if one arrives mid-scan the obsolete worker must
-            // finish cancellation (including removing its notification) before the replacement
-            // announces itself. Otherwise the old finally block can erase the new progress bar.
-            existing?.cancelAndJoin()
+            // Opened before the old run is cancelled: its close then leaves the foreground service to
+            // this run instead of stopping it, and a background start is never needed for the handover.
+            val notifier = indexingNotifier.open()
+            try {
+                // Library changes are uncommon, but if one arrives mid-scan the obsolete worker must
+                // finish cancellation (including its final checkpoint) before the replacement starts.
+                existing?.cancelAndJoin()
+            } catch (cancelled: CancellationException) {
+                notifier.close()
+                throw cancelled
+            }
 
-            val notifier = indexingNotifier
             val failures = LinkedHashMap<TrackId, EngineError>()
             val total = tracks.size
             var reportProgress = false
@@ -571,13 +631,39 @@ object AppGraph {
             val checkpointCadence = AutomaticIndexCheckpointCadence(
                 tracksPerCheckpoint = AUTOMATIC_INDEX_CHECKPOINT_TRACKS,
             )
-            mutableAutomaticIndexing.value = AutomaticIndexingState(
-                trackIds = trackIds,
-                running = true,
-            )
+            val pausedAtStart = control.userPaused.value
+            mutableAutomaticIndexing.value = if (carry) {
+                previous.copy(running = !pausedAtStart, phase = null, etaMinutes = null, progressAt = null)
+            } else {
+                // Paused: steps 1–3 run quietly, without a busy bar that would flip to "Paused" at the first chunk.
+                AutomaticIndexingState(
+                    trackIds = trackIds,
+                    running = !pausedAtStart,
+                    stopReason = store.stopReason,
+                )
+            }
+            // The stopped notice to post once the service is gone (the user's pause, the 6 h cap).
+            var stoppedNotice: AnalysisNotice? = null
             runAutomaticIndexingSafely(
                 checkpoint = { engine.persistPendingAnalysis() },
-                finishNotification = { if (reportProgress) notifier.finish() },
+                finishNotification = {
+                    control.release()
+                    notifier.close()
+                    val notice = stoppedNotice ?: timeoutNotice.also { timeoutNotice = null }
+                    if (notice != null) {
+                        indexingNotifier.notice(
+                            title = notificationTitle,
+                            text = notices(notice),
+                            continueLabel = notices(AnalysisNotice.ContinueAction),
+                        )
+                    }
+                },
+                onInterrupted = { failure ->
+                    val reason = if (failure is AnalysisShowFailed) AnalysisStopReason.SHOW_FAILED else AnalysisStopReason.EXCEPTION
+                    store.stopReason = reason
+                    if (reason == AnalysisStopReason.EXCEPTION) restartRules.failed()
+                    mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(stopReason = reason)
+                },
                 cancelNotificationPrompt = { permissions.cancelNotificationPrompt() },
                 onStopped = {
                     // Cancellation and failure are not completion. A retry must be allowed to
@@ -585,6 +671,9 @@ object AppGraph {
                     if (!mutableAutomaticIndexing.value.complete) {
                         mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
                             running = false,
+                            phase = null,
+                            etaMinutes = null,
+                            stopReason = store.stopReason,
                             failures = failures.toMap(),
                         )
                     }
@@ -598,6 +687,10 @@ object AppGraph {
                 // so a later granted, genuinely empty rescan still reaches reconciliation.
                 // A verified tag edit left the audio as it was: re-key its vector before the sync
                 // below would discard it for the file's new revision (spec §6.5).
+                // iOS: identities of builds before 0.9.4 named imported files by their absolute URL, in a container iOS
+                // renames across updates; the loudness cache kept such URLs as they were, so their roots let the sync
+                // below keep those rows instead of analysing the library again.
+                engine.rememberLegacyContainerRoots(keepLegacyContainerRoots())
                 val carryOvers = audioCarryOvers.pending()
                 if (carryOvers.isNotEmpty()) {
                     audioCarryOvers.settle(carryOvers, engine.carryOverAudio(tracks, carryOvers))
@@ -606,14 +699,39 @@ object AppGraph {
                     library = tracks,
                     pruneMissing = librarySnapshotAuthoritative,
                 )
-                if (force) engine.retryFailedTracks(trackIds)
+                // D2: a file that timed out twice waits out its hour, left out of this pass and of the count of work
+                // left; Retry makes the files it was pressed for eligible again (every one for the recovery Retry).
+                val retries = analysisRetries
+                val retry = pendingRetry.value
+                if (retry != null) engine.retryFailedTracks(if (retry.all) trackIds else retry.ids.toList())
+                ledgerKeeps(trackIds, recoveryRetry = retry?.all == true, librarySnapshotAuthoritative)?.let(retries::prune)
+                retry?.ids?.forEach(retries::forget)
+                // Carried out: what a later Retry added meanwhile stays for the next pass.
+                if (retry != null) {
+                    pendingRetry.update { now ->
+                        // (now == retry is only a shortcut: the subtraction below gives null for it too.)
+                        if (now == null || now == retry) {
+                            null
+                        } else {
+                            RetryRequest(now.all && !retry.all, now.ids - retry.ids).takeIf { it.all || it.ids.isNotEmpty() }
+                        }
+                    }
+                }
+                // Only what is still missing: a held track a press analysed meanwhile is plain done.
+                val held = tracks.filter(retries::holding)
+                val holding = if (held.isEmpty() || engine.missingFromIndexOf(held) == held.size) {
+                    held.mapTo(HashSet()) { it.id }
+                } else {
+                    held.filter { engine.missingFromIndexOf(listOf(it)) > 0 }.mapTo(HashSet()) { it.id }
+                }
+                store.retryLedger = retries.encoded()
                 // The foreground service and its notification are only warranted when audio
                 // embedding will actually run. The dedup key lives in process memory, so every
                 // cold start re-enters this job — and used to flash a "0 of N" notification at
                 // an already-complete library on every single launch. Promotion still happens
                 // BEFORE the first audio batch, which is the work the service protects; the
                 // window during model loading is seconds and carries no batch to lose.
-                val missing = if (total > 0) engine.missingFromIndex(trackIds) else 0
+                val missing = if (total > 0) (engine.missingFromIndex(trackIds) - holding.size).coerceAtLeast(0) else 0
                 // Counted before the metadata phase: a pass that only re-encodes text vectors (a
                 // year learned after an upgrade) must not read as analysis lost.
                 progress.started(missing)
@@ -621,17 +739,32 @@ object AppGraph {
                     done = progress.analysed,
                     progressKnown = true,
                 )
-                if (missing > 0) {
-                    reportProgress = true
-                    // This signal only offers a rationale in the active UI. It never waits for or
-                    // requires permission: indexing remains fully functional after "Not now".
-                    permissions.backgroundAnalysisNeedsNotifications()
-                    notifier.show(
-                        title = notificationTitle,
-                        text = notificationText(progress.analysed, total, null),
-                        done = progress.analysed,
-                        total = total,
-                    )
+                val pauseLabel = notices(AnalysisNotice.PauseAction)
+                // The table gates only an audio pass with work to do, and never one whose index
+                // cannot be read (as in 0.9.3, every chunk then fails at once).
+                var gated = missing > 0 && !engine.audioIndexUnreadable
+                if (missing == 0) {
+                    // Nothing to analyse: let a service still up from the replaced run stop now.
+                    notifier.close()
+                    // A pause has nothing left to hold back, and a finished library is not stopped.
+                    if (control.userPaused.value) control.setUserPaused(false)
+                    store.stopReason = null
+                } else {
+                    store.lastPassComplete = false
+                    if (!control.userPaused.value) {
+                        reportProgress = true
+                        // This signal only offers a rationale in the active UI. It never waits for or
+                        // requires permission: indexing remains fully functional after "Not now".
+                        permissions.backgroundAnalysisNeedsNotifications()
+                        showOrFail(
+                            notifier,
+                            title = notificationTitle,
+                            text = notificationText(progress.analysed, total, null),
+                            done = progress.analysed,
+                            total = total,
+                            pauseLabel = pauseLabel.takeIf { gated },
+                        )
+                    }
                 }
                 tracks.chunked(AUTOMATIC_INDEX_CHUNK_SIZE).forEach { chunk ->
                     val added = engine.stageMetadataVectors(chunk)
@@ -645,48 +778,52 @@ object AppGraph {
                     metadataReady = true,
                 )
 
-                var visited = 0
-                mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
-                    progressAt = TimeSource.Monotonic.markNow(),
+                val pass = GatedAudioPass(
+                    engine = audioPassEngine,
+                    control = control,
+                    state = mutableAutomaticIndexing,
+                    scope = appScope,
+                    show = { text, done, label ->
+                        showOrFail(notifier, notificationTitle, text, done, total, label)
+                    },
+                    notices = notices,
+                    progressText = notificationText,
+                    onFirstShow = { permissions.backgroundAnalysisNeedsNotifications() },
+                    onRunning = { store.stopReason = null },
+                    nowMs = ::nowMillis,
                 )
                 // Spread over the library rather than in title order, so the SMART pool is
                 // representative long before a big library finishes (see analysisOrder).
-                analysisOrder(tracks).chunked(AUTOMATIC_INDEX_CHUNK_SIZE).forEach { chunk ->
-                    val missingBefore = engine.missingFromIndex(chunk.map(TrackDescriptor::id))
-                    val report = engine.stageLibraryIndex(chunk)
-                    failures.putAll(report.errors)
-                    visited += chunk.size
-                    progress.visited(missingBefore)
-                    checkpointCadence.afterBatch(chunk.size, engine::persistPendingAnalysis)
-                    // The pass's own pace: tracks already analysed cost it nothing.
-                    val remaining = eta.remainingMs(visited, total, nowMillis())
-                    if (reportProgress) {
-                        notifier.show(
-                            title = notificationTitle,
-                            text = notificationText(
-                                progress.analysed,
-                                total,
-                                remaining?.let(IndexingEta::minutesFrom),
-                            ),
-                            done = progress.analysed,
-                            total = total,
+                val end = pass.run(
+                    order = analysisOrder(tracks).filterNot { it.id in holding },
+                    allIds = trackIds,
+                    total = total,
+                    progress = progress,
+                    failures = failures,
+                    eta = eta,
+                    gatedAtStart = gated,
+                    shownAtStart = reportProgress,
+                )
+                if (end == AudioPassEnd.PAUSED) {
+                    pauseStopPublished = true
+                    store.stopReason = AnalysisStopReason.USER
+                    if (pass.shown) stoppedNotice = AnalysisNotice.PausedByYou(progress.analysed, total)
+                    val published = pass.publishedFailures(tracks, failures)
+                    mutableAutomaticIndexing.update {
+                        it.copy(
+                            running = false,
+                            phase = null,
+                            etaMinutes = null,
+                            progressAt = null,
+                            stopReason = AnalysisStopReason.USER,
+                            failures = published,
                         )
                     }
-                    mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
-                        done = progress.analysed,
-                        failures = failures.toMap(),
-                        etaMinutes = remaining?.let(IndexingEta::minutesFrom),
-                        progressAt = TimeSource.Monotonic.markNow(),
-                    )
-                    // A short scheduling gap also gives thermal management a chance to settle;
-                    // 75 ms per model batch is invisible beside audio inference but materially
-                    // improves gesture latency on mid-range phones.
-                    if (report.indexed > 0 || report.failed > 0) {
-                        delay(AUTOMATIC_INDEX_YIELD_MS)
-                    }
+                    // A Continue that came while the stop was being published: answer it now the stop is out.
+                    val thisPass = currentCoroutineContext()[Job]
+                    if (!control.userPaused.value) appScope.launch { continueAfterStop(thisPass) }
+                    return@runAutomaticIndexingSafely
                 }
-                // Completion is published only after the short final checkpoint is durable.
-                checkpointCadence.flush(engine::persistPendingAnalysis)
                 mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(progressAt = null)
                 // PLAN_AUDIO_ON §8.8: e for every indexed track that lacks it — new rows, and a restored library's
                 // one-time backfill. Only the small semantic head runs, on the stored vectors.
@@ -716,10 +853,20 @@ object AppGraph {
                     println("SMART: tagger backfill failed (${failure::class.simpleName})")
                 }
                 warmSmartRanker(smartLibraryTracks.value)
+                // A finished pass is not paused: a Pause that arrived during its last chunk is moot.
+                if (control.userPaused.value) control.setUserPaused(false)
+                store.stopReason = null
+                store.lastPassComplete = true
+                restartRules.reset()
+                // A map rebuild that gave up while analysis waited or was paused (in this run or an
+                // earlier one) is asked for again; resumePending checks the stored state for work.
+                resumeMapRebuild()
                 mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
                     running = false,
                     complete = true,
                     done = total,
+                    phase = null,
+                    stopReason = null,
                     failures = failures.toMap(),
                 )
             }
@@ -745,6 +892,259 @@ object AppGraph {
     fun cancelAutomaticIndexing() {
         automaticIndexingJob?.cancel()
     }
+
+    /**
+     * The system's 6 h foreground cap ended the service: the pass stops, says where it stopped, and
+     * restarts at the next app open.
+     */
+    fun onAnalysisForegroundTimeout() {
+        val job = automaticIndexingJob
+        if (job?.isActive == true) {
+            analysisStore.stopReason = AnalysisStopReason.TIMEOUT
+            val state = automaticIndexing.value
+            timeoutNotice = AnalysisNotice.PausedAt(state.done, state.trackIds.size)
+        }
+        appScope.launch { analysisControl.release() }
+        job?.cancel()
+    }
+
+    /** The user's Pause: the pass stops at its next chunk boundary and stays paused across launches. */
+    fun pauseAutomaticIndexing() {
+        val live = automaticIndexingJob?.isActive == true
+        // A stale Pause after a finished pass holds nothing back.
+        if (!live && analysisStore.lastPassComplete) return
+        // A Pause supersedes a Continue not yet consumed.
+        analysisStore.pendingContinue = false
+        analysisControl.setUserPaused(true)
+    }
+
+    /**
+     * The user's Continue. Written before anything else, so a cold start or an open permission gate
+     * never loses the tap; the first call that knows the library consumes it.
+     */
+    fun continueAutomaticIndexing() {
+        analysisStore.pendingContinue = true
+        analysisControl.setUserPaused(false)
+        indexingNotifier.clearNotice()
+        val last = lastAnalysisCall ?: return
+        val job = automaticIndexingJob
+        if (job?.isActive == true && pauseStopPublished) {
+            // The pass has stopped for the pause and is finishing: relaunch once it has.
+            appScope.launch { continueAfterStop(job) }
+            return
+        }
+        ensureAutomaticIndexing(
+            tracks = last.key.tracks,
+            librarySnapshotAuthoritative = last.key.librarySnapshotAuthoritative,
+            notificationTitle = last.title,
+            call = AnalysisCall.CONTINUE,
+            notices = last.notices,
+            notificationText = last.progressText,
+        )
+    }
+
+    /**
+     * Relaunches after [job], the pass that stopped for the pause, has finished, unless the user paused again since or
+     * another pass took over.
+     */
+    private suspend fun continueAfterStop(job: Job?) {
+        job?.join()
+        if (analysisControl.userPaused.value || automaticIndexingJob !== job) return
+        continueAutomaticIndexing()
+    }
+
+    /** The app came to the foreground: restarts a pass the platform or a failure stopped. */
+    fun onAppForeground() {
+        val last = lastAnalysisCall ?: return
+        ensureAutomaticIndexing(
+            tracks = last.key.tracks,
+            librarySnapshotAuthoritative = last.key.librarySnapshotAuthoritative,
+            notificationTitle = last.title,
+            call = AnalysisCall.AUTOMATIC,
+            notices = last.notices,
+            notificationText = last.progressText,
+        )
+    }
+
+    /**
+     * Rebuild: the running pass is cancelled and joined before [clear] deletes the analysis, so no
+     * old job installs rows after it; analysis then restarts for the whole library, unpaused.
+     */
+    suspend fun rebuildAnalysis(clear: suspend () -> Unit) {
+        automaticIndexingJob?.cancelAndJoin()
+        try {
+            clear()
+        } finally {
+            // The ledger belongs to the analysis that was cleared.
+            analysisRetries.prune(emptyList())
+            analysisStore.retryLedger = analysisRetries.encoded()
+            analysisControl.setUserPaused(false)
+            analysisStore.stopReason = null
+            mutableAutomaticIndexing.value = AutomaticIndexingState()
+            val last = lastAnalysisCall
+            if (last != null) {
+                ensureAutomaticIndexing(
+                    tracks = last.key.tracks,
+                    librarySnapshotAuthoritative = last.key.librarySnapshotAuthoritative,
+                    notificationTitle = last.title,
+                    call = AnalysisCall.REBUILD,
+                    notices = last.notices,
+                    notificationText = last.progressText,
+                )
+            }
+        }
+    }
+
+    /** Whether the audio pass waits or was stopped short of completing (not merely running or done). */
+    fun analysisHeldBack(): Boolean {
+        val state = automaticIndexing.value
+        // The stored flags, so a cold WorkManager process answers too without building the player.
+        return analysisStore.userPaused || analysisStore.stopReason != null || state.phase != null
+    }
+
+    /** A map rebuild that gave up while analysis was held back is asked for again, once per resume. */
+    private fun resumeMapRebuild() {
+        appScope.launch {
+            runCatching { MapRebuild.resumePending(nowMillis()) }
+                .onFailure { println("Map rebuild: could not resume: $it") }
+        }
+    }
+
+    /** Clears the user's pause without a relaunch (the relaunch that follows reads it). */
+    fun clearAnalysisPause() {
+        analysisControl.setUserPaused(false)
+        if (analysisStore.stopReason == AnalysisStopReason.USER) analysisStore.stopReason = null
+        mutableAutomaticIndexing.update { if (it.stopReason == AnalysisStopReason.USER) it.copy(stopReason = null) else it }
+    }
+
+    /** The system refused the foreground start: the pass ends now and restarts at the next app open. */
+    fun onAnalysisForegroundRefused() {
+        val job = automaticIndexingJob
+        if (job?.isActive == true) {
+            analysisStore.stopReason = AnalysisStopReason.SHOW_FAILED
+            mutableAutomaticIndexing.update { it.copy(stopReason = AnalysisStopReason.SHOW_FAILED) }
+        }
+        job?.cancel()
+    }
+
+    /** Whether the user paused analysis; persisted. */
+    val analysisUserPaused: StateFlow<Boolean> get() = analysisControl.userPaused
+
+
+    private suspend fun showOrFail(
+        session: IndexingSession,
+        title: String,
+        text: String,
+        done: Int,
+        total: Int,
+        pauseLabel: String?,
+    ) {
+        try {
+            session.show(title, text, done, total, pauseLabel)
+        } catch (refused: RuntimeException) {
+            throw AnalysisShowFailed(refused)
+        }
+    }
+
+    private val analysisStore: AnalysisControlStore by lazy { analysisControlStore() }
+    private val analysisDevice: AnalysisDevice by lazy { analysisDevice() }
+    private val analysisPlaying: StateFlow<Boolean> by lazy {
+        playback.state.map { it.isPlaying }.stateIn(appScope, SharingStarted.Eagerly, playback.state.value.isPlaying)
+    }
+    private val analysisControl: AnalysisRunControl by lazy {
+        AnalysisRunControl(
+            device = analysisDevice,
+            store = analysisStore,
+            playing = analysisPlaying,
+            wallClockMs = ::nowMillis,
+            monotonicMs = ::analysisElapsedMs,
+        )
+    }
+    private val audioPassEngine: AudioPassEngine by lazy {
+        object : AudioPassEngine {
+            override suspend fun missingFromIndex(ids: List<TrackId>) = engine.missingFromIndex(ids)
+            override suspend fun stage(chunk: List<TrackDescriptor>, upcoming: List<TrackDescriptor>): IndexReport {
+                // Battery Saver slows the pass, chunk by chunk, and never stops it (2e).
+                engine.setAnalysisPacing(slow = analysisDevice.conditions.value.powerSave)
+                val report = engine.stageLibraryIndex(chunk, upcoming)
+                return settleRetries(chunk, report)
+            }
+            override suspend fun persist() = engine.persistPendingAnalysis()
+            override fun envelopeRefused() = engine.audioEnvelopeRefused()
+            override suspend fun rememberedFailures(tracks: List<TrackDescriptor>) = engine.rememberedAudioFailures(tracks)
+            override val trackChanges: kotlinx.coroutines.flow.Flow<Any?> get() = engine.analysing
+            override val signals: kotlinx.coroutines.flow.Flow<Any?>
+                get() = combine(analysisDevice.conditions, analysisPlaying) { conditions, playing -> conditions to playing }
+        }
+    }
+    private var lastAnalysisCall: LastAnalysisCall? = null
+
+    private val legacyRootsLock = kotlinx.coroutines.sync.Mutex()
+
+    /**
+     * iOS: the app-container roots the loudness cache's entries of builds before 0.9.4 name, added to the ones kept
+     * before (the cache is rewritten container-relative as it is used); every root kept so far. Empty elsewhere.
+     */
+    private suspend fun keepLegacyContainerRoots(): Set<String> = legacyRootsLock.withLock {
+        val kept = analysisStore.legacyContainerRoots?.lines()?.filter(String::isNotBlank).orEmpty().toCollection(LinkedHashSet())
+        val found = legacyContainerRoots(settings.readTrackLoudnessPayload())
+        if (!kept.containsAll(found)) {
+            kept += found
+            analysisStore.legacyContainerRoots = kept.joinToString("\n")
+        }
+        kept
+    }
+
+    private val analysisRetries: AnalysisRetryLedger by lazy { AnalysisRetryLedger(analysisStore.retryLedger, ::nowMillis) }
+
+    /**
+     * D1/D2 after a chunk: a timeout is retried later (the engine no longer remembers it), and the third one is handed
+     * to the engine to remember, shown as failed with Retry. Any other outcome ends the track's entry.
+     */
+    private suspend fun settleRetries(chunk: List<TrackDescriptor>, report: IndexReport): IndexReport {
+        val retries = analysisRetries
+        val exhausted = ArrayList<TrackDescriptor>()
+        for (track in chunk) {
+            val error = report.errors[track.id]
+            when {
+                error != null && error.isAnalysisTimeout() -> if (retries.timedOut(track)) exhausted += track
+                // Only an answer about the file ends its count: analysed, or failed for good. A passing failure
+                // (codec contention, a suspension on iOS, the model) or a track the chunk skipped keeps it.
+                error is EngineError.InvalidAudio -> retries.forget(track.id)
+                // Decided per track, and only for one the ledger holds: analysed means no longer missing.
+                error == null && retries.has(track.id) && engine.missingFromIndexOf(listOf(track)) == 0 ->
+                    retries.forget(track.id)
+            }
+        }
+        if (exhausted.isEmpty()) {
+            analysisStore.retryLedger = retries.encoded()
+            return report
+        }
+        // The engine's failure rows first, then the ledger that let go of them: a kill between keeps the count.
+        engine.rememberAudioFailures(exhausted)
+        analysisStore.retryLedger = retries.encoded()
+        val errors = LinkedHashMap(report.errors)
+        for (track in exhausted) errors[track.id] = EngineError.InvalidAudio("Analysis timed out ${AnalysisRetryLedger.CAP} times")
+        return report.copy(errors = errors)
+    }
+
+    /** The current pass stopped for the user's pause and is only finishing; reset by each new pass. */
+    @kotlin.concurrent.Volatile
+    private var pauseStopPublished = false
+
+    /**
+     * Retries pressed and not yet carried out (D3): every Retry adds its ids here, and a pass removes what it cleared
+     * only after the engine and the retry ledger both let go of them. A second Retry that cancels the first pass before
+     * it got there therefore never loses the first one's tracks. [RetryRequest.all] is the recovery Retry: every
+     * remembered failure and every waiting timeout.
+     */
+    private val pendingRetry = kotlinx.coroutines.flow.MutableStateFlow<RetryRequest?>(null)
+
+    private data class RetryRequest(val all: Boolean, val ids: Set<TrackId>) {
+        operator fun plus(other: RetryRequest): RetryRequest = RetryRequest(all || other.all, ids + other.ids)
+    }
+    private var timeoutNotice: AnalysisNotice? = null
+    private val restartRules = AnalysisRestartRules()
 
     private val koin: Koin
         get() = checkNotNull(koinApp) {
@@ -792,9 +1192,10 @@ internal const val SMART_JUDGED_CORRECTION: Boolean = false
  */
 internal suspend fun runAutomaticIndexingSafely(
     checkpoint: suspend () -> Unit,
-    finishNotification: () -> Unit,
+    finishNotification: suspend () -> Unit,
     cancelNotificationPrompt: () -> Unit,
     onStopped: () -> Unit,
+    onInterrupted: (Exception) -> Unit = {},
     work: suspend () -> Unit,
 ) {
     try {
@@ -803,6 +1204,11 @@ internal suspend fun runAutomaticIndexingSafely(
         throw cancelled
     } catch (failure: Exception) {
         println("SMART: automatic indexing interrupted: $failure")
+        try {
+            onInterrupted(failure)
+        } catch (secondary: Exception) {
+            println("SMART: could not record the interruption: $secondary")
+        }
     } finally {
         // A batch can be cancelled after installing vectors but before reaching its checkpoint.
         // Persist that dirty window before allowing a replacement worker to acquire its resources.
@@ -815,7 +1221,7 @@ internal suspend fun runAutomaticIndexingSafely(
             }
         }
         try {
-            finishNotification()
+            withContext(NonCancellable) { finishNotification() }
         } catch (failure: Exception) {
             println("SMART: could not dismiss indexing notification: $failure")
         }
@@ -828,6 +1234,41 @@ internal suspend fun runAutomaticIndexingSafely(
         }
     }
 }
+
+/** Which kind of call relaunches analysis; each honours the stop reasons its own way (plan 1e-min). */
+enum class AnalysisCall {
+    /** A library change, a cold start or an app open. */
+    AUTOMATIC,
+
+    /** The user's Continue: clears the pause. */
+    CONTINUE,
+
+    /** The recovery Retry: clears remembered failures and restarts a stopped pass. */
+    RETRY,
+
+    /** After a Rebuild cleared the analysis. */
+    REBUILD,
+}
+
+/** What a notification needs beyond the progress line, resolved in the caller's locale. */
+sealed interface AnalysisNotice {
+    data class Waiting(val phase: AnalysisPhase) : AnalysisNotice
+    data class PausedByYou(val done: Int, val total: Int) : AnalysisNotice
+    data class PausedAt(val done: Int, val total: Int) : AnalysisNotice
+    data object PauseAction : AnalysisNotice
+    data object ContinueAction : AnalysisNotice
+}
+
+/** The last library and texts handed to analysis, for relaunches the UI does not drive. */
+internal class LastAnalysisCall(
+    val key: AutomaticIndexingRequest,
+    val title: String,
+    val notices: suspend (AnalysisNotice) -> String,
+    val progressText: suspend (done: Int, total: Int, etaMinutes: Int?) -> String,
+)
+
+/** The platform refused to show the analysis in the foreground (a background start). */
+internal class AnalysisShowFailed(cause: Throwable) : RuntimeException(cause)
 
 /** A completed UI library scan plus whether it proves which durable SMART rows are still live. */
 internal data class AutomaticIndexingRequest(
@@ -847,6 +1288,14 @@ data class AutomaticIndexingState(
     /** Minutes the pass expects to need, once it has seen enough to say ([IndexingEta]). */
     val etaMinutes: Int? = null,
     val failures: Map<TrackId, EngineError> = emptyMap(),
+    /** Why the pass waits or stops before its next chunk; null while it runs. */
+    val phase: AnalysisPhase? = null,
+    /** Why the last pass stopped before completing, persisted across launches. */
+    val stopReason: AnalysisStopReason? = null,
+    /** Whether the running audio pass is under the state table, so Pause would act. */
+    val pausable: Boolean = false,
+    /** The audio index is too large to keep between launches (the envelope refused it). */
+    val tooLarge: Boolean = false,
     /** When the audio pass last moved (started, or finished a chunk); null outside it ([analysisStall]). */
     val progressAt: TimeSource.Monotonic.ValueTimeMark? = null,
 )
@@ -875,12 +1324,12 @@ internal class AnalysisProgress(private val total: Int) {
 
 // The engine serialises a batch under its model/index lock. Eight bounds how long an interactive
 // SMART/search request can wait; the separate cadence coalesces four such batches per snapshot.
-private const val AUTOMATIC_INDEX_CHUNK_SIZE = 8
+internal const val AUTOMATIC_INDEX_CHUNK_SIZE = 8
 
 /** Launch and library changes settle before SMART's warm-up takes a core for a few seconds. */
 private const val SMART_WARM_DELAY_MS = 5_000L
-private const val AUTOMATIC_INDEX_CHECKPOINT_TRACKS = 32
-private const val AUTOMATIC_INDEX_YIELD_MS = 75L
+internal const val AUTOMATIC_INDEX_CHECKPOINT_TRACKS = 32
+internal const val AUTOMATIC_INDEX_YIELD_MS = 75L
 
 /** Coalesces small model-lock batches without allowing an unbounded crash-loss window. */
 internal class AutomaticIndexCheckpointCadence(

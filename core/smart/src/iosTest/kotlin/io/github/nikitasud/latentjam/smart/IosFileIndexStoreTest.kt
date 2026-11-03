@@ -97,6 +97,66 @@ internal class IosFileIndexStoreTest {
         }
     }
 
+    /** Several rows wider than any buffer, ids and identities of many lengths, and failures. */
+    private fun bigSnapshot(): StoredIndexSnapshot {
+        val random = kotlin.random.Random(94)
+        val entries = LinkedHashMap<TrackId, FloatArray>()
+        val identities = LinkedHashMap<TrackId, String>()
+        repeat(300) { row ->
+            val id = TrackId("track-$row-" + "x".repeat(row % 37))
+            entries[id] = FloatArray(960) { random.nextFloat() * 2f - 1f }
+            if (row % 3 != 0) identities[id] = "audio|" + "y".repeat(row)
+        }
+        val failures = (0 until 40).associate { TrackId("failed-$it") to "audio|f".repeat(it + 1) }
+        return StoredIndexSnapshot(entries, identities, failures)
+    }
+
+    @Test
+    fun streamedBytesEqualTheWholeEncodingForEveryBufferSize() {
+        val snapshot = bigSnapshot()
+        for (half in listOf(false, true)) {
+            val whole = encodeIosIndexSnapshot("model", snapshot, half = half)
+            for (buffer in listOf(7, 4096, 65_536)) {
+                val streamed = ArrayList<Byte>(whole.size)
+                writeIosIndexSnapshot("model", snapshot, half = half) { total ->
+                    SnapshotWriter(ByteArray(buffer), expected = total) { bytes, count ->
+                        for (i in 0 until count) streamed += bytes[i]
+                    }
+                }
+                assertContentEquals(whole, streamed.toByteArray(), "half=$half buffer=$buffer")
+            }
+        }
+    }
+
+    @Test
+    fun theDurableWriterRoundTripsAndLeavesNoTemporaryFile() = kotlinx.coroutines.test.runTest {
+        val name = "smart-test-durable-${kotlin.random.Random.nextLong()}.bin"
+        val store = IosFileIndexStore(name, half = true)
+        try {
+            val snapshot = bigSnapshot()
+            store.saveSnapshot("model", snapshot)
+            store.saveSnapshot("model", snapshot)
+            val loaded = assertNotNull(store.loadSnapshot("model"))
+            assertEquals(snapshot.entries.keys.toList(), loaded.entries.keys.toList())
+            for ((id, v) in snapshot.entries) {
+                assertContentEquals(FloatArray(v.size) { HalfFloat.round(v[it]) }, loaded.entries.getValue(id))
+            }
+            assertEquals(snapshot.identities, loaded.identities)
+            assertEquals(snapshot.failedIdentities, loaded.failedIdentities)
+            // Wherever the store lives (Application Support after the move, Caches before it).
+            for (kind in listOf(platform.Foundation.NSCachesDirectory, platform.Foundation.NSApplicationSupportDirectory)) {
+                val base = platform.Foundation.NSSearchPathForDirectoriesInDomains(kind, platform.Foundation.NSUserDomainMask, true)
+                    .first() as String
+                for (directory in listOf(base, "$base/smart")) {
+                    assertFalse(platform.Foundation.NSFileManager.defaultManager.fileExistsAtPath("$directory/$name.tmp"))
+                }
+            }
+        } finally {
+            store.clear()
+        }
+        assertEquals(null, store.loadSnapshot("model"))
+    }
+
     private companion object {
         const val HALF_FIXTURE_BYTES_HASH = 8796708692808073593L
     }

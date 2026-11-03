@@ -1,0 +1,17 @@
+<resources>
+    <string name="analysis_action_pause">Пауза</string>
+    <string name="analysis_action_continue">Продолжить</string>
+    <string name="analysis_waiting_battery">Ожидание: продолжится при зарядке</string>
+    <string name="analysis_waiting_hot">Ожидание: продолжится, когда телефон остынет</string>
+    <string name="analysis_waiting_screen">Ожидание: продолжится при включённом экране или во время музыки</string>
+    <string name="analysis_pausing">Ставится на паузу…</string>
+    <string name="analysis_paused_by_you">Пауза по вашему выбору · проанализировано %1$d из %2$d</string>
+    <string name="analysis_paused_at">Остановлено на %1$d из %2$d</string>
+    <string name="analysis_stopped">Анализ остановлен</string>
+    <string name="analysis_continues_now">Анализ сейчас продолжится</string>
+    <string name="analysis_pause_to_rebuild">Поставьте на паузу, чтобы пересобрать</string>
+    <string name="analysis_retry_continue_title">Также продолжить анализ?</string>
+    <string name="analysis_retry_continue_yes">Повторить и продолжить</string>
+    <string name="analysis_retry_continue_no">Только повторить</string>
+    <string name="analysis_too_large">Библиотека слишком большая, чтобы сохранять анализ между запусками</string>
+</resources>

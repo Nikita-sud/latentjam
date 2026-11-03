@@ -1,0 +1,17 @@
+<resources>
+    <string name="analysis_action_pause">일시중지</string>
+    <string name="analysis_action_continue">계속</string>
+    <string name="analysis_waiting_battery">대기 중: 충전 중에 계속됩니다</string>
+    <string name="analysis_waiting_hot">대기 중: 기기가 식으면 계속됩니다</string>
+    <string name="analysis_waiting_screen">대기 중: 화면이 켜져 있거나 음악 재생 중에 계속됩니다</string>
+    <string name="analysis_pausing">일시중지하는 중…</string>
+    <string name="analysis_paused_by_you">일시중지됨 · %2$d곡 중 %1$d곡 분석됨</string>
+    <string name="analysis_paused_at">%2$d곡 중 %1$d곡에서 멈춤</string>
+    <string name="analysis_stopped">분석이 멈췄습니다</string>
+    <string name="analysis_continues_now">분석을 곧 계속합니다</string>
+    <string name="analysis_pause_to_rebuild">다시 만들려면 일시중지하세요</string>
+    <string name="analysis_retry_continue_title">분석도 계속할까요?</string>
+    <string name="analysis_retry_continue_yes">다시 시도하고 계속</string>
+    <string name="analysis_retry_continue_no">다시 시도만</string>
+    <string name="analysis_too_large">이 라이브러리는 너무 커서 실행 사이에 분석을 보관할 수 없습니다</string>
+</resources>

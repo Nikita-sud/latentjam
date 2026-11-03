@@ -65,6 +65,28 @@ public interface EmbeddingBackend {
     }
 
     /**
+     * Offers the backend the lock that serialises its native work. A backend that returns true takes [lock] itself
+     * around each unit of inference (a window, or a whole track where decoding and inference are one native call), so
+     * the engine no longer holds it around [embed] and [embedEach]: a SMART press then waits for one such unit, not a
+     * chunk of analysis. False (the default) leaves the engine holding the lock around every call, as before.
+     */
+    public fun takeInferenceLock(lock: kotlinx.coroutines.sync.Mutex): Boolean = false
+
+    /** Battery Saver: [slow] decodes one track at a time from the next call on (2e). Results are unchanged. */
+    public fun setAnalysisPacing(slow: Boolean): Unit = Unit
+
+    /**
+     * [embedEach], told which tracks the next call will probably bring ([upcoming]): a backend that decodes ahead may
+     * start on them once [tracks] are all started, and hand the decoded audio to that next call. Results stay exactly
+     * [embedEach]'s; decoded audio nobody asks for is dropped.
+     */
+    public suspend fun embedEach(
+        tracks: List<TrackDescriptor>,
+        upcoming: List<TrackDescriptor>,
+        onResult: suspend (TrackDescriptor, Result<FloatArray>) -> Unit,
+    ): Unit = embedEach(tracks, onResult)
+
+    /**
      * Runs the optional compact semantic head over stored audio embeddings.
      *
      * The default keeps alternate/test backends source-compatible and means a missing head only

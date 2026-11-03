@@ -1,0 +1,17 @@
+<resources>
+    <string name="analysis_action_pause">إيقاف مؤقت</string>
+    <string name="analysis_action_continue">متابعة</string>
+    <string name="analysis_waiting_battery">في الانتظار: يتابع أثناء الشحن</string>
+    <string name="analysis_waiting_hot">في الانتظار: يتابع عندما يبرد الجهاز</string>
+    <string name="analysis_waiting_screen">في الانتظار: يتابع والشاشة مضاءة أو أثناء تشغيل الموسيقى</string>
+    <string name="analysis_pausing">جارٍ الإيقاف المؤقت…</string>
+    <string name="analysis_paused_by_you">أوقفته مؤقتًا · تم تحليل %1$d من %2$d</string>
+    <string name="analysis_paused_at">توقف عند %1$d من %2$d</string>
+    <string name="analysis_stopped">توقف التحليل</string>
+    <string name="analysis_continues_now">يتابع التحليل الآن</string>
+    <string name="analysis_pause_to_rebuild">أوقف مؤقتًا لإعادة البناء</string>
+    <string name="analysis_retry_continue_title">متابعة التحليل أيضًا؟</string>
+    <string name="analysis_retry_continue_yes">إعادة المحاولة والمتابعة</string>
+    <string name="analysis_retry_continue_no">إعادة المحاولة فقط</string>
+    <string name="analysis_too_large">هذه المكتبة أكبر من أن يُحفظ تحليلها بين مرات التشغيل</string>
+</resources>

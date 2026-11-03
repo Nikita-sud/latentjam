@@ -52,9 +52,19 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
     func embedAudio(
         uri: String,
         durationMs: Int64,
-        outputDim: Int32
+        outputDim: Int32,
+        gate: SmartIosInferenceGate?
     ) -> SmartIosAudioEmbeddingResult {
-        guard loadAudio() == nil, let audio else {
+        // With a gate the model is loaded, and each window run, under the engine's lock; decoding never is.
+        let loaded: OrtModel?
+        if let gate {
+            guard gate.enter() else { return audioFailure(.unavailable, "Analysis stopped") }
+            loaded = loadAudio() == nil ? audio : nil
+            gate.exit()
+        } else {
+            loaded = loadAudio() == nil ? audio : nil
+        }
+        guard let audio = loaded else {
             return audioFailure(.backendFailure, "Audio model is unavailable")
         }
         do {
@@ -73,10 +83,11 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
             var invalidEmbedding = false
             var invalidDecode: String?
             var unavailableDecode: String?
+            let single = durationMs <= 10_000
             for start in starts {
-                let waveform: [Float]?
+                let window: DecodedWindow?
                 do {
-                    waveform = try decodeWindow(url: url, startMs: start)
+                    window = try decodeWindow(url: url, startMs: start)
                 } catch {
                     switch classifyAudioDecodeError(error, url: url) {
                     case .invalidAudio:
@@ -86,11 +97,16 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
                     }
                     continue
                 }
-                guard let waveform else { continue }
+                guard let window else { continue }
                 decoded += 1
-                guard let embedding = try stableAudioEmbedding(
-                    audio, waveform: waveform, outputDim: Int(outputDim)
-                ) else {
+                guard let waveform = coveredWaveform(window, mayBeShort: single) else {
+                    invalidDecode = invalidDecode ?? coverageDetail(window, startMs: start)
+                    continue
+                }
+                guard case let .ran(result) = try runWindow(
+                    audio, waveform: waveform, outputDim: Int(outputDim), gate: gate
+                ) else { return audioFailure(.unavailable, "Analysis stopped") }
+                guard let embedding = result else {
                     invalidEmbedding = true
                     continue
                 }
@@ -98,9 +114,9 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
                 used += 1
             }
             if used == 0, durationMs > 10_000 {
-                let waveform: [Float]?
+                let window: DecodedWindow?
                 do {
-                    waveform = try decodeWindow(url: url, startMs: 0)
+                    window = try decodeWindow(url: url, startMs: 0)
                 } catch {
                     switch classifyAudioDecodeError(error, url: url) {
                     case .invalidAudio:
@@ -108,13 +124,15 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
                     case .unavailable:
                         unavailableDecode = unavailableDecode ?? error.localizedDescription
                     }
-                    waveform = nil
+                    window = nil
                 }
-                if let waveform {
+                // The head retry holds all the audio the file may have: a short head is repeated, never dropped.
+                if let window, let waveform = coveredWaveform(window, mayBeShort: true) {
                     decoded += 1
-                    if let embedding = try stableAudioEmbedding(
-                        audio, waveform: waveform, outputDim: Int(outputDim)
-                    ) {
+                    guard case let .ran(result) = try runWindow(
+                        audio, waveform: waveform, outputDim: Int(outputDim), gate: gate
+                    ) else { return audioFailure(.unavailable, "Analysis stopped") }
+                    if let embedding = result {
                         for index in pooled.indices { pooled[index] += embedding[index] }
                         used = 1
                     } else {
@@ -346,7 +364,36 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
         return [0.2, 0.5, 0.8].map { Int64(Double(span) * $0) }
     }
 
-    private func decodeWindow(url: URL, startMs: Int64) throws -> [Float]? {
+    /// One decoded window: 320,000 samples, of which the first `valid` came from the file and the rest are zeros.
+    private struct DecodedWindow {
+        var waveform: [Float]
+        let valid: Int
+    }
+
+    /// WindowCoverage (core/smart commonMain) on this host's decode, the same rule as Android (AUD-02): a window short
+    /// by at most 3,200 samples is used as decoded; otherwise its audio is repeated from its start to fill it
+    /// (`samples[i] = samples[i % valid]`), unless a longer track should have filled it and less than half arrived,
+    /// when it is dropped (nil).
+    private func coveredWaveform(_ window: DecodedWindow, mayBeShort: Bool) -> [Float]? {
+        let size = window.waveform.count
+        let valid = window.valid
+        if valid >= size - 3_200 { return window.waveform }
+        guard valid > 0, mayBeShort || Double(valid) >= Double(size) * 0.5 else { return nil }
+        var samples = window.waveform
+        var at = valid
+        while at < size {
+            let count = min(valid, size - at)
+            for index in 0..<count { samples[at + index] = samples[index] }
+            at += count
+        }
+        return samples
+    }
+
+    private func coverageDetail(_ window: DecodedWindow, startMs: Int64) -> String {
+        "Window at \(startMs)ms decoded \(window.valid) of \(window.waveform.count) samples"
+    }
+
+    private func decodeWindow(url: URL, startMs: Int64) throws -> DecodedWindow? {
         let file = try AVAudioFile(forReading: url)
         let inputFormat = file.processingFormat
         let requestedFrame = AVAudioFramePosition(
@@ -357,12 +404,14 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
         // duration, especially for damaged VBR files, so reject that window before
         // touching the exception-raising setter. Other valid windows can still be used.
         guard requestedFrame < file.length else { return nil }
-        file.framePosition = requestedFrame
+        // A FLAC-in-MP4 file opens but raises from both calls below, even at frame 0. Caught, that
+        // is a durable decode error like any other (0.9.3 crashed here on every pass).
+        try LJSafeAudioFile.setFramePosition(requestedFrame, of: file)
         let inputFrames = AVAudioFrameCount((10 * inputFormat.sampleRate).rounded(.up))
         guard let input = AVAudioPCMBuffer(pcmFormat: inputFormat, frameCapacity: inputFrames) else {
             return nil
         }
-        try file.read(into: input, frameCount: inputFrames)
+        try LJSafeAudioFile.read(file, into: input, frameCount: inputFrames)
         guard input.frameLength > 0,
               let outputFormat = AVAudioFormat(
                 commonFormat: .pcmFormatFloat32,
@@ -398,7 +447,31 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
             let sample = waveform[index]
             waveform[index] = sample.isFinite ? min(1, max(-1, sample)) : 0
         }
-        return waveform
+        return DecodedWindow(waveform: waveform, valid: count)
+    }
+
+    private enum WindowRun {
+        /// The window's embedding, or nil when no gain made it usable.
+        case ran([Float]?)
+        /// The gate refused, or the model was closed while this window decoded.
+        case stopped
+    }
+
+    /// One window's inference, under `gate` when there is one (see `embedAudio`).
+    private func runWindow(
+        _ model: OrtModel,
+        waveform: [Float],
+        outputDim: Int,
+        gate: SmartIosInferenceGate?
+    ) throws -> WindowRun {
+        guard let gate else {
+            return .ran(try stableAudioEmbedding(model, waveform: waveform, outputDim: outputDim))
+        }
+        guard gate.enter() else { return .stopped }
+        defer { gate.exit() }
+        // A model closed between two windows is never run.
+        guard audio === model else { return .stopped }
+        return .ran(try stableAudioEmbedding(model, waveform: waveform, outputDim: outputDim))
     }
 
     private func stableAudioEmbedding(

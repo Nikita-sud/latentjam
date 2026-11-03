@@ -98,6 +98,15 @@ internal class SmartSnapshot private constructor(
 ) {
     val size: Int get() = tracks.size
 
+    /** This snapshot with [penalty] (one per row, row order) as its hub penalty; everything else is shared. */
+    fun withHubPenalty(penalty: FloatArray): SmartSnapshot {
+        require(penalty.size == size) { "hub penalty for ${penalty.size} rows, snapshot has $size" }
+        return SmartSnapshot(
+            tracks, rawAudio, centeredAudio, penalty, typicality, centeredText, hasText, centeredDescriptor,
+            hasDescriptor, descriptorDim, rawText, batchDotProducts,
+        )
+    }
+
     /** Optional exact-order acceleration for large batches; no matrix copies or retained scratch. */
     fun batchDots(
         matrix: FloatArray, dim: Int, query: FloatArray, offset: Int,
@@ -190,12 +199,17 @@ internal class SmartSnapshot private constructor(
          * [descriptorKeyOf], when given, names everything [descriptorOf] reads for a row (equal keys must give equal
          * descriptors); a row whose key was already seen takes that row's result without calling [descriptorOf].
          * Null keys are always computed.
+         *
+         * [hubPenaltyOf], when given, supplies the hub penalty for the usable rows' ids (in row order) instead of
+         * computing it here; a null or wrongly sized answer is computed as usual. The engine passes the penalty its
+         * background pass computed for exactly these rows, or a stand-in until that pass ends ([withHubPenalty]).
          */
         fun build(
             tracks: List<SmartTrack>,
             batchDotProducts: BatchDotProducts = BatchDotProducts.Portable,
             scratch: RowStoreFactory = RowStoreFactory.Heap,
             descriptorKeyOf: ((SmartTrack) -> Any?)? = null,
+            hubPenaltyOf: ((List<TrackId>) -> FloatArray?)? = null,
             descriptorOf: (SmartTrack) -> FloatArray? = SmartTrack::descriptor,
         ): SmartSnapshot? {
             val usable = tracks.filter { it.audioRow.size == AUDIO_DIM && norm(it.audioRow) >= DEGENERATE_NORM_EPS }
@@ -258,7 +272,8 @@ internal class SmartSnapshot private constructor(
                 descriptorOf(track)?.takeIf { it.isNotEmpty() && norm(it) > 1e-9f }?.size
             } ?: DESCRIPTOR_DIM
             val descriptor = centredDistinct(usable, descriptorDim, scratch, descriptorKeyOf, descriptorOf)
-            val hubPenalty = computeHubPenalty(centered, scratch = scratch, kernel = batchDotProducts)
+            val hubPenalty = hubPenaltyOf?.invoke(usable.map { it.id })?.takeIf { it.size == n }
+                ?: computeHubPenalty(centered, scratch = scratch, kernel = batchDotProducts)
 
             return SmartSnapshot(
                 tracks = usable.map { SnapshotTrack(it.id, it.energy, it.meta) },
@@ -360,73 +375,27 @@ internal class SmartSnapshot private constructor(
         ): FloatArray {
             val n = centered.size
             val dim = centered.dim
-            val penalty = FloatArray(n)
-            val anchors: IntArray? =
-                if (n > anchorLimit) {
-                    val perm = IntArray(n) { it }
-                    val rng = Random(HUB_ANCHOR_SEED)
-                    for (i in n - 1 downTo 1) {
-                        val j = rng.nextInt(i + 1)
-                        val tmp = perm[i]
-                        perm[i] = perm[j]
-                        perm[j] = tmp
-                    }
-                    perm.copyOf(anchorLimit)
-                } else {
-                    null
-                }
-            val candidates = anchors?.size ?: n
-            val k = HUB_TOPK.coerceAtMost(candidates - 1)
-            if (k <= 0) return penalty
-            val anchorRows = scratch.create(dim, "hub")
+            val pass = HubPass(n, dim, anchorLimit, scratch, kernel)
+            if (pass.k <= 0) return FloatArray(n)
             try {
                 val row = FloatArray(dim)
-                for (c in 0 until candidates) {
-                    centered.copyRow(anchors?.get(c) ?: c, row)
-                    anchorRows.append(row.copyOf())
+                for (c in 0 until pass.candidates) {
+                    centered.copyRow(pass.anchorRow(c), row)
+                    pass.addAnchor(row)
                 }
-                anchorRows.seal()
-                val block = minOf(HUB_ROW_BLOCK, n)
-                val rows = FloatArray(block * dim)
-                val top = FloatArray(block * k)
-                val anchor = FloatArray(dim)
-                val local = IntArray(block) { it }
-                val dots = FloatArray(block)
+                pass.sealAnchors()
+                val rows = FloatArray(minOf(HUB_ROW_BLOCK, n) * dim)
                 var start = 0
                 while (start < n) {
-                    val count = minOf(block, n - start)
+                    val count = minOf(HUB_ROW_BLOCK, n - start)
                     for (r in 0 until count) centered.copyRow(start + r, rows, r * dim)
-                    top.fill(Float.NEGATIVE_INFINITY, 0, count * k)
-                    for (c in 0 until candidates) {
-                        val j = anchors?.get(c) ?: c
-                        val values = anchorRows.heapArray(c) ?: anchor.also { anchorRows.row(c).copyInto(it) }
-                        if (!kernel.compute(rows, dim, values, 0, local, count, dots)) {
-                            batchDots(rows, dim, values, 0, local, count, dots)
-                        }
-                        for (r in 0 until count) {
-                            if (j == start + r) continue
-                            val dot = dots[r]
-                            val t0 = r * k
-                            var minIdx = 0
-                            for (t in 1 until k) if (top[t0 + t] < top[t0 + minIdx]) minIdx = t
-                            if (dot > top[t0 + minIdx]) top[t0 + minIdx] = dot
-                        }
-                    }
-                    for (r in 0 until count) {
-                        var sum = 0f
-                        for (t in 0 until k) sum += top[r * k + t]
-                        penalty[start + r] = sum / k
-                    }
+                    pass.score(rows, start, count)
                     start += count
                 }
             } finally {
-                anchorRows.seal()
+                pass.close()
             }
-            var mean = 0f
-            for (v in penalty) mean += v
-            mean /= n
-            for (i in 0 until n) penalty[i] -= mean
-            return penalty
+            return pass.finish()
         }
 
         /** Rows scored against the anchors per pass of [computeHubPenalty]: 128 × 960 floats, half a megabyte. */
@@ -440,7 +409,7 @@ internal class SmartSnapshot private constructor(
         internal const val HUB_ANCHOR_SAMPLE = 1024
 
         /** Seeds the anchor permutation so repeated snapshot builds rank identically. */
-        private const val HUB_ANCHOR_SEED = 0x1A7E47L
+        internal const val HUB_ANCHOR_SEED = 0x1A7E47L
 
         /**
          * Centred, renormalised rows of an optional space read through its unit rows [raw]: the mean over the rows
@@ -749,5 +718,95 @@ internal fun interface BatchDotProducts {
             batchDots(matrix, dim, query, offset, rows, count, out)
             true
         }
+    }
+}
+
+
+/**
+ * One [SmartSnapshot.computeHubPenalty] pass, fed a block of rows at a time so that a caller may read the rows in
+ * pieces (the engine's background hub reads each block under its lock). The anchors are added first, in candidate
+ * order ([anchorRow]); every block is then scored against them, and [finish] zero-means the result. Fed the same rows,
+ * any caller gets the same floats: the products, top-k slots and sums run in the same order.
+ */
+internal class HubPass(
+    private val n: Int,
+    private val dim: Int,
+    anchorLimit: Int,
+    scratch: RowStoreFactory,
+    private val kernel: BatchDotProducts,
+) {
+    /** A seeded sample of row indices above [anchorLimit] rows; null when every row is an anchor. */
+    private val anchors: IntArray? =
+        if (n > anchorLimit) {
+            val perm = IntArray(n) { it }
+            val rng = Random(SmartSnapshot.HUB_ANCHOR_SEED)
+            for (i in n - 1 downTo 1) {
+                val j = rng.nextInt(i + 1)
+                val tmp = perm[i]
+                perm[i] = perm[j]
+                perm[j] = tmp
+            }
+            perm.copyOf(anchorLimit)
+        } else {
+            null
+        }
+    val candidates: Int = anchors?.size ?: n
+    val k: Int = SmartSnapshot.HUB_TOPK.coerceAtMost(candidates - 1)
+    private val penalty = FloatArray(n)
+    private val anchorRows = if (k > 0) scratch.create(dim, "hub") else null
+    private val block = minOf(SmartSnapshot.HUB_ROW_BLOCK, n)
+    private val top = FloatArray(block * k.coerceAtLeast(0))
+    private val anchor = FloatArray(dim)
+    private val local = IntArray(block) { it }
+    private val dots = FloatArray(block)
+
+    /** The row index of candidate [c]. */
+    fun anchorRow(c: Int): Int = anchors?.get(c) ?: c
+
+    fun addAnchor(row: FloatArray) {
+        checkNotNull(anchorRows).append(row.copyOf())
+    }
+
+    fun sealAnchors() {
+        anchorRows?.seal()
+    }
+
+    /** Scores rows [start] until [start] + [count] (at most [SmartSnapshot.HUB_ROW_BLOCK]), laid out in [rows]. */
+    fun score(rows: FloatArray, start: Int, count: Int) {
+        val anchorRows = checkNotNull(anchorRows)
+        top.fill(Float.NEGATIVE_INFINITY, 0, count * k)
+        for (c in 0 until candidates) {
+            val j = anchorRow(c)
+            val values = anchorRows.heapArray(c) ?: anchor.also { anchorRows.row(c).copyInto(it) }
+            if (!kernel.compute(rows, dim, values, 0, local, count, dots)) {
+                batchDots(rows, dim, values, 0, local, count, dots)
+            }
+            for (r in 0 until count) {
+                if (j == start + r) continue
+                val dot = dots[r]
+                val t0 = r * k
+                var minIdx = 0
+                for (t in 1 until k) if (top[t0 + t] < top[t0 + minIdx]) minIdx = t
+                if (dot > top[t0 + minIdx]) top[t0 + minIdx] = dot
+            }
+        }
+        for (r in 0 until count) {
+            var sum = 0f
+            for (t in 0 until k) sum += top[r * k + t]
+            penalty[start + r] = sum / k
+        }
+    }
+
+    fun close() {
+        anchorRows?.seal()
+    }
+
+    /** The penalties, zero-meaned across the corpus. */
+    fun finish(): FloatArray {
+        var mean = 0f
+        for (v in penalty) mean += v
+        mean /= n
+        for (i in 0 until n) penalty[i] -= mean
+        return penalty
     }
 }

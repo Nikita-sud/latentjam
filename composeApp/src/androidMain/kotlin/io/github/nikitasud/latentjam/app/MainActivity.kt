@@ -92,6 +92,9 @@ class MainActivity : ComponentActivity() {
         // SavedStateHandle already owns any unfinished request after recreation. Re-reading the
         // launch intent here would replay an already consumed file after a locale/rotation change.
         if (savedInstanceState == null) externalAudioOpener.submit(intent?.action, intent?.dataString)
+        // Consumed once: a recreation or a relaunch from recents must not undo a later Pause.
+        val fromHistory = (intent?.flags ?: 0) and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
+        if (savedInstanceState == null && !fromHistory) consumeContinueAnalysis(intent)
         audioPermissionGranted = hasAudioPermission()
         audioPermissionGateDismissed = getSharedPreferences(
             AUDIO_GATE_PREFERENCES,
@@ -136,6 +139,15 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         externalAudioOpener.submit(intent.action, intent.dataString)
+        consumeContinueAnalysis(intent)
+    }
+
+    /** The analysis notice's Continue: persisted at once, then the pass is started from the app. */
+    private fun consumeContinueAnalysis(intent: Intent?) {
+        if (intent?.action != IndexingService.ACTION_CONTINUE) return
+        intent.action = Intent.ACTION_MAIN
+        setIntent(intent)
+        AppGraph.continueAutomaticIndexing()
     }
 
     override fun onPause() {

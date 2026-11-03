@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 LatentJam Project. SPDX-License-Identifier: Apache-2.0 */
 package io.github.nikitasud.latentjam.playback
 
+import io.github.nikitasud.latentjam.playback.nativeeq.lj_eq_ios_read_next
 import kotlinx.cinterop.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -43,7 +44,10 @@ public class IosIntegratedLoudnessMeter {
                     while (decodedFrames < file.length) {
                         coroutine.ensureActive()
                         if ((NSProcessInfo.processInfo.systemUptime - started) * 1000 > LoudnessScanLimits.WALL_BUDGET_MS) return@withLock null
-                        if (!file.readIntoBuffer(buffer, error = null) || buffer.frameLength.toInt() <= 0) {
+                        // A file AVAudioFile opens but cannot decode (32-bit FLAC in MP4) raises here; it has no loudness.
+                        val read = lj_eq_ios_read_next(file, buffer)
+                        if (read < 0) return@withLock null
+                        if (read == 0 || buffer.frameLength.toInt() <= 0) {
                             ranOut = true
                             break
                         }

@@ -908,6 +908,8 @@ private fun AppShell(
             // so the last track of the day stops vanishing from the history log.
             onLeave = { AppGraph.flushListeningSession() },
         ) {
+            // Restarts a pass that the 6 h cap, a refused start or a failure stopped.
+            AppGraph.onAppForeground()
             scope.launch {
                 // Not while a tag save is queued or running. The return from its consent dialog lands
                 // here just as the writes start, and a reload that already sees a written file's new
@@ -1200,6 +1202,7 @@ private fun AppShell(
                 tracks = loaded,
                 librarySnapshotAuthoritative = request.librarySnapshotAuthoritative,
                 notificationTitle = notificationTitle,
+                notices = ::analysisNoticeText,
             ) { done, total, etaMinutes ->
                 if (etaMinutes == null) {
                     getString(Res.string.indexing_notification_progress, done, total)
@@ -1842,8 +1845,11 @@ private fun AppShell(
             }
         }
 
-        fun retryAutomaticIndexing() {
+        // D3: Retry clears the failures it was pressed for ([ids], from the problems list); without ids it is the
+        // recovery Retry of the status page and the map, which clears every remembered failure as 0.9.3 did.
+        fun retryAutomaticIndexing(ids: Collection<TrackId>? = null) {
             val loaded = tracks ?: return
+            val retryIds = ids?.toSet()
             scope.launch {
                 val notificationTitle = getString(Res.string.indexing_notification_title)
                 AppGraph.ensureAutomaticIndexing(
@@ -1852,6 +1858,8 @@ private fun AppShell(
                         libraryIndexingRequest?.librarySnapshotAuthoritative ?: false,
                     notificationTitle = notificationTitle,
                     force = true,
+                    retryIds = retryIds,
+                    notices = ::analysisNoticeText,
                 ) { done, total, etaMinutes ->
                     if (etaMinutes == null) {
                         getString(Res.string.indexing_notification_progress, done, total)
@@ -2728,7 +2736,7 @@ private fun AppShell(
                                                 ),
                                         ) {
                                         MapTab(
-                                            onRetryIndexing = ::retryAutomaticIndexing,
+                                            onRetryIndexing = { retryAutomaticIndexing() },
                                             currentAccent = browseAccentInk(accent.value),
                                             state = shownMapState,
                                             contentPadding = listPadding,
@@ -4580,9 +4588,9 @@ private fun AppShell(
                     }
                 },
                 onImportAudio = importAudio,
-                onRetryIndexing = ::retryAutomaticIndexing,
+                onRetryIndexing = { retryAutomaticIndexing() },
+                onRetryTracks = { ids -> retryAutomaticIndexing(ids) },
                 onRebuildAnalysis = {
-                    engine.clearAnalysis()
                     libraryWorlds.metadataVectorsReady = false
                     libraryWorlds.audioVectorsReady = false
                     libraryWorlds.worlds = emptyList()
@@ -4591,7 +4599,9 @@ private fun AppShell(
                     // lets a same-inputs rebuild short-circuit, and worlds would stay empty.
                     libraryWorlds.builtWorldsKey = null
                     invalidateSmartRecommendationCaches()
-                    retryAutomaticIndexing()
+                    // The running pass is cancelled and joined before the clear, and the pass restarts
+                    // unpaused afterwards even when the clear fails.
+                    AppGraph.rebuildAnalysis { engine.clearAnalysis() }
                 },
                 onHideTrack = { target ->
                     hideTracksAndRefresh(

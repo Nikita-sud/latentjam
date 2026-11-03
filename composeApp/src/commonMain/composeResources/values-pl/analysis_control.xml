@@ -1,0 +1,17 @@
+<resources>
+    <string name="analysis_action_pause">Wstrzymaj</string>
+    <string name="analysis_action_continue">Kontynuuj</string>
+    <string name="analysis_waiting_battery">Czeka: ruszy podczas ładowania</string>
+    <string name="analysis_waiting_hot">Czeka: ruszy, gdy urządzenie ostygnie</string>
+    <string name="analysis_waiting_screen">Czeka: ruszy przy włączonym ekranie lub podczas muzyki</string>
+    <string name="analysis_pausing">Wstrzymywanie…</string>
+    <string name="analysis_paused_by_you">Wstrzymane przez Ciebie · przeanalizowano %1$d z %2$d</string>
+    <string name="analysis_paused_at">Zatrzymano na %1$d z %2$d</string>
+    <string name="analysis_stopped">Analiza zatrzymana</string>
+    <string name="analysis_continues_now">Analiza zaraz ruszy dalej</string>
+    <string name="analysis_pause_to_rebuild">Wstrzymaj, aby przebudować</string>
+    <string name="analysis_retry_continue_title">Kontynuować też analizę?</string>
+    <string name="analysis_retry_continue_yes">Ponów i kontynuuj</string>
+    <string name="analysis_retry_continue_no">Tylko ponów</string>
+    <string name="analysis_too_large">Ta biblioteka jest za duża, by zachować jej analizę między uruchomieniami</string>
+</resources>

@@ -55,7 +55,10 @@ internal actual fun onExternalPower(): Boolean = runCatching {
 internal class MapRebuildWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result = when (MapRebuild.run(isActive = { !isStopped }, trigger = "work#$runAttemptCount")) {
         MapRebuild.Outcome.DONE, MapRebuild.Outcome.NOT_NEEDED -> Result.success()
-        MapRebuild.Outcome.NOT_READY, MapRebuild.Outcome.CANCELLED, MapRebuild.Outcome.AGAIN -> Result.retry()
+        // An analysis that waits or was stopped will not finish on WorkManager's backoff; retrying would only
+        // wake the phone night after night. The pass enqueues the rebuild again when it resumes or completes.
+        MapRebuild.Outcome.NOT_READY -> if (AppGraph.analysisHeldBack()) Result.success() else Result.retry()
+        MapRebuild.Outcome.CANCELLED, MapRebuild.Outcome.AGAIN -> Result.retry()
         MapRebuild.Outcome.FAILED -> Result.failure()
     }
 

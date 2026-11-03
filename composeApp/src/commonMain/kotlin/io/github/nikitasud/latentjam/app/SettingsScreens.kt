@@ -45,6 +45,7 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilledTonalButton
@@ -105,6 +106,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.Dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
+import io.github.nikitasud.latentjam.app.generated.resources.analysis_action_continue
+import io.github.nikitasud.latentjam.app.generated.resources.analysis_action_pause
+import io.github.nikitasud.latentjam.app.generated.resources.analysis_continues_now
+import io.github.nikitasud.latentjam.app.generated.resources.analysis_pause_to_rebuild
+import io.github.nikitasud.latentjam.app.generated.resources.analysis_paused_by_you
+import io.github.nikitasud.latentjam.app.generated.resources.analysis_retry_continue_no
+import io.github.nikitasud.latentjam.app.generated.resources.analysis_retry_continue_title
+import io.github.nikitasud.latentjam.app.generated.resources.analysis_retry_continue_yes
+import io.github.nikitasud.latentjam.app.generated.resources.analysis_stopped
+import io.github.nikitasud.latentjam.app.generated.resources.analysis_too_large
 import io.github.nikitasud.latentjam.app.generated.resources.action_back
 import io.github.nikitasud.latentjam.app.generated.resources.settings_pages_order
 import io.github.nikitasud.latentjam.app.generated.resources.settings_opens_on_launch
@@ -448,6 +459,7 @@ internal fun SettingsScreen(
     onRefreshLibrary: () -> Unit,
     onImportAudio: () -> Unit,
     onRetryIndexing: () -> Unit,
+    onRetryTracks: (Collection<TrackId>) -> Unit,
     onRebuildAnalysis: suspend () -> Unit,
     onHideTrack: suspend (TrackDescriptor) -> Unit,
     onHideTracks: suspend (List<TrackDescriptor>) -> Unit,
@@ -658,7 +670,7 @@ internal fun SettingsScreen(
                         engine = engine,
                         tracks = tracks,
                         libraryLoading = libraryLoading,
-                        onRetryIndexing = onRetryIndexing,
+                        onRetryTracks = onRetryTracks,
                         onHideTrack = onHideTrack,
                         snackbarHostState = snackbarHostState,
                     )
@@ -1941,7 +1953,13 @@ private fun IntelligenceSettings(
     // The request belongs to this composition; restoring its old busy flag cannot restore its job.
     var rebuilding by remember { mutableStateOf(false) }
     var confirmRebuild by rememberSaveable { mutableStateOf(false) }
+    var confirmRetryContinue by rememberSaveable { mutableStateOf(false) }
     val operationFailed = stringResource(Res.string.settings_library_manage_failed)
+    val userPaused by AppGraph.analysisUserPaused.collectAsState()
+    // Stopped by the user's Pause: Continue is the way on, never "Retry".
+    val pausedByUser = !indexing.running && indexingMatchesLibrary && !indexing.complete &&
+        indexing.stopReason == AnalysisStopReason.USER
+    val retry: () -> Unit = { if (userPaused) confirmRetryContinue = true else onRetryIndexing() }
 
     FadingLazyColumn(
         state = listState,
@@ -1986,12 +2004,18 @@ private fun IntelligenceSettings(
                         progress = { done.toFloat() / tracks.size },
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
                     )
+                    val phase = indexing.phase
                     Text(
-                        text = stringResource(
-                            Res.string.intelligence_analysis_progress,
-                            done,
-                            tracks.size,
-                        ),
+                        // A waiting pass shows why, with no ETA and no frozen progress claim.
+                        text = if (phase != null) {
+                            analysisPhaseText(phase)
+                        } else {
+                            stringResource(
+                                Res.string.intelligence_analysis_progress,
+                                done,
+                                tracks.size,
+                            )
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
@@ -2004,6 +2028,50 @@ private fun IntelligenceSettings(
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
                         )
                     }
+                    if (indexing.tooLarge) {
+                        Text(
+                            text = stringResource(Res.string.analysis_too_large),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                        )
+                    }
+                    // Only where it acts: an audio pass under the state table, not yet pausing.
+                    if (indexing.pausable && phase != AnalysisPhase.PAUSING && !userPaused) {
+                        OutlinedButton(
+                            onClick = AppGraph::pauseAutomaticIndexing,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+                        ) {
+                            Text(stringResource(Res.string.analysis_action_pause))
+                        }
+                    }
+                }
+                if (!libraryLoading && pausedByUser && tracks.isNotEmpty()) {
+                    Text(
+                        text = stringResource(Res.string.analysis_paused_by_you, done, tracks.size),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                    )
+                    Button(
+                        onClick = AppGraph::continueAutomaticIndexing,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+                    ) {
+                        Text(stringResource(Res.string.analysis_action_continue))
+                    }
+                } else if (!libraryLoading && !indexing.running && !indexing.complete && indexingMatchesLibrary) {
+                    when (indexing.stopReason) {
+                        AnalysisStopReason.EXCEPTION -> Res.string.analysis_stopped
+                        AnalysisStopReason.SHOW_FAILED, AnalysisStopReason.TIMEOUT -> Res.string.analysis_continues_now
+                        else -> null
+                    }?.let { text ->
+                        Text(
+                            text = stringResource(text),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                        )
+                    }
                 }
                 val needsRecovery = !libraryLoading && (
                     state is EngineState.Uninitialized ||
@@ -2011,12 +2079,20 @@ private fun IntelligenceSettings(
                         (
                             tracks.isNotEmpty() &&
                                 !indexing.running &&
-                                (!indexing.complete || failures.isNotEmpty())
+                                // A pause is continued, not retried, unless failures are listed; a pass the
+                                // 6 h cap or a refused start stopped continues by itself at the next app open.
+                                when {
+                                    pausedByUser -> failures.isNotEmpty()
+                                    !indexing.complete && indexingMatchesLibrary &&
+                                        (indexing.stopReason == AnalysisStopReason.TIMEOUT ||
+                                            indexing.stopReason == AnalysisStopReason.SHOW_FAILED) -> failures.isNotEmpty()
+                                    else -> !indexing.complete || failures.isNotEmpty()
+                                }
                             )
                     )
                 if (needsRecovery) {
                     OutlinedButton(
-                        onClick = onRetryIndexing,
+                        onClick = retry,
                         enabled = !indexing.running && state !is EngineState.Initializing,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
                     ) {
@@ -2141,7 +2217,11 @@ private fun IntelligenceSettings(
                 }
                 SettingsActionRow(
                     title = stringResource(Res.string.intelligence_rebuild),
-                    subtitle = stringResource(Res.string.intelligence_rebuild_body),
+                    subtitle = if (indexing.running && indexing.phase != null) {
+                        stringResource(Res.string.analysis_pause_to_rebuild)
+                    } else {
+                        stringResource(Res.string.intelligence_rebuild_body)
+                    },
                     enabled = !indexing.running && !rebuilding,
                     destructive = true,
                     onClick = { confirmRebuild = true },
@@ -2178,6 +2258,30 @@ private fun IntelligenceSettings(
             onDismiss = { confirmRebuild = false },
         )
     }
+
+    if (confirmRetryContinue) {
+        AlertDialog(
+            onDismissRequest = { confirmRetryContinue = false },
+            title = { Text(stringResource(Res.string.analysis_retry_continue_title)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmRetryContinue = false
+                        AppGraph.clearAnalysisPause()
+                        onRetryIndexing()
+                    },
+                ) { Text(stringResource(Res.string.analysis_retry_continue_yes)) }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        confirmRetryContinue = false
+                        onRetryIndexing()
+                    },
+                ) { Text(stringResource(Res.string.analysis_retry_continue_no)) }
+            },
+        )
+    }
 }
 
 private fun actionableIndexingFailures(
@@ -2199,7 +2303,8 @@ private fun IntelligenceProblemsSettings(
     engine: SimilarityEngine,
     tracks: List<TrackDescriptor>,
     libraryLoading: Boolean,
-    onRetryIndexing: () -> Unit,
+    /** D3: Retry clears only the failures it is pressed for. */
+    onRetryTracks: (Collection<TrackId>) -> Unit,
     onHideTrack: suspend (TrackDescriptor) -> Unit,
     snackbarHostState: SnackbarHostState,
 ) {
@@ -2220,6 +2325,10 @@ private fun IntelligenceProblemsSettings(
     var removing by remember { mutableStateOf<TrackId?>(null) }
     val manageFailed = stringResource(Res.string.settings_library_manage_failed)
     val removedMessage = stringResource(Res.string.snack_removed_from_latentjam)
+    val userPaused by AppGraph.analysisUserPaused.collectAsState()
+    // While the user's Pause holds, Retry asks whether to continue too, as on the status page.
+    var confirmRetry by remember { mutableStateOf<List<TrackId>?>(null) }
+    val retry: (Collection<TrackId>) -> Unit = { ids -> if (userPaused) confirmRetry = ids.toList() else onRetryTracks(ids) }
 
     FadingLazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -2230,6 +2339,8 @@ private fun IntelligenceProblemsSettings(
                 SettingsBody(stringResource(Res.string.intelligence_problems_body))
                 // Issue #27: never a frozen bar alone; say what analysis has been waiting on.
                 if (stall != null) SettingsBody(analysisStallText(stall, tracks))
+                // A waiting or pausing pass says why, whether or not failures are listed.
+                indexing.phase?.takeIf { indexing.running }?.let { SettingsBody(analysisPhaseText(it)) }
                 if (libraryLoading || (indexing.running && failures.isEmpty())) {
                     AppLinearProgress(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
@@ -2241,7 +2352,7 @@ private fun IntelligenceProblemsSettings(
                         title = stringResource(Res.string.intelligence_retry),
                         subtitle = stringResource(Res.string.intelligence_analysis_failed, failures.size),
                         enabled = !indexing.running && removing == null,
-                        onClick = onRetryIndexing,
+                        onClick = { retry(failures.keys) },
                     )
                 }
             }
@@ -2255,6 +2366,8 @@ private fun IntelligenceProblemsSettings(
                 title = track?.title ?: stringResource(Res.string.track_untitled),
                 artist = track?.artist ?: stringResource(Res.string.track_unknown_artist),
                 error = error.toUserMessage(),
+                canRetry = !indexing.running && removing == null,
+                onRetry = { retry(listOf(id)) },
                 canRemove = track != null && removing == null,
                 onRemove = {
                     val target = track ?: return@IndexingProblemRow
@@ -2274,6 +2387,30 @@ private fun IntelligenceProblemsSettings(
                 },
             )
         }
+    }
+
+    confirmRetry?.let { ids ->
+        AlertDialog(
+            onDismissRequest = { confirmRetry = null },
+            title = { Text(stringResource(Res.string.analysis_retry_continue_title)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmRetry = null
+                        AppGraph.clearAnalysisPause()
+                        onRetryTracks(ids)
+                    },
+                ) { Text(stringResource(Res.string.analysis_retry_continue_yes)) }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        confirmRetry = null
+                        onRetryTracks(ids)
+                    },
+                ) { Text(stringResource(Res.string.analysis_retry_continue_no)) }
+            },
+        )
     }
 }
 
@@ -2814,28 +2951,33 @@ private fun DuplicateCopyRow(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun IndexingProblemRow(
     title: String,
     artist: String,
     error: String,
+    canRetry: Boolean,
+    onRetry: () -> Unit,
     canRemove: Boolean,
     onRemove: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge.metadata())
-            Text(
-                text = joinBidiWrapped(listOf(artist, error)),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        TextButton(onClick = onRemove, enabled = canRemove) {
-            Text(stringResource(Res.string.action_remove_from_latentjam))
+    // The actions sit under the text, so the title keeps the row's width in every language.
+    Column(modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 10.dp, bottom = 4.dp)) {
+        Text(title, style = MaterialTheme.typography.bodyLarge.metadata())
+        Text(
+            text = joinBidiWrapped(listOf(artist, error)),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        // Wraps under a large font or a long translation; TalkBack reads the title just before them.
+        FlowRow(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = onRetry, enabled = canRetry) {
+                Text(stringResource(Res.string.action_retry))
+            }
+            TextButton(onClick = onRemove, enabled = canRemove) {
+                Text(stringResource(Res.string.action_remove_from_latentjam))
+            }
         }
     }
 }

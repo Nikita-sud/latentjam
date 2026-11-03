@@ -38,12 +38,29 @@ import smart_queues as SQ    # MediaStore parsing, content keys
 
 
 def index_file(state):
-    """The copy's audio index: the per-encoder file (VersionedIndexStore, `smart_index.<version>.bin`) when there is one
-    for the app's encoder, else the legacy single file."""
+    """The copy's audio index file: the segment manifest (SegmentedIndexStore, `smart_index.<version>.manifest.bin`) when
+    there is one, else the per-encoder single file (`smart_index.<version>.bin`), else the legacy single file."""
     version = (REPO / 'androidApp/src/main/assets/ml/embedding_version.txt').read_text().strip()
-    name = 'smart_index.' + ''.join(c if (c.isalnum() or c in '-_.') else '_' for c in version) + '.bin'
-    p = state / 'files' / name
-    return p if p.is_file() else state / 'files/smart_index.bin'
+    stem = 'smart_index.' + ''.join(c if (c.isalnum() or c in '-_.') else '_' for c in version)
+    for name in (stem + '.manifest.bin', stem + '.bin'):
+        p = state / 'files' / name
+        if p.is_file(): return p
+    return state / 'files/smart_index.bin'
+
+
+def index_rows(state):
+    """The audio index's rows in the engine's order: a segmented set read through its manifest, else one file."""
+    path = index_file(state)
+    if not path.name.endswith('.manifest.bin'): return read_ljix(path)
+    version, _, entries = read_ljix(path, with_failures=True)
+    stem = path.name[:-len('.manifest.bin')]
+    rows, seen, k = [], set(), 0
+    while ('segment.%d' % k) in entries:
+        number = int(entries['segment.%d' % k].split(':')[0])
+        for tid, vec in read_ljix(path.parent / ('%s.s%06d.bin' % (stem, number)))[1]:
+            if tid not in seen: seen.add(tid); rows.append((tid, vec))
+        k += 1
+    return version, rows
 
 
 def newest_state():
@@ -113,8 +130,9 @@ def revisions_from_identities(path):
     return out
 
 
-def read_ljix(path):
-    """FileIndexStore's LJIX v2/v3 snapshot: (model version, [(id, float32 vector)]) in file order."""
+def read_ljix(path, with_failures=False):
+    """FileIndexStore's LJIX v2/v3/v4 snapshot (v4: halves): (model version, [(id, float32 vector)]) in file order, and
+    with `with_failures` the failure entries too (the segment manifest keeps its fields there)."""
     import struct
     b = Path(path).read_bytes(); o = 0
     def i32():
@@ -123,13 +141,22 @@ def read_ljix(path):
         nonlocal o; n = i32()
         if n < 0: return None
         v = b[o:o + n].decode('utf-8'); o += n; return v
-    assert i32() == 0x4C4A4958 and i32() in (2, 3), path
+    assert i32() == 0x4C4A4958, path
+    fmt = i32(); assert fmt in (2, 3, 4), path
     version = utf(); dim = i32(); count = i32()
     rows = []
     for _ in range(count):
-        tid = utf(); vec = struct.unpack_from(f'>{dim}f', b, o); o += 4 * dim; utf()
+        tid = utf()
+        if fmt == 4: vec = struct.unpack_from(f'>{dim}e', b, o); o += 2 * dim
+        else: vec = struct.unpack_from(f'>{dim}f', b, o); o += 4 * dim
+        utf()
         rows.append((tid, vec))
-    return version, rows
+    if not with_failures: return version, rows
+    failures = {}
+    if fmt >= 3:
+        for _ in range(i32()):
+            k = utf(); failures[k] = utf()
+    return version, rows, failures
 
 
 def semantics(state, work):
@@ -137,10 +164,10 @@ def semantics(state, work):
     engine computes it (the chain stand's backend serves these)."""
     out = work / 'semantics.tsv'
     head = REPO / 'androidApp/src/main/assets/ml/universal_semantic_head.onnx'
-    stamp = hashlib.sha256(head.read_bytes() + index_file(state).read_bytes()).hexdigest()[:16]
+    stamp = hashlib.sha256(head.read_bytes() + index_file(state).read_bytes()).hexdigest()[:16]  # the manifest names every segment's digest
     if out.is_file() and (work / 'semantics.stamp').is_file() and (work / 'semantics.stamp').read_text() == stamp: return
     import numpy as np, onnxruntime as ort
-    _, rows = read_ljix(index_file(state))
+    _, rows = index_rows(state)
     x = np.array([v for _, v in rows], dtype=np.float32)
     x = x / np.maximum(np.linalg.norm(x, axis=1, keepdims=True), 1e-12)   # the engine's stored unit vectors
     sess = ort.InferenceSession(str(head))

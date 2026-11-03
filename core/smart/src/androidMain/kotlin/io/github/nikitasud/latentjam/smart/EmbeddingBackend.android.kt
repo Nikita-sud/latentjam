@@ -24,6 +24,10 @@ import kotlin.math.sqrt
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.nanoseconds
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
@@ -88,6 +92,36 @@ internal class OnnxEmbeddingBackend(
         },
     )
 
+    /**
+     * A SMART press's seed decodes on a lane of its own, so it never queues behind the analysis decodes running ahead
+     * on [decoding] (docs/analysis-094-plan.md 1b-0); its thread keeps the default priority.
+     */
+    private val seedDecoding = DeadlineDecoding(
+        ExecutorDecodeWorkers(1) { task -> Thread(task, "smart-seed-decode").apply { isDaemon = true } },
+    )
+
+    /** The engine's inference lock, taken here per window (see [takeInferenceLock]). */
+    private var inferenceLock: Mutex? = null
+
+    /** Time the track in hand on each lane has waited for [inferenceLock]; its budget excuses it (withinBudget). */
+    private class LockWaits {
+        @Volatile var nanos = 0L
+        /** When the wait in progress began, or 0. */
+        @Volatile var since = 0L
+        val waited: () -> Duration = {
+            val open = since
+            (nanos + if (open != 0L) System.nanoTime() - open else 0L).nanoseconds
+        }
+    }
+    private val analysisWaits = LockWaits()
+    private val seedWaits = LockWaits()
+
+    override fun takeInferenceLock(lock: Mutex): Boolean {
+        check(inferenceLock == null) { "One engine per backend" }
+        inferenceLock = lock
+        return true
+    }
+
     override suspend fun loadModel(): Result<Unit> {
         if (session != null) return Result.success(Unit)
         return try {
@@ -130,46 +164,89 @@ internal class OnnxEmbeddingBackend(
         }
     }
 
-    override suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray> =
-        decoding.withinBudget { embedDecoded(descriptor, null) }
+    override suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray> {
+        return seedDecoding.withinBudget(seedWaits.waited) { embedDecoded(descriptor, null, seedDecoding, seedWaits) }
+    }
+
+    /** [embed] for analysis: on the analysis lane. */
+    private suspend fun analyse(descriptor: TrackDescriptor): Result<FloatArray> {
+        return decoding.withinBudget(analysisWaits.waited) { embedDecoded(descriptor, null, decoding, analysisWaits) }
+    }
 
     override suspend fun embedEach(
         tracks: List<TrackDescriptor>,
         onResult: suspend (TrackDescriptor, Result<FloatArray>) -> Unit,
+    ) = embedEach(tracks, emptyList(), onResult)
+
+    override suspend fun embedEach(
+        tracks: List<TrackDescriptor>,
+        upcoming: List<TrackDescriptor>,
+        onResult: suspend (TrackDescriptor, Result<FloatArray>) -> Unit,
     ) {
-        if (tracks.size < 2 || session == null) {
-            for (track in tracks) onResult(track, embed(track))
+        if ((tracks.size < 2 && upcoming.isEmpty()) || session == null) {
+            decoding.dropCarried()
+            for (track in tracks) onResult(track, analyse(track))
             return
         }
-        // Decoding runs ahead by the workers plus one ready track; inference takes them in order.
+        // Decoding runs ahead by up to the workers plus one ready track (fewer when memory is short or Battery Saver
+        // is on), on into the next chunk; inference takes them in
+        // order. A prefetched track and an inline one decode the same windows the same way (embedDecoded).
         decoding.each(
             tracks = tracks,
-            ahead = decodeWorkers,
+            ahead = if (slow || systemMemoryLow()) 0 else lookAheadFor(decodeWorkers, freeHeapBytes()),
             prefetch = { track -> prefetch(track) },
-            finish = { track, decoded -> embedDecoded(track, decoded) },
+            finish = { track, decoded -> embedDecoded(track, decoded, decoding, analysisWaits) },
+            waited = analysisWaits.waited,
             onResult = onResult,
+            upcoming = upcoming,
         )
     }
 
+    @Volatile private var slow = false
+
+    override fun setAnalysisPacing(slow: Boolean) {
+        this.slow = slow
+    }
+
+    /** The system is short of RAM (codec buffers are native, outside the heap): decode one track at a time. */
+    private fun systemMemoryLow(): Boolean = runCatching {
+        val info = ActivityManager.MemoryInfo()
+        context.getSystemService(ActivityManager::class.java)?.getMemoryInfo(info)
+        info.lowMemory
+    }.getOrDefault(false)
+
+    /** What the Java heap can still give before it reaches its limit. */
+    private fun freeHeapBytes(): Long {
+        val runtime = Runtime.getRuntime()
+        return runtime.maxMemory() - (runtime.totalMemory() - runtime.freeMemory())
+    }
+
+    /** A track's windows decoded ahead, and what is left of its codec back-off allowance for the rest. */
+    private class Prefetched(val windows: Map<Long, AudioDecodeResult>, val backoff: CodecBackoff)
+
     /** The planned windows of [descriptor], decoded; null when there is nothing to decode ahead. */
-    private suspend fun prefetch(descriptor: TrackDescriptor): Map<Long, AudioDecodeResult>? {
+    private suspend fun prefetch(descriptor: TrackDescriptor): Prefetched? {
         val audioUri = descriptor.audioUri ?: return null
         val decodeContext = currentCoroutineContext()
+        val backoff = CodecBackoff()
         return try {
             val uri = Uri.parse(audioUri)
-            windowStartsMs(descriptor.durationMs).associateWith { startMs ->
+            val windows = windowStartsMs(descriptor.durationMs).associateWith { startMs ->
                 decoder.decodeWindowMono(
                     uri = uri,
                     startMs = startMs,
                     targetSampleRate = SAMPLE_RATE,
                     targetSamples = WINDOW_SAMPLES,
                     isCancelled = { !decodeContext.isActive },
+                    backoff = backoff,
                 )
             }
+            Prefetched(windows, backoff)
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (failure: Throwable) {
-            null // embedDecoded decodes the track itself, exactly as embed would.
+            // embedDecoded decodes the track itself, exactly as embed would, with what is left of the same allowance.
+            Prefetched(emptyMap(), backoff)
         }
     }
 
@@ -180,12 +257,16 @@ internal class OnnxEmbeddingBackend(
      */
     private suspend fun embedDecoded(
         descriptor: TrackDescriptor,
-        prefetched: Map<Long, AudioDecodeResult>?,
+        prefetched: Prefetched?,
+        lane: DeadlineDecoding,
+        waits: LockWaits,
     ): Result<FloatArray> {
         val activeSession = session
             ?: return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
         val audioUri = descriptor.audioUri
             ?: return invalidAudio("No audio URI for ${descriptor.id.value}")
+        // What prefetching left of the track's codec back-off, or the whole allowance for a track decoded here.
+        val backoff = prefetched?.backoff ?: CodecBackoff()
 
         return try {
             val uri = Uri.parse(audioUri)
@@ -221,12 +302,36 @@ internal class OnnxEmbeddingBackend(
                 return null
             }
 
-            suspend fun tryWindow(startMs: Long) {
+            // One window's inference under the engine's lock, so a press waits for one window, never a chunk. The lock
+            // is free between windows, when the engine may close the session: a closed session is never run.
+            suspend fun inferWindow(run: () -> FloatArray?): FloatArray? {
+                val lock = inferenceLock ?: return run()
+                val asked = System.nanoTime()
+                waits.since = asked
+                fun stopWaiting() {
+                    if (waits.since == 0L) return
+                    waits.nanos += System.nanoTime() - asked
+                    waits.since = 0L
+                }
+                return try {
+                    lock.withLock {
+                        stopWaiting()
+                        if (session !== activeSession) throw SmartEngineException(EngineError.ModelUnavailable)
+                        run()
+                    }
+                } finally {
+                    // Cancelled (the budget ran out) while still waiting: the wait counts, and is over.
+                    stopWaiting()
+                }
+            }
+
+            // [mayBeShort]: the window holds all the audio the file may have (its only window, or the head retry).
+            suspend fun tryWindow(startMs: Long, mayBeShort: Boolean) {
                 currentCoroutineContext().ensureActive()
-                val ready = prefetched?.get(startMs)?.takeUnless { it is AudioDecodeResult.Unavailable }
+                val ready = prefetched?.windows?.get(startMs)?.takeUnless { it is AudioDecodeResult.Unavailable }
                 // On a worker, never here: a decode stuck in a platform call must not take the inference
                 // thread with it (issue #27).
-                when (val decoded = ready ?: decoding.decode {
+                when (val decoded = ready ?: lane.decode {
                     val worker = this
                     decoder.decodeWindowMono(
                         uri = uri,
@@ -234,11 +339,25 @@ internal class OnnxEmbeddingBackend(
                         targetSampleRate = SAMPLE_RATE,
                         targetSamples = WINDOW_SAMPLES,
                         isCancelled = { !worker.isActive },
+                        backoff = backoff,
                     )
                 }) {
                     is AudioDecodeResult.Success -> {
                         currentCoroutineContext().ensureActive()
-                        val embedding = inferStable(decoded.waveform, startMs) ?: return
+                        // AUD-02: a window decoded short is repeated to its length, or dropped when a longer track
+                        // should have filled it and less than half arrived; a full one is used exactly as decoded.
+                        val valid = decoded.validSamples
+                        when (WindowCoverage.use(valid, decoded.waveform.size, mayBeShort)) {
+                            WindowCoverage.Use.AS_DECODED -> Unit
+                            WindowCoverage.Use.REPEATED -> WindowCoverage.repeat(decoded.waveform, valid)
+                            WindowCoverage.Use.DROPPED -> {
+                                if (invalidAudioFailure == null) {
+                                    invalidAudioFailure = "Window at ${startMs}ms decoded $valid of ${decoded.waveform.size} samples"
+                                }
+                                return
+                            }
+                        }
+                        val embedding = inferWindow { inferStable(decoded.waveform, startMs) } ?: return
                         for (i in pooled.indices) pooled[i] += embedding[i]
                         windows++
                     }
@@ -251,15 +370,16 @@ internal class OnnxEmbeddingBackend(
                 }
             }
 
+            val single = WindowCoverage.isSingleWindow(descriptor.durationMs)
             for (startMs in windowStartsMs(descriptor.durationMs)) {
-                tryWindow(startMs)
+                tryWindow(startMs, mayBeShort = single)
             }
             // Several otherwise playable MP3/M4A files on real devices reject random access even
             // though decoding from the head works. Retry the beginning only after every preferred
             // 20/50/80% crop failed; successful tracks keep the original three-window contract and
             // pay no extra inference cost.
             if (windows == 0 && descriptor.durationMs?.let { it > WINDOW_MS } == true) {
-                tryWindow(0L)
+                tryWindow(0L, mayBeShort = true)
             }
             if (windows == 0) {
                 return Result.failure(
@@ -278,6 +398,8 @@ internal class OnnxEmbeddingBackend(
             Result.success(pooled)
         } catch (cancellation: CancellationException) {
             throw cancellation
+        } catch (closed: SmartEngineException) {
+            Result.failure(closed)
         } catch (t: Throwable) {
             Result.failure(
                 SmartEngineException(
@@ -335,6 +457,7 @@ internal class OnnxEmbeddingBackend(
         session = null
         semanticSession = null
         decoding.close()
+        seedDecoding.close()
         // The process-global OrtEnvironment is deliberately left open.
     }
 
@@ -451,7 +574,22 @@ public actual fun smartEngineBackendModule(): Module = module {
     // smartEngineModule; Koin last-definition-wins).
     // One audio-vector file per encoder (VersionedIndexStore): a test build on another encoder never wipes the
     // release build's vectors, and the other way round.
-    single<IndexStore> { VersionedIndexStore("smart_index") { name -> FileIndexStore(context = get(), fileName = name, half = true) } }
+    // Segments of the row order (SegmentedIndexStore): a library above one file's 64 MiB envelope keeps its analysis.
+    single<IndexStore> {
+        val context = get<Context>()
+        VersionedIndexStore("smart_index") { name ->
+            // The legacy unversioned file is read as it is; only per-encoder sets are segmented.
+            if (name == "smart_index.bin") {
+                FileIndexStore(context = context, fileName = name, half = true)
+            } else {
+                SegmentedIndexStore(
+                    fileName = name,
+                    segment = { file -> FileIndexStore(context = context, fileName = file, half = true) },
+                    names = { checkNotNull(context.filesDir.list()) { "the index directory cannot be listed" }.toList() },
+                )
+            }
+        }
+    }
 
     single<IndexStore>(smartTextIndexQualifier) {
         FileIndexStore(context = get(), fileName = "smart_text_index.bin")

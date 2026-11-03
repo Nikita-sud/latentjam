@@ -7,16 +7,22 @@ package io.github.nikitasud.latentjam.app
 import kotlinx.cinterop.ExperimentalForeignApi
 import org.koin.core.module.Module
 import org.koin.dsl.module
+import platform.Foundation.NSNotificationCenter
+import platform.Foundation.NSOperationQueue
 import platform.Foundation.NSRecursiveLock
 import platform.UIKit.UIApplication
+import platform.UIKit.UIApplicationDidBecomeActiveNotification
+import platform.UIKit.UIApplicationDidEnterBackgroundNotification
 import platform.UIKit.UIBackgroundTaskIdentifier
 import platform.UIKit.UIBackgroundTaskInvalid
 
 /**
  * Gives an analysis run iOS's finite background-continuation assertion.
  *
- * `beginBackgroundTask` is deliberately acquired on the first progress update, while the app is
- * still active. It lets a run keep making progress when the screen locks or the user briefly
+ * `beginBackgroundTask` is acquired on the first progress update, while the app is still active,
+ * and again on every later move to the background while the run lasts: iOS ends each assertion after
+ * a short time in the background, and a run that got one only once had none after the first
+ * backgrounding. It lets a run keep making progress when the screen locks or the user briefly
  * switches apps, and requires no notification permission or misleading Background Modes claim.
  * iOS still owns the deadline and may expire the assertion; when it does, the engine's chunk-level
  * persistence remains the recovery contract and the next foreground launch resumes missing work.
@@ -31,26 +37,64 @@ internal class IosIndexingContinuation : IndexingNotifier {
 
     private val lock = NSRecursiveLock()
     private var task: UIBackgroundTaskIdentifier = UIBackgroundTaskInvalid
-    private var runActive = false
+    private var sessions = 0
+    private var reporting = false
+    private var taskName = DEFAULT_TASK_NAME
+
+    /** The assertion expired in this background stretch; a new one waits for the next transition. */
     private var expired = false
 
-    override fun show(title: String, text: String, done: Int, total: Int) {
-        lock.withLock {
-            if (runActive || expired) return
-            runActive = true
-            task = UIApplication.sharedApplication.beginBackgroundTaskWithName(
-                taskName = title.takeIf(String::isNotBlank) ?: DEFAULT_TASK_NAME,
-                expirationHandler = ::expire,
-            )
+    init {
+        // Never removed: the notifier is a process-lifetime singleton.
+        listOf(UIApplicationDidEnterBackgroundNotification, UIApplicationDidBecomeActiveNotification).forEach { name ->
+            NSNotificationCenter.defaultCenter.addObserverForName(
+                name = name,
+                `object` = null,
+                queue = NSOperationQueue.mainQueue,
+            ) { _ ->
+                lock.withLock {
+                    expired = false
+                    if (reporting) beginTaskLocked()
+                }
+            }
         }
     }
 
-    override fun finish() {
-        lock.withLock {
-            runActive = false
-            expired = false
-            endTaskLocked()
+    override fun open(): IndexingSession {
+        lock.withLock { sessions++ }
+        return object : IndexingSession {
+            private var open = true
+
+            override fun show(title: String, text: String, done: Int, total: Int, pauseLabel: String?) {
+                lock.withLock {
+                    if (!open) return
+                    reporting = true
+                    taskName = title.takeIf(String::isNotBlank) ?: DEFAULT_TASK_NAME
+                    beginTaskLocked()
+                }
+            }
+
+            override fun close() {
+                lock.withLock {
+                    if (!open) return
+                    open = false
+                    sessions--
+                    if (sessions == 0) {
+                        reporting = false
+                        expired = false
+                        endTaskLocked()
+                    }
+                }
+            }
         }
+    }
+
+    private fun beginTaskLocked() {
+        if (task != UIBackgroundTaskInvalid || expired) return
+        task = UIApplication.sharedApplication.beginBackgroundTaskWithName(
+            taskName = taskName,
+            expirationHandler = ::expire,
+        )
     }
 
     private fun expire() {

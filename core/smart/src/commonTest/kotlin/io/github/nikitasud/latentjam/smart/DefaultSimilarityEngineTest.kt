@@ -241,6 +241,68 @@ internal class DefaultSimilarityEngineTest {
     }
 
     @Test
+    fun tracksSharingAMetadataStringAreEncodedOnceAndStoreTheSameRows() = runTest {
+        // An album: three tracks whose text string is the same ("Rock; Band").
+        val album = listOf(seed, near, far).map { it.copy(genre = "Rock", artist = "Band") }
+        val other = TrackDescriptor(id = TrackId("other"), audioUri = "test://other", genre = "Dance", artist = "DJ")
+        val encoder = FakeTextEncoder()
+        val textStore = FakeIndexStore()
+        val engine = engine(
+            backend = FakeEmbeddingBackend(
+                mutableMapOf(
+                    seed.id to floatArrayOf(1f, 0f, 0f), near.id to floatArrayOf(0.9f, 0.1f, 0f),
+                    far.id to floatArrayOf(0f, 1f, 0f), other.id to floatArrayOf(0f, 0f, 1f),
+                ),
+            ),
+            store = FakeIndexStore(),
+            textEncoder = encoder,
+            textIndex = InMemoryVectorIndex(TextEncoder.TEXT_DIM),
+            textStore = textStore,
+        )
+        engine.initialize()
+        engine.indexLibrary(album + other)
+
+        assertEquals(listOf("Rock; Band", "Dance; DJ"), encoder.encodedMetadata)
+        val rows = assertNotNull(textStore.snapshots[TEXT_INDEX_VERSION])
+        assertEquals((album + other).map { it.id }, rows.keys.toList())
+        val fresh = FakeTextEncoder()
+        for (track in album + other) {
+            val expected = fresh.encode(if (track === other) "Dance; DJ" else "Rock; Band")
+            assertContentEquals(expected, rows.getValue(track.id), "row ${track.id.value}")
+        }
+    }
+
+    @Test
+    fun aFailedTextEncodeIsNeverReusedAndACachedRowIsACopy() = runTest {
+        val album = listOf(seed, near, far).map { it.copy(genre = "Rock", artist = "Band") }
+        var calls = 0
+        // Fails the first time, then returns a vector that is not unit length (so the store normalises it).
+        val encoder = object : TextEncoder {
+            override suspend fun load(): Result<Unit> = Result.success(Unit)
+            override fun encode(metadata: String): FloatArray? =
+                if (calls++ == 0) null else FloatArray(TextEncoder.TEXT_DIM) { (it % 7 + 1).toFloat() }
+            override fun close() = Unit
+        }
+        val textIndex = InMemoryVectorIndex(TextEncoder.TEXT_DIM)
+        val engine = engine(
+            backend = FakeEmbeddingBackend(
+                mutableMapOf(seed.id to floatArrayOf(1f, 0f, 0f), near.id to floatArrayOf(0.9f, 0.1f, 0f), far.id to floatArrayOf(0f, 1f, 0f)),
+            ),
+            store = FakeIndexStore(),
+            textEncoder = encoder,
+            textIndex = textIndex,
+            textStore = FakeIndexStore(),
+        )
+        engine.initialize()
+        engine.indexLibrary(album)
+        // The failure was not cached: the second track encoded again, and the third reused that output.
+        assertEquals(2, calls)
+        assertTrue(seed.id !in textIndex)
+        val second = assertNotNull(textIndex.vector(near.id))
+        assertContentEquals(second, assertNotNull(textIndex.vector(far.id)))
+    }
+
+    @Test
     fun aFailedRestoreIsReadAgainByALaterAudioReadAfterTheGap() = runTest {
         val first = Harness()
         first.registerTriangle()
@@ -1176,6 +1238,124 @@ internal class DefaultSimilarityEngineTest {
         assertEquals(1, report.skipped)
         assertEquals(0, secondBackend.embedCalls)
         assertContentEquals(floatArrayOf(1f, 0f, 0f), restarted.embedding(track.id))
+    }
+
+    @Test
+    fun `only one-window tracks stored by 0_9_3 are analysed again`() = runTest {
+        val store = FakeIndexStore()
+        val short = TrackDescriptor(id = TrackId("short"), audioUri = "content://media/2", durationMs = 6_000, sourceRevision = "r")
+        val long = TrackDescriptor(id = TrackId("long"), audioUri = "content://media/3", durationMs = 200_000, sourceRevision = "r")
+        val first = engine(FakeEmbeddingBackend(mutableMapOf(short.id to floatArrayOf(1f, 0f, 0f), long.id to floatArrayOf(0f, 1f, 0f))), store)
+        first.initialize()
+        first.indexLibrary(listOf(short, long))
+        // As 0.9.3 recorded it (a raw identity reads as its digest): the short track's vector came from a zero-padded
+        // window.
+        store.identitySnapshots["test-model"] = mapOf(
+            short.id to "audio-v1|17:content://media/2|4:6000|1:r",
+            long.id to "audio-v1|17:content://media/3|6:200000|1:r",
+        )
+
+        val backend = FakeEmbeddingBackend(mutableMapOf(short.id to floatArrayOf(0f, 0f, 1f)))
+        val restarted = engine(backend, store)
+        restarted.initialize()
+        assertEquals(1, restarted.synchronizeLibrary(listOf(short, long)))
+        assertEquals(1, restarted.indexLibrary(listOf(short, long)).indexed)
+        assertEquals(1, backend.embedCalls)
+        assertContentEquals(floatArrayOf(0f, 1f, 0f), restarted.embedding(long.id))
+    }
+
+    @Test
+    fun `rows recorded under an iOS container that has since moved are kept`() = runTest {
+        val oldRoot = "file:///private/var/mobile/Containers/Data/Application/0A1B2C3D-4E5F-6071-8293-A4B5C6D7E8F9/"
+        val newRoot = "file:///private/var/mobile/Containers/Data/Application/FFFFFFFF-0000-1111-2222-333333333333/"
+        fun track(name: String, root: String, revision: String = "ios-import-v1:10:20") = TrackDescriptor(
+            id = TrackId("Imported/$name.mp3"), audioUri = "${root}Documents/Imported/$name.mp3", durationMs = 200_000, sourceRevision = revision,
+        )
+        fun legacy(track: TrackDescriptor, version: String) = buildString {
+            append(version)
+            for (field in listOf(track.audioUri, track.durationMs.toString(), track.sourceRevision)) append('|').append(field!!.length).append(':').append(field)
+        }
+        val kept = track("kept", oldRoot)
+        val edited = track("edited", oldRoot)
+        val failed = track("failed", oldRoot)
+        // As 0.9.3 recorded them: absolute URLs in the old container.
+        fun store() = FakeIndexStore().apply {
+            snapshots["test-model"] = mapOf(kept.id to floatArrayOf(1f, 0f, 0f), edited.id to floatArrayOf(0f, 1f, 0f))
+            identitySnapshots["test-model"] = mapOf(kept.id to legacy(kept, "audio-v1"), edited.id to legacy(edited, "audio-v1"))
+            failureSnapshots["test-model"] = mapOf(failed.id to legacy(failed, "audio-failure-v2"))
+        }
+        val now = listOf(track("kept", newRoot), track("edited", newRoot, revision = "ios-import-v1:11:21"), track("failed", newRoot))
+
+        // The old root is known (from the loudness cache): the unchanged rows stay, the edited file is analysed again.
+        val withRoot = store()
+        val backend = FakeEmbeddingBackend(mutableMapOf(now[1].id to floatArrayOf(0f, 0f, 1f)))
+        val engine = engine(backend, withRoot)
+        engine.initialize()
+        engine.rememberLegacyContainerRoots(listOf(oldRoot))
+        assertEquals(1, engine.synchronizeLibrary(now), "only the edited row is dropped")
+        engine.indexLibrary(now)
+        assertEquals(1, backend.embedCalls, "only the edited file")
+        assertContentEquals(floatArrayOf(1f, 0f, 0f), engine.embedding(kept.id))
+        assertEquals(setOf(failed.id), engine.rememberedAudioFailures(now).keys, "the failure is still remembered")
+
+        // Re-recorded container-relative: the next move needs no root at all.
+        val later = now.map { it.copy(audioUri = it.audioUri!!.replace(newRoot, "file:///var/mobile/Containers/Data/Application/12345678-1234-1234-1234-123456789ABC/")) }
+        val restarted = FakeEmbeddingBackend()
+        val again = engine(restarted, withRoot)
+        again.initialize()
+        again.synchronizeLibrary(later)
+        again.indexLibrary(later)
+        assertEquals(0, restarted.embedCalls)
+
+        // Without the old root nothing can be verified: the rows are analysed again, as before.
+        val unknown = FakeEmbeddingBackend(now.associate { it.id to floatArrayOf(0.5f, 0.5f, 0f) }.toMutableMap())
+        val cold = engine(unknown, store())
+        cold.initialize()
+        cold.synchronizeLibrary(now)
+        cold.indexLibrary(now)
+        assertEquals(3, unknown.embedCalls)
+    }
+
+    @Test
+    fun `a tag edit pending across the upgrade still keeps a row recorded with its absolute URL`() = runTest {
+        val root = "file:///private/var/mobile/Containers/Data/Application/0A1B2C3D-4E5F-6071-8293-A4B5C6D7E8F9/"
+        val before = TrackDescriptor(id = TrackId("Imported/t.mp3"), audioUri = "${root}Documents/Imported/t.mp3", durationMs = 200_000, sourceRevision = "ios-import-v1:10:1", sizeBytes = 10)
+        val after = before.copy(sourceRevision = "ios-import-v1:10:2")
+        val legacy = buildString {
+            append("audio-v1")
+            for (f in listOf(before.audioUri!!, "200000", before.sourceRevision!!)) append('|').append(f.length).append(':').append(f)
+        }
+        val store = FakeIndexStore().apply {
+            snapshots["test-model"] = mapOf(before.id to floatArrayOf(1f, 0f, 0f))
+            identitySnapshots["test-model"] = mapOf(before.id to legacy)
+        }
+        val backend = FakeEmbeddingBackend()
+        val engine = engine(backend, store)
+        engine.initialize()
+        val result = engine.carryOverAudio(listOf(after), listOf(AudioCarryOver(before.id, before.sourceRevision, 10)))
+        assertEquals(setOf(before.id), result.applied)
+        assertEquals(0, engine.synchronizeLibrary(listOf(after)))
+        engine.indexLibrary(listOf(after))
+        assertEquals(0, backend.embedCalls)
+    }
+
+    @Test
+    fun `a failure recorded in an old container is forgotten when its file changed`() = runTest {
+        val oldRoot = "file:///private/var/mobile/Containers/Data/Application/0A1B2C3D-4E5F-6071-8293-A4B5C6D7E8F9/"
+        val newRoot = "file:///var/mobile/Containers/Data/Application/FFFFFFFF-0000-1111-2222-333333333333/"
+        val old = TrackDescriptor(id = TrackId("Imported/f.mp3"), audioUri = "${oldRoot}Documents/Imported/f.mp3", durationMs = 200_000, sourceRevision = "ios-import-v1:1:1")
+        val legacy = buildString {
+            append("audio-failure-v2")
+            for (f in listOf(old.audioUri!!, "200000", old.sourceRevision!!)) append('|').append(f.length).append(':').append(f)
+        }
+        val store = FakeIndexStore().apply { failureSnapshots["test-model"] = mapOf(old.id to legacy) }
+        val now = old.copy(audioUri = "${newRoot}Documents/Imported/f.mp3", sourceRevision = "ios-import-v1:2:2")
+        val engine = engine(FakeEmbeddingBackend(mutableMapOf(now.id to floatArrayOf(1f, 0f, 0f))), store)
+        engine.initialize()
+        engine.rememberLegacyContainerRoots(listOf(oldRoot))
+        engine.synchronizeLibrary(listOf(now))
+        assertEquals(emptySet(), engine.rememberedAudioFailures(listOf(now)).keys)
+        assertEquals(1, engine.indexLibrary(listOf(now)).indexed)
     }
 
     @Test

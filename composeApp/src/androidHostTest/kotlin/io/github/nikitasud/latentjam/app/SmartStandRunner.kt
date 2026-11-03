@@ -16,6 +16,7 @@ import io.github.nikitasud.latentjam.smart.InMemoryVectorIndex
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.AUDIO_MODEL_VERSION
+import io.github.nikitasud.latentjam.smart.readAudioIndexSnapshot
 import io.github.nikitasud.latentjam.smart.readIndexSnapshotFile
 import io.github.nikitasud.latentjam.smart.ranker.AudioSource
 import io.github.nikitasud.latentjam.smart.ranker.SmartRankerAssets
@@ -92,7 +93,7 @@ class SmartStandRunner {
         val files = File(dir, "files")
 
         // The phone's audio index, e cache and their order, as the engine restores them.
-        val vectors = checkNotNull(readIndexSnapshotFile(versioned(files, "smart_index", AUDIO_MODEL_VERSION), AUDIO_MODEL_VERSION)) { "smart_index" }
+        val vectors = checkNotNull(readAudioIndexSnapshot(files, "smart_index", AUDIO_MODEL_VERSION)) { "smart_index" }
         val index = InMemoryVectorIndex(vectors.entries.values.first().size)
         for ((id, v) in vectors.entries) index.adopt(id, v.copyOf())
         val energies = readIndexSnapshotFile(versioned(files, "smart_energy", "semantic-energy-v1-$AUDIO_MODEL_VERSION"), "semantic-energy-v1-$AUDIO_MODEL_VERSION")
@@ -520,7 +521,7 @@ class SmartStandRunner {
             val f = l.split('\t')
             f[0] to FloatArray(f.size - 1) { f[it + 1].toFloat() }
         }
-        val vectors = checkNotNull(readIndexSnapshotFile(versioned(files, "smart_index", AUDIO_MODEL_VERSION), AUDIO_MODEL_VERSION))
+        val vectors = checkNotNull(readAudioIndexSnapshot(files, "smart_index", AUDIO_MODEL_VERSION))
         // The engine hands the head its stored (unit) vectors: matched back to the track by the vector's bits.
         val byVector = HashMap<List<Int>, String>()
         val probe = InMemoryVectorIndex(vectors.entries.values.first().size)

@@ -7,7 +7,9 @@ package io.github.nikitasud.latentjam.smart
 import io.github.nikitasud.latentjam.smart.chain.ChainTuning
 import io.github.nikitasud.latentjam.smart.chain.Rerank
 import io.github.nikitasud.latentjam.smart.chain.BatchDotProducts
+import io.github.nikitasud.latentjam.smart.chain.CentredRows
 import io.github.nikitasud.latentjam.smart.chain.ChainWalk
+import io.github.nikitasud.latentjam.smart.chain.HubPass
 import io.github.nikitasud.latentjam.smart.chain.CompanionMembership
 import io.github.nikitasud.latentjam.smart.chain.JourneySequencer
 import io.github.nikitasud.latentjam.smart.chain.MetadataFallbackQueue
@@ -31,6 +33,10 @@ import io.github.nikitasud.latentjam.smart.text.KnownArtists
 import io.github.nikitasud.latentjam.smart.text.TextEncoder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -85,6 +91,8 @@ internal class DefaultSimilarityEngine(
     private val inferenceDispatcher: CoroutineDispatcher = dispatcher,
     /** Where a snapshot keeps the rows it computes (Android: mapped scratch files, off the Java heap). */
     private val scratchRows: RowStoreFactory = RowStoreFactory.Heap,
+    /** Where the [SmartEngineConfig.backgroundHub] pass computes, so its products never hold [dispatcher]. */
+    private val hubDispatcher: CoroutineDispatcher = dispatcher,
 ) : SimilarityEngine {
 
     private val mutex = Mutex()
@@ -97,7 +105,18 @@ internal class DefaultSimilarityEngine(
      */
     private val inference = Mutex()
 
-    /** Advances when the index is cleared or released: inference results from an older generation are dropped. */
+    /** Whether [backend] takes [inference] per unit of inference itself; then embeds run without the engine's hold. */
+    private val backendLocksInference: Boolean = backend.takeInferenceLock(inference)
+
+    /** [block] (an [EmbeddingBackend.embed] or [EmbeddingBackend.embedEach]) under [inference], unless the backend locks itself. */
+    private suspend fun <T> embedding(block: suspend () -> T): T =
+        if (backendLocksInference) block() else inference.withLock { block() }
+
+    /**
+     * Advances when the index is cleared or released: inference results from an older generation are dropped, and a
+     * chunk still inferring stops after its current track. Written under [mutex]; read by that chunk without it.
+     */
+    @Volatile
     private var generation = 0L
 
     @Volatile
@@ -127,6 +146,10 @@ internal class DefaultSimilarityEngine(
      * [EnvelopeRefusal].
      */
     private val audioEnvelopeRefusal = EnvelopeRefusal()
+
+    /** [audioEnvelopeRefusal] is outstanding, for [audioEnvelopeRefused]'s lock-free read. */
+    @Volatile
+    private var audioEnvelopeRefusedNow = false
     private val textEnvelopeRefusal = EnvelopeRefusal()
     private var indexRevision = 0L
     private var transitionSample: Pair<Long, List<TrackId>>? = null
@@ -152,6 +175,20 @@ internal class DefaultSimilarityEngine(
     internal var restoreRetryGap: kotlin.time.Duration = RESTORE_RETRY_GAP
     private var audioRestoreFailedAt: kotlin.time.TimeMark? = null
     private var snapshotCache: SnapshotCache? = null
+
+    /**
+     * Bumped by every change to the audio index's rows (an upsert, a removal, a restore, a clear), and only by those: the
+     * hub penalty reads nothing else, so a snapshot rebuilt for a tag or text change keeps its hub.
+     */
+    private var audioRevision = 0L
+
+    /** [SmartEngineConfig.backgroundHub]: the last hub penalty the background pass finished, for exactly its rows. */
+    private var hubCache: HubCache? = null
+    private var hubJob: Job? = null
+    private var hubJobKey: HubKey? = null
+    /** When the background hub pass last failed; a cached stand-in is retried [HUB_RETRY_AFTER] later. */
+    @Volatile private var hubFailedAt: TimeSource.Monotonic.ValueTimeMark? = null
+    private val hubScope = CoroutineScope(SupervisorJob() + hubDispatcher)
     private var mixCoverageCache: MixCoverageCache? = null
     private var predictorLoaded = false
     private var textEncoderLoaded = false
@@ -247,9 +284,13 @@ internal class DefaultSimilarityEngine(
     override suspend fun stageLibraryIndex(tracks: List<TrackDescriptor>): IndexReport =
         indexLibrary(tracks, persistAfterBatch = false)
 
+    override suspend fun stageLibraryIndex(tracks: List<TrackDescriptor>, upcoming: List<TrackDescriptor>): IndexReport =
+        indexLibrary(tracks, persistAfterBatch = false, upcoming = upcoming)
+
     private suspend fun indexLibrary(
         tracks: List<TrackDescriptor>,
         persistAfterBatch: Boolean,
+        upcoming: List<TrackDescriptor> = emptyList(),
     ): IndexReport = withContext(dispatcher) {
         // Phase 1, under the engine lock: partition, remember known failures, load the model.
         val prepared = mutex.withLock {
@@ -297,7 +338,13 @@ internal class DefaultSimilarityEngine(
                 ensureAudioModel().exceptionOrNull()?.toEngineError()
             }
             if (modelFailure != null) for (track in toEmbed) errors[track.id] = modelFailure
-            PreparedIndexing(alreadyIndexed, errors, if (modelFailure == null) toEmbed else emptyList(), generation)
+            // What the next chunk's phase 1 would embed as things stand: only a hint, which that phase 1 decides again.
+            val upcomingToEmbed = if (modelFailure == null) {
+                upcoming.filter { it.id !in index && it.audioUri != null && !hasRememberedAudioFailure(it) }
+            } else {
+                emptyList()
+            }
+            PreparedIndexing(alreadyIndexed, errors, if (modelFailure == null) toEmbed else emptyList(), generation, upcomingToEmbed)
         } ?: return@withContext IndexReport(indexed = 0, failed = tracks.size, errors = tracks.associate { it.id to EngineError.ModelUnavailable })
         // Phase 2, outside the engine lock: inference only (decoding and the model), results kept aside.
         val results = ArrayList<Pair<TrackDescriptor, Result<FloatArray>>>(prepared.toEmbed.size)
@@ -307,15 +354,20 @@ internal class DefaultSimilarityEngine(
                     ?.let { TrackInAnalysis(it.id, TimeSource.Monotonic.markNow()) }
             }
             try {
-                inference.withLock {
+                embedding {
                     analysingFrom(0)
-                    withContext(inferenceDispatcher) { backend.embedEach(prepared.toEmbed) { track, result ->
+                    // The upcoming tracks go only to a backend that can use them; without any, 0.9.3's call.
+                    withContext(inferenceDispatcher) { backend.embedEachWith(prepared.toEmbed, prepared.upcoming) { track, result ->
                         results += track to result
+                        // Cleared or released meanwhile: phase 3 drops every result, so the rest is not worth decoding.
+                        if (generation != prepared.generation) throw StaleChunk()
                         analysingFrom(results.size)
                         // Let foreground dispatchers run between independent tracks.
                         yield()
                     } }
                 }
+            } catch (_: StaleChunk) {
+                // Phase 3 sees the new generation and keeps nothing.
             } finally {
                 mutableAnalysing.value = null
             }
@@ -330,6 +382,7 @@ internal class DefaultSimilarityEngine(
                 if (!current || knownTracks[track.id]?.audioVectorIdentity() != track.audioVectorIdentity()) continue
                 result.fold(
                     onSuccess = { vector ->
+                        seedTimeouts.remove(track.id)
                         val rejection = validateAndUpsert(track, vector)
                         if (rejection == null) indexed++ else errors[track.id] = rejection
                     },
@@ -375,6 +428,7 @@ internal class DefaultSimilarityEngine(
         mutex.withLock {
             if (mutableState.value !is EngineState.Ready) return@withLock 0
             var cleared = 0
+            ids.forEach(seedTimeouts::remove)
             for (id in ids.toSet()) {
                 if (audioFailureIdentities.remove(id)) {
                     audioIndexDirty = true
@@ -403,8 +457,11 @@ internal class DefaultSimilarityEngine(
                 if (track.sourceRevision == carry.oldRevision) continue
                 settled += carry.trackId
                 // The identity the vector was made under, had the file kept its old revision.
-                val before = track.copy(sourceRevision = carry.oldRevision).audioVectorIdentity()
-                val unchanged = carry.trackId in index && audioVectorIdentities.matches(carry.trackId, before)
+                val previous = track.copy(sourceRevision = carry.oldRevision)
+                // Recorded container-relative, or (a build before 0.9.4) with the absolute URL: see legacyUris.
+                val unchanged = carry.trackId in index &&
+                    (sequenceOf(previous.audioVectorIdentity()) + legacyUris(track).map { previous.audioVectorIdentity(it) })
+                        .any { audioVectorIdentities.matches(carry.trackId, it) }
                 if (unchanged && track.sizeBytes == carry.newLength) {
                     audioVectorIdentities.put(carry.trackId, track.audioVectorIdentity())
                     applied += carry.trackId
@@ -425,6 +482,7 @@ internal class DefaultSimilarityEngine(
         withContext(dispatcher) {
             mutex.withLock {
                 if (mutableState.value !is EngineState.Ready) return@withLock 0
+                adoptMovedContainerIdentities(library)
                 val liveIds = library.mapTo(HashSet(library.size)) { it.id }
                 // ids(), not entries(): a copy of every vector only to read its key would be a
                 // second index at every launch.
@@ -491,11 +549,16 @@ internal class DefaultSimilarityEngine(
                     indexRevision++
                     snapshotCache = null
                 }
+                if (staleAudio.isNotEmpty() || changedAudio.isNotEmpty()) audioRevision++
                 // Also retries an earlier failed save when reconciliation itself made no change.
                 // Cache invalidation above precedes I/O because a failed save must not make the
                 // already-mutated in-memory indexes appear to have their previous revision.
                 persistAudioIndex()
                 persistTextIndex()
+                if (energiesMoved && !audioIndexDirty) {
+                    energiesMoved = false
+                    persistEnergies()
+                }
                 rememberTracks(library)
                 shareLibraryIds()
                 mutableState.value = EngineState.Ready(indexedCount = index.size)
@@ -519,6 +582,11 @@ internal class DefaultSimilarityEngine(
                     if (hasRememberedAudioFailure(seed)) {
                         return@withLock NextTrackResult.Failure(EngineError.InvalidAudio())
                     }
+                    // D1: a seed whose embed timed out this session is not waited on again by a press; the pass
+                    // retries it (and its retry ledger decides when to give up).
+                    if (seed.audioVectorIdentity() == seedTimeouts[seed.id]) {
+                        return@withLock NextTrackResult.Failure(EngineError.AudioUnavailable("Seed analysis timed out earlier"))
+                    }
                     if (seed.audioUri.isNullOrBlank()) {
                         rememberAudioFailure(seed)
                         persistAudioIndex()
@@ -529,12 +597,13 @@ internal class DefaultSimilarityEngine(
                     ensureAudioModel().onFailure { throwable ->
                         return@withLock NextTrackResult.Failure(throwable.toEngineError())
                     }
-                    inference.withLock { backend.embed(seed) }.getOrElse { throwable ->
+                    embedding { backend.embed(seed) }.getOrElse { throwable ->
                         val error = throwable.toEngineError()
                         if (error is EngineError.InvalidAudio) {
                             rememberAudioFailure(seed)
                             persistAudioIndex()
                         }
+                        if (error.isAnalysisTimeout()) seedTimeouts[seed.id] = seed.audioVectorIdentity()
                         return@withLock NextTrackResult.Failure(error)
                     }
                 }
@@ -628,6 +697,35 @@ internal class DefaultSimilarityEngine(
         }
         AudioRows(vectors, es)
     }
+
+    override fun audioEnvelopeRefused(): Boolean = audioEnvelopeRefusedNow
+
+    override suspend fun rememberAudioFailures(tracks: List<TrackDescriptor>): Unit = withContext(dispatcher) {
+        mutex.withLock {
+            if (mutableState.value !is EngineState.Ready) return@withLock
+            for (track in tracks) {
+                if (track.id in index) continue
+                if (knownTracks[track.id]?.audioVectorIdentity() != track.audioVectorIdentity()) continue
+                rememberAudioFailure(track)
+            }
+            // Durable at once: the app's ledger has already let go of these tracks.
+            persistForPlayback("audio", ::persistAudioIndex)
+        }
+    }
+
+    /** Seeds whose embed timed out in this process, by their vector identity (D1); cleared when the pass analyses them. */
+    private val seedTimeouts = HashMap<TrackId, String>()
+
+    override fun setAnalysisPacing(slow: Boolean): Unit = backend.setAnalysisPacing(slow)
+
+    override suspend fun rememberedAudioFailures(tracks: List<TrackDescriptor>): Map<TrackId, EngineError> =
+        withContext(dispatcher) {
+            mutex.withLock {
+                if (mutableState.value !is EngineState.Ready) return@withLock emptyMap()
+                tracks.filter { it.id !in index && hasRememberedAudioFailure(it) }
+                    .associate { it.id to EngineError.InvalidAudio() }
+            }
+        }
 
     override suspend fun energyCoverage(): Pair<Int, Int> = withContext(dispatcher) {
         mutex.withLock { index.size to energies.size }
@@ -955,18 +1053,21 @@ internal class DefaultSimilarityEngine(
                         seed, library, length, history, companionGroups,
                     )
                 }
-                val vector = ensureAudioModel().getOrNull()?.let {
-                    inference.withLock { backend.embed(seed) }.fold(
+                val timedOutBefore = seed.audioVectorIdentity() == seedTimeouts[seed.id]
+                val vector = (if (timedOutBefore) null else ensureAudioModel().getOrNull()?.let {
+                    embedding { backend.embed(seed) }.fold(
                         onSuccess = { it },
                         onFailure = { throwable ->
-                            if (throwable.toEngineError() is EngineError.InvalidAudio) {
+                            val error = throwable.toEngineError()
+                            if (error is EngineError.InvalidAudio) {
                                 rememberAudioFailure(seed)
                                 persistForPlayback("audio", ::persistAudioIndex)
                             }
+                            if (error.isAnalysisTimeout()) seedTimeouts[seed.id] = seed.audioVectorIdentity()
                             null
                         },
                     )
-                } ?: return@withLock metadataFallback(
+                }) ?: return@withLock metadataFallback(
                     seed, library, length, history, companionGroups,
                 )
                 if (validateAndUpsert(seed, vector) != null) {
@@ -1207,6 +1308,7 @@ internal class DefaultSimilarityEngine(
     override suspend fun clearAnalysis() {
         withContext(dispatcher) {
             mutex.withLock {
+                seedTimeouts.clear()
                 val audioSnapshot = currentAudioSnapshot()
                 val metadataSnapshot = currentTextSnapshot()
                 val failures = mutableListOf<Throwable>()
@@ -1261,12 +1363,14 @@ internal class DefaultSimilarityEngine(
                 textIndexDirty = false
                 audioEnvelopeRefusal.reset()
                 textEnvelopeRefusal.reset()
+                audioEnvelopeRefusedNow = false
                 semanticCache.clear()
                 energies.clear()
                 energyIdentities.clear()
                 mixCoverageCache = null
                 snapshotCache = null
                 indexRevision++
+                forgetHub()
                 walks.clear()
                 if (mutableState.value is EngineState.Ready) {
                     mutableState.value = EngineState.Ready(indexedCount = 0)
@@ -1279,9 +1383,11 @@ internal class DefaultSimilarityEngine(
         withContext(dispatcher) {
             mutex.withLock {
                 generation++
+                seedTimeouts.clear()
                 inference.withLock { backend.close() }
                 predictor?.close()
                 textEncoder?.close()
+                textEncodeCache.clear()
                 index.clear()
                 textIndex?.clear()
                 knownTracks.clear()
@@ -1292,12 +1398,14 @@ internal class DefaultSimilarityEngine(
                 textIndexDirty = false
                 audioEnvelopeRefusal.reset()
                 textEnvelopeRefusal.reset()
+                audioEnvelopeRefusedNow = false
                 semanticCache.clear()
                 energies.clear()
                 energyIdentities.clear()
                 mixCoverageCache = null
                 snapshotCache = null
                 indexRevision++
+                forgetHub()
                 walks.clear()
                 predictorLoaded = false
                 textEncoderLoaded = false
@@ -1352,6 +1460,7 @@ internal class DefaultSimilarityEngine(
         val startedEmpty = index.size == 0
         val adopted = ArrayList<TrackId>()
         fun discardAdopted() {
+            audioRevision++
             if (startedEmpty) {
                 index.clear()
                 audioVectorIdentities.clear()
@@ -1393,6 +1502,27 @@ internal class DefaultSimilarityEngine(
             }
         }
         if (index.size > 0) indexRevision++
+        if (adopted.isNotEmpty()) audioRevision++
+    }
+
+    /**
+     * The last [TEXT_ENCODE_CACHE] text-encoder outputs by input string, as encoded; read and written only under
+     * [mutex] (every [indexTextVector] caller holds it). Failed or blank encodes are never kept. It lives as long as
+     * the encoder (about 100 KB), not one pass as §5 2d says: an album split over two passes still hits.
+     */
+    private val textEncodeCache = LinkedHashMap<String, FloatArray>()
+
+    /** [metadata]'s cached encoder output, made the most recent; null when not cached. */
+    private fun cachedTextEncode(metadata: String): FloatArray? {
+        val hit = textEncodeCache.remove(metadata) ?: return null
+        textEncodeCache[metadata] = hit
+        return hit
+    }
+
+    private fun cacheTextEncode(metadata: String, output: FloatArray) {
+        textEncodeCache.remove(metadata)
+        textEncodeCache[metadata] = output
+        if (textEncodeCache.size > TEXT_ENCODE_CACHE) textEncodeCache.remove(textEncodeCache.keys.first())
     }
 
     /**
@@ -1406,7 +1536,12 @@ internal class DefaultSimilarityEngine(
         if (track.id in target) return false
         val metadata = track.textString()
         if (metadata.isBlank()) return false
-        val vector = runCatching { encoder.encode(metadata) }.getOrNull() ?: return false
+        // An album's tracks usually share one string ("genre; artist; year; language"): the encoder's output for it
+        // is reused (2d). The encoder is deterministic, so a copy of its output is the row a fresh encode stores.
+        val vector = cachedTextEncode(metadata)?.copyOf()
+            ?: runCatching { encoder.encode(metadata) }.getOrNull()
+                ?.also { if (it.size == TextEncoder.TEXT_DIM) cacheTextEncode(metadata, it.copyOf()) }
+            ?: return false
         if (vector.size != TextEncoder.TEXT_DIM) return false
         return runCatching { target.upsert(track.id, vector) }
             .onSuccess {
@@ -1449,6 +1584,7 @@ internal class DefaultSimilarityEngine(
         energies.remove(id)
         energyIdentities.remove(id)
         indexRevision++
+        audioRevision++
         snapshotCache = null
         return null
     }
@@ -1494,16 +1630,21 @@ internal class DefaultSimilarityEngine(
         }
     }
 
-    private fun TrackDescriptor.audioVectorIdentity(): String = vectorIdentity(
-        AUDIO_IDENTITY_VERSION,
-        audioUri,
+    private fun TrackDescriptor.audioVectorIdentity(): String = audioVectorIdentity(ContainerPaths.relative(audioUri))
+
+    /** The vector identity with [uri] in place of the track's (container-relative) URI: the form builds before 0.9.4 used. */
+    private fun TrackDescriptor.audioVectorIdentity(uri: String?): String = vectorIdentity(
+        if (WindowCoverage.isSingleWindow(durationMs)) AUDIO_SHORT_IDENTITY_VERSION else AUDIO_IDENTITY_VERSION,
+        uri,
         durationMs?.toString(),
         sourceRevision,
     )
 
-    private fun TrackDescriptor.audioFailureIdentity(): String = vectorIdentity(
+    private fun TrackDescriptor.audioFailureIdentity(): String = audioFailureIdentity(ContainerPaths.relative(audioUri))
+
+    private fun TrackDescriptor.audioFailureIdentity(uri: String?): String = vectorIdentity(
         AUDIO_FAILURE_IDENTITY_VERSION,
-        audioUri,
+        uri,
         durationMs?.toString(),
         sourceRevision,
     )
@@ -1525,6 +1666,66 @@ internal class DefaultSimilarityEngine(
 
     /** The string itself: a vector is current exactly when it encodes what the track would encode now. */
     private fun TrackDescriptor.textVectorIdentity(): String = vectorIdentity(TEXT_IDENTITY_VERSION, textString())
+
+    /** Container roots older builds' absolute URLs were in ([rememberLegacyContainerRoots]); the current one is always tried. */
+    private val legacyContainerRoots = LinkedHashSet<String>()
+
+    override suspend fun rememberLegacyContainerRoots(roots: Collection<String>) {
+        if (roots.isEmpty()) return
+        withContext(dispatcher) { mutex.withLock { legacyContainerRoots += roots } }
+    }
+
+    /**
+     * Identities recorded by builds before 0.9.4 named an iOS file by its absolute URL, whose container UUID iOS changes
+     * across updates, reinstalls and restores. A row whose recorded identity is that form, with the file as it is now
+     * (same duration and revision) at its current URL or at one of [legacyContainerRoots], is re-recorded under the
+     * container-relative identity instead of being analysed again. A row matching neither stays a changed row.
+     */
+    private suspend fun adoptMovedContainerIdentities(library: List<TrackDescriptor>) {
+        var moved = 0
+        for (track in library) {
+            val uri = track.audioUri ?: continue
+            if (ContainerPaths.root(uri) == null) continue
+            val id = track.id
+            val candidates = legacyUris(track)
+            if (id in index && !audioVectorIdentities.matches(id, track.audioVectorIdentity()) &&
+                candidates.any { audioVectorIdentities.matches(id, track.audioVectorIdentity(it)) }
+            ) {
+                val before = audioVectorIdentities.tokenFor(id)
+                audioVectorIdentities.put(id, track.audioVectorIdentity())
+                if (before != null && energyIdentities[id] == before) {
+                    audioVectorIdentities.tokenFor(id)?.let { energyIdentities[id] = it }
+                }
+                audioIndexDirty = true
+                moved++
+            }
+            if (id in audioFailureIdentities && !audioFailureIdentities.matches(id, track.audioFailureIdentity()) &&
+                candidates.any { audioFailureIdentities.matches(id, track.audioFailureIdentity(it)) }
+            ) {
+                audioFailureIdentities.put(id, track.audioFailureIdentity())
+                audioIndexDirty = true
+                moved++
+            }
+        }
+        if (moved > 0) {
+            println("SMART: $moved stored identities moved to container-relative URLs, kept without analysing them again")
+            // Written after the audio index this sync saves (energy tokens must not get ahead of it).
+            energiesMoved = true
+        }
+    }
+
+    /** Set when [adoptMovedContainerIdentities] re-recorded energy tokens; the sync persists them after the index. */
+    private var energiesMoved = false
+
+    /** The absolute URLs a build before 0.9.4 may have recorded [track] under: as it is now, and in each known root. */
+    private fun legacyUris(track: TrackDescriptor): Sequence<String> {
+        val uri = track.audioUri ?: return emptySequence()
+        if (ContainerPaths.root(uri) == null) return emptySequence()
+        return sequence {
+            yield(uri)
+            for (root in legacyContainerRoots) ContainerPaths.moved(uri, root)?.takeIf { it != uri }?.let { yield(it) }
+        }
+    }
 
     private fun hasRememberedAudioFailure(track: TrackDescriptor): Boolean =
         audioFailureIdentities.matches(track.id, track.audioFailureIdentity())
@@ -1551,10 +1752,12 @@ internal class DefaultSimilarityEngine(
             store.saveSnapshot(config.modelVersion, snapshot)
         } catch (refusal: IllegalArgumentException) {
             noteRefusedSnapshot("audio", rows, refusal, audioEnvelopeRefusal)
+            audioEnvelopeRefusedNow = true
             return
         }
         audioIndexDirty = false
         audioEnvelopeRefusal.reset()
+        audioEnvelopeRefusedNow = false
     }
 
     private suspend fun persistTextIndex() {
@@ -1711,7 +1914,16 @@ internal class DefaultSimilarityEngine(
 
     private suspend fun snapshotFor(history: List<SmartHistoryEvent>): SmartSnapshot? {
         snapshotCache?.takeIf { it.revision == indexRevision && it.semanticCount == semanticCache.size }
-            ?.let { return it.snapshot }
+            ?.let { cache ->
+                // A pass that failed left a stand-in: try again, at most every HUB_RETRY_AFTER.
+                val key = cache.hubKey
+                if (!cache.hubExact && key != null && hubJob?.isActive != true &&
+                    hubFailedAt.let { it == null || it.elapsedNow() >= HUB_RETRY_AFTER }
+                ) {
+                    startHub(cache.snapshot.centeredAudio, cache.snapshot.tracks.map { it.id }, key)
+                }
+                return cache.snapshot
+            }
         // A stale snapshot goes before its replacement is built: holding both would double the peak.
         snapshotCache = null
         // The artist adapter loads on its first descriptor, and a load that runs out of memory leaves
@@ -1741,6 +1953,7 @@ internal class DefaultSimilarityEngine(
         // until it ends. A history row the library no longer lists has no tags to look one up by.
         // A descriptor depends only on the artist credits and the text vector, so songs that share all three (an
         // album, mostly) take the first one's instead of decoding it again.
+        var hub: HubAnswer? = null
         val snapshot = SmartSnapshot.build(
             withEnergy(rows),
             batchDotProducts,
@@ -1748,13 +1961,150 @@ internal class DefaultSimilarityEngine(
             descriptorKeyOf = { row ->
                 knownTracks[row.id]?.let { track -> DescriptorKey(track.artist, track.artists.firstOrNull(), row.textRow) }
             },
-        ) { row ->
-            knownTracks[row.id]?.let { track ->
-                artistKnowledge?.descriptor(track.artist, track.artists.firstOrNull(), row.text)
-            }
-        } ?: return null
-        snapshotCache = SnapshotCache(indexRevision, semanticCache.size, snapshot)
+            descriptorOf = { row ->
+                knownTracks[row.id]?.let { track ->
+                    artistKnowledge?.descriptor(track.artist, track.artists.firstOrNull(), row.text)
+                }
+            },
+            hubPenaltyOf = if (config.backgroundHub) { ids -> hubPenaltyFor(ids).let { (answer, penalty) -> hub = answer; penalty } } else null,
+        ) ?: return null
+        val built = hub
+        snapshotCache = SnapshotCache(indexRevision, semanticCache.size, snapshot, built?.key, built?.exact ?: true)
+        if (built != null && !built.exact) {
+            startHub(snapshot.centeredAudio, snapshot.tracks.map { it.id }, built.key)
+        } else if (built != null && hubJobKey != built.key) {
+            // Exact already: a pass still running for other rows would only replace this hub with theirs.
+            hubJob?.cancel()
+        }
         return snapshot
+    }
+
+    /** The rows a hub penalty was computed for: the audio rows' revision and the ids in row order. */
+    private data class HubKey(val audioRevision: Long, val rows: Int, val digest: Long)
+
+    private class HubCache(val key: HubKey, val ids: List<TrackId>, val penalty: FloatArray)
+
+    /** What [hubPenaltyFor] gave a build: for which rows, and whether it is the exact penalty or a stand-in. */
+    private class HubAnswer(val key: HubKey, val exact: Boolean)
+
+    private fun hubKeyOf(ids: List<TrackId>): HubKey {
+        var digest = -0x340d631b7bdddcdbL // FNV-1a over the ids' UTF-16 units, one separator between ids
+        for (id in ids) {
+            for (unit in id.value) digest = (digest xor unit.code.toLong()) * 0x100000001b3L
+            digest = (digest xor 0x1FL) * 0x100000001b3L
+        }
+        return HubKey(audioRevision, ids.size, digest)
+    }
+
+    /**
+     * A snapshot's hub penalty under [SmartEngineConfig.backgroundHub]: the background pass's for exactly these rows, or
+     * until it is ready the last one by track (0 for a track it did not have), or none (all 0) before the first pass.
+     */
+    private fun hubPenaltyFor(ids: List<TrackId>): Pair<HubAnswer, FloatArray> {
+        val key = hubKeyOf(ids)
+        val cached = hubCache ?: return HubAnswer(key, exact = false) to FloatArray(ids.size)
+        if (cached.key == key) return HubAnswer(key, exact = true) to cached.penalty
+        val byTrack = HashMap<TrackId, Float>(cached.ids.size * 2)
+        for ((row, id) in cached.ids.withIndex()) byTrack[id] = cached.penalty[row]
+        return HubAnswer(key, exact = false) to FloatArray(ids.size) { byTrack[ids[it]] ?: 0f }
+    }
+
+    /**
+     * Starts the background hub pass for the rows [key] names unless it already runs. It holds only the snapshot's
+     * centred audio rows (which read the index in place) and the ids, never the snapshot itself: a replaced snapshot
+     * is not kept alive by the pass.
+     */
+    private fun startHub(centered: CentredRows, ids: List<TrackId>, key: HubKey) {
+        if (hubJobKey == key && hubJob?.isActive == true) return
+        hubJob?.cancel()
+        hubJobKey = key
+        hubJob = hubScope.launch {
+            try {
+                runHub(centered, ids, key)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                // Out of memory for the anchors, say: plans keep their stand-in, and the next plan tries again.
+                println("SMART: the background hub pass failed (${failure::class.simpleName}); plans keep the last hub")
+                hubFailedAt = TimeSource.Monotonic.markNow()
+            }
+        }
+    }
+
+    /**
+     * [SmartSnapshot.computeHubPenalty] for [centered], a block of rows per hold of [mutex] and the products outside it,
+     * so a press waits at most for one block's copy. The rows read the audio index in place, which is sound while
+     * [audioRevision] is the one [key] names; any change ends the pass, and the next plan starts another. The same
+     * [HubPass] as a snapshot build, fed the same rows in the same order: the same floats. The result goes to every
+     * cached snapshot built for exactly these rows, whichever object it is.
+     */
+    private suspend fun runHub(centered: CentredRows, ids: List<TrackId>, key: HubKey) {
+        val n = ids.size
+        val dim = SmartSnapshot.AUDIO_DIM
+        val pass = mutex.withLock { HubPass(n, dim, SmartSnapshot.HUB_ANCHOR_SAMPLE, scratchRows, batchDotProducts) }
+        val penalty = try {
+            if (pass.k > 0) {
+                val row = FloatArray(dim)
+                var next = 0
+                while (next < pass.candidates) {
+                    val end = minOf(next + SmartSnapshot.HUB_ROW_BLOCK, pass.candidates)
+                    val current = mutex.withLock {
+                        (audioRevision == key.audioRevision).also { current ->
+                            if (current) {
+                                for (c in next until end) {
+                                    centered.copyRow(pass.anchorRow(c), row)
+                                    pass.addAnchor(row)
+                                }
+                            }
+                        }
+                    }
+                    if (!current) return
+                    next = end
+                    yield()
+                }
+                pass.sealAnchors()
+                val rows = FloatArray(minOf(SmartSnapshot.HUB_ROW_BLOCK, n) * dim)
+                var start = 0
+                while (start < n) {
+                    val count = minOf(SmartSnapshot.HUB_ROW_BLOCK, n - start)
+                    val current = mutex.withLock {
+                        (audioRevision == key.audioRevision).also { current ->
+                            if (current) for (r in 0 until count) centered.copyRow(start + r, rows, r * dim)
+                        }
+                    }
+                    if (!current) return
+                    pass.score(rows, start, count)
+                    start += count
+                    yield()
+                }
+                pass.finish()
+            } else {
+                FloatArray(n)
+            }
+        } finally {
+            pass.close()
+        }
+        mutex.withLock {
+            if (audioRevision != key.audioRevision) return@withLock
+            hubCache = HubCache(key, ids, penalty)
+            snapshotCache?.takeIf { it.hubKey == key && !it.hubExact }?.let { cache ->
+                snapshotCache = cache.copy(snapshot = cache.snapshot.withHubPenalty(penalty), hubExact = true)
+            }
+        }
+    }
+
+    /** Waits for the background hub pass in flight, if any (tests). */
+    internal suspend fun awaitBackgroundHub() {
+        hubJob?.join()
+    }
+
+    /** Drops the hub penalty and stops its pass: the rows it was for are gone. Under [mutex]. */
+    private fun forgetHub() {
+        audioRevision++
+        hubCache = null
+        hubJob?.cancel()
+        hubJob = null
+        hubJobKey = null
     }
 
     /**
@@ -1848,6 +2198,7 @@ internal class DefaultSimilarityEngine(
         val errors: LinkedHashMap<TrackId, EngineError>,
         val toEmbed: List<TrackDescriptor>,
         val generation: Long,
+        val upcoming: List<TrackDescriptor> = emptyList(),
     )
     /** Everything a snapshot row's descriptor is read from; the text row compares by its exact floats. */
     private class DescriptorKey(val artist: String?, val primaryArtist: String?, val text: StoredVectorRow?) {
@@ -1876,6 +2227,9 @@ internal class DefaultSimilarityEngine(
         val revision: Long,
         val semanticCount: Int,
         val snapshot: SmartSnapshot,
+        /** [SmartEngineConfig.backgroundHub]: the rows its hub penalty is for, and whether it is the exact one yet. */
+        val hubKey: HubKey? = null,
+        val hubExact: Boolean = true,
     )
 
     /** Keep the small coverage identity, never the one-shot matrix consumed by clustering. */
@@ -1926,6 +2280,12 @@ internal class DefaultSimilarityEngine(
         fun energyVersion(encoder: String): String = "$ENERGY_VERSION-$encoder"
 
         const val AUDIO_IDENTITY_VERSION = "audio-v1"
+        private val HUB_RETRY_AFTER = kotlin.time.Duration.parse("5m")
+        /**
+         * Tracks analysed in one window (duration unknown or at most 10 s): from 0.9.4 a window decoded short is
+         * repeated to its length instead of zero-padded ([WindowCoverage]), so only these rows are analysed again.
+         */
+        const val AUDIO_SHORT_IDENTITY_VERSION = "audio-v1-repeat"
         // v2 deliberately invalidates markers written before transient and deterministic audio
         // failures were separated. Existing vectors keep AUDIO_IDENTITY_VERSION and remain warm.
         const val AUDIO_FAILURE_IDENTITY_VERSION = "audio-failure-v2"
@@ -1947,3 +2307,15 @@ internal class DefaultSimilarityEngine(
 
 /** Fixed, so the same library always compares a transition against the same tracks. */
 private const val TRANSITION_SAMPLE_SEED: Int = 25
+
+/** Text-encoder outputs kept for reuse (2d): an album's worth and more. */
+private const val TEXT_ENCODE_CACHE: Int = 64
+
+/** Ends a chunk's inference once the engine was cleared or released under it. */
+private class StaleChunk : Exception()
+
+private suspend fun EmbeddingBackend.embedEachWith(
+    tracks: List<TrackDescriptor>,
+    upcoming: List<TrackDescriptor>,
+    onResult: suspend (TrackDescriptor, Result<FloatArray>) -> Unit,
+) = if (upcoming.isEmpty()) embedEach(tracks, onResult) else embedEach(tracks, upcoming, onResult)
