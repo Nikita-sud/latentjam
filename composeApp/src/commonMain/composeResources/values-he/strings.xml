@@ -651,7 +651,7 @@
     <string name="backup_invalid">זה לא גיבוי תקין של LatentJam.</string>
     <string name="backup_destination_warning">הגיבוי מכיל נתוני אפליקציה פרטיים. יעד בענן או של צד שלישי שנבחר בבורר המערכת עשוי לסנכרן אותו.</string>
     <string name="listenbrainz_import_section">ייבוא היסטוריית האזנה</string>
-    <string name="history_import">ייבוא האזנות מ־ListenBrainz או מ־Last.fm</string>
+    <string name="history_import">בחירת קובץ…</string>
     <string name="history_import_body">טענו את הייצוא מ־listenbrainz.org (Settings → Export) — ZIP או JSON — או היסטוריית Last.fm שנשמרה כ־CSV, למשל עם ‏“last.fm to csv”. ההאזנות מותאמות לשירים בספרייה שלכם; שום דבר לא יוצא מהמכשיר.</string>
     <string name="listenbrainz_import_progress">האזנות שנקראו: %1$d</string>
     <string name="listenbrainz_import_result_imported">האזנות שיובאו: %1$d</string>

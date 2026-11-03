@@ -632,7 +632,7 @@
     <string name="backup_invalid">Dies ist kein gültiges LatentJam-Backup.</string>
     <string name="backup_destination_warning">Das Backup enthält private App-Daten. Ein im Systemdialog ausgewähltes Cloud- oder Drittanbieterziel kann sie synchronisieren.</string>
     <string name="listenbrainz_import_section">Hörverlauf importieren</string>
-    <string name="history_import">Wiedergaben aus ListenBrainz oder Last.fm importieren</string>
+    <string name="history_import">Datei auswählen…</string>
     <string name="history_import_body">Lade den Export von listenbrainz.org (Settings → Export) – ZIP oder JSON – oder einen als CSV gespeicherten Last.fm-Verlauf, zum Beispiel mit „last.fm to csv“. Die Wiedergaben werden den Songs deiner Mediathek zugeordnet; nichts verlässt das Gerät.</string>
     <string name="listenbrainz_import_progress">Gelesene Wiedergaben: %1$d</string>
     <string name="listenbrainz_import_result_imported">Importierte Wiedergaben: %1$d</string>

@@ -622,7 +622,7 @@
     <string name="backup_invalid">यह मान्य LatentJam बैकअप नहीं है।</string>
     <string name="backup_destination_warning">बैकअप में ऐप का निजी डेटा होता है। सिस्टम पिकर में चुना गया क्लाउड या तृतीय-पक्ष स्थान इसे सिंक कर सकता है।</string>
     <string name="listenbrainz_import_section">सुनने का इतिहास आयात करें</string>
-    <string name="history_import">ListenBrainz या Last.fm से सुने गए गाने आयात करें</string>
+    <string name="history_import">फ़ाइल चुनें…</string>
     <string name="history_import_body">listenbrainz.org से निर्यात फ़ाइल लोड करें (Settings → Export) — ZIP या JSON — या CSV के रूप में सहेजा गया Last.fm इतिहास, जैसे “last.fm to csv” से। सुने गए गानों का मिलान आपकी लाइब्रेरी के गानों से किया जाता है; कुछ भी डिवाइस से बाहर नहीं जाता।</string>
     <string name="listenbrainz_import_progress">पढ़ी गई प्रविष्टियाँ: %1$d</string>
     <string name="listenbrainz_import_result_imported">आयात की गई प्रविष्टियाँ: %1$d</string>

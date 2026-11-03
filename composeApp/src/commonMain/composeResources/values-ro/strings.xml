@@ -637,7 +637,7 @@
     <string name="backup_invalid">Aceasta nu este o copie LatentJam validă.</string>
     <string name="backup_destination_warning">Copia de rezervă conține date private ale aplicației. O destinație cloud sau terță aleasă în selectorul sistemului le poate sincroniza.</string>
     <string name="listenbrainz_import_section">Importă istoricul de ascultare</string>
-    <string name="history_import">Importă ascultările din ListenBrainz sau Last.fm</string>
+    <string name="history_import">Alege un fișier…</string>
     <string name="history_import_body">Încarcă exportul de pe listenbrainz.org (Settings → Export) — ZIP sau JSON — sau un istoric Last.fm salvat ca CSV, de exemplu cu „last.fm to csv”. Ascultările sunt potrivite cu melodiile din biblioteca ta; nimic nu părăsește dispozitivul.</string>
     <string name="listenbrainz_import_progress">Ascultări citite: %1$d</string>
     <string name="listenbrainz_import_result_imported">Ascultări importate: %1$d</string>

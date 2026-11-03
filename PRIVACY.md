@@ -51,8 +51,8 @@ developer or with any third party.
 - **Local backup** writes a backup file to the location you choose, and restores from it. The file
   carries your playlists, favourites, listening history, recent searches, hidden tracks, SMART
   exclusions, the duplicate finder's decisions and settings.
-- **ListenBrainz import** reads an export file you choose, on the device, and adds the listens
-  that match your library to the listening history.
+- **Listening history import** reads a file you choose (a ListenBrainz export or a Last.fm CSV),
+  on the device, and adds the listens that match your library to the listening history.
 
 ## Third parties
 

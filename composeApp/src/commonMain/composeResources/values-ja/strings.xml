@@ -599,7 +599,7 @@
     <string name="backup_invalid">有効な LatentJam バックアップではありません。</string>
     <string name="backup_destination_warning">バックアップには非公開のアプリデータが含まれます。システムの選択画面で指定したクラウドまたは他社の保存先に同期される場合があります。</string>
     <string name="listenbrainz_import_section">再生履歴のインポート</string>
-    <string name="history_import">ListenBrainz または Last.fm の再生記録をインポート</string>
+    <string name="history_import">ファイルを選択…</string>
     <string name="history_import_body">listenbrainz.org のエクスポート（Settings → Export、ZIP または JSON）か、CSV で保存した Last.fm の履歴（たとえば「last.fm to csv」で作成）を読み込みます。再生記録はライブラリの曲と照合され、データが端末の外に出ることはありません。</string>
     <string name="listenbrainz_import_progress">読み込んだ再生記録：%1$d</string>
     <string name="listenbrainz_import_result_imported">インポートした再生記録：%1$d</string>

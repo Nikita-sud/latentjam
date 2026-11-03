@@ -599,7 +599,7 @@
     <string name="backup_invalid">유효한 LatentJam 백업이 아닙니다.</string>
     <string name="backup_destination_warning">백업에는 비공개 앱 데이터가 포함됩니다. 시스템 선택 화면에서 고른 클라우드 또는 타사 위치가 이를 동기화할 수 있습니다.</string>
     <string name="listenbrainz_import_section">감상 기록 가져오기</string>
-    <string name="history_import">ListenBrainz 또는 Last.fm 감상 기록 가져오기</string>
+    <string name="history_import">파일 선택…</string>
     <string name="history_import_body">listenbrainz.org에서 내보낸 파일(Settings → Export, ZIP 또는 JSON)이나 CSV로 저장한 Last.fm 기록(예: “last.fm to csv”)을 불러옵니다. 감상 기록은 보관함의 곡과 맞춰지며, 어떤 데이터도 기기 밖으로 나가지 않습니다.</string>
     <string name="listenbrainz_import_progress">읽은 감상 기록: %1$d</string>
     <string name="listenbrainz_import_result_imported">가져온 감상 기록: %1$d</string>

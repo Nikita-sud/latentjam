@@ -629,7 +629,7 @@
     <string name="backup_invalid">Esta no es una copia de seguridad válida de LatentJam.</string>
     <string name="backup_destination_warning">La copia contiene datos privados de la aplicación. Un destino en la nube o de terceros elegido en el selector del sistema puede sincronizarlos.</string>
     <string name="listenbrainz_import_section">Importar historial de escucha</string>
-    <string name="history_import">Importar escuchas de ListenBrainz o Last.fm</string>
+    <string name="history_import">Elegir un archivo…</string>
     <string name="history_import_body">Carga la exportación de listenbrainz.org (Settings → Export), en ZIP o JSON, o un historial de Last.fm guardado como CSV, por ejemplo con «last.fm to csv». Las escuchas se emparejan con las canciones de tu biblioteca; nada sale del dispositivo.</string>
     <string name="listenbrainz_import_progress">Escuchas leídas: %1$d</string>
     <string name="listenbrainz_import_result_imported">Escuchas importadas: %1$d</string>

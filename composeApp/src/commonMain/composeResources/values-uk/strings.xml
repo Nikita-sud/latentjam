@@ -674,7 +674,7 @@
     <string name="backup_invalid">Це не дійсна резервна копія LatentJam.</string>
     <string name="backup_destination_warning">Резервна копія містить приватні дані застосунку. Хмарне або стороннє сховище, вибране в системному вікні, може синхронізувати їх.</string>
     <string name="listenbrainz_import_section">Імпорт історії прослуховувань</string>
-    <string name="history_import">Імпортувати прослуховування з ListenBrainz або Last.fm</string>
+    <string name="history_import">Вибрати файл…</string>
     <string name="history_import_body">Завантажте експорт із listenbrainz.org (Settings → Export) — ZIP або JSON — або історію Last.fm, збережену в CSV, наприклад через «last.fm to csv». Прослуховування зіставляються з піснями вашої медіатеки; нічого не залишає пристрій.</string>
     <string name="listenbrainz_import_progress">Прочитано прослуховувань: %1$d</string>
     <string name="listenbrainz_import_result_imported">Імпортовано прослуховувань: %1$d</string>

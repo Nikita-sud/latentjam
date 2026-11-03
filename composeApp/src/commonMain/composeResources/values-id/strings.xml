@@ -605,7 +605,7 @@
     <string name="backup_invalid">Ini bukan cadangan LatentJam yang valid.</string>
     <string name="backup_destination_warning">Cadangan berisi data pribadi aplikasi. Tujuan cloud atau pihak ketiga yang dipilih di pemilih sistem dapat menyinkronkannya.</string>
     <string name="listenbrainz_import_section">Impor riwayat dengar</string>
-    <string name="history_import">Impor riwayat dengar ListenBrainz atau Last.fm</string>
+    <string name="history_import">Pilih file…</string>
     <string name="history_import_body">Muat ekspor dari listenbrainz.org (Settings → Export) — ZIP atau JSON — atau riwayat Last.fm yang disimpan sebagai CSV, misalnya dengan “last.fm to csv”. Riwayat dengar dicocokkan dengan lagu di pustaka kamu; tidak ada yang keluar dari perangkat.</string>
     <string name="listenbrainz_import_progress">Dengaran yang dibaca: %1$d</string>
     <string name="listenbrainz_import_result_imported">Dengaran yang diimpor: %1$d</string>

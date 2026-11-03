@@ -726,7 +726,7 @@
     <string name="backup_invalid">هذه ليست نسخة احتياطية صالحة من LatentJam.</string>
     <string name="backup_destination_warning">تحتوي النسخة الاحتياطية على بيانات خاصة بالتطبيق. قد تقوم وجهة سحابية أو تابعة لطرف ثالث يتم اختيارها في منتقي النظام بمزامنتها.</string>
     <string name="listenbrainz_import_section">استيراد سجل الاستماع</string>
-    <string name="history_import">استيراد مرات الاستماع من ListenBrainz أو Last.fm</string>
+    <string name="history_import">اختر ملفًا…</string>
     <string name="history_import_body">حمّل ملف التصدير من listenbrainz.org (Settings → Export) بصيغة ZIP أو JSON، أو سجل Last.fm محفوظًا بصيغة CSV، مثلًا باستخدام “last.fm to csv”. تُطابَق مرات الاستماع مع الأغاني في مكتبتك، ولا يغادر أي شيء الجهاز.</string>
     <string name="listenbrainz_import_progress">مرات الاستماع المقروءة: %1$d</string>
     <string name="listenbrainz_import_result_imported">مرات الاستماع المستوردة: %1$d</string>
