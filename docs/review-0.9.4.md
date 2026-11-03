@@ -181,3 +181,25 @@ Round 4 had confirmed medium findings (R4-A1, R4-S1), so round 5 runs.
 | R5-U2 | UI | low | "Only retry" while paused clears the rows but analyses nothing until Continue | **deferred** (wording or behaviour: owner) |
 
 Round 5 had confirmed medium findings, so round 6 runs.
+
+### Round 6 (HEAD dd199149)
+
+| # | area | sev | finding | verdict |
+|---|---|---|---|---|
+| R6-S1 | SMART | med | "Hardcore Hip-Hop", "Emo Rap", "Horrorcore" read as punk/rock (full same-genre bonus with Rock) | **fixed** (be7e12b4), test |
+| R6-S2 | SMART | med | hygiene (2 spreads) on top of QueueClasses' substring matches: "Memento Mori" as meme, "Post-Rock" as ost paid 3 spreads | **fixed** (be7e12b4): the five short class words whole-word (PLAN_FIXN2 Q, radio never before edit/mix/version), test |
+| R6-S3 | SMART | med | hygiene's length unit after a long (or very short) seed (= R4-S5, second report) | **fixed** (be7e12b4): applies only after a seed of ordinary length, test |
+| R6-S4 / R6-A3 | SMART, analysis | med | the warm-up built and dropped a full snapshot at every launch, also without SMART use, under the engine lock | **fixed** (e533d486): warm-up call removed (0.9.3 behaviour; the first press computes the hub) |
+| R6-A1 | analysis | low | run opened after the 6 h cap stays without service (A2, R5-A1; third report, with a test) | **fixed** (340b3572): sessions opened after the loss start the service, test |
+| R6-A2 | analysis | low | a D2-held track is not retried after its hour within one process | **deferred** |
+| R6-U1 | UI | low | "Paused by you · 0 of N" (third report) | **deferred** (new string in 22 languages) |
+| R6-U2 | UI | low | track menu artist toggle: a tap before the async answer did the wrong action | **fixed** (eba110c5): decided on the tap |
+| R6-I1 | iOS | low | a clear left a killed write's `.tmp` | **fixed** (91e7fd9d) |
+| R6-P1 | playback | low | tile active 20 s after a press that cannot start (= R5-P1) | **deferred** |
+| R6-R1 | release | low | `ndk:` lines not checked against `ndk_version` (= R5-R3) | **deferred** |
+| R6-R2 | release | low | an interrupted default ORT clone makes the next run fail once | **deferred** |
+
+Stand after round 6 (32 seeds, 40 picks, `LJ_STAND_KEEP_SHORT=1`): 17/32 seeds identical to the evaluated B arm; mean
+top-15 overlap with B 14.19/15 (B against 0.9.3: 11.12/15). The moves come from R2-S1 (rule K), R1-S2 and R6-S1
+(genre phrases), R6-S2 (whole class words) and R6-S3 (seed-aware length). Round 6 had confirmed medium findings, so
+round 7 runs.
