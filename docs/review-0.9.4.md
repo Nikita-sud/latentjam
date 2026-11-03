@@ -364,3 +364,56 @@ launcher start restored queue 5, and a tap on a queue row played it.
 - 10k songs on LJ-api30 (d7be2f9a): no out-of-memory at 48m or 96m. Idle 17.2 MB (1564d809: 20.0), press 28.9 MB.
   The first plan after analysis is 6.1 s at 48m and 4.6 s at 96m, because the hub is computed inline (1564d809:
   3.7 s and 3.5 s). Top-ups take 0.3–0.5 s. Details: `~/Documents/LJ/integ094-stand/emulator-checks-final.md`.
+
+## Issue #29: Last.fm CSV import
+
+Public promise (owner, issue #29): «Импорт CSV из Last.fm напрямую добавлю в одну из следующей версии». Owner on
+2026-11-03: «Я имел ввиду импорта csv»; on the button: «Может тогда поменять название кнопки раз оно не только LB
+поддерживает?»
+
+**Format, read from the source of benfoxall/lastfm-to-csv** (MIT; read for the format only, no code copied; the live
+site is deployed from 78f11d34):
+
+- no header; `artist,album,name,date`, or `artist,name,date` in the tool's first weeks (2014); newest first, LF;
+- until 2026-08 every `"` and `,` was deleted from names and the date read `23 Feb 2016 17:59`;
+- since 08efd3fa (2026-08-07): RFC 4180 quoting, a UTF-8 BOM, and the date as Last.fm prints it, `"03 Nov 2026, 15:29"`, UTC;
+- the now-playing track is a row with an empty date; album and artist can be empty; no mbid, duration or loved column.
+
+Other exporters write a header (`uts,utc_time,artist,artist_mbid,album,album_mbid,track,track_mbid`). The reader takes
+any header naming an artist, a track and one of `uts` / `utc_time` / `date`, and prefers Unix seconds when given.
+
+**Change** (e11cf767, 4e203dfc, 6329d04b, and the commit after this log):
+
+- `LastFmCsv.kt` streams RFC 4180 records through the ListenBrainz reader's buffer. `ListenBrainzExportReader.read`
+  tells the format by content: a ZIP, then JSON (an opening `[` or `{` must be followed by what JSON allows there), then
+  a Last.fm CSV (a header, or the first dated record a headerless row with a Last.fm date), else "not a valid file".
+- The rows go through the same matcher (artist sets included), the same dedup and the same history merge. CSV dates
+  are whole minutes, so within one file the double-scrobble window is a minute narrower: a repeat a whole play apart
+  stays two listens.
+- UI: the button reads "Choose a file…" under "Import listening history"; the description names both formats; the
+  result dialog takes the section title; "invalid" and "failed" are neutral. All 22 locales; values-in = values-id.
+  Android also offers `text/csv`, `text/comma-separated-values`, `application/csv` and `application/vnd.ms-excel`;
+  iOS opens any `public.data`, which CSV conforms to.
+- PRIVACY.md names both formats. The 0.9.3 changelogs and AltStore entry describe that release and stay as written.
+
+**Tests:** `LastFmCsvTest` (17: both layouts, BOM, CRLF, quotes, a line break and commas in fields, empty album and
+artist, now playing, Cyrillic and Japanese, headers, unreadable rows, the record caps, non-CSV refusals, dates,
+100,000 streamed rows, matching and re-import dedup, minute-precision repeats). `LastFmCsvHeapTest` runs the whole
+import of 150,000 rows against a 3,000-song library in a child JVM with `-Xmx48m`: it passes, using 30 MB. At
+`-Xmx8m` the same run fails with OutOfMemoryError, which shows the limit is real. All tests pass on the JVM host and
+on the iOS simulator.
+
+| # | sev | finding | verdict |
+|---|---|---|---|
+| CSV1-1 | medium | a CSV starting with `[dunkelbunt]` or `{Artist}` was taken for JSON | **fixed** (6329d04b) |
+| CSV1-2 | medium | a bare number in the date column (a year, a length) was read as epoch seconds: fake 1970 listens | **fixed**: text dates only, nothing before 2002 |
+| CSV1-3 | medium | minute dates made the double-scrobble window drop real back-to-back repeats | **fixed**: the window is a minute narrower within the file |
+| CSV1-4 | low | a line of a million commas collected a million strings | **fixed**: at most 64 fields |
+| CSV1-5 | low | prose whose first line ended in a comma was accepted | **fixed**: judged by the first dated record |
+| CSV2-1 | low | a double scrobble of a track under about 2 minutes, either side of a minute boundary, stays two listens | **deferred**: the cost of CSV1-3 |
+| CSV2-2 | low | a quote inside an over-long record swallowed the following lines | **fixed** |
+| CSV2-3 | low | an ISO date with seconds was treated as whole minutes | **fixed** |
+| CSV2-4 | low | against listens imported earlier, the full window still applies | **deferred**: only when two sources disagree |
+| CSV2-5 | low | two plays of one sub-minute track in the same minute are one | **deferred**: the data cannot tell them apart |
+
+Round 2 (a fresh reviewer, the three commits) found no finding of medium or higher: **stop criterion met.**

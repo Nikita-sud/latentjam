@@ -153,6 +153,23 @@ class LastFmCsvTest {
     }
 
     @Test
+    fun aQuoteInsideAnOverlongRecordDoesNotSwallowTheNextLines() {
+        val (rows, summary) = read(
+            "A,B,C,03 Nov 2026 15:29\n" + ",".repeat(200_000) + "12\" Mix,x\nA,B,D,03 Nov 2026 15:28\nA,B,E,03 Nov 2026 15:27\n",
+            chunk = 65_536,
+        )
+        assertEquals(listOf("C", "D", "E"), rows.map { it.title })
+        assertEquals(1, summary.unreadable)
+    }
+
+    @Test
+    fun onlyLastFmsMinuteDatesAreWholeMinutes() {
+        assertTrue(read("A,B,C,03 Nov 2026 15:29\n").second.minutePrecision)
+        assertFalse(read("artist,track,date\nA,C,2021-01-31T16:58:20Z\n").second.minutePrecision)
+        assertFalse(read("uts,artist,track\n1793719740,A,C\n").second.minutePrecision)
+    }
+
+    @Test
     fun lastFmDates() {
         assertEquals(nov3, LastFmCsvReader.dateSeconds("03 Nov 2026, 15:29"))
         assertEquals(nov3, LastFmCsvReader.dateSeconds("3 nov 2026 15:29"))

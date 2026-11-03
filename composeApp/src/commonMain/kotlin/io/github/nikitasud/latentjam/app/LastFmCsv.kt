@@ -109,7 +109,7 @@ internal object LastFmCsvReader {
                                 release = row.album,
                                 recordingMbid = row.mbid,
                             ),
-                            row.seconds == null,
+                            row.seconds == null && isWholeMinute(row.date),
                         )
                     }
                 }
@@ -188,6 +188,9 @@ internal object LastFmCsvReader {
         return ListenBrainzExportReader.listenedAtSeconds(trimmed)
     }
 
+    /** Whether [text] is Last.fm's date text without seconds: a time cut to the minute. */
+    private fun isWholeMinute(text: String): Boolean = LASTFM_DATE.matchEntire(text.trim())?.groupValues?.get(6)?.isEmpty() == true
+
     private fun lastFmDateSeconds(text: String): Long? {
         val match = LASTFM_DATE.matchEntire(text.trim()) ?: return null
         val g = match.groupValues
@@ -224,6 +227,9 @@ internal object LastFmCsvReader {
             recordBytes = 0
             endedAtLine = false
             var quoted = false
+            // Whether the current field has begun: a quote opens a quoted field only at its start (even when an
+            // over-long record collects nothing).
+            var started = false
             var tooLong = false
             while (true) {
                 val c = bytes.next()
@@ -247,8 +253,14 @@ internal object LastFmCsvReader {
                     continue
                 }
                 when (c) {
-                    '"'.code -> if (field.size == 0) quoted = true else if (!tooLong) field.add(c)
-                    ','.code -> if (!tooLong) fields += field.take()
+                    '"'.code -> {
+                        if (!started) quoted = true else if (!tooLong) field.add(c)
+                        started = true
+                    }
+                    ','.code -> {
+                        if (!tooLong) fields += field.take()
+                        started = false
+                    }
                     '\n'.code -> {
                         endedAtLine = true
                         break
@@ -258,7 +270,10 @@ internal object LastFmCsvReader {
                         endedAtLine = true
                         break
                     }
-                    else -> if (!tooLong) field.add(c)
+                    else -> {
+                        if (!tooLong) field.add(c)
+                        started = true
+                    }
                 }
             }
             if (tooLong) return TOO_LONG
