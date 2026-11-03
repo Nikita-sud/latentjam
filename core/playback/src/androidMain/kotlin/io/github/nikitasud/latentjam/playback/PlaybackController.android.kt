@@ -969,6 +969,9 @@ internal class AndroidPlaybackController(
             if (playRequestGeneration.get() != requestGeneration) return@withContext
             val player = controller()
             if (playRequestGeneration.get() != requestGeneration) return@withContext
+            // The platform started a queue while this restore prepared (the Android 14 tile opens the app and presses
+            // play, and Media3's own resumption fills the player): that playing queue wins over a paused restore.
+            if (player.mediaItemCount > 0 && player.playWhenReady) return@withContext
             val live = prepared.first
             pool = prepared.second.sourceQueue
             // The live SMART queue can contain generated rows absent from the canonical source;
