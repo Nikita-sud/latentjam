@@ -440,7 +440,7 @@ private fun buildViews(
             ?: context.getString(if (hasTrack) R.string.widget_app_label else R.string.widget_ready),
     )
     bindTransport(context, views, style, appWidgetId, snapshot, hasTrack, livePlaying)
-    applyTrackAccent(views, style, accentArgb)
+    applyTrackAccent(views, style, accentArgb, widthDp, heightDp)
     if (style == WidgetStyle.PULSE) {
         // Reserve at least 80dp for metadata while keeping play/next at 48dp. Explicitly
         // restore views after growing a widget; RemoteViews can reuse the compact view.
@@ -562,7 +562,7 @@ private fun buildViews(
  * A cached song-coloured cloud sits on the neutral card, matching the browse/player language.
  * RemoteViews receives a small static bitmap, so this works before API 31 without an update timer.
  */
-private fun applyTrackAccent(views: RemoteViews, style: WidgetStyle, accentArgb: Int?) {
+private fun applyTrackAccent(views: RemoteViews, style: WidgetStyle, accentArgb: Int?, widthDp: Int, heightDp: Int) {
     // RemoteViews may reapply onto an existing view; clear a previous track's tint for empty state.
     views.setInt(R.id.widget_play_pause, "setColorFilter", 0xFF0B0B0B.toInt())
     if (android.os.Build.VERSION.SDK_INT >= 31) {
@@ -570,7 +570,7 @@ private fun applyTrackAccent(views: RemoteViews, style: WidgetStyle, accentArgb:
         views.setColorStateList(R.id.widget_play_pause, "setBackgroundTintList", null)
     }
     if (style != WidgetStyle.PORTAL) {
-        views.setImageViewBitmap(R.id.widget_cloud, WidgetCloudCache.bitmap(style, accentArgb))
+        views.setImageViewBitmap(R.id.widget_cloud, WidgetCloudCache.bitmap(style, accentArgb, widthDp, heightDp))
     }
     if (style == WidgetStyle.DECK) {
         val elapsedColor = accentArgb?.let { blendToward(it, 0xFFFFFFFF.toInt(), 0.7f) }
@@ -594,14 +594,20 @@ private fun applyTrackAccent(views: RemoteViews, style: WidgetStyle, accentArgb:
 /** Accessed only from the existing single-thread widget renderer; capped at eight small images. */
 private object WidgetCloudCache {
     private val empty = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
-    private val cache = object : LinkedHashMap<Pair<WidgetStyle, Int>, Bitmap>(8, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Pair<WidgetStyle, Int>, Bitmap>?): Boolean =
-            size > 8
+    private data class Key(val style: WidgetStyle, val seed: Int, val widthDp: Int, val heightDp: Int)
+
+    private val cache = object : LinkedHashMap<Key, Bitmap>(8, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Key, Bitmap>?): Boolean = size > 8
     }
 
-    fun bitmap(style: WidgetStyle, seed: Int?): Bitmap {
+    /**
+     * The cloud is transparent outside the card's rounded corners itself: the root's clipToOutline needs a
+     * hardware canvas, and a launcher that shows a software-drawn snapshot of its widgets (One UI after a reboot)
+     * drew this bitmap's square corners past the card's round ones.
+     */
+    fun bitmap(style: WidgetStyle, seed: Int?, widthDp: Int, heightDp: Int): Bitmap {
         if (seed == null) return empty
-        val key = style to seed
+        val key = Key(style, seed, widthDp, heightDp)
         return cache.getOrPut(key) {
             val width = 320
             val height = if (style == WidgetStyle.DECK) 170 else 72
@@ -614,11 +620,23 @@ private object WidgetCloudCache {
                     intArrayOf(color, Color.TRANSPARENT), floatArrayOf(0f, 1f), Shader.TileMode.CLAMP,
                 )
             }
-            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
+            val (rx, ry) = widgetCloudCornerRadii(width, height, widthDp, heightDp)
+            canvas.drawRoundRect(0f, 0f, width.toFloat(), height.toFloat(), rx, ry, paint)
             bitmap
         }
     }
 }
+
+/** The card's corner radius (widget_bg_*.xml). */
+internal const val WIDGET_CORNER_DP = 24f
+
+/**
+ * Corner radii, in bitmap pixels, that become [WIDGET_CORNER_DP] round corners once a [bitmapWidth] x [bitmapHeight]
+ * bitmap is stretched (fitXY) over a [widthDp] x [heightDp] widget.
+ */
+internal fun widgetCloudCornerRadii(bitmapWidth: Int, bitmapHeight: Int, widthDp: Int, heightDp: Int): Pair<Float, Float> =
+    (bitmapWidth * WIDGET_CORNER_DP / widthDp.coerceAtLeast(1)).coerceAtMost(bitmapWidth / 2f) to
+        (bitmapHeight * WIDGET_CORNER_DP / heightDp.coerceAtLeast(1)).coerceAtMost(bitmapHeight / 2f)
 
 private fun blendToward(from: Int, to: Int, fraction: Float): Int {
     fun channel(shift: Int): Int {
