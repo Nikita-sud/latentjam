@@ -245,3 +245,99 @@ medium findings, so round 8 runs.
 | R8-I | iOS | — | no findings | — |
 
 Round 8 had one confirmed medium (R8-U1, introduced by the round-7 fix), so round 9 runs.
+
+### Round 9 (HEAD 71570d22): no finding of medium or higher
+
+| # | area | sev | finding | verdict |
+|---|---|---|---|---|
+| R9-S1 | SMART | low | `EntityAliases` first-spelling order (= R2-S4) | **deferred** |
+| R9-S2 | SMART | low | an uncredited track's repeat key guesses the album artist from the album title alone (two "Greatest Hits") | **deferred** |
+| R9-A | analysis | — | no findings | — |
+| R9-P1 | playback | low | the restore guard read the controller's possibly lagging view | **fixed** (ece8cf05): also yields to a resumption the service announced |
+| R9-I1 | iOS | low | in the Caches fallback the stale single file is decoded on each launch | **deferred** |
+| R9-U1 | UI | low | an M3U opened without media access waits silently until access is granted | **deferred** |
+| R9-U2 | UI | low | leaving the page during Rebuild's join skipped the clear and restart | **fixed** (a689f98e): `rebuildAnalysis` runs NonCancellable |
+| R9-R1 | release | low | `ndk:` lines (= R5-R3) | **deferred** |
+| R9-R2 | release | low | a Mac-built IPA was not tied to a commit | **fixed** (d7be2f9a): `build.sh ios` refuses a dirty tree |
+| R9-R3 | release | low | a partly failed `draft` job cannot be re-run | **deferred** (owner: delete the draft by hand) |
+| R9-R4 | release | low | `fdroid-mr` rendered the working tree's version against HEAD | **fixed** (d7be2f9a) |
+
+**Stop criterion met:** six fresh reviewers found no confirmed finding of medium or higher. The few low fixes
+made after it were checked by one more fresh reviewer on `71570d22..HEAD` (below).
+
+## Owner report: widget corners after a reboot
+
+«Иногда после перезагрузки телефона, слева острые углы и скругление теряется» (screenshot: Pulse Strip widget, the
+left part with the artwork and the purple cloud has square corners, the dark right part stays round).
+
+- **Cause.** The song-coloured cloud (`widget_cloud`) is a rectangular bitmap stretched over the card; only the
+  root's `android:clipToOutline` rounded it. Outline clipping needs a hardware-accelerated canvas. A launcher that
+  shows a software-drawn snapshot of its widgets, as One UI does while it restores the home screen after a reboot,
+  skips that clip: the card's own shape drawable stays round (right side) and the cloud's square corners show (left
+  side). The 0.9.3 widget has the same cloud, so the report is not a 0.9.4 regression.
+- **Fix** (e15ff6ae). The cloud bitmap is clipped to a rounded rectangle whose radii, after the `fitXY` stretch over
+  the widget's own size (`getAppWidgetOptions`), are the card's 24 dp. It no longer depends on the clip at all, on any
+  API from 29 to 37 and in any launcher.
+- **Check.** `WidgetCloudCornersTest`: the stretched corners equal 24 dp for Pulse sizes 280×72, 360×96 and
+  412×110 and for Deck; a tiny widget never gets more than half its side. Not reproduced on an emulator: the
+  emulator's Launcher3 draws widgets with hardware acceleration and has no software snapshot step. The owner's
+  phone after a reboot is the real check.
+
+## After round 9: the restore guard, checked twice
+
+| # | area | sev | finding | verdict |
+|---|---|---|---|---|
+| P9-1 | playback | medium | the guard (ece8cf05) was read after `controller()` had adopted the announced resumption, so it missed it on a cold connect | **fixed** (a3ab2aad): also yields to `anticipatedResumption` |
+| P9-2 | playback | medium | **regression of a3ab2aad**: a widget button on an empty session announced the resumption it then restored itself; the restore yielded to it and the player stayed empty under the saved track (Next and Previous did nothing; Play still worked through Media3) | **fixed** (dc56fb3e) |
+| P9-3 | playback | medium | **also in 0.9.3**: System UI's boot-time "recent media" query (`onPlaybackResumption` with `isForPlayback = false`) counted as a real resumption; the launch restore then never ran and a stale shuffle mode waited for the next queue | **fixed** (dc56fb3e) |
+
+dc56fb3e: `MediaBrowseRegistry.resumption` takes `forPlayback`. Only a queue the platform installs and plays (a play
+press, Media3's resumption with `isForPlayback`) is announced and sets the pending shuffle mode. The widget restores
+without announcing, and System UI's card only reads. The verifier confirmed the rest: a normal launcher cold start
+cannot skip the restore (nothing is announced in a fresh process, a failed resumption announces nothing, an expired
+entry clears after 60 s), and a Media3 resumption wins in both orders.
+
+A fresh reviewer then checked dc56fb3e alone against Media3 1.10.1's bytecode, and found no high or medium issues.
+Every real install still passes `isForPlayback = true` and is announced: a headset or Bluetooth press, the API 34
+tile, Auto, a voice request, and a tap on the boot card. The widget hydrates through its own sync. Two lows are
+**deferred**: the boot query may still set a null `queueSource`, and no host test covers `resumption(false)`.
+
+## issue #1: SMART never stops
+
+Owner: «Аккуратно с заканчиванием очереди… smart просто останавливался. Смотри чтобы не было регрессии.»
+
+**What keeps a SMART queue going.** The playback layer (`PlaybackController.android.kt` top-up, `SmartQueueExhaustion.kt`,
+`PlaybackPendingWork.kt`) tops up on each transition from the SMART-eligible library less every queued and removed
+track. An empty plan or an engine exception (`awaitPlaybackRecommendation` turns it into null) falls back to a
+continuation (`EngineNextTrackChooser.continuation`: the least recently heard candidate), at most
+`SMART_CONTINUATION_BATCH` = 3 ahead. After the queue ran dry, `smartResumeIndexAfterExhaustion` restarts playback
+on the new rows. The queue ends only when no eligible track is left unqueued. **None of these files changed from
+v0.9.3 to 0.9.4** except fade-entry plumbing (flag off) and the restore guard (above).
+
+**0.9.4 changes against "never stops":**
+
+| change | can it starve the queue? | evidence |
+|---|---|---|
+| CH hygiene | no: soft spreads on the score, never a filter | `QueueHygieneTest`; mixed-library test below |
+| K placeholder dedup | no: a repeat key spreads, it does not remove; the stand's 32 seeds all fill | stand runs; `SmartNeverStopsTest` |
+| X v5 exclusions | shrinks the eligible library by design; refills until the pool is spent | pool-shrunk test below |
+| Gt / Ms | scoring only | stand runs |
+| kept hub / starvation guard | the press computes the hub inline when it is not kept; an out-of-memory snapshot plans from metadata | `SmartPressFootprintTest`, `SmartQueueAvailabilityTest` |
+| beat fades | flag off; transitions unchanged | `FadeEntryTest` |
+| Continue / restore | the restore never yields to a resumption nobody installs (P9-2, P9-3) | verifier trace |
+| lockscreen / tile | start or resume only; the top-up path is the same | — |
+| LIFE-03 segmented rows not ready | unanalysed tracks are skipped by the engine; the continuation still plays them | partly analysed test below |
+
+**Regression tests** (`SmartNeverStopsTest`, 77c5f023). They use the engine as `AppGraph` configures it: judged
+scoring, artist sets, queue classes 1.0, theme weights, kept hub. The library has 3,000 tracks with mixed metadata:
+features, unknown artists, birthday, interview and meme titles, clips of 8 s and 45 s, 15-minute tracks, seven genres
+and four languages. Each run tops up 12 at a time from the queue's last track, as playback does.
+
+- mixed library: refills through its last track, about 250 top-ups;
+- pool shrunk by "Don't recommend artist" to 3 of 40 artists: refills until the pool is spent;
+- 20 % not analysed: refills until no analysed track is left, more than 200 top-ups (the continuation layer plays the rest);
+- all but 8 of 600 tracks heard in the last hours: a full plan, then the last 8 are all planned;
+- engine rebuilt from its stores (kill or reboot): continues the restored queue with 12 new tracks.
+
+All pass: 29 s on the JVM host, and on the iOS simulator the 3,000-track runs take 2 to 9 minutes in a Kotlin/Native
+debug build (timeouts 20 minutes).

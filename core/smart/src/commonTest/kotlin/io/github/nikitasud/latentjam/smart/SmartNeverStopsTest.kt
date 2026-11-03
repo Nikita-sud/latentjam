@@ -19,8 +19,9 @@ import kotlin.time.Duration.Companion.minutes
  * library heard almost entirely of late, and an engine rebuilt from its stores as after a kill or a reboot.
  */
 internal class SmartNeverStopsTest {
+    // The 3,000-track runs take seconds on the JVM but minutes in a Kotlin/Native debug build: hence the long timeouts.
     @Test
-    fun `a mixed library keeps refilling through its last analysed track`() = runTest(timeout = 5.minutes) {
+    fun `a mixed library keeps refilling through its last analysed track`() = runTest(timeout = 20.minutes) {
         val library = mixedLibrary(3_000)
         val engine = engine(library)
         val calls = playToTheEnd(engine, library, library)
@@ -28,7 +29,7 @@ internal class SmartNeverStopsTest {
     }
 
     @Test
-    fun `a pool shrunk by artist exclusions keeps refilling until it is spent`() = runTest(timeout = 5.minutes) {
+    fun `a pool shrunk by artist exclusions keeps refilling until it is spent`() = runTest(timeout = 20.minutes) {
         val library = mixedLibrary(3_000)
         val engine = engine(library)
         // Every artist but three, by their display credits: most of the library is hidden, credits with a feature too.
@@ -39,7 +40,7 @@ internal class SmartNeverStopsTest {
     }
 
     @Test
-    fun `a partly analysed library keeps refilling while analysed tracks remain`() = runTest(timeout = 5.minutes) {
+    fun `a partly analysed library keeps refilling while analysed tracks remain`() = runTest(timeout = 20.minutes) {
         val library = mixedLibrary(3_000)
         val analysed = library.filterIndexed { i, _ -> i % 5 != 0 }
         val engine = engine(library, analysed = analysed)
