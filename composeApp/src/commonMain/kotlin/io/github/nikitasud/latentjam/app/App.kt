@@ -973,12 +973,14 @@ private fun AppShell(
         }
 
         // Off the main thread: with an excluded artist the test reads the artist pack and parses every credit. Until it
-        // ends the previous list stays (empty on the first composition, as before the library loads).
-        val smartEligibleTracks by produceState(emptyList<TrackDescriptor>(), tracks, smartExclusionState) {
+        // ends the previous list stays (none on the first composition), so whatever hands the list to playback first
+        // checks that it was made for these tracks and exclusions (SmartEligible.isFor).
+        val smartEligible by produceState(SmartEligible.NONE, tracks, smartExclusionState) {
             value = withContext(Dispatchers.Default) {
-                smartExclusionState.hidesFromSmart().let { hidden -> tracks.orEmpty().filterNot(hidden) }
+                SmartEligible(tracks, smartExclusionState, smartExclusionState.hidesFromSmart().let { tracks.orEmpty().filterNot(it) })
             }
         }
+        val smartEligibleTracks = smartEligible.tracks
 
         LaunchedEffect(tabNavigation.rootTabNavigationRevision, showSearch, showSettings, showNowPlaying) {
             // A pending background sort belongs to the page/overlay route that launched it.
@@ -1192,8 +1194,10 @@ private fun AppShell(
             forYouPage.forYouLoadFailed = false
         }
 
-        LaunchedEffect(libraryIndexingRequest, smartEligibleTracks) {
+        LaunchedEffect(libraryIndexingRequest, smartEligible) {
             val request = libraryIndexingRequest ?: return@LaunchedEffect
+            // A list made for other tracks (or none yet) would empty the SMART queue's planned rows.
+            if (!smartEligible.isFor(tracks, smartExclusionState)) return@LaunchedEffect
             val loaded = request.tracks
             // Search, playlists, and collection screens often start playback from a filtered
             // subset. SMART is a library journey, so keep its candidate universe independent of
@@ -1227,8 +1231,9 @@ private fun AppShell(
 
         // The UI observes the app-lifetime worker; it does not own it. Recreating MainActivity
         // therefore reconnects to the same scan instead of starting a duplicate or cancelling it.
-        LaunchedEffect(libraryIndexingRequest, smartEligibleTracks) {
+        LaunchedEffect(libraryIndexingRequest, smartEligible) {
             val loaded = libraryIndexingRequest?.tracks ?: return@LaunchedEffect
+            if (!smartEligible.isFor(tracks, smartExclusionState)) return@LaunchedEffect
             val eligible = smartEligibleTracks
             val trackIds = loaded.idList()
             AppGraph.automaticIndexing.collect { indexing ->
@@ -4718,6 +4723,19 @@ private enum class LibraryPresentation { LOADING, CONTENT }
 
 /** Queue rows, from the playing one on, whose descriptors the tag pass refreshes in the player. */
 private const val SOON_QUEUED_ROWS = 16
+
+/** The SMART-eligible library and what it was made from: [isFor] says whether it still answers the current inputs. */
+private class SmartEligible(
+    private val source: List<TrackDescriptor>?,
+    private val exclusions: SmartExclusionState?,
+    val tracks: List<TrackDescriptor>,
+) {
+    fun isFor(current: List<TrackDescriptor>?, state: SmartExclusionState): Boolean = source === current && exclusions == state
+
+    companion object {
+        val NONE = SmartEligible(null, null, emptyList())
+    }
+}
 
 /** What SMART must not suggest: excluded tracks, and excluded artists by artist keys and credit segments (X v5). */
 internal fun SmartExclusionState.hidesFromSmart(): (TrackDescriptor) -> Boolean = matcher(AppGraph.engine::artistExclusion)
