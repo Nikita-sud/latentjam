@@ -79,7 +79,9 @@ reduced_ort_repo() {
   if [ "${LATENTJAM_ORT_CACHE:-1}" = 0 ]; then
     repo="$ROOT/build/reduced-ort/maven"
   else
-    key=$( { (cd "$ROOT" && find tools/runtime -type f ! -name '*.pyc' | LC_ALL=C sort | xargs shasum -a 256)
+    # The models count too: the built runtime's manifest names them, and settings.gradle.kts refuses another set.
+    key=$( { (cd "$ROOT" && { find tools/runtime -type f ! -name '*.pyc'; ls androidApp/src/main/assets/ml/*.onnx; } \
+               | LC_ALL=C sort | xargs shasum -a 256)
              echo "ort=$version ndk=$NDK_VERSION"; cmake --version | head -1; javac -version 2>&1; } \
            | shasum -a 256 | cut -c1-16)
     repo="$HOME/.cache/latentjam/ort/$key/maven"
@@ -181,14 +183,16 @@ cmd_verify_signed() {
 
 # Mac only: apksigner prompts for the password itself; it never passes through an argument, a variable or a file.
 cmd_sign() {
-  local dir=${1:-} resign=0 apk signed key=${LATENTJAM_RELEASE_KEYSTORE:-$HOME/Documents/LJ/keys/latentjam-release.p12}
+  local dir=${1:-} resign=0 apk signed count=0 key=${LATENTJAM_RELEASE_KEYSTORE:-$HOME/Documents/LJ/keys/latentjam-release.p12}
   [ -d "$dir" ] || die "sign DIR [--resign]"
   [ "${2:-}" = --resign ] && resign=1
   [ -t 0 ] || die "sign asks for the keystore password: run it in your own terminal"
   [ -f "$key" ] || die "no keystore at $key"
   # The two APKs GitHub releases carry, named as every release so far (LatentJam-v<version>-arm64.apk).
-  for apk in "$dir"/*-arm64-unsigned.apk "$dir"/*-armv7-unsigned.apk; do
+  # --resign also takes a phone test build as Gradle names it (androidApp-arm64-v8a-release.apk).
+  for apk in "$dir"/*-arm64-unsigned.apk "$dir"/*-armv7-unsigned.apk $( [ $resign = 1 ] && ls "$dir"/*-release.apk 2>/dev/null ); do
     [ -f "$apk" ] || continue
+    count=$((count + 1))
     if [ $resign = 0 ] && "$(apksigner_bin)" verify "$apk" > /dev/null 2>&1; then
       die "$apk is already signed (--resign replaces a debug signature, for phone test builds only)"
     fi
@@ -199,6 +203,7 @@ cmd_sign() {
       --out "$signed" "$apk"
     cmd_verify_signed "$signed"
   done
+  [ $count -gt 0 ] || die "nothing to sign in $dir (expected *-arm64-unsigned.apk / *-armv7-unsigned.apk)"
 }
 
 command=${1:-}; [ $# -gt 0 ] && shift

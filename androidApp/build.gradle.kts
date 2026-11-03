@@ -262,7 +262,8 @@ androidComponents {
                 script.set(rootProject.layout.projectDirectory.file("tools/release/check-dex-registers.py"))
                 report.set(layout.buildDirectory.file("reports/dex-registers/${variant.name}.txt"))
             }
-            tasks.named { it == "assemble$variantName" }.configureEach { dependsOn(registers) }
+            // The Play bundle carries the same R8 output, so it waits for the same gate.
+            tasks.named { it == "assemble$variantName" || it == "bundle$variantName" }.configureEach { dependsOn(registers) }
         }
     }
 }
