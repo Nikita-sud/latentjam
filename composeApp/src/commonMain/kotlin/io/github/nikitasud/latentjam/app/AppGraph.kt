@@ -987,7 +987,8 @@ object AppGraph {
      * Rebuild: the running pass is cancelled and joined before [clear] deletes the analysis, so no
      * old job installs rows after it; analysis then restarts for the whole library, unpaused.
      */
-    suspend fun rebuildAnalysis(clear: suspend () -> Unit) {
+    suspend fun rebuildAnalysis(clear: suspend () -> Unit) = withContext(NonCancellable) {
+        // Whole or not at all: leaving the page mid-join must not cancel the old pass and skip the clear and restart.
         automaticIndexingJob?.cancelAndJoin()
         try {
             clear()
