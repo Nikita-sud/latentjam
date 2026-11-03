@@ -64,4 +64,12 @@ class CreditSegmentsTest {
         assertTrue(matches("Live", "Lightning Crashes", "Live"))
         assertTrue(matches("Live & Friends", "Song", "Live"))
     }
+
+    @Test
+    fun `words of a song title are not a credit`() {
+        assertFalse(matches("Motörhead", "Killed by Death", "Death"))
+        assertFalse(matches("Johann Sebastian Bach", "Orchestral Suite No. 3 in D Major, BWV 1068 - Air", "Air"))
+        assertTrue(matches("Various", "Song (by Kosta T)", "Kosta T"))
+        assertTrue(matches("Simon & Garfunkel", "Song - simon & garfunkel", "Simon & Garfunkel"), "a part the pack knows")
+    }
 }

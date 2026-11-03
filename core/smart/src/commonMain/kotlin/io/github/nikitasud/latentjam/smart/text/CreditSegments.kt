@@ -9,8 +9,9 @@ package io.github.nikitasud.latentjam.smart.text
  * excluded name hides a track when it equals a whole segment of
  * - the credit, split at `& , / x vs with feat ft featuring` (never when the pack knows the whole credit as one artist:
  *   "Simon & Garfunkel", "Earth, Wind & Fire");
- * - a feat. / by / prod. clause of the title;
- * - a later " - " segment of the title, or the first one when the credit is empty ("SK - Beats - …").
+ * - a feat. / prod. clause of the title, or a bracketed "(by X)" (a bare "by" is the title's own word);
+ * - a " - " segment of the title when the credit is empty ("SK - Beats - …"), or a later one the pack knows as an
+ *   artist (never a movement or version name such as "Air").
  * A name of several artists ("Kosta T feat. Ghofra Z") needs all of its segments. Empty names and credits never match.
  * A name that is also a version word ("Live", "Mono") matches the credit only.
  */
@@ -23,8 +24,11 @@ public object CreditSegments {
         "version", "bonus track", "explicit", "clean", "intro", "outro", "interlude", "unplugged", "reprise",
     )
     private val CLAUSE = Regex(
-        "(?<![\\p{L}\\p{N}])(?:feat\\.?|ft\\.?|featuring|by|prod\\.?|produced by)\\s+([^()\\[\\]]*?)(?=\\s+-\\s+|[()\\[\\]]|$)",
+        "(?<![\\p{L}\\p{N}])(?:feat\\.?|ft\\.?|featuring|prod\\.?|produced by)\\s+([^()\\[\\]]*?)(?=\\s+-\\s+|[()\\[\\]]|$)",
     )
+
+    /** "(by X)" in brackets: a bare "by" is a title's own word ("Killed by Death", "Stand by Me"). */
+    private val BY_CLAUSE = Regex("[(\\[]\\s*by\\s+([^()\\[\\]]+?)\\s*[)\\]]")
 
     /** Whether [name] is a whole segment of [credit] or [title]; [knownWhole] says the pack knows a string as one artist. */
     public fun matches(name: String, credit: String, title: String, knownWhole: (String) -> Boolean): Boolean {
@@ -33,9 +37,14 @@ public object CreditSegments {
         if (fold(name).trim() in VERSION_WORDS) return false
         val t = fold(title)
         if (CLAUSE.findAll(t).any { segmentMatch(it.groupValues[1], name, knownWhole) }) return true
+        if (BY_CLAUSE.findAll(t).any { segmentMatch(it.groupValues[1], name, knownWhole) }) return true
         val parts = t.split(" - ")
-        if (parts.size > 1 && parts.drop(1).any { segmentMatch(it, name, knownWhole) }) return true
-        return parts.size > 1 && credit.isBlank() && segmentMatch(parts[0], name, knownWhole)
+        if (parts.size < 2) return false
+        // A credited track's later " - " parts are mostly the song's own words (a movement "Air", a version): they name
+        // an artist only when the pack knows the part as one. An uncredited track's parts are all the credit it has.
+        val later = parts.drop(1).filter { credit.isBlank() || knownWhole(it.trim()) }
+        if (later.any { segmentMatch(it, name, knownWhole) }) return true
+        return credit.isBlank() && segmentMatch(parts[0], name, knownWhole)
     }
 
     private fun segmentMatch(s: String, name: String, knownWhole: (String) -> Boolean): Boolean {
