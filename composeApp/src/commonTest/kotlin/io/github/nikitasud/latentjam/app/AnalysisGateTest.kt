@@ -67,7 +67,7 @@ class AnalysisGateTest {
     @Test
     fun headroomAloneMakesItHotAndItsExitNeedsTheHysteresis() {
         val rules = AnalysisGateRules()
-        val withHal = awake.copy(thermalStatusSeen = true)
+        val withHal = awake.copy(thermalStatusSeen = true, hotHeadroomThreshold = 0.85f)
         assertEquals(AnalysisPhase.WAITING_HOT, rules.at(withHal.copy(thermalHeadroom = 0.9f), nowMs = 0).phase)
         assertEquals(AnalysisPhase.WAITING_HOT, rules.at(withHal.copy(thermalHeadroom = 0.8f), nowMs = 200_000).phase)
         rules.at(withHal.copy(thermalHeadroom = 0.7f), nowMs = 300_000)
@@ -79,7 +79,12 @@ class AnalysisGateTest {
         // The emulator: headroom 0.9 with its MODERATE threshold at 0.967 is not hot.
         val emulator = awake.copy(thermalStatusSeen = true, thermalHeadroom = 0.9f, hotHeadroomThreshold = 0.9667f)
         assertEquals(AnalysisPhase.RUNNING, AnalysisGateRules().at(emulator).phase)
-        assertEquals(AnalysisPhase.WAITING_HOT, AnalysisGateRules().at(emulator.copy(hotHeadroomThreshold = Float.NaN)).phase)
+        // Below API 35 (no threshold) a resting 0.9 with status NONE is not heat; with LIGHT it is.
+        assertEquals(AnalysisPhase.RUNNING, AnalysisGateRules().at(emulator.copy(hotHeadroomThreshold = Float.NaN)).phase)
+        assertEquals(
+            AnalysisPhase.WAITING_HOT,
+            AnalysisGateRules().at(emulator.copy(hotHeadroomThreshold = Float.NaN, thermalStatus = 1)).phase,
+        )
         assertEquals(AnalysisPhase.WAITING_HOT, AnalysisGateRules().at(emulator.copy(thermalHeadroom = 0.97f)).phase)
     }
 
@@ -136,5 +141,14 @@ class AnalysisGateTest {
     fun damagedSpansAreDropped() {
         assertEquals(listOf(5L to 7L), decodeWakeLockSpans("x;5:7;9:-1;3:;:4;1:2:3"))
         assertEquals(emptyList(), decodeWakeLockSpans(null))
+    }
+
+    @Test
+    fun withoutTheDevicesThresholdAHeatWaitEndsWhenTheStatusReturnsToNone() {
+        val rules = AnalysisGateRules()
+        val api34 = awake.copy(thermalStatusSeen = true, thermalHeadroom = 0.9f)
+        assertEquals(AnalysisPhase.WAITING_HOT, rules.at(api34.copy(thermalStatus = 1), nowMs = 0).phase)
+        rules.at(api34.copy(thermalStatus = 0), nowMs = 1_000)
+        assertEquals(AnalysisPhase.RUNNING, rules.at(api34.copy(thermalStatus = 0), nowMs = 122_000).phase)
     }
 }

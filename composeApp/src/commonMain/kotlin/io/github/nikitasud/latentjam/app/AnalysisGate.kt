@@ -109,13 +109,18 @@ class AnalysisGateRules(
     private fun updateHeat(conditions: DeviceConditions, nowMs: Long) {
         val status = conditions.thermalStatus
         val headroom = conditions.thermalHeadroom
+        val ownThreshold = !conditions.hotHeadroomThreshold.isNaN()
         val hotHeadroom = conditions.hotHeadroomThreshold.takeUnless { it.isNaN() } ?: hotHeadroom
+        // Without the device's own threshold (below API 35) the default can sit under a HAL's resting headroom (the
+        // emulator rests at 0.9): there headroom is heat only while the status agrees (LIGHT or more), and a status of
+        // NONE ends the wait, so analysis never waits for a cooling that cannot come.
+        val headroomCounts = ownThreshold || (status != null && status >= 1)
         // Battery temperature stands in where there is no thermal HAL: below API 29, or a device whose
         // headroom is NaN and whose status has never left NONE.
         val useTemperature = status == null || (headroom.isNaN() && !conditions.thermalStatusSeen)
         val temperature = conditions.batteryTemperatureC
         val tooHot = (status != null && status >= hotStatus) ||
-            (!headroom.isNaN() && headroom > hotHeadroom) ||
+            (headroomCounts && !headroom.isNaN() && headroom > hotHeadroom) ||
             (useTemperature && temperature != null && temperature >= HOT_TEMPERATURE_C)
         if (!hot) {
             if (tooHot) {
@@ -127,7 +132,7 @@ class AnalysisGateRules(
         // A NaN headroom satisfies the exit test, which then rests on the status alone, or on the
         // battery temperature when there is no status to read.
         val cool = (status == null || status <= hotStatus - 1) &&
-            (headroom.isNaN() || headroom < hotHeadroom - HEADROOM_HYSTERESIS) &&
+            (headroom.isNaN() || !headroomCounts || headroom < hotHeadroom - HEADROOM_HYSTERESIS) &&
             (!useTemperature || temperature == null || temperature < COOL_TEMPERATURE_C)
         if (!cool) {
             coolSinceMs = null
