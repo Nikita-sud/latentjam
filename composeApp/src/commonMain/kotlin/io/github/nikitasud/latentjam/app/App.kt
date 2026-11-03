@@ -2062,6 +2062,8 @@ private fun AppShell(
             try {
                 val state = smartExclusions.state.value
                 val eligible = withContext(Dispatchers.Default) { tracks.orEmpty().filterNot(state.hidesFromSmart()) }
+                // A later change finished first: its list is the one playback must keep.
+                if (smartExclusions.state.value != state) return true
                 playback.setSmartLibrary(eligible)
                 AppGraph.smartLibraryTracks.value = eligible
             } catch (cancelled: CancellationException) {
@@ -2680,7 +2682,7 @@ private fun AppShell(
                                                 forYouPage.playbackLauncher.launch(scope) { isCurrent ->
                                                     playFromForYou(
                                                         playback, engine, AppGraph.history, list, index,
-                                                        smartEligibleTracks, smartQueueLength,
+                                                        eligibleFor(smartEligible, tracks, smartExclusionState), smartQueueLength,
                                                         AppGraph.smartCompanionGroups.value, isCurrent,
                                                     )
                                                 }
@@ -2691,7 +2693,7 @@ private fun AppShell(
                                                 forYouPage.playbackLauncher.launch(scope) { isCurrent ->
                                                     playFromForYou(
                                                         playback, engine, AppGraph.history, collection.tracks, 0,
-                                                        smartEligibleTracks, smartQueueLength,
+                                                        eligibleFor(smartEligible, tracks, smartExclusionState), smartQueueLength,
                                                         AppGraph.smartCompanionGroups.value, isCurrent,
                                                     )
                                                 }
@@ -2702,7 +2704,7 @@ private fun AppShell(
                                                     // what follows it.
                                                     val queue = engine.smartQueue(
                                                         hero.track,
-                                                        smartEligibleTracks,
+                                                        eligibleFor(smartEligible, tracks, smartExclusionState),
                                                         smartQueueLength,
                                                         smartHistoryFor(AppGraph.history, hero.track),
                                                         AppGraph.smartCompanionGroups.value,
@@ -2820,7 +2822,7 @@ private fun AppShell(
                                                         val seed = tracksById[world.representative.id] ?: return@launch
                                                         val queue = engine.smartQueue(
                                                             seed,
-                                                            smartEligibleTracks,
+                                                            eligibleFor(smartEligible, tracks, smartExclusionState),
                                                             smartQueueLength,
                                                             smartHistoryFor(AppGraph.history, seed),
                                                             AppGraph.smartCompanionGroups.value,
@@ -4286,7 +4288,7 @@ private fun AppShell(
                         val songs = catalog?.songs.orEmpty()
                         val queue = engine.smartQueue(
                             target.track,
-                            smartEligibleTracks,
+                            eligibleFor(smartEligible, tracks, smartExclusionState),
                             smartQueueLength,
                             smartHistoryFor(AppGraph.history, target.track),
                             AppGraph.smartCompanionGroups.value,
@@ -4736,6 +4738,15 @@ private class SmartEligible(
         val NONE = SmartEligible(null, null, emptyList())
     }
 }
+
+/** The eligible list for a SMART press now: [eligible] when it answers these inputs, else filtered here, off Main. */
+private suspend fun eligibleFor(
+    eligible: SmartEligible,
+    tracks: List<TrackDescriptor>?,
+    state: SmartExclusionState,
+): List<TrackDescriptor> =
+    if (eligible.isFor(tracks, state)) eligible.tracks
+    else withContext(Dispatchers.Default) { tracks.orEmpty().filterNot(state.hidesFromSmart()) }
 
 /** What SMART must not suggest: excluded tracks, and excluded artists by artist keys and credit segments (X v5). */
 internal fun SmartExclusionState.hidesFromSmart(): (TrackDescriptor) -> Boolean = matcher(AppGraph.engine::artistExclusion)
