@@ -71,12 +71,12 @@ documented behaviour; for the owner), **deferred** (real, low, logged for later)
 
 | # | area | sev | finding | verdict |
 |---|---|---|---|---|
-| S1 | SMART | med | Ms: a pack ISO language ("de") is compared with the script fallback ("en" for any Latin), so a known German artist pays the cross-language penalty against an unknown German one | **by design**: this is rule S, the variant owner round 6 evaluated; the research also has rule K (a side without a pack language compares by script), which would fix it but is unevaluated. Owner decision |
+| S1 | SMART | med | Ms: a pack ISO language ("de") is compared with the script fallback ("en" for any Latin), so a known German artist pays the cross-language penalty against an unknown German one | first **by design** (rule S was evaluated); confirmed again by a second reviewer in round 2 with a failing test → **fixed in round 2** (rule K, see R2-S1) |
 | S2 | SMART | med | GenreSets maps "UK Garage", "Progressive House" → rock, "Happy Hardcore" → punk, "New Romantic" → classical; overlap then gives the full same-genre bonus against Rock | **fixed**: phrases for those electronic styles (and "chamber pop", "psytrance") before the single words; `GenreSetsTest`. The stand has two such tags ("Progressive House", "New Romantic"): parity with the B arm is now 31/32 seeds, the other seed reorders 3 House picks (positions 31–33 of 40) |
 | S3 | SMART | med | X v5: excluding the band Live / Mono hid every "… - Live" / "… - Mono" title | **fixed**: a name that is a version word matches the credit only; `CreditSegmentsTest`. The bare "by" clause ("Killed by Death") stays: it is the measured X v5 leg (171/171 labelled true) |
 | S4 | SMART | med | per-track language sets on every snapshot row (~3 MB at 10k) | **fixed**: interned per combination (`sharedLanguages`, engine `languageSets`) |
 | S5 | SMART | med | exclusion matching (pack load, a credit parse per track) ran on the main thread in composition | **fixed**: `produceState` on `Dispatchers.Default` for the eligible list; For You and the library sync filter on Default |
-| S6 | SMART | low | with `backgroundHub` the first press of a process plans with a zero hub penalty | **by design** (SCALE-01 trade-off, β is 0.25); see A4 |
+| S6 | SMART | low | with `backgroundHub` the first press of a process plans with a zero hub penalty | rated medium in round 2 → **fixed in round 2** (warm-up, R2-S2) |
 | S7 | SMART | low | the track menu's "Don't recommend artist" state still matches the display credit only | **deferred** (UI follow-up) |
 | S8 | SMART | low | the personal cluster guard's "primary family" changed meaning with set families | **fixed**: the guard reads `TrackMeta.guardFamilies` (the naming families PLAN_PERSONAL v6 was tuned on); no round-6 stand queue moves (32/32 against the run without it) |
 | A1 | analysis | low | a stop posted before any run named the channel posted a foreground notification on a missing channel (fresh install crash, narrow race; 0.9.3 created it) | **fixed**: a blank title still creates the channel, named after the app |
@@ -92,3 +92,31 @@ documented behaviour; for the owner), **deferred** (real, low, logged for later)
 | R4 | release | (note) | the 255-register gate ran for `assemble` but not `bundleRelease` (the Play AAB) | **fixed**: bundle waits for the gate |
 | U1 | UI | low | Continue tapped while a paused pass is still preparing kept "Paused by you" until the first chunk | **fixed**: the live-pass Continue clears the shown pause |
 | U2 | UI | low | Rebuild subtitle said "Pause to rebuild" while already pausing | **fixed** |
+
+Round 1 commits: 9dcff830 (S2), e8affabd (S3), 21f79177 (S4, S8, I1 comments), 7e838aac (S5), 59e43aa9 (U1, U2, A1, A3),
+62e76ccf (P1, P2), b7167db6 (R1, R2, R4).
+
+### Round 2 (HEAD 4a83ef10)
+
+| # | area | sev | finding | verdict |
+|---|---|---|---|---|
+| R2-U1 | UI | **high** | the eligible list produced off Main (round-1 S5 fix) started empty and the library effect handed it to playback: after an activity recreation every planned and queued SMART row was removed | **fixed** (b6893a44): `SmartEligible` carries its inputs; both effects wait for a list made for the current tracks and exclusions |
+| R2-U2 | UI | low | while "Pausing…" is shown there is no Continue | **deferred** (whether an un-pause mid-pause is honoured depends on the gate's watcher; low) |
+| R2-S1 | SMART | med | same as S1, with a failing test (known Ukrainian vs unknown Cyrillic) | **fixed** (3d905ec3): rule K, either side without a sung pack language compares by script. Round-6 stand: 20/32 seeds identical to B, mean top-15 overlap with B 14.62/15 (0.4 picks per queue move; B vs 0.9.3 is 11.1/15). **Owner: Ms now differs from what round 6 played; one line reverts it** |
+| R2-S2 | SMART | med | first press per process without hub penalty (S6) | **fixed** (c7a23d45): `SimilarityEngine.warmSmart()` from the existing warm-up starts the background pass with a throwaway snapshot; test `a warm-up before the first press gives that press the exact hub…` |
+| R2-S3 | SMART | low | "by Love" in a title hides songs when the band Love is excluded | **by design**: the measured X v5 leg (171/171 true on the labelled set) |
+| R2-S4 | SMART | low | `EntityAliases` key sharing depends on which spelling is seen first | **deferred**: the evaluated hook has the same order dependence; a deterministic alias needs the pack's canonical names (0.9.5) |
+| R2-S5 | SMART | low | track menu artist toggle is display-only (= S7) | **deferred** |
+| R2-S6 | SMART | low | snapshot builds parsed each credit four times and kept an album map | **fixed** (c7a23d45): one parse per row, album map only when a row has no artist, dropped after the build |
+| R2-S7 | SMART | low | "Nightcore", "Frenchcore" read as punk/rock through the "-core" head | **fixed** (c7a23d45) |
+| R2-A1 | analysis | low | a replacement pass cancels the old run before opening its own notifier session | **deferred** (needs a busy Default pool; the in-body `cancelAndJoin` covers the common case) |
+| R2-A2 | analysis | low | the retry ledger ignored the file revision | **fixed** (a950fb18) |
+| R2-I1 | iOS | low | the first segmented save deleted the Caches copy promised to a 0.9.3 downgrade | **fixed** (fcf3a55e): `IndexStore.retire()`; `IosIndexRetireTest` |
+| R2-P1 | playback | low | QS tile does nothing when the saved track is gone (not a regression: 0.9.3 played an empty player) | **deferred** |
+| R2-R1 | release | low | `LATENTJAM_ORT_CACHE=0` without a work dir always failed | **fixed** (f4457fde) |
+| R2-R2 | release | low | spaces: javac argfile in `ort_source_build.sh`, `--resign` glob | **fixed** for `--resign`; the ORT argfile is **deferred** (frozen F-Droid input, default paths have no spaces) |
+| R2-R3 | release | low | app CI never runs the fdroidserver-backed recipe tests (9 skipped) | **deferred** (owner: install pinned fdroidserver in app.yml) |
+| R2-R4 | release | low | CI port does not run fdroiddata `tools/check-fastlane.py` | **deferred** (owner) |
+| R2-R5 | release | low | `.gitignore` did not cover `*.p12` | **fixed** (f4457fde) |
+
+Round 2 had confirmed findings of medium or higher (R2-U1 high, R2-S1, R2-S2), so round 3 runs.
