@@ -79,8 +79,9 @@ def bump(version):
     branch = git("rev-parse", "--abbrev-ref", "HEAD")
     if branch != f"release/{version}":
         sys.exit(f"bump runs on release/{version} (git switch -c release/{version} origin/main), not {branch}")
-    _name, code = app_version()
-    new = code + 1
+    # From the last release, not the tree: a second bump of the same version (an interrupted session) changes nothing.
+    _name, released = app_version(git("show", f"{last_tag()}:androidApp/build.gradle.kts"))
+    new = released + 1
     text = GRADLE.read_text()
     text = re.sub(r'^( *versionName = )"[^"]+"', rf'\g<1>"{version}"', text, count=1, flags=re.M)
     text = re.sub(r"^( *versionCode = )\d+$", rf"\g<1>{new}", text, count=1, flags=re.M)

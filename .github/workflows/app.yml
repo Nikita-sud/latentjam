@@ -2,7 +2,8 @@ name: Verify application
 on:
   pull_request:
   push:
-    branches: [main, "codex/opensource-reliability"]
+    # release/** too: the commit a release tags must pass the unit tests, not only the release jobs.
+    branches: [main, "codex/opensource-reliability", "release/**"]
   workflow_dispatch:
 permissions:
   contents: read
