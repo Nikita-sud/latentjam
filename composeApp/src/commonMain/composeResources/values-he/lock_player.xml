@@ -4,4 +4,12 @@
     <string name="lock_player_open_app">ביטול נעילה ופתיחת LatentJam</string>
     <string name="lock_player_cover_description">עטיפה. החלקה הצידה מחליפה רצועה, משיכה למטה סוגרת.</string>
     <string name="lock_player_mode_description">מצב ניגון: %1$s. הקשה מחליפה.</string>
+    <string name="settings_lock_screen_player_subtitle_ready">כשהמסך כבה בזמן ניגון, הנגן המלא נפתח על מסך הנעילה</string>
+    <string name="lock_player_overlay_needed">כרגע זה עובד רק אם LatentJam פתוחה כשהמסך כבה. כדי שזה יעבוד מכל אפליקציה, יש לאשר ל-LatentJam להופיע מעל אפליקציות אחרות (אם נפתחת רשימה, יש למצוא בה את LatentJam).</string>
+    <string name="lock_player_overlay_unsupported">הטלפון הזה לא מאפשר לאפליקציות להיפתח מעל מסך הנעילה, ולכן זה עובד רק אם LatentJam פתוחה כשהמסך כבה.</string>
+    <string name="lock_player_overlay_allow">אישור</string>
+    <string name="lock_player_vendor_note">בטלפון הזה יש לאשר ל-LatentJam גם הצגה במסך הנעילה ופתיחת חלונות קופצים ברקע, בהרשאות האפליקציה.</string>
+    <string name="lock_player_vendor_open">הגדרות האפליקציה</string>
+    <string name="lock_player_vendor_done">סיום</string>
+    <string name="lock_player_overlay_notice">כדי שהנגן במסך הנעילה ייפתח מאפליקציות אחרות, נדרש אישור להופיע מעל אפליקציות אחרות.</string>
 </resources>

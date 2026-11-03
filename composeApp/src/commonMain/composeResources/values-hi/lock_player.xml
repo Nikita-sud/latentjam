@@ -4,4 +4,12 @@
     <string name="lock_player_open_app">अनलॉक करके LatentJam खोलें</string>
     <string name="lock_player_cover_description">कवर। ट्रैक बदलने के लिए बगल में स्वाइप करें, बंद करने के लिए नीचे खींचें।</string>
     <string name="lock_player_mode_description">प्लेबैक मोड: %1$s। बदलने के लिए टैप करें।</string>
+    <string name="settings_lock_screen_player_subtitle_ready">संगीत चलते समय स्क्रीन बंद होने पर पूरा प्लेयर लॉक स्क्रीन पर खुलता है</string>
+    <string name="lock_player_overlay_needed">अभी यह तभी काम करता है जब स्क्रीन बंद होते समय LatentJam खुला हो। किसी भी ऐप से काम करने के लिए LatentJam को दूसरे ऐप्स के ऊपर दिखने की अनुमति दें (अगर सूची खुले, तो उसमें LatentJam ढूँढें)।</string>
+    <string name="lock_player_overlay_unsupported">यह फ़ोन ऐप्स को लॉक स्क्रीन के ऊपर खुलने नहीं देता, इसलिए यह तभी काम करता है जब स्क्रीन बंद होते समय LatentJam खुला हो।</string>
+    <string name="lock_player_overlay_allow">अनुमति दें</string>
+    <string name="lock_player_vendor_note">इस फ़ोन पर ऐप की अनुमतियों में LatentJam को लॉक स्क्रीन पर दिखने और बैकग्राउंड में पॉप-अप विंडो खोलने की अनुमति भी दें।</string>
+    <string name="lock_player_vendor_open">ऐप सेटिंग</string>
+    <string name="lock_player_vendor_done">हो गया</string>
+    <string name="lock_player_overlay_notice">दूसरे ऐप्स से खुलने के लिए लॉक स्क्रीन प्लेयर को दूसरे ऐप्स के ऊपर दिखने की आपकी अनुमति चाहिए।</string>
 </resources>

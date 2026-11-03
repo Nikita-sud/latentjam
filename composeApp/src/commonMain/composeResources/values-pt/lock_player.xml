@@ -4,4 +4,12 @@
     <string name="lock_player_open_app">Desbloquear e abrir o LatentJam</string>
     <string name="lock_player_cover_description">Capa. Deslize para o lado para mudar de faixa, arraste para baixo para fechar.</string>
     <string name="lock_player_mode_description">Modo de reprodução: %1$s. Toque para mudar.</string>
+    <string name="settings_lock_screen_player_subtitle_ready">Quando o ecrã se desliga enquanto toca música, o leitor completo abre no ecrã de bloqueio</string>
+    <string name="lock_player_overlay_needed">Por agora só funciona se o LatentJam estiver aberto quando o ecrã se desliga. Para funcionar a partir de qualquer app, permita que o LatentJam seja apresentado sobre outras apps (se abrir uma lista, procure lá o LatentJam).</string>
+    <string name="lock_player_overlay_unsupported">Este telemóvel não deixa as apps abrirem sobre o ecrã de bloqueio, por isso só funciona se o LatentJam estiver aberto quando o ecrã se desliga.</string>
+    <string name="lock_player_overlay_allow">Permitir</string>
+    <string name="lock_player_vendor_note">Neste telemóvel, permita também que o LatentJam seja apresentado no ecrã de bloqueio e abra janelas pop-up em segundo plano, nas permissões da app.</string>
+    <string name="lock_player_vendor_open">Definições da app</string>
+    <string name="lock_player_vendor_done">Concluído</string>
+    <string name="lock_player_overlay_notice">Para abrir a partir de outras apps, o leitor no ecrã de bloqueio precisa da sua autorização para ser apresentado sobre outras apps.</string>
 </resources>

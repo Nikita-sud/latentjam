@@ -4,10 +4,21 @@
  */
 package io.github.nikitasud.latentjam.playback
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.net.Uri
 import android.os.SystemClock
+import android.service.quicksettings.TileService
+import android.view.KeyEvent
+import androidx.annotation.RequiresApi
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -24,6 +35,7 @@ import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.session.CommandButton
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
+import androidx.media3.session.MediaNotification
 import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionCommands
@@ -65,6 +77,67 @@ public class PlaybackService : MediaLibraryService() {
     private var crossfade: CrossfadeCoordinator? = null
     private var transportFades: SessionTransportFades? = null
     private var pendingResumptionMode: ShuffleMode? = null
+
+    /**
+     * A play press put the service in the foreground itself and Media3 has not taken over yet; see
+     * [enterForegroundForPlay]. Until Media3 asks for the foreground on its own, its notification
+     * updates would see an empty queue and drop the foreground before the player asks for focus.
+     */
+    private var promotionPending = false
+
+    /** Saved-queue reads still running for a play press: they end in a queue or in a refusal. */
+    private val resumptionsInFlight = mutableSetOf<ListenableFuture<*>>()
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    /** The newest start delivered to [onStartCommand]; 0 before any. */
+    private var lastStartId = 0
+    private val promotionWatch = object : Runnable {
+        override fun run() {
+            when (promotionWatch(promotionPending, resumptionsInFlight.isNotEmpty())) {
+                PromotionWatch.Done -> Unit
+                PromotionWatch.Wait -> mainHandler.postDelayed(this, PROMOTION_RECHECK_MS)
+                PromotionWatch.Exit -> if ((playbackPlayer?.mediaItemCount ?: 0) > 0) {
+                    // A queue arrived but never played (an error, a pause at once): Media3 draws
+                    // its own card for it and decides the foreground from there.
+                    promotionPending = false
+                    PlaybackSessionState.clearStartPending()
+                    requestTileRedraw()
+                    triggerNotificationUpdate()
+                } else {
+                    recordExternalMediaEvent("service", "foreground released: nothing started")
+                    exitPromotion()
+                }
+            }
+        }
+    }
+
+    /** Gives back a foreground this process inherited with nothing to play; see [emptyServiceCheck]. */
+    private val emptyServiceWatch = object : Runnable {
+        override fun run() {
+            val check = emptyServiceCheck(
+                hasQueue = (playbackPlayer?.mediaItemCount ?: 0) > 0,
+                promotionPending = promotionPending,
+                resumptionInFlight = resumptionsInFlight.isNotEmpty(),
+            )
+            when (check) {
+                EmptyServiceCheck.Keep -> Unit
+                EmptyServiceCheck.Wait -> mainHandler.postDelayed(this, PROMOTION_RECHECK_MS)
+                EmptyServiceCheck.Release -> {
+                    val manager = getSystemService(NotificationManager::class.java)
+                    // The card a killed process left on Media3's id: an empty player has none.
+                    val leftCard = runCatching {
+                        manager?.activeNotifications?.any { it.id == MEDIA_NOTIFICATION_ID }
+                    }.getOrNull() == true
+                    if (leftCard) {
+                        recordExternalMediaEvent("service", "foreground released: empty after restart")
+                    }
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    manager?.cancel(MEDIA_NOTIFICATION_ID)
+                    stopStarted()
+                }
+            }
+        }
+    }
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private val sessionCallback = object : MediaLibrarySession.Callback {
@@ -348,9 +421,12 @@ public class PlaybackService : MediaLibraryService() {
             mediaSession: MediaSession,
             controller: MediaSession.ControllerInfo,
             playWhenReady: Boolean,
-        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = browseFuture {
-            val resume = MediaBrowseRegistry.resumption?.invoke()
-                ?: throw UnsupportedOperationException("No saved playback queue")
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = resumptionFuture {
+            val resume = MediaBrowseRegistry.resumption?.invoke() ?: run {
+                // A play press may have put the service in the foreground for this queue.
+                exitPromotion()
+                throw UnsupportedOperationException("No saved playback queue")
+            }
             pendingResumptionMode = resume.shuffleMode
             MediaSession.MediaItemsWithStartPosition(
                 resume.tracks.map(::playableItem),
@@ -360,6 +436,15 @@ public class PlaybackService : MediaLibraryService() {
         }
     }
 
+
+    /** [browseFuture] for a saved-queue read, counted so the foreground is not released under it. */
+    private fun <T : Any> resumptionFuture(block: suspend () -> T): ListenableFuture<T> {
+        val future = browseFuture(block)
+        resumptionsInFlight += future
+        // Completed and cancelled on the main thread, like every other use of the set.
+        future.addListener({ resumptionsInFlight -= future }, MoreExecutors.directExecutor())
+        return future
+    }
 
     /** Bridges the coroutine-shaped catalog into Media3's ListenableFuture callbacks. */
     private fun <T : Any> browseFuture(block: suspend () -> T): ListenableFuture<T> {
@@ -490,8 +575,9 @@ public class PlaybackService : MediaLibraryService() {
                 ),
             )
         }
-        return browseFuture {
+        return resumptionFuture {
             val resume = MediaBrowseRegistry.resumption?.invoke() ?: run {
+                exitPromotion()
                 recordExternalMediaEvent(
                     source = controller.packageName,
                     what = "refused: no queue loaded or saved",
@@ -633,6 +719,7 @@ public class PlaybackService : MediaLibraryService() {
                 timelineChanged = events.contains(Player.EVENT_TIMELINE_CHANGED),
             )
             if (publishes) publishWidgetSnapshot(player)
+            publishTileState(player)
         }
     }
 
@@ -741,6 +828,8 @@ public class PlaybackService : MediaLibraryService() {
 
     override fun onCreate() {
         super.onCreate()
+        // After the foreground deadline of any start already delivered (10 s at most).
+        mainHandler.postDelayed(emptyServiceWatch, EMPTY_SERVICE_CHECK_MS)
         // The app-owned PCM chain applies tone controls on every local output route.
         val player = ExoPlayer.Builder(this, EqualizerRenderersFactory(this))
             // Every queue row is a local progressive file. The default factory first infers each
@@ -818,6 +907,7 @@ public class PlaybackService : MediaLibraryService() {
         // A pause fading out raises no player event; the widget hears of it here.
         serviceScope.launch {
             AndroidTransportFade.pausePending.collectLatest {
+                playbackPlayer?.let(::publishTileState)
                 playbackPlayer?.takeIf { it.currentMediaItem != null }?.let(::publishWidgetSnapshot)
             }
         }
@@ -865,11 +955,21 @@ public class PlaybackService : MediaLibraryService() {
      * leaves it running, and it is still called.
      */
     override fun onTaskRemoved(rootIntent: Intent?) {
+        // A swipe while a play press is still reading its queue must not be followed by music.
+        if (promotionPending) {
+            resumptionsInFlight.toList().forEach { it.cancel(false) }
+            exitPromotion()
+        }
         if (playbackPlayer?.playWhenReady != true) PlaybackWidgetStateStore.markPaused(this)
         super.onTaskRemoved(rootIntent)
     }
 
     override fun onDestroy() {
+        mainHandler.removeCallbacks(promotionWatch)
+        mainHandler.removeCallbacks(emptyServiceWatch)
+        promotionPending = false
+        PlaybackSessionState.clear()
+        requestTileRedraw()
         PlaybackWidgetStateStore.markPaused(this)
         MediaBrowseRegistry.clearActiveResumption()
         serviceScope.cancel()
@@ -1116,6 +1216,151 @@ public class PlaybackService : MediaLibraryService() {
             contains(Player.EVENT_REPEAT_MODE_CHANGED) ||
             contains(Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED)
 
+    @Suppress("DEPRECATION") // getParcelableExtra(String, Class) is API 33+.
+    private fun mediaButtonKeyEvent(intent: Intent): KeyEvent? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT, KeyEvent::class.java)
+        } else {
+            intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT)
+        }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        lastStartId = startId
+        if (intent != null) {
+            val key = mediaButtonKeyEvent(intent)
+            val promotes = promotesForMediaButton(
+                action = intent.action,
+                keyCode = key?.keyCode,
+                keyAction = key?.action,
+                dismissed = intent.getBooleanExtra(MediaNotification.NOTIFICATION_DISMISSED_EVENT_KEY, false),
+                sdkInt = Build.VERSION.SDK_INT,
+            )
+            if (promotes && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) enterForegroundForPlay()
+        }
+        return super.onStartCommand(intent, flags, startId)
+    }
+
+    /**
+     * Enters the foreground before Media3 handles a play press that started this service.
+     *
+     * From Android 15 audio focus goes only to an app on screen or running a foreground service.
+     * Media3 enters the foreground once its notification sees the player buffering — a few hops
+     * after the player asked for focus — so the first play from a cold process (the Quick Settings
+     * tile, a headset) was refused and the music stopped at once. And a press that started the
+     * service with `startForegroundService` and found no queue was never answered: Android killed
+     * the app half a minute later. The notification already on Media3's id is reused, so a paused
+     * card keeps its look; otherwise a plain one stands in until Media3 draws its own over it.
+     */
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun enterForegroundForPlay() {
+        val manager = getSystemService(NotificationManager::class.java) ?: return
+        val posted = runCatching {
+            manager.activeNotifications.firstOrNull { it.id == MEDIA_NOTIFICATION_ID }?.notification
+        }.getOrNull()
+        val notification = posted ?: placeholderNotification(manager)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    MEDIA_NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,
+                )
+            } else {
+                startForeground(MEDIA_NOTIFICATION_ID, notification)
+            }
+        } catch (refused: Exception) {
+            // ForegroundServiceStartNotAllowedException and its relatives: Media3 carries on as
+            // before this change.
+            recordExternalMediaEvent("service", "foreground refused: ${refused.javaClass.simpleName}")
+            return
+        }
+        if ((playbackPlayer?.mediaItemCount ?: 0) == 0) {
+            promotionPending = true
+            mainHandler.removeCallbacks(promotionWatch)
+            mainHandler.postDelayed(promotionWatch, PROMOTION_WATCH_MS)
+        }
+    }
+
+    /** Same channel and icon Media3's default notification uses, so nothing new appears in settings. */
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun placeholderNotification(manager: NotificationManager): Notification {
+        if (manager.getNotificationChannel(MEDIA_CHANNEL_ID) == null) {
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    MEDIA_CHANNEL_ID,
+                    getString(androidx.media3.session.R.string.default_notification_channel_name),
+                    NotificationManager.IMPORTANCE_LOW,
+                ),
+            )
+        }
+        val title = PlaybackWidgetStateStore.read(this).title
+        return Notification.Builder(this, MEDIA_CHANNEL_ID)
+            .setSmallIcon(androidx.media3.session.R.drawable.media3_notification_small_icon)
+            .setContentTitle(title.takeIf { it.isNotBlank() } ?: applicationInfo.loadLabel(packageManager))
+            .setContentIntent(appLaunchPendingIntent())
+            .setOngoing(true)
+            .setShowWhen(false)
+            .build()
+    }
+
+    /** The play press found nothing to play: give the foreground back and stop being started. */
+    private fun exitPromotion() {
+        if (!promotionPending) return
+        promotionPending = false
+        mainHandler.removeCallbacks(promotionWatch)
+        PlaybackSessionState.clearStartPending()
+        requestTileRedraw()
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopStarted()
+    }
+
+    /**
+     * Ends this service's started state, but not for a start Android delivered after the last one
+     * seen here: a `startForegroundService` still waiting for its `onStartCommand` would otherwise
+     * be torn down before it could enter the foreground, which Android answers with a crash. Bound
+     * clients (the app's own controller) still keep the service alive.
+     */
+    private fun stopStarted() {
+        if (lastStartId == 0) stopSelf() else stopSelfResult(lastStartId)
+    }
+
+    /**
+     * While a play press holds the foreground for an empty player, Media3's updates are held back:
+     * each one would see no queue yet and drop the foreground before the player asked for focus —
+     * one comes from every button refresh while the saved queue is installed. The first update in
+     * which Media3 itself asks for the foreground means its notification sees the queue playing;
+     * from there on it owns the foreground again, the ten minutes it keeps after a pause included.
+     */
+    override fun onUpdateNotification(session: MediaSession, startInForegroundRequired: Boolean) {
+        if (promotionPending) {
+            if (!startInForegroundRequired) return
+            promotionPending = false
+            mainHandler.removeCallbacks(promotionWatch)
+        }
+        super.onUpdateNotification(session, startInForegroundRequired)
+    }
+
+    private fun publishTileState(player: Player) {
+        val changed = PlaybackSessionState.publish(
+            hasQueue = player.mediaItemCount > 0,
+            showsPause = showPauseButton(
+                playWhenReady = player.playWhenReady,
+                playbackState = player.playbackState,
+                pausePending = AndroidTransportFade.pausePending.value,
+            ),
+        )
+        if (changed) requestTileRedraw()
+    }
+
+    /** Lets an open shade redraw the tile; it reads [PlaybackSessionState] when it listens. */
+    private fun requestTileRedraw() {
+        try {
+            TileService.requestListeningState(this, ComponentName(this, PlaybackTileService::class.java))
+        } catch (_: RuntimeException) {
+            // The tile is not added, or the system refused; it reads the state next time it shows.
+        }
+    }
+
     /**
      * Explicitly owns the media-notification body tap.
      *
@@ -1145,5 +1390,13 @@ public class PlaybackService : MediaLibraryService() {
         const val BROWSE_TRACKS_ID = "browse-tracks"
 
         const val MEDIA_NOTIFICATION_REQUEST_CODE = 4202
+
+        /** Media3's DefaultMediaNotificationProvider id and channel, which this service uses. */
+        const val MEDIA_NOTIFICATION_ID = 1001
+        const val MEDIA_CHANNEL_ID = "default_channel_id"
+
+        const val PROMOTION_WATCH_MS = 15_000L
+        const val PROMOTION_RECHECK_MS = 5_000L
+        const val EMPTY_SERVICE_CHECK_MS = 15_000L
     }
 }

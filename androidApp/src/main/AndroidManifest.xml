@@ -31,6 +31,11 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Special access the user grants in system settings, asked for only by "Player on the lock
+         screen". Used solely for the background-start exemption that lets that player open when
+         the screen turns off while another app is in front; the app adds no overlay windows. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <!-- Media3 declares this for its bandwidth meter; the player only ever reads local files and
          the meter degrades to "unknown network" without it, so the permission is dropped. -->
     <uses-permission

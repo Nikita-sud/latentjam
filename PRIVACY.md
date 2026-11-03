@@ -42,6 +42,7 @@ developer or with any third party.
 | Foreground service | To keep playing with the screen off and to index files in the background |
 | Modify audio settings | Equaliser and volume normalisation |
 | Keep the device awake | Uninterrupted playback |
+| Display over other apps (Android, optional) | Asked for only if you turn on Player on the lock screen: lets that player open over the lock screen when the screen turns off while another app is in front. The app draws no overlays |
 
 ## Things that happen only when you ask
 

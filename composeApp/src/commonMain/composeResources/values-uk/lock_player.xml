@@ -4,4 +4,12 @@
     <string name="lock_player_open_app">Розблокувати й відкрити LatentJam</string>
     <string name="lock_player_cover_description">Обкладинка. Проведіть убік, щоб змінити трек, потягніть униз, щоб закрити.</string>
     <string name="lock_player_mode_description">Режим відтворення: %1$s. Натисніть, щоб змінити.</string>
+    <string name="settings_lock_screen_player_subtitle_ready">Коли екран гасне під час музики, на екрані блокування відкривається повний плеєр</string>
+    <string name="lock_player_overlay_needed">Зараз це працює, лише якщо LatentJam відкритий у момент вимкнення екрана. Щоб працювало з будь-якого застосунку, дозвольте LatentJam показ поверх інших застосунків (якщо відкриється список, знайдіть у ньому LatentJam).</string>
+    <string name="lock_player_overlay_unsupported">Цей телефон не дозволяє застосункам відкриватися поверх екрана блокування, тому це працює, лише якщо LatentJam відкритий у момент вимкнення екрана.</string>
+    <string name="lock_player_overlay_allow">Дозволити</string>
+    <string name="lock_player_vendor_note">На цьому телефоні також дозвольте LatentJam показ на екрані блокування та спливні вікна у фоні — у дозволах застосунку.</string>
+    <string name="lock_player_vendor_open">Налаштування застосунку</string>
+    <string name="lock_player_vendor_done">Готово</string>
+    <string name="lock_player_overlay_notice">Щоб плеєр на екрані блокування відкривався з інших застосунків, потрібен ваш дозвіл на показ поверх інших застосунків.</string>
 </resources>

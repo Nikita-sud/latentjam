@@ -4,4 +4,12 @@
     <string name="lock_player_open_app">ロックを解除して LatentJam を開く</string>
     <string name="lock_player_cover_description">カバー。横にスワイプで曲を切り替え、下にドラッグで閉じます。</string>
     <string name="lock_player_mode_description">再生モード: %1$s。タップで切り替えます。</string>
+    <string name="settings_lock_screen_player_subtitle_ready">音楽の再生中に画面がオフになると、ロック画面にフルプレーヤーが開きます</string>
+    <string name="lock_player_overlay_needed">現在は、画面がオフになるときに LatentJam が開いている場合にのみ動作します。どのアプリからでも動作させるには、LatentJam に他のアプリの上への表示を許可してください（リストが開いたら LatentJam を探してください）。</string>
+    <string name="lock_player_overlay_unsupported">このスマートフォンではアプリがロック画面の上に開くことが許可されていないため、画面がオフになるときに LatentJam が開いている場合にのみ動作します。</string>
+    <string name="lock_player_overlay_allow">許可</string>
+    <string name="lock_player_vendor_note">このスマートフォンでは、アプリの権限で LatentJam にロック画面での表示とバックグラウンドでのポップアップ表示も許可してください。</string>
+    <string name="lock_player_vendor_open">アプリの設定</string>
+    <string name="lock_player_vendor_done">完了</string>
+    <string name="lock_player_overlay_notice">ロック画面のプレーヤーを他のアプリから開くには、他のアプリの上への表示を許可する必要があります。</string>
 </resources>

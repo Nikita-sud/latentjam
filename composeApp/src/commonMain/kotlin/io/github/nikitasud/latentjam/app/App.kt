@@ -319,6 +319,7 @@ private fun AppShell(
             artistVarietyApplier.apply(artistVariety)
         }
         val snackbar = remember { SnackbarHostState() }
+        if (lockScreenPlayerAvailable) LockPlayerOverlayNotice(snackbar)
         var tracks by remember { mutableStateOf<List<TrackDescriptor>?>(null) }
         val libraryScan = remember { LibraryScanState() }
         // SMART reconciliation needs more than the rows: an unavailable media permission is

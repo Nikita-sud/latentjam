@@ -57,6 +57,14 @@ public object MediaBrowseRegistry {
     public var resumption: (suspend () -> MediaPlaybackResume?)? = null
 
     /**
+     * Whether [resumption] can restore a saved queue — one is saved and the music it names can be
+     * read — answered at once on the main thread. The Quick Settings tile asks before it starts
+     * playback: otherwise it opens the app, which asks for music access when that is what is missing.
+     */
+    @Volatile
+    public var canRestoreSavedQueue: (() -> Boolean)? = null
+
+    /**
      * Told on the main thread when a controller outside the app (Android Auto, a voice request,
      * another app) installed a queue. Whatever the app said that queue came from no longer holds.
      */
