@@ -108,6 +108,8 @@ internal class IosFileIndexStore(
                 syncParentDirectory(copy)
             }
         }
+        // A write killed half way leaves its staging files; they go with the file, as on Android.
+        for (staged in listOf("$path.tmp", "$path.half")) NSFileManager.defaultManager.removeItemAtPath(staged, null)
     }
 }
 
