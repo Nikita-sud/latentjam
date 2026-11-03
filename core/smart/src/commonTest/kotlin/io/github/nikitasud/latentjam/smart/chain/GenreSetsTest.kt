@@ -17,6 +17,9 @@ internal class GenreSetsTest {
         assertEquals(setOf("dance", "electronic"), GenreSets.families("Progressive House"))
         assertEquals(setOf("dance", "electronic"), GenreSets.families("Psytrance"))
         assertEquals(setOf("dance", "electronic"), GenreSets.families("Nightcore"))
+        assertEquals(setOf("hiphop"), GenreSets.families("Hardcore Hip-Hop"))
+        assertEquals(setOf("hiphop"), GenreSets.families("Emo Rap"))
+        assertEquals(setOf("hiphop"), GenreSets.families("Horrorcore"))
         assertFalse("classical" in GenreSets.families("New Romantic"))
         assertTrue(GenreSets.overlap(GenreSets.families("Progressive House"), GenreSets.families("Rock")) == 0f)
     }

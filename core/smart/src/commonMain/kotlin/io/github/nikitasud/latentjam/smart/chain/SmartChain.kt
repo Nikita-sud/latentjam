@@ -114,8 +114,8 @@ internal object ChainConfig {
     /**
      * Queue hygiene (0.9.4, owner round 6 "CH"): spreads of a hop's scores a candidate gives up for being a kind that
      * jars after its seed ([QueueClasses], on top of that class's own penalty) and again for a length outside
-     * [HYGIENE_SHORT_MS, HYGIENE_LONG_MS] (a fragment, an interlude, a long mix or an audiobook part). Soft: a track that
-     * fits clearly better still plays. 0 is off.
+     * [HYGIENE_SHORT_MS, HYGIENE_LONG_MS] (a fragment, an interlude, a long mix or an audiobook part) after a seed inside
+     * it. Soft: a track that fits clearly better still plays. 0 is off.
      */
     const val CHAIN_HYGIENE = 2f
     const val HYGIENE_SHORT_MS = 60_000L
@@ -372,6 +372,8 @@ internal class SmartChain(
 
         val excludedRows = sessionExclusions(seedRow, context.sessionRows, length)
         val classRows = tuning.queueClasses?.penalised(snapshot, seedRow)
+        val seedLengthOrdinary = snapshot.tracks[seedRow].meta.durationMs
+            .let { it == null || it <= 0 || it in ChainConfig.HYGIENE_SHORT_MS..ChainConfig.HYGIENE_LONG_MS }
         var provenance: HashMap<Int, String>? = if (trace != null) HashMap() else null
         // The latest reference's cosines and full-library rankings, reused while the reference stays.
         var cosines: ReferenceCosines? = null
@@ -839,14 +841,15 @@ internal class SmartChain(
                     hopTerms?.get(i)?.let { it[6] += paid }
                 }
             }
-            // Hygiene (ChainConfig.CHAIN_HYGIENE): a jarring kind and an odd length each cost one unit.
+            // Hygiene (ChainConfig.CHAIN_HYGIENE): a jarring kind and an odd length each cost one unit; like the kinds,
+            // a length jars only after a seed of ordinary length (a long mix or a sketch seed keeps its own kind).
             if (hygiene > 0f && spread > 0f) {
                 val unit = hygiene * spread
                 for (i in pool.indices) {
                     if (!hopScored[i]) continue
                     var paid = if (classRows?.get(pool[i]) == true) unit else 0f
                     val ms = snapshot.tracks[pool[i]].meta.durationMs
-                    if (ms != null && ms > 0 && (ms < ChainConfig.HYGIENE_SHORT_MS || ms > ChainConfig.HYGIENE_LONG_MS)) paid += unit
+                    if (seedLengthOrdinary && ms != null && ms > 0 && (ms < ChainConfig.HYGIENE_SHORT_MS || ms > ChainConfig.HYGIENE_LONG_MS)) paid += unit
                     if (paid > 0f) {
                         hopScores[i] -= paid
                         hopTerms?.get(i)?.let { it[6] -= paid }

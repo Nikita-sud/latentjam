@@ -26,12 +26,19 @@ internal class QueueClasses(val lambda: Float) {
     ) {
         fun matches(meta: TrackMeta): Boolean {
             val g = meta.genre.orEmpty().lowercase()
-            if (genre.any { it in g }) return true
+            if (genre.any { has(g, it) }) return true
             if (tokens.isNotEmpty() && g.split(';').any { it.trim() in tokens }) return true
             if (text.isEmpty()) return false
             val s = listOf(meta.title, meta.artist, meta.album).joinToString(" | ") { it.orEmpty() }.lowercase()
-            return text.any { it in s }
+            return text.any { has(s, it) }
         }
+
+        /**
+         * Substring, except the short words that hide inside others ("memento", "post-rock", "radio edit"): those match
+         * as whole words only (PLAN_FIXN2 Q). Queue hygiene adds its own unit to every jarring row, so a false match
+         * would cost three spreads.
+         */
+        private fun has(s: String, entry: String): Boolean = WHOLE_WORDS[entry]?.containsMatchIn(s) ?: (entry in s)
     }
 
     /** Whether each snapshot row pays after [seedRow]'s seed; computed once per plan. */
@@ -48,6 +55,12 @@ internal class QueueClasses(val lambda: Float) {
     }
 
     private companion object {
+        /** Entries matched on word boundaries; "radio" never as a version note ("radio edit", "radio mix"). */
+        val WHOLE_WORDS: Map<String, Regex> = listOf("birthday", "meme", "interview", "ost", "radio").associateWith { word ->
+            val tail = if (word == "radio") "(?!\\s+(?:edit|mix|version))" else ""
+            Regex("(?<![\\p{L}\\p{N}])" + Regex.escape(word) + "(?![\\p{L}\\p{N}])" + tail)
+        }
+
         val KINDS = listOf(
             Kind(
                 "kids",

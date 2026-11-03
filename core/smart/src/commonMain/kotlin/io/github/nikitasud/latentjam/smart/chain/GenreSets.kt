@@ -31,6 +31,8 @@ internal object GenreSets {
         "progressive trance" to f("dance", "electronic"), "psychedelic trance" to f("dance", "electronic"),
         "happy hardcore" to f("dance", "electronic"), "hardcore techno" to f("dance", "electronic"),
         "new romantic" to f("pop", "electronic"), "chamber pop" to f("pop"),
+        // Rap styles named with punk words ("hardcore", "emo").
+        "hardcore hip hop" to f("hiphop"), "hardcore rap" to f("hiphop"), "emo rap" to f("hiphop"), "emo hip hop" to f("hiphop"),
         "хип хоп" to f("hiphop"), "авторская песня" to f("folk"), "русский рок" to f("rock"),
     ).map { (p, fam) -> p.split(' ') to fam }.sortedByDescending { it.first.size }
 
@@ -67,7 +69,7 @@ internal object GenreSets {
         put(f("world", "folk"), "celtic")
         put(f("spoken"), "spoken", "poetry", "comedy", "audiobook", "podcast")
         put(f("industrial"), "industrial")
-        put(f("hiphop"), "nerdcore")
+        put(f("hiphop"), "nerdcore", "horrorcore")
         put(f("electronic"), "speedcore", "gabber", "breakcore")
         put(f("electronic", "experimental"), "electroacoustic")
         put(f("electronic"), "bigbeat")

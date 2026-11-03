@@ -54,4 +54,25 @@ internal class QueueClassesTest {
     fun `the seed kind never pays`() {
         assertEquals(setOf("Children's Music", "Internet Meme"), paying(3))
     }
+
+    @Test
+    fun `short class words match whole words only`() {
+        val rows = listOf(
+            TrackMeta("Ghosts Again", "Depeche Mode", "Memento Mori", "Synth-pop", null),
+            TrackMeta("Song", "Band", null, "Post-Rock", null),
+            TrackMeta("Song (Radio Edit)", "Band", null, "Pop", null),
+            TrackMeta("Doge Meme", "Someone", null, "Pop", null),
+        )
+        val snapshot = requireNotNull(
+            SmartSnapshot.build(
+                (listOf(TrackMeta("Seed", "Seed", null, "Synth-pop", null)) + rows).mapIndexed { row, meta ->
+                    val audio = FloatArray(PredictorRuntime.EMBEDDING_DIM).also { it[row] = 1f }
+                    SmartTrack(TrackId("$row"), audio, meta = meta)
+                },
+            ),
+        )
+        val paying = QueueClasses(1f).penalised(snapshot, snapshot.rowOf(TrackId("0")))
+        val hit = (1..4).filter { paying[snapshot.rowOf(TrackId("$it"))] }
+        assertEquals(listOf(4), hit, "only the real meme pays")
+    }
 }
