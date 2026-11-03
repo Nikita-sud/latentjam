@@ -25,6 +25,12 @@ internal object GenreSets {
         "hi nrg" to f("dance", "electronic"), "lo fi" to f("lofi"), "free jazz" to f("jazz"), "acid jazz" to f("jazz"),
         "alternative hip hop" to f("hiphop"), "chip music" to f("electronic"), "easy listening" to f("easylistening"), "no wave" to f("punk", "rock"),
         "middle east" to f("world"), "north african" to f("world"), "asia far east" to f("world"), "kid friendly" to f("children"),
+        // Electronic styles whose words alone read as rock, punk or classical ("garage", "progressive", "hardcore").
+        "uk garage" to f("dance", "electronic"), "speed garage" to f("dance", "electronic"), "future garage" to f("electronic"),
+        "garage house" to f("dance", "electronic"), "progressive house" to f("dance", "electronic"),
+        "progressive trance" to f("dance", "electronic"), "psychedelic trance" to f("dance", "electronic"),
+        "happy hardcore" to f("dance", "electronic"), "hardcore techno" to f("dance", "electronic"),
+        "new romantic" to f("pop", "electronic"), "chamber pop" to f("pop"),
         "хип хоп" to f("hiphop"), "авторская песня" to f("folk"), "русский рок" to f("rock"),
     ).map { (p, fam) -> p.split(' ') to fam }.sortedByDescending { it.first.size }
 
@@ -38,7 +44,7 @@ internal object GenreSets {
         put(f("pop", "rock"), "britpop", "powerpop")
         put(f("electronic"), "electronic", "electronica", "electro", "idm", "glitch", "chiptune", "synthwave", "darkwave",
             "vaporwave", "dubstep", "breakbeat", "breakcore")
-        put(f("dance", "electronic"), "dance", "disco", "house", "techno", "trance", "edm", "eurodance", "electrohouse", "hardstyle", "club")
+        put(f("dance", "electronic"), "dance", "disco", "house", "techno", "trance", "edm", "eurodance", "electrohouse", "hardstyle", "club", "psytrance")
         put(f("dnb", "electronic"), "dnb", "jungle", "drumnbass")
         put(f("ambient", "electronic"), "downtempo", "chillout", "chill")
         put(f("ambient"), "ambient", "drone", "meditation")
