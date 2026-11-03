@@ -12,9 +12,16 @@ package io.github.nikitasud.latentjam.smart.text
  * - a feat. / by / prod. clause of the title;
  * - a later " - " segment of the title, or the first one when the credit is empty ("SK - Beats - …").
  * A name of several artists ("Kosta T feat. Ghofra Z") needs all of its segments. Empty names and credits never match.
+ * A name that is also a version word ("Live", "Mono") matches the credit only.
  */
 public object CreditSegments {
     private val SEP = Regex("\\s*(?:&|,|/|\\bfeat\\b\\.?|\\bft\\b\\.?|\\bfeaturing\\b)\\s*|\\s+(?:and|x|vs\\.?|with)\\s+")
+    /** Words a title's " - " part or clause uses for a version of the song; never an artist there. */
+    private val VERSION_WORDS = setOf(
+        "live", "mono", "stereo", "remaster", "remastered", "edit", "radio edit", "mix", "remix", "demo", "acoustic",
+        "instrumental", "original", "original mix", "extended", "extended mix", "single version", "album version",
+        "version", "bonus track", "explicit", "clean", "intro", "outro", "interlude", "unplugged", "reprise",
+    )
     private val CLAUSE = Regex(
         "(?<![\\p{L}\\p{N}])(?:feat\\.?|ft\\.?|featuring|by|prod\\.?|produced by)\\s+([^()\\[\\]]*?)(?=\\s+-\\s+|[()\\[\\]]|$)",
     )
@@ -22,6 +29,8 @@ public object CreditSegments {
     /** Whether [name] is a whole segment of [credit] or [title]; [knownWhole] says the pack knows a string as one artist. */
     public fun matches(name: String, credit: String, title: String, knownWhole: (String) -> Boolean): Boolean {
         if (segmentMatch(credit, name, knownWhole)) return true
+        // "Comfortably Numb - Live" names a version, not the band Live: such names match the credit only.
+        if (fold(name).trim() in VERSION_WORDS) return false
         val t = fold(title)
         if (CLAUSE.findAll(t).any { segmentMatch(it.groupValues[1], name, knownWhole) }) return true
         val parts = t.split(" - ")

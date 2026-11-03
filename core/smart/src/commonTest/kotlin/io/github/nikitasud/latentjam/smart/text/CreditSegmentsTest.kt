@@ -56,4 +56,12 @@ class CreditSegmentsTest {
         assertTrue(matches("Beyoncé & Jay-Z", "Song", "Beyonce"))
         assertTrue(matches("Artist", "Song feat. Björk", "Bjork"))
     }
+
+    @Test
+    fun `a band named like a version word does not hide versions`() {
+        assertFalse(matches("Pink Floyd", "Comfortably Numb - Live", "Live"))
+        assertFalse(matches("The Beatles", "Help! - Mono", "Mono"))
+        assertTrue(matches("Live", "Lightning Crashes", "Live"))
+        assertTrue(matches("Live & Friends", "Song", "Live"))
+    }
 }
