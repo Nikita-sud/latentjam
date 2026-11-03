@@ -84,10 +84,17 @@ internal class IosFileIndexStore(
         writeDurably(path) { open -> writeIosIndexSnapshot(modelVersion, snapshot, half = half, open = open) }
     }
 
-    override suspend fun clear(): Unit = withContext(Dispatchers.Default) {
+    override suspend fun clear(): Unit = remove(withCachesTwin = true)
+
+    /** A migration only: the Caches copy stays for a downgrade to 0.9.3 (resolveIndexDirectory), until 0.9.5. */
+    override suspend fun retire(): Unit = remove(withCachesTwin = false)
+
+    private suspend fun remove(withCachesTwin: Boolean): Unit = withContext(Dispatchers.Default) {
         val path = checkNotNull(indexPath(fileName)) { "Index directory is unavailable" }
-        // The Caches copy a move left behind goes too: a downgrade after a clear must not bring the old vectors back.
-        for (copy in listOfNotNull(path, cachesTwin(fileName)?.takeIf { it != path })) {
+        // On a clear the Caches copy a move left behind goes too: a downgrade after a clear must not bring the old
+        // vectors back.
+        val twin = if (withCachesTwin) cachesTwin(fileName)?.takeIf { it != path } else null
+        for (copy in listOfNotNull(path, twin)) {
             val manager = NSFileManager.defaultManager
             if (manager.fileExistsAtPath(copy)) {
                 check(manager.removeItemAtPath(copy, null)) { "Could not delete $fileName" }
@@ -232,6 +239,9 @@ internal fun iosIndexFileNames(): List<String> {
 
 /** Where [IosFileIndexStore] keeps [fileName] (tests). */
 internal fun iosIndexFilePath(fileName: String): String? = indexPath(fileName)
+
+/** Where builds before 0.9.4 kept [fileName] (tests). */
+internal fun iosCachesTwinPath(fileName: String): String? = cachesTwin(fileName)
 
 /** [fileName] in Caches, where builds before 0.9.4 kept it. */
 @OptIn(ExperimentalForeignApi::class)

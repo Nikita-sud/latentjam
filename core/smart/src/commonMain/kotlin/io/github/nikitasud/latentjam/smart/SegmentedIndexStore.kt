@@ -263,7 +263,7 @@ public class SegmentedIndexStore(
         for (number in leftovers) if (number !in keep) runCatching { store(number).clear() }
         stores.keys.retainAll(keep)
         // Whatever single file is here now was read by this process's load (and is in the commit) or is stale.
-        runCatching { single.clear() }
+        runCatching { single.retire() }
     }
 
     private class Written(val segments: List<Segment>, val hashes: LongArray, val positions: IntArray, val next: Int)

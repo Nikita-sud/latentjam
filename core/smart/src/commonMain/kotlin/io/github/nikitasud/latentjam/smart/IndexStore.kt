@@ -83,6 +83,12 @@ public interface IndexStore {
 
     /** Deletes any snapshot. */
     public suspend fun clear()
+
+    /**
+     * Deletes this store's file after its rows moved elsewhere (SegmentedIndexStore's migration). Unlike [clear], a
+     * store may keep copies kept for a downgrade (the iOS Caches twin).
+     */
+    public suspend fun retire(): Unit = clear()
 }
 
 /**
