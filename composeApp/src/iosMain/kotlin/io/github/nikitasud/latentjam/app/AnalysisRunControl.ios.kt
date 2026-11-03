@@ -48,6 +48,8 @@ private object UserDefaultsAnalysisControlStore : AnalysisControlStore {
         get() = defaults.stringForKey(KEY_CONTAINER_ROOTS)
         set(value) = defaults.setObject(value, KEY_CONTAINER_ROOTS)
 
+    override val keepsContainerRoots: Boolean get() = true
+
     private const val KEY_PAUSED = "analysis.userPaused"
     private const val KEY_STOP_REASON = "analysis.stopReason"
     private const val KEY_PENDING_CONTINUE = "analysis.pendingContinue"

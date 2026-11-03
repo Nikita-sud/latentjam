@@ -1103,6 +1103,8 @@ object AppGraph {
      * update then costs one more analysis of the imported files (SimilarityEngine.rememberLegacyContainerRoots).
      */
     private suspend fun keepLegacyContainerRoots(): Set<String> = legacyRootsLock.withLock {
+        // Elsewhere no file lives in a moving container: the loudness cache is not decoded for nothing.
+        if (!analysisStore.keepsContainerRoots) return@withLock emptySet()
         val kept = analysisStore.legacyContainerRoots?.lines()?.filter(String::isNotBlank).orEmpty().toCollection(LinkedHashSet())
         val found = legacyContainerRoots(settings.readTrackLoudnessPayload())
         if (!kept.containsAll(found)) {

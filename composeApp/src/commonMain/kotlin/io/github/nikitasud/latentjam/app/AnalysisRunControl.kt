@@ -75,6 +75,9 @@ internal interface AnalysisControlStore {
     var legacyContainerRoots: String?
         get() = null
         set(@Suppress("UNUSED_PARAMETER") value) = Unit
+
+    /** Whether files live in an app container that can move ([legacyContainerRoots] is kept): iOS. */
+    val keepsContainerRoots: Boolean get() = false
 }
 
 internal class InMemoryAnalysisControlStore : AnalysisControlStore {

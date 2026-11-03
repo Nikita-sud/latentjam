@@ -2061,9 +2061,10 @@ private fun AppShell(
             // another candidate using the old eligible library.
             try {
                 val state = smartExclusions.state.value
-                val eligible = withContext(Dispatchers.Default) { tracks.orEmpty().filterNot(state.hidesFromSmart()) }
-                // A later change finished first: its list is the one playback must keep.
-                if (smartExclusions.state.value != state) return true
+                val source = tracks
+                val eligible = withContext(Dispatchers.Default) { source.orEmpty().filterNot(state.hidesFromSmart()) }
+                // A later change (of exclusions or of the library) finished first: its list is the one playback keeps.
+                if (smartExclusions.state.value != state || tracks !== source) return true
                 playback.setSmartLibrary(eligible)
                 AppGraph.smartLibraryTracks.value = eligible
             } catch (cancelled: CancellationException) {
