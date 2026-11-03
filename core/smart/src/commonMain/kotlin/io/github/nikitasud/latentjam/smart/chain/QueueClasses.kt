@@ -56,7 +56,7 @@ internal class QueueClasses(val lambda: Float) {
 
     private companion object {
         /** Entries matched on word boundaries; "radio" never as a version note ("radio edit", "radio mix"). */
-        val WHOLE_WORDS: Map<String, Regex> = listOf("birthday", "meme", "interview", "ost", "radio").associateWith { word ->
+        val WHOLE_WORDS: Map<String, Regex> = listOf("happy birthday", "meme", "interview", "ost", "radio").associateWith { word ->
             val tail = if (word == "radio") "(?!\\s+(?:edit|mix|version))" else ""
             Regex("(?<![\\p{L}\\p{N}])" + Regex.escape(word) + "(?![\\p{L}\\p{N}])" + tail)
         }
@@ -65,7 +65,8 @@ internal class QueueClasses(val lambda: Float) {
             Kind(
                 "kids",
                 genre = listOf("children", "kids", "nursery", "lullab", "детск", "animation ost", "kid-friendly", "kid friendly"),
-                text = listOf("смешарик", "smeshariki", "мультфильм", "birthday"),
+                // "Happy Birthday", never a bare "birthday" (The Birthday Massacre, the Beatles' "Birthday").
+                text = listOf("смешарик", "smeshariki", "мультфильм", "happy birthday"),
             ),
             Kind(
                 "meme",

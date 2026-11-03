@@ -31,6 +31,9 @@ internal object GenreSets {
         "progressive trance" to f("dance", "electronic"), "psychedelic trance" to f("dance", "electronic"),
         "happy hardcore" to f("dance", "electronic"), "hardcore techno" to f("dance", "electronic"),
         "new romantic" to f("pop", "electronic"), "chamber pop" to f("pop"),
+        // Styles whose modifier word names another family ("symphonic", "opera", "dub", "french").
+        "symphonic metal" to f("metal", "rock"), "symphonic rock" to f("rock"), "rock opera" to f("rock"),
+        "dub techno" to f("dance", "electronic"), "french house" to f("dance", "electronic"),
         // Rap styles named with punk words ("hardcore", "emo").
         "hardcore hip hop" to f("hiphop"), "hardcore rap" to f("hiphop"), "emo rap" to f("hiphop"), "emo hip hop" to f("hiphop"),
         "хип хоп" to f("hiphop"), "авторская песня" to f("folk"), "русский рок" to f("rock"),

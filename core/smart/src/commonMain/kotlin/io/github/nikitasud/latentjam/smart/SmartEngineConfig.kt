@@ -80,9 +80,10 @@ public data class SmartEngineConfig(
     /**
      * The hub penalty (SmartSnapshot.computeHubPenalty, 1.9 s at 20k rows on an emulator) is kept for the audio rows it
      * was computed for: a snapshot rebuilt over the same rows (a tag edit, new semantics, history) reuses it, a build over
-     * other rows computes it inline as 0.9.3 did, and SimilarityEngine.warmSmart does that off the press path after a
-     * library change. A plan never uses a stand-in (review 0.9.4). Off computes it inside every snapshot build, as 0.9.3.
-     * (The block-wise background pass, startHub/runHub, is no longer started; kept for a later return.)
+     * other rows computes it inline as 0.9.3 did (the first press after an audio change pays it). A plan never uses a
+     * stand-in (review 0.9.4). Off computes it inside every snapshot build, as 0.9.3. Unused for now, kept for a later
+     * return: the block-wise background pass (startHub/runHub, its dispatcher) and SimilarityEngine.warmSmart, which the
+     * app no longer calls (a snapshot at every launch cost memory for listeners who never press SMART).
      */
     public val backgroundHub: Boolean = false,
 )

@@ -62,6 +62,7 @@ internal class QueueClassesTest {
             TrackMeta("Song", "Band", null, "Post-Rock", null),
             TrackMeta("Song (Radio Edit)", "Band", null, "Pop", null),
             TrackMeta("Doge Meme", "Someone", null, "Pop", null),
+            TrackMeta("Blue", "The Birthday Massacre", null, "Gothic Rock", null),
         )
         val snapshot = requireNotNull(
             SmartSnapshot.build(
@@ -72,7 +73,7 @@ internal class QueueClassesTest {
             ),
         )
         val paying = QueueClasses(1f).penalised(snapshot, snapshot.rowOf(TrackId("0")))
-        val hit = (1..4).filter { paying[snapshot.rowOf(TrackId("$it"))] }
+        val hit = (1..5).filter { paying[snapshot.rowOf(TrackId("$it"))] }
         assertEquals(listOf(4), hit, "only the real meme pays")
     }
 }
