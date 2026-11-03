@@ -120,3 +120,23 @@ Round 1 commits: 9dcff830 (S2), e8affabd (S3), 21f79177 (S4, S8, I1 comments), 7
 | R2-R5 | release | low | `.gitignore` did not cover `*.p12` | **fixed** (f4457fde) |
 
 Round 2 had confirmed findings of medium or higher (R2-U1 high, R2-S1, R2-S2), so round 3 runs.
+
+### Round 3 (HEAD 1564d809)
+
+| # | area | sev | finding | verdict |
+|---|---|---|---|---|
+| R3-S1 / R3-A1 | SMART, analysis (both) | **high** | the round-2 warm-up built a snapshot outside the press's `catch (Error)`: a heap too small for the snapshot crashed the app ~5 s after every launch | **fixed** (e73b7db7): gated on analysed rows like a press, catches `Error`, stops for the process |
+| R3-S2 / R3-A2 | SMART, analysis (both) | med | the warm-up did nothing once any hub existed, so the first press after new analysis used a stand-in | **fixed** (e73b7db7): a cached snapshot answers it, a new one starts the pass; test after a change of rows |
+| R3-S3 | SMART | med | the K placeholder repeat key used the bare file name: untagged `01.mp3` in two folders blocked each other | **fixed** (e73b7db7): a file-name identity includes the folder; test. Stand unchanged (32/32 vs round 2) |
+| R3-S4 | SMART | low | "by Death" in a title (= R2-S3) | **by design** (measured X v5 leg); third report, owner may drop the bare "by" |
+| R3-U1 / R3-P1 | UI, playback | low | presses read the eligible list without checking it is current | **fixed** (c72138d1): `eligibleFor()` |
+| R3-U2 | UI | low | track menu toggle display-only (= S7) | **deferred** |
+| R3-P2 | playback | low | two overlapping exclusion changes: the older list could land last | **fixed** (c72138d1) |
+| R3-I1 | iOS | low | iOS never sees a single file a downgraded build wrote | doc **fixed** (Android-only note); behaviour deferred |
+| R3-I2 | iOS | low | a failed move made `retire()` delete the 0.9.3 file | **fixed** (c8aa96dd) |
+| R3-A3 | analysis | low | the text index is still one file, refused above ~41k tracks (as in 0.9.3) | **deferred** (0.9.5: segment it like audio) |
+| R3-R1 | release | low | a failed clone removed a user-named ORT checkout | **fixed** (6568e495) |
+| R3-R2 | release | low | two worktrees with one ORT key share work dir and repo | comment **fixed**; lock deferred |
+| R3-R3 | release | low | `fdroid-mr` reset an MR branch with hand commits | **fixed** (6568e495): refuses when the branch holds commits it did not make |
+
+Round 3 had confirmed findings of medium or higher (all in the round-2 warm-up and the K placeholder key), so round 4 runs.
