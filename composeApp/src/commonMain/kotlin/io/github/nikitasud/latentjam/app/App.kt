@@ -4078,20 +4078,25 @@ private fun AppShell(
                 },
                 onToggleArtistSmartExclusion = artist?.let { artistName ->
                     {
-                        if (artistExcluded) {
-                            // Every name that hides it: including only one would leave the track hidden.
-                            val names = hidingArtists
-                            changeSmartExclusion(
-                                successMessage = Res.string.snack_artist_included_in_smart,
-                                change = { names.forEach { smartExclusions.includeArtist(it) } },
-                                undo = { names.forEach { smartExclusions.excludeArtist(it) } },
-                            )
-                        } else {
-                            changeSmartExclusion(
-                                successMessage = Res.string.snack_artist_excluded_from_smart,
-                                change = { smartExclusions.excludeArtist(artistName) },
-                                undo = { smartExclusions.includeArtist(artistName) },
-                            )
+                        scope.launch {
+                            // Decided on the tap, not on the label: a tap before the label's answer arrived still
+                            // includes every name that hides the track (including only one would leave it hidden).
+                            val names = withContext(Dispatchers.Default) {
+                                artistsHiding(target, smartExclusions.state.value)
+                            }
+                            if (names.isNotEmpty()) {
+                                changeSmartExclusion(
+                                    successMessage = Res.string.snack_artist_included_in_smart,
+                                    change = { names.forEach { smartExclusions.includeArtist(it) } },
+                                    undo = { names.forEach { smartExclusions.excludeArtist(it) } },
+                                )
+                            } else {
+                                changeSmartExclusion(
+                                    successMessage = Res.string.snack_artist_excluded_from_smart,
+                                    change = { smartExclusions.excludeArtist(artistName) },
+                                    undo = { smartExclusions.includeArtist(artistName) },
+                                )
+                            }
                         }
                     }
                 },
