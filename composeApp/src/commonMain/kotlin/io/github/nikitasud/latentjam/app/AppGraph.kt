@@ -595,7 +595,15 @@ object AppGraph {
         ) {
             // A live pass sees Continue through the cleared pause and resumes by itself; a finished one has nothing to
             // continue.
-            if (kind == AnalysisCall.CONTINUE) store.pendingContinue = false
+            if (kind == AnalysisCall.CONTINUE) {
+                store.pendingContinue = false
+                // A pass still preparing (initialise, sync, metadata) shows its pause until its first chunk otherwise.
+                if (live) {
+                    mutableAutomaticIndexing.update {
+                        if (it.stopReason == AnalysisStopReason.USER) it.copy(stopReason = null, running = true) else it
+                    }
+                }
+            }
             return
         }
         if (sameKey && kind == AnalysisCall.AUTOMATIC && !restartRules.allowed(store.stopReason)) return
@@ -952,8 +960,11 @@ object AppGraph {
      */
     private suspend fun continueAfterStop(job: Job?) {
         job?.join()
-        if (analysisControl.userPaused.value || automaticIndexingJob !== job) return
-        continueAutomaticIndexing()
+        // On the main thread, as every other caller: ensureAutomaticIndexing reads and replaces the job unlocked.
+        withContext(Dispatchers.Main) {
+            if (analysisControl.userPaused.value || automaticIndexingJob !== job) return@withContext
+            continueAutomaticIndexing()
+        }
     }
 
     /** The app came to the foreground: restarts a pass the platform or a failure stopped. */
@@ -1086,7 +1097,9 @@ object AppGraph {
 
     /**
      * iOS: the app-container roots the loudness cache's entries of builds before 0.9.4 name, added to the ones kept
-     * before (the cache is rewritten container-relative as it is used); every root kept so far. Empty elsewhere.
+     * before (the cache is rewritten container-relative as it is used); every root kept so far. Empty elsewhere, and
+     * empty on iOS when 0.9.3 never measured loudness (normalisation and crossfade off): a container that moved in the
+     * update then costs one more analysis of the imported files (SimilarityEngine.rememberLegacyContainerRoots).
      */
     private suspend fun keepLegacyContainerRoots(): Set<String> = legacyRootsLock.withLock {
         val kept = analysisStore.legacyContainerRoots?.lines()?.filter(String::isNotBlank).orEmpty().toCollection(LinkedHashSet())

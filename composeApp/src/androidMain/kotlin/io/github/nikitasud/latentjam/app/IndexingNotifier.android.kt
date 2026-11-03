@@ -239,14 +239,14 @@ internal fun analysisNotification(context: Context, content: AnalysisForegroundG
  */
 internal fun ensureChannel(context: Context, title: String) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-    // A blank title (a stray start with no run behind it) would name the channel for good.
-    if (title.isBlank()) return
     val manager = context.getSystemService(NotificationManager::class.java) ?: return
     if (manager.getNotificationChannel(CHANNEL_ID) != null) return
+    // A blank title (a stop posted before any run named the channel) must still create it: a foreground
+    // notification on a missing channel kills the app. The app's own name stands in, never the bare id.
     manager.createNotificationChannel(
         NotificationChannel(
             CHANNEL_ID,
-            title.ifBlank { CHANNEL_ID },
+            title.ifBlank { context.applicationInfo.loadLabel(context.packageManager).toString() },
             // LOW: progress worth glancing at, never worth interrupting for.
             NotificationManager.IMPORTANCE_LOW,
         ),

@@ -2232,7 +2232,7 @@ private fun IntelligenceSettings(
                 }
                 SettingsActionRow(
                     title = stringResource(Res.string.intelligence_rebuild),
-                    subtitle = if (indexing.running && indexing.phase != null) {
+                    subtitle = if (indexing.running && indexing.phase != null && indexing.phase != AnalysisPhase.PAUSING) {
                         stringResource(Res.string.analysis_pause_to_rebuild)
                     } else {
                         stringResource(Res.string.intelligence_rebuild_body)
