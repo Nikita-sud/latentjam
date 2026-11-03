@@ -630,6 +630,9 @@ object AppGraph {
                 // finish cancellation (including its final checkpoint) before the replacement starts.
                 existing?.cancelAndJoin()
             } catch (cancelled: CancellationException) {
+                // Replaced in turn while waiting: the old run still finishes before this one ends, so a newer run that
+                // joins only this one never runs beside the old run's cleanup (its wake-lock release, its last state).
+                withContext(NonCancellable) { existing?.join() }
                 notifier.close()
                 throw cancelled
             }
