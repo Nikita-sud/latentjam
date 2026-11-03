@@ -2062,12 +2062,15 @@ private fun IntelligenceSettings(
                     }
                 }
                 if (!libraryLoading && pausedByUser && tracks.isNotEmpty()) {
-                    Text(
-                        text = stringResource(Res.string.analysis_paused_by_you, done, tracks.size),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
-                    )
+                    // The count only once the pass has counted: never "0 of N" right after a cold start while paused.
+                    if (indexing.progressKnown) {
+                        Text(
+                            text = stringResource(Res.string.analysis_paused_by_you, done, tracks.size),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                        )
+                    }
                     Button(
                         onClick = AppGraph::continueAutomaticIndexing,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),

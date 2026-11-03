@@ -1642,7 +1642,8 @@ internal sealed interface MapIndexingHelp {
     ) : MapIndexingHelp
 
     /** The user paused the analysis: nothing moves until Continue. */
-    data class Paused(val done: Int, val total: Int) : MapIndexingHelp
+    /** [done] is null until the pass has counted (never "0 of N" right after a cold start). */
+    data class Paused(val done: Int?, val total: Int) : MapIndexingHelp
 
     /** Nothing will happen by itself: the engine failed, or the pass stopped before finishing. */
     data class Stopped(val engine: EngineState) : MapIndexingHelp
@@ -1662,7 +1663,10 @@ internal fun mapIndexingHelp(indexing: AutomaticIndexingState, engine: EngineSta
         )
     !indexing.running && !indexing.complete && indexing.trackIds.isNotEmpty() &&
         indexing.stopReason == AnalysisStopReason.USER ->
-        MapIndexingHelp.Paused(indexing.done.coerceAtMost(indexing.trackIds.size), indexing.trackIds.size)
+        MapIndexingHelp.Paused(
+            indexing.done.coerceAtMost(indexing.trackIds.size).takeIf { indexing.progressKnown },
+            indexing.trackIds.size,
+        )
     // A pass for this library ran and ended without even the metadata phase: it was interrupted.
     !indexing.running && indexing.trackIds.isNotEmpty() && !indexing.metadataReady ->
         MapIndexingHelp.Stopped(engine)
@@ -1712,12 +1716,14 @@ private fun MapIndexingStatus(onRetry: () -> Unit) {
                 Text(stringResource(Res.string.intelligence_retry))
             }
             is MapIndexingHelp.Paused -> {
-                Text(
-                    text = stringResource(Res.string.analysis_paused_by_you, help.done, help.total),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
+                if (help.done != null) {
+                    Text(
+                        text = stringResource(Res.string.analysis_paused_by_you, help.done, help.total),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
                 OutlinedButton(onClick = AppGraph::continueAutomaticIndexing, modifier = Modifier.padding(top = 16.dp)) {
                     Text(stringResource(Res.string.analysis_action_continue))
                 }

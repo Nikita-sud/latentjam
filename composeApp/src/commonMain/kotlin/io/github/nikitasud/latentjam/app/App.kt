@@ -1754,7 +1754,9 @@ private fun AppShell(
         // match needs, and is claimed once.
         val externalPlaylists = externalAudioOpener as? ExternalPlaylistOpener
         val externalPlaylist = externalPlaylists?.pendingPlaylist?.collectAsState()?.value
-        val songsLoaded = catalog != null
+        // A library read with access: before the media permission is granted the scan is empty or partial, and the
+        // playlist would be used up against it.
+        val songsLoaded = catalog != null && libraryIndexingRequest?.librarySnapshotAuthoritative == true
         LaunchedEffect(externalPlaylist, songsLoaded) {
             val result = externalPlaylist ?: return@LaunchedEffect
             if (!songsLoaded || !externalPlaylists.consumePlaylist(result)) return@LaunchedEffect
