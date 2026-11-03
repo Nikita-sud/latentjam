@@ -68,7 +68,7 @@ internal class SmartPressFootprintTest {
     }
 
     @Test
-    fun `with the hub in the background a warm press plans the recorded queues and a cold one computes no hub`() = runTest {
+    fun `with the hub kept a cold press computes the exact hub and every press plans the recorded queues`() = runTest {
         val audioStore = FakeIndexStore()
         val textStore = FakeIndexStore()
         val first = engine(audioStore, textStore, backgroundHub = true)
@@ -77,9 +77,10 @@ internal class SmartPressFootprintTest {
         first.ensureMetadataVectors(library)
         first.persistPendingAnalysis()
 
-        // Cold: the snapshot carries no hub (all 0) and the pass starts behind it.
+        // Cold: no kept hub fits these rows, so the build computes it, as every build did in 0.9.3 (review 0.9.4 round
+        // 4: a stand-in of zeros planned other queues than the exact hub).
         val cold = requireNotNull(first.smartSnapshot(emptyList()))
-        assertEquals(true, cold.hubPenalty.all { it == 0f })
+        assertEquals(RECORDED_FIRST_SNAPSHOT, digest(cold), "a cold press has the exact hub")
         first.awaitBackgroundHub()
         val planned = buildList {
             for (seed in listOf(3, 404, 777)) add("plain $seed: " + first.smartQueue(library[seed], library, 12).text())
@@ -93,7 +94,7 @@ internal class SmartPressFootprintTest {
             (200 until 230).map { library[it].id }.toSet(),
             (600 until 612).map { library[it].id }.toSet(),
         )
-        // A cold press (the restored library is listed by the press itself) starts the pass; the recorded ones run warm.
+        // A cold press (the restored library is listed by the press itself) computes the hub; the recorded ones reuse it.
         restarted.smartQueue(library[205], listed, 12, history, groups)
         restarted.awaitBackgroundHub()
         val start = restarted.smartQueue(library[205], listed, 12, history, groups)

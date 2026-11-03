@@ -1974,6 +1974,10 @@ internal class DefaultSimilarityEngine(
             hubPenaltyOf = if (config.backgroundHub) { ids -> hubPenaltyFor(ids).let { (answer, penalty) -> hub = answer; penalty } } else null,
         ) ?: return null
         val built = hub
+        // A hub computed inline (no kept one fitted these rows) is kept for the next build over the same rows.
+        if (built != null && built.exact && hubCache?.key != built.key) {
+            hubCache = HubCache(built.key, snapshot.tracks.map { it.id }, snapshot.hubPenalty)
+        }
         snapshotCache = SnapshotCache(indexRevision, semanticCache.size, snapshot, built?.key, built?.exact ?: true)
         if (built != null && !built.exact) {
             startHub(snapshot.centeredAudio, snapshot.tracks.map { it.id }, built.key)
@@ -2002,16 +2006,16 @@ internal class DefaultSimilarityEngine(
     }
 
     /**
-     * A snapshot's hub penalty under [SmartEngineConfig.backgroundHub]: the background pass's for exactly these rows, or
-     * until it is ready the last one by track (0 for a track it did not have), or none (all 0) before the first pass.
+     * A snapshot's hub penalty under [SmartEngineConfig.backgroundHub]: the kept one when it was computed for exactly
+     * these rows, else none (null): the build computes it inline, as every build did before 0.9.4, and [snapshotFor]
+     * keeps it. A plan never uses a stand-in (zeros or another row set's values): queues stay the ones a hub computed
+     * for their own rows gives (review 0.9.4 rounds 1-4). What the kept hub saves is the rebuilds over unchanged audio
+     * rows: a tag edit, new semantics, history.
      */
-    private fun hubPenaltyFor(ids: List<TrackId>): Pair<HubAnswer, FloatArray> {
+    private fun hubPenaltyFor(ids: List<TrackId>): Pair<HubAnswer, FloatArray?> {
         val key = hubKeyOf(ids)
-        val cached = hubCache ?: return HubAnswer(key, exact = false) to FloatArray(ids.size)
-        if (cached.key == key) return HubAnswer(key, exact = true) to cached.penalty
-        val byTrack = HashMap<TrackId, Float>(cached.ids.size * 2)
-        for ((row, id) in cached.ids.withIndex()) byTrack[id] = cached.penalty[row]
-        return HubAnswer(key, exact = false) to FloatArray(ids.size) { byTrack[ids[it]] ?: 0f }
+        val cached = hubCache?.takeIf { it.key == key } ?: return HubAnswer(key, exact = true) to null
+        return HubAnswer(key, exact = true) to cached.penalty
     }
 
     /**
@@ -2108,6 +2112,8 @@ internal class DefaultSimilarityEngine(
         withContext(dispatcher) {
             mutex.withLock {
                 if (hubJob?.isActive == true) return@withLock
+                // The audio rows the last hub was computed for are still the rows: nothing to do, and no build.
+                if (hubCache?.key?.audioRevision == audioRevision) return@withLock
                 // As a press: too few analysed rows plan from metadata, and build no snapshot.
                 if (index.size < requiredAudioCorpus(knownTracks.size)) return@withLock
                 val cached = snapshotCache != null
