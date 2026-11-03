@@ -1690,6 +1690,30 @@ private fun AppShell(
             }
         }
 
+        // What one or more read M3U files come to: the failure snackbar, or the offer sheet.
+        suspend fun offerM3uImport(result: LocalBackupFileResult<ImportedLocalDocuments>) {
+            when (result) {
+                is LocalBackupFileResult.Success -> {
+                    val imports = importM3uFiles(
+                        result.value.documents,
+                        catalog?.songs.orEmpty(),
+                        library::filePaths,
+                    ).filter { it.entryCount > 0 }
+                    if (imports.none { it.tracks.isNotEmpty() }) {
+                        snackbar.showSnackbar(getString(Res.string.snack_m3u_import_failed))
+                        return
+                    }
+                    // New playlists, or Favorites: chosen knowing how much of the files was found.
+                    sheets.m3uImportOffer = M3uImportOffer(
+                        imports,
+                        skippedFiles = result.value.documents.size + result.value.unreadableCount - imports.size,
+                    )
+                }
+                is LocalBackupFileResult.Failure -> snackbar.showSnackbar(getString(Res.string.snack_m3u_import_failed))
+                LocalBackupFileResult.Cancelled -> Unit
+            }
+        }
+
         // Playlists as an open format: export goes through the platform's document picker with
         // real file paths where the platform has them; import matches entries back against the
         // library by what survives a device change (the path below its root, then metadata).
@@ -1712,31 +1736,20 @@ private fun AppShell(
                     }
                 }
             },
-            onImportResult = { result ->
-                when (result) {
-                    is LocalBackupFileResult.Success -> scope.launch {
-                        val imports = importM3uFiles(
-                            result.value.documents,
-                            catalog?.songs.orEmpty(),
-                            library::filePaths,
-                        ).filter { it.entryCount > 0 }
-                        if (imports.none { it.tracks.isNotEmpty() }) {
-                            snackbar.showSnackbar(getString(Res.string.snack_m3u_import_failed))
-                            return@launch
-                        }
-                        // New playlists, or Favorites: chosen knowing how much of the files was found.
-                        sheets.m3uImportOffer = M3uImportOffer(
-                            imports,
-                            skippedFiles = result.value.documents.size + result.value.unreadableCount - imports.size,
-                        )
-                    }
-                    is LocalBackupFileResult.Failure -> scope.launch {
-                        snackbar.showSnackbar(getString(Res.string.snack_m3u_import_failed))
-                    }
-                    LocalBackupFileResult.Cancelled -> Unit
-                }
-            },
+            onImportResult = { result -> scope.launch { offerM3uImport(result) } },
         )
+        // An M3U opened from a file manager arrives already read and takes the same offer: nothing
+        // is created until the listener chooses in the sheet. It waits for the library, which the
+        // match needs, and is claimed once.
+        val externalPlaylists = externalAudioOpener as? ExternalPlaylistOpener
+        val externalPlaylist = externalPlaylists?.pendingPlaylist?.collectAsState()?.value
+        val songsLoaded = catalog != null
+        LaunchedEffect(externalPlaylist, songsLoaded) {
+            val result = externalPlaylist ?: return@LaunchedEffect
+            if (!songsLoaded || !externalPlaylists.consumePlaylist(result)) return@LaunchedEffect
+            // Claiming it changes this effect's key; the offer runs on in the screen's scope.
+            scope.launch { offerM3uImport(result) }
+        }
         suspend fun importM3uAsPlaylists(offer: M3uImportOffer) {
             val created = createM3uPlaylists(offer, getString(Res.string.playlist_imported_name)) { name, ids ->
                 AppGraph.playlists.create(name, ids)

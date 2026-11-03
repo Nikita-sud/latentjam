@@ -88,7 +88,9 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.APP_MUSIC" />
             </intent-filter>
-            <!-- Local files only. The activity resolves a visible library track before playing. -->
+            <!-- Local files only. The activity resolves a visible library track before playing, and
+                 offers an M3U playlist (audio/x-mpegurl falls under audio/*; the two application
+                 types are listed for senders that use them) to the playlist import instead. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -97,6 +99,8 @@
                 <data android:mimeType="audio/*" />
                 <data android:mimeType="application/ogg" />
                 <data android:mimeType="application/x-flac" />
+                <data android:mimeType="application/x-mpegurl" />
+                <data android:mimeType="application/vnd.apple.mpegurl" />
                 <data android:mimeType="vnd.android.cursor.item/audio" />
             </intent-filter>
         </activity>
