@@ -224,3 +224,24 @@ round 7 runs.
 
 Stand after round 7: 15/32 seeds identical to B (the R7-S1 class word moved 4 more seeds). Round 7 had confirmed
 medium findings, so round 8 runs.
+
+### Round 8 (HEAD 99319083)
+
+| # | area | sev | finding | verdict |
+|---|---|---|---|---|
+| R8-U1 | UI | med | the round-7 M3U gate opened while the catalog was still the old empty one being rebuilt after the permission grant | **fixed**: the catalog records its source list, the gate needs it to be the current tracks |
+| R8-S1 | SMART | low | modifier/compound genre spellings: "Alternative R&B", "Baroque Pop", "Synth-pop" vs "Synthpop", "New Wave", "Rhythm & Blues" | **deferred**: a fix moved 9 of 32 round-6 stand seeds ("New Wave", "Synth-pop" are common there), too large a drift from the queues the owner heard for a low finding; 0.9.5 with a new owner check |
+| R8-S2 | SMART | low | "Carol of the Bells" as spoken word, 3 spreads with hygiene | **fixed** (stand unchanged) |
+| R8-S3 | SMART | low | `EntityAliases` first-spelling order, and a race between the exclusion filter and a snapshot build (= R2-S4) | **deferred** (0.9.5: alias to the pack's canonical name) |
+| R8-A1 | analysis | low | a run replaced while joining its predecessor ended at once; the newest run could start beside the old run's cleanup | **fixed**: joins the predecessor NonCancellable before closing |
+| R8-A2 | analysis | low | Android cold start reads each audio segment twice under the engine lock | **deferred** (0.9.5: hash during the delivering read) |
+| R8-A3 | analysis | low | each checkpoint still does O(N·dim) work under the lock (as 0.9.3) | **deferred** |
+| R8-P1 | playback | low | tile with an unresolvable saved queue (= R2-P1) | **deferred** |
+| R8-P2 | playback | low | the exported MainActivity accepts the Continue action and tile-play extra from any app (no data exposure; analysis resumes or the saved queue plays) | **deferred** (0.9.5: trampoline activity) |
+| R8-R1 | release | low | `ndk:` lines (= R5-R3) | **deferred** |
+| R8-R2 | release | low | the app.yml gate could be met by a pull-request merge run | **fixed**: `--event push` |
+| R8-R3 | release | low | `LATENTJAM_ORT_WORK` set to a broad directory deletes generic sibling folders there | **deferred** (owner sets it only in CI) |
+| R8-R4 | release | low | `fdroid-mr` would open a second MR for 0.9.5 while 0.9.4's is open | **deferred** |
+| R8-I | iOS | — | no findings | — |
+
+Round 8 had one confirmed medium (R8-U1, introduced by the round-7 fix), so round 9 runs.
