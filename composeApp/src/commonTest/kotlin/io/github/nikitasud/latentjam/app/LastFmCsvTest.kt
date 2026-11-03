@@ -118,12 +118,48 @@ class LastFmCsvTest {
     }
 
     @Test
+    fun anArtistInBracketsOrBracesIsNoJson() {
+        val (rows, _) = read("[dunkelbunt],Album,Song,\"03 Nov 2026, 15:29\"\n{Artist},,Other,\"03 Nov 2026, 15:20\"\n", bom = true)
+        assertEquals(listOf("[dunkelbunt]", "{Artist}"), rows.map { it.artist })
+        val (braced, _) = read("{Artist},,Other,03 Nov 2026 15:20\n")
+        assertEquals(1, braced.size)
+        // A JSON array or object still opens as one.
+        assertEquals(1, read("[\n  " + ListenBrainzTestExports.listen(1_700_000_000, "A", "B") + "\n]").first.size)
+    }
+
+    @Test
+    fun aNumberIsNoDateAndNothingPredatesScrobbling() {
+        // A track list with years, or with lengths: no Last.fm history.
+        assertFailsWith<ListenBrainzFormatException> { read("Daft Punk,Discovery,One More Time,2001\nA,B,C,1999\n") }
+        assertFailsWith<ListenBrainzFormatException> { read("Band,Song,320\n") }
+        val (rows, summary) = read("A,B,C,03 Nov 2026 15:29\nA,B,D,2001\nA,B,E,\"01 Jan 1999, 10:00\"\nA,B,F,01 Jan 1970 00:10\n")
+        assertEquals(listOf("C"), rows.map { it.title })
+        assertEquals(3, summary.unreadable)
+    }
+
+    @Test
+    fun proseWithCommasIsRefusedEvenWhenItEndsInOne() {
+        assertFailsWith<ListenBrainzFormatException> { read("Hello, how are you, today,\nI am fine, thanks, and you,\n") }
+        assertFailsWith<ListenBrainzFormatException> { read("Hello, how are you, today,\nFine thanks\n") }
+        // A file holding only the track playing when it was saved is a Last.fm CSV with no listens.
+        assertEquals(0, read("Artist,Album,Song,\n").first.size)
+    }
+
+    @Test
+    fun aRecordOfManyEmptyFieldsIsUnreadableNotCollected() {
+        val (rows, summary) = read("A,B,C,03 Nov 2026 15:29\n" + ",".repeat(200_000) + "\nA,B,D,03 Nov 2026 15:28\n", chunk = 65_536)
+        assertEquals(listOf("C", "D"), rows.map { it.title })
+        assertEquals(1, summary.unreadable)
+    }
+
+    @Test
     fun lastFmDates() {
         assertEquals(nov3, LastFmCsvReader.dateSeconds("03 Nov 2026, 15:29"))
         assertEquals(nov3, LastFmCsvReader.dateSeconds("3 nov 2026 15:29"))
         assertEquals(nov3, LastFmCsvReader.dateSeconds("2026-11-03T15:29:00Z"))
         assertNull(LastFmCsvReader.dateSeconds("31 Foo 2026 15:29"))
         assertNull(LastFmCsvReader.dateSeconds("03 Nov 2026 25:29"))
+        assertNull(LastFmCsvReader.dateSeconds("1793719740"))
     }
 
     @Test
@@ -174,6 +210,23 @@ class LastFmCsvTest {
         assertEquals(0, again.imported)
         assertEquals(3, again.alreadyPresent)
         assertEquals(before, history.allEvents())
+    }
+
+    @Test
+    fun repeatsAWholePlayApartStayTwoListensAtMinutePrecision() = runTest {
+        val short = TrackDescriptor(id = TrackId("s"), artist = "A", title = "S", durationMs = 150_000L)
+        val shorter = TrackDescriptor(id = TrackId("r"), artist = "A", title = "R", durationMs = 100_000L)
+        val history = DefaultListeningHistory(MemoryStore())
+        // Played 15:29:10 and 15:31:40 (150 s), 15:29:05 and 15:30:45 (100 s); one play scrobbled twice in one minute.
+        val report = ListenBrainzImporter(history, Library(listOf(short, shorter)), now = { 1_800_000_000_000L }).import(
+            source = csv(
+                "A,,S,\"03 Nov 2026, 15:31\"\nA,,S,\"03 Nov 2026, 15:29\"\n" +
+                    "A,,R,\"02 Nov 2026, 15:30\"\nA,,R,\"02 Nov 2026, 15:29\"\n" +
+                    "A,,S,\"01 Nov 2026, 10:00\"\nA,,S,\"01 Nov 2026, 10:00\"\n",
+            )::open,
+        )
+        assertEquals(5, report.imported)
+        assertEquals(1, report.alreadyPresent)
     }
 
     /** `artist,album,name,date` rows produced on demand: the file is never held. */

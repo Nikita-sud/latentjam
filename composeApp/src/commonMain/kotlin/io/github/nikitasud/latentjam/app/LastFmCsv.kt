@@ -19,65 +19,62 @@ package io.github.nikitasud.latentjam.app
  *
  * Fields follow RFC 4180: quoted fields may hold commas, line breaks and doubled quotes. A UTF-8 byte order mark and CRLF
  * line ends are accepted. A row without a date (the track playing when the file was saved) is no listen and is skipped;
- * a row whose date cannot be read, or that is longer than [ListenBrainzExportReader.MAX_RECORD_BYTES], is counted as
- * unreadable. Memory stays bounded by the reader's buffer and one record.
+ * a row whose date cannot be read or lies before scrobbling began (2002), or that is longer than
+ * [ListenBrainzExportReader.MAX_RECORD_BYTES] or wider than [MAX_FIELDS], is counted as unreadable. Memory stays bounded
+ * by the reader's buffer and one record.
  */
 internal object LastFmCsvReader {
     /**
-     * Whether the input's first record reads as one of the two layouts. Looks ahead only; nothing is consumed. Text that
-     * is not CSV (a binary file, a playlist) fails here instead of being scanned to its end for rows.
+     * Whether the input reads as one of the layouts: its first record is a header, or its first dated record (after a
+     * now-playing row) is `artist,[album,]track,date` with a Last.fm date. Looks ahead at most [SNIFF_BYTES]; nothing is
+     * consumed. Text that is not such a CSV (a binary file, a playlist, prose with commas) fails here instead of being
+     * scanned to its end for rows.
      */
     fun looksLikeCsv(bytes: ByteReader): Boolean {
         val window = minOf(SNIFF_BYTES, bytes.buffer.size)
         bytes.ensure(window)
         val available = bytes.available()
-        var at = if (hasBom(bytes)) 3 else 0
-        // Leading blank lines.
-        while (at < available && (bytes.at(at) == '\r'.code || bytes.at(at) == '\n'.code)) at++
-        val fields = mutableListOf<String>()
-        val field = ByteBuffer()
-        var quoted = false
-        var ended = false
-        while (at < available) {
-            val c = bytes.at(at++)
-            if (c == 0) return false
-            if (quoted) {
-                if (c == '"'.code) {
-                    if (at < available && bytes.at(at) == '"'.code) {
-                        field.add(c)
-                        at++
-                    } else {
-                        quoted = false
-                    }
-                } else {
-                    field.add(c)
-                }
+        val start = if (hasBom(bytes)) 3 else 0
+        for (at in start until available) {
+            val c = bytes.at(at)
+            if (c < 0x20 && c != '\t'.code && c != '\r'.code && c != '\n'.code) return false
+        }
+        // More may follow the window: a record the window cuts cannot be judged.
+        val cut = available >= window
+        var copied = start
+        val view = ByteReader(
+            ExportByteInput { buffer, offset, length ->
+                if (copied == available) return@ExportByteInput -1
+                val count = minOf(length, available - copied)
+                bytes.buffer.copyInto(buffer, offset, bytes.position + copied, bytes.position + copied + count)
+                copied += count
+                count
+            },
+            capacity = window,
+        )
+        val records = Records(view)
+        var first = true
+        while (true) {
+            val fields = records.next() ?: return !first
+            if (cut && !records.endedAtLine) return false
+            if (fields === Records.TOO_LONG) return false
+            if (fields.size == 1 && fields[0].isEmpty()) continue
+            if (first && layoutOf(fields) != null) return true
+            val row = headerless(fields) ?: return false
+            // The track playing when the file was saved comes first and has no date: judge by the next record.
+            if (row.date.isEmpty() && first) {
+                first = false
                 continue
             }
-            when (c) {
-                '"'.code -> if (field.size == 0) quoted = true else field.add(c)
-                ','.code -> fields += field.take()
-                '\n'.code, '\r'.code -> {
-                    ended = true
-                    break
-                }
-                else -> {
-                    if (c < 0x20 && c != '\t'.code) return false
-                    field.add(c)
-                }
-            }
+            return lastFmDateSeconds(row.date) != null
         }
-        // A one-line file has no line end; a record cut by the window cannot be judged.
-        if (!ended && available >= window) return false
-        fields += field.take()
-        return layoutOf(fields) != null || headerless(fields)?.let { it.date.isEmpty() || dateSeconds(it.date) != null } == true
     }
 
     /**
-     * Reads every record after [looksLikeCsv] said yes. [onRow] gets each scrobble; [onUnreadable] each record that names
-     * one but cannot be read.
+     * Reads every record after [looksLikeCsv] said yes. [onRow] gets each scrobble, and whether its time is a whole
+     * minute (Last.fm's date text) rather than seconds; [onUnreadable] each record that names one but cannot be read.
      */
-    fun read(bytes: ByteReader, onRow: (ListenBrainzRow) -> Unit, onUnreadable: () -> Unit) {
+    fun read(bytes: ByteReader, onRow: (row: ListenBrainzRow, wholeMinutes: Boolean) -> Unit, onUnreadable: () -> Unit) {
         if (hasBom(bytes)) bytes.skip(3)
         val records = Records(bytes)
         var layout: Layout? = null
@@ -101,7 +98,7 @@ internal object LastFmCsvReader {
                 row.date.isEmpty() && row.seconds == null -> Unit
                 else -> {
                     val seconds = row.seconds ?: dateSeconds(row.date)
-                    if (seconds == null || seconds <= 0) {
+                    if (seconds == null || seconds < SCROBBLING_BEGAN_SECONDS) {
                         onUnreadable()
                     } else {
                         onRow(
@@ -112,6 +109,7 @@ internal object LastFmCsvReader {
                                 release = row.album,
                                 recordingMbid = row.mbid,
                             ),
+                            row.seconds == null,
                         )
                     }
                 }
@@ -179,10 +177,19 @@ internal object LastFmCsvReader {
         return Scrobble(fields[0].trim().takeIf(String::isNotEmpty), album, title, fields.last().trim())
     }
 
-    /** Epoch seconds of a Last.fm date (`03 Nov 2026 15:29`, `03 Nov 2026, 15:29`; UTC), or epoch seconds or ISO 8601. */
+    /**
+     * Epoch seconds of a date column: Last.fm's text (`03 Nov 2026 15:29`, `03 Nov 2026, 15:29`; UTC) or ISO 8601. Never
+     * a bare number: in a column of text dates it is a year or a length (a track list), not a time.
+     */
     internal fun dateSeconds(text: String): Long? {
-        val match = LASTFM_DATE.matchEntire(text.trim())
-            ?: return ListenBrainzExportReader.listenedAtSeconds(text.trim())
+        val trimmed = text.trim()
+        lastFmDateSeconds(trimmed)?.let { return it }
+        if (trimmed.all(Char::isDigit)) return null
+        return ListenBrainzExportReader.listenedAtSeconds(trimmed)
+    }
+
+    private fun lastFmDateSeconds(text: String): Long? {
+        val match = LASTFM_DATE.matchEntire(text.trim()) ?: return null
         val g = match.groupValues
         val month = MONTHS.indexOf(g[2].lowercase()) + 1
         val day = g[1].toInt()
@@ -206,17 +213,22 @@ internal object LastFmCsvReader {
         private val field = ByteBuffer()
         private var recordBytes = 0
 
+        /** Whether the record [next] returned last ended at a line end rather than at the input's end. */
+        var endedAtLine = false
+            private set
+
         fun next(): List<String>? {
             if (bytes.peek() < 0) return null
             val fields = ArrayList<String>(8)
             field.clear()
             recordBytes = 0
+            endedAtLine = false
             var quoted = false
             var tooLong = false
             while (true) {
                 val c = bytes.next()
                 if (c < 0) break
-                if (++recordBytes > ListenBrainzExportReader.MAX_RECORD_BYTES && !tooLong) {
+                if (!tooLong && (++recordBytes > ListenBrainzExportReader.MAX_RECORD_BYTES || fields.size > MAX_FIELDS)) {
                     tooLong = true
                     field.clear()
                     fields.clear()
@@ -237,9 +249,13 @@ internal object LastFmCsvReader {
                 when (c) {
                     '"'.code -> if (field.size == 0) quoted = true else if (!tooLong) field.add(c)
                     ','.code -> if (!tooLong) fields += field.take()
-                    '\n'.code -> break
+                    '\n'.code -> {
+                        endedAtLine = true
+                        break
+                    }
                     '\r'.code -> {
                         if (bytes.peek() == '\n'.code) bytes.next()
+                        endedAtLine = true
                         break
                     }
                     else -> if (!tooLong) field.add(c)
@@ -274,6 +290,12 @@ internal object LastFmCsvReader {
     }
 
     private const val SNIFF_BYTES = 16 * 1024
+
+    /** Fields one record may hold; the widest layout has eight. More is no scrobble, and is not collected. */
+    private const val MAX_FIELDS = 64
+
+    /** 2002-01-01 UTC: Last.fm began scrobbling in 2002, so an earlier date is no scrobble. */
+    private const val SCROBBLING_BEGAN_SECONDS = 1_009_843_200L
     private val LASTFM_DATE = Regex("(\\d{1,2})\\s+([A-Za-z]{3})\\s+(\\d{4}),?\\s+(\\d{1,2}):(\\d{2})(?::(\\d{2}))?")
     private val MONTHS = listOf("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
     private val MBID = Regex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")

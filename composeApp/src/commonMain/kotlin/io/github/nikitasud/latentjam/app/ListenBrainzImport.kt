@@ -556,7 +556,7 @@ internal class ListenBrainzImporter(
         var overLimit = matched.trimmed.toInt()
         if (candidates.isNotEmpty()) {
             history.merge(imported = emptyList(), maxEvents = maxHistoryEvents) { existing, _ ->
-                val fold = fold(existing, candidates, matcher.tracks, matcher.groups)
+                val fold = fold(existing, candidates, matcher.tracks, matcher.groups, summary.minutePrecision)
                 imported = fold.added.size
                 songs = fold.songs
                 alreadyPresent = matched.duplicates.toInt() + fold.alreadyPresent
@@ -585,6 +585,8 @@ internal class ListenBrainzImporter(
         candidates: LongArray,
         tracks: List<TrackDescriptor>,
         groups: IntArray,
+        /** The rows' times are whole minutes (a Last.fm CSV): two of them may be up to a minute closer than they were. */
+        minutePrecision: Boolean,
     ): Fold {
         val indexById = HashMap<String, Int>(tracks.size * 2)
         tracks.forEachIndexed { index, track -> indexById[track.id.value] = index }
@@ -613,7 +615,10 @@ internal class ListenBrainzImporter(
             val exact = sortedAll[index]?.anyWithin(startMs, 0L) == true
             val nearInApp = sortedInApp[index]?.let { starts -> starts.anyWithin(startMs, IN_APP_WINDOW_MS) } == true
             val window = doubleScrobbleWindow(tracks[track])
-            val doubled = lastKept[index]?.let { startMs - it <= window } == true ||
+            // Cut to the minute, a repeat a whole play apart can look up to 59 s closer: within the export the window
+            // shrinks by that minute, so it only joins rows that are still one play (the same minute, for most songs).
+            val ownWindow = if (minutePrecision) (window - MINUTE_MS).coerceAtLeast(0L) else window
+            val doubled = lastKept[index]?.let { startMs - it <= ownWindow } == true ||
                 sortedImported[index]?.anyWithin(startMs, window) == true
             if (exact || nearInApp || doubled) {
                 alreadyPresent++
@@ -727,6 +732,8 @@ internal class ListenBrainzImporter(
 
         /** See [doubleScrobbleWindow]. */
         const val DOUBLE_SCROBBLE_MS: Long = 120_000L
+
+        private const val MINUTE_MS = 60_000L
 
         private const val INDEX_BITS = 30
         private const val INDEX_MASK = (1L shl INDEX_BITS) - 1

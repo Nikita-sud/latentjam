@@ -38,6 +38,8 @@ internal data class ListenBrainzReadSummary(
     val unreadable: Long,
     /** True when the read stopped at [ListenBrainzExportReader.MAX_ROWS]. */
     val truncated: Boolean,
+    /** True when the rows' times are whole minutes (a Last.fm CSV's date text), not seconds. */
+    val minutePrecision: Boolean = false,
 )
 
 internal class ListenBrainzFormatException(message: String) : IllegalArgumentException(message)
@@ -70,20 +72,28 @@ internal object ListenBrainzExportReader {
     fun read(input: ExportByteInput, onRow: (ListenBrainzRow) -> Unit): ListenBrainzReadSummary {
         val state = ReadState(onRow)
         val bytes = ByteReader(input)
+        var minutePrecision = false
         try {
             if (bytes.ensure(4) && bytes.le32(0) == ZIP_LOCAL) {
                 readZip(bytes, state)
             } else if (startsLikeJson(bytes)) {
                 JsonRecords(bytes, state).readAll()
             } else if (LastFmCsvReader.looksLikeCsv(bytes)) {
-                LastFmCsvReader.read(bytes, onRow = state::emit, onUnreadable = { state.unreadable++ })
+                LastFmCsvReader.read(
+                    bytes,
+                    onRow = { row, wholeMinutes ->
+                        if (wholeMinutes) minutePrecision = true
+                        state.emit(row)
+                    },
+                    onUnreadable = { state.unreadable++ },
+                )
             } else {
                 throw ListenBrainzFormatException("Not a ZIP, JSON or Last.fm CSV file")
             }
         } catch (_: RowLimitReached) {
-            return ListenBrainzReadSummary(state.rows, state.unreadable, truncated = true)
+            return ListenBrainzReadSummary(state.rows, state.unreadable, truncated = true, minutePrecision = minutePrecision)
         }
-        return ListenBrainzReadSummary(state.rows, state.unreadable, truncated = false)
+        return ListenBrainzReadSummary(state.rows, state.unreadable, truncated = false, minutePrecision = minutePrecision)
     }
 
     /**
@@ -93,10 +103,18 @@ internal object ListenBrainzExportReader {
      */
     private fun startsLikeJson(bytes: ByteReader): Boolean {
         var at = 0
+        // The opening byte, then what must follow it: a Last.fm CSV may start with an artist named "[dunkelbunt]".
+        var opened = 0
         while (at < JSON_SNIFF_BYTES && bytes.ensure(at + 1)) {
-            when (bytes.buffer[bytes.position + at].toInt() and 0xFF) {
-                0x20, 0x09, 0x0A, 0x0D, 0xEF, 0xBB, 0xBF -> at++
-                '{'.code, '['.code -> return true
+            val c = bytes.buffer[bytes.position + at].toInt() and 0xFF
+            when {
+                c == 0x20 || c == 0x09 || c == 0x0A || c == 0x0D || (opened == 0 && (c == 0xEF || c == 0xBB || c == 0xBF)) -> at++
+                opened == '['.code -> return c == '{'.code || c == '['.code || c == ']'.code
+                opened == '{'.code -> return c == '"'.code || c == '}'.code
+                c == '{'.code || c == '['.code -> {
+                    opened = c
+                    at++
+                }
                 else -> return false
             }
         }
