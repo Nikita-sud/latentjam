@@ -209,7 +209,8 @@ object AppGraph {
                                 artistRunPenalty = ARTIST_VARIETY_PENALTIES[sanitizeArtistVariety(get<AppSettings>().artistVariety.value)],
                                 queueClassPenalty = SMART_QUEUE_CLASS_PENALTY,
                                 artistSets = SMART_ARTIST_SETS,
-                                // A press no longer pays the hub penalty (external review 2026-11-02, SCALE-01).
+                                // The hub penalty is kept for the audio rows it was computed for: rebuilds over the same rows
+                                // reuse it; the first press after an audio change computes it, as in 0.9.3 (SmartEngineConfig).
                                 backgroundHub = true,
                                 themeWeights = SMART_THEME_WEIGHTS,
                                 themeSlots = SMART_THEME_SLOTS,
