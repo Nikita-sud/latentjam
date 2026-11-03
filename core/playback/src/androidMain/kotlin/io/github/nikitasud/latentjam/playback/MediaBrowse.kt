@@ -52,9 +52,12 @@ public object MediaBrowseRegistry {
     /**
      * Supplies the last durable queue to Media3's playback-resumption callback. Without this,
      * Play from a widget, Quick Settings, Bluetooth, or System UI is a no-op after process death.
+     * Its argument says whether the queue is about to be installed and played by the platform: only then is it
+     * announced ([announceActiveResumption]), since an announced resumption makes the app's own launch restore yield.
+     * System UI's boot-time "recent media" card only reads it, and the widget restores it itself.
      */
     @Volatile
-    public var resumption: (suspend () -> MediaPlaybackResume?)? = null
+    public var resumption: (suspend (forPlayback: Boolean) -> MediaPlaybackResume?)? = null
 
     /**
      * Whether [resumption] can restore a saved queue — one is saved and the music it names can be

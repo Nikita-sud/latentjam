@@ -420,14 +420,15 @@ public class PlaybackService : MediaLibraryService() {
         override fun onPlaybackResumption(
             mediaSession: MediaSession,
             controller: MediaSession.ControllerInfo,
-            playWhenReady: Boolean,
+            isForPlayback: Boolean,
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = resumptionFuture {
-            val resume = MediaBrowseRegistry.resumption?.invoke() ?: run {
+            // Without isForPlayback (System UI's boot-time "recent media" card) Media3 only reads the queue's metadata.
+            val resume = MediaBrowseRegistry.resumption?.invoke(isForPlayback) ?: run {
                 // A play press may have put the service in the foreground for this queue.
                 exitPromotion()
                 throw UnsupportedOperationException("No saved playback queue")
             }
-            pendingResumptionMode = resume.shuffleMode
+            if (isForPlayback) pendingResumptionMode = resume.shuffleMode
             MediaSession.MediaItemsWithStartPosition(
                 resume.tracks.map(::playableItem),
                 resume.startIndex,
@@ -576,7 +577,7 @@ public class PlaybackService : MediaLibraryService() {
             )
         }
         return resumptionFuture {
-            val resume = MediaBrowseRegistry.resumption?.invoke() ?: run {
+            val resume = MediaBrowseRegistry.resumption?.invoke(true) ?: run {
                 exitPromotion()
                 recordExternalMediaEvent(
                     source = controller.packageName,

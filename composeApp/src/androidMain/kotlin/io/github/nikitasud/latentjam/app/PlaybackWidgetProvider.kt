@@ -184,7 +184,7 @@ private suspend fun PlaybackController.ensureWidgetQueue(): Boolean = widgetRest
     // for that restore, while transport commands remain free to interrupt a pending SMART Next.
     synchronizeWithPlatformSession()
     if (state.value.queue.isNotEmpty()) return@withLock true
-    val resume = MediaBrowseRegistry.resumption?.invoke() ?: return@withLock false
+    val resume = MediaBrowseRegistry.resumption?.invoke(false) ?: return@withLock false
     setShuffleMode(resume.shuffleMode)
     restoreQueue(
         tracks = resume.tracks,

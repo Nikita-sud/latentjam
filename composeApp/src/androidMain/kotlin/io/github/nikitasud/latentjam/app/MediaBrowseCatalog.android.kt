@@ -64,7 +64,7 @@ internal fun installMediaBrowseCatalog(context: Context) {
     MediaBrowseRegistry.canRestoreSavedQueue = {
         AppGraph.settings.resumePlayback.value != null && hasMusicAccess(appContext)
     }
-    MediaBrowseRegistry.resumption = {
+    MediaBrowseRegistry.resumption = { forPlayback ->
         try {
             buildMediaPlaybackResume()?.also { resume ->
                 // A headset, the widget or a voice request resumes the saved queue without the UI,
@@ -74,6 +74,10 @@ internal fun installMediaBrowseCatalog(context: Context) {
                 if (AppGraph.queueSource.value == null) {
                     AppGraph.queueSource.value = AppGraph.settings.resumePlayback.value?.savedQueueSource()
                 }
+                // Only a queue the platform installs is announced: the launch restore yields to an announced
+                // resumption, so one that is only read (System UI's boot-time card) or that the widget restores
+                // itself would leave the player empty under the saved queue.
+                if (!forPlayback) return@also
                 MediaBrowseRegistry.announceActiveResumption(resume)
                 // A widget/tile/Auto controller can start playback without ever opening the UI.
                 // Connect the app controller too, so it owns queue/source transitions and its
