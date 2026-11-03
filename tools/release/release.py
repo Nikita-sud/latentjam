@@ -157,7 +157,8 @@ def changelog_problems(base):
 
 
 def dry_run_problems(version, head):
-    """The release/<version> dry run on this exact commit: android, the four F-Droid blocks and sign-dry green."""
+    """The release/<version> dry run on this exact commit: android, the four F-Droid blocks and sign-dry green, and the
+    unit tests (app.yml) green."""
     out = subprocess.run(["gh", "run", "list", "--workflow", "release.yml", "--branch", f"release/{version}",
                           "--json", "databaseId,headSha,status", "--limit", "20"], capture_output=True, text=True)
     if out.returncode:
@@ -171,6 +172,17 @@ def dry_run_problems(version, head):
     needed = ["android", "sign-dry"] + [f"fdroid ({abi})" for abi in ("armeabi-v7a", "arm64-v8a", "x86", "x86_64")]
     problems = [f"dry-run job {name}: {results.get(name) or 'not finished'}" for name in needed
                 if results.get(name) != "success"]
+    # The unit tests (app.yml) on the same commit: the release jobs only build.
+    tests = subprocess.run(["gh", "run", "list", "--workflow", "app.yml", "--branch", f"release/{version}",
+                            "--json", "headSha,status,conclusion", "--limit", "20"], capture_output=True, text=True)
+    if tests.returncode:
+        problems.append(f"gh run list (app.yml) failed: {tests.stderr.strip()}")
+    else:
+        verified = [r for r in json.loads(tests.stdout) if r["headSha"] == head]
+        if not verified:
+            problems.append(f"no app.yml run for {head[:10]} on release/{version}")
+        elif verified[0].get("conclusion") != "success":
+            problems.append(f"app.yml (unit tests) for {head[:10]}: {verified[0].get('conclusion') or 'not finished'}")
     if results.get("ios") != "success":
         print(f"note: CI ios job {results.get('ios') or 'not finished'}; the IPA then comes from the Mac "
               f"(tools/release/build.sh ios, attach, release.py sums)")
