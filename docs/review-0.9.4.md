@@ -601,3 +601,30 @@ diagnostics; `~/Documents/LJ/integ094-stand/xfade-restart-emulator.md`):
   pause and resume, and SMART seams: no lost overlap. Mono against stereo fades, as designed.
 - **Not reproduced.** No playback error occurred under an overlap: errors came only from the opening-capture player,
   which falls back to a fade, or from a broken track once it was current. The error and sink paths stay as hardening.
+
+## Queue flicker on "add to playlist"
+
+Owner (0.9.3 release): «когда я добавляю трек из очереди в плейлист какая-то хрень происходит. на мгновение что-то
+исчезает и появляется»; later «как будто сама очередь на мгновение сворачивается».
+
+**Path.** Queue row ⋮ (TrackActionsSheet, which hides before it opens the next sheet) → Add to playlist →
+`AddToPlaylistSheet` → pick a playlist (`App.kt`, the `addToPlaylistSelection` block).
+
+**Ruled out by reading the code:**
+
+- **Player state.** The write changes no Media3 timeline and no MediaItem. `smartUserPlaylists` and
+  `smartPersonalPlaylists` are read lazily at the next SMART plan, so nothing replans the queue.
+- **The player collapsing.** The player's queue sheet collapses only when the player is parked
+  (`parked = !revealed`), and `revealed` stays true while the player is open.
+
+**Suspects:**
+
+1. **The sheet vanishing.** After the add, `addToPlaylistSelection = null` removed the sheet from composition at once,
+   without the hide animation every other dismissal runs. Its own window vanished over the player in one frame.
+2. **A redraw behind the player.** `publishPlaylists` after the add recomposes whatever reads `playlistsState` behind
+   the player.
+
+**Fix for (1)** (408d29b5). After a successful add the sheet slides away (`ShellSheets.addToPlaylistClosing` →
+`sheetState.hide()` → `onDismiss`), as every other dismissal does, and takes no second pick while it does. The sheet
+still stays up during the write, so a failure shows its message there. The R8 register gate still passes (243 of 255).
+No Compose UI test exists in this repository, so the check is the emulator recording; it is pending.
