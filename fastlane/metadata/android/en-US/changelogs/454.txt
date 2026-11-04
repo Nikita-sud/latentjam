@@ -1,0 +1,8 @@
+Import your Last.fm history from a CSV file.
+Sort Tracks and Folders by date added or date modified.
+SMART: fewer spoken and fragment inserts, artist names merged, genres and languages as sets, better queues for multi-genre tags.
+Crossfade no longer restarts the next track.
+The queue no longer flickers when you add a track to a playlist.
+Faster, steadier analysis for large libraries.
+Widget corners stay round after a reboot.
+Many fixes.
