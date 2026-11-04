@@ -611,6 +611,8 @@ internal fun AddToPlaylistSheet(
     onDismiss: () -> Unit,
     busy: Boolean = false,
     errorMessage: String? = null,
+    /** The add went through: the sheet hides as any dismissal does, then [onDismiss] runs. */
+    closing: Boolean = false,
 ) {
     // While the add is in flight the sheet refuses to hide. Material3 hides the sheet itself
     // before Back or a scrim tap reaches onDismissRequest, so a dismissal refused after the fact
@@ -625,6 +627,17 @@ internal fun AddToPlaylistSheet(
     val scope = rememberCoroutineScope()
     val reduceMotion = rememberReduceMotion()
     var dismissalInFlight by remember { mutableStateOf(false) }
+    val currentOnDismiss by rememberUpdatedState(onDismiss)
+    LaunchedEffect(closing) {
+        if (!closing) return@LaunchedEffect
+        // No second pick while it slides away.
+        dismissalInFlight = true
+        try {
+            if (!reduceMotion) sheetState.hide()
+        } finally {
+            currentOnDismiss()
+        }
+    }
 
     fun dismissThen(action: () -> Unit) {
         if (busy) {

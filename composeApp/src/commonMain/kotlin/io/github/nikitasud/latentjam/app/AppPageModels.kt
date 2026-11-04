@@ -524,6 +524,9 @@ internal class MapPageModel {
 @Stable
 internal class ShellSheets {
     var addToPlaylistSelection by mutableStateOf<List<TrackDescriptor>?>(null)
+
+    /** The add went through: the sheet slides away, and only then is [addToPlaylistSelection] cleared. */
+    var addToPlaylistClosing by mutableStateOf(false)
     var artistChoices by mutableStateOf<List<ArtistGroup>>(emptyList())
     var playerDetailsRequest by mutableStateOf(0)
     var playerSleepTimerRequest by mutableStateOf(0)
