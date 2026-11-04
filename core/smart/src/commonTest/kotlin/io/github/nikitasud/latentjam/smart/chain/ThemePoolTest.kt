@@ -34,6 +34,15 @@ internal class ThemePoolTest {
     private val metadataTheme = floatArrayOf(0f, 0f, 1f, 1f, 1f, 1f, 0f, 0f)
 
     @Test
+    fun theFeatureOrderIsTheOneTheAppsWeightsAreWrittenIn() {
+        // SMART_THEME_WEIGHTS and SmartThemeWeightsTest index the genre terms as 2 and 3.
+        assertEquals(
+            listOf("audio_z", "descriptor_z", "family_jaccard", "family_any", "same_language", "same_era", "same_artist", "energy_gap"),
+            ThemePool.FEATURE_NAMES,
+        )
+    }
+
+    @Test
     fun `features describe each row against the reference`() {
         val snapshot = library()
         val f = ThemePool.features(snapshot, 0)

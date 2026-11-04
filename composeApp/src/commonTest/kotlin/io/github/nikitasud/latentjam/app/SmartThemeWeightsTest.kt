@@ -25,7 +25,9 @@ class SmartThemeWeightsTest {
     @Test
     fun sharingAGenreFamilyNeverScoresBelowSharingNone() {
         assertEquals(8, weights.size)
-        // Every Jaccard a pair sharing at least one family can have, up to eight families a side.
+        // A negative any-overlap weight breaks the property for some long enough list, whatever the Jaccard weight.
+        assertTrue(weights[ANY] >= 0f, "any-overlap weight ${weights[ANY]}")
+        // Every Jaccard a pair sharing at least one family can have, up to sixteen families a side.
         for (a in 1..MAX_FAMILIES) for (b in 1..MAX_FAMILIES) for (shared in 1..minOf(a, b)) {
             val jaccard = shared.toFloat() / (a + b - shared)
             assertTrue(
@@ -50,6 +52,7 @@ class SmartThemeWeightsTest {
         /** Indices in ThemePool.FEATURE_NAMES. */
         const val JACCARD = 2
         const val ANY = 3
-        const val MAX_FAMILIES = 8
+        // One genre value can expand to several families ("dance pop" is three): room for long lists.
+        const val MAX_FAMILIES = 16
     }
 }

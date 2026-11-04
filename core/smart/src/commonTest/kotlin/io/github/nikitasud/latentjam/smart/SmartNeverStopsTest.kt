@@ -191,7 +191,7 @@ internal class SmartNeverStopsTest {
             queueClassPenalty = 1f,
             artistSets = true,
             backgroundHub = true,
-            themeWeights = listOf(0.6910f, 0.5599f, 1.6095f, -0.6242f, 0.8016f, 0.0988f, 1.0009f, -3.2116f),
+            themeWeights = listOf(0.6910f, 0.5599f, 1.6095f, 0f, 0.8016f, 0.0988f, 1.0009f, -3.2116f),
             themeSlots = 25,
             themeBonus = 1.5f,
             judgedCorrection = false,

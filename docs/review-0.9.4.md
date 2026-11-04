@@ -528,3 +528,13 @@ is identical (`aspect/RESULTS_W3FIX.md`, 549abaee).
   - App vs hook: 18/32 identical with Z, 15/32 with theme_gt. The rest is the drift the review rounds' fixes logged
     above; Z adds none. Runs: `~/Documents/LJ/integ094-stand/w3_*`.
 - **Goldens.** None pins the app's theme weights; core:smart (939) and composeApp (1428) host tests pass unchanged.
+
+| # | sev | finding | verdict |
+|---|---|---|---|
+| W3-1 | low | `SmartNeverStopsTest.APP_LIKE` said "what AppGraph builds" but kept −0.6242 | **fixed**: 0 |
+| W3-2 | low | the weights' feature indices were pinned by hand only | **fixed**: `ThemePoolTest` pins `FEATURE_NAMES` |
+| W3-3 | low | eight families a side could miss a slightly negative weight on longer lists | **fixed**: 16, plus `weights[any] >= 0` |
+| W3-4 | low | the test computes Jaccard itself instead of through `ThemePool.features` | **deferred** |
+| W3-5 | note | the personal cluster guard (`PersonalTerm.clusterGuard`) reads the theme's z-scores; with Z, family-sharing rows rise, so more tier-2 habit leads pass. W3FIX's gates had no personal history | **owner decision**: unmeasured; same direction as theme_gt's move |
+
+The fresh reviewer's round found no finding of medium or higher: **stop criterion met** for W3.
