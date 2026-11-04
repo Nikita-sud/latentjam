@@ -268,7 +268,11 @@ internal class AndroidPlaybackController(
             // which is readable. It plays on from where its opening had sounded, once, instead of being skipped.
             val outputFailed = error.errorCode == PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED ||
                 error.errorCode == PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED
-            val interrupted = AndroidCrossfade.settings.interruptedJoin?.takeIf { it.mediaId == failedId }
+            // Only where Media3 put that track back to its start, soon after the failure: not a track playing on past it.
+            val interrupted = AndroidCrossfade.settings.interruptedJoin?.takeIf {
+                it.mediaId == failedId && System.nanoTime() - it.atNanos <= SINK_RESUME_TTL_NS &&
+                    player.currentPosition < it.positionUs / 1000L - SINK_RESUME_SLACK_MS
+            }
             if (outputFailed && interrupted != null && sinkResumedIds.add(failedId)) {
                 AndroidCrossfade.settings.interruptedJoin = null
                 AndroidCrossfade.settings.interruptedMix = null
@@ -1785,6 +1789,12 @@ internal class AndroidPlaybackController(
     }
 
     private companion object {
+        /** How soon after its audio output failed an overlap's next track is still put back where it had sounded. */
+        const val SINK_RESUME_TTL_NS = 5_000_000_000L
+
+        /** A track already within this of that point is left where it is. */
+        const val SINK_RESUME_SLACK_MS = 500L
+
         const val DEFAULT_SMART_LOOKAHEAD = 20
         const val MAX_SMART_LOOKAHEAD = 100
 

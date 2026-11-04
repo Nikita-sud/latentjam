@@ -283,8 +283,9 @@ internal class CrossfadeAudioProcessor(
                 segment = Segment(decision.stream, previousGain = null)
                 settings.mixing = null
                 settings.interruptedMix = null
-                // Kept for the track it names: the sink's own recovery restarts that very track after this flush.
-                if (settings.heardOpening?.mediaId != decision.stream?.mediaId) settings.heardOpening = null
+                // Kept only for the track a sink error just armed it for, whose recovery restarts it after this flush;
+                // any other new start (a seek, a Next, the resume's own seek) ends it, or it would outlive the track.
+                if (settings.interruptedJoin?.mediaId != decision.stream?.mediaId) settings.heardOpening = null
             }
             is Decision.Join -> {
                 val previous = decision.previous

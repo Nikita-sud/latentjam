@@ -579,6 +579,10 @@ internal class CrossfadeAudioProcessorTest {
         assertEquals(2_000_000L, join.positionUs)
         reposition(stream("b", 20_000))
         assertEquals("b", settings.heardOpening?.mediaId)
+        // Any other new start of B (the resume's own seek, a listener's seek) ends it: it must not outlive B's start.
+        settings.interruptedJoin = null
+        reposition(stream("b", 20_000), atMs = 2_000)
+        assertEquals(null, settings.heardOpening)
     }
 
     @Test
