@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.library.AlbumSort
+import io.github.nikitasud.latentjam.library.FolderSort
 import io.github.nikitasud.latentjam.library.SongSort
 import io.github.nikitasud.latentjam.playback.sanitizeCrossfadeSeconds
 import kotlinx.coroutines.Dispatchers
@@ -98,6 +99,8 @@ internal class IosAppSettings : AppSettings {
     override val albumSort: StateFlow<SortChoice<AlbumSort>> = mutableAlbumSort.asStateFlow()
     private val mutableGroupSortOrders = MutableStateFlow(groupSortOrdersFromPersisted(defaults.objectForKey(KEY_GROUP_SORT) as? String))
     override val groupSortOrders: StateFlow<GroupSortOrders> = mutableGroupSortOrders.asStateFlow()
+    private val mutableFolderSort = MutableStateFlow(folderSortFromPersisted(defaults.objectForKey(KEY_FOLDER_SORT) as? String))
+    override val folderSort: StateFlow<SortChoice<FolderSort>> = mutableFolderSort.asStateFlow()
     private val mutableArtistAlbumSort = MutableStateFlow(
         artistAlbumSortFromPersisted(defaults.objectForKey(KEY_ARTIST_ALBUM_SORT) as? String),
     )
@@ -209,6 +212,11 @@ internal class IosAppSettings : AppSettings {
     override fun setAlbumSort(choice: SortChoice<AlbumSort>) {
         defaults.setObject(encodeSortChoice(choice), KEY_ALBUM_SORT)
         mutableAlbumSort.value = choice
+    }
+
+    override fun setFolderSort(choice: SortChoice<FolderSort>) {
+        defaults.setObject(encodeSortChoice(choice), KEY_FOLDER_SORT)
+        mutableFolderSort.value = choice
     }
 
     override fun setGroupSortOrders(orders: GroupSortOrders) {
@@ -425,6 +433,7 @@ internal class IosAppSettings : AppSettings {
         const val KEY_SONG_SORT = "song_sort"
         const val KEY_ALBUM_SORT = "album_sort"
         const val KEY_GROUP_SORT = "group_sort_orders"
+        const val KEY_FOLDER_SORT = "folder_sort"
         const val KEY_ARTIST_ALBUM_SORT = "artist_album_sort"
         const val KEY_FOLDER_VIEW = "folder_view"
         const val KEY_PLAYLIST_SORT_ORDERS = "playlist_sort_orders"

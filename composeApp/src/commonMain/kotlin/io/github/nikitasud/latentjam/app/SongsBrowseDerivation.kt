@@ -31,7 +31,7 @@ internal class SongsBrowseDerivation private constructor(
         /** Call off Main. Catalog hydration uses this in its existing background transaction. */
         fun of(songs: List<TrackDescriptor>, choice: SortChoice<SongSort>): SongsBrowseDerivation {
             val sections = SongSorting.sections(songs, choice.sort, choice.direction)
-            val headers = choice.sort != SongSort.RECENT && sections.size > 1
+            val headers = (choice.sort == SongSort.TITLE || choice.sort == SongSort.ARTIST) && sections.size > 1
             val indexed = ArrayList<IndexedSection>(sections.size)
             val order = ArrayList<TrackDescriptor>(songs.size)
             val emitted = ArrayList<TrackDescriptor?>(songs.size + if (headers) sections.size else 0)

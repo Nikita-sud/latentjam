@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.library.AlbumSort
+import io.github.nikitasud.latentjam.library.FolderSort
 import io.github.nikitasud.latentjam.library.SongSort
 import io.github.nikitasud.latentjam.library.SongSortDirection
 import io.github.nikitasud.latentjam.library.defaultDirection
@@ -210,6 +211,13 @@ internal fun <S : Enum<S>> decodeSortChoice(
         ?: naturalDirection(sort)
     return SortChoice(sort, direction)
 }
+
+internal val DEFAULT_FOLDER_SORT: SortChoice<FolderSort> = SortChoice(FolderSort.NAME, SongSortDirection.ASCENDING)
+
+private val DEFAULT_FOLDER_SORT_FLOW: StateFlow<SortChoice<FolderSort>> = MutableStateFlow(DEFAULT_FOLDER_SORT)
+
+internal fun folderSortFromPersisted(value: String?): SortChoice<FolderSort> =
+    decodeSortChoice(value, FolderSort.entries, DEFAULT_FOLDER_SORT) { it.defaultDirection }
 
 internal fun songSortFromPersisted(value: String?): SortChoice<SongSort> =
     decodeSortChoice(value, SongSort.entries, DEFAULT_SONG_SORT) { it.defaultDirection }
@@ -523,6 +531,13 @@ interface AppSettings {
     /** How an artist's page orders their albums; one choice for every artist. */
     val groupSortOrders: StateFlow<GroupSortOrders>
     fun setGroupSortOrders(orders: GroupSortOrders)
+
+    /**
+     * What the Folders tab orders by ([FolderSort]). Device-local, like a playlist page's order: a backup carries only the
+     * folder-name direction ([GroupSortOrders.folders]), which 0.9.3 also reads. The default leaves folders as they were.
+     */
+    val folderSort: StateFlow<SortChoice<FolderSort>> get() = DEFAULT_FOLDER_SORT_FLOW
+    fun setFolderSort(choice: SortChoice<FolderSort>) {}
 
     val artistAlbumSort: StateFlow<SortChoice<AlbumSort>>
 

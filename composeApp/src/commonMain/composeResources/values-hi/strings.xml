@@ -79,6 +79,12 @@
     <string name="sort_name">नाम</string>
     <string name="sort_direction_ascending">आरोही</string>
     <string name="sort_direction_descending">अवरोही</string>
+    <string name="sort_date_added">जोड़ने की तारीख</string>
+    <string name="sort_date_modified">बदलाव की तारीख</string>
+    <string name="sort_by">इसके अनुसार क्रमित करें</string>
+    <string name="sort_direction">क्रम की दिशा</string>
+    <string name="sort_newest_first">नए पहले</string>
+    <string name="sort_oldest_first">पुराने पहले</string>
     <string name="snack_track_deleted">गाना मिटाया गया</string>
     <string name="snack_track_delete_denied">इन गानों को हटाने के लिए फ़ाइल एक्सेस चाहिए।</string>
     <string name="snack_track_delete_failed">फ़ाइल हटाई नहीं जा सकी</string>

@@ -86,6 +86,12 @@
     <string name="sort_name">Nome</string>
     <string name="sort_direction_ascending">Crescente</string>
     <string name="sort_direction_descending">Decrescente</string>
+    <string name="sort_date_added">Data di aggiunta</string>
+    <string name="sort_date_modified">Data di modifica</string>
+    <string name="sort_by">Ordina per</string>
+    <string name="sort_direction">Direzione dell’ordinamento</string>
+    <string name="sort_newest_first">Prima i più recenti</string>
+    <string name="sort_oldest_first">Prima i meno recenti</string>
     <string name="snack_track_deleted">Brano eliminato</string>
     <string name="snack_track_delete_denied">Per eliminare questi brani serve l’accesso ai file.</string>
     <string name="snack_track_delete_failed">Impossibile eliminare il file</string>

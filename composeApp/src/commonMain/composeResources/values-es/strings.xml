@@ -86,6 +86,12 @@
     <string name="sort_name">Nombre</string>
     <string name="sort_direction_ascending">Ascendente</string>
     <string name="sort_direction_descending">Descendente</string>
+    <string name="sort_date_added">Fecha de adición</string>
+    <string name="sort_date_modified">Fecha de modificación</string>
+    <string name="sort_by">Ordenar por</string>
+    <string name="sort_direction">Dirección del orden</string>
+    <string name="sort_newest_first">Más recientes primero</string>
+    <string name="sort_oldest_first">Más antiguos primero</string>
     <string name="snack_track_deleted">Canción eliminada</string>
     <string name="snack_track_delete_denied">Se necesita acceso a los archivos para borrar estas pistas.</string>
     <string name="snack_track_delete_failed">No se pudo borrar el archivo</string>

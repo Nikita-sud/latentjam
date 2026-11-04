@@ -106,6 +106,13 @@ public abstract class TrackDescriptor {
     public abstract val storageVolume: String?
 
     /**
+     * When the file was last modified (epoch ms) as the platform reports it: MediaStore's `DATE_MODIFIED`, an imported
+     * file's modification date. Null when the source has none (an iOS Music-library song). For the date sorts only; the
+     * engine ignores it.
+     */
+    public open val modifiedAtMs: Long? get() = null
+
+    /**
      * A copy with the given fields replaced, as the data class this was gave. A platform's compact descriptor may
      * override it to stay compact; the copy's values are these either way.
      */
@@ -133,7 +140,8 @@ public abstract class TrackDescriptor {
         albumArtist: String? = this.albumArtist,
         albumArtworkUri: String? = this.albumArtworkUri,
         storageVolume: String? = this.storageVolume,
-    ): TrackDescriptor = TrackDescriptor(id, title, artist, album, genre, durationMs, audioUri, artworkUri, addedAtMs, folderPath, year, energy, sourceRevision, artists, originalYear, sizeBytes, fileName, language, trackNumber, discNumber, albumArtist, albumArtworkUri, storageVolume)
+        modifiedAtMs: Long? = this.modifiedAtMs,
+    ): TrackDescriptor = TrackDescriptor(id, title, artist, album, genre, durationMs, audioUri, artworkUri, addedAtMs, folderPath, year, energy, sourceRevision, artists, originalYear, sizeBytes, fileName, language, trackNumber, discNumber, albumArtist, albumArtworkUri, storageVolume, modifiedAtMs)
 
     /** Value equality over every field, exactly as the data class this was compared. */
     final override fun equals(other: Any?): Boolean {
@@ -161,7 +169,8 @@ public abstract class TrackDescriptor {
             discNumber == other.discNumber &&
             albumArtist == other.albumArtist &&
             albumArtworkUri == other.albumArtworkUri &&
-            storageVolume == other.storageVolume
+            storageVolume == other.storageVolume &&
+            modifiedAtMs == other.modifiedAtMs
     }
 
     /** The data class's hash: the same formula, so hashed collections iterate as they did. */
@@ -189,11 +198,13 @@ public abstract class TrackDescriptor {
         result = 31 * result + (albumArtist?.hashCode() ?: 0)
         result = 31 * result + (albumArtworkUri?.hashCode() ?: 0)
         result = 31 * result + (storageVolume?.hashCode() ?: 0)
+        // Only when known: every descriptor without one hashes as it did before the field existed.
+        modifiedAtMs?.let { result = 31 * result + it.hashCode() }
         return result
     }
 
     override fun toString(): String =
-        "TrackDescriptor(id=${id}, title=${title}, artist=${artist}, album=${album}, genre=${genre}, durationMs=${durationMs}, audioUri=${audioUri}, artworkUri=${artworkUri}, addedAtMs=${addedAtMs}, folderPath=${folderPath}, year=${year}, energy=${energy}, sourceRevision=${sourceRevision}, artists=${artists}, originalYear=${originalYear}, sizeBytes=${sizeBytes}, fileName=${fileName}, language=${language}, trackNumber=${trackNumber}, discNumber=${discNumber}, albumArtist=${albumArtist}, albumArtworkUri=${albumArtworkUri}, storageVolume=${storageVolume})"
+        "TrackDescriptor(id=${id}, title=${title}, artist=${artist}, album=${album}, genre=${genre}, durationMs=${durationMs}, audioUri=${audioUri}, artworkUri=${artworkUri}, addedAtMs=${addedAtMs}, folderPath=${folderPath}, year=${year}, energy=${energy}, sourceRevision=${sourceRevision}, artists=${artists}, originalYear=${originalYear}, sizeBytes=${sizeBytes}, fileName=${fileName}, language=${language}, trackNumber=${trackNumber}, discNumber=${discNumber}, albumArtist=${albumArtist}, albumArtworkUri=${albumArtworkUri}, storageVolume=${storageVolume}, modifiedAtMs=${modifiedAtMs})"
 }
 
 /** A [TrackDescriptor] with every field given (what `TrackDescriptor(...)` constructed when it was a data class). */
@@ -221,7 +232,8 @@ public fun TrackDescriptor(
     albumArtist: String? = null,
     albumArtworkUri: String? = null,
     storageVolume: String? = null,
-): TrackDescriptor = FieldTrackDescriptor(id, title, artist, album, genre, durationMs, audioUri, artworkUri, addedAtMs, folderPath, year, energy, sourceRevision, artists, originalYear, sizeBytes, fileName, language, trackNumber, discNumber, albumArtist, albumArtworkUri, storageVolume)
+    modifiedAtMs: Long? = null,
+): TrackDescriptor = FieldTrackDescriptor(id, title, artist, album, genre, durationMs, audioUri, artworkUri, addedAtMs, folderPath, year, energy, sourceRevision, artists, originalYear, sizeBytes, fileName, language, trackNumber, discNumber, albumArtist, albumArtworkUri, storageVolume, modifiedAtMs)
 
 private class FieldTrackDescriptor(
     override val id: TrackId,
@@ -247,6 +259,7 @@ private class FieldTrackDescriptor(
     override val albumArtist: String?,
     override val albumArtworkUri: String?,
     override val storageVolume: String?,
+    override val modifiedAtMs: Long?,
 ) : TrackDescriptor()
 
 /**

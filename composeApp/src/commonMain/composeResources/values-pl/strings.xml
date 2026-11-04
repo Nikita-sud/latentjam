@@ -91,6 +91,12 @@
     <string name="sort_name">Nazwa</string>
     <string name="sort_direction_ascending">Rosnąco</string>
     <string name="sort_direction_descending">Malejąco</string>
+    <string name="sort_date_added">Data dodania</string>
+    <string name="sort_date_modified">Data modyfikacji</string>
+    <string name="sort_by">Sortuj według</string>
+    <string name="sort_direction">Kierunek sortowania</string>
+    <string name="sort_newest_first">Najnowsze najpierw</string>
+    <string name="sort_oldest_first">Najstarsze najpierw</string>
     <string name="snack_track_deleted">Utwór usunięty</string>
     <string name="snack_track_delete_denied">Do usunięcia tych utworów potrzebny jest dostęp do plików.</string>
     <string name="snack_track_delete_failed">Nie udało się usunąć pliku</string>

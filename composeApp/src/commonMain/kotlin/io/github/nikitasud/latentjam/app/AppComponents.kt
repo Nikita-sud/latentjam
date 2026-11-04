@@ -409,15 +409,18 @@ internal suspend fun GenreGroup.toSelection(): CollectionSelection {
 }
 
 internal suspend fun FolderGroup.toSelection(): CollectionSelection {
+    // A–Z, unless the Folders tab orders each folder's tracks by a date: then that order, without a letter rail.
+    val byDate = currentFolderSortIsDate()
+    val order = currentFolderTrackOrder()
     val ordered = withContext(Dispatchers.Default) {
-        SongSorting.sort(tracks, SongSort.TITLE, SongSortDirection.ASCENDING)
+        if (byDate) tracks.sortedWith(order) else SongSorting.sort(tracks, SongSort.TITLE, SongSortDirection.ASCENDING)
     }
     return CollectionSelection(
         title = name,
         subtitle = path + SUBTITLE_SEPARATOR + trackCountLabel(tracks.size),
         artworkUri = ordered.firstNotNullOfOrNull { it.artworkUri },
         tracks = ordered,
-        railMode = CollectionRailMode.TRACK_TITLES,
+        railMode = if (byDate) CollectionRailMode.NONE else CollectionRailMode.TRACK_TITLES,
         allowsTrackSelection = true,
         routeId = "folder:$path",
     )

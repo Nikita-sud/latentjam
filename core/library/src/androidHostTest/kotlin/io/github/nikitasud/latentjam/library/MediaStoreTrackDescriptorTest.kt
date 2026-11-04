@@ -49,6 +49,8 @@ class MediaStoreTrackDescriptorTest {
         trackNumber = row.track,
         discNumber = row.disc,
         sourceRevision = androidMediaSourceRevision(row.revSize, row.modified, row.generation),
+        // DATE_MODIFIED is seconds; the date sorts read milliseconds.
+        modifiedAtMs = row.modified?.takeIf { it > 0 }?.times(1000),
     )
 
     private fun compact(row: Row): MediaStoreTrackDescriptor = MediaStoreTrackDescriptor.fromMediaStore(
@@ -119,9 +121,23 @@ class MediaStoreTrackDescriptorTest {
                 same(expected.copy(title = "again"), actual.copy(title = "again"))
                 same(expected.copy(), actual.copy())
             }
+            // A copy that changes the modification time cannot keep it in the revision's number: a plain descriptor.
+            val touched = compactVersioned.copy(modifiedAtMs = 42L)
+            same(plainVersioned.copy(modifiedAtMs = 42L), touched)
+            assertTrue(touched !is MediaStoreTrackDescriptor)
             // A cover set by copy cannot take a version; the pipeline then versions by copy.
             val overridden = compactVersioned.copy(artworkUri = "file:///x.jpg") as MediaStoreTrackDescriptor
             assertEquals(null, overridden.withArtVersion(version, null))
         }
+    }
+
+    @Test
+    fun theDatesAreMediaStoresInMilliseconds() {
+        val song = compact(rows[0])
+        assertEquals(1_700_000_000_000L, song.addedAtMs)
+        assertEquals(1_700_000_100_000L, song.modifiedAtMs)
+        // An unknown or zero DATE_MODIFIED is no date.
+        assertEquals(null, compact(rows[1]).modifiedAtMs)
+        assertEquals(null, compact(rows[1].copy(modified = 0)).modifiedAtMs)
     }
 }

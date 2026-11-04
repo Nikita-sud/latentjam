@@ -686,6 +686,22 @@ internal class LocalBackupTest {
     }
 
     @Test
+    fun aDateModifiedTracksOrderIsBackedUpAsDateAddedSo093CanRestoreIt() = runTest {
+        val song = track(id = "a", title = "A", artist = "B", album = "C", durationMs = 1_000)
+        val source = fixture(listOf(song))
+        source.settings.setSongSort(SortChoice(SongSort.MODIFIED, SongSortDirection.ASCENDING))
+        val encoded = source.service.exportEncoded()
+        // 0.9.3 rejects a backup holding a Tracks order it does not know; "recent" it knows.
+        val orders = encoded.lines().single { it.startsWith("O\t") }
+        assertEquals("recent:ascending", orders.split('\t')[1])
+        val destination = fixture(listOf(song))
+        destination.service.importEncoded(encoded = encoded, mode = LocalBackupRestoreMode.REPLACE)
+        assertEquals(SortChoice(SongSort.RECENT, SongSortDirection.ASCENDING), destination.settings.songSort.value)
+        // Every other order goes through unchanged.
+        assertEquals(SortChoice(SongSort.ARTIST, SongSortDirection.DESCENDING), SortChoice(SongSort.ARTIST, SongSortDirection.DESCENDING).inBackupForm())
+    }
+
+    @Test
     fun serviceRestoresPortableMatchesAndReportsUnsafeUnresolvedTracks() = runTest {
         val sourceTrack = track(
             id = "old-kino-id",

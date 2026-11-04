@@ -86,6 +86,12 @@
     <string name="sort_name">שם</string>
     <string name="sort_direction_ascending">סדר עולה</string>
     <string name="sort_direction_descending">סדר יורד</string>
+    <string name="sort_date_added">תאריך הוספה</string>
+    <string name="sort_date_modified">תאריך שינוי</string>
+    <string name="sort_by">מיון לפי</string>
+    <string name="sort_direction">כיוון המיון</string>
+    <string name="sort_newest_first">החדשים קודם</string>
+    <string name="sort_oldest_first">הישנים קודם</string>
     <string name="snack_track_deleted">השיר נמחק</string>
     <string name="snack_track_delete_denied">נדרשת גישה לקבצים כדי למחוק את השירים האלה.</string>
     <string name="snack_track_delete_failed">לא ניתן למחוק את הקובץ</string>

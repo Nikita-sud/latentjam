@@ -10,7 +10,12 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 public enum class SongSort {
     TITLE,
     ARTIST,
+
+    /** Date added: when the file joined the library ([TrackDescriptor.addedAtMs]). Persisted as "recent". */
     RECENT,
+
+    /** Date modified: when the file last changed ([TrackDescriptor.modifiedAtMs]). */
+    MODIFIED,
 }
 
 /** Direction applied to the selected [SongSort]. */
@@ -28,7 +33,7 @@ public enum class SongSortDirection {
 public val SongSort.defaultDirection: SongSortDirection
     get() = when (this) {
         SongSort.TITLE, SongSort.ARTIST -> SongSortDirection.ASCENDING
-        SongSort.RECENT -> SongSortDirection.DESCENDING
+        SongSort.RECENT, SongSort.MODIFIED -> SongSortDirection.DESCENDING
     }
 
 /** A run of tracks sharing one index bucket (initial letter, or a date band). */
@@ -55,8 +60,8 @@ public object SongSorting {
      * The alphabetical orders key each track ONCE up front rather than from inside the
      * comparator. [sortKey] allocates (it trims and lowercases), and a comparator runs
      * O(n log n) times — on a thousand-track library that is ~13k throwaway strings per sort,
-     * paid on the main thread because the songs list keys its sections off this. Recency needs
-     * no such treatment: its key is a field read.
+     * paid on the main thread because the songs list keys its sections off this. The date
+     * orders key their title tiebreak the same way.
      *
      * Kotlin's sort is stable, so tracks whose selected metadata is equal keep their source order.
      */
@@ -75,7 +80,48 @@ public object SongSorting {
             .sortedWith(keyedTrackComparator(direction, compareSecondary = true))
             .map { it.track }
 
-        SongSort.RECENT -> tracks.sortedWith(recentTrackComparator(direction))
+        SongSort.RECENT -> byDate(tracks, direction) { it.addedAtMs }
+        SongSort.MODIFIED -> byDate(tracks, direction) { it.modifiedAtMs }
+    }
+
+    /**
+     * [tracks] by the date [dateOf] reads, newest or oldest first. A track whose date is unknown follows every dated one
+     * in both directions; tracks of one date, and the undated ones, follow each other A–Z by title (as [SongSort.TITLE]
+     * keys it), and then keep the order they came in.
+     */
+    public fun byDate(
+        tracks: List<TrackDescriptor>,
+        direction: SongSortDirection,
+        dateOf: (TrackDescriptor) -> Long?,
+    ): List<TrackDescriptor> = tracks
+        .map { DatedTrack(it, dateOf(it), sortKey(it.title)) }
+        .sortedWith(datedTrackComparator(direction))
+        .map { it.track }
+
+    /** A comparator for [byDate]'s order, for callers that order tracks inside a larger order (a folder's). */
+    public fun dateComparator(
+        direction: SongSortDirection,
+        dateOf: (TrackDescriptor) -> Long?,
+    ): Comparator<TrackDescriptor> {
+        val dates = datedTrackComparator(direction)
+        return Comparator { left, right ->
+            dates.compare(DatedTrack(left, dateOf(left), sortKey(left.title)), DatedTrack(right, dateOf(right), sortKey(right.title)))
+        }
+    }
+
+    private class DatedTrack(val track: TrackDescriptor, val date: Long?, val title: String)
+
+    private fun datedTrackComparator(direction: SongSortDirection): Comparator<DatedTrack> = Comparator { left, right ->
+        val l = left.date
+        val r = right.date
+        val byDate = when {
+            l == null && r == null -> 0
+            l == null -> 1
+            r == null -> -1
+            direction == SongSortDirection.ASCENDING -> l.compareTo(r)
+            else -> r.compareTo(l)
+        }
+        if (byDate != 0) byDate else compareSortKeys(left.title, right.title, SongSortDirection.ASCENDING)
     }
 
     /** A track carrying its precomputed sort keys, so the comparator only compares. */
@@ -103,20 +149,6 @@ public object SongSorting {
         }
     }
 
-    private fun recentTrackComparator(
-        direction: SongSortDirection,
-    ): Comparator<TrackDescriptor> = Comparator { left, right ->
-        val leftAdded = left.addedAtMs
-        val rightAdded = right.addedAtMs
-        when {
-            leftAdded == null && rightAdded == null -> 0
-            leftAdded == null -> 1
-            rightAdded == null -> -1
-            direction == SongSortDirection.ASCENDING -> leftAdded.compareTo(rightAdded)
-            else -> rightAdded.compareTo(leftAdded)
-        }
-    }
-
     private fun compareSortKeys(
         left: String,
         right: String,
@@ -134,8 +166,8 @@ public object SongSorting {
     }
 
     /**
-     * Sorted tracks grouped into index buckets. [SongSort.RECENT] returns a
-     * single unlabeled section — recency has no meaningful alphabet.
+     * Sorted tracks grouped into index buckets. The date sorts return a
+     * single unlabeled section — a date order has no meaningful alphabet.
      */
     public fun sections(
         tracks: List<TrackDescriptor>,
@@ -143,7 +175,7 @@ public object SongSorting {
         direction: SongSortDirection = sort.defaultDirection,
     ): List<SongSection> {
         val sorted = sort(tracks, sort, direction)
-        if (sort == SongSort.RECENT) {
+        if (sort == SongSort.RECENT || sort == SongSort.MODIFIED) {
             return if (sorted.isEmpty()) emptyList() else listOf(SongSection("", sorted))
         }
         val label: (TrackDescriptor) -> String? =

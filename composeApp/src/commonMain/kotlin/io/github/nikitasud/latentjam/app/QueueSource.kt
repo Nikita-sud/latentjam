@@ -16,6 +16,7 @@ import io.github.nikitasud.latentjam.library.FolderNode
 import io.github.nikitasud.latentjam.library.FolderTree
 import io.github.nikitasud.latentjam.library.GenreGroup
 import io.github.nikitasud.latentjam.library.LibraryCatalog
+import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import org.jetbrains.compose.resources.StringResource
 
 /**
@@ -107,7 +108,11 @@ internal sealed interface QueueSourceGroup {
 }
 
 /** Missing and legacy identities fall back to the queue, never to a similarly named place. */
-internal fun QueueSource.resolveGroup(catalog: LibraryCatalog?): QueueSourceGroup? {
+internal fun QueueSource.resolveGroup(
+    catalog: LibraryCatalog?,
+    /** A folder's own tracks, as the Folders tab orders them. */
+    folderTrackOrder: Comparator<TrackDescriptor> = currentFolderTrackOrder(),
+): QueueSourceGroup? {
     if (kind != QueueSourceKind.LIBRARY_GROUP || catalog == null) return null
     val route = reference ?: return null
     return when (route.substringBefore(':')) {
@@ -121,10 +126,10 @@ internal fun QueueSource.resolveGroup(catalog: LibraryCatalog?): QueueSourceGrou
         // left as its source before that source named its volume, so a saved queue may hold it.
         "folder" -> catalog.folders.firstOrNull { "folder:${it.path}" == route }
             ?.let(QueueSourceGroup::Folder)
-        "foldertree" -> FolderTree.build(catalog.songs)
+        "foldertree" -> FolderTree.build(catalog.songs, folderTrackOrder)
             .node(route.removePrefix(FOLDER_TREE_ROUTE_PREFIX))
             ?.let(QueueSourceGroup::FolderBranch)
-        "foldertracks" -> FolderTree.build(catalog.songs)
+        "foldertracks" -> FolderTree.build(catalog.songs, folderTrackOrder)
             .node(route.removePrefix(FOLDER_TRACKS_ROUTE_PREFIX))
             ?.takeIf { it.tracks.isNotEmpty() }
             ?.let(QueueSourceGroup::FolderTracks)

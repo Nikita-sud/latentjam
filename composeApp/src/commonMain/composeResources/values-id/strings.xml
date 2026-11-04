@@ -81,6 +81,12 @@
     <string name="sort_name">Nama</string>
     <string name="sort_direction_ascending">Menaik</string>
     <string name="sort_direction_descending">Menurun</string>
+    <string name="sort_date_added">Tanggal ditambahkan</string>
+    <string name="sort_date_modified">Tanggal diubah</string>
+    <string name="sort_by">Urutkan menurut</string>
+    <string name="sort_direction">Arah urutan</string>
+    <string name="sort_newest_first">Terbaru dulu</string>
+    <string name="sort_oldest_first">Terlama dulu</string>
     <string name="snack_track_deleted">Lagu dihapus</string>
     <string name="snack_track_delete_denied">Akses berkas diperlukan untuk menghapus lagu-lagu ini.</string>
     <string name="snack_track_delete_failed">Berkas tidak dapat dihapus</string>

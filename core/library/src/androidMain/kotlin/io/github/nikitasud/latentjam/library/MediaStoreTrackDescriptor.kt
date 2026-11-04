@@ -64,6 +64,9 @@ internal class MediaStoreTrackDescriptor private constructor(
     override val trackNumber: Int? get() = trackNo.orNull()
     override val discNumber: Int? get() = discNo.orNull()
 
+    /** MediaStore's `DATE_MODIFIED` (seconds), the same number [sourceRevision] carries. */
+    override val modifiedAtMs: Long? get() = revisionModified.orNull()?.takeIf { it > 0 }?.times(1000)
+
     override val audioUri: String?
         get() = explicit?.audioUri.let { if (it === UNSET || explicit == null) "$SONGS$sourceId" else it as String? }
 
@@ -119,14 +122,17 @@ internal class MediaStoreTrackDescriptor private constructor(
         albumArtist: String?,
         albumArtworkUri: String?,
         storageVolume: String?,
+        modifiedAtMs: Long?,
     ): TrackDescriptor {
+        // The modification time is derived from the revision's number: a copy may keep it, not change it.
         val representable = durationMs != LONG_NULL && addedAtMs != LONG_NULL && sizeBytes != LONG_NULL &&
-            year != INT_NULL && originalYear != INT_NULL && trackNumber != INT_NULL && discNumber != INT_NULL
+            year != INT_NULL && originalYear != INT_NULL && trackNumber != INT_NULL && discNumber != INT_NULL &&
+            modifiedAtMs == this.modifiedAtMs
         if (!representable) {
             return TrackDescriptor(
                 id, title, artist, album, genre, durationMs, audioUri, artworkUri, addedAtMs, folderPath, year,
                 energy, sourceRevision, artists, originalYear, sizeBytes, fileName, language, trackNumber,
-                discNumber, albumArtist, albumArtworkUri, storageVolume,
+                discNumber, albumArtist, albumArtworkUri, storageVolume, modifiedAtMs,
             )
         }
         // A derived string the copy leaves as it reads stays derived; a changed one is kept as given.

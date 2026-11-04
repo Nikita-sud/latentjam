@@ -79,6 +79,12 @@
     <string name="sort_name">Ad</string>
     <string name="sort_direction_ascending">Artan</string>
     <string name="sort_direction_descending">Azalan</string>
+    <string name="sort_date_added">Eklenme tarihi</string>
+    <string name="sort_date_modified">Değiştirilme tarihi</string>
+    <string name="sort_by">Sıralama ölçütü</string>
+    <string name="sort_direction">Sıralama yönü</string>
+    <string name="sort_newest_first">Önce en yeni</string>
+    <string name="sort_oldest_first">Önce en eski</string>
     <string name="snack_track_deleted">Parça silindi</string>
     <string name="snack_track_delete_denied">Bu parçaları silmek için dosya erişimi gerekiyor.</string>
     <string name="snack_track_delete_failed">Dosya silinemedi</string>

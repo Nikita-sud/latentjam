@@ -144,7 +144,14 @@ public class FolderTree private constructor(
         /** [FolderNode.key] of the folder at [path] on [volume]. */
         public fun keyOf(volume: String?, path: String): String = "${volume.orEmpty()}$KEY_SEPARATOR$path"
 
-        public fun build(tracks: List<TrackDescriptor>): FolderTree {
+        /**
+         * The tree of [tracks]. Each folder's own tracks are in [trackOrder]: folder order unless the listener chose a
+         * date ([FolderSort.trackOrder]).
+         */
+        public fun build(
+            tracks: List<TrackDescriptor>,
+            trackOrder: Comparator<TrackDescriptor> = LibraryCatalog.FOLDER_TRACK_ORDER,
+        ): FolderTree {
             // volume -> folder path -> the tracks directly in it, in input order.
             val byVolume = LinkedHashMap<String?, LinkedHashMap<String, MutableList<TrackDescriptor>>>()
             for (track in tracks) {
@@ -156,7 +163,7 @@ public class FolderTree private constructor(
             val nodes = HashMap<String, FolderNode>()
             val volumeRoots = byVolume.entries
                 .sortedWith(compareBy<Map.Entry<String?, *>>({ volumeRank(it.key) }, { it.key.orEmpty() }))
-                .map { (volume, folders) -> volumeRoot(volume, folders, nodes) }
+                .map { (volume, folders) -> volumeRoot(volume, folders, nodes, trackOrder) }
             val root = if (volumeRoots.size == 1) {
                 volumeRoots.single()
             } else {
@@ -180,6 +187,8 @@ public class FolderTree private constructor(
         public fun inPlayOrder(
             tracks: List<TrackDescriptor>,
             direction: SongSortDirection = SongSortDirection.ASCENDING,
+            /** Within a folder; see [build]. */
+            trackOrder: Comparator<TrackDescriptor> = LibraryCatalog.FOLDER_TRACK_ORDER,
         ): List<TrackDescriptor> {
             val segmentKeys = HashMap<String, FolderNameKey>()
             fun nameKey(name: String) = segmentKeys.getOrPut(name) { FolderNameKey(name) }
@@ -198,7 +207,7 @@ public class FolderTree private constructor(
                     ?: compareSegments(left.segments, right.segments, direction)
             }
             return keyed
-                .sortedWith(folderOrder.then { left, right -> LibraryCatalog.FOLDER_TRACK_ORDER.compare(left.track, right.track) })
+                .sortedWith(folderOrder.then { left, right -> trackOrder.compare(left.track, right.track) })
                 .map { it.track }
         }
 
@@ -255,6 +264,7 @@ public class FolderTree private constructor(
             volume: String?,
             folders: Map<String, List<TrackDescriptor>>,
             nodes: MutableMap<String, FolderNode>,
+            trackOrder: Comparator<TrackDescriptor>,
         ): FolderNode {
             // Every folder that holds a track, and every folder above one, is a node.
             val children = HashMap<String, MutableSet<String>>()
@@ -278,7 +288,7 @@ public class FolderTree private constructor(
                     volume = volume,
                     path = path,
                     folders = subfolders,
-                    tracks = if (own.isEmpty()) emptyList() else LibraryCatalog.inFolderOrder(own),
+                    tracks = if (own.isEmpty()) emptyList() else own.sortedWith(trackOrder),
                 ).also { nodes[it.key] = it }
             }
             return node("")

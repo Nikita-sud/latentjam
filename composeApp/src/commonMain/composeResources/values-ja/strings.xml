@@ -75,6 +75,12 @@
     <string name="sort_name">名前</string>
     <string name="sort_direction_ascending">昇順</string>
     <string name="sort_direction_descending">降順</string>
+    <string name="sort_date_added">追加日</string>
+    <string name="sort_date_modified">更新日</string>
+    <string name="sort_by">並べ替え</string>
+    <string name="sort_direction">並べ替えの向き</string>
+    <string name="sort_newest_first">新しい順</string>
+    <string name="sort_oldest_first">古い順</string>
     <string name="snack_track_deleted">曲を削除しました</string>
     <string name="snack_track_delete_denied">これらの曲を削除するにはファイルへのアクセスが必要です。</string>
     <string name="snack_track_delete_failed">ファイルを削除できませんでした</string>

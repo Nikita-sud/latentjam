@@ -85,6 +85,12 @@
     <string name="sort_name">Имя</string>
     <string name="sort_direction_ascending">По возрастанию</string>
     <string name="sort_direction_descending">По убыванию</string>
+    <string name="sort_date_added">Дата добавления</string>
+    <string name="sort_date_modified">Дата изменения</string>
+    <string name="sort_by">Сортировка</string>
+    <string name="sort_direction">Направление сортировки</string>
+    <string name="sort_newest_first">Сначала новые</string>
+    <string name="sort_oldest_first">Сначала старые</string>
     <string name="snack_track_deleted">Трек удалён</string>
     <string name="snack_track_delete_denied">Для удаления этих треков нужен доступ к файлам.</string>
     <string name="snack_track_delete_failed">Не удалось удалить файл</string>

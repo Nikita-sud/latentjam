@@ -459,7 +459,8 @@ internal class IosMusicLibrary : MusicLibrary {
                     // indexes them, and the playback controller resolves the persistent ID.
                     audioUri = item.assetURL?.absoluteString,
                     artworkUri = null,
-                    addedAtMs = null,
+                    // When the song joined the Music library; Music keeps no modification date of its own.
+                    addedAtMs = (item.dateAdded.timeIntervalSince1970 * 1000).toLong().takeIf { it > 0 },
                     folderPath = "Music",
                     year = releaseYear(item.releaseDate),
                     trackNumber = item.albumTrackNumber.toInt().takeIf { it in 1..MAX_TRACK_NUMBER },
@@ -579,6 +580,7 @@ internal class IosMusicLibrary : MusicLibrary {
             audioUri = url.absoluteString,
             artworkUri = artwork?.let(::cacheArtwork),
             addedAtMs = addedAtMs,
+            modifiedAtMs = modifiedAtMs.takeIf { it > 0 },
             // A file dropped straight into Documents has no folder of its own, so it stays one:
             // "Imported" here would merge it into the real Documents/Imported folder — a single
             // source with a single switch covering two unrelated sets of files. Android's path

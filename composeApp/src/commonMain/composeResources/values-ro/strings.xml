@@ -84,6 +84,12 @@
     <string name="sort_name">Nume</string>
     <string name="sort_direction_ascending">Crescător</string>
     <string name="sort_direction_descending">Descrescător</string>
+    <string name="sort_date_added">Data adăugării</string>
+    <string name="sort_date_modified">Data modificării</string>
+    <string name="sort_by">Sortează după</string>
+    <string name="sort_direction">Direcția sortării</string>
+    <string name="sort_newest_first">Cele mai noi primele</string>
+    <string name="sort_oldest_first">Cele mai vechi primele</string>
     <string name="snack_track_deleted">Piesă ștearsă</string>
     <string name="snack_track_delete_denied">Pentru a șterge aceste piese este necesar accesul la fișiere.</string>
     <string name="snack_track_delete_failed">Fișierul nu a putut fi șters</string>

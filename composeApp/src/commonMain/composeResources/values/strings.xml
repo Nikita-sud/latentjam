@@ -92,6 +92,12 @@
     <string name="sort_name">Name</string>
     <string name="sort_direction_ascending">Ascending</string>
     <string name="sort_direction_descending">Descending</string>
+    <string name="sort_date_added">Date added</string>
+    <string name="sort_date_modified">Date modified</string>
+    <string name="sort_by">Sort by</string>
+    <string name="sort_direction">Sort direction</string>
+    <string name="sort_newest_first">Newest first</string>
+    <string name="sort_oldest_first">Oldest first</string>
     <string name="snack_track_deleted">Track deleted</string>
     <string name="snack_track_delete_denied">File access is needed to delete these tracks.</string>
     <string name="snack_track_delete_failed">Could not delete the file</string>

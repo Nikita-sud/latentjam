@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.app
 
 import android.content.Context
 import io.github.nikitasud.latentjam.library.AlbumSort
+import io.github.nikitasud.latentjam.library.FolderSort
 import io.github.nikitasud.latentjam.library.SongSort
 import io.github.nikitasud.latentjam.playback.sanitizeCrossfadeSeconds
 import java.io.File
@@ -119,6 +120,8 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
     override val albumSort: StateFlow<SortChoice<AlbumSort>> = mutableAlbumSort.asStateFlow()
     private val mutableGroupSortOrders = MutableStateFlow(groupSortOrdersFromPersisted(readString(KEY_GROUP_SORT)))
     override val groupSortOrders: StateFlow<GroupSortOrders> = mutableGroupSortOrders.asStateFlow()
+    private val mutableFolderSort = MutableStateFlow(folderSortFromPersisted(readString(KEY_FOLDER_SORT)))
+    override val folderSort: StateFlow<SortChoice<FolderSort>> = mutableFolderSort.asStateFlow()
     private val mutableArtistAlbumSort = MutableStateFlow(
         artistAlbumSortFromPersisted(readString(KEY_ARTIST_ALBUM_SORT)),
     )
@@ -250,6 +253,11 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
     override fun setAlbumSort(choice: SortChoice<AlbumSort>) {
         preferences.edit().putString(KEY_ALBUM_SORT, encodeSortChoice(choice)).apply()
         mutableAlbumSort.value = choice
+    }
+
+    override fun setFolderSort(choice: SortChoice<FolderSort>) {
+        preferences.edit().putString(KEY_FOLDER_SORT, encodeSortChoice(choice)).apply()
+        mutableFolderSort.value = choice
     }
 
     override fun setGroupSortOrders(orders: GroupSortOrders) {
@@ -476,6 +484,7 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         const val KEY_SONG_SORT = "song_sort"
         const val KEY_ALBUM_SORT = "album_sort"
         const val KEY_GROUP_SORT = "group_sort_orders"
+        const val KEY_FOLDER_SORT = "folder_sort"
         const val KEY_ARTIST_ALBUM_SORT = "artist_album_sort"
         const val KEY_FOLDER_VIEW = "folder_view"
         const val KEY_PLAYLIST_SORT_ORDERS = "playlist_sort_orders"

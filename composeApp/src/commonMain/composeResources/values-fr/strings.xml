@@ -91,6 +91,12 @@
     <string name="sort_name">Nom</string>
     <string name="sort_direction_ascending">Croissant</string>
     <string name="sort_direction_descending">Décroissant</string>
+    <string name="sort_date_added">Date d’ajout</string>
+    <string name="sort_date_modified">Date de modification</string>
+    <string name="sort_by">Trier par</string>
+    <string name="sort_direction">Sens du tri</string>
+    <string name="sort_newest_first">Plus récents d’abord</string>
+    <string name="sort_oldest_first">Plus anciens d’abord</string>
     <string name="snack_track_deleted">Morceau supprimé</string>
     <string name="snack_track_delete_denied">L’accès aux fichiers est nécessaire pour supprimer ces titres.</string>
     <string name="snack_track_delete_failed">Impossible de supprimer le fichier</string>

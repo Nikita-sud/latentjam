@@ -86,6 +86,12 @@
     <string name="sort_name">Nome</string>
     <string name="sort_direction_ascending">Crescente</string>
     <string name="sort_direction_descending">Decrescente</string>
+    <string name="sort_date_added">Data de adição</string>
+    <string name="sort_date_modified">Data de modificação</string>
+    <string name="sort_by">Ordenar por</string>
+    <string name="sort_direction">Direção da ordenação</string>
+    <string name="sort_newest_first">Mais recentes primeiro</string>
+    <string name="sort_oldest_first">Mais antigos primeiro</string>
     <string name="snack_track_deleted">Música excluída</string>
     <string name="snack_track_delete_denied">É preciso acesso aos arquivos para excluir estas faixas.</string>
     <string name="snack_track_delete_failed">Não foi possível excluir o arquivo</string>

@@ -89,6 +89,12 @@
     <string name="sort_name">Name</string>
     <string name="sort_direction_ascending">Aufsteigend</string>
     <string name="sort_direction_descending">Absteigend</string>
+    <string name="sort_date_added">Hinzugefügt am</string>
+    <string name="sort_date_modified">Geändert am</string>
+    <string name="sort_by">Sortieren nach</string>
+    <string name="sort_direction">Sortierrichtung</string>
+    <string name="sort_newest_first">Neueste zuerst</string>
+    <string name="sort_oldest_first">Älteste zuerst</string>
     <string name="snack_track_deleted">Titel gelöscht</string>
     <string name="snack_track_delete_denied">Zum Löschen dieser Titel ist Dateizugriff erforderlich.</string>
     <string name="snack_track_delete_failed">Die Datei konnte nicht gelöscht werden</string>

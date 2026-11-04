@@ -37,6 +37,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
@@ -49,9 +51,16 @@ import io.github.nikitasud.latentjam.app.generated.resources.info_year
 import io.github.nikitasud.latentjam.app.generated.resources.sort_direction_ascending
 import io.github.nikitasud.latentjam.app.generated.resources.sort_direction_descending
 import io.github.nikitasud.latentjam.app.generated.resources.sort_custom_order
+import io.github.nikitasud.latentjam.app.generated.resources.sort_oldest_first
+import io.github.nikitasud.latentjam.app.generated.resources.sort_newest_first
+import io.github.nikitasud.latentjam.app.generated.resources.sort_direction
+import io.github.nikitasud.latentjam.app.generated.resources.sort_by
+import io.github.nikitasud.latentjam.app.generated.resources.sort_date_added
+import io.github.nikitasud.latentjam.app.generated.resources.sort_date_modified
 import io.github.nikitasud.latentjam.app.generated.resources.sort_name
 import io.github.nikitasud.latentjam.app.generated.resources.sort_recently_added
 import io.github.nikitasud.latentjam.library.AlbumSort
+import io.github.nikitasud.latentjam.library.FolderSort
 import io.github.nikitasud.latentjam.library.PlaylistSort
 import io.github.nikitasud.latentjam.library.SongSort
 import io.github.nikitasud.latentjam.library.SongSortDirection
@@ -76,12 +85,15 @@ internal fun <S : Enum<S>> SortPill(
     modifier: Modifier = Modifier,
     /** False for a field that runs one way only (a playlist's own order): no arrow is offered for it. */
     hasDirection: (S) -> Boolean = { true },
+    /** How a screen reader says a field's direction: "Newest first" for a date, "Ascending" otherwise. */
+    directionLabel: @Composable (S, SongSortDirection) -> String = { sort, direction -> sortDirectionLabel(sort, direction) },
     testTagPrefix: String? = null,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     SortPillFrame(
         label = label(choice.sort),
         direction = choice.direction.takeIf { hasDirection(choice.sort) },
+        directionText = directionLabel(choice.sort, choice.direction),
         enabled = enabled,
         onLabelClick = { menuOpen = true },
         onDirectionClick = { onChoiceChange(choice.copy(direction = choice.direction.toggled())) },
@@ -101,7 +113,7 @@ internal fun <S : Enum<S>> SortPill(
                     },
                     trailing = when {
                         option != choice.sort -> null
-                        hasDirection(option) -> { { SortDirectionIcon(choice.direction) } }
+                        hasDirection(option) -> { { SortDirectionIcon(choice.direction, directionLabel(option, choice.direction)) } }
                         else -> { { Icon(Icons.Rounded.Check, null, Modifier.padding(start = 4.dp).size(16.dp)) } }
                     },
                 )
@@ -111,7 +123,7 @@ internal fun <S : Enum<S>> SortPill(
 }
 
 /**
- * [SortPill] for a list that sorts by name only (artists, genres, folders). With one field there is
+ * [SortPill] for a list that sorts by name only (artists, genres). With one field there is
  * no menu to open: the entire pill is one target that reverses the order.
  */
 @Composable
@@ -145,6 +157,8 @@ private fun SortPillFrame(
     label: String,
     /** Null for a field that runs one way only: no divider and no arrow. */
     direction: SongSortDirection?,
+    /** [direction] as a screen reader says it. */
+    directionText: String,
     enabled: Boolean,
     onLabelClick: () -> Unit,
     onDirectionClick: () -> Unit,
@@ -162,7 +176,8 @@ private fun SortPillFrame(
                 modifier = Modifier.heightIn(min = 48.dp)
                     .then(testTagPrefix?.let { Modifier.testTag(it) } ?: Modifier),
             ) {
-                Icon(Icons.AutoMirrored.Rounded.Sort, null,
+                // Read before the field: "Sort by, Date added, button" says what the menu it opens chooses.
+                Icon(Icons.AutoMirrored.Rounded.Sort, stringResource(Res.string.sort_by),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                 Text(label, style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -170,7 +185,15 @@ private fun SortPillFrame(
             }
             if (direction != null) {
                 Box(Modifier.width(1.dp).height(20.dp).background(MaterialTheme.colorScheme.outlineVariant))
-                IconButton(onClick = onDirectionClick, enabled = enabled) { SortDirectionIcon(direction) }
+                // "Sort direction, Newest first, button": what the arrow does, then where it stands.
+                IconButton(
+                    onClick = onDirectionClick,
+                    enabled = enabled,
+                    modifier = Modifier.semantics { stateDescription = directionText }
+                        .then(testTagPrefix?.let { Modifier.testTag("${it}_direction") } ?: Modifier),
+                ) {
+                    SortDirectionIcon(direction, stringResource(Res.string.sort_direction))
+                }
             }
         }
         menu()
@@ -215,7 +238,7 @@ private fun SortHeaderRow(
     }
 }
 
-/** A list's [SortPill], with its item count at the far end: above the Tracks and Albums tabs. */
+/** A list's [SortPill], with its item count at the far end: above the Tracks, Albums and Folders tabs. */
 @Composable
 internal fun <S : Enum<S>> SortHeader(
     options: List<S>,
@@ -228,8 +251,12 @@ internal fun <S : Enum<S>> SortHeader(
     enabled: Boolean = true,
     onChoiceChange: (SortChoice<S>) -> Unit,
     testTagPrefix: String? = null,
+    /** See [SortPill]. */
+    directionLabel: @Composable (S, SongSortDirection) -> String = { sort, direction -> sortDirectionLabel(sort, direction) },
+    /** A control after the count (the Folders tab's tree/list toggle). */
+    trailing: (@Composable () -> Unit)? = null,
 ) {
-    SortHeaderRow(count = count, countPlural = countPlural, enabled = enabled, trailing = null) {
+    SortHeaderRow(count = count, countPlural = countPlural, enabled = enabled, trailing = trailing) {
         SortPill(
             options = options,
             choice = choice,
@@ -237,14 +264,15 @@ internal fun <S : Enum<S>> SortHeader(
             defaultDirection = defaultDirection,
             enabled = enabled,
             onChoiceChange = onChoiceChange,
+            directionLabel = directionLabel,
             testTagPrefix = testTagPrefix,
         )
     }
 }
 
 /**
- * [SortHeader] for a list that sorts by name only, with a [NameSortPill]: above the Artists, Genres
- * and Folders tabs. [trailing] sits after the count.
+ * [SortHeader] for a list that sorts by name only, with a [NameSortPill]: above the Artists and
+ * Genres tabs. [trailing] sits after the count.
  */
 @Composable
 internal fun NameSortHeader(
@@ -261,19 +289,43 @@ internal fun NameSortHeader(
     }
 }
 
+/** "Ascending" or "Descending". */
 @Composable
-private fun SortDirectionIcon(direction: SongSortDirection) {
+internal fun SongSortDirection.label(): String = stringResource(
+    when (this) {
+        SongSortDirection.ASCENDING -> Res.string.sort_direction_ascending
+        SongSortDirection.DESCENDING -> Res.string.sort_direction_descending
+    },
+)
+
+/** A date order's direction as people say it: "Newest first" or "Oldest first". */
+@Composable
+internal fun SongSortDirection.dateLabel(): String = stringResource(
+    when (this) {
+        SongSortDirection.ASCENDING -> Res.string.sort_oldest_first
+        SongSortDirection.DESCENDING -> Res.string.sort_newest_first
+    },
+)
+
+/** Whether [sort] orders by a date (when something was added or changed), whose direction reads as newest or oldest first. */
+internal fun isDateSort(sort: Enum<*>): Boolean = when (sort) {
+    SongSort.RECENT, SongSort.MODIFIED, FolderSort.RECENT, FolderSort.MODIFIED, AlbumSort.RECENT, PlaylistSort.RECENT -> true
+    else -> false
+}
+
+/** [direction] of [sort] as a screen reader says it: "Newest first" for a date order, "Ascending" otherwise. */
+@Composable
+internal fun sortDirectionLabel(sort: Enum<*>, direction: SongSortDirection): String =
+    if (isDateSort(sort)) direction.dateLabel() else direction.label()
+
+@Composable
+private fun SortDirectionIcon(direction: SongSortDirection, description: String = direction.label()) {
     Icon(
         imageVector = when (direction) {
             SongSortDirection.ASCENDING -> Icons.Rounded.ArrowUpward
             SongSortDirection.DESCENDING -> Icons.Rounded.ArrowDownward
         },
-        contentDescription = stringResource(
-            when (direction) {
-                SongSortDirection.ASCENDING -> Res.string.sort_direction_ascending
-                SongSortDirection.DESCENDING -> Res.string.sort_direction_descending
-            },
-        ),
+        contentDescription = description,
         modifier = Modifier
             .padding(start = 4.dp)
             .size(16.dp),
@@ -324,7 +376,8 @@ internal fun SongSort.label(): String = stringResource(
     when (this) {
         SongSort.TITLE -> Res.string.info_title
         SongSort.ARTIST -> Res.string.info_artist
-        SongSort.RECENT -> Res.string.sort_recently_added
+        SongSort.RECENT -> Res.string.sort_date_added
+        SongSort.MODIFIED -> Res.string.sort_date_modified
     },
 )
 
@@ -348,5 +401,14 @@ internal fun AlbumSort.label(): String = stringResource(
         AlbumSort.ARTIST -> Res.string.info_artist
         AlbumSort.YEAR -> Res.string.info_year
         AlbumSort.RECENT -> Res.string.sort_recently_added
+    },
+)
+
+@Composable
+internal fun FolderSort.label(): String = stringResource(
+    when (this) {
+        FolderSort.NAME -> Res.string.sort_name
+        FolderSort.RECENT -> Res.string.sort_date_added
+        FolderSort.MODIFIED -> Res.string.sort_date_modified
     },
 )

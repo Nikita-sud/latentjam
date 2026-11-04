@@ -1102,7 +1102,7 @@ internal class LocalBackupService(
                 crossfadeSeconds = settings.crossfadeSeconds.value,
                 pageLayout = settings.pageLayout.value,
                 artistVariety = settings.artistVariety.value,
-                songSort = settings.songSort.value,
+                songSort = settings.songSort.value.inBackupForm(),
                 albumSort = settings.albumSort.value,
                 artistAlbumSort = settings.artistAlbumSort.value,
                 groupSortOrders = settings.groupSortOrders.value,
@@ -1627,3 +1627,10 @@ private fun backupDurationsNear(first: Long, second: Long): Boolean =
     else first >= second - LOCAL_BACKUP_DURATION_TOLERANCE_MS
 
 private fun formatError(message: String): Nothing = throw LocalBackupFormatException(message)
+
+/**
+ * The Tracks order as a backup carries it. "Date modified" is new in 0.9.4, and 0.9.3 refuses a backup holding an order
+ * it does not know, so it is written as "Date added" in the same direction: the nearest order every version reads.
+ */
+internal fun SortChoice<SongSort>.inBackupForm(): SortChoice<SongSort> =
+    if (sort == SongSort.MODIFIED) SortChoice(SongSort.RECENT, direction) else this

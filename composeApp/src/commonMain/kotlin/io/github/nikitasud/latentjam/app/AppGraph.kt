@@ -512,6 +512,10 @@ object AppGraph {
     val settings: AppSettings
         get() = koin.get()
 
+    /** [settings] once the platform started the graph; null before (host tests). */
+    internal val settingsOrNull: AppSettings?
+        get() = koinApp?.koin?.getOrNull()
+
     /** Verified tag edits whose songs keep their audio analysis at the next index sync (spec §6.5). */
     internal val audioCarryOvers: AudioCarryOverStore by lazy {
         AudioCarryOverStore(settings::readAudioCarryOversPayload, settings::writeAudioCarryOversPayload)

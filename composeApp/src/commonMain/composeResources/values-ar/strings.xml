@@ -103,6 +103,12 @@
     <string name="sort_name">الاسم</string>
     <string name="sort_direction_ascending">تصاعدي</string>
     <string name="sort_direction_descending">تنازلي</string>
+    <string name="sort_date_added">تاريخ الإضافة</string>
+    <string name="sort_date_modified">تاريخ التعديل</string>
+    <string name="sort_by">الترتيب حسب</string>
+    <string name="sort_direction">اتجاه الترتيب</string>
+    <string name="sort_newest_first">الأحدث أولًا</string>
+    <string name="sort_oldest_first">الأقدم أولًا</string>
     <string name="snack_track_deleted">تم حذف المقطع</string>
     <string name="snack_track_delete_denied">يلزم الوصول إلى الملفات لحذف هذه المقاطع.</string>
     <string name="snack_track_delete_failed">تعذّر حذف الملف</string>

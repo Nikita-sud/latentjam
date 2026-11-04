@@ -90,9 +90,12 @@ import io.github.nikitasud.latentjam.app.generated.resources.map_action_smart_he
 import io.github.nikitasud.latentjam.app.generated.resources.tab_folders
 import io.github.nikitasud.latentjam.library.FolderGroup
 import io.github.nikitasud.latentjam.library.FolderNode
+import io.github.nikitasud.latentjam.library.FolderSort
 import io.github.nikitasud.latentjam.library.FolderTree
 import io.github.nikitasud.latentjam.library.LibraryCatalog
 import io.github.nikitasud.latentjam.library.SongSortDirection
+import io.github.nikitasud.latentjam.library.defaultDirection
+import io.github.nikitasud.latentjam.library.trackOrder
 import io.github.nikitasud.latentjam.playback.PlaybackController
 import io.github.nikitasud.latentjam.playback.ShuffleMode
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
@@ -147,10 +150,37 @@ internal fun folderTabSelectionOrder(
     direction: SongSortDirection,
     selected: Set<TrackId>,
     view: FolderView,
+    /** Within a folder: [currentFolderTrackOrder]. */
+    trackOrder: Comparator<TrackDescriptor> = currentFolderTrackOrder(),
 ): List<TrackDescriptor> = when (view) {
-    FolderView.TREE -> FolderTree.inPlayOrder(catalog.songs.filter { it.id in selected }, direction)
-    FolderView.LIST -> catalog.folders.flatMap { it.tracks }
+    FolderView.TREE -> FolderTree.inPlayOrder(catalog.songs.filter { it.id in selected }, direction, trackOrder)
+    FolderView.LIST -> catalog.folders.flatMap { it.tracks.sortedWith(trackOrder) }
 }
+
+/** The order of a folder's own tracks that the Folders tab shows and plays ([AppSettings.folderSort]). */
+internal fun AppSettings.folderTrackOrder(): Comparator<TrackDescriptor> =
+    folderSort.value.let { it.sort.trackOrder(it.direction) }
+
+/** [AppSettings.folderTrackOrder] of the running app; folder order before the app has started (host tests). */
+internal fun currentFolderTrackOrder(): Comparator<TrackDescriptor> =
+    AppGraph.settingsOrNull?.folderTrackOrder() ?: LibraryCatalog.FOLDER_TRACK_ORDER
+
+/** Whether the Folders tab orders each folder's tracks by a date rather than by folder order. */
+internal fun currentFolderSortIsDate(): Boolean = AppGraph.settingsOrNull?.folderSort?.value?.sort?.let { it != FolderSort.NAME } == true
+
+/**
+ * The Folders tab's choice as its pill shows it: a date order as stored, or Name in the folder-name direction, which a
+ * backup restores ([GroupSortOrders.folders]).
+ */
+internal fun shownFolderSort(stored: SortChoice<FolderSort>, folderNames: SongSortDirection): SortChoice<FolderSort> =
+    if (stored.sort == FolderSort.NAME) SortChoice(FolderSort.NAME, folderNames) else stored
+
+/**
+ * The folder-name direction under [choice]: its own for Name; A–Z under a date order, which orders tracks, not folders.
+ * Every reader of [GroupSortOrders.folders] (play order, a folder's page, the queue's source) then agrees with the tab.
+ */
+internal fun folderNamesDirection(choice: SortChoice<FolderSort>): SongSortDirection =
+    if (choice.sort == FolderSort.NAME) choice.direction else SongSortDirection.ASCENDING
 
 /**
  * The count beside the Folders tab's sort pill: the folders that hold tracks, one per path, which is
@@ -185,16 +215,24 @@ internal fun FoldersPage(
     val settings = AppGraph.settings
     val view by settings.folderView.collectAsState()
     val orders by settings.groupSortOrders.collectAsState()
+    val folderSort by settings.folderSort.collectAsState()
     val reduceMotion = rememberReduceMotion()
     // The tree's place, kept while the list is up and saved like the list's scroll position.
     var treeKey by rememberSaveable { mutableStateOf<String?>(null) }
     Column {
-        NameSortHeader(
-            direction = orders.folders,
+        SortHeader(
+            options = FolderSort.entries,
+            choice = shownFolderSort(folderSort, orders.folders),
+            label = { it.label() },
+            defaultDirection = { it.defaultDirection },
             count = folderTabCount(catalog),
             countPlural = Res.plurals.count_folders,
             enabled = !selectionMode,
-            onDirectionChange = { settings.setGroupSortOrders(orders.copy(folders = it)) },
+            onChoiceChange = { choice ->
+                settings.setFolderSort(choice)
+                settings.setGroupSortOrders(orders.copy(folders = folderNamesDirection(choice)))
+            },
+            testTagPrefix = "latentjam_folder_sort",
         ) {
             FolderViewToggle(view = view, enabled = !selectionMode, onChange = settings::setFolderView)
         }
@@ -217,6 +255,7 @@ internal fun FoldersPage(
                 )
                 FolderView.TREE -> FolderTreeBrowser(
                     songs = catalog.songs,
+                    trackOrder = folderSort,
                     direction = orders.folders,
                     placeKey = treeKey,
                     onPlaceChange = { treeKey = it },
@@ -345,6 +384,8 @@ private fun FolderList(
 @Composable
 private fun FolderTreeBrowser(
     songs: List<TrackDescriptor>,
+    /** How each folder's own tracks are ordered ([AppSettings.folderSort]). */
+    trackOrder: SortChoice<FolderSort>,
     direction: SongSortDirection,
     placeKey: String?,
     onPlaceChange: (String?) -> Unit,
@@ -360,8 +401,10 @@ private fun FolderTreeBrowser(
     contentPadding: PaddingValues,
 ) {
     // Built off the main thread like the catalog; a rescan keeps showing the last tree until then.
-    val tree by produceState<FolderTree?>(initialValue = null, songs) {
-        value = withContext(Dispatchers.Default) { FolderTree.build(songs) }
+    val tree by produceState<FolderTree?>(initialValue = null, songs, trackOrder) {
+        value = withContext(Dispatchers.Default) {
+            FolderTree.build(songs, trackOrder.sort.trackOrder(trackOrder.direction))
+        }
     }
     val volumeNames by produceState(initialValue = emptyMap<String, String>(), songs) {
         value = AppGraph.library.storageVolumeNames()
