@@ -98,17 +98,6 @@ public object SongSorting {
         .sortedWith(datedTrackComparator(direction))
         .map { it.track }
 
-    /** A comparator for [byDate]'s order, for callers that order tracks inside a larger order (a folder's). */
-    public fun dateComparator(
-        direction: SongSortDirection,
-        dateOf: (TrackDescriptor) -> Long?,
-    ): Comparator<TrackDescriptor> {
-        val dates = datedTrackComparator(direction)
-        return Comparator { left, right ->
-            dates.compare(DatedTrack(left, dateOf(left), sortKey(left.title)), DatedTrack(right, dateOf(right), sortKey(right.title)))
-        }
-    }
-
     private class DatedTrack(val track: TrackDescriptor, val date: Long?, val title: String)
 
     private fun datedTrackComparator(direction: SongSortDirection): Comparator<DatedTrack> = Comparator { left, right ->

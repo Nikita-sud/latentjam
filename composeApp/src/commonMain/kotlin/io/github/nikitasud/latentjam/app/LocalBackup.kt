@@ -16,11 +16,13 @@ import io.github.nikitasud.latentjam.history.SmartExclusionState
 import io.github.nikitasud.latentjam.history.SmartExclusions
 import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.library.AlbumSort
+import io.github.nikitasud.latentjam.library.FolderSort
 import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.library.Playlists
 import io.github.nikitasud.latentjam.library.reconcilePlaylistAddedOrder
 import io.github.nikitasud.latentjam.library.SongSort
+import io.github.nikitasud.latentjam.library.SongSortDirection
 import io.github.nikitasud.latentjam.playback.MAX_CROSSFADE_SECONDS
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
@@ -1306,6 +1308,13 @@ internal class LocalBackupService(
                 settings.setAlbumSort(snapshot.settings.albumSort)
                 settings.setArtistAlbumSort(snapshot.settings.artistAlbumSort)
                 settings.setGroupSortOrders(snapshot.settings.groupSortOrders)
+                // A date order on the Folders tab keeps folders A–Z; a restored Z–A folder order is Name's, so the tab
+                // shows Name again rather than a date while the folders run Z–A.
+                if (snapshot.settings.groupSortOrders.folders == SongSortDirection.DESCENDING &&
+                    settings.folderSort.value.sort != FolderSort.NAME
+                ) {
+                    settings.setFolderSort(SortChoice(FolderSort.NAME, SongSortDirection.DESCENDING))
+                }
                 // A backup from before v11 has no look at all: restoring it must not reset the
                 // look chosen since to the defaults.
                 if (snapshot.carriesAppearance) {

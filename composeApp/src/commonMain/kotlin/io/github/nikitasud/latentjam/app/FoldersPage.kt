@@ -154,7 +154,12 @@ internal fun folderTabSelectionOrder(
     trackOrder: Comparator<TrackDescriptor> = currentFolderTrackOrder(),
 ): List<TrackDescriptor> = when (view) {
     FolderView.TREE -> FolderTree.inPlayOrder(catalog.songs.filter { it.id in selected }, direction, trackOrder)
-    FolderView.LIST -> catalog.folders.flatMap { it.tracks.sortedWith(trackOrder) }
+    // Folder order is the groups' own; a date order sorts only the selected tracks of each folder.
+    FolderView.LIST -> if (trackOrder === LibraryCatalog.FOLDER_TRACK_ORDER) {
+        catalog.folders.flatMap { it.tracks }
+    } else {
+        catalog.folders.flatMap { group -> group.tracks.filter { it.id in selected }.sortedWith(trackOrder) }
+    }
 }
 
 /** The order of a folder's own tracks that the Folders tab shows and plays ([AppSettings.folderSort]). */
