@@ -679,3 +679,25 @@ the commit after this log:
 
 The orientation config change keeps both sheets. The R8 gate passes. The final full run (JVM host tests for every
 module, iOS tests for library, playback and composeApp, `checkNativeIdentifiers`): **6,310 tests, 0 failures**.
+
+## Release checks on 98562df7
+
+All on HEAD 98562df7, one emulator at a time, `-no-audio`, volume 0. Logs: `~/Documents/LJ/integ094-stand/rc-98562df7/`.
+
+| check | result |
+|---|---|
+| `tools/release/build.sh android` (unsigned per-ABI APKs) and `bundle` | pass; R8 register gate 243 of 255 |
+| debug build; release build signed with the debug key for the emulators | pass (`~/Documents/LJ/builds/integ094-98562df7/`) |
+| F-Droid: `fdroid_recipe.py check` | exit 3 (the MR is still needed); recipe unit tests OK |
+| F-Droid property builds, arm64-v8a and armeabi-v7a | pass |
+| iOS simulator app build (`xcodebuild … iphonesimulator`) | BUILD SUCCEEDED |
+| release launch, API 30 and API 37 | cold start 275 ms and 499 ms; alive after 25 s; no VerifyError, FATAL or AndroidRuntime from the app |
+| 10k songs at 48m / 96m (LJ-api30) | no out-of-memory, one process; idle 17.18 MB, press 28.66 MB; first plan 4.8 s / 4.5 s; top-up 0.39 s / 0.34 s (d7be2f9a: 17.17 MB, 28.9 MB, 6.1 s / 4.6 s) |
+| SMART session with crossfade 6 s (API 37, debug build, seam log) | 13 natural seams, every one `overlap 6000 ms`, no lost overlap, no withdrawal; the incoming track 6.1–7.0 s in just after each join |
+| full test suites (JVM host tests for every module; iOS tests for library, playback and composeApp; `checkNativeIdentifiers`) | 6,310 tests, 0 failures |
+
+Noise from the emulators themselves, outside the app:
+
+- LJ-api30's system server crashed once during the first install, about a minute after boot, before the app was
+  launched; the launch was redone clean.
+- LJ-api37's Bluetooth service has one crash entry.
