@@ -116,7 +116,7 @@ internal open class EqualizerRenderersFactory(
             .setEnableAudioOutputPlaybackParameters(enableAudioOutputPlaybackParams)
             .setAudioProcessorChain(chain)
             .build()
-        return PcmOnlyAudioSink(SeamResamplingAudioSink(sink, crossfade, streams), restart, streams)
+        return PcmOnlyAudioSink(SeamResamplingAudioSink(sink, crossfade, streams), restart, streams, crossfade)
     }
 
     protected open fun buildAudioProcessors(context: Context, restart: AtomicBoolean): Array<AudioProcessor> {
@@ -327,6 +327,7 @@ internal class PcmOnlyAudioSink(
     sink: AudioSink,
     private val restart: AtomicBoolean = AtomicBoolean(false),
     internal val streams: PcmStreams? = null,
+    private val crossfade: CrossfadeSettings = AndroidCrossfade.settings,
 ) : ForwardingAudioSink(sink) {
     private var outputStreamOffsetUs = 0L
 
@@ -344,7 +345,16 @@ internal class PcmOnlyAudioSink(
     override fun handleBuffer(buffer: ByteBuffer, presentationTimeUs: Long, encodedAccessUnitCount: Int): Boolean {
         streams?.bufferMediaUs = (presentationTimeUs - outputStreamOffsetUs).coerceAtLeast(0L)
         streams?.let { it.repositionsAtData = it.repositions }
-        return super.handleBuffer(buffer, presentationTimeUs, encodedAccessUnitCount)
+        return try {
+            super.handleBuffer(buffer, presentationTimeUs, encodedAccessUnitCount)
+        } catch (failure: AudioSink.WriteException) {
+            // Media3 may recover from this by itself, restarting the track it reads at 0:00: see CrossfadeSettings.interruptedJoin.
+            if (streams != null) crossfade.onSinkError()
+            throw failure
+        } catch (failure: AudioSink.InitializationException) {
+            if (streams != null) crossfade.onSinkError()
+            throw failure
+        }
     }
 
     override fun supportsFormat(format: Format): Boolean = getFormatSupport(format) != AudioSink.SINK_FORMAT_UNSUPPORTED

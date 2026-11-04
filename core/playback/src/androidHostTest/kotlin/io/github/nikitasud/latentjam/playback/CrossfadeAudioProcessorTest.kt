@@ -560,35 +560,44 @@ internal class CrossfadeAudioProcessorTest {
     }
 
     @Test
-    fun aSinkResetRightAfterTheJoinRecordsWhereTheOpeningHadGotTo() {
+    fun aSinkErrorUnderOrRightAfterTheOverlapArmsTheResumeWhereTheOpeningHadGotTo() {
         settings.fadeMs = 2_000
         settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000, samples = ramp)
         reposition(stream("a", 10_000), atMs = 5_000)
-        feed(loud, 5_000, 10_000)
+        feed(loud, 5_000, 9_000)
+        // Under the overlap: 1000 frames of B's opening have sounded.
+        assertEquals(HeardOpening("b", 1_000_000L), settings.heardOpening)
+        feed(loud, 9_000, 10_000)
         assertEquals(2_000_000L, join(stream("b", 20_000)))
         feed(ramp, 0, 2_500)
-        // A dead AudioTrack: the player recovers by itself and plays B again from 0:00, telling the app nothing.
-        processor.reset()
+        assertEquals(HeardOpening("b", 2_000_000L), settings.heardOpening)
+        // A dead AudioTrack: the sink reports it before Media3 restarts B at 0:00 by itself, and the flush of that
+        // restart keeps B's heard opening for the coordinator.
+        settings.onSinkError()
         val join = assertNotNull(settings.interruptedJoin)
         assertEquals("b", join.mediaId)
         assertEquals(2_000_000L, join.positionUs)
+        reposition(stream("b", 20_000))
+        assertEquals("b", settings.heardOpening?.mediaId)
     }
 
     @Test
-    fun aResetWellIntoTheNextTrackIsAStopNotAnInterruptedJoin() {
+    fun wellIntoTheNextTrackASinkErrorArmsNothing() {
         settings.fadeMs = 2_000
         settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000, samples = ramp)
         reposition(stream("a", 10_000), atMs = 5_000)
         feed(loud, 5_000, 10_000)
         join(stream("b", 20_000))
         feed(ramp, 0, 9_000)
-        processor.reset()
+        assertEquals(null, settings.heardOpening)
+        settings.onSinkError()
         assertEquals(null, settings.interruptedJoin)
-        // Nor a track that began at its start.
+        // Nor in a track that began at its start, nor after a reset (a stop) alone.
+        processor.reset()
         configureAgain()
         reposition(stream("c", 20_000))
         feed(loud, 0, 500)
-        processor.reset()
+        settings.onSinkError()
         assertEquals(null, settings.interruptedJoin)
     }
 

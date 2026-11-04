@@ -172,6 +172,9 @@ internal class AndroidPlaybackController(
      */
     private val failedRecoveryIds = mutableSetOf<String>()
 
+    /** Tracks put back after an audio-output failure under a crossfade overlap; once each until playback is ready. */
+    private val sinkResumedIds = mutableSetOf<String>()
+
     /** The "no cover" tile, rendered once per light and dark. */
     private val fallbackArtworkCache = HashMap<String, ByteArray>(2)
     private val fallbackArtworkInFlight = mutableSetOf<String>()
@@ -230,7 +233,10 @@ internal class AndroidPlaybackController(
         override fun onPlaybackStateChanged(playbackState: Int) {
             // Reaching READY proves the recovery chain found a readable item. Forget failures from
             // that completed chain so a later repeat/session may legitimately retry those tracks.
-            if (playbackState == Player.STATE_READY) failedRecoveryIds.clear()
+            if (playbackState == Player.STATE_READY) {
+                failedRecoveryIds.clear()
+                sinkResumedIds.clear()
+            }
             // The one moment no queue transition follows. Without this, a SMART queue that reached
             // its end stayed ended for the rest of the session however ready the engine became.
             if (playbackState == Player.STATE_ENDED) {
@@ -258,6 +264,24 @@ internal class AndroidPlaybackController(
                 }
             // A pause still fading out is the listener's; recovery must not undo it.
             val intendedToPlay = player.playWhenReady && !AndroidTransportFade.pausePending.value
+            // The audio output failed (not the file) just as a crossfade's next track began: Media3 blames that track,
+            // which is readable. It plays on from where its opening had sounded, once, instead of being skipped.
+            val outputFailed = error.errorCode == PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED ||
+                error.errorCode == PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED
+            val interrupted = AndroidCrossfade.settings.interruptedJoin?.takeIf { it.mediaId == failedId }
+            if (outputFailed && interrupted != null && sinkResumedIds.add(failedId)) {
+                AndroidCrossfade.settings.interruptedJoin = null
+                AndroidCrossfade.settings.interruptedMix = null
+                val atMs = interrupted.positionUs / 1000L
+                AndroidCrossfade.settings.seamLog("seam -> $failedId: audio output failed under its overlap; on at $atMs ms")
+                AndroidCrossfade.settings.pendingRise =
+                    PendingRise(failedId, interrupted.positionUs, CROSSFADE_CANCEL_MS * 1000L, fromUs = interrupted.positionUs)
+                player.seekTo(failedIndex, atMs)
+                player.prepare()
+                if (intendedToPlay) player.play()
+                pushState()
+                return
+            }
             failedRecoveryIds += failedId
             val traversalOrder = playerTraversalOrder(player)
             val replacement = nextPlaybackErrorRecoveryIndex(

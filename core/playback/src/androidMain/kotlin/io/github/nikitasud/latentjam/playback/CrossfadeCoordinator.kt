@@ -82,8 +82,9 @@ internal class CrossfadeCoordinator(
     }
 
     /**
-     * Puts a track the player restarted at 0:00 after a sink error at its join back where its overlap had played it
-     * to ([CrossfadeSettings.interruptedJoin]), rising as after a Next there. Only the same track, playing, soon after.
+     * Puts a track the player restarted at 0:00 after its sink failed under or just after an overlap back where the
+     * overlap had played it to ([CrossfadeSettings.interruptedJoin]), rising as after a Next there. Only after a sink
+     * error, only that track, playing, soon after: a seek of the listener's own is never moved.
      */
     private fun resumeInterruptedJoin() {
         val join = settings.interruptedJoin ?: return
@@ -280,7 +281,7 @@ internal class CrossfadeCoordinator(
     private companion object {
         const val TICK_MS = 500L
 
-        /** How long a sink error's restart may take to show before an [CrossfadeSettings.interruptedJoin] lapses. */
+        /** How long a sink error's restart may take to show before its [CrossfadeSettings.interruptedJoin] lapses. */
         const val INTERRUPTED_JOIN_TTL_NS = 5_000_000_000L
 
         /** A restart that already landed within this of the heard point is left as it is. */
