@@ -587,3 +587,17 @@ callback. Those 0.9.3 paths cover every MP3 → MP3 seam the reviewers could con
 | 4 | the resume's rise can be lost to Media3's own restart PCM, so B enters at full level at the right point | low | deferred: keeping the rise would break the existing "rise only at its landing" guarantee |
 
 Round 4 found no finding of medium or higher: **stop criterion met.**
+
+**Reproduced on the emulator** (LJ-api37-lock, `-no-audio`, volume 0; a build before the fixes with the seam-log
+diagnostics; `~/Documents/LJ/integ094-stand/xfade-restart-emulator.md`):
+
+- **The bug, 2 of 2.** The next row is changed and then restored inside one overlap; on the emulator by cycling repeat
+  off → all → one → off. The sounding plan is withdrawn (`withdrawn while sounding`), the join still goes to the same
+  track, and that track plays from 0:00: `LOST OVERLAP … the plan was withdrawn`, position 0.3 s just after the join.
+  This is the let-go path, the second row of the table above.
+- **The same withdrawal** under Play next, shuffle on and repeat one: a different track (or the same one, for repeat
+  one) starts at 0:00. That is correct, because the next row really changed.
+- **Clean.** Natural joins across all 56 ordered pairs of eight formats, queue add, remove and reorder, the slider,
+  pause and resume, and SMART seams: no lost overlap. Mono against stereo fades, as designed.
+- **Not reproduced.** No playback error occurred under an overlap: errors came only from the opening-capture player,
+  which falls back to a fade, or from a broken track once it was current. The error and sink paths stay as hardening.
