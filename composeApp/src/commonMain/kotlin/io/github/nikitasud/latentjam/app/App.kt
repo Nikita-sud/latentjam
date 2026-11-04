@@ -4389,7 +4389,7 @@ private fun AppShell(
                         sheets.playlistMutationFailed = false
                         // Slid away, not dropped: removed at once, the sheet's window vanished over the player in
                         // one frame, which read as the queue collapsing and coming back.
-                        sheets.addToPlaylistClosing = true
+                        if (sheets.addToPlaylistSelection === selection) sheets.addToPlaylistClosing = true
                         refreshPlaylistMembershipsBestEffort()
                         snackbar.showSnackbar(
                             getString(Res.string.snack_added_to_playlist, bidiWrap(playlist.name, layoutDirection)),
@@ -4406,6 +4406,8 @@ private fun AppShell(
                     sheets.addToPlaylistSelection = null
                     sheets.addToPlaylistClosing = false
                     sheets.playlistMutationFailed = false
+                    // However the chooser went (a quick pick, Back, a new playlist), the menu it came from goes too.
+                    if (sheets.trackMenuRequest != null) sheets.trackMenuReleasing = true
                 },
                 busy = sheets.playlistMutationInProgress,
                 closing = sheets.addToPlaylistClosing,

@@ -283,7 +283,13 @@ internal fun TrackActionsSheet(
                 stringResource(Res.string.action_add_to_playlist),
                 // This sheet stays until the chooser and its dim are up, then slides away beneath it ([release]): hidden
                 // first, the dim lifted and the bare queue showed before the chooser came — "the queue collapses" (0.9.3).
-            ) { if (!dismissalInFlight) onAddToPlaylist() }
+            ) {
+                if (!dismissalInFlight) {
+                    // Handed off: no other action of this menu while the chooser comes up over it.
+                    dismissalInFlight = true
+                    onAddToPlaylist()
+                }
+            }
             onRemoveFromPlaylist?.let { removeFromPlaylist ->
                 SheetAction(
                     Icons.Outlined.PlaylistRemove,
