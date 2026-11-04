@@ -538,3 +538,52 @@ is identical (`aspect/RESULTS_W3FIX.md`, 549abaee).
 | W3-5 | note | the personal cluster guard (`PersonalTerm.clusterGuard`) reads the theme's z-scores; with Z, family-sharing rows rise, so more tier-2 habit leads pass. W3FIX's gates had no personal history | **owner decision**: unmeasured; same direction as theme_gt's move |
 
 The fresh reviewer's round found no finding of medium or higher: **stop criterion met** for W3.
+
+## crossfade: incoming restarts after overlap
+
+Owner, on the phone (0.9.3 release, S24 Ultra, crossfade on): «It's Raining Men -> Shake Your Groove Thing
+(оригинал). При переходе песня начала играть с начала» — the next track's opening was heard during the overlap, and
+then that track played again from 0:00. No log reached us: it happened before the logcat window, and run-as is
+blocked in a release build.
+
+**Paths found by reading the code and Media3 1.10.1's bytecode.** Each one makes the incoming track B play from
+frame 0 after part of its opening sounded under the outgoing track A:
+
+| path | before | now |
+|---|---|---|
+| a fatal error blamed on A under the overlap: recovery `seekToDefaultPosition(B)` | B from 0:00 | lands at the heard point and rises (`overlapLanding`; the sounding plan survives the sink reset as `interruptedMix`) — 8f24fe71 |
+| the plan withdrawn mid-overlap (a re-planned seam, an edge flip) but the join still goes to B | B from 0:00 | continues from the frame heard last, rising; only with crossfades on, no end-of-track sleep timer, not at an album seam, same rate (8f24fe71, bf558611, cd75e808) |
+| **a recoverable sink error (dead AudioTrack, route or Bluetooth change) while B is being read**: Media3 advances to B at 0 and recovers by itself, with no app callback | B from 0:00 | the processor keeps B's heard opening; the sink arms the resume when its write or init fails; the coordinator moves B back (cd75e808, dc61d734, 140aad2f) |
+| a fatal audio-output error blamed on B (readable) in that window | B skipped | B plays on from its heard point, once, within 5 s and only while it sits before that point (cd75e808, dc61d734) |
+
+The third row is the most plausible cause on a phone with Bluetooth headphones, and it is invisible to every app
+callback. Those 0.9.3 paths cover every MP3 → MP3 seam the reviewers could construct. Diagnostics: the seam log
+(`setprop log.tag.LJCrossfade DEBUG`) prints `LOST OVERLAP … <why>` for any join that still drops an overlap, and
+`withdrawn while sounding`.
+
+**Tests** (`CrossfadeAudioProcessorTest`, 366 playback tests pass):
+
+- a withdrawn plan joined to the same track continues from the heard frame (the old test pinned the replay; changed on
+  purpose); joined to another track it still starts that track at its beginning;
+- with crossfades turned off mid-overlap the track starts from its start;
+- a sink reset keeps the sounding plan for the error recovery, and `overlapLanding` gives the heard point, including
+  after a leading silence;
+- a sink error under or right after the overlap arms the resume at the heard point, and a later new start of that
+  track clears it;
+- well into the next track, or in a track that began at its start, a sink error arms nothing.
+
+**Review rounds** (fresh reviewer each round, reading the code and the Media3 bytecode):
+
+| round | finding | sev | verdict |
+|---|---|---|---|
+| 1 | a recoverable sink error after the join restarts B with no callback | medium | fixed (bf558611, redone in cd75e808) |
+| 1 | the resumed join had no guard for crossfades off, the sleep timer or the rate | low | fixed |
+| 1 | `interruptedMix` was not cleared on recovery's early returns; the log was noisy after a landed Next | low | fixed |
+| 2 | the reset-based arming never fired: Media3 recovers by disable and enable, which only flushes the sink | **high** | fixed (cd75e808): arm from the sink's own failure |
+| 2 | a resumed join at a gapless album seam; a fatal error blamed on B skipped a readable B | low | fixed |
+| 3 | the heard opening outlived B's start, so a later fatal error could rewind B, repeatedly on a failing output | medium | fixed (dc61d734) |
+| 3 | the resume over-skips by up to the AudioTrack buffer (≈0.75 s); `playToEndOfStream` is not wrapped (final end only) | low | deferred |
+| 4 | a stale heard opening after a no-seek recovery; the listener's own restart of B within 5 s after an error under A could be moved | low | fixed (140aad2f) |
+| 4 | the resume's rise can be lost to Media3's own restart PCM, so B enters at full level at the right point | low | deferred: keeping the rise would break the existing "rise only at its landing" guarantee |
+
+Round 4 found no finding of medium or higher: **stop criterion met.**
