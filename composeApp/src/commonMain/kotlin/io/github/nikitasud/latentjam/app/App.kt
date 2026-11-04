@@ -4189,7 +4189,11 @@ private fun AppShell(
                 },
                 canDelete = canDeleteTrack(target),
                 onDelete = { sheets.deleteTarget = target },
-                onDismiss = { sheets.trackMenuRequest = null },
+                onDismiss = {
+                    sheets.trackMenuRequest = null
+                    sheets.trackMenuReleasing = false
+                },
+                release = sheets.trackMenuReleasing,
             )
         }
 
@@ -4406,7 +4410,7 @@ private fun AppShell(
                 busy = sheets.playlistMutationInProgress,
                 closing = sheets.addToPlaylistClosing,
                 // The track menu it was raised from stayed up beneath it, so the dim never lifted.
-                onShown = { sheets.trackMenuRequest = null },
+                onShown = { if (sheets.trackMenuRequest != null) sheets.trackMenuReleasing = true },
                 errorMessage = playlistMutationErrorMessage,
             )
         }

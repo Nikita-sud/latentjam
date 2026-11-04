@@ -533,6 +533,9 @@ internal class ShellSheets {
     var playlistMutationInProgress by mutableStateOf(false)
     var playlistMutationFailed by mutableStateOf(false)
     var trackMenuRequest by mutableStateOf<TrackMenuRequest?>(null)
+
+    /** A sheet raised from the track menu is up over it: the menu slides away beneath, its dim fading under that one's. */
+    var trackMenuReleasing by mutableStateOf(false)
     var deleteTarget by mutableStateOf<TrackDescriptor?>(null)
     var deleteSelection by mutableStateOf<List<TrackDescriptor>?>(null)
     var showSelectionRemoval by mutableStateOf(false)

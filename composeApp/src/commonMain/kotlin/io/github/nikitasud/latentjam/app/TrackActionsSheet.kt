@@ -49,6 +49,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -158,11 +159,18 @@ internal fun TrackActionsSheet(
     onDismiss: () -> Unit,
     /** Null only when this track cannot be shared by the platform. */
     onShare: (() -> Unit)? = null,
+    /** A sheet raised from here is up over this one: slide away beneath it. */
+    release: Boolean = false,
 ) {
     val sheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
     val reduceMotion = rememberReduceMotion()
     var dismissalInFlight by remember { mutableStateOf(false) }
+    LaunchedEffect(release) {
+        if (!release) return@LaunchedEffect
+        dismissalInFlight = true
+        if (reduceMotion) onDismiss() else scope.hideSheetThen(sheetState::hide) { onDismiss() }
+    }
 
     fun dismissThen(action: () -> Unit) {
         if (dismissalInFlight) return
@@ -273,8 +281,8 @@ internal fun TrackActionsSheet(
             SheetAction(
                 Icons.AutoMirrored.Outlined.PlaylistAdd,
                 stringResource(Res.string.action_add_to_playlist),
-                // This sheet stays until the chooser covers it (the owner removes it then): hidden first, the dim lifted
-                // and the bare queue showed for a moment before the chooser came — "the queue collapses" (0.9.3).
+                // This sheet stays until the chooser and its dim are up, then slides away beneath it ([release]): hidden
+                // first, the dim lifted and the bare queue showed before the chooser came — "the queue collapses" (0.9.3).
             ) { if (!dismissalInFlight) onAddToPlaylist() }
             onRemoveFromPlaylist?.let { removeFromPlaylist ->
                 SheetAction(

@@ -113,6 +113,7 @@ import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.LocalIndication
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.delay
 
 /**
  * The Playlists tab: the playlists the app derives for you across the top,
@@ -636,6 +637,8 @@ internal fun AddToPlaylistSheet(
     LaunchedEffect(sheetState) {
         snapshotFlow { sheetState.currentValue != SheetValue.Hidden && !sheetState.isAnimationRunning }
             .first { it }
+        // The scrim fades in on its own clock after the sheet: the sheet beneath goes only once this dim is in.
+        delay(CHOOSER_SCRIM_SETTLE_MS)
         currentOnShown()
     }
     LaunchedEffect(closing) {
@@ -755,3 +758,6 @@ internal fun AddToPlaylistSheet(
         }
     }
 }
+
+/** Longer than Material's scrim fade-in, so a sheet raised over another never shows the screen undimmed between them. */
+private const val CHOOSER_SCRIM_SETTLE_MS = 400L
