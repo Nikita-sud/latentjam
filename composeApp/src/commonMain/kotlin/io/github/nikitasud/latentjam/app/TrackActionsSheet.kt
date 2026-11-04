@@ -273,7 +273,9 @@ internal fun TrackActionsSheet(
             SheetAction(
                 Icons.AutoMirrored.Outlined.PlaylistAdd,
                 stringResource(Res.string.action_add_to_playlist),
-            ) { dismissThen(onAddToPlaylist) }
+                // The chooser rises over this sheet while it slides away: hidden first, the dim lifted and the bare
+                // queue showed for a moment before the chooser came — "the queue collapses for a moment" (0.9.3).
+            ) { dismissWhile(onAddToPlaylist) }
             onRemoveFromPlaylist?.let { removeFromPlaylist ->
                 SheetAction(
                     Icons.Outlined.PlaylistRemove,
