@@ -1197,9 +1197,11 @@ internal const val SMART_ARTIST_SETS: Boolean = true
  * shared artist, energy gap): P(a track belongs in the queue | its start), fitted to DeepSeek's queues for the 16 FMA
  * stand libraries on the device's own features, with genre families as sets (Genres.families; 0.9.4 refit
  * smart-research review_ext/fixn/fit_theme_gt.py, owner round 6 "Gt"). A shared artist counts only when it also sounds
- * alike. Null is off.
+ * alike. The family any-overlap weight is 0, not the fit's −0.6242 (PLAN_W3FIX "Z", smart-research aspect/RESULTS_W3FIX.md):
+ * with genre lists ("Folk; Rock; Indie") a negative one ranked a track sharing one family below one sharing none, and
+ * the queue theme pulled rich-tag queues toward clashing genres (SmartThemeWeightsTest). Null is off.
  */
-internal val SMART_THEME_WEIGHTS: List<Float>? = listOf(0.6910f, 0.5599f, 1.6095f, -0.6242f, 0.8016f, 0.0988f, 1.0009f, -3.2116f)
+internal val SMART_THEME_WEIGHTS: List<Float>? = listOf(0.6910f, 0.5599f, 1.6095f, 0f, 0.8016f, 0.0988f, 1.0009f, -3.2116f)
 
 /** Pool rows the queue theme may take. */
 internal const val SMART_THEME_SLOTS: Int = 25
