@@ -628,3 +628,24 @@ Owner (0.9.3 release): «когда я добавляю трек из очере
 `sheetState.hide()` → `onDismiss`), as every other dismissal does, and takes no second pick while it does. The sheet
 still stays up during the write, so a failure shows its message there. The R8 register gate still passes (243 of 255).
 No Compose UI test exists in this repository, so the check is the emulator recording; it is pending.
+
+**Crossfade: verified on the fixed build** (built at 39645ff9, which includes 140aad2f; same emulator; the section
+"Fixed build" in `xfade-restart-emulator.md`):
+
+- Repeat off → all → one → off during an overlap, twice: `overlap let go; on from frame 119469` and `… 113974`. The
+  incoming track sat at 2.8 s just after the join, where its opening had got to, not at 0:00.
+- Play next, shuffle on and repeat one: the new row starts at 0:00, as it should.
+- Next during an overlap landed at 2.6 s, and no false LOST OVERLAP line appeared.
+- Two natural joins: the incoming track at 6.2 s, unchanged.
+
+**Queue flicker: the recording** (`~/Documents/LJ/integ094-stand/queue-flicker.md`, frames in `queue-flicker/`):
+
+- **What flickers.** Nothing disappears after the playlist is picked, in 0.9.3 or the branch, so suspect (1) was not
+  the flicker. The flicker is the hand-off between two sheets: "Add to playlist" in the track menu hid that menu and
+  its dim scrim first. The bare queue showed for 26 / 51 frames at 30 fps in 0.9.3 (paused / playing) and 15 / 17 in
+  the branch, and only then did the chooser rise. The owner reads that undimmed moment as the queue collapsing.
+- **Other paths.** The queue's own "Add to playlist" (the whole queue) opens one sheet and does not flicker. The queue
+  has no multi-select.
+- **Fix** (513523a3). The track menu's "Add to playlist" now opens the chooser at the tap (`dismissWhile`), and the
+  menu slides away beneath it. The slide-away after a pick (408d29b5) stays: it is the dismissal every other path
+  already had. A check on the emulator is running.
