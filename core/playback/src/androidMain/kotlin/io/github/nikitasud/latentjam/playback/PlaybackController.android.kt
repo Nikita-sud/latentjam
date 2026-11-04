@@ -280,7 +280,21 @@ internal class AndroidPlaybackController(
             queueGeneration++
             // Nobody chose the replacement: playback moved past an unreadable row by itself.
             announceStart(player, StartCause.AUTO_ADVANCE, replacement)
-            player.seekToDefaultPosition(replacement)
+            // An error under a crossfade overlap whose next track is the replacement: that track's opening was already
+            // heard over the failed one's end, so it carries on from there, rising as a Next there would, not from 0:00.
+            val crossfade = AndroidCrossfade.settings
+            val sounding = crossfade.mixing ?: crossfade.interruptedMix
+            crossfade.interruptedMix = null
+            val landing = sounding
+                ?.takeIf { it.outgoingId == failedId && player.getMediaItemAt(replacement).mediaId == it.incomingId }
+                ?.let { plan -> overlapLanding(plan, replacement, player.currentPosition, player.duration) }
+            if (landing != null) {
+                crossfade.seamLog("seam $failedId -> ${landing.mediaId}: playback error under the overlap; on at ${landing.positionMs} ms")
+                crossfade.pendingRise = PendingRise(landing.mediaId, landing.positionMs * 1000L, landing.riseUs, landing.riseFromUs)
+                player.seekTo(replacement, landing.positionMs)
+            } else {
+                player.seekToDefaultPosition(replacement)
+            }
             player.prepare()
             if (intendedToPlay) player.play()
             rebuildQueueSnapshot()

@@ -109,6 +109,13 @@ internal class CrossfadeSettings {
      */
     @Volatile var mixing: OverlapPlan? = null
 
+    /**
+     * The plan that was [mixing] when the sink was reset under it — a playback error stops the renderers before the
+     * player reports it — so the error's recovery can still land the incoming track where its opening had got to. Read
+     * once; any new start clears it.
+     */
+    @Volatile var interruptedMix: OverlapPlan? = null
+
     fun gainOf(mediaId: String?): Float = mediaId?.let(trackGains::get) ?: 1f
     fun edgesAt(mediaIndex: Int?): FadeEdges = mediaIndex?.let(edges::get) ?: FadeEdges.BOTH
 }
@@ -224,7 +231,10 @@ internal class CrossfadeAudioProcessor(
         val decision = decide()
         pendingDecision = decision
         val skipped = when (decision) {
-            is Decision.Join -> decision.mix?.nextIntroFrame?.toLong() ?: decision.early?.incomingStartFrame?.toLong() ?: 0L
+            is Decision.Join -> decision.mix?.nextIntroFrame?.toLong()
+                ?: decision.resumed?.heardFrame?.toLong()
+                ?: decision.early?.incomingStartFrame?.toLong()
+                ?: 0L
             // The sink can checkpoint twice at one join (a new format, then the discontinuity);
             // the second still precedes the frames the first one's skip will drop. In general: how
             // far the next frame out runs ahead of the next frame in.
@@ -237,11 +247,13 @@ internal class CrossfadeAudioProcessor(
     override fun onFlush(streamMetadata: StreamMetadata) {
         val decision = pendingDecision ?: decide()
         pendingDecision = null
+        logLostOverlap(decision)
         when (decision) {
             Decision.Continue -> Unit
             is Decision.Fresh -> {
                 segment = Segment(decision.stream, previousGain = null)
                 settings.mixing = null
+                settings.interruptedMix = null
             }
             is Decision.Join -> {
                 val previous = decision.previous
@@ -258,6 +270,20 @@ internal class CrossfadeAudioProcessor(
                     next.bridge = Bridge(mix.plan, from = mix.nextIntroFrame).takeIf { it.length > 0 }
                     next.incomingFrames = mix.overlapFrames
                     next.incomingFrom = mix.plan.incomingStartFrame.toLong()
+                } else if (decision.resumed != null) {
+                    // The overlap was let go (its plan withdrawn) after some of the opening was heard, and the player
+                    // still moved on to that track: it carries on from the frame heard last instead of playing the
+                    // opening again, rising from where the let-go faded it. Without the decoded opening (its scratch
+                    // slot may hold another seam's by now), the decoder's own copy up to there is dropped.
+                    val resumed = decision.resumed
+                    next.frames = resumed.heardFrame.toLong()
+                    next.skip = resumed.heardFrame.toLong()
+                    next.incomingFrom = resumed.heardFrame.toLong()
+                    next.incomingFrames = (CROSSFADE_CANCEL_MS * inputAudioFormat.sampleRate / 1000L).coerceAtLeast(1L)
+                    settings.seamLog(
+                        "seam ${previous.stream?.mediaId} -> ${resumed.plan.incomingId}: overlap let go; " +
+                            "on from frame ${resumed.heardFrame}",
+                    )
                 } else if (decision.early != null) {
                     // The outgoing track ended before its overlap could begin (its stream shorter
                     // than its duration said): nothing of the next one was heard, so it comes in
@@ -284,10 +310,35 @@ internal class CrossfadeAudioProcessor(
         }
     }
 
+    /**
+     * A seam whose opening was heard under the outgoing track, joined without it: the next track would play that
+     * opening again from its start. One seam-log line naming why, for diagnosis (issue: "the song started again").
+     */
+    private fun logLostOverlap(decision: Decision) {
+        val previous = segment ?: return
+        val heard = previous.mix?.takeIf { it.mixedFrames > 0L } ?: return
+        val stream = when (decision) {
+            Decision.Continue -> return
+            is Decision.Fresh -> decision.stream
+            is Decision.Join -> if (decision.mix != null || decision.resumed != null) return else decision.stream
+        }
+        val why = when {
+            decision is Decision.Fresh -> "a reposition (${streams.repositions} vs ${repositionsAtData})"
+            heard.cancelled -> "the plan was withdrawn"
+            heard.nextIntroFrame <= 0 -> "no frame of the opening counted"
+            heard.plan.incomingId != stream?.mediaId -> "another track (${stream?.mediaId})"
+            else -> "unknown"
+        }
+        settings.seamLog(
+            "seam ${previous.stream?.mediaId} -> ${heard.plan.incomingId}: LOST OVERLAP after ${heard.mixedFrames} frames: $why",
+        )
+    }
+
     override fun onReset() {
         segment = null
         pendingDecision = null
         repositionsAtData = -1L
+        settings.mixing?.let { settings.interruptedMix = it }
         settings.mixing = null
     }
 
@@ -299,16 +350,20 @@ internal class CrossfadeAudioProcessor(
         val mix = previous.mix?.takeIf {
             !it.cancelled && it.nextIntroFrame > 0 && it.plan.incomingId == stream?.mediaId
         }
+        // Let go after part of its opening was heard, yet joined to that very track all the same.
+        val resumed = previous.mix?.takeIf {
+            mix == null && it.cancelled && it.heardFrame > it.plan.incomingStartFrame && it.plan.incomingId == stream?.mediaId
+        }
         // Ended before its end was settled: the opening decoded for this seam can still bring the
         // next track in.
         val early = settings.plan?.takeIf { plan ->
-            mix == null && previous.end == End.UNDECIDED && settings.fadeMs > 0L &&
+            mix == null && resumed == null && previous.end == End.UNDECIDED && settings.fadeMs > 0L &&
                 plan.outgoingId == previous.stream?.mediaId && plan.incomingId == stream?.mediaId &&
                 plan.incomingId != plan.outgoingId && plan.overlapUs > 0L &&
                 plan.sampleRate == inputAudioFormat.sampleRate && plan.channelCount == inputAudioFormat.channelCount &&
                 plan.frames > plan.incomingStartFrame
         }
-        return Decision.Join(stream, previous, mix, early)
+        return Decision.Join(stream, previous, mix, early, resumed)
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
@@ -442,6 +497,7 @@ internal class CrossfadeAudioProcessor(
                     if (activeMix.introGain > 0f) {
                         introIndex = candidate
                         readSlot = activeMix.plan.slot
+                        activeMix.heardFrame = candidate + 1
                     }
                     if (!activeMix.cancelled) {
                         activeMix.nextIntroFrame = candidate + 1
@@ -645,6 +701,9 @@ internal class CrossfadeAudioProcessor(
     private class Mix(val plan: OverlapPlan, val startFrame: Long, val overlapFrames: Long) {
         var introGain = 0f
         var nextIntroFrame = 0
+
+        /** The opening's frame after the last one sounded, also while a let-go fades it out. */
+        var heardFrame = 0
         var mixedFrames = 0L
         var cancelled = false
     }
@@ -674,7 +733,14 @@ internal class CrossfadeAudioProcessor(
         class Fresh(val stream: PcmStream?) : Decision
 
         /** The player moved on to [stream] by itself; [mix] is the overlap it continues. */
-        class Join(val stream: PcmStream?, val previous: Segment, val mix: Mix?, val early: OverlapPlan? = null) : Decision
+        class Join(
+            val stream: PcmStream?,
+            val previous: Segment,
+            val mix: Mix?,
+            val early: OverlapPlan? = null,
+            /** A let-go overlap into this same track: it continues from [Mix.heardFrame]. */
+            val resumed: Mix? = null,
+        ) : Decision
     }
 
     private companion object {

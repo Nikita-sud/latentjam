@@ -104,7 +104,12 @@ internal class CrossfadeCoordinator(
         val wanted = if (fadeMs > 0L && !settings.finishingTrack && current != null &&
             next?.localConfiguration != null && settings.edgesAt(player.currentMediaItemIndex).fadeOut
         ) Seam(current.mediaId, next.mediaId, plannedFadeMs(seamMs), rule.takeIf { fade != null }) else null
-        if (seam != wanted) withdraw()
+        if (seam != wanted) {
+            if (settings.mixing != null && settings.mixing === settings.plan) {
+                settings.seamLog("seam ${seam?.outgoingId} -> ${seam?.incomingId}: withdrawn while sounding, for $wanted")
+            }
+            withdraw()
+        }
         if (wanted == null || seam != null || wanted in failed) return
         val durationMs = player.duration.takeIf { it != C.TIME_UNSET } ?: 0L
         val spans = settings.soundSpans
@@ -128,18 +133,7 @@ internal class CrossfadeCoordinator(
         if (player.repeatMode == Player.REPEAT_MODE_ONE) return null
         val index = player.nextMediaItemIndex.takeIf { it != C.INDEX_UNSET } ?: return null
         if (player.getMediaItemAt(index).mediaId != plan.incomingId) return null
-        val durationMs = player.duration.takeIf { it != C.TIME_UNSET } ?: return null
-        val endMs = plan.outgoingEndUs.takeIf { it != C.TIME_UNSET }?.div(1000L)?.coerceAtMost(durationMs) ?: durationMs
-        // The incoming opening began under the overlapUs before the outgoing track's last sound,
-        // at its own first sound; the player's position is what has reached the speaker, so this
-        // is the heard point, not one a buffer ahead of it.
-        val heardMs = player.currentPosition - (endMs - plan.overlapUs / 1000L)
-        val fromMs = plan.incomingStartFrame * 1000L / plan.sampleRate
-        return if (heardMs >= 0L) {
-            Landing(index, fromMs + heardMs, plan.incomingId, plan.overlapUs, riseFromUs = fromMs * 1000L)
-        } else {
-            null
-        }
+        return overlapLanding(plan, index, player.currentPosition, player.duration)
     }
 
     /**
@@ -264,5 +258,25 @@ internal class CrossfadeCoordinator(
 
     private companion object {
         const val TICK_MS = 500L
+    }
+}
+
+/**
+ * Where the incoming row [index] of [plan]'s overlap continues from, its outgoing track at [positionMs] of [durationMs]:
+ * the point of it already heard, so its opening does not play twice. Null before the overlap's sound began, or while
+ * the duration is unknown. Next during an overlap lands here, and so does the recovery from a playback error under one.
+ */
+internal fun overlapLanding(plan: OverlapPlan, index: Int, positionMs: Long, durationMs: Long): CrossfadeCoordinator.Landing? {
+    if (durationMs == C.TIME_UNSET || durationMs <= 0L) return null
+    val endMs = plan.outgoingEndUs.takeIf { it != C.TIME_UNSET }?.div(1000L)?.coerceAtMost(durationMs) ?: durationMs
+    // The incoming opening began under the overlapUs before the outgoing track's last sound,
+    // at its own first sound; the player's position is what has reached the speaker, so this
+    // is the heard point, not one a buffer ahead of it.
+    val heardMs = positionMs - (endMs - plan.overlapUs / 1000L)
+    val fromMs = plan.incomingStartFrame * 1000L / plan.sampleRate
+    return if (heardMs >= 0L) {
+        CrossfadeCoordinator.Landing(index, fromMs + heardMs, plan.incomingId, plan.overlapUs, riseFromUs = fromMs * 1000L)
+    } else {
+        null
     }
 }

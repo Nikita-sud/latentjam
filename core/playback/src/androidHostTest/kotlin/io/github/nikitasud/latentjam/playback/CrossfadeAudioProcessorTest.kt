@@ -13,6 +13,7 @@ import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
@@ -499,7 +500,68 @@ internal class CrossfadeAudioProcessorTest {
         val rest = feed({ 0 }, 8_500, 10_000)
         assertTrue(rest.drop(CROSSFADE_CANCEL_MS.toInt() + 100).all { it == 0 })
         assertEquals(null, settings.mixing, "Next no longer lands mid-track")
-        assertEquals(0L, join(stream("b", 20_000)))
+        // The player still moved on to B, whose opening was heard for 500 ms and then faded: B carries on from there
+        // (the "song started again" report), never from its first frame.
+        val heardMs = join(stream("b", 20_000)) / 1000L
+        assertTrue(heardMs in 500L..500L + CROSSFADE_CANCEL_MS + 1, "carried on from $heardMs ms")
+        val incoming = feed(ramp, 0, 5_000)
+        assertEquals(5_000 - heardMs.toInt(), incoming.size)
+        assertTrue(incoming.first() <= 1, "rises from silence, was ${incoming.first()}")
+        assertEquals(heardMs.toInt() + 1_000, incoming[1_000], "past the rise the track is its own frames from the heard point")
+    }
+
+    @Test
+    fun aLetGoOverlapIntoAnotherTrackStillStartsThatTrackAtItsBeginning() {
+        settings.fadeMs = 2_000
+        settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000) { 3000 }
+        reposition(stream("a", 10_000), atMs = 5_000)
+        feed(loud, 5_000, 8_500)
+        settings.plan = null
+        feed({ 0 }, 8_500, 10_000)
+        // A queue edit put C next: nothing of C was heard.
+        assertEquals(0L, join(stream("c", 20_000)))
+        assertEquals(0, feed(ramp, 0, 10).first())
+    }
+
+    @Test
+    fun aSinkResetUnderAnOverlapKeepsItsPlanForTheErrorsRecovery() {
+        settings.fadeMs = 2_000
+        val overlap = plan("a", "b", overlapMs = 2_000, frames = 4_000) { 3000 }
+        settings.plan = overlap
+        reposition(stream("a", 10_000), atMs = 5_000)
+        feed(loud, 5_000, 8_500)
+        assertTrue(settings.mixing === overlap)
+        // A playback error stops the renderers, which resets the sink, before the player reports the error.
+        processor.reset()
+        assertEquals(null, settings.mixing)
+        assertTrue(settings.interruptedMix === overlap)
+        // Where the recovery lands B: 500 ms of its overlap had been heard at 8.5 s of A's 10 s.
+        val landing = assertNotNull(overlapLanding(overlap, index = 1, positionMs = 8_500, durationMs = 10_000))
+        assertEquals(500L, landing.positionMs)
+        assertEquals("b", landing.mediaId)
+        assertEquals(2_000_000L, landing.riseUs)
+        // Before the overlap's sound began there is nothing to continue: the default position.
+        assertEquals(null, overlapLanding(overlap, index = 1, positionMs = 7_900, durationMs = 10_000))
+        assertEquals(null, overlapLanding(overlap, index = 1, positionMs = 8_500, durationMs = C.TIME_UNSET))
+        // A new start forgets it.
+        configureAgain()
+        reposition(stream("c", 10_000))
+        feed(loud, 0, 100)
+        assertEquals(null, settings.interruptedMix)
+    }
+
+    @Test
+    fun anOverlapMeetingTheIncomingTracksFirstSoundLandsAfterItsLeadingSilence() {
+        val overlap = plan("a", "b", overlapMs = 2_000, frames = 4_000, incomingStartFrame = 300) { 3000 }
+        val landing = assertNotNull(overlapLanding(overlap, index = 4, positionMs = 9_000, durationMs = 10_000))
+        // 1 s into the overlap, which began at B's first sound 300 ms in.
+        assertEquals(1_300L, landing.positionMs)
+        assertEquals(300_000L, landing.riseFromUs)
+    }
+
+    private fun configureAgain() {
+        processor.configure(AudioProcessor.AudioFormat(RATE, 1, C.ENCODING_PCM_16BIT))
+        processor.flush(StreamMetadata.DEFAULT)
     }
 
     @Test
