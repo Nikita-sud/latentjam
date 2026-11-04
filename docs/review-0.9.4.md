@@ -505,3 +505,26 @@ The fresh reviewer's round found no finding of medium or higher: **stop criterio
 > For screen readers, the sort control is announced as "Sort by" plus the current order. The direction button is announced as "Sort direction" with "Newest first" or "Oldest first". The chosen menu item is announced as selected, together with its direction.
 >
 > Once 0.9.4 is out, it would help a lot if you could try it with TalkBack and tell us whether anything reads wrong or is hard to reach.
+
+## Multi-genre theme weight (W3FIX "Z")
+
+Found outside this loop: `smart-research/aspect/ORACLE_MULTIGENRE.md` (8e0e1977). Gt's ThemePool refit gave the
+genre-family any-overlap weight −0.6242 while the Jaccard weight is +1.6095. With multi-genre tags, a pair sharing
+one family scored below a pair sharing none whenever the Jaccard was below 0.39, and the theme pulled rich-tag queues
+toward clashing genres: clash on full-list libraries rose from 0.185 (0.9.3) to 0.212 (0.9.4 B). beats-094's frozen
+PLAN_W3FIX v2 shipped **Z**: theme_gt with that one weight at 0. All five gates pass: the judge on full lists gives
++0.204 (lower bound +0.085), the judge on normal tags +0.022 (n.s.), clash on rich tags −0.034 (below 0.9.3), and FIT
+is identical (`aspect/RESULTS_W3FIX.md`, 549abaee).
+
+- **Change** (e1fb42ca). `SMART_THEME_WEIGHTS` = `0.6910, 0.5599, 1.6095, 0, 0.8016, 0.0988, 1.0009, −3.2116`. iOS
+  reads the same common constant.
+- **Test.** `SmartThemeWeightsTest`, written against the old weights first, where it failed (one family of 1 and 3
+  shared scored −0.088): for every split of up to eight families a side, sharing a family never scores below sharing
+  none, and the tags "Folk; Rock; Indie; Electronic" vs "Rock; Hip-Hop; Jazz" are checked the same way. It passes now.
+- **Stand** (round-6 seeds, 32, CORE, press 0, `LJ_STAND_KEEP_SHORT=1`).
+  - The app with the constant equals the app with `LJ_STAND_THEME=Z`: 32/32.
+  - Z moves 28/32 seeds in the app and 29/32 in the hook (`latentjam-combo` 32001954 with the round-6 switches),
+    nearly the same seeds.
+  - App vs hook: 18/32 identical with Z, 15/32 with theme_gt. The rest is the drift the review rounds' fixes logged
+    above; Z adds none. Runs: `~/Documents/LJ/integ094-stand/w3_*`.
+- **Goldens.** None pins the app's theme weights; core:smart (939) and composeApp (1428) host tests pass unchanged.
