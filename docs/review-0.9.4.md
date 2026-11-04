@@ -421,3 +421,87 @@ Round 2 (a fresh reviewer, the three commits) found no finding of medium or high
 Final checks on 3dc8ea39: 6,276 tests pass with no failures (JVM host for every module, plus `composeApp` and the
 earlier `core` runs on the iOS simulator); `checkNativeIdentifiers` passes. `tools/release/build.sh android` builds the
 unsigned per-ABI APKs and the bundle, and `checkReleaseDexRegisters` passes.
+
+## Issue #31: Date added and Date modified sorting
+
+Owner: «посмотри новый issue. давай его тоже исправим». The reporter (Dewstate, a TalkBack user) asked for Date
+modified and Date added sorting, newest and oldest first, in the Tracks tab and in folder browsing, to find fresh
+downloads for M3U playlists. They also asked for labelled controls and predictable navigation.
+
+**What existed.** Tracks had "Recently added" (`SongSort.RECENT`, `TrackDescriptor.addedAtMs`) with the shared
+direction arrow. Folders had only a Name toggle, and each folder's tracks were in folder order (disc, track number,
+file name). No modified date was carried anywhere.
+
+**Dates per platform.**
+
+| source | Date added | Date modified |
+|---|---|---|
+| Android (all files come from MediaStore; the 0.8.1 rescan asks Android to index the rest) | `DATE_ADDED` (as before) | `DATE_MODIFIED`, already held for the source revision: no new memory per song |
+| iOS imported files | file creation date (as before) | file modification date (already read for the cache) |
+| iOS Music library | `MPMediaItem.dateAdded` (new; was empty) | none: Music keeps no such date |
+
+A rescan reads them again from the platform, and no re-index is needed. A date that is unknown or 0 sorts last in
+both directions. Tracks sharing one date are ordered A–Z by title, then keep the library's order. In a folder they
+keep folder order. On iOS, Music-library songs now also fill For You's "recently added" row and the "Recently added"
+auto playlist, which read the same date.
+
+**Change** (0e85ec34, 250721bd):
+
+- **Tracks.** The sort menu reads Title, Artist, Date added (renamed from "Recently added") and Date modified. Both
+  date orders open newest first, and the arrow reverses them. The choice persists like the other sorts. A backup writes
+  Date modified as Date added in the same direction, because 0.9.3 refuses a backup holding an order it does not know.
+- **Folders.** The pill becomes a menu: Name, Date added, Date modified. A date order lists the folders A–Z and orders
+  each folder's tracks by that date. The tree, the list view's folder pages, play order, selection order and "Playing
+  from" all follow it. The order is device-local, like a playlist page's order. A restore that brings back Z–A folders
+  switches the tab back to Name.
+- **Screen readers.**
+  - The pill reads "Sort by, Date modified, button".
+  - The arrow reads "Newest first, Sort direction, button", or "Oldest first" for date orders; other orders keep
+    "Ascending" / "Descending".
+  - The chosen menu item reads "Selected, Date modified, Oldest first". This also applies to Albums' and playlists'
+    "Recently added".
+- **Strings.** Six new keys in all 22 locales (`values-in` = `values-id`): sort_date_added, sort_date_modified, sort_by,
+  sort_direction, sort_newest_first, sort_oldest_first. None is used as a collection title.
+
+**Tests.**
+
+- `DateSortingTest`: both keys and directions, unknown dates, both tiebreaks, folder order, play order, and 10,000 tracks
+  timed.
+- `MediaStoreTrackDescriptorTest`: DATE_MODIFIED in ms; a copy that changes it.
+- `DateSortSettingsTest`: persistence, folder rules, date wording.
+- `LocalBackupTest`: Date modified is backed up as Date added and restores.
+- `SortOrderContractTest` now pins the title tiebreak (deliberate).
+- The iOS `dateAdded` mapping is checked by compilation only.
+
+**Emulator** (LJ-api37-lock, debug build, `-no-audio`, volume 0; log `~/Documents/LJ/integ094-stand/issue31-emulator.md`):
+
+- Six files with set modification times. The Tracks tab matched MediaStore's DATE_MODIFIED for all 48 rows, newest and
+  oldest first. Date added was also correct.
+- The Folders tab kept subfolders A–Z and ordered the folder's tracks by date.
+- Both choices survived a force-stop.
+- TalkBack, recorded from its verbose log, said the words listed above. uiautomator exposes the chosen menu item as
+  checked rather than selected. TalkBack still says "Selected".
+- A physical phone was attached during the run. The agent refused it, and every command named the emulator.
+
+| # | sev | finding | verdict |
+|---|---|---|---|
+| S31-1 | low | a restore bringing back Z–A folders under a date order ran the folders Z–A while the pill said a date | **fixed** (250721bd): the tab returns to Name |
+| S31-2 | low | an unused public comparator allocated on every compare | **fixed**: removed |
+| S31-3 | low | the list view's selection order sorted every folder on each tap under a date order | **fixed**: only the selected tracks are sorted, none under Name |
+| S31-4 | low | the chosen menu item says "Double-tap to toggle"; menu items announce no role | **deferred**: accurate (a second tap reverses), shared by every sort menu |
+
+The fresh reviewer's round found no finding of medium or higher: **stop criterion met.**
+
+### Draft reply for #31 (owner posts; not posted)
+
+> Thanks for the clear request. Version 0.9.4 adds it:
+>
+> - **Tracks tab:** the sort menu now has **Date added** and **Date modified**. The arrow next to it switches between newest first and oldest first.
+> - **Folders tab:** the sort control is now a menu with **Name**, **Date added** and **Date modified**. With a date order, the folders stay in A–Z order and the tracks inside each folder are sorted by that date. Playing a folder, or a selection made in it, follows the same order.
+> - Both choices are remembered.
+>
+> The dates come from the system: Android's media library on Android. On iOS, imported files use their file dates and Music-library songs use the date they were added to Music; those songs have no modified date. Tracks without a date go last.
+>
+> For screen readers, the sort control is announced as "Sort by" plus the current order. The direction button is announced as "Sort direction" with "Newest first" or "Oldest first". The chosen menu item is announced as selected, together with its direction.
+>
+> Once 0.9.4 is out, it would help a lot if you could try it with TalkBack and tell us whether anything reads wrong or is hard to reach.
