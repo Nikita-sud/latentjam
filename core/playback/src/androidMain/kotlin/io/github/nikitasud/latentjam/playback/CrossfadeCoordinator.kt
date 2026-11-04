@@ -96,7 +96,11 @@ internal class CrossfadeCoordinator(
         if (current.mediaId != join.mediaId || !player.playWhenReady) return
         settings.interruptedJoin = null
         val heardMs = join.positionUs / 1000L
-        if (player.currentPosition >= heardMs - RESUME_SLACK_MS) return
+        if (player.currentPosition >= heardMs - RESUME_SLACK_MS) {
+            // Recovered where it was: its heard opening has nothing left to guard.
+            if (settings.heardOpening?.mediaId == join.mediaId) settings.heardOpening = null
+            return
+        }
         settings.seamLog("seam -> ${join.mediaId}: restarted after its join; on at $heardMs ms")
         settings.pendingRise = PendingRise(join.mediaId, join.positionUs, CROSSFADE_CANCEL_MS * 1000L, fromUs = join.positionUs)
         player.seekTo(player.currentMediaItemIndex, heardMs)

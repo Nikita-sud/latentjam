@@ -285,7 +285,12 @@ internal class CrossfadeAudioProcessor(
                 settings.interruptedMix = null
                 // Kept only for the track a sink error just armed it for, whose recovery restarts it after this flush;
                 // any other new start (a seek, a Next, the resume's own seek) ends it, or it would outlive the track.
-                if (settings.interruptedJoin?.mediaId != decision.stream?.mediaId) settings.heardOpening = null
+                if (settings.interruptedJoin?.mediaId != decision.stream?.mediaId) {
+                    settings.heardOpening = null
+                    // Another track started (the recovery restarted the outgoing one, which plays its overlap again):
+                    // a later start of the named track is the listener's, never to be moved.
+                    settings.interruptedJoin = null
+                }
             }
             is Decision.Join -> {
                 val previous = decision.previous
