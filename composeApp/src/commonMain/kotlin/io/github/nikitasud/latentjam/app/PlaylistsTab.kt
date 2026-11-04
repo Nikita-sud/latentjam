@@ -69,6 +69,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
@@ -111,6 +112,7 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.LocalIndication
+import kotlinx.coroutines.flow.first
 
 /**
  * The Playlists tab: the playlists the app derives for you across the top,
@@ -613,6 +615,8 @@ internal fun AddToPlaylistSheet(
     errorMessage: String? = null,
     /** The add went through: the sheet hides as any dismissal does, then [onDismiss] runs. */
     closing: Boolean = false,
+    /** The sheet is fully up: a sheet it was raised from can now go from beneath it unseen. */
+    onShown: () -> Unit = {},
 ) {
     // While the add is in flight the sheet refuses to hide. Material3 hides the sheet itself
     // before Back or a scrim tap reaches onDismissRequest, so a dismissal refused after the fact
@@ -628,6 +632,12 @@ internal fun AddToPlaylistSheet(
     val reduceMotion = rememberReduceMotion()
     var dismissalInFlight by remember { mutableStateOf(false) }
     val currentOnDismiss by rememberUpdatedState(onDismiss)
+    val currentOnShown by rememberUpdatedState(onShown)
+    LaunchedEffect(sheetState) {
+        snapshotFlow { sheetState.currentValue != SheetValue.Hidden && !sheetState.isAnimationRunning }
+            .first { it }
+        currentOnShown()
+    }
     LaunchedEffect(closing) {
         if (!closing) return@LaunchedEffect
         // No second pick while it slides away.

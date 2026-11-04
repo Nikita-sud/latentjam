@@ -4405,6 +4405,8 @@ private fun AppShell(
                 },
                 busy = sheets.playlistMutationInProgress,
                 closing = sheets.addToPlaylistClosing,
+                // The track menu it was raised from stayed up beneath it, so the dim never lifted.
+                onShown = { sheets.trackMenuRequest = null },
                 errorMessage = playlistMutationErrorMessage,
             )
         }
