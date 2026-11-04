@@ -669,3 +669,13 @@ Other checks on a96be406:
 - Under a loaded emulator the double dim lasted 0.8–1.3 s, once about 4 s.
 
 Deferred, low: the snackbar says "Added to …" when the track was already in the playlist and nothing was added.
+
+Fresh review of the queue-flicker fix (408d29b5..a96be406): **no finding of medium or higher**. Three lows, fixed in
+the commit after this log:
+
+- a quick pick, Back or New playlist could close the chooser before it released the menu, leaving the menu behind;
+- a `closing` from one chooser could close the next;
+- the menu took other taps (Delete) in the frames before the chooser covered it.
+
+The orientation config change keeps both sheets. The R8 gate passes. The final full run (JVM host tests for every
+module, iOS tests for library, playback and composeApp, `checkNativeIdentifiers`): **6,310 tests, 0 failures**.
