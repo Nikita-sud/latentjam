@@ -649,3 +649,23 @@ No Compose UI test exists in this repository, so the check is the emulator recor
 - **Fix** (513523a3). The track menu's "Add to playlist" now opens the chooser at the tap (`dismissWhile`), and the
   menu slides away beneath it. The slide-away after a pick (408d29b5) stays: it is the dismissal every other path
   already had. A check on the emulator is running.
+
+**Queue flicker: the fix and its checks** (`queue-flicker.md`, sections "Fix build" to "Fix build 3"):
+
+| build | change | undimmed-queue frames (30 fps) |
+|---|---|---|
+| 0.9.3 | — | 26 paused, 51 playing |
+| 513523a3 | chooser opened at the tap, menu hid at once | 2–3 (12 on a slow cold run) |
+| a374380a | menu kept until the chooser is up, then removed | 0 paused (a pop from double to single dim), 8–9 playing |
+| **a96be406** | menu kept past the chooser's scrim fade-in (400 ms), then it slides away beneath | **0 in all four runs**; the extra dim fades out |
+
+Other checks on a96be406:
+
+- Back on the chooser closes both sheets.
+- A Back within about 0.25 s, before the chooser is up, keeps the menu: back to the menu.
+- New playlist works.
+- The whole-queue add from the queue header (one sheet) is unchanged.
+- The register gate passes (243 of 255).
+- Under a loaded emulator the double dim lasted 0.8–1.3 s, once about 4 s.
+
+Deferred, low: the snackbar says "Added to …" when the track was already in the playlist and nothing was added.
