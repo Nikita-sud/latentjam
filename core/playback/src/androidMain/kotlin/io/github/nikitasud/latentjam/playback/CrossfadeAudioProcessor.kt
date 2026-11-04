@@ -116,6 +116,13 @@ internal class CrossfadeSettings {
      */
     @Volatile var interruptedMix: OverlapPlan? = null
 
+    /**
+     * The incoming track whose opening an overlap had played when the sink was reset right after the join: the
+     * player's own recovery from a sink error (a dead AudioTrack, a route change) then restarts that track at 0:00
+     * without telling the app, and [CrossfadeCoordinator] moves it back to where its opening had got to.
+     */
+    @Volatile var interruptedJoin: InterruptedJoin? = null
+
     fun gainOf(mediaId: String?): Float = mediaId?.let(trackGains::get) ?: 1f
     fun edgesAt(mediaIndex: Int?): FadeEdges = mediaIndex?.let(edges::get) ?: FadeEdges.BOTH
 }
@@ -152,6 +159,9 @@ internal class OverlapPlan(
 
 /** See [CrossfadeSettings.pendingRise]. */
 internal data class PendingRise(val mediaId: String, val positionUs: Long, val riseUs: Long, val fromUs: Long = 0L)
+
+/** See [CrossfadeSettings.interruptedJoin]: [mediaId] had played to [positionUs]; [atNanos] is when its sink reset. */
+internal data class InterruptedJoin(val mediaId: String, val positionUs: Long, val atNanos: Long)
 
 private const val SEAM_TAG = "LJCrossfade"
 
@@ -219,8 +229,12 @@ internal class CrossfadeAudioProcessor(
         if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT || inputAudioFormat.channelCount <= 0 ||
             inputAudioFormat.sampleRate <= 0
         ) throw AudioProcessor.UnhandledAudioFormatException(inputAudioFormat)
+        configuredRate = inputAudioFormat.sampleRate
         return inputAudioFormat
     }
+
+    /** The rate last configured; [onReset] runs after the base class has forgotten the input format. */
+    private var configuredRate = 0
 
     /**
      * Called by [CrossfadeProcessorChain] just before the sink checkpoints its position and flushes
@@ -270,6 +284,7 @@ internal class CrossfadeAudioProcessor(
                     next.bridge = Bridge(mix.plan, from = mix.nextIntroFrame).takeIf { it.length > 0 }
                     next.incomingFrames = mix.overlapFrames
                     next.incomingFrom = mix.plan.incomingStartFrame.toLong()
+                    next.joinedFrame = mix.nextIntroFrame.toLong()
                 } else if (decision.resumed != null) {
                     // The overlap was let go (its plan withdrawn) after some of the opening was heard, and the player
                     // still moved on to that track: it carries on from the frame heard last instead of playing the
@@ -280,6 +295,7 @@ internal class CrossfadeAudioProcessor(
                     next.skip = resumed.heardFrame.toLong()
                     next.incomingFrom = resumed.heardFrame.toLong()
                     next.incomingFrames = (CROSSFADE_CANCEL_MS * inputAudioFormat.sampleRate / 1000L).coerceAtLeast(1L)
+                    next.joinedFrame = resumed.heardFrame.toLong()
                     settings.seamLog(
                         "seam ${previous.stream?.mediaId} -> ${resumed.plan.incomingId}: overlap let go; " +
                             "on from frame ${resumed.heardFrame}",
@@ -322,6 +338,8 @@ internal class CrossfadeAudioProcessor(
             is Decision.Fresh -> decision.stream
             is Decision.Join -> if (decision.mix != null || decision.resumed != null) return else decision.stream
         }
+        // A Next that landed where the opening had got to carries it on itself.
+        if (decision is Decision.Fresh && settings.pendingRise?.mediaId == heard.plan.incomingId) return
         val why = when {
             decision is Decision.Fresh -> "a reposition (${streams.repositions} vs ${repositionsAtData})"
             heard.cancelled -> "the plan was withdrawn"
@@ -335,11 +353,22 @@ internal class CrossfadeAudioProcessor(
     }
 
     override fun onReset() {
+        recordInterruptedJoin(segment)
         segment = null
         pendingDecision = null
         repositionsAtData = -1L
         settings.mixing?.let { settings.interruptedMix = it }
         settings.mixing = null
+    }
+
+    /** A reset straight after a join from a heard overlap: what [CrossfadeSettings.interruptedJoin] needs. */
+    private fun recordInterruptedJoin(segment: Segment?) {
+        val joined = segment?.takeIf { it.joinedFrame > 0L } ?: return
+        val mediaId = joined.stream?.mediaId ?: return
+        val rate = configuredRate.takeIf { it > 0 } ?: return
+        // Only right at the join: later in the track a reset is a stop like any other.
+        if (joined.frames - joined.joinedFrame > rate.toLong() * INTERRUPTED_JOIN_WINDOW_S) return
+        settings.interruptedJoin = InterruptedJoin(mediaId, joined.joinedFrame * 1_000_000L / rate, System.nanoTime())
     }
 
     private fun decide(): Decision {
@@ -350,9 +379,13 @@ internal class CrossfadeAudioProcessor(
         val mix = previous.mix?.takeIf {
             !it.cancelled && it.nextIntroFrame > 0 && it.plan.incomingId == stream?.mediaId
         }
-        // Let go after part of its opening was heard, yet joined to that very track all the same.
+        // Let go after part of its opening was heard, yet joined to that very track all the same — while crossfades
+        // are still on (the slider at 0, or the sleep timer's "end of track", want the track from its start) and at
+        // the rate the opening was decoded at.
         val resumed = previous.mix?.takeIf {
-            mix == null && it.cancelled && it.heardFrame > it.plan.incomingStartFrame && it.plan.incomingId == stream?.mediaId
+            mix == null && it.cancelled && it.heardFrame > it.plan.incomingStartFrame && it.plan.incomingId == stream?.mediaId &&
+                settings.fadeMs > 0L && !settings.finishingTrack &&
+                it.plan.sampleRate == inputAudioFormat.sampleRate && it.plan.channelCount == inputAudioFormat.channelCount
         }
         // Ended before its end was settled: the opening decoded for this seam can still bring the
         // next track in.
@@ -574,6 +607,9 @@ internal class CrossfadeAudioProcessor(
         /** The frame that overlap brought this track in at: its first sound. */
         var incomingFrom = 0L
 
+        /** The frame this track joined at, past an opening an overlap played; 0 for a track that began at its start. */
+        var joinedFrame = 0L
+
         /** Set when Next left an overlap for this track: its opening rises over this long. */
         var riseUs = 0L
 
@@ -748,6 +784,9 @@ internal class CrossfadeAudioProcessor(
 
         /** Below this a track's loudness gain is silence; it only guards the division. */
         const val MIN_CURVE_GAIN = 1e-3f
+
+        /** How long past its join a reset still counts as interrupting it ([CrossfadeSettings.interruptedJoin]). */
+        const val INTERRUPTED_JOIN_WINDOW_S = 3L
 
         /** A Next's landing and the first PCM after its seek: within a few decoder frames. */
         const val RISE_LANDING_TOLERANCE_US = 200_000L

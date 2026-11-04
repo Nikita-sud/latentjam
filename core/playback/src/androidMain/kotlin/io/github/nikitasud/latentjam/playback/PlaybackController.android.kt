@@ -251,6 +251,7 @@ internal class AndroidPlaybackController(
                     player.getMediaItemAt(index).mediaId == failedId
                 }
                 ?: run {
+                    AndroidCrossfade.settings.interruptedMix = null
                     player.pause()
                     pushState()
                     return
@@ -268,6 +269,7 @@ internal class AndroidPlaybackController(
             )
 
             if (replacement == null) {
+                AndroidCrossfade.settings.interruptedMix = null
                 // Every reachable row failed exactly once. Park on the final failed row with honest
                 // paused state; a later explicit Play/Next clears the attempt set and may retry after
                 // transient storage access returns.

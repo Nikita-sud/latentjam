@@ -559,6 +559,52 @@ internal class CrossfadeAudioProcessorTest {
         assertEquals(300_000L, landing.riseFromUs)
     }
 
+    @Test
+    fun aSinkResetRightAfterTheJoinRecordsWhereTheOpeningHadGotTo() {
+        settings.fadeMs = 2_000
+        settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000, samples = ramp)
+        reposition(stream("a", 10_000), atMs = 5_000)
+        feed(loud, 5_000, 10_000)
+        assertEquals(2_000_000L, join(stream("b", 20_000)))
+        feed(ramp, 0, 2_500)
+        // A dead AudioTrack: the player recovers by itself and plays B again from 0:00, telling the app nothing.
+        processor.reset()
+        val join = assertNotNull(settings.interruptedJoin)
+        assertEquals("b", join.mediaId)
+        assertEquals(2_000_000L, join.positionUs)
+    }
+
+    @Test
+    fun aResetWellIntoTheNextTrackIsAStopNotAnInterruptedJoin() {
+        settings.fadeMs = 2_000
+        settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000, samples = ramp)
+        reposition(stream("a", 10_000), atMs = 5_000)
+        feed(loud, 5_000, 10_000)
+        join(stream("b", 20_000))
+        feed(ramp, 0, 9_000)
+        processor.reset()
+        assertEquals(null, settings.interruptedJoin)
+        // Nor a track that began at its start.
+        configureAgain()
+        reposition(stream("c", 20_000))
+        feed(loud, 0, 500)
+        processor.reset()
+        assertEquals(null, settings.interruptedJoin)
+    }
+
+    @Test
+    fun aLetGoOverlapWithCrossfadesTurnedOffStartsTheTrackFromItsStart() {
+        settings.fadeMs = 2_000
+        settings.plan = plan("a", "b", overlapMs = 2_000, frames = 4_000) { 3000 }
+        reposition(stream("a", 10_000), atMs = 5_000)
+        feed(loud, 5_000, 8_500)
+        // The slider set to off under the overlap: the listener asked for plain track changes.
+        settings.fadeMs = 0
+        feed({ 0 }, 8_500, 10_000)
+        assertEquals(0L, join(stream("b", 20_000)))
+        assertEquals(0, feed(ramp, 0, 10).first())
+    }
+
     private fun configureAgain() {
         processor.configure(AudioProcessor.AudioFormat(RATE, 1, C.ENCODING_PCM_16BIT))
         processor.flush(StreamMetadata.DEFAULT)

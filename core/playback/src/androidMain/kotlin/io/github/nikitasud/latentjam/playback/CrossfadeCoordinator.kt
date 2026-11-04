@@ -81,9 +81,30 @@ internal class CrossfadeCoordinator(
         return if (sounding === settings.plan && fadeMs > 0L) planned.fadeMs else fadeMs
     }
 
+    /**
+     * Puts a track the player restarted at 0:00 after a sink error at its join back where its overlap had played it
+     * to ([CrossfadeSettings.interruptedJoin]), rising as after a Next there. Only the same track, playing, soon after.
+     */
+    private fun resumeInterruptedJoin() {
+        val join = settings.interruptedJoin ?: return
+        if (System.nanoTime() - join.atNanos > INTERRUPTED_JOIN_TTL_NS) {
+            settings.interruptedJoin = null
+            return
+        }
+        val current = player.currentMediaItem ?: return
+        if (current.mediaId != join.mediaId || !player.playWhenReady) return
+        settings.interruptedJoin = null
+        val heardMs = join.positionUs / 1000L
+        if (player.currentPosition >= heardMs - RESUME_SLACK_MS) return
+        settings.seamLog("seam -> ${join.mediaId}: restarted after its join; on at $heardMs ms")
+        settings.pendingRise = PendingRise(join.mediaId, join.positionUs, CROSSFADE_CANCEL_MS * 1000L, fromUs = join.positionUs)
+        player.seekTo(player.currentMediaItemIndex, heardMs)
+    }
+
     /** Re-evaluates the seam ahead; also the periodic check while playing. */
     fun update() {
         if (released) return
+        resumeInterruptedJoin()
         handler.removeCallbacks(tick)
         // The album edges arrive from the controller without an event of their own, so a seam is
         // looked at periodically while playing — but not with the slider at 0, the default: a
@@ -258,6 +279,12 @@ internal class CrossfadeCoordinator(
 
     private companion object {
         const val TICK_MS = 500L
+
+        /** How long a sink error's restart may take to show before an [CrossfadeSettings.interruptedJoin] lapses. */
+        const val INTERRUPTED_JOIN_TTL_NS = 5_000_000_000L
+
+        /** A restart that already landed within this of the heard point is left as it is. */
+        const val RESUME_SLACK_MS = 500L
     }
 }
 
