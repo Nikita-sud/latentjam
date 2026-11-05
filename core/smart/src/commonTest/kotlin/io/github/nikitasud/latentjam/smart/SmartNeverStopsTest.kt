@@ -19,33 +19,35 @@ import kotlin.time.Duration.Companion.minutes
  * library heard almost entirely of late, and an engine rebuilt from its stores as after a kill or a reboot.
  */
 internal class SmartNeverStopsTest {
-    // The 3,000-track runs take seconds on the JVM but minutes in a Kotlin/Native debug build: hence the long timeouts.
+    // 3,000 tracks on the JVM, where they take seconds. A Kotlin/Native debug build took up to 9 minutes for them on a Mac
+    // and outlived the timeout on a CI runner: Native plays the same mixed library at 900, every kind of row still in it.
+    private val size = if (NATIVE_TEST) 900 else 3_000
     @Test
     fun `a mixed library keeps refilling through its last analysed track`() = runTest(timeout = 20.minutes) {
-        val library = mixedLibrary(3_000)
+        val library = mixedLibrary(size)
         val engine = engine(library)
         val calls = playToTheEnd(engine, library, library)
-        assertTrue(calls >= 200, "only $calls top-ups")
+        assertTrue(calls >= size / 15, "only $calls top-ups")
     }
 
     @Test
     fun `a pool shrunk by artist exclusions keeps refilling until it is spent`() = runTest(timeout = 20.minutes) {
-        val library = mixedLibrary(3_000)
+        val library = mixedLibrary(size)
         val engine = engine(library)
         // Every artist but three, by their display credits: most of the library is hidden, credits with a feature too.
         val hidden = engine.artistExclusion((3 until ARTISTS).map { "Artist $it" })
         val pool = library.filterNot(hidden)
-        assertTrue(pool.size in 100..1_000, "pool ${pool.size}")
+        assertTrue(pool.size in size / 30..size / 3, "pool ${pool.size}")
         playToTheEnd(engine, library, pool)
     }
 
     @Test
     fun `a partly analysed library keeps refilling while analysed tracks remain`() = runTest(timeout = 20.minutes) {
-        val library = mixedLibrary(3_000)
+        val library = mixedLibrary(size)
         val analysed = library.filterIndexed { i, _ -> i % 5 != 0 }
         val engine = engine(library, analysed = analysed)
         val calls = playToTheEnd(engine, library, library, analysed = analysed.mapTo(HashSet()) { it.id })
-        assertTrue(calls >= 200, "only $calls top-ups")
+        assertTrue(calls >= size / 15, "only $calls top-ups")
     }
 
     @Test
