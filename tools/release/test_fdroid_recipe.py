@@ -164,3 +164,32 @@ class RealCheckupdatesTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipIf(recipe_tool is None, "needs fdroidserver")
+class CiYamlTest(unittest.TestCase):
+    """What render writes is what fdroiddata CI's `fdroid rewritemeta` writes: same ruamel.yaml, a no-op rewrite."""
+
+    def test_the_venv_runs_fdroiddata_cis_ruamel_yaml(self):
+        import ruamel.yaml
+        self.assertEqual(ruamel.yaml.__version__, recipe_tool.CI_RUAMEL_YAML,
+                         "recreate the venv with tools/release/fdroid-venv.sh")
+
+    def test_rewritemeta_leaves_a_rendered_file_unchanged(self):
+        recipe_tool.common.options = __import__("argparse").Namespace(verbose=False, json=False)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp, "tree")
+            (root / "androidApp").mkdir(parents=True)
+            (root / "androidApp/build.gradle.kts").write_text(
+                'android {\n    versionCode = 45\n    versionName = "0.9.4"\n}\n')
+            base = Path(tmp, "base.yml")
+            base.write_text("Categories:\n  - Multimedia\nLicense: Apache-2.0\n\nAutoName: LatentJam\n\n"
+                            "RepoType: git\nRepo: https://github.com/Nikita-sud/latentjam.git\n")
+            out = Path(tmp, "out")
+            target = recipe_tool.render(root, "0" * 40, base, out)
+            rendered = target.read_text()
+            # fdroid rewritemeta: parse with fdroidserver, write with its writer.
+            recipe_tool.metadata.write_metadata(target, recipe_tool.metadata.parse_metadata(target))
+            self.assertEqual(rendered, target.read_text())
+            # The line that broke !55889 stays whole, as CI's writer keeps it.
+            self.assertIn("fdroid-prebuild arm64-v8a $$onnxruntime$$", rendered)

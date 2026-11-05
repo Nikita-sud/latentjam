@@ -13,7 +13,8 @@
       tree; exits 3 when the recipe differs from the last four blocks on fdroiddata master, i.e. this release needs
       an fdroiddata MR (fetched from GitLab unless --master gives the file).
 
-Needs fdroidserver (master, as fdroiddata's CI installs it): ~/.cache/latentjam/fdroidserver-venv/bin/python.
+Needs fdroidserver (master, as fdroiddata's CI installs it) on ruamel.yaml CI_RUAMEL_YAML, Debian trixie's: the Python
+that tools/release/fdroid-venv.sh makes, ~/.cache/latentjam/fdroidserver-venv/bin/python.
 """
 import argparse
 import copy
@@ -34,6 +35,10 @@ MASTER_URL = "https://gitlab.com/fdroid/fdroiddata/-/raw/master/metadata/{appid}
 # Fields checkupdates changes when it copies the blocks; everything else must stay identical.
 PER_RELEASE = {"versionName", "versionCode", "commit", "disable"}
 NDK_MODULES = ["core/ort-ops", "core/map-native", "core/audio-dsp"]
+# Debian trixie's python3-ruamel.yaml (0.18.10+ds-1), which fdroiddata's CI runs fdroidserver on. The writer wraps long
+# scalars by its own version: 0.19 split `... fdroid-prebuild arm64-v8a $$onnxruntime$$` where 0.18 does not, and the
+# MR it rendered failed `fdroid rewritemeta` there (fdroiddata !55889).
+CI_RUAMEL_YAML = "0.18.10"
 
 try:
     import ruamel.yaml
@@ -229,7 +234,15 @@ def master_metadata(appid, path):
         return response.read().decode()
 
 
+def require_ci_yaml():
+    """Refuses a ruamel.yaml other than fdroiddata CI's: what this writes must be what its rewritemeta writes."""
+    if ruamel.yaml.__version__ != CI_RUAMEL_YAML:
+        sys.exit(f"ruamel.yaml {ruamel.yaml.__version__}, fdroiddata's CI runs {CI_RUAMEL_YAML}: its rewritemeta would "
+                 "rewrap what this renders. Recreate the venv: tools/release/fdroid-venv.sh")
+
+
 def main(argv=None):
+    require_ci_yaml()
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
     r = sub.add_parser("render")
