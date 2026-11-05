@@ -310,6 +310,11 @@ this one.
 
 # tag ----------------------------------------------------------------------------------------------------------------
 
+def tag_command(version, notes, commit):
+    """The owner's tag command: an annotated tag whose message is the notes file as written, headings included."""
+    return f"git tag -a --cleanup=verbatim v{version} -F {notes} {commit}"
+
+
 def tag(_args):
     version, _base = app_version()
     head = git("rev-parse", "HEAD")
@@ -323,7 +328,8 @@ def tag(_args):
     notes = RELEASES / version / "tag-message.md"
     print(f"\n== Owner: write {notes}: first line 'LatentJam {version}', a blank line, then the notes, starting with\n"
           f"a one-paragraph summary (the GitHub release body and AltStore's description start there). Then:\n"
-          f"git tag -a v{version} -F {notes} {head}\n"
+          # Verbatim: git's default cleanup drops every line starting with '#', the notes' "### New" headings too.
+          f"{tag_command(version, notes, head)}\n"
           f"git push origin v{version}\n"
           "Push this tag alone (GitHub sends no push events for more than three tags at once).")
 

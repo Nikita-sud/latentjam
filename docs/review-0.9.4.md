@@ -701,3 +701,20 @@ Noise from the emulators themselves, outside the app:
 - LJ-api30's system server crashed once during the first install, about a minute after boot, before the app was
   launched; the launch was redone clean.
 - LJ-api37's Bluetooth service has one crash entry.
+
+## Post-release findings (v0.9.4 tag run 41989283857)
+
+Every build and sign job passed; the `draft` job failed, and the draft was finished by hand. Fixed for 0.9.5:
+
+| # | finding | fix |
+|---|---|---|
+| PR-1 | the `ios-unsigned` artifact holds `0.9.4/LatentJam-v0.9.4-unsigned.ipa`. After flattening, the empty `assets/0.9.4` stayed: `sha256sum -- *` printed "Is a directory" (masked by the pipe), and `gh release create … assets/*` failed with "read assets/0.9.4: is a directory", leaving a draft with only the SBOM. A re-run stopped at "a release already exists". No dry run ran `draft` | `tools/release/draft.sh` holds the step. `assets` flattens, removes the emptied directories, fails on anything that is not a file and builds SHA256SUMS without a masking pipe. `publish` creates the draft, or on a re-run uploads every file with `--clobber` into the existing draft and refreshes the notes; a published release is refused. A new `draft-dry` job runs `assets` and `notes` on every release-branch dry run, with the unsigned APKs standing in for the signed ones |
+| PR-2 | `git tag -a -F tag-message.md` uses the default cleanup, which strips every line starting with `#`, so the "### New / ### Fixed" headings were lost from the notes `draft` reads | `release.py tag` prints `git tag -a --cleanup=verbatim …` (`tag_command`). `draft.sh notes` warns (`::warning::`) when a tag body has no heading |
+
+Tests (`tools/release/test_draft.py`, 7):
+
+- the IPA one directory deeper is flattened and summed, and assets without an APK fail;
+- the owner's tag command keeps the headings, and a tag made with the default cleanup is flagged;
+- publish creates a draft, completes one left by a failed run, and never touches a published release (`gh` faked).
+
+All 31 release-tool tests pass.

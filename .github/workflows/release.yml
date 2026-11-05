@@ -272,20 +272,47 @@ jobs:
         run: |
           set -euo pipefail
           tag="$GITHUB_REF_NAME"
-          if gh release view "$tag" > /dev/null 2>&1; then echo "a release for $tag already exists"; exit 1; fi
-          find android -name "*-sbom.cdx.json" -exec cp {} assets/ \;
-          find assets -mindepth 2 -type f -exec mv {} assets/ \;
-          (cd assets && sha256sum -- * | LC_ALL=C sort -k2 > ../SHA256SUMS) && mv SHA256SUMS assets/
+          tools/release/draft.sh assets assets android
           git fetch --force origin "refs/tags/$tag:refs/tags/$tag"
           base=$(sed -n 's/^ *versionCode = \([0-9]*\)$/\1/p' androidApp/build.gradle.kts)
-          {
-            git tag -l --format='%(contents:body)' "$tag"
-            echo
-            echo "### Changelog"
-            cat "fastlane/metadata/android/en-US/changelogs/$base.txt"
-            if [ "$IOS" != success ]; then
-              echo
-              echo "<!-- iOS IPA not built in CI: attach it, then run tools/release/release.py sums -->"
-            fi
-          } > notes.md
-          gh release create "$tag" --draft --verify-tag --title "LatentJam $VERSION" --notes-file notes.md assets/*
+          tools/release/draft.sh notes "$tag" "$base" "$IOS" > notes.md
+          # A re-run after a failed upload completes the draft that exists; a published release is left alone.
+          tools/release/draft.sh publish "$tag" "$VERSION" assets notes.md
+
+
+  # Dry run only: the draft's assets and notes from this run's own files, as the tag run assembles them (the unsigned
+  # APKs stand in for the signed ones); nothing is created on GitHub. The v0.9.4 draft failed on a step no dry run ran.
+  draft-dry:
+    if: always() && startsWith(github.ref, 'refs/heads/release/') && needs.android.result == 'success'
+    needs: [android, ios]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.android.outputs.artifact-id }}
+          path: android
+          digest-mismatch: error
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: needs.ios.result == 'success'
+        with:
+          artifact-ids: ${{ needs.ios.outputs.artifact-id }}
+          path: assets
+          merge-multiple: true
+          digest-mismatch: error
+      - name: Assemble the draft's files and notes
+        env:
+          IOS: ${{ needs.ios.result }}
+        run: |
+          set -euo pipefail
+          mkdir -p assets
+          find android -name "*-unsigned.apk" -exec cp {} assets/ \;
+          tools/release/draft.sh assets assets android
+          cat assets/SHA256SUMS
+          base=$(sed -n 's/^ *versionCode = \([0-9]*\)$/\1/p' androidApp/build.gradle.kts)
+          git fetch --quiet --tags origin
+          tag=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
+          if [ -n "$tag" ]; then tools/release/draft.sh notes "$tag" "$base" "$IOS" > notes.md; head -20 notes.md; fi
+
