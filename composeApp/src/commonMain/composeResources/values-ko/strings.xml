@@ -813,11 +813,12 @@
     <string name="stats_of_100_picks">100번 중 %1$d번</string>
     <string name="stats_same_artist_note">다음 곡을 직접 고를 때 기준입니다. 아티스트 페이지에서 시작한 재생도 포함됩니다.</string>
     <string name="stats_heard_next">자주 이어서 듣는 곡</string>
-    <string name="stats_heard_next_note">SMART가 습관을 배우는 방식 그대로입니다: 직접 고르거나 끝까지 들은 곡을 서로 다른 세션에서 셉니다. 앨범·플레이리스트 순서와 SMART 자체의 추천은 세지 않으며, 건너뛰면 연결이 약해집니다.</string>
+    <string name="stats_heard_next_note">직접 고르거나 끝까지 들은 곡을 서로 다른 세션 세 번 이상에서 셉니다. 앨범·플레이리스트 순서는 세지 않으며, 건너뛰면 연결이 약해집니다. 표시된 연결은 SMART가 직접 넣은 것으로, SMART는 이를 습관으로 보지 않습니다.</string>
     <string name="stats_link_description">%1$s 다음에 %2$s을(를) 자주 듣습니다: %3$s</string>
     <plurals name="stats_link_sessions">
         <item quantity="other">%1$d개 세션</item>
     </plurals>
+    <string name="stats_link_smart_placed">SMART가 추가</string>
     <string name="stats_library">나의 라이브러리</string>
     <string name="stats_played_once">한 번 이상 재생</string>
     <string name="stats_x_of_y">%2$s 중 %1$s</string>

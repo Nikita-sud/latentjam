@@ -872,12 +872,13 @@
     <string name="stats_of_100_picks">%1$d choix sur 100</string>
     <string name="stats_same_artist_note">Quand vous choisissez vous-même le titre suivant. Lancer la page d’un artiste compte aussi.</string>
     <string name="stats_heard_next">Souvent écouté ensuite</string>
-    <string name="stats_heard_next_note">Comme SMART apprend vos habitudes : les titres que vous choisissez ou laissez jouer jusqu’au bout, dans des séances distinctes. L’ordre d’un album ou d’une playlist et les suggestions de SMART lui-même ne comptent pas ; passer un titre affaiblit le lien.</string>
+    <string name="stats_heard_next_note">Les titres que vous choisissez ou laissez jouer jusqu’au bout, dans au moins trois séances distinctes. L’ordre d’un album ou d’une playlist ne compte pas ; passer un titre affaiblit le lien. Les liens marqués ont été placés par SMART lui-même, qui ne les compte pas comme votre habitude.</string>
     <string name="stats_link_description">Après %1$s, vous écoutez souvent %2$s : %3$s</string>
     <plurals name="stats_link_sessions">
         <item quantity="one">%1$d séance</item>
         <item quantity="other">%1$d séances</item>
     </plurals>
+    <string name="stats_link_smart_placed">placé par SMART</string>
     <string name="stats_library">Votre bibliothèque</string>
     <string name="stats_played_once">Lus au moins une fois</string>
     <string name="stats_x_of_y">%1$s sur %2$s</string>

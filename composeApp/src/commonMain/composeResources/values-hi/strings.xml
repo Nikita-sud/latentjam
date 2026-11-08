@@ -858,12 +858,13 @@
     <string name="stats_of_100_picks">100 में से %1$d चुनाव</string>
     <string name="stats_same_artist_note">जब आप अगला ट्रैक खुद चुनते हैं। किसी कलाकार के पेज से शुरू करना भी शामिल है।</string>
     <string name="stats_heard_next">अक्सर इसके बाद सुने गए</string>
-    <string name="stats_heard_next_note">जैसे SMART आपकी आदतें सीखता है: वे ट्रैक जिन्हें आप चुनते हैं या अंत तक चलने देते हैं, अलग-अलग सत्रों में। एल्बम और प्लेलिस्ट का क्रम और SMART के अपने सुझाव नहीं गिने जाते; स्किप करने से जुड़ाव कमज़ोर होता है।</string>
+    <string name="stats_heard_next_note">वे ट्रैक जिन्हें आप चुनते हैं या अंत तक चलने देते हैं, कम से कम तीन अलग-अलग सत्रों में। एल्बम और प्लेलिस्ट का क्रम नहीं गिना जाता; स्किप करने से जुड़ाव कमज़ोर होता है। चिह्नित जुड़ाव SMART ने खुद जोड़े थे, जिन्हें वह आपकी आदत नहीं मानता।</string>
     <string name="stats_link_description">%1$s के बाद आप अक्सर %2$s सुनते हैं: %3$s</string>
     <plurals name="stats_link_sessions">
         <item quantity="one">%1$d सत्र</item>
         <item quantity="other">%1$d सत्र</item>
     </plurals>
+    <string name="stats_link_smart_placed">SMART ने जोड़ा</string>
     <string name="stats_library">आपकी लाइब्रेरी</string>
     <string name="stats_played_once">कम से कम एक बार चले</string>
     <string name="stats_x_of_y">%2$s में से %1$s</string>

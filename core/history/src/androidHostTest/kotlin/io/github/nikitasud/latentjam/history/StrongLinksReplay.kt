@@ -80,11 +80,11 @@ class StrongLinksReplay {
                 .forEach { (k, c) -> println("LINKS old: ${name(k.first)} → ${name(k.second)}  $c/${steps[k.first]} picks") }
         }
         val shown = ListeningInsights.habits(normalized, byId::get, library.size, now, personal = model).sequences
-        shown.forEach { println("LINKS card: ${name(it.from)} → ${name(it.to)}  ${it.sessions} sessions") }
+        shown.forEach { println("LINKS card: ${name(it.from)} → ${name(it.to)}  ${it.sessions} sessions${if (it.smartPlaced) " · placed by SMART" else ""}") }
         // Everything that passes the rule (the card shows the first three), and the near misses SMART counts as tier ≥ 1.
         val tracks = library.groupBy { model.songOf(it.id) }
         fun song(s: Int) = tracks[s]?.first()?.let { name(it.id) } ?: "song $s"
-        model.strongLinks().forEach { println("LINKS rule: ${song(it.from)} → ${song(it.to)}  chosen=${it.sessions} jar=${"%.2f".format(it.jar)}") }
+        model.strongLinks().forEach { println("LINKS rule: ${song(it.from)} → ${song(it.to)}  sessions=${it.sessions} smart=${it.smartPlaced} jar=${"%.2f".format(it.jar)}") }
         for (a in tracks.keys) for (b in tracks.keys) {
             if (a < 0 || b < 0 || model.sessions(a, b) < PersonalModel.MIN_SESSIONS) continue
             println(

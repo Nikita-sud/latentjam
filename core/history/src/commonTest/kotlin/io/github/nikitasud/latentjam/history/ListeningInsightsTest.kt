@@ -84,11 +84,11 @@ internal class ListeningInsightsTest {
     )
 
     /**
-     * SMART's personal evidence over [events], as the app builds it: the played tracks plus 200 never played (a
+     * SMART's personal evidence over [events], as the app builds it: the played tracks plus 1,000 never played (a
      * library is far bigger than one listener's few pairs, which is what the lift filter's base rate reads).
      */
     private fun personalModel(events: List<ListenEvent>): PersonalModel {
-        val ids = events.map { it.trackId }.distinct() + (0 until 200).map { TrackId("z-fill-$it") }
+        val ids = events.map { it.trackId }.distinct() + (0 until 1000).map { TrackId("z-fill-$it") }
         val library = ids.mapNotNull(catalog).map { personalTrack(it, listOfNotNull(it.artist)) }
         return PersonalModel.build(events.sortedBy { it.startedAtMs }.map(::personalListen), library, { it.floorDiv(day) }, now)
     }
@@ -279,15 +279,35 @@ internal class ListeningInsightsTest {
     }
 
     @Test
-    fun smartOnlyLinksAreCapped() {
-        val smart = (0 until 8).flatMap {
+    fun smartPlacedLinksShowMarkedAndOwnOnesStayUnmarked() {
+        val smart = (0 until 4).flatMap {
             step(it * 2L + 1, "a-one-1", "b-two-1", start = ListenStart.AUTO_ADVANCE, shuffleMode = "SMART", smartPosition = 1)
         }
-        assertTrue(habits(background + smart, personal = true).sequences.isEmpty(), "SMART's own suggestions are no habit")
-        val own = (0 until 2).flatMap { step(it * 2L + 20, "a-one-1", "b-two-1") }
-        assertTrue(habits(background + smart + own, personal = true).sequences.isEmpty(), "two own sessions stay below the bar")
-        val third = step(30, "a-one-1", "b-two-1")
-        assertEquals(3, habits(background + smart + own + third, personal = true).sequences.single().sessions)
+        val placed = habits(background + smart, personal = true).sequences.single()
+        assertEquals("a-one-1" to "b-two-1", placed.from.value to placed.to.value)
+        assertEquals(4, placed.sessions)
+        assertTrue(placed.smartPlaced, "SMART put B next every time")
+        assertTrue(habits(background + smart.take(4), personal = true).sequences.isEmpty(), "two SMART sessions stay below the bar")
+        // One own session plus two SMART ones: three sessions in all, still marked (the own evidence alone is short).
+        val mixed = habits(background + smart.take(4) + step(30, "a-one-1", "b-two-1"), personal = true).sequences.single()
+        assertEquals(3, mixed.sessions)
+        assertTrue(mixed.smartPlaced)
+        // Three own sessions: the listener's own link, unmarked, counted by its own sessions only.
+        val own = (0 until 3).flatMap { step(it * 2L + 20, "a-one-1", "b-two-1") }
+        val mine = habits(background + smart + own, personal = true).sequences.single()
+        assertEquals(3, mine.sessions)
+        assertFalse(mine.smartPlaced)
+    }
+
+    @Test
+    fun skippingASmartPlacedLinkEmptiesIt() {
+        val smart = (0 until 4).flatMap {
+            step(it * 2L + 20, "a-one-1", "b-two-1", start = ListenStart.AUTO_ADVANCE, shuffleMode = "SMART", smartPosition = 1)
+        }
+        val skips = (0 until 4).flatMap {
+            step(it * 2L + 1, "a-one-1", "b-two-1", start = ListenStart.AUTO_ADVANCE, shuffleMode = "SMART", smartPosition = 1, skipped = true)
+        }
+        assertTrue(habits(background + smart + skips, personal = true).sequences.isEmpty())
     }
 
     @Test

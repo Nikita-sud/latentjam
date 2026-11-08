@@ -819,11 +819,12 @@
     <string name="stats_of_100_picks">%1$d dari 100 pilihan</string>
     <string name="stats_same_artist_note">Saat Anda sendiri memilih lagu berikutnya. Termasuk memulai dari halaman artis.</string>
     <string name="stats_heard_next">Sering didengar berikutnya</string>
-    <string name="stats_heard_next_note">Sama seperti SMART mempelajari kebiasaan Anda: lagu yang Anda pilih atau biarkan diputar sampai habis, dalam sesi yang berbeda. Urutan album dan playlist serta saran SMART sendiri tidak dihitung; melewati lagu melemahkan kaitan.</string>
+    <string name="stats_heard_next_note">Lagu yang Anda pilih atau biarkan diputar sampai habis, dalam setidaknya tiga sesi berbeda. Urutan album dan playlist tidak dihitung; melewati lagu melemahkan kaitan. Kaitan bertanda ditaruh oleh SMART sendiri, yang tidak menganggapnya kebiasaan Anda.</string>
     <string name="stats_link_description">Setelah %1$s Anda sering mendengarkan %2$s: %3$s</string>
     <plurals name="stats_link_sessions">
         <item quantity="other">%1$d sesi</item>
     </plurals>
+    <string name="stats_link_smart_placed">ditaruh SMART</string>
     <string name="stats_library">Koleksi Anda</string>
     <string name="stats_played_once">Diputar setidaknya sekali</string>
     <string name="stats_x_of_y">%1$s dari %2$s</string>

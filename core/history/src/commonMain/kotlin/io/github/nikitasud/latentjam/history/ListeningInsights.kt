@@ -64,13 +64,15 @@ public data class TrackPlays(
 
 /**
  * A strong link: after [from] the listener keeps hearing [to], by the evidence SMART's personal layer learns from
- * ([io.github.nikitasud.latentjam.smart.personal.PersonalModel.strongLinks]). [sessions] counts the listener's own
- * sessions with it, outside a fixed album or playlist order and without SMART's own suggestions.
+ * ([io.github.nikitasud.latentjam.smart.personal.PersonalModel.strongLinks]). [sessions] counts the sessions with it,
+ * outside a fixed album or playlist order: the listener's own, or with [smartPlaced] also those in which SMART put [to]
+ * next (the listener's own alone would not show it).
  */
 public data class TrackSequence(
     public val from: TrackId,
     public val to: TrackId,
     public val sessions: Int,
+    public val smartPlaced: Boolean = false,
 )
 
 public data class DecadePlays(
@@ -426,7 +428,7 @@ public object ListeningInsights {
                 .mapNotNull { link ->
                     val from = shownTrack[link.from] ?: return@mapNotNull null
                     val to = shownTrack[link.to] ?: return@mapNotNull null
-                    TrackSequence(tracks.ids[from], tracks.ids[to], link.sessions)
+                    TrackSequence(tracks.ids[from], tracks.ids[to], link.sessions, link.smartPlaced)
                 }
                 .take(SEQUENCE_ROWS)
                 .toList()

@@ -103,6 +103,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.stats_hours_short
 import io.github.nikitasud.latentjam.app.generated.resources.stats_library
 import io.github.nikitasud.latentjam.app.generated.resources.stats_link_description
 import io.github.nikitasud.latentjam.app.generated.resources.stats_link_sessions
+import io.github.nikitasud.latentjam.app.generated.resources.stats_link_smart_placed
 import io.github.nikitasud.latentjam.app.generated.resources.stats_listening_style
 import io.github.nikitasud.latentjam.app.generated.resources.stats_load_failed
 import io.github.nikitasud.latentjam.app.generated.resources.stats_locked_plays
@@ -1365,7 +1366,7 @@ private fun PatternsCard(habits: HabitInsights, tracksById: Map<TrackId, TrackDe
             habits.sequences.forEach { sequence ->
                 val from = tracksById[sequence.from] ?: return@forEach
                 val to = tracksById[sequence.to] ?: return@forEach
-                SequenceRow(from, to, sequence.sessions)
+                SequenceRow(from, to, sequence.sessions, sequence.smartPlaced)
             }
             StatsNote(stringResource(Res.string.stats_heard_next_note))
         }
@@ -1373,10 +1374,13 @@ private fun PatternsCard(habits: HabitInsights, tracksById: Map<TrackId, TrackDe
 }
 
 @Composable
-private fun SequenceRow(from: TrackDescriptor, to: TrackDescriptor, sessions: Int) {
+private fun SequenceRow(from: TrackDescriptor, to: TrackDescriptor, sessions: Int, smartPlaced: Boolean) {
     val fromTitle = from.title?.takeIf { it.isNotBlank() } ?: stringResource(Res.string.track_untitled)
     val toTitle = to.title?.takeIf { it.isNotBlank() } ?: stringResource(Res.string.track_untitled)
-    val detail = pluralStringResource(Res.plurals.stats_link_sessions, sessions, sessions)
+    val count = pluralStringResource(Res.plurals.stats_link_sessions, sessions, sessions)
+    // A link that stands on SMART's own placements says so: the listener did not choose it alone.
+    val label = if (smartPlaced) stringResource(Res.string.stats_link_smart_placed) else null
+    val detail = if (label != null) "$count, $label" else count
     val description = stringResource(Res.string.stats_link_description, fromTitle, toTitle, detail)
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).clearAndSetSemantics { contentDescription = description },
@@ -1415,11 +1419,20 @@ private fun SequenceRow(from: TrackDescriptor, to: TrackDescriptor, sessions: In
                 )
             }
         }
-        Text(
-            text = detail,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                text = count,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (label != null) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
 
