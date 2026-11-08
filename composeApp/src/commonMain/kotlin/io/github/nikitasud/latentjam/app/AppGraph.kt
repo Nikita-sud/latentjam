@@ -219,6 +219,8 @@ object AppGraph {
                                 judgedCorrection = SMART_JUDGED_CORRECTION,
                             )
                         }
+                        // SMART's personal evidence, one cache for SMART and the Statistics page's strong links.
+                        single { PersonalModelCache(get(), get<SimilarityEngine>()::artistKeysOf) }
                         // SMART's on-device impression and outcome log: local only, read by nothing in ranking.
                         single {
                             SmartLogRecorder(log = get(), scope = appScope, enabled = { settings.saveListeningHistory.value })
@@ -253,8 +255,7 @@ object AppGraph {
                                 userPlaylists = { smartUserPlaylists.value },
                                 personalPlaylists = { smartPersonalPlaylists.value },
                                 varietyScale = { ARTIST_VARIETY_RANKER_SCALES[sanitizeArtistVariety(settings.artistVariety.value)] },
-                                personalModel = get<SimilarityEngine>().let { engine ->
-                                    val cache = PersonalModelCache(get(), engine::artistKeysOf)
+                                personalModel = get<PersonalModelCache>().let { cache ->
                                     ({ library: List<TrackDescriptor> -> cache.model(library) })
                                 },
                             )
@@ -424,6 +425,13 @@ object AppGraph {
     /** The local listening record. */
     val history: ListeningHistory
         get() = koin.get()
+
+    /**
+     * SMART's personal evidence over the SMART library, the model SMART plans with (null when it did not fit in memory or
+     * SMART has no library yet): the Statistics page reads its strong links.
+     */
+    suspend fun personalModel(): io.github.nikitasud.latentjam.smart.personal.PersonalModel? =
+        smartLibraryTracks.value.takeIf { it.isNotEmpty() }?.let { koin.get<PersonalModelCache>().model(it) }
 
     /** Where the Map's 2-D layout is cached between visits. */
     val layoutStore: IndexStore

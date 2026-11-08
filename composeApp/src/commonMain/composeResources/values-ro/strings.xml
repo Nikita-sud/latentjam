@@ -896,8 +896,14 @@
     <string name="stats_same_artist_picks">Din nou același artist</string>
     <string name="stats_of_100_picks">%1$d din 100 de alegeri</string>
     <string name="stats_same_artist_note">Când alegi singur următoarea piesă. Include pornirea de pe pagina unui artist.</string>
-    <string name="stats_picked_next">Alese des după</string>
-    <string name="stats_sequence_description">După %1$s ai ales %2$s de %3$d ori din %4$d</string>
+    <string name="stats_heard_next">Ascultate des după</string>
+    <string name="stats_heard_next_note">Așa cum învață SMART obiceiurile tale: piese pe care le alegi sau le lași să se termine, în sesiuni diferite. Ordinea albumului și a playlistului și sugestiile SMART nu contează; săriturile slăbesc legătura.</string>
+    <string name="stats_link_description">După %1$s asculți des %2$s: %3$s</string>
+    <plurals name="stats_link_sessions">
+        <item quantity="one">%1$d sesiune</item>
+        <item quantity="few">%1$d sesiuni</item>
+        <item quantity="other">%1$d de sesiuni</item>
+    </plurals>
     <string name="stats_library">Biblioteca ta</string>
     <string name="stats_played_once">Redate cel puțin o dată</string>
     <string name="stats_x_of_y">%1$s din %2$s</string>

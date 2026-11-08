@@ -1049,8 +1049,17 @@
     <string name="stats_same_artist_picks">اختيار الفنان نفسه مجددًا</string>
     <string name="stats_of_100_picks">%1$d من كل 100 اختيار</string>
     <string name="stats_same_artist_note">عندما تختار المقطع التالي بنفسك. يشمل ذلك البدء من صفحة فنان.</string>
-    <string name="stats_picked_next">غالبًا ما تختاره بعده</string>
-    <string name="stats_sequence_description">بعد %1$s اخترت %2$s %3$d من %4$d مرات</string>
+    <string name="stats_heard_next">غالبًا ما تستمع إليه بعده</string>
+    <string name="stats_heard_next_note">كما يتعلّم SMART عاداتك: المقاطع التي تختارها أو تتركها تُشغَّل حتى النهاية، في جلسات منفصلة. لا يُحتسب ترتيب الألبوم أو قائمة التشغيل ولا اقتراحات SMART نفسه، والتخطي يُضعف الرابط.</string>
+    <string name="stats_link_description">بعد %1$s تستمع غالبًا إلى %2$s: %3$s</string>
+    <plurals name="stats_link_sessions">
+        <item quantity="zero">%1$d جلسة</item>
+        <item quantity="one">%1$d جلسة</item>
+        <item quantity="two">%1$d جلستان</item>
+        <item quantity="few">%1$d جلسات</item>
+        <item quantity="many">%1$d جلسة</item>
+        <item quantity="other">%1$d جلسة</item>
+    </plurals>
     <string name="stats_library">مكتبتك</string>
     <string name="stats_played_once">شُغّلت مرة واحدة على الأقل</string>
     <string name="stats_x_of_y">%1$s من %2$s</string>

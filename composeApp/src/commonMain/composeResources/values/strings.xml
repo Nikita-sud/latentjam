@@ -946,9 +946,15 @@
     <!-- %1$d: how many of every 100 tracks the listener picked were by the artist they had just heard -->
     <string name="stats_of_100_picks">%1$d of 100 picks</string>
     <string name="stats_same_artist_note">When you pick the next track yourself. Includes starting an artist’s page.</string>
-    <string name="stats_picked_next">Often picked next</string>
-    <!-- %1$s and %2$s: track titles; %3$d of %4$d: how many times -->
-    <string name="stats_sequence_description">After %1$s you picked %2$s %3$d of %4$d times</string>
+    <string name="stats_heard_next">Often heard next</string>
+    <string name="stats_heard_next_note">Learned as SMART learns your habits: tracks you pick or let play to the end, in separate sessions. Album and playlist order and SMART’s own suggestions don’t count; skips weaken a link.</string>
+    <!-- %1$s and %2$s: track titles; %3$s: stats_link_sessions, how many listening sessions -->
+    <string name="stats_link_description">After %1$s you often hear %2$s: %3$s</string>
+    <!-- How many separate listening sessions show the link -->
+    <plurals name="stats_link_sessions">
+        <item quantity="one">%1$d session</item>
+        <item quantity="other">%1$d sessions</item>
+    </plurals>
     <string name="stats_library">Your library</string>
     <string name="stats_played_once">Played at least once</string>
     <!-- %1$s and %2$s: numbers, as in 312 of 5,000 -->

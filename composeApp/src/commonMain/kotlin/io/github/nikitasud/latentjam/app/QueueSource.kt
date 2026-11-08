@@ -83,7 +83,7 @@ internal fun QueueSource.parentCollectionId(): String? {
 }
 
 /** The listening log's parent id for a queue started from For You. */
-internal const val FOR_YOU_PARENT_ID = "foryou"
+internal const val FOR_YOU_PARENT_ID = io.github.nikitasud.latentjam.history.FOR_YOU_PARENT
 
 /** An auto playlist is identified by its kind, never by its localized title. */
 internal fun QueueSource.autoPlaylistKind(): AutoPlaylistKind? {

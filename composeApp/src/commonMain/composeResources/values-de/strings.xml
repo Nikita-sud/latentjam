@@ -869,8 +869,13 @@
     <string name="stats_same_artist_picks">Wieder derselbe Künstler</string>
     <string name="stats_of_100_picks">%1$d von 100 Auswahlen</string>
     <string name="stats_same_artist_note">Wenn du den nächsten Titel selbst auswählst. Einschließlich Start von einer Künstlerseite.</string>
-    <string name="stats_picked_next">Oft als Nächstes gewählt</string>
-    <string name="stats_sequence_description">Nach %1$s hast du %2$s %3$d von %4$d Mal gewählt</string>
+    <string name="stats_heard_next">Oft als Nächstes gehört</string>
+    <string name="stats_heard_next_note">So, wie SMART deine Gewohnheiten lernt: Titel, die du wählst oder zu Ende laufen lässt, in getrennten Sessions. Album- und Playlist-Reihenfolge und SMARTs eigene Vorschläge zählen nicht; Überspringen schwächt eine Verbindung.</string>
+    <string name="stats_link_description">Nach %1$s hörst du oft %2$s: %3$s</string>
+    <plurals name="stats_link_sessions">
+        <item quantity="one">%1$d Session</item>
+        <item quantity="other">%1$d Sessions</item>
+    </plurals>
     <string name="stats_library">Deine Mediathek</string>
     <string name="stats_played_once">Mindestens einmal gespielt</string>
     <string name="stats_x_of_y">%1$s von %2$s</string>

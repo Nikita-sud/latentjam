@@ -866,8 +866,13 @@
     <string name="stats_same_artist_picks">O mesmo artista de novo</string>
     <string name="stats_of_100_picks">%1$d de cada 100 escolhas</string>
     <string name="stats_same_artist_note">Quando você escolhe a próxima música. Inclui começar pela página de um artista.</string>
-    <string name="stats_picked_next">Escolhida logo depois</string>
-    <string name="stats_sequence_description">Depois de %1$s você escolheu %2$s %3$d de %4$d vezes</string>
+    <string name="stats_heard_next">Ouvida muitas vezes depois</string>
+    <string name="stats_heard_next_note">Do mesmo jeito que o SMART aprende seus hábitos: músicas que você escolhe ou deixa tocar até o fim, em sessões diferentes. A ordem do álbum ou da playlist e as sugestões do próprio SMART não contam; pular uma música enfraquece a ligação.</string>
+    <string name="stats_link_description">Depois de %1$s você costuma ouvir %2$s: %3$s</string>
+    <plurals name="stats_link_sessions">
+        <item quantity="one">%1$d sessão</item>
+        <item quantity="other">%1$d sessões</item>
+    </plurals>
     <string name="stats_library">Sua biblioteca</string>
     <string name="stats_played_once">Tocadas pelo menos uma vez</string>
     <string name="stats_x_of_y">%1$s de %2$s</string>

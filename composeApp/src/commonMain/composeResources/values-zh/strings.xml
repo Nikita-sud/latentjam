@@ -818,8 +818,12 @@
     <string name="stats_same_artist_picks">再次选择同一位艺术家</string>
     <string name="stats_of_100_picks">每 100 次选择中有 %1$d 次</string>
     <string name="stats_same_artist_note">指你亲自选择下一首曲目时。包括从艺术家页面开始播放。</string>
-    <string name="stats_picked_next">常接着选择</string>
-    <string name="stats_sequence_description">在 %1$s 之后，你在 %4$d 次中有 %3$d 次选择了 %2$s</string>
+    <string name="stats_heard_next">常接着听</string>
+    <string name="stats_heard_next_note">与 SMART 学习你的习惯的方式相同：你亲自选择或完整播放的曲目，按不同的聆听时段计。专辑和播放列表的顺序以及 SMART 自己的推荐不计入；跳过会削弱关联。</string>
+    <string name="stats_link_description">在 %1$s 之后你常听 %2$s：%3$s</string>
+    <plurals name="stats_link_sessions">
+        <item quantity="other">%1$d 次聆听</item>
+    </plurals>
     <string name="stats_library">你的音乐库</string>
     <string name="stats_played_once">至少播放过一次</string>
     <string name="stats_x_of_y">%1$s / %2$s</string>
