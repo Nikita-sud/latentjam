@@ -237,6 +237,7 @@
     <string name="action_go_to_artist">Mergi la artist</string>
     <string name="action_show_on_map">Arată pe hartă</string>
     <string name="action_export_m3u">Exportă ca M3U</string>
+    <string name="action_add_to_home_screen">Adaugă pe ecranul de pornire</string>
     <string name="action_smart_keep_together">Păstrează împreună în SMART</string>
     <string name="action_import_m3u">Importă M3U</string>
     <plurals name="snack_m3u_imported_all">

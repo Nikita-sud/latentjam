@@ -231,6 +231,7 @@
     <string name="action_go_to_artist">Sanatçıya git</string>
     <string name="action_show_on_map">Haritada göster</string>
     <string name="action_export_m3u">M3U olarak dışa aktar</string>
+    <string name="action_add_to_home_screen">Ana ekrana ekle</string>
     <string name="action_smart_keep_together">SMART'ta birlikte tut</string>
     <string name="action_import_m3u">M3U içe aktar</string>
     <plurals name="snack_m3u_imported_all">

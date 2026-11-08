@@ -46,6 +46,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.QueueMusic
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.automirrored.outlined.AddToHomeScreen
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.DriveFileRenameOutline
@@ -100,6 +101,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.playlist_add_to_tit
 import io.github.nikitasud.latentjam.app.generated.resources.playlist_add_to_title_generic
 import io.github.nikitasud.latentjam.app.generated.resources.playlist_name_placeholder
 import io.github.nikitasud.latentjam.app.generated.resources.playlist_new
+import io.github.nikitasud.latentjam.app.generated.resources.action_add_to_home_screen
 import io.github.nikitasud.latentjam.app.generated.resources.playlists_empty_body
 import io.github.nikitasud.latentjam.app.generated.resources.playlists_yours
 import io.github.nikitasud.latentjam.app.generated.resources.settings_page_move_up
@@ -138,6 +140,8 @@ internal fun PlaylistsTabContent(
     /** Read only while a playlist's menu is open: whether any of its tracks is not a favourite yet. */
     canAddToFavorites: (Playlist) -> Boolean = { true },
     onToggleSmart: (Playlist) -> Unit = {},
+    /** Pins a home-screen shortcut to the playlist; null where the platform cannot (iOS). */
+    onPinShortcut: ((Playlist) -> Unit)? = null,
     onDelete: (Playlist) -> Unit,
     /** Commits a long-press drag: the playlist at [from] drops at [to], both list positions. */
     onMove: (from: Int, to: Int) -> Unit = { _, _ -> },
@@ -174,6 +178,7 @@ internal fun PlaylistsTabContent(
             onAddToFavorites = { onAddToFavorites(playlist) },
             canAddToFavorites = { canAddToFavorites(playlist) },
             onToggleSmart = { onToggleSmart(playlist) },
+            onPinShortcut = onPinShortcut?.let { pin -> { pin(playlist) } },
             onDelete = { onDelete(playlist) },
             onMoveUp = if (index > 0) ({ onMove(index, index - 1) }) else null,
             onMoveDown = if (index < playlists.lastIndex) ({ onMove(index, index + 1) }) else null,
@@ -399,6 +404,7 @@ private fun PlaylistRow(
     onAddToFavorites: () -> Unit,
     canAddToFavorites: () -> Boolean,
     onToggleSmart: () -> Unit,
+    onPinShortcut: (() -> Unit)?,
     onDelete: () -> Unit,
     onMoveUp: (() -> Unit)?,
     onMoveDown: (() -> Unit)?,
@@ -511,6 +517,13 @@ private fun PlaylistRow(
                     },
                     onClick = { menuOpen = false; onToggleSmart() },
                 )
+                if (onPinShortcut != null) {
+                    AppMenuItem(
+                        text = stringResource(Res.string.action_add_to_home_screen),
+                        icon = Icons.AutoMirrored.Outlined.AddToHomeScreen,
+                        onClick = { menuOpen = false; onPinShortcut() },
+                    )
+                }
                 AppMenuDivider()
                 AppMenuItem(
                     text = stringResource(Res.string.action_delete),

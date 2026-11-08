@@ -239,6 +239,7 @@
     <string name="action_go_to_artist">מעבר לאמן</string>
     <string name="action_show_on_map">הצגה במפה</string>
     <string name="action_export_m3u">ייצוא כ־M3U</string>
+    <string name="action_add_to_home_screen">הוספה למסך הבית</string>
     <string name="action_smart_keep_together">שמירה יחד ב־SMART</string>
     <string name="action_import_m3u">ייבוא M3U</string>
     <plurals name="snack_m3u_imported_all">

@@ -179,6 +179,9 @@ data class CollectionSelection(
 internal fun CollectionSelection.filterTracksForCollection(
     retain: (TrackDescriptor) -> Boolean,
 ): CollectionSelection? {
+    // A page that was already empty (a new playlist) has nothing to lose: it stays as it is.
+    // Returning null here closed it on the first library refresh after it opened.
+    if (tracks.isEmpty() && sections.isNullOrEmpty()) return this
     val retainedSections = sections?.mapNotNull { section ->
         section.copy(tracks = section.tracks.filter(retain))
             .takeIf { it.tracks.isNotEmpty() }

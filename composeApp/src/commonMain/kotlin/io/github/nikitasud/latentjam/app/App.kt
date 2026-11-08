@@ -1614,6 +1614,8 @@ private fun AppShell(
 
         fun tracksOf(playlist: Playlist): List<TrackDescriptor> =
             playlist.trackIds.mapNotNull { tracksById[TrackId(it)] }
+        // Asked once: the launcher's answer does not change while the app runs.
+        val canPinPlaylistShortcuts = remember { playlistShortcutsSupported() }
 
         val playlistArtworkUris = remember(playlistsState.playlists) {
             playlistsState.playlists.mapNotNull { playlist ->
@@ -2004,6 +2006,33 @@ private fun AppShell(
                     true
                 }
             }
+        }
+
+        // A pinned home-screen shortcut (issue #32) opens its playlist's page, once the library and
+        // the playlists are in. A playlist deleted meanwhile leaves the app where it was.
+        val shortcutPlaylistId by PlaylistShortcutRequests.pending.collectAsState()
+        LaunchedEffect(shortcutPlaylistId, tracks, playlistsState.playlistsLoaded) {
+            val id = shortcutPlaylistId ?: return@LaunchedEffect
+            if (tracks == null || !playlistsState.playlistsLoaded) return@LaunchedEffect
+            PlaylistShortcutRequests.pending.value = null
+            val playlist = playlistsState.playlists.firstOrNull { it.id == id } ?: return@LaunchedEffect
+            // Opened in place rather than through openCollection: on a cold start the pager's first
+            // layout bumps the navigation revision, which cancels a pending open as a stale route.
+            val resolved = tracksOf(playlist)
+            val page = CollectionSelection(
+                title = playlist.name,
+                subtitle = trackCountLabel(resolved.size),
+                artworkUri = playlistCoverUri(playlist.customArtworkRef)
+                    ?: resolved.firstNotNullOfOrNull { it.artworkUri },
+                tracks = resolved,
+                allowsTrackSelection = true,
+                playlistId = playlist.id,
+            )
+            showSettings = false
+            showSearch = false
+            showNowPlaying = false
+            updateTrackSelection(emptySet())
+            updateSelectedCollection(page)
         }
 
         fun showAlbumOf(track: TrackDescriptor) {
@@ -2928,6 +2957,20 @@ private fun AppShell(
                                                 anyNotFavorite(tracksOf(playlist), favoriteIds)
                                             },
                                             onToggleSmart = ::togglePlaylistSmart,
+                                            onPinShortcut = if (canPinPlaylistShortcuts) {
+                                                { playlist ->
+                                                    scope.launch {
+                                                        pinPlaylistShortcut(
+                                                            playlistId = playlist.id,
+                                                            name = playlist.name,
+                                                            coverUri = playlistCoverUri(playlist.customArtworkRef)
+                                                                ?: tracksOf(playlist).firstNotNullOfOrNull { it.artworkUri },
+                                                        )
+                                                    }
+                                                }
+                                            } else {
+                                                null
+                                            },
                                             onMove = { from, to ->
                                                 val moving = playlistsState.playlists.getOrNull(from)
                                                 if (moving != null) {
@@ -2962,12 +3005,14 @@ private fun AppShell(
                                                         it.id == playlist.id
                                                     }
                                                     discardUnusedPlaylistCover(playlist.customArtworkRef)
-                                                    snackbar.showSnackbar(
-                                                        getString(
-                                                            Res.string.snack_playlist_deleted,
-                                                            bidiWrap(playlist.name, layoutDirection),
-                                                        ),
+                                                    val deletedMessage = getString(
+                                                        Res.string.snack_playlist_deleted,
+                                                        bidiWrap(playlist.name, layoutDirection),
                                                     )
+                                                    // A pinned home-screen shortcut is greyed out with
+                                                    // the same words instead of opening nothing.
+                                                    disablePlaylistShortcut(playlist.id, deletedMessage)
+                                                    snackbar.showSnackbar(deletedMessage)
                                                 }
                                             },
                                         )
@@ -4497,6 +4542,7 @@ private fun AppShell(
                         }
                         sheets.playlistMutationFailed = false
                         val normalizedName = name.trim().ifEmpty { "Untitled playlist" }
+                        renamePlaylistShortcut(target.id, normalizedName)
                         playlistsState.playlists = playlistsState.playlists.map { playlist ->
                             if (playlist.id == target.id) {
                                 playlist.copy(name = normalizedName)
