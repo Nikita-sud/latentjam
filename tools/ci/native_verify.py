@@ -46,6 +46,24 @@ def main():
     bundled_notice = (ROOT / "composeApp/src/commonMain/composeResources/files/licenses/libebur128.txt").read_text()
     if (ebur / "COPYING").read_text() not in bundled_notice or (ebur / "queue/sys/queue.h").read_text().split("#ifndef")[0].rstrip() not in bundled_notice:
         raise SystemExit("Missing libebur128 MIT/BSD notices")
+    alac = ROOT / "core/audio-dsp/src/main/cpp/vendor/alac"
+    # Two files carry LatentJam's marked fixes (vendor/alac/README.md); every other file is Apple's, unchanged.
+    alac_changed = {"ALACDecoder.cpp", "EndianPortable.c"}
+    alac_files = set()
+    for line in (alac / "UPSTREAM.txt").read_text().splitlines():
+        if "  " in line and len(line.split("  ")[0]) == 64:
+            expected, filename = line.split("  ", 1)
+            alac_files.add(filename)
+            text = (alac / filename).read_bytes()
+            if filename in alac_changed:
+                if b"LatentJam:" not in text:
+                    raise SystemExit("ALAC fix marker missing: " + filename)
+            elif hashlib.sha256(text).hexdigest() != expected:
+                raise SystemExit("Modified ALAC source: " + filename)
+    if alac_files != {p.name for p in alac.iterdir() if p.is_file() and p.name not in ("UPSTREAM.txt", "README.md")}:
+        raise SystemExit("ALAC manifest does not cover the vendored files")
+    if (alac / "LICENSE").read_text().strip() not in (ROOT / "composeApp/src/commonMain/composeResources/files/licenses/apple-alac.txt").read_text():
+        raise SystemExit("Missing Apple ALAC license notice")
     audio_build = ROOT / "build/audio-contracts"
     subprocess.run(["cmake", "-S", str(ROOT / "core/audio-dsp/src/main/cpp"), "-B", str(audio_build),
                     "-DLJ_EQ_TESTS=ON", "-DCMAKE_BUILD_TYPE=Debug",

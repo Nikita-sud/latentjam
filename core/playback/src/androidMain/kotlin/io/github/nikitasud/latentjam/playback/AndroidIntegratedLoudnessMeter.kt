@@ -9,6 +9,7 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
 import android.os.SystemClock
+import androidx.media3.common.MimeTypes
 import java.nio.ByteOrder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -62,6 +63,53 @@ public class AndroidIntegratedLoudnessMeter(context: Context, private val measur
                         val expectedDuration = if (input.containsKey(MediaFormat.KEY_DURATION))
                             input.getLong(MediaFormat.KEY_DURATION).takeIf { it > 0 }?.div(1000) ?: durationMs else durationMs
                         if (expectedDuration != null && expectedDuration > LoudnessScanLimits.MAX_DURATION_MS) return@withLock null
+                        // Android has no ALAC codec: Apple Lossless is measured through the app's own decoder (issue #34).
+                        if (input.getString(MediaFormat.KEY_MIME) == MimeTypes.AUDIO_ALAC) {
+                            val cookie = input.getByteBuffer("csd-0")?.let { csd -> ByteArray(csd.remaining()).also { csd.duplicate().get(it) } }
+                                ?: return@withLock null
+                            val alac = AlacPacketDecoder.open(cookie) ?: return@withLock null
+                            alac.use {
+                                require(alac.channels in 1..2 && alac.sampleRate in 8000..192000) { "Unsupported loudness PCM layout" }
+                                meter = NativeLoudnessMeter(alac.sampleRate, alac.channels)
+                                sound = SoundSpanTracker(alac.sampleRate, alac.channels)
+                                if (measuresFadeEnds) fade = FadeEndTracker(alac.sampleRate, alac.channels)
+                                val bytesPerSample = alac.maxOutputBytes / (alac.frameLength * alac.channels)
+                                val samples = FloatArray(LoudnessScanLimits.CHUNK_FRAMES * 2)
+                                var packet = java.nio.ByteBuffer.allocate(maxOf(input.maxInputSizeOr(0), 65536))
+                                var bytes = ByteArray(packet.capacity())
+                                var decodedFrames = 0L
+                                while (true) {
+                                    check()
+                                    val size = reader.sampleSize.toInt()
+                                    if (size > packet.capacity()) { packet = java.nio.ByteBuffer.allocate(size); bytes = ByteArray(size) }
+                                    packet.clear()
+                                    val read = reader.readSampleData(packet, 0)
+                                    if (read < 0) break
+                                    packet.limit(read); packet.position(0)
+                                    packet.get(bytes, 0, read)
+                                    val pcm = alac.decode(bytes, 0, read) ?: return@withLock null
+                                    val frameBytes = alac.channels * bytesPerSample
+                                    var at = 0
+                                    while (at < pcm.length) {
+                                        val frames = minOf(LoudnessScanLimits.CHUNK_FRAMES, (pcm.length - at) / frameBytes)
+                                        if (frames == 0) break
+                                        repeat(frames * alac.channels) { i -> samples[i] = pcmSample(pcm.bytes, at + i * bytesPerSample, bytesPerSample) }
+                                        if (meter?.add(samples, frames) != true) return@withLock null
+                                        sound?.add(samples, frames)
+                                        fade?.add(samples, frames)
+                                        decodedFrames += frames
+                                        at += frames * frameBytes
+                                    }
+                                    reader.advance()
+                                    check(true)
+                                }
+                                if (!LoudnessScanLimits.complete(decodedFrames, alac.sampleRate, expectedDuration, sourceEnded = true)) {
+                                    return@withLock null
+                                }
+                                return@withLock meter?.finish()?.copy(sound = sound?.finish(), fade = fade?.finish())
+                                    .also { coroutine.ensureActive() }
+                            }
+                        }
                         input.setInteger(MediaFormat.KEY_PRIORITY, 1) // background, non-realtime codec work
                         val name = MediaCodecList(MediaCodecList.REGULAR_CODECS).findDecoderForFormat(input)
                             ?: return@withLock null
@@ -178,4 +226,15 @@ public class AndroidIntegratedLoudnessMeter(context: Context, private val measur
         }
 
     private companion object { val scanMutex = Mutex() }
+}
+
+private fun MediaFormat.maxInputSizeOr(fallback: Int): Int =
+    if (containsKey(MediaFormat.KEY_MAX_INPUT_SIZE)) getInteger(MediaFormat.KEY_MAX_INPUT_SIZE) else fallback
+
+/** One little-endian signed PCM sample of [bytesPerSample] bytes at [at], scaled to -1..1. */
+internal fun pcmSample(bytes: ByteArray, at: Int, bytesPerSample: Int): Float = when (bytesPerSample) {
+    2 -> ((bytes[at].toInt() and 255) or (bytes[at + 1].toInt() shl 8)).toShort() / 32768f
+    3 -> ((bytes[at].toInt() and 255) or ((bytes[at + 1].toInt() and 255) shl 8) or (bytes[at + 2].toInt() shl 16)) / 8388608f
+    else -> ((bytes[at].toInt() and 255) or ((bytes[at + 1].toInt() and 255) shl 8) or
+        ((bytes[at + 2].toInt() and 255) shl 16) or (bytes[at + 3].toInt() shl 24)) / 2147483648f
 }

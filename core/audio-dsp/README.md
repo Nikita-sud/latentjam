@@ -122,3 +122,13 @@ boost a quiet track. New results ramp over 400 ms; cached gains are installed at
 track boundaries. The source true-peak margin is not a promise about peaks after
 EQ: the existing EQ limiter is still a sample-peak limiter. Protected Music.app
 items bypass the app-owned gain stage. iOS boundary fades remain unavailable.
+
+## Apple Lossless (ALAC) decoding
+
+Android has no ALAC decoder, so Apple Lossless `.m4a` played silently (issue #34). The same native library
+includes Apple's reference decoder (Apache-2.0), pinned at macosforge/alac
+`c38887c5c5e64a4b31108733bd79ca9b2496d987` in `src/main/cpp/vendor/alac` with its upstream hashes in
+`UPSTREAM.txt`. Two files carry marked fixes, listed in that folder's README: a bounds check on partial frames
+and little-endian detection for ARM. `lj_alac_jni.cpp` exposes one decoder per track; the playback module
+(`AlacPcm.kt`) decodes ALAC packets to PCM as the extractor reads them, so the stock audio renderer, the
+crossfade processor and the loudness scan see ordinary PCM. Android only: iOS decodes ALAC natively.

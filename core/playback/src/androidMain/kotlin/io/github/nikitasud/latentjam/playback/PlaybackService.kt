@@ -31,7 +31,6 @@ import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.source.ShuffleOrder.DefaultShuffleOrder
-import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.session.CommandButton
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
@@ -835,9 +834,10 @@ public class PlaybackService : MediaLibraryService() {
         val player = ExoPlayer.Builder(this, EqualizerRenderersFactory(this))
             // Every queue row is a local progressive file. The default factory first infers each
             // row's container from its URI, which parses all of them when a queue is set: 1.5 MB
-            // more heap for a 10,000-song "play all" (measured), for nothing.
+            // more heap for a 10,000-song "play all" (measured), for nothing. ALAC tracks reach the
+            // player already decoded to PCM: Android has no ALAC decoder (issue #34).
             .setMediaSourceFactory(
-                ProgressiveMediaSource.Factory(DefaultDataSource.Factory(this), DefaultExtractorsFactory()),
+                ProgressiveMediaSource.Factory(DefaultDataSource.Factory(this), AlacPcmExtractorsFactory()),
             )
             .setAudioAttributes(AudioAttributes.DEFAULT, /* handleAudioFocus = */ true)
             .setHandleAudioBecomingNoisy(true)
