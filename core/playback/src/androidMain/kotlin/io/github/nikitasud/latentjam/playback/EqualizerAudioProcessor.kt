@@ -140,12 +140,15 @@ internal open class EqualizerRenderersFactory(
                 context, extensionRendererMode, mediaCodecSelector, enableDecoderFallback, audioSink,
                 eventHandler, eventListener, out,
             )
+            out += UnsupportedAudioRenderer()
             return
         }
         out += StreamTaggingAudioRenderer(
             context, codecAdapterFactory, mediaCodecSelector, enableDecoderFallback, eventHandler,
             eventListener, audioSink, streams,
         )
+        // Last: chosen only for audio no renderer above can decode, which then fails instead of playing silently.
+        out += UnsupportedAudioRenderer()
     }
 }
 
