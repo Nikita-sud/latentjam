@@ -125,15 +125,7 @@ public data class LibraryCatalog(
                 .flatMap { track ->
                     val credits: List<String?> = track.artists.ifEmpty {
                         val artist = track.artist ?: return@ifEmpty listOf(null)
-                        if (isKnownArtist != null) {
-                            displayCredits.getOrPut(artist) { ArtistCredits.split(artist, isKnownArtist) }
-                        } else {
-                            artist.split(';')
-                                .map { it.trim() }
-                                .filter { it.isNotEmpty() }
-                                .takeIf { it.size > 1 }
-                                ?: listOf(artist)
-                        }
+                        displayCredits.getOrPut(artist) { ArtistCredits.of(emptyList(), artist, isKnownArtist) }
                     }
                     credits.map { it to track }
                 }

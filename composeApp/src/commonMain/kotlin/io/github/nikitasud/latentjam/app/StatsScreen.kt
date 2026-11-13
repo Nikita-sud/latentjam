@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.history.PickSurface
+import io.github.nikitasud.latentjam.library.ArtistCredits
 import io.github.nikitasud.latentjam.smart.associateById
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -302,6 +303,21 @@ internal class StatsMemory {
     var playlistLabels: Map<String, PlaylistLabel> = emptyMap()
 }
 
+/**
+ * A track's credited artists exactly as the library's Artists tab groups them ([ArtistCredits.of]),
+ * each display credit split once. One per computation: the cache is not shared between threads.
+ */
+private fun statsCredits(): (TrackDescriptor) -> List<String> {
+    val isKnownArtist = knownArtistCheck()
+    val split = HashMap<String, List<String>>()
+    return { track ->
+        track.artists.ifEmpty {
+            val artist = track.artist ?: return@ifEmpty emptyList()
+            split.getOrPut(artist) { ArtistCredits.of(emptyList(), artist, isKnownArtist) }
+        }
+    }
+}
+
 /** A shared dashboard for Settings and the optional root page; never reads playback ticks. */
 @Composable
 internal fun ListeningStatsSettings(
@@ -437,6 +453,8 @@ internal fun ListeningStatsSettings(
                         playlists = statsPlaylists,
                         // As the Genres tab counts them: "Rock; Pop" is Rock.
                         genreOf = { GenreTags.split(it.genre).firstOrNull() },
+                        // As the Artists tab counts them: a collaboration counts for each artist (#35).
+                        artistsOf = statsCredits(),
                     ),
                     logEmpty = normalized.size == 0,
                 )
@@ -474,6 +492,7 @@ internal fun ListeningStatsSettings(
                     nowMs = epochMillis(),
                     cancellationCheck = { loadContext.ensureActive() },
                     playlists = statsPlaylists,
+                    artistsOf = statsCredits(),
                 )
             }.also { if (playlists != null) memo.habits = inputs to it }
             habitsFailed = false

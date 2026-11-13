@@ -223,6 +223,11 @@ public object ListeningInsights {
         timePointOf: (Long) -> LocalTimePoint = ::localTimePoint,
         cancellationCheck: () -> Unit = {},
         playlists: List<StatsPlaylist> = emptyList(),
+        /**
+         * The artists a track is credited to; each of them gets its plays. The app passes the
+         * library's own split, so "A, B & C" counts for A, B and C as on their artist pages.
+         */
+        artistsOf: (TrackDescriptor) -> List<String> = ::listeningCredits,
     ): HabitInsights {
         cancellationCheck()
         val attribution = PlaylistAttribution(playlists)
@@ -234,7 +239,7 @@ public object ListeningInsights {
         val today = timePointOf(nowMs.coerceAtLeast(0)).epochDay
         val firstRepeatDay = today - (REPEAT_WINDOW_DAYS - 1)
         val yearAgo = today - YEAR_DAYS
-        val tracks = TrackTable()
+        val tracks = TrackTable(catalog, artistsOf)
         val artists = HashMap<String, ArtistRepeatTotal>()
         val playDays = ArrayList<Long>()
         val recentEventDays = HashSet<Long>()
@@ -277,9 +282,8 @@ public object ListeningInsights {
                     tracks.lastWindowDay[track] = day
                     tracks.weight[track] += decay(today - day)
                 }
-                val key = tracks.artistKey(track, catalog)
-                if (key.isNotEmpty()) {
-                    val total = artists.getOrPut(key) { ArtistRepeatTotal(tracks.artistName(track, catalog)) }
+                for (credit in tracks.credits(track)) {
+                    val total = artists.getOrPut(credit.key) { ArtistRepeatTotal(credit.name) }
                     total.plays++
                     if (total.lastDay != day) {
                         total.days++
@@ -304,11 +308,12 @@ public object ListeningInsights {
                         total.sessions++
                         total.lastSession = session
                     }
-                    val fromKey = tracks.artistKey(from, catalog)
-                    val toKey = tracks.artistKey(track, catalog)
-                    if (fromKey.isNotEmpty() && toKey.isNotEmpty()) {
+                    // A shared credit is the same artist: "A feat. B" after "B" stays with B.
+                    val fromCredits = tracks.credits(from)
+                    val toCredits = tracks.credits(track)
+                    if (fromCredits.isNotEmpty() && toCredits.isNotEmpty()) {
                         pickSteps++
-                        if (fromKey == toKey) sameArtistPicks++
+                        if (fromCredits.any { credit -> toCredits.any { it.key == credit.key } }) sameArtistPicks++
                     }
                 }
             }
@@ -482,6 +487,11 @@ public object ListeningInsights {
         playlists: List<StatsPlaylist> = emptyList(),
         /** The genre a track counts under; the app passes the first of its split genre tags. */
         genreOf: (TrackDescriptor) -> String? = { it.genre },
+        /**
+         * The artists a track is credited to; each of them gets its plays. The app passes the
+         * library's own split, so "A, B & C" counts for A, B and C as on their artist pages.
+         */
+        artistsOf: (TrackDescriptor) -> List<String> = ::listeningCredits,
     ): PeriodInsights {
         cancellationCheck()
         val attribution = PlaylistAttribution(playlists)
@@ -492,7 +502,7 @@ public object ListeningInsights {
         val previousStart = since?.takeIf { it <= nowMs }?.let { (it - (nowMs - it)).coerceAtLeast(0) }
         val logStart = history.logStartMs
         val burnedIn = since == null || (logStart != null && previousStart != null && logStart <= previousStart)
-        val tracks = TrackTable()
+        val tracks = TrackTable(catalog, artistsOf)
         val firstArtistPlay = HashMap<String, ArtistFirst>()
         val playedTracks = HashSet<Int>()
         val playedArtists = HashSet<String>()
@@ -546,11 +556,9 @@ public object ListeningInsights {
 
             val firstPlay = tracks.plays[track] == 0
             tracks.plays[track]++
-            val artistKey = tracks.artistKey(track, catalog)
-            if (artistKey.isNotEmpty()) {
-                val first = firstArtistPlay.getOrPut(artistKey) {
-                    ArtistFirst(event.startedAtMs, tracks.artistName(track, catalog))
-                }
+            val credits = tracks.credits(track)
+            for (credit in credits) {
+                val first = firstArtistPlay.getOrPut(credit.key) { ArtistFirst(event.startedAtMs, credit.name) }
                 first.plays++
                 if (first.lastDay != point.epochDay) {
                     first.days++
@@ -574,13 +582,11 @@ public object ListeningInsights {
                 newTracks += track
             }
             playedTracks += track
-            if (artistKey.isNotEmpty()) playedArtists += artistKey
+            for (credit in credits) playedArtists += credit.key
             val descriptor = catalog(event.trackId) ?: return@forEachIndexed
             availablePlays++
-            if (artistKey.isNotEmpty()) {
-                artistTotals.getOrPut(artistKey) {
-                    NameTotal(tracks.artistName(track, catalog), trackId = event.trackId)
-                }.add(listened)
+            for (credit in credits) {
+                artistTotals.getOrPut(credit.key) { NameTotal(credit.name, trackId = event.trackId) }.add(listened)
             }
             val album = descriptor.album?.trim()?.takeIf(String::isNotEmpty)
             if (album != null) {
@@ -708,12 +714,12 @@ public object ListeningInsights {
             val descriptor = catalog(tracks.ids[index])
             val album = descriptor?.let(::albumKey)
             if (album != null && album in albums) continue
-            val artist = tracks.artistKey(index, catalog)
-            if (artist.isNotEmpty() && (artists[artist] ?: 0) >= 2) continue
+            val credits = tracks.credits(index)
+            if (credits.any { (artists[it.key] ?: 0) >= 2 }) continue
             val playlist = carrier(index)
             if (playlist != null && (carriers[playlist] ?: 0) >= PER_PLAYLIST) continue
             if (album != null) albums += album
-            if (artist.isNotEmpty()) artists[artist] = (artists[artist] ?: 0) + 1
+            for (credit in credits) artists[credit.key] = (artists[credit.key] ?: 0) + 1
             if (playlist != null) carriers[playlist] = (carriers[playlist] ?: 0) + 1
             result += candidate
         }
@@ -787,10 +793,13 @@ public object ListeningInsights {
         .map { RankedName(it.name, it.plays, it.playedMs, it.subtitle, it.trackId) }
 
     /** Per-track counters in primitive arrays, indexed through one map. */
-    private class TrackTable {
+    private class TrackTable(
+        private val catalog: (TrackId) -> TrackDescriptor?,
+        private val artistsOf: (TrackDescriptor) -> List<String>,
+    ) {
         private val index = HashMap<TrackId, Int>()
         val ids = ArrayList<TrackId>()
-        private val artistKeys = ArrayList<String?>()
+        private val credits = ArrayList<List<Credit>?>()
         var plays = IntArray(INITIAL)
         var chosenPlays = IntArray(INITIAL)
         var chosenDays = IntArray(INITIAL)
@@ -807,17 +816,21 @@ public object ListeningInsights {
         fun indexOf(id: TrackId): Int = index.getOrPut(id) {
             if (ids.size == plays.size) grow()
             ids += id
-            artistKeys += null
+            credits += null
             lastChosenDay[ids.lastIndex] = Long.MIN_VALUE
             lastWindowDay[ids.lastIndex] = Long.MIN_VALUE
             ids.lastIndex
         }
 
-        fun artistKey(track: Int, catalog: (TrackId) -> TrackDescriptor?): String =
-            artistKeys[track] ?: listeningArtistKey(catalog(ids[track])?.artist).also { artistKeys[track] = it }
-
-        fun artistName(track: Int, catalog: (TrackId) -> TrackDescriptor?): String =
-            catalog(ids[track])?.artist?.trim().orEmpty()
+        /** The track's credited artists, each once; empty when it names none or left the library. */
+        fun credits(track: Int): List<Credit> = credits[track] ?: run {
+            val descriptor = catalog(ids[track])
+            val names = descriptor?.let(artistsOf).orEmpty()
+            names.mapNotNull { name ->
+                val key = listeningArtistKey(name)
+                if (key.isEmpty()) null else Credit(key, name.trim())
+            }.distinctBy { it.key }.also { credits[track] = it }
+        }
 
         private fun grow() {
             val capacity = plays.size * 2
@@ -838,6 +851,9 @@ public object ListeningInsights {
             const val INITIAL = 256
         }
     }
+
+    /** One credited artist: [key] groups spellings that differ only in case and spacing. */
+    private class Credit(val key: String, val name: String)
 
     private class ArtistRepeatTotal(val name: String) {
         var plays = 0
