@@ -835,9 +835,13 @@ public class PlaybackService : MediaLibraryService() {
         val player = ExoPlayer.Builder(this, EqualizerRenderersFactory(this))
             // Every queue row is a local progressive file. The default factory first infers each
             // row's container from its URI, which parses all of them when a queue is set: 1.5 MB
-            // more heap for a 10,000-song "play all" (measured), for nothing.
+            // more heap for a 10,000-song "play all" (measured), for nothing. Small reads come from a
+            // read-ahead buffer: a seek in a FLAC without a seek table reads a few bytes at a time.
             .setMediaSourceFactory(
-                ProgressiveMediaSource.Factory(DefaultDataSource.Factory(this), DefaultExtractorsFactory()),
+                ProgressiveMediaSource.Factory(
+                    ReadAheadDataSource.Factory(DefaultDataSource.Factory(this)),
+                    DefaultExtractorsFactory(),
+                ),
             )
             .setAudioAttributes(AudioAttributes.DEFAULT, /* handleAudioFocus = */ true)
             .setHandleAudioBecomingNoisy(true)
