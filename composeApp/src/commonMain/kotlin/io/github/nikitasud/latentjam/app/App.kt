@@ -718,6 +718,10 @@ private fun AppShell(
             val followUp = TagSaveFollowUp(edits, results, access::keyOf, library.recordsCovers)
             if (!followUp.needed) return null
             return AppGraph.appScope.launch(Dispatchers.Main) {
+                // First, and before the scan that takes a second or more: a file written anew is being read
+                // from the wrong place by a player that has it open.
+                val rewritten = edits.flatMapTo(HashSet()) { (saved, result) -> result.rewrittenTracks(saved, access::keyOf) }
+                if (rewritten.isNotEmpty()) playback.rereadTracks(rewritten)
                 for ((saved, result) in edits) {
                     AppGraph.audioCarryOvers.add(audioCarryOversOf(saved, result, access::keyOf))
                 }

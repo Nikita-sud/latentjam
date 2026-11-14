@@ -141,6 +141,30 @@ internal class TagEditRefreshTest {
     }
 
     @Test
+    fun onlyFilesWrittenAnewAreReadAgainByThePlayer() {
+        val tracks = listOf(track("1", "A"), track("2", "A"), track("3", "A"), track("4", "A"))
+        val result = TagSaveResult(
+            listOf(
+                // In place: the audio did not move, and the player is left alone.
+                TagSaveEntry("k1", FileWriteStatus.SAVED),
+                TagSaveEntry("k2", FileWriteStatus.SAVED, rewritten = true),
+                TagSaveEntry("k3", FileWriteStatus.FAILED, problem = TagProblem.FAILED, rewritten = true),
+                TagSaveEntry("gone", FileWriteStatus.SAVED, rewritten = true),
+            ),
+        )
+        assertEquals(setOf("2"), result.rewrittenTracks(tracks, { it.audioUri }).mapTo(HashSet()) { it.value })
+        assertEquals(emptySet(), TagSaveResult(listOf(TagSaveEntry("k1", FileWriteStatus.SAVED))).rewrittenTracks(tracks, { it.audioUri }))
+        // The flag comes from the writer's own result and is not part of what an editor saves across recreation.
+        val report = TagWriteReport(
+            TagWriteKind.EDIT,
+            listOf(FileWriteResult("k2", FileWriteStatus.SAVED, newLength = 9, rewritten = true), FileWriteResult("k1", FileWriteStatus.SAVED)),
+        )
+        val fromReport = TagSaveResult.of(report, readOnlyIsMusicLibrary = false)
+        assertEquals(listOf(true, false), fromReport.entries.map { it.rewritten })
+        assertEquals(listOf(false, false), tagSaveResultOf(fromReport.toSaveable())!!.entries.map { it.rewritten })
+    }
+
+    @Test
     fun aReportsTracksAreFoundByKey() {
         val tracks = listOf(track("1", "A"), track("2", "A"), track("3", "A").copy(audioUri = null))
         assertEquals(listOf("2"), tracksWithKeys(tracks, setOf("k2", "gone"), { it.audioUri }).map { it.id.value })

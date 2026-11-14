@@ -406,6 +406,14 @@ public interface PlaybackController {
      */
     public suspend fun refreshTracks(tracks: List<TrackDescriptor>)
 
+    /**
+     * Opens the files of the queued tracks [trackIds] again, keeping queue, position and play state. For files a tag
+     * save wrote anew under the same address: their audio starts at another byte, and a player that read the old
+     * layout plays from the wrong place until it reads the file again. The default does nothing, for a player that
+     * keeps reading the file it opened (a save there puts a new file in the old one's place).
+     */
+    public suspend fun rereadTracks(trackIds: Set<TrackId>) {}
+
     /** Inserts [track] directly after the current one. */
     public suspend fun playNext(track: TrackDescriptor)
 

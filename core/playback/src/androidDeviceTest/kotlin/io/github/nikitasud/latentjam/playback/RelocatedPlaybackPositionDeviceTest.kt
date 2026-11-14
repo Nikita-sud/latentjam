@@ -34,6 +34,14 @@ class RelocatedPlaybackPositionDeviceTest {
         fixture.refreshTags()
     }
 
+    @Test fun aFileWrittenAnewIsReadAgainAtTheSamePosition() = withPlayback(playing = true) { fixture ->
+        fixture.rewrite()
+    }
+
+    @Test fun aPausedFileWrittenAnewIsReadAgainAndStaysPaused() = withPlayback(playing = false) { fixture ->
+        fixture.rewrite()
+    }
+
     @Test fun actualSourceTakesPriorityOverAnAlreadyRefreshedLibraryDescriptor() = withPlayback(playing = false) { fixture ->
         fixture.relocate(index = 1, sourceDescriptorAlreadyRefreshed = true)
     }
@@ -116,6 +124,35 @@ class RelocatedPlaybackPositionDeviceTest {
             }
         }
 
+        /** The file under the same address becomes another, longer one: only a player that reads it again learns its new length. */
+        fun rewrite() {
+            var before = 0L
+            var oldDuration = 0L
+            instrumentation.runOnMainSync {
+                oldDuration = player!!.duration
+                // A tag-only refresh keeps the open source: the control that the length is not re-read by itself.
+                controller!!.refreshTrackAt(1,
+                    TrackDescriptor(TrackId("current"), title = "Retagged", audioUri = originalUri),
+                    coverChanged = false, previousAudioUri = originalUri)
+            }
+            writeSilence(original, seconds = 30)
+            await("updated tags") { player!!.currentMediaItem?.mediaMetadata?.title == "Retagged" }
+            instrumentation.runOnMainSync {
+                assertEquals("The open source must not change by itself", oldDuration, player!!.duration)
+                before = controller!!.currentPosition
+                controller!!.rereadTrackAt(1, originalUri)
+            }
+            await("file read again") {
+                player!!.playbackState == Player.STATE_READY && controller!!.playbackState == Player.STATE_READY &&
+                    player!!.duration in 29_000L..31_000L
+            }
+            instrumentation.runOnMainSync {
+                assertPlayback(before)
+                assertEquals(originalUri, player!!.getMediaItemAt(1).localConfiguration!!.uri.toString())
+                assertEquals("Retagged", player!!.currentMediaItem?.mediaMetadata?.title)
+            }
+        }
+
         fun refreshTags() {
             var before = 0L
             var previousSeeks = 0
@@ -171,9 +208,9 @@ class RelocatedPlaybackPositionDeviceTest {
     }
 
     private companion object {
-        fun writeSilence(file: File) {
+        fun writeSilence(file: File, seconds: Int = 12) {
             val sampleRate = 16_000
-            val dataSize = sampleRate * 12 * 2
+            val dataSize = sampleRate * seconds * 2
             val bytes = ByteBuffer.allocate(44 + dataSize).order(ByteOrder.LITTLE_ENDIAN)
             bytes.put("RIFF".toByteArray()).putInt(36 + dataSize).put("WAVEfmt ".toByteArray())
             bytes.putInt(16).putShort(1).putShort(1).putInt(sampleRate).putInt(sampleRate * 2).putShort(2).putShort(16)

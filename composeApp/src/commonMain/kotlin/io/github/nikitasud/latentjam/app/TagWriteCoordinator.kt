@@ -900,7 +900,7 @@ internal class TagWriteCoordinator<C>(
     }
 
     private fun saved(key: String, result: WriteResult): FileWriteResult = when (result) {
-        is WriteResult.Saved -> FileWriteResult(key, FileWriteStatus.SAVED, newLength = result.newLength)
+        is WriteResult.Saved -> FileWriteResult(key, FileWriteStatus.SAVED, newLength = result.newLength, rewritten = result.rewritten)
         WriteResult.NoChange -> FileWriteResult(key, FileWriteStatus.UNCHANGED)
         is WriteResult.Refused -> FileWriteResult(key, FileWriteStatus.REFUSED, refusal = result.reason)
         WriteResult.NotEnoughSpace -> FileWriteResult(key, FileWriteStatus.NO_SPACE)
