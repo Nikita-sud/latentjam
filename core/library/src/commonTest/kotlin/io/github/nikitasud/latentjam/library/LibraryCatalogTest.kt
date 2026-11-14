@@ -38,6 +38,24 @@ internal class LibraryCatalogTest {
     )
 
     @Test
+    fun albumKeysNameTheAlbumEachTrackIsListedUnder() {
+        val tracks = listOf(
+            track("1", artist = "A", album = "One", albumArtist = "A"),
+            track("2", artist = "A feat. B", album = "One", albumArtist = "A"),
+            track("3", artist = "C", album = "Other"),
+            track("4", artist = "C"),
+        )
+        val keys = LibraryCatalog.albumKeys(tracks)
+        val listed = LibraryCatalog.build(tracks).albums
+        assertEquals(keys[TrackId("1")], keys[TrackId("2")], "one album, whatever each track's credit")
+        assertTrue(keys[TrackId("3")] != keys[TrackId("1")])
+        assertNull(keys[TrackId("4")], "no album title, no album")
+        for (album in listed) for (member in album.tracks) {
+            if (member.album != null) assertEquals(album.key, keys[member.id])
+        }
+    }
+
+    @Test
     fun aCompilationTaggedWithAnAlbumArtistIsOneAlbum() {
         val catalog = LibraryCatalog.build(
             listOf(

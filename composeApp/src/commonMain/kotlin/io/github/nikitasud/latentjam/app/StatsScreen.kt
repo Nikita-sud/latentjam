@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.history.PickSurface
 import io.github.nikitasud.latentjam.library.ArtistCredits
+import io.github.nikitasud.latentjam.library.LibraryCatalog
 import io.github.nikitasud.latentjam.smart.associateById
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -356,6 +357,10 @@ internal fun ListeningStatsSettings(
         knownTracksById?.let { CompletableDeferred(it) }
             ?: scope.async(supervisor + Dispatchers.Default, start = CoroutineStart.LAZY) { tracks.associateById() }
     }
+    // The album each track is filed under on the Albums tab, so "top albums" counts the same albums.
+    val albumKeys: Deferred<Map<TrackId, String>> = remember(tracks, scope) {
+        scope.async(supervisor + Dispatchers.Default, start = CoroutineStart.LAZY) { LibraryCatalog.albumKeys(tracks) }
+    }
     var retryRevision by remember { mutableIntStateOf(0) }
     // Both sections attribute plays to the same playlists: read them once per revision, off the main
     // thread, and again whenever the caller publishes its playlists or favourites anew. Null when
@@ -424,6 +429,7 @@ internal fun ListeningStatsSettings(
         try {
             val normalized = snapshots.await(historyRevision, retryRevision)
             val catalogMap = catalog.await()
+            val albums = albumKeys.await()
             // Playlists only refine the lists; without them the page still tells the truth, but such
             // a result is not kept, so the next visit reads the playlists again.
             val playlists = playlistsLoad.await()
@@ -458,6 +464,7 @@ internal fun ListeningStatsSettings(
                         genreOf = { GenreTags.split(it.genre).firstOrNull() },
                         // As the Artists tab counts them: a collaboration counts for each artist (#35).
                         artistsOf = statsCredits(),
+                        albumOf = { albums[it.id] },
                     ),
                     logEmpty = normalized.size == 0,
                 )
@@ -481,6 +488,7 @@ internal fun ListeningStatsSettings(
         try {
             val normalized = snapshots.await(historyRevision, retryRevision)
             val catalogMap = catalog.await()
+            val albums = albumKeys.await()
             // Playlists only refine the lists; without them the page still tells the truth, but such
             // a result is not kept, so the next visit reads the playlists again.
             val playlists = playlistsLoad.await()
@@ -505,6 +513,7 @@ internal fun ListeningStatsSettings(
                     playlists = statsPlaylists,
                     personal = personal,
                     artistsOf = statsCredits(),
+                    albumOf = { albums[it.id] },
                 )
                 // Nor is one without SMART's evidence: the library may simply not be ready yet.
             }.also { if (playlists != null && personal != null) memo.habits = inputs to it }

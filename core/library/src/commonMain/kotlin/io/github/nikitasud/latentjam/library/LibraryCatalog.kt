@@ -328,6 +328,20 @@ public data class LibraryCatalog(
         internal fun albumsOf(tracks: List<TrackDescriptor>): List<List<TrackDescriptor>> =
             tracks.albumGroups().values.toList()
 
+        /**
+         * The album each of [tracks] is filed under in [build]'s album list, by that album's key; a track without an
+         * album title has no entry. For callers that count per album and must agree with the Albums tab.
+         */
+        public fun albumKeys(tracks: List<TrackDescriptor>): Map<TrackId, String> {
+            val keys = HashMap<TrackId, String>()
+            for ((identity, grouped) in tracks.albumGroups()) {
+                if (identity.normalizedTitle == null) continue
+                val key = identity.stableKey()
+                for (track in grouped) keys[track.id] = key
+            }
+            return keys
+        }
+
         /** One album title's [tracks] as the separate releases the album list shows them as. */
         public fun separateReleases(tracks: List<TrackDescriptor>): List<List<TrackDescriptor>> =
             tracks.releases()?.values?.toList() ?: listOf(tracks)
