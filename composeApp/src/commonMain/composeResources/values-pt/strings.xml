@@ -251,6 +251,7 @@
     <string name="action_go_to_artist">Ir para o artista</string>
     <string name="action_show_on_map">Mostrar no mapa</string>
     <string name="action_export_m3u">Exportar como M3U</string>
+    <string name="action_add_to_home_screen">Adicionar ao ecrã principal</string>
     <string name="action_smart_keep_together">Manter juntas no SMART</string>
     <string name="action_import_m3u">Importar M3U</string>
     <plurals name="snack_m3u_imported_all">

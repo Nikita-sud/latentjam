@@ -115,6 +115,20 @@ internal class CollectionRailTest {
     }
 
     @Test
+    fun anEmptyPlaylistPageSurvivesALibraryRefresh() {
+        // A new playlist (or one pinned to the home screen before any track was added) opens empty;
+        // the library refresh that follows a cold start must not close it.
+        val empty = CollectionSelection(
+            title = "Road trip",
+            subtitle = null,
+            artworkUri = null,
+            tracks = emptyList(),
+            playlistId = "pl-1",
+        )
+        assertEquals(empty, empty.filterTracksForCollection { false })
+    }
+
+    @Test
     fun anArtistPageLeftWithOneNumberedAlbumGetsNoTitleRail() {
         fun numbered(id: String, title: String, number: Int) =
             TrackDescriptor(id = TrackId(id), title = title, artworkUri = "cover:$id", trackNumber = number)

@@ -103,6 +103,7 @@ class MainActivity : ComponentActivity() {
             externalAudioOpener.submit(intent?.action, intent?.dataString, intent?.resolveType(contentResolver))
         }
         if (savedInstanceState == null && !fromHistory) consumeContinueAnalysis(intent)
+        if (savedInstanceState == null && !fromHistory) consumePlaylistShortcut(intent)
         if (savedInstanceState == null) takePlayRequest(intent)
         audioPermissionGranted = hasAudioPermission()
         audioPermissionGateDismissed = getSharedPreferences(
@@ -156,6 +157,7 @@ class MainActivity : ComponentActivity() {
         reopenAudioGateIfAsked(intent)
         externalAudioOpener.submit(intent.action, intent.dataString, intent.resolveType(contentResolver))
         consumeContinueAnalysis(intent)
+        consumePlaylistShortcut(intent)
         takePlayRequest(intent)
     }
 
@@ -165,6 +167,19 @@ class MainActivity : ComponentActivity() {
         intent.action = Intent.ACTION_MAIN
         setIntent(intent)
         AppGraph.continueAutomaticIndexing()
+    }
+
+    /**
+     * A pinned playlist shortcut (issue #32): the UI opens that playlist's page. The intent is
+     * turned back into a plain launch so a later recreation does not open the page again.
+     */
+    private fun consumePlaylistShortcut(intent: Intent?) {
+        if (intent?.action != ACTION_OPEN_PLAYLIST) return
+        val playlistId = intent.getStringExtra(EXTRA_PLAYLIST_ID)
+        intent.action = Intent.ACTION_MAIN
+        intent.removeExtra(EXTRA_PLAYLIST_ID)
+        setIntent(intent)
+        if (!playlistId.isNullOrBlank()) PlaylistShortcutRequests.pending.value = playlistId
     }
 
     /**

@@ -225,6 +225,7 @@
     <string name="action_go_to_artist">Buka artis</string>
     <string name="action_show_on_map">Tampilkan di peta</string>
     <string name="action_export_m3u">Ekspor sebagai M3U</string>
+    <string name="action_add_to_home_screen">Tambahkan ke layar utama</string>
     <string name="action_smart_keep_together">Jaga tetap bersama di SMART</string>
     <string name="action_import_m3u">Impor M3U</string>
     <plurals name="snack_m3u_imported_all">
