@@ -905,8 +905,15 @@
     <string name="stats_same_artist_picks">שוב אותו אמן</string>
     <string name="stats_of_100_picks">%1$d מתוך 100 בחירות</string>
     <string name="stats_same_artist_note">כשבוחרים בעצמך את השיר הבא. כולל הפעלה מדף של אמן.</string>
-    <string name="stats_picked_next">נבחרים לעיתים קרובות אחר כך</string>
-    <string name="stats_sequence_description">אחרי %1$s בחרת ב־%2$s %3$d מתוך %4$d פעמים</string>
+    <string name="stats_heard_next">נשמעים לעיתים קרובות אחר כך</string>
+    <string name="stats_heard_next_note">שירים שבחרת או שהשארת להתנגן עד הסוף, בשלושה סשנים נפרדים לפחות. סדר האלבום או הפלייליסט לא נספר; דילוג מחליש את הקשר. קשרים מסומנים הוסיף SMART עצמו, והוא לא מחשיב אותם להרגל שלך.</string>
+    <string name="stats_link_description">אחרי %1$s שומעים לעיתים קרובות את %2$s: %3$s</string>
+    <plurals name="stats_link_sessions">
+        <item quantity="one">%1$d סשן</item>
+        <item quantity="two">%1$d סשנים</item>
+        <item quantity="other">%1$d סשנים</item>
+    </plurals>
+    <string name="stats_link_smart_placed">ש־SMART הוסיף</string>
     <string name="stats_library">הספרייה שלך</string>
     <string name="stats_played_once">הושמעו לפחות פעם אחת</string>
     <string name="stats_x_of_y">%1$s מתוך %2$s</string>

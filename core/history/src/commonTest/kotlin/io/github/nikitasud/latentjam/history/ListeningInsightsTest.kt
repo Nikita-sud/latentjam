@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.history
 
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import io.github.nikitasud.latentjam.smart.personal.PersonalModel
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -36,6 +37,7 @@ internal class ListeningInsightsTest {
                 album = parts.getOrNull(1)?.takeIf { it != "x" },
                 genre = if (parts.getOrNull(0) == "notag") null else "Rock",
                 year = if (parts.getOrNull(0) == "notag") null else 1994,
+                trackNumber = parts.getOrNull(2)?.toIntOrNull(),
             )
         }
     }
@@ -70,6 +72,7 @@ internal class ListeningInsightsTest {
         events: List<ListenEvent>,
         librarySize: Int = 100,
         playlists: List<StatsPlaylist> = emptyList(),
+        personal: Boolean = false,
     ) = ListeningInsights.habits(
         history = ListeningNormalization.normalize(events, now),
         catalog = catalog,
@@ -77,7 +80,40 @@ internal class ListeningInsightsTest {
         nowMs = now,
         timePointOf = utc,
         playlists = playlists,
+        personal = if (personal) personalModel(events) else null,
     )
+
+    /**
+     * SMART's personal evidence over [events], as the app builds it: the played tracks plus 1,000 never played (a
+     * library is far bigger than one listener's few pairs, which is what the lift filter's base rate reads).
+     */
+    private fun personalModel(events: List<ListenEvent>): PersonalModel {
+        val ids = events.map { it.trackId }.distinct() + (0 until 1000).map { TrackId("z-fill-$it") }
+        val library = ids.mapNotNull(catalog).map { personalTrack(it, listOfNotNull(it.artist)) }
+        return PersonalModel.build(events.sortedBy { it.startedAtMs }.map(::personalListen), library, { it.floorDiv(day) }, now)
+    }
+
+    /** One session: [from] picked, then [to] started as [start] four minutes later. */
+    private fun step(
+        daysAgo: Long,
+        from: String,
+        to: String,
+        start: ListenStart = ListenStart.USER_PICK,
+        shuffleMode: String? = "ON",
+        smartPosition: Int? = null,
+        parent: String? = null,
+        skipped: Boolean = false,
+        hourOfDay: Long = 9,
+    ) = listOf(
+        play(from, dayAt(daysAgo, hourOfDay), start = ListenStart.USER_PICK, shuffleMode = shuffleMode, parent = parent),
+        play(
+            to, dayAt(daysAgo, hourOfDay, minuteOffset = 4), start = start, shuffleMode = shuffleMode, smartPosition = smartPosition,
+            parent = parent, skipped = skipped, listenedMs = if (skipped) 5_000 else 3 * minute,
+        ),
+    )
+
+    /** Other listening, so that no song is everybody's successor. */
+    private val background = (0 until 12).flatMap { n -> step(n * 3L + 2, "q-bg-$n", "r-bg-$n", hourOfDay = 15) }
 
     private fun period(events: List<ListenEvent>, sinceDays: Long?) = ListeningInsights.period(
         history = ListeningNormalization.normalize(events, now),
@@ -208,35 +244,93 @@ internal class ListeningInsightsTest {
     }
 
     @Test
-    fun sequencesCountPicksAfterATrackAcrossSessions() {
-        val events = (0 until 4).flatMap { session ->
-            listOf(
-                play("a-one-1", dayAt(session * 2L + 1)),
-                play("b-two-1", dayAt(session * 2L + 1, minuteOffset = 4), start = ListenStart.USER_PICK),
-            )
-        } + listOf(
-            // An auto-advance after a never counts, a skipped pick neither.
-            play("a-one-1", dayAt(20)),
-            play("c-three-1", dayAt(20, minuteOffset = 4)),
+    fun strongLinksCountOwnPicksAcrossSessions() {
+        val events = background + (0 until 4).flatMap { step(it * 2L + 1, "a-one-1", "b-two-1") } + listOf(
+            // A skipped pick is no link.
             play("a-one-1", dayAt(21)),
             play("d-four-1", dayAt(21, minuteOffset = 4), start = ListenStart.USER_PICK, skipped = true),
         )
-        val result = habits(events)
-        val sequence = result.sequences.single()
+        val sequence = habits(events, personal = true).sequences.single()
         assertEquals("a-one-1" to "b-two-1", sequence.from.value to sequence.to.value)
-        assertEquals(4, sequence.count)
-        assertEquals(4, sequence.total)
+        assertEquals(4, sequence.sessions)
+        assertTrue(habits(events).sequences.isEmpty(), "no personal evidence, no links")
     }
 
     @Test
-    fun sequencesWithinOneSessionDoNotQualify() {
+    fun repeatedAcceptedContinuationsMakeALink() {
+        // The owner's case: B played on after A, to the end, in four sessions; nobody picked it by hand.
+        val accepted = (0 until 4).flatMap { step(it * 2L + 1, "a-one-1", "b-two-1", start = ListenStart.AUTO_ADVANCE) }
+        val sequence = habits(background + accepted, personal = true).sequences.single()
+        assertEquals("a-one-1" to "b-two-1", sequence.from.value to sequence.to.value)
+        assertEquals(4, sequence.sessions)
+        // Below SMART's D1 bar (three sessions) a pair is chance, however it was heard.
+        assertTrue(habits(background + accepted.take(4), personal = true).sequences.isEmpty())
+    }
+
+    @Test
+    fun linksWithinOneSessionDoNotQualify() {
         val events = (0 until 4).flatMap { round ->
             listOf(
                 play("a-one-1", dayAt(1, minuteOffset = round * 8L)),
                 play("b-two-1", dayAt(1, minuteOffset = round * 8L + 4), start = ListenStart.USER_PICK),
             )
         }
-        assertTrue(habits(events).sequences.isEmpty())
+        assertTrue(habits(background + events, personal = true).sequences.isEmpty())
+    }
+
+    @Test
+    fun smartPlacedLinksShowMarkedAndOwnOnesStayUnmarked() {
+        val smart = (0 until 4).flatMap {
+            step(it * 2L + 1, "a-one-1", "b-two-1", start = ListenStart.AUTO_ADVANCE, shuffleMode = "SMART", smartPosition = 1)
+        }
+        val placed = habits(background + smart, personal = true).sequences.single()
+        assertEquals("a-one-1" to "b-two-1", placed.from.value to placed.to.value)
+        assertEquals(4, placed.sessions)
+        assertTrue(placed.smartPlaced, "SMART put B next every time")
+        assertTrue(habits(background + smart.take(4), personal = true).sequences.isEmpty(), "two SMART sessions stay below the bar")
+        // One own session plus two SMART ones: three sessions in all, still marked (the own evidence alone is short).
+        val mixed = habits(background + smart.take(4) + step(30, "a-one-1", "b-two-1"), personal = true).sequences.single()
+        assertEquals(3, mixed.sessions)
+        assertTrue(mixed.smartPlaced)
+        // Three own sessions: the listener's own link, unmarked, counted by its own sessions only.
+        val own = (0 until 3).flatMap { step(it * 2L + 20, "a-one-1", "b-two-1") }
+        val mine = habits(background + smart + own, personal = true).sequences.single()
+        assertEquals(3, mine.sessions)
+        assertFalse(mine.smartPlaced)
+    }
+
+    @Test
+    fun skippingASmartPlacedLinkEmptiesIt() {
+        val smart = (0 until 4).flatMap {
+            step(it * 2L + 20, "a-one-1", "b-two-1", start = ListenStart.AUTO_ADVANCE, shuffleMode = "SMART", smartPosition = 1)
+        }
+        val skips = (0 until 4).flatMap {
+            step(it * 2L + 1, "a-one-1", "b-two-1", start = ListenStart.AUTO_ADVANCE, shuffleMode = "SMART", smartPosition = 1, skipped = true)
+        }
+        assertTrue(habits(background + smart + skips, personal = true).sequences.isEmpty())
+    }
+
+    @Test
+    fun albumAndPlaylistOrderDoNotFillTheCard() {
+        fun inOrder(parent: String, shuffle: String) = (0 until 6).flatMap {
+            step(it * 2L + 1, "a-one-1", "a-one-2", start = ListenStart.AUTO_ADVANCE, shuffleMode = shuffle, parent = parent)
+        }
+        assertTrue(habits(background + inOrder("album:one", "OFF"), personal = true).sequences.isEmpty(), "album order")
+        assertTrue(habits(background + inOrder("playlist:p", "OFF"), personal = true).sequences.isEmpty(), "playlist order")
+        assertEquals(6, habits(background + inOrder("playlist:p", "ON"), personal = true).sequences.single().sessions, "shuffled")
+    }
+
+    @Test
+    fun skipsWeakenALink() {
+        // C → D has one session more, so it leads until the listener starts skipping D after C.
+        val links = (0 until 4).flatMap { step(it * 2L + 20, "a-one-1", "b-two-1") } +
+            (0 until 5).flatMap { step(it * 2L + 20, "c-three-1", "d-four-1", hourOfDay = 12) }
+        fun skips(n: Int) = (0 until n).flatMap { step(it * 2L + 1, "c-three-1", "d-four-1", skipped = true) }
+        assertEquals(listOf("c-three-1", "a-one-1"), habits(background + links, personal = true).sequences.map { it.from.value })
+        assertEquals(listOf("c-three-1", "a-one-1"), habits(background + links + skips(1), personal = true).sequences.map { it.from.value }, "one skip is chance")
+        assertEquals(listOf("a-one-1", "c-three-1"), habits(background + links + skips(2), personal = true).sequences.map { it.from.value })
+        // SMART's jar (PLAN_PERSONAL v6): six early skips empty a full habit; this one held five sessions.
+        assertEquals(listOf("a-one-1"), habits(background + links + skips(6), personal = true).sequences.map { it.from.value })
     }
 
     @Test

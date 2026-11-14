@@ -857,8 +857,14 @@
     <string name="stats_same_artist_picks">Yine aynı sanatçıyı seçmek</string>
     <string name="stats_of_100_picks">100 seçimden %1$d</string>
     <string name="stats_same_artist_note">Sonraki parçayı kendiniz seçtiğinizde. Bir sanatçı sayfasından başlatmak da dahildir.</string>
-    <string name="stats_picked_next">Sık sık ardından seçilen</string>
-    <string name="stats_sequence_description">%1$s sonrasında %4$d seferin %3$d tanesinde %2$s parçasını seçtiniz</string>
+    <string name="stats_heard_next">Sık sık ardından dinlenen</string>
+    <string name="stats_heard_next_note">Seçtiğiniz ya da sonuna kadar çalmasına izin verdiğiniz parçalar, en az üç ayrı oturumda. Albüm ve çalma listesi sırası sayılmaz; atlamak bağı zayıflatır. İşaretli bağları SMART kendisi ekledi ve bunları alışkanlığınız saymaz.</string>
+    <string name="stats_link_description">%1$s sonrasında sık sık %2$s dinliyorsunuz: %3$s</string>
+    <plurals name="stats_link_sessions">
+        <item quantity="one">%1$d oturum</item>
+        <item quantity="other">%1$d oturum</item>
+    </plurals>
+    <string name="stats_link_smart_placed">SMART ekledi</string>
     <string name="stats_library">Arşiviniz</string>
     <string name="stats_played_once">En az bir kez çalınan</string>
     <string name="stats_x_of_y">%2$s içinden %1$s</string>

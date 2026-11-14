@@ -96,9 +96,14 @@ import io.github.nikitasud.latentjam.app.generated.resources.stats_evening
 import io.github.nikitasud.latentjam.app.generated.resources.stats_familiar
 import io.github.nikitasud.latentjam.app.generated.resources.stats_finish_note
 import io.github.nikitasud.latentjam.app.generated.resources.stats_finished_share
+import io.github.nikitasud.latentjam.app.generated.resources.stats_heard_next
+import io.github.nikitasud.latentjam.app.generated.resources.stats_heard_next_note
 import io.github.nikitasud.latentjam.app.generated.resources.stats_history_note
 import io.github.nikitasud.latentjam.app.generated.resources.stats_hours_short
 import io.github.nikitasud.latentjam.app.generated.resources.stats_library
+import io.github.nikitasud.latentjam.app.generated.resources.stats_link_description
+import io.github.nikitasud.latentjam.app.generated.resources.stats_link_sessions
+import io.github.nikitasud.latentjam.app.generated.resources.stats_link_smart_placed
 import io.github.nikitasud.latentjam.app.generated.resources.stats_listening_style
 import io.github.nikitasud.latentjam.app.generated.resources.stats_load_failed
 import io.github.nikitasud.latentjam.app.generated.resources.stats_locked_plays
@@ -125,7 +130,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.stats_patterns
 import io.github.nikitasud.latentjam.app.generated.resources.stats_period_all
 import io.github.nikitasud.latentjam.app.generated.resources.stats_period_month
 import io.github.nikitasud.latentjam.app.generated.resources.stats_period_week
-import io.github.nikitasud.latentjam.app.generated.resources.stats_picked_next
 import io.github.nikitasud.latentjam.app.generated.resources.stats_played_once
 import io.github.nikitasud.latentjam.app.generated.resources.stats_plays
 import io.github.nikitasud.latentjam.app.generated.resources.stats_recent_empty
@@ -135,7 +139,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.stats_same_artist_p
 import io.github.nikitasud.latentjam.app.generated.resources.stats_section_lately
 import io.github.nikitasud.latentjam.app.generated.resources.stats_section_numbers
 import io.github.nikitasud.latentjam.app.generated.resources.stats_section_over_time
-import io.github.nikitasud.latentjam.app.generated.resources.stats_sequence_description
 import io.github.nikitasud.latentjam.app.generated.resources.stats_show_less
 import io.github.nikitasud.latentjam.app.generated.resources.stats_show_more
 import io.github.nikitasud.latentjam.app.generated.resources.stats_skipped_share
@@ -466,6 +469,14 @@ internal fun ListeningStatsSettings(
             val (statsPlaylists, labels) = playlists ?: (emptyList<StatsPlaylist>() to emptyMap())
             keep(catalogMap, labels, read = playlists != null)
             val loadContext = currentCoroutineContext()
+            // The strong links are SMART's own evidence; without it (no SMART library yet, no memory) the card shows none.
+            val personal = try {
+                AppGraph.personalModel()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Throwable) {
+                null
+            }
             habitsLoad = withContext(Dispatchers.Default) {
                 ListeningInsights.habits(
                     history = normalized,
@@ -474,8 +485,10 @@ internal fun ListeningStatsSettings(
                     nowMs = epochMillis(),
                     cancellationCheck = { loadContext.ensureActive() },
                     playlists = statsPlaylists,
+                    personal = personal,
                 )
-            }.also { if (playlists != null) memo.habits = inputs to it }
+                // Nor is one without SMART's evidence: the library may simply not be ready yet.
+            }.also { if (playlists != null && personal != null) memo.habits = inputs to it }
             habitsFailed = false
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -1346,24 +1359,29 @@ private fun PatternsCard(habits: HabitInsights, tracksById: Map<TrackId, TrackDe
         }
         if (habits.sequences.isNotEmpty()) {
             Text(
-                text = stringResource(Res.string.stats_picked_next),
+                text = stringResource(Res.string.stats_heard_next),
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.padding(top = 4.dp),
             )
             habits.sequences.forEach { sequence ->
                 val from = tracksById[sequence.from] ?: return@forEach
                 val to = tracksById[sequence.to] ?: return@forEach
-                SequenceRow(from, to, sequence.count, sequence.total)
+                SequenceRow(from, to, sequence.sessions, sequence.smartPlaced)
             }
+            StatsNote(stringResource(Res.string.stats_heard_next_note))
         }
     }
 }
 
 @Composable
-private fun SequenceRow(from: TrackDescriptor, to: TrackDescriptor, count: Int, total: Int) {
+private fun SequenceRow(from: TrackDescriptor, to: TrackDescriptor, sessions: Int, smartPlaced: Boolean) {
     val fromTitle = from.title?.takeIf { it.isNotBlank() } ?: stringResource(Res.string.track_untitled)
     val toTitle = to.title?.takeIf { it.isNotBlank() } ?: stringResource(Res.string.track_untitled)
-    val description = stringResource(Res.string.stats_sequence_description, fromTitle, toTitle, count, total)
+    val count = pluralStringResource(Res.plurals.stats_link_sessions, sessions, sessions)
+    // A link that stands on SMART's own placements says so: the listener did not choose it alone.
+    val label = if (smartPlaced) stringResource(Res.string.stats_link_smart_placed) else null
+    val detail = if (label != null) "$count, $label" else count
+    val description = stringResource(Res.string.stats_link_description, fromTitle, toTitle, detail)
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).clearAndSetSemantics { contentDescription = description },
         verticalAlignment = Alignment.CenterVertically,
@@ -1401,11 +1419,20 @@ private fun SequenceRow(from: TrackDescriptor, to: TrackDescriptor, count: Int, 
                 )
             }
         }
-        Text(
-            text = "$count/$total",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                text = count,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (label != null) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
 

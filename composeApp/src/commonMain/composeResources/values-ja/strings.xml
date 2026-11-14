@@ -812,8 +812,13 @@
     <string name="stats_same_artist_picks">同じアーティストを続けて選ぶ</string>
     <string name="stats_of_100_picks">100回中%1$d回</string>
     <string name="stats_same_artist_note">次の曲を自分で選んだときの割合。アーティストページからの再生も含みます。</string>
-    <string name="stats_picked_next">よく続けて選ぶ曲</string>
-    <string name="stats_sequence_description">%1$sの後に%2$sを選んだ回数：%4$d回中%3$d回</string>
+    <string name="stats_heard_next">よく続けて聴く曲</string>
+    <string name="stats_heard_next_note">自分で選んだ曲や最後まで流した曲を、3 つ以上の別々のセッションで数えます。アルバムやプレイリストの順番は数えず、スキップするとつながりは弱まります。印の付いたつながりは SMART 自身が並べたもので、SMART はあなたの習慣とは見なしません。</string>
+    <string name="stats_link_description">%1$sの後によく%2$sを聴いています：%3$s</string>
+    <plurals name="stats_link_sessions">
+        <item quantity="other">%1$dセッション</item>
+    </plurals>
+    <string name="stats_link_smart_placed">SMART が追加</string>
     <string name="stats_library">あなたのライブラリ</string>
     <string name="stats_played_once">1回以上再生</string>
     <string name="stats_x_of_y">%2$s中%1$s</string>

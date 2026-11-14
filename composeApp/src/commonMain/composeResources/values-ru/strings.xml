@@ -946,8 +946,16 @@
     <string name="stats_same_artist_picks">Снова тот же исполнитель</string>
     <string name="stats_of_100_picks">%1$d из 100 выборов</string>
     <string name="stats_same_artist_note">Когда вы сами выбираете следующий трек. Включая запуск со страницы исполнителя.</string>
-    <string name="stats_picked_next">Часто выбираете следом</string>
-    <string name="stats_sequence_description">После %1$s вы выбирали %2$s: %3$d из %4$d</string>
+    <string name="stats_heard_next">Часто слушаете следом</string>
+    <string name="stats_heard_next_note">Треки, которые вы выбираете или дослушиваете, минимум в трёх разных сессиях. Порядок альбома и плейлиста не считается, пропуски ослабляют связь. Отмеченные связи подставлял сам SMART — своей привычкой он их не считает.</string>
+    <string name="stats_link_description">После %1$s вы часто слушаете %2$s: %3$s</string>
+    <plurals name="stats_link_sessions">
+        <item quantity="one">%1$d сессия</item>
+        <item quantity="few">%1$d сессии</item>
+        <item quantity="many">%1$d сессий</item>
+        <item quantity="other">%1$d сессии</item>
+    </plurals>
+    <string name="stats_link_smart_placed">подставил SMART</string>
     <string name="stats_library">Ваша медиатека</string>
     <string name="stats_played_once">Сыграно хотя бы раз</string>
     <string name="stats_x_of_y">%1$s из %2$s</string>

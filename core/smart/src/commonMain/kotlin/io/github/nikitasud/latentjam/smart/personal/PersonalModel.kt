@@ -83,6 +83,30 @@ public class PersonalModel internal constructor(
     /** The listener's own part of [edgePositive] (no SMART-sourced evidence): what may relieve recency. */
     private val edgeOwn: ShortArray,
     private val edgeSessions: ByteArray,
+    /** The part of [edgeSessions] in which B was not just the next track of a fixed order (album or playlist, shuffle off). */
+    private val edgeChosenSessions: ByteArray,
+    /**
+     * Display only (the Statistics page; SMART never reads these): [edgeChosenSessions] together with the sessions SMART
+     * placed B in, counted as distinct sessions; the jar folded with SMART's positives uncapped; the occurrence weight
+     * with SMART's uncapped, and its per-song sums for the lift filter.
+     */
+    private val edgeShownSessions: ByteArray,
+    private val edgeShownJar: ShortArray,
+    private val edgeShownWeight: ShortArray,
+    private val shownOutWeight: FloatArray,
+    private val shownOutEffective: FloatArray,
+    private val shownInWeight: FloatArray,
+    private val shownTotalWeight: Float,
+    /**
+     * Display only: the pairs the store above does not keep that the Statistics page may still show (SMART's placements
+     * plus the listener's own outside order reach [D1_SESSIONS]); apart from the edges, so no SMART lookup ever meets them.
+     */
+    private val extraFrom: IntArray,
+    private val extraTo: IntArray,
+    private val extraSessions: ByteArray,
+    private val extraRejections: ByteArray,
+    private val extraJar: ShortArray,
+    private val extraWeight: ShortArray,
     private val edgeNegative: ShortArray,
     private val edgeNegativeSessions: ByteArray,
     /** The jar b(A → B) (v6, the LB-import fixes): the time-ordered fold of both sources' sessions, decayed to the reference. */
@@ -142,6 +166,58 @@ public class PersonalModel internal constructor(
 
     /** Distinct sessions of the listener's own (non-SMART) evidence that A → B appeared in. */
     public fun sessions(a: Int, b: Int): Int = edge(a, b).takeIf { it >= 0 }?.let { edgeSessions[it].toInt() and 0xff } ?: 0
+
+    /**
+     * Distinct own sessions in which B followed A other than as the next track of a fixed order: a pick, a hand-queued
+     * track, an accepted continuation under shuffle, an import outside album order. Album order and a plain playlist or
+     * folder played with shuffle off are the order speaking, not the listener, so they count in [sessions] only.
+     */
+    public fun chosenSessions(a: Int, b: Int): Int =
+        edge(a, b).takeIf { it >= 0 }?.let { edgeChosenSessions[it].toInt() and 0xff } ?: 0
+
+    /**
+     * The Statistics page's strong links ("Often heard next"). The listener's own: SMART's D1 rule — [D1_SESSIONS] sessions
+     * and the lift filter, the bar at which SMART lets a habit relieve its recency brake — on [chosenSessions], while skips
+     * have not emptied the jar ([jarWeight] > 0). A link short of that may still show as [PersonalLink.smartPlaced]: the same
+     * bar over the sessions of both the listener's own and SMART's placements, SMART's evidence uncapped. The page only
+     * shows them (it never feeds SMART), so the loop guard's cap does not apply; fixed album or playlist order still never
+     * counts. Strongest first by the jar (own links by theirs, the rest by the uncapped one), then by sessions. Song
+     * indices; [songOf] maps back.
+     */
+    public fun strongLinks(): List<PersonalLink> {
+        val links = ArrayList<PersonalLink>()
+        for (a in 0 until songCount) for (e in edgeStart[a] until edgeStart[a + 1]) {
+            val b = edgeTo[e]
+            val own = edgeChosenSessions[e].toInt() and 0xff
+            if (own >= D1_SESSIONS && lift(a, b) >= LIFT_FILTER && jarWeight(a, b) > 0f) {
+                links += PersonalLink(a, b, own, unhalf(edgeJar[e]), smartPlaced = false)
+                continue
+            }
+            shown(a, b, edgeShownSessions[e].toInt() and 0xff, rejectionSessions(a, b), edgeShownJar[e], edgeShownWeight[e])?.let(links::add)
+        }
+        for (i in extraFrom.indices) {
+            shown(extraFrom[i], extraTo[i], extraSessions[i].toInt() and 0xff, extraRejections[i].toInt() and 0xff, extraJar[i], extraWeight[i])
+                ?.let(links::add)
+        }
+        links.sortWith(compareByDescending<PersonalLink> { it.jar }.thenByDescending { it.sessions }.thenBy { it.from }.thenBy { it.to })
+        return links
+    }
+
+    /** The display rule for a link standing on SMART's placements too, or null when it does not pass. */
+    private fun shown(a: Int, b: Int, sessions: Int, rejections: Int, jar: Short, weight: Short): PersonalLink? {
+        if (sessions < D1_SESSIONS || shownLift(weight, a, b) < LIFT_FILTER) return null
+        val b6 = unhalf(jar)
+        if (rejections >= MIN_SESSIONS && b6 <= 0f) return null
+        return PersonalLink(a, b, sessions, b6, smartPlaced = true)
+    }
+
+    /** [lift] with SMART's occurrence weights uncapped: the display rule's filter. */
+    private fun shownLift(weight: Short, a: Int, b: Int): Float {
+        val p = unhalf(weight) / (shownOutWeight[a] + ALPHA)
+        val lcb = wilson(p, shownOutEffective[a])
+        val q = (shownInWeight[b] + 1f) / (shownTotalWeight + songCount.coerceAtLeast(1))
+        return lcb / q
+    }
 
     /** s(A → B) = min(1, S⁺ / 6) once the pair has two sessions of the listener's own, else 0 (a one-off is chance). */
     public fun strength(a: Int, b: Int): Float {
@@ -238,6 +314,9 @@ public class PersonalModel internal constructor(
         8L * trackHashes.size +
             4L * (trackSong.size + trackArtistStart.size + trackArtistList.size + edgeStart.size + edgeTo.size +
                 outWeight.size + outEffective.size + inWeight.size + earlySkips.size + artistStart.size + artistTo.size) +
+            edgeChosenSessions.size + edgeShownSessions.size + 2L * (edgeShownJar.size + edgeShownWeight.size) +
+            4L * (shownOutWeight.size + shownOutEffective.size + shownInWeight.size + extraFrom.size + extraTo.size) +
+            extraSessions.size + extraRejections.size + 2L * (extraJar.size + extraWeight.size) +
             2L * (edgePositive.size + edgeOwn.size + edgeNegative.size + edgeJar.size + edgeWeight.size + artistPositive.size) +
             4L * affinityStrength.size + affinitySessions.size +
             edgeSessions.size + edgeNegativeSessions.size + edgeDays.size + artistSessions.size
@@ -347,6 +426,18 @@ public class PersonalModel internal constructor(
 private const val DAY_MS_CONST: Long = 86_400_000L
 
 /**
+ * One of [PersonalModel.strongLinks]: song [from] → song [to] with its distinct [sessions] and jar. [smartPlaced]: the
+ * listener's own sessions alone do not reach the bar, so the link stands on SMART's placements too (sessions counts both).
+ */
+public class PersonalLink(
+    public val from: Int,
+    public val to: Int,
+    public val sessions: Int,
+    public val jar: Float,
+    public val smartPlaced: Boolean = false,
+)
+
+/**
  * Session id → the best value seen in it, in first-seen order. Most pairs have one session, so the first one is held
  * inline and a map is made only for a second: a long imported history has hundreds of thousands of pairs.
  */
@@ -422,6 +513,8 @@ private class DaySet {
 private class PairAcc {
     /** Session id → best (grade × decay) of the listener's own evidence, SMART's own, and rejections. */
     val own = SessionBest()
+    /** The own sessions outside a fixed order ([PersonalModel.chosenSessions]); null until the first. */
+    var chosen: SessionBest? = null
     val smart = SessionBest()
     val rejected = SessionBest()
     /** Imported session strength, kept apart for the per-anchor cap; null when none, and after its merge into [own]. */
@@ -546,7 +639,8 @@ private class PersonalBuilder(
                         val grade = deviceGrade(a!!, l, afterRejection = rejectedRun, autoStreak)
                         if (grade > 0.0) {
                             val value = grade * clock.factor(song(a), song(l), l.startedAtMs)
-                            add(a.trackId, l.trackId, session, value, l.smartSourced, imported = false, l.startedAtMs, sessionDay)
+                            add(a.trackId, l.trackId, session, value, l.smartSourced, imported = false, l.startedAtMs, sessionDay,
+                                ordered = inOrder(l))
                         }
                     }
                 }
@@ -602,7 +696,7 @@ private class PersonalBuilder(
                             // A replayed sequence is one session however often it played: the 3-gram's own id.
                             val sessionId = if (gram != null) GRAM_SESSION_BASE + gramId(gram) else IMPORT_SESSION_BASE + r
                             add(a.trackId, b.trackId, sessionId, grade * clock.factor(song(a), song(b), b.startedAtMs), smart = false,
-                                imported = true, b.startedAtMs, localDay(run[0].startedAtMs))
+                                imported = true, b.startedAtMs, localDay(run[0].startedAtMs), ordered = next)
                         }
                     }
                     end = b.startedAtMs + (byId.getValue(b.trackId).durationMs ?: DEFAULT_DURATION_MS)
@@ -652,11 +746,22 @@ private class PersonalBuilder(
         else -> 0.0
     }
 
+    /**
+     * B was only the next track of a fixed order: a continuation (auto-advance, next, or a legacy unknown start) with
+     * shuffle off that SMART did not place — album order and a plain playlist or folder alike.
+     */
+    private fun inOrder(l: PersonalListen): Boolean = !l.smartSourced && l.shuffleOff &&
+        (l.start == PersonalStart.AUTO || l.start == PersonalStart.SKIP_NEXT || l.start == PersonalStart.UNKNOWN)
+
     /** A 3-gram's stable id (no platform hash). */
     private fun gramId(g: Triple<Int, Int, Int>): Long = ((g.first.toLong() * 1_000_003L + g.second) * 1_000_003L + g.third) and 0xffffffffffL
 
-    private fun add(a: TrackId, b: TrackId, session: Long, value: Double, smart: Boolean, imported: Boolean, at: Long, day: Long) {
+    private fun add(
+        a: TrackId, b: TrackId, session: Long, value: Double, smart: Boolean, imported: Boolean, at: Long, day: Long,
+        ordered: Boolean,
+    ) {
         val p = pair(a, b)
+        if (!smart && !ordered) (p.chosen ?: SessionBest().also { p.chosen = it }).best(session, value, at)
         when {
             // A session's day is its start's, counted once (a replayed import 3-gram is one session over many days).
             imported -> if (p.importedSessions().best(session, value, at)) p.days.add(day)
@@ -730,6 +835,25 @@ private class PersonalBuilder(
         return Jar.fold(steps) { clock.factor(a, bSong, it) }.coerceIn(Jar.LOW, Jar.HIGH)
     }
 
+    /** The display jar: [jarOf] with SMART's positives as the listener's own (uncapped); the Statistics page only. */
+    private fun shownJarOf(k: Long, p: PairAcc): Double {
+        val a = (k ushr 32).toInt()
+        val bSong = (k and 0xffffffffL).toInt()
+        val steps = ArrayList<Jar.Step>()
+        p.own.forEachAt { _, v, at -> steps += Jar.Step(at, v, Jar.OWN) }
+        p.smart.forEachAt { _, v, at -> steps += Jar.Step(at, v, Jar.OWN) }
+        p.rejected.forEachAt { _, v, at -> steps += Jar.Step(at, v, Jar.REJECT) }
+        return Jar.fold(steps) { clock.factor(a, bSong, it) }.coerceIn(Jar.LOW, Jar.HIGH)
+    }
+
+    /** Distinct sessions of [PairAcc.chosen] and [PairAcc.smart] together. */
+    private fun shownSessions(p: PairAcc): Int {
+        val ids = HashSet<Long>()
+        p.chosen?.forEach { id, _ -> ids += id }
+        p.smart.forEach { id, _ -> ids += id }
+        return ids.size
+    }
+
     /** S⁺: the listener's own session strength plus SMART's own, at most a quarter of it (positives only). */
     private fun positive(p: PairAcc): Double {
         val own = p.own.sum()
@@ -758,6 +882,23 @@ private class PersonalBuilder(
             total += w
         }
         val effective = FloatArray(songs) { a -> if (squares[a] > 0.0) (out[a].toDouble() * out[a] / squares[a]).toFloat() else 0f }
+        // The same sums with SMART's weight uncapped, for the display rule only.
+        val shownOut = FloatArray(songs)
+        val shownSquares = DoubleArray(songs)
+        val shownIn = FloatArray(songs)
+        var shownTotal = 0.0
+        for ((k, p) in pairs) {
+            val a = (k ushr 32).toInt()
+            val b = (k and 0xffffffffL).toInt()
+            val w = p.weightOwn + p.weightSmart
+            shownOut[a] += w.toFloat()
+            shownSquares[a] += p.squaresOwn + p.squaresSmart
+            shownIn[b] += w.toFloat()
+            shownTotal += w
+        }
+        val shownEffective = FloatArray(songs) { a ->
+            if (shownSquares[a] > 0.0) (shownOut[a].toDouble() * shownOut[a] / shownSquares[a]).toFloat() else 0f
+        }
         // Keep only links that can change a term: two own sessions (habit, D1) or two rejecting sessions.
         val bySource = LinkedHashMap<Int, ArrayList<Pair<Int, PairAcc>>>()
         for ((k, p) in pairs) {
@@ -777,6 +918,13 @@ private class PersonalBuilder(
             }
         }
         start[songs] = kept.size
+        // Display only: pairs not kept above that the Statistics page may show (own outside order plus SMART's ≥ 3).
+        val extras = ArrayList<Pair<Long, PairAcc>>()
+        for ((k, p) in pairs) {
+            if (p.own.size >= PersonalModel.MIN_SESSIONS || p.rejected.size >= PersonalModel.MIN_SESSIONS) continue
+            if ((p.chosen?.size ?: 0) + p.smart.size < PersonalModel.D1_SESSIONS) continue
+            if (shownSessions(p) >= PersonalModel.D1_SESSIONS) extras += k to p
+        }
         val artistBySource = LinkedHashMap<Int, ArrayList<Pair<Int, PairAcc>>>()
         for ((k, p) in artistPairs) {
             if (p.own.size < PersonalModel.MIN_SESSIONS) continue
@@ -810,6 +958,20 @@ private class PersonalBuilder(
             edgePositive = ShortArray(kept.size) { half(positive(kept[it].second).toFloat()) },
             edgeOwn = ShortArray(kept.size) { half(kept[it].second.own.sum().toFloat()) },
             edgeSessions = ByteArray(kept.size) { kept[it].second.own.size.coerceAtMost(255).toByte() },
+            edgeChosenSessions = ByteArray(kept.size) { (kept[it].second.chosen?.size ?: 0).coerceAtMost(255).toByte() },
+            edgeShownSessions = ByteArray(kept.size) { shownSessions(kept[it].second).coerceAtMost(255).toByte() },
+            edgeShownJar = ShortArray(kept.size) { half(shownJarOf(keptKeys[it], kept[it].second).toFloat()) },
+            edgeShownWeight = ShortArray(kept.size) { half((kept[it].second.weightOwn + kept[it].second.weightSmart).toFloat()) },
+            shownOutWeight = shownOut,
+            shownOutEffective = shownEffective,
+            shownInWeight = shownIn,
+            shownTotalWeight = shownTotal.toFloat(),
+            extraFrom = IntArray(extras.size) { (extras[it].first ushr 32).toInt() },
+            extraTo = IntArray(extras.size) { (extras[it].first and 0xffffffffL).toInt() },
+            extraSessions = ByteArray(extras.size) { shownSessions(extras[it].second).coerceAtMost(255).toByte() },
+            extraRejections = ByteArray(extras.size) { extras[it].second.rejected.size.coerceAtMost(255).toByte() },
+            extraJar = ShortArray(extras.size) { half(shownJarOf(extras[it].first, extras[it].second).toFloat()) },
+            extraWeight = ShortArray(extras.size) { half((extras[it].second.weightOwn + extras[it].second.weightSmart).toFloat()) },
             edgeNegative = ShortArray(kept.size) { half(kept[it].second.rejected.sum().toFloat()) },
             edgeNegativeSessions = ByteArray(kept.size) { kept[it].second.rejected.size.coerceAtMost(255).toByte() },
             edgeJar = ShortArray(kept.size) { half(jarOf(keptKeys[it], kept[it].second).toFloat()) },

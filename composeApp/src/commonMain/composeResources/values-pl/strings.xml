@@ -953,8 +953,16 @@
     <string name="stats_same_artist_picks">Znowu ten sam artysta</string>
     <string name="stats_of_100_picks">%1$d na 100 wyborów</string>
     <string name="stats_same_artist_note">Gdy sam wybierasz następny utwór. Obejmuje uruchomienie ze strony artysty.</string>
-    <string name="stats_picked_next">Często wybierane jako następne</string>
-    <string name="stats_sequence_description">Po %1$s wybrałeś %2$s %3$d razy na %4$d</string>
+    <string name="stats_heard_next">Często słuchane jako następne</string>
+    <string name="stats_heard_next_note">Utwory, które wybierasz lub słuchasz do końca, w co najmniej trzech osobnych sesjach. Kolejność albumu i playlisty się nie liczy; pomijanie osłabia powiązanie. Oznaczone powiązania dodał sam SMART i nie uznaje ich za Twój nawyk.</string>
+    <string name="stats_link_description">Po %1$s często słuchasz %2$s: %3$s</string>
+    <plurals name="stats_link_sessions">
+        <item quantity="one">%1$d sesja</item>
+        <item quantity="few">%1$d sesje</item>
+        <item quantity="many">%1$d sesji</item>
+        <item quantity="other">%1$d sesji</item>
+    </plurals>
+    <string name="stats_link_smart_placed">dodane przez SMART</string>
     <string name="stats_library">Twoja biblioteka</string>
     <string name="stats_played_once">Odtworzone co najmniej raz</string>
     <string name="stats_x_of_y">%1$s z %2$s</string>

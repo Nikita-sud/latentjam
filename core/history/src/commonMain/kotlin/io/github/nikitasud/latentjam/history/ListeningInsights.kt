@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.history
 
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import io.github.nikitasud.latentjam.smart.personal.PersonalModel
 import kotlin.math.pow
 
 /** One row of "on repeat now": a track or a whole playlist; [weight] ranks, the counts explain. */
@@ -61,12 +62,17 @@ public data class TrackPlays(
     public val plays: Int,
 )
 
-/** "After [from] the listener picked [to]" [count] of [total] times they picked something after [from]. */
+/**
+ * A strong link: after [from] the listener keeps hearing [to], by the evidence SMART's personal layer learns from
+ * ([io.github.nikitasud.latentjam.smart.personal.PersonalModel.strongLinks]). [sessions] counts the sessions with it,
+ * outside a fixed album or playlist order: the listener's own, or with [smartPlaced] also those in which SMART put [to]
+ * next (the listener's own alone would not show it).
+ */
 public data class TrackSequence(
     public val from: TrackId,
     public val to: TrackId,
-    public val count: Int,
-    public val total: Int,
+    public val sessions: Int,
+    public val smartPlaced: Boolean = false,
 )
 
 public data class DecadePlays(
@@ -196,9 +202,6 @@ public object ListeningInsights {
     private const val YEAR_AGO_SPREAD = 3
     private const val YEAR_AGO_MIN_PLAYS = 2
     private const val YEAR_AGO_ROWS = 3
-    private const val SEQUENCE_MIN_COUNT = 3
-    private const val SEQUENCE_MIN_SESSIONS = 3
-    private const val SEQUENCE_MIN_SHARE = 0.4f
     private const val SEQUENCE_ROWS = 3
     private const val TAG_COVERAGE = 0.6
     private const val PLAYLIST_COVERAGE = 0.2
@@ -223,6 +226,11 @@ public object ListeningInsights {
         timePointOf: (Long) -> LocalTimePoint = ::localTimePoint,
         cancellationCheck: () -> Unit = {},
         playlists: List<StatsPlaylist> = emptyList(),
+        /**
+         * SMART's personal evidence over the same log ([personalListen], [personalTrack]): the strong links come from it,
+         * so the card and SMART cannot disagree about what a habit is. Null shows none.
+         */
+        personal: PersonalModel? = null,
     ): HabitInsights {
         cancellationCheck()
         val attribution = PlaylistAttribution(playlists)
@@ -238,7 +246,6 @@ public object ListeningInsights {
         val artists = HashMap<String, ArtistRepeatTotal>()
         val playDays = ArrayList<Long>()
         val recentEventDays = HashSet<Long>()
-        val pairs = HashMap<Long, PairTotal>()
         var sameArtistPicks = 0
         var pickSteps = 0
         var previousPlay = -1
@@ -296,14 +303,6 @@ public object ListeningInsights {
             if (previousPlay >= 0 && event.isPick()) {
                 val from = tracks.indexOf(events[previousPlay].trackId)
                 if (from != track) {
-                    tracks.pickStepsFrom[from]++
-                    val pair = PairTotal.key(from, track)
-                    val total = pairs.getOrPut(pair) { PairTotal() }
-                    total.count++
-                    if (total.lastSession != session) {
-                        total.sessions++
-                        total.lastSession = session
-                    }
                     val fromKey = tracks.artistKey(from, catalog)
                     val toKey = tracks.artistKey(track, catalog)
                     if (fromKey.isNotEmpty() && toKey.isNotEmpty()) {
@@ -411,24 +410,29 @@ public object ListeningInsights {
             ).map { TrackPlays(tracks.ids[it], tracks.yearAgoPlays[it]) }
         }
 
-        // T3: what the listener picks right after a track.
-        val sequences = pairs.entries
-            .asSequence()
-            .map { (pair, total) -> Triple(PairTotal.from(pair), PairTotal.to(pair), total) }
-            .filter { (from, _, total) ->
-                total.count >= SEQUENCE_MIN_COUNT && total.sessions >= SEQUENCE_MIN_SESSIONS &&
-                    total.count >= SEQUENCE_MIN_SHARE * tracks.pickStepsFrom[from]
+        // T3: what the listener keeps hearing right after a track, as SMART's personal layer counts it. Each song is
+        // shown by its most played available version.
+        val sequences = if (personal == null || personal.isEmpty) {
+            emptyList()
+        } else {
+            val shownTrack = HashMap<Int, Int>()
+            for (track in 0 until tracks.size) {
+                if (!available(track)) continue
+                val song = personal.songOf(tracks.ids[track])
+                if (song < 0) continue
+                val held = shownTrack[song]
+                if (held == null || tracks.plays[track] > tracks.plays[held]) shownTrack[song] = track
             }
-            .filter { (from, to, _) -> available(from) && available(to) }
-            .sortedWith(
-                compareByDescending<Triple<Int, Int, PairTotal>> { it.third.count }
-                    .thenByDescending { it.third.sessions },
-            )
-            .take(SEQUENCE_ROWS)
-            .map { (from, to, total) ->
-                TrackSequence(tracks.ids[from], tracks.ids[to], total.count, tracks.pickStepsFrom[from])
-            }
-            .toList()
+            personal.strongLinks()
+                .asSequence()
+                .mapNotNull { link ->
+                    val from = shownTrack[link.from] ?: return@mapNotNull null
+                    val to = shownTrack[link.to] ?: return@mapNotNull null
+                    TrackSequence(tracks.ids[from], tracks.ids[to], link.sessions, link.smartPlaced)
+                }
+                .take(SEQUENCE_ROWS)
+                .toList()
+        }
 
         // T4: how much of the library has been played, and from which decades.
         var libraryPlayed = 0
@@ -800,7 +804,6 @@ public object ListeningInsights {
         var lastWindowDay = LongArray(INITIAL)
         var weight = DoubleArray(INITIAL)
         var yearAgoPlays = IntArray(INITIAL)
-        var pickStepsFrom = IntArray(INITIAL)
         var lastStartMs = LongArray(INITIAL)
         val size: Int get() = ids.size
 
@@ -830,7 +833,6 @@ public object ListeningInsights {
             lastWindowDay = lastWindowDay.copyOf(capacity)
             weight = weight.copyOf(capacity)
             yearAgoPlays = yearAgoPlays.copyOf(capacity)
-            pickStepsFrom = pickStepsFrom.copyOf(capacity)
             lastStartMs = lastStartMs.copyOf(capacity)
         }
 
@@ -907,10 +909,6 @@ public object ListeningInsights {
     }
 
     private class PairTotal {
-        var count = 0
-        var sessions = 0
-        var lastSession = -1
-
         companion object {
             fun key(from: Int, to: Int): Long = (from.toLong() shl 32) or (to.toLong() and 0xffffffffL)
             fun from(key: Long): Int = (key ushr 32).toInt()
