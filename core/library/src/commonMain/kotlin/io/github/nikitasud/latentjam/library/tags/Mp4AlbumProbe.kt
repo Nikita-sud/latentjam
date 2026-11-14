@@ -27,7 +27,11 @@ internal object Mp4AlbumProbe {
      * not knowing must not read as "no album".
      */
     fun read(source: RandomAccessSource): EmbeddedTagFacts? = try {
-        album(source)?.copy(durationMs = durationMs(source))
+        // A movie header that cannot be followed costs the length only: the album answer stands as it did.
+        album(source)?.let { facts ->
+            val length = try { durationMs(source) } catch (_: Malformed) { null }
+            if (length == null) facts else facts.copy(durationMs = length)
+        }
     } catch (_: Malformed) {
         null
     }

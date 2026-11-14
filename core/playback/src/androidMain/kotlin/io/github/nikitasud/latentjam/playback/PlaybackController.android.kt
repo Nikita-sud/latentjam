@@ -296,9 +296,18 @@ internal class AndroidPlaybackController(
             failedRecoveryIds += failedId
             // The listener is told why this row did not play: it is skipped, or playback stops at it, without a word
             // otherwise.
-            mutablePlaybackFailures.tryEmit(
-                PlaybackFailure(TrackId(failedId), unsupportedFormat = error.errorCode in UNSUPPORTED_FORMAT_ERRORS),
-            )
+            // Only where the file is the reason: reading and parsing errors, and formats the device cannot decode. An
+            // audio output or decoder failure on a file that is sound gets no "could not be read".
+            val unsupported = error.errorCode in UNSUPPORTED_FORMAT_ERRORS
+            if (unsupported || error.errorCode in FILE_ERROR_CODES) {
+                mutablePlaybackFailures.tryEmit(
+                    PlaybackFailure(
+                        TrackId(failedId),
+                        unsupportedFormat = unsupported,
+                        title = player.currentMediaItem?.mediaMetadata?.title?.toString(),
+                    ),
+                )
+            }
             val traversalOrder = playerTraversalOrder(player)
             val replacement = nextPlaybackErrorRecoveryIndex(
                 mediaIds = (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId },
@@ -1812,6 +1821,9 @@ internal class AndroidPlaybackController(
     private companion object {
         /** How soon after its audio output failed an overlap's next track is still put back where it had sounded. */
         const val SINK_RESUME_TTL_NS = 5_000_000_000L
+
+        /** Media3's reading (2xxx) and parsing (3xxx) error codes: the file could not be read as audio. */
+        val FILE_ERROR_CODES = 2000..3999
 
         /** Player errors that say the device cannot decode the stream, as opposed to not being able to read it. */
         val UNSUPPORTED_FORMAT_ERRORS = setOf(

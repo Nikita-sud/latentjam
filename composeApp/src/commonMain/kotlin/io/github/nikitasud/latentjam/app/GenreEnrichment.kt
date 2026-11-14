@@ -99,7 +99,15 @@ internal class GenreEnrichment(
         fun merge(id: String, stored: Stored) {
             val index = positions[id] ?: return
             val track = library[index]
-            if (stored.revision != track.revisionKey()) return
+            if (stored.revision != track.revisionKey()) {
+                // The file changed and waits to be read again. Its remembered length still stands in where the scanner
+                // gives none: the engine keys a track's analysis by its length, and a track that lost it for the
+                // minutes until the re-read would be analysed anew, and lose what a tag edit carries over.
+                val length = stored.durationMs?.takeIf { it > 0 && track.durationMs == null } ?: return
+                val target = result ?: library.toMutableList().also { result = it }
+                target[index] = track.copy(durationMs = length)
+                return
+            }
             val merged = stored.mergedInto(track, pool)
             if (merged !== track || result != null) {
                 val target = result ?: library.toMutableList().also { result = it }

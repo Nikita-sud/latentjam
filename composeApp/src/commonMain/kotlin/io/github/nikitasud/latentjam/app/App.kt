@@ -908,7 +908,10 @@ private fun AppShell(
         PlatformForegroundEffect(
             // Leaving while paused ends the sitting: finalize the in-progress listening session
             // so the last track of the day stops vanishing from the history log.
-            onLeave = { AppGraph.flushListeningSession() },
+            onLeave = {
+                AppGraph.onAppLeftForeground()
+                AppGraph.flushListeningSession()
+            },
         ) {
             // Restarts a pass that the 6 h cap, a refused start or a failure stopped.
             AppGraph.onAppForeground()

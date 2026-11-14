@@ -237,8 +237,8 @@
     <string name="snack_playlist_created">تم إنشاء "%1$s"</string>
     <string name="snack_playlist_deleted">تم حذف "%1$s"</string>
     <string name="snack_added_to_playlist">تمت الإضافة إلى "%1$s"</string>
-    <string name="playback_skipped_unsupported">تم تخطي "%1$s": هذا الجهاز لا يستطيع تشغيل هذا التنسيق.</string>
-    <string name="playback_skipped_unreadable">تم تخطي "%1$s": تعذّرت قراءة الملف.</string>
+    <string name="playback_failed_unsupported">تعذّر تشغيل "%1$s": هذا الجهاز لا يدعم هذا التنسيق.</string>
+    <string name="playback_failed_unreadable">تعذّر تشغيل "%1$s": تعذّرت قراءة الملف.</string>
     <string name="auto_playlist_favorites">المفضلة</string>
     <string name="auto_playlist_recently_added">المضافة حديثًا</string>
     <string name="auto_playlist_most_played">الأكثر تشغيلًا</string>

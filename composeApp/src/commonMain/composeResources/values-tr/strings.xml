@@ -197,8 +197,8 @@
     <string name="snack_playlist_created">"%1$s" oluşturuldu</string>
     <string name="snack_playlist_deleted">"%1$s" silindi</string>
     <string name="snack_added_to_playlist">"%1$s" listesine eklendi</string>
-    <string name="playback_skipped_unsupported">"%1$s" atlandı: bu cihaz bu biçimi çalamıyor.</string>
-    <string name="playback_skipped_unreadable">"%1$s" atlandı: dosya okunamadı.</string>
+    <string name="playback_failed_unsupported">"%1$s" çalınamıyor: bu cihaz bu biçimi desteklemiyor.</string>
+    <string name="playback_failed_unreadable">"%1$s" çalınamıyor: dosya okunamadı.</string>
     <string name="auto_playlist_favorites">Favoriler</string>
     <string name="auto_playlist_recently_added">Son eklenenler</string>
     <string name="auto_playlist_most_played">En çok dinlenenler</string>

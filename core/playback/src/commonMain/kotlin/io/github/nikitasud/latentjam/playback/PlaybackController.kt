@@ -178,10 +178,16 @@ public interface NextTrackChooser {
  * Like every port in this codebase, no platform or player types appear here.
  */
 /**
- * One track that could not be played. [unsupportedFormat]: the device has no decoder for it (another player may);
- * otherwise the file could not be read (moved, deleted, storage gone, damaged).
+ * One track that could not be played, for a reason that is the file's. [unsupportedFormat]: the device has no decoder
+ * for it (another player may); otherwise the file could not be read (moved, deleted, storage gone, damaged). A failure
+ * of the audio output or of a decoder that knows the format is not reported: the file is not at fault there.
  */
-public class PlaybackFailure(public val trackId: TrackId, public val unsupportedFormat: Boolean)
+public class PlaybackFailure(
+    public val trackId: TrackId,
+    public val unsupportedFormat: Boolean,
+    /** The track's title as the player held it, for a row the queue no longer lists. */
+    public val title: String? = null,
+)
 
 public interface PlaybackController {
 

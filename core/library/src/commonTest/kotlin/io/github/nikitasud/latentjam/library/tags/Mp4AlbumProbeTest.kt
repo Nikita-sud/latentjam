@@ -68,6 +68,13 @@ internal class Mp4AlbumProbeTest {
     }
 
     @Test
+    fun aMovieHeaderThatCannotBeFollowedCostsOnlyTheLength() {
+        // A header cut short: the album the file names is still answered, as before lengths were read.
+        val cut = ftyp + box("moov", box("mvhd", ByteArray(6)), box("udta", box("meta", ByteArray(4) + hdlr + box("ilst", box("©alb", data("Blue"))))))
+        assertEquals(EmbeddedTagFacts(album = "Blue"), Mp4AlbumProbe.read(ByteArraySource(cut)))
+    }
+
+    @Test
     fun anAlbumTheFileNamesIsRead() {
         val facts = assertNotNull(Mp4AlbumProbe.read(ByteArraySource(file(box("©nam", data("Song")), box("©alb", data(" Abbey Road "))))))
         assertEquals("Abbey Road", facts.album)

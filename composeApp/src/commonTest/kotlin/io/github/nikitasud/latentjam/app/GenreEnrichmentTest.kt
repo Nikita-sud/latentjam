@@ -63,6 +63,18 @@ internal class GenreEnrichmentTest {
     }
 
     @Test
+    fun aRememberedLengthStandsInWhileAChangedFileWaitsToBeReadAgain() = runTest {
+        val alac = TrackDescriptor(id = TrackId("alac"), fileName = "a.m4a", sourceRevision = "r1")
+        val settings = MemorySettings()
+        GenreEnrichment(settings) { EmbeddedTagFacts(durationMs = 215_000, album = "Blue") }.backfill(listOf(alac))
+        // A tag edit: the file's revision moves on, and the library is published before the file is read again.
+        val edited = alac.copy(sourceRevision = "r2")
+        val applied = GenreEnrichment(settings) { error("not read yet") }.apply(listOf(edited)).single()
+        assertEquals(215_000L, applied.durationMs, "the engine keys the track's analysis by its length")
+        assertEquals(edited.copy(durationMs = 215_000), applied, "nothing else of the stale line applies")
+    }
+
+    @Test
     fun aLengthTheScannerReportedIsNeverReplaced() = runTest {
         val timed = TrackDescriptor(id = TrackId("aac"), fileName = "song.m4a", durationMs = 180_000, sourceRevision = "r1")
         val enrichment = GenreEnrichment(MemorySettings()) { EmbeddedTagFacts(durationMs = 999_000) }

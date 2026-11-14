@@ -444,7 +444,13 @@ internal class AndroidAudioDecoder(private val context: Context) {
         val factory = AppPcmDecoders.factory ?: return null
         val csd = format.getByteBuffer("csd-0") ?: return null
         val configuration = ByteArray(csd.remaining()).also { csd.duplicate().get(it) }
-        return runCatching { factory.open(mime, configuration) }.getOrNull()
+        // A failure to open is not "no decoder": it goes on as a failure of the codec stage, which is tried again.
+        // Only a missing native library (a build without it) is the stable fact that there is none.
+        return try {
+            factory.open(mime, configuration)
+        } catch (missing: LinkageError) {
+            null
+        }
     }
 
     /**
@@ -485,9 +491,10 @@ internal class AndroidAudioDecoder(private val context: Context) {
             if (size < 0) break
             packet.position(0)
             packet.get(bytes, 0, size)
-            // One damaged packet ends the window with what was read; none read at all is no valid PCM.
-            val pcm = decoder.decode(bytes, size) ?: break
-            if (pcm.length > 0) {
+            // An empty sample holds no audio and is passed over, as the platform's codec passes it. One damaged
+            // packet ends the window with what was read; none read at all is no valid PCM.
+            val pcm = if (size == 0) null else decoder.decode(bytes, size) ?: break
+            if (pcm != null && pcm.length > 0) {
                 val mono = monoFromPcmBytes(pcm.bytes, pcm.length, decoder.channels, decoder.bytesPerSample, downmixMode)
                 chunks.add(mono)
                 collected += mono.size
