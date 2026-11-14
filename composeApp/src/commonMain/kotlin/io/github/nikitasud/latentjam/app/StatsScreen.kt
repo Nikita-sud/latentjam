@@ -294,10 +294,12 @@ internal class StatsMemory {
         val localDay: Long,
         val playlists: Any?,
         val favorites: Any?,
+        /** The SMART library the strong links were read from (sections 1 and 3 only), by identity as well. */
+        val smartLibrary: Any? = null,
     ) {
         override fun equals(other: Any?): Boolean = other is Inputs &&
             historyRevision == other.historyRevision && localDay == other.localDay &&
-            playlists === other.playlists && favorites === other.favorites
+            playlists === other.playlists && favorites === other.favorites && smartLibrary === other.smartLibrary
 
         override fun hashCode(): Int = historyRevision.hashCode() * 31 + localDay.hashCode()
     }
@@ -347,6 +349,9 @@ internal fun ListeningStatsSettings(
     var periodName by rememberSaveable { mutableStateOf(StatsPeriod.MONTH.name) }
     val period = StatsPeriod.entries.firstOrNull { it.name == periodName } ?: StatsPeriod.MONTH
     val historyRevision by AppGraph.historyRevision.collectAsState()
+    // The strong links come from SMART's evidence over its library: a result read before that library was published,
+    // or from another one, is read again.
+    val smartLibrary by AppGraph.smartLibraryTracks.collectAsState()
     val recordingHistory by AppGraph.settings.saveListeningHistory.collectAsState()
     val scope = rememberCoroutineScope()
     val snapshots = remember(history, scope) { StatsSnapshots(scope, readEvents = history::allEvents) }
@@ -477,9 +482,9 @@ internal fun ListeningStatsSettings(
         }
     }
     // Sections 1 and 3 describe the whole log as of today; the chips never touch them.
-    LaunchedEffect(historyRevision, tracks, active, localDay, retryRevision, playlistsKey, favoritesKey) {
+    LaunchedEffect(historyRevision, tracks, active, localDay, retryRevision, playlistsKey, favoritesKey, smartLibrary) {
         if (!active) return@LaunchedEffect
-        val inputs = inputs()
+        val inputs = StatsMemory.Inputs(historyRevision, localDay, playlistsKey, favoritesKey, smartLibrary)
         memo.habits?.takeIf { it.first == inputs }?.let { (_, kept) ->
             habitsLoad = kept
             habitsFailed = !ensureTracks()
@@ -496,11 +501,13 @@ internal fun ListeningStatsSettings(
             keep(catalogMap, labels, read = playlists != null)
             val loadContext = currentCoroutineContext()
             // The strong links are SMART's own evidence; without it (no SMART library yet, no memory) the card shows none.
+            var personalFailed = false
             val personal = try {
                 AppGraph.personalModel()
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Throwable) {
+                personalFailed = true
                 null
             }
             habitsLoad = withContext(Dispatchers.Default) {
@@ -515,8 +522,9 @@ internal fun ListeningStatsSettings(
                     artistsOf = statsCredits(),
                     albumOf = { albums[it.id] },
                 )
-                // Nor is one without SMART's evidence: the library may simply not be ready yet.
-            }.also { if (playlists != null && personal != null) memo.habits = inputs to it }
+                // A result without SMART's evidence is kept too (no SMART library, or no memory for it): the inputs name
+                // that library, so the page reads again once one is published. Only a read that failed is tried anew.
+            }.also { if (playlists != null && !personalFailed) memo.habits = inputs to it }
             habitsFailed = false
         } catch (cancelled: CancellationException) {
             throw cancelled
