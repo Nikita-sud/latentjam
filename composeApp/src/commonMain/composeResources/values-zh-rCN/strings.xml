@@ -189,6 +189,8 @@
     <string name="snack_playlist_created">已创建“%1$s”</string>
     <string name="snack_playlist_deleted">已删除“%1$s”</string>
     <string name="snack_added_to_playlist">已添加到“%1$s”</string>
+    <string name="playback_skipped_unsupported">已跳过“%1$s”：此设备无法播放该格式。</string>
+    <string name="playback_skipped_unreadable">已跳过“%1$s”：无法读取文件。</string>
     <string name="auto_playlist_favorites">收藏</string>
     <string name="auto_playlist_recently_added">最近添加</string>
     <string name="auto_playlist_most_played">最常播放</string>

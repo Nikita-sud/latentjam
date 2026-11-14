@@ -200,6 +200,8 @@
     <string name="snack_playlist_created">הפלייליסט "%1$s" נוצר</string>
     <string name="snack_playlist_deleted">הפלייליסט "%1$s" נמחק</string>
     <string name="snack_added_to_playlist">נוסף לפלייליסט "%1$s"</string>
+    <string name="playback_skipped_unsupported">"%1$s" דולג: המכשיר הזה לא יכול לנגן את הפורמט שלו.</string>
+    <string name="playback_skipped_unreadable">"%1$s" דולג: לא ניתן היה לקרוא את הקובץ.</string>
     <!-- Collection titles, deliberately not the sort_* wording. -->
     <string name="auto_playlist_favorites">מועדפים</string>
     <string name="auto_playlist_recently_added">נוספו לאחרונה</string>

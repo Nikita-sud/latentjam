@@ -204,6 +204,8 @@
     <string name="snack_playlist_created">Playlist "%1$s" criada</string>
     <string name="snack_playlist_deleted">Playlist "%1$s" excluída</string>
     <string name="snack_added_to_playlist">Adicionada a "%1$s"</string>
+    <string name="playback_skipped_unsupported">"%1$s" ignorada: este dispositivo não consegue reproduzir o formato.</string>
+    <string name="playback_skipped_unreadable">"%1$s" ignorada: não foi possível ler o arquivo.</string>
     <string name="auto_playlist_favorites">Favoritas</string>
     <string name="auto_playlist_recently_added">Adicionadas recentemente</string>
     <string name="auto_playlist_most_played">Mais tocadas</string>

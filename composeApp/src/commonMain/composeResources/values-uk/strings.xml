@@ -217,6 +217,8 @@
     <string name="snack_playlist_created">Плейлист «%1$s» створено</string>
     <string name="snack_playlist_deleted">Плейлист «%1$s» видалено</string>
     <string name="snack_added_to_playlist">Додано до «%1$s»</string>
+    <string name="playback_skipped_unsupported">Пропущено трек «%1$s»: цей пристрій не відтворює його формат.</string>
+    <string name="playback_skipped_unreadable">Пропущено трек «%1$s»: файл не вдалося прочитати.</string>
     <string name="auto_playlist_favorites">Улюблені</string>
     <string name="auto_playlist_recently_added">Нещодавно додані</string>
     <string name="auto_playlist_most_played">Найчастіше прослухані</string>

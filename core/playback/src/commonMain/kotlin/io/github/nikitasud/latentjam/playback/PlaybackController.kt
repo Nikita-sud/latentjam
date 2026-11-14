@@ -6,7 +6,9 @@ package io.github.nikitasud.latentjam.playback
 
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import org.koin.core.module.Module
 
 /**
@@ -175,10 +177,22 @@ public interface NextTrackChooser {
  * functions are main-safe suspends; [state] is safe to collect anywhere.
  * Like every port in this codebase, no platform or player types appear here.
  */
+/**
+ * One track that could not be played. [unsupportedFormat]: the device has no decoder for it (another player may);
+ * otherwise the file could not be read (moved, deleted, storage gone, damaged).
+ */
+public class PlaybackFailure(public val trackId: TrackId, public val unsupportedFormat: Boolean)
+
 public interface PlaybackController {
 
     /** Live now-playing snapshot. */
     public val state: StateFlow<NowPlaying>
+
+    /**
+     * Tracks playback gave up on by itself: it moved past them to the next row, or stopped at them when none was left.
+     * For telling the listener why a track did not play; nothing is emitted by an implementation that does not report.
+     */
+    public val playbackFailures: Flow<PlaybackFailure> get() = emptyFlow()
 
     /**
      * Advances when the listener requests play or transport changes. Slow external-file lookup

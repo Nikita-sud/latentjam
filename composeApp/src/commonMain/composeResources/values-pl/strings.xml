@@ -217,6 +217,8 @@
     <string name="snack_playlist_created">Utworzono „%1$s”</string>
     <string name="snack_playlist_deleted">Usunięto „%1$s”</string>
     <string name="snack_added_to_playlist">Dodano do „%1$s”</string>
+    <string name="playback_skipped_unsupported">Pominięto „%1$s”: to urządzenie nie odtwarza tego formatu.</string>
+    <string name="playback_skipped_unreadable">Pominięto „%1$s”: nie udało się odczytać pliku.</string>
     <string name="auto_playlist_favorites">Ulubione</string>
     <string name="auto_playlist_recently_added">Ostatnio dodane</string>
     <string name="auto_playlist_most_played">Najczęściej odtwarzane</string>

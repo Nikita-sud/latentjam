@@ -1353,6 +1353,7 @@ private fun AppShell(
         // SMART colours follow the library: fit its colour axes as tracks are indexed.
         val paletteIds = remember(catalog) { catalog?.songs?.idList().orEmpty() }
         LatentPaletteUpdater(engine, paletteIds)
+        PlaybackFailureNotices(playback, snackbar)
         var albumBrowse by remember { mutableStateOf<AlbumBrowseDerivation?>(null) }
         var songsBrowse by remember { mutableStateOf<SongsBrowseDerivation?>(null) }
         val albumSections = albumBrowse?.albumSections.orEmpty()

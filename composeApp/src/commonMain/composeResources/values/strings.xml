@@ -249,6 +249,8 @@
     <string name="snack_playlist_created">Created "%1$s"</string>
     <string name="snack_playlist_deleted">Deleted "%1$s"</string>
     <string name="snack_added_to_playlist">Added to "%1$s"</string>
+    <string name="playback_skipped_unsupported">Skipped "%1$s": this device cannot play its format.</string>
+    <string name="playback_skipped_unreadable">Skipped "%1$s": the file could not be read.</string>
     <!-- Titles of the playlists the app derives for you. These name a
          collection, so they stay separate from the sort_* labels that name an
          ordering — several languages word the two differently. -->

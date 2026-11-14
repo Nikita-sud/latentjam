@@ -195,6 +195,8 @@
     <string name="snack_playlist_created">Playlist "%1$s" dibuat</string>
     <string name="snack_playlist_deleted">Playlist "%1$s" dihapus</string>
     <string name="snack_added_to_playlist">Ditambahkan ke "%1$s"</string>
+    <string name="playback_skipped_unsupported">"%1$s" dilewati: perangkat ini tidak dapat memutar formatnya.</string>
+    <string name="playback_skipped_unreadable">"%1$s" dilewati: file tidak dapat dibaca.</string>
     <string name="auto_playlist_favorites">Favorit</string>
     <string name="auto_playlist_recently_added">Baru ditambahkan</string>
     <string name="auto_playlist_most_played">Paling sering diputar</string>

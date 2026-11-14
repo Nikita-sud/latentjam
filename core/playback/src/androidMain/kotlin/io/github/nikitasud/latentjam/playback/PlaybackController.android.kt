@@ -40,7 +40,11 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
@@ -171,6 +175,9 @@ internal class AndroidPlaybackController(
      * follow a transient I/O failure.
      */
     private val failedRecoveryIds = mutableSetOf<String>()
+    private val mutablePlaybackFailures =
+        MutableSharedFlow<PlaybackFailure>(extraBufferCapacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    override val playbackFailures: Flow<PlaybackFailure> = mutablePlaybackFailures.asSharedFlow()
 
     /** Tracks put back after an audio-output failure under a crossfade overlap; once each until playback is ready. */
     private val sinkResumedIds = mutableSetOf<String>()
@@ -287,6 +294,11 @@ internal class AndroidPlaybackController(
                 return
             }
             failedRecoveryIds += failedId
+            // The listener is told why this row did not play: it is skipped, or playback stops at it, without a word
+            // otherwise.
+            mutablePlaybackFailures.tryEmit(
+                PlaybackFailure(TrackId(failedId), unsupportedFormat = error.errorCode in UNSUPPORTED_FORMAT_ERRORS),
+            )
             val traversalOrder = playerTraversalOrder(player)
             val replacement = nextPlaybackErrorRecoveryIndex(
                 mediaIds = (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId },
@@ -1800,6 +1812,14 @@ internal class AndroidPlaybackController(
     private companion object {
         /** How soon after its audio output failed an overlap's next track is still put back where it had sounded. */
         const val SINK_RESUME_TTL_NS = 5_000_000_000L
+
+        /** Player errors that say the device cannot decode the stream, as opposed to not being able to read it. */
+        val UNSUPPORTED_FORMAT_ERRORS = setOf(
+            PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
+            PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
+            PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
+            PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED,
+        )
 
         /** A track already within this of that point is left where it is. */
         const val SINK_RESUME_SLACK_MS = 500L
