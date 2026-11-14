@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.history
 
+import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 
 /**
@@ -189,3 +190,12 @@ public fun listeningArtistKey(artist: String?): String =
     artist.orEmpty().lowercase().replace(ARTIST_WHITESPACE, " ").trim()
 
 private val ARTIST_WHITESPACE = Regex("\\s+")
+
+/**
+ * The artists a track is credited to when the caller has no artist list to split its credit with:
+ * the tags' `ARTISTS` list when read, else the display credit split only at semicolons.
+ */
+public fun listeningCredits(track: TrackDescriptor): List<String> = track.artists.ifEmpty {
+    val artist = track.artist ?: return@ifEmpty emptyList()
+    artist.split(';').map { it.trim() }.filter { it.isNotEmpty() }.ifEmpty { listOf(artist) }
+}

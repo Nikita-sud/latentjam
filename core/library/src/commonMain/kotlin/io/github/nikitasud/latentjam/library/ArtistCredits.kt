@@ -21,6 +21,23 @@ package io.github.nikitasud.latentjam.library
 public object ArtistCredits {
 
     /**
+     * The artists a track is credited to, as the library groups it: the tags' `ARTISTS` list
+     * ([artists]) when it was read, else the display credit [artist] split by [split] where
+     * [isKnownArtist] can confirm the names, and only at semicolons, the list separator by
+     * convention, when there is no artist list. Empty when the track names no artist.
+     */
+    public fun of(artists: List<String>, artist: String?, isKnownArtist: ((String) -> Boolean)?): List<String> {
+        if (artists.isNotEmpty()) return artists
+        if (artist == null) return emptyList()
+        if (isKnownArtist != null) return split(artist, isKnownArtist)
+        return artist.split(';')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .takeIf { it.size > 1 }
+            ?: listOf(artist)
+    }
+
+    /**
      * [isKnownArtist] is only asked about text that spans a separator, so a single word's hits on
      * other names' tokens never count. Returns [credit] unchanged when it names one artist.
      */

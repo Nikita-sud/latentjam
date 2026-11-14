@@ -545,4 +545,83 @@ internal class ListeningInsightsTest {
         assertEquals(2026 to 10, ListeningInsights.civilYearMonth(20_745)) // 2026-10-19
         assertEquals(1969 to 12, ListeningInsights.civilYearMonth(-1))
     }
+
+    /** Issue #35: "Reyan, Melvin, New Thira Productions" is three artists, each credited with the play. */
+    private val collaborations = { id: TrackId ->
+        val artist = when (id.value) {
+            "trio" -> "Reyan, Melvin, New Thira Productions"
+            "duo" -> "Reyan, Melvin"
+            "tagged" -> "Reyan feat. Melvin"
+            else -> "Melvin"
+        }
+        TrackDescriptor(
+            id = id,
+            title = id.value,
+            artist = artist,
+            album = id.value,
+            artists = if (id.value == "tagged") listOf("Reyan", "Melvin") else emptyList(),
+        )
+    }
+    private val splitAtCommas = { track: TrackDescriptor -> track.artists.ifEmpty { track.artist.orEmpty().split(", ") } }
+
+    @Test
+    fun aCollaborationCountsForEveryCreditedArtist() {
+        val events = listOf(
+            play("trio", dayAt(1)),
+            play("duo", dayAt(1, minuteOffset = 4)),
+            play("tagged", dayAt(1, minuteOffset = 8)),
+            play("solo", dayAt(1, minuteOffset = 12)),
+        )
+        val result = ListeningInsights.period(
+            history = ListeningNormalization.normalize(events, now),
+            catalog = collaborations,
+            sinceMs = null,
+            nowMs = now,
+            timePointOf = utc,
+            artistsOf = splitAtCommas,
+        )
+        assertEquals(
+            listOf("Melvin" to 4, "Reyan" to 3, "New Thira Productions" to 1),
+            result.topArtists.map { it.name to it.plays },
+        )
+        assertEquals(3, result.playedArtists)
+        assertEquals(3, result.newArtists)
+    }
+
+    @Test
+    fun withoutAnArtistListOnlyTheTagsListAndSemicolonsSplit() {
+        val events = listOf(play("trio", dayAt(1)), play("tagged", dayAt(1, minuteOffset = 4)))
+        val result = ListeningInsights.period(
+            history = ListeningNormalization.normalize(events, now),
+            catalog = collaborations,
+            sinceMs = null,
+            nowMs = now,
+            timePointOf = utc,
+        )
+        // A comma may be part of a band's name: only the tags' ARTISTS list splits "tagged".
+        assertEquals(
+            setOf("Reyan, Melvin, New Thira Productions", "Reyan", "Melvin"),
+            result.topArtists.map { it.name }.toSet(),
+        )
+    }
+
+    @Test
+    fun aPickSharingACreditedArtistIsASameArtistPick() {
+        val events = (0 until 31).flatMap { n ->
+            listOf(
+                play("solo", dayAt(n.toLong())),
+                play(if (n % 2 == 0) "trio" else "duo", dayAt(n.toLong(), minuteOffset = 4), start = ListenStart.USER_PICK),
+            )
+        }
+        val result = ListeningInsights.habits(
+            history = ListeningNormalization.normalize(events, now),
+            catalog = collaborations,
+            librarySize = 100,
+            nowMs = now,
+            timePointOf = utc,
+            artistsOf = splitAtCommas,
+        )
+        assertEquals(31, result.pickSteps)
+        assertEquals(31, result.sameArtistPicks)
+    }
 }

@@ -392,13 +392,7 @@ private fun AppShell(
             if (libraryLoaded && repairingKeys != libraryScan.shownRepairingKeys) scanLibrary()
         }
         suspend fun buildCatalog(from: List<TrackDescriptor>): LibraryCatalog = withContext(Dispatchers.Default) {
-            // Collaborations split only where the MusicBrainz list can tell a band named
-            // "Earth, Wind & Fire" from two artists; without it, only at semicolons.
-            val entities = AppGraph.musicEntities
-            LibraryCatalog.build(
-                from,
-                isKnownArtist = if (entities.isAvailable) { name -> entities.resolve(name).isNotEmpty() } else null,
-            )
+            LibraryCatalog.build(from, isKnownArtist = knownArtistCheck())
         }
         // Files not yet read (or retagged since) get their embedded genres read in the
         // background; anything learned republishes the same snapshot, richer. The identity
@@ -4836,3 +4830,12 @@ private fun artistsHiding(track: TrackDescriptor, state: SmartExclusionState): S
 
 /** What SMART must not suggest: excluded tracks, and excluded artists by artist keys and credit segments (X v5). */
 internal fun SmartExclusionState.hidesFromSmart(): (TrackDescriptor) -> Boolean = matcher(AppGraph.engine::artistExclusion)
+
+/**
+ * Collaborations split only where the MusicBrainz list can tell a band named "Earth, Wind & Fire"
+ * from two artists; without it (null), only at semicolons. The library and Statistics share it.
+ */
+internal fun knownArtistCheck(): ((String) -> Boolean)? {
+    val entities = AppGraph.musicEntities
+    return if (entities.isAvailable) { name -> entities.resolve(name).isNotEmpty() } else null
+}
