@@ -41,6 +41,12 @@ public data class EmbeddedTagFacts(
      * must not be taken for one that names no album.
      */
     public val albumKnown: Boolean = true,
+    /**
+     * How long the file plays, from its own header; null when the reader has no path for it (today only MP4 has
+     * one). The system scanner reports no length for a format it cannot decode (Apple Lossless on Android), so
+     * this is the fallback where it reported none. Not a tag: it does not count for [isEmpty].
+     */
+    public val durationMs: Long? = null,
 ) {
     public val isEmpty: Boolean
         get() = genres.isEmpty() && artists.isEmpty() && originalYear == null && language == null &&

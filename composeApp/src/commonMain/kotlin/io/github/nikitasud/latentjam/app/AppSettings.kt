@@ -488,6 +488,14 @@ interface AppSettings {
     fun setSmartEnabled(enabled: Boolean) {}
 
     /**
+     * Whether the one-time analysis retry named [name] has been made on this install. An update that lets the
+     * analysis read files it could not before gives those files one more try by itself. Implementations with nothing to
+     * retry (iOS, which always decoded them) answer that it was made.
+     */
+    fun analysisRetryDone(name: String): Boolean = true
+    fun markAnalysisRetryDone(name: String) {}
+
+    /**
      * "Use favourites", nested under [learnFromHabits]: whether the FULL ranker sees the listener's hearts
      * (is_favourite, favourited_days_ago). Ignored while habits are off; hearts are still logged locally either way.
      */

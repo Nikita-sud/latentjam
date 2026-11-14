@@ -39,6 +39,41 @@ internal class Mp4AlbumProbeTest {
         override fun read(offset: Long, count: Int): ByteArray? = inner.read(offset, count)?.also { read += count }
     }
 
+    private fun be32(value: Long) = byteArrayOf((value ushr 24).toByte(), (value ushr 16).toByte(), (value ushr 8).toByte(), value.toByte())
+
+    private fun timed(mvhd: ByteArray) = ftyp + box("moov", box("mvhd", mvhd), box("udta"))
+
+    @Test
+    fun theFilesOwnLengthIsReadFromItsMovieHeader() {
+        // Version 0: times, timescale and duration of four bytes each. 44,100 units a second, 9,481,500 units.
+        val v0 = ByteArray(4) + ByteArray(8) + be32(44_100) + be32(9_481_500) + ByteArray(80)
+        assertEquals(215_000L, Mp4AlbumProbe.read(ByteArraySource(timed(v0)))?.durationMs)
+        // Version 1: times and duration of eight bytes; five hours at a fine timescale must not overflow.
+        val v1 = byteArrayOf(1, 0, 0, 0) + ByteArray(16) + be32(96_000) + be32(0) + be32(5L * 3600 * 96_000) + ByteArray(80)
+        assertEquals(5L * 3600 * 1000, Mp4AlbumProbe.read(ByteArraySource(timed(v1)))?.durationMs)
+    }
+
+    @Test
+    fun aHeaderThatGivesNoLengthLeavesItUnknown() {
+        val zeroTimescale = ByteArray(100)
+        val unknown = ByteArray(4) + ByteArray(8) + be32(1000) + be32(0xFFFFFFFFL) + ByteArray(80)
+        val absurd = ByteArray(4) + ByteArray(8) + be32(1) + be32(40L * 24 * 3600) + ByteArray(80)
+        for (mvhd in listOf(zeroTimescale, unknown, absurd)) {
+            val facts = Mp4AlbumProbe.read(ByteArraySource(timed(mvhd)))
+            assertNull(facts?.durationMs)
+            assertEquals(EmbeddedTagFacts(), facts, "the album answer is unaffected")
+        }
+        // No movie header at all.
+        assertNull(Mp4AlbumProbe.read(ByteArraySource(ftyp + box("moov", box("udta"))))?.durationMs)
+    }
+
+    @Test
+    fun aMovieHeaderThatCannotBeFollowedCostsOnlyTheLength() {
+        // A header cut short: the album the file names is still answered, as before lengths were read.
+        val cut = ftyp + box("moov", box("mvhd", ByteArray(6)), box("udta", box("meta", ByteArray(4) + hdlr + box("ilst", box("©alb", data("Blue"))))))
+        assertEquals(EmbeddedTagFacts(album = "Blue"), Mp4AlbumProbe.read(ByteArraySource(cut)))
+    }
+
     @Test
     fun anAlbumTheFileNamesIsRead() {
         val facts = assertNotNull(Mp4AlbumProbe.read(ByteArraySource(file(box("©nam", data("Song")), box("©alb", data(" Abbey Road "))))))

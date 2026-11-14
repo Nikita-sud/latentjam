@@ -204,6 +204,8 @@
     <string name="snack_playlist_created">Плейлист «%1$s» создан</string>
     <string name="snack_playlist_deleted">Плейлист «%1$s» удалён</string>
     <string name="snack_added_to_playlist">Добавлено в «%1$s»</string>
+    <string name="playback_failed_unsupported">Не удалось воспроизвести «%1$s»: это устройство не поддерживает такой формат.</string>
+    <string name="playback_failed_unreadable">Не удалось воспроизвести «%1$s»: файл не удалось прочитать.</string>
     <string name="auto_playlist_favorites">Любимые</string>
     <string name="auto_playlist_recently_added">Недавно добавленные</string>
     <string name="auto_playlist_most_played">Самые прослушиваемые</string>

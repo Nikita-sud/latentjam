@@ -199,6 +199,8 @@
     <string name="snack_playlist_created">Playlistul „%1$s” a fost creat</string>
     <string name="snack_playlist_deleted">Playlistul „%1$s” a fost șters</string>
     <string name="snack_added_to_playlist">Adăugat în „%1$s”</string>
+    <string name="playback_failed_unsupported">Nu se poate reda „%1$s”: acest dispozitiv nu acceptă formatul.</string>
+    <string name="playback_failed_unreadable">Nu se poate reda „%1$s”: fișierul nu a putut fi citit.</string>
     <string name="auto_playlist_favorites">Favorite</string>
     <string name="auto_playlist_recently_added">Adăugate recent</string>
     <string name="auto_playlist_most_played">Cele mai ascultate</string>

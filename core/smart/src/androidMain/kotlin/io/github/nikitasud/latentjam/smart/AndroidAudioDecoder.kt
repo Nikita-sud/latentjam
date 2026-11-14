@@ -390,7 +390,17 @@ internal class AndroidAudioDecoder(private val context: Context) {
                 // this device + stream format and may be remembered for unchanged bytes; failures
                 // while creating/starting the chosen codec remain retryable availability failures.
                 val decoderName = regularCodecs.findDecoderForFormat(inputFormat)
-                    ?: return AudioDecodeResult.InvalidAudio("No decoder for $mime")
+                if (decoderName == null) {
+                    // The platform has no decoder for this stream. One the app brings (Apple Lossless) reads it; with
+                    // none, that is a stable fact about this device and these bytes.
+                    val own = appDecoder(mime, inputFormat)
+                        ?: return AudioDecodeResult.InvalidAudio("No decoder for $mime")
+                    if (stages != null) lap { stages.lookup += it }
+                    val decoded = own.use { decodePackets(it, extractor, targetSampleRate, targetSamples, downmixMode, isCancelled) }
+                        ?: return AudioDecodeResult.InvalidAudio("Decoder produced no valid PCM at ${startMs}ms ($mime)")
+                    mark = System.nanoTime()
+                    return AudioDecodeResult.Success(decoded.waveform, decoded.validSamples)
+                }
                 if (stages != null) lap { stages.lookup += it }
                 val codec = startCodec(decoderName, inputFormat, backoff, isCancelled)
                 try {
@@ -427,6 +437,84 @@ internal class AndroidAudioDecoder(private val context: Context) {
             runCatching { source.close() }
             if (stages != null) lap { stages.release += it }
         }
+    }
+
+    /** The app's own decoder for [mime], configured from the container's codec data, or null. */
+    private fun appDecoder(mime: String, format: MediaFormat): AppPcmDecoder? {
+        val factory = AppPcmDecoders.factory ?: return null
+        val csd = format.getByteBuffer("csd-0") ?: return null
+        val configuration = ByteArray(csd.remaining()).also { csd.duplicate().get(it) }
+        // A failure to open is not "no decoder": it goes on as a failure of the codec stage, which is tried again.
+        // Only a missing native library (a build without it) is the stable fact that there is none.
+        return try {
+            factory.open(mime, configuration)
+        } catch (missing: LinkageError) {
+            null
+        }
+    }
+
+    /**
+     * [decodeLoop] for a decoder the app brings: the extractor's packets go straight through [decoder], with no codec
+     * in another process to wait for. The same window, downmix and resampling as the platform path.
+     */
+    private fun decodePackets(
+        decoder: AppPcmDecoder,
+        extractor: MediaExtractor,
+        targetSampleRate: Int,
+        targetSamples: Int,
+        downmixMode: AudioDownmixMode,
+        isCancelled: () -> Boolean,
+    ): DecodedWindow? {
+        val sourceRate = decoder.sampleRate
+        if (sourceRate <= 0 || decoder.channels <= 0) return null
+        // +100 ms margin so interpolation never reads past the end.
+        val sourceNeeded = (targetSamples.toLong() * sourceRate / targetSampleRate).toInt() + sourceRate / 10
+        val started = System.nanoTime()
+        val packet = java.nio.ByteBuffer.allocate(decoder.maxPacketBytes)
+        val bytes = ByteArray(packet.capacity())
+        val chunks = ArrayList<FloatArray>()
+        var collected = 0
+        while (collected < sourceNeeded) {
+            if (isCancelled()) throw CancellationException("Audio decoding cancelled")
+            if (System.nanoTime() - started > DECODE_WALL_BUDGET_NANOS) {
+                throw DecodeLoopTimeoutException("Decoder exceeded the 30 second wall budget")
+            }
+            packet.clear()
+            // A packet too large for its stream's configuration is refused by the extractor: these bytes are not that.
+            val size = try {
+                extractor.readSampleData(packet, 0)
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (error: Exception) {
+                throw ReadableSourceParseException(error)
+            }
+            if (size < 0) break
+            packet.position(0)
+            packet.get(bytes, 0, size)
+            // An empty sample holds no audio and is passed over, as the platform's codec passes it. One damaged
+            // packet ends the window with what was read; none read at all is no valid PCM.
+            val pcm = if (size == 0) null else decoder.decode(bytes, size) ?: break
+            if (pcm != null && pcm.length > 0) {
+                val mono = monoFromPcmBytes(pcm.bytes, pcm.length, decoder.channels, decoder.bytesPerSample, downmixMode)
+                chunks.add(mono)
+                collected += mono.size
+            }
+            try {
+                if (!extractor.advance()) break
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (error: Exception) {
+                throw ReadableSourceParseException(error)
+            }
+        }
+        if (collected == 0) return null
+        val source = FloatArray(collected)
+        var position = 0
+        for (chunk in chunks) {
+            chunk.copyInto(source, position)
+            position += chunk.size
+        }
+        return resampleLinear(source, sourceRate, targetSampleRate, targetSamples)
     }
 
     private fun decodeLoop(

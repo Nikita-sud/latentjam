@@ -47,6 +47,65 @@ internal class GenreEnrichmentTest {
     )
 
     @Test
+    fun anMp4FileTheScannerGaveNoLengthGetsItsOwn() = runTest {
+        // Apple Lossless on Android: the system cannot decode it, so its scanner reports no length.
+        val alac = TrackDescriptor(id = TrackId("alac"), title = "Lossless", fileName = "song.M4A", sourceRevision = "r1")
+        val settings = MemorySettings()
+        var reads = 0
+        val enrichment = GenreEnrichment(settings) { reads++; EmbeddedTagFacts(durationMs = 215_000) }
+
+        assertTrue(enrichment.backfill(listOf(alac)))
+        assertEquals(215_000L, enrichment.apply(listOf(alac)).single().durationMs)
+        // Remembered: the next launch reads no file, and a fresh instance applies it from the cache.
+        assertFalse(enrichment.backfill(listOf(alac)))
+        assertEquals(1, reads)
+        assertEquals(215_000L, GenreEnrichment(settings) { error("read again") }.apply(listOf(alac)).single().durationMs)
+    }
+
+    @Test
+    fun aRememberedLengthStandsInWhileAChangedFileWaitsToBeReadAgain() = runTest {
+        val alac = TrackDescriptor(id = TrackId("alac"), fileName = "a.m4a", sourceRevision = "r1")
+        val settings = MemorySettings()
+        GenreEnrichment(settings) { EmbeddedTagFacts(durationMs = 215_000, album = "Blue") }.backfill(listOf(alac))
+        // A tag edit: the file's revision moves on, and the library is published before the file is read again.
+        val edited = alac.copy(sourceRevision = "r2")
+        val applied = GenreEnrichment(settings) { error("not read yet") }.apply(listOf(edited)).single()
+        assertEquals(215_000L, applied.durationMs, "the engine keys the track's analysis by its length")
+        assertEquals(edited.copy(durationMs = 215_000), applied, "nothing else of the stale line applies")
+    }
+
+    @Test
+    fun aLengthTheScannerReportedIsNeverReplaced() = runTest {
+        val timed = TrackDescriptor(id = TrackId("aac"), fileName = "song.m4a", durationMs = 180_000, sourceRevision = "r1")
+        val enrichment = GenreEnrichment(MemorySettings()) { EmbeddedTagFacts(durationMs = 999_000) }
+        enrichment.backfill(listOf(timed))
+        assertEquals(180_000L, enrichment.apply(listOf(timed)).single().durationMs)
+    }
+
+    @Test
+    fun aLineWrittenBeforeLengthsWereReadIsReadAgainOnlyForAnMp4FileWithoutOne() = runTest {
+        val alac = TrackDescriptor(id = TrackId("alac"), fileName = "a.m4a", sourceRevision = "r1")
+        val mp3 = TrackDescriptor(id = TrackId("mp3"), fileName = "b.mp3", sourceRevision = "r1")
+        val settings = MemorySettings()
+        // The earlier app: it read both files and knew nothing of lengths.
+        GenreEnrichment(settings) { EmbeddedTagFacts() }.backfill(listOf(alac, mp3))
+        val older = settings.trackGenresPayload!!.lines().joinToString("\n") { line ->
+            if (line.count { it == '|' } == 10) line.substringBeforeLast('|') else line
+        }
+        settings.trackGenresPayload = older
+        val read = ArrayList<String>()
+        val enrichment = GenreEnrichment(settings) { track -> read += track.id.value; EmbeddedTagFacts(durationMs = 60_000) }
+        enrichment.backfill(listOf(alac, mp3))
+        assertEquals(listOf("alac"), read, "the MP3's line still answers for it")
+        assertEquals(60_000L, enrichment.apply(listOf(alac)).single().durationMs)
+        // A file that gives no length is asked once, not at every launch.
+        val silent = GenreEnrichment(MemorySettings()) { read += "again"; EmbeddedTagFacts() }
+        silent.backfill(listOf(alac))
+        silent.backfill(listOf(alac))
+        assertEquals(1, read.count { it == "again" })
+    }
+
+    @Test
     fun failedCacheWriteKeepsFactsAndRetriesWithoutReadingFilesAgain() = runTest {
         val settings = MemorySettings().apply { failWrites = true }
         var reads = 0

@@ -217,6 +217,8 @@
     <string name="snack_playlist_created">Playlist "%1$s" criada</string>
     <string name="snack_playlist_deleted">Playlist "%1$s" eliminada</string>
     <string name="snack_added_to_playlist">Adicionada a "%1$s"</string>
+    <string name="playback_failed_unsupported">Não é possível reproduzir "%1$s": este dispositivo não suporta o formato.</string>
+    <string name="playback_failed_unreadable">Não é possível reproduzir "%1$s": não foi possível ler o ficheiro.</string>
     <string name="auto_playlist_favorites">Favoritas</string>
     <string name="auto_playlist_recently_added">Adicionadas recentemente</string>
     <string name="auto_playlist_most_played">Mais tocadas</string>

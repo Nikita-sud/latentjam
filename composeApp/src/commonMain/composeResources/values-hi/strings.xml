@@ -197,6 +197,8 @@
     <string name="snack_playlist_created">"%1$s" बनाई गई</string>
     <string name="snack_playlist_deleted">"%1$s" मिटाई गई</string>
     <string name="snack_added_to_playlist">"%1$s" में जोड़ा गया</string>
+    <string name="playback_failed_unsupported">"%1$s" नहीं चलाया जा सकता: यह डिवाइस इस फ़ॉर्मैट को सपोर्ट नहीं करता।</string>
+    <string name="playback_failed_unreadable">"%1$s" नहीं चलाया जा सकता: फ़ाइल पढ़ी नहीं जा सकी।</string>
     <string name="auto_playlist_favorites">पसंदीदा</string>
     <string name="auto_playlist_recently_added">हाल ही में जोड़े गए</string>
     <string name="auto_playlist_most_played">सबसे ज़्यादा चलाए गए</string>

@@ -61,6 +61,12 @@ internal class GenreEnrichment(
         /** Whether the file names an album; without one it borrows no album's cover. */
         val namesAlbum: Boolean,
         /**
+         * The file's length from its own header, for an MP4 file the scanner reported none for (Apple Lossless on
+         * Android, which the system cannot decode). Null: not asked (the scanner had a length, another container, or
+         * the line is older); 0: asked, and the file gives none.
+         */
+        val durationMs: Long? = null,
+        /**
          * Read by the previous format, which did not record [namesAlbum]: applied as it is (the
          * album fallback kept), but its file is read again.
          */
@@ -93,7 +99,15 @@ internal class GenreEnrichment(
         fun merge(id: String, stored: Stored) {
             val index = positions[id] ?: return
             val track = library[index]
-            if (stored.revision != track.revisionKey()) return
+            if (stored.revision != track.revisionKey()) {
+                // The file changed and waits to be read again. Its remembered length still stands in where the scanner
+                // gives none: the engine keys a track's analysis by its length, and a track that lost it for the
+                // minutes until the re-read would be analysed anew, and lose what a tag edit carries over.
+                val length = stored.durationMs?.takeIf { it > 0 && track.durationMs == null } ?: return
+                val target = result ?: library.toMutableList().also { result = it }
+                target[index] = track.copy(durationMs = length)
+                return
+            }
             val merged = stored.mergedInto(track, pool)
             if (merged !== track || result != null) {
                 val target = result ?: library.toMutableList().also { result = it }
@@ -130,9 +144,12 @@ internal class GenreEnrichment(
         val albumArtist = albumArtist?.unlessMangling(track.albumArtist)?.shared() ?: track.albumArtist
         val year = track.year ?: year
         val artworkUri = if (namesAlbum) track.artworkUri else track.artworkUri?.let(ownCover)
+        // Only where the scanner reported no length.
+        val durationMs = track.durationMs ?: durationMs?.takeIf { it > 0 }
         return if (genre == track.genre && artists == track.artists &&
             originalYear == track.originalYear && language == track.language &&
-            albumArtist == track.albumArtist && year == track.year && artworkUri == track.artworkUri
+            albumArtist == track.albumArtist && year == track.year && artworkUri == track.artworkUri &&
+            durationMs == track.durationMs
         ) {
             track
         } else {
@@ -144,9 +161,24 @@ internal class GenreEnrichment(
                 albumArtist = albumArtist,
                 year = year,
                 artworkUri = artworkUri,
+                durationMs = durationMs,
             )
         }
     }
+
+    /**
+     * Whether [this] still answers for [track]: read at the track's revision, and, for a song the scanner gave no
+     * length, already asked the file for one (lines written before the file's length was read were not).
+     */
+    private fun Stored.currentFor(track: TrackDescriptor): Boolean =
+        revision == track.revisionKey() && (!track.lengthAskedOfFile() || durationMs != null)
+
+    /**
+     * A song the scanner reported no length for, in a container the facts reader can time (MP4: `.m4a` and its kin).
+     * Only these are asked, so no other song's line or reading changes.
+     */
+    private fun TrackDescriptor.lengthAskedOfFile(): Boolean =
+        durationMs == null && fileName?.substringAfterLast('.', "")?.lowercase() in MP4_EXTENSIONS
 
     /** [clean] (MediaStore's reading of the same field) where this is only its mojibake, else this. */
     private fun String.unlessMangling(clean: String?): String =
@@ -171,13 +203,13 @@ internal class GenreEnrichment(
                         if (position < 0) continue
                         // A line that does not decode, or is stale, is no entry: its file is read again.
                         decode(line)?.takeIf { !it.stale }?.let {
-                            current[position] = it.revision == library[position].revisionKey()
+                            current[position] = it.currentFor(library[position])
                         }
                     }
                 }
                 for ((id, stored) in unsaved) {
                     val position = positions.positionOf(id)
-                    if (position >= 0) current[position] = stored.revision == library[position].revisionKey()
+                    if (position >= 0) current[position] = stored.currentFor(library[position])
                 }
                 current
             }
@@ -201,6 +233,8 @@ internal class GenreEnrichment(
                 year = facts.year,
                 // A tag read only in part may name an album that was not reached: keep the fallback.
                 namesAlbum = facts.album != null || !facts.albumKnown,
+                // Asked only where the scanner reported no length; 0 records that the file gives none either.
+                durationMs = if (track.lengthAskedOfFile()) facts.durationMs ?: 0L else null,
             )
             updates[track.id.value] = stored
             if (stored.changes(track)) learnedSomething = true
@@ -263,9 +297,14 @@ internal class GenreEnrichment(
          * still apply while their files are read again ([Stored.stale]), so the library keeps its
          * genres and years through that pass instead of falling back to the scanner's for minutes.
          */
+        // A v6 line may end in one more field, the file's own length ([Stored.durationMs]): written only for an MP4
+        // file the scanner gave no length, so every other line is byte for byte what it was.
         const val FORMAT = "v6"
         const val FORMAT_PREFIX = "$FORMAT|"
         const val PREVIOUS_FORMAT = "v5"
+
+        /** File name extensions of the MP4 container, the one whose own length the facts reader reads. */
+        val MP4_EXTENSIONS = setOf("m4a", "m4b", "m4r", "mp4")
 
         /** Files read between two saves of a backfill: each save rewrites the whole cache. */
         const val SAVE_EVERY = 1024
@@ -273,7 +312,7 @@ internal class GenreEnrichment(
         /** A line of the current format, or of the previous one, by its field count alone. */
         fun isReadableFormat(line: String): Boolean {
             val fields = line.count { it == '|' } + 1
-            return (line.startsWith(FORMAT_PREFIX) && fields == 10) ||
+            return (line.startsWith(FORMAT_PREFIX) && (fields == 10 || fields == 11)) ||
                 (line.startsWith("$PREVIOUS_FORMAT|") && fields == 9)
         }
 
@@ -300,7 +339,8 @@ internal class GenreEnrichment(
                 PayloadHex.encode(stored.albumArtist.orEmpty()),
                 stored.year?.toString() ?: "",
                 if (stored.namesAlbum) "1" else "0",
-            ).joinToString("|")
+                // A trailing field only for a song whose length was asked of its file: every other line is as before.
+            ).plus(listOfNotNull(stored.durationMs?.toString())).joinToString("|")
 
         /** Where field [index] of a current- or previous-format [line] starts and ends, or null. */
         fun fieldRange(line: String, index: Int): IntRange? {
@@ -320,7 +360,7 @@ internal class GenreEnrichment(
 
         fun decode(line: String): Stored? {
             val parts = line.split('|')
-            val current = parts.size == 10 && parts[0] == FORMAT
+            val current = (parts.size == 10 || parts.size == 11) && parts[0] == FORMAT
             val previous = parts.size == 9 && parts[0] == PREVIOUS_FORMAT
             if (!current && !previous) return null
             parts[1].unhexOrNull() ?: return null
@@ -342,6 +382,7 @@ internal class GenreEnrichment(
                 albumArtist = albumArtist.takeIf { it.isNotEmpty() }?.let(TextRepair::repair),
                 year = parts[8].toIntOrNull(),
                 namesAlbum = !current || parts[9] != "0",
+                durationMs = if (current) parts.getOrNull(10)?.toLongOrNull() else null,
                 stale = previous,
             )
         }

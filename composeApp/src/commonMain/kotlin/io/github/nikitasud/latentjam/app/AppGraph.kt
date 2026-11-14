@@ -610,8 +610,10 @@ object AppGraph {
         val existing = automaticIndexingJob
         val sameKey = automaticIndexingKey == key
         val live = existing?.isActive == true
+        // A finished pass is entered again when tracks it left out, waiting after two timeouts, may be tried now.
+        val finished = automaticIndexing.value.complete && !heldRetryDue(key)
         if (sameKey && kind != AnalysisCall.RETRY && kind != AnalysisCall.REBUILD &&
-            (live || (kind != AnalysisCall.RETRY && automaticIndexing.value.complete))
+            (live || (kind != AnalysisCall.RETRY && finished))
         ) {
             // A live pass sees Continue through the cleared pause and resumes by itself; a finished one has nothing to
             // continue.
@@ -637,6 +639,8 @@ object AppGraph {
             (kind != AnalysisCall.RETRY || control.userPaused.value) &&
             previous.trackIds == trackIds && !previous.complete
         automaticIndexingKey = key
+        // The pass about to start answers for the waiting tracks; its end marks them again if they still wait.
+        heldRetry = null
         // Cancelled here as well as joined below: a replacement that is itself replaced before it
         // starts never runs its body, and would otherwise leave this run going beside the newest.
         existing?.cancel()
@@ -739,6 +743,15 @@ object AppGraph {
                 val retries = analysisRetries
                 val retry = pendingRetry.value
                 if (retry != null) engine.retryFailedTracks(if (retry.all) trackIds else retry.ids.toList())
+                // Once, after the update that taught the analysis Apple Lossless (0.9.5): MP4 files it had remembered
+                // as "no decoder" get another try without the listener pressing Retry. Not for an empty or partial
+                // library (media access not granted yet, a volume not mounted): that would use the one time up for
+                // files that are not in it.
+                if (tracks.isNotEmpty() && librarySnapshotAuthoritative && !settings.analysisRetryDone(RETRY_ONCE_ALAC)) {
+                    val mp4 = tracks.filter { it.fileName?.substringAfterLast('.', "")?.lowercase() in MP4_AUDIO_EXTENSIONS }
+                    if (mp4.isNotEmpty()) engine.retryFailedTracks(mp4.map { it.id })
+                    settings.markAnalysisRetryDone(RETRY_ONCE_ALAC)
+                }
                 ledgerKeeps(trackIds, recoveryRetry = retry?.all == true, librarySnapshotAuthoritative)?.let(retries::prune)
                 retry?.ids?.forEach(retries::forget)
                 // Carried out: what a later Retry added meanwhile stays for the next pass.
@@ -904,7 +917,46 @@ object AppGraph {
                     stopReason = null,
                     failures = failures.toMap(),
                 )
+                // Tracks waiting out their hour after two timeouts were left out of this pass, and a finished pass is
+                // not entered again for the same library: the count stood one short, with no problem listed and no
+                // Retry, until the app was restarted (issue #27). The pass is entered once more when the wait ends.
+                // Decided by the tracks left out when this pass began: a wait that ran out while it worked is due now.
+                if (holding.isNotEmpty()) retryHeldTracksAfter(key, analysisRetries.nextReleaseInMs(tracks) ?: 0L)
             }
+        }
+    }
+
+    /** The library whose finished pass left waiting tracks out, and when (wall clock) they may be tried again. */
+    private var heldRetry: Pair<AutomaticIndexingRequest, Long>? = null
+    private var heldRetryJob: Job? = null
+
+    /**
+     * Whether the app is on screen: a pass is started from here only then (a background start may be refused). Read and
+     * written on the main thread.
+     */
+    private var appInForeground = false
+
+    /** The app left the foreground (with [onAppForeground], the pair the held retry reads). */
+    fun onAppLeftForeground() {
+        appInForeground = false
+    }
+
+    /** Whether the finished pass for [key] is to be entered once more: its waiting tracks may be tried again now. */
+    private fun heldRetryDue(key: AutomaticIndexingRequest): Boolean =
+        heldRetry?.let { (heldKey, dueAtMs) -> heldKey == key && nowMillis() >= dueAtMs } == true
+
+    /**
+     * Marks the pass for [key] as to be entered again once [waitMs] has passed, and enters it then if the app is on
+     * screen; otherwise the next return to the app does (every one asks [ensureAutomaticIndexing], which reads the
+     * mark). The shown state is left as it is until a pass really starts.
+     */
+    private fun retryHeldTracksAfter(key: AutomaticIndexingRequest, waitMs: Long) {
+        heldRetry = key to nowMillis() + waitMs
+        heldRetryJob?.cancel()
+        heldRetryJob = appScope.launch {
+            delay(waitMs + HELD_RETRY_SLACK_MS)
+            // On the main thread, as every caller of ensureAutomaticIndexing.
+            withContext(Dispatchers.Main) { if (appInForeground) onAppForeground() }
         }
     }
 
@@ -1025,6 +1077,7 @@ object AppGraph {
 
     /** The app came to the foreground: restarts a pass the platform or a failure stopped. */
     fun onAppForeground() {
+        appInForeground = true
         val last = lastAnalysisCall ?: return
         ensureAutomaticIndexing(
             tracks = last.key.tracks,
@@ -1405,6 +1458,13 @@ internal const val AUTOMATIC_INDEX_CHUNK_SIZE = 8
 
 /** Launch and library changes settle before SMART's warm-up takes a core for a few seconds. */
 private const val SMART_WARM_DELAY_MS = 5_000L
+
+/** Past the end of a held track's wait before the pass is entered again: the ledger compares whole milliseconds. */
+private const val HELD_RETRY_SLACK_MS = 2_000L
+
+/** The one-time retry of MP4 files remembered as undecodable before the analysis could read Apple Lossless. */
+private const val RETRY_ONCE_ALAC = "alac"
+private val MP4_AUDIO_EXTENSIONS = setOf("m4a", "m4b", "m4r", "mp4")
 internal const val AUTOMATIC_INDEX_CHECKPOINT_TRACKS = 32
 internal const val AUTOMATIC_INDEX_YIELD_MS = 75L
 

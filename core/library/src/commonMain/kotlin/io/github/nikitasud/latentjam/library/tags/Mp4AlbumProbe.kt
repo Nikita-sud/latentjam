@@ -18,15 +18,47 @@ internal object Mp4AlbumProbe {
     private const val MAX_ALBUM_BYTES = 4 * 1024
     private const val DATA_UTF16 = 2L
 
+    /** A day: longer is a broken header, not a track. */
+    private const val MAX_DURATION_MS = 24L * 60 * 60 * 1000
+
     /**
      * [EmbeddedTagFacts] with only [EmbeddedTagFacts.album] set; its album is null when the file is
      * well-formed and names none. Null when [source] is not MP4 or its boxes cannot be followed:
      * not knowing must not read as "no album".
      */
     fun read(source: RandomAccessSource): EmbeddedTagFacts? = try {
-        album(source)
+        // A movie header that cannot be followed costs the length only: the album answer stands as it did.
+        album(source)?.let { facts ->
+            val length = try { durationMs(source) } catch (_: Malformed) { null }
+            if (length == null) facts else facts.copy(durationMs = length)
+        }
     } catch (_: Malformed) {
         null
+    }
+
+    /**
+     * The movie's length from `moov/mvhd`, or null when the header gives none (no box, a zero timescale, the
+     * "unknown" all-ones duration of a fragmented file).
+     */
+    private fun durationMs(source: RandomAccessSource): Long? {
+        val moov = child(source, 0, source.length, "moov") ?: return null
+        val mvhd = child(source, moov.body, moov.end, "mvhd") ?: return null
+        val version = (source.read(mvhd.body, 1) ?: throw Malformed)[0].toInt()
+        // Version and flags, then creation and modification times (four bytes each, eight in version 1), the
+        // timescale, and the duration (four bytes, eight in version 1).
+        val (timescale, duration) = if (version == 1) {
+            if (mvhd.end - mvhd.body < 32) throw Malformed
+            val fields = source.read(mvhd.body + 20, 12) ?: throw Malformed
+            fields.u32(0) to ((fields.u32(4) shl 32) or fields.u32(8))
+        } else {
+            if (mvhd.end - mvhd.body < 20) throw Malformed
+            val fields = source.read(mvhd.body + 12, 8) ?: throw Malformed
+            fields.u32(0) to fields.u32(4).let { if (it == 0xFFFFFFFFL) -1L else it }
+        }
+        if (timescale <= 0L || duration <= 0L) return null
+        // Seconds first: duration times a thousand overflows for a long file with a fine timescale.
+        val ms = duration / timescale * 1000 + duration % timescale * 1000 / timescale
+        return ms.takeIf { it in 1..MAX_DURATION_MS }
     }
 
     private fun album(source: RandomAccessSource): EmbeddedTagFacts? {

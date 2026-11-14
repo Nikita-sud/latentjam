@@ -908,7 +908,10 @@ private fun AppShell(
         PlatformForegroundEffect(
             // Leaving while paused ends the sitting: finalize the in-progress listening session
             // so the last track of the day stops vanishing from the history log.
-            onLeave = { AppGraph.flushListeningSession() },
+            onLeave = {
+                AppGraph.onAppLeftForeground()
+                AppGraph.flushListeningSession()
+            },
         ) {
             // Restarts a pass that the 6 h cap, a refused start or a failure stopped.
             AppGraph.onAppForeground()
@@ -1353,6 +1356,7 @@ private fun AppShell(
         // SMART colours follow the library: fit its colour axes as tracks are indexed.
         val paletteIds = remember(catalog) { catalog?.songs?.idList().orEmpty() }
         LatentPaletteUpdater(engine, paletteIds)
+        PlaybackFailureNotices(playback, snackbar)
         var albumBrowse by remember { mutableStateOf<AlbumBrowseDerivation?>(null) }
         var songsBrowse by remember { mutableStateOf<SongsBrowseDerivation?>(null) }
         val albumSections = albumBrowse?.albumSections.orEmpty()
