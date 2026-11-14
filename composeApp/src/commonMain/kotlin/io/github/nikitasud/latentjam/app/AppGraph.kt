@@ -948,6 +948,14 @@ object AppGraph {
         appInForeground = false
     }
 
+    /**
+     * The app's screen is up. [onAppForeground] is told of returns only, never of the first appearance after a start:
+     * without this a pass that left tracks waiting was not entered again in the very sitting it finished in.
+     */
+    fun noteAppOnScreen() {
+        appInForeground = true
+    }
+
     /** Whether the finished pass for [key] is to be entered once more: its waiting tracks may be tried again now. */
     private fun heldRetryDue(key: AutomaticIndexingRequest): Boolean =
         heldRetry?.let { (heldKey, dueAtMs) -> heldKey == key && nowMillis() >= dueAtMs } == true

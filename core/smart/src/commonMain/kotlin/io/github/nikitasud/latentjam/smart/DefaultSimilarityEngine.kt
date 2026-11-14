@@ -1477,11 +1477,18 @@ internal class DefaultSimilarityEngine(
         val failed = try {
             store.loadRows(config.modelVersion) { id, vector, identity ->
                 if (id in index) return@loadRows
-                runCatching { index.adopt(id, vector) }
-                    .onSuccess {
-                        adopted += id
-                        identity?.let { audioVectorIdentities.putPersisted(id, it) }
-                    }
+                // A row the index refuses (a damaged vector) is skipped, and the load goes on. An Error is no bad
+                // row: running out of memory here dropped rows without a word, the load ended as a success, and the
+                // next save wrote the shortened index over the whole one. It reaches the handler below, which keeps
+                // the file on disk and saves nothing over it.
+                try {
+                    index.adopt(id, vector)
+                    adopted += id
+                    identity?.let { audioVectorIdentities.putPersisted(id, it) }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                }
             }
         } catch (cancelled: CancellationException) {
             discardAdopted()

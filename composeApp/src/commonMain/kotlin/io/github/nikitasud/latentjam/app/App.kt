@@ -884,6 +884,7 @@ private fun AppShell(
             }
         }
         LaunchedEffect(Unit) {
+            AppGraph.noteAppOnScreen()
             try {
                 scanLibrary()
                 libraryScan.hasHiddenTracks = library.hasHiddenTracks()
