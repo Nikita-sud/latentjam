@@ -37,6 +37,29 @@ internal class ForYouPlaybackTest {
     }
 
     @Test
+    fun withSmartSwitchedOffTheRowPlaysAsItselfAndNothingIsPlanned() = runTest {
+        val playback = FakePlayback()
+        var planned = false
+        playFromForYou(playback, row, 1, library, continuation = { false }) { planned = true; continuation.map { it.id } }
+        assertEquals(row, playback.state.value.queue)
+        assertEquals(0, playback.appends)
+        assertEquals(false, planned)
+    }
+
+    @Test
+    fun smartSwitchedOffWhileTheContinuationPlansAppendsNothing() = runTest {
+        val playback = FakePlayback()
+        var smartOn = true
+        playFromForYou(playback, row, 0, library, continuation = { smartOn }) {
+            // The listener opens Settings and switches SMART off while the planner works.
+            smartOn = false
+            continuation.map { it.id }
+        }
+        assertEquals(row, playback.state.value.queue)
+        assertEquals(0, playback.appends)
+    }
+
+    @Test
     fun repeatAllLoopsTheRowWithoutAContinuation() = runTest {
         val playback = FakePlayback(RepeatMode.ALL)
         playFromForYou(playback, row, 0, library, plan = plan)
@@ -91,7 +114,7 @@ internal class ForYouPlaybackTest {
         runCurrent()
         launcher.launch(this) { }
         runCurrent()
-        playFromForYou(playback, row, 0, library, firstCurrent, plan)
+        playFromForYou(playback, row, 0, library, firstCurrent, plan = plan)
         assertEquals(row, playback.state.value.queue)
     }
 

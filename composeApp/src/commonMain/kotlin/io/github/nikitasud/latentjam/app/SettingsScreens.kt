@@ -338,6 +338,8 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_section_li
 import io.github.nikitasud.latentjam.app.generated.resources.settings_section_music
 import io.github.nikitasud.latentjam.app.generated.resources.settings_section_preferences
 import io.github.nikitasud.latentjam.app.generated.resources.settings_section_privacy
+import io.github.nikitasud.latentjam.app.generated.resources.settings_smart_enabled
+import io.github.nikitasud.latentjam.app.generated.resources.settings_smart_enabled_body
 import io.github.nikitasud.latentjam.app.generated.resources.settings_smart_engine
 import io.github.nikitasud.latentjam.app.generated.resources.settings_smart_engine_subtitle
 import io.github.nikitasud.latentjam.app.generated.resources.snack_duplicates_merged
@@ -779,7 +781,10 @@ private fun SettingsRoot(
                 SettingsRow(
                     horizontalPadding = 16.dp,
                     title = stringResource(Res.string.settings_smart_engine),
-                    subtitle = stringResource(Res.string.settings_smart_engine_subtitle),
+                    // Switched off, the row says so: it is where SMART is switched on again.
+                    subtitle = stringResource(
+                        if (LocalSmartEnabled.current) Res.string.settings_smart_engine_subtitle else Res.string.state_off,
+                    ),
                     onClick = { onOpen(SettingsPage.INTELLIGENCE) },
                 )
                 SettingsRow(
@@ -874,7 +879,10 @@ private fun AppearanceSettings(
         item {
             SettingsSection(stringResource(Res.string.settings_track_colors)) {
                 ChoiceChips(
-                    values = TrackColorMode.entries,
+                    // Colours from the sound analysis are not offered while SMART is switched off, unless already chosen.
+                    values = LocalSmartEnabled.current.let { smart ->
+                        TrackColorMode.entries.filter { smart || it != TrackColorMode.SMART || colorMode == TrackColorMode.SMART }
+                    },
                     selected = colorMode,
                     label = { mode ->
                         stringResource(when (mode) {
@@ -1084,7 +1092,10 @@ private fun PagesSettings(settings: AppSettings) {
     val savedLayout by settings.pageLayout.collectAsState()
     val preferredStartPage by settings.startPage.collectAsState()
     val layout = remember(savedLayout) { savedLayout.normalized() }
-    val visiblePages = remember(layout) { layout.visiblePages }
+    // While SMART is switched off the Map is no page: it cannot be the opening page, and it does not count as the page
+    // that lets the last other one be hidden. The saved layout keeps it for the day SMART is on again.
+    val smartEnabled = LocalSmartEnabled.current
+    val visiblePages = remember(layout, smartEnabled) { layout.visiblePages.forSmart(smartEnabled) }
     val startPage = layout.resolveStartPage(preferredStartPage)
     val reduceMotion = rememberReduceMotion()
     val listState = rememberLazyListState()
@@ -1186,7 +1197,9 @@ private fun PageOrderRow(
     modifier: Modifier = Modifier,
 ) {
     val enabled = page in visiblePages
-    val canDisable = !enabled || visiblePages.size > 1
+    // The Map is laid out from the analysis: its row cannot be switched while SMART is off.
+    val needsSmart = page == StartPage.MAP && !LocalSmartEnabled.current
+    val canDisable = !needsSmart && (!enabled || visiblePages.size > 1)
     val label = stringResource(page.titleResource())
     val moveUpLabel = stringResource(Res.string.settings_page_move_up, label)
     val moveDownLabel = stringResource(Res.string.settings_page_move_down, label)
@@ -1479,7 +1492,8 @@ private fun LibrarySettings(
                     ),
                     onClick = { onOpen(SettingsPage.HIDDEN_TRACKS) },
                 )
-                SettingsRow(
+                // The finder compares tracks by the sound analysis: without it, it would call every track unique.
+                if (LocalSmartEnabled.current) SettingsRow(
                     title = stringResource(Res.string.settings_duplicates),
                     subtitle = stringResource(Res.string.settings_duplicates_body),
                     onClick = { onOpen(SettingsPage.DUPLICATES) },
@@ -1926,6 +1940,7 @@ private fun IntelligenceSettings(
     val includeNoveltyMixes by settings.includeNoveltyMixes.collectAsState()
     val smartRanker by settings.smartRanker.collectAsState()
     val learnFromHabits by settings.learnFromHabits.collectAsState()
+    val smartEnabled by settings.smartEnabled.collectAsState()
     val useFavourites by settings.useFavourites.collectAsState()
     val smartLogExported = stringResource(Res.string.intelligence_smart_log_exported)
     val smartLogFailed = stringResource(Res.string.intelligence_smart_log_failed)
@@ -1981,7 +1996,20 @@ private fun IntelligenceSettings(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
+        // The master switch. Off, the app is a plain player: SMART is no play mode, nothing starts it, and the library
+        // is not analysed, so nothing below applies and none of it is shown.
         item {
+            SettingsSection(title = null) {
+                SettingsSwitchRow(
+                    title = stringResource(Res.string.settings_smart_enabled),
+                    subtitle = stringResource(Res.string.settings_smart_enabled_body),
+                    checked = smartEnabled,
+                    enabled = true,
+                    onCheckedChange = AppGraph::setSmartEnabled,
+                )
+            }
+        }
+        if (smartEnabled) item {
             SettingsSection(stringResource(Res.string.intelligence_section_status)) {
                 StatRow(
                     stringResource(Res.string.intelligence_engine),
@@ -2119,7 +2147,7 @@ private fun IntelligenceSettings(
                 }
             }
         }
-        item {
+        if (smartEnabled) item {
             SettingsSection(stringResource(Res.string.intelligence_section_recommendations)) {
                 SettingsLabel(stringResource(Res.string.intelligence_queue_length))
                 ChoiceChips(
@@ -2212,7 +2240,7 @@ private fun IntelligenceSettings(
                 )
             }
         }
-        item {
+        if (smartEnabled) item {
             SettingsSection(title = null) {
                 SettingsRow(
                     title = stringResource(Res.string.intelligence_problems),
@@ -2246,7 +2274,7 @@ private fun IntelligenceSettings(
                 )
             }
         }
-        item {
+        if (smartEnabled) item {
             SettingsSection(stringResource(Res.string.intelligence_how_title)) {
                 SettingsBody(stringResource(Res.string.intelligence_how_it_works))
             }

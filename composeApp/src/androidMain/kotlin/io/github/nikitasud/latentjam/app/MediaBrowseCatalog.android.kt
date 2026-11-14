@@ -15,6 +15,7 @@ import io.github.nikitasud.latentjam.playback.MediaBrowseCollection
 import io.github.nikitasud.latentjam.playback.MediaBrowseRegistry
 import io.github.nikitasud.latentjam.playback.MediaPlaybackResume
 import io.github.nikitasud.latentjam.playback.ShuffleMode
+import io.github.nikitasud.latentjam.playback.allowed
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -99,8 +100,9 @@ private suspend fun buildMediaPlaybackResume(): MediaPlaybackResume? {
     val saved = AppGraph.settings.resumePlayback.value ?: return null
     val library = AppGraph.library.tracks().filter { !it.audioUri.isNullOrBlank() }
     if (library.isEmpty()) return null
-    val mode = ShuffleMode.entries.firstOrNull { it.name == saved.shuffleMode }
-        ?: ShuffleMode.OFF
+    // A session saved in SMART is resumed in plain order while SMART is switched off (headset, car, tile, widget).
+    val mode = (ShuffleMode.entries.firstOrNull { it.name == saved.shuffleMode } ?: ShuffleMode.OFF)
+        .allowed(AppGraph.settings.smartEnabled.value)
     val byId = library.associateByIdValue()
     val playlists = AppGraph.playlists.all()
     val orders = AppGraph.settings.playlistSortOrders.value
@@ -126,8 +128,9 @@ private suspend fun buildMediaPlaybackResume(): MediaPlaybackResume? {
             positionMs = saved.positionMs.coerceAtLeast(0L),
             shuffleMode = mode,
             sourceTracks = source,
-            smartContinuationIds = saved.smartContinuationIds.mapTo(HashSet(), ::TrackId),
-            smartPlanPositions = saved.smartPlanPositions.mapKeys { (id, _) -> TrackId(id) },
+            // Its rows are plain rows when the saved SMART mode was not kept.
+            smartContinuationIds = if (mode.name == saved.shuffleMode) saved.smartContinuationIds.mapTo(HashSet(), ::TrackId) else emptySet(),
+            smartPlanPositions = if (mode.name == saved.shuffleMode) saved.smartPlanPositions.mapKeys { (id, _) -> TrackId(id) } else emptyMap(),
         )
     }
 

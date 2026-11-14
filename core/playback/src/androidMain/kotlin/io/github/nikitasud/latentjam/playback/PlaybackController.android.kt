@@ -979,7 +979,13 @@ internal class AndroidPlaybackController(
         // Through the registry so the notification's cycle button continues from the restored
         // mode instead of from whatever the registry last saw.
         AndroidShuffleModeRegistry.set(mode)
-        applyShuffleMode(mode)
+        // What the registry kept: SMART is not a mode while it is switched off.
+        applyShuffleMode(AndroidShuffleModeRegistry.mode.value)
+    }
+
+    override fun setSmartAvailable(available: Boolean) {
+        // The registry's flow carries a SMART queue over to plain order (the collector in init applies it).
+        AndroidShuffleModeRegistry.setSmartAvailable(available)
     }
 
     override suspend fun restoreQueue(
@@ -1466,10 +1472,13 @@ internal class AndroidPlaybackController(
         pool = source
         // The live SMART queue can contain generated rows absent from its canonical source.
         poolById = (source + resume.tracks).associateByIdValue()
-        mode = resume.shuffleMode
+        // A session saved in SMART comes back in plain order while SMART is switched off: this write is the one that
+        // does not pass through the registry, and in a cold process nothing would correct it afterwards.
+        mode = resume.shuffleMode.allowed(AndroidShuffleModeRegistry.smartAvailable)
         smartContinuationIds.clear()
         val resumedIds = resume.tracks.mapTo(HashSet()) { it.id }
-        smartContinuationIds.addAll(resume.smartContinuationIds.intersect(resumedIds))
+        // Its rows are then no SMART picks to the listener either.
+        if (mode == resume.shuffleMode) smartContinuationIds.addAll(resume.smartContinuationIds.intersect(resumedIds))
         smartPlanPositions.clear()
         smartPlanPositions.putAll(resume.smartPlanPositions.filterKeys { it in resumedIds })
         smartRemovedIds.clear()

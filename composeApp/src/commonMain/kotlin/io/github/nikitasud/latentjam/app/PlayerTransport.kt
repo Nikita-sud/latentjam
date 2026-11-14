@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -368,6 +370,8 @@ private fun PlaybackModeMenu(
         animationSpec = tween(if (reduceMotion) Motion.REDUCED_MS else Motion.QUICK_MS),
         label = "mode-help-chevron",
     )
+    // While SMART is switched off in settings the menu is the two plain modes: no SMART, no queue length, no how-to.
+    val smartEnabled = LocalSmartEnabled.current
     AppDropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismiss,
@@ -381,7 +385,7 @@ private fun PlaybackModeMenu(
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
         )
         Column(Modifier.padding(horizontal = 8.dp).selectableGroup()) {
-            ShuffleMode.entries.forEach { option ->
+            ShuffleMode.entries.filter { smartEnabled || it != ShuffleMode.SMART }.forEach { option ->
                 val selected = option == mode
                 val ink = if (option == ShuffleMode.SMART) {
                     MaterialTheme.colorScheme.tertiary
@@ -410,77 +414,81 @@ private fun PlaybackModeMenu(
                 }
             }
         }
-        AppDivider(Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
-        Text(
-            text = stringResource(Res.string.intelligence_queue_length),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 10.dp),
-        )
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp)
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                .padding(4.dp)
-                .selectableGroup(),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            SMART_QUEUE_LENGTH_OPTIONS.forEach { length ->
-                val selected = length == smartQueueLength
-                val label = pluralStringResource(Res.plurals.count_tracks, length, length)
-                val background by animateColorAsState(
-                    if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                    tween(if (reduceMotion) Motion.REDUCED_MS else Motion.QUICK_MS),
-                    label = "queue-length-$length",
-                )
-                Box(
-                    modifier = Modifier.weight(1f)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(background)
-                        .selectable(selected = selected, role = Role.RadioButton) {
-                            onSmartQueueLength(length)
-                        }
-                        .semantics { contentDescription = label }
-                        .heightIn(min = 48.dp)
-                        .padding(horizontal = 4.dp, vertical = 10.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        length.toString(),
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        textAlign = TextAlign.Center,
-                        color = if (selected) MaterialTheme.colorScheme.onPrimary
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
-        TextButton(
-            onClick = { showExplanation = !showExplanation },
-            modifier = Modifier.padding(horizontal = 8.dp).fillMaxWidth().heightIn(min = 48.dp),
-            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
-        ) {
+        if (smartEnabled) {
+            AppDivider(Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
             Text(
-                stringResource(Res.string.intelligence_how_title),
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f),
-            )
-            Icon(Icons.Outlined.ExpandMore, null,
-                Modifier.size(20.dp).graphicsLayer { rotationZ = chevronRotation })
-        }
-        AnimatedVisibility(
-            visible = showExplanation,
-            enter = motionAppearEnter(),
-            exit = motionAppearExit(),
-        ) {
-            Text(
-                stringResource(Res.string.intelligence_how_it_works),
+                text = stringResource(Res.string.intelligence_queue_length),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 10.dp),
             )
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .padding(4.dp)
+                    .selectableGroup(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                SMART_QUEUE_LENGTH_OPTIONS.forEach { length ->
+                    val selected = length == smartQueueLength
+                    val label = pluralStringResource(Res.plurals.count_tracks, length, length)
+                    val background by animateColorAsState(
+                        if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                        tween(if (reduceMotion) Motion.REDUCED_MS else Motion.QUICK_MS),
+                        label = "queue-length-$length",
+                    )
+                    Box(
+                        modifier = Modifier.weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(background)
+                            .selectable(selected = selected, role = Role.RadioButton) {
+                                onSmartQueueLength(length)
+                            }
+                            .semantics { contentDescription = label }
+                            .heightIn(min = 48.dp)
+                            .padding(horizontal = 4.dp, vertical = 10.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            length.toString(),
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center,
+                            color = if (selected) MaterialTheme.colorScheme.onPrimary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+            TextButton(
+                onClick = { showExplanation = !showExplanation },
+                modifier = Modifier.padding(horizontal = 8.dp).fillMaxWidth().heightIn(min = 48.dp),
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
+            ) {
+                Text(
+                    stringResource(Res.string.intelligence_how_title),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Icon(Icons.Outlined.ExpandMore, null,
+                    Modifier.size(20.dp).graphicsLayer { rotationZ = chevronRotation })
+            }
+            AnimatedVisibility(
+                visible = showExplanation,
+                enter = motionAppearEnter(),
+                exit = motionAppearExit(),
+            ) {
+                Text(
+                    stringResource(Res.string.intelligence_how_it_works),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+                )
+            }
+        } else {
+            Spacer(Modifier.height(8.dp))
         }
     }
 }

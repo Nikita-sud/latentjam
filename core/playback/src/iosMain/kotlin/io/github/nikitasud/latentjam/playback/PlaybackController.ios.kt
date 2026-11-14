@@ -1245,17 +1245,23 @@ internal class IosPlaybackController(
     }
 
     override suspend fun cycleShuffleMode(): ShuffleMode = withContext(Dispatchers.Main) {
-        applyShuffleMode(
-            when (mode) {
-                ShuffleMode.OFF -> ShuffleMode.ON
-                ShuffleMode.ON -> ShuffleMode.SMART
-                ShuffleMode.SMART -> ShuffleMode.OFF
-            },
-        )
+        applyShuffleMode(mode.next(smartAvailable))
     }
 
     override suspend fun setShuffleMode(mode: ShuffleMode): Unit = withContext(Dispatchers.Main) {
-        applyShuffleMode(mode)
+        // SMART is not a mode while it is switched off: a saved or requested one becomes plain order.
+        applyShuffleMode(mode.allowed(smartAvailable))
+    }
+
+    /** False while SMART is switched off in settings; read and written on the main thread only. */
+    private var smartAvailable = true
+
+    override fun setSmartAvailable(available: Boolean) {
+        mainScope.launch {
+            smartAvailable = available
+            // A queue in SMART goes on in plain order with what it already holds.
+            if (!available && mode == ShuffleMode.SMART) applyShuffleMode(ShuffleMode.OFF)
+        }
     }
 
     override suspend fun restoreQueue(
@@ -2063,7 +2069,8 @@ internal class IosPlaybackController(
             if (requested == null) {
                 MPRemoteCommandHandlerStatusCommandFailed
             } else {
-                mainScope.launch { applyShuffleMode(requested) }
+                // Read when it runs: SMART may have been switched off since the command arrived.
+                mainScope.launch { applyShuffleMode(requested.allowed(smartAvailable)) }
                 MPRemoteCommandHandlerStatusSuccess
             }
         }

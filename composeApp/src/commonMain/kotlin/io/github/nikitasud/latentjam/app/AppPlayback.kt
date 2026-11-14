@@ -7,6 +7,7 @@ import androidx.compose.runtime.*
 import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.playback.PlaybackController
 import io.github.nikitasud.latentjam.playback.ShuffleMode
+import io.github.nikitasud.latentjam.playback.allowed
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 
@@ -53,7 +54,10 @@ internal fun PlaybackRestoreEffect(
         }
         // The mode is the more important half — restore it even when the track is gone
         // (deleted, SD card unmounted): SMART being on is what the user asked to keep.
-        val savedMode = ShuffleMode.entries.firstOrNull { it.name == saved.shuffleMode }
+        // While SMART is switched off a session saved in SMART comes back in plain order, with its rows as plain rows.
+        val storedMode = ShuffleMode.entries.firstOrNull { it.name == saved.shuffleMode }
+        val savedMode = storedMode?.allowed(AppGraph.settings.smartEnabled.value)
+        val smartKept = savedMode == storedMode
         savedMode?.let { playback.setShuffleMode(it) }
         // Prefer the queue that was ACTUALLY playing — a playlist stays that playlist across
         // a restart. Tracks deleted meanwhile drop out; if the saved track itself is gone or
@@ -86,8 +90,8 @@ internal fun PlaybackRestoreEffect(
                 // is meaningful when every original playlist row was deleted while a
                 // generated SMART current row survived.
                 sourceTracks = savedSourceQueue,
-                smartContinuationIds = saved.smartContinuationIds.mapTo(HashSet(), ::TrackId),
-                smartPlanPositions = saved.smartPlanPositions.mapKeys { (id, _) -> TrackId(id) },
+                smartContinuationIds = if (smartKept) saved.smartContinuationIds.mapTo(HashSet(), ::TrackId) else emptySet(),
+                smartPlanPositions = if (smartKept) saved.smartPlanPositions.mapKeys { (id, _) -> TrackId(id) } else emptyMap(),
             )
         }
         val index = loaded.indexOfFirst { it.id.value == saved.trackId }

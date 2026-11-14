@@ -253,10 +253,13 @@ internal fun LatentJamAppTheme(content: @Composable (darkTheme: Boolean) -> Unit
         val custom = Color(appearance.customAccent)
         if (darkTheme) liftForDarkSurface(custom) else inkForLightSurface(custom, scheme.surface)
     } else null
+    // The master SMART switch, for every control that starts, names or tunes SMART: off, none of them is drawn.
+    val smartEnabled by AppGraph.settings.smartEnabled.collectAsState()
     CompositionLocalProvider(
         LocalReduceMotion provides rememberPlatformReduceMotion(),
         LocalAppearance provides appearance,
         LocalControlInk provides controlInk,
+        LocalSmartEnabled provides smartEnabled,
     ) {
         MaterialTheme(colorScheme = scheme, typography = LatentJamTypography) {
             // The app draws edge to edge, and its pages keep from the top and bottom bars on their
@@ -288,7 +291,9 @@ private fun AppShell(
     val settings = AppGraph.settings
     val startPage by settings.startPage.collectAsState()
     val pageLayout by settings.pageLayout.collectAsState()
-    val visiblePages = remember(pageLayout) { pageLayout.normalized().visiblePages }
+    // The master SMART switch: off, the app is a plain player and the Map is no page.
+    val smartEnabled = LocalSmartEnabled.current
+    val visiblePages = remember(pageLayout, smartEnabled) { pageLayout.normalized().visiblePages.forSmart(smartEnabled) }
     val trackColorMode by settings.trackColorMode.collectAsState()
     val pageHeaderStyle by settings.pageHeaderStyle.collectAsState()
     val smartQueueLength by settings.smartQueueLength.collectAsState()
@@ -1053,7 +1058,9 @@ private fun AppShell(
             }
             val loaded = tracks ?: return@LaunchedEffect
             val loadedIds = loaded.idList()
-            val requestedWorlds = if (libraryWorlds.worldLibraryIds == loadedIds) libraryWorlds.worlds else emptyList()
+            // Worlds come from the analysis: none are shown while SMART is switched off, also those found before.
+            val requestedWorlds =
+                if (libraryWorlds.worldLibraryIds == loadedIds && AppGraph.settings.smartEnabled.value) libraryWorlds.worlds else emptyList()
             val clock = localTimePoint(epochMillis())
             val pageDaypart = ForYouRhythm.daypartOf(clock.hourOfDay)
             // Built once, and again only when its inputs change — the worlds arrive later on a cold
@@ -1309,6 +1316,8 @@ private fun AppShell(
                 .distinctUntilChanged()
                 .collect { (metadataReady, audioReady) ->
                     if (!metadataReady && !audioReady) return@collect
+                    // SMART switched off: no worlds are shown, so none are clustered.
+                    if (!AppGraph.settings.smartEnabled.value) return@collect
                     try {
                         LibraryRegionsService.refresh(
                             engine = engine,
@@ -2719,6 +2728,7 @@ private fun AppShell(
                                                         playback, engine, AppGraph.history, list, index,
                                                         eligibleFor(smartEligible, tracks, smartExclusionState), smartQueueLength,
                                                         AppGraph.smartCompanionGroups.value, isCurrent,
+                                                        continuation = { AppGraph.settings.smartEnabled.value },
                                                     )
                                                 }
                                             },
@@ -2730,6 +2740,7 @@ private fun AppShell(
                                                         playback, engine, AppGraph.history, collection.tracks, 0,
                                                         eligibleFor(smartEligible, tracks, smartExclusionState), smartQueueLength,
                                                         AppGraph.smartCompanionGroups.value, isCurrent,
+                                                        continuation = { AppGraph.settings.smartEnabled.value },
                                                     )
                                                 }
                                             },
@@ -2737,18 +2748,25 @@ private fun AppShell(
                                                 scope.launch {
                                                     // Personal signal picked the seed; SMART decides
                                                     // what follows it.
-                                                    val queue = engine.smartQueue(
+                                                    val queue = if (!AppGraph.settings.smartEnabled.value) emptyList() else engine.smartQueue(
                                                         hero.track,
                                                         eligibleFor(smartEligible, tracks, smartExclusionState),
                                                         smartQueueLength,
                                                         smartHistoryFor(AppGraph.history, hero.track),
                                                         AppGraph.smartCompanionGroups.value,
                                                     )
-                                                    val byId = visibleCatalog.songs.associateById()
-                                                    val tail = queue.mapNotNull(byId::get)
                                                     AppGraph.queueSource.value =
                                                         QueueSource(QueueSourceKind.FOR_YOU)
                                                     PersonalSignals.pick(PickSurface.FOR_YOU)
+                                                    // SMART switched off (asked again here: planning takes seconds):
+                                                    // the card plays its track and the library on from it.
+                                                    if (!AppGraph.settings.smartEnabled.value) {
+                                                        playLibraryFrom(playback, hero.track, visibleCatalog.songs)
+                                                        hero.resumeAtMs?.let { playback.seekTo(it) }
+                                                        return@launch
+                                                    }
+                                                    val byId = visibleCatalog.songs.associateById()
+                                                    val tail = queue.mapNotNull(byId::get)
                                                     playback.play(
                                                         listOf(hero.track) + tail,
                                                         0,

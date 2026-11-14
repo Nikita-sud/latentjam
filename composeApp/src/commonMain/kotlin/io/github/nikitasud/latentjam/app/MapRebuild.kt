@@ -111,9 +111,13 @@ internal object MapRebuild {
      * not survive a reboot (the app drops RECEIVE_BOOT_COMPLETED), so this is what brings it back; a stale
      * map also gets its debug marker back. Returns whether it asked.
      */
+    /** The master SMART switch; on where the settings are not up yet (a bare unit test). */
+    private fun smartSwitchedOn(): Boolean = runCatching { AppGraph.settings.smartEnabled.value }.getOrDefault(true)
+
     suspend fun resumePending(
         nowMs: Long,
-        enabled: Boolean = MapRefreshFlag.enabled,
+        // Nor while SMART is switched off: nothing is analysed or laid out then, and nothing is scheduled for it.
+        enabled: Boolean = MapRefreshFlag.enabled && smartSwitchedOn(),
         readLayout: suspend () -> Pair<Int, Boolean>? = {
             AppGraph.mapRefreshStateStore.load()?.let { state -> try { state.changedSinceFull to state.stale } finally { state.close() } }
         },
@@ -196,6 +200,8 @@ internal object MapRebuild {
 
     private suspend fun rebuild(isActive: () -> Boolean): Outcome {
         if (!MapRefreshFlag.enabled) return Outcome.NOT_NEEDED
+        // SMART switched off: nothing is analysed or laid out. The request stays waiting for the day it is on again.
+        if (!smartSwitchedOn()) return Outcome.NOT_READY
         if (AppGraph.automaticIndexing.value.running) return Outcome.NOT_READY
         val engine = AppGraph.engine
         engine.initialize().getOrElse { return Outcome.NOT_READY }

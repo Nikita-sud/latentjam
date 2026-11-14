@@ -305,6 +305,9 @@ internal fun SearchScreen(
         semanticQuery = ""
         val needle = query.trim()
         if (needle.length < MIN_SEMANTIC_QUERY_CHARS) return@LaunchedEffect
+        // The descriptive tier reads the analysis: none of it while SMART is switched off, in the session it was
+        // switched off in as after a restart (when the engine is not even loaded).
+        if (!AppGraph.settings.smartEnabled.value) return@LaunchedEffect
         delay(SEMANTIC_DEBOUNCE_MS)
         val started = TimeSource.Monotonic.markNow()
         semantic = AppGraph.engine.semanticSearch(needle, SEMANTIC_CANDIDATE_LIMIT)
