@@ -27,6 +27,9 @@ internal expect fun renamePlaylistShortcut(playlistId: String, name: String)
 /** A deleted playlist's pinned shortcut is greyed out by the launcher instead of opening nothing. */
 internal expect fun disablePlaylistShortcut(playlistId: String, message: String)
 
+/** The deletion was undone: the pinned shortcut opens its playlist again. No-op when none was pinned. */
+internal expect fun enablePlaylistShortcut(playlistId: String)
+
 /** A shortcut tap waiting for the UI: the id of the playlist to open, consumed once. */
 internal object PlaylistShortcutRequests {
     val pending = MutableStateFlow<String?>(null)

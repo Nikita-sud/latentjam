@@ -12,3 +12,5 @@ internal actual suspend fun pinPlaylistShortcut(playlistId: String, name: String
 internal actual fun renamePlaylistShortcut(playlistId: String, name: String) = Unit
 
 internal actual fun disablePlaylistShortcut(playlistId: String, message: String) = Unit
+
+internal actual fun enablePlaylistShortcut(playlistId: String) = Unit

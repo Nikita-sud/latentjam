@@ -204,6 +204,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.getPluralString
@@ -3043,6 +3044,11 @@ private fun AppShell(
                                             coverEditBusy = coverEditTargetId != null || coverSaveInProgress,
                                             onDelete = { playlist ->
                                                 scope.launch {
+                                                    // What Undo puts back: the playlist as stored, its place in
+                                                    // the list and the order its page was sorted by.
+                                                    val place = playlistsState.playlists.indexOfFirst { it.id == playlist.id }
+                                                    val stored = playlistsState.playlists.getOrNull(place) ?: playlist
+                                                    val order = AppGraph.settings.playlistSortOrders.value.playlists[playlist.id]
                                                     if (!runPlaylistMutation {
                                                             AppGraph.playlists.delete(playlist.id)
                                                         }
@@ -3050,7 +3056,6 @@ private fun AppShell(
                                                     playlistsState.playlists = playlistsState.playlists.filterNot {
                                                         it.id == playlist.id
                                                     }
-                                                    discardUnusedPlaylistCover(playlist.customArtworkRef)
                                                     val deletedMessage = getString(
                                                         Res.string.snack_playlist_deleted,
                                                         bidiWrap(playlist.name, layoutDirection),
@@ -3058,7 +3063,37 @@ private fun AppShell(
                                                     // A pinned home-screen shortcut is greyed out with
                                                     // the same words instead of opening nothing.
                                                     disablePlaylistShortcut(playlist.id, deletedMessage)
-                                                    snackbar.showSnackbar(deletedMessage)
+                                                    // One tap deletes, with no question asked first, so the
+                                                    // notice carries the way back. The playlist's own cover
+                                                    // is kept until that way is closed.
+                                                    var restored = false
+                                                    try {
+                                                        val result = snackbar.showSnackbar(
+                                                            message = deletedMessage,
+                                                            actionLabel = getString(Res.string.action_undo),
+                                                            withDismissAction = true,
+                                                        )
+                                                        if (result != SnackbarResult.ActionPerformed) return@launch
+                                                        restored = runPlaylistMutation {
+                                                            check(AppGraph.playlists.restore(stored, place.coerceAtLeast(0)))
+                                                        }
+                                                        if (!restored) return@launch
+                                                        enablePlaylistShortcut(playlist.id)
+                                                        // The list first: an order kept for a playlist that is
+                                                        // not in the list is forgotten as a deleted one's.
+                                                        refreshPlaylistMembershipsBestEffort()
+                                                        if (order != null) {
+                                                            AppGraph.settings.setPlaylistSortOrders(
+                                                                AppGraph.settings.playlistSortOrders.value.withPlaylist(playlist.id, order),
+                                                            )
+                                                        }
+                                                    } finally {
+                                                        if (!restored) {
+                                                            withContext(NonCancellable) {
+                                                                discardUnusedPlaylistCover(stored.customArtworkRef)
+                                                            }
+                                                        }
+                                                    }
                                                 }
                                             },
                                         )
