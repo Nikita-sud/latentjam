@@ -44,6 +44,33 @@ internal class TagEditRefreshTest {
     }
 
     @Test
+    fun anArtistKnownOnlyFromCollaborationsKeepsTheirPage() {
+        // Rihanna appears only on tracks with Eminem, who sorts first and has every one of them too: by the count of
+        // shared tracks alone the two tie, and the page became Eminem's whole discography.
+        val catalog = LibraryCatalog.build(
+            listOf(
+                track("1", "A", artist = "Eminem").copy(artists = listOf("Eminem", "Rihanna")),
+                track("2", "A", artist = "Eminem").copy(artists = listOf("Eminem", "Rihanna")),
+                track("3", "B", artist = "Eminem"),
+            ),
+        )
+        assertEquals("Rihanna", refreshedArtist(catalog, ids("1", "2"), current = "Rihanna")?.name)
+        // An artist renamed by the edit is still followed: nobody is called by the old name any more.
+        assertEquals("Eminem", refreshedArtist(catalog, ids("1", "2"), current = "Someone Gone")?.name)
+    }
+
+    @Test
+    fun aTrackListedUnderSeveralGroupsIsSelectedOnce() {
+        val shared = track("1", "A")
+        val solo = track("2", "A")
+        // The Genres tab's order: "Rock" then "Pop", with the first track tagged both.
+        val flattened = listOf(shared, solo, shared)
+        assertEquals(listOf(shared, solo), selectedInOrder(flattened, ids("1", "2")))
+        assertEquals(listOf(solo), selectedInOrder(flattened, ids("2")))
+        assertEquals(emptyList(), selectedInOrder(flattened, emptySet()))
+    }
+
+    @Test
     fun freshTracksKeepOrderAndSections() {
         val old = listOf(track("2", "A"), track("1", "A"))
         val selection = CollectionSelection(

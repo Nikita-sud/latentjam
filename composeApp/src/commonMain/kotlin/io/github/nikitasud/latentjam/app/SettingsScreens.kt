@@ -3108,7 +3108,8 @@ private fun SmartExclusionsSettings(
             item {
                 SettingsSection(stringResource(Res.string.intelligence_excluded_tracks)) { }
             }
-            items(state.trackIds.sortedBy { byId[it]?.title.orEmpty() }, key = { it.value }) { id ->
+            // Prefixed: a track id is a bare number on Android, and an artist can be named one ("311").
+            items(state.trackIds.sortedBy { byId[it]?.title.orEmpty() }, key = { "track:${it.value}" }) { id ->
                 val track = byId[id]
                 ExclusionRow(
                     title = track?.title ?: stringResource(Res.string.track_untitled),
@@ -3122,7 +3123,7 @@ private fun SmartExclusionsSettings(
             item {
                 SettingsSection(stringResource(Res.string.intelligence_excluded_artists)) { }
             }
-            items(state.artists.sortedBy(String::lowercase), key = { it }) { artist ->
+            items(state.artists.sortedBy(String::lowercase), key = { "artist:$it" }) { artist ->
                 ExclusionRow(
                     title = artist,
                     subtitle = null,

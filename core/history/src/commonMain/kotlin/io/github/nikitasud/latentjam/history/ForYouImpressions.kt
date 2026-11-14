@@ -64,6 +64,19 @@ public class ForYouImpressions(
     // and normalising an older file's ending — and every later one appends.
     private var rewritten = false
 
+    /**
+     * Forgets every offer. The journal says which tracks For You showed on which day, and those are the listener's
+     * unfinished tracks and favourites: it is listening data, and goes when the listening history is cleared.
+     */
+    public suspend fun clear(): Unit = mutex.withLock {
+        lines = mutableListOf()
+        entries = mutableListOf()
+        seen = HashSet()
+        store.write(emptyList())
+        loaded = true
+        rewritten = true
+    }
+
     /** Records today's offers, skipping (track, day) pairs already on file. */
     public suspend fun record(impressions: List<ForYouImpression>): Unit = mutex.withLock {
         ensureLoaded()

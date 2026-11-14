@@ -26,6 +26,24 @@ class ForYouImpressionsTest {
         ForYouImpression(trackId = TrackId(id), section = section, epochDay = day)
 
     @Test
+    fun clearingForgetsEveryOfferOnDiskAndInMemory() = runTest {
+        val store = InMemoryStore()
+        val impressions = ForYouImpressions(store)
+        impressions.record(listOf(impression("a", 10), impression("b", 10)))
+        impressions.clear()
+        assertEquals(emptyList(), store.lines)
+        assertEquals(emptyMap(), impressions.lastShownDays(beforeEpochDay = 20))
+        // A fresh instance over the same store finds nothing either, and the journal works on.
+        assertEquals(emptyMap(), ForYouImpressions(store).lastShownDays(beforeEpochDay = 20))
+        impressions.record(listOf(impression("a", 12)))
+        assertEquals(1, store.lines.size)
+        // Clearing a journal never read in this process empties the file all the same.
+        val cold = ForYouImpressions(store)
+        cold.clear()
+        assertEquals(emptyList(), store.lines)
+    }
+
+    @Test
     fun recordsOncePerTrackAndDay() = runTest {
         val store = InMemoryStore()
         val impressions = ForYouImpressions(store)

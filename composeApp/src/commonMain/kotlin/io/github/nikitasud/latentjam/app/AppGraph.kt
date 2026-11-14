@@ -145,6 +145,7 @@ object AppGraph {
         mutableHistoryRevision.value += 1L
     }
     private val historyFlushRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    private val historyForgetRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     private var automaticIndexingKey: AutomaticIndexingRequest? = null
     private var automaticIndexingJob: Job? = null
 
@@ -293,6 +294,7 @@ object AppGraph {
                 history = history,
                 enabled = settings.saveListeningHistory,
                 flushRequests = historyFlushRequests,
+                forgetRequests = historyForgetRequests,
                 parentId = { queueSource.value?.parentCollectionId() },
                 onRecorded = { mutableHistoryRevision.value += 1L },
                 onSnapshot = { now -> smartLog?.onNowPlaying(now) },
@@ -419,6 +421,11 @@ object AppGraph {
      */
     fun flushListeningSession() {
         historyFlushRequests.tryEmit(Unit)
+    }
+
+    /** The history was cleared: the listen in progress, begun before that, is not recorded when it ends. */
+    fun forgetListeningSession() {
+        historyForgetRequests.tryEmit(Unit)
     }
 
     /** The process-wide similarity engine. */
