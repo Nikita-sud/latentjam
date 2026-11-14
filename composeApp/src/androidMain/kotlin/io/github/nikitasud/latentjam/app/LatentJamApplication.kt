@@ -10,6 +10,8 @@ import android.content.res.Configuration
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
+import io.github.nikitasud.latentjam.playback.AlacAnalysisDecoders
+import io.github.nikitasud.latentjam.smart.AppPcmDecoders
 import io.github.nikitasud.latentjam.history.epochMillis
 import kotlinx.coroutines.launch
 import org.koin.dsl.module
@@ -23,6 +25,8 @@ public class LatentJamApplication : Application(), SingletonImageLoader.Factory 
     override fun onCreate() {
         super.onCreate()
         AndroidAppContext.value = applicationContext
+        // Before any analysis can start: Apple Lossless is analysed through the app's own decoder (Android has none).
+        AppPcmDecoders.factory = AlacAnalysisDecoders
         AppGraph.start(
             platformModule = module {
                 single<Context> { applicationContext }
