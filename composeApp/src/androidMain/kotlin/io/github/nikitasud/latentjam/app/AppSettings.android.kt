@@ -202,6 +202,13 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         mutableSmartEnabled.value = enabled
     }
 
+    override fun analysisRetryDone(name: String): Boolean =
+        runCatching { preferences.getBoolean(KEY_ANALYSIS_RETRY_PREFIX + name, false) }.getOrDefault(true)
+
+    override fun markAnalysisRetryDone(name: String) {
+        preferences.edit().putBoolean(KEY_ANALYSIS_RETRY_PREFIX + name, true).apply()
+    }
+
     override fun setUseFavourites(enabled: Boolean) {
         preferences.edit().putBoolean(KEY_USE_FAVOURITES, enabled).apply()
         mutableUseFavourites.value = enabled
@@ -474,6 +481,7 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         const val KEY_INCLUDE_NOVELTY_MIXES = "include_novelty_mixes"
         const val KEY_LEARN_FROM_HABITS = "learn_from_habits_l1"
         const val KEY_SMART_ENABLED = "smart_enabled"
+        const val KEY_ANALYSIS_RETRY_PREFIX = "analysis_retry_once_"
         const val KEY_USE_FAVOURITES = "smart_use_favourites"
         const val KEY_SMART_RANKER = "smart_ranker"
         const val KEY_SAVE_HISTORY = "save_listening_history"

@@ -32,6 +32,25 @@ class AnalysisRetryLedgerTest {
     }
 
     @Test
+    fun aPassLearnsWhenItsWaitingTracksMayBeTriedAgain() {
+        val ledger = AnalysisRetryLedger(null) { now }
+        val other = TrackDescriptor(id = TrackId("b"), audioUri = "file:///b.mp3", durationMs = 100_000)
+        assertEquals(null, ledger.nextReleaseInMs(listOf(track, other)), "nothing waits")
+        ledger.timedOut(track)
+        assertEquals(null, ledger.nextReleaseInMs(listOf(track, other)), "one timeout waits for nothing")
+        ledger.timedOut(track)
+        assertEquals(60 * 60_000L, ledger.nextReleaseInMs(listOf(track, other)))
+        now += 20 * 60_000
+        ledger.timedOut(other)
+        ledger.timedOut(other)
+        // The first to be free decides when the pass is entered again.
+        assertEquals(40 * 60_000L, ledger.nextReleaseInMs(listOf(track, other)))
+        assertEquals(60 * 60_000L, ledger.nextReleaseInMs(listOf(other)))
+        now += 61 * 60_000
+        assertEquals(null, ledger.nextReleaseInMs(listOf(track, other)), "the wait is over: the tracks are in the pass")
+    }
+
+    @Test
     fun theLedgerSurvivesARestartAndAChangedFileStartsAgain() {
         val ledger = AnalysisRetryLedger(null) { now }
         ledger.timedOut(track)

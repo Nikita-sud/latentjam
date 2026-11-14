@@ -739,6 +739,14 @@ object AppGraph {
                 val retries = analysisRetries
                 val retry = pendingRetry.value
                 if (retry != null) engine.retryFailedTracks(if (retry.all) trackIds else retry.ids.toList())
+                // Once, after the update that taught the analysis Apple Lossless (0.9.5): MP4 files it had remembered
+                // as "no decoder" get another try without the listener pressing Retry. Not for an empty library (media
+                // access not granted yet): that would use the one time up for nothing.
+                if (tracks.isNotEmpty() && !settings.analysisRetryDone(RETRY_ONCE_ALAC)) {
+                    val mp4 = tracks.filter { it.fileName?.substringAfterLast('.', "")?.lowercase() in MP4_AUDIO_EXTENSIONS }
+                    if (mp4.isNotEmpty()) engine.retryFailedTracks(mp4.map { it.id })
+                    settings.markAnalysisRetryDone(RETRY_ONCE_ALAC)
+                }
                 ledgerKeeps(trackIds, recoveryRetry = retry?.all == true, librarySnapshotAuthoritative)?.let(retries::prune)
                 retry?.ids?.forEach(retries::forget)
                 // Carried out: what a later Retry added meanwhile stays for the next pass.
@@ -904,6 +912,27 @@ object AppGraph {
                     stopReason = null,
                     failures = failures.toMap(),
                 )
+                // Tracks waiting out their hour after two timeouts were left out of this pass, and a finished pass is
+                // not entered again for the same library: the count stood one short, with no problem listed and no
+                // Retry, until the app was restarted (issue #27). The pass is entered once more when the wait ends.
+                analysisRetries.nextReleaseInMs(tracks)?.let { wait -> retryHeldTracksAfter(key, wait) }
+            }
+        }
+    }
+
+    private var heldRetryJob: Job? = null
+
+    /** Enters the pass for [key] again once [waitMs] has passed, unless the library changed or a pass runs then. */
+    private fun retryHeldTracksAfter(key: AutomaticIndexingRequest, waitMs: Long) {
+        heldRetryJob?.cancel()
+        heldRetryJob = appScope.launch {
+            delay(waitMs + HELD_RETRY_SLACK_MS)
+            // On the main thread, as every caller of ensureAutomaticIndexing.
+            withContext(Dispatchers.Main) {
+                if (automaticIndexingKey != key || automaticIndexingJob?.isActive == true) return@withContext
+                // A finished pass for the same library is not entered again; this one has tracks left to try.
+                mutableAutomaticIndexing.update { if (it.complete) it.copy(complete = false) else it }
+                onAppForeground()
             }
         }
     }
@@ -1405,6 +1434,13 @@ internal const val AUTOMATIC_INDEX_CHUNK_SIZE = 8
 
 /** Launch and library changes settle before SMART's warm-up takes a core for a few seconds. */
 private const val SMART_WARM_DELAY_MS = 5_000L
+
+/** Past the end of a held track's wait before the pass is entered again: the ledger compares whole milliseconds. */
+private const val HELD_RETRY_SLACK_MS = 2_000L
+
+/** The one-time retry of MP4 files remembered as undecodable before the analysis could read Apple Lossless. */
+private const val RETRY_ONCE_ALAC = "alac"
+private val MP4_AUDIO_EXTENSIONS = setOf("m4a", "m4b", "m4r", "mp4")
 internal const val AUTOMATIC_INDEX_CHECKPOINT_TRACKS = 32
 internal const val AUTOMATIC_INDEX_YIELD_MS = 75L
 

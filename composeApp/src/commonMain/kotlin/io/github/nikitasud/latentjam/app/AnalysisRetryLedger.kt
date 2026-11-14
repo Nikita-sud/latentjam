@@ -46,6 +46,17 @@ internal class AnalysisRetryLedger(encoded: String?, private val nowMs: () -> Lo
         return entry.attempts >= 2 && now - entry.lastAtMs < SECOND_RETRY_AFTER_MS
     }
 
+    /**
+     * How long until the first of [tracks] that waits out its backoff may be tried again; null when none waits. A pass
+     * that left such tracks out is finished for now, and has to be entered once more when this has passed.
+     */
+    fun nextReleaseInMs(tracks: Collection<TrackDescriptor>): Long? {
+        val now = nowMs()
+        return tracks.filter(::holding).mapNotNull { track ->
+            entries[track.id]?.let { (SECOND_RETRY_AFTER_MS - (now - it.lastAtMs)).coerceAtLeast(0L) }
+        }.minOrNull()
+    }
+
     /** [track] timed out once more; true when that was the last attempt and the engine should remember it. */
     fun timedOut(track: TrackDescriptor): Boolean {
         val identity = identityOf(track)
