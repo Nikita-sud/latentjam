@@ -264,8 +264,6 @@ public class DefaultPlaylists(
         ensureLoaded()
         if (playlists.none { it.id == playlist.id }) {
             val restored = playlist.normalizedForRestore()
-            // An id is what a stored line is found by; a playlist without one could never be opened again.
-            if (restored.id.isBlank()) return@withLock false
             persist(playlists.toMutableList().apply { add(index.coerceIn(0, size), restored) })
         }
         true

@@ -137,20 +137,46 @@ class RelocatedPlaybackPositionDeviceTest {
             }
             writeSilence(original, seconds = 30)
             await("updated tags") { player!!.currentMediaItem?.mediaMetadata?.title == "Retagged" }
+            var order = emptyList<Int>()
+            var previousSeeks = 0
+            var lowest = Long.MAX_VALUE
+            val watch = object : Player.Listener {
+                override fun onEvents(player: Player, events: Player.Events) { lowest = minOf(lowest, player.currentPosition) }
+            }
             instrumentation.runOnMainSync {
                 assertEquals("The open source must not change by itself", oldDuration, player!!.duration)
                 before = controller!!.currentPosition
-                controller!!.rereadTrackAt(1, originalUri)
+                order = shuffleOrder()
+                previousSeeks = seeks
+                controller!!.addListener(watch)
+                assertTrue(controller!!.readLoadedFilesAgain())
             }
             await("file read again") {
                 player!!.playbackState == Player.STATE_READY && controller!!.playbackState == Player.STATE_READY &&
                     player!!.duration in 29_000L..31_000L
             }
             instrumentation.runOnMainSync {
+                controller!!.removeListener(watch)
                 assertPlayback(before)
-                assertEquals(originalUri, player!!.getMediaItemAt(1).localConfiguration!!.uri.toString())
                 assertEquals("Retagged", player!!.currentMediaItem?.mediaMetadata?.title)
+                // The row stays where it was in the shuffled order, and the playhead never passes through the start:
+                // a position near zero late in a track reads as the track starting over.
+                assertEquals("Shuffle order", order, shuffleOrder())
+                assertEquals("Reading again must not seek", previousSeeks, seeks)
+                assertTrue("Position passed through $lowest", lowest >= before - 100L)
             }
+        }
+
+        /** The rows in the order shuffle plays them. */
+        private fun shuffleOrder(): List<Int> {
+            val timeline = player!!.currentTimeline
+            val order = ArrayList<Int>()
+            var row = timeline.getFirstWindowIndex(true)
+            while (row != androidx.media3.common.C.INDEX_UNSET) {
+                order += row
+                row = timeline.getNextWindowIndex(row, Player.REPEAT_MODE_OFF, true)
+            }
+            return order
         }
 
         fun refreshTags() {

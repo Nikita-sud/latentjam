@@ -150,19 +150,6 @@ internal fun TagSaveResult.coverKeptTracks(
 /** Statuses after which the file holds exactly the save's edits, its pictures verified byte for byte. */
 private val COVER_PINNED = setOf(FileWriteStatus.SAVED, FileWriteStatus.UNCHANGED)
 
-/**
- * The tracks among [saved] whose files this save wrote anew from the first byte: a player that has one open reads on
- * from offsets that are no longer the audio's (`PlaybackController.rereadTracks`).
- */
-internal fun TagSaveResult.rewrittenTracks(
-    saved: List<TrackDescriptor>,
-    keyOf: (TrackDescriptor) -> String?,
-): Set<TrackId> {
-    val rewritten = entries.filter { it.saved && it.rewritten }.mapTo(HashSet()) { it.key }
-    if (rewritten.isEmpty()) return emptySet()
-    return tracksWithKeys(saved, rewritten, keyOf).mapTo(HashSet()) { it.id }
-}
-
 /** Every file a finished save names, whatever became of it. */
 internal fun TagSaveResult.keys(): Set<String> = entries.mapTo(HashSet()) { it.key }
 

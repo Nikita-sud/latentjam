@@ -55,7 +55,14 @@ internal data class FileWriteResult(
     val newLength: Long? = null,
     /** The whole file was written anew (the tag did not fit in place): its audio starts at another byte now. */
     val rewritten: Boolean = false,
-)
+) {
+    /**
+     * Whether a player that has this file open may hold a layout the file no longer has: a save that wrote it
+     * anew, and an interrupted one that was finished or undone, which is such a save taken up again.
+     */
+    val movesAudio: Boolean
+        get() = rewritten || status == FileWriteStatus.RECOVERED || status == FileWriteStatus.RESTORED
+}
 
 /**
  * A finished request: what became of each file, and the request [id] its editor listens on. [cover]

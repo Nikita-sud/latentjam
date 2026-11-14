@@ -718,10 +718,6 @@ private fun AppShell(
             val followUp = TagSaveFollowUp(edits, results, access::keyOf, library.recordsCovers)
             if (!followUp.needed) return null
             return AppGraph.appScope.launch(Dispatchers.Main) {
-                // First, and before the scan that takes a second or more: a file written anew is being read
-                // from the wrong place by a player that has it open.
-                val rewritten = edits.flatMapTo(HashSet()) { (saved, result) -> result.rewrittenTracks(saved, access::keyOf) }
-                if (rewritten.isNotEmpty()) playback.rereadTracks(rewritten)
                 for ((saved, result) in edits) {
                     AppGraph.audioCarryOvers.add(audioCarryOversOf(saved, result, access::keyOf))
                 }
@@ -3052,6 +3048,10 @@ private fun AppShell(
                                                     // the list and the order its page was sorted by.
                                                     val place = playlistsState.playlists.indexOfFirst { it.id == playlist.id }
                                                     val stored = playlistsState.playlists.getOrNull(place) ?: playlist
+                                                    // Its neighbours say where it was once other playlists
+                                                    // have gone or come back meanwhile; a row number does not.
+                                                    val before = playlistsState.playlists.getOrNull(place - 1)?.id
+                                                    val after = playlistsState.playlists.getOrNull(place + 1)?.id
                                                     val order = AppGraph.settings.playlistSortOrders.value.playlists[playlist.id]
                                                     if (!runPlaylistMutation {
                                                             AppGraph.playlists.delete(playlist.id)
@@ -3079,7 +3079,9 @@ private fun AppShell(
                                                         )
                                                         if (result != SnackbarResult.ActionPerformed) return@launch
                                                         restored = runPlaylistMutation {
-                                                            check(AppGraph.playlists.restore(stored, place.coerceAtLeast(0)))
+                                                            val now = AppGraph.playlists.all().map { it.id }
+                                                            val at = restoredPlaylistPlace(now, place, before, after)
+                                                            check(AppGraph.playlists.restore(stored, at))
                                                         }
                                                         if (!restored) return@launch
                                                         enablePlaylistShortcut(playlist.id)

@@ -101,11 +101,6 @@ internal data class TagSaveEntry(
     val refusal: TagRefusal? = null,
     val newLength: Long? = null,
     val problem: TagProblem? = null,
-    /**
-     * The save wrote the whole file anew. Like [TagSaveResult.cover] it is acted on when the save finishes and is
-     * not kept by [TagSaveResult.toSaveable]: what it asks for, the player opening the file again, is done by then.
-     */
-    val rewritten: Boolean = false,
 ) {
     val saved: Boolean get() = problem == null
 }
@@ -147,7 +142,6 @@ internal data class TagSaveResult(
                     refusal = result.refusal,
                     newLength = result.newLength,
                     problem = tagProblemOf(result.status, result.refusal, readOnlyIsMusicLibrary),
-                    rewritten = result.rewritten,
                 )
             },
             cover = report.cover,
