@@ -63,6 +63,29 @@ internal class PersonalModelTest {
     }
 
     @Test
+    fun `a link SMART never placed is not shown as placed by SMART`() {
+        // 0 → 1 in three sessions of the listener's own, but 0 leads to many songs and 1 is reached from many, so the
+        // pair's own lift stays under the filter. SMART placed plenty elsewhere, never this pair.
+        val log = Log(t0)
+        repeat(3) { log.session().play(0, PersonalStart.PICK).play(1, PersonalStart.PICK) }
+        for (other in 2..13) log.session().play(0, PersonalStart.PICK).play(other, PersonalStart.PICK)
+        for (other in 20..28) log.session().play(other, PersonalStart.PICK).play(1, PersonalStart.PICK)
+        for (i in 0 until 170) log.session().play(30 + i % 80, PersonalStart.PICK).play(110 + i % 85, PersonalStart.PICK)
+        repeat(12) { round ->
+            for (i in 0 until 160) log.session().play(30 + i, PersonalStart.PICK).play(30 + (i + 1 + round) % 160, PersonalStart.AUTO, smart = true)
+        }
+        // And one pair SMART did place, session after session.
+        repeat(4) { log.session().play(14, PersonalStart.PICK).play(15, PersonalStart.AUTO, smart = true) }
+        val m = model(log, library(200))
+        assertEquals(3, m.chosenSessions(m.s(0), m.s(1)))
+        assertTrue(m.lift(m.s(0), m.s(1)) < PersonalModel.LIFT_FILTER, "the pair's own evidence does not pass")
+        val shown = m.strongLinks().filter { it.from == m.s(0) && it.to == m.s(1) }
+        assertTrue(shown.none { it.smartPlaced }, "SMART never put 1 after 0")
+        val placed = m.strongLinks().single { it.from == m.s(14) && it.to == m.s(15) }
+        assertTrue(placed.smartPlaced, "a pair SMART did place keeps its mark")
+    }
+
+    @Test
     fun `SMART-sourced positives count at most a quarter of the listener's own`() {
         // Alone they teach nothing (and the link is not even kept).
         assertEquals(0f, twice { play(1, PersonalStart.AUTO, smart = true) }.pos(0, 1))
