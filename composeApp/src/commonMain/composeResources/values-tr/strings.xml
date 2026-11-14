@@ -332,6 +332,8 @@
     <string name="settings_intelligence">SMART motoru</string>
     <string name="settings_smart_engine">SMART motoru</string>
     <string name="settings_smart_engine_subtitle">Cihazdaki modelin kitaplığınız hakkında bildikleri</string>
+    <string name="settings_smart_enabled">SMART’ı kullan</string>
+    <string name="settings_smart_enabled_body">Kapalıyken LatentJam sıradan bir oynatıcıdır: SMART modu yoktur ve müziğiniz analiz edilmez.</string>
     <string name="settings_about_body">LatentJam — cihaz üzerinde çalışan bir öneri motoruna sahip yerel müzik çalar. Ne dinlediğinize dair hiçbir şey bu cihazdan dışarı çıkmaz.</string>
 
     <!-- ========================================================== equalizer -->

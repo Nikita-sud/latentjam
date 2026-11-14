@@ -19,6 +19,21 @@ import org.koin.core.module.Module
  */
 public enum class ShuffleMode { OFF, ON, SMART }
 
+/**
+ * The mode after [this] in the cycle: OFF → ON → SMART → OFF, or OFF → ON → OFF while SMART is switched off in
+ * settings ([smartAvailable] false). One rule for the player's button, the notification, the widgets and both platforms.
+ */
+public fun ShuffleMode.next(smartAvailable: Boolean = true): ShuffleMode = when (this) {
+    ShuffleMode.OFF -> ShuffleMode.ON
+    ShuffleMode.ON -> if (smartAvailable) ShuffleMode.SMART else ShuffleMode.OFF
+    ShuffleMode.SMART -> ShuffleMode.OFF
+}
+
+/** [this], or OFF for SMART while SMART is switched off: a saved or requested SMART mode becomes plain order. */
+public fun ShuffleMode.allowed(smartAvailable: Boolean): ShuffleMode =
+    if (!smartAvailable && this == ShuffleMode.SMART) ShuffleMode.OFF else this
+
+
 /** Repeat positions: no repeat, repeat the queue, repeat one track. */
 public enum class RepeatMode { OFF, ALL, ONE }
 
@@ -314,8 +329,16 @@ public interface PlaybackController {
     /** Jumps to the queue entry at [queueIndex] (no-op when out of range). */
     public suspend fun playAt(queueIndex: Int)
 
-    /** Advances OFF → ON → SMART → OFF and returns the new mode. */
+    /** Advances OFF → ON → SMART → OFF (without the SMART step while SMART is switched off) and returns the new mode. */
     public suspend fun cycleShuffleMode(): ShuffleMode
+
+    /**
+     * Whether SMART exists as a mode at all: false while the user has SMART switched off in settings. Then the cycle has
+     * no SMART step, a request for SMART (a saved session, a widget, a head unit) becomes OFF, and a queue playing in
+     * SMART goes on in plain order with what it already holds. Not suspending, so it can be set before anything is
+     * restored.
+     */
+    public fun setSmartAvailable(available: Boolean) {}
 
     /** Applies [mode] directly — restoring a persisted session, not a user tap on the cycle. */
     public suspend fun setShuffleMode(mode: ShuffleMode)

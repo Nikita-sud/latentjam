@@ -342,6 +342,8 @@
     <string name="settings_intelligence">SMART-Engine</string>
     <string name="settings_smart_engine">SMART-Engine</string>
     <string name="settings_smart_engine_subtitle">Was das Modell auf diesem Gerät über deine Bibliothek weiß</string>
+    <string name="settings_smart_enabled">SMART verwenden</string>
+    <string name="settings_smart_enabled_body">Ausgeschaltet ist LatentJam ein gewöhnlicher Player: kein SMART-Modus, und deine Musik wird nicht analysiert.</string>
     <string name="settings_about_body">LatentJam — ein lokaler Musikplayer mit Empfehlungen direkt auf dem Gerät. Nichts über dein Hörverhalten verlässt dieses Gerät.</string>
 
     <!-- ========================================================== equalizer -->

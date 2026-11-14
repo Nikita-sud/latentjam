@@ -449,7 +449,7 @@ private fun PlaylistRow(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
                 )
-                if (playlist.includeInSmart) {
+                if (playlist.includeInSmart && LocalSmartEnabled.current) {
                     Icon(
                         imageVector = LatentJamMark,
                         contentDescription = stringResource(Res.string.action_smart_keep_together),
@@ -511,7 +511,7 @@ private fun PlaylistRow(
                     icon = Icons.Outlined.IosShare,
                     onClick = { menuOpen = false; onExport() },
                 )
-                AppMenuItem(
+                if (LocalSmartEnabled.current) AppMenuItem(
                     text = stringResource(Res.string.action_smart_keep_together),
                     icon = Icons.AutoMirrored.Outlined.QueueMusic,
                     trailing = if (playlist.includeInSmart) {

@@ -979,7 +979,13 @@ internal class AndroidPlaybackController(
         // Through the registry so the notification's cycle button continues from the restored
         // mode instead of from whatever the registry last saw.
         AndroidShuffleModeRegistry.set(mode)
-        applyShuffleMode(mode)
+        // What the registry kept: SMART is not a mode while it is switched off.
+        applyShuffleMode(AndroidShuffleModeRegistry.mode.value)
+    }
+
+    override fun setSmartAvailable(available: Boolean) {
+        // The registry's flow carries a SMART queue over to plain order (the collector in init applies it).
+        AndroidShuffleModeRegistry.setSmartAvailable(available)
     }
 
     override suspend fun restoreQueue(

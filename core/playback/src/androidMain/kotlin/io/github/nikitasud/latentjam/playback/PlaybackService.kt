@@ -1172,10 +1172,11 @@ public class PlaybackService : MediaLibraryService() {
     // notification, Android Auto/head units and accessibility services all read it aloud or show
     // it, so the labels live in res/values and its translations rather than here.
     private fun shuffleActionName(mode: ShuffleMode): String = getString(
-        when (mode) {
-            ShuffleMode.OFF -> R.string.media_session_shuffle_on
-            ShuffleMode.ON -> R.string.media_session_shuffle_smart_on
-            ShuffleMode.SMART -> R.string.media_session_shuffle_off
+        // Named after what a press leads to, which has no SMART step while SMART is switched off.
+        when (AndroidShuffleModeRegistry.next(mode)) {
+            ShuffleMode.ON -> R.string.media_session_shuffle_on
+            ShuffleMode.SMART -> R.string.media_session_shuffle_smart_on
+            ShuffleMode.OFF -> R.string.media_session_shuffle_off
         },
     )
 

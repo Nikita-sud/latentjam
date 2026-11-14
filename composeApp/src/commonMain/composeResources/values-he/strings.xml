@@ -361,6 +361,8 @@
     <string name="settings_intelligence">מנוע SMART</string>
     <string name="settings_smart_engine">מנוע SMART</string>
     <string name="settings_smart_engine_subtitle">מה המודל שבמכשיר יודע על הספרייה שלך</string>
+    <string name="settings_smart_enabled">שימוש ב-SMART</string>
+    <string name="settings_smart_enabled_body">כשהאפשרות כבויה, LatentJam הוא נגן רגיל: אין מצב SMART, והמוזיקה שלך לא מנותחת.</string>
     <string name="settings_about_body">נגן המוזיקה המקומי LatentJam כולל מנוע המלצות שפועל במכשיר. שום מידע על ההאזנה שלך לא יוצא מהמכשיר הזה.</string>
 
     <!-- ========================================================== equalizer -->

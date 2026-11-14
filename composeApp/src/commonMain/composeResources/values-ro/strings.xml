@@ -345,6 +345,8 @@
     <string name="settings_intelligence">Motorul SMART</string>
     <string name="settings_smart_engine">Motorul SMART</string>
     <string name="settings_smart_engine_subtitle">Ce știe despre biblioteca ta modelul de pe dispozitiv</string>
+    <string name="settings_smart_enabled">Folosește SMART</string>
+    <string name="settings_smart_enabled_body">Dezactivat, LatentJam este un player obișnuit: nu există modul SMART, iar muzica ta nu este analizată.</string>
     <string name="settings_about_body">LatentJam — un player de muzică local, cu recomandări făcute chiar pe dispozitiv. Nimic din ce asculți nu părăsește acest dispozitiv.</string>
 
     <!-- ========================================================== equalizer -->

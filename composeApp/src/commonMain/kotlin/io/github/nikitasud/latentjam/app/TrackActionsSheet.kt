@@ -333,10 +333,12 @@ internal fun TrackActionsSheet(
                     },
                 ) { dismissThen(sleepTimer) }
             }
-            AppDivider(Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
+            // What SMART may recommend is no question while SMART is switched off in settings.
+            val smartEnabled = LocalSmartEnabled.current
+            if (smartEnabled) AppDivider(Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
             // An artist-level exclusion already covers every one of their tracks. Surface its
             // restore action first; a dormant track-specific rule appears after the artist returns.
-            if (!isArtistExcludedFromSmart) {
+            if (smartEnabled && !isArtistExcludedFromSmart) {
                 SheetAction(
                     Icons.Outlined.Block,
                     stringResource(
@@ -348,7 +350,7 @@ internal fun TrackActionsSheet(
                     ),
                 ) { dismissWhile(onToggleTrackSmartExclusion) }
             }
-            onToggleArtistSmartExclusion?.let { toggleArtist ->
+            onToggleArtistSmartExclusion?.takeIf { smartEnabled }?.let { toggleArtist ->
                 SheetAction(
                     Icons.Outlined.PersonOff,
                     stringResource(

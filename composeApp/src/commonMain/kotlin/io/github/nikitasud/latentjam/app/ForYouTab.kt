@@ -505,7 +505,7 @@ internal fun WorldActionsSheet(
             )
             // Seeded from the cover, which is the world's most central track — so the journey
             // starts from the middle of the region rather than from its edge.
-            SheetAction(
+            if (LocalSmartEnabled.current) SheetAction(
                 icon = LatentJamMark,
                 label = stringResource(Res.string.foryou_world_smart),
                 onClick = { dismissWhile(onStartSmart) },

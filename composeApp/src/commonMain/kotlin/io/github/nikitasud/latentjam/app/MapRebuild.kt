@@ -196,6 +196,8 @@ internal object MapRebuild {
 
     private suspend fun rebuild(isActive: () -> Boolean): Outcome {
         if (!MapRefreshFlag.enabled) return Outcome.NOT_NEEDED
+        // SMART switched off: nothing is analysed or laid out. The request stays waiting for the day it is on again.
+        if (!AppGraph.settings.smartEnabled.value) return Outcome.NOT_READY
         if (AppGraph.automaticIndexing.value.running) return Outcome.NOT_READY
         val engine = AppGraph.engine
         engine.initialize().getOrElse { return Outcome.NOT_READY }

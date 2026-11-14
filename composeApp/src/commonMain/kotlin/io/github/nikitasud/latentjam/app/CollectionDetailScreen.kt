@@ -442,7 +442,7 @@ internal fun CollectionDetailScreen(
                                         onClick = { optionsOpen = false; resetCover() },
                                     )
                                 }
-                                onToggleSmart?.let { toggleSmart ->
+                                onToggleSmart?.takeIf { LocalSmartEnabled.current }?.let { toggleSmart ->
                                     AppMenuItem(
                                         text = stringResource(Res.string.action_smart_keep_together),
                                         icon = Icons.AutoMirrored.Outlined.QueueMusic,
@@ -704,7 +704,7 @@ private fun CollectionHero(
                 Icon(Icons.Rounded.PlayArrow, stringResource(Res.string.action_play), modifier = Modifier.size(25.dp))
             }
             val smartPress = rememberPressSource()
-            if (onStartSmart != null) FilledTonalIconButton(
+            if (onStartSmart != null && LocalSmartEnabled.current) FilledTonalIconButton(
                 onClick = onStartSmart,
                 enabled = enabled && selection.tracks.isNotEmpty(),
                 interactionSource = smartPress,

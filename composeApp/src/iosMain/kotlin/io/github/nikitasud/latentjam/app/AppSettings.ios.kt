@@ -62,6 +62,10 @@ internal class IosAppSettings : AppSettings {
         (defaults.objectForKey(KEY_LEARN_FROM_HABITS) as? NSNumber)?.boolValue ?: DEFAULT_LEARN_FROM_HABITS,
     )
     override val learnFromHabits: StateFlow<Boolean> = mutableLearnFromHabits.asStateFlow()
+    private val mutableSmartEnabled = MutableStateFlow(
+        (defaults.objectForKey(KEY_SMART_ENABLED) as? NSNumber)?.boolValue ?: DEFAULT_SMART_ENABLED,
+    )
+    override val smartEnabled: StateFlow<Boolean> = mutableSmartEnabled.asStateFlow()
     private val mutableUseFavourites = MutableStateFlow(
         (defaults.objectForKey(KEY_USE_FAVOURITES) as? NSNumber)?.boolValue ?: DEFAULT_USE_FAVOURITES,
     )
@@ -170,6 +174,11 @@ internal class IosAppSettings : AppSettings {
     override fun setLearnFromHabits(enabled: Boolean) {
         defaults.setBool(enabled, KEY_LEARN_FROM_HABITS)
         mutableLearnFromHabits.value = enabled
+    }
+
+    override fun setSmartEnabled(enabled: Boolean) {
+        defaults.setBool(enabled, KEY_SMART_ENABLED)
+        mutableSmartEnabled.value = enabled
     }
 
     override fun setUseFavourites(enabled: Boolean) {
@@ -417,6 +426,7 @@ internal class IosAppSettings : AppSettings {
         const val KEY_SMART_QUEUE_LENGTH = "smart_queue_length"
         const val KEY_INCLUDE_NOVELTY_MIXES = "include_novelty_mixes"
         const val KEY_LEARN_FROM_HABITS = "learn_from_habits_l1"
+        const val KEY_SMART_ENABLED = "smart_enabled"
         const val KEY_USE_FAVOURITES = "smart_use_favourites"
         const val KEY_SMART_RANKER = "smart_ranker"
         const val KEY_SAVE_HISTORY = "save_listening_history"

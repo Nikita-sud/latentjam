@@ -738,7 +738,7 @@ private fun FolderLevelActions(
             Icon(Icons.Rounded.PlayArrow, stringResource(Res.string.action_play), modifier = Modifier.size(24.dp))
         }
         val smartPress = rememberPressSource()
-        FilledTonalIconButton(
+        if (LocalSmartEnabled.current) FilledTonalIconButton(
             onClick = onStartSmart,
             enabled = enabled,
             interactionSource = smartPress,
@@ -891,7 +891,7 @@ private fun FolderTreeRow(
                     icon = Icons.Rounded.Shuffle,
                     onClick = { dismiss(); onShuffle() },
                 )
-                AppMenuItem(
+                if (LocalSmartEnabled.current) AppMenuItem(
                     text = stringResource(Res.string.map_action_smart_here),
                     icon = LatentJamMark,
                     onClick = { dismiss(); onStartSmart() },

@@ -313,6 +313,9 @@ object AppGraph {
                     },
                 )
             }
+            // The master SMART switch: the play modes know before a saved session is restored, so a session saved in
+            // SMART comes back in plain order while SMART is off.
+            playback.setSmartAvailable(settings.smartEnabled.value)
             // SMART's library-wide work (the hub scores) for the list the planner passes, off the first press: after a
             // library change here, after indexing in the indexing job (new vectors).
             appScope.launch {
@@ -585,6 +588,10 @@ object AppGraph {
             librarySnapshotAuthoritative = librarySnapshotAuthoritative,
         )
         lastAnalysisCall = LastAnalysisCall(key, notificationTitle, notices, notificationText)
+        // SMART switched off (settings): the library is not analysed, whoever asks: a library refresh, the app coming to
+        // the foreground, Continue, Retry, Rebuild. The request is remembered above, so switching SMART on again starts
+        // from it.
+        if (!settings.smartEnabled.value) return
         val control = analysisControl
         val store = analysisStore
         // A Continue tapped while no library was known yet (a cold start from the notification)
@@ -921,6 +928,33 @@ object AppGraph {
     }
 
     /**
+     * The master SMART switch (settings). Off: SMART is no play mode any more, and a running analysis is cancelled the
+     * way a library change cancels one: its last chunk is checkpointed, the service and its notification close, and
+     * what is analysed stays on disk. On: the last request is made again and the pass goes on from there. Called on the
+     * main thread, as every caller of [ensureAutomaticIndexing].
+     */
+    fun setSmartEnabled(enabled: Boolean) {
+        if (settings.smartEnabled.value == enabled) return
+        settings.setSmartEnabled(enabled)
+        playback.setSmartAvailable(enabled)
+        if (!enabled) {
+            automaticIndexingJob?.cancel()
+            // A "paused, Continue" notice would offer an analysis that will not run.
+            indexingNotifier.clearNotice()
+            return
+        }
+        val last = lastAnalysisCall ?: return
+        ensureAutomaticIndexing(
+            tracks = last.key.tracks,
+            librarySnapshotAuthoritative = last.key.librarySnapshotAuthoritative,
+            notificationTitle = last.title,
+            call = AnalysisCall.AUTOMATIC,
+            notices = last.notices,
+            notificationText = last.progressText,
+        )
+    }
+
+    /**
      * The system's 6 h foreground cap ended the service: the pass stops, says where it stopped, and
      * restarts at the next app open.
      */
@@ -1030,7 +1064,8 @@ object AppGraph {
     fun analysisHeldBack(): Boolean {
         val state = automaticIndexing.value
         // The stored flags, so a cold WorkManager process answers too without building the player.
-        return analysisStore.userPaused || analysisStore.stopReason != null || state.phase != null
+        // SMART switched off holds it back as a pause does: the map worker ends instead of retrying on a timer.
+        return !settings.smartEnabled.value || analysisStore.userPaused || analysisStore.stopReason != null || state.phase != null
     }
 
     /** A map rebuild that gave up while analysis was held back is asked for again, once per resume. */

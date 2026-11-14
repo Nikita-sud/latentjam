@@ -9,6 +9,22 @@ import kotlin.test.assertEquals
 
 class BrowsePagesTest {
     @Test
+    fun withSmartSwitchedOffTheMapIsNoPageAndTheSavedLayoutIsUntouched() {
+        val withMap = PageLayout().withPageEnabled(StartPage.MAP, true)
+        assertEquals(true, StartPage.MAP in withMap.visiblePages)
+        assertEquals(withMap.visiblePages, withMap.visiblePages.forSmart(true))
+        assertEquals(withMap.visiblePages - StartPage.MAP, withMap.visiblePages.forSmart(false))
+        // Switched on again, the Map is where it was: the layout itself never changed.
+        assertEquals(true, StartPage.MAP in withMap.visiblePages.forSmart(true))
+        // A listener who kept only the Map still has a page to stand on.
+        val pages = listOf(StartPage.MAP).forSmart(false)
+        assertEquals(1, pages.size)
+        assertEquals(false, StartPage.MAP in pages)
+        // The start page falls back as for any hidden page.
+        assertEquals(pages.first(), resolveActiveBrowsePage(pages, StartPage.MAP.name, StartPage.MAP))
+    }
+
+    @Test
     fun statisticsCanBeTheOnlyPageAndRemainSelectedAfterReordering() {
         val statistics = PageLayout().withPageEnabled(StartPage.STATISTICS, true)
         val reordered = statistics.movePage(StartPage.STATISTICS, Int.MIN_VALUE)

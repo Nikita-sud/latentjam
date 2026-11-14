@@ -312,6 +312,8 @@
     <string name="settings_intelligence">SMART 엔진</string>
     <string name="settings_smart_engine">SMART 엔진</string>
     <string name="settings_smart_engine_subtitle">온디바이스 모델이 내 라이브러리에 대해 알고 있는 것</string>
+    <string name="settings_smart_enabled">SMART 사용</string>
+    <string name="settings_smart_enabled_body">끄면 LatentJam은 일반 플레이어가 됩니다. SMART 모드가 없고 음악도 분석하지 않습니다.</string>
     <string name="settings_about_body">LatentJam은 온디바이스 추천 기능을 갖춘 로컬 음악 플레이어입니다. 청취 기록은 이 기기를 벗어나지 않습니다.</string>
 
     <!-- ========================================================== equalizer -->

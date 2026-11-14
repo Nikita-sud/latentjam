@@ -338,6 +338,8 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_section_li
 import io.github.nikitasud.latentjam.app.generated.resources.settings_section_music
 import io.github.nikitasud.latentjam.app.generated.resources.settings_section_preferences
 import io.github.nikitasud.latentjam.app.generated.resources.settings_section_privacy
+import io.github.nikitasud.latentjam.app.generated.resources.settings_smart_enabled
+import io.github.nikitasud.latentjam.app.generated.resources.settings_smart_enabled_body
 import io.github.nikitasud.latentjam.app.generated.resources.settings_smart_engine
 import io.github.nikitasud.latentjam.app.generated.resources.settings_smart_engine_subtitle
 import io.github.nikitasud.latentjam.app.generated.resources.snack_duplicates_merged
@@ -779,7 +781,10 @@ private fun SettingsRoot(
                 SettingsRow(
                     horizontalPadding = 16.dp,
                     title = stringResource(Res.string.settings_smart_engine),
-                    subtitle = stringResource(Res.string.settings_smart_engine_subtitle),
+                    // Switched off, the row says so: it is where SMART is switched on again.
+                    subtitle = stringResource(
+                        if (LocalSmartEnabled.current) Res.string.settings_smart_engine_subtitle else Res.string.state_off,
+                    ),
                     onClick = { onOpen(SettingsPage.INTELLIGENCE) },
                 )
                 SettingsRow(
@@ -1479,7 +1484,8 @@ private fun LibrarySettings(
                     ),
                     onClick = { onOpen(SettingsPage.HIDDEN_TRACKS) },
                 )
-                SettingsRow(
+                // The finder compares tracks by the sound analysis: without it, it would call every track unique.
+                if (LocalSmartEnabled.current) SettingsRow(
                     title = stringResource(Res.string.settings_duplicates),
                     subtitle = stringResource(Res.string.settings_duplicates_body),
                     onClick = { onOpen(SettingsPage.DUPLICATES) },
@@ -1926,6 +1932,7 @@ private fun IntelligenceSettings(
     val includeNoveltyMixes by settings.includeNoveltyMixes.collectAsState()
     val smartRanker by settings.smartRanker.collectAsState()
     val learnFromHabits by settings.learnFromHabits.collectAsState()
+    val smartEnabled by settings.smartEnabled.collectAsState()
     val useFavourites by settings.useFavourites.collectAsState()
     val smartLogExported = stringResource(Res.string.intelligence_smart_log_exported)
     val smartLogFailed = stringResource(Res.string.intelligence_smart_log_failed)
@@ -1981,7 +1988,20 @@ private fun IntelligenceSettings(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
+        // The master switch. Off, the app is a plain player: SMART is no play mode, nothing starts it, and the library
+        // is not analysed, so nothing below applies and none of it is shown.
         item {
+            SettingsSection(title = null) {
+                SettingsSwitchRow(
+                    title = stringResource(Res.string.settings_smart_enabled),
+                    subtitle = stringResource(Res.string.settings_smart_enabled_body),
+                    checked = smartEnabled,
+                    enabled = true,
+                    onCheckedChange = AppGraph::setSmartEnabled,
+                )
+            }
+        }
+        if (smartEnabled) item {
             SettingsSection(stringResource(Res.string.intelligence_section_status)) {
                 StatRow(
                     stringResource(Res.string.intelligence_engine),
@@ -2119,7 +2139,7 @@ private fun IntelligenceSettings(
                 }
             }
         }
-        item {
+        if (smartEnabled) item {
             SettingsSection(stringResource(Res.string.intelligence_section_recommendations)) {
                 SettingsLabel(stringResource(Res.string.intelligence_queue_length))
                 ChoiceChips(
@@ -2212,7 +2232,7 @@ private fun IntelligenceSettings(
                 )
             }
         }
-        item {
+        if (smartEnabled) item {
             SettingsSection(title = null) {
                 SettingsRow(
                     title = stringResource(Res.string.intelligence_problems),
@@ -2246,7 +2266,7 @@ private fun IntelligenceSettings(
                 )
             }
         }
-        item {
+        if (smartEnabled) item {
             SettingsSection(stringResource(Res.string.intelligence_how_title)) {
                 SettingsBody(stringResource(Res.string.intelligence_how_it_works))
             }

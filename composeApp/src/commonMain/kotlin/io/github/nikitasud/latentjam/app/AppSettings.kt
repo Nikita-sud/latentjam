@@ -423,6 +423,10 @@ private val DEFAULT_APPEARANCE: StateFlow<Appearance> = kotlinx.coroutines.flow.
  * stays. The preference moved to a new key so a value stored by earlier test builds does not carry over.
  */
 internal const val DEFAULT_LEARN_FROM_HABITS = true
+
+/** SMART exists unless the listener switched it off: see [AppSettings.smartEnabled]. */
+internal const val DEFAULT_SMART_ENABLED = true
+private val SMART_ENABLED_DEFAULT_FLOW: StateFlow<Boolean> = MutableStateFlow(DEFAULT_SMART_ENABLED)
 private val LEARN_FROM_HABITS_DEFAULT_FLOW: StateFlow<Boolean> = MutableStateFlow(DEFAULT_LEARN_FROM_HABITS)
 
 /** "Use favourites" (under "Learn from my habits") is on until the listener turns it off. */
@@ -473,6 +477,15 @@ interface AppSettings {
      */
     val learnFromHabits: StateFlow<Boolean> get() = LEARN_FROM_HABITS_DEFAULT_FLOW
     fun setLearnFromHabits(enabled: Boolean) {}
+
+    /**
+     * The master switch: off makes the app a plain player. SMART is then no play mode (the cycle has no SMART step, no
+     * queue is built or continued by similarity), no control starts it, and the library is not analysed; what was
+     * analysed before stays on disk, so switching it on again resumes rather than starts over. On by default
+     * ([DEFAULT_SMART_ENABLED]); implementations without the preference keep that default.
+     */
+    val smartEnabled: StateFlow<Boolean> get() = SMART_ENABLED_DEFAULT_FLOW
+    fun setSmartEnabled(enabled: Boolean) {}
 
     /**
      * "Use favourites", nested under [learnFromHabits]: whether the FULL ranker sees the listener's hearts

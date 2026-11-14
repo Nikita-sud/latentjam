@@ -41,7 +41,9 @@ internal suspend fun playFromForYou(
     queueLength: Int,
     companionGroups: List<Set<TrackId>>,
     isCurrent: () -> Boolean = { true },
-) = playFromForYou(playback, tracks, startIndex, library, isCurrent) { seed ->
+    /** False while SMART is switched off in settings: the rows play as themselves, nothing is planned behind them. */
+    continuation: Boolean = true,
+) = playFromForYou(playback, tracks, startIndex, library, isCurrent, continuation) { seed ->
     engine.smartQueue(seed, library, queueLength, smartHistoryFor(history, seed), companionGroups)
 }
 
@@ -55,6 +57,7 @@ internal suspend fun playFromForYou(
     startIndex: Int,
     library: List<TrackDescriptor>,
     isCurrent: () -> Boolean = { true },
+    continuation: Boolean = true,
     plan: suspend (seed: TrackDescriptor) -> List<TrackId>,
 ) {
     if (tracks.isEmpty()) return
@@ -68,6 +71,7 @@ internal suspend fun playFromForYou(
     // something the listener picked elsewhere in the meantime.
     PersonalSignals.pick(PickSurface.FOR_YOU)
     playback.play(tracks, index)
+    if (!continuation) return
     val seed = tracks.last()
     val planned = runCatching { plan(seed) }.getOrElse { failure ->
         // A continuation is a courtesy: if SMART cannot plan, the row still plays as itself.

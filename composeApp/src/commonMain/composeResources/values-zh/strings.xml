@@ -318,6 +318,8 @@
     <string name="settings_intelligence">SMART 引擎</string>
     <string name="settings_smart_engine">SMART 引擎</string>
     <string name="settings_smart_engine_subtitle">设备端模型对你音乐库的了解</string>
+    <string name="settings_smart_enabled">使用 SMART</string>
+    <string name="settings_smart_enabled_body">关闭后，LatentJam 就是一个普通播放器：没有 SMART 模式，也不会分析你的音乐。</string>
     <string name="settings_about_body">LatentJam 是一款内置设备端推荐引擎的本地音乐播放器。你的收听记录不会离开这台设备。</string>
 
     <!-- ========================================================== equalizer -->

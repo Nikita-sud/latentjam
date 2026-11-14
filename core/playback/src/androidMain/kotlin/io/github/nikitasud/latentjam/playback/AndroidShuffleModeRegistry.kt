@@ -15,21 +15,31 @@ import kotlinx.coroutines.flow.asStateFlow
  *
  * ExoPlayer only knows binary random shuffle; SMART is a LatentJam queue-planning mode. Keeping the
  * three-state value here lets the notification and player UI cycle the same OFF -> ON -> SMART
- * contract without persisting music data or involving another process.
+ * contract (OFF -> ON while SMART is switched off) without persisting music data or involving another process.
  */
 internal object AndroidShuffleModeRegistry {
     private val mutableMode = MutableStateFlow(ShuffleMode.OFF)
     val mode: StateFlow<ShuffleMode> = mutableMode.asStateFlow()
 
+    /** False while SMART is switched off in settings: SMART is then never the mode, whoever asks for it. */
+    @Volatile
+    var smartAvailable: Boolean = true
+        private set
+
     fun set(value: ShuffleMode) {
-        mutableMode.value = value
+        mutableMode.value = value.allowed(smartAvailable)
     }
 
-    fun cycle(): ShuffleMode = when (mutableMode.value) {
-        ShuffleMode.OFF -> ShuffleMode.ON
-        ShuffleMode.ON -> ShuffleMode.SMART
-        ShuffleMode.SMART -> ShuffleMode.OFF
-    }.also(::set)
+    fun setSmartAvailable(available: Boolean) {
+        smartAvailable = available
+        // A queue in SMART goes on in plain order: the controller follows this flow.
+        if (!available) mutableMode.value = mutableMode.value.allowed(false)
+    }
+
+    /** The mode a press of the cycle button leads to from [from]. */
+    fun next(from: ShuffleMode = mutableMode.value): ShuffleMode = from.next(smartAvailable)
+
+    fun cycle(): ShuffleMode = next().also(::set)
 }
 
 /** Custom Media3 command because SMART has no equivalent ExoPlayer player command. */

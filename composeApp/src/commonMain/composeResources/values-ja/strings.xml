@@ -312,6 +312,8 @@
     <string name="settings_intelligence">SMARTエンジン</string>
     <string name="settings_smart_engine">SMARTエンジン</string>
     <string name="settings_smart_engine_subtitle">オンデバイスモデルがライブラリについて把握している内容</string>
+    <string name="settings_smart_enabled">SMARTを使用</string>
+    <string name="settings_smart_enabled_body">オフにすると、LatentJamは通常のプレーヤーになります。SMARTモードはなく、音楽の解析も行われません。</string>
     <string name="settings_about_body">LatentJamは、オンデバイスのレコメンド機能を備えたローカル音楽プレーヤーです。再生履歴に関する情報がこのデバイスの外に出ることはありません。</string>
 
     <!-- ========================================================== equalizer -->
