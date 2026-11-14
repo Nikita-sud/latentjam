@@ -169,6 +169,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artis
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_genre
 import io.github.nikitasud.latentjam.history.localTimePoint
 import io.github.nikitasud.latentjam.history.epochMillis
+import io.github.nikitasud.latentjam.history.recentListens
 import io.github.nikitasud.latentjam.history.SmartExclusionState
 import io.github.nikitasud.latentjam.history.matcher
 import io.github.nikitasud.latentjam.library.AlbumSort
@@ -1119,7 +1120,7 @@ private fun AppShell(
             val historySnapshot = try {
                 Triple(
                     AppGraph.history.stats(),
-                    AppGraph.history.recentEvents(RECENT_EVENTS_FOR_YOU),
+                    AppGraph.history.recentListens(RECENT_EVENTS_FOR_YOU),
                     AppGraph.history.firstListenAtMs(),
                 )
             } catch (cancelled: CancellationException) {

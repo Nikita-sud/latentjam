@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.history.epochMillis
+import io.github.nikitasud.latentjam.history.recentListens
 import io.github.nikitasud.latentjam.playback.NextTrackChooser
 import io.github.nikitasud.latentjam.playback.SmartChoice
 import io.github.nikitasud.latentjam.history.SmartPresses
@@ -370,7 +371,7 @@ internal suspend fun smartHistoryFor(
     // This can project up to 10k persisted events. Queue top-up is launched by the playback
     // controller's main-thread scope, so doing the copy/map before the engine's own dispatcher is
     // entered made a track transition capable of consuming a UI frame on a large history log.
-    val observed = history.recentEvents(SMART_HISTORY_LIMIT).asReversed().map { event ->
+    val observed = history.recentListens(SMART_HISTORY_LIMIT).asReversed().map { event ->
         val fraction = event.trackDurationMs
             ?.takeIf { it > 0 }
             ?.let { (event.playedMs.toDouble() / it).toFloat().coerceIn(0f, 1f) }

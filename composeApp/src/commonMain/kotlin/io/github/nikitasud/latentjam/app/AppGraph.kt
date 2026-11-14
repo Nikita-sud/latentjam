@@ -14,6 +14,7 @@ import io.github.nikitasud.latentjam.history.SmartExclusions
 import io.github.nikitasud.latentjam.history.SmartImpressionLog
 import io.github.nikitasud.latentjam.history.SmartPresses
 import io.github.nikitasud.latentjam.history.listeningHistoryModule
+import io.github.nikitasud.latentjam.history.recentListens
 import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.library.Playlists
 import io.github.nikitasud.latentjam.library.musicLibraryModule
@@ -506,7 +507,7 @@ object AppGraph {
             log = log,
             ranker = ranker,
             library = smartLibraryTracks.value,
-            events = history.recentEvents(10_000),
+            events = history.recentListens(10_000),
             favourites = hearts.associateWith { times[it] },
             useFavourites = settings.useFavourites.value,
             fullModelName = ranker.fullModelName,

@@ -109,6 +109,14 @@ public interface ListeningHistory {
 }
 
 /**
+ * The most recent [limit] log lines as listens, newest first: [ListeningHistory.recentEvents] with a
+ * playback that was paused and resumed across a trip to the background read as the one listen it was
+ * ([ListeningNormalization.joinResumed]). What SMART and For You read; a backup takes the lines as written.
+ */
+public suspend fun ListeningHistory.recentListens(limit: Int): List<ListenEvent> =
+    ListeningNormalization.joinResumed(recentEvents(limit).asReversed()).asReversed()
+
+/**
  * Append-only line store behind [ListeningHistory] — file-backed on Android,
  * private persistent storage on iOS. Called only under the history's own mutex.
  */
@@ -145,7 +153,7 @@ public class DefaultListeningHistory(
      * replay the complete append-only log on their caller's dispatcher. A returned [stats] map is
      * still copied, so callers never observe later records mutating an older snapshot.
      */
-    private var aggregates = mutableMapOf<TrackId, TrackStats>()
+    private var aggregates = ListenCounts()
 
     override suspend fun record(event: ListenEvent): Unit = mutex.withLock {
         ensureLoaded()
@@ -153,12 +161,12 @@ public class DefaultListeningHistory(
         // session that silently disappears at the next launch.
         store.append(event.serialize())
         events += event
-        aggregate(event)
+        aggregates.add(event)
     }
 
     override suspend fun stats(): Map<TrackId, TrackStats> = mutex.withLock {
         ensureLoaded()
-        aggregates.toMap()
+        aggregates.stats.toMap()
     }
 
     override suspend fun recentEvents(limit: Int): List<ListenEvent> = mutex.withLock {
@@ -222,7 +230,7 @@ public class DefaultListeningHistory(
         ensureLoaded()
         store.clear()
         events.clear()
-        aggregates.clear()
+        aggregates = ListenCounts()
     }
 
     /**
@@ -235,8 +243,8 @@ public class DefaultListeningHistory(
         // the store holds the replacement, an allocation failing half-way must not leave this
         // process serving an empty log beside a merged file (the next merge would fold from it).
         val nextEvents = ArrayList(replacement)
-        val nextAggregates = mutableMapOf<TrackId, TrackStats>()
-        nextEvents.forEach { nextAggregates.aggregate(it) }
+        val nextAggregates = ListenCounts()
+        nextEvents.forEach(nextAggregates::add)
         // Lines are serialized as the store asks for them. An imported log runs to hundreds of
         // thousands of events, and a list of every line beside the events was the largest
         // allocation of the write on small heaps.
@@ -255,14 +263,14 @@ public class DefaultListeningHistory(
         // heap at the next launch.
         val restored = withContext(Dispatchers.Default) {
             val parsed = ArrayList<ListenEvent>()
-            val folded = mutableMapOf<TrackId, TrackStats>()
+            val folded = ListenCounts()
             val ids = HashMap<String, TrackId>()
             store.readEach { line ->
                 val event = ListenEvent.parse(line) ?: return@readEach
                 val shared = ids.getOrPut(event.trackId.value) { event.trackId }
                 val kept = if (shared.value === event.trackId.value) event else event.copy(trackId = shared)
                 parsed += kept
-                folded.aggregate(kept)
+                folded.add(kept)
             }
             RestoredHistory(parsed, folded)
         }
@@ -273,14 +281,54 @@ public class DefaultListeningHistory(
         loaded = true
     }
 
-    private fun aggregate(event: ListenEvent) {
-        aggregates.aggregate(event)
-    }
-
     private class RestoredHistory(
         val events: ArrayList<ListenEvent>,
-        val aggregates: MutableMap<TrackId, TrackStats>,
+        val aggregates: ListenCounts,
     )
+}
+
+/**
+ * Per-track counters over the log, fed one line at a time in log order.
+ *
+ * A playback paused while the app went to the background is two lines (see
+ * [ListeningNormalization.joinResumed]). Counted line by line it was two plays, and a skip besides
+ * when the pause came within 30 seconds, so the resumed line is folded into the listen it continues:
+ * it adds its listening time, and the listen is a skip or a completion as the two halves together are.
+ * The log itself keeps both lines.
+ */
+private class ListenCounts {
+    val stats = mutableMapOf<TrackId, TrackStats>()
+
+    /** The listen the last line belongs to (both halves joined), and where it ended. */
+    private var last: ListenEvent? = null
+    private var lastEnd = Long.MIN_VALUE
+
+    fun add(event: ListenEvent) {
+        val previous = last
+        val counted = previous?.let { stats[it.trackId] }
+        if (previous != null && counted != null && ListeningNormalization.resumes(previous, lastEnd, event)) {
+            val whole = ListeningNormalization.join(previous, event)
+            // A skip can only stop being one: the halves together heard more, and may have reached the end.
+            val noLongerSkipped = previous.skipped && !whole.skipped
+            stats[previous.trackId] = counted.copy(
+                completions = counted.completions + if (whole.completed && !previous.completed) 1 else 0,
+                skips = counted.skips - if (noLongerSkipped) 1 else 0,
+                totalPlayedMs = saturatingDurationAdd(counted.totalPlayedMs, (event.listenedMs ?: 0).coerceAtLeast(0)),
+                listens = counted.listens + if (noLongerSkipped) 1 else 0,
+                lastListenedAtMs = if (whole.skipped) {
+                    counted.lastListenedAtMs
+                } else {
+                    maxOf(counted.lastListenedAtMs, whole.startedAtMs)
+                },
+            )
+            last = whole
+            lastEnd = ListeningNormalization.resumedEnd(event)
+            return
+        }
+        stats.aggregate(event)
+        last = event
+        lastEnd = ListeningNormalization.listenEnd(event)
+    }
 }
 
 /** The store lines of [events], serialized on access rather than all at once. */
