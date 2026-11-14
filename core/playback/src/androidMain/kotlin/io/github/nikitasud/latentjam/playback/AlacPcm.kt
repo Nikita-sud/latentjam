@@ -114,6 +114,13 @@ internal class AlacPcmTrackOutput(private val inner: TrackOutput) : TrackOutput 
             inner.format(format)
             return
         }
+        if (opened.channels > 2) {
+            // Apple orders surround as C L R Ls Rs LFE, Android as FL FR FC LFE BL BR: decoded here every channel
+            // would play on the wrong speaker. Left to the platform's decoder, where the device has one.
+            opened.close()
+            inner.format(format)
+            return
+        }
         decoder = opened
         inner.format(
             format.buildUpon()
@@ -176,8 +183,17 @@ internal class AlacPcmTrackOutput(private val inner: TrackOutput) : TrackOutput 
     }
 
     private fun ensureRoom(extra: Int) {
-        val needed = pendingLength + extra
-        if (needed > pending.size) pending = pending.copyOf(maxOf(needed, pending.size * 2, 8192))
+        val needed = pendingLength + extra.toLong()
+        // The sample size is the file's claim. No packet is longer than its frame stored uncompressed plus a header,
+        // and at most one more is ever waiting behind it: a larger claim is refused before it is allocated.
+        val limit = decoder?.let { 2L * (it.maxOutputBytes + PACKET_HEADROOM) } ?: Long.MAX_VALUE
+        if (extra < 0 || needed > limit) throw ParserException.createForMalformedContainer("ALAC packet larger than its frame", null)
+        if (needed > pending.size) pending = pending.copyOf(maxOf(needed.toInt(), pending.size * 2, 8192))
+    }
+
+    private companion object {
+        /** Bytes an ALAC packet may take beyond its frame stored uncompressed: the element header and the end tag. */
+        const val PACKET_HEADROOM = 1024
     }
 }
 

@@ -79,6 +79,43 @@ class AlacPcmTest {
         assertNull(AlacPacketDecoder.open(badDepth))
     }
 
+    @Test
+    fun aFrameLengthShorterThanThePredictorsWarmUpOpensNoDecoder() {
+        // The decoder's predictor writes its warm-up samples (up to 31 of them, a count the packet gives) whatever the
+        // frame length, into buffers of one frame: a shorter frame is a write past them.
+        val real = extract("alac16.m4a").cookie
+        fun withFrameLength(frames: Int) = real.copyOf().also { it[0] = 0; it[1] = 0; it[2] = 0; it[3] = frames.toByte() }
+        for (frames in listOf(1, 4, 31)) assertNull(AlacPacketDecoder.open(withFrameLength(frames)), "frame length $frames")
+        assertNotNull(AlacPacketDecoder.open(withFrameLength(32))).close()
+    }
+
+    @Test
+    fun surroundAlacIsLeftToThePlatform() {
+        // Apple orders 5.1 as C L R Ls Rs LFE, Android as FL FR FC LFE BL BR: decoded here it would play on the wrong
+        // speakers, so more than two channels pass through untouched.
+        val result = extract("alac16.m4a")
+        val surround = result.cookie.copyOf().also { it[9] = 6 }
+        val alac = Format.Builder().setSampleMimeType(MimeTypes.AUDIO_ALAC).setChannelCount(6).setSampleRate(44100)
+            .setInitializationData(listOf(surround)).build()
+        val inner = Track()
+        AlacPcmTrackOutput(inner).format(alac)
+        assertEquals(MimeTypes.AUDIO_ALAC, inner.format?.sampleMimeType)
+        val stereo = Track()
+        AlacPcmTrackOutput(stereo).format(alac.buildUpon().setChannelCount(2).setInitializationData(listOf(result.cookie)).build())
+        assertEquals(MimeTypes.AUDIO_RAW, stereo.format?.sampleMimeType)
+    }
+
+    @Test
+    fun aSampleSizeNoAlacFrameCanHaveIsRefusedBeforeItIsAllocated() {
+        val result = extract("alac16.m4a")
+        val output = AlacPcmTrackOutput(Track())
+        output.format(Format.Builder().setSampleMimeType(MimeTypes.AUDIO_ALAC).setChannelCount(2).setSampleRate(44100)
+            .setInitializationData(listOf(result.cookie)).build())
+        val claimed = 512 * 1024 * 1024
+        val failure = runCatching { output.sampleData(ParsableByteArray(ByteArray(16)), claimed, TrackOutput.SAMPLE_DATA_PART_MAIN) }
+        assertTrue(failure.exceptionOrNull() is androidx.media3.common.ParserException, "${failure.exceptionOrNull()}")
+    }
+
     private class Extracted(
         val audioFormat: Format,
         val pcm: ByteArray,
