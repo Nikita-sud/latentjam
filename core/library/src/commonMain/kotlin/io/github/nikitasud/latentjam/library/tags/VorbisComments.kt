@@ -178,7 +178,7 @@ internal object VorbisFields {
         }
         out = set(out, ALBUM, edits.album)
         out = set(out, ALBUM_ARTIST, edits.albumArtist)
-        out = setJoined(out, GENRE, edits.genre)
+        out = setJoined(out, GENRE, edits.genre, separate = true)
         val oldYear = read(entries).year
         out = set(out, DATE, edits.year)
         if (edits.originalFollowsYear) {
@@ -194,14 +194,21 @@ internal object VorbisFields {
     }
 
     /**
-     * [set] for a field read as its values joined with "; ": restating that joined text keeps every entry,
-     * and a field that holds several entries keeps one entry per value when its text is changed
-     * ([JoinedValues]). A field with a single entry is written as typed.
+     * [set] for a field read as its values joined with "; ": restating that joined text keeps every entry.
+     * With [separate], a field that holds several entries keeps one entry per value when its text is changed
+     * ([JoinedValues]); a field with a single entry is written as typed. The genre is written so, the artist is
+     * not: Android's own library shows one of several `ARTIST` entries and drops the rest, so an edited credit
+     * goes back as the one text it was typed as.
      */
-    private fun setJoined(entries: List<VorbisEntry>, key: String, value: String?): List<VorbisEntry> {
+    private fun setJoined(
+        entries: List<VorbisEntry>,
+        key: String,
+        value: String?,
+        separate: Boolean = false,
+    ): List<VorbisEntry> {
         val stored = entries.filter { it.key == key }.map { it.value }.filter { it.isNotEmpty() }
         if (!value.isNullOrEmpty() && stored.joinToString("; ") == value) return entries
-        val values = value?.takeIf { stored.size > 1 }?.let(JoinedValues::of) ?: return set(entries, key, value)
+        val values = value?.takeIf { separate && stored.size > 1 }?.let(JoinedValues::of) ?: return set(entries, key, value)
         return setMany(entries, key, values)
     }
 

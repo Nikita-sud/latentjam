@@ -474,7 +474,7 @@ internal class Id3TagsTest {
     }
 
     @Test
-    fun aV24FrameWithSeveralValuesKeepsThemSeparateWhenEdited() {
+    fun aV24GenreWithSeveralValuesKeepsThemSeparateWhenEdited() {
         val file = Id3TestTags.build(
             major = 4,
             frames = listOf(
@@ -488,9 +488,9 @@ internal class Id3TagsTest {
         val tag = assertNotNull(Id3Tags.read(edited))
         assertEquals("Rock; Pop; Indie", tag.genre)
         assertEquals("A; Имя", tag.artist)
-        // Three values with a NUL between them, not one text with semicolons.
+        // Three genres with a NUL between them, not one text with semicolons; the artist is one text.
         assertTrue(edited.containsRun("Rock\u0000Pop\u0000Indie".encodeToByteArray()))
-        assertTrue(edited.containsRun("A\u0000Имя".encodeToByteArray()))
+        assertTrue(edited.containsRun("A; Имя".encodeToByteArray()))
         // Typed any other way it is one text, as before, and so is a single name.
         val typed = assertNotNull(updateId3Tag(file, TagEdits(genre = "Rock;Pop", artist = "Solo")))
         assertEquals("Rock;Pop", assertNotNull(Id3Tags.read(typed)).genre)

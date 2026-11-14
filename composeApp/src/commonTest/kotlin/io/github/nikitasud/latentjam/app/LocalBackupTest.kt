@@ -820,11 +820,16 @@ internal class LocalBackupTest {
         source.playlists.addTracks(playlist.id, listOf(kept.id, before.id))
         val encoded = source.service.exportEncoded()
 
-        // Same id, another length: not the song the backup described.
+        // Same id, another length: not the song the backup described. The device's own lists hold that id,
+        // as the lists being replaced always do, and that is no reason to take the other song for it.
         val other = track("b", "Unrelated", "Someone", "Other", 100_000)
         val sameDevice = fixture(listOf(kept, other))
+        sameDevice.history.record(event(TrackId("b"), 50))
+        val own = sameDevice.playlists.create("Own")
+        sameDevice.playlists.addTracks(own.id, listOf(TrackId("b")))
         sameDevice.service.importEncoded(encoded = encoded, mode = LocalBackupRestoreMode.REPLACE)
         assertContentEquals(listOf("a"), sameDevice.playlists.all().single().trackIds)
+        assertEquals(emptyList(), sameDevice.history.recentEvents(Int.MAX_VALUE))
 
         // Another device: both ids exist by chance, one even with the right length, and neither song fits.
         val foreign = fixture(

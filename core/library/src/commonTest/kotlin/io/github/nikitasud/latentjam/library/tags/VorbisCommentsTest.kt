@@ -83,14 +83,15 @@ internal class VorbisCommentsTest {
     }
 
     @Test
-    fun aFieldWithSeveralEntriesKeepsOneEntryPerValueWhenEdited() {
+    fun aGenreWithSeveralEntriesKeepsOneEntryPerValueWhenEdited() {
         val before = entries("ARTIST" to "A", "ARTIST" to "B", "GENRE" to "Rock", "GENRE" to "Pop", "TITLE" to "t")
         val after = VorbisFields.apply(before, TagEdits(artist = "A; C", genre = "Rock; Pop; Indie"))
-        assertEquals(listOf("ARTIST=A", "ARTIST=C", "GENRE=Rock", "GENRE=Pop", "GENRE=Indie", "TITLE=t"), keys(after))
+        // The artist is one text again: Android's library would show only one of several entries.
+        assertEquals(listOf("ARTIST=A; C", "GENRE=Rock", "GENRE=Pop", "GENRE=Indie", "TITLE=t"), keys(after))
         assertEquals("A; C", VorbisFields.read(after).artist)
         assertEquals("Rock; Pop; Indie", VorbisFields.read(after).genre)
-        // One name replaces them all, and a field that held one entry is written as typed.
-        assertEquals(listOf("ARTIST=Solo", "GENRE=Rock", "GENRE=Pop", "TITLE=t"), keys(VorbisFields.apply(before, TagEdits(artist = "Solo"))))
+        // One genre replaces them all, and a genre that held one entry is written as typed.
+        assertEquals(listOf("ARTIST=A", "ARTIST=B", "GENRE=Jazz", "TITLE=t"), keys(VorbisFields.apply(before, TagEdits(genre = "Jazz"))))
         val single = VorbisFields.apply(entries("GENRE" to "Rock"), TagEdits(genre = "Rock; Pop"))
         assertEquals(listOf("GENRE=Rock; Pop"), keys(single))
     }

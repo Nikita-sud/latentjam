@@ -70,9 +70,9 @@ internal fun parseYear(raw: String): Int? {
 
 /**
  * A field that holds several values (two `GENRE` comments, the NUL-separated values of one ID3v2.4
- * frame) reads as those values joined with "; ". An edit of such a field goes back as separate
+ * frame) reads as those values joined with "; ". An edit of such a genre goes back as separate
  * values: written as one text, every other player would read "Rock; Pop; Indie" as a single genre
- * of that name.
+ * of that name. The app reads a file's genres itself, so it shows them all either way.
  */
 internal object JoinedValues {
     /**

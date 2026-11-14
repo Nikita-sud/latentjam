@@ -79,7 +79,7 @@ internal class ListeningHistoryTest {
 
         val expected = TrackStats(
             plays = 1, completions = 1, skips = 0, totalPlayedMs = 200_000,
-            lastPlayedAtMs = 1_000_000, listens = 1, lastListenedAtMs = 1_000_000,
+            lastPlayedAtMs = 1_600_000, listens = 1, lastListenedAtMs = 1_600_000,
         )
         assertEquals(expected, history.stats().getValue(TrackId("a")))
         // The log keeps both lines, and a later launch counts them the same way.
@@ -92,6 +92,9 @@ internal class ListeningHistoryTest {
         assertTrue(listen.completed)
         assertFalse(listen.skipped)
         assertEquals(ListenStart.USER_PICK, listen.origin?.start)
+        // It ends where the resumed half ended (1,600,000 + 190,000), so the track after it still follows it.
+        assertEquals(1_590_000L, listen.startedAtMs)
+        assertEquals(1_790_000L, listen.startedAtMs + listen.listenedMs!!)
     }
 
     @Test

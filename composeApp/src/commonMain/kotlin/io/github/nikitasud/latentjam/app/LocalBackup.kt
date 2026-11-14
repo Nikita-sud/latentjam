@@ -1174,7 +1174,9 @@ internal class LocalBackupService(
         // A replace writes each list as the backup has it, so a reference the library cannot confirm
         // right now would leave that list for good. MERGE keeps what the lists hold already.
         val resolved = if (mode == LocalBackupRestoreMode.REPLACE && replacesTrackReferences && resolver.idsTrusted) {
-            confirmed + heldOnThisDevice(confirmed.filterValues { it == null }.keys)
+            // Only an id the library holds no track under: one that names a track now was just judged, and refused.
+            val shown = currentTracks.mapTo(HashSet(currentTracks.size * 2)) { it.id.value }
+            confirmed + heldOnThisDevice(confirmed.filterTo(HashMap()) { (id, track) -> track == null && id !in shown }.keys)
         } else {
             confirmed
         }
@@ -1436,7 +1438,8 @@ internal class LocalBackupService(
                 if (!reference.hasIdentity) return@forEach
                 val candidate = exactById[id] ?: return@forEach
                 held++
-                if (reference.isCompatibleWith(candidate)) fitting++
+                // A reference that gives a length alone fits any track of that length: no evidence for the ids.
+                if (reference.title != null && reference.isCompatibleWith(candidate)) fitting++
             }
             fitting > 0 && fitting * 2 >= held
         }
@@ -1479,9 +1482,10 @@ internal class LocalBackupService(
                     ?.uniqueNear(normalized.durationMs)
                     ?.let { return it }
             }
-            // The id still names a track of the same length, and no other track answers to the old
-            // description: the tags were edited after the backup. Without this every retagged song
-            // left its playlists and its history in a restore. Only on the device that made the backup.
+            // The id still names a track of the same length, and the old description singles out no
+            // other track: the tags were edited after the backup. Without this every retagged song
+            // left its playlists and its history in a replace, and was not added by a merge. Only on
+            // the device that made the backup.
             val exact = exactById[reference.originalId] ?: return null
             val saved = normalized.durationMs ?: return null
             val current = exact.track.durationMs ?: return null

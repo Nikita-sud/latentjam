@@ -161,6 +161,7 @@ public object ListeningNormalization {
      * does for the statistics page; [events] itself when there is none. For readers that take each line
      * as one listen (SMART's history, For You): a playback paused while the app went to the background
      * is otherwise two listens there, and the first of them a skip when the pause came within 30 seconds.
+     * A joined listen starts as late as its time heard allows, so that it ends where the resumed half ended.
      */
     public fun joinResumed(events: List<ListenEvent>): List<ListenEvent> {
         var joined: ArrayList<ListenEvent>? = null
@@ -176,7 +177,13 @@ public object ListeningNormalization {
                     out.addAll(events.subList(0, position))
                     joined = out
                 }
-                val whole = join(last, event)
+                // Timed as one unbroken listen that ended when the resumed half did. These readers have no
+                // other record of its end: they take start plus time heard, and with the first half's start
+                // a listen resumed after a long pause would end long before the track that followed it began.
+                val heardBefore = last.listenedMs ?: 0
+                val whole = join(last, event).copy(
+                    startedAtMs = (event.startedAtMs - heardBefore).coerceAtLeast(last.startedAtMs),
+                )
                 out[out.lastIndex] = whole
                 previous = whole
                 previousEnd = resumedEnd(event)

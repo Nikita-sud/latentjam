@@ -155,6 +155,10 @@ object AppGraph {
      */
     suspend fun supplySmartLibraryWithoutScreens() {
         if (smartLibraryFromScreens || !settings.smartEnabled.value) return
+        // The index the screens load as they start: without it SMART has every track to choose from and
+        // nothing to choose by, and fills the queue with its stand-in rows. Loading reads what is stored;
+        // nothing is analysed here. If it cannot be read, the resume stays as it was.
+        if (engine.initialize().isFailure) return
         // The same list the screens build: the scan with its remembered tags, minus what SMART is told to leave out.
         val tracks = GenreEnrichment(settings).apply(library.tracks())
         if (tracks.isEmpty()) return

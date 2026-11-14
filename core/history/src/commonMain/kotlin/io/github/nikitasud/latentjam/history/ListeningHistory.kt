@@ -315,10 +315,12 @@ private class ListenCounts {
                 skips = counted.skips - if (noLongerSkipped) 1 else 0,
                 totalPlayedMs = saturatingDurationAdd(counted.totalPlayedMs, (event.listenedMs ?: 0).coerceAtLeast(0)),
                 listens = counted.listens + if (noLongerSkipped) 1 else 0,
+                // Last played when it was last heard: at the resumed half, not hours earlier at the pause.
+                lastPlayedAtMs = maxOf(counted.lastPlayedAtMs, event.startedAtMs),
                 lastListenedAtMs = if (whole.skipped) {
                     counted.lastListenedAtMs
                 } else {
-                    maxOf(counted.lastListenedAtMs, whole.startedAtMs)
+                    maxOf(counted.lastListenedAtMs, event.startedAtMs)
                 },
             )
             last = whole

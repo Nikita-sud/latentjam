@@ -390,7 +390,7 @@ public object Id3Tags {
     ): List<Id3RawFrame> {
         var result = frames
         result = setText(version, result, FRAME_TITLE, edits.title)
-        result = setText(version, result, FRAME_ARTIST, edits.artist, severalValues = true)
+        result = setText(version, result, FRAME_ARTIST, edits.artist)
         if (edits.artist != null) result = setCreditedArtists(version, result, edits.artist)
         result = setText(version, result, FRAME_ALBUM, edits.album)
         result = setText(version, result, FRAME_ALBUM_ARTIST, edits.albumArtist)
@@ -778,6 +778,8 @@ public object Id3Tags {
      *
      * With [severalValues], an ID3v2.4 frame that holds several values keeps one value per name when
      * its text is changed ([JoinedValues]); ID3v2.3 has no separator of its own, and gets the text as typed.
+     * Asked for the genre only: Android's own library shows the first of several artist values and drops
+     * the rest, so an edited credit goes back as the one text it was typed as.
      */
     private fun setText(
         version: Id3Version,
