@@ -67,3 +67,21 @@ internal fun parseYear(raw: String): Int? {
     if (digits.length != 4) return null
     return digits.toIntOrNull()?.takeIf { it in 1000..9999 }
 }
+
+/**
+ * A field that holds several values (two `GENRE` comments, the NUL-separated values of one ID3v2.4
+ * frame) reads as those values joined with "; ". An edit of such a field goes back as separate
+ * values: written as one text, every other player would read "Rock; Pop; Indie" as a single genre
+ * of that name.
+ */
+internal object JoinedValues {
+    /**
+     * The values [text] names, or null when it is to be written as one text: it names fewer than two,
+     * or it would not read back exactly as typed ("Rock;Pop", a doubled space, an empty value).
+     */
+    fun of(text: String): List<String>? {
+        val values = text.split("; ")
+        if (values.size < 2) return null
+        return values.takeIf { all -> all.all { it.isNotEmpty() && it == it.trim() && '\u0000' !in it } }
+    }
+}

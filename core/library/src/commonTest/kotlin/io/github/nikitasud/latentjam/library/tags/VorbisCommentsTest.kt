@@ -83,6 +83,19 @@ internal class VorbisCommentsTest {
     }
 
     @Test
+    fun aFieldWithSeveralEntriesKeepsOneEntryPerValueWhenEdited() {
+        val before = entries("ARTIST" to "A", "ARTIST" to "B", "GENRE" to "Rock", "GENRE" to "Pop", "TITLE" to "t")
+        val after = VorbisFields.apply(before, TagEdits(artist = "A; C", genre = "Rock; Pop; Indie"))
+        assertEquals(listOf("ARTIST=A", "ARTIST=C", "GENRE=Rock", "GENRE=Pop", "GENRE=Indie", "TITLE=t"), keys(after))
+        assertEquals("A; C", VorbisFields.read(after).artist)
+        assertEquals("Rock; Pop; Indie", VorbisFields.read(after).genre)
+        // One name replaces them all, and a field that held one entry is written as typed.
+        assertEquals(listOf("ARTIST=Solo", "GENRE=Rock", "GENRE=Pop", "TITLE=t"), keys(VorbisFields.apply(before, TagEdits(artist = "Solo"))))
+        val single = VorbisFields.apply(entries("GENRE" to "Rock"), TagEdits(genre = "Rock; Pop"))
+        assertEquals(listOf("GENRE=Rock; Pop"), keys(single))
+    }
+
+    @Test
     fun genreAndArtistAreWrittenExactlyAsTyped() {
         val after = VorbisFields.apply(entries("GENRE" to "a", "GENRE" to "b"), TagEdits(genre = "Rock;Pop"))
         assertEquals(listOf("GENRE=Rock;Pop"), keys(after))

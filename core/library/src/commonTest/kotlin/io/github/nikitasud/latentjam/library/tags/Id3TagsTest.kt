@@ -473,6 +473,44 @@ internal class Id3TagsTest {
         assertEquals(listOf("TIT2", "TPE1", "APIC"), untouched.frameIds)
     }
 
+    @Test
+    fun aV24FrameWithSeveralValuesKeepsThemSeparateWhenEdited() {
+        val file = Id3TestTags.build(
+            major = 4,
+            frames = listOf(
+                TestFrame("TPE1", Id3TestTags.utf8Body("A\u0000B")),
+                TestFrame("TCON", Id3TestTags.utf8Body("Rock\u0000Pop")),
+            ),
+        ) + mp3Payload()
+        assertEquals("Rock; Pop", assertNotNull(Id3Tags.read(file)).genre)
+
+        val edited = assertNotNull(updateId3Tag(file, TagEdits(artist = "A; Имя", genre = "Rock; Pop; Indie")))
+        val tag = assertNotNull(Id3Tags.read(edited))
+        assertEquals("Rock; Pop; Indie", tag.genre)
+        assertEquals("A; Имя", tag.artist)
+        // Three values with a NUL between them, not one text with semicolons.
+        assertTrue(edited.containsRun("Rock\u0000Pop\u0000Indie".encodeToByteArray()))
+        assertTrue(edited.containsRun("A\u0000Имя".encodeToByteArray()))
+        // Typed any other way it is one text, as before, and so is a single name.
+        val typed = assertNotNull(updateId3Tag(file, TagEdits(genre = "Rock;Pop", artist = "Solo")))
+        assertEquals("Rock;Pop", assertNotNull(Id3Tags.read(typed)).genre)
+        assertEquals("Solo", assertNotNull(Id3Tags.read(typed)).artist)
+    }
+
+    @Test
+    fun aFrameWithOneValueAndEveryV23FrameIsWrittenAsTyped() {
+        val one = Id3TestTags.build(major = 4, frames = listOf(TestFrame("TCON", Id3TestTags.utf8Body("Rock")))) + mp3Payload()
+        val editedOne = assertNotNull(updateId3Tag(one, TagEdits(genre = "Rock; Pop")))
+        assertTrue(editedOne.containsRun("Rock; Pop".encodeToByteArray()))
+        val old = Id3TestTags.build(major = 3, frames = listOf(TestFrame("TCON", latin1Body("Rock\u0000Pop")))) + mp3Payload()
+        val editedOld = assertNotNull(updateId3Tag(old, TagEdits(genre = "Rock; Pop; Indie")))
+        assertTrue(editedOld.containsRun("Rock; Pop; Indie".encodeToByteArray()))
+        assertEquals("Rock; Pop; Indie", assertNotNull(Id3Tags.read(editedOld)).genre)
+    }
+
+    private fun ByteArray.containsRun(run: ByteArray): Boolean =
+        (0..size - run.size).any { at -> run.indices.all { this[at + it] == run[it] } }
+
     // ---------------------------------------------------------------- refusals
 
     @Test
