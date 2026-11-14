@@ -383,9 +383,11 @@ private fun AutoPlaylistCard(
             modifier = Modifier.padding(top = 8.dp),
         )
         Text(
-            text = pluralStringResource(Res.plurals.count_tracks, auto.tracks.size, auto.tracks.size),
+            text = playlistSummary(auto.tracks, compact = true),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -460,9 +462,11 @@ private fun PlaylistRow(
                 // Resolved tracks, not stored ids: a playlist keeps the id of a track deleted
                 // from the device (so it self-heals if the file returns), but the number shown
                 // must count what tapping the row will actually show.
-                text = pluralStringResource(Res.plurals.count_tracks, tracks.size, tracks.size),
+                text = playlistSummary(tracks),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
         Box {

@@ -101,7 +101,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.stats_finished_shar
 import io.github.nikitasud.latentjam.app.generated.resources.stats_heard_next
 import io.github.nikitasud.latentjam.app.generated.resources.stats_heard_next_note
 import io.github.nikitasud.latentjam.app.generated.resources.stats_history_note
-import io.github.nikitasud.latentjam.app.generated.resources.stats_hours_short
 import io.github.nikitasud.latentjam.app.generated.resources.stats_library
 import io.github.nikitasud.latentjam.app.generated.resources.stats_link_description
 import io.github.nikitasud.latentjam.app.generated.resources.stats_link_sessions
@@ -112,7 +111,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.stats_locked_plays
 import io.github.nikitasud.latentjam.app.generated.resources.stats_locked_sessions
 import io.github.nikitasud.latentjam.app.generated.resources.stats_log_age
 import io.github.nikitasud.latentjam.app.generated.resources.stats_longest_session
-import io.github.nikitasud.latentjam.app.generated.resources.stats_minutes_short
 import io.github.nikitasud.latentjam.app.generated.resources.stats_months_ago
 import io.github.nikitasud.latentjam.app.generated.resources.stats_more_appears
 import io.github.nikitasud.latentjam.app.generated.resources.stats_morning
@@ -157,7 +155,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.stats_this_year
 import io.github.nikitasud.latentjam.app.generated.resources.stats_time_listened
 import io.github.nikitasud.latentjam.app.generated.resources.stats_today
 import io.github.nikitasud.latentjam.app.generated.resources.stats_typical_session
-import io.github.nikitasud.latentjam.app.generated.resources.stats_under_minute
 import io.github.nikitasud.latentjam.app.generated.resources.stats_unlock_on_repeat
 import io.github.nikitasud.latentjam.app.generated.resources.stats_unlock_slipping
 import io.github.nikitasud.latentjam.app.generated.resources.stats_week_days
@@ -1764,12 +1761,4 @@ private fun statsDayLabel(daysAgo: Int): String = when (daysAgo) {
 }
 
 @Composable
-private fun formatListenedTime(playedMs: Long): String {
-    if (playedMs in 1..59_999) return stringResource(Res.string.stats_under_minute)
-    val totalMinutes = playedMs.coerceAtLeast(0) / 60_000
-    val hours = totalMinutes / 60
-    val minutes = totalMinutes % 60
-    val hoursShort = stringResource(Res.string.stats_hours_short)
-    val minutesShort = stringResource(Res.string.stats_minutes_short)
-    return if (hours > 0) "$hours $hoursShort $minutes $minutesShort" else "$minutes $minutesShort"
-}
+private fun formatListenedTime(playedMs: Long): String = durationLabel(playedMs)
