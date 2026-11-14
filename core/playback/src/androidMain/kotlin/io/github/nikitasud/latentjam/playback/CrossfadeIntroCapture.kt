@@ -15,6 +15,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.BaseAudioProcessor
 import androidx.media3.common.util.Util
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.Renderer
@@ -26,6 +27,7 @@ import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.audio.ForwardingAudioOutputProvider
 import androidx.media3.exoplayer.audio.MediaCodecAudioRenderer
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import java.io.File
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
@@ -157,6 +159,8 @@ internal class CrossfadeIntroCapture(
             arrayOf<Renderer>(MediaCodecAudioRenderer(context, MediaCodecSelector.DEFAULT, handler, audioListener, sink))
         }
         val built = ExoPlayer.Builder(context, renderers)
+            // As the main player reads them, so an ALAC opening is decoded too.
+            .setMediaSourceFactory(ProgressiveMediaSource.Factory(DefaultDataSource.Factory(context), AlacPcmExtractorsFactory()))
             .setLoadControl(
                 DefaultLoadControl.Builder()
                     .setBufferDurationsMs(LOAD_MIN_MS, LOAD_MAX_MS, LOAD_START_MS, LOAD_START_MS)

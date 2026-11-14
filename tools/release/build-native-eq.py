@@ -32,9 +32,15 @@ def main():
         include_os = 'darwin' if sys.platform == 'darwin' else 'linux'
         run(c_compiler, '-std=gnu99', '-O3', '-ffp-contract=off', '-fno-fast-math', '-fPIC',
             '-I'+str(source/'vendor/libebur128/queue'), '-c', source/'vendor/libebur128/ebur128.c', '-o', output/'ebur128.o')
+        # Apple's ALAC decoder (vendor/alac, Apache-2.0), for the JVM tests of the Android ALAC path.
+        alac_objects = []
+        for filename in ['ALACBitUtilities.c', 'EndianPortable.c', 'ag_dec.c', 'dp_dec.c', 'matrix_dec.c']:
+            obj = output/('alac_'+filename+'.o'); alac_objects.append(obj)
+            run(c_compiler, '-std=gnu99', '-O3', '-fPIC', '-c', source/'vendor/alac'/filename, '-o', obj)
         run(compiler, *flags, '-I'+str(args.java_home/'include'), '-I'+str(args.java_home/'include'/include_os),
             '-shared', source/'lj_equalizer.cpp', source/'lj_equalizer_jni.cpp', source/'lj_loudness.cpp',
-            source/'lj_loudness_jni.cpp', output/'ebur128.o', '-o', output/f'liblj_equalizer.{suffix}')
+            source/'lj_loudness_jni.cpp', source/'lj_alac_jni.cpp', source/'vendor/alac/ALACDecoder.cpp',
+            *alac_objects, output/'ebur128.o', '-o', output/f'liblj_equalizer.{suffix}')
     else:
         sdk = 'iphoneos' if args.platform == 'iosArm64' else 'iphonesimulator'
         sdk_path = subprocess.check_output(['xcrun', '--sdk', sdk, '--show-sdk-path'], text=True).strip()

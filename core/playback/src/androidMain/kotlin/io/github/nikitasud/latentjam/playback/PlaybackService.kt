@@ -31,7 +31,6 @@ import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.source.ShuffleOrder.DefaultShuffleOrder
-import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.session.CommandButton
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
@@ -837,10 +836,12 @@ public class PlaybackService : MediaLibraryService() {
             // row's container from its URI, which parses all of them when a queue is set: 1.5 MB
             // more heap for a 10,000-song "play all" (measured), for nothing. Small reads come from a
             // read-ahead buffer: a seek in a FLAC without a seek table reads a few bytes at a time.
+            // ALAC tracks reach the player already decoded to PCM: Android has no ALAC decoder
+            // (issue #34).
             .setMediaSourceFactory(
                 ProgressiveMediaSource.Factory(
                     ReadAheadDataSource.Factory(DefaultDataSource.Factory(this)),
-                    DefaultExtractorsFactory(),
+                    AlacPcmExtractorsFactory(),
                 ),
             )
             .setAudioAttributes(AudioAttributes.DEFAULT, /* handleAudioFocus = */ true)

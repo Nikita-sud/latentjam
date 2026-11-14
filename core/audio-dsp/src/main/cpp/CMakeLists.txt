@@ -4,13 +4,16 @@ project(latentjam_equalizer LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_library(lj_equalizer SHARED lj_equalizer.cpp lj_loudness.cpp vendor/libebur128/ebur128.c)
+# Apple's ALAC decoder (Apache-2.0): Android has none, so Apple Lossless .m4a would play silently (issue #34).
+set(LJ_ALAC_SOURCES vendor/alac/ALACDecoder.cpp vendor/alac/ALACBitUtilities.c vendor/alac/EndianPortable.c
+    vendor/alac/ag_dec.c vendor/alac/dp_dec.c vendor/alac/matrix_dec.c)
 target_compile_options(lj_equalizer PRIVATE -O3 -ffp-contract=off -fno-fast-math)
 target_include_directories(lj_equalizer PRIVATE vendor/libebur128/queue)
 if(UNIX AND NOT APPLE)
     target_link_libraries(lj_equalizer PRIVATE m)
 endif()
 if(ANDROID)
-    target_sources(lj_equalizer PRIVATE lj_equalizer_jni.cpp lj_loudness_jni.cpp)
+    target_sources(lj_equalizer PRIVATE lj_equalizer_jni.cpp lj_loudness_jni.cpp lj_alac_jni.cpp ${LJ_ALAC_SOURCES})
     # Keep stripped build IDs independent of the absolute checkout/build directories.
     target_compile_options(lj_equalizer PRIVATE
         "-ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=."
@@ -19,7 +22,7 @@ if(ANDROID)
 elseif(LJ_EQ_JNI)
     find_package(JNI REQUIRED)
     target_include_directories(lj_equalizer PRIVATE ${JNI_INCLUDE_DIRS})
-    target_sources(lj_equalizer PRIVATE lj_equalizer_jni.cpp lj_loudness_jni.cpp)
+    target_sources(lj_equalizer PRIVATE lj_equalizer_jni.cpp lj_loudness_jni.cpp lj_alac_jni.cpp ${LJ_ALAC_SOURCES})
 endif()
 if(LJ_EQ_TESTS)
     enable_testing()

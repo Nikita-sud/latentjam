@@ -1,2 +1,3 @@
 -keep class io.github.nikitasud.latentjam.playback.NativeEqualizerJni { native <methods>; }
 -keep class io.github.nikitasud.latentjam.playback.NativeLoudnessJni { native <methods>; }
+-keep class io.github.nikitasud.latentjam.playback.NativeAlacJni { native <methods>; }
