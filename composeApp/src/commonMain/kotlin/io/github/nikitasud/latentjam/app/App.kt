@@ -1229,8 +1229,7 @@ private fun AppShell(
             // Search, playlists, and collection screens often start playback from a filtered
             // subset. SMART is a library journey, so keep its candidate universe independent of
             // whichever small list happened to contain the track the listener tapped.
-            playback.setSmartLibrary(smartEligibleTracks)
-            AppGraph.smartLibraryTracks.value = smartEligibleTracks
+            AppGraph.setSmartLibrary(playback, smartEligibleTracks)
             val indexing = AppGraph.automaticIndexing.value
             libraryWorlds.metadataVectorsReady =
                 indexing.trackIds == loaded.idList() && indexing.metadataReady
@@ -2141,8 +2140,7 @@ private fun AppShell(
                 val eligible = withContext(Dispatchers.Default) { source.orEmpty().filterNot(state.hidesFromSmart()) }
                 // A later change (of exclusions or of the library) finished first: its list is the one playback keeps.
                 if (smartExclusions.state.value != state || tracks !== source) return true
-                playback.setSmartLibrary(eligible)
-                AppGraph.smartLibraryTracks.value = eligible
+                AppGraph.setSmartLibrary(playback, eligible)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Throwable) {

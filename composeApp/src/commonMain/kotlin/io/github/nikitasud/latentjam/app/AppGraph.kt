@@ -135,6 +135,42 @@ object AppGraph {
 
     /** SMART's eligible library as the App last handed it to playback; read by the habit slots. */
     val smartLibraryTracks = MutableStateFlow<List<TrackDescriptor>>(emptyList())
+
+    /** Orders the two ways SMART gets its library, so the screens' list is never replaced by an older one. */
+    private val smartLibraryLock = kotlinx.coroutines.sync.Mutex()
+    private var smartLibraryFromScreens = false
+
+    /** The screens hand SMART its eligible library: the player first, then everything else that reads it. */
+    suspend fun setSmartLibrary(playback: PlaybackController, tracks: List<TrackDescriptor>): Unit = smartLibraryLock.withLock {
+        smartLibraryFromScreens = true
+        playback.setSmartLibrary(tracks)
+        smartLibraryTracks.value = tracks
+    }
+
+    /**
+     * Hands SMART its library when playback starts with no screen open: a headset button, the widget, the
+     * tile or a car resuming the saved queue after the process was gone. The screens do this as they load;
+     * without them SMART could choose only from the list the saved queue was started from, and stopped
+     * once that list was used up. What the screens supply always wins, before or after this.
+     */
+    suspend fun supplySmartLibraryWithoutScreens() {
+        if (smartLibraryFromScreens || !settings.smartEnabled.value) return
+        // The same list the screens build: the scan with its remembered tags, minus what SMART is told to leave out.
+        val tracks = GenreEnrichment(settings).apply(library.tracks())
+        if (tracks.isEmpty()) return
+        val exclusions = smartExclusions.load()
+        val eligible = withContext(Dispatchers.Default) { tracks.filterNot(exclusions.hidesFromSmart()) }
+        val saved = playlists.all()
+        smartLibraryLock.withLock {
+            if (smartLibraryFromScreens) return
+            // The playlists first: handing over the library lets a short SMART queue top itself up at once.
+            smartUserPlaylists.value = saved.smartUserPlaylists()
+            smartPersonalPlaylists.value = saved.smartPersonalPlaylists()
+            smartCompanionGroups.value = saved.smartCompanionMemberships()
+            playback.setSmartLibrary(eligible)
+            smartLibraryTracks.value = eligible
+        }
+    }
     /** Advances after each accepted listening event so For You can apply feedback next time it opens. */
     val historyRevision: StateFlow<Long> = mutableHistoryRevision.asStateFlow()
 
