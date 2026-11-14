@@ -89,6 +89,19 @@ public interface Playlists {
 
     /** Replaces all user playlists in one durable write, primarily for local backup restore. */
     public suspend fun replaceAll(playlists: List<Playlist>)
+
+    /**
+     * Puts a deleted [playlist] back as it was, at [index] in the user's ordering (clamped): the undo
+     * of [delete]. Nothing changes when a playlist with its id is there already.
+     *
+     * @return whether the playlist is in the list now.
+     */
+    public suspend fun restore(playlist: Playlist, index: Int): Boolean {
+        val current = all()
+        if (current.any { it.id == playlist.id }) return true
+        replaceAll(current.toMutableList().apply { add(index.coerceIn(0, size), playlist) })
+        return true
+    }
 }
 
 /** Whole-list storage; playlists are few and small. */
@@ -243,6 +256,15 @@ public class DefaultPlaylists(
         if (replacementValues != expectedValues || added != playlists[index].addedTrackIds) {
             val changed = playlists[index].copy(trackIds = replacementValues, addedTrackIds = added)
             persist(playlists.toMutableList().also { it[index] = changed })
+        }
+        true
+    }
+
+    override suspend fun restore(playlist: Playlist, index: Int): Boolean = mutex.withLock {
+        ensureLoaded()
+        if (playlists.none { it.id == playlist.id }) {
+            val restored = playlist.normalizedForRestore()
+            persist(playlists.toMutableList().apply { add(index.coerceIn(0, size), restored) })
         }
         true
     }

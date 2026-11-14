@@ -792,6 +792,99 @@ internal class LocalBackupTest {
     }
 
     @Test
+    fun aSongRetaggedSinceTheBackupKeepsItsPlaceInAReplaceRestore() = runTest {
+        val kept = track("a", "Song A", "Artist", "Album", 200_000)
+        val before = track("b", "song b (live", "artist", "Album", 240_000)
+        val source = fixture(listOf(kept, before))
+        val playlist = source.playlists.create("Mix")
+        source.playlists.addTracks(playlist.id, listOf(kept.id, before.id))
+        source.history.record(event(before.id, 100))
+        val encoded = source.service.exportEncoded()
+
+        // The same device later: the second song's tags were corrected, its id and length are the same.
+        val after = before.copy(title = "Song B (Live)", artist = "Artist")
+        val device = fixture(listOf(kept, after))
+        val report = device.service.importEncoded(encoded = encoded, mode = LocalBackupRestoreMode.REPLACE)
+
+        assertEquals(0, report.unresolvedTrackReferences)
+        assertContentEquals(listOf("a", "b"), device.playlists.all().single().trackIds)
+        assertContentEquals(listOf("b"), device.history.recentEvents(Int.MAX_VALUE).map { it.trackId.value })
+    }
+
+    @Test
+    fun anIdThatNowNamesAnotherSongIsNotTakenForARetag() = runTest {
+        val kept = track("a", "Song A", "Artist", "Album", 200_000)
+        val before = track("b", "Song B", "Artist", "Album", 240_000)
+        val source = fixture(listOf(kept, before))
+        val playlist = source.playlists.create("Mix")
+        source.playlists.addTracks(playlist.id, listOf(kept.id, before.id))
+        val encoded = source.service.exportEncoded()
+
+        // Same id, another length: not the song the backup described. The device's own lists hold that id,
+        // as the lists being replaced always do, and that is no reason to take the other song for it.
+        val other = track("b", "Unrelated", "Someone", "Other", 100_000)
+        val sameDevice = fixture(listOf(kept, other))
+        sameDevice.history.record(event(TrackId("b"), 50))
+        val own = sameDevice.playlists.create("Own")
+        sameDevice.playlists.addTracks(own.id, listOf(TrackId("b")))
+        sameDevice.service.importEncoded(encoded = encoded, mode = LocalBackupRestoreMode.REPLACE)
+        assertContentEquals(listOf("a"), sameDevice.playlists.all().single().trackIds)
+        assertEquals(emptyList(), sameDevice.history.recentEvents(Int.MAX_VALUE))
+
+        // Another device: both ids exist by chance, one even with the right length, and neither song fits.
+        val foreign = fixture(
+            listOf(
+                track("a", "X", "Y", "Z", 200_000),
+                track("b", "Q", "R", "S", 240_000),
+                track("c", "Song A", "Artist", "Album", 200_000),
+            ),
+        )
+        foreign.service.importEncoded(encoded = encoded, mode = LocalBackupRestoreMode.REPLACE)
+        assertContentEquals(listOf("c"), foreign.playlists.all().single().trackIds)
+    }
+
+    @Test
+    fun aReplaceRestoreKeepsSongsWhoseStorageIsOutButNotSongsProvenGone() = runTest {
+        val internal = track("a", "Song A", "Artist", "Album", 200_000)
+        val onCard = track("b", "Song B", "Artist", "Album", 240_000)
+        val deleted = track("c", "Song C", "Artist", "Album", 180_000)
+        val source = fixture(listOf(internal, onCard, deleted))
+        val playlist = source.playlists.create("Mix")
+        source.playlists.addTracks(playlist.id, listOf(internal.id, onCard.id, deleted.id))
+        source.history.record(event(onCard.id, 100))
+        source.favorites.toggle(onCard.id)
+        val encoded = source.service.exportEncoded()
+
+        // The same device with the card out and one file deleted: its lists still hold both ids.
+        val device = fixture(listOf(internal), provenGone = setOf(deleted.id))
+        val current = device.playlists.create("Mix")
+        device.playlists.addTracks(current.id, listOf(internal.id, onCard.id, deleted.id))
+        val report = device.service.importEncoded(encoded = encoded, mode = LocalBackupRestoreMode.REPLACE)
+
+        assertContentEquals(listOf("a", "b"), device.playlists.all().single().trackIds)
+        assertContentEquals(listOf("b"), device.history.recentEvents(Int.MAX_VALUE).map { it.trackId.value })
+        assertEquals(listOf(onCard.id), device.favorites.all())
+        assertEquals(1, report.unresolvedTrackReferences)
+    }
+
+    @Test
+    fun aReplaceRestoreOnAnotherDeviceKeepsNoIdItCannotConfirm() = runTest {
+        val first = track("a", "Song A", "Artist", "Album", 200_000)
+        val second = track("b", "Song B", "Artist", "Album", 240_000)
+        val source = fixture(listOf(first, second))
+        val playlist = source.playlists.create("Mix")
+        source.playlists.addTracks(playlist.id, listOf(first.id, second.id))
+        val encoded = source.service.exportEncoded()
+
+        // Another device has Song A under its own id, and happens to keep an id "b" in a playlist of its own.
+        val device = fixture(listOf(track("z", "Song A", "Artist", "Album", 200_000)))
+        val own = device.playlists.create("Own")
+        device.playlists.addTracks(own.id, listOf(TrackId("b")))
+        device.service.importEncoded(encoded = encoded, mode = LocalBackupRestoreMode.REPLACE)
+        assertContentEquals(listOf("z"), device.playlists.all().single().trackIds)
+    }
+
+    @Test
     fun mergeIsIdempotentForHistoryAndMergesSameNamedPlaylist() = runTest {
         val current = track("current", "Current", "Artist", "Album", 120_000)
         val imported = track("imported", "Imported", "Artist", "Album", 121_000)
@@ -1698,12 +1791,13 @@ internal class LocalBackupTest {
     private fun fixture(
         tracks: List<TrackDescriptor>,
         visibleTrackIds: Set<TrackId> = tracks.mapTo(linkedSetOf()) { it.id },
+        provenGone: Set<TrackId> = emptySet(),
     ): Fixture {
         val settings = FakeSettings()
         val playlists = DefaultPlaylists(InMemoryPlaylistStore())
         val history = DefaultListeningHistory(InMemoryHistoryStore())
         val searches = DefaultRecentSearches(InMemorySearchStore())
-        val library = FakeLibrary(tracks, visibleTrackIds)
+        val library = FakeLibrary(tracks, visibleTrackIds, provenGone)
         val exclusions = SmartExclusions(InMemoryExclusionStore())
         val favorites = DefaultFavorites(InMemoryFavoritesStore())
         return Fixture(
@@ -1767,8 +1861,10 @@ internal class LocalBackupTest {
     private class FakeLibrary(
         private val allTracks: List<TrackDescriptor>,
         private val visibleTrackIds: Set<TrackId>,
+        private val provenGone: Set<TrackId> = emptySet(),
     ) : MusicLibrary {
         private val hidden = linkedSetOf<TrackId>()
+        override suspend fun missingTrackIds(ids: Collection<TrackId>): Set<TrackId> = ids.filterTo(hashSetOf()) { it in provenGone }
         override suspend fun tracks(): List<TrackDescriptor> = allTracks.filter {
             it.id in visibleTrackIds && it.id !in hidden
         }

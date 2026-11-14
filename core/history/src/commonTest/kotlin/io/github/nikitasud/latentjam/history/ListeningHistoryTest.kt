@@ -45,6 +45,101 @@ internal class ListeningHistoryTest {
         shuffleMode = "SMART",
     )
 
+    /** One half of a playback of a 200-second track: [listened] ms heard, ending with the playhead at [played]. */
+    private fun half(
+        id: String,
+        startedAt: Long,
+        listened: Long,
+        played: Long,
+        start: ListenStart?,
+        completed: Boolean = false,
+    ) = ListenEvent(
+        trackId = TrackId(id),
+        startedAtMs = startedAt,
+        playedMs = played,
+        trackDurationMs = 200_000,
+        completed = completed,
+        skipped = !completed && listened < 30_000,
+        shuffleMode = "OFF",
+        listenedMs = listened,
+        origin = ListenOrigin(start = start),
+    )
+
+    @Test
+    fun aPlaybackPausedInTheBackgroundAndResumedIsOnePlayAndNoSkip() = runTest {
+        // Paused after 10 s, the app left; ten minutes later it plays on from 0:10 to the end.
+        val first = half("a", 1_000_000, listened = 10_000, played = 10_000, start = ListenStart.USER_PICK)
+        val resumed = half("a", 1_600_000, listened = 190_000, played = 200_000, start = null, completed = true)
+        assertTrue(first.skipped)
+        val store = FakeStore()
+        val history = DefaultListeningHistory(store)
+        history.record(first)
+        assertEquals(1, history.stats().getValue(TrackId("a")).skips)
+        history.record(resumed)
+
+        val expected = TrackStats(
+            plays = 1, completions = 1, skips = 0, totalPlayedMs = 200_000,
+            lastPlayedAtMs = 1_600_000, listens = 1, lastListenedAtMs = 1_600_000,
+        )
+        assertEquals(expected, history.stats().getValue(TrackId("a")))
+        // The log keeps both lines, and a later launch counts them the same way.
+        assertEquals(2, store.lines.size)
+        assertEquals(listOf(first, resumed), history.allEvents())
+        assertEquals(expected, DefaultListeningHistory(FakeStore(store.lines)).stats().getValue(TrackId("a")))
+        // Readers that take a line for a listen get the one listen.
+        val listen = history.recentListens(10).single()
+        assertEquals(200_000L, listen.listenedMs)
+        assertTrue(listen.completed)
+        assertFalse(listen.skipped)
+        assertEquals(ListenStart.USER_PICK, listen.origin?.start)
+        // It ends where the resumed half ended (1,600,000 + 190,000), so the track after it still follows it.
+        assertEquals(1_590_000L, listen.startedAtMs)
+        assertEquals(1_790_000L, listen.startedAtMs + listen.listenedMs!!)
+    }
+
+    @Test
+    fun aResumedPlaybackAbandonedEarlyStaysOneSkip() = runTest {
+        val first = half("a", 1_000_000, listened = 5_000, played = 5_000, start = ListenStart.AUTO_ADVANCE)
+        val resumed = half("a", 1_100_000, listened = 5_000, played = 10_000, start = null)
+        val history = DefaultListeningHistory(FakeStore())
+        history.record(first)
+        history.record(resumed)
+        val stats = history.stats().getValue(TrackId("a"))
+        assertEquals(1, stats.plays)
+        assertEquals(1, stats.skips)
+        assertEquals(0, stats.listens)
+        assertEquals(0L, stats.lastListenedAtMs)
+        assertEquals(10_000L, stats.totalPlayedMs)
+    }
+
+    @Test
+    fun aSecondPlayOfTheSameTrackIsStillASecondPlay() = runTest {
+        val history = DefaultListeningHistory(FakeStore())
+        // Played from the top again: a start of its own, or a playhead back at the beginning.
+        history.record(half("a", 1_000_000, listened = 60_000, played = 60_000, start = ListenStart.USER_PICK))
+        history.record(half("a", 1_100_000, listened = 60_000, played = 60_000, start = ListenStart.USER_PICK))
+        history.record(half("a", 1_200_000, listened = 60_000, played = 60_000, start = null))
+        // Another track between the halves: the line before is not the listen this one would continue.
+        history.record(half("b", 1_300_000, listened = 40_000, played = 40_000, start = ListenStart.SKIP_NEXT))
+        history.record(half("a", 1_400_000, listened = 100_000, played = 160_000, start = null))
+        assertEquals(4, history.stats().getValue(TrackId("a")).plays)
+        assertEquals(5, history.recentListens(10).size)
+    }
+
+    @Test
+    fun countersAfterARestoreAndAClearFollowTheSameRule() = runTest {
+        val first = half("a", 1_000_000, listened = 10_000, played = 10_000, start = ListenStart.USER_PICK)
+        val resumed = half("a", 1_600_000, listened = 190_000, played = 200_000, start = null, completed = true)
+        val history = DefaultListeningHistory(FakeStore())
+        history.replace(listOf(first, resumed))
+        assertEquals(1, history.stats().getValue(TrackId("a")).plays)
+        history.clear()
+        // The cleared log has no listen for a resumed line to continue.
+        history.record(resumed)
+        assertEquals(1, history.stats().getValue(TrackId("a")).plays)
+        assertEquals(1, history.stats().getValue(TrackId("a")).completions)
+    }
+
     @Test
     fun aLoadedLogKeepsOneIdPerSongAndEveryLineInOrder() = runTest {
         val lines = listOf(event("a", 1), event("b", 2), event("a", 3)).map(ListenEvent::serialize)

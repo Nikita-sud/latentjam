@@ -77,6 +77,16 @@ internal actual fun disablePlaylistShortcut(playlistId: String, message: String)
     }
 }
 
+internal actual fun enablePlaylistShortcut(playlistId: String) {
+    val context = AndroidAppContext.value
+    val id = playlistShortcutId(playlistId)
+    runCatching {
+        val pinned = ShortcutManagerCompat.getShortcuts(context, ShortcutManagerCompat.FLAG_MATCH_PINNED)
+            .firstOrNull { it.id == id } ?: return
+        ShortcutManagerCompat.enableShortcuts(context, listOf(pinned))
+    }
+}
+
 private fun openPlaylistIntent(context: Context, playlistId: String): Intent =
     Intent(context, MainActivity::class.java)
         .setAction(ACTION_OPEN_PLAYLIST)

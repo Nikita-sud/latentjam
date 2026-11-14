@@ -17,6 +17,19 @@ import kotlin.test.assertTrue
 
 class PlaylistAvailabilityTest {
 
+    @Test
+    fun anUndeletedPlaylistGoesBackBetweenItsNeighbours() {
+        // [B, A, C]: A deleted, then B. Undo A while B is still gone, then undo B.
+        assertEquals(0, restoredPlaylistPlace(listOf("C"), place = 1, before = "B", after = "C"))
+        assertEquals(0, restoredPlaylistPlace(listOf("A", "C"), place = 0, before = null, after = "A"))
+        // The neighbour above decides while it is there, wherever it has moved to.
+        assertEquals(3, restoredPlaylistPlace(listOf("X", "C", "B"), place = 1, before = "B", after = "C"))
+        // Neither neighbour left: the old row, or the end of a list that got shorter.
+        assertEquals(1, restoredPlaylistPlace(listOf("X", "Y"), place = 1, before = "B", after = "C"))
+        assertEquals(1, restoredPlaylistPlace(listOf("X"), place = 4, before = "B", after = "C"))
+        assertEquals(0, restoredPlaylistPlace(emptyList(), place = -1, before = null, after = null))
+    }
+
     private class PlaylistMemory : PlaylistStore {
         var lines = emptyList<String>()
         override suspend fun read() = lines

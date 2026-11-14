@@ -187,6 +187,11 @@ internal class TagWriteCoordinator<C>(
     private val concurrency: Int = 3,
     private val newId: () -> Long = { Random.nextLong(1, Long.MAX_VALUE) },
     private val checkpoints: Boolean = true,
+    /**
+     * A file's bytes were all written anew ([movesAudio]): called at once with its key, before the rest of the
+     * request and with no screen needed, so a player that has the file open can read it again.
+     */
+    private val onRewritten: (key: String) -> Unit = {},
 ) {
     /** The restored checkpoint; its keys and covers are read on [io] before anything runs. */
     private val saved = parseTagWriteCheckpoint(restored)
@@ -658,6 +663,13 @@ internal class TagWriteCoordinator<C>(
         if (first.results.any { it.key == result.key }) return
         val updated = first.copy(results = first.results + result)
         update(updated)
+        if (result.movesAudio) {
+            try {
+                onRewritten(result.key)
+            } catch (_: Exception) {
+                // The save stands whatever became of telling the player.
+            }
+        }
         mutableProgress.value = TagWriteProgress(updated.id, updated.results.size, updated.keys.size)
     }
 
@@ -900,7 +912,7 @@ internal class TagWriteCoordinator<C>(
     }
 
     private fun saved(key: String, result: WriteResult): FileWriteResult = when (result) {
-        is WriteResult.Saved -> FileWriteResult(key, FileWriteStatus.SAVED, newLength = result.newLength)
+        is WriteResult.Saved -> FileWriteResult(key, FileWriteStatus.SAVED, newLength = result.newLength, rewritten = result.rewritten)
         WriteResult.NoChange -> FileWriteResult(key, FileWriteStatus.UNCHANGED)
         is WriteResult.Refused -> FileWriteResult(key, FileWriteStatus.REFUSED, refusal = result.reason)
         WriteResult.NotEnoughSpace -> FileWriteResult(key, FileWriteStatus.NO_SPACE)

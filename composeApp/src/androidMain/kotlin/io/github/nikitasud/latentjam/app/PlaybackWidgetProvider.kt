@@ -194,6 +194,8 @@ private suspend fun PlaybackController.ensureWidgetQueue(): Boolean = widgetRest
         smartContinuationIds = resume.smartContinuationIds,
         smartPlanPositions = resume.smartPlanPositions,
     )
+    // The widget restored the queue itself, with no screen to give SMART the rest of the library.
+    AppGraph.appScope.launch { supplySmartLibraryQuietly() }
     state.value.queue.isNotEmpty()
 }
 

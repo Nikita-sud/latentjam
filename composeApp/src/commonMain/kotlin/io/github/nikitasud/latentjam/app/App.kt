@@ -169,6 +169,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artis
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_genre
 import io.github.nikitasud.latentjam.history.localTimePoint
 import io.github.nikitasud.latentjam.history.epochMillis
+import io.github.nikitasud.latentjam.history.recentListens
 import io.github.nikitasud.latentjam.history.SmartExclusionState
 import io.github.nikitasud.latentjam.history.matcher
 import io.github.nikitasud.latentjam.library.AlbumSort
@@ -203,6 +204,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.getPluralString
@@ -1119,7 +1121,7 @@ private fun AppShell(
             val historySnapshot = try {
                 Triple(
                     AppGraph.history.stats(),
-                    AppGraph.history.recentEvents(RECENT_EVENTS_FOR_YOU),
+                    AppGraph.history.recentListens(RECENT_EVENTS_FOR_YOU),
                     AppGraph.history.firstListenAtMs(),
                 )
             } catch (cancelled: CancellationException) {
@@ -1228,8 +1230,7 @@ private fun AppShell(
             // Search, playlists, and collection screens often start playback from a filtered
             // subset. SMART is a library journey, so keep its candidate universe independent of
             // whichever small list happened to contain the track the listener tapped.
-            playback.setSmartLibrary(smartEligibleTracks)
-            AppGraph.smartLibraryTracks.value = smartEligibleTracks
+            AppGraph.setSmartLibrary(playback, smartEligibleTracks)
             val indexing = AppGraph.automaticIndexing.value
             libraryWorlds.metadataVectorsReady =
                 indexing.trackIds == loaded.idList() && indexing.metadataReady
@@ -2140,8 +2141,7 @@ private fun AppShell(
                 val eligible = withContext(Dispatchers.Default) { source.orEmpty().filterNot(state.hidesFromSmart()) }
                 // A later change (of exclusions or of the library) finished first: its list is the one playback keeps.
                 if (smartExclusions.state.value != state || tracks !== source) return true
-                playback.setSmartLibrary(eligible)
-                AppGraph.smartLibraryTracks.value = eligible
+                AppGraph.setSmartLibrary(playback, eligible)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Throwable) {
@@ -3044,6 +3044,15 @@ private fun AppShell(
                                             coverEditBusy = coverEditTargetId != null || coverSaveInProgress,
                                             onDelete = { playlist ->
                                                 scope.launch {
+                                                    // What Undo puts back: the playlist as stored, its place in
+                                                    // the list and the order its page was sorted by.
+                                                    val place = playlistsState.playlists.indexOfFirst { it.id == playlist.id }
+                                                    val stored = playlistsState.playlists.getOrNull(place) ?: playlist
+                                                    // Its neighbours say where it was once other playlists
+                                                    // have gone or come back meanwhile; a row number does not.
+                                                    val before = playlistsState.playlists.getOrNull(place - 1)?.id
+                                                    val after = playlistsState.playlists.getOrNull(place + 1)?.id
+                                                    val order = AppGraph.settings.playlistSortOrders.value.playlists[playlist.id]
                                                     if (!runPlaylistMutation {
                                                             AppGraph.playlists.delete(playlist.id)
                                                         }
@@ -3051,7 +3060,6 @@ private fun AppShell(
                                                     playlistsState.playlists = playlistsState.playlists.filterNot {
                                                         it.id == playlist.id
                                                     }
-                                                    discardUnusedPlaylistCover(playlist.customArtworkRef)
                                                     val deletedMessage = getString(
                                                         Res.string.snack_playlist_deleted,
                                                         bidiWrap(playlist.name, layoutDirection),
@@ -3059,7 +3067,39 @@ private fun AppShell(
                                                     // A pinned home-screen shortcut is greyed out with
                                                     // the same words instead of opening nothing.
                                                     disablePlaylistShortcut(playlist.id, deletedMessage)
-                                                    snackbar.showSnackbar(deletedMessage)
+                                                    // One tap deletes, with no question asked first, so the
+                                                    // notice carries the way back. The playlist's own cover
+                                                    // is kept until that way is closed.
+                                                    var restored = false
+                                                    try {
+                                                        val result = snackbar.showSnackbar(
+                                                            message = deletedMessage,
+                                                            actionLabel = getString(Res.string.action_undo),
+                                                            withDismissAction = true,
+                                                        )
+                                                        if (result != SnackbarResult.ActionPerformed) return@launch
+                                                        restored = runPlaylistMutation {
+                                                            val now = AppGraph.playlists.all().map { it.id }
+                                                            val at = restoredPlaylistPlace(now, place, before, after)
+                                                            check(AppGraph.playlists.restore(stored, at))
+                                                        }
+                                                        if (!restored) return@launch
+                                                        enablePlaylistShortcut(playlist.id)
+                                                        // The list first: an order kept for a playlist that is
+                                                        // not in the list is forgotten as a deleted one's.
+                                                        refreshPlaylistMembershipsBestEffort()
+                                                        if (order != null) {
+                                                            AppGraph.settings.setPlaylistSortOrders(
+                                                                AppGraph.settings.playlistSortOrders.value.withPlaylist(playlist.id, order),
+                                                            )
+                                                        }
+                                                    } finally {
+                                                        if (!restored) {
+                                                            withContext(NonCancellable) {
+                                                                discardUnusedPlaylistCover(stored.customArtworkRef)
+                                                            }
+                                                        }
+                                                    }
                                                 }
                                             },
                                         )

@@ -45,6 +45,9 @@ internal class TagWriteCoordinatorTest {
         /** A checkpoint write that fails, as a full disk or a torn-down owner can make it. */
         var failSave: (List<String>) -> Boolean = { false }
 
+        /** The files the coordinator said were written anew, in the order it said so. */
+        val rewritten = ArrayList<String>()
+
         // A child of the test's background scope, so a recreation cancels this owner and not the test.
         val scope = CoroutineScope(
             test.backgroundScope.coroutineContext + Job(test.backgroundScope.coroutineContext[Job]) +
@@ -53,7 +56,7 @@ internal class TagWriteCoordinatorTest {
         val coordinator = TagWriteCoordinator(backend, scope, StandardTestDispatcher(test.testScheduler), restored, {
             if (failSave(it)) throw IllegalStateException("the checkpoint could not be written")
             saved = it
-        }, checkpoints = checkpoints)
+        }, checkpoints = checkpoints, onRewritten = { rewritten += it })
         val reports = ArrayList<TagWriteReport>()
 
         fun enqueue(keys: List<String>, edits: TagEdits): Long {
@@ -117,6 +120,26 @@ internal class TagWriteCoordinatorTest {
         assertEquals(List(4) { FileWriteStatus.SAVED }, harness.reports.single().results.map { it.status })
         assertEquals(listOf(listOf("a", "b", "c", "d")), backend.rescans.map { it.sorted() })
         assertContentEquals(testMp3("New"), backend.files.bytes("c"))
+    }
+
+    @Test
+    fun aFileWrittenAnewIsAnnouncedAtOnceAndOneSavedInPlaceIsNot() = runTest {
+        val backend = TestTagWriteBackend(TagWriteStrategy.NO_CONSENT)
+        listOf("a", "b").forEach { backend.files.put(it, testMp3()) }
+        val harness = Harness(backend, this)
+        // A title fits where the old one was: the audio stays where the player read it.
+        harness.enqueue(listOf("a"), TagEdits(title = "New"))
+        runCurrent()
+        harness.deliver()
+        assertEquals(emptyList(), harness.rewritten)
+        // Lyrics far longer than the tag's room: the whole file is written anew, and the audio moves.
+        harness.enqueue(listOf("b"), TagEdits(lyrics = "la ".repeat(40_000)))
+        runCurrent()
+        assertEquals(listOf("b"), harness.rewritten)
+        harness.deliver()
+        assertEquals(FileWriteStatus.SAVED, harness.reports.last().results.single().status)
+        assertTrue(harness.reports.last().results.single().rewritten)
+        assertTrue(backend.files.bytes("b").size > testMp3().size)
     }
 
     @Test

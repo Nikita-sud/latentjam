@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.app
 import io.github.nikitasud.latentjam.history.ListenEvent
 import io.github.nikitasud.latentjam.history.ListenStart
 import io.github.nikitasud.latentjam.history.ListeningHistory
+import io.github.nikitasud.latentjam.history.ListeningNormalization
 import io.github.nikitasud.latentjam.history.PickSurface
 import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.history.localTimePoint
@@ -70,7 +71,7 @@ internal class PersonalModelCache(
             try {
                 model = withContext(Dispatchers.Default) {
                     PersonalModel.build(
-                        events.sortedBy { it.startedAtMs }.map(::personalListen),
+                        ListeningNormalization.joinResumed(events.sortedBy { it.startedAtMs }).map(::personalListen),
                         library.map { personalTrack(it, artistKeysOf(it)) },
                         localDay,
                         nowMs = maxOf(nowMs, events.maxOfOrNull { it.startedAtMs } ?: 0L),

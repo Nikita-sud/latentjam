@@ -98,6 +98,8 @@ internal object AndroidTagWrites {
             io = Dispatchers.IO,
             restored = handle.get<ArrayList<String>>(CHECKPOINT),
             save = checkpoints::save,
+            // A file's key here is the address the player opens it by.
+            onRewritten = { key -> AppGraph.appScope.launch { AppGraph.playback.rereadFiles(setOf(key)) } },
         )
         coordinator = created
         // Eagerly but off the main thread. A save that comes first prepares the store itself.

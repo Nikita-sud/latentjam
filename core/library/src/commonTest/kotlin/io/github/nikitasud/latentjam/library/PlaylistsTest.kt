@@ -23,6 +23,37 @@ internal class PlaylistsTest {
     }
 
     @Test
+    fun aDeletedPlaylistIsPutBackWhereItWasWithEverythingItHeld() = runTest {
+        val store = FakeStore()
+        val playlists = DefaultPlaylists(store)
+        val first = playlists.create("First")
+        val middle = playlists.create("Middle", listOf(TrackId("1"), TrackId("2")))
+        val last = playlists.create("Last")
+        playlists.addTracks(middle.id, listOf(TrackId("3")))
+        playlists.removeTrack(middle.id, TrackId("1"))
+        playlists.toggleIncludeInSmart(middle.id)
+        playlists.setArtwork(middle.id, "cover-token")
+        val before = playlists.all()
+        val stored = before.single { it.id == middle.id }
+        val index = before.indexOf(stored)
+
+        playlists.delete(middle.id)
+        assertEquals(before - stored, playlists.all())
+        assertTrue(playlists.restore(stored, index))
+
+        assertEquals(before, playlists.all())
+        // A second launch reads the same list, and restoring twice adds no second copy.
+        assertEquals(before, DefaultPlaylists(FakeStore(store.lines)).all())
+        assertTrue(playlists.restore(stored, 0))
+        assertEquals(before, playlists.all())
+        // A place past the end of a list that got shorter meanwhile is the end.
+        playlists.delete(middle.id)
+        playlists.delete(last.id)
+        assertTrue(playlists.restore(stored, index + 5))
+        assertEquals(stored, playlists.all().last())
+    }
+
+    @Test
     fun createAddAndReadBack() = runTest {
         val playlists = DefaultPlaylists(FakeStore())
         val created = playlists.create("Workout")

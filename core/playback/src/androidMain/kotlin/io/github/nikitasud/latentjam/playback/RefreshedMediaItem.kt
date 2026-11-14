@@ -50,3 +50,21 @@ internal fun Player.refreshTrackAt(
     // Replacing the source keeps playWhenReady; restoring it here would overwrite a pause request.
     if (resumePosition != null) seekTo(index, resumePosition)
 }
+
+/**
+ * Makes Media3 read again the files it has open. A tag save that cannot fit the tag in place writes the whole file
+ * anew under the same address, so its audio starts at another byte, while the open source still holds the old
+ * layout (an MP4's sample table, an MP3's seek points) and reads on from offsets that are no longer the audio's.
+ *
+ * Stopping releases what was loaded and keeps everything else: the queue, the shuffle order, the position and
+ * whether it plays; preparing loads it anew from the files as they are now. Replacing the item instead would move
+ * it to a random place in a shuffled order and pass through position 0 on the way. Nothing is loaded while the
+ * player is idle, and one that reached the end of its queue is left there. False when nothing was done.
+ */
+internal fun Player.readLoadedFilesAgain(): Boolean {
+    if (playbackState != Player.STATE_READY && playbackState != Player.STATE_BUFFERING) return false
+    stop()
+    prepare()
+    return true
+}
+

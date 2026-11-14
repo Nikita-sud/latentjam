@@ -85,6 +85,7 @@ internal fun installMediaBrowseCatalog(context: Context) {
                 // state is hydrated if the Activity is opened later.
                 AppGraph.appScope.launch {
                     AppGraph.playback.synchronizeWithPlatformSession()
+                    supplySmartLibraryQuietly()
                 }
             }
         } catch (cancelled: CancellationException) {
@@ -92,6 +93,20 @@ internal fun installMediaBrowseCatalog(context: Context) {
         } catch (_: Throwable) {
             null
         }
+    }
+}
+
+/**
+ * [AppGraph.supplySmartLibraryWithoutScreens] for a resume no screen started. A failure costs SMART's wider
+ * choice until the app is opened, never the playback that is already under way.
+ */
+internal suspend fun supplySmartLibraryQuietly() {
+    try {
+        AppGraph.supplySmartLibraryWithoutScreens()
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (failure: Throwable) {
+        println("SMART: no library for a resume without screens: $failure")
     }
 }
 

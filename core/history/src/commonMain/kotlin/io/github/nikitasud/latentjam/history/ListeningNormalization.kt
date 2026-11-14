@@ -157,6 +157,59 @@ public object ListeningNormalization {
     }
 
     /**
+     * [events] in log order with every resumed half folded into the listen it continues, as [normalize]
+     * does for the statistics page; [events] itself when there is none. For readers that take each line
+     * as one listen (SMART's history, For You): a playback paused while the app went to the background
+     * is otherwise two listens there, and the first of them a skip when the pause came within 30 seconds.
+     * A joined listen starts as late as its time heard allows, so that it ends where the resumed half ended.
+     */
+    public fun joinResumed(events: List<ListenEvent>): List<ListenEvent> {
+        var joined: ArrayList<ListenEvent>? = null
+        var previous: ListenEvent? = null
+        var previousEnd = Long.MIN_VALUE
+        for (position in events.indices) {
+            val event = events[position]
+            val last = previous
+            if (last != null && resumes(last, previousEnd, event)) {
+                var out = joined
+                if (out == null) {
+                    out = ArrayList(events.size)
+                    out.addAll(events.subList(0, position))
+                    joined = out
+                }
+                // Timed as one unbroken listen that ended when the resumed half did. These readers have no
+                // other record of its end: they take start plus time heard, and with the first half's start
+                // a listen resumed after a long pause would end long before the track that followed it began.
+                val heardBefore = last.listenedMs ?: 0
+                val whole = join(last, event).copy(
+                    startedAtMs = (event.startedAtMs - heardBefore).coerceAtLeast(last.startedAtMs),
+                )
+                out[out.lastIndex] = whole
+                previous = whole
+                previousEnd = resumedEnd(event)
+            } else {
+                joined?.add(event)
+                previous = event
+                previousEnd = listenEnd(event)
+            }
+        }
+        return joined ?: events
+    }
+
+    /** Where a listen that stands alone ended. */
+    internal fun listenEnd(event: ListenEvent): Long = event.startedAtMs + event.effectiveListenedMs.coerceAtLeast(0)
+
+    /** Where a listen ended once [resumed] was folded into it. */
+    internal fun resumedEnd(resumed: ListenEvent): Long = resumed.startedAtMs + (resumed.listenedMs ?: 0)
+
+    /**
+     * Whether [event] is the resumed half of [previous], the line before it, which ended at [previousEnd].
+     * A start well before that end is a clock jump or a second device's log, never a resume.
+     */
+    internal fun resumes(previous: ListenEvent, previousEnd: Long, event: ListenEvent): Boolean =
+        event.startedAtMs >= previousEnd - OVERLAP_TOLERANCE_MS && continuesListen(previous, previousEnd, event)
+
+    /**
      * A pause recorded while the app went to the background splits one playback into two events; the
      * resumed half has no recorded start and begins where the first half stopped
      * ([HistorySessionTracker] makes the same test). A restart from the top fails the position test
@@ -172,7 +225,7 @@ public object ListeningNormalization {
         return event.playedMs - listened >= previous.playedMs - RESUME_POSITION_SLACK_MS
     }
 
-    private fun join(first: ListenEvent, resumed: ListenEvent): ListenEvent {
+    internal fun join(first: ListenEvent, resumed: ListenEvent): ListenEvent {
         val listened = saturatingDurationAdd(first.listenedMs ?: 0, resumed.listenedMs ?: 0)
         val completed = first.completed || resumed.completed
         return first.copy(

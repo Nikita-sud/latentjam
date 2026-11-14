@@ -178,7 +178,7 @@ internal object VorbisFields {
         }
         out = set(out, ALBUM, edits.album)
         out = set(out, ALBUM_ARTIST, edits.albumArtist)
-        out = setJoined(out, GENRE, edits.genre)
+        out = setJoined(out, GENRE, edits.genre, separate = true)
         val oldYear = read(entries).year
         out = set(out, DATE, edits.year)
         if (edits.originalFollowsYear) {
@@ -193,11 +193,23 @@ internal object VorbisFields {
         return out
     }
 
-    /** [set] for a field read as its values joined with "; ": restating that joined text keeps every entry. */
-    private fun setJoined(entries: List<VorbisEntry>, key: String, value: String?): List<VorbisEntry> {
-        val current = entries.filter { it.key == key }.map { it.value }.filter { it.isNotEmpty() }.joinToString("; ")
-        if (!value.isNullOrEmpty() && current == value) return entries
-        return set(entries, key, value)
+    /**
+     * [set] for a field read as its values joined with "; ": restating that joined text keeps every entry.
+     * With [separate], a field that holds several entries keeps one entry per value when its text is changed
+     * ([JoinedValues]); a field with a single entry is written as typed. The genre is written so, the artist is
+     * not: Android's own library shows one of several `ARTIST` entries and drops the rest, so an edited credit
+     * goes back as the one text it was typed as.
+     */
+    private fun setJoined(
+        entries: List<VorbisEntry>,
+        key: String,
+        value: String?,
+        separate: Boolean = false,
+    ): List<VorbisEntry> {
+        val stored = entries.filter { it.key == key }.map { it.value }.filter { it.isNotEmpty() }
+        if (!value.isNullOrEmpty() && stored.joinToString("; ") == value) return entries
+        val values = value?.takeIf { separate && stored.size > 1 }?.let(JoinedValues::of) ?: return set(entries, key, value)
+        return setMany(entries, key, values)
     }
 
     /** [set] for the lyrics, which read trimmed: a lone entry that reads as [value] is kept as stored. */

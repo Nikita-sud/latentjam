@@ -9,6 +9,7 @@ import io.github.nikitasud.latentjam.history.ListenStart
 import io.github.nikitasud.latentjam.history.isImported
 import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.history.epochMillis
+import io.github.nikitasud.latentjam.history.recentListens
 import io.github.nikitasud.latentjam.smart.HabitFlow
 import io.github.nikitasud.latentjam.smart.HabitListen
 import io.github.nikitasud.latentjam.smart.HabitSlots
@@ -398,7 +399,7 @@ internal suspend fun rankerPlan(
         val scope = library.ifEmpty { candidates }
         val libraryIds = scope.mapTo(HashSet(scope.size + candidates.size)) { it.id }
         candidates.mapTo(libraryIds) { it.id }
-        val events = runCatching { history.recentEvents(SMART_HABIT_HISTORY_LIMIT) }.getOrNull().orEmpty()
+        val events = runCatching { history.recentListens(SMART_HABIT_HISTORY_LIMIT) }.getOrNull().orEmpty()
         val listens = habitListens(events.asReversed(), libraryIds, seedMs)
         val novel = HabitSlots.novelty(listens, seedMs)
         // Fast track 2 soft novelty: ms since each novelty id's last play (read only by a model with softNovelty).

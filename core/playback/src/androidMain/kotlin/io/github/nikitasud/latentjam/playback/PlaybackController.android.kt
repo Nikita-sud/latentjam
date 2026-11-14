@@ -853,6 +853,19 @@ internal class AndroidPlaybackController(
         player?.currentMediaItem?.let { current -> mainScope.launch { decorateCoverlessTrack(current) } }
     }
 
+    override suspend fun rereadFiles(audioUris: Set<String>): Unit = withContext(Dispatchers.Main.immediate) {
+        val player = controller ?: return@withContext
+        if (audioUris.isEmpty() || player.mediaItemCount == 0) return@withContext
+        // Only what the player has open: the current track and the one it loads ahead for a gapless change.
+        val loaded = listOf(player.currentMediaItemIndex, player.nextMediaItemIndex)
+            .filter { it in 0 until player.mediaItemCount }
+            .map { player.getMediaItemAt(it) }
+        if (loaded.none { item -> (item.localConfiguration?.uri?.toString() ?: trackById(item.mediaId)?.audioUri) in audioUris }) {
+            return@withContext
+        }
+        if (player.readLoadedFilesAgain()) pushState()
+    }
+
     override suspend fun playNext(track: TrackDescriptor): Unit = withContext(Dispatchers.Main) {
         val player = controller()
         beginFreshRecoveryAttempt()

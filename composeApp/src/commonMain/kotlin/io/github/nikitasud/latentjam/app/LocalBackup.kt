@@ -1146,7 +1146,7 @@ internal class LocalBackupService(
         LocalBackupCodec.validate(snapshot)
         val currentTracks = library.allKnownTracks().distinctBy { it.id }
         val resolver = TrackReferenceResolver(currentTracks, snapshot.tracks)
-        val resolved = snapshot.tracks.associate { reference ->
+        val confirmed = snapshot.tracks.associate { reference ->
             reference.originalId to resolver.resolve(reference)
         }
         // Matching none of the references is not evidence that the tracks are gone: Android returns
@@ -1161,7 +1161,7 @@ internal class LocalBackupService(
             sections.hiddenTracks || sections.smartExclusions ||
             (newSections && (sections.favorites || sections.duplicateDecisions))
         if (mode == LocalBackupRestoreMode.REPLACE && replacesTrackReferences &&
-            snapshot.tracks.isNotEmpty() && resolved.values.none { it != null }
+            snapshot.tracks.isNotEmpty() && confirmed.values.none { it != null }
         ) {
             throw LocalBackupRestoreException(
                 completedSections = emptySet(),
@@ -1170,6 +1170,15 @@ internal class LocalBackupService(
                         "so a replace restore was refused",
                 ),
             )
+        }
+        // A replace writes each list as the backup has it, so a reference the library cannot confirm
+        // right now would leave that list for good. MERGE keeps what the lists hold already.
+        val resolved = if (mode == LocalBackupRestoreMode.REPLACE && replacesTrackReferences && resolver.idsTrusted) {
+            // Only an id the library holds no track under: one that names a track now was just judged, and refused.
+            val shown = currentTracks.mapTo(HashSet(currentTracks.size * 2)) { it.id.value }
+            confirmed + heldOnThisDevice(confirmed.filterTo(HashMap()) { (id, track) -> track == null && id !in shown }.keys)
+        } else {
+            confirmed
         }
         val completed = linkedSetOf<LocalBackupSection>()
         var playlistsApplied = 0
@@ -1347,6 +1356,30 @@ internal class LocalBackupService(
     }
 
     /**
+     * The references among [unconfirmed] that keep their original id in a replace restore: ids this
+     * device's own lists hold today, for a track the library cannot show right now (a card that is
+     * out, a source that did not answer) rather than one it can prove gone. Such a track comes back
+     * under the same id, and the restored playlist, history and hearts have it in place again. Asked
+     * only while the ids of this backup are this device's ([TrackReferenceResolver.idsTrusted]).
+     */
+    private suspend fun heldOnThisDevice(unconfirmed: Set<String>): Map<String, TrackId> {
+        if (unconfirmed.isEmpty()) return emptyMap()
+        val held = HashSet<String>()
+        playlists.all().forEach { playlist ->
+            held += playlist.trackIds
+            held += playlist.addedTrackIds
+        }
+        favorites.all().mapTo(held) { it.value }
+        library.hiddenTrackIds().mapTo(held) { it.value }
+        smartExclusions.load().trackIds.mapTo(held) { it.value }
+        history.allEvents().mapTo(held) { it.trackId.value }
+        val candidates = unconfirmed.filter { it in held }.map(::TrackId)
+        if (candidates.isEmpty()) return emptyMap()
+        val gone = library.missingTrackIds(candidates)
+        return candidates.filter { it !in gone }.associateBy { it.value }
+    }
+
+    /**
      * Merges restored hearts into the current ones as one compare-and-set ([mergedFavorites] says
      * how): a heart toggled while the restore runs is never overwritten, the merge simply starts
      * again from the list that heart produced.
@@ -1390,6 +1423,26 @@ internal class LocalBackupService(
             val candidate = exactById[id] ?: return@all false
             reference.isCompatibleWith(candidate)
         }
+
+        /**
+         * True while the backup's ids are this device's: of the described references whose id the
+         * library still holds, at least half still describe that very track. Another device's backup
+         * meets its ids here only by chance, and then hardly one of them fits. Weaker than
+         * [idsPreserved] on purpose: tags edited since the backup, or a card that is out, leave some
+         * references unconfirmed without making the rest of the ids anyone else's.
+         */
+        val idsTrusted: Boolean = run {
+            var held = 0
+            var fitting = 0
+            normalizedById.forEach { (id, reference) ->
+                if (!reference.hasIdentity) return@forEach
+                val candidate = exactById[id] ?: return@forEach
+                held++
+                // A reference that gives a length alone fits any track of that length: no evidence for the ids.
+                if (reference.title != null && reference.isCompatibleWith(candidate)) fitting++
+            }
+            fitting > 0 && fitting * 2 >= held
+        }
         private val metadataByKey: Map<MetadataKey, MetadataCandidates> = buildMap {
             val builders = mutableMapOf<MetadataKey, MutableList<IndexedTrack>>()
             indexedTracks.forEach { indexed ->
@@ -1424,9 +1477,19 @@ internal class LocalBackupService(
                 }
                 if (matches) return exact.track.id
             }
-            val title = normalized.title ?: return null
-            return metadataByKey[MetadataKey(title, normalized.artist, normalized.album)]
-                ?.uniqueNear(normalized.durationMs)
+            normalized.title?.let { title ->
+                metadataByKey[MetadataKey(title, normalized.artist, normalized.album)]
+                    ?.uniqueNear(normalized.durationMs)
+                    ?.let { return it }
+            }
+            // The id still names a track of the same length, and the old description singles out no
+            // other track: the tags were edited after the backup. Without this every retagged song
+            // left its playlists and its history in a replace, and was not added by a merge. Only on
+            // the device that made the backup.
+            val exact = exactById[reference.originalId] ?: return null
+            val saved = normalized.durationMs ?: return null
+            val current = exact.track.durationMs ?: return null
+            return exact.track.id.takeIf { idsTrusted && backupDurationsNear(saved, current) }
         }
     }
 

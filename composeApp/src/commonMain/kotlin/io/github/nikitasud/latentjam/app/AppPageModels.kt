@@ -432,6 +432,18 @@ internal class RootTabNavigation(initialPages: List<StartPage>) {
 
 /** The playlists as stored, whether they have loaded, and the listening facts auto playlists derive from. */
 @Stable
+/**
+ * Where a playlist deleted at row [place], between [before] and [after], goes back among [now]: after the
+ * neighbour that was above it, else before the one that was below it, else its old row.
+ */
+internal fun restoredPlaylistPlace(now: List<String>, place: Int, before: String?, after: String?): Int {
+    val above = before?.let(now::indexOf) ?: -1
+    if (above >= 0) return above + 1
+    val below = after?.let(now::indexOf) ?: -1
+    if (below >= 0) return below
+    return place.coerceIn(0, now.size)
+}
+
 internal class PlaylistsState {
     var playlists by mutableStateOf<List<Playlist>>(emptyList())
 

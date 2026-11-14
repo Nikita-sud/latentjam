@@ -14,6 +14,7 @@ import io.github.nikitasud.latentjam.history.SmartExclusions
 import io.github.nikitasud.latentjam.history.SmartImpressionLog
 import io.github.nikitasud.latentjam.history.SmartPresses
 import io.github.nikitasud.latentjam.history.listeningHistoryModule
+import io.github.nikitasud.latentjam.history.recentListens
 import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.library.Playlists
 import io.github.nikitasud.latentjam.library.musicLibraryModule
@@ -33,6 +34,7 @@ import io.github.nikitasud.latentjam.smart.SmartEngineConfig
 import io.github.nikitasud.latentjam.smart.EngineError
 import io.github.nikitasud.latentjam.smart.HabitFlow
 import io.github.nikitasud.latentjam.smart.ranker.SaltedKey
+import io.github.nikitasud.latentjam.smart.ranker.heapHeadroomBytes
 import io.github.nikitasud.latentjam.smart.ranker.SmartRankerAssets
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
@@ -134,6 +136,55 @@ object AppGraph {
 
     /** SMART's eligible library as the App last handed it to playback; read by the habit slots. */
     val smartLibraryTracks = MutableStateFlow<List<TrackDescriptor>>(emptyList())
+
+    /** Free heap a resume with no screen open needs before it loads SMART's library and index; see its use. */
+    private const val HEADLESS_SMART_HEADROOM_BYTES = 64L * 1024 * 1024
+
+    /** Orders the two ways SMART gets its library, so the screens' list is never replaced by an older one. */
+    private val smartLibraryLock = kotlinx.coroutines.sync.Mutex()
+    private var smartLibraryFromScreens = false
+
+    /** The screens hand SMART its eligible library: the player first, then everything else that reads it. */
+    suspend fun setSmartLibrary(playback: PlaybackController, tracks: List<TrackDescriptor>): Unit = smartLibraryLock.withLock {
+        playback.setSmartLibrary(tracks)
+        smartLibraryTracks.value = tracks
+        smartLibraryFromScreens = true
+    }
+
+    /**
+     * Hands SMART its library when playback starts with no screen open: a headset button, the widget, the
+     * tile or a car resuming the saved queue after the process was gone. The screens do this as they load;
+     * without them SMART could choose only from the list the saved queue was started from, and stopped
+     * once that list was used up. What the screens supply always wins, before or after this.
+     */
+    suspend fun supplySmartLibraryWithoutScreens() {
+        if (smartLibraryFromScreens || !settings.smartEnabled.value) return
+        // This keeps the whole library and the index in a process that held only the queue, and the screens
+        // build their own copy of the library before they replace this one. A small heap has no room for
+        // that: 0.8.1 could not open at all on 48 MB heaps. The bound is more than such a heap can ever
+        // have free, so those phones stay as they were, SMART choosing from the list the queue came from;
+        // a 96 MB heap, the smallest measured to hold 10,000 songs with room, has it when a resume starts.
+        if (heapHeadroomBytes() < HEADLESS_SMART_HEADROOM_BYTES) return
+        // The index the screens load as they start: without it SMART has every track to choose from and
+        // nothing to choose by, and fills the queue with its stand-in rows. Loading reads what is stored;
+        // nothing is analysed here. If it cannot be read, the resume stays as it was.
+        if (engine.initialize().isFailure) return
+        // The same list the screens build: the scan with its remembered tags, minus what SMART is told to leave out.
+        val tracks = GenreEnrichment(settings).apply(library.tracks())
+        if (tracks.isEmpty()) return
+        val exclusions = smartExclusions.load()
+        val eligible = withContext(Dispatchers.Default) { tracks.filterNot(exclusions.hidesFromSmart()) }
+        val saved = playlists.all()
+        smartLibraryLock.withLock {
+            if (smartLibraryFromScreens) return
+            // The playlists first: handing over the library lets a short SMART queue top itself up at once.
+            smartUserPlaylists.value = saved.smartUserPlaylists()
+            smartPersonalPlaylists.value = saved.smartPersonalPlaylists()
+            smartCompanionGroups.value = saved.smartCompanionMemberships()
+            playback.setSmartLibrary(eligible)
+            smartLibraryTracks.value = eligible
+        }
+    }
     /** Advances after each accepted listening event so For You can apply feedback next time it opens. */
     val historyRevision: StateFlow<Long> = mutableHistoryRevision.asStateFlow()
 
@@ -506,7 +557,7 @@ object AppGraph {
             log = log,
             ranker = ranker,
             library = smartLibraryTracks.value,
-            events = history.recentEvents(10_000),
+            events = history.recentListens(10_000),
             favourites = hearts.associateWith { times[it] },
             useFavourites = settings.useFavourites.value,
             fullModelName = ranker.fullModelName,

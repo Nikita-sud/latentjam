@@ -394,7 +394,7 @@ public object Id3Tags {
         if (edits.artist != null) result = setCreditedArtists(version, result, edits.artist)
         result = setText(version, result, FRAME_ALBUM, edits.album)
         result = setText(version, result, FRAME_ALBUM_ARTIST, edits.albumArtist)
-        result = setText(version, result, FRAME_GENRE, edits.genre)
+        result = setText(version, result, FRAME_GENRE, edits.genre, severalValues = true)
         if (edits.genre != null) result = result.filterNot { isGenreFrame(version, it) }
 
         val yearFrame = if (version == Id3Version.V2_4) FRAME_YEAR_V24 else FRAME_YEAR_V23
@@ -748,10 +748,25 @@ public object Id3Tags {
     /** Decoded text of the first frame with [id] in [frames], NUL-separated values joined by "; ". */
     private fun textIn(version: Id3Version, frames: List<Id3RawFrame>, id: String): String? {
         val frame = frames.firstOrNull { it.id == id } ?: return null
-        val body = frameTextBody(frame, version) ?: return null
-        if (body.isEmpty()) return null
-        val raw = Id3Text.decode(body[0].toInt() and 0xFF, body, 1, body.size) ?: return null
-        return raw.split('\u0000').filter { it.isNotEmpty() }.joinToString("; ").ifEmpty { null }
+        return valuesIn(version, frame).joinToString("; ").ifEmpty { null }
+    }
+
+    /** The NUL-separated values of the text frame [frame]; none when it cannot be read. */
+    private fun valuesIn(version: Id3Version, frame: Id3RawFrame): List<String> {
+        val body = frameTextBody(frame, version) ?: return emptyList()
+        if (body.isEmpty()) return emptyList()
+        val raw = Id3Text.decode(body[0].toInt() and 0xFF, body, 1, body.size) ?: return emptyList()
+        return raw.split('\u0000').filter { it.isNotEmpty() }
+    }
+
+    /**
+     * A text frame holding [values] as ID3v2.4 separates them, with a NUL: what [textIn] reads joined
+     * with "; ". [Id3Text.encodeTextFrameBody] is for one value and strips that separator.
+     */
+    private fun valuesFrame(id: String, values: List<String>): Id3RawFrame {
+        val text = values.joinToString("\u0000")
+        val encoding = chooseEncoding(Id3Version.V2_4, text)
+        return Id3RawFrame(id, byteArrayOf(0, 0), byteArrayOf(encoding.toByte()) + encodeText(encoding, text))
     }
 
     /**
@@ -760,6 +775,11 @@ public object Id3Tags {
      * A null [value] leaves the frame alone. An empty [value] removes it. Any
      * duplicate frames with the same ID are collapsed into the single new one,
      * and every ID in [alsoRemove] is dropped regardless.
+     *
+     * With [severalValues], an ID3v2.4 frame that holds several values keeps one value per name when
+     * its text is changed ([JoinedValues]); ID3v2.3 has no separator of its own, and gets the text as typed.
+     * Asked for the genre only: Android's own library shows the first of several artist values and drops
+     * the rest, so an edited credit goes back as the one text it was typed as.
      */
     private fun setText(
         version: Id3Version,
@@ -767,9 +787,14 @@ public object Id3Tags {
         id: String,
         value: String?,
         alsoRemove: List<String> = emptyList(),
+        severalValues: Boolean = false,
     ): List<Id3RawFrame> {
         if (value == null) return frames
         val doomed = alsoRemove + id
+        val values = frames.firstOrNull { it.id == id }
+            ?.takeIf { severalValues && version == Id3Version.V2_4 && valuesIn(version, it).size > 1 }
+            ?.let { JoinedValues.of(value) }
+        fun written(): Id3RawFrame = if (values != null) valuesFrame(id, values) else newTextFrame(version, id, value)
         // A frame that already says exactly this stays as it is — a UTF-16 "Song" is not rewritten
         // as Latin-1 "Song" just because the user saved without changing it.
         val same = frames.firstOrNull { it.id == id }
@@ -782,13 +807,13 @@ public object Id3Tags {
                 continue
             }
             if (frame.id == id && !placed && value.isNotEmpty()) {
-                out.add(same ?: newTextFrame(version, id, value))
+                out.add(same ?: written())
                 placed = true
             }
             // Every other match is dropped: duplicates of the frame we just
             // wrote, and the other version's stale year frame.
         }
-        if (!placed && value.isNotEmpty()) out.add(newTextFrame(version, id, value))
+        if (!placed && value.isNotEmpty()) out.add(written())
         return out
     }
 
