@@ -896,13 +896,13 @@ public class PlaybackService : MediaLibraryService() {
             // Decoded at the session's size limit, as Media3's own loader is; Media3 still caches
             // around it. A full-size decode of a 3000 px cover costs ~36 MB on a small phone.
             .setBitmapLoader(
-                TrackCoverBitmapLoader(
-                    DataSourceBitmapLoader.Builder(this)
-                        .setMaximumOutputDimension(MediaSession.getBitmapDimensionLimit(this))
-                        .build(),
-                    resolver = contentResolver,
-                    maxDimension = MediaSession.getBitmapDimensionLimit(this),
-                ),
+                sessionCoverLimit(MediaSession.getBitmapDimensionLimit(this), platformSessionBitmapLimit(this)).let { limit ->
+                    TrackCoverBitmapLoader(
+                        DataSourceBitmapLoader.Builder(this).setMaximumOutputDimension(limit).build(),
+                        resolver = contentResolver,
+                        maxDimension = limit,
+                    )
+                },
             )
         appLaunchPendingIntent()?.let(sessionBuilder::setSessionActivity)
         mediaSession = sessionBuilder.build()
@@ -1408,4 +1408,27 @@ public class PlaybackService : MediaLibraryService() {
         const val PROMOTION_RECHECK_MS = 5_000L
         const val EMPTY_SERVICE_CHECK_MS = 15_000L
     }
+}
+
+/**
+ * The largest side of a cover handed to the media session: Media3's limit, but never above the platform's own.
+ *
+ * Media3 allows at least 320 dp whatever the system is configured for, and files the one cover bitmap under two
+ * metadata keys. A system whose own limit is lower scales each oversized bitmap itself in `MediaSession.setMetadata`,
+ * key by key; where the source does not survive that, the second key meets a recycled bitmap and the app closes on
+ * the first track with "cannot use a recycled source in createBitmap" (issue #37, a custom Android 15/16 build). A
+ * cover within the platform's limit is never scaled by it.
+ */
+internal fun sessionCoverLimit(media3Limit: Int, platformLimit: Int): Int =
+    if (platformLimit > 0) minOf(media3Limit, platformLimit) else media3Limit
+
+/**
+ * What the platform scales a session bitmap down to (`config_mediaMetadataBitmapMaxSize`, read as MediaSession reads
+ * it: through the service's own resources), or 0 when the system does not say.
+ */
+private fun platformSessionBitmapLimit(context: android.content.Context): Int = try {
+    val id = android.content.res.Resources.getSystem().getIdentifier("config_mediaMetadataBitmapMaxSize", "dimen", "android")
+    if (id == 0) 0 else context.resources.getDimensionPixelSize(id)
+} catch (_: RuntimeException) {
+    0
 }
