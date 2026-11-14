@@ -43,8 +43,14 @@ internal actual suspend fun pinPlaylistShortcut(playlistId: String, name: String
         ShortcutManagerCompat.getShortcuts(context, ShortcutManagerCompat.FLAG_MATCH_PINNED)
             .any { it.id == shortcut.id }
     }.getOrDefault(false)
-    if (alreadyPinned) runCatching { ShortcutManagerCompat.updateShortcuts(context, listOf(shortcut)) }
-    return ShortcutManagerCompat.requestPinShortcut(context, shortcut, null)
+    if (alreadyPinned) {
+        // Greyed out when its playlist was deleted, and the playlist is back (a restored backup keeps its id): the
+        // launcher refuses, by throwing, a pin request for a shortcut that is disabled.
+        runCatching { ShortcutManagerCompat.enableShortcuts(context, listOf(shortcut)) }
+        runCatching { ShortcutManagerCompat.updateShortcuts(context, listOf(shortcut)) }
+    }
+    // The launcher may refuse by throwing too (the app left the foreground meanwhile): that is a "no", not a crash.
+    return runCatching { ShortcutManagerCompat.requestPinShortcut(context, shortcut, null) }.getOrDefault(false)
 }
 
 internal actual fun renamePlaylistShortcut(playlistId: String, name: String) {
@@ -79,7 +85,14 @@ private fun openPlaylistIntent(context: Context, playlistId: String): Intent =
 
 /** The cover, square and full-bleed; null keeps the app icon (no cover, no access, unreadable). */
 private fun readCover(context: Context, uri: String): Bitmap? = try {
+    // The loader scales to cover the square but does not cut: a wide cover is cut here, or the launcher would
+    // squash it into the icon's square.
     AndroidTrackArtwork.loadDisplayBitmap(context.contentResolver, Uri.parse(uri), ICON_SIZE_PX, ICON_SIZE_PX, crop = true)
+        ?.let { cover ->
+            val side = minOf(cover.width, cover.height)
+            if (cover.width == cover.height) cover
+            else Bitmap.createBitmap(cover, (cover.width - side) / 2, (cover.height - side) / 2, side, side)
+        }
 } catch (cancelled: CancellationException) {
     throw cancelled
 } catch (_: Exception) {

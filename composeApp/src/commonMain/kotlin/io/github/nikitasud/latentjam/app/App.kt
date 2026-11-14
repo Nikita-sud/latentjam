@@ -2005,9 +2005,11 @@ private fun AppShell(
         // A pinned home-screen shortcut (issue #32) opens its playlist's page, once the library and
         // the playlists are in. A playlist deleted meanwhile leaves the app where it was.
         val shortcutPlaylistId by PlaylistShortcutRequests.pending.collectAsState()
-        LaunchedEffect(shortcutPlaylistId, tracks, playlistsState.playlistsLoaded) {
+        LaunchedEffect(shortcutPlaylistId, tracks, catalogSource, playlistsState.playlistsLoaded) {
             val id = shortcutPlaylistId ?: return@LaunchedEffect
-            if (tracks == null || !playlistsState.playlistsLoaded) return@LaunchedEffect
+            // The page's rows are resolved through the catalog, which is built after the library is published. On a
+            // cold start the playlists are read first: opened then, the playlist would show as empty, and stay so.
+            if (tracks == null || catalogSource !== tracks || !playlistsState.playlistsLoaded) return@LaunchedEffect
             PlaylistShortcutRequests.pending.value = null
             val playlist = playlistsState.playlists.firstOrNull { it.id == id } ?: return@LaunchedEffect
             // Opened in place rather than through openCollection: on a cold start the pager's first
@@ -2023,6 +2025,7 @@ private fun AppShell(
                 playlistId = playlist.id,
             )
             showSettings = false
+            settingsRoute = null
             showSearch = false
             showNowPlaying = false
             updateTrackSelection(emptySet())
