@@ -141,7 +141,8 @@ internal fun ListenBrainzImportSection(
     }
 
     report?.let { finished ->
-        val offerHabits = finished.imported > 0 && !learnFromHabits
+        // Not while SMART is switched off: the setting it would turn on is not even shown then.
+        val offerHabits = finished.imported > 0 && !learnFromHabits && LocalSmartEnabled.current
         val dismiss = { ListenBrainzImportState.report.value = null }
         AppAlertDialog(
             onDismissRequest = dismiss,

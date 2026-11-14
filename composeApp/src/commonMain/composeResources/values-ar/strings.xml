@@ -421,7 +421,7 @@
     <string name="settings_smart_engine">محرك SMART</string>
     <string name="settings_smart_engine_subtitle">ما يعرفه النموذج العامل على الجهاز عن مكتبتك</string>
     <string name="settings_smart_enabled">استخدام SMART</string>
-    <string name="settings_smart_enabled_body">عند الإيقاف يصبح LatentJam مشغّلًا عاديًا: لا يوجد وضع SMART ولا يتم تحليل موسيقاك.</string>
+    <string name="settings_smart_enabled_body">عند الإيقاف يصبح LatentJam مشغّلًا عاديًا: لا يوجد وضع SMART ولا يتم تحليل موسيقاك. الخريطة والبحث عن التكرارات الصوتية يحتاجان إلى التحليل، لذا لا يتوفران.</string>
     <string name="settings_about_body">مشغّل موسيقى محلي من LatentJam مزوّد بمحرك توصيات يعمل على الجهاز. لا تغادر أي معلومات عن استماعك هذا الجهاز.</string>
 
     <!-- ========================================================== equalizer -->

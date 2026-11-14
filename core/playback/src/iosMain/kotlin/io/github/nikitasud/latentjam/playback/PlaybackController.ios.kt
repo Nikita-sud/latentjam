@@ -2069,7 +2069,8 @@ internal class IosPlaybackController(
             if (requested == null) {
                 MPRemoteCommandHandlerStatusCommandFailed
             } else {
-                mainScope.launch { applyShuffleMode(requested) }
+                // Read when it runs: SMART may have been switched off since the command arrived.
+                mainScope.launch { applyShuffleMode(requested.allowed(smartAvailable)) }
                 MPRemoteCommandHandlerStatusSuccess
             }
         }

@@ -684,7 +684,8 @@ object AppGraph {
                     control.release()
                     notifier.close()
                     val notice = stoppedNotice ?: timeoutNotice.also { timeoutNotice = null }
-                    if (notice != null) {
+                    // Not once SMART is switched off: its Continue would offer an analysis that will not run.
+                    if (notice != null && settings.smartEnabled.value) {
                         indexingNotifier.notice(
                             title = notificationTitle,
                             text = notices(notice),
@@ -943,6 +944,9 @@ object AppGraph {
             indexingNotifier.clearNotice()
             return
         }
+        // A map rebuild that waited while SMART was off is asked for again: a pass already complete for this library
+        // starts nothing below, and only the end of a pass asks otherwise.
+        resumeMapRebuild()
         val last = lastAnalysisCall ?: return
         ensureAutomaticIndexing(
             tracks = last.key.tracks,
@@ -984,6 +988,8 @@ object AppGraph {
      * never loses the tap; the first call that knows the library consumes it.
      */
     fun continueAutomaticIndexing() {
+        // A Continue from a notice posted before SMART was switched off changes nothing, the user's pause included.
+        if (!settings.smartEnabled.value) return
         analysisStore.pendingContinue = true
         analysisControl.setUserPaused(false)
         indexingNotifier.clearNotice()

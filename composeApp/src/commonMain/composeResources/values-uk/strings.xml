@@ -377,7 +377,7 @@
     <string name="settings_smart_engine">Рушій SMART</string>
     <string name="settings_smart_engine_subtitle">Що модель на пристрої знає про вашу бібліотеку</string>
     <string name="settings_smart_enabled">Використовувати SMART</string>
-    <string name="settings_smart_enabled_body">Якщо вимкнути, LatentJam працює як звичайний плеєр: режиму SMART немає, а музика не аналізується.</string>
+    <string name="settings_smart_enabled_body">Якщо вимкнути, LatentJam працює як звичайний плеєр: режиму SMART немає, а музика не аналізується. Карті й пошуку дублікатів за звуком потрібен аналіз, тому вони недоступні.</string>
     <string name="settings_about_body">LatentJam — локальний музичний плеєр із рекомендаціями просто на пристрої. Дані про ваше прослуховування не залишають цей пристрій.</string>
 
     <!-- ========================================================== equalizer -->

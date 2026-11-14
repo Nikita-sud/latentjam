@@ -363,7 +363,7 @@
     <string name="settings_smart_engine">Движок SMART</string>
     <string name="settings_smart_engine_subtitle">Что модель на устройстве знает о вашей медиатеке</string>
     <string name="settings_smart_enabled">Использовать SMART</string>
-    <string name="settings_smart_enabled_body">Если выключить, LatentJam работает как обычный плеер: режима SMART нет, а музыка не анализируется.</string>
+    <string name="settings_smart_enabled_body">Если выключить, LatentJam работает как обычный плеер: режима SMART нет, а музыка не анализируется. Карте и поиску дубликатов по звуку нужен анализ, поэтому они недоступны.</string>
     <string name="settings_about_body">LatentJam — локальный музыкальный плеер с рекомендациями прямо на устройстве. Ничего о том, что вы слушаете, не покидает это устройство.</string>
 
     <!-- ========================================================== equalizer -->

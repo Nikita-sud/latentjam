@@ -41,8 +41,11 @@ internal suspend fun playFromForYou(
     queueLength: Int,
     companionGroups: List<Set<TrackId>>,
     isCurrent: () -> Boolean = { true },
-    /** False while SMART is switched off in settings: the rows play as themselves, nothing is planned behind them. */
-    continuation: Boolean = true,
+    /**
+     * False while SMART is switched off in settings: the rows play as themselves, nothing is planned behind them. Asked
+     * again once the plan is ready, since planning takes seconds and the switch may have been flipped meanwhile.
+     */
+    continuation: () -> Boolean = { true },
 ) = playFromForYou(playback, tracks, startIndex, library, isCurrent, continuation) { seed ->
     engine.smartQueue(seed, library, queueLength, smartHistoryFor(history, seed), companionGroups)
 }
@@ -57,7 +60,7 @@ internal suspend fun playFromForYou(
     startIndex: Int,
     library: List<TrackDescriptor>,
     isCurrent: () -> Boolean = { true },
-    continuation: Boolean = true,
+    continuation: () -> Boolean = { true },
     plan: suspend (seed: TrackDescriptor) -> List<TrackId>,
 ) {
     if (tracks.isEmpty()) return
@@ -71,7 +74,7 @@ internal suspend fun playFromForYou(
     // something the listener picked elsewhere in the meantime.
     PersonalSignals.pick(PickSurface.FOR_YOU)
     playback.play(tracks, index)
-    if (!continuation) return
+    if (!continuation()) return
     val seed = tracks.last()
     val planned = runCatching { plan(seed) }.getOrElse { failure ->
         // A continuation is a courtesy: if SMART cannot plan, the row still plays as itself.
@@ -89,9 +92,19 @@ internal suspend fun playFromForYou(
     // Repeat all loops the queue: the row is what was asked for, not the row plus twenty SMART
     // picks. Read here, at the last moment, since the planner may have taken seconds.
     if (now.repeatMode == RepeatMode.ALL) return
+    if (!continuation()) return
     val byId = library.associateBy { it.id }
     val tail = planned.filter { it !in rowIds }.mapNotNull(byId::get)
     playback.appendSmartPlan(tail, smartPlanPositions(planned).filterKeys { it !in rowIds })
+}
+
+/**
+ * A For You card while SMART is switched off: its track, and the library on from it in the Tracks tab's order, as a tap
+ * on a track row there plays. A card that played one track and then fell silent would be the only such control.
+ */
+internal suspend fun playLibraryFrom(playback: PlaybackController, track: TrackDescriptor, songs: List<TrackDescriptor>) {
+    val index = songs.indexOfFirst { it.id == track.id }
+    if (index >= 0) playback.play(songs, index) else playback.play(listOf(track), 0)
 }
 
 /**

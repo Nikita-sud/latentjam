@@ -1308,13 +1308,16 @@ private fun HowYouListenCard(overview: ListeningOverview, accentInk: Color) {
         ShareMeter(stringResource(Res.string.stats_partly_share), partly, color = accentInk)
         ShareMeter(stringResource(Res.string.stats_skipped_share), skipped, color = accentInk)
         StatsNote(stringResource(Res.string.stats_finish_note))
-        AppDivider(Modifier.padding(vertical = 4.dp))
-        ShareMeter(
-            label = stringResource(Res.string.stats_smart_mode_share),
-            percent = percentValue(overview.smartPlays.toFloat() / overview.plays.coerceAtLeast(1)),
-            color = MaterialTheme.colorScheme.tertiary,
-        )
-        StatsNote(stringResource(Res.string.stats_smart_detail))
+        // With SMART switched off and never used in this period there is nothing to say about it.
+        if (LocalSmartEnabled.current || overview.smartPlays > 0) {
+            AppDivider(Modifier.padding(vertical = 4.dp))
+            ShareMeter(
+                label = stringResource(Res.string.stats_smart_mode_share),
+                percent = percentValue(overview.smartPlays.toFloat() / overview.plays.coerceAtLeast(1)),
+                color = MaterialTheme.colorScheme.tertiary,
+            )
+            StatsNote(stringResource(Res.string.stats_smart_detail))
+        }
     }
 }
 

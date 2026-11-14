@@ -1472,10 +1472,13 @@ internal class AndroidPlaybackController(
         pool = source
         // The live SMART queue can contain generated rows absent from its canonical source.
         poolById = (source + resume.tracks).associateByIdValue()
-        mode = resume.shuffleMode
+        // A session saved in SMART comes back in plain order while SMART is switched off: this write is the one that
+        // does not pass through the registry, and in a cold process nothing would correct it afterwards.
+        mode = resume.shuffleMode.allowed(AndroidShuffleModeRegistry.smartAvailable)
         smartContinuationIds.clear()
         val resumedIds = resume.tracks.mapTo(HashSet()) { it.id }
-        smartContinuationIds.addAll(resume.smartContinuationIds.intersect(resumedIds))
+        // Its rows are then no SMART picks to the listener either.
+        if (mode == resume.shuffleMode) smartContinuationIds.addAll(resume.smartContinuationIds.intersect(resumedIds))
         smartPlanPositions.clear()
         smartPlanPositions.putAll(resume.smartPlanPositions.filterKeys { it in resumedIds })
         smartRemovedIds.clear()

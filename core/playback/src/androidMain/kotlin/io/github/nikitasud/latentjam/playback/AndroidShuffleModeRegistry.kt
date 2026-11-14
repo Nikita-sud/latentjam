@@ -21,17 +21,20 @@ internal object AndroidShuffleModeRegistry {
     private val mutableMode = MutableStateFlow(ShuffleMode.OFF)
     val mode: StateFlow<ShuffleMode> = mutableMode.asStateFlow()
 
+    private val mutableSmartAvailable = MutableStateFlow(true)
+
     /** False while SMART is switched off in settings: SMART is then never the mode, whoever asks for it. */
-    @Volatile
-    var smartAvailable: Boolean = true
-        private set
+    val smartAvailable: Boolean get() = mutableSmartAvailable.value
+
+    /** [smartAvailable] as it changes: what a press of the cycle button leads to changes with it. */
+    val smartAvailableChanges: StateFlow<Boolean> = mutableSmartAvailable.asStateFlow()
 
     fun set(value: ShuffleMode) {
         mutableMode.value = value.allowed(smartAvailable)
     }
 
     fun setSmartAvailable(available: Boolean) {
-        smartAvailable = available
+        mutableSmartAvailable.value = available
         // A queue in SMART goes on in plain order: the controller follows this flow.
         if (!available) mutableMode.value = mutableMode.value.allowed(false)
     }

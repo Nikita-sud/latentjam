@@ -319,7 +319,7 @@
     <string name="settings_smart_engine">Mesin SMART</string>
     <string name="settings_smart_engine_subtitle">Apa yang diketahui model di perangkat tentang pustaka Anda</string>
     <string name="settings_smart_enabled">Gunakan SMART</string>
-    <string name="settings_smart_enabled_body">Jika dimatikan, LatentJam menjadi pemutar biasa: tidak ada mode SMART, dan musik Anda tidak dianalisis.</string>
+    <string name="settings_smart_enabled_body">Jika dimatikan, LatentJam menjadi pemutar biasa: tidak ada mode SMART, dan musik Anda tidak dianalisis. Peta dan pencarian duplikat audio memerlukan analisis, sehingga tidak tersedia.</string>
     <string name="settings_about_body">LatentJam — pemutar musik lokal dengan mesin rekomendasi yang berjalan di perangkat. Tidak ada informasi tentang apa yang Anda dengarkan yang meninggalkan perangkat ini.</string>
 
     <!-- ========================================================== equalizer -->

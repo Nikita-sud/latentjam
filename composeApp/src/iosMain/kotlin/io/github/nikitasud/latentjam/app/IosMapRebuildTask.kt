@@ -27,8 +27,11 @@ fun registerMapRebuildTask() {
         // Exactly once, from whichever comes first: the run, its cancellation, or the expiration handler.
         fun complete(success: Boolean) {
             if (!completed.compareAndSet(0, 1)) return
-            // An unfinished analysis or an expired run asks again; the old map stays as it was.
-            if (!success) scheduleMapRebuild()
+            // An unfinished analysis or an expired run asks again; the old map stays as it was. Not while the analysis
+            // is held back (paused, stopped, SMART switched off): asking again would only wake the app for nothing,
+            // and the end of the next pass asks by itself.
+            val heldBack = runCatching { AppGraph.analysisHeldBack() }.getOrDefault(false)
+            if (!success && !heldBack) scheduleMapRebuild()
             processing.setTaskCompletedWithSuccess(success)
         }
         val job = AppGraph.appScope.launch(Dispatchers.Main) {

@@ -408,7 +408,7 @@
     <string name="settings_smart_engine">SMART engine</string>
     <string name="settings_smart_engine_subtitle">What the on-device model knows about your library</string>
     <string name="settings_smart_enabled">Use SMART</string>
-    <string name="settings_smart_enabled_body">Off, LatentJam is a plain player: there is no SMART mode, and your music is not analysed.</string>
+    <string name="settings_smart_enabled_body">When off, LatentJam is a plain player: there is no SMART mode and your music is not analysed. The Map and the audio duplicates finder need the analysis, so they are not available.</string>
     <string name="settings_about_body">LatentJam — a local music player with an on-device recommender. Nothing about your listening leaves this device.</string>
 
     <!-- ========================================================== equalizer -->

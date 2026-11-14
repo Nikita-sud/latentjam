@@ -377,7 +377,7 @@
     <string name="settings_smart_engine">Silnik SMART</string>
     <string name="settings_smart_engine_subtitle">Co model działający na urządzeniu wie o Twojej bibliotece</string>
     <string name="settings_smart_enabled">Używaj SMART</string>
-    <string name="settings_smart_enabled_body">Po wyłączeniu LatentJam jest zwykłym odtwarzaczem: nie ma trybu SMART, a Twoja muzyka nie jest analizowana.</string>
+    <string name="settings_smart_enabled_body">Po wyłączeniu LatentJam jest zwykłym odtwarzaczem: nie ma trybu SMART, a Twoja muzyka nie jest analizowana. Mapa i wyszukiwanie duplikatów audio wymagają analizy, więc nie są dostępne.</string>
     <string name="settings_about_body">LatentJam — lokalny odtwarzacz muzyki z systemem rekomendacji działającym na urządzeniu. Żadne informacje o tym, czego słuchasz, nie opuszczają tego urządzenia.</string>
 
     <!-- ========================================================== equalizer -->

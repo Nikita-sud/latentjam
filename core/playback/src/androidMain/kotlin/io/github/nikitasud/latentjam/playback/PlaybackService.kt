@@ -52,6 +52,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -921,7 +922,8 @@ public class PlaybackService : MediaLibraryService() {
         // anchor must no longer claim that progress is live while Media3 restores the queue.
         PlaybackWidgetStateStore.markPaused(this)
         serviceScope.launch {
-            AndroidShuffleModeRegistry.mode.collectLatest {
+            // Also when SMART is switched off or on in settings: the button is named after what a press leads to.
+            AndroidShuffleModeRegistry.mode.combine(AndroidShuffleModeRegistry.smartAvailableChanges) { mode, _ -> mode }.collectLatest {
                 refreshMediaButtons()
                 // SMART and OFF both map to ExoPlayer shuffle=false, so only this logical-mode
                 // bridge can distinguish them for the widget. Preserve prior metadata until a

@@ -333,7 +333,7 @@
     <string name="settings_smart_engine">SMART इंजन</string>
     <string name="settings_smart_engine_subtitle">डिवाइस पर मौजूद मॉडल आपकी लाइब्रेरी के बारे में क्या जानता है</string>
     <string name="settings_smart_enabled">SMART का उपयोग करें</string>
-    <string name="settings_smart_enabled_body">बंद होने पर LatentJam एक साधारण प्लेयर है: कोई SMART मोड नहीं, और आपके संगीत का विश्लेषण नहीं होता।</string>
+    <string name="settings_smart_enabled_body">बंद होने पर LatentJam एक साधारण प्लेयर है: कोई SMART मोड नहीं, और आपके संगीत का विश्लेषण नहीं होता। नक्शा और ऑडियो डुप्लिकेट की खोज के लिए विश्लेषण चाहिए, इसलिए वे उपलब्ध नहीं रहते।</string>
     <string name="settings_about_body">LatentJam — डिवाइस पर ही चलने वाले सुझाव इंजन के साथ एक लोकल म्यूज़िक प्लेयर. आप क्या सुनते हैं, इससे जुड़ी कोई भी जानकारी इस डिवाइस से बाहर नहीं जाती.</string>
 
     <!-- ========================================================== equalizer -->

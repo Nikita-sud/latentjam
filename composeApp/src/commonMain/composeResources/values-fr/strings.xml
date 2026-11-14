@@ -345,7 +345,7 @@
     <string name="settings_smart_engine">Moteur SMART</string>
     <string name="settings_smart_engine_subtitle">Ce que le modèle embarqué sait de votre bibliothèque</string>
     <string name="settings_smart_enabled">Utiliser SMART</string>
-    <string name="settings_smart_enabled_body">Désactivé, LatentJam est un lecteur ordinaire : pas de mode SMART, et votre musique n’est pas analysée.</string>
+    <string name="settings_smart_enabled_body">Désactivé, LatentJam est un lecteur ordinaire : pas de mode SMART, et votre musique n’est pas analysée. La carte et la recherche de doublons audio ont besoin de l’analyse et ne sont donc pas disponibles.</string>
     <string name="settings_about_body">LatentJam — un lecteur de musique local avec un moteur de recommandation embarqué. Rien de ce que vous écoutez ne quitte cet appareil.</string>
 
     <!-- ========================================================== equalizer -->

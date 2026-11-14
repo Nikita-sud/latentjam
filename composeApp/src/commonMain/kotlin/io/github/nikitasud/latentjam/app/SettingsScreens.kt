@@ -879,7 +879,10 @@ private fun AppearanceSettings(
         item {
             SettingsSection(stringResource(Res.string.settings_track_colors)) {
                 ChoiceChips(
-                    values = TrackColorMode.entries,
+                    // Colours from the sound analysis are not offered while SMART is switched off, unless already chosen.
+                    values = LocalSmartEnabled.current.let { smart ->
+                        TrackColorMode.entries.filter { smart || it != TrackColorMode.SMART || colorMode == TrackColorMode.SMART }
+                    },
                     selected = colorMode,
                     label = { mode ->
                         stringResource(when (mode) {
@@ -1089,7 +1092,10 @@ private fun PagesSettings(settings: AppSettings) {
     val savedLayout by settings.pageLayout.collectAsState()
     val preferredStartPage by settings.startPage.collectAsState()
     val layout = remember(savedLayout) { savedLayout.normalized() }
-    val visiblePages = remember(layout) { layout.visiblePages }
+    // While SMART is switched off the Map is no page: it cannot be the opening page, and it does not count as the page
+    // that lets the last other one be hidden. The saved layout keeps it for the day SMART is on again.
+    val smartEnabled = LocalSmartEnabled.current
+    val visiblePages = remember(layout, smartEnabled) { layout.visiblePages.forSmart(smartEnabled) }
     val startPage = layout.resolveStartPage(preferredStartPage)
     val reduceMotion = rememberReduceMotion()
     val listState = rememberLazyListState()
@@ -1191,7 +1197,9 @@ private fun PageOrderRow(
     modifier: Modifier = Modifier,
 ) {
     val enabled = page in visiblePages
-    val canDisable = !enabled || visiblePages.size > 1
+    // The Map is laid out from the analysis: its row cannot be switched while SMART is off.
+    val needsSmart = page == StartPage.MAP && !LocalSmartEnabled.current
+    val canDisable = !needsSmart && (!enabled || visiblePages.size > 1)
     val label = stringResource(page.titleResource())
     val moveUpLabel = stringResource(Res.string.settings_page_move_up, label)
     val moveDownLabel = stringResource(Res.string.settings_page_move_down, label)
