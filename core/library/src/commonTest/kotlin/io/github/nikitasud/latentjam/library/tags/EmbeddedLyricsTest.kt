@@ -159,6 +159,14 @@ class EmbeddedLyricsTest {
     }
 
     @Test
+    fun aSectionHeaderOfPlainLyricsIsALineNotATag() {
+        val lyrics = EmbeddedLyrics.parse("[ti:Love the Way You Lie]\n[Chorus: Rihanna]\nJust gonna stand there\n\n[Verse 1: Eminem]\nI can't tell you")!!
+        assertFalse(lyrics.synced)
+        // Only what LRC names is dropped; "[Chorus: Rihanna]" has the same shape and is part of the lyrics.
+        assertEquals("[Chorus: Rihanna]\nJust gonna stand there\n\n[Verse 1: Eminem]\nI can't tell you", lyrics.text)
+    }
+
+    @Test
     fun plainLyricsLoseTheirIdTagsButKeepTheirStanzas() {
         val lyrics = EmbeddedLyrics.parse("[by:@LosslessRobot]\n\nVerse one\nline two\n\n\nChorus\n\n")!!
         assertFalse(lyrics.synced)

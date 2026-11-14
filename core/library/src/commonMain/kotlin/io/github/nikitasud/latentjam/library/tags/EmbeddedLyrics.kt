@@ -127,7 +127,9 @@ public object EmbeddedLyrics {
         val raws = ArrayList<Raw>()
         for (rawLine in value.lineSequence()) {
             val line = rawLine.trim()
-            val idTag = ID_TAG.matchEntire(line)
+            // Only what LRC itself names is a tag. A section header of plain lyrics has the same shape ("[Chorus:
+            // Rihanna]", "[Intro: Dr. Dre]"), and is a line of the lyrics.
+            val idTag = ID_TAG.matchEntire(line)?.takeIf { it.groupValues[1].lowercase() in LRC_ID_TAGS }
             if (idTag != null) {
                 if (idTag.groupValues[1].equals("offset", ignoreCase = true)) {
                     offsetMs = idTag.groupValues[2].trim().toLongOrNull() ?: 0L
@@ -210,6 +212,11 @@ public object EmbeddedLyrics {
 
     /** A whole-line ID tag: `[ar:…]`, `[ti:…]`, `[by:@LosslessRobot]`, `[offset:+500]`. */
     private val ID_TAG = Regex("""^\[([A-Za-z#][A-Za-z0-9_#]*):([^\]]*)\]$""")
+
+    /** The ID tags of LRC files and their common extensions; anything else in brackets with a colon is text. */
+    private val LRC_ID_TAGS = setOf(
+        "ar", "ti", "al", "au", "lr", "by", "re", "tool", "ve", "la", "length", "offset", "id", "key", "#",
+    )
 
     private val FLAC_MAGIC = byteArrayOf(0x66, 0x4C, 0x61, 0x43)
     private val OGG_MAGIC = byteArrayOf(0x4F, 0x67, 0x67, 0x53)
