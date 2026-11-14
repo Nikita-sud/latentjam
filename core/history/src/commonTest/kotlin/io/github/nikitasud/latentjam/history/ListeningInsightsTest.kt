@@ -440,6 +440,25 @@ internal class ListeningInsightsTest {
     }
 
     @Test
+    fun anAlbumIsCountedAsTheLibraryFilesIt() {
+        // One album, two credits on its tracks and no album artist: by itself the log would count two albums.
+        val plays = (0 until 3).map { play("a-one-$it", dayAt(1, minuteOffset = it * 4L)) } +
+            (0 until 3).map { play("b-one-$it", dayAt(2, minuteOffset = it * 4L)) }
+        fun top(albumOf: (TrackDescriptor) -> String?) = ListeningInsights.period(
+            history = ListeningNormalization.normalize(plays, now),
+            catalog = catalog,
+            sinceMs = now - 7 * day,
+            nowMs = now,
+            timePointOf = utc,
+            albumOf = albumOf,
+        ).topAlbums
+        assertEquals(2, period(plays, sinceDays = 7).topAlbums?.size)
+        val filed = top { "the library's key for one" }
+        assertEquals(listOf("one"), filed?.map { it.name })
+        assertEquals(6, filed?.single()?.plays)
+    }
+
+    @Test
     fun albumsAndGenresNeedTagsOnMostPlays() {
         val tagged = (0 until 4).map { play("a-one-$it", dayAt(1, minuteOffset = it * 4L)) }
         val untagged = (0 until 4).map { play("notag-x-$it", dayAt(2, minuteOffset = it * 4L)) }

@@ -178,8 +178,9 @@ public class PersonalModel internal constructor(
     /**
      * The Statistics page's strong links ("Often heard next"). The listener's own: SMART's D1 rule — [D1_SESSIONS] sessions
      * and the lift filter, the bar at which SMART lets a habit relieve its recency brake — on [chosenSessions], while skips
-     * have not emptied the jar ([jarWeight] > 0). A link short of that may still show as [PersonalLink.smartPlaced]: the same
-     * bar over the sessions of both the listener's own and SMART's placements, SMART's evidence uncapped. The page only
+     * have not emptied the jar ([jarWeight] > 0). A link short of that, which SMART placed in at least one session of its
+     * own, may still show as [PersonalLink.smartPlaced]: the same bar over the sessions of both the listener's own and
+     * SMART's placements, SMART's evidence uncapped. The page only
      * shows them (it never feeds SMART), so the loop guard's cap does not apply; fixed album or playlist order still never
      * counts. Strongest first by the jar (own links by theirs, the rest by the uncapped one), then by sessions. Song
      * indices; [songOf] maps back.
@@ -193,7 +194,10 @@ public class PersonalModel internal constructor(
                 links += PersonalLink(a, b, own, unhalf(edgeJar[e]), smartPlaced = false)
                 continue
             }
-            shown(a, b, edgeShownSessions[e].toInt() and 0xff, rejectionSessions(a, b), edgeShownJar[e], edgeShownWeight[e])?.let(links::add)
+            // The wider rule is for links SMART itself placed in some session. A pair with none stands on the listener's
+            // own evidence alone, which the rule above has just judged: it is not shown under SMART's name.
+            val all = edgeShownSessions[e].toInt() and 0xff
+            if (all > own) shown(a, b, all, rejectionSessions(a, b), edgeShownJar[e], edgeShownWeight[e])?.let(links::add)
         }
         for (i in extraFrom.indices) {
             shown(extraFrom[i], extraTo[i], extraSessions[i].toInt() and 0xff, extraRejections[i].toInt() and 0xff, extraJar[i], extraWeight[i])

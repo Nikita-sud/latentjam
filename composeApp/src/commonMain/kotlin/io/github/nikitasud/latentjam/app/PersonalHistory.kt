@@ -42,8 +42,15 @@ internal class PersonalModelCache(
     private var failedEvents = -1
     private var failedLibraryHash = 0L
 
+    /**
+     * The same memory for a build the Statistics page asked for. That page holds more of the heap while it loads, so a
+     * build that did not fit there says nothing about SMART's own next press.
+     */
+    private var displayFailedEvents = -1
+    private var displayFailedLibraryHash = 0L
+
     /** The model, or null when building it did not fit in memory (a long imported history on a small heap). */
-    suspend fun model(library: List<TrackDescriptor>): PersonalModel? = mutex.withLock {
+    suspend fun model(library: List<TrackDescriptor>, forDisplay: Boolean = false): PersonalModel? = mutex.withLock {
         val events = history.allEvents()
         var libraryHash = 0L
         for (t in library) libraryHash = libraryHash * 31 + t.id.value.hashCode()
@@ -53,6 +60,11 @@ internal class PersonalModelCache(
             // A quarter more history, a smaller one (cleared, restored) or another library before the next attempt, so
             // top-ups do not keep allocating toward the same failure.
             if (failedEvents >= 0 && libraryHash == failedLibraryHash && events.size in failedEvents until failedEvents + failedEvents / 4) {
+                return@withLock null
+            }
+            if (forDisplay && displayFailedEvents >= 0 && libraryHash == displayFailedLibraryHash &&
+                events.size in displayFailedEvents until displayFailedEvents + displayFailedEvents / 4
+            ) {
                 return@withLock null
             }
             try {
@@ -69,14 +81,20 @@ internal class PersonalModelCache(
                 // (Kotlin/Native aborts on a failed allocation, but iOS has no small fixed heap.) The half-built maps
                 // are local and unreachable now; SMART plans without the personal term (CORE), as with habits off.
                 if (exhausted::class.simpleName != "OutOfMemoryError") throw exhausted
-                failedEvents = events.size
-                failedLibraryHash = libraryHash
+                if (forDisplay) {
+                    displayFailedEvents = events.size
+                    displayFailedLibraryHash = libraryHash
+                } else {
+                    failedEvents = events.size
+                    failedLibraryHash = libraryHash
+                }
                 stamp = null
                 model = PersonalModel.EMPTY
                 println("SMART: personal evidence did not fit in memory (${exhausted::class.simpleName}, ${events.size} listens)")
                 return@withLock null
             }
             failedEvents = -1
+            displayFailedEvents = -1
             stamp = now
         }
         model

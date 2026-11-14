@@ -236,6 +236,11 @@ public object ListeningInsights {
          * library's own split, so "A, B & C" counts for A, B and C as on their artist pages.
          */
         artistsOf: (TrackDescriptor) -> List<String> = ::listeningCredits,
+        /**
+         * The album a track counts under, null for none. The app passes the library's own grouping, so an album whose
+         * tracks carry different credits ("A", "A feat. B") is one album here as on the Albums tab.
+         */
+        albumOf: (TrackDescriptor) -> String? = ::listeningAlbumKey,
     ): HabitInsights {
         cancellationCheck()
         val attribution = PlaylistAttribution(playlists)
@@ -343,7 +348,7 @@ public object ListeningInsights {
                 .thenByDescending { it.plays }
                 .thenByDescending { it.lastStartMs },
         )
-        val repeatRows = varied(ranked, REPEAT_ROWS, tracks, catalog, track = { it.track }, carrier = { null })
+        val repeatRows = varied(ranked, REPEAT_ROWS, tracks, catalog, albumOf, track = { it.track }, carrier = { null })
             .map { candidate ->
                 if (candidate.track >= 0) {
                     RepeatTrack(
@@ -390,7 +395,7 @@ public object ListeningInsights {
                     compareByDescending<Int> { tracks.chosenPlays[it] }.thenByDescending { tracks.lastStartMs[it] },
                 )
             varied(
-                candidates, SLIPPING_ROWS, tracks, catalog,
+                candidates, SLIPPING_ROWS, tracks, catalog, albumOf,
                 track = { it },
                 carrier = { attribution.carrier(it, tracks.chosenPlays[it], chosenFrom) },
             ).map {
@@ -409,7 +414,7 @@ public object ListeningInsights {
                 .filter(available)
                 .sortedByDescending { tracks.yearAgoPlays[it] }
             varied(
-                candidates, YEAR_AGO_ROWS, tracks, catalog,
+                candidates, YEAR_AGO_ROWS, tracks, catalog, albumOf,
                 track = { it },
                 carrier = { attribution.carrier(it, tracks.yearAgoPlays[it], yearAgoFrom) },
             ).map { TrackPlays(tracks.ids[it], tracks.yearAgoPlays[it]) }
@@ -496,6 +501,11 @@ public object ListeningInsights {
          * library's own split, so "A, B & C" counts for A, B and C as on their artist pages.
          */
         artistsOf: (TrackDescriptor) -> List<String> = ::listeningCredits,
+        /**
+         * The album a track counts under, null for none. The app passes the library's own grouping, so an album whose
+         * tracks carry different credits ("A", "A feat. B") is one album here as on the Albums tab.
+         */
+        albumOf: (TrackDescriptor) -> String? = ::listeningAlbumKey,
     ): PeriodInsights {
         cancellationCheck()
         val attribution = PlaylistAttribution(playlists)
@@ -596,7 +606,7 @@ public object ListeningInsights {
             if (album != null) {
                 albumTagged++
                 val albumArtist = (descriptor.albumArtist ?: descriptor.artist)?.trim()?.takeIf(String::isNotEmpty)
-                albumTotals.getOrPut(albumKey(descriptor) ?: album) {
+                albumTotals.getOrPut(albumOf(descriptor) ?: album) {
                     NameTotal(album, subtitle = albumArtist, trackId = event.trackId)
                 }.add(listened)
             }
@@ -701,6 +711,7 @@ public object ListeningInsights {
         limit: Int,
         tracks: TrackTable,
         catalog: (TrackId) -> TrackDescriptor?,
+        albumOf: (TrackDescriptor) -> String?,
         track: (T) -> Int,
         carrier: (Int) -> Int?,
     ): List<T> {
@@ -716,7 +727,7 @@ public object ListeningInsights {
                 continue
             }
             val descriptor = catalog(tracks.ids[index])
-            val album = descriptor?.let(::albumKey)
+            val album = descriptor?.let(albumOf)
             if (album != null && album in albums) continue
             val credits = tracks.credits(index)
             if (credits.any { (artists[it.key] ?: 0) >= 2 }) continue
@@ -730,7 +741,7 @@ public object ListeningInsights {
         return result
     }
 
-    private fun albumKey(descriptor: TrackDescriptor): String? {
+    private fun listeningAlbumKey(descriptor: TrackDescriptor): String? {
         val album = descriptor.album?.trim()?.takeIf(String::isNotEmpty) ?: return null
         return album.lowercase() + "\u0000" + listeningArtistKey(descriptor.albumArtist ?: descriptor.artist)
     }

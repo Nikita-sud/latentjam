@@ -75,13 +75,14 @@ public class AndroidIntegratedLoudnessMeter(context: Context, private val measur
                                 if (measuresFadeEnds) fade = FadeEndTracker(alac.sampleRate, alac.channels)
                                 val bytesPerSample = alac.maxOutputBytes / (alac.frameLength * alac.channels)
                                 val samples = FloatArray(LoudnessScanLimits.CHUNK_FRAMES * 2)
-                                var packet = java.nio.ByteBuffer.allocate(maxOf(input.maxInputSizeOr(0), 65536))
-                                var bytes = ByteArray(packet.capacity())
+                                // Room for the largest packet this stream can hold: a frame stored uncompressed, plus
+                                // its header. The file's own claims size nothing (and MediaExtractor.getSampleSize needs
+                                // API 28); a packet that does not fit is not ALAC of this configuration.
+                                val packet = java.nio.ByteBuffer.allocate(alac.maxOutputBytes + ALAC_PACKET_HEADROOM)
+                                val bytes = ByteArray(packet.capacity())
                                 var decodedFrames = 0L
                                 while (true) {
                                     check()
-                                    val size = reader.sampleSize.toInt()
-                                    if (size > packet.capacity()) { packet = java.nio.ByteBuffer.allocate(size); bytes = ByteArray(size) }
                                     packet.clear()
                                     val read = reader.readSampleData(packet, 0)
                                     if (read < 0) break
@@ -228,8 +229,8 @@ public class AndroidIntegratedLoudnessMeter(context: Context, private val measur
     private companion object { val scanMutex = Mutex() }
 }
 
-private fun MediaFormat.maxInputSizeOr(fallback: Int): Int =
-    if (containsKey(MediaFormat.KEY_MAX_INPUT_SIZE)) getInteger(MediaFormat.KEY_MAX_INPUT_SIZE) else fallback
+/** Bytes an ALAC packet may take beyond its frame stored uncompressed: the element header and the end tag. */
+private const val ALAC_PACKET_HEADROOM = 1024
 
 /** One little-endian signed PCM sample of [bytesPerSample] bytes at [at], scaled to -1..1. */
 internal fun pcmSample(bytes: ByteArray, at: Int, bytesPerSample: Int): Float = when (bytesPerSample) {

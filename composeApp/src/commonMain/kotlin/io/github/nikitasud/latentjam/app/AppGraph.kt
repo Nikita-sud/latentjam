@@ -431,7 +431,7 @@ object AppGraph {
      * SMART has no library yet): the Statistics page reads its strong links.
      */
     suspend fun personalModel(): io.github.nikitasud.latentjam.smart.personal.PersonalModel? =
-        smartLibraryTracks.value.takeIf { it.isNotEmpty() }?.let { koin.get<PersonalModelCache>().model(it) }
+        smartLibraryTracks.value.takeIf { it.isNotEmpty() }?.let { koin.get<PersonalModelCache>().model(it, forDisplay = true) }
 
     /** Where the Map's 2-D layout is cached between visits. */
     val layoutStore: IndexStore

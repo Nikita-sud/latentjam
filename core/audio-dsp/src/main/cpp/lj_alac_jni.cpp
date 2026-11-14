@@ -13,6 +13,10 @@
 
 namespace {
 // Bounds for a sane stream: Apple's encoder writes 4,096-sample frames; the format allows at most 8 channels.
+// The decoder's predictor (dp_dec.c, unpc_block) writes its warm-up samples, up to 31 of them by a count the packet
+// gives, whatever the frame length, into buffers of one frame. A shorter frame would be a write past them; real
+// encoders write 4096.
+constexpr uint32_t kMinFrameLength = 32;
 constexpr uint32_t kMaxFrameLength = 65536;
 constexpr uint32_t kMaxChannels = 8;
 constexpr uint32_t kMaxSampleRate = 768000;
@@ -51,7 +55,7 @@ extern "C" JNIEXPORT jlong JNICALL JNI(create)(JNIEnv *env, jobject, jbyteArray 
     if (!handle) return 0;
     const ALACSpecificConfig &config = handle->decoder.mConfig;
     const bool ok = handle->decoder.Init(copy.data(), static_cast<uint32_t>(size)) == 0 &&
-        config.frameLength >= 1 && config.frameLength <= kMaxFrameLength &&
+        config.frameLength >= kMinFrameLength && config.frameLength <= kMaxFrameLength &&
         config.numChannels >= 1 && config.numChannels <= kMaxChannels &&
         config.sampleRate >= 1 && config.sampleRate <= kMaxSampleRate &&
         bytesFor(config.bitDepth) != 0;
