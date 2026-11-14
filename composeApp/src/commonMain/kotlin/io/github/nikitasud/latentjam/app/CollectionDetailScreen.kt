@@ -626,6 +626,10 @@ private fun CollectionHero(
             ),
             separator = " • ",
         )
+    } else if (selection.routeId.startsWith("playlist:") || selection.routeId.startsWith("auto:")) {
+        // A playlist says how long it plays, after the count its subtitle already carries.
+        listOfNotNull(selection.subtitle, playlistDurationLabel(selection.tracks)).joinToString(SUBTITLE_SEPARATOR)
+            .takeIf(String::isNotEmpty)
     } else selection.subtitle
     Column(
         modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 22.dp),

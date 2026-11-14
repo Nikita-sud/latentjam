@@ -131,6 +131,9 @@ import io.github.nikitasud.latentjam.app.generated.resources.library_empty
 import io.github.nikitasud.latentjam.app.generated.resources.library_import_action
 import io.github.nikitasud.latentjam.app.generated.resources.library_import_hint
 import io.github.nikitasud.latentjam.app.generated.resources.settings_title
+import io.github.nikitasud.latentjam.app.generated.resources.stats_hours_short
+import io.github.nikitasud.latentjam.app.generated.resources.stats_minutes_short
+import io.github.nikitasud.latentjam.app.generated.resources.stats_under_minute
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_album
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_genre
@@ -436,6 +439,53 @@ internal suspend fun trackCountLabel(count: Int): String =
  * right-to-left; the two halves around it are each separately pluralised.
  */
 internal const val SUBTITLE_SEPARATOR = " • "
+
+/** A track list's playing time: the known lengths added up, and whether every track had one. */
+internal data class TotalDuration(val ms: Long, val complete: Boolean)
+
+/** A track whose length is unknown (or reported as nothing) adds no time and makes the total a lower bound. */
+internal fun totalDuration(tracks: List<TrackDescriptor>): TotalDuration {
+    var ms = 0L
+    var complete = true
+    for (track in tracks) {
+        val length = track.durationMs ?: 0L
+        if (length > 0) ms += length else complete = false
+    }
+    return TotalDuration(ms, complete)
+}
+
+/** A length in whole hours and minutes with the reader's short units: "1 h 5 min", "47 min", "< 1 min". */
+@Composable
+internal fun durationLabel(durationMs: Long): String {
+    if (durationMs in 1..59_999) return stringResource(Res.string.stats_under_minute)
+    val totalMinutes = durationMs.coerceAtLeast(0) / 60_000
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+    val hoursShort = stringResource(Res.string.stats_hours_short)
+    val minutesShort = stringResource(Res.string.stats_minutes_short)
+    return if (hours > 0) "$hours $hoursShort $minutes $minutesShort" else "$minutes $minutesShort"
+}
+
+/**
+ * How long a playlist plays, or null when no track has a known length (an empty playlist does not last "0 min").
+ * A "+" follows a total that leaves out tracks of unknown length. [compact] is for a narrow card: from ten hours on
+ * the minutes are dropped, so "3312 tracks • 213 h" still fits on one line.
+ */
+@Composable
+internal fun playlistDurationLabel(tracks: List<TrackDescriptor>, compact: Boolean = false): String? {
+    val total = remember(tracks) { totalDuration(tracks) }
+    if (total.ms <= 0) return null
+    val hours = total.ms / 3_600_000
+    val time = if (compact && hours >= 10) "$hours ${stringResource(Res.string.stats_hours_short)}" else durationLabel(total.ms)
+    return if (total.complete) time else "$time+"
+}
+
+/** A playlist's track count with its playing time after it: "12 tracks • 47 min". */
+@Composable
+internal fun playlistSummary(tracks: List<TrackDescriptor>, compact: Boolean = false): String {
+    val count = pluralStringResource(Res.plurals.count_tracks, tracks.size, tracks.size)
+    return playlistDurationLabel(tracks, compact)?.let { count + SUBTITLE_SEPARATOR + it } ?: count
+}
 
 @Composable
 internal fun artistSubtitle(tracks: Int, albums: Int): String =
