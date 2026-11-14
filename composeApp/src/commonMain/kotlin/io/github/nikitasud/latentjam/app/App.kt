@@ -359,7 +359,19 @@ private fun AppShell(
             libraryIndexingRequest = AutomaticIndexingRequest(value, authoritative)
         }
         suspend fun scanLibrary(): List<TrackDescriptor> {
-            val scan = library.scan()
+            val scan = try {
+                library.scan()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                // The media store can fail a query (rows changing under a long one, a provider error). Refresh, the
+                // rescans after a delete, an import or a tag save, and the repair watch all come through here, and none
+                // of them catches: uncaught, this ends the process. Nothing is published, so the library on screen
+                // stays the last one read.
+                println("Library: could not scan: $failure")
+                scope.launch { snackbar.showSnackbar(getString(Res.string.settings_library_manage_failed)) }
+                return tracks.orEmpty()
+            }
             // iOS may resolve its Music-library prompt inside scan(); Android refreshes here as
             // a second line of defence around a return from system settings.
             AppGraph.permissions.refresh()
@@ -663,7 +675,8 @@ private fun AppShell(
             val rebuilt = when {
                 open.routeId.startsWith("album:") -> refreshedAlbum(buildCatalog(fresh), pageIds)?.toSelection()
                 open.routeId.startsWith("artist:") ->
-                    refreshedArtist(buildCatalog(fresh), pageIds)?.toSelection(artistAlbumSortChoice)
+                    refreshedArtist(buildCatalog(fresh), pageIds, open.routeId.removePrefix("artist:"))
+                        ?.toSelection(artistAlbumSortChoice)
                 else -> open.withFreshTracks(fresh.associateBy { it.id })
             }
             if (selectedCollection === open && rebuilt != null) {
@@ -871,6 +884,7 @@ private fun AppShell(
             }
         }
         LaunchedEffect(Unit) {
+            AppGraph.noteAppOnScreen()
             try {
                 scanLibrary()
                 libraryScan.hasHiddenTracks = library.hasHiddenTracks()
@@ -946,7 +960,15 @@ private fun AppShell(
             // The visible half of allKnownTracks() is the list already in hand; only the hidden
             // half needs a query. Partial scans cannot prove deletion, even when app-owned files
             // still make their result nonempty. A confirmed empty scan can remove the final row.
-            val hidden = if (request.librarySnapshotAuthoritative) library.hiddenTracks() else emptyList()
+            val hidden = if (!request.librarySnapshotAuthoritative) emptyList() else try {
+                library.hiddenTracks()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                // Without the hidden half nothing can be proven deleted: the queue and the open page are left as they are.
+                println("Library: could not read hidden tracks: $failure")
+                return@LaunchedEffect
+            }
             queueRetentionIds(request, hidden)?.let { known -> playback.retainQueue(known) }
             // An open collection screen is a snapshot from when it was opened; a track deleted
             // meanwhile must fall out of it (and its count) the same way it falls out of the
@@ -957,7 +979,7 @@ private fun AppShell(
                 val reconciled = selection.filterTracksForCollection { it.id in visible }
                 if (reconciled != selection) {
                     updateSelectedCollection(
-                        reconciled?.copy(subtitle = trackCountLabel(reconciled.tracks.size)),
+                        reconciled?.recounted(),
                     )
                 }
             }
@@ -1449,8 +1471,7 @@ private fun AppShell(
                 }
             // A choice may still be sorting in the background: selected tracks follow the
             // order visible on screen, just like tapping a row, until that snapshot is replaced.
-            (groupOrderedSource ?: songsBrowse?.displayOrder.orEmpty())
-                .filter { it.id in selectedTrackIds }
+            selectedInOrder(groupOrderedSource ?: songsBrowse?.displayOrder.orEmpty(), selectedTrackIds)
         }
         LaunchedEffect(catalog) {
             updateTrackSelection(selectedTrackIds.intersect(tracksById.keys))
@@ -1870,9 +1891,16 @@ private fun AppShell(
                 if (report.deleted > 0) {
                     // Retain the library's permission-aware pruning after any successful removal.
                     scanLibrary()
-                    playback.retainQueue(
-                        library.allKnownTracks().mapTo(mutableSetOf()) { track -> track.id },
-                    )
+                    try {
+                        playback.retainQueue(
+                            library.allKnownTracks().mapTo(mutableSetOf()) { track -> track.id },
+                        )
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (failure: Throwable) {
+                        // The next scan prunes the queue; a failing query here must not end the process.
+                        println("Library: could not prune the queue after a delete: $failure")
+                    }
                 }
                 val message = when {
                     report.isSilent -> null
@@ -4202,9 +4230,7 @@ private fun AppShell(
                         val collectionAfterHide = collectionBeforeHide?.let { selection ->
                             selection.filterTracksForCollection { it.id != target.id }
                                 ?.let { remaining ->
-                                    remaining.copy(
-                                        subtitle = trackCountLabel(remaining.tracks.size),
-                                    )
+                                    remaining.recounted()
                                 }
                         }
                         val appliedCollectionRevision =
@@ -4307,9 +4333,7 @@ private fun AppShell(
                         val collectionAfterHide = collectionBeforeHide?.let { collection ->
                             collection.filterTracksForCollection { it.id !in hiddenIds }
                                 ?.let { remaining ->
-                                    remaining.copy(
-                                        subtitle = trackCountLabel(remaining.tracks.size),
-                                    )
+                                    remaining.recounted()
                                 }
                         }
                         val appliedCollectionRevision =
@@ -4455,6 +4479,13 @@ private fun AppShell(
                         // one frame, which read as the queue collapsing and coming back.
                         if (sheets.addToPlaylistSelection === selection) sheets.addToPlaylistClosing = true
                         refreshPlaylistMembershipsBestEffort()
+                        // The playlist's own page, if it is the one open under the sheet, shows what was just added.
+                        selectedCollection?.takeIf { it.playlistId == playlist.id }?.let { open ->
+                            playlistsState.playlists.firstOrNull { it.id == playlist.id }?.let { updated ->
+                                val resolved = tracksOf(updated)
+                                updateSelectedCollection(open.copy(tracks = resolved, subtitle = trackCountLabel(resolved.size)))
+                            }
+                        }
                         snackbar.showSnackbar(
                             getString(Res.string.snack_added_to_playlist, bidiWrap(playlist.name, layoutDirection)),
                         )
@@ -4741,9 +4772,7 @@ private fun AppShell(
                             updateSelectedCollection(selectedCollection?.let { selection ->
                                 selection.filterTracksForCollection { it.id != target.id }
                                     ?.let { remaining ->
-                                        remaining.copy(
-                                            subtitle = trackCountLabel(remaining.tracks.size),
-                                        )
+                                        remaining.recounted()
                                     }
                             })
                             invalidateSmartRecommendationCaches()
@@ -4762,9 +4791,7 @@ private fun AppShell(
                             updateSelectedCollection(selectedCollection?.let { selection ->
                                 selection.filterTracksForCollection { it.id !in ids }
                                     ?.let { remaining ->
-                                        remaining.copy(
-                                            subtitle = trackCountLabel(remaining.tracks.size),
-                                        )
+                                        remaining.recounted()
                                     }
                             })
                             invalidateSmartRecommendationCaches()
@@ -4796,9 +4823,14 @@ private fun AppShell(
                     refreshPlaylistsWithFeedback()
                 },
                 onClearListeningHistory = {
+                    // First, so the track playing now is not written into the emptied log when it ends.
+                    AppGraph.forgetListeningSession()
                     AppGraph.history.clear()
                     AppGraph.smartImpressionLog?.clear()
                     AppGraph.forgetSmartPresses()
+                    // What For You showed on which day is drawn from the listening: it goes with it.
+                    AppGraph.forYouImpressions.clear()
+                    forYouPage.forYouCardsShown = emptySet()
                     forYouPage.forYou = ForYouPage()
                     forYouPage.builtWorlds = null
                     forYouPage.builtForYouLibraryIds = null

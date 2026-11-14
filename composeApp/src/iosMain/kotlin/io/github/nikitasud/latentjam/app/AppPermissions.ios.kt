@@ -46,8 +46,8 @@ internal class IosAppPermissions : AppPermissions {
 
     override fun openAppSettings() {
         NSURL.URLWithString(UIApplicationOpenSettingsURLString)?.let {
-            @Suppress("DEPRECATION")
-            UIApplication.sharedApplication.openURL(it)
+            // Not the deprecated openURL(_:): for an app built with the iOS 18 SDK or later it opens nothing.
+            UIApplication.sharedApplication.openURL(it, options = emptyMap<Any?, Any>(), completionHandler = null)
         }
     }
 

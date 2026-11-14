@@ -151,6 +151,7 @@ import io.github.nikitasud.latentjam.library.SongSortDirection
 import io.github.nikitasud.latentjam.library.SongSorting
 import io.github.nikitasud.latentjam.playback.PlaybackController
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.math.roundToInt
 import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
@@ -431,6 +432,33 @@ internal suspend fun FolderGroup.toSelection(): CollectionSelection {
 
 internal suspend fun trackCountLabel(count: Int): String =
     getPluralString(Res.plurals.count_tracks, count, count)
+
+/**
+ * The selected tracks in the order of [source], each once. The Artists and Genres tabs list a collaboration under
+ * every credited artist and a track under each of its genres, so their flattened order names such a track several
+ * times: played, edited or deleted from a selection, it must still be one track.
+ */
+internal fun selectedInOrder(source: List<TrackDescriptor>, selected: Set<TrackId>): List<TrackDescriptor> {
+    val seen = HashSet<TrackId>(selected.size * 2)
+    return source.filter { it.id in selected && seen.add(it.id) }
+}
+
+/**
+ * A page that lost tracks, with its subtitle counting again. An album's subtitle is its artist and stays: its header
+ * counts the tracks itself, and used to read "9 tracks • 2019 • 9 tracks". An artist's keeps its albums beside the
+ * tracks. Every other page's subtitle is the track count.
+ */
+internal suspend fun CollectionSelection.recounted(): CollectionSelection = when {
+    routeId.startsWith("album:") -> this
+    routeId.startsWith("artist:") -> {
+        val albums = LibraryCatalog.albumKeys(tracks).values.toSet().size
+        copy(
+            subtitle = getPluralString(Res.plurals.count_tracks, tracks.size, tracks.size) + SUBTITLE_SEPARATOR +
+                getPluralString(Res.plurals.count_albums, albums, albums),
+        )
+    }
+    else -> copy(subtitle = trackCountLabel(tracks.size))
+}
 
 /**
  * Joins two counted phrases in a subtitle.

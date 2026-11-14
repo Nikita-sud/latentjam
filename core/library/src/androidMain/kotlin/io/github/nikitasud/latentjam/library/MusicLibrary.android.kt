@@ -137,6 +137,11 @@ internal class MediaStoreMusicLibrary(
             tracks = snapshot.tracks.filterNot { track ->
                 track.id.value in hidden || sourceId(track.folderPath) in excludedSources
             },
+            // MediaStore answers for mounted volumes only. With a card out, ejected or still being checked after a
+            // boot, its songs are simply absent from the rows: such a scan is no evidence that they are gone. Taken
+            // for a complete one, it let the analysis of every song on the card be dropped, to be done again from
+            // scratch when the card came back.
+            complete = snapshot.complete && !storageMayBeMissing(recentVolumeStates()),
         )
     }
 

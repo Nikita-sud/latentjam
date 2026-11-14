@@ -145,6 +145,7 @@ object AppGraph {
         mutableHistoryRevision.value += 1L
     }
     private val historyFlushRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    private val historyForgetRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     private var automaticIndexingKey: AutomaticIndexingRequest? = null
     private var automaticIndexingJob: Job? = null
 
@@ -293,6 +294,7 @@ object AppGraph {
                 history = history,
                 enabled = settings.saveListeningHistory,
                 flushRequests = historyFlushRequests,
+                forgetRequests = historyForgetRequests,
                 parentId = { queueSource.value?.parentCollectionId() },
                 onRecorded = { mutableHistoryRevision.value += 1L },
                 onSnapshot = { now -> smartLog?.onNowPlaying(now) },
@@ -419,6 +421,11 @@ object AppGraph {
      */
     fun flushListeningSession() {
         historyFlushRequests.tryEmit(Unit)
+    }
+
+    /** The history was cleared: the listen in progress, begun before that, is not recorded when it ends. */
+    fun forgetListeningSession() {
+        historyForgetRequests.tryEmit(Unit)
     }
 
     /** The process-wide similarity engine. */
@@ -939,6 +946,14 @@ object AppGraph {
     /** The app left the foreground (with [onAppForeground], the pair the held retry reads). */
     fun onAppLeftForeground() {
         appInForeground = false
+    }
+
+    /**
+     * The app's screen is up. [onAppForeground] is told of returns only, never of the first appearance after a start:
+     * without this a pass that left tracks waiting was not entered again in the very sitting it finished in.
+     */
+    fun noteAppOnScreen() {
+        appInForeground = true
     }
 
     /** Whether the finished pass for [key] is to be entered once more: its waiting tracks may be tried again now. */

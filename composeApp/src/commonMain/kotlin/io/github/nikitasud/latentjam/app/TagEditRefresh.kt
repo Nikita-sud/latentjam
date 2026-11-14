@@ -28,10 +28,15 @@ internal fun refreshedAlbum(catalog: LibraryCatalog, pageIds: Set<TrackId>): Alb
     catalog.albums.maxByOrNull { album -> album.tracks.count { it.id in pageIds } }
         ?.takeIf { album -> album.tracks.any { it.id in pageIds } }
 
-/** As [refreshedAlbum], for an artist page. */
-internal fun refreshedArtist(catalog: LibraryCatalog, pageIds: Set<TrackId>): ArtistGroup? =
-    catalog.artists.maxByOrNull { artist -> artist.tracks.count { it.id in pageIds } }
-        ?.takeIf { artist -> artist.tracks.any { it.id in pageIds } }
+/**
+ * As [refreshedAlbum], for an artist page: [current], the artist the page was opened for, while that artist still has
+ * one of the page's tracks. A collaboration is listed under every artist it credits, so by the count alone an artist
+ * who appears only on tracks with another would tie with that other, and the page would become the other's.
+ */
+internal fun refreshedArtist(catalog: LibraryCatalog, pageIds: Set<TrackId>, current: String? = null): ArtistGroup? =
+    catalog.artists.firstOrNull { artist -> artist.name.orEmpty() == current && artist.tracks.any { it.id in pageIds } }
+        ?: catalog.artists.maxByOrNull { artist -> artist.tracks.count { it.id in pageIds } }
+            ?.takeIf { artist -> artist.tracks.any { it.id in pageIds } }
 
 /** The same page with each track's fresh descriptor, order, sections and identity kept. */
 internal fun CollectionSelection.withFreshTracks(byId: Map<TrackId, TrackDescriptor>): CollectionSelection = copy(

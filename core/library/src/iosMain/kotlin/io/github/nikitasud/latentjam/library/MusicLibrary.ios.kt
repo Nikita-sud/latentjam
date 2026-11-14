@@ -805,7 +805,9 @@ internal class FilePlaylistStore : PlaylistStore {
     private fun path(): String? = IosPaths.appSupport()?.let { IosPaths.child(it, FILE_NAME) }
 
     override suspend fun read(): List<String> = withContext(Dispatchers.Default) {
-        path()?.let(::readLinesOrEmpty) ?: emptyList()
+        // Not "no playlists": the store would hold an empty list for the rest of the process, and the next edit
+        // would write only that over the file. Unavailable storage fails the read, as it fails the write.
+        readLinesOrEmpty(path() ?: error("Application Support is unavailable"))
     }
 
     override suspend fun write(lines: List<String>): Unit = withContext(Dispatchers.Default) {

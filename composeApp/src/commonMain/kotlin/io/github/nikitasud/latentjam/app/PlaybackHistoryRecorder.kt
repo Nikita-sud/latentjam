@@ -41,6 +41,8 @@ fun CoroutineScope.launchPlaybackHistoryRecorder(
     enabled: StateFlow<Boolean>,
     /** Each emission asks the gate to finalize the in-progress session (see [PlaybackHistoryGate.flush]). */
     flushRequests: Flow<Unit> = emptyFlow(),
+    /** Each emission drops the in-progress session unrecorded: the history was cleared (see [PlaybackHistoryGate.forget]). */
+    forgetRequests: Flow<Unit> = emptyFlow(),
     /**
      * Stable id of the collection the current queue was started from, or null. Sampled with each
      * snapshot rather than combined into the stream: an extra snapshot for a label change would
@@ -63,6 +65,7 @@ fun CoroutineScope.launchPlaybackHistoryRecorder(
             HistoryCommand.Snapshot(now, isEnabled, parentId())
         },
         flushRequests.map { HistoryCommand.Flush(epochMillis()) },
+        forgetRequests.map { HistoryCommand.Forget(playback.state.value) },
     ).collect { command ->
         if (command is HistoryCommand.Snapshot && command.enabled) runCatching { onSnapshot(command.now) }
         val finished = when (command) {
@@ -74,6 +77,10 @@ fun CoroutineScope.launchPlaybackHistoryRecorder(
                 // with its full played time. Backgrounding while PAUSED is the real signal
                 // that the sitting is over.
                 if (playback.state.value.isPlaying) null else gate.flush(command.nowMs)
+            is HistoryCommand.Forget -> {
+                gate.forget(command.now)
+                null
+            }
         }
         finished?.let(annotate)?.let { event ->
             try {
@@ -157,6 +164,16 @@ internal class PlaybackHistoryGate(initiallyEnabled: Boolean) {
         if (!recording) return null
         return tracker.flush(nowMs)
     }
+
+    /**
+     * The listening history was cleared: the session in progress began before that, and is not written back into the
+     * emptied log when its track ends. Recording goes on with the next track, as after the switch is turned on.
+     */
+    fun forget(now: NowPlaying) {
+        if (!recording) return
+        tracker = HistorySessionTracker()
+        ignoredTrackAfterEnabling = now.track?.id
+    }
 }
 
 /** The log's own words for how a play began: history does not depend on playback. */
@@ -178,4 +195,5 @@ private fun PlaybackStart.toListenStartSignal() = ListenStartSignal(
 private sealed interface HistoryCommand {
     data class Snapshot(val now: NowPlaying, val enabled: Boolean, val parentId: String?) : HistoryCommand
     data class Flush(val nowMs: Long) : HistoryCommand
+    data class Forget(val now: NowPlaying) : HistoryCommand
 }

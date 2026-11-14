@@ -43,6 +43,24 @@ internal class PlaybackHistoryRecorderTest {
     }
 
     @Test
+    fun `clearing the history forgets the listen in progress and records from the next track`() {
+        val gate = PlaybackHistoryGate(initiallyEnabled = true)
+
+        assertNull(gate.onSnapshot(now(a, 0), enabled = true, nowMs = 1))
+        assertNull(gate.onSnapshot(now(a, 120_000), enabled = true, nowMs = 2))
+        // "Clear listening history" while a is two minutes in.
+        gate.forget(now(a, 120_000))
+        assertNull(gate.onSnapshot(now(a, 180_000), enabled = true, nowMs = 3))
+        // a ends: nothing of it, begun before the clear, goes back into the emptied log.
+        assertNull(gate.onSnapshot(now(b, 0), enabled = true, nowMs = 4))
+        assertNull(gate.onSnapshot(now(b, 60_000), enabled = true, nowMs = 5))
+
+        val event = gate.onSnapshot(now(c, 0), enabled = true, nowMs = 6)
+        assertEquals(b.id, event?.trackId)
+        assertEquals(60_000, event?.playedMs)
+    }
+
+    @Test
     fun `disabling drops the current session and enabling waits for the next track`() {
         val gate = PlaybackHistoryGate(initiallyEnabled = true)
 

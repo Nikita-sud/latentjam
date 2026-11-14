@@ -85,8 +85,13 @@ internal class AndroidTrackIdentities(
     ): List<TrackDescriptor> {
         val previous = load()
         val aliases = sourceAliases
-        val currentIds = tracks.mapTo(HashSet(tracks.size * 2)) { it.id.value }
-        require(currentIds.size == tracks.size) { "Duplicate MediaStore rows" }
+        // A query longer than one cursor window is refilled by running it again: rows inserted meanwhile (the system
+        // scanner indexing a large copy) can deliver one row twice. The first stands; refusing the whole scan for it
+        // ended the app on Refresh.
+        val seenIds = HashSet<String>(tracks.size * 2)
+        @Suppress("NAME_SHADOWING")
+        val tracks = tracks.filter { seenIds.add(it.id.value) }
+        val currentIds: Set<String> = seenIds
         fun bySource(source: String): Entry? = entryForSource(previous, aliases, source)
         val unknown = tracks.filter { bySource(it.id.value)?.volume != volume(it) }
         val missing = previous.values.filter { it.source !in currentIds }

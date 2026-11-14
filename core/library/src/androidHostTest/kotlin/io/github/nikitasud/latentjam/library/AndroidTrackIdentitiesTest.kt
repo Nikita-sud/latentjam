@@ -45,6 +45,14 @@ internal class AndroidTrackIdentitiesTest {
         fun restart() { registry = fresh() }
     }
 
+    @Test fun aRowTheMediaStoreDeliversTwiceIsOneTrack() {
+        // A query refilled while the system scanner inserts rows can hand one row over twice: the scan goes on with
+        // one copy instead of failing whole.
+        val fixture = Fixture(tags)
+        val resolved = fixture.scan(track("1"), track("2"), track("1"), present = setOf("1", "2"))
+        assertEquals(listOf("1", "2"), resolved.map { it.id.value })
+    }
+
     @Test fun renameAndRetagKeepAllStoredReferencesButUseNewPlaybackAndAnalysisIdentity() {
         val f = Fixture(tags)
         val original = track("10")
