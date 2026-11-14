@@ -383,7 +383,9 @@ private fun AutoPlaylistCard(
             modifier = Modifier.padding(top = 8.dp),
         )
         Text(
-            text = playlistSummary(auto.tracks, compact = true),
+            // The count alone: an automatic playlist can be the whole library ("Recently added"), whose playing time
+            // says nothing and does not fit the card.
+            text = pluralStringResource(Res.plurals.count_tracks, auto.tracks.size, auto.tracks.size),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,

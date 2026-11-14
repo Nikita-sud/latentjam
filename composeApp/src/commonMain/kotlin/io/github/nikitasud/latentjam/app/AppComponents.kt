@@ -496,23 +496,21 @@ internal fun durationLabel(durationMs: Long): String {
 
 /**
  * How long a playlist plays, or null when no track has a known length (an empty playlist does not last "0 min").
- * A "+" follows a total that leaves out tracks of unknown length. [compact] is for a narrow card: from ten hours on
- * the minutes are dropped, so "3312 tracks • 213 h" still fits on one line.
+ * A "+" follows a total that leaves out tracks of unknown length.
  */
 @Composable
-internal fun playlistDurationLabel(tracks: List<TrackDescriptor>, compact: Boolean = false): String? {
+internal fun playlistDurationLabel(tracks: List<TrackDescriptor>): String? {
     val total = remember(tracks) { totalDuration(tracks) }
     if (total.ms <= 0) return null
-    val hours = total.ms / 3_600_000
-    val time = if (compact && hours >= 10) "$hours ${stringResource(Res.string.stats_hours_short)}" else durationLabel(total.ms)
+    val time = durationLabel(total.ms)
     return if (total.complete) time else "$time+"
 }
 
 /** A playlist's track count with its playing time after it: "12 tracks • 47 min". */
 @Composable
-internal fun playlistSummary(tracks: List<TrackDescriptor>, compact: Boolean = false): String {
+internal fun playlistSummary(tracks: List<TrackDescriptor>): String {
     val count = pluralStringResource(Res.plurals.count_tracks, tracks.size, tracks.size)
-    return playlistDurationLabel(tracks, compact)?.let { count + SUBTITLE_SEPARATOR + it } ?: count
+    return playlistDurationLabel(tracks)?.let { count + SUBTITLE_SEPARATOR + it } ?: count
 }
 
 @Composable
