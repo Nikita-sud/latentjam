@@ -1,0 +1,8 @@
+SMART can be switched off in Settings: the app is then a plain player.
+Apple Lossless (ALAC) plays and is analysed on Android.
+Playlists show how long they play, can be pinned to the home screen, and a deleted one can be brought back.
+Statistics count every artist of a collaboration.
+A paused and resumed track counts as one play.
+Seeking in FLAC files no longer stalls.
+A file that cannot be played says so.
+Many fixes.
