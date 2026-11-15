@@ -18,13 +18,20 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "0.9.5",
+          "date": "2026-11-15T11:26:57Z",
+          "localizedDescription": "SMART can now be switched off, so LatentJam also works as a plain music player. Apple Lossless files play and are analysed on Android, playlists show how long they play and can be pinned to the home screen, and a deleted playlist can be brought back. Still fully on-device: no account, no catalogue, no network.",
+          "downloadURL": "https://github.com/Nikita-sud/latentjam/releases/download/v0.9.5/LatentJam-v0.9.5-unsigned.ipa",
+          "size": 46155628,
+          "buildVersion": "46",
+          "minOSVersion": "15.1"
+        },
+        {
           "version": "0.9.4",
           "date": "2026-11-05T08:52:50Z",
           "localizedDescription": "Your Last.fm history imported straight from a CSV file, sorting by date added and date modified, and SMART queues that fit better: cleaner, with artist names merged and every genre and language of a track counted. Crossfade no longer restarts the next song. Still fully on-device: no account, no catalogue, no network.",
           "downloadURL": "https://github.com/Nikita-sud/latentjam/releases/download/v0.9.4/LatentJam-v0.9.4-unsigned.ipa",
-          "size": 46060442,
-          "buildVersion": "45",
-          "minOSVersion": "15.1"
+          "size": 46060442
         },
         {
           "version": "0.9.3",
@@ -131,11 +138,11 @@
           "NSAppleMusicUsageDescription": "LatentJam uses your on-device music library to organize tracks and make private recommendations locally."
         }
       },
-      "version": "0.9.4",
-      "versionDate": "2026-11-05T08:52:50Z",
-      "versionDescription": "Your Last.fm history imported straight from a CSV file, sorting by date added and date modified, and SMART queues that fit better: cleaner, with artist names merged and every genre and language of a track counted. Crossfade no longer restarts the next song. Still fully on-device: no account, no catalogue, no network.",
-      "downloadURL": "https://github.com/Nikita-sud/latentjam/releases/download/v0.9.4/LatentJam-v0.9.4-unsigned.ipa",
-      "size": 46060442
+      "version": "0.9.5",
+      "versionDate": "2026-11-15T11:26:57Z",
+      "versionDescription": "SMART can now be switched off, so LatentJam also works as a plain music player. Apple Lossless files play and are analysed on Android, playlists show how long they play and can be pinned to the home screen, and a deleted playlist can be brought back. Still fully on-device: no account, no catalogue, no network.",
+      "downloadURL": "https://github.com/Nikita-sud/latentjam/releases/download/v0.9.5/LatentJam-v0.9.5-unsigned.ipa",
+      "size": 46155628
     }
   ],
   "news": []
