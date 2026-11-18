@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -35,6 +37,38 @@ class AutomaticIndexCheckpointTest {
             assertEquals(64, persisted)
             assertEquals(80, processed)
         }
+
+    @Test
+    fun `the metadata step rewrites the text index a bounded number of times`() = runTest {
+        // Every checkpoint of the text index writes the whole file, so their count is what a first analysis costs.
+        val library = (0 until 10_000).map { TrackDescriptor(TrackId("t$it"), title = "Track $it") }
+        var staged = 0
+        var persisted = 0
+        var checkpoints = 0
+
+        stageMetadataInChunks(
+            tracks = library,
+            stage = { chunk -> staged += chunk.size; chunk.size },
+            checkpoint = { persisted = staged; checkpoints++ },
+            pause = {},
+        )
+
+        assertEquals(10_000, persisted)
+        // 0.9.5 checkpointed every 32 tracks: 313 whole-file writes, about 2.5 GB for this library.
+        assertTrue(checkpoints <= 8, "$checkpoints checkpoints")
+    }
+
+    @Test
+    fun `the metadata step still checkpoints a library shorter than its window`() = runTest {
+        var checkpoints = 0
+        stageMetadataInChunks(
+            tracks = (0 until 20).map { TrackDescriptor(TrackId("t$it")) },
+            stage = { it.size },
+            checkpoint = { checkpoints++ },
+            pause = {},
+        )
+        assertEquals(1, checkpoints)
+    }
 
     @Test
     fun `completion flush persists the short final window`() = runTest {

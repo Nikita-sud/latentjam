@@ -725,9 +725,6 @@ object AppGraph {
             var reportProgress = false
             val eta = IndexingEta(nowMillis())
             val progress = AnalysisProgress(total)
-            val checkpointCadence = AutomaticIndexCheckpointCadence(
-                tracksPerCheckpoint = AUTOMATIC_INDEX_CHECKPOINT_TRACKS,
-            )
             val pausedAtStart = control.userPaused.value
             mutableAutomaticIndexing.value = if (carry) {
                 previous.copy(running = !pausedAtStart, phase = null, etaMinutes = null, progressAt = null)
@@ -873,14 +870,14 @@ object AppGraph {
                         )
                     }
                 }
-                tracks.chunked(AUTOMATIC_INDEX_CHUNK_SIZE).forEach { chunk ->
-                    val added = engine.stageMetadataVectors(chunk)
-                    checkpointCadence.afterBatch(chunk.size, engine::persistPendingAnalysis)
-                    if (added > 0) delay(AUTOMATIC_INDEX_YIELD_MS)
-                }
                 // metadataReady promises more than an in-memory process cache: a restart should
                 // see every vector encoded by this phase, including a short final window.
-                checkpointCadence.flush(engine::persistPendingAnalysis)
+                stageMetadataInChunks(
+                    tracks = tracks,
+                    stage = engine::stageMetadataVectors,
+                    checkpoint = engine::persistPendingAnalysis,
+                    pause = { delay(AUTOMATIC_INDEX_YIELD_MS) },
+                )
                 mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
                     metadataReady = true,
                 )
@@ -1557,6 +1554,36 @@ private const val RETRY_ONCE_ALAC = "alac"
 private val MP4_AUDIO_EXTENSIONS = setOf("m4a", "m4b", "m4r", "mp4")
 internal const val AUTOMATIC_INDEX_CHECKPOINT_TRACKS = 32
 internal const val AUTOMATIC_INDEX_YIELD_MS = 75L
+
+/**
+ * Tracks between two checkpoints of the metadata (text) index in step 3. Its store is one file, written whole at every
+ * checkpoint (about 1.6 KB a track), so a first analysis writes about 1.6 KB × N² / (2 × this): at the audio pass's 32
+ * tracks that was 2.5 GB for 10,000 tracks and 23 GB for 30,000, under the engine lock. At 2,048 it is 40 MB and
+ * 350 MB. A process killed between two checkpoints encodes at most this many strings again, milliseconds each; a
+ * cancelled pass loses none (its last checkpoint runs in runAutomaticIndexingSafely).
+ */
+internal const val METADATA_CHECKPOINT_TRACKS = 2_048
+
+/**
+ * Step 3 of a pass: the metadata (text) vector of every track, staged in chunks and checkpointed at
+ * [checkpointTracks], with a last checkpoint for the short final window. [stage] returns how many vectors it added;
+ * [pause] follows a chunk that added any.
+ */
+internal suspend fun stageMetadataInChunks(
+    tracks: List<TrackDescriptor>,
+    stage: suspend (List<TrackDescriptor>) -> Int,
+    checkpoint: suspend () -> Unit,
+    pause: suspend () -> Unit,
+    checkpointTracks: Int = METADATA_CHECKPOINT_TRACKS,
+) {
+    val cadence = AutomaticIndexCheckpointCadence(tracksPerCheckpoint = checkpointTracks)
+    tracks.chunked(AUTOMATIC_INDEX_CHUNK_SIZE).forEach { chunk ->
+        val added = stage(chunk)
+        cadence.afterBatch(chunk.size, checkpoint)
+        if (added > 0) pause()
+    }
+    cadence.flush(checkpoint)
+}
 
 /** Coalesces small model-lock batches without allowing an unbounded crash-loss window. */
 internal class AutomaticIndexCheckpointCadence(
