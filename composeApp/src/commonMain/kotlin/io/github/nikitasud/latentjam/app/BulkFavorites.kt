@@ -119,6 +119,8 @@ internal suspend fun runBulkFavoriteEdit(
     action: SelectionFavoriteAction,
     ids: List<TrackId>,
     snackbar: SnackbarHostState,
+    /** Told of a failed write before its snackbar is shown, which stays for seconds. */
+    onFailed: () -> Unit = {},
     onPublished: (List<TrackId>) -> Unit,
 ): Boolean {
     val change = try {
@@ -127,6 +129,7 @@ internal suspend fun runBulkFavoriteEdit(
         throw cancelled
     } catch (failure: Throwable) {
         println("Favorites: could not edit in bulk: $failure")
+        onFailed()
         snackbar.showSnackbar(getString(Res.string.settings_library_manage_failed))
         return false
     }

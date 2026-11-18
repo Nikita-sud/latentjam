@@ -460,6 +460,8 @@ internal fun SettingsScreen(
     hasHiddenTracks: Boolean,
     canImportAudio: Boolean,
     onRefreshLibrary: () -> Unit,
+    /** A track was restored or a folder toggled: the library is read again, with no wait for the system's indexer. */
+    onLibraryChanged: () -> Unit,
     onImportAudio: () -> Unit,
     onRetryIndexing: () -> Unit,
     onRetryTracks: (Collection<TrackId>) -> Unit,
@@ -632,13 +634,13 @@ internal fun SettingsScreen(
                     )
                     SettingsPage.SOURCES -> SourcesSettings(
                         library = library,
-                        onRefreshLibrary = onRefreshLibrary,
+                        onRefreshLibrary = onLibraryChanged,
                         snackbarHostState = snackbarHostState,
                     )
                     SettingsPage.LYRICS_FOLDERS -> LyricsFoldersSettings(snackbarHostState)
                     SettingsPage.HIDDEN_TRACKS -> HiddenTracksSettings(
                         library = library,
-                        onRefreshLibrary = onRefreshLibrary,
+                        onRefreshLibrary = onLibraryChanged,
                         snackbarHostState = snackbarHostState,
                     )
                     SettingsPage.DUPLICATES -> DuplicatesSettings(
@@ -1622,17 +1624,11 @@ private fun SourcesSettings(
                 enabled = changingSourceId == null && source.canToggle,
                 onCheckedChange = { enabled ->
                     scope.launch {
-                        changingSourceId = source.id
-                        try {
+                        snackbarHostState.showAfterBusy({ changingSourceId = if (it) source.id else null }, failureMessage) {
                             library.setSourceEnabled(source.id, enabled)
                             sources = library.sources()
                             onRefreshLibrary()
-                        } catch (cancelled: CancellationException) {
-                            throw cancelled
-                        } catch (_: Throwable) {
-                            snackbarHostState.showSnackbar(failureMessage)
-                        } finally {
-                            changingSourceId = null
+                            null
                         }
                     }
                 },
@@ -1791,17 +1787,13 @@ private fun HiddenTracksSettings(
                         enabled = restoringTrackId == null,
                         onClick = {
                             scope.launch {
-                                restoringTrackId = RESTORE_ALL_OPERATION_ID
-                                try {
+                                snackbarHostState.showAfterBusy(
+                                    { restoringTrackId = if (it) RESTORE_ALL_OPERATION_ID else null }, failureMessage,
+                                ) {
                                     library.unhideAll()
                                     hiddenTracks = emptyList()
                                     onRefreshLibrary()
-                                } catch (cancelled: CancellationException) {
-                                    throw cancelled
-                                } catch (_: Throwable) {
-                                    snackbarHostState.showSnackbar(failureMessage)
-                                } finally {
-                                    restoringTrackId = null
+                                    null
                                 }
                             }
                         },
@@ -1818,17 +1810,11 @@ private fun HiddenTracksSettings(
                 enabled = restoringTrackId == null,
                 onRestore = {
                     scope.launch {
-                        restoringTrackId = track.id.value
-                        try {
+                        snackbarHostState.showAfterBusy({ restoringTrackId = if (it) track.id.value else null }, failureMessage) {
                             library.unhide(track.id)
                             hiddenTracks = hiddenTracks.orEmpty().filterNot { it.id == track.id }
                             onRefreshLibrary()
-                        } catch (cancelled: CancellationException) {
-                            throw cancelled
-                        } catch (_: Throwable) {
-                            snackbarHostState.showSnackbar(failureMessage)
-                        } finally {
-                            restoringTrackId = null
+                            null
                         }
                     }
                 },
@@ -2418,16 +2404,9 @@ private fun IntelligenceProblemsSettings(
                 onRemove = {
                     val target = track ?: return@IndexingProblemRow
                     scope.launch {
-                        removing = id
-                        try {
+                        snackbarHostState.showAfterBusy({ removing = if (it) id else null }, manageFailed) {
                             onHideTrack(target)
-                            snackbarHostState.showSnackbar(removedMessage)
-                        } catch (cancelled: CancellationException) {
-                            throw cancelled
-                        } catch (_: Throwable) {
-                            snackbarHostState.showSnackbar(manageFailed)
-                        } finally {
-                            removing = null
+                            removedMessage
                         }
                     }
                 },
@@ -3062,15 +3041,9 @@ private fun SmartExclusionsSettings(
 
     fun update(key: String, action: suspend () -> Unit) {
         scope.launch {
-            changingKey = key
-            try {
+            snackbarHostState.showAfterBusy({ changingKey = if (it) key else null }, updateFailed) {
                 action()
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Throwable) {
-                snackbarHostState.showSnackbar(updateFailed)
-            } finally {
-                changingKey = null
+                null
             }
         }
     }

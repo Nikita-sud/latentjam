@@ -163,7 +163,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.snack_track_exclude
 import io.github.nikitasud.latentjam.app.generated.resources.snack_track_included_in_smart
 import io.github.nikitasud.latentjam.app.generated.resources.snack_removed_from_latentjam
 import io.github.nikitasud.latentjam.app.generated.resources.snack_audio_open_unavailable
-import io.github.nikitasud.latentjam.app.generated.resources.snack_library_refreshed
 import io.github.nikitasud.latentjam.app.generated.resources.tags_saved
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_genre
@@ -361,6 +360,7 @@ private fun AppShell(
             libraryIndexingRequest = AutomaticIndexingRequest(value, authoritative)
         }
         suspend fun scanLibrary(): List<TrackDescriptor> {
+            val scanToken = libraryScan.order.begin()
             val scan = try {
                 library.scan()
             } catch (cancelled: CancellationException) {
@@ -380,6 +380,13 @@ private fun AppShell(
             // Remembered embedded genres upgrade the scan before anything downstream sees it:
             // the system scanner keeps one genre per track, the files themselves keep them all.
             val enriched = genreEnrichment.apply(scan.tracks)
+            // Scans finish in any order: one that began before a newer one published, or before a track was hidden,
+            // must not put its older library back.
+            when (libraryScan.order.finish(scanToken)) {
+                ScanOutcome.SUPERSEDED -> return tracks.orEmpty()
+                ScanOutcome.RESCAN -> return scanLibrary()
+                ScanOutcome.PUBLISH -> Unit
+            }
             // A file mid-replace is neither its old bytes nor its new ones: not offered until recovered.
             val repairing = currentRepairingKeys.value
             val playable = withoutFilesUnderRepair(enriched, repairing) { tagAccess?.keyOf(it) }
@@ -565,9 +572,11 @@ private fun AppShell(
         var showCreatePlaylist by rememberSaveable { mutableStateOf(false) }
         var renameTargetId by rememberSaveable { mutableStateOf<String?>(null) }
         val sheets = remember { ShellSheets() }
-        // Store only identities across recreation; a playlist draft must retain its selected
-        // tracks without putting the whole library's metadata in saved instance state.
-        var pendingPlaylistTrackIds by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
+        // Only identities, and those outside saved instance state: a draft seeded with the whole queue would not
+        // fit into it. A draft whose tracks a restarted process lost is dropped rather than created empty.
+        var pendingPlaylistTrackIds by rememberRetainedSelection(RetainedSelections.pendingPlaylistTrackIds, emptyList()) {
+            showCreatePlaylist = false
+        }
         var selectedTrackIds by remember { mutableStateOf<Set<TrackId>>(emptySet()) }
         var selectionRevision by remember { mutableLongStateOf(0L) }
         fun updateTrackSelection(value: Set<TrackId>) {
@@ -647,7 +656,7 @@ private fun AppShell(
                 afterOpen()
             }
         }
-        var bulkEditIds by rememberSaveable { mutableStateOf<List<String>?>(null) }
+        var bulkEditIds by rememberRetainedSelection(RetainedSelections.bulkEditIds, null)
         var bulkEditScope by rememberSaveable { mutableStateOf(BulkEditScope.SELECTION) }
 
         /** One song gets the full editor, with the per-track fields the N-track editor leaves out. */
@@ -880,9 +889,7 @@ private fun AppShell(
             onFailure: () -> Unit = {},
         ) {
             scope.launch {
-                if (!runBulkFavoriteEdit(AppGraph.favorites, action, ids, snackbar) { favoriteIds = it }) {
-                    onFailure()
-                }
+                runBulkFavoriteEdit(AppGraph.favorites, action, ids, snackbar, onFailed = onFailure) { favoriteIds = it }
             }
         }
         LaunchedEffect(Unit) {
@@ -1669,6 +1676,7 @@ private fun AppShell(
         suspend fun savePlaylistCover(id: String, reference: String?) {
             var saved = false
             var interrupted = false
+            var failed = false
             try {
                 val previous = AppGraph.playlists.all().firstOrNull { it.id == id }
                 if (previous == null) return
@@ -1687,11 +1695,13 @@ private fun AppShell(
                 interrupted = true
                 throw cancelled
             } catch (_: Throwable) {
-                snackbar.showSnackbar(getString(Res.string.playlist_cover_error))
+                failed = true
             } finally {
                 coverSaveInProgress = false
                 if (!saved && !interrupted) discardUnusedPlaylistCover(reference)
             }
+            // After the flag is down: the snackbar stays for seconds, and the cover controls must not wait for it.
+            if (failed) snackbar.showSnackbar(getString(Res.string.playlist_cover_error))
         }
         val pickPlaylistCover = rememberPlaylistCoverPicker { result ->
             val target = coverEditTargetId
@@ -1986,6 +1996,8 @@ private fun AppShell(
                 QueueSourceKind.COLLECTION, QueueSourceKind.LIBRARY_GROUP -> {
                     val build: suspend () -> CollectionSelection = when (source.kind) {
                         QueueSourceKind.COLLECTION -> {
+                            // Before the catalog is built the page would open empty and stay so: the chip raises the queue.
+                            if (!playlistPageResolvable(tracks, catalog, catalogSource)) return false
                             val playlist = source.reference?.let { id ->
                                 playlistsState.playlists.firstOrNull { it.id == id }
                             } ?: return false
@@ -2024,9 +2036,9 @@ private fun AppShell(
                                 is QueueSourceGroup.Genre -> { { target.group.toSelection() } }
                                 is QueueSourceGroup.Folder -> { { target.group.toSelection() } }
                                 is QueueSourceGroup.FolderBranch -> {
-                                    { target.node.toTreeSelection(settings.groupSortOrders.value.folders) }
+                                    { folderNode(target.key, catalog).toTreeSelection(settings.groupSortOrders.value.folders) }
                                 }
-                                is QueueSourceGroup.FolderTracks -> { { target.node.toTracksSelection() } }
+                                is QueueSourceGroup.FolderTracks -> { { folderNode(target.key, catalog).toTracksSelection() } }
                                 null -> return false
                             }
                         }
@@ -2083,6 +2095,8 @@ private fun AppShell(
                 // Going somewhere must also leave where you were: the collection renders in the
                 // browse branch, so a full player or search screen left open would keep covering
                 // the destination — the tap would look like it did nothing.
+                // A selection made on the page left behind (kept under the player) is not this page's.
+                updateTrackSelection(emptySet())
                 showNowPlaying = false
                 showSearch = false
                 },
@@ -2094,6 +2108,7 @@ private fun AppShell(
                 build = { artist.toSelection(settings.artistAlbumSort.value) },
                 afterOpen = {
                 // Same as showAlbumOf: navigation closes the surfaces above the destination.
+                updateTrackSelection(emptySet())
                 showNowPlaying = false
                 showSearch = false
                 },
@@ -4260,6 +4275,7 @@ private fun AppShell(
                             )
                             return@launch
                         }
+                        libraryScan.order.changedLocally()
                         tracks?.filterNot { it.id == target.id }?.let { remaining ->
                             publishLibraryTracks(
                                 remaining,
@@ -4363,6 +4379,7 @@ private fun AppShell(
                             return@launch
                         }
                         val hiddenIds = ids.toHashSet()
+                        libraryScan.order.changedLocally()
                         tracks?.filterNot { it.id in hiddenIds }?.let { remaining ->
                             publishLibraryTracks(
                                 remaining,
@@ -4771,21 +4788,10 @@ private fun AppShell(
                 hasHiddenTracks = libraryScan.hasHiddenTracks,
                 canImportAudio = audioImportAvailable,
                 onRefreshLibrary = {
-                    if (!libraryScan.libraryRefreshing) {
-                        libraryScan.libraryRefreshing = true
-                        scope.launch {
-                            try {
-                                // Music copied in without the system being told is in no index yet
-                                // (#8): the system indexes it first, then the scan below sees it.
-                                library.indexNewFiles()
-                                scanLibrary()
-                                libraryScan.hasHiddenTracks = library.hasHiddenTracks()
-                                snackbar.showSnackbar(getString(Res.string.snack_library_refreshed))
-                            } finally {
-                                libraryScan.libraryRefreshing = false
-                            }
-                        }
-                    }
+                    libraryScan.requestRefresh(scope, library, snackbar, indexNewFiles = true) { scanLibrary() }
+                },
+                onLibraryChanged = {
+                    libraryScan.requestRefresh(scope, library, snackbar, indexNewFiles = false) { scanLibrary() }
                 },
                 onImportAudio = importAudio,
                 onRetryIndexing = { retryAutomaticIndexing() },

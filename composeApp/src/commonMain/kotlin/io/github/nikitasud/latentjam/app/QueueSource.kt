@@ -16,7 +16,12 @@ import io.github.nikitasud.latentjam.library.FolderNode
 import io.github.nikitasud.latentjam.library.FolderTree
 import io.github.nikitasud.latentjam.library.GenreGroup
 import io.github.nikitasud.latentjam.library.LibraryCatalog
+import io.github.nikitasud.latentjam.library.holdsFolder
+import io.github.nikitasud.latentjam.library.holdsTracksIn
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.StringResource
 
 /**
@@ -100,19 +105,26 @@ internal sealed interface QueueSourceGroup {
     data class Genre(val group: GenreGroup) : QueueSourceGroup
     data class Folder(val group: FolderGroup) : QueueSourceGroup
 
-    /** A folder with everything below it, as the folder tree plays it. */
-    data class FolderBranch(val node: FolderNode) : QueueSourceGroup
+    /** A folder with everything below it, as the folder tree plays it; [key] is its [FolderNode.key] ([folderNode]). */
+    data class FolderBranch(val key: String) : QueueSourceGroup
 
     /** One folder of the tree, on its own volume, with only its own tracks: a tapped track's neighbours. */
-    data class FolderTracks(val node: FolderNode) : QueueSourceGroup
+    data class FolderTracks(val key: String) : QueueSourceGroup
 }
 
-/** Missing and legacy identities fall back to the queue, never to a similarly named place. */
-internal fun QueueSource.resolveGroup(
+/**
+ * Whether a user playlist's page can be opened now. Its rows are found through the catalog, which is built after the
+ * library is published ([catalogSource] is the track list it was built from): opened before that, or while the
+ * catalog is still the one of an older library, the page would show no rows, and it stays as opened.
+ */
+internal fun playlistPageResolvable(
+    tracks: List<TrackDescriptor>?,
     catalog: LibraryCatalog?,
-    /** A folder's own tracks, as the Folders tab orders them. */
-    folderTrackOrder: Comparator<TrackDescriptor> = currentFolderTrackOrder(),
-): QueueSourceGroup? {
+    catalogSource: List<TrackDescriptor>?,
+): Boolean = tracks != null && catalog != null && catalogSource === tracks
+
+/** Missing and legacy identities fall back to the queue, never to a similarly named place. */
+internal fun QueueSource.resolveGroup(catalog: LibraryCatalog?): QueueSourceGroup? {
     if (kind != QueueSourceKind.LIBRARY_GROUP || catalog == null) return null
     val route = reference ?: return null
     return when (route.substringBefore(':')) {
@@ -126,13 +138,26 @@ internal fun QueueSource.resolveGroup(
         // left as its source before that source named its volume, so a saved queue may hold it.
         "folder" -> catalog.folders.firstOrNull { "folder:${it.path}" == route }
             ?.let(QueueSourceGroup::Folder)
-        "foldertree" -> FolderTree.build(catalog.songs, folderTrackOrder)
-            .node(route.removePrefix(FOLDER_TREE_ROUTE_PREFIX))
+        // Only whether the folder is there: this runs in a tap, and the tree itself (a sort of the whole library)
+        // is built with the page, off the main thread ([folderNode]).
+        "foldertree" -> route.removePrefix(FOLDER_TREE_ROUTE_PREFIX)
+            .takeIf { FolderTree.holdsFolder(catalog.songs, it) }
             ?.let(QueueSourceGroup::FolderBranch)
-        "foldertracks" -> FolderTree.build(catalog.songs, folderTrackOrder)
-            .node(route.removePrefix(FOLDER_TRACKS_ROUTE_PREFIX))
-            ?.takeIf { it.tracks.isNotEmpty() }
+        "foldertracks" -> route.removePrefix(FOLDER_TRACKS_ROUTE_PREFIX)
+            .takeIf { FolderTree.holdsTracksIn(catalog.songs, it) }
             ?.let(QueueSourceGroup::FolderTracks)
         else -> null
     }
 }
+
+/**
+ * The folder [resolveGroup] found under [key], from the tree of [catalog]'s songs built off the main thread. The
+ * library can change between the tap and this: the open is then given up, as any open a newer state overtakes is.
+ */
+internal suspend fun folderNode(
+    key: String,
+    catalog: LibraryCatalog?,
+    folderTrackOrder: Comparator<TrackDescriptor> = currentFolderTrackOrder(),
+): FolderNode = withContext(Dispatchers.Default) {
+    catalog?.let { FolderTree.build(it.songs, folderTrackOrder).node(key) }
+} ?: throw CancellationException("The folder is no longer in the library")

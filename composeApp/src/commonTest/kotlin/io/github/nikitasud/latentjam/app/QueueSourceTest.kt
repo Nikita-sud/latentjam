@@ -129,4 +129,16 @@ internal class QueueSourceTest {
         assertNull(saved("RADIO").savedQueueSource())
         assertNull(saved(null).savedQueueSource())
     }
+
+    @Test
+    fun aPlaylistPageIsNotOpenedBeforeTheCatalogIsBuiltFromTheCurrentLibrary() {
+        val library = listOf(io.github.nikitasud.latentjam.smart.TrackDescriptor(id = io.github.nikitasud.latentjam.smart.TrackId("1")))
+        val olderLibrary = library.toList()
+        // The playlists are read before the library, and the library is published before its catalog.
+        kotlin.test.assertFalse(playlistPageResolvable(tracks = null, catalog = null, catalogSource = null))
+        kotlin.test.assertFalse(playlistPageResolvable(tracks = library, catalog = null, catalogSource = null))
+        // After a rescan the catalog is still the older library's for a moment.
+        kotlin.test.assertFalse(playlistPageResolvable(tracks = library, catalog = catalog, catalogSource = olderLibrary))
+        kotlin.test.assertTrue(playlistPageResolvable(tracks = library, catalog = catalog, catalogSource = library))
+    }
 }
