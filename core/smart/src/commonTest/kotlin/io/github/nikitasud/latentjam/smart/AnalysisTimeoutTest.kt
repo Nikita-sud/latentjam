@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlin.test.AfterTest
@@ -41,7 +42,9 @@ internal class AnalysisTimeoutTest {
         var hanging: Set<TrackId>,
         budget: Duration = 300.milliseconds,
     ) : EmbeddingBackend {
-        val decodes = mutableListOf<TrackId>()
+        // Decodes begin on several worker threads at once: recorded with an atomic update, so none is lost.
+        private val begun = kotlinx.coroutines.flow.MutableStateFlow<List<TrackId>>(emptyList())
+        val decodes: List<TrackId> get() = begun.value
         private val decoding = DeadlineDecoding(
             object : DecodeWorkers {
                 override val dispatcher: CoroutineDispatcher = Dispatchers.Default
@@ -53,7 +56,7 @@ internal class AnalysisTimeoutTest {
         override suspend fun loadModel(): Result<Unit> = Result.success(Unit)
 
         private suspend fun decode(track: TrackDescriptor): FloatArray {
-            decodes += track.id
+            begun.update { it + track.id }
             if (track.id in hanging) withContext(NonCancellable) { stuck.await() }
             return floatArrayOf(1f, track.id.value.length.toFloat(), 0f)
         }
@@ -210,6 +213,6 @@ internal class AnalysisTimeoutTest {
         assertEquals(0, engine.missingFromIndexOf(library.drop(3)))
         assertEquals(3, engine.missingFromIndexOf(library.take(3)))
         // Each hung file was begun once: one stuck decode each, whatever was decoding ahead when a pool was replaced.
-        assertEquals(hung, backend.decodes.map { it.value }.filter { it in hung })
+        assertEquals(hung, backend.decodes.map { it.value }.filter { it in hung }.sorted())
     }
 }

@@ -9,6 +9,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -129,11 +130,12 @@ internal class TrackDeadlineTest {
     fun `hung neighbours each leave one stuck decode however many pools are replaced`() = runTest {
         // Three hung files next to each other, decoded ahead together: each timeout replaces the pool, and a
         // neighbour begun again on every fresh pool left a stuck thread per pool (six for three files).
-        var neverReturning = 0
+        // Counted with an atomic update: the look-ahead begins on several worker threads at once.
+        val neverReturning = kotlinx.coroutines.flow.MutableStateFlow(0)
         val workers = object : DecodeWorkers {
             override val dispatcher: CoroutineDispatcher = Dispatchers.Default
             override fun abandon() {}
-            override val stuck: Int get() = neverReturning
+            override val stuck: Int get() = neverReturning.value
         }
         val decoding = DeadlineDecoding(workers, budget = 200.milliseconds)
         val hung = setOf("a", "b", "c")
@@ -146,7 +148,7 @@ internal class TrackDeadlineTest {
                     ahead = 2,
                     prefetch = { track ->
                         if (track.id.value in hung) {
-                            neverReturning++
+                            neverReturning.update { it + 1 }
                             hang()
                         }
                         vector(track)
