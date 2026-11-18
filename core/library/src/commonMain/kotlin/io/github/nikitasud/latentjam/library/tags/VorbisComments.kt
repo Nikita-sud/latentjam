@@ -171,7 +171,8 @@ internal object VorbisFields {
     fun apply(entries: List<VorbisEntry>, edits: TagEdits): List<VorbisEntry> {
         var out = entries
         out = set(out, TITLE, edits.title)
-        val hadArtists = out.any { it.key == ARTISTS }
+        // As the snapshot reads it: a list that credits nobody ("ARTISTS=") is no list, and stays as it is.
+        val hadArtists = out.any { it.key == ARTISTS && TagFacts.splitArtists(it.value).isNotEmpty() }
         out = setJoined(out, ARTIST, edits.artist)
         if (edits.artist != null && hadArtists) {
             out = setMany(out, ARTISTS, CreditedArtists.fromDisplay(edits.artist))

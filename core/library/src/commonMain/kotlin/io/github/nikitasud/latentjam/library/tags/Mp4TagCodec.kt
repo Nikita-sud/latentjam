@@ -171,6 +171,12 @@ internal object Mp4TagCodec : TagCodec {
 
     private fun isArtists(item: Mp4Box): Boolean = item.type == "----" && freeformName(item)?.equals(ARTISTS, ignoreCase = true) == true
 
+    /** Every name the ARTISTS freeform items credit, in order: [TagSnapshot.artists]. */
+    private fun creditedArtists(items: List<Mp4Box>): List<String> = items.filter(::isArtists)
+        .flatMap { dataBoxes(it) }
+        .mapNotNull { value(it)?.decodeToString() }
+        .flatMap { TagFacts.splitArtists(it) }
+
     /**
      * For `----:com.apple.iTunes:ORIGINALYEAR` (true) or `ORIGINALDATE` (false), whether it is
      * year-only; null for any other item. Never written by the editor, only moved ([OriginalDates]).
@@ -234,10 +240,7 @@ internal object Mp4TagCodec : TagCodec {
             otherPictures = maxOf(0, covers.size - 1),
             nextCover = covers.getOrNull(1),
             pictures = covers.map { it.crc32 }.sorted(),
-            artists = items.filter(::isArtists)
-                .flatMap { dataBoxes(it) }
-                .mapNotNull { value(it)?.decodeToString() }
-                .flatMap { TagFacts.splitArtists(it) },
+            artists = creditedArtists(items),
             originalDates = originalDates(items),
         )
     }
@@ -506,8 +509,13 @@ internal object Mp4TagCodec : TagCodec {
         replaceItem(items, type, Mp4Box.container(type, listOf(dataBox(0, value))))
     }
 
-    /** Rewrites the ARTISTS freeform item from a new display credit — only when the file has one. */
+    /**
+     * Rewrites the ARTISTS freeform item from a new display credit — only when the file has one that
+     * credits a name, exactly when [TagSnapshot.artists] is not empty. An item that credits nobody is
+     * left as it is, as [TagSnapshot.expectedAfter] predicts for a file whose list reads empty.
+     */
     private fun setArtists(items: MutableList<Mp4Box>, artist: String) {
+        if (creditedArtists(items).isEmpty()) return
         val first = items.indexOfFirst(::isArtists)
         if (first < 0) return
         val names = CreditedArtists.fromDisplay(artist)

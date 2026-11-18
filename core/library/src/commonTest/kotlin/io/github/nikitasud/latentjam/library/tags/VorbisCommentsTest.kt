@@ -116,6 +116,18 @@ internal class VorbisCommentsTest {
     }
 
     @Test
+    fun anArtistsFieldThatCreditsNobodyIsLeftAsItIs() {
+        // The snapshot reads such a list as empty, and the verifier expects it to stay empty.
+        for (nobody in listOf("", ";", " ; ")) {
+            val before = entries("ARTIST" to "X", "ARTISTS" to nobody)
+            assertEquals(emptyList(), VorbisFields.read(before).artists)
+            val after = VorbisFields.apply(before, TagEdits(artist = "A; B"))
+            assertEquals(listOf("ARTIST=A; B", "ARTISTS=$nobody"), keys(after))
+            assertEquals(emptyList(), VorbisFields.read(after).artists)
+        }
+    }
+
+    @Test
     fun numberEditKeepsATotalThatWasEmbeddedInThePair() {
         val after = VorbisFields.apply(entries("TRACKNUMBER" to "3/12"), TagEdits(trackNumber = "4"))
         assertEquals(listOf("TRACKNUMBER=4", "TRACKTOTAL=12"), keys(after))

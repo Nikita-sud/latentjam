@@ -105,6 +105,17 @@ internal class FlacTagCodecTest {
     }
 
     @Test
+    fun aMultiArtistEditSavesOverAnArtistsFieldThatCreditsNobody() {
+        val file = FlacFixtures.file(
+            FlacFixtures.VORBIS_COMMENT to FlacFixtures.comments("ARTIST" to "X", "ARTISTS" to ""),
+            FlacFixtures.PADDING to ByteArray(500),
+        )
+        val out = CodecAssertions.assertWriteMatchesExpectation(codec, file, TagEdits(artist = "A; B"))
+        assertEquals("A; B", codec.read(ByteArraySource(out)).artist)
+        CodecAssertions.assertWriteMatchesExpectation(codec, file, TagEdits(artist = "Solo"))
+    }
+
+    @Test
     fun editWithinPaddingIsInPlaceAndTouchesOnlyMetadata() {
         val file = tagged()
         val plan = codec.plan(ByteArraySource(file), TagEdits(title = "A somewhat longer title"))
