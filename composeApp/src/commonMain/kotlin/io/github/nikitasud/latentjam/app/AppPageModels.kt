@@ -415,6 +415,12 @@ internal class LibraryScanState {
     var shownRepairingKeys by mutableStateOf(emptySet<String>())
     var hasHiddenTracks by mutableStateOf(false)
     var libraryRefreshing by mutableStateOf(false)
+
+    /** Which scan may publish; see [LibraryScanOrder]. */
+    val order = LibraryScanOrder()
+
+    /** The refreshes Settings asks for; see [requestRefresh]. */
+    val refresher = LibraryRefresher()
 }
 
 /**

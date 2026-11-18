@@ -460,6 +460,8 @@ internal fun SettingsScreen(
     hasHiddenTracks: Boolean,
     canImportAudio: Boolean,
     onRefreshLibrary: () -> Unit,
+    /** A track was restored or a folder toggled: the library is read again, with no wait for the system's indexer. */
+    onLibraryChanged: () -> Unit,
     onImportAudio: () -> Unit,
     onRetryIndexing: () -> Unit,
     onRetryTracks: (Collection<TrackId>) -> Unit,
@@ -632,13 +634,13 @@ internal fun SettingsScreen(
                     )
                     SettingsPage.SOURCES -> SourcesSettings(
                         library = library,
-                        onRefreshLibrary = onRefreshLibrary,
+                        onRefreshLibrary = onLibraryChanged,
                         snackbarHostState = snackbarHostState,
                     )
                     SettingsPage.LYRICS_FOLDERS -> LyricsFoldersSettings(snackbarHostState)
                     SettingsPage.HIDDEN_TRACKS -> HiddenTracksSettings(
                         library = library,
-                        onRefreshLibrary = onRefreshLibrary,
+                        onRefreshLibrary = onLibraryChanged,
                         snackbarHostState = snackbarHostState,
                     )
                     SettingsPage.DUPLICATES -> DuplicatesSettings(

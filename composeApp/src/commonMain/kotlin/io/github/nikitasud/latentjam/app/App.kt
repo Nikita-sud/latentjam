@@ -163,7 +163,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.snack_track_exclude
 import io.github.nikitasud.latentjam.app.generated.resources.snack_track_included_in_smart
 import io.github.nikitasud.latentjam.app.generated.resources.snack_removed_from_latentjam
 import io.github.nikitasud.latentjam.app.generated.resources.snack_audio_open_unavailable
-import io.github.nikitasud.latentjam.app.generated.resources.snack_library_refreshed
 import io.github.nikitasud.latentjam.app.generated.resources.tags_saved
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_genre
@@ -361,6 +360,7 @@ private fun AppShell(
             libraryIndexingRequest = AutomaticIndexingRequest(value, authoritative)
         }
         suspend fun scanLibrary(): List<TrackDescriptor> {
+            val scanToken = libraryScan.order.begin()
             val scan = try {
                 library.scan()
             } catch (cancelled: CancellationException) {
@@ -380,6 +380,13 @@ private fun AppShell(
             // Remembered embedded genres upgrade the scan before anything downstream sees it:
             // the system scanner keeps one genre per track, the files themselves keep them all.
             val enriched = genreEnrichment.apply(scan.tracks)
+            // Scans finish in any order: one that began before a newer one published, or before a track was hidden,
+            // must not put its older library back.
+            when (libraryScan.order.finish(scanToken)) {
+                ScanOutcome.SUPERSEDED -> return tracks.orEmpty()
+                ScanOutcome.RESCAN -> return scanLibrary()
+                ScanOutcome.PUBLISH -> Unit
+            }
             // A file mid-replace is neither its old bytes nor its new ones: not offered until recovered.
             val repairing = currentRepairingKeys.value
             val playable = withoutFilesUnderRepair(enriched, repairing) { tagAccess?.keyOf(it) }
@@ -4260,6 +4267,7 @@ private fun AppShell(
                             )
                             return@launch
                         }
+                        libraryScan.order.changedLocally()
                         tracks?.filterNot { it.id == target.id }?.let { remaining ->
                             publishLibraryTracks(
                                 remaining,
@@ -4363,6 +4371,7 @@ private fun AppShell(
                             return@launch
                         }
                         val hiddenIds = ids.toHashSet()
+                        libraryScan.order.changedLocally()
                         tracks?.filterNot { it.id in hiddenIds }?.let { remaining ->
                             publishLibraryTracks(
                                 remaining,
@@ -4771,21 +4780,10 @@ private fun AppShell(
                 hasHiddenTracks = libraryScan.hasHiddenTracks,
                 canImportAudio = audioImportAvailable,
                 onRefreshLibrary = {
-                    if (!libraryScan.libraryRefreshing) {
-                        libraryScan.libraryRefreshing = true
-                        scope.launch {
-                            try {
-                                // Music copied in without the system being told is in no index yet
-                                // (#8): the system indexes it first, then the scan below sees it.
-                                library.indexNewFiles()
-                                scanLibrary()
-                                libraryScan.hasHiddenTracks = library.hasHiddenTracks()
-                                snackbar.showSnackbar(getString(Res.string.snack_library_refreshed))
-                            } finally {
-                                libraryScan.libraryRefreshing = false
-                            }
-                        }
-                    }
+                    libraryScan.requestRefresh(scope, library, snackbar, indexNewFiles = true) { scanLibrary() }
+                },
+                onLibraryChanged = {
+                    libraryScan.requestRefresh(scope, library, snackbar, indexNewFiles = false) { scanLibrary() }
                 },
                 onImportAudio = importAudio,
                 onRetryIndexing = { retryAutomaticIndexing() },
