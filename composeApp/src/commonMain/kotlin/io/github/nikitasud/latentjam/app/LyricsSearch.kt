@@ -136,8 +136,9 @@ internal class LyricsSearchCache(private val clock: TimeSource = TimeSource.Mono
                 dirty = true
             } catch (cancelled: CancellationException) {
                 throw cancelled
-            } catch (_: Exception) {
-                // An unreadable file must not permanently become a cached "no lyrics".
+            } catch (_: Throwable) {
+                // An unreadable file must not permanently become a cached "no lyrics". Nor may one
+                // song end the index and the app: a tag too large for the heap is an Error.
             }
             scanned++
             if (scanned % 64 == 0) {

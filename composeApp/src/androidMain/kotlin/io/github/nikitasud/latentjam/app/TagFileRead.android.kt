@@ -24,7 +24,7 @@ internal actual suspend fun readTagFile(track: TrackDescriptor): TagFileRead = w
             // Not closed: closing a stream over this descriptor closes the descriptor itself, which is
             // the ParcelFileDescriptor's job.
             val channel = FileInputStream(it.fileDescriptor).channel
-            tagFileReadOf(TagCodecs.read(FileChannelSource(channel)))
+            tagFileReadOrUnreadable { TagCodecs.read(FileChannelSource(channel)) }
         }
     } catch (cancelled: CancellationException) {
         throw cancelled

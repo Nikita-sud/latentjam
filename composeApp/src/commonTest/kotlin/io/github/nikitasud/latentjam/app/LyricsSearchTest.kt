@@ -150,6 +150,24 @@ class LyricsSearchTest {
         assertNotNull(result[song.id]?.snippet("silver moon"))
     }
 
+    @Test fun aSongWhoseTagDoesNotFitInMemoryDoesNotEndTheIndexAndIsRetried() = runTest {
+        val cache = LyricsSearchCache()
+        val storage = MemoryStorage()
+        val songs = listOf(track("huge"), track("fine"))
+        var result = emptyMap<TrackId, LyricSearchDocument>()
+        val read = mutableListOf<TrackId>()
+        val reader: suspend (TrackDescriptor) -> Lyrics? = {
+            read += it.id
+            if (it.id.value == "huge") throw HeapExhausted()
+            lyrics("silver moon")
+        }
+        cache.load(songs, storage, reader, sourcesRevision = "") { result = it }
+        assertEquals(setOf(TrackId("fine")), result.keys)
+        read.clear()
+        cache.load(songs, storage, reader, sourcesRevision = "") { result = it }
+        assertEquals(listOf(TrackId("huge")), read)
+    }
+
     @Test fun cancellationPreservesCompletedWorkWithoutCachingTheInterruptedRead() = runTest {
         val cache = LyricsSearchCache()
         val storage = MemoryStorage()
