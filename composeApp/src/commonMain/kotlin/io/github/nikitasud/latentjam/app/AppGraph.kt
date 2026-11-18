@@ -827,6 +827,13 @@ object AppGraph {
                 // (0.9.6): files remembered as "no decoder" may be any format, and the reason is not stored, so every
                 // remembered failure gets the one try.
                 if (tracks.isNotEmpty() && librarySnapshotAuthoritative && !settings.analysisRetryDone(RETRY_ONCE_DECODER_LOOKUP)) {
+                    // Among them are files given up after three timeouts, whose ledger entry ended there: each gets
+                    // this one try and no more (a timeout remembers it again at once), stored before it is handed out.
+                    val remembered = engine.rememberedAudioFailures(tracks).keys
+                    if (remembered.isNotEmpty()) {
+                        tracks.forEach { if (it.id in remembered) retries.lastTry(it) }
+                        store.retryLedger = retries.encoded()
+                    }
                     engine.retryFailedTracks(trackIds)
                     settings.markAnalysisRetryDone(RETRY_ONCE_DECODER_LOOKUP)
                 }

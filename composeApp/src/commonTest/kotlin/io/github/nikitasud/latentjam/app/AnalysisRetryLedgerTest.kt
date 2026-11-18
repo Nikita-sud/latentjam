@@ -167,4 +167,31 @@ class AnalysisRetryLedgerTest {
         assertFalse(ledger.holding(track))
         assertTrue(ledger.holding(other))
     }
+
+    @Test
+    fun aRememberedFailureHandedOutOnceMoreHasOneTryAndDoesNotWaitForIt() = kotlinx.coroutines.test.runTest {
+        val ledger = AnalysisRetryLedger(null) { now }
+        val remembered = ArrayList<TrackDescriptor>()
+        val settling = AnalysisRetrySettling(ledger, stillMissing = { true }, remember = { remembered += it }, save = {})
+        val decodable = TrackDescriptor(id = TrackId("b"), audioUri = "file:///b.m4a", durationMs = 100_000)
+        ledger.lastTry(track)
+        ledger.lastTry(decodable)
+        // In this very pass, not after an hour.
+        assertFalse(ledger.holding(track))
+        // And kept over a restart before the pass gets to it.
+        val restored = AnalysisRetryLedger(ledger.encoded()) { now }
+        assertTrue(restored.has(track.id))
+        assertFalse(restored.holding(track))
+
+        settling.passStarted()
+        // The file given up after three timeouts times out once, not three times more, and is remembered again.
+        val report = settling.settle(listOf(track), timedOutReport(listOf(track), stalled = false))
+        assertEquals(listOf(track), remembered)
+        assertTrue(report.errors.getValue(track.id) is EngineError.InvalidAudio)
+        assertFalse(ledger.has(track.id))
+        // The file the new decoder lookup reads is analysed, and its entry ends.
+        val analysed = AnalysisRetrySettling(ledger, stillMissing = { false }, remember = {}, save = {})
+        analysed.settle(listOf(decodable), io.github.nikitasud.latentjam.smart.IndexReport(indexed = 1, failed = 0))
+        assertFalse(ledger.has(decodable.id))
+    }
 }

@@ -83,6 +83,16 @@ internal class AnalysisRetryLedger(encoded: String?, private val nowMs: () -> Lo
         entries[track.id] = Entry(identity, maxOf(before, CAP - 1), nowMs())
     }
 
+    /**
+     * [track] has one try left and does not wait for it: for a remembered failure that is handed out once more with
+     * no word on why it failed. The ledger let go of a file it gave up after three timeouts, so tried from nothing it
+     * would cost its three 90 s waits again; with this entry a timeout is its last, and a success ends the entry.
+     */
+    fun lastTry(track: TrackDescriptor) {
+        // As if its second timeout were the whole wait ago: [holding] says no.
+        entries[track.id] = Entry(identityOf(track), CAP - 1, lastAtMs = nowMs() - SECOND_RETRY_AFTER_MS)
+    }
+
     fun has(id: TrackId): Boolean = id in entries
 
     /** [id] was analysed, failed some other way, or left the library. */
