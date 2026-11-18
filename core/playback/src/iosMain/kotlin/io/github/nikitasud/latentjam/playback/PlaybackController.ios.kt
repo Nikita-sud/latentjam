@@ -15,8 +15,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -500,6 +504,11 @@ internal class IosPlaybackController(
     )
     private val mutableState = MutableStateFlow(NowPlaying())
     override val state: StateFlow<NowPlaying> = mutableState.asStateFlow()
+
+    /** Rows passed over because their file would not open, as on Android; the newest few are enough for a notice. */
+    private val mutablePlaybackFailures =
+        MutableSharedFlow<PlaybackFailure>(extraBufferCapacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    override val playbackFailures: Flow<PlaybackFailure> = mutablePlaybackFailures.asSharedFlow()
 
     /** Plays Music.app library items, including protected on-device downloads. */
     private val mediaPlayer = MPMusicPlayerController.applicationMusicPlayer
@@ -1595,12 +1604,14 @@ internal class IosPlaybackController(
     /**
      * Tries each candidate once; unreadable rows are skipped without ever being published. An audio output that will
      * not start (a call in progress) is no row's fault: the row is cued paused instead ([loadFirstPlayableRow]).
+     * The listener is told of each row passed over for its file ([playbackFailures]), unless [report] is false.
      */
     private fun loadPlayableFrom(
         startIndex: Int,
         direction: Int,
         autoPlay: Boolean,
         wrap: Boolean,
+        report: Boolean = true,
     ): Boolean {
         val loaded = loadFirstPlayableRow(
             candidates = playbackQueueTraversal(queue.size, startIndex, direction, wrap),
@@ -1609,7 +1620,12 @@ internal class IosPlaybackController(
                 queueIndex = candidate
                 loadCurrentItem(play)
             },
-            unplayable = { _, _ -> },
+            unplayable = { candidate, unsupportedFormat ->
+                val track = queue.getOrNull(candidate)
+                if (report && track != null) {
+                    mutablePlaybackFailures.tryEmit(PlaybackFailure(track.id, unsupportedFormat, track.title))
+                }
+            },
         )
         if (loaded) return true
         stopBackendsAndClearCurrent()
@@ -1627,6 +1643,8 @@ internal class IosPlaybackController(
             direction = 1,
             autoPlay = false,
             wrap = false,
+            // Going back to the row that was playing: nothing here was asked for, so nothing is announced.
+            report = false,
         )
         if (!restored) return false
         if (queueIndex == previousIndex && previousPositionMs > 0L) {
