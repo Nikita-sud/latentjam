@@ -264,9 +264,11 @@ private fun readDocument(url: NSURL, budget: ImportReadBudget): LocalBackupFileR
     }
     val bytes = data.toByteArray()
     budget.accept(bytes)
+    val text = readImportedText(bytes)
     ImportedLocalDocument(
-        text = decodeImportedText(bytes),
+        text = text.text,
         displayName = url.lastPathComponent,
+        ansi = text.ansi,
     )
 }.fold(
     onSuccess = { LocalBackupFileResult.Success(it) },

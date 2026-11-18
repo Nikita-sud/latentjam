@@ -36,11 +36,16 @@ internal class M3uImport(
  * Parses and matches an M3U [text] against [library] off the main thread. [filePaths] is the
  * library's absolute-path lookup, asked only when the file has rows; a lookup that fails costs
  * only the volume part of path matching, never the import.
+ *
+ * A file that is neither UTF-8 nor UTF-16 names no code page ([ansi]): [text] is then its Windows-1252 reading,
+ * and the Cyrillic and Central European readings of the same bytes are matched too. The reading whose rows find
+ * the most tracks is the one imported; unless another finds more, that is the Windows-1252 one, as it always was.
  */
 internal suspend fun importM3u(
     text: String,
     library: List<TrackDescriptor>,
     displayName: String? = null,
+    ansi: Boolean = false,
     filePaths: suspend (List<TrackId>) -> Map<TrackId, String>,
 ): M3uImport {
     val entries = withContext(Dispatchers.Default) { parseM3u(text) }
@@ -53,14 +58,27 @@ internal suspend fun importM3u(
         emptyMap()
     }
     return withContext(Dispatchers.Default) {
-        val matched = matchM3uEntries(entries, library, paths)
+        var reading = M3uReading(text, entries, matchM3uEntries(entries, library, paths))
+        // Nothing to gain once every row found its track.
+        if (ansi && reading.found < entries.size) {
+            for (other in otherCodePageReadings(text)) {
+                val otherEntries = parseM3u(other)
+                val candidate = M3uReading(other, otherEntries, matchM3uEntries(otherEntries, library, paths))
+                if (candidate.found > reading.found) reading = candidate
+            }
+        }
         M3uImport(
-            name = parseM3uName(text) ?: m3uFileName(displayName),
-            entryCount = entries.size,
-            matchedEntryCount = matched.count { it != null },
-            tracks = matched.filterNotNull().distinctBy { it.id },
+            name = parseM3uName(reading.text) ?: m3uFileName(displayName),
+            entryCount = reading.entries.size,
+            matchedEntryCount = reading.found,
+            tracks = reading.matched.filterNotNull().distinctBy { it.id },
         )
     }
+}
+
+/** One reading of a playlist file's bytes, matched against the library. */
+private class M3uReading(val text: String, val entries: List<M3uEntry>, val matched: List<TrackDescriptor?>) {
+    val found: Int = matched.count { it != null }
 }
 
 /**
@@ -83,7 +101,9 @@ internal suspend fun importM3uFiles(
             emptyMap()
         }.also { paths = it }
     }
-    return documents.map { document -> importM3u(document.text, library, document.displayName, pathsOnce) }
+    return documents.map { document ->
+        importM3u(document.text, library, document.displayName, document.ansi, pathsOnce)
+    }
 }
 
 /** How [createM3uPlaylists] went: the playlists made, and whether it stopped on a failure. */

@@ -437,7 +437,7 @@ private suspend fun readDocument(
         val input = resolver.openInputStream(uri) ?: error("The selected document cannot be opened")
         val bytes = input.use { it.readBounded(budget) }
         budget.accept(bytes)
-        val text = decodeImportedText(bytes)
+        val text = readImportedText(bytes)
         // Document IDs and URI path segments need not be file names. Ask the provider for its
         // display name; missing metadata must never prevent importing readable contents.
         val displayName = try {
@@ -450,7 +450,7 @@ private suspend fun readDocument(
         } catch (_: Exception) {
             null
         }
-        ImportedLocalDocument(text, displayName)
+        ImportedLocalDocument(text.text, displayName, text.ansi)
     }
 
 /**
