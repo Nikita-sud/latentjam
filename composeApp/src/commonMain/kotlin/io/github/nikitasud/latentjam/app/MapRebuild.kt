@@ -198,6 +198,10 @@ internal object MapRebuild {
         return outcome
     }
 
+    /** The tracks whose audio vector the rebuild waits for: all of [loaded] but those the retry ledger [holds] back. */
+    internal fun awaitedByRebuild(loaded: List<TrackDescriptor>, holds: (TrackDescriptor) -> Boolean): List<TrackDescriptor> =
+        loaded.filterNot(holds)
+
     private suspend fun rebuild(isActive: () -> Boolean): Outcome {
         if (!MapRefreshFlag.enabled) return Outcome.NOT_NEEDED
         // SMART switched off: nothing is analysed or laid out. The request stays waiting for the day it is on again.
@@ -223,7 +227,9 @@ internal object MapRebuild {
         if (ids.isEmpty()) return Outcome.NOT_NEEDED
         // Judged on the descriptors: this process may never have synchronized the library into the engine, and a
         // remembered decode failure must not read as missing audio (it would hold the rebuild back forever).
-        if (engine.missingFromIndexOf(loaded) > 0) return Outcome.NOT_READY
+        // Nor a track that waits out its retry backoff: no pass analyses it now, and with one such track the rebuild
+        // answered "not ready" at every try while charging and idle.
+        if (engine.missingFromIndexOf(awaitedByRebuild(loaded, AppGraph.analysisHolds())) > 0) return Outcome.NOT_READY
         val coverage = engine.libraryMixCoverage(ids) ?: return Outcome.NOT_READY
         if (coverage.size > LibraryLayout.MAX_TRACKS) return Outcome.NOT_NEEDED
 

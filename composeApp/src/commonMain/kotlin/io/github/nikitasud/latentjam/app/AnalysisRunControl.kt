@@ -78,6 +78,24 @@ internal interface AnalysisControlStore {
 
     /** Whether files live in an app container that can move ([legacyContainerRoots] is kept): iOS. */
     val keepsContainerRoots: Boolean get() = false
+
+    /**
+     * [AnalysisInFlight]: the process id and the tracks of the chunk the audio pass analyses now, set before the chunk
+     * and durable at once (the process may end in it), null between chunks. Nothing where the platform keeps none.
+     */
+    var inFlight: String?
+        get() = null
+        set(@Suppress("UNUSED_PARAMETER") value) = Unit
+
+    /** [AnalysisInFlight]: the tracks found in flight at the last launch, with no word on how that process ended. */
+    var inFlightSeen: String?
+        get() = null
+        set(@Suppress("UNUSED_PARAMETER") value) = Unit
+
+    /** [AnalysisInFlight]: the tracks the pass analyses one per chunk. */
+    var crashSuspects: String?
+        get() = null
+        set(@Suppress("UNUSED_PARAMETER") value) = Unit
 }
 
 internal class InMemoryAnalysisControlStore : AnalysisControlStore {
@@ -89,6 +107,9 @@ internal class InMemoryAnalysisControlStore : AnalysisControlStore {
     override var wakeLockHeldSince: Long? = null
     override var wakeLockRenewedAt: Long? = null
     override var retryLedger: String? = null
+    override var inFlight: String? = null
+    override var inFlightSeen: String? = null
+    override var crashSuspects: String? = null
 }
 
 /**

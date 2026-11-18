@@ -14,6 +14,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -61,6 +62,65 @@ class AutomaticIndexingRunTest {
         assertFalse(state.running)
         assertTrue(state.complete)
     }
+
+    @Test
+    fun `work that runs out of memory stops the pass instead of ending the process`() = runTest {
+        var state = AutomaticIndexingState(running = true)
+        var interrupted: Exception? = null
+        var checkpoints = 0
+
+        runAutomaticIndexingSafely(
+            checkpoint = { checkpoints++ },
+            finishNotification = {},
+            cancelNotificationPrompt = {},
+            onStopped = { state = state.copy(running = false) },
+            onInterrupted = { interrupted = it },
+        ) {
+            throw OutOfMemoryError()
+        }
+
+        assertTrue(interrupted is AnalysisOutOfMemory)
+        assertEquals(1, checkpoints)
+        assertFalse(state.running)
+        assertFalse(state.complete)
+    }
+
+    @Test
+    fun `a checkpoint that runs out of memory still releases everything`() = runTest {
+        val released = mutableListOf<String>()
+
+        runAutomaticIndexingSafely(
+            checkpoint = { throw OutOfMemoryError() },
+            finishNotification = { released += "notification" },
+            cancelNotificationPrompt = { released += "prompt" },
+            onStopped = { released += "stopped" },
+        ) {
+            throw OutOfMemoryError()
+        }
+
+        assertEquals(listOf("notification", "prompt", "stopped"), released)
+    }
+
+    @Test
+    fun `an error that is not memory still reaches the caller`() = runTest {
+        var stopped = false
+        assertFailsWith<Glitch> {
+            runAutomaticIndexingSafely(
+                checkpoint = {},
+                finishNotification = {},
+                cancelNotificationPrompt = {},
+                onStopped = { stopped = true },
+            ) {
+                throw Glitch()
+            }
+        }
+        assertTrue(stopped)
+    }
+
+    /** What the platform's OutOfMemoryError is to common code, which cannot name it: an [Error] of that name. */
+    private class OutOfMemoryError : Error("out of memory")
+
+    private class Glitch : Error("a bug, not memory")
 
     @Test
     fun `every cleanup is attempted even when storage and notification cleanup both fail`() = runTest {

@@ -44,8 +44,36 @@ internal interface DecodeWorkers {
      */
     fun abandon()
 
+    /**
+     * Abandoned workers that are still alive well after their abandonment: each sits in a platform call and keeps its
+     * thread, its file and possibly a codec for the life of the process. 0 where workers cannot be told apart.
+     */
+    val stuck: Int get() = 0
+
     fun close() {}
 }
+
+/**
+ * Timed-out tracks in a row at which the analysis lane stops ([AnalysisStalled]). Three, on this basis: the app's
+ * ledger already takes three attempts as the limit for one file, and one or two hung files in a row are plausible
+ * for a damaged album, while three different files in a row point at the storage or the extractor service, not at
+ * the files. Going on would cost every remaining track its 90 s, a ledger attempt and a leaked thread.
+ */
+internal const val TIMEOUTS_IN_A_ROW_STOP: Int = 3
+
+/**
+ * Stuck decode workers ([DecodeWorkers.stuck]) at which the analysis lane stops for this process. Eight, on this
+ * basis: a stuck worker may hold a started codec, and a codec that declares no limit of its own allows 32 concurrent
+ * instances (MediaCodecInfo's default); a quarter of that leaves playback, its crossfade and the loudness scan far
+ * from the limit however the stuck ones are spread over codecs.
+ */
+internal const val MAX_STUCK_WORKERS: Int = 8
+
+/**
+ * The analysis lane stopped itself: its tracks time out one after another, or too many of its workers are stuck.
+ * No track's own failure; the engine reports the chunk as [IndexReport.stalled] and the pass ends.
+ */
+public class AnalysisStalled(detail: String) : Exception(detail)
 
 /**
  * D1 (docs/analysis-094-plan.md §0): a timeout is transient, not remembered. Its cause may pass (a slow card, a busy
@@ -125,6 +153,31 @@ internal class DeadlineDecoding(
     private var carryExpiry: Job? = null
     private val carryLock = Mutex()
 
+    /** Tracks of this lane that timed out one after another, up to now ([settled]). */
+    private var timeoutsInARow = 0
+
+    /**
+     * Counts one analysed track's [result], after it was handed over: at the [TIMEOUTS_IN_A_ROW_STOP]th timeout in a
+     * row, or with [MAX_STUCK_WORKERS] workers stuck, the lane stops ([AnalysisStalled]) and the tracks after it are
+     * not tried. Any other outcome ends the row. Called by the lane's own coroutine only.
+     */
+    fun settled(result: Result<FloatArray>) {
+        val timedOut = (result.exceptionOrNull() as? SmartEngineException)?.error?.isAnalysisTimeout() == true
+        timeoutsInARow = if (timedOut) timeoutsInARow + 1 else 0
+        if (timeoutsInARow >= TIMEOUTS_IN_A_ROW_STOP) {
+            // The pass that is started next counts its own row.
+            timeoutsInARow = 0
+            throw AnalysisStalled("$TIMEOUTS_IN_A_ROW_STOP tracks in a row timed out")
+        }
+        refuseWhenStuck()
+    }
+
+    /** Stops the lane ([AnalysisStalled]) while [MAX_STUCK_WORKERS] of its workers are stuck. */
+    fun refuseWhenStuck() {
+        val stuck = workers.stuck
+        if (stuck >= MAX_STUCK_WORKERS) throw AnalysisStalled("$stuck decode workers are stuck")
+    }
+
     /** Starts [block] on a worker. */
     fun <T> start(block: suspend CoroutineScope.() -> T): Deferred<T> =
         scope.async(workers.dispatcher, block = block)
@@ -185,6 +238,7 @@ internal class DeadlineDecoding(
         waited: (() -> Duration)? = null,
         onResult: suspend (TrackDescriptor, Result<FloatArray>) -> Unit,
     ) {
+        refuseWhenStuck()
         val queue = ArrayDeque<Pair<TrackDescriptor, Deferred<D>>>()
         // What the last call started for this one, by descriptor; anything else it started is dropped now.
         val reusable = LinkedHashMap<TrackDescriptor, Deferred<D>>()
@@ -255,6 +309,7 @@ internal class DeadlineDecoding(
                     refill()
                 }
                 onResult(track, result)
+                settled(result)
             }
             // Finished normally: the next call's decoding carries over.
             val handOver = ahead2.toList()

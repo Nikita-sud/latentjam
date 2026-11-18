@@ -76,6 +76,80 @@ internal class TrackDeadlineTest {
     }
 
     @Test
+    fun `the third timed-out track in a row stops the lane and the tracks after it are not tried`() = runTest {
+        val workers = CountingWorkers()
+        val decoding = DeadlineDecoding(workers, budget = 200.milliseconds)
+        val library = listOf("a", "b", "c", "d", "e", "f").map { TrackDescriptor(TrackId(it), audioUri = "test://$it") }
+        val results = mutableListOf<Pair<TrackId, Result<FloatArray>>>()
+        val started = mutableListOf<String>()
+
+        val stalled = runCatching {
+            withContext(Dispatchers.Default) {
+                decoding.each(
+                    tracks = library,
+                    ahead = 0,
+                    prefetch = { track ->
+                        started += track.id.value
+                        if (track.id.value != "a") hang()
+                        vector(track)
+                    },
+                    finish = { _, decoded -> Result.success(decoded) },
+                    onResult = { track, result -> results += track.id to result },
+                )
+            }
+        }.exceptionOrNull()
+
+        assertIs<AnalysisStalled>(stalled)
+        // The three that timed out are reported (and charged by the app); "f" was never reached.
+        assertEquals(listOf("a", "b", "c", "d"), results.map { it.first.value })
+        assertEquals(listOf(true, false, false, false), results.map { it.second.isSuccess })
+        assertTrue("f" !in started)
+    }
+
+    @Test
+    fun `timeouts that are not in a row do not stop the lane`() = runTest {
+        val decoding = DeadlineDecoding(CountingWorkers(), budget = 200.milliseconds)
+        val library = listOf("a", "b", "c", "d", "e").map { TrackDescriptor(TrackId(it), audioUri = "test://$it") }
+        val results = mutableListOf<Pair<TrackId, Result<FloatArray>>>()
+
+        withContext(Dispatchers.Default) {
+            decoding.each(
+                tracks = library,
+                ahead = 0,
+                prefetch = { track -> if (track.id.value in setOf("a", "b", "d", "e")) hang(); vector(track) },
+                finish = { _, decoded -> Result.success(decoded) },
+                onResult = { track, result -> results += track.id to result },
+            )
+        }
+
+        assertEquals(listOf(false, false, true, false, false), results.map { it.second.isSuccess })
+    }
+
+    @Test
+    fun `a lane with too many stuck workers starts no track`() = runTest {
+        val workers = object : DecodeWorkers {
+            override val dispatcher: CoroutineDispatcher = Dispatchers.Default
+            override fun abandon() {}
+            override val stuck: Int get() = MAX_STUCK_WORKERS
+        }
+        val decoding = DeadlineDecoding(workers, budget = 200.milliseconds)
+        var decoded = 0
+
+        val stalled = runCatching {
+            decoding.each(
+                tracks = tracks,
+                ahead = 1,
+                prefetch = { track -> decoded++; vector(track) },
+                finish = { _, vector -> Result.success(vector) },
+                onResult = { _, _ -> },
+            )
+        }.exceptionOrNull()
+
+        assertIs<AnalysisStalled>(stalled)
+        assertEquals(0, decoded)
+    }
+
+    @Test
     fun `a re-decode that never returns times out on the worker not the caller`() = runTest {
         val workers = CountingWorkers()
         val decoding = DeadlineDecoding(workers, budget = 300.milliseconds)

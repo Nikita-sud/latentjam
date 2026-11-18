@@ -164,4 +164,23 @@ internal class AnalysisTimeoutTest {
         // The engine still answers.
         assertEquals(0, engine.missingFromIndex(listOf(tracks[0].id)))
     }
+
+    @Test
+    fun `a chunk whose tracks time out one after another is reported stalled and its rest is left alone`() = runTest {
+        val library = listOf("one", "two", "three", "four5", "five", "sixth").map {
+            TrackDescriptor(id = TrackId(it), audioUri = "file:///music/$it.mp3", sourceRevision = "size=1|mtime=2")
+        }
+        val backend = DecodingBackend(hanging = library.drop(1).map { it.id }.toSet(), budget = 200.milliseconds)
+        val engine = engine(backend, FakeIndexStore())
+        engine.initialize()
+
+        val report = engine.indexLibrary(library)
+
+        assertTrue(report.stalled)
+        assertEquals(1, report.indexed)
+        // The three that timed out, in order; the two after them were not reached and carry no error.
+        assertEquals(listOf("two", "three", "four5"), report.errors.keys.map { it.value })
+        assertTrue(report.errors.values.all { it.isAnalysisTimeout() })
+        assertEquals(2, engine.missingFromIndexOf(library.takeLast(2)))
+    }
 }

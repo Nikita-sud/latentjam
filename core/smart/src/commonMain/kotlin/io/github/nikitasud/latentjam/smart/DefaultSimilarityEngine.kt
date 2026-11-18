@@ -351,6 +351,7 @@ internal class DefaultSimilarityEngine(
         } ?: return@withContext IndexReport(indexed = 0, failed = tracks.size, errors = tracks.associate { it.id to EngineError.ModelUnavailable })
         // Phase 2, outside the engine lock: inference only (decoding and the model), results kept aside.
         val results = ArrayList<Pair<TrackDescriptor, Result<FloatArray>>>(prepared.toEmbed.size)
+        var stalled = false
         if (prepared.toEmbed.isNotEmpty()) {
             fun analysingFrom(position: Int) {
                 mutableAnalysing.value = prepared.toEmbed.getOrNull(position)
@@ -371,6 +372,10 @@ internal class DefaultSimilarityEngine(
                 }
             } catch (_: StaleChunk) {
                 // Phase 3 sees the new generation and keeps nothing.
+            } catch (halted: AnalysisStalled) {
+                // The backend stopped the chunk: what it got to is installed below, the rest was not tried.
+                stalled = true
+                println("SMART: analysis stalled (${halted.message})")
             } finally {
                 mutableAnalysing.value = null
             }
@@ -423,6 +428,7 @@ internal class DefaultSimilarityEngine(
                 failed = errors.size,
                 skipped = alreadyIndexed.size,
                 errors = errors,
+                stalled = stalled,
             )
         }
     }
@@ -1020,7 +1026,34 @@ internal class DefaultSimilarityEngine(
         personal = personal,
     )
 
+    /**
+     * [planAudioQueue], except that a plan the heap has no room for is the queue a cold index gets. The snapshot build
+     * already answers so; the walk after it (its pool, the personal term, the sequencer) allocates too, and an Error
+     * from there reached playback, which catches only exceptions, and ended the process during a press.
+     */
     private suspend fun planQueue(
+        seed: TrackDescriptor,
+        library: List<TrackDescriptor>,
+        length: Int,
+        history: List<SmartHistoryEvent>,
+        companionGroups: List<Set<TrackId>>,
+        continueWalk: Boolean,
+        precedingTrackIds: List<TrackId> = emptyList(),
+        personal: io.github.nikitasud.latentjam.smart.personal.PersonalInputs? = null,
+    ): List<TrackId> = try {
+        planAudioQueue(seed, library, length, history, companionGroups, continueWalk, precedingTrackIds, personal)
+    } catch (exhausted: Error) {
+        withContext(dispatcher) {
+            mutex.withLock {
+                // No cached snapshot is left to hold memory the fallback needs.
+                snapshotCache = null
+                println("SMART: queue=metadata, the plan did not fit in memory (${exhausted::class.simpleName})")
+                metadataFallback(seed, library, length, history, companionGroups)
+            }
+        }
+    }
+
+    private suspend fun planAudioQueue(
         seed: TrackDescriptor,
         library: List<TrackDescriptor>,
         length: Int,

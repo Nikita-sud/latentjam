@@ -20,7 +20,6 @@ import io.github.nikitasud.latentjam.library.Playlists
 import io.github.nikitasud.latentjam.library.musicLibraryModule
 import io.github.nikitasud.latentjam.library.nowMillis
 import io.github.nikitasud.latentjam.smart.IndexReport
-import io.github.nikitasud.latentjam.smart.isAnalysisTimeout
 import io.github.nikitasud.latentjam.playback.FadeEntryRule
 import io.github.nikitasud.latentjam.playback.NextTrackChooser
 import io.github.nikitasud.latentjam.playback.PlaybackController
@@ -725,9 +724,6 @@ object AppGraph {
             var reportProgress = false
             val eta = IndexingEta(nowMillis())
             val progress = AnalysisProgress(total)
-            val checkpointCadence = AutomaticIndexCheckpointCadence(
-                tracksPerCheckpoint = AUTOMATIC_INDEX_CHECKPOINT_TRACKS,
-            )
             val pausedAtStart = control.userPaused.value
             mutableAutomaticIndexing.value = if (carry) {
                 previous.copy(running = !pausedAtStart, phase = null, etaMinutes = null, progressAt = null)
@@ -811,6 +807,13 @@ object AppGraph {
                     if (mp4.isNotEmpty()) engine.retryFailedTracks(mp4.map { it.id })
                     settings.markAnalysisRetryDone(RETRY_ONCE_ALAC)
                 }
+                // Once more, after the update whose analysis tries a decoder the platform's strict lookup passed over
+                // (0.9.6): files remembered as "no decoder" may be any format, and the reason is not stored, so every
+                // remembered failure gets the one try.
+                if (tracks.isNotEmpty() && librarySnapshotAuthoritative && !settings.analysisRetryDone(RETRY_ONCE_DECODER_LOOKUP)) {
+                    engine.retryFailedTracks(trackIds)
+                    settings.markAnalysisRetryDone(RETRY_ONCE_DECODER_LOOKUP)
+                }
                 ledgerKeeps(trackIds, recoveryRetry = retry?.all == true, librarySnapshotAuthoritative)?.let(retries::prune)
                 retry?.ids?.forEach(retries::forget)
                 // Carried out: what a later Retry added meanwhile stays for the next pass.
@@ -823,6 +826,18 @@ object AppGraph {
                             RetryRequest(now.all && !retry.all, now.ids - retry.ids).takeIf { it.all || it.ids.isNotEmpty() }
                         }
                     }
+                }
+                // A chunk that was in flight when an earlier process crashed: its tracks get a ledger attempt and are
+                // analysed one by one from here on (AnalysisInFlight), so a file that ends the process is not met
+                // again at every launch. Before the held tracks are read: a second attempt holds a track now.
+                val crashed = analysisInFlight.charged(tracks, librarySnapshotAuthoritative)
+                if (crashed.isNotEmpty()) {
+                    val exhausted = crashed.filter(retries::timedOut)
+                    if (exhausted.isNotEmpty()) {
+                        engine.rememberAudioFailures(exhausted)
+                        analysisInFlight.forget(exhausted.map { it.id })
+                    }
+                    println("SMART: ${crashed.size} tracks were in analysis when an earlier run ended (${exhausted.size} given up)")
                 }
                 // Only what is still missing: a held track a press analysed meanwhile is plain done.
                 val held = tracks.filter(retries::holding)
@@ -873,14 +888,14 @@ object AppGraph {
                         )
                     }
                 }
-                tracks.chunked(AUTOMATIC_INDEX_CHUNK_SIZE).forEach { chunk ->
-                    val added = engine.stageMetadataVectors(chunk)
-                    checkpointCadence.afterBatch(chunk.size, engine::persistPendingAnalysis)
-                    if (added > 0) delay(AUTOMATIC_INDEX_YIELD_MS)
-                }
                 // metadataReady promises more than an in-memory process cache: a restart should
                 // see every vector encoded by this phase, including a short final window.
-                checkpointCadence.flush(engine::persistPendingAnalysis)
+                stageMetadataInChunks(
+                    tracks = tracks,
+                    stage = engine::stageMetadataVectors,
+                    checkpoint = engine::persistPendingAnalysis,
+                    pause = { delay(AUTOMATIC_INDEX_YIELD_MS) },
+                )
                 mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
                     metadataReady = true,
                 )
@@ -910,6 +925,8 @@ object AppGraph {
                     eta = eta,
                     gatedAtStart = gated,
                     shownAtStart = reportProgress,
+                    alone = analysisInFlight.alone,
+                    inFlight = analysisInFlight,
                 )
                 if (end == AudioPassEnd.PAUSED) {
                     pauseStopPublished = true
@@ -1293,6 +1310,13 @@ object AppGraph {
     }
 
     private val analysisRetries: AnalysisRetryLedger by lazy { AnalysisRetryLedger(analysisStore.retryLedger, ::nowMillis) }
+    private val analysisInFlight: AnalysisInFlight by lazy { AnalysisInFlight(analysisStore) }
+
+    /**
+     * Which tracks wait out their retry backoff now, read from the stored ledger (a copy: the pass's own ledger is not
+     * touched, and a process with no pass yet answers too). No pass will analyse them before their wait ends.
+     */
+    internal fun analysisHolds(): (TrackDescriptor) -> Boolean = AnalysisRetryLedger(analysisStore.retryLedger, ::nowMillis)::holding
 
     /**
      * D1/D2 after a chunk: a timeout is retried later (the engine no longer remembers it), and the third one is handed
@@ -1304,7 +1328,7 @@ object AppGraph {
         for (track in chunk) {
             val error = report.errors[track.id]
             when {
-                error != null && error.isAnalysisTimeout() -> if (retries.timedOut(track)) exhausted += track
+                error != null && error.countsInRetryLedger() -> if (retries.timedOut(track)) exhausted += track
                 // Only an answer about the file ends its count: analysed, or failed for good. A passing failure
                 // (codec contention, a suspension on iOS, the model) or a track the chunk skipped keeps it.
                 error is EngineError.InvalidAudio -> retries.forget(track.id)
@@ -1321,7 +1345,7 @@ object AppGraph {
         engine.rememberAudioFailures(exhausted)
         analysisStore.retryLedger = retries.encoded()
         val errors = LinkedHashMap(report.errors)
-        for (track in exhausted) errors[track.id] = EngineError.InvalidAudio("Analysis timed out ${AnalysisRetryLedger.CAP} times")
+        for (track in exhausted) errors[track.id] = EngineError.InvalidAudio("Analysis failed ${AnalysisRetryLedger.CAP} times")
         return report.copy(errors = errors)
     }
 
@@ -1407,6 +1431,18 @@ internal suspend fun runAutomaticIndexingSafely(
         } catch (secondary: Exception) {
             println("SMART: could not record the interruption: $secondary")
         }
+    } catch (exhausted: Error) {
+        // Out of memory (which common Kotlin cannot name) is no exception, so it left this launch for the platform's
+        // uncaught handler and ended the process; the next launch started the same pass and ended the same way. It
+        // stops the pass as any failure does: what is analysed stays stored and SMART goes on from it. Any other
+        // Error is a bug and goes on.
+        if (!exhausted.isOutOfMemory()) throw exhausted
+        println("SMART: automatic indexing ran out of memory")
+        try {
+            onInterrupted(AnalysisOutOfMemory(exhausted))
+        } catch (secondary: Exception) {
+            println("SMART: could not record the interruption: $secondary")
+        }
     } finally {
         // A batch can be cancelled after installing vectors but before reaching its checkpoint.
         // Persist that dirty window before allowing a replacement worker to acquire its resources.
@@ -1416,6 +1452,10 @@ internal suspend fun runAutomaticIndexingSafely(
             } catch (failure: Exception) {
                 // The engine retains dirty flags; a retry still attempts the outstanding save.
                 println("SMART: final indexing checkpoint failed: $failure")
+            } catch (exhausted: Error) {
+                // The checkpoint of a pass that ran out of memory may not fit either; the last one written stays.
+                if (!exhausted.isOutOfMemory()) throw exhausted
+                println("SMART: final indexing checkpoint ran out of memory")
             }
         }
         try {
@@ -1432,6 +1472,9 @@ internal suspend fun runAutomaticIndexingSafely(
         }
     }
 }
+
+/** Whether this is the platform's OutOfMemoryError, by its name: common Kotlin has no such class. */
+internal fun Throwable.isOutOfMemory(): Boolean = this::class.simpleName == "OutOfMemoryError"
 
 /** Which kind of call relaunches analysis; each honours the stop reasons its own way (plan 1e-min). */
 enum class AnalysisCall {
@@ -1467,6 +1510,9 @@ internal class LastAnalysisCall(
 
 /** The platform refused to show the analysis in the foreground (a background start). */
 internal class AnalysisShowFailed(cause: Throwable) : RuntimeException(cause)
+
+/** The pass ran out of memory: it stops as a failed pass does, and what is analysed stays stored. */
+internal class AnalysisOutOfMemory(cause: Throwable) : RuntimeException(cause)
 
 /** A completed UI library scan plus whether it proves which durable SMART rows are still live. */
 internal data class AutomaticIndexingRequest(
@@ -1533,8 +1579,41 @@ private const val HELD_RETRY_SLACK_MS = 2_000L
 /** The one-time retry of MP4 files remembered as undecodable before the analysis could read Apple Lossless. */
 private const val RETRY_ONCE_ALAC = "alac"
 private val MP4_AUDIO_EXTENSIONS = setOf("m4a", "m4b", "m4r", "mp4")
+
+/** The one-time retry of every remembered failure, after the analysis stopped trusting a strict decoder lookup alone. */
+private const val RETRY_ONCE_DECODER_LOOKUP = "decoder-lookup"
 internal const val AUTOMATIC_INDEX_CHECKPOINT_TRACKS = 32
 internal const val AUTOMATIC_INDEX_YIELD_MS = 75L
+
+/**
+ * Tracks between two checkpoints of the metadata (text) index in step 3. Its store is one file, written whole at every
+ * checkpoint (about 1.6 KB a track), so a first analysis writes about 1.6 KB × N² / (2 × this): at the audio pass's 32
+ * tracks that was 2.5 GB for 10,000 tracks and 23 GB for 30,000, under the engine lock. At 2,048 it is 40 MB and
+ * 350 MB. A process killed between two checkpoints encodes at most this many strings again, milliseconds each; a
+ * cancelled pass loses none (its last checkpoint runs in runAutomaticIndexingSafely).
+ */
+internal const val METADATA_CHECKPOINT_TRACKS = 2_048
+
+/**
+ * Step 3 of a pass: the metadata (text) vector of every track, staged in chunks and checkpointed at
+ * [checkpointTracks], with a last checkpoint for the short final window. [stage] returns how many vectors it added;
+ * [pause] follows a chunk that added any.
+ */
+internal suspend fun stageMetadataInChunks(
+    tracks: List<TrackDescriptor>,
+    stage: suspend (List<TrackDescriptor>) -> Int,
+    checkpoint: suspend () -> Unit,
+    pause: suspend () -> Unit,
+    checkpointTracks: Int = METADATA_CHECKPOINT_TRACKS,
+) {
+    val cadence = AutomaticIndexCheckpointCadence(tracksPerCheckpoint = checkpointTracks)
+    tracks.chunked(AUTOMATIC_INDEX_CHUNK_SIZE).forEach { chunk ->
+        val added = stage(chunk)
+        cadence.afterBatch(chunk.size, checkpoint)
+        if (added > 0) pause()
+    }
+    cadence.flush(checkpoint)
+}
 
 /** Coalesces small model-lock batches without allowing an unbounded crash-loss window. */
 internal class AutomaticIndexCheckpointCadence(

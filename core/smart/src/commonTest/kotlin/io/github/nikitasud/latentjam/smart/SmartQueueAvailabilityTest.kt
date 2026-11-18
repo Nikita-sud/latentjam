@@ -143,6 +143,28 @@ internal class SmartQueueAvailabilityTest {
     }
 
     @Test
+    fun `a plan that runs out of memory after its snapshot plans from metadata and the next press from audio again`() = runTest {
+        val library = tracks(64)
+        val expected = harness(library).engine.smartQueue(library.first(), library.drop(1), 12)
+        // The clock is read after the snapshot is built, where the walk allocates its own arrays.
+        var exhausted = true
+        val clock = object : SmartClock {
+            override fun timeFeatures(): FloatArray {
+                if (exhausted) throw HeapExhausted()
+                return SmartClock.timeFeatures()
+            }
+        }
+        val harness = harness(library, clock = clock)
+
+        val fallback = harness.engine.smartQueue(library.first(), library.drop(1), 12)
+        assertEquals(12, fallback.size)
+        assertEquals(MetadataFallbackQueue.build(library.first(), library.drop(1), 12, harness.textIndex), fallback)
+
+        exhausted = false
+        assertEquals(expected, harness.engine.smartQueue(library.first(), library.drop(1), 12))
+    }
+
+    @Test
     fun `a snapshot that fails with an exception still reaches the caller`() = runTest {
         val library = tracks(64)
         val index = FailingSnapshotIndex(InMemoryVectorIndex(960))
@@ -161,6 +183,7 @@ internal class SmartQueueAvailabilityTest {
         library: List<TrackDescriptor>,
         includeText: Boolean = true,
         index: VectorIndex = InMemoryVectorIndex(960),
+        clock: SmartClock = SmartClock,
     ): Harness {
         val audioStore = FakeIndexStore().apply {
             snapshots[MODEL] = library.mapIndexed { i, track -> track.id to vector(i) }.toMap()
@@ -173,6 +196,7 @@ internal class SmartQueueAvailabilityTest {
             textEncoder = if (includeText) TestTextEncoder() else null,
             textIndex = textIndex,
             textStore = if (includeText) textStore else null,
+            clock = clock,
         )
         assertTrue(engine.initialize().isSuccess)
         if (includeText) engine.ensureMetadataVectors(library)

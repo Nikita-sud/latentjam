@@ -185,7 +185,12 @@ internal class OnnxEmbeddingBackend(
     ) {
         if ((tracks.size < 2 && upcoming.isEmpty()) || session == null) {
             decoding.dropCarried()
-            for (track in tracks) onResult(track, analyse(track))
+            decoding.refuseWhenStuck()
+            for (track in tracks) {
+                val result = analyse(track)
+                onResult(track, result)
+                decoding.settled(result)
+            }
             return
         }
         // Decoding runs ahead by up to the workers plus one ready track (fewer when memory is short or Battery Saver
@@ -274,6 +279,8 @@ internal class OnnxEmbeddingBackend(
             var windows = 0
             var invalidAudioFailure: String? = null
             var unavailableFailure: String? = null
+            // Whether every unavailable window so far failed on the file's own data (AudioDecodeResult.Unavailable).
+            var unavailableTrackLocal = true
             var backendContractFailure: String? = null
 
             fun inferStable(waveform: FloatArray, startMs: Long): FloatArray? {
@@ -366,6 +373,7 @@ internal class OnnxEmbeddingBackend(
                     }
                     is AudioDecodeResult.Unavailable -> {
                         if (unavailableFailure == null) unavailableFailure = decoded.detail
+                        if (!decoded.trackLocal) unavailableTrackLocal = false
                     }
                 }
             }
@@ -388,6 +396,7 @@ internal class OnnxEmbeddingBackend(
                             backendContractFailure = backendContractFailure,
                             unavailableFailure = unavailableFailure,
                             invalidAudioFailure = invalidAudioFailure,
+                            unavailableTrackLocal = unavailableTrackLocal,
                         ),
                     ),
                 )
@@ -556,9 +565,11 @@ internal fun zeroSuccessfulAudioWindowsError(
     backendContractFailure: String?,
     unavailableFailure: String?,
     invalidAudioFailure: String?,
+    /** Every unavailable window failed on the file's own data: see [EngineError.AudioUnavailable.trackLocal]. */
+    unavailableTrackLocal: Boolean = false,
 ): EngineError = when {
     backendContractFailure != null -> EngineError.BackendFailure(backendContractFailure)
-    unavailableFailure != null -> EngineError.AudioUnavailable(unavailableFailure)
+    unavailableFailure != null -> EngineError.AudioUnavailable(unavailableFailure, trackLocal = unavailableTrackLocal)
     invalidAudioFailure != null -> EngineError.InvalidAudio(invalidAudioFailure)
     else -> EngineError.AudioUnavailable("No audio decode attempt completed")
 }

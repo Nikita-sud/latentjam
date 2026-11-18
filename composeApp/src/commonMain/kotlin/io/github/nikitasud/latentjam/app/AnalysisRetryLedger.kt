@@ -4,16 +4,18 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.smart.EngineError
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import io.github.nikitasud.latentjam.smart.isAnalysisTimeout
 
 /**
  * The declared deviations D1 and D2 (docs/analysis-094-plan.md §0, 1d) for tracks whose analysis timed out.
  *
  * 0.9.3 remembered a timeout as invalid audio until Retry, even when its cause was passing. Now a timeout is retried:
  * at the next pass, then no sooner than an hour after the second, and after the third it is handed back to the engine to
- * remember, so it shows as failed with Retry and a really hung file cannot cost a pass forever. Only timeouts count;
- * every other outcome is 0.9.3's. An entry belongs to the file it was made for: a changed file starts again.
+ * remember, so it shows as failed with Retry and a really hung file cannot cost a pass forever. Timeouts count, and
+ * from 0.9.6 failures on the file's own data ([countsInRetryLedger]); every other outcome is 0.9.3's. An entry belongs to the file it was made for: a changed file starts again.
  */
 internal class AnalysisRetryLedger(encoded: String?, private val nowMs: () -> Long) {
 
@@ -94,6 +96,15 @@ internal class AnalysisRetryLedger(encoded: String?, private val nowMs: () -> Lo
             "${io.github.nikitasud.latentjam.smart.ContainerPaths.relative(track.audioUri)}|${track.durationMs}|${track.sourceRevision}"
     }
 }
+
+/**
+ * Whether a track's failure in a chunk is an attempt in the ledger: its analysis timed out, or it failed on the file's
+ * own data ([EngineError.AudioUnavailable.trackLocal]). The second kind was retried at every launch for good, each
+ * time starting the service and loading the model, and kept the Map's rebuild waiting; counted, it ends as a timeout
+ * does, after the third try. Every other passing failure (a source that is away, busy codecs, the model) is no attempt.
+ */
+internal fun EngineError.countsInRetryLedger(): Boolean =
+    isAnalysisTimeout() || (this is EngineError.AudioUnavailable && trackLocal)
 
 /**
  * What the D2 ledger keeps at the start of a pass, or null to leave it as it is: the recovery Retry clears it, and
